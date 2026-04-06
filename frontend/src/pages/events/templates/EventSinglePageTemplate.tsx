@@ -28,7 +28,8 @@ const SNAP_IDLE_MS = 110;
 const SNAP_DIRECTIONAL_THRESHOLD = 0.22;
 const SCROLL_SENSITIVITY = 1.16;
 const INPUT_SESSION_GAP_MS = 260;
-const TRACK_INTERPOLATION = 0.14;
+const INTERNAL_TRACK_INTERPOLATION = 0.2;
+const SLIDE_TRANSITION_INTERPOLATION = 0.12;
 
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min;
@@ -78,6 +79,7 @@ export function EventSinglePageTemplate({
   const burstTransitionUsedRef = useRef(false);
   const burstTransitionDirectionRef = useRef<-1 | 0 | 1>(0);
   const boundaryGateRef = useRef<{ slideIndex: number; direction: -1 | 1 } | null>(null);
+  const interpolationRef = useRef(INTERNAL_TRACK_INTERPOLATION);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -189,7 +191,7 @@ export function EventSinglePageTemplate({
         return;
       }
 
-      const next = current + delta * TRACK_INTERPOLATION;
+      const next = current + delta * interpolationRef.current;
       positionRef.current = next;
       setPosition(next);
       rafRef.current = requestAnimationFrame(tick);
@@ -198,14 +200,15 @@ export function EventSinglePageTemplate({
     rafRef.current = requestAnimationFrame(tick);
   }, []);
 
-  const setTarget = useCallback((value: number) => {
+  const setTarget = useCallback((value: number, interpolation: number = INTERNAL_TRACK_INTERPOLATION) => {
+    interpolationRef.current = interpolation;
     targetRef.current = clamp(value, 0, maxScroll);
     animateToTarget();
   }, [animateToTarget, maxScroll]);
 
   const snapToNearest = useCallback(() => {
     const snap = resolveSnapTarget(targetRef.current, lastInputDirectionRef.current);
-    setTarget(snap);
+    setTarget(snap, SLIDE_TRANSITION_INTERPOLATION);
     lastInputDirectionRef.current = 0;
   }, [resolveSnapTarget, setTarget]);
 
@@ -259,7 +262,7 @@ export function EventSinglePageTemplate({
     if (hasInnerScroll && direction > 0) {
       if (current < slideInnerEnd - 0.5) {
         const next = Math.min(slideInnerEnd, current + Math.max(0, scaled));
-        setTarget(next);
+        setTarget(next, INTERNAL_TRACK_INTERPOLATION);
         if (next >= slideInnerEnd - 0.5) {
           boundaryGateRef.current = { slideIndex, direction };
         } else {
@@ -272,12 +275,12 @@ export function EventSinglePageTemplate({
       const gate = boundaryGateRef.current;
       if (!gate || gate.slideIndex !== slideIndex || gate.direction !== direction) {
         boundaryGateRef.current = { slideIndex, direction };
-        setTarget(slideInnerEnd);
+        setTarget(slideInnerEnd, INTERNAL_TRACK_INTERPOLATION);
         lastInputDirectionRef.current = direction;
         return;
       }
       if (!isNewBurst || burstTransitionUsedRef.current) {
-        setTarget(slideInnerEnd);
+        setTarget(slideInnerEnd, INTERNAL_TRACK_INTERPOLATION);
         lastInputDirectionRef.current = direction;
         return;
       }
@@ -287,14 +290,14 @@ export function EventSinglePageTemplate({
       boundaryGateRef.current = null;
       lastInputDirectionRef.current = direction;
       const nextIndex = Math.min(slideIndex + 1, slides.length - 1);
-      setTarget(slideStarts[nextIndex] ?? maxScroll);
+      setTarget(slideStarts[nextIndex] ?? maxScroll, SLIDE_TRANSITION_INTERPOLATION);
       return;
     }
 
     if (hasInnerScroll && direction < 0) {
       if (current > slideStart + 0.5) {
         const next = Math.max(slideStart, current + Math.min(0, scaled));
-        setTarget(next);
+        setTarget(next, INTERNAL_TRACK_INTERPOLATION);
         if (next <= slideStart + 0.5) {
           boundaryGateRef.current = { slideIndex, direction };
         } else {
@@ -307,12 +310,12 @@ export function EventSinglePageTemplate({
       const gate = boundaryGateRef.current;
       if (!gate || gate.slideIndex !== slideIndex || gate.direction !== direction) {
         boundaryGateRef.current = { slideIndex, direction };
-        setTarget(slideStart);
+        setTarget(slideStart, INTERNAL_TRACK_INTERPOLATION);
         lastInputDirectionRef.current = direction;
         return;
       }
       if (!isNewBurst || burstTransitionUsedRef.current) {
-        setTarget(slideStart);
+        setTarget(slideStart, INTERNAL_TRACK_INTERPOLATION);
         lastInputDirectionRef.current = direction;
         return;
       }
@@ -322,13 +325,13 @@ export function EventSinglePageTemplate({
       boundaryGateRef.current = null;
       lastInputDirectionRef.current = direction;
       const previousIndex = Math.max(slideIndex - 1, 0);
-      setTarget(slideStarts[previousIndex] ?? 0);
+      setTarget(slideStarts[previousIndex] ?? 0, SLIDE_TRANSITION_INTERPOLATION);
       return;
     }
 
     if (burstTransitionUsedRef.current) {
       const lockPoint = slideStarts[slideIndex] ?? 0;
-      setTarget(lockPoint);
+      setTarget(lockPoint, INTERNAL_TRACK_INTERPOLATION);
       lastInputDirectionRef.current = direction;
       return;
     }
@@ -338,7 +341,7 @@ export function EventSinglePageTemplate({
     boundaryGateRef.current = null;
     lastInputDirectionRef.current = direction;
     const nextIndex = clamp(slideIndex + direction, 0, slides.length - 1);
-    setTarget(slideStarts[nextIndex] ?? (direction > 0 ? maxScroll : 0));
+    setTarget(slideStarts[nextIndex] ?? (direction > 0 ? maxScroll : 0), SLIDE_TRANSITION_INTERPOLATION);
   }, [
     getSlideIndexForPosition,
     maxScroll,
@@ -357,7 +360,7 @@ export function EventSinglePageTemplate({
     burstTransitionUsedRef.current = false;
     burstTransitionDirectionRef.current = 0;
     boundaryGateRef.current = null;
-    setTarget(point);
+    setTarget(point, SLIDE_TRANSITION_INTERPOLATION);
     scheduleSnap();
     setMenuOpen(false);
   }, [scheduleSnap, setTarget, slideStarts]);
