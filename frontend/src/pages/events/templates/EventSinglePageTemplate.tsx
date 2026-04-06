@@ -331,7 +331,9 @@ export function EventSinglePageTemplate({
 
     if (burstTransitionUsedRef.current) {
       const lockPoint = slideStarts[slideIndex] ?? 0;
-      setTarget(lockPoint, INTERNAL_TRACK_INTERPOLATION);
+      // Keep cross-slide motion speed consistent even when additional wheel
+      // events arrive in the same burst.
+      setTarget(lockPoint, SLIDE_TRANSITION_INTERPOLATION);
       lastInputDirectionRef.current = direction;
       return;
     }
