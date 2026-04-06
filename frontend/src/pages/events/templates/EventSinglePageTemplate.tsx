@@ -250,6 +250,13 @@ export function EventSinglePageTemplate({
       burstTransitionDirectionRef.current = 0;
       boundaryGateRef.current = null;
     }
+    if (burstTransitionUsedRef.current) {
+      // Keep one cross-slide transition deterministic within a burst.
+      // Additional wheel/touch events in the same direction should not
+      // retarget to boundary anchors (which caused alternating speeds).
+      lastInputDirectionRef.current = direction;
+      return;
+    }
 
     const scaled = delta * SCROLL_SENSITIVITY;
     const current = targetRef.current;
@@ -326,15 +333,6 @@ export function EventSinglePageTemplate({
       lastInputDirectionRef.current = direction;
       const previousIndex = Math.max(slideIndex - 1, 0);
       setTarget(slideStarts[previousIndex] ?? 0, SLIDE_TRANSITION_INTERPOLATION);
-      return;
-    }
-
-    if (burstTransitionUsedRef.current) {
-      const lockPoint = slideStarts[slideIndex] ?? 0;
-      // Keep cross-slide motion speed consistent even when additional wheel
-      // events arrive in the same burst.
-      setTarget(lockPoint, SLIDE_TRANSITION_INTERPOLATION);
-      lastInputDirectionRef.current = direction;
       return;
     }
 
