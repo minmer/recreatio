@@ -45,6 +45,7 @@ export async function connectCogitaGameRealtime(payload: {
       .withAutomaticReconnect()
       .build();
     let latestSeqNo = payload.lastSeqNo ?? 0;
+    let heartbeatTimer = 0;
 
     connection.on('GameSnapshot', (snapshot: unknown) => {
       const parsed = snapshot as CogitaGameSessionState;
@@ -78,15 +79,26 @@ export async function connectCogitaGameRealtime(payload: {
 
     await connection.start();
     await connection.invoke('Subscribe', payload.sessionId, payload.realtimeToken, latestSeqNo);
+    heartbeatTimer = window.setInterval(() => {
+      void connection.invoke('HeartbeatSession', payload.sessionId, payload.realtimeToken, latestSeqNo).catch(() => {
+        // no-op; next heartbeat/reconnect attempt will retry
+      });
+    }, 4000);
 
     const reconnectable = connection as unknown as {
       onreconnected?: (callback: () => void | Promise<void>) => void;
     };
-    reconnectable.onreconnected?.(() => connection.invoke('Subscribe', payload.sessionId, payload.realtimeToken, latestSeqNo));
+    reconnectable.onreconnected?.(() => {
+      return connection.invoke('Subscribe', payload.sessionId, payload.realtimeToken, latestSeqNo);
+    });
 
     return {
       transport: 'signalr',
       stop: async () => {
+        if (heartbeatTimer) {
+          window.clearInterval(heartbeatTimer);
+          heartbeatTimer = 0;
+        }
         await connection.stop();
       },
       ack: async (seqNo: number) => {

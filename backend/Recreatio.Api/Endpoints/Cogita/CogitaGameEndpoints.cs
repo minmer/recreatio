@@ -406,6 +406,21 @@ public static class CogitaGameEndpoints
                 return Results.NotFound();
             }
 
+            var normalizedNodes = request.Nodes ?? new List<CogitaGameActionNodeRequest>();
+            var normalizedEdges = request.Edges ?? new List<CogitaGameActionEdgeRequest>();
+            if (request.Publish)
+            {
+                var untriggeredNodeTypes = FindUntriggeredActionNodes(normalizedNodes, normalizedEdges);
+                if (untriggeredNodeTypes.Count > 0)
+                {
+                    return Results.BadRequest(new
+                    {
+                        error = "Every action must be reachable from at least one trigger node before publishing.",
+                        untriggeredNodeTypes
+                    });
+                }
+            }
+
             var now = DateTimeOffset.UtcNow;
             var nextVersion = (await dbContext.CogitaGameActionGraphs.AsNoTracking()
                 .Where(x => x.GameId == gameId)
@@ -437,7 +452,7 @@ public static class CogitaGameEndpoints
             dbContext.CogitaGameActionGraphs.Add(graph);
 
             var nodes = new List<CogitaGameActionNode>();
-            foreach (var nodeRequest in request.Nodes ?? new List<CogitaGameActionNodeRequest>())
+            foreach (var nodeRequest in normalizedNodes)
             {
                 nodes.Add(new CogitaGameActionNode
                 {
@@ -451,7 +466,7 @@ public static class CogitaGameEndpoints
             }
 
             var edges = new List<CogitaGameActionEdge>();
-            foreach (var edgeRequest in request.Edges ?? new List<CogitaGameActionEdgeRequest>())
+            foreach (var edgeRequest in normalizedEdges)
             {
                 edges.Add(new CogitaGameActionEdge
                 {
@@ -1080,6 +1095,7 @@ public static class CogitaGameEndpoints
             long? sinceSeq,
             RecreatioDbContext dbContext,
             IGameTokenService tokenService,
+            IGameRuleEngineService ruleEngine,
             IGameSessionService gameSessionService,
             CancellationToken ct) =>
         {
@@ -1087,6 +1103,17 @@ public static class CogitaGameEndpoints
             if (session is null)
             {
                 return Results.NotFound();
+            }
+
+            var scheduledRuns = await ruleEngine.EvaluateScheduledTriggersAsync(session, ct);
+            if (scheduledRuns > 0)
+            {
+                var refreshedSession = await dbContext.CogitaGameSessions.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == session.Id, ct);
+                if (refreshedSession is not null)
+                {
+                    session = refreshedSession;
+                }
             }
 
             string? participantRealtimeToken = null;
@@ -1488,6 +1515,91 @@ public static class CogitaGameEndpoints
             "finished" => "finished",
             _ => "lobby"
         };
+    }
+
+    private static List<string> FindUntriggeredActionNodes(
+        List<CogitaGameActionNodeRequest> nodes,
+        List<CogitaGameActionEdgeRequest> edges)
+    {
+        if (nodes.Count == 0)
+        {
+            return new List<string>();
+        }
+
+        var nodeTypes = new Dictionary<Guid, string>();
+        foreach (var node in nodes)
+        {
+            var nodeId = node.NodeId ?? Guid.Empty;
+            if (nodeId == Guid.Empty || nodeTypes.ContainsKey(nodeId))
+            {
+                return new List<string> { "invalid-node-id" };
+            }
+
+            nodeTypes[nodeId] = (node.NodeType ?? string.Empty).Trim();
+        }
+
+        if (nodeTypes.Count == 0)
+        {
+            return new List<string>();
+        }
+
+        var triggerNodeIds = new HashSet<Guid>(
+            nodeTypes
+                .Where(x => x.Value.StartsWith("trigger.", StringComparison.Ordinal))
+                .Select(x => x.Key));
+
+        if (triggerNodeIds.Count == 0)
+        {
+            return nodeTypes
+                .Where(x => !x.Value.StartsWith("trigger.", StringComparison.Ordinal))
+                .Select(x => x.Value)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(x => x, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        var outgoing = new Dictionary<Guid, List<Guid>>();
+        foreach (var edge in edges)
+        {
+            if (!nodeTypes.ContainsKey(edge.FromNodeId) || !nodeTypes.ContainsKey(edge.ToNodeId))
+            {
+                continue;
+            }
+
+            if (!outgoing.TryGetValue(edge.FromNodeId, out var next))
+            {
+                next = new List<Guid>();
+                outgoing[edge.FromNodeId] = next;
+            }
+
+            next.Add(edge.ToNodeId);
+        }
+
+        var reachable = new HashSet<Guid>(triggerNodeIds);
+        var queue = new Queue<Guid>(triggerNodeIds);
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            if (!outgoing.TryGetValue(current, out var next))
+            {
+                continue;
+            }
+
+            foreach (var candidate in next)
+            {
+                if (reachable.Add(candidate))
+                {
+                    queue.Enqueue(candidate);
+                }
+            }
+        }
+
+        return nodeTypes
+            .Where(x => !x.Value.StartsWith("trigger.", StringComparison.Ordinal) && !reachable.Contains(x.Key))
+            .Select(x => x.Value)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .ToList();
     }
 
     private static bool IsRealtimeBroadcastEvent(string eventType)

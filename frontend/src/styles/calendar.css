@@ -292,6 +292,25 @@
   gap: 10px;
 }
 
+.calendar-graph-flow {
+  height: 340px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.calendar-graph-flow .react-flow__node-default {
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 8px;
+  min-width: 120px;
+}
+
 .calendar-graph-node-list,
 .calendar-graph-edge-list {
   list-style: none;
@@ -305,18 +324,19 @@
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 10px;
   background: #fff;
-  padding: 8px;
-  display: grid;
-  gap: 6px;
+  padding: 6px;
 }
 
-.calendar-graph-node-list textarea {
+.calendar-graph-node-list li.is-selected {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.15);
+}
+
+.calendar-graph-node-list li button {
   width: 100%;
-  border: 1px solid rgba(15, 23, 42, 0.2);
-  border-radius: 8px;
-  padding: 6px 8px;
-  font: inherit;
-  background: #fff;
+  display: grid;
+  gap: 2px;
+  text-align: left;
 }
 
 .calendar-graph-edge-list li {

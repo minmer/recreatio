@@ -1,6 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
+import ReactFlow, {
+  Background,
+  ConnectionLineType,
+  Controls,
+  MarkerType,
+  addEdge,
+  useEdgesState,
+  useNodesState,
+  type Connection,
+  type Edge,
+  type Node
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { LanguageSelect } from '../../components/LanguageSelect';
@@ -63,6 +76,23 @@ type ShareRoute = {
   kind: 'item' | 'group';
   code: string;
 };
+
+type GraphNodeType = 'trigger' | 'delay' | 'create_task' | 'create_appointment' | 'condition' | 'noop';
+
+type CalendarGraphCanvasNodeData = {
+  label: string;
+  nodeType: string;
+  nodeKey: string;
+  configJson: string;
+};
+
+type CalendarGraphCanvasEdgeData = {
+  edgeType: string;
+  conditionJson: string | null;
+};
+
+type CalendarGraphCanvasNode = Node<CalendarGraphCanvasNodeData>;
+type CalendarGraphCanvasEdge = Edge<CalendarGraphCanvasEdgeData>;
 
 function parseShareRoute(pathname: string): ShareRoute | null {
   const segments = pathname.split('/').filter(Boolean);
@@ -158,47 +188,60 @@ function makeGraphId(prefix: string): string {
   return `${prefix}-${random}`;
 }
 
-function parseGraphNodesJson(value: string): CalendarGraphNode[] {
-  try {
-    const parsed = JSON.parse(value || '[]');
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((item) => {
-        const raw = item as Record<string, unknown>;
-        const nodeId = typeof raw.nodeId === 'string' && raw.nodeId.trim() ? raw.nodeId.trim() : makeGraphId('node');
-        const nodeType = typeof raw.nodeType === 'string' && raw.nodeType.trim() ? raw.nodeType.trim() : 'noop';
-        const nodeKey = typeof raw.nodeKey === 'string' && raw.nodeKey.trim() ? raw.nodeKey.trim() : nodeType;
-        const configJson = typeof raw.configJson === 'string' ? raw.configJson : '{}';
-        const positionX = typeof raw.positionX === 'number' ? raw.positionX : 0;
-        const positionY = typeof raw.positionY === 'number' ? raw.positionY : 0;
-        return { nodeId, nodeType, nodeKey, configJson, positionX, positionY } as CalendarGraphNode;
-      });
-  } catch {
-    return [];
-  }
+function toCanvasNode(node: CalendarGraphNode): CalendarGraphCanvasNode {
+  const nodeType = node.nodeType || 'noop';
+  const nodeKey = node.nodeKey || nodeType;
+  return {
+    id: node.nodeId || makeGraphId('node'),
+    type: 'default',
+    position: {
+      x: Number.isFinite(node.positionX) ? node.positionX : 0,
+      y: Number.isFinite(node.positionY) ? node.positionY : 0
+    },
+    data: {
+      label: nodeKey,
+      nodeType,
+      nodeKey,
+      configJson: node.configJson || '{}'
+    }
+  };
 }
 
-function parseGraphEdgesJson(value: string): CalendarGraphEdge[] {
-  try {
-    const parsed = JSON.parse(value || '[]');
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((item) => {
-        const raw = item as Record<string, unknown>;
-        const edgeId = typeof raw.edgeId === 'string' && raw.edgeId.trim() ? raw.edgeId.trim() : makeGraphId('edge');
-        const fromNodeId = typeof raw.fromNodeId === 'string' ? raw.fromNodeId.trim() : '';
-        const toNodeId = typeof raw.toNodeId === 'string' ? raw.toNodeId.trim() : '';
-        if (!fromNodeId || !toNodeId) return null;
-        const fromPort = typeof raw.fromPort === 'string' ? raw.fromPort : null;
-        const toPort = typeof raw.toPort === 'string' ? raw.toPort : null;
-        const edgeType = typeof raw.edgeType === 'string' ? raw.edgeType : 'flow';
-        const conditionJson = typeof raw.conditionJson === 'string' ? raw.conditionJson : null;
-        return { edgeId, fromNodeId, toNodeId, fromPort, toPort, edgeType, conditionJson } as CalendarGraphEdge;
-      })
-      .filter((item): item is CalendarGraphEdge => item !== null);
-  } catch {
-    return [];
-  }
+function toCanvasEdge(edge: CalendarGraphEdge): CalendarGraphCanvasEdge {
+  return {
+    id: edge.edgeId || makeGraphId('edge'),
+    source: edge.fromNodeId,
+    target: edge.toNodeId,
+    type: 'smoothstep',
+    markerEnd: { type: MarkerType.ArrowClosed },
+    data: {
+      edgeType: edge.edgeType || 'flow',
+      conditionJson: edge.conditionJson ?? null
+    }
+  };
+}
+
+function toApiGraphNode(node: CalendarGraphCanvasNode): CalendarGraphNode {
+  return {
+    nodeId: node.id,
+    nodeType: node.data.nodeType || 'noop',
+    nodeKey: node.data.nodeKey || node.data.label || 'node',
+    configJson: node.data.configJson || '{}',
+    positionX: Math.round(node.position.x),
+    positionY: Math.round(node.position.y)
+  };
+}
+
+function toApiGraphEdge(edge: CalendarGraphCanvasEdge): CalendarGraphEdge {
+  return {
+    edgeId: edge.id,
+    fromNodeId: edge.source,
+    fromPort: null,
+    toNodeId: edge.target,
+    toPort: null,
+    edgeType: edge.data?.edgeType || edge.type || 'flow',
+    conditionJson: edge.data?.conditionJson ?? null
+  };
 }
 
 function localDayKey(value: Date): string {
@@ -361,8 +404,9 @@ export function CalendarPage({
   const [graphTemplateKey, setGraphTemplateKey] = useState('');
   const [graphStatus, setGraphStatus] = useState<'draft' | 'active' | 'archived'>('active');
   const [graphConfigJson, setGraphConfigJson] = useState('{}');
-  const [graphNodesJson, setGraphNodesJson] = useState('[]');
-  const [graphEdgesJson, setGraphEdgesJson] = useState('[]');
+  const [graphFlowNodes, setGraphFlowNodes, onGraphFlowNodesChange] = useNodesState<CalendarGraphCanvasNode>([]);
+  const [graphFlowEdges, setGraphFlowEdges, onGraphFlowEdgesChange] = useEdgesState<CalendarGraphCanvasEdge>([]);
+  const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | null>(null);
   const [selectedReusableGraphId, setSelectedReusableGraphId] = useState('');
 
   const [title, setTitle] = useState('');
@@ -392,7 +436,7 @@ export function CalendarPage({
   const [editStartUtcLocal, setEditStartUtcLocal] = useState('');
   const [editEndUtcLocal, setEditEndUtcLocal] = useState('');
   const [editStatus, setEditStatus] = useState('planned');
-  const [nodeEditorType, setNodeEditorType] = useState<'trigger' | 'delay' | 'create_task' | 'create_appointment' | 'condition' | 'noop'>('delay');
+  const [nodeEditorType, setNodeEditorType] = useState<GraphNodeType>('delay');
   const [nodeEditorKey, setNodeEditorKey] = useState('');
   const [nodeEditorConfigJson, setNodeEditorConfigJson] = useState('{}');
   const [edgeEditorFromNodeId, setEdgeEditorFromNodeId] = useState('');
@@ -527,8 +571,12 @@ export function CalendarPage({
     });
   }, [simpleSubCalendars, simpleFilteredOccurrences]);
 
-  const graphNodes = useMemo(() => parseGraphNodesJson(graphNodesJson), [graphNodesJson]);
-  const graphEdges = useMemo(() => parseGraphEdgesJson(graphEdgesJson), [graphEdgesJson]);
+  const graphNodes = useMemo(() => graphFlowNodes.map((node) => toApiGraphNode(node)), [graphFlowNodes]);
+  const graphEdges = useMemo(() => graphFlowEdges.map((edge) => toApiGraphEdge(edge)), [graphFlowEdges]);
+  const selectedGraphNode = useMemo(
+    () => graphFlowNodes.find((node) => node.id === selectedGraphNodeId) ?? null,
+    [graphFlowNodes, selectedGraphNodeId]
+  );
   const graphTemplateOptions = useMemo(() => {
     if (!selectedEvent) return templates;
     if (selectedEvent.itemType === 'appointment') {
@@ -688,8 +736,6 @@ export function CalendarPage({
           setTemplates(templateList);
           setGraphTemplateKey((current) => current || templateList[0].templateKey);
           setGraphConfigJson((current) => (current && current !== '{}' ? current : '{}'));
-          setGraphNodesJson((current) => (current && current !== '[]' ? current : '[]'));
-          setGraphEdgesJson((current) => (current && current !== '[]' ? current : '[]'));
         }
       })
       .catch((err) => setError(readError(err)));
@@ -826,14 +872,16 @@ export function CalendarPage({
           setGraphTemplateKey(graph.templateKey);
           setGraphStatus(graph.status === 'draft' || graph.status === 'archived' ? graph.status : 'active');
           setGraphConfigJson(graph.templateConfigJson || '{}');
-          setGraphNodesJson(JSON.stringify(graph.nodes, null, 2));
-          setGraphEdgesJson(JSON.stringify(graph.edges, null, 2));
+          setGraphFlowNodes(graph.nodes.map((node) => toCanvasNode(node)));
+          setGraphFlowEdges(graph.edges.map((edge) => toCanvasEdge(edge)));
+          setSelectedGraphNodeId(null);
         } else {
           setGraphTemplateKey(templates[0]?.templateKey ?? 'custom');
           setGraphStatus('draft');
           setGraphConfigJson('{}');
-          setGraphNodesJson('[]');
-          setGraphEdgesJson('[]');
+          setGraphFlowNodes([]);
+          setGraphFlowEdges([]);
+          setSelectedGraphNodeId(null);
         }
         if (results[2].status === 'fulfilled') {
           setExecutions(results[2].value);
@@ -856,14 +904,16 @@ export function CalendarPage({
         setGraphTemplateKey(graph.templateKey);
         setGraphStatus(graph.status === 'draft' || graph.status === 'archived' ? graph.status : 'active');
         setGraphConfigJson(graph.templateConfigJson || '{}');
-        setGraphNodesJson(JSON.stringify(graph.nodes, null, 2));
-        setGraphEdgesJson(JSON.stringify(graph.edges, null, 2));
+        setGraphFlowNodes(graph.nodes.map((node) => toCanvasNode(node)));
+        setGraphFlowEdges(graph.edges.map((edge) => toCanvasEdge(edge)));
+        setSelectedGraphNodeId(null);
       } else {
         setGraphTemplateKey(templates[0]?.templateKey ?? 'custom');
         setGraphStatus('draft');
         setGraphConfigJson('{}');
-        setGraphNodesJson('[]');
-        setGraphEdgesJson('[]');
+        setGraphFlowNodes([]);
+        setGraphFlowEdges([]);
+        setSelectedGraphNodeId(null);
       }
     });
   }, [selectedEventId, shareRoute, showProfileMenu, simpleMode, templates]);
@@ -889,13 +939,43 @@ export function CalendarPage({
     }
   }, [itemType]);
 
+  useEffect(() => {
+    if (graphFlowNodes.length === 0) {
+      setEdgeEditorFromNodeId('');
+      setEdgeEditorToNodeId('');
+      setSelectedGraphNodeId(null);
+      return;
+    }
+
+    if (!graphFlowNodes.some((node) => node.id === edgeEditorFromNodeId)) {
+      setEdgeEditorFromNodeId(graphFlowNodes[0].id);
+    }
+    if (!graphFlowNodes.some((node) => node.id === edgeEditorToNodeId)) {
+      setEdgeEditorToNodeId(graphFlowNodes[0].id);
+    }
+    if (selectedGraphNodeId && !graphFlowNodes.some((node) => node.id === selectedGraphNodeId)) {
+      setSelectedGraphNodeId(null);
+    }
+  }, [graphFlowNodes, edgeEditorFromNodeId, edgeEditorToNodeId, selectedGraphNodeId]);
+
+  useEffect(() => {
+    if (!selectedGraphNode) {
+      return;
+    }
+
+    setNodeEditorType((selectedGraphNode.data.nodeType as GraphNodeType) || 'noop');
+    setNodeEditorKey(selectedGraphNode.data.nodeKey || selectedGraphNode.data.label || '');
+    setNodeEditorConfigJson(selectedGraphNode.data.configJson || '{}');
+  }, [selectedGraphNode]);
+
   const applyTemplate = (templateKey: string) => {
     const template = templates.find((entry) => entry.templateKey === templateKey);
     if (!template) return;
     setGraphTemplateKey(template.templateKey);
     setGraphConfigJson(template.defaultConfigJson || '{}');
-    setGraphNodesJson(JSON.stringify(template.nodes, null, 2));
-    setGraphEdgesJson(JSON.stringify(template.edges, null, 2));
+    setGraphFlowNodes(template.nodes.map((node) => toCanvasNode(node)));
+    setGraphFlowEdges(template.edges.map((edge) => toCanvasEdge(edge)));
+    setSelectedGraphNodeId(null);
     setGraphStatus('active');
   };
 
@@ -1002,12 +1082,8 @@ export function CalendarPage({
       const shouldReuseGraph = !!selectedReusableGraphId;
       const shouldAttachGraph = createWithGraph || shouldReuseGraph;
       const needsInlineGraph = shouldAttachGraph && !shouldReuseGraph;
-      let parsedNodes: any[] = [];
-      let parsedEdges: any[] = [];
-      if (needsInlineGraph) {
-        parsedNodes = JSON.parse(graphNodesJson || '[]');
-        parsedEdges = JSON.parse(graphEdgesJson || '[]');
-      }
+      const parsedNodes = needsInlineGraph ? graphNodes : [];
+      const parsedEdges = needsInlineGraph ? graphEdges : [];
       const startUtc = new Date(startUtcLocal).toISOString();
       const endUtc = new Date(endUtcLocal).toISOString();
 
@@ -1243,8 +1319,12 @@ export function CalendarPage({
   };
 
   const persistGraphDraft = (nodes: CalendarGraphNode[], edges: CalendarGraphEdge[]) => {
-    setGraphNodesJson(JSON.stringify(nodes, null, 2));
-    setGraphEdgesJson(JSON.stringify(edges, null, 2));
+    setGraphFlowNodes(nodes.map((node) => toCanvasNode(node)));
+    setGraphFlowEdges(edges.map((edge) => toCanvasEdge(edge)));
+    setSelectedGraphNodeId((current) => {
+      if (!current) return null;
+      return nodes.some((node) => node.nodeId === current) ? current : null;
+    });
   };
 
   const addGraphNode = () => {
@@ -1268,6 +1348,7 @@ export function CalendarPage({
 
     const nextNodes = [...graphNodes, nextNode];
     persistGraphDraft(nextNodes, graphEdges);
+    setSelectedGraphNodeId(nodeId);
     if (!edgeEditorFromNodeId) setEdgeEditorFromNodeId(nodeId);
     if (!edgeEditorToNodeId) setEdgeEditorToNodeId(nodeId);
     setError(null);
@@ -1281,9 +1362,38 @@ export function CalendarPage({
     if (edgeEditorToNodeId === nodeId) setEdgeEditorToNodeId(nextNodes[0]?.nodeId ?? '');
   };
 
-  const updateGraphNodeConfig = (nodeId: string, configJson: string) => {
-    const nextNodes = graphNodes.map((node) => (node.nodeId === nodeId ? { ...node, configJson } : node));
-    persistGraphDraft(nextNodes, graphEdges);
+  const updateSelectedGraphNode = () => {
+    if (!selectedGraphNodeId) {
+      setError('Select a node first.');
+      return;
+    }
+
+    const config = nodeEditorConfigJson.trim() || '{}';
+    try {
+      JSON.parse(config);
+    } catch {
+      setError('Node config JSON is invalid.');
+      return;
+    }
+
+    const normalizedKey = nodeEditorKey.trim() || `${nodeEditorType}_${graphNodes.length}`;
+    setGraphFlowNodes((current) => current.map((node) => {
+      if (node.id !== selectedGraphNodeId) {
+        return node;
+      }
+
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          label: normalizedKey,
+          nodeType: nodeEditorType,
+          nodeKey: normalizedKey,
+          configJson: config
+        }
+      };
+    }));
+    setError(null);
   };
 
   const addGraphEdge = () => {
@@ -1314,6 +1424,31 @@ export function CalendarPage({
   const removeGraphEdge = (edgeId: string) => {
     persistGraphDraft(graphNodes, graphEdges.filter((edge) => edge.edgeId !== edgeId));
   };
+
+  const connectGraphNodes = useCallback((connection: Connection) => {
+    if (!connection.source || !connection.target) {
+      return;
+    }
+
+    setGraphFlowEdges((current) => {
+      const exists = current.some((edge) => edge.source === connection.source && edge.target === connection.target);
+      if (exists) {
+        return current;
+      }
+
+      return addEdge({
+        id: makeGraphId('edge'),
+        source: connection.source,
+        target: connection.target,
+        type: 'smoothstep',
+        markerEnd: { type: MarkerType.ArrowClosed },
+        data: { edgeType: 'flow', conditionJson: null }
+      }, current) as CalendarGraphCanvasEdge[];
+    });
+    setEdgeEditorFromNodeId(connection.source);
+    setEdgeEditorToNodeId(connection.target);
+    setError(null);
+  }, [setGraphFlowEdges]);
 
   const applyCustomTaskGraphPreset = (outputType: 'task' | 'appointment') => {
     const triggerNodeId = makeGraphId('node');
@@ -1455,8 +1590,9 @@ export function CalendarPage({
       setGraphTemplateKey(saved.templateKey);
       setGraphStatus(saved.status === 'draft' || saved.status === 'archived' ? saved.status : 'active');
       setGraphConfigJson(saved.templateConfigJson || '{}');
-      setGraphNodesJson(JSON.stringify(saved.nodes, null, 2));
-      setGraphEdgesJson(JSON.stringify(saved.edges, null, 2));
+      setGraphFlowNodes(saved.nodes.map((node) => toCanvasNode(node)));
+      setGraphFlowEdges(saved.edges.map((edge) => toCanvasEdge(edge)));
+      setSelectedGraphNodeId(null);
       const history = await getCalendarGraphExecutions(selectedEvent.eventId, 20);
       setExecutions(history);
       setError(null);
@@ -1577,7 +1713,7 @@ export function CalendarPage({
                 <option value="archived">archived</option>
               </select>
             </div>
-            <textarea rows={3} value={graphConfigJson} onChange={(event) => setGraphConfigJson(event.target.value)} placeholder="Graph config JSON" />
+            <textarea rows={3} value={graphConfigJson} onChange={(event) => setGraphConfigJson(event.target.value)} placeholder="Graph options" />
             {selectedEvent.itemType === 'task' ? (
               <div className="calendar-detail-actions">
                 <button type="button" onClick={() => applyCustomTaskGraphPreset('task')}>Preset: recreate task +1 day</button>
@@ -1591,8 +1727,26 @@ export function CalendarPage({
                 <button type="button" onClick={applyCustomAppointmentGraphPreset}>Custom +1 day recreate</button>
               </div>
             )}
+            <div className="calendar-graph-flow">
+              <ReactFlow
+                nodes={graphFlowNodes}
+                edges={graphFlowEdges}
+                onNodesChange={onGraphFlowNodesChange}
+                onEdgesChange={onGraphFlowEdgesChange}
+                onConnect={connectGraphNodes}
+                onNodeClick={(_, node) => setSelectedGraphNodeId(node.id)}
+                onPaneClick={() => setSelectedGraphNodeId(null)}
+                fitView
+                minZoom={0.45}
+                maxZoom={1.8}
+                connectionLineType={ConnectionLineType.SmoothStep}
+              >
+                <Background gap={20} size={1} color="rgba(15, 23, 42, 0.08)" />
+                <Controls showInteractive={false} />
+              </ReactFlow>
+            </div>
             <div className="calendar-inline-grid">
-              <select value={nodeEditorType} onChange={(event) => setNodeEditorType(event.target.value as 'trigger' | 'delay' | 'create_task' | 'create_appointment' | 'condition' | 'noop')}>
+              <select value={nodeEditorType} onChange={(event) => setNodeEditorType(event.target.value as GraphNodeType)}>
                 <option value="trigger">trigger</option>
                 <option value="delay">delay</option>
                 <option value="create_task">create_task</option>
@@ -1602,38 +1756,42 @@ export function CalendarPage({
               </select>
               <input value={nodeEditorKey} onChange={(event) => setNodeEditorKey(event.target.value)} placeholder="node key" />
             </div>
-            <textarea rows={2} value={nodeEditorConfigJson} onChange={(event) => setNodeEditorConfigJson(event.target.value)} placeholder="node config JSON" />
-            <button type="button" onClick={addGraphNode}>Add node</button>
+            <textarea rows={2} value={nodeEditorConfigJson} onChange={(event) => setNodeEditorConfigJson(event.target.value)} placeholder="Node options" />
+            <div className="calendar-detail-actions">
+              <button type="button" onClick={addGraphNode}>Add node</button>
+              <button type="button" disabled={!selectedGraphNodeId} onClick={updateSelectedGraphNode}>Update selected node</button>
+              <button type="button" disabled={!selectedGraphNodeId} onClick={() => selectedGraphNodeId && removeGraphNode(selectedGraphNodeId)}>Remove selected node</button>
+            </div>
             <ul className="calendar-graph-node-list">
-              {graphNodes.map((node) => (
-                <li key={node.nodeId}>
-                  <strong>{node.nodeType}</strong>
-                  <span>{node.nodeKey}</span>
-                  <textarea rows={2} value={node.configJson} onChange={(event) => updateGraphNodeConfig(node.nodeId, event.target.value)} />
-                  <button type="button" onClick={() => removeGraphNode(node.nodeId)}>Remove node</button>
+              {graphFlowNodes.map((node) => (
+                <li key={node.id} className={selectedGraphNodeId === node.id ? 'is-selected' : ''}>
+                  <button type="button" onClick={() => setSelectedGraphNodeId(node.id)}>
+                    <strong>{node.data.nodeType}</strong>
+                    <span>{node.data.nodeKey}</span>
+                  </button>
                 </li>
               ))}
-              {graphNodes.length === 0 && <li>No nodes configured.</li>}
+              {graphFlowNodes.length === 0 && <li>No nodes configured.</li>}
             </ul>
             <div className="calendar-inline-grid">
               <select value={edgeEditorFromNodeId} onChange={(event) => setEdgeEditorFromNodeId(event.target.value)}>
                 <option value="">from node</option>
-                {graphNodes.map((node) => <option key={node.nodeId} value={node.nodeId}>{node.nodeKey}</option>)}
+                {graphFlowNodes.map((node) => <option key={node.id} value={node.id}>{node.data.nodeKey}</option>)}
               </select>
               <select value={edgeEditorToNodeId} onChange={(event) => setEdgeEditorToNodeId(event.target.value)}>
                 <option value="">to node</option>
-                {graphNodes.map((node) => <option key={node.nodeId} value={node.nodeId}>{node.nodeKey}</option>)}
+                {graphFlowNodes.map((node) => <option key={node.id} value={node.id}>{node.data.nodeKey}</option>)}
               </select>
             </div>
             <button type="button" onClick={addGraphEdge}>Add edge</button>
             <ul className="calendar-graph-edge-list">
-              {graphEdges.map((edge) => (
-                <li key={edge.edgeId}>
-                  <span>{edge.fromNodeId} {'->'} {edge.toNodeId}</span>
-                  <button type="button" onClick={() => removeGraphEdge(edge.edgeId)}>Remove edge</button>
+              {graphFlowEdges.map((edge) => (
+                <li key={edge.id}>
+                  <span>{edge.source} {'->'} {edge.target}</span>
+                  <button type="button" onClick={() => removeGraphEdge(edge.id)}>Remove edge</button>
                 </li>
               ))}
-              {graphEdges.length === 0 && <li>No edges configured.</li>}
+              {graphFlowEdges.length === 0 && <li>No edges configured.</li>}
             </ul>
             <div className="calendar-detail-actions">
               <button type="button" onClick={() => void saveGraphDraft()}>Save graph</button>
@@ -2407,9 +2565,8 @@ export function CalendarPage({
                     <option value="archived">archived</option>
                   </select>
                 </div>
-                <textarea rows={4} value={graphConfigJson} onChange={(event) => setGraphConfigJson(event.target.value)} placeholder="Graph config JSON" />
-                <textarea rows={6} value={graphNodesJson} onChange={(event) => setGraphNodesJson(event.target.value)} placeholder="Nodes JSON" />
-                <textarea rows={6} value={graphEdgesJson} onChange={(event) => setGraphEdgesJson(event.target.value)} placeholder="Edges JSON" />
+                <textarea rows={4} value={graphConfigJson} onChange={(event) => setGraphConfigJson(event.target.value)} placeholder="Graph options" />
+                <p>Use the visual graph editor in the main calendar panel.</p>
                 <button
                   type="button"
                   onClick={() => void saveGraphDraft()}

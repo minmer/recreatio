@@ -8,6 +8,7 @@ namespace Recreatio.Api.Services.Cogita;
 public interface IGameRuleEngineService
 {
     Task EvaluateEventAsync(CogitaGameSession session, CogitaGameEventLog gameEvent, CancellationToken ct);
+    Task<int> EvaluateScheduledTriggersAsync(CogitaGameSession session, CancellationToken ct);
 }
 
 public sealed class GameRuleEngineService : IGameRuleEngineService
@@ -62,6 +63,143 @@ public sealed class GameRuleEngineService : IGameRuleEngineService
                 await HandleOnNGroupPresenceAsync(session, node, payload, gameEvent, ct);
             }
         }
+    }
+
+    public async Task<int> EvaluateScheduledTriggersAsync(CogitaGameSession session, CancellationToken ct)
+    {
+        if (!ShouldRunScheduledTriggers(session))
+        {
+            return 0;
+        }
+
+        var publishedGraphId = await dbContext.CogitaGameActionGraphs.AsNoTracking()
+            .Where(x => x.GameId == session.GameId && x.Status == "published")
+            .OrderByDescending(x => x.Version)
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync(ct);
+        if (publishedGraphId == Guid.Empty)
+        {
+            return 0;
+        }
+
+        var timerNodes = await dbContext.CogitaGameActionNodes.AsNoTracking()
+            .Where(x => x.GraphId == publishedGraphId && x.NodeType == "trigger.everySec")
+            .OrderBy(x => x.Id)
+            .ToListAsync(ct);
+        if (timerNodes.Count == 0)
+        {
+            return 0;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var createdRuns = 0;
+
+        foreach (var node in timerNodes)
+        {
+            using var configDoc = JsonDocument.Parse(node.ConfigJson);
+            var config = configDoc.RootElement;
+
+            var intervalSec = Math.Clamp(GetInt(config, "everySec", GetInt(config, "intervalSec", 30)), 1, 86400);
+            var executionMode = NormalizeExecutionMode(GetString(config, "executionMode"));
+            var maxBurst = Math.Clamp(GetInt(config, "maxBurst", 8), 1, 60);
+
+            if (!await PassesScheduledValueConditionAsync(session, config, ct))
+            {
+                continue;
+            }
+
+            var triggerKey = $"{node.Id:D}:every-sec";
+            var triggerState = await dbContext.CogitaGameTriggerStates
+                .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.TriggerKey == triggerKey && x.ScopeType == "session" && x.ScopeId == null, ct);
+            if (triggerState is null)
+            {
+                triggerState = new CogitaGameTriggerState
+                {
+                    Id = Guid.NewGuid(),
+                    SessionId = session.Id,
+                    TriggerKey = triggerKey,
+                    ScopeType = "session",
+                    ScopeId = null,
+                    Status = "idle",
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                };
+                dbContext.CogitaGameTriggerStates.Add(triggerState);
+            }
+
+            var baseTime = triggerState.LastFiredUtc ?? session.StartedUtc ?? session.CreatedUtc;
+            var elapsedSec = (now - baseTime).TotalSeconds;
+            if (elapsedSec < intervalSec)
+            {
+                triggerState.Status = executionMode;
+                triggerState.UpdatedUtc = now;
+                continue;
+            }
+
+            var dueByElapsed = Math.Max(1, (int)Math.Floor(elapsedSec / intervalSec));
+            var runsToExecute = executionMode == "serial"
+                ? 1
+                : Math.Min(dueByElapsed, maxBurst);
+            var valueKey = GetString(config, "valueKey");
+            var delta = GetDecimal(config, "delta", 0m);
+            var scopeType = NormalizeScope(GetString(config, "scope"));
+            var configuredScopeId = TryGetGuid(config, "scopeId", out var parsedScopeId) ? parsedScopeId : (Guid?)null;
+            var normalizedScopeId = NormalizeTriggerScopeId(scopeType, configuredScopeId);
+
+            var lastSeq = triggerState.LastEvaluatedSeq;
+            for (var runIndex = 0; runIndex < runsToExecute; runIndex++)
+            {
+                var scheduledForUtc = baseTime.AddSeconds(intervalSec * (runIndex + 1));
+                var tickEvent = await gameSessionService.AppendEventAsync(
+                    session.Id,
+                    "TimerTriggered",
+                    new
+                    {
+                        triggerNodeId = node.Id,
+                        nodeType = node.NodeType,
+                        everySec = intervalSec,
+                        executionMode,
+                        scheduledForUtc
+                    },
+                    null,
+                    Guid.NewGuid(),
+                    null,
+                    ct);
+
+                lastSeq = Math.Max(lastSeq, tickEvent.SeqNo);
+                createdRuns += 1;
+
+                if (string.IsNullOrWhiteSpace(valueKey) || delta == 0m)
+                {
+                    continue;
+                }
+
+                if (scopeType != "session" && !normalizedScopeId.HasValue)
+                {
+                    continue;
+                }
+
+                await ApplyValueMutationAsync(
+                    session,
+                    tickEvent,
+                    scopeType,
+                    normalizedScopeId,
+                    valueKey,
+                    delta,
+                    $"everySec.{executionMode}",
+                    ct);
+            }
+
+            triggerState.Status = executionMode;
+            triggerState.FiredCount += runsToExecute;
+            triggerState.LastEvaluatedSeq = lastSeq;
+            triggerState.LastFiredUtc = baseTime.AddSeconds(intervalSec * runsToExecute);
+            triggerState.CooldownUntilUtc = triggerState.LastFiredUtc?.AddSeconds(intervalSec);
+            triggerState.UpdatedUtc = now;
+        }
+
+        await dbContext.SaveChangesAsync(ct);
+        return createdRuns;
     }
 
     private async Task HandleOnEnterZoneAsync(
@@ -370,6 +508,58 @@ public sealed class GameRuleEngineService : IGameRuleEngineService
         };
     }
 
+    private async Task<bool> PassesScheduledValueConditionAsync(
+        CogitaGameSession session,
+        JsonElement config,
+        CancellationToken ct)
+    {
+        var valueKey = GetString(config, "compareValueKey");
+        if (string.IsNullOrWhiteSpace(valueKey))
+        {
+            return true;
+        }
+
+        var compareScope = NormalizeScope(GetString(config, "compareScope"));
+        if (compareScope != "session")
+        {
+            return false;
+        }
+
+        if (!TryGetComparisonThreshold(config, out var compareAgainst))
+        {
+            return false;
+        }
+
+        var value = await dbContext.CogitaGameValues.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.GameId == session.GameId && x.ValueKey == valueKey, ct);
+        if (value is null)
+        {
+            return false;
+        }
+
+        var current = await dbContext.CogitaGameValueLedger.AsNoTracking()
+            .Where(x =>
+                x.SessionId == session.Id &&
+                x.ValueId == value.Id &&
+                x.ScopeType == "session" &&
+                x.ScopeId == null)
+            .OrderByDescending(x => x.CreatedUtc)
+            .Select(x => (decimal?)x.AbsoluteAfter)
+            .FirstOrDefaultAsync(ct) ?? 0m;
+
+        var compareOperator = NormalizeComparisonOperator(GetString(config, "compareOperator"));
+        return compareOperator switch
+        {
+            "gt" => current > compareAgainst,
+            "gte" => current >= compareAgainst,
+            "lt" => current < compareAgainst,
+            "lte" => current <= compareAgainst,
+            "eq" => current == compareAgainst,
+            "neq" => current != compareAgainst,
+            _ => current >= compareAgainst
+        };
+    }
+
     private static Guid? ResolveScopeId(string scopeType, JsonElement eventPayload)
     {
         if (scopeType == "session")
@@ -404,6 +594,29 @@ public sealed class GameRuleEngineService : IGameRuleEngineService
         }
 
         return "session";
+    }
+
+    private static string NormalizeExecutionMode(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "stack" => "stack",
+            "parallel" => "simultaneous",
+            "simultaneous" => "simultaneous",
+            _ => "serial"
+        };
+    }
+
+    private static bool ShouldRunScheduledTriggers(CogitaGameSession session)
+    {
+        if (string.Equals(session.Status, "finished", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var phase = (session.Phase ?? string.Empty).Trim().ToLowerInvariant();
+        return phase is "active_round" or "reveal" or "transition";
     }
 
     private static string? GetString(JsonElement root, string property)
@@ -458,7 +671,16 @@ public sealed class GameRuleEngineService : IGameRuleEngineService
     private static bool TryGetComparisonThreshold(JsonElement root, out decimal threshold)
     {
         threshold = 0m;
-        if (!root.TryGetProperty("compareAgainst", out var node) || node.ValueKind != JsonValueKind.Number)
+        JsonElement node;
+        if (root.TryGetProperty("compareAgainst", out var againstNode) && againstNode.ValueKind == JsonValueKind.Number)
+        {
+            node = againstNode;
+        }
+        else if (root.TryGetProperty("compareThreshold", out var thresholdNode) && thresholdNode.ValueKind == JsonValueKind.Number)
+        {
+            node = thresholdNode;
+        }
+        else
         {
             return false;
         }

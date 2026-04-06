@@ -62,7 +62,9 @@ import { CogitaDependencyEdit } from './components/workspace/dependency/CogitaDe
 import { CogitaDependencyOverview } from './components/workspace/dependency/CogitaDependencyOverview';
 import { CogitaNotionCards } from './components/workspace/notion/CogitaNotionCards';
 import { CogitaPersonsPage } from './CogitaPersonsPage';
-import { CogitaStoryboardEdit, type StoryboardWorkspaceMode } from './components/workspace/storyboard/CogitaStoryboardEdit';
+import { CogitaStoryboardEdit } from './components/workspace/storyboard/CogitaStoryboardEdit';
+import { CogitaStoryboardOverview } from './components/workspace/storyboard/CogitaStoryboardOverview';
+import { CogitaStoryboardSearch } from './components/workspace/storyboard/CogitaStoryboardSearch';
 import { CogitaTextWorkspace } from './components/workspace/text/CogitaTextWorkspace';
 import { CogitaCollectionSearch } from './components/workspace/collection/CogitaCollectionSearch';
 import { CogitaCollectionOverview } from './components/workspace/collection/CogitaCollectionOverview';
@@ -3241,15 +3243,16 @@ export function CogitaWorkspacePage({
       return <WorkspaceLibraryTransferSection copy={copy} libraryId={libraryId} libraryName={selectedLibrary?.name} />;
     }
     if (pathState.target === 'storyboards' || pathState.target === 'new_storyboard') {
-      const storyboardMode: StoryboardWorkspaceMode =
-        pathState.target === 'new_storyboard' || pathState.storyboardView === 'create'
-          ? 'create'
-          : pathState.storyboardView === 'edit'
-            ? 'edit'
-            : pathState.storyboardView === 'overview'
-              ? 'overview'
-              : 'search';
-      return <CogitaStoryboardEdit {...baseProps} mode={storyboardMode} storyboardId={pathState.storyboardId} />;
+      if (pathState.target === 'new_storyboard' || pathState.storyboardView === 'create') {
+        return <CogitaStoryboardEdit {...baseProps} mode="create" storyboardId={pathState.storyboardId} />;
+      }
+      if (pathState.storyboardView === 'edit') {
+        return <CogitaStoryboardEdit {...baseProps} mode="edit" storyboardId={pathState.storyboardId} />;
+      }
+      if (pathState.storyboardView === 'overview' && pathState.storyboardId) {
+        return <CogitaStoryboardOverview {...baseProps} storyboardId={pathState.storyboardId} />;
+      }
+      return <CogitaStoryboardSearch {...baseProps} />;
     }
     if (pathState.target === 'texts' || pathState.target === 'new_text') {
       return <CogitaTextWorkspace {...baseProps} />;
