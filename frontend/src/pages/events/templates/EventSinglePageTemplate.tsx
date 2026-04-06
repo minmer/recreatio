@@ -27,6 +27,7 @@ export type EventTemplateSlide = {
 const SNAP_IDLE_MS = 110;
 const SNAP_DIRECTIONAL_THRESHOLD = 0.22;
 const SCROLL_SENSITIVITY = 1.16;
+const INPUT_SESSION_GAP_MS = 180;
 
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min;
@@ -72,6 +73,9 @@ export function EventSinglePageTemplate({
   const rafRef = useRef<number | null>(null);
   const snapTimerRef = useRef<number | null>(null);
   const lastInputDirectionRef = useRef<-1 | 0 | 1>(0);
+  const inputSessionRef = useRef(0);
+  const lastInputAtRef = useRef(0);
+  const boundaryGateRef = useRef<{ slideIndex: number; direction: -1 | 1; session: number } | null>(null);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -143,8 +147,8 @@ export function EventSinglePageTemplate({
     return progress <= 1 - SNAP_DIRECTIONAL_THRESHOLD ? lower : upper;
   }, [snapPoints]);
 
-  const activeSlideIndex = useMemo(() => {
-    const center = position + viewportHeight * 0.5;
+  const getSlideIndexForPosition = useCallback((value: number): number => {
+    const center = value + viewportHeight * 0.5;
     for (let index = 0; index < slideHeights.length; index += 1) {
       const start = slideStarts[index] ?? 0;
       const end = start + slideHeights[index];
@@ -153,7 +157,12 @@ export function EventSinglePageTemplate({
       }
     }
     return Math.max(0, slideHeights.length - 1);
-  }, [position, slideHeights, slideStarts, viewportHeight]);
+  }, [slideHeights, slideStarts, viewportHeight]);
+
+  const activeSlideIndex = useMemo(
+    () => getSlideIndexForPosition(position),
+    [getSlideIndexForPosition, position]
+  );
 
   const stopAnimation = useCallback(() => {
     if (rafRef.current !== null) {
@@ -212,14 +221,97 @@ export function EventSinglePageTemplate({
     if (!Number.isFinite(delta) || delta === 0) {
       return;
     }
-    lastInputDirectionRef.current = delta > 0 ? 1 : -1;
-    setTarget(targetRef.current + (delta * SCROLL_SENSITIVITY));
+    const now = performance.now();
+    if (now - lastInputAtRef.current > INPUT_SESSION_GAP_MS) {
+      inputSessionRef.current += 1;
+    }
+    lastInputAtRef.current = now;
+
+    const direction: -1 | 1 = delta > 0 ? 1 : -1;
+    const scaled = delta * SCROLL_SENSITIVITY;
+    const current = targetRef.current;
+    const slideIndex = getSlideIndexForPosition(current);
+    const slideStart = slideStarts[slideIndex] ?? 0;
+    const slideHeight = slideHeights[slideIndex] ?? viewportHeight;
+    const slideInnerEnd = slideStart + Math.max(0, slideHeight - viewportHeight);
+    const hasInnerScroll = slideInnerEnd > slideStart + 0.5;
+    const session = inputSessionRef.current;
+
+    if (hasInnerScroll && direction > 0) {
+      if (current < slideInnerEnd - 0.5) {
+        const next = Math.min(slideInnerEnd, current + Math.max(0, scaled));
+        setTarget(next);
+        if (next >= slideInnerEnd - 0.5) {
+          boundaryGateRef.current = { slideIndex, direction, session };
+        } else {
+          boundaryGateRef.current = null;
+        }
+        lastInputDirectionRef.current = direction;
+        return;
+      }
+
+      const gate = boundaryGateRef.current;
+      if (!gate || gate.slideIndex !== slideIndex || gate.direction !== direction || gate.session === session) {
+        boundaryGateRef.current = { slideIndex, direction, session };
+        setTarget(slideInnerEnd);
+        lastInputDirectionRef.current = direction;
+        return;
+      }
+
+      boundaryGateRef.current = null;
+      lastInputDirectionRef.current = direction;
+      const nextIndex = Math.min(slideIndex + 1, slides.length - 1);
+      setTarget(slideStarts[nextIndex] ?? maxScroll);
+      return;
+    }
+
+    if (hasInnerScroll && direction < 0) {
+      if (current > slideStart + 0.5) {
+        const next = Math.max(slideStart, current + Math.min(0, scaled));
+        setTarget(next);
+        if (next <= slideStart + 0.5) {
+          boundaryGateRef.current = { slideIndex, direction, session };
+        } else {
+          boundaryGateRef.current = null;
+        }
+        lastInputDirectionRef.current = direction;
+        return;
+      }
+
+      const gate = boundaryGateRef.current;
+      if (!gate || gate.slideIndex !== slideIndex || gate.direction !== direction || gate.session === session) {
+        boundaryGateRef.current = { slideIndex, direction, session };
+        setTarget(slideStart);
+        lastInputDirectionRef.current = direction;
+        return;
+      }
+
+      boundaryGateRef.current = null;
+      lastInputDirectionRef.current = direction;
+      const previousIndex = Math.max(slideIndex - 1, 0);
+      setTarget(slideStarts[previousIndex] ?? 0);
+      return;
+    }
+
+    boundaryGateRef.current = null;
+    lastInputDirectionRef.current = direction;
+    setTarget(current + scaled);
     scheduleSnap();
-  }, [scheduleSnap, setTarget]);
+  }, [
+    getSlideIndexForPosition,
+    maxScroll,
+    scheduleSnap,
+    setTarget,
+    slideHeights,
+    slideStarts,
+    slides.length,
+    viewportHeight
+  ]);
 
   const jumpToSlide = useCallback((index: number) => {
     const point = slideStarts[index] ?? 0;
     lastInputDirectionRef.current = 0;
+    boundaryGateRef.current = null;
     setTarget(point);
     scheduleSnap();
     setMenuOpen(false);
