@@ -310,7 +310,7 @@ export function CalendarPage({
   }, [roles]);
 
   const personScopedOccurrences = useMemo(() => {
-    if (!calendarPersonRoleId) return occurrences;
+    if (!calendarPersonRoleId) return [];
     return occurrences.filter((row) => row.event.ownerRoleId === calendarPersonRoleId);
   }, [occurrences, calendarPersonRoleId]);
 
@@ -441,7 +441,6 @@ export function CalendarPage({
       .sort((left, right) => left.label.localeCompare(right.label)),
     [roles]
   );
-  const ownerRoleOptions = viewerRoleOptions;
 
   const linkedPersonBindings = useMemo(
     () => calendarRoleBindings.filter((binding) => isPersonRoleKind(rolesById.get(binding.roleId)?.roleKind ?? '')),
@@ -456,7 +455,6 @@ export function CalendarPage({
   const queryItemType = simpleMode ? undefined : (itemTypeFilter || undefined);
   const queryTaskState = simpleMode ? undefined : (taskStateFilter || undefined);
   const effectiveCalendarId = calendarId ?? calendars[0]?.id ?? null;
-  const effectiveOwnerRoleId = ownerRoleId ?? ownerRoleOptions[0]?.roleId ?? null;
 
   useEffect(() => {
     if (!shareRoute) {
@@ -497,7 +495,19 @@ export function CalendarPage({
         setRoles(roleList);
         const defaultPersonRoleId = roleList.find((role) => isPersonRoleKind(getRoleKind(role)))?.roleId ?? null;
         const defaultGroupRoleId = roleList.find((role) => isGroupRoleKind(getRoleKind(role)))?.roleId ?? null;
-        const defaultOwnerRoleId = defaultPersonRoleId ?? defaultGroupRoleId;
+        const personRoleIds = roleList
+          .filter((role) => isPersonRoleKind(getRoleKind(role)))
+          .map((role) => role.roleId);
+        const savedPersonRoleId = (() => {
+          if (typeof window === 'undefined') return '';
+          try {
+            return window.localStorage.getItem(CALENDAR_PERSON_PREF_KEY) ?? '';
+          } catch {
+            return '';
+          }
+        })();
+        const preferredPersonRoleId = personRoleIds.includes(savedPersonRoleId) ? savedPersonRoleId : (defaultPersonRoleId ?? '');
+        const defaultOwnerRoleId = preferredPersonRoleId || null;
         const allowedRoleIds = new Set(
           roleList
             .filter((role) => {
@@ -517,9 +527,13 @@ export function CalendarPage({
           resolvedCalendars = [createdCalendar];
         }
         if (resolvedCalendars.length === 0) {
-          setError('No calendar available. A person or group role is required to auto-create one.');
+          setError('No calendar available. A person role is required to auto-create one.');
         } else {
-          setError(null);
+          if (!preferredPersonRoleId) {
+            setError('No person role available. Create/select a person role to link appointments.');
+          } else {
+            setError(null);
+          }
         }
 
         setCalendars(resolvedCalendars.map((row) => ({ id: row.calendarId, name: row.name })));
@@ -529,11 +543,20 @@ export function CalendarPage({
           }
           return resolvedCalendars[0]?.calendarId ?? null;
         });
-        setOwnerRoleId((current) => {
-          if (current && allowedRoleIds.has(current)) {
+        setCalendarPersonRoleId((current) => {
+          if (current && personRoleIds.includes(current)) {
             return current;
           }
-          return defaultOwnerRoleId ?? null;
+          return preferredPersonRoleId;
+        });
+        setOwnerRoleId((current) => {
+          if (simpleMode && preferredPersonRoleId) {
+            return preferredPersonRoleId;
+          }
+          if (current && allowedRoleIds.has(current) && personRoleIds.includes(current)) {
+            return current;
+          }
+          return preferredPersonRoleId || null;
         });
         setSelectedPersonRoleId((current) => current || defaultPersonRoleId || '');
         setSelectedGroupRoleId((current) => current || defaultGroupRoleId || '');
@@ -547,6 +570,40 @@ export function CalendarPage({
       })
       .catch((err) => setError(readError(err)));
   }, [showProfileMenu, shareRoute, simpleMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (calendarPersonRoleId) {
+        window.localStorage.setItem(CALENDAR_PERSON_PREF_KEY, calendarPersonRoleId);
+      } else {
+        window.localStorage.removeItem(CALENDAR_PERSON_PREF_KEY);
+      }
+    } catch {
+      // ignore local preference persistence failures
+    }
+  }, [calendarPersonRoleId]);
+
+  useEffect(() => {
+    if (!calendarPersonRoleId) return;
+    if (simpleMode || !ownerRoleId) {
+      setOwnerRoleId(calendarPersonRoleId);
+    }
+  }, [calendarPersonRoleId, simpleMode, ownerRoleId]);
+
+  useEffect(() => {
+    setSimpleSubCalendarFilter('all');
+  }, [calendarPersonRoleId]);
+
+  useEffect(() => {
+    setSelectedEventId((current) => {
+      if (personScopedOccurrences.length === 0) return null;
+      if (current && personScopedOccurrences.some((row) => row.eventId === current)) {
+        return current;
+      }
+      return personScopedOccurrences[0]?.eventId ?? null;
+    });
+  }, [personScopedOccurrences]);
 
   useEffect(() => {
     if (simpleMode || !showProfileMenu || !calendarId || shareRoute) {
@@ -602,7 +659,6 @@ export function CalendarPage({
       .then((bundle) => {
         setOccurrences(bundle.occurrences);
         setConflicts(bundle.conflicts);
-        setSelectedEventId((current) => current ?? (bundle.occurrences[0]?.eventId ?? null));
       })
       .catch((err) => setError(readError(err)));
   }, [showProfileMenu, shareRoute, calendarId, range.fromUtc, range.toUtc, view, statusFilter, visibilityFilter, queryItemType, queryTaskState]);
@@ -687,10 +743,10 @@ export function CalendarPage({
 
   const createQuickAppointment = async () => {
     const activeCalendarId = effectiveCalendarId;
-    const activeOwnerRoleId = effectiveOwnerRoleId;
+    const activeOwnerRoleId = calendarPersonRoleId || null;
     const normalizedTitle = title.trim();
     if (!activeCalendarId || !activeOwnerRoleId) {
-      setError('No calendar or owner role available.');
+      setError('No calendar or person role available.');
       return;
     }
 
@@ -741,9 +797,9 @@ export function CalendarPage({
 
   const createItem = async () => {
     const activeCalendarId = effectiveCalendarId;
-    const activeOwnerRoleId = effectiveOwnerRoleId;
+    const activeOwnerRoleId = calendarPersonRoleId || null;
     if (!activeCalendarId || !activeOwnerRoleId) {
-      setError('No calendar or owner role available.');
+      setError('No calendar or person role available.');
       return;
     }
     if (!calendarId && activeCalendarId) {
@@ -833,9 +889,9 @@ export function CalendarPage({
 
   const createEventGroupNow = async () => {
     const activeCalendarId = effectiveCalendarId;
-    const activeOwnerRoleId = effectiveOwnerRoleId;
+    const activeOwnerRoleId = calendarPersonRoleId || null;
     if (!activeCalendarId || !activeOwnerRoleId) {
-      setError('Select calendar and owner role first.');
+      setError('Select calendar and person role first.');
       return;
     }
 
@@ -1021,6 +1077,20 @@ export function CalendarPage({
           <aside className="calendar-shell-sidebar">
             <div className="calendar-panel">
               <h1>{copy.calendar.title}</h1>
+              <div className="calendar-field-row">
+                <label>Person</label>
+                <select
+                  value={calendarPersonRoleId}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setCalendarPersonRoleId(value);
+                    if (value) setOwnerRoleId(value);
+                  }}
+                >
+                  {personRoles.length === 0 && <option value="">no person roles available</option>}
+                  {personRoles.map((role) => <option key={role.roleId} value={role.roleId}>{role.label}</option>)}
+                </select>
+              </div>
               {calendars.length > 1 && (
                 <div className="calendar-field-row">
                   <label>Calendar</label>
@@ -1258,15 +1328,15 @@ export function CalendarPage({
               <button type="button" className="cta" onClick={() => void createQuickAppointment()}>
                 Add
               </button>
-              {(!effectiveCalendarId || !effectiveOwnerRoleId) && (
-                <p className="calendar-error">Calendar and owner role must be available.</p>
+              {(!effectiveCalendarId || !calendarPersonRoleId) && (
+                <p className="calendar-error">Calendar and person role must be available.</p>
               )}
             </section>
             <section className="calendar-panel calendar-shell-meta">
               <h3>Visible items</h3>
               <p>{simpleFilteredOccurrences.length}</p>
               <h3>Conflicts</h3>
-              <p>{conflicts.length}</p>
+              <p>{personScopedConflicts.length}</p>
             </section>
           </aside>
         </main>
@@ -1280,6 +1350,20 @@ export function CalendarPage({
       <main className="calendar-main calendar-workspace">
         <aside className="calendar-sidebar">
           <h1>{copy.calendar.title}</h1>
+          <div className="calendar-field-row">
+            <label>Person</label>
+            <select
+              value={calendarPersonRoleId}
+              onChange={(event) => {
+                const value = event.target.value;
+                setCalendarPersonRoleId(value);
+                if (value) setOwnerRoleId(value);
+              }}
+            >
+              {personRoles.length === 0 && <option value="">no person roles available</option>}
+              {personRoles.map((role) => <option key={role.roleId} value={role.roleId}>{role.label}</option>)}
+            </select>
+          </div>
           <div className="calendar-field-row">
             <label>Calendar</label>
             <select value={effectiveCalendarId ?? ''} onChange={(event) => setCalendarId(event.target.value || null)}>
@@ -1403,7 +1487,7 @@ export function CalendarPage({
           )}
           {view !== 'month' && (
             <div className="calendar-occurrence-list">
-              {occurrences.map((row) => (
+              {personScopedOccurrences.map((row) => (
                 <article key={row.eventId + '-' + row.occurrenceStartUtc} className={'calendar-occurrence-row' + (selectedEventId === row.eventId ? ' is-selected' : '')}>
                   <button type="button" onClick={() => setSelectedEventId(row.eventId)}>
                     <strong>{row.event.titlePublic}</strong>
@@ -1415,9 +1499,9 @@ export function CalendarPage({
             </div>
           )}
           <div className="calendar-conflicts">
-            <h3>Conflicts ({conflicts.length})</h3>
+            <h3>Conflicts ({personScopedConflicts.length})</h3>
             <ul>
-              {conflicts.slice(0, 20).map((conflict) => (
+              {personScopedConflicts.slice(0, 20).map((conflict) => (
                 <li key={conflict.eventId + '-' + conflict.startUtc}>{conflict.titlePublic}: {formatUtc(conflict.startUtc)} - {formatUtc(conflict.endUtc)}</li>
               ))}
             </ul>
@@ -1428,11 +1512,17 @@ export function CalendarPage({
           <div className="calendar-create-form">
             <h2>Create item</h2>
             <div className="calendar-field-row">
-              <label>Owner role</label>
-              <select value={effectiveOwnerRoleId ?? ''} onChange={(event) => setOwnerRoleId(event.target.value || null)}>
-                {ownerRoleOptions.map((role) => (
-                  <option key={role.roleId} value={role.roleId}>{role.label}</option>
-                ))}
+              <label>Person owner</label>
+              <select
+                value={calendarPersonRoleId}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setCalendarPersonRoleId(value);
+                  setOwnerRoleId(value || null);
+                }}
+              >
+                {personRoles.length === 0 && <option value="">no person roles available</option>}
+                {personRoles.map((role) => <option key={role.roleId} value={role.roleId}>{role.label}</option>)}
               </select>
             </div>
             <div className="calendar-field-row">
@@ -1542,8 +1632,8 @@ export function CalendarPage({
             <button type="button" className="cta" onClick={() => void createItem()}>
               {createAsWeeklySeries && itemType === 'appointment' ? 'Create weekly series' : 'Create'}
             </button>
-            {(!effectiveCalendarId || !effectiveOwnerRoleId) && (
-              <p className="calendar-error">Calendar and owner role must be available before creating items.</p>
+            {(!effectiveCalendarId || !calendarPersonRoleId) && (
+              <p className="calendar-error">Calendar and person role must be available before creating items.</p>
             )}
           </div>
           <h2>Item Detail</h2>
