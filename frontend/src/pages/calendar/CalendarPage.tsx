@@ -312,6 +312,7 @@ export function CalendarPage({
     () => calendarRoleBindings.filter((binding) => isGroupRoleKind(rolesById.get(binding.roleId)?.roleKind ?? '')),
     [calendarRoleBindings, rolesById]
   );
+  const simpleMode = !location.search.includes('calendarAdvanced=1');
   const effectiveCalendarId = calendarId ?? calendars[0]?.id ?? null;
   const effectiveOwnerRoleId = ownerRoleId ?? ownerRoleOptions[0]?.roleId ?? null;
 
@@ -345,8 +346,12 @@ export function CalendarPage({
   useEffect(() => {
     if (!showProfileMenu || shareRoute) return;
 
-    Promise.all([getCalendars(), getRoles(), getCalendarGraphTemplates()])
-      .then(async ([calendarList, roleList, templateList]) => {
+    const loadPromise = simpleMode
+      ? Promise.all([getCalendars(), getRoles()]).then(([calendarList, roleList]) => ({ calendarList, roleList, templateList: [] as CalendarGraphTemplate[] }))
+      : Promise.all([getCalendars(), getRoles(), getCalendarGraphTemplates()]).then(([calendarList, roleList, templateList]) => ({ calendarList, roleList, templateList }));
+
+    loadPromise
+      .then(async ({ calendarList, roleList, templateList }) => {
         setRoles(roleList);
         const defaultPersonRoleId = roleList.find((role) => isPersonRoleKind(getRoleKind(role)))?.roleId ?? null;
         const defaultGroupRoleId = roleList.find((role) => isGroupRoleKind(getRoleKind(role)))?.roleId ?? null;
@@ -390,8 +395,8 @@ export function CalendarPage({
         });
         setSelectedPersonRoleId((current) => current || defaultPersonRoleId || '');
         setSelectedGroupRoleId((current) => current || defaultGroupRoleId || '');
-        setTemplates(templateList);
         if (templateList.length > 0) {
+          setTemplates(templateList);
           setGraphTemplateKey((current) => current || templateList[0].templateKey);
           setGraphConfigJson((current) => (current && current !== '{}' ? current : (templateList[0].defaultConfigJson || '{}')));
           setGraphNodesJson((current) => (current && current !== '[]' ? current : JSON.stringify(templateList[0].nodes, null, 2)));
@@ -399,10 +404,10 @@ export function CalendarPage({
         }
       })
       .catch((err) => setError(readError(err)));
-  }, [showProfileMenu, shareRoute]);
+  }, [showProfileMenu, shareRoute, simpleMode]);
 
   useEffect(() => {
-    if (!showProfileMenu || !calendarId || shareRoute) {
+    if (simpleMode || !showProfileMenu || !calendarId || shareRoute) {
       setCalendarRoleBindings([]);
       return;
     }
@@ -410,10 +415,10 @@ export function CalendarPage({
     getCalendar(calendarId)
       .then((calendar) => setCalendarRoleBindings(calendar.roleBindings ?? []))
       .catch((err) => setError(readError(err)));
-  }, [showProfileMenu, shareRoute, calendarId]);
+  }, [showProfileMenu, shareRoute, calendarId, simpleMode]);
 
   useEffect(() => {
-    if (!showProfileMenu || !calendarId || shareRoute) {
+    if (simpleMode || !showProfileMenu || !calendarId || shareRoute) {
       setEventGroups([]);
       setSelectedEventGroupId('');
       return;
@@ -424,10 +429,10 @@ export function CalendarPage({
         setEventGroups(items.map((item) => ({ eventGroupId: item.eventGroupId, name: item.name })));
       })
       .catch((err) => setError(readError(err)));
-  }, [showProfileMenu, shareRoute, calendarId]);
+  }, [showProfileMenu, shareRoute, calendarId, simpleMode]);
 
   useEffect(() => {
-    if (!showProfileMenu || !calendarId || shareRoute) {
+    if (simpleMode || !showProfileMenu || !calendarId || shareRoute) {
       setCalendarGraphs([]);
       setSelectedReusableGraphId('');
       return;
@@ -436,7 +441,7 @@ export function CalendarPage({
     getCalendarGraphs(calendarId)
       .then((graphs) => setCalendarGraphs(graphs))
       .catch((err) => setError(readError(err)));
-  }, [showProfileMenu, shareRoute, calendarId]);
+  }, [showProfileMenu, shareRoute, calendarId, simpleMode]);
 
   useEffect(() => {
     if (!showProfileMenu || !calendarId || shareRoute) return;
@@ -448,8 +453,8 @@ export function CalendarPage({
       toUtc: range.toUtc,
       status: statusFilter || undefined,
       visibility: visibilityFilter || undefined,
-      itemType: itemTypeFilter || undefined,
-      taskState: taskStateFilter || undefined,
+      itemType: 'appointment',
+      taskState: undefined,
       includeProtected: true
     })
       .then((bundle) => {
@@ -461,7 +466,7 @@ export function CalendarPage({
   }, [showProfileMenu, shareRoute, calendarId, range.fromUtc, range.toUtc, view, statusFilter, visibilityFilter, itemTypeFilter, taskStateFilter]);
 
   useEffect(() => {
-    if (!selectedEventId || shareRoute || !showProfileMenu) {
+    if (simpleMode || !selectedEventId || shareRoute || !showProfileMenu) {
       setSelectedEvent(null);
       return;
     }
@@ -487,7 +492,7 @@ export function CalendarPage({
   }, [selectedEventId, shareRoute, showProfileMenu]);
 
   useEffect(() => {
-    if (!showProfileMenu || shareRoute || !selectedEventGroupId) {
+    if (simpleMode || !showProfileMenu || shareRoute || !selectedEventGroupId) {
       setGroupShares([]);
       return;
     }
@@ -495,7 +500,7 @@ export function CalendarPage({
     listCalendarEventGroupShares(selectedEventGroupId)
       .then((items) => setGroupShares(items))
       .catch((err) => setError(readError(err)));
-  }, [showProfileMenu, shareRoute, selectedEventGroupId]);
+  }, [showProfileMenu, shareRoute, selectedEventGroupId, simpleMode]);
 
   useEffect(() => {
     setLatestGroupShareCode(null);
@@ -518,16 +523,17 @@ export function CalendarPage({
   };
 
   const refresh = () => {
-    if (!calendarId) return;
+    const activeCalendarId = calendarId ?? effectiveCalendarId;
+    if (!activeCalendarId) return;
     getCalendarEvents({
-      calendarId,
+      calendarId: activeCalendarId,
       view,
       fromUtc: range.fromUtc,
       toUtc: range.toUtc,
       status: statusFilter || undefined,
       visibility: visibilityFilter || undefined,
-      itemType: itemTypeFilter || undefined,
-      taskState: taskStateFilter || undefined,
+      itemType: 'appointment',
+      taskState: undefined,
       includeProtected: true
     })
       .then((bundle) => {
@@ -535,6 +541,60 @@ export function CalendarPage({
         setConflicts(bundle.conflicts);
       })
       .catch((err) => setError(readError(err)));
+  };
+
+  const createQuickAppointment = async () => {
+    const activeCalendarId = effectiveCalendarId;
+    const activeOwnerRoleId = effectiveOwnerRoleId;
+    const normalizedTitle = title.trim();
+    if (!activeCalendarId || !activeOwnerRoleId) {
+      setError('No calendar or owner role available.');
+      return;
+    }
+
+    if (!normalizedTitle) {
+      setError('Title is required.');
+      return;
+    }
+
+    const start = new Date(startUtcLocal);
+    if (Number.isNaN(start.getTime())) {
+      setError('Start time is invalid.');
+      return;
+    }
+
+    try {
+      if (!calendarId) {
+        setCalendarId(activeCalendarId);
+      }
+      if (!ownerRoleId) {
+        setOwnerRoleId(activeOwnerRoleId);
+      }
+
+      const end = new Date(start.getTime() + 60 * 60 * 1000);
+      await createCalendarItem({
+        calendarId: activeCalendarId,
+        ownerRoleId: activeOwnerRoleId,
+        titlePublic: normalizedTitle,
+        summaryPublic: null,
+        visibility: 'private',
+        status: 'planned',
+        startUtc: start.toISOString(),
+        endUtc: end.toISOString(),
+        itemType: 'appointment',
+        taskState: null,
+        taskProgressPercent: null,
+        viewerScopes: [],
+        graph: null
+      });
+
+      setTitle('');
+      setStartUtcLocal(new Date().toISOString().slice(0, 16));
+      setError(null);
+      refresh();
+    } catch (err) {
+      setError(readError(err));
+    }
   };
 
   const createItem = async () => {
@@ -796,6 +856,69 @@ export function CalendarPage({
           <h1>{copy.calendar.title}</h1>
           <p>{copy.calendar.subtitle}</p>
           <button type="button" className="cta" onClick={onAuthAction}>{copy.calendar.loginCta}</button>
+        </main>
+      </div>
+    );
+  }
+
+  if (simpleMode) {
+    return (
+      <div className="calendar-page">
+        {header}
+        <main className="calendar-main calendar-main-simple">
+          <section className="calendar-panel">
+            <h1>{copy.calendar.title}</h1>
+            {calendars.length > 1 && (
+              <div className="calendar-field-row">
+                <label>Calendar</label>
+                <select value={effectiveCalendarId ?? ''} onChange={(event) => setCalendarId(event.target.value || null)}>
+                  {calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.name}</option>)}
+                </select>
+              </div>
+            )}
+            <div className="calendar-inline-grid">
+              <div className="calendar-field-row">
+                <label>Period</label>
+                <select value={view} onChange={(event) => setView(event.target.value as ViewMode)}>
+                  <option value="day">day</option>
+                  <option value="week">week</option>
+                  <option value="month">month</option>
+                  <option value="list">list</option>
+                </select>
+              </div>
+              <div className="calendar-range-nav">
+                <button type="button" onClick={() => setAnchor((current) => shiftAnchor(current, view, -1))}>Previous</button>
+                <button type="button" onClick={() => setAnchor(new Date())}>Today</button>
+                <button type="button" onClick={() => setAnchor((current) => shiftAnchor(current, view, 1))}>Next</button>
+              </div>
+            </div>
+            <p>{formatUtc(range.fromUtc)} - {formatUtc(range.toUtc)}</p>
+            <div className="calendar-create-form">
+              <h2>Add appointment</h2>
+              <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" />
+              <input type="datetime-local" value={startUtcLocal} onChange={(event) => setStartUtcLocal(event.target.value)} />
+              <button type="button" className="cta" onClick={() => void createQuickAppointment()}>Add appointment</button>
+              {(!effectiveCalendarId || !effectiveOwnerRoleId) && (
+                <p className="calendar-error">Calendar and owner role must be available.</p>
+              )}
+            </div>
+            {error && <p className="calendar-error">{error}</p>}
+          </section>
+
+          <section className="calendar-panel">
+            <h2>Appointments ({occurrences.length})</h2>
+            {occurrences.length === 0 && <p>No appointments in this period.</p>}
+            <div className="calendar-occurrence-list">
+              {occurrences.map((row) => (
+                <article key={row.eventId + '-' + row.occurrenceStartUtc} className="calendar-occurrence-row">
+                  <button type="button" onClick={() => setSelectedEventId(row.eventId)}>
+                    <strong>{row.event.titlePublic}</strong>
+                    <span>{formatUtc(row.occurrenceStartUtc)} - {formatUtc(row.occurrenceEndUtc)}</span>
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
         </main>
       </div>
     );

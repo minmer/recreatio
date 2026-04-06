@@ -780,14 +780,7 @@ type OutlineLabels = {
   checkcardPrefix: string;
   chapterPrefix: string;
   subchapterPrefix: string;
-  parallelLabel: string;
-  continuationLabel: string;
-  mergeLabel: string;
-  correctBranchLabel: string;
-  wrongBranchLabel: string;
-  genericBranchLabel: string;
-  reusedSuffix: string;
-  missingNodeLabel: string;
+  orphanPrefix: string;
 };
 
 function getOutlineNodeLabel(node: StoryboardNodeRecord, labels: OutlineLabels) {
@@ -830,247 +823,136 @@ function getOutlineOutgoingEdges(graph: StoryboardGraph, node: StoryboardNodeRec
     });
 }
 
-function getOutlineBranchLabel(edge: StoryboardGraphEdge, branchIndex: number, labels: OutlineLabels) {
-  const custom = edge.label.trim();
-  if (custom) return custom;
-  if (edge.sourcePort === 'out-right') return labels.correctBranchLabel;
-  if (edge.sourcePort === 'out-wrong') return labels.wrongBranchLabel;
-  return `${labels.genericBranchLabel} ${branchIndex + 1}`;
-}
-
 function buildStoryboardOutline(
   graph: StoryboardGraph,
   graphPath: string[],
   labels: OutlineLabels
 ): StoryboardOutlineItem[] {
-  return buildStoryboardOutlineSequence({
+  return buildStoryboardOutlineLinear({
     graph,
     graphPath,
     nodeId: graph.startNodeId,
     depth: 0,
     seen: new Set<string>(),
-    labels
-  });
+    labels,
+    includeOrphans: true
+  }).items;
 }
 
-function buildStoryboardOutlineSequence(payload: {
+function buildStoryboardOutlineLinear(payload: {
   graph: StoryboardGraph;
   graphPath: string[];
   nodeId: string;
   depth: number;
   seen: Set<string>;
   labels: OutlineLabels;
-  stopAtNodeId?: string;
-}): StoryboardOutlineItem[] {
-  const { graph, graphPath, depth, labels, stopAtNodeId } = payload;
+  includeOrphans?: boolean;
+}): { items: StoryboardOutlineItem[]; visitedNodeIds: Set<string> } {
+  const { graph, graphPath, nodeId, depth, labels, includeOrphans = false } = payload;
   const items: StoryboardOutlineItem[] = [];
-  const localSeen = new Set(payload.seen);
-  let currentNodeId = payload.nodeId;
+  const visitedNodeIds = new Set<string>();
+  const seenNodeKeys = new Set(payload.seen);
+  const stack: string[] = [nodeId];
   let guard = 0;
 
-  while (guard < 400) {
+  while (stack.length > 0 && guard < 1000) {
     guard += 1;
+    const nextNodeId = stack.pop();
+    if (!nextNodeId) break;
+    if (visitedNodeIds.has(nextNodeId)) continue;
 
-    if (stopAtNodeId && currentNodeId === stopAtNodeId) {
-      items.push({
-        key: `merge:${buildNodeKey(graphPath, currentNodeId)}:${depth}:${guard}`,
-        kind: 'merge',
-        label: labels.mergeLabel,
-        graphPath,
-        nodeId: currentNodeId,
-        nodeKey: buildNodeKey(graphPath, currentNodeId),
-        children: [],
-        depth
-      });
-      break;
-    }
-
-    const node = findNode(graph, currentNodeId);
-    if (!node) {
-      items.push({
-        key: `missing:${buildNodeKey(graphPath, currentNodeId)}:${depth}:${guard}`,
-        kind: 'note',
-        label: `${labels.missingNodeLabel}: ${currentNodeId}`,
-        graphPath,
-        nodeId: currentNodeId,
-        children: [],
-        depth
-      });
-      break;
-    }
+    const node = findNode(graph, nextNodeId);
+    if (!node) continue;
 
     const nodeKey = buildNodeKey(graphPath, node.nodeId);
-    const reused = localSeen.has(nodeKey);
+    if (seenNodeKeys.has(nodeKey)) continue;
+    seenNodeKeys.add(nodeKey);
+    visitedNodeIds.add(node.nodeId);
+
     const item: StoryboardOutlineItem = {
-      key: `node:${nodeKey}:${depth}:${guard}`,
+      key: `node:${nodeKey}:${depth}:${items.length}`,
       kind: 'node',
-      label: reused ? `${getOutlineNodeLabel(node, labels)} ${labels.reusedSuffix}` : getOutlineNodeLabel(node, labels),
+      label: getOutlineNodeLabel(node, labels),
       graphPath,
       nodeId: node.nodeId,
       nodeKind: node.kind,
       nodeKey,
       children: [],
-      depth,
-      reused
+      depth
     };
-    items.push(item);
-
-    if (reused) {
-      break;
-    }
-    localSeen.add(nodeKey);
 
     if (node.kind === 'group' && node.groupGraph) {
-      item.children.push(
-        ...buildStoryboardOutlineSequence({
+      const groupOutline = buildStoryboardOutlineLinear({
+        graph: node.groupGraph,
+        graphPath: [...graphPath, node.nodeId],
+        nodeId: node.groupGraph.startNodeId,
+        depth: depth + 1,
+        seen: new Set<string>(),
+        labels,
+        includeOrphans: true
+      });
+      item.children = groupOutline.items;
+    }
+
+    items.push(item);
+
+    const outgoing = getOutlineOutgoingEdges(graph, node);
+    const nextIds = Array.from(new Set(outgoing.map((edge) => edge.toNodeId)));
+    for (let index = nextIds.length - 1; index >= 0; index -= 1) {
+      const candidateNodeId = nextIds[index];
+      if (!visitedNodeIds.has(candidateNodeId)) {
+        stack.push(candidateNodeId);
+      }
+    }
+  }
+
+  if (includeOrphans) {
+    const orphanNodes = graph.nodes
+      .filter((node) => !visitedNodeIds.has(node.nodeId))
+      .sort((left, right) => {
+        const yDiff = left.position.y - right.position.y;
+        if (Math.abs(yDiff) > 1) return yDiff;
+        const xDiff = left.position.x - right.position.x;
+        if (Math.abs(xDiff) > 1) return xDiff;
+        return left.title.localeCompare(right.title);
+      });
+
+    orphanNodes.forEach((node, index) => {
+      const nodeKey = buildNodeKey(graphPath, node.nodeId);
+      if (seenNodeKeys.has(nodeKey)) return;
+      seenNodeKeys.add(nodeKey);
+      visitedNodeIds.add(node.nodeId);
+
+      const orphanItem: StoryboardOutlineItem = {
+        key: `orphan:${nodeKey}:${depth}:${index}`,
+        kind: 'note',
+        label: `${labels.orphanPrefix}: ${getOutlineNodeLabel(node, labels)}`,
+        graphPath,
+        nodeId: node.nodeId,
+        nodeKind: node.kind,
+        nodeKey,
+        children: [],
+        depth
+      };
+
+      if (node.kind === 'group' && node.groupGraph) {
+        const orphanGroupOutline = buildStoryboardOutlineLinear({
           graph: node.groupGraph,
           graphPath: [...graphPath, node.nodeId],
           nodeId: node.groupGraph.startNodeId,
           depth: depth + 1,
           seen: new Set<string>(),
-          labels
-        })
-      );
-    }
-
-    if (node.kind === 'separator') {
-      const chapterEdges = graph.edges
-        .filter((edge) => edge.fromNodeId === node.nodeId && edge.sourcePort === 'out-path')
-        .sort((left, right) => left.label.trim().localeCompare(right.label.trim()));
-      const joinNodeId = findJoinNodeIdForSeparator(graph, node.nodeId);
-
-      if (chapterEdges.length > 1) {
-        const parallelItem: StoryboardOutlineItem = {
-          key: `parallel:${nodeKey}:${depth + 1}`,
-          kind: 'parallel',
-          label: labels.parallelLabel,
-          graphPath,
-          children: [],
-          depth: depth + 1
-        };
-
-        chapterEdges.forEach((edge, index) => {
-          const branchItem: StoryboardOutlineItem = {
-            key: `branch:${nodeKey}:${index}:${edge.toNodeId}`,
-            kind: 'branch',
-            label: getOutlineBranchLabel(edge, index, labels),
-            graphPath,
-            nodeId: edge.toNodeId,
-            children: [],
-            depth: depth + 2
-          };
-          branchItem.children.push(
-            ...buildStoryboardOutlineSequence({
-              graph,
-              graphPath,
-              nodeId: edge.toNodeId,
-              depth: depth + 3,
-              seen: new Set(localSeen),
-              labels,
-              stopAtNodeId: joinNodeId ?? undefined
-            })
-          );
-          parallelItem.children.push(branchItem);
+          labels,
+          includeOrphans: true
         });
-        item.children.push(parallelItem);
-
-        if (joinNodeId) {
-          const joinNode = findNode(graph, joinNodeId);
-          if (joinNode) {
-            const continuationEdges = getOutlineOutgoingEdges(graph, joinNode).filter(
-              (edge) => !(edge.sourcePort === 'out-wrong' && edge.toNodeId === node.nodeId)
-            );
-            if (continuationEdges.length > 0) {
-              const continuationItem: StoryboardOutlineItem = {
-                key: `continuation:${nodeKey}:${depth + 1}`,
-                kind: 'branch',
-                label: labels.continuationLabel,
-                graphPath,
-                nodeId: joinNodeId,
-                children: [],
-                depth: depth + 1
-              };
-
-              if (continuationEdges.length === 1) {
-                continuationItem.children.push(
-                  ...buildStoryboardOutlineSequence({
-                    graph,
-                    graphPath,
-                    nodeId: continuationEdges[0].toNodeId,
-                    depth: depth + 2,
-                    seen: new Set(localSeen),
-                    labels
-                  })
-                );
-              } else {
-                continuationEdges.forEach((edge, index) => {
-                  const branchItem: StoryboardOutlineItem = {
-                    key: `continuation-branch:${nodeKey}:${index}:${edge.toNodeId}`,
-                    kind: 'branch',
-                    label: getOutlineBranchLabel(edge, index, labels),
-                    graphPath,
-                    nodeId: edge.toNodeId,
-                    children: buildStoryboardOutlineSequence({
-                      graph,
-                      graphPath,
-                      nodeId: edge.toNodeId,
-                      depth: depth + 3,
-                      seen: new Set(localSeen),
-                      labels
-                    }),
-                    depth: depth + 2
-                  };
-                  continuationItem.children.push(branchItem);
-                });
-              }
-              item.children.push(continuationItem);
-            }
-          }
-        }
-        break;
+        orphanItem.children = orphanGroupOutline.items;
       }
 
-      if (chapterEdges.length === 1) {
-        currentNodeId = chapterEdges[0].toNodeId;
-        continue;
-      }
-
-      break;
-    }
-
-    const outgoing = getOutlineOutgoingEdges(graph, node);
-    if (outgoing.length === 1) {
-      currentNodeId = outgoing[0].toNodeId;
-      continue;
-    }
-
-    if (outgoing.length > 1) {
-      outgoing.forEach((edge, index) => {
-        const branchItem: StoryboardOutlineItem = {
-          key: `branch:${nodeKey}:${index}:${edge.toNodeId}`,
-          kind: 'branch',
-          label: getOutlineBranchLabel(edge, index, labels),
-          graphPath,
-          nodeId: edge.toNodeId,
-          children: buildStoryboardOutlineSequence({
-            graph,
-            graphPath,
-            nodeId: edge.toNodeId,
-            depth: depth + 2,
-            seen: new Set(localSeen),
-            labels
-          }),
-          depth: depth + 1
-        };
-        item.children.push(branchItem);
-      });
-      break;
-    }
-
-    break;
+      items.push(orphanItem);
+    });
   }
 
-  return items;
+  return { items, visitedNodeIds };
 }
 
 function buildRuntimeBlock(graphPath: string[], node: StoryboardNodeRecord): RuntimeBlock {
@@ -1224,6 +1106,104 @@ function collectUpcomingCardNodeLocations(payload: {
   }
 
   return cards;
+}
+
+function collectUpcomingStaticMediaRefs(payload: {
+  graph: StoryboardGraph;
+  graphPath: string[];
+  startNodeIds: string[];
+  visited: Record<string, boolean>;
+  maxDepth?: number;
+  maxNodes?: number;
+  maxMedia?: number;
+}) {
+  const maxDepth = Math.max(1, payload.maxDepth ?? 3);
+  const maxNodes = Math.max(1, payload.maxNodes ?? 32);
+  const maxMedia = Math.max(1, payload.maxMedia ?? 24);
+  const queue: Array<{ graph: StoryboardGraph; graphPath: string[]; nodeId: string; depth: number }> = payload.startNodeIds.map((nodeId) => ({
+    graph: payload.graph,
+    graphPath: payload.graphPath,
+    nodeId,
+    depth: 0
+  }));
+  const seen = new Set<string>();
+  const media = new Map<string, { fileId: string; mediaType: 'image' | 'audio' }>();
+  let visitedNodes = 0;
+
+  while (queue.length > 0 && visitedNodes < maxNodes && media.size < maxMedia) {
+    const next = queue.shift();
+    if (!next) break;
+    const locationKey = buildNodeKey(next.graphPath, next.nodeId);
+    if (seen.has(locationKey)) continue;
+    seen.add(locationKey);
+    visitedNodes += 1;
+
+    const node = findNode(next.graph, next.nodeId);
+    if (!node) continue;
+
+    if (node.kind === 'static') {
+      if (node.narrationImageEnabled && node.narrationImageFileId.trim()) {
+        const fileId = node.narrationImageFileId.trim();
+        media.set(`image:${fileId}`, { fileId, mediaType: 'image' });
+      }
+      if (node.narrationAudioEnabled && node.narrationAudioFileId.trim()) {
+        const fileId = node.narrationAudioFileId.trim();
+        media.set(`audio:${fileId}`, { fileId, mediaType: 'audio' });
+      }
+      if (media.size >= maxMedia) break;
+    }
+
+    if (next.depth >= maxDepth) {
+      continue;
+    }
+
+    if (node.kind === 'group' && node.groupGraph) {
+      queue.push({
+        graph: node.groupGraph,
+        graphPath: [...next.graphPath, node.nodeId],
+        nodeId: node.groupGraph.startNodeId,
+        depth: next.depth + 1
+      });
+    }
+
+    const sourcePorts: StoryboardSourcePort[] =
+      node.kind === 'card' || node.kind === 'join'
+        ? ['out-right', 'out-wrong', 'out-path']
+        : ['out-path'];
+    sourcePorts.forEach((sourcePort) => {
+      const outgoing = getOutgoingEdges(next.graph, next.graphPath, node.nodeId, sourcePort, payload.visited);
+      outgoing.forEach((edge) => {
+        queue.push({
+          graph: next.graph,
+          graphPath: next.graphPath,
+          nodeId: edge.toNodeId,
+          depth: next.depth + 1
+        });
+      });
+    });
+  }
+
+  return Array.from(media.values());
+}
+
+function getRuntimeForwardStartNodeIds(runtime: RuntimeState, currentNode: StoryboardNodeRecord) {
+  const startEdges =
+    currentNode.kind === 'separator'
+      ? getSeparatorRemainingEdges(
+          runtime.graph,
+          runtime.graphPath,
+          currentNode.nodeId,
+          runtime.visited,
+          runtime.activeSeparatorByGraphPath[buildGraphPathKey(runtime.graphPath)] === currentNode.nodeId
+        )
+      : (currentNode.kind === 'card' || currentNode.kind === 'join'
+          ? ([
+              ...getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-right', runtime.visited),
+              ...getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-wrong', runtime.visited),
+              ...getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-path', runtime.visited)
+            ] as StoryboardGraphEdge[])
+          : getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-path', runtime.visited));
+  return Array.from(new Set(startEdges.map((edge) => edge.toNodeId)));
 }
 
 function advanceRuntime(
@@ -1434,6 +1414,11 @@ export function CogitaStoryboardRuntimePage({
   const [runtimeHistoryVersion, setRuntimeHistoryVersion] = useState(0);
   const [canNavigateBack, setCanNavigateBack] = useState(false);
   const [canNavigateForward, setCanNavigateForward] = useState(false);
+  const [expandedOutlineNodes, setExpandedOutlineNodes] = useState<Record<string, boolean>>({});
+  const [isNarrowScreen, setIsNarrowScreen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 980 : false
+  );
+  const [outlineOpenOnNarrow, setOutlineOpenOnNarrow] = useState(false);
 
   const refreshRuntimeNavigation = useCallback(() => {
     const stack = runtimeHistoryRef.current;
@@ -1448,6 +1433,7 @@ export function CogitaStoryboardRuntimePage({
       setRuntime(nextRuntime);
       setResolvedCards([]);
       setExpandedResolvedCards({});
+      setExpandedOutlineNodes({});
       if (nextRuntime) {
         runtimeHistoryRef.current = [nextRuntime];
         runtimeHistoryIndexRef.current = 0;
@@ -1618,6 +1604,22 @@ export function CogitaStoryboardRuntimePage({
   }, []);
 
   useEffect(() => {
+    const updateLayoutMode = () => {
+      const narrow = window.innerWidth < 980;
+      setIsNarrowScreen(narrow);
+      if (!narrow) {
+        setOutlineOpenOnNarrow(false);
+      }
+    };
+
+    updateLayoutMode();
+    window.addEventListener('resize', updateLayoutMode);
+    return () => {
+      window.removeEventListener('resize', updateLayoutMode);
+    };
+  }, []);
+
+  useEffect(() => {
     pythonRunnerRef.current = new BrowserPythonRunnerClient();
     return () => {
       pythonRunnerRef.current?.dispose();
@@ -1633,14 +1635,7 @@ export function CogitaStoryboardRuntimePage({
         checkcardPrefix: 'Karta',
         chapterPrefix: 'Rozdział',
         subchapterPrefix: 'Podrozdział',
-        parallelLabel: 'Ścieżki równoległe',
-        continuationLabel: 'Dalej po połączeniu',
-        mergeLabel: 'Punkt połączenia',
-        correctBranchLabel: 'Ścieżka poprawna',
-        wrongBranchLabel: 'Ścieżka błędna',
-        genericBranchLabel: 'Ścieżka',
-        reusedSuffix: '(odwołanie)',
-        missingNodeLabel: 'Brakujący węzeł'
+        orphanPrefix: 'Niespięte'
       };
     }
     if (language === 'de') {
@@ -1650,14 +1645,7 @@ export function CogitaStoryboardRuntimePage({
         checkcardPrefix: 'Karte',
         chapterPrefix: 'Kapitel',
         subchapterPrefix: 'Unterkapitel',
-        parallelLabel: 'Parallele Pfade',
-        continuationLabel: 'Fortsetzung nach Zusammenführung',
-        mergeLabel: 'Zusammenführungspunkt',
-        correctBranchLabel: 'Richtiger Pfad',
-        wrongBranchLabel: 'Falscher Pfad',
-        genericBranchLabel: 'Pfad',
-        reusedSuffix: '(Verweis)',
-        missingNodeLabel: 'Fehlender Knoten'
+        orphanPrefix: 'Unverbunden'
       };
     }
     return {
@@ -1666,14 +1654,7 @@ export function CogitaStoryboardRuntimePage({
       checkcardPrefix: 'Card',
       chapterPrefix: 'Chapter',
       subchapterPrefix: 'Subchapter',
-      parallelLabel: 'Parallel paths',
-      continuationLabel: 'Continuation after merge',
-      mergeLabel: 'Merge point',
-      correctBranchLabel: 'Correct path',
-      wrongBranchLabel: 'Wrong path',
-      genericBranchLabel: 'Path',
-      reusedSuffix: '(reference)',
-      missingNodeLabel: 'Missing node'
+      orphanPrefix: 'Unlinked'
     };
   }, [language]);
 
@@ -1683,6 +1664,8 @@ export function CogitaStoryboardRuntimePage({
         title: 'Konspekt',
         back: 'Wstecz',
         forward: 'Dalej',
+        show: 'Pokaż konspekt',
+        hide: 'Ukryj konspekt',
         noOutline: 'Brak konspektu storyboardu.'
       };
     }
@@ -1691,6 +1674,8 @@ export function CogitaStoryboardRuntimePage({
         title: 'Gliederung',
         back: 'Zurück',
         forward: 'Vor',
+        show: 'Gliederung anzeigen',
+        hide: 'Gliederung ausblenden',
         noOutline: 'Keine Storyboard-Gliederung verfügbar.'
       };
     }
@@ -1698,6 +1683,8 @@ export function CogitaStoryboardRuntimePage({
       title: 'Outline',
       back: 'Back',
       forward: 'Forward',
+      show: 'Show outline',
+      hide: 'Hide outline',
       noOutline: 'No storyboard outline available.'
     };
   }, [language]);
@@ -1770,34 +1757,54 @@ export function CogitaStoryboardRuntimePage({
     return buildStoryboardOutline(documentState.rootGraph, [], outlineLabels);
   }, [documentState, outlineLabels]);
 
+  const toggleOutlineNode = useCallback((itemKey: string) => {
+    setExpandedOutlineNodes((previous) => ({ ...previous, [itemKey]: !(previous[itemKey] ?? true) }));
+  }, []);
+
   const renderOutlineItem = useCallback(
     (item: StoryboardOutlineItem): JSX.Element => {
       const isActive = Boolean(item.nodeKey && item.nodeKey === currentRuntimeNodeKey);
       const isVisited = Boolean(item.nodeKey && runtime?.visited[item.nodeKey]);
       const isInHistory = Boolean(item.nodeKey && runtimeNodeHistoryKeySet.has(item.nodeKey));
       const canJump = Boolean(item.nodeKey && isInHistory);
+      const hasChildren = item.children.length > 0;
+      const expanded = expandedOutlineNodes[item.key] ?? true;
 
       return (
         <li key={item.key} style={{ display: 'grid', gap: '0.35rem' }}>
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => jumpToOutlineNode(item.nodeKey)}
-            disabled={!canJump}
-            style={{
-              justifyContent: 'flex-start',
-              opacity: canJump ? 1 : 0.65,
-              borderColor: isActive ? 'rgba(111, 214, 255, 0.55)' : undefined,
-              background: isActive
-                ? 'linear-gradient(120deg, rgba(111, 214, 255, 0.18), rgba(111, 214, 255, 0.06))'
-                : isVisited
-                  ? 'rgba(111, 214, 255, 0.05)'
-                  : 'transparent'
-            }}
-          >
-            {item.label}
-          </button>
-          {item.children.length > 0 ? (
+          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+            {hasChildren ? (
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => toggleOutlineNode(item.key)}
+                style={{ minWidth: '2rem', paddingInline: '0.45rem' }}
+                aria-label={expanded ? 'Collapse outline node' : 'Expand outline node'}
+              >
+                {expanded ? '−' : '+'}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => jumpToOutlineNode(item.nodeKey)}
+              disabled={!canJump}
+              style={{
+                justifyContent: 'flex-start',
+                opacity: canJump ? 1 : 0.65,
+                borderColor: isActive ? 'rgba(111, 214, 255, 0.55)' : undefined,
+                background: isActive
+                  ? 'linear-gradient(120deg, rgba(111, 214, 255, 0.18), rgba(111, 214, 255, 0.06))'
+                  : isVisited
+                    ? 'rgba(111, 214, 255, 0.05)'
+                    : 'transparent',
+                flex: 1
+              }}
+            >
+              {item.label}
+            </button>
+          </div>
+          {hasChildren && expanded ? (
             <ul style={{ margin: 0, paddingLeft: '1rem', display: 'grid', gap: '0.35rem' }}>
               {item.children.map((child) => renderOutlineItem(child))}
             </ul>
@@ -1805,7 +1812,7 @@ export function CogitaStoryboardRuntimePage({
         </li>
       );
     },
-    [currentRuntimeNodeKey, jumpToOutlineNode, runtime?.visited, runtimeNodeHistoryKeySet]
+    [currentRuntimeNodeKey, expandedOutlineNodes, jumpToOutlineNode, runtime?.visited, runtimeNodeHistoryKeySet, toggleOutlineNode]
   );
 
   const currentNode = useMemo(() => {
@@ -2137,24 +2144,7 @@ export function CogitaStoryboardRuntimePage({
 
   useEffect(() => {
     if (!runtime || loading || !currentNode) return;
-    const graphPathKey = buildGraphPathKey(runtime.graphPath);
-    const startEdges =
-      currentNode.kind === 'separator'
-        ? getSeparatorRemainingEdges(
-            runtime.graph,
-            runtime.graphPath,
-            currentNode.nodeId,
-            runtime.visited,
-            runtime.activeSeparatorByGraphPath[graphPathKey] === currentNode.nodeId
-          )
-        : (currentNode.kind === 'card' || currentNode.kind === 'join'
-            ? ([
-                ...getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-right', runtime.visited),
-                ...getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-wrong', runtime.visited),
-                ...getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-path', runtime.visited)
-              ] as StoryboardGraphEdge[])
-            : getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-path', runtime.visited));
-    const startNodeIds = Array.from(new Set(startEdges.map((edge) => edge.toNodeId)));
+    const startNodeIds = getRuntimeForwardStartNodeIds(runtime, currentNode);
     if (startNodeIds.length === 0) return;
     const upcomingCards = collectUpcomingCardNodeLocations({
       graph: runtime.graph,
@@ -2183,6 +2173,27 @@ export function CogitaStoryboardRuntimePage({
           required.set(`audio:${fileId}`, { fileId, mediaType: 'audio' });
         }
       });
+
+      if (!runtime.finished) {
+        const currentRuntimeNode = findNode(runtime.graph, runtime.currentNodeId);
+        if (currentRuntimeNode) {
+          const forwardStartNodeIds = getRuntimeForwardStartNodeIds(runtime, currentRuntimeNode);
+          if (forwardStartNodeIds.length > 0) {
+            const upcomingMediaRefs = collectUpcomingStaticMediaRefs({
+              graph: runtime.graph,
+              graphPath: runtime.graphPath,
+              startNodeIds: forwardStartNodeIds,
+              visited: runtime.visited,
+              maxDepth: 3,
+              maxNodes: 36,
+              maxMedia: 28
+            });
+            upcomingMediaRefs.forEach((entry) => {
+              required.set(`${entry.mediaType}:${entry.fileId}`, entry);
+            });
+          }
+        }
+      }
     }
 
     setMediaObjectUrls((current) => {
@@ -2584,6 +2595,9 @@ export function CogitaStoryboardRuntimePage({
     setStatus(outcomeEdge ? null : runtimeCopy.noCardOutcomeLink);
   };
 
+  const showOutlinePanel = !isNarrowScreen || outlineOpenOnNarrow;
+  const runtimeContentOffset = showOutlinePanel && !isNarrowScreen ? '19rem' : undefined;
+
   return (
     <CogitaShell
       copy={copy}
@@ -2611,7 +2625,7 @@ export function CogitaStoryboardRuntimePage({
       <section
         className="cogita-section cogita-storyboard-runtime"
         style={{
-          maxWidth: 980,
+          maxWidth: 1240,
           margin: '0 auto',
           width: '100%',
           paddingInline: 'clamp(0.85rem, 2.6vw, 1.6rem)',
@@ -2632,8 +2646,30 @@ export function CogitaStoryboardRuntimePage({
         {loading ? <p>{runtimeCopy.loading}</p> : null}
         {status ? <p className="cogita-form-error">{status}</p> : null}
 
-        {!loading && runtime ? (
-          <article className="cogita-library-detail" style={{ marginBottom: '1rem' }}>
+        {!loading && runtime && isNarrowScreen ? (
+          <div className="cogita-card-actions" style={{ marginBottom: '0.75rem' }}>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => setOutlineOpenOnNarrow((value) => !value)}
+            >
+              {outlineOpenOnNarrow ? runtimeHistoryCopy.hide : runtimeHistoryCopy.show}
+            </button>
+          </div>
+        ) : null}
+
+        {!loading && runtime && showOutlinePanel ? (
+          <article
+            className="cogita-library-detail"
+            style={{
+              marginBottom: '1rem',
+              width: isNarrowScreen ? '100%' : '18rem',
+              float: isNarrowScreen ? 'none' : 'left',
+              marginRight: isNarrowScreen ? 0 : '1rem',
+              position: isNarrowScreen ? 'static' : 'sticky',
+              top: isNarrowScreen ? undefined : '0.75rem'
+            }}
+          >
             <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.65rem' }}>
               <div
                 style={{
@@ -2668,7 +2704,10 @@ export function CogitaStoryboardRuntimePage({
         ) : null}
 
         {!loading && resolvedCards.length > 0 ? (
-          <article className="cogita-library-detail" style={{ marginBottom: '1rem' }}>
+          <article
+            className="cogita-library-detail"
+            style={{ marginBottom: '1rem', marginLeft: runtimeContentOffset }}
+          >
             <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.65rem' }}>
               <strong>{resolvedCardsCopy.title}</strong>
               <div style={{ display: 'grid', gap: '0.65rem' }}>
@@ -2762,7 +2801,7 @@ export function CogitaStoryboardRuntimePage({
         ) : null}
 
         {!loading && runtime ? (
-          <div className="cogita-pane" style={{ display: 'grid', gap: '1rem' }}>
+          <div className="cogita-pane" style={{ display: 'grid', gap: '1rem', marginLeft: runtimeContentOffset }}>
             {runtime.displayedBlocks
               .filter((block) => block.kind !== 'card')
               .map((block) => (
@@ -3134,6 +3173,7 @@ export function CogitaStoryboardRuntimePage({
             <div ref={runtimeScrollAnchorRef} />
           </div>
         ) : null}
+        {!isNarrowScreen && showOutlinePanel ? <div style={{ clear: 'both' }} /> : null}
       </section>
     </CogitaShell>
   );

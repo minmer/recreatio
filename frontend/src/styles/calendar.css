@@ -56,6 +56,14 @@
   width: 100%;
 }
 
+.calendar-main-simple {
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  align-items: start;
+}
+
 .calendar-workspace {
   grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(500px, 620px);
   grid-template-areas: "sidebar board detail";
@@ -355,6 +363,10 @@
 }
 
 @media (max-width: 1080px) {
+  .calendar-main-simple {
+    grid-template-columns: 1fr;
+  }
+
   .calendar-workspace {
     grid-template-columns: 1fr;
     grid-template-areas:
