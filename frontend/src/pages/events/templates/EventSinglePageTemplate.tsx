@@ -41,6 +41,7 @@ const INTERNAL_TRACK_INTERPOLATION = 0.2;
 const SLIDE_TRANSITION_INTERPOLATION = 0.08;
 const WHEEL_SLIDE_JUMP_THRESHOLD = 88;
 const TOUCH_SLIDE_JUMP_THRESHOLD = 44;
+const SNAP_INPUT_LOCK_MS = 220;
 const MIDDLE_SCROLL_DEADZONE_PX = 10;
 const MIDDLE_SCROLL_GAIN = 0.082;
 const MIDDLE_SCROLL_MAX_DELTA = 34;
@@ -100,6 +101,7 @@ export function EventSinglePageTemplate({
   const snapTimerRef = useRef<number | null>(null);
   const lastInputDirectionRef = useRef<-1 | 0 | 1>(0);
   const lastInputAtRef = useRef(0);
+  const inputLockUntilRef = useRef(0);
   const burstTransitionUsedRef = useRef(false);
   const burstTransitionDirectionRef = useRef<-1 | 0 | 1>(0);
   const burstAccumulatedDeltaRef = useRef(0);
@@ -237,11 +239,16 @@ export function EventSinglePageTemplate({
     animateToTarget();
   }, [animateToTarget, maxScroll]);
 
+  const lockInputAfterSnap = useCallback(() => {
+    inputLockUntilRef.current = performance.now() + SNAP_INPUT_LOCK_MS;
+  }, []);
+
   const snapToNearest = useCallback(() => {
     const snap = resolveSnapTarget(targetRef.current, lastInputDirectionRef.current);
     setTarget(snap, SLIDE_TRANSITION_INTERPOLATION);
+    lockInputAfterSnap();
     lastInputDirectionRef.current = 0;
-  }, [resolveSnapTarget, setTarget]);
+  }, [lockInputAfterSnap, resolveSnapTarget, setTarget]);
 
   const scheduleSnap = useCallback(() => {
     if (snapTimerRef.current !== null) {
@@ -272,12 +279,15 @@ export function EventSinglePageTemplate({
     if (!Number.isFinite(delta) || delta === 0) {
       return;
     }
+    const now = performance.now();
+    if (now < inputLockUntilRef.current) {
+      return;
+    }
     if (snapTimerRef.current !== null) {
       window.clearTimeout(snapTimerRef.current);
       snapTimerRef.current = null;
     }
 
-    const now = performance.now();
     const isNewBurst = now - lastInputAtRef.current > INPUT_SESSION_GAP_MS;
     if (isNewBurst) {
       burstTransitionUsedRef.current = false;
@@ -303,6 +313,8 @@ export function EventSinglePageTemplate({
     const isCrossSlideAnimationActive =
       rafRef.current !== null && animatedFromIndex !== animatedToIndex;
     if (
+      inputType !== 'touch'
+      &&
       !isNewBurst
       && isCrossSlideAnimationActive
       && burstTransitionDirectionRef.current !== 0
@@ -315,12 +327,13 @@ export function EventSinglePageTemplate({
     }
 
     const scaled = delta * SCROLL_SENSITIVITY;
+    const internalInterpolation = inputType === 'touch' ? 0.34 : INTERNAL_TRACK_INTERPOLATION;
     burstAccumulatedDeltaRef.current += scaled;
     const slideJumpThreshold = inputType === 'touch'
       ? TOUCH_SLIDE_JUMP_THRESHOLD
       : WHEEL_SLIDE_JUMP_THRESHOLD;
     const boundaryNeedsNewBurst = inputType !== 'touch';
-    const current = targetRef.current;
+    const current = inputType === 'touch' ? positionRef.current : targetRef.current;
     const slideIndex = getSlideIndexForPosition(current);
     const slideStart = slideStarts[slideIndex] ?? 0;
     const slideHeight = slideHeights[slideIndex] ?? viewportHeight;
@@ -330,7 +343,7 @@ export function EventSinglePageTemplate({
     if (hasInnerScroll && direction > 0) {
       if (current < slideInnerEnd - 0.5) {
         const next = Math.min(slideInnerEnd, current + Math.max(0, scaled));
-        setTarget(next, INTERNAL_TRACK_INTERPOLATION);
+        setTarget(next, internalInterpolation);
         if (next >= slideInnerEnd - 0.5) {
           boundaryGateRef.current = { slideIndex, direction };
         } else {
@@ -343,7 +356,7 @@ export function EventSinglePageTemplate({
       const gate = boundaryGateRef.current;
       if (!gate || gate.slideIndex !== slideIndex || gate.direction !== direction) {
         boundaryGateRef.current = { slideIndex, direction };
-        setTarget(slideInnerEnd, INTERNAL_TRACK_INTERPOLATION);
+        setTarget(slideInnerEnd, internalInterpolation);
         lastInputDirectionRef.current = direction;
         return;
       }
@@ -351,7 +364,7 @@ export function EventSinglePageTemplate({
         ? isNewBurst && !burstTransitionUsedRef.current
         : Math.abs(burstAccumulatedDeltaRef.current) >= slideJumpThreshold && !burstTransitionUsedRef.current;
       if (!canCrossSlideFromBoundary) {
-        setTarget(slideInnerEnd, INTERNAL_TRACK_INTERPOLATION);
+        setTarget(slideInnerEnd, internalInterpolation);
         lastInputDirectionRef.current = direction;
         return;
       }
@@ -363,13 +376,14 @@ export function EventSinglePageTemplate({
       lastInputDirectionRef.current = direction;
       const nextIndex = Math.min(slideIndex + 1, slides.length - 1);
       setTarget(slideStarts[nextIndex] ?? maxScroll, SLIDE_TRANSITION_INTERPOLATION);
+      lockInputAfterSnap();
       return;
     }
 
     if (hasInnerScroll && direction < 0) {
       if (current > slideStart + 0.5) {
         const next = Math.max(slideStart, current + Math.min(0, scaled));
-        setTarget(next, INTERNAL_TRACK_INTERPOLATION);
+        setTarget(next, internalInterpolation);
         if (next <= slideStart + 0.5) {
           boundaryGateRef.current = { slideIndex, direction };
         } else {
@@ -382,7 +396,7 @@ export function EventSinglePageTemplate({
       const gate = boundaryGateRef.current;
       if (!gate || gate.slideIndex !== slideIndex || gate.direction !== direction) {
         boundaryGateRef.current = { slideIndex, direction };
-        setTarget(slideStart, INTERNAL_TRACK_INTERPOLATION);
+        setTarget(slideStart, internalInterpolation);
         lastInputDirectionRef.current = direction;
         return;
       }
@@ -390,7 +404,7 @@ export function EventSinglePageTemplate({
         ? isNewBurst && !burstTransitionUsedRef.current
         : Math.abs(burstAccumulatedDeltaRef.current) >= slideJumpThreshold && !burstTransitionUsedRef.current;
       if (!canCrossSlideFromBoundary) {
-        setTarget(slideStart, INTERNAL_TRACK_INTERPOLATION);
+        setTarget(slideStart, internalInterpolation);
         lastInputDirectionRef.current = direction;
         return;
       }
@@ -401,7 +415,11 @@ export function EventSinglePageTemplate({
       boundaryGateRef.current = null;
       lastInputDirectionRef.current = direction;
       const previousIndex = Math.max(slideIndex - 1, 0);
-      setTarget(slideStarts[previousIndex] ?? 0, SLIDE_TRANSITION_INTERPOLATION);
+      const previousStart = slideStarts[previousIndex] ?? 0;
+      const previousHeight = slideHeights[previousIndex] ?? viewportHeight;
+      const previousInnerEnd = previousStart + Math.max(0, previousHeight - viewportHeight);
+      setTarget(previousInnerEnd, SLIDE_TRANSITION_INTERPOLATION);
+      lockInputAfterSnap();
       return;
     }
 
@@ -420,9 +438,22 @@ export function EventSinglePageTemplate({
     boundaryGateRef.current = null;
     lastInputDirectionRef.current = direction;
     const nextIndex = clamp(slideIndex + direction, 0, slides.length - 1);
-    setTarget(slideStarts[nextIndex] ?? (direction > 0 ? maxScroll : 0), SLIDE_TRANSITION_INTERPOLATION);
+    if (direction < 0 && nextIndex < slideIndex) {
+      const previousStart = slideStarts[nextIndex] ?? 0;
+      const previousHeight = slideHeights[nextIndex] ?? viewportHeight;
+      const previousInnerEnd = previousStart + Math.max(0, previousHeight - viewportHeight);
+      setTarget(previousInnerEnd, SLIDE_TRANSITION_INTERPOLATION);
+    } else {
+      const nextStart = slideStarts[nextIndex] ?? 0;
+      const point = direction > 0 && nextIndex === slides.length - 1
+        ? maxScroll
+        : nextStart;
+      setTarget(point, SLIDE_TRANSITION_INTERPOLATION);
+    }
+    lockInputAfterSnap();
   }, [
     getSlideIndexForPosition,
+    lockInputAfterSnap,
     maxScroll,
     setTarget,
     slideHeights,
@@ -440,9 +471,10 @@ export function EventSinglePageTemplate({
     burstAccumulatedDeltaRef.current = 0;
     boundaryGateRef.current = null;
     setTarget(point, SLIDE_TRANSITION_INTERPOLATION);
+    lockInputAfterSnap();
     scheduleSnap();
     setMenuOpen(false);
-  }, [scheduleSnap, setTarget, slideStarts]);
+  }, [lockInputAfterSnap, scheduleSnap, setTarget, slideStarts]);
 
   const renderDefaultLayerContent = useCallback((slide: EventTemplateSlide) => (
     <div className="event-template-slide-inner">
@@ -636,7 +668,7 @@ export function EventSinglePageTemplate({
       const delta = touchYRef.current - nextY;
       touchYRef.current = nextY;
       event.preventDefault();
-      applyDelta(delta * 1.35, 'touch');
+      applyDelta(delta, 'touch');
     };
 
     const onTouchEnd = () => {
