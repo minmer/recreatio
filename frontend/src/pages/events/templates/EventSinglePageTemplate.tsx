@@ -42,6 +42,7 @@ const SLIDE_TRANSITION_INTERPOLATION = 0.08;
 const WHEEL_SLIDE_JUMP_THRESHOLD = 88;
 const TOUCH_SLIDE_JUMP_THRESHOLD = 44;
 const SNAP_INPUT_LOCK_MS = 220;
+const MIDDLE_SNAP_THRESHOLD_MS = 140;
 const MIDDLE_SCROLL_DEADZONE_PX = 10;
 const MIDDLE_SCROLL_GAIN = 0.082;
 const MIDDLE_SCROLL_MAX_DELTA = 34;
@@ -110,6 +111,7 @@ export function EventSinglePageTemplate({
   const middleScrollAnchorYRef = useRef(0);
   const middleScrollPointerYRef = useRef(0);
   const middleScrollRafRef = useRef<number | null>(null);
+  const middleSnapDelayRef = useRef<number | null>(null);
   const interpolationRef = useRef(INTERNAL_TRACK_INTERPOLATION);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
@@ -271,13 +273,23 @@ export function EventSinglePageTemplate({
       middleScrollRafRef.current = null;
     }
     if (withSnap) {
-      scheduleSnap();
+      if (middleSnapDelayRef.current !== null) {
+        window.clearTimeout(middleSnapDelayRef.current);
+      }
+      middleSnapDelayRef.current = window.setTimeout(() => {
+        middleSnapDelayRef.current = null;
+        snapToNearest();
+      }, MIDDLE_SNAP_THRESHOLD_MS);
     }
-  }, [scheduleSnap]);
+  }, [snapToNearest]);
 
   const applyDelta = useCallback((delta: number, inputType: 'wheel' | 'touch' = 'wheel') => {
     if (!Number.isFinite(delta) || delta === 0) {
       return;
+    }
+    if (middleSnapDelayRef.current !== null) {
+      window.clearTimeout(middleSnapDelayRef.current);
+      middleSnapDelayRef.current = null;
     }
     const now = performance.now();
     if (now < inputLockUntilRef.current) {
@@ -375,7 +387,9 @@ export function EventSinglePageTemplate({
       boundaryGateRef.current = null;
       lastInputDirectionRef.current = direction;
       const nextIndex = Math.min(slideIndex + 1, slides.length - 1);
-      setTarget(slideStarts[nextIndex] ?? maxScroll, SLIDE_TRANSITION_INTERPOLATION);
+      const nextStart = slideStarts[nextIndex] ?? 0;
+      const point = nextIndex === slides.length - 1 ? maxScroll : nextStart;
+      setTarget(point, SLIDE_TRANSITION_INTERPOLATION);
       lockInputAfterSnap();
       return;
     }
@@ -743,6 +757,10 @@ export function EventSinglePageTemplate({
       middleScrollAnchorYRef.current = event.clientY;
       middleScrollPointerYRef.current = event.clientY;
       setMiddleScrollActive(true);
+      if (middleSnapDelayRef.current !== null) {
+        window.clearTimeout(middleSnapDelayRef.current);
+        middleSnapDelayRef.current = null;
+      }
 
       lastInputAtRef.current = 0;
       burstTransitionUsedRef.current = false;
@@ -788,6 +806,10 @@ export function EventSinglePageTemplate({
         cancelAnimationFrame(middleScrollRafRef.current);
         middleScrollRafRef.current = null;
       }
+      if (middleSnapDelayRef.current !== null) {
+        window.clearTimeout(middleSnapDelayRef.current);
+        middleSnapDelayRef.current = null;
+      }
       middleScrollActiveRef.current = false;
       setMiddleScrollActive(false);
     };
@@ -827,6 +849,10 @@ export function EventSinglePageTemplate({
     if (middleScrollRafRef.current !== null) {
       cancelAnimationFrame(middleScrollRafRef.current);
       middleScrollRafRef.current = null;
+    }
+    if (middleSnapDelayRef.current !== null) {
+      window.clearTimeout(middleSnapDelayRef.current);
+      middleSnapDelayRef.current = null;
     }
     if (snapTimerRef.current !== null) {
       window.clearTimeout(snapTimerRef.current);
