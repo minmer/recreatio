@@ -513,16 +513,7 @@ export function EventSinglePageTemplate({
         }
 
         const layersForSlide = nextLayerHeights[index] ?? [nextViewportHeight];
-        const resolvedLayersForSlide = nextResolvedLayers[index] ?? [];
-        const interactiveLayerHeights = layersForSlide.filter((_, layerIndex) => {
-          const layer = resolvedLayersForSlide[layerIndex];
-          return Boolean(layer?.interactive);
-        });
-        const heightContributors = interactiveLayerHeights.length
-          ? interactiveLayerHeights
-          : layersForSlide;
-
-        const tallestLayer = heightContributors.reduce(
+        const tallestLayer = layersForSlide.reduce(
           (winner, height) => Math.max(winner, height),
           nextViewportHeight
         );
