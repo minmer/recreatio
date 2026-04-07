@@ -429,7 +429,7 @@ export function Edk26EventPage(
           content: (
             <div className="edk26-content">
               <section className="edk-section">
-                <p className="edk-hero-badge">27/28.03.2026 - Krakow -> Dobczyce - prowadzi ks. Michal Mleczek</p>
+                <p className="edk-hero-badge">27/28.03.2026 - Krakow -&gt; Dobczyce - prowadzi ks. Michal Mleczek</p>
                 <h1 className="event-template-title">EDK 2026</h1>
                 <p className="event-template-description">Nocna droga w malej wspolnocie.</p>
                 <div className="event-template-body">
@@ -539,7 +539,7 @@ export function Edk26EventPage(
                     <ul>
                       <li>Start: piatek, 27.03.2026</li>
                       <li>Msza: 18:30</li>
-                      <li>Trasa: Krakow -> Dobczyce</li>
+                      <li>Trasa: Krakow -&gt; Dobczyce</li>
                       <li>Powrot: sobota rano, okolo 8:00</li>
                     </ul>
                   </aside>
@@ -584,7 +584,7 @@ export function Edk26EventPage(
               <section className="edk-section">
                 <header>
                   <h2>Trasa</h2>
-                  <p>Krakow -> Dobczyce</p>
+                  <p>Krakow -&gt; Dobczyce</p>
                 </header>
                 <div className="edk-section-body">
                   <p>
