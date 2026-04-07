@@ -12,6 +12,14 @@ export type EventTemplateSlideAction = {
   variant?: 'primary' | 'ghost';
 };
 
+export type EventTemplateSlideLayer = {
+  id: string;
+  content: ReactNode;
+  className?: string;
+  interactive?: boolean;
+  minHeightPx?: number;
+};
+
 export type EventTemplateSlide = {
   id: string;
   menuLabel: string;
@@ -20,6 +28,7 @@ export type EventTemplateSlide = {
   description?: string;
   body?: ReactNode;
   actions?: EventTemplateSlideAction[];
+  layers?: EventTemplateSlideLayer[];
   heightMode?: 'screen' | 'content';
   tone?: 'tone-1' | 'tone-2' | 'tone-3' | 'tone-4' | 'tone-5';
 };
@@ -82,7 +91,7 @@ export function EventSinglePageTemplate({
   slides: EventTemplateSlide[];
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const contentRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const layerRefs = useRef<Array<Array<HTMLDivElement | null>>>([]);
   const touchYRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const snapTimerRef = useRef<number | null>(null);
@@ -99,6 +108,7 @@ export function EventSinglePageTemplate({
   const [viewportHeight, setViewportHeight] = useState(1);
   const [position, setPosition] = useState(0);
   const [slideHeights, setSlideHeights] = useState<number[]>(() => slides.map(() => 1));
+  const [layerHeights, setLayerHeights] = useState<number[][]>(() => slides.map(() => [1]));
 
   const slideStarts = useMemo(() => {
     const starts: number[] = [];
@@ -404,6 +414,73 @@ export function EventSinglePageTemplate({
     setMenuOpen(false);
   }, [scheduleSnap, setTarget, slideStarts]);
 
+  const renderDefaultLayerContent = useCallback((slide: EventTemplateSlide) => (
+    <div className="event-template-slide-inner">
+      {slide.kicker ? <p className="event-template-kicker">{slide.kicker}</p> : null}
+      <h1 className="event-template-title">{slide.title}</h1>
+      {slide.description ? <p className="event-template-description">{slide.description}</p> : null}
+      {slide.body ? <div className="event-template-body">{slide.body}</div> : null}
+      {slide.actions?.length ? (
+        <div className="event-template-actions">
+          {slide.actions.map((action) => {
+            if (action.href) {
+              return (
+                <a
+                  key={`${slide.id}-${action.label}`}
+                  className={`cta ${action.variant === 'ghost' ? 'ghost' : ''}`}
+                  href={action.href}
+                >
+                  {action.label}
+                </a>
+              );
+            }
+            if (action.targetSlideId) {
+              return (
+                <button
+                  key={`${slide.id}-${action.label}`}
+                  type="button"
+                  className={`cta ${action.variant === 'ghost' ? 'ghost' : ''}`}
+                  onClick={() => {
+                    const nextIndex = slideIndexById.get(action.targetSlideId ?? '');
+                    if (typeof nextIndex === 'number') {
+                      jumpToSlide(nextIndex);
+                    }
+                  }}
+                >
+                  {action.label}
+                </button>
+              );
+            }
+            return (
+              <button
+                key={`${slide.id}-${action.label}`}
+                type="button"
+                className={`cta ${action.variant === 'ghost' ? 'ghost' : ''}`}
+                onClick={action.onClick}
+              >
+                {action.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  ), [jumpToSlide, slideIndexById]);
+
+  const resolveSlideLayers = useCallback((slide: EventTemplateSlide): EventTemplateSlideLayer[] => {
+    if (slide.layers?.length) {
+      return slide.layers;
+    }
+    return [
+      {
+        id: `${slide.id}-content`,
+        content: renderDefaultLayerContent(slide),
+        className: 'event-template-slide-content-layer',
+        interactive: true
+      }
+    ];
+  }, [renderDefaultLayerContent]);
+
   useLayoutEffect(() => {
     const measure = () => {
       const viewport = viewportRef.current;
@@ -413,19 +490,66 @@ export function EventSinglePageTemplate({
       const nextViewportHeight = Math.max(1, viewport.clientHeight);
       setViewportHeight(nextViewportHeight);
 
-      const nextHeights = slides.map((slide, index) => {
-        const contentHeight = contentRefs.current[index]?.scrollHeight ?? nextViewportHeight;
-        if (slide.heightMode === 'content') {
-          return Math.max(nextViewportHeight, contentHeight + 64);
+      layerRefs.current.length = slides.length;
+
+      const nextResolvedLayers = slides.map((slide) => resolveSlideLayers(slide));
+
+      const nextLayerHeights = slides.map((_, slideIndex) => {
+        const resolvedLayers = nextResolvedLayers[slideIndex];
+        if (!layerRefs.current[slideIndex]) {
+          layerRefs.current[slideIndex] = [];
         }
-        return nextViewportHeight;
+        layerRefs.current[slideIndex].length = resolvedLayers.length;
+        return resolvedLayers.map((layer, layerIndex) => {
+          const node = layerRefs.current[slideIndex][layerIndex];
+          const measuredHeight = node?.scrollHeight ?? nextViewportHeight;
+          return Math.max(1, layer.minHeightPx ?? 0, measuredHeight);
+        });
+      });
+
+      const nextSlideHeights = slides.map((slide, index) => {
+        if (slide.heightMode !== 'content') {
+          return nextViewportHeight;
+        }
+
+        const layersForSlide = nextLayerHeights[index] ?? [nextViewportHeight];
+        const resolvedLayersForSlide = nextResolvedLayers[index] ?? [];
+        const interactiveLayerHeights = layersForSlide.filter((_, layerIndex) => {
+          const layer = resolvedLayersForSlide[layerIndex];
+          return Boolean(layer?.interactive);
+        });
+        const heightContributors = interactiveLayerHeights.length
+          ? interactiveLayerHeights
+          : layersForSlide;
+
+        const tallestLayer = heightContributors.reduce(
+          (winner, height) => Math.max(winner, height),
+          nextViewportHeight
+        );
+        return Math.max(nextViewportHeight, tallestLayer);
+      });
+
+      setLayerHeights((previous) => {
+        const isSame =
+          previous.length === nextLayerHeights.length
+          && previous.every((previousLayerHeights, slideIndex) => {
+            const nextForSlide = nextLayerHeights[slideIndex] ?? [];
+            return previousLayerHeights.length === nextForSlide.length
+              && previousLayerHeights.every(
+                (value, layerIndex) => Math.abs(value - nextForSlide[layerIndex]) < 0.5
+              );
+          });
+        return isSame ? previous : nextLayerHeights;
       });
 
       setSlideHeights((previous) => {
-        if (previous.length === nextHeights.length && previous.every((value, index) => Math.abs(value - nextHeights[index]) < 0.5)) {
+        if (
+          previous.length === nextSlideHeights.length
+          && previous.every((value, index) => Math.abs(value - nextSlideHeights[index]) < 0.5)
+        ) {
           return previous;
         }
-        return nextHeights;
+        return nextSlideHeights;
       });
     };
 
@@ -437,7 +561,7 @@ export function EventSinglePageTemplate({
       cancelAnimationFrame(frame);
       window.removeEventListener('resize', measure);
     };
-  }, [slides]);
+  }, [resolveSlideLayers, slides]);
 
   useEffect(() => {
     const clamped = clamp(positionRef.current, 0, maxScroll);
@@ -451,12 +575,15 @@ export function EventSinglePageTemplate({
   }, [animateToTarget, maxScroll]);
 
   useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) {
-      return;
-    }
-
-    const onWheel = (event: WheelEvent) => {
+    const onWheelCapture = (event: WheelEvent) => {
+      const viewport = viewportRef.current;
+      if (!viewport) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Node) || !viewport.contains(target)) {
+        return;
+      }
       if (event.ctrlKey) {
         return;
       }
@@ -496,13 +623,18 @@ export function EventSinglePageTemplate({
       scheduleSnap();
     };
 
-    viewport.addEventListener('wheel', onWheel, { passive: false });
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    window.addEventListener('wheel', onWheelCapture, { passive: false, capture: true });
     viewport.addEventListener('touchstart', onTouchStart, { passive: true });
     viewport.addEventListener('touchmove', onTouchMove, { passive: false });
     viewport.addEventListener('touchend', onTouchEnd, { passive: true });
 
     return () => {
-      viewport.removeEventListener('wheel', onWheel);
+      window.removeEventListener('wheel', onWheelCapture, { capture: true });
       viewport.removeEventListener('touchstart', onTouchStart);
       viewport.removeEventListener('touchmove', onTouchMove);
       viewport.removeEventListener('touchend', onTouchEnd);
@@ -597,68 +729,64 @@ export function EventSinglePageTemplate({
           style={{ transform: `translate3d(0, ${-position}px, 0)` }}
         >
           {slides.map((slide, index) => (
-            <section
-              key={slide.id}
-              id={slide.id}
-              className={`event-template-slide ${slide.tone ?? 'tone-1'} ${activeSlideIndex === index ? 'is-active' : ''}`}
-              style={{ height: `${slideHeights[index] ?? viewportHeight}px` }}
-            >
-              <div
-                ref={(node) => {
-                  contentRefs.current[index] = node;
-                }}
-                className="event-template-slide-inner"
-              >
-                {slide.kicker ? <p className="event-template-kicker">{slide.kicker}</p> : null}
-                <h1 className="event-template-title">{slide.title}</h1>
-                {slide.description ? <p className="event-template-description">{slide.description}</p> : null}
-                {slide.body ? <div className="event-template-body">{slide.body}</div> : null}
-                {slide.actions?.length ? (
-                  <div className="event-template-actions">
-                    {slide.actions.map((action) => {
-                      if (action.href) {
-                        return (
-                          <a
-                            key={`${slide.id}-${action.label}`}
-                            className={`cta ${action.variant === 'ghost' ? 'ghost' : ''}`}
-                            href={action.href}
-                          >
-                            {action.label}
-                          </a>
-                        );
-                      }
-                      if (action.targetSlideId) {
-                        return (
-                          <button
-                            key={`${slide.id}-${action.label}`}
-                            type="button"
-                            className={`cta ${action.variant === 'ghost' ? 'ghost' : ''}`}
-                            onClick={() => {
-                              const nextIndex = slideIndexById.get(action.targetSlideId ?? '');
-                              if (typeof nextIndex === 'number') {
-                                jumpToSlide(nextIndex);
+            (() => {
+              const isActive = activeSlideIndex === index;
+              const slideStart = slideStarts[index] ?? 0;
+              const slideHeight = slideHeights[index] ?? viewportHeight;
+              const slideRange = Math.max(0, slideHeight - viewportHeight);
+              const slideProgress = slideRange > 0
+                ? clamp((position - slideStart) / slideRange, 0, 1)
+                : 0;
+              const resolvedLayers = resolveSlideLayers(slide);
+
+              return (
+                <section
+                  key={slide.id}
+                  id={slide.id}
+                  className={`event-template-slide ${slide.tone ?? 'tone-1'} ${isActive ? 'is-active' : ''}`}
+                  style={{ height: `${slideHeight}px` }}
+                >
+                  <div className="event-template-slide-layers">
+                    {resolvedLayers.map((layer, layerIndex) => {
+                      const layerHeight = layerHeights[index]?.[layerIndex] ?? viewportHeight;
+                      const layerRange = Math.max(0, layerHeight - viewportHeight);
+                      const layerOffset = -slideProgress * layerRange;
+                      const className = [
+                        'event-template-slide-layer',
+                        layer.className ?? '',
+                        isActive ? 'is-active' : ''
+                      ]
+                        .filter(Boolean)
+                        .join(' ');
+
+                      return (
+                        <div
+                          key={`${slide.id}-${layer.id}`}
+                          className={`event-template-slide-layer-frame ${layer.interactive ? 'interactive' : ''}`}
+                          style={{ zIndex: layerIndex + 1 }}
+                        >
+                          <div
+                            ref={(node) => {
+                              if (!layerRefs.current[index]) {
+                                layerRefs.current[index] = [];
                               }
+                              layerRefs.current[index][layerIndex] = node;
+                            }}
+                            className={className}
+                            style={{
+                              transform: `translate3d(0, ${layerOffset}px, 0)`,
+                              minHeight: layer.minHeightPx ? `${layer.minHeightPx}px` : undefined
                             }}
                           >
-                            {action.label}
-                          </button>
-                        );
-                      }
-                      return (
-                        <button
-                          key={`${slide.id}-${action.label}`}
-                          type="button"
-                          className={`cta ${action.variant === 'ghost' ? 'ghost' : ''}`}
-                          onClick={action.onClick}
-                        >
-                          {action.label}
-                        </button>
+                            {layer.content}
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
-                ) : null}
-              </div>
-            </section>
+                </section>
+              );
+            })()
           ))}
         </div>
       </main>
