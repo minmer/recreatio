@@ -519,6 +519,151 @@
     );
 }
 
+.edk26-layer {
+  width: 100%;
+}
+
+.edk26-layer-bg {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.edk26-layer-bg-fill {
+  width: min(1280px, 100%);
+  min-height: 100%;
+  padding: 4rem 8vw;
+  box-sizing: border-box;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(142, 122, 98, 0.2), transparent 46%),
+    radial-gradient(circle at 84% 8%, rgba(94, 22, 33, 0.22), transparent 42%),
+    linear-gradient(180deg, rgba(14, 14, 16, 0.74) 0%, rgba(17, 16, 20, 0.78) 100%);
+}
+
+.edk26-layer-bg-fill-2 {
+  background:
+    radial-gradient(circle at 18% 10%, rgba(122, 34, 48, 0.22), transparent 46%),
+    radial-gradient(circle at 82% 16%, rgba(114, 103, 94, 0.2), transparent 48%),
+    linear-gradient(180deg, rgba(14, 14, 16, 0.74) 0%, rgba(17, 16, 20, 0.8) 100%);
+}
+
+.edk26-layer-bg-fill-3 {
+  background:
+    radial-gradient(circle at 18% 10%, rgba(60, 38, 71, 0.24), transparent 47%),
+    radial-gradient(circle at 84% 12%, rgba(95, 45, 64, 0.2), transparent 48%),
+    linear-gradient(180deg, rgba(14, 14, 16, 0.76) 0%, rgba(17, 16, 20, 0.82) 100%);
+}
+
+.edk26-layer-bg-fill-4 {
+  background:
+    radial-gradient(circle at 14% 10%, rgba(48, 74, 60, 0.22), transparent 48%),
+    radial-gradient(circle at 84% 12%, rgba(84, 30, 42, 0.2), transparent 46%),
+    linear-gradient(180deg, rgba(14, 14, 16, 0.76) 0%, rgba(17, 16, 20, 0.82) 100%);
+}
+
+.edk26-layer-bg-fill-5 {
+  background:
+    radial-gradient(circle at 16% 12%, rgba(82, 47, 33, 0.2), transparent 48%),
+    radial-gradient(circle at 85% 10%, rgba(66, 42, 71, 0.24), transparent 46%),
+    linear-gradient(180deg, rgba(14, 14, 16, 0.76) 0%, rgba(17, 16, 20, 0.82) 100%);
+}
+
+.edk26-layer-type {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.edk26-type-banner {
+  width: min(1320px, 100%);
+  min-height: 100%;
+  padding: 11.5rem 8vw;
+  box-sizing: border-box;
+  display: grid;
+  align-content: start;
+}
+
+.edk26-type-word {
+  display: block;
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 700;
+  font-size: clamp(6rem, 22vw, 15rem);
+  line-height: 0.85;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(242, 238, 232, 0.16);
+}
+
+.edk26-type-word-alt {
+  margin-top: 0.3rem;
+  margin-left: 0.55ch;
+  color: rgba(205, 178, 152, 0.14);
+}
+
+.edk26-content-layer {
+  width: min(1140px, 100%);
+  padding: clamp(2.2rem, 4.8vw, 4.4rem) 7vw clamp(2.8rem, 5.4vw, 4.8rem);
+}
+
+.edk26-content {
+  --edk-bg: #0e0e10;
+  --edk-bg-alt: #171419;
+  --edk-accent: #5e1621;
+  --edk-accent-hover: #7a2230;
+  --edk-text: #f2eee8;
+  --edk-muted: #b8aea4;
+  --edk-divider: #8e7a62;
+  color: var(--edk-text);
+  font-family: 'Source Sans 3', 'Segoe UI', sans-serif;
+}
+
+.edk26-content .event-template-title {
+  color: var(--edk-text);
+}
+
+.edk26-content .event-template-description {
+  color: var(--edk-muted);
+}
+
+.edk26-content .event-template-body {
+  color: var(--edk-text);
+}
+
+.edk26-content .event-template-body p,
+.edk26-content .event-template-body li {
+  line-height: 1.72;
+}
+
+.edk26-content .cta {
+  border: 1px solid rgba(142, 122, 98, 0.46);
+  background: var(--edk-accent);
+  color: var(--edk-text);
+}
+
+.edk26-content .cta:hover,
+.edk26-content .cta:focus-visible {
+  background: var(--edk-accent-hover);
+  border-color: rgba(142, 122, 98, 0.62);
+}
+
+.edk26-content .ghost {
+  border: 1px solid rgba(142, 122, 98, 0.46);
+  background: rgba(14, 14, 16, 0.54);
+  color: var(--edk-text);
+}
+
+.edk26-content .ghost:hover,
+.edk26-content .ghost:focus-visible {
+  background: rgba(23, 20, 25, 0.92);
+  border-color: rgba(142, 122, 98, 0.66);
+}
+
+.edk26-content .edk-section + .edk-section {
+  margin-top: 0.9rem;
+}
+
 .event-template-slide-inner {
   width: 100%;
   color: inherit;
@@ -736,5 +881,18 @@
 
   .theater-role-tags {
     justify-content: flex-start;
+  }
+
+  .edk26-type-banner {
+    padding-top: 9rem;
+    padding-bottom: 9rem;
+  }
+
+  .edk26-type-word {
+    font-size: clamp(5rem, 25vw, 10rem);
+  }
+
+  .edk26-content-layer {
+    padding: 1.6rem 6vw 2.4rem;
   }
 }
