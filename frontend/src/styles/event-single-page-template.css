@@ -127,6 +127,14 @@
   touch-action: none;
 }
 
+.event-template-viewport.middle-scroll-active {
+  cursor: ns-resize;
+}
+
+.event-template-viewport.middle-scroll-active * {
+  cursor: ns-resize;
+}
+
 .event-template-track {
   position: absolute;
   inset: 0;

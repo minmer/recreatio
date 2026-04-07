@@ -41,6 +41,9 @@ const INTERNAL_TRACK_INTERPOLATION = 0.2;
 const SLIDE_TRANSITION_INTERPOLATION = 0.08;
 const WHEEL_SLIDE_JUMP_THRESHOLD = 88;
 const TOUCH_SLIDE_JUMP_THRESHOLD = 44;
+const MIDDLE_SCROLL_DEADZONE_PX = 10;
+const MIDDLE_SCROLL_GAIN = 0.082;
+const MIDDLE_SCROLL_MAX_DELTA = 34;
 
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min;
@@ -101,10 +104,15 @@ export function EventSinglePageTemplate({
   const burstTransitionDirectionRef = useRef<-1 | 0 | 1>(0);
   const burstAccumulatedDeltaRef = useRef(0);
   const boundaryGateRef = useRef<{ slideIndex: number; direction: -1 | 1 } | null>(null);
+  const middleScrollActiveRef = useRef(false);
+  const middleScrollAnchorYRef = useRef(0);
+  const middleScrollPointerYRef = useRef(0);
+  const middleScrollRafRef = useRef<number | null>(null);
   const interpolationRef = useRef(INTERNAL_TRACK_INTERPOLATION);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [middleScrollActive, setMiddleScrollActive] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(1);
   const [position, setPosition] = useState(0);
   const [slideHeights, setSlideHeights] = useState<number[]>(() => slides.map(() => 1));
@@ -245,6 +253,21 @@ export function EventSinglePageTemplate({
     }, SNAP_IDLE_MS);
   }, [snapToNearest]);
 
+  const stopMiddleScroll = useCallback((withSnap: boolean) => {
+    if (!middleScrollActiveRef.current) {
+      return;
+    }
+    middleScrollActiveRef.current = false;
+    setMiddleScrollActive(false);
+    if (middleScrollRafRef.current !== null) {
+      cancelAnimationFrame(middleScrollRafRef.current);
+      middleScrollRafRef.current = null;
+    }
+    if (withSnap) {
+      scheduleSnap();
+    }
+  }, [scheduleSnap]);
+
   const applyDelta = useCallback((delta: number, inputType: 'wheel' | 'touch' = 'wheel') => {
     if (!Number.isFinite(delta) || delta === 0) {
       return;
@@ -296,6 +319,7 @@ export function EventSinglePageTemplate({
     const slideJumpThreshold = inputType === 'touch'
       ? TOUCH_SLIDE_JUMP_THRESHOLD
       : WHEEL_SLIDE_JUMP_THRESHOLD;
+    const boundaryNeedsNewBurst = inputType !== 'touch';
     const current = targetRef.current;
     const slideIndex = getSlideIndexForPosition(current);
     const slideStart = slideStarts[slideIndex] ?? 0;
@@ -323,7 +347,10 @@ export function EventSinglePageTemplate({
         lastInputDirectionRef.current = direction;
         return;
       }
-      if (!isNewBurst || burstTransitionUsedRef.current) {
+      const canCrossSlideFromBoundary = boundaryNeedsNewBurst
+        ? isNewBurst && !burstTransitionUsedRef.current
+        : Math.abs(burstAccumulatedDeltaRef.current) >= slideJumpThreshold && !burstTransitionUsedRef.current;
+      if (!canCrossSlideFromBoundary) {
         setTarget(slideInnerEnd, INTERNAL_TRACK_INTERPOLATION);
         lastInputDirectionRef.current = direction;
         return;
@@ -359,7 +386,10 @@ export function EventSinglePageTemplate({
         lastInputDirectionRef.current = direction;
         return;
       }
-      if (!isNewBurst || burstTransitionUsedRef.current) {
+      const canCrossSlideFromBoundary = boundaryNeedsNewBurst
+        ? isNewBurst && !burstTransitionUsedRef.current
+        : Math.abs(burstAccumulatedDeltaRef.current) >= slideJumpThreshold && !burstTransitionUsedRef.current;
+      if (!canCrossSlideFromBoundary) {
         setTarget(slideStart, INTERNAL_TRACK_INTERPOLATION);
         lastInputDirectionRef.current = direction;
         return;
@@ -623,14 +653,113 @@ export function EventSinglePageTemplate({
     viewport.addEventListener('touchstart', onTouchStart, { passive: true });
     viewport.addEventListener('touchmove', onTouchMove, { passive: false });
     viewport.addEventListener('touchend', onTouchEnd, { passive: true });
+    viewport.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
     return () => {
       window.removeEventListener('wheel', onWheelCapture, { capture: true });
       viewport.removeEventListener('touchstart', onTouchStart);
       viewport.removeEventListener('touchmove', onTouchMove);
       viewport.removeEventListener('touchend', onTouchEnd);
+      viewport.removeEventListener('touchcancel', onTouchEnd);
     };
   }, [applyDelta, scheduleSnap]);
+
+  useEffect(() => {
+    const tickMiddleScroll = () => {
+      if (!middleScrollActiveRef.current) {
+        middleScrollRafRef.current = null;
+        return;
+      }
+      const offset = middleScrollPointerYRef.current - middleScrollAnchorYRef.current;
+      const absOffset = Math.abs(offset);
+      if (absOffset > MIDDLE_SCROLL_DEADZONE_PX) {
+        const signedMagnitude = offset > 0 ? absOffset - MIDDLE_SCROLL_DEADZONE_PX : -(absOffset - MIDDLE_SCROLL_DEADZONE_PX);
+        const delta = clamp(signedMagnitude * MIDDLE_SCROLL_GAIN, -MIDDLE_SCROLL_MAX_DELTA, MIDDLE_SCROLL_MAX_DELTA);
+        if (Math.abs(delta) > 0.01) {
+          applyDelta(delta, 'wheel');
+        }
+      }
+      middleScrollRafRef.current = requestAnimationFrame(tickMiddleScroll);
+    };
+
+    const onMouseDown = (event: MouseEvent) => {
+      if (event.button !== 1) {
+        return;
+      }
+      if (middleScrollActiveRef.current) {
+        event.preventDefault();
+        stopMiddleScroll(true);
+        return;
+      }
+      const viewport = viewportRef.current;
+      if (!viewport) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Node) || !viewport.contains(target)) {
+        return;
+      }
+      const targetElement = target instanceof Element ? target : null;
+      const blockingInteractive = targetElement?.closest(
+        'a,button,input,textarea,select,label,[role="button"],[contenteditable="true"]'
+      );
+      if (blockingInteractive) {
+        return;
+      }
+      event.preventDefault();
+      middleScrollActiveRef.current = true;
+      middleScrollAnchorYRef.current = event.clientY;
+      middleScrollPointerYRef.current = event.clientY;
+      setMiddleScrollActive(true);
+
+      lastInputAtRef.current = 0;
+      burstTransitionUsedRef.current = false;
+      burstTransitionDirectionRef.current = 0;
+      burstAccumulatedDeltaRef.current = 0;
+      boundaryGateRef.current = null;
+      lastInputDirectionRef.current = 0;
+
+      if (middleScrollRafRef.current === null) {
+        middleScrollRafRef.current = requestAnimationFrame(tickMiddleScroll);
+      }
+    };
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (!middleScrollActiveRef.current) {
+        return;
+      }
+      middleScrollPointerYRef.current = event.clientY;
+    };
+
+    const onMouseUp = (event: MouseEvent) => {
+      if (event.button !== 1) {
+        return;
+      }
+      stopMiddleScroll(true);
+    };
+
+    const onWindowBlur = () => {
+      stopMiddleScroll(true);
+    };
+
+    window.addEventListener('mousedown', onMouseDown, { passive: false });
+    window.addEventListener('mousemove', onMouseMove, { passive: true });
+    window.addEventListener('mouseup', onMouseUp, { passive: true });
+    window.addEventListener('blur', onWindowBlur);
+
+    return () => {
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('blur', onWindowBlur);
+      if (middleScrollRafRef.current !== null) {
+        cancelAnimationFrame(middleScrollRafRef.current);
+        middleScrollRafRef.current = null;
+      }
+      middleScrollActiveRef.current = false;
+      setMiddleScrollActive(false);
+    };
+  }, [applyDelta, stopMiddleScroll]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -663,6 +792,10 @@ export function EventSinglePageTemplate({
 
   useEffect(() => () => {
     stopAnimation();
+    if (middleScrollRafRef.current !== null) {
+      cancelAnimationFrame(middleScrollRafRef.current);
+      middleScrollRafRef.current = null;
+    }
     if (snapTimerRef.current !== null) {
       window.clearTimeout(snapTimerRef.current);
     }
@@ -714,7 +847,11 @@ export function EventSinglePageTemplate({
         </div>
       </header>
 
-      <main ref={viewportRef} className="event-template-viewport" aria-label={event.title}>
+      <main
+        ref={viewportRef}
+        className={`event-template-viewport ${middleScrollActive ? 'middle-scroll-active' : ''}`}
+        aria-label={event.title}
+      >
         <div
           className="event-template-track"
           style={{ transform: `translate3d(0, ${-position}px, 0)` }}
