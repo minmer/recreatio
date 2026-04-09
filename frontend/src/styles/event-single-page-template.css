@@ -519,6 +519,92 @@
     );
 }
 
+.event-template--edk26 {
+  --event-header-bg: rgba(14, 14, 16, 0.92);
+  --event-header-line: rgba(142, 122, 98, 0.35);
+  --event-header-link: #f2eee8;
+  --event-accent: #5e1621;
+}
+
+.event-template--edk26 .event-template-header {
+  backdrop-filter: blur(10px);
+}
+
+.event-template--edk26 .event-template-menu-toggle {
+  border-color: rgba(142, 122, 98, 0.38);
+  background: rgba(14, 14, 16, 0.78);
+  color: #f2eee8;
+}
+
+.event-template--edk26 .event-template-nav button {
+  border-color: rgba(142, 122, 98, 0.38);
+  color: #f2eee8;
+}
+
+.event-template--edk26 .event-template-nav button.active,
+.event-template--edk26 .event-template-nav button:hover {
+  border-color: rgba(142, 122, 98, 0.62);
+  background: rgba(94, 22, 33, 0.92);
+  color: #f2eee8;
+}
+
+.event-template--edk26 .event-template-slide {
+  border-top: 1px solid rgba(142, 122, 98, 0.22);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  background:
+    radial-gradient(circle at 12% 14%, rgba(142, 122, 98, 0.16), transparent 42%),
+    radial-gradient(circle at 86% 2%, rgba(94, 22, 33, 0.16), transparent 38%),
+    linear-gradient(180deg, #0e0e10 0%, #111014 48%, #0e0e10 100%);
+}
+
+.event-template--edk26 .event-template-slide.tone-2 {
+  background:
+    radial-gradient(circle at 10% 14%, rgba(122, 34, 48, 0.18), transparent 44%),
+    radial-gradient(circle at 88% 6%, rgba(114, 103, 94, 0.14), transparent 40%),
+    linear-gradient(180deg, #0e0e10 0%, #111116 52%, #0e0e10 100%);
+}
+
+.event-template--edk26 .event-template-slide.tone-3 {
+  background:
+    radial-gradient(circle at 14% 8%, rgba(60, 38, 71, 0.2), transparent 44%),
+    radial-gradient(circle at 85% 10%, rgba(95, 45, 64, 0.16), transparent 42%),
+    linear-gradient(180deg, #0f0e12 0%, #12111a 52%, #0f0e12 100%);
+}
+
+.event-template--edk26 .event-template-slide.tone-4 {
+  background:
+    radial-gradient(circle at 12% 12%, rgba(48, 74, 60, 0.18), transparent 44%),
+    radial-gradient(circle at 86% 10%, rgba(84, 30, 42, 0.18), transparent 42%),
+    linear-gradient(180deg, #0e0e11 0%, #111317 52%, #0e0e11 100%);
+}
+
+.event-template--edk26 .event-template-slide.tone-5 {
+  background:
+    radial-gradient(circle at 12% 10%, rgba(82, 47, 33, 0.18), transparent 44%),
+    radial-gradient(circle at 86% 12%, rgba(66, 42, 71, 0.2), transparent 42%),
+    linear-gradient(180deg, #0f0e11 0%, #121017 52%, #0f0e11 100%);
+}
+
+.event-template--edk26 .event-template-slide::after {
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(5, 5, 6, 0.32) 100%);
+  opacity: 0.45;
+}
+
+.event-template--edk26 .event-template-dots button {
+  border-color: rgba(242, 238, 232, 0.38);
+  background: rgba(14, 14, 16, 0.58);
+}
+
+.event-template--edk26 .event-template-dots button.active {
+  background: #5e1621;
+  border-color: rgba(142, 122, 98, 0.7);
+}
+
+.event-template--edk26 .event-template-footer {
+  background: rgba(14, 14, 16, 0.92);
+  border-top: 1px solid rgba(142, 122, 98, 0.35);
+}
+
 .edk26-layer {
   width: 100%;
 }

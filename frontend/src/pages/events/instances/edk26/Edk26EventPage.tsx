@@ -179,6 +179,30 @@ const FAQ_ITEMS: Array<{ question: string; answer: string }> = [
     question: 'Czy organizowany jest powrot?',
     answer:
       'Tak. Po zakonczeniu drogi organizujemy powrot w sobote rano, okolo godziny 8:00. Szczegoly przekazemy uczestnikom po zapisach.'
+  },
+  {
+    question: 'Czy osoby niepelnoletnie moga wziac udzial?',
+    answer:
+      'Tak. Osoby niepelnoletnie moga wziac udzial, jesli ida pod opieka wskazanej osoby pelnoletniej, ktora bierze za nie odpowiedzialnosc organizacyjna podczas wydarzenia.'
+  },
+  {
+    question: 'Nie mam wskazanego opiekuna. Co wtedy?',
+    answer:
+      'Skontaktuj sie z ks. Michalem Mleczkiem przed zapisaniem. W razie potrzeby pomoze znalezc osobe pelnoletnia, ktora podejmie sie opieki organizacyjnej.'
+  },
+  {
+    question: 'Czy potrzebna jest pisemna zgoda rodzicow?',
+    answer: 'Nie. W ramach zasad organizacyjnych tego wyjscia nie wymagamy pisemnej zgody rodzicow.'
+  },
+  {
+    question: 'Czy trzeba zapisac sie wczesniej?',
+    answer:
+      'Tak, prosimy o wczesniejsze zapisy. Pomaga nam to zadbac o organizacje, bezpieczenstwo i kameralny charakter grupy.'
+  },
+  {
+    question: 'Czy po zapisaniu dostane wiecej informacji?',
+    answer:
+      'Tak. Po zapisach przekazemy szczegoly organizacyjne dotyczace przygotowania, startu, przebiegu drogi oraz powrotu.'
   }
 ];
 
@@ -398,22 +422,22 @@ export function Edk26EventPage(
 
   const slides: EventTemplateSlide[] = [
     {
-      id: 'start',
-      menuLabel: 'Start',
-      title: 'EDK 2026',
+      id: 'o-wydarzeniu',
+      menuLabel: 'O wydarzeniu',
+      title: 'O wydarzeniu',
       heightMode: 'content',
-      tone: 'tone-5',
+      tone: 'tone-1',
       layers: [
         {
           id: 'bg',
           className: 'edk26-layer edk26-layer-bg',
-          minHeightPx: 1700,
+          minHeightPx: 1850,
           content: <div className="edk26-layer-bg-fill" />
         },
         {
           id: 'type',
           className: 'edk26-layer edk26-layer-type',
-          minHeightPx: 1880,
+          minHeightPx: 1960,
           content: (
             <div className="edk26-type-banner" aria-hidden="true">
               <span className="edk26-type-word">EDK</span>
@@ -425,23 +449,55 @@ export function Edk26EventPage(
           id: 'content',
           className: 'event-template-slide-content-layer edk26-content-layer',
           interactive: true,
-          minHeightPx: 1200,
+          scrollReference: true,
           content: (
             <div className="edk26-content">
-              <section className="edk-section">
-                <p className="edk-hero-badge">27/28.03.2026 - Krakow -&gt; Dobczyce - prowadzi ks. Michal Mleczek</p>
-                <h1 className="event-template-title">EDK 2026</h1>
-                <p className="event-template-description">Nocna droga w malej wspolnocie.</p>
-                <div className="event-template-body">
-                  <p>
-                    W nocy z 27 na 28 marca 2026 wyruszamy z Krakowa do Dobczyc. Zaczynamy Msza Swieta o 18:30,
-                    a potem idziemy razem w ciszy, modlitwie i odpowiedzialnosci za siebie nawzajem.
-                  </p>
-                  <p>
-                    To nie jest wydarzenie sportowe. To droga skupienia, wysilku i duchowej decyzji.
-                  </p>
-                </div>
-              </section>
+              <div className="event-template-slide-inner">
+                <section className="edk-hero" aria-labelledby="edk-hero-title">
+                  <div className="edk-hero-media" />
+                  <div className="edk-hero-overlay">
+                    <p className="edk-hero-badge">27/28.03.2026 - Krakow -&gt; Dobczyce - prowadzi ks. Michal Mleczek</p>
+                    <h1 id="edk-hero-title">
+                      EDK 2026
+                      <span>Nocna droga w malej wspolnocie</span>
+                    </h1>
+                    <p>
+                      W nocy z 27 na 28 marca 2026 wyruszamy z Krakowa do Dobczyc. Zaczynamy Msza Swieta o 18:30
+                      w parafii sw. Jana na Pradniku, a potem ruszamy wspolnie na trase.
+                    </p>
+                    <p>
+                      To droga ciszy, modlitwy i odpowiedzialnosci za siebie nawzajem. Nie idziemy po wynik.
+                      Idziemy po spotkanie z Bogiem i prawda o sobie.
+                    </p>
+                    <div className="edk-hero-actions">
+                      <a className="cta" href="/#/event/edk26/zapisy">Zapisz sie</a>
+                      <a className="ghost" href="/#/event/edk26/trasa">Zobacz trase</a>
+                    </div>
+                    <small>Powrot organizujemy w sobote rano, okolo godziny 8:00.</small>
+                  </div>
+                </section>
+
+                <section className="edk-section">
+                  <header>
+                    <h2>O wydarzeniu</h2>
+                    <p>Czym jest nasza EDK 2026</p>
+                  </header>
+                  <div className="edk-section-body">
+                    <p>
+                      EDK 2026 w naszej formule to nocna Droga Krzyzowa przezywana kameralnie i odpowiedzialnie.
+                      Zachowujemy ducha tej drogi: prostote, cisze, wysilek i modlitwe.
+                    </p>
+                    <p>
+                      To nie jest wyjscie sportowe ani towarzyska nocna wyprawa. Nie chodzi o tempo, rekord i dystans.
+                      Chodzi o droge, ktora prowadzi przez ciemnosc, zmeczenie i rozwazanie meki Chrystusa.
+                    </p>
+                    <p>
+                      Idziemy w malej grupie, dbamy o siebie nawzajem i wspolnie zatrzymujemy sie przy kolejnych
+                      stacjach Drogi Krzyzowej.
+                    </p>
+                  </div>
+                </section>
+              </div>
             </div>
           )
         }
@@ -452,18 +508,18 @@ export function Edk26EventPage(
       menuLabel: 'Jak idziemy',
       title: 'Jak idziemy',
       heightMode: 'content',
-      tone: 'tone-4',
+      tone: 'tone-2',
       layers: [
         {
           id: 'bg',
           className: 'edk26-layer edk26-layer-bg',
-          minHeightPx: 1800,
+          minHeightPx: 1750,
           content: <div className="edk26-layer-bg-fill edk26-layer-bg-fill-2" />
         },
         {
           id: 'type',
           className: 'edk26-layer edk26-layer-type',
-          minHeightPx: 1900,
+          minHeightPx: 1880,
           content: (
             <div className="edk26-type-banner" aria-hidden="true">
               <span className="edk26-type-word">CISZA</span>
@@ -475,76 +531,172 @@ export function Edk26EventPage(
           id: 'content',
           className: 'event-template-slide-content-layer edk26-content-layer',
           interactive: true,
-          minHeightPx: 1520,
+          scrollReference: true,
           content: (
             <div className="edk26-content">
-              <section className="edk-section">
-                <header>
-                  <h2>Jak idziemy</h2>
-                  <p>Mala grupa, cisza i odpowiedzialnosc.</p>
-                </header>
-                <div className="edk-card-grid">
-                  <article className="edk-card">
-                    <h3>Mala grupa</h3>
-                    <p>Idziemy razem, bez tlumu i bez pospiechu.</p>
-                  </article>
-                  <article className="edk-card">
-                    <h3>Wspolna troska</h3>
-                    <p>Nie zostawiamy nikogo samego na trasie.</p>
-                  </article>
-                  <article className="edk-card">
-                    <h3>Cisza miedzy stacjami</h3>
-                    <p>Rozmowy ograniczamy do tego, co konieczne.</p>
-                  </article>
-                  <article className="edk-card">
-                    <h3>Wspolna modlitwa</h3>
-                    <p>Przy stacjach zatrzymujemy sie i rozwazamy Droge Krzyzowa.</p>
-                  </article>
-                  <article className="edk-card">
-                    <h3>Bez rywalizacji</h3>
-                    <p>Nie chodzi o rekord, tylko o uczciwe przejscie drogi.</p>
-                  </article>
-                  <article className="edk-card">
-                    <h3>Droga duchowa</h3>
-                    <p>Wysilek ma prowadzic do modlitwy i przemiany.</p>
-                  </article>
-                </div>
-              </section>
-
-              <section className="edk-section">
-                <header>
-                  <h2>Plan i logistyka</h2>
-                </header>
-                <div className="edk-plan-layout">
-                  <div className="edk-timeline">
-                    <article className="edk-step-card">
-                      <h3>1. Rozpoczecie</h3>
-                      <p>Piatek, 27.03.2026, Msza Swieta o 18:30.</p>
+              <div className="event-template-slide-inner">
+                <section className="edk-section">
+                  <header>
+                    <h2>Jak idziemy</h2>
+                    <p>Mala grupa, cisza i odpowiedzialnosc.</p>
+                  </header>
+                  <div className="edk-card-grid">
+                    <article className="edk-card">
+                      <h3>Mala grupa</h3>
+                      <p>Idziemy razem, ale bez tlumu. Zalezy nam na skupieniu i prostocie.</p>
                     </article>
-                    <article className="edk-step-card">
-                      <h3>2. Wyjscie na trase</h3>
-                      <p>Po Mszy i informacjach organizacyjnych ruszamy razem.</p>
+                    <article className="edk-card">
+                      <h3>Dbamy o siebie nawzajem</h3>
+                      <p>Nie zostawiamy nikogo samego na trasie i reagujemy na sygnaly zmeczenia.</p>
                     </article>
-                    <article className="edk-step-card">
-                      <h3>3. Nocna droga</h3>
-                      <p>Cisza, stacje, modlitwa i wzajemna odpowiedzialnosc.</p>
+                    <article className="edk-card">
+                      <h3>Miedzy stacjami wybieramy cisze</h3>
+                      <p>Rozmowy ograniczamy do tego, co konieczne. Cisza jest czescia drogi.</p>
                     </article>
-                    <article className="edk-step-card">
-                      <h3>4. Zakonczenie i powrot</h3>
-                      <p>Powrot organizowany w sobote rano, okolo 8:00.</p>
+                    <article className="edk-card">
+                      <h3>Przy stacjach modlimy sie wspolnie</h3>
+                      <p>Zatrzymujemy sie razem i rozwazamy kolejne stacje Drogi Krzyzowej.</p>
+                    </article>
+                    <article className="edk-card">
+                      <h3>Szanujemy rytm drogi</h3>
+                      <p>Nie rywalizujemy i nie poganiamy. Idziemy uczciwie i dojrzale.</p>
+                    </article>
+                    <article className="edk-card">
+                      <h3>To droga duchowa</h3>
+                      <p>Wysilek jest wazny, ale ma sluzyc modlitwie i przemianie.</p>
                     </article>
                   </div>
-                  <aside className="edk-summary-card">
-                    <h3>W skrocie</h3>
-                    <ul>
-                      <li>Start: piatek, 27.03.2026</li>
-                      <li>Msza: 18:30</li>
-                      <li>Trasa: Krakow -&gt; Dobczyce</li>
-                      <li>Powrot: sobota rano, okolo 8:00</li>
-                    </ul>
-                  </aside>
-                </div>
-              </section>
+                </section>
+              </div>
+            </div>
+          )
+        }
+      ]
+    },
+    {
+      id: 'plan-i-logistyka',
+      menuLabel: 'Plan i logistyka',
+      title: 'Plan i logistyka',
+      heightMode: 'content',
+      tone: 'tone-3',
+      layers: [
+        {
+          id: 'bg',
+          className: 'edk26-layer edk26-layer-bg',
+          minHeightPx: 1700,
+          content: <div className="edk26-layer-bg-fill edk26-layer-bg-fill-3" />
+        },
+        {
+          id: 'type',
+          className: 'edk26-layer edk26-layer-type',
+          minHeightPx: 1880,
+          content: (
+            <div className="edk26-type-banner" aria-hidden="true">
+              <span className="edk26-type-word">PLAN</span>
+              <span className="edk26-type-word edk26-type-word-alt">LOGISTYKA</span>
+            </div>
+          )
+        },
+        {
+          id: 'content',
+          className: 'event-template-slide-content-layer edk26-content-layer',
+          interactive: true,
+          scrollReference: true,
+          content: (
+            <div className="edk26-content">
+              <div className="event-template-slide-inner">
+                <section className="edk-section">
+                  <header>
+                    <h2>Plan i logistyka</h2>
+                    <p>Jasny przebieg wydarzenia od startu do powrotu.</p>
+                  </header>
+                  <div className="edk-plan-layout">
+                    <div className="edk-timeline">
+                      <article className="edk-step-card">
+                        <h3>1. Rozpoczecie</h3>
+                        <p>Piatek, 27.03.2026. Msza Swieta o 18:30 w parafii sw. Jana na Pradniku.</p>
+                      </article>
+                      <article className="edk-step-card">
+                        <h3>2. Wyjscie na trase</h3>
+                        <p>Po Mszy i informacjach organizacyjnych ruszamy wspolnie do Dobczyc.</p>
+                      </article>
+                      <article className="edk-step-card">
+                        <h3>3. Nocna droga</h3>
+                        <p>Cisza, modlitwa, stacje i odpowiedzialnosc za siebie nawzajem.</p>
+                      </article>
+                      <article className="edk-step-card">
+                        <h3>4. Zakonczenie i powrot</h3>
+                        <p>Powrot organizowany w sobote rano, okolo godziny 8:00.</p>
+                      </article>
+                    </div>
+                    <aside className="edk-summary-card">
+                      <h3>Najwazniejsze w skrocie</h3>
+                      <ul>
+                        <li>Start: piatek, 27.03.2026</li>
+                        <li>Msza Swieta: 18:30</li>
+                        <li>Miejsce rozpoczecia: parafia sw. Jana na Pradniku, Krakow</li>
+                        <li>Trasa: Krakow -&gt; Dobczyce</li>
+                        <li>Powrot: sobota rano, okolo 8:00</li>
+                        <li>Forma: mala grupa, wspolna modlitwa, nocna droga</li>
+                      </ul>
+                    </aside>
+                  </div>
+                </section>
+              </div>
+            </div>
+          )
+        }
+      ]
+    },
+    {
+      id: 'prowadzacy',
+      menuLabel: 'Prowadzacy',
+      title: 'Prowadzacy',
+      heightMode: 'content',
+      tone: 'tone-4',
+      layers: [
+        {
+          id: 'bg',
+          className: 'edk26-layer edk26-layer-bg',
+          minHeightPx: 1500,
+          content: <div className="edk26-layer-bg-fill edk26-layer-bg-fill-4" />
+        },
+        {
+          id: 'type',
+          className: 'edk26-layer edk26-layer-type',
+          minHeightPx: 1680,
+          content: (
+            <div className="edk26-type-banner" aria-hidden="true">
+              <span className="edk26-type-word">PROWADZI</span>
+              <span className="edk26-type-word edk26-type-word-alt">KS MICHAL</span>
+            </div>
+          )
+        },
+        {
+          id: 'content',
+          className: 'event-template-slide-content-layer edk26-content-layer',
+          interactive: true,
+          scrollReference: true,
+          content: (
+            <div className="edk26-content">
+              <div className="event-template-slide-inner">
+                <section className="edk-section">
+                  <header>
+                    <h2>Prowadzacy</h2>
+                  </header>
+                  <div className="edk-section-body">
+                    <h3>Grupe prowadzi ks. Michal Mleczek</h3>
+                    <p>
+                      W tej drodze bedzie nam towarzyszyl ks. Michal Mleczek. Poprowadzi grupe przez kolejne etapy
+                      nocnego przejscia i pomoze zachowac modlitewny rytm drogi.
+                    </p>
+                    <p>
+                      Wydarzenie jest organizowane i prowadzone w duchu prostoty, skupienia i odpowiedzialnosci
+                      za siebie nawzajem.
+                    </p>
+                  </div>
+                </section>
+              </div>
             </div>
           )
         }
@@ -555,13 +707,13 @@ export function Edk26EventPage(
       menuLabel: 'Trasa',
       title: 'Trasa',
       heightMode: 'content',
-      tone: 'tone-3',
+      tone: 'tone-5',
       layers: [
         {
           id: 'bg',
           className: 'edk26-layer edk26-layer-bg',
-          minHeightPx: 2200,
-          content: <div className="edk26-layer-bg-fill edk26-layer-bg-fill-3" />
+          minHeightPx: 2100,
+          content: <div className="edk26-layer-bg-fill edk26-layer-bg-fill-5" />
         },
         {
           id: 'type',
@@ -578,64 +730,192 @@ export function Edk26EventPage(
           id: 'content',
           className: 'event-template-slide-content-layer edk26-content-layer',
           interactive: true,
-          minHeightPx: 1960,
+          scrollReference: true,
           content: (
             <div className="edk26-content">
-              <section className="edk-section">
-                <header>
-                  <h2>Trasa</h2>
-                  <p>Krakow -&gt; Dobczyce</p>
-                </header>
-                <div className="edk-section-body">
-                  <p>
-                    To wymagajaca nocna droga. Kazdy etap ma byc przestrzenia skupienia, modlitwy i wiernego trwania.
-                  </p>
-                </div>
+              <div className="event-template-slide-inner">
+                <section className="edk-section">
+                  <header>
+                    <h2>Trasa</h2>
+                    <h3>Krakow -&gt; Dobczyce</h3>
+                  </header>
+                  <div className="edk-section-body">
+                    <p>
+                      Wyruszamy z Krakowa, od parafii sw. Jana na Pradniku, i kierujemy sie do Dobczyc.
+                      To wymagajaca nocna droga przezywana w skupieniu.
+                    </p>
+                    <p>
+                      Ponizej znajduje sie uklad trasy wraz z punktami, linkami i odleglosciami.
+                    </p>
+                  </div>
 
-                <div className="edk-route-meta">
-                  <article>
-                    <h4>Start</h4>
-                    <p>sw. Jana w Krakowie-Pradnik</p>
-                  </article>
-                  <article>
-                    <h4>Meta</h4>
-                    <p>Dobczyce</p>
-                  </article>
-                  <article>
-                    <h4>Termin</h4>
-                    <p>27/28.03.2026</p>
-                  </article>
-                  <article>
-                    <h4>Powrot</h4>
-                    <p>Sobota rano, okolo 8:00</p>
-                  </article>
-                </div>
+                  <div className="edk-route-meta">
+                    <article>
+                      <h4>Start</h4>
+                      <p>sw. Jana w Krakowie-Pradnik</p>
+                    </article>
+                    <article>
+                      <h4>Meta</h4>
+                      <p>Dobczyce</p>
+                    </article>
+                    <article>
+                      <h4>Termin</h4>
+                      <p>27/28.03.2026</p>
+                    </article>
+                    <article>
+                      <h4>Powrot</h4>
+                      <p>Sobota rano, okolo 8:00</p>
+                    </article>
+                    <article>
+                      <h4>Charakter trasy</h4>
+                      <p>Wymagajaca nocna droga przezywana w skupieniu</p>
+                    </article>
+                  </div>
 
-                <div className="edk-route-list" aria-label="Struktura trasy EDK 2026">
-                  {routeStructure.map((item, index) => {
-                    if (item.type === 'distance') {
+                  <div className="edk-route-list" aria-label="Struktura trasy EDK 2026">
+                    {routeStructure.map((item, index) => {
+                      if (item.type === 'distance') {
+                        return (
+                          <div key={`${item.title_pl}-${index}`} className="edk-route-distance">
+                            <span>{item.title_pl}:</span>
+                            <strong>{item.distance_km}</strong>
+                          </div>
+                        );
+                      }
+
+                      const isLinkReady = item.url.trim().length > 0;
                       return (
-                        <div key={`${item.title_pl}-${index}`} className="edk-route-distance">
-                          <span>{item.title_pl}:</span>
-                          <strong>{item.distance_km}</strong>
-                        </div>
+                        <article key={`${item.title_pl}-${index}`} className={`edk-route-item edk-route-item--${item.type}`}>
+                          <h4>{item.title_pl}</h4>
+                          {isLinkReady ? (
+                            <a href={item.url} target="_blank" rel="noreferrer">Otworz punkt</a>
+                          ) : (
+                            <p>[link / do uzupelnienia]</p>
+                          )}
+                        </article>
                       );
-                    }
-
-                    const isLinkReady = item.url.trim().length > 0;
-                    return (
-                      <article key={`${item.title_pl}-${index}`} className={`edk-route-item edk-route-item--${item.type}`}>
-                        <h4>{item.title_pl}</h4>
-                        {isLinkReady ? (
-                          <a href={item.url} target="_blank" rel="noreferrer">Otworz punkt</a>
-                        ) : (
-                          <p>[link / do uzupelnienia]</p>
-                        )}
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
+                    })}
+                  </div>
+                </section>
+              </div>
+            </div>
+          )
+        }
+      ]
+    },
+    {
+      id: 'wazne-informacje',
+      menuLabel: 'Wazne informacje',
+      title: 'Wazne informacje',
+      heightMode: 'content',
+      tone: 'tone-1',
+      layers: [
+        {
+          id: 'bg',
+          className: 'edk26-layer edk26-layer-bg',
+          minHeightPx: 1850,
+          content: <div className="edk26-layer-bg-fill edk26-layer-bg-fill-2" />
+        },
+        {
+          id: 'type',
+          className: 'edk26-layer edk26-layer-type',
+          minHeightPx: 2050,
+          content: (
+            <div className="edk26-type-banner" aria-hidden="true">
+              <span className="edk26-type-word">WAZNE</span>
+              <span className="edk26-type-word edk26-type-word-alt">INFORMACJE</span>
+            </div>
+          )
+        },
+        {
+          id: 'content',
+          className: 'event-template-slide-content-layer edk26-content-layer',
+          interactive: true,
+          scrollReference: true,
+          content: (
+            <div className="edk26-content">
+              <div className="event-template-slide-inner">
+                <section className="edk-section">
+                  <header>
+                    <h2>Wazne informacje</h2>
+                  </header>
+                  <div className="edk-section-body">
+                    <p>
+                      Ta noc wymaga prostego, ale odpowiedzialnego przygotowania. Potrzebne beda wygodne buty,
+                      odpowiedni ubior, picie, cos do jedzenia, telefon oraz powerbank.
+                    </p>
+                    <p>
+                      Kameralny charakter grupy oznacza ograniczona liczbe miejsc. Zalezy nam na modlitewnym rytmie,
+                      wzajemnej uwaznosci i bezpieczenstwie.
+                    </p>
+                    <p>
+                      Po zapisaniu uczestnicy otrzymaja dodatkowe informacje organizacyjne dotyczace trasy i powrotu.
+                    </p>
+                    <ul>
+                      <li>Idziemy noca i w skupieniu.</li>
+                      <li>To droga wymagajaca fizycznie i duchowo.</li>
+                      <li>Kazdy odpowiada za wlasne przygotowanie.</li>
+                      <li>Liczba miejsc moze byc ograniczona.</li>
+                      <li>Po zapisach przekazemy szczegoly organizacyjne.</li>
+                      <li>Powrot organizujemy w sobote rano.</li>
+                      <li>Osoby niepelnoletnie moga isc pod opieka osoby pelnoletniej.</li>
+                      <li>Jesli potrzebujesz opiekuna, skontaktuj sie z prowadzacym.</li>
+                      <li>Nie wymagamy pisemnej zgody rodzicow.</li>
+                    </ul>
+                  </div>
+                </section>
+              </div>
+            </div>
+          )
+        }
+      ]
+    },
+    {
+      id: 'faq',
+      menuLabel: 'FAQ',
+      title: 'FAQ',
+      heightMode: 'content',
+      tone: 'tone-2',
+      layers: [
+        {
+          id: 'bg',
+          className: 'edk26-layer edk26-layer-bg',
+          minHeightPx: 1900,
+          content: <div className="edk26-layer-bg-fill edk26-layer-bg-fill-3" />
+        },
+        {
+          id: 'type',
+          className: 'edk26-layer edk26-layer-type',
+          minHeightPx: 2120,
+          content: (
+            <div className="edk26-type-banner" aria-hidden="true">
+              <span className="edk26-type-word">FAQ</span>
+              <span className="edk26-type-word edk26-type-word-alt">ODPOWIEDZI</span>
+            </div>
+          )
+        },
+        {
+          id: 'content',
+          className: 'event-template-slide-content-layer edk26-content-layer',
+          interactive: true,
+          scrollReference: true,
+          content: (
+            <div className="edk26-content">
+              <div className="event-template-slide-inner">
+                <section className="edk-section">
+                  <header>
+                    <h2>FAQ</h2>
+                  </header>
+                  <div className="edk-faq-list">
+                    {FAQ_ITEMS.map((item) => (
+                      <details key={item.question}>
+                        <summary>{item.question}</summary>
+                        <p>{item.answer}</p>
+                      </details>
+                    ))}
+                  </div>
+                </section>
+              </div>
             </div>
           )
         }
@@ -646,7 +926,7 @@ export function Edk26EventPage(
       menuLabel: 'Zapisy',
       title: 'Zapisy',
       heightMode: 'content',
-      tone: 'tone-2',
+      tone: 'tone-3',
       layers: [
         {
           id: 'bg',
@@ -657,7 +937,7 @@ export function Edk26EventPage(
         {
           id: 'type',
           className: 'edk26-layer edk26-layer-type',
-          minHeightPx: 2400,
+          minHeightPx: 2350,
           content: (
             <div className="edk26-type-banner" aria-hidden="true">
               <span className="edk26-type-word">ZAPISY</span>
@@ -669,168 +949,178 @@ export function Edk26EventPage(
           id: 'content',
           className: 'event-template-slide-content-layer edk26-content-layer',
           interactive: true,
-          minHeightPx: 1860,
+          scrollReference: true,
           content: (
             <div className="edk26-content">
-              <section className="edk-section edk-section-cta">
-                <header>
-                  <h2>Zapisy</h2>
-                  <h3>Zapisz sie na EDK 2026</h3>
-                  <p>
-                    Jesli chcesz przezyc te noc w malej wspolnocie i skupieniu, wypelnij formularz.
-                  </p>
-                </header>
+              <div className="event-template-slide-inner">
+                <section className="edk-section edk-section-cta">
+                  <header>
+                    <h2>Zapisy</h2>
+                    <h3>Zapisz sie na EDK 2026</h3>
+                    <p>
+                      Jesli chcesz przezyc te noc w malej wspolnocie, w ciszy i odpowiedzialnosci za siebie nawzajem,
+                      wypelnij formularz.
+                    </p>
+                  </header>
+                  <div className="edk-section-body">
+                    <p>
+                      Zapisy pomagaja nam zachowac kameralny charakter grupy, przekazac wazne informacje organizacyjne
+                      i lepiej zadbac o bezpieczenstwo drogi.
+                    </p>
+                  </div>
 
-                {siteLoading ? <p className="edk-inline-note">Ladowanie konfiguracji zapisow...</p> : null}
-                {siteError ? <p className="pilgrimage-error">{siteError}</p> : null}
+                  {siteLoading ? <p className="edk-inline-note">Ladowanie konfiguracji zapisow...</p> : null}
+                  {siteError ? <p className="pilgrimage-error">{siteError}</p> : null}
 
-                <form className="edk-form" onSubmit={(eventForm) => void handleSubmit(eventForm)}>
-                  <label>
-                    Imie i nazwisko
-                    <input
-                      value={registrationForm.fullName}
-                      onChange={(eventInput) =>
-                        setRegistrationForm((previous) => ({ ...previous, fullName: eventInput.target.value }))
-                      }
-                      required
-                    />
-                  </label>
+                  <form className="edk-form" onSubmit={(eventForm) => void handleSubmit(eventForm)}>
+                    <label>
+                      Imie i nazwisko
+                      <input
+                        value={registrationForm.fullName}
+                        onChange={(eventInput) =>
+                          setRegistrationForm((previous) => ({ ...previous, fullName: eventInput.target.value }))
+                        }
+                        required
+                      />
+                    </label>
 
-                  <label>
-                    Telefon
-                    <input
-                      value={registrationForm.phone}
-                      onChange={(eventInput) =>
-                        setRegistrationForm((previous) => ({ ...previous, phone: eventInput.target.value }))
-                      }
-                      required
-                    />
-                  </label>
+                    <label>
+                      Telefon
+                      <input
+                        value={registrationForm.phone}
+                        onChange={(eventInput) =>
+                          setRegistrationForm((previous) => ({ ...previous, phone: eventInput.target.value }))
+                        }
+                        required
+                      />
+                    </label>
 
-                  <label>
-                    Status uczestnika
-                    <select
-                      value={registrationForm.participantStatus}
-                      onChange={(eventInput) =>
-                        setRegistrationForm((previous) => ({
-                          ...previous,
-                          participantStatus: eventInput.target.value as ParticipantStatusValue
-                        }))
-                      }
-                      required
-                    >
-                      {PARTICIPANT_STATUS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </label>
+                    <label>
+                      Status uczestnika
+                      <select
+                        value={registrationForm.participantStatus}
+                        onChange={(eventInput) =>
+                          setRegistrationForm((previous) => ({
+                            ...previous,
+                            participantStatus: eventInput.target.value as ParticipantStatusValue
+                          }))
+                        }
+                        required
+                      >
+                        {PARTICIPANT_STATUS_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </label>
 
-                  <label>
-                    Dodatkowe informacje
-                    <textarea
-                      value={registrationForm.additionalInfo}
-                      onChange={(eventInput) =>
-                        setRegistrationForm((previous) => ({ ...previous, additionalInfo: eventInput.target.value }))
-                      }
-                    />
-                    <small>Wpisz tutaj wazne informacje organizacyjne lub zdrowotne.</small>
-                  </label>
+                    <label>
+                      Dodatkowe informacje
+                      <textarea
+                        value={registrationForm.additionalInfo}
+                        onChange={(eventInput) =>
+                          setRegistrationForm((previous) => ({ ...previous, additionalInfo: eventInput.target.value }))
+                        }
+                      />
+                      <small>Wpisz tutaj wazne informacje organizacyjne lub zdrowotne.</small>
+                    </label>
 
-                  <p className="edk-consent">
-                    Klikajac \"Wyslij zgloszenie\", potwierdzasz chec udzialu w wydarzeniu i akceptujesz kontakt
-                    organizacyjny. <a href="/#/legal">Polityka prywatnosci REcreatio</a>
-                  </p>
+                    <p className="edk-consent">
+                      Klikajac "Wyslij zgloszenie", potwierdzasz chec udzialu i akceptujesz kontakt organizacyjny.
+                      {' '}
+                      <a href="/#/legal">Polityka prywatnosci REcreatio</a>
+                    </p>
 
-                  <button className="cta" type="submit" disabled={registrationPending}>
-                    {registrationPending ? 'Wysylanie...' : 'Wyslij zgloszenie'}
-                  </button>
+                    <button className="cta" type="submit" disabled={registrationPending}>
+                      {registrationPending ? 'Wysylanie...' : 'Wyslij zgloszenie'}
+                    </button>
 
-                  {registrationError ? <p className="pilgrimage-error">{registrationError}</p> : null}
-                  {registrationSuccess ? <p className="pilgrimage-success">{registrationSuccess}</p> : null}
-                </form>
+                    {registrationError ? <p className="pilgrimage-error">{registrationError}</p> : null}
+                    {registrationSuccess ? <p className="pilgrimage-success">{registrationSuccess}</p> : null}
+                  </form>
 
-                {showProfileMenu ? (
-                  <section className="edk-admin-block">
-                    <header>
-                      <h3>Panel zapisow (administracja)</h3>
-                      <p>Widok pelnej listy zgloszen EDK 2026.</p>
-                    </header>
+                  {showProfileMenu ? (
+                    <section className="edk-admin-block">
+                      <header>
+                        <h3>Panel zapisow (administracja)</h3>
+                        <p>Widok pelnej listy zgloszen EDK 2026.</p>
+                      </header>
 
-                    {!site?.isProvisioned ? (
-                      <div className="edk-admin-warning">
-                        <p>
-                          Wydarzenie nie jest jeszcze aktywowane w bazie. Aktywacja przygotuje zapisy i panel admina.
-                        </p>
-                        <button className="ghost" type="button" onClick={() => void handleProvisionEdk()} disabled={provisionPending}>
-                          {provisionPending ? 'Aktywowanie...' : 'Aktywuj EDK 2026 w systemie'}
-                        </button>
-                        {provisionError ? <p className="pilgrimage-error">{provisionError}</p> : null}
-                      </div>
-                    ) : null}
-
-                    {organizerPending ? <p className="edk-inline-note">Ladowanie listy uczestnikow...</p> : null}
-                    {organizerError ? <p className="pilgrimage-error">{organizerError}</p> : null}
-
-                    {organizerDashboard ? (
-                      <>
-                        <div className="edk-admin-tools">
-                          <button className="ghost" type="button" onClick={() => void handleExportRegistrations()} disabled={exportPending}>
-                            {exportPending ? 'Eksportowanie...' : 'Eksportuj liste zapisow'}
+                      {!site?.isProvisioned ? (
+                        <div className="edk-admin-warning">
+                          <p>
+                            Wydarzenie nie jest jeszcze aktywowane w bazie. Aktywacja przygotuje zapisy i panel admina.
+                          </p>
+                          <button className="ghost" type="button" onClick={() => void handleProvisionEdk()} disabled={provisionPending}>
+                            {provisionPending ? 'Aktywowanie...' : 'Aktywuj EDK 2026 w systemie'}
                           </button>
-                          {exportError ? <p className="pilgrimage-error">{exportError}</p> : null}
+                          {provisionError ? <p className="pilgrimage-error">{provisionError}</p> : null}
                         </div>
+                      ) : null}
 
-                        <div className="edk-admin-table-wrap">
-                          <table>
-                            <thead>
-                              <tr>
-                                <th>Imie i nazwisko</th>
-                                <th>Telefon</th>
-                                <th>Status uczestnika</th>
-                                <th>Dodatkowe informacje</th>
-                                <th>Data zgloszenia</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {participantRows.map((row) => (
-                                <tr key={row.id}>
-                                  <td>{row.fullName}</td>
-                                  <td>{row.phone}</td>
-                                  <td>{mapParticipantStatusLabel(row.participantStatus)}</td>
-                                  <td>{row.additionalInfo ?? '-'}</td>
-                                  <td>{new Date(row.createdUtc).toLocaleString('pl-PL')}</td>
+                      {organizerPending ? <p className="edk-inline-note">Ladowanie listy uczestnikow...</p> : null}
+                      {organizerError ? <p className="pilgrimage-error">{organizerError}</p> : null}
+
+                      {organizerDashboard ? (
+                        <>
+                          <div className="edk-admin-tools">
+                            <button className="ghost" type="button" onClick={() => void handleExportRegistrations()} disabled={exportPending}>
+                              {exportPending ? 'Eksportowanie...' : 'Eksportuj liste zapisow'}
+                            </button>
+                            {exportError ? <p className="pilgrimage-error">{exportError}</p> : null}
+                          </div>
+
+                          <div className="edk-admin-table-wrap">
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>Imie i nazwisko</th>
+                                  <th>Telefon</th>
+                                  <th>Status uczestnika</th>
+                                  <th>Dodatkowe informacje</th>
+                                  <th>Data zgloszenia</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </>
-                    ) : null}
-                  </section>
-                ) : null}
-              </section>
+                              </thead>
+                              <tbody>
+                                {participantRows.map((row) => (
+                                  <tr key={row.id}>
+                                    <td>{row.fullName}</td>
+                                    <td>{row.phone}</td>
+                                    <td>{mapParticipantStatusLabel(row.participantStatus)}</td>
+                                    <td>{row.additionalInfo ?? '-'}</td>
+                                    <td>{new Date(row.createdUtc).toLocaleString('pl-PL')}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </>
+                      ) : null}
+                    </section>
+                  ) : null}
+                </section>
+              </div>
             </div>
           )
         }
       ]
     },
     {
-      id: 'faq-kontakt',
-      menuLabel: 'FAQ i Kontakt',
-      title: 'FAQ i Kontakt',
+      id: 'kontakt',
+      menuLabel: 'Kontakt',
+      title: 'Kontakt',
       heightMode: 'content',
-      tone: 'tone-1',
+      tone: 'tone-4',
       layers: [
         {
           id: 'bg',
           className: 'edk26-layer edk26-layer-bg',
-          minHeightPx: 1700,
+          minHeightPx: 1500,
           content: <div className="edk26-layer-bg-fill edk26-layer-bg-fill-5" />
         },
         {
           id: 'type',
           className: 'edk26-layer edk26-layer-type',
-          minHeightPx: 1900,
+          minHeightPx: 1700,
           content: (
             <div className="edk26-type-banner" aria-hidden="true">
               <span className="edk26-type-word">KONTAKT</span>
@@ -842,50 +1132,39 @@ export function Edk26EventPage(
           id: 'content',
           className: 'event-template-slide-content-layer edk26-content-layer',
           interactive: true,
-          minHeightPx: 1320,
+          scrollReference: true,
           content: (
             <div className="edk26-content">
-              <section className="edk-section">
-                <header>
-                  <h2>FAQ</h2>
-                </header>
-                <div className="edk-faq-list">
-                  {FAQ_ITEMS.map((item) => (
-                    <details key={item.question}>
-                      <summary>{item.question}</summary>
-                      <p>{item.answer}</p>
-                    </details>
-                  ))}
-                </div>
-              </section>
-
-              <section className="edk-section">
-                <header>
-                  <h2>Kontakt</h2>
-                </header>
-                <div className="edk-section-body">
-                  <p>
-                    Masz pytania dotyczace przygotowania, zapisow albo przebiegu drogi? Skontaktuj sie bezposrednio.
-                  </p>
-                </div>
-                <div className="edk-contact-grid">
-                  <article className="edk-contact-card">
-                    <h3>E-mail</h3>
+              <div className="event-template-slide-inner">
+                <section className="edk-section">
+                  <header>
+                    <h2>Kontakt</h2>
+                  </header>
+                  <div className="edk-section-body">
                     <p>
-                      <a href="mailto:mleczek_pradnik@outlook.com">mleczek_pradnik@outlook.com</a>
+                      Masz pytania dotyczace przygotowania, zapisow albo przebiegu drogi?
+                      Skontaktuj sie bezposrednio.
                     </p>
-                  </article>
-                  <article className="edk-contact-card">
-                    <h3>Telefon</h3>
-                    <p>
-                      <a href="tel:+48505548677">+48 505 548 677</a>
-                    </p>
-                  </article>
-                </div>
-                <div className="edk-contact-actions">
-                  <a className="ghost" href="mailto:mleczek_pradnik@outlook.com">Napisz wiadomosc</a>
-                </div>
-              </section>
+                  </div>
+                  <div className="edk-contact-grid">
+                    <article className="edk-contact-card">
+                      <h3>E-mail</h3>
+                      <p>
+                        <a href="mailto:mleczek_pradnik@outlook.com">mleczek_pradnik@outlook.com</a>
+                      </p>
+                    </article>
+                    <article className="edk-contact-card">
+                      <h3>Telefon</h3>
+                      <p>
+                        <a href="tel:+48505548677">+48 505 548 677</a>
+                      </p>
+                    </article>
+                  </div>
+                  <div className="edk-contact-actions">
+                    <a className="ghost" href="mailto:mleczek_pradnik@outlook.com">Napisz wiadomosc</a>
+                  </div>
+                </section>
+              </div>
             </div>
           )
         }

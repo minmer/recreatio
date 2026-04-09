@@ -17,6 +17,7 @@ export type EventTemplateSlideLayer = {
   content: ReactNode;
   className?: string;
   interactive?: boolean;
+  scrollReference?: boolean;
   minHeightPx?: number;
 };
 
@@ -75,6 +76,26 @@ function normalizeWheelDelta(event: WheelEvent): number {
     delta *= Math.max(480, window.innerHeight * 0.85);
   }
   return clamp(delta, -180, 180);
+}
+
+function resolveScrollReferenceLayerIndex(layers: EventTemplateSlideLayer[]): number {
+  if (layers.length === 0) {
+    return 0;
+  }
+
+  for (let index = layers.length - 1; index >= 0; index -= 1) {
+    if (layers[index]?.scrollReference) {
+      return index;
+    }
+  }
+
+  for (let index = layers.length - 1; index >= 0; index -= 1) {
+    if (layers[index]?.interactive) {
+      return index;
+    }
+  }
+
+  return layers.length - 1;
 }
 
 export function EventSinglePageTemplate({
@@ -589,11 +610,11 @@ export function EventSinglePageTemplate({
         }
 
         const layersForSlide = nextLayerHeights[index] ?? [nextViewportHeight];
-        const tallestLayer = layersForSlide.reduce(
-          (winner, height) => Math.max(winner, height),
-          nextViewportHeight
-        );
-        return Math.max(nextViewportHeight, tallestLayer);
+        const referenceLayerIndex = resolveScrollReferenceLayerIndex(nextResolvedLayers[index] ?? []);
+        const referenceLayerHeight = layersForSlide[referenceLayerIndex]
+          ?? layersForSlide[layersForSlide.length - 1]
+          ?? nextViewportHeight;
+        return Math.max(nextViewportHeight, referenceLayerHeight);
       });
 
       setLayerHeights((previous) => {
@@ -860,7 +881,7 @@ export function EventSinglePageTemplate({
   }, [stopAnimation]);
 
   return (
-    <div className="event-template" data-slide={activeSlideIndex + 1}>
+    <div className={`event-template event-template--${event.slug}`} data-slide={activeSlideIndex + 1}>
       <header className="event-template-header">
         <a className="event-template-brand" href="/#/event">
           <img src="/logo_new.svg" alt="REcreatio" />
