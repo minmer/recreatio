@@ -4,10 +4,10 @@ import {
   createCogitaCreationProject,
   getCogitaCreationProjects,
   getCogitaLibraries,
-  searchCogitaInfos,
+  searchCogitaNotions,
   updateCogitaCreationProject,
   type CogitaCreationProject,
-  type CogitaInfoSearchResult,
+  type CogitaNotionSearchResult,
   type CogitaLibrary
 } from '../../lib/api';
 import type { Copy } from '../../content/types';
@@ -75,7 +75,7 @@ export function CogitaWritingRuntimePage({
   const [projectName, setProjectName] = useState('');
   const [body, setBody] = useState('');
   const [referenceQuery, setReferenceQuery] = useState('');
-  const [referenceResults, setReferenceResults] = useState<CogitaInfoSearchResult[]>([]);
+  const [referenceResults, setReferenceResults] = useState<CogitaNotionSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searchingReferences, setSearchingReferences] = useState(false);
@@ -234,7 +234,7 @@ export function CogitaWritingRuntimePage({
     setSearchingReferences(true);
     setStatus(null);
     try {
-      const list = await searchCogitaInfos({
+      const list = await searchCogitaNotions({
         libraryId: selectedLibraryId,
         query: referenceQuery.trim(),
         limit: 8
@@ -247,7 +247,7 @@ export function CogitaWritingRuntimePage({
     }
   };
 
-  const insertReference = (item: CogitaInfoSearchResult) => {
+  const insertReference = (item: CogitaNotionSearchResult) => {
     const token = `[[${item.label}]]`;
     setBody((current) => (current.trim().length > 0 ? `${current}\n${token}` : token));
   };
@@ -371,9 +371,9 @@ export function CogitaWritingRuntimePage({
               </div>
               <div className="cogita-card-list" data-view="list" style={{ marginTop: '0.75rem' }}>
                 {referenceResults.map((item) => (
-                  <div className="cogita-card-item" key={item.infoId}>
+                  <div className="cogita-card-item" key={item.notionId}>
                     <div>
-                      <p className="cogita-card-type">{item.infoType}</p>
+                      <p className="cogita-card-type">{item.notionType}</p>
                       <h3 className="cogita-card-title">{item.label}</h3>
                     </div>
                     <div className="cogita-card-actions">

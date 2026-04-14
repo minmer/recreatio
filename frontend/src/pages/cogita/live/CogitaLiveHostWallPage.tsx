@@ -4,7 +4,7 @@ import {
   attachCogitaLiveRevisionSession,
   getCogitaCollectionCards,
   getCogitaComputedSample,
-  getCogitaInfoDetail,
+  getCogitaNotionDetail,
   getCogitaLiveRevisionSession,
   removeCogitaLiveRevisionParticipant,
   getCogitaRevision,
@@ -305,8 +305,8 @@ async function buildLiveRounds(payload: {
   await Promise.all(
     infoIds.map(async (id) => {
       try {
-        const detail = await getCogitaInfoDetail({ libraryId: payload.libraryId, infoId: id });
-        infoDetails.set(id, { infoType: detail.infoType, payload: detail.payload });
+        const detail = await getCogitaNotionDetail({ libraryId: payload.libraryId, notionId: id });
+        infoDetails.set(id, { infoType: detail.notionType, payload: detail.payload });
       } catch {
         // skip
       }
@@ -319,7 +319,7 @@ async function buildLiveRounds(payload: {
       .filter(([, d]) => d.infoType === 'computed')
       .map(async ([infoId]) => {
         try {
-          const sample = await getCogitaComputedSample({ libraryId: payload.libraryId, infoId });
+          const sample = await getCogitaComputedSample({ libraryId: payload.libraryId, notionId: infoId });
           computedSamples.set(infoId, sample);
         } catch {
           // skip

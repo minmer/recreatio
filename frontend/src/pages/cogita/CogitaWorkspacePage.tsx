@@ -17,7 +17,7 @@ import {
   getCogitaGames,
   getCogitaGameValues,
   getCogitaCollections,
-  getCogitaInfoDetail,
+  getCogitaNotionDetail,
   getCogitaLibraries,
   getCogitaLiveRevisionSessionsByRevision,
   importCogitaLibraryStream,
@@ -26,7 +26,7 @@ import {
   getRoleGraph,
   getRoles,
   issueCsrf,
-  searchCogitaInfos,
+  searchCogitaNotions,
   type CogitaImportProgress,
   upsertCogitaGameActionGraph,
   upsertCogitaGameLayout,
@@ -41,7 +41,7 @@ import {
   type CogitaGameSessionSummary,
   type CogitaGameSummary,
   type CogitaGameValue,
-  type CogitaInfoSearchResult,
+  type CogitaNotionSearchResult,
   type CogitaLibrary,
   type CogitaLiveRevisionSessionListItem,
   type CogitaReviewer,
@@ -912,7 +912,7 @@ function WorkspaceLibraryTransferSection({
         );
       });
       setImportResult({
-        infos: result.infosImported,
+        infos: result.notionsImported,
         connections: result.connectionsImported,
         collections: result.collectionsImported
       });
@@ -1458,7 +1458,7 @@ export function CogitaWorkspacePage({
 
   const [libraries, setLibraries] = useState<CogitaLibrary[]>([]);
   const [collections, setCollections] = useState<CogitaCollectionSummary[]>([]);
-  const [infos, setInfos] = useState<CogitaInfoSearchResult[]>([]);
+  const [infos, setInfos] = useState<CogitaNotionSearchResult[]>([]);
   const [revisions, setRevisions] = useState<CogitaRevision[]>([]);
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | undefined>(undefined);
   const [selectedTarget, setSelectedTarget] = useState<CogitaTarget>('library_overview');
@@ -1482,7 +1482,7 @@ export function CogitaWorkspacePage({
   const [preferenceDataItemId, setPreferenceDataItemId] = useState<string | null>(null);
   const prefsRef = useRef<CogitaPreferences>({ version: 1, byLibrary: {} });
   const collectionsCacheRef = useRef<Record<string, CogitaCollectionSummary[]>>({});
-  const infosCacheRef = useRef<Record<string, CogitaInfoSearchResult[]>>({});
+  const infosCacheRef = useRef<Record<string, CogitaNotionSearchResult[]>>({});
   const revisionsCacheRef = useRef<Record<string, CogitaRevision[]>>({});
   const liveSessionsCacheRef = useRef<Record<string, CogitaLiveRevisionSessionListItem[]>>({});
   const initializedRef = useRef(false);
@@ -1617,7 +1617,7 @@ export function CogitaWorkspacePage({
     return pathState.gameView ?? 'overview';
   }, [pathState.gameId, pathState.gameView]);
   const selectedInfoOption = useMemo(
-    () => infos.find((item) => item.infoId === pathState.infoId) ?? null,
+    () => infos.find((item) => item.notionId === pathState.infoId) ?? null,
     [infos, pathState.infoId]
   );
   const targetLabels = useMemo<Record<CogitaTarget, string>>(
@@ -2301,7 +2301,7 @@ export function CogitaWorkspacePage({
                 {
                   infoId: pathState.infoId,
                   label: selectedInfoOption?.label ?? selectedInfoLabel ?? pathState.infoId,
-                  infoType: selectedInfoOption?.infoType ?? null
+                  infoType: selectedInfoOption?.notionType ?? null
                 }
               ]
             });
@@ -3538,13 +3538,13 @@ export function CogitaWorkspacePage({
     const cachedInfos = infosCacheRef.current[selectedLibraryId];
     if (cachedInfos) {
       setInfos(cachedInfos);
-      if (!pathState.infoId || cachedInfos.some((item) => item.infoId === pathState.infoId)) {
+      if (!pathState.infoId || cachedInfos.some((item) => item.notionId === pathState.infoId)) {
         return;
       }
     }
     let cancelled = false;
-    searchCogitaInfos({ libraryId: selectedLibraryId, limit: 200 })
-      .then((items) => {
+    searchCogitaNotions({ libraryId: selectedLibraryId, limit: 200 })
+      .then((items: CogitaNotionSearchResult[]) => {
         if (cancelled) return;
         infosCacheRef.current[selectedLibraryId] = items;
         setInfos(items);
@@ -3665,8 +3665,8 @@ export function CogitaWorkspacePage({
     }
 
     let cancelled = false;
-    getCogitaInfoDetail({ libraryId: selectedLibraryId, infoId })
-      .then((detail) => {
+    getCogitaNotionDetail({ libraryId: selectedLibraryId, notionId: infoId })
+      .then((detail: { notionId: string; notionType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }) => {
         if (cancelled) return;
         const payload = (detail.payload ?? {}) as Record<string, unknown>;
         const definition = (payload.definition && typeof payload.definition === 'object'
@@ -3677,7 +3677,7 @@ export function CogitaWorkspacePage({
         const label = typeof payload.label === 'string' ? payload.label : undefined;
         const name = typeof payload.name === 'string' ? payload.name : undefined;
         const title = typeof payload.title === 'string' ? payload.title : undefined;
-        setSelectedInfoLabel(nestedTitle ?? nestedQuestion ?? label ?? name ?? title ?? detail.infoId);
+        setSelectedInfoLabel(nestedTitle ?? nestedQuestion ?? label ?? name ?? title ?? detail.notionId);
       })
       .catch(() => {
         if (cancelled) return;

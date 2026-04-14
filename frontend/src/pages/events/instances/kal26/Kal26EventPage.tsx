@@ -107,6 +107,20 @@ function buildInquirySmsHref(phone: string | null | undefined, topic: string, an
   return `sms:${smsPhone}?body=${encodeURIComponent(message)}`;
 }
 
+function buildParticipantSmsHref(phone: string | null | undefined, fullName: string, emergency = false) {
+  const rawPhone = (phone ?? '').trim();
+  if (!rawPhone) {
+    return '';
+  }
+
+  const smsPhone = rawPhone.replace(/[^\d+]/g, '');
+  const target = fullName.trim() || 'uczestniku';
+  const message = emergency
+    ? `Szczesc Boze,\nkontakt od organizatorow pielgrzymki w sprawie uczestnika: ${target}.\nProsimy o pilny kontakt zwrotny.`
+    : `Szczesc Boze ${target},\nwiadomosc od organizatorow pielgrzymki Kalwaria Zebrzydowska na Wielkanoc.\n`;
+  return `sms:${smsPhone}?body=${encodeURIComponent(message)}`;
+}
+
 function PilgrimageStoneMap() {
   const graphicRef = useRef<HTMLDivElement | null>(null);
 
@@ -2778,7 +2792,22 @@ export function Kal26EventPage({
                 {filteredParticipants.map((row) => (
                   <tr key={row.id}>
                     <td>{row.fullName}</td>
-                    <td>{row.phone}</td>
+                    <td>
+                      <div className="pilgrimage-quick-links">
+                        <a className="ghost" href={`tel:${row.phone}`}>{row.phone}</a>
+                        <a
+                          className="ghost"
+                          href={buildParticipantSmsHref(row.phone, row.fullName) || undefined}
+                          onClick={(eventClick) => {
+                            if (!buildParticipantSmsHref(row.phone, row.fullName)) {
+                              eventClick.preventDefault();
+                            }
+                          }}
+                        >
+                          SMS
+                        </a>
+                      </div>
+                    </td>
                     <td>{row.email || '-'}</td>
                     <td>{row.participationVariant}</td>
                     <td>
@@ -2905,7 +2934,23 @@ export function Kal26EventPage({
                         <option value="absent">absent</option>
                       </select>
                     </td>
-                    <td>{row.emergencyContactName} / {row.emergencyContactPhone}</td>
+                    <td>
+                      <div>{row.emergencyContactName}</div>
+                      <div className="pilgrimage-quick-links">
+                        <a className="ghost" href={`tel:${row.emergencyContactPhone}`}>{row.emergencyContactPhone}</a>
+                        <a
+                          className="ghost"
+                          href={buildParticipantSmsHref(row.emergencyContactPhone, row.fullName, true) || undefined}
+                          onClick={(eventClick) => {
+                            if (!buildParticipantSmsHref(row.emergencyContactPhone, row.fullName, true)) {
+                              eventClick.preventDefault();
+                            }
+                          }}
+                        >
+                          SMS
+                        </a>
+                      </div>
+                    </td>
                     <td>{row.healthNotes || '-'} / {row.dietNotes || '-'}</td>
                     <td>
                       <button

@@ -2,14 +2,14 @@ import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import bibleBooks from '../../../../../content/bibleBooks.json';
 import {
   ApiError,
-  createCogitaInfo,
-  getCogitaInfoDetail,
-  getCogitaInfoTypeSpecification,
-  searchCogitaInfos,
-  updateCogitaInfo,
-  type CogitaInfoLinkFieldSpec,
-  type CogitaInfoPayloadFieldSpec,
-  type CogitaInfoTypeSpecification
+  createCogitaNotion,
+  getCogitaNotionDetail,
+  getCogitaNotionTypeSpecification,
+  searchCogitaNotions,
+  updateCogitaNotion,
+  type CogitaNotionLinkFieldSpec,
+  type CogitaNotionPayloadFieldSpec,
+  type CogitaNotionTypeSpecification
 } from '../../../../../lib/api';
 import { CogitaShell } from '../../../CogitaShell';
 import type { Copy } from '../../../../../content/types';
@@ -170,7 +170,7 @@ export function InfoSearchSelect({
       setIsLoading(true);
       setError(null);
       try {
-        const matches = await searchCogitaInfos({
+        const matches = await searchCogitaNotions({
           libraryId,
           type: infoType,
           query: trimmed,
@@ -178,9 +178,9 @@ export function InfoSearchSelect({
         });
         if (lastRequest.current !== currentRequest) return;
         const mapped = matches.slice(0, MAX_INFO_RESULTS_PER_REQUEST).map((match) => ({
-          id: match.infoId,
+          id: match.notionId,
           label: match.label,
-          infoType: match.infoType as CogitaInfoType
+          infoType: match.notionType as CogitaInfoType
         }));
         cacheRef.current.set(cacheKey, mapped);
         if (multiple && selectedValues.length > 0) {
@@ -231,12 +231,12 @@ export function InfoSearchSelect({
     setIsLoading(true);
     setError(null);
     try {
-      const created = await createCogitaInfo({
+      const created = await createCogitaNotion({
         libraryId,
-        infoType,
+        notionType: infoType,
         payload: { label: trimmed }
       });
-      const createdOption = { id: created.infoId, label: trimmed, infoType: created.infoType as CogitaInfoType };
+      const createdOption = { id: created.notionId, label: trimmed, infoType: created.notionType as CogitaInfoType };
       if (trimmed.length >= MIN_INFO_QUERY_LENGTH) {
         const cacheKey = `${libraryId}:${infoType}:${trimmed.toLowerCase()}`;
         const existing = cacheRef.current.get(cacheKey) ?? [];
@@ -735,7 +735,7 @@ export function CogitaNotionEdit({
 }: CogitaNotionEditProps) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const isEditMode = Boolean(editInfoId);
-  const [specifications, setSpecifications] = useState<CogitaInfoTypeSpecification[]>([]);
+  const [specifications, setSpecifications] = useState<CogitaNotionTypeSpecification[]>([]);
   const [selectedInfoType, setSelectedInfoType] = useState<CogitaInfoType>('word');
   const [payloadValues, setPayloadValues] = useState<Record<string, string>>({});
   const [singleLinks, setSingleLinks] = useState<Record<string, CogitaInfoOption | null>>({});
@@ -758,18 +758,18 @@ export function CogitaNotionEdit({
   const [questionImportQueueIndex, setQuestionImportQueueIndex] = useState(0);
 
   const currentSpec = useMemo(
-    () => specifications.find((spec) => spec.infoType === selectedInfoType),
+    () => specifications.find((spec) => spec.notionType === selectedInfoType),
     [selectedInfoType, specifications]
   );
   const sourceSpec = useMemo(
-    () => specifications.find((spec) => spec.infoType === 'source'),
+    () => specifications.find((spec) => spec.notionType === 'source'),
     [specifications]
   );
   const infoTypeOptions = useMemo(
     () =>
       specifications.map((spec) => ({
-        value: spec.infoType as CogitaInfoType,
-        label: getInfoTypeLabel(copy, spec.infoType as CogitaInfoType)
+        value: spec.notionType as CogitaInfoType,
+        label: getInfoTypeLabel(copy, spec.notionType as CogitaInfoType)
       })),
     [copy, specifications]
   );
@@ -783,12 +783,12 @@ export function CogitaNotionEdit({
 
   useEffect(() => {
     let cancelled = false;
-    getCogitaInfoTypeSpecification({ libraryId })
+    getCogitaNotionTypeSpecification({ libraryId })
       .then((items) => {
         if (cancelled) return;
         setSpecifications(items);
         if (!isEditMode) {
-          const first = items[0]?.infoType as CogitaInfoType | undefined;
+          const first = items[0]?.notionType as CogitaInfoType | undefined;
           if (first) setSelectedInfoType(first);
         }
       })
@@ -809,11 +809,11 @@ export function CogitaNotionEdit({
     const linkTypes: LinkTypeSelectionState = {};
 
     for (const field of currentSpec.payloadFields) {
-      if (currentSpec.infoType === 'question' && field.key === 'definition' && field.inputType === 'json') {
+      if (currentSpec.notionType === 'question' && field.key === 'definition' && field.inputType === 'json') {
         payload[field.key] = QUESTION_DEFINITION_TEMPLATE;
-      } else if (currentSpec.infoType === 'computed' && field.key === 'definition' && field.inputType === 'json') {
+      } else if (currentSpec.notionType === 'computed' && field.key === 'definition' && field.inputType === 'json') {
         payload[field.key] = serializeComputedDefinition(createDefaultComputedDefinition());
-      } else if (currentSpec.infoType === 'python' && field.key === 'definition' && field.inputType === 'json') {
+      } else if (currentSpec.notionType === 'python' && field.key === 'definition' && field.inputType === 'json') {
         payload[field.key] = serializePythonDefinition(createDefaultPythonDefinition());
       } else {
         payload[field.key] = '';
@@ -834,7 +834,7 @@ export function CogitaNotionEdit({
     setSingleLinks(single);
     setMultiLinks(multi);
     setLinkTypeSelections(linkTypes);
-  }, [currentSpec?.infoType, isEditMode]);
+  }, [currentSpec?.notionType, isEditMode]);
 
   useEffect(() => {
     if (selectedInfoType !== 'question') return;
@@ -887,12 +887,12 @@ export function CogitaNotionEdit({
     setStatus(null);
 
     const load = async () => {
-      const detail = await getCogitaInfoDetail({ libraryId, infoId: editInfoId });
+      const detail = await getCogitaNotionDetail({ libraryId, notionId: editInfoId });
       if (cancelled) return;
 
-      const type = detail.infoType as CogitaInfoType;
+      const type = detail.notionType as CogitaInfoType;
       setSelectedInfoType(type);
-      const spec = specifications.find((item) => item.infoType === type);
+      const spec = specifications.find((item) => item.notionType === type);
       if (!spec) {
         setLoading('idle');
         return;
@@ -922,12 +922,12 @@ export function CogitaNotionEdit({
           nextMulti[linkField.key] = [];
           for (const id of ids) {
             optionPromises.push(
-              getCogitaInfoDetail({ libraryId, infoId: id })
+              getCogitaNotionDetail({ libraryId, notionId: id })
                 .then((linked) => {
                   if (cancelled) return;
                   const option: CogitaInfoOption = {
                     id,
-                    infoType: linked.infoType as CogitaInfoType,
+                    infoType: linked.notionType as CogitaInfoType,
                     label: resolveInfoLabel(linked.payload, id)
                   };
                   nextLinkTypes[linkField.key] = option.infoType;
@@ -941,12 +941,12 @@ export function CogitaNotionEdit({
           nextSingle[linkField.key] = null;
           if (id) {
             optionPromises.push(
-              getCogitaInfoDetail({ libraryId, infoId: id })
+              getCogitaNotionDetail({ libraryId, notionId: id })
                 .then((linked) => {
                   if (cancelled) return;
                   const option: CogitaInfoOption = {
                     id,
-                    infoType: linked.infoType as CogitaInfoType,
+                    infoType: linked.notionType as CogitaInfoType,
                     label: resolveInfoLabel(linked.payload, id)
                   };
                   nextLinkTypes[linkField.key] = option.infoType;
@@ -1047,14 +1047,14 @@ export function CogitaNotionEdit({
         sourceKind: form.sourceKind.trim(),
         locator: buildSourceLocatorPayload(form)
       };
-      const created = await createCogitaInfo({
+      const created = await createCogitaNotion({
         libraryId,
-        infoType: 'source',
+        notionType: 'source',
         payload,
         links
       });
       const option: CogitaInfoOption = {
-        id: created.infoId,
+        id: created.notionId,
         infoType: 'source',
         label: payload.label
       };
@@ -1064,7 +1064,7 @@ export function CogitaNotionEdit({
         return { ...prev, [fieldKey]: [...current, option] };
       });
       if (isEditMode && editInfoId) {
-        const currentDetail = await getCogitaInfoDetail({ libraryId, infoId: editInfoId });
+        const currentDetail = await getCogitaNotionDetail({ libraryId, notionId: editInfoId });
         const nextLinks: Record<string, string | string[] | null> =
           currentDetail.links && typeof currentDetail.links === 'object'
             ? ({ ...(currentDetail.links as Record<string, string | string[] | null>) })
@@ -1077,9 +1077,9 @@ export function CogitaNotionEdit({
             : [];
         if (!nextIds.includes(option.id)) {
           nextLinks[fieldKey] = [...nextIds, option.id];
-          await updateCogitaInfo({
+          await updateCogitaNotion({
             libraryId,
-            infoId: editInfoId,
+            notionId: editInfoId,
             payload: currentDetail.payload,
             links: nextLinks
           });
@@ -1175,24 +1175,24 @@ export function CogitaNotionEdit({
     setStatus(null);
     try {
       if (isEditMode && editInfoId) {
-        await updateCogitaInfo({
+        await updateCogitaNotion({
           libraryId,
-          infoId: editInfoId,
+          notionId: editInfoId,
           payload,
           links
         });
         setStatus('Notion updated.');
       } else {
-        const created = await createCogitaInfo({
+        const created = await createCogitaNotion({
           libraryId,
-          infoType: selectedInfoType,
+          notionType: selectedInfoType,
           payload,
           links
         });
         onCreated?.({
-          infoId: created.infoId,
-          infoType: created.infoType,
-          label: resolveInfoLabel(payload, created.infoId)
+          infoId: created.notionId,
+          infoType: created.notionType,
+          label: resolveInfoLabel(payload, created.notionId)
         });
         const hasQueuedQuestionImport =
           selectedInfoType === 'question' &&
@@ -1295,7 +1295,7 @@ export function CogitaNotionEdit({
     }
   };
 
-  const renderPayloadField = (field: CogitaInfoPayloadFieldSpec) => {
+  const renderPayloadField = (field: CogitaNotionPayloadFieldSpec) => {
     const value = payloadValues[field.key] ?? '';
     return (
       <NotionTypePayloadShell
@@ -1344,7 +1344,7 @@ export function CogitaNotionEdit({
     );
   };
 
-  const renderLinkField = (field: CogitaInfoLinkFieldSpec) => {
+  const renderLinkField = (field: CogitaNotionLinkFieldSpec) => {
     const targetType = (linkTypeSelections[field.key] ?? field.targetTypes[0]) as CogitaInfoType;
     const isReferenceAttachmentField = field.key === 'references' && field.multiple && field.targetTypes.includes('source');
     const inlineReferenceForm = inlineReferenceForms[field.key] ?? createEmptyReferenceSourceForm();

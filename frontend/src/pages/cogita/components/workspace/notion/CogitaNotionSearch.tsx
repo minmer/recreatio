@@ -1,22 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  getCogitaInfoCheckcards,
-  deleteCogitaInfo,
+  getCogitaNotionCheckcards,
+  deleteCogitaNotion,
   getCogitaApproachSpecifications,
   getCogitaCollectionGraph,
-  getCogitaInfoCheckcardDependencies,
-  getCogitaInfoCollections,
-  getCogitaInfoDetail,
-  getCogitaInfoApproachProjection,
+  getCogitaNotionCheckcardDependencies,
+  getCogitaNotionCollections,
+  getCogitaNotionDetail,
+  getCogitaNotionApproachProjection,
   getCogitaItemDependencies,
   getCogitaReviewSummary,
   searchCogitaEntities,
-  searchCogitaInfos,
+  searchCogitaNotions,
   type CogitaCardSearchResult,
   type CogitaEntitySearchResult,
-  type CogitaInfoApproachProjection,
-  type CogitaInfoApproachSpecification,
-  type CogitaInfoSearchResult,
+  type CogitaNotionApproachProjection,
+  type CogitaNotionApproachSpecification,
+  type CogitaNotionSearchResult,
   type CogitaCardSearchBundle,
   type CogitaItemDependencyBundle,
   type CogitaReviewSummary
@@ -34,7 +34,7 @@ import { createWorkspaceTransfer, loadWorkspaceTransfer, updateWorkspaceTransfer
 type InfoSort = 'relevance' | 'label_asc' | 'label_desc' | 'type_asc' | 'type_desc';
 type ResultView = 'details' | 'wide' | 'grid';
 type SelectedInfoStackItem = { infoId: string; infoType: string; label: string };
-type InfoDetailState = { infoId: string; infoType: string; payload: unknown; links?: Record<string, string | string[] | null> | null };
+type InfoDetailState = { notionId: string; notionType: string; payload: unknown; links?: Record<string, string | string[] | null> | null };
 
 const PAGE_SIZE = 60;
 const SEARCH_LIMIT = 500;
@@ -141,19 +141,19 @@ export function CogitaNotionSearch({
   const [viewMode, setViewMode] = useState<ResultView>('details');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
-  const [rawResults, setRawResults] = useState<CogitaInfoSearchResult[]>([]);
+  const [rawResults, setRawResults] = useState<CogitaNotionSearchResult[]>([]);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectionStack, setSelectionStack] = useState<Record<string, SelectedInfoStackItem>>(() => loadSelectionStack(libraryId));
   const [typeFilters, setTypeFilters] = useState<Record<string, string>>({});
-  const [languages, setLanguages] = useState<CogitaInfoSearchResult[]>([]);
-  const [referenceSources, setReferenceSources] = useState<CogitaInfoSearchResult[]>([]);
+  const [languages, setLanguages] = useState<CogitaNotionSearchResult[]>([]);
+  const [referenceSources, setReferenceSources] = useState<CogitaNotionSearchResult[]>([]);
   const [selectedInfoDetail, setSelectedInfoDetail] = useState<InfoDetailState | null>(null);
   const [selectedInfoReviewSummary, setSelectedInfoReviewSummary] = useState<CogitaReviewSummary | null>(null);
   const [dependenciesBundle, setDependenciesBundle] = useState<CogitaItemDependencyBundle | null>(null);
   const [overviewStatus, setOverviewStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
-  const [approachSpecs, setApproachSpecs] = useState<CogitaInfoApproachSpecification[]>([]);
+  const [approachSpecs, setApproachSpecs] = useState<CogitaNotionApproachSpecification[]>([]);
   const [selectedApproachKey, setSelectedApproachKey] = useState<string>('');
-  const [approachProjection, setApproachProjection] = useState<CogitaInfoApproachProjection | null>(null);
+  const [approachProjection, setApproachProjection] = useState<CogitaNotionApproachProjection | null>(null);
   const [approachStatus, setApproachStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [infoCheckcards, setInfoCheckcards] = useState<CogitaCardSearchBundle | null>(null);
   const [infoCheckcardDependencies, setInfoCheckcardDependencies] = useState<CogitaItemDependencyBundle | null>(null);
@@ -243,11 +243,11 @@ export function CogitaNotionSearch({
       .then((items) => {
         const mapped = items
           .map((item) => ({
-            infoId: item.infoId ?? '',
-            infoType: item.entityType,
+            notionId: item.infoId ?? '',
+            notionType: item.entityType,
             label: item.title
           }))
-          .filter((item) => item.infoId.length > 0);
+          .filter((item) => item.notionId.length > 0);
         setLanguages(mapped);
       })
       .catch(() => setLanguages([]));
@@ -263,11 +263,11 @@ export function CogitaNotionSearch({
       .then((items) => {
         const mapped = items
           .map((item) => ({
-            infoId: item.infoId ?? '',
-            infoType: item.entityType,
+            notionId: item.infoId ?? '',
+            notionType: item.entityType,
             label: item.title
           }))
-          .filter((item) => item.infoId.length > 0);
+          .filter((item) => item.notionId.length > 0);
         setReferenceSources(mapped);
       })
       .catch(() => setReferenceSources([]));
@@ -363,7 +363,7 @@ export function CogitaNotionSearch({
     let cancelled = false;
     setOverviewStatus('loading');
     Promise.all([
-      getCogitaInfoDetail({ libraryId, infoId: selectedInfoIdFromRoute }),
+      getCogitaNotionDetail({ libraryId, notionId: selectedInfoIdFromRoute }),
       getCogitaReviewSummary({ libraryId, itemType: 'info', itemId: selectedInfoIdFromRoute }).catch(() => null)
     ])
       .then(([detail, summary]) => {
@@ -391,7 +391,7 @@ export function CogitaNotionSearch({
     }
     let cancelled = false;
     setInfoCollectionsStatus('loading');
-    getCogitaInfoCollections({ libraryId, infoId: selectedInfoIdFromRoute })
+    getCogitaNotionCollections({ libraryId, notionId: selectedInfoIdFromRoute })
       .then((items) => {
         if (cancelled) return;
         setInfoCollections(items);
@@ -417,8 +417,8 @@ export function CogitaNotionSearch({
     let cancelled = false;
     setCheckcardsStatus('loading');
     Promise.all([
-      getCogitaInfoCheckcards({ libraryId, infoId: selectedInfoIdFromRoute }),
-      getCogitaInfoCheckcardDependencies({ libraryId, infoId: selectedInfoIdFromRoute })
+      getCogitaNotionCheckcards({ libraryId, notionId: selectedInfoIdFromRoute }),
+      getCogitaNotionCheckcardDependencies({ libraryId, notionId: selectedInfoIdFromRoute })
     ])
       .then(([cards, deps]) => {
         if (cancelled) return;
@@ -440,7 +440,7 @@ export function CogitaNotionSearch({
   const availableApproaches = useMemo(
     () =>
       selectedInfoDetail
-        ? approachSpecs.filter((spec) => spec.sourceInfoTypes.some((type) => type.toLowerCase() === selectedInfoDetail.infoType.toLowerCase()))
+        ? approachSpecs.filter((spec) => spec.sourceNotionTypes.some((type) => type.toLowerCase() === selectedInfoDetail.notionType.toLowerCase()))
         : [],
     [approachSpecs, selectedInfoDetail]
   );
@@ -466,9 +466,9 @@ export function CogitaNotionSearch({
 
     let cancelled = false;
     setApproachStatus('loading');
-    getCogitaInfoApproachProjection({
+    getCogitaNotionApproachProjection({
       libraryId,
-      infoId: selectedInfoDetail.infoId,
+      notionId: selectedInfoDetail.notionId,
       approachKey: selectedApproachKey
     })
       .then((response) => {
@@ -495,11 +495,11 @@ export function CogitaNotionSearch({
     if (sortBy === 'label_desc') return items.sort((a, b) => b.label.localeCompare(a.label));
     if (sortBy === 'type_asc') {
       return items.sort((a, b) =>
-        a.infoType === b.infoType ? a.label.localeCompare(b.label) : typeLabel(a.infoType).localeCompare(typeLabel(b.infoType))
+        a.notionType === b.notionType ? a.label.localeCompare(b.label) : typeLabel(a.notionType).localeCompare(typeLabel(b.notionType))
       );
     }
     return items.sort((a, b) =>
-      a.infoType === b.infoType ? a.label.localeCompare(b.label) : typeLabel(b.infoType).localeCompare(typeLabel(a.infoType))
+      a.notionType === b.notionType ? a.label.localeCompare(b.label) : typeLabel(b.notionType).localeCompare(typeLabel(a.notionType))
     );
   }, [copy, rawResults, sortBy]);
 
@@ -539,12 +539,12 @@ export function CogitaNotionSearch({
     setVisibleCount(PAGE_SIZE);
   }, [rawResults]);
 
-  const upsertSelection = (item: CogitaInfoSearchResult) => {
+  const upsertSelection = (item: CogitaNotionSearchResult) => {
     setSelectionStack((prev) => ({
       ...prev,
-      [item.infoId]: {
-        infoId: item.infoId,
-        infoType: item.infoType,
+      [item.notionId]: {
+        infoId: item.notionId,
+        infoType: item.notionType,
         label: item.label
       }
     }));
@@ -565,7 +565,7 @@ export function CogitaNotionSearch({
     setBulkDeleteStatus(null);
     const ids = Array.from(new Set(selectedItems.map((item) => item.infoId).filter(Boolean)));
     if (ids.length === 0) return;
-    const settled = await Promise.allSettled(ids.map((infoId) => deleteCogitaInfo({ libraryId, infoId })));
+    const settled = await Promise.allSettled(ids.map((infoId) => deleteCogitaNotion({ libraryId, notionId: infoId })));
     const deletedIds = ids.filter((_, index) => settled[index]?.status === 'fulfilled');
     const failedCount = ids.length - deletedIds.length;
     if (deletedIds.length > 0) {
@@ -577,7 +577,7 @@ export function CogitaNotionSearch({
         }
         return next;
       });
-      setRawResults((prev) => prev.filter((item) => !deletedSet.has(item.infoId)));
+      setRawResults((prev) => prev.filter((item) => !deletedSet.has(item.notionId)));
       if (selectedInfoIdFromRoute && deletedSet.has(selectedInfoIdFromRoute)) {
         navigate(`/cogita/workspace/libraries/${libraryId}/notions`, { replace: true });
       }
@@ -593,12 +593,12 @@ export function CogitaNotionSearch({
     setBulkDeleteStatus(null);
   };
 
-  const toggleSelection = (item: CogitaInfoSearchResult, checked: boolean) => {
+  const toggleSelection = (item: CogitaNotionSearchResult, checked: boolean) => {
     if (checked) {
       upsertSelection(item);
       return;
     }
-    removeSelection(item.infoId);
+    removeSelection(item.notionId);
   };
 
   const openInfo = (infoId: string) => {
@@ -623,14 +623,14 @@ export function CogitaNotionSearch({
     if (!window.confirm('Delete this notion? This cannot be undone.')) return;
     setInfoDeleteStatus(null);
     try {
-      await deleteCogitaInfo({ libraryId, infoId: selectedInfoIdFromRoute });
+      await deleteCogitaNotion({ libraryId, notionId: selectedInfoIdFromRoute });
       setSelectionStack((prev) => {
         if (!prev[selectedInfoIdFromRoute]) return prev;
         const next = { ...prev };
         delete next[selectedInfoIdFromRoute];
         return next;
       });
-      setRawResults((prev) => prev.filter((item) => item.infoId !== selectedInfoIdFromRoute));
+      setRawResults((prev) => prev.filter((item) => item.notionId !== selectedInfoIdFromRoute));
       navigate(`/cogita/workspace/libraries/${libraryId}/notions`, { replace: true });
     } catch {
       setInfoDeleteStatus('Failed to delete notion. Remove links and collection/connection usage first.');
@@ -681,11 +681,11 @@ export function CogitaNotionSearch({
                     <div>
                       <p className="cogita-user-kicker">{infoOverviewCopy.kicker}</p>
                       <h2 className="cogita-card-title">
-                        {selectedInfoDetail ? resolveInfoTitle(selectedInfoDetail.payload, selectedInfoDetail.infoType, selectedInfoDetail.infoId) : infoOverviewCopy.loading}
+                        {selectedInfoDetail ? resolveInfoTitle(selectedInfoDetail.payload, selectedInfoDetail.notionType, selectedInfoDetail.notionId) : infoOverviewCopy.loading}
                       </h2>
                       {selectedInfoDetail ? (
                         <p className="cogita-card-subtitle">
-                          {getInfoTypeLabel(copy, selectedInfoDetail.infoType as CogitaInfoType | 'any' | 'vocab')} · {selectedInfoDetail.infoId}
+                          {getInfoTypeLabel(copy, selectedInfoDetail.notionType as CogitaInfoType | 'any' | 'vocab')} · {selectedInfoDetail.notionId}
                         </p>
                       ) : null}
                     </div>
@@ -810,7 +810,7 @@ export function CogitaNotionSearch({
                   <div className="cogita-info-overview-head">
                     <div>
                       <p className="cogita-user-kicker">Informacja</p>
-                      <h2 className="cogita-card-title">{selectedInfoDetail ? resolveInfoTitle(selectedInfoDetail.payload, selectedInfoDetail.infoType, selectedInfoDetail.infoId) : (selectedInfoIdFromRoute ?? '')}</h2>
+                      <h2 className="cogita-card-title">{selectedInfoDetail ? resolveInfoTitle(selectedInfoDetail.payload, selectedInfoDetail.notionType, selectedInfoDetail.notionId) : (selectedInfoIdFromRoute ?? '')}</h2>
                       <p className="cogita-card-subtitle">Collections using this info</p>
                     </div>
                     <div className="cogita-info-overview-actions">
@@ -872,7 +872,7 @@ export function CogitaNotionSearch({
                         onResultsChange={(searchResults) => {
                           const mapped = searchResults.map((entry) => entry.info);
                           if (filterCollectionId && collectionScopeInfoIds) {
-                            setRawResults(mapped.filter((item) => collectionScopeInfoIds.has(item.infoId)));
+                            setRawResults(mapped.filter((item) => collectionScopeInfoIds.has(item.notionId)));
                           } else {
                             setRawResults(mapped);
                           }
@@ -944,7 +944,7 @@ export function CogitaNotionSearch({
                       >
                         <option value="">{copy.cogita.library.filters.clear}</option>
                         {referenceSources.map((source) => (
-                          <option key={`reference:${source.infoId}`} value={source.infoId}>
+                          <option key={`reference:${source.notionId}`} value={source.notionId}>
                             {source.label}
                           </option>
                         ))}
@@ -981,7 +981,7 @@ export function CogitaNotionSearch({
                       setSelectionStack((prev) => {
                         const next = { ...prev };
                         for (const item of visibleResults) {
-                          next[item.infoId] = { infoId: item.infoId, infoType: item.infoType, label: item.label };
+                          next[item.notionId] = { infoId: item.notionId, infoType: item.notionType, label: item.label };
                         }
                         return next;
                       });
@@ -1024,9 +1024,9 @@ export function CogitaNotionSearch({
                 detailColumnIdLabel={listCopy.detailColumnId}
                 selectedIds={Array.from(selectedIdSet)}
                 onNotionToggleSelection={(entry, checked) => toggleSelection(entry.info, checked)}
-                onNotionOpen={(entry) => openInfo(entry.info.infoId)}
+                onNotionOpen={(entry) => openInfo(entry.info.notionId)}
                 openActionLabel={listCopy.editInfo}
-                renderTypeLabel={(entry) => getInfoTypeLabel(copy, entry.info.infoType as CogitaInfoType | 'any' | 'vocab')}
+                renderTypeLabel={(entry) => getInfoTypeLabel(copy, entry.info.notionType as CogitaInfoType | 'any' | 'vocab')}
               />
 
               {canLoadMore ? (
@@ -1341,7 +1341,7 @@ function InfoValueTree({ value, emptyLabel }: { value: unknown; emptyLabel: stri
 }
 
 export type CogitaNotionSearchResult = {
-  info: CogitaInfoSearchResult;
+  info: CogitaNotionSearchResult;
   cards: CogitaCardSearchResult[];
 };
 
@@ -1481,7 +1481,7 @@ export function CogitaNotionSearchList({
       setError(null);
       onStatusChangeRef.current?.('loading');
       try {
-        let found: CogitaInfoSearchResult[] = [];
+        let found: CogitaNotionSearchResult[] = [];
         if (useEntitySearch) {
           const entities = await searchCogitaEntities({
             libraryId,
@@ -1492,13 +1492,13 @@ export function CogitaNotionSearchList({
           });
           found = entities
             .map((item: CogitaEntitySearchResult) => ({
-              infoId: item.infoId ?? '',
-              infoType: item.entityType,
+              notionId: item.infoId ?? '',
+              notionType: item.entityType,
               label: item.title
             }))
-            .filter((item) => item.infoId.length > 0);
+            .filter((item) => item.notionId.length > 0);
         } else {
-          found = await searchCogitaInfos({
+          found = await searchCogitaNotions({
             libraryId,
             type: infoType && infoType !== 'any' ? infoType : undefined,
             query: trimmed,
@@ -1517,16 +1517,16 @@ export function CogitaNotionSearchList({
 
         const enriched = await Promise.all(
           found.map(async (info) => {
-            const cached = cardsCacheRef.current.get(info.infoId);
+            const cached = cardsCacheRef.current.get(info.notionId);
             if (cached) {
               return cached.length > 0 ? { info, cards: cached } : null;
             }
             try {
-              const bundle = await getCogitaInfoCheckcards({ libraryId, infoId: info.infoId });
-              cardsCacheRef.current.set(info.infoId, bundle.items);
+              const bundle = await getCogitaNotionCheckcards({ libraryId, notionId: info.notionId });
+              cardsCacheRef.current.set(info.notionId, bundle.items);
               return bundle.items.length > 0 ? { info, cards: bundle.items } : null;
             } catch {
-              cardsCacheRef.current.set(info.infoId, []);
+              cardsCacheRef.current.set(info.notionId, []);
               return null;
             }
           })
@@ -1576,7 +1576,7 @@ export function CogitaNotionSearchList({
   };
   const handleSelectionToggle = (result: CogitaNotionSearchResult, checked: boolean) => {
     if (effectiveSelectionMode === 'none') return;
-    const infoId = result.info.infoId;
+    const infoId = result.info.notionId;
     const currentIds = selectedIds ?? localSelectedIds;
     let nextIds: string[];
     if (effectiveSelectionMode === 'single') {
@@ -1604,8 +1604,8 @@ export function CogitaNotionSearchList({
   };
   const resolveTypeLabel = (result: CogitaNotionSearchResult) => {
     if (renderTypeLabel) return renderTypeLabel(result);
-    if (requireLinkedCheckcards) return `${result.info.infoType} · ${result.cards.length} ${resultSuffixLabel}`;
-    return result.info.infoType;
+    if (requireLinkedCheckcards) return `${result.info.notionType} · ${result.cards.length} ${resultSuffixLabel}`;
+    return result.info.notionType;
   };
 
   const renderResults = () => {
@@ -1629,8 +1629,8 @@ export function CogitaNotionSearchList({
           </div>
           {displayResults.map((result) => (
             <div
-              key={result.info.infoId}
-              className={`cogita-details-row ${selectedSet.has(result.info.infoId) ? 'active' : ''}`}
+              key={result.info.notionId}
+              className={`cogita-details-row ${selectedSet.has(result.info.notionId) ? 'active' : ''}`}
               role="row"
               onClick={() => handleResultSelect(result)}
             >
@@ -1638,7 +1638,7 @@ export function CogitaNotionSearchList({
                 <label className="cogita-info-checkbox">
                   <input
                     type={effectiveSelectionMode === 'single' ? 'radio' : 'checkbox'}
-                    checked={selectedSet.has(result.info.infoId)}
+                    checked={selectedSet.has(result.info.notionId)}
                     onChange={(event) => handleSelectionToggle(result, event.target.checked)}
                     onClick={(event) => event.stopPropagation()}
                   />
@@ -1649,7 +1649,7 @@ export function CogitaNotionSearchList({
               )}
               <span title={result.info.label}>{result.info.label}</span>
               <span title={resolveTypeLabel(result)}>{resolveTypeLabel(result)}</span>
-              <span title={result.info.infoId}>{result.info.infoId}</span>
+              <span title={result.info.notionId}>{result.info.notionId}</span>
               {onNotionOpen ? (
                 <button
                   type="button"
@@ -1674,13 +1674,13 @@ export function CogitaNotionSearchList({
     return (
       <div className={`cogita-card-list cogita-card-list--${effectiveDisplayMode}`} data-view={effectiveDisplayMode}>
         {displayResults.map((result) => (
-          <article key={result.info.infoId} className="cogita-card-item" data-selected={selectedSet.has(result.info.infoId)}>
+          <article key={result.info.notionId} className="cogita-card-item" data-selected={selectedSet.has(result.info.notionId)}>
             <div className="cogita-info-result-row">
             {effectiveSelectionMode !== 'none' ? (
               <label className="cogita-info-checkbox">
                 <input
                   type={effectiveSelectionMode === 'single' ? 'radio' : 'checkbox'}
-                  checked={selectedSet.has(result.info.infoId)}
+                  checked={selectedSet.has(result.info.notionId)}
                   onChange={(event) => handleSelectionToggle(result, event.target.checked)}
                 />
                 <span />
@@ -1693,7 +1693,7 @@ export function CogitaNotionSearchList({
             >
               <div className="cogita-card-type">{resolveTypeLabel(result)}</div>
               <h3 className="cogita-card-title">{result.info.label}</h3>
-              <p className="cogita-card-subtitle">{result.info.infoId}</p>
+              <p className="cogita-card-subtitle">{result.info.notionId}</p>
             </button>
             {onNotionOpen ? (
               <button type="button" className="ghost" onClick={() => handleResultOpen(result)}>

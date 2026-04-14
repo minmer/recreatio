@@ -365,6 +365,22 @@ export async function downloadCogitaPublicStoryboardFile(payload: { shareCode: s
   return response.blob();
 }
 
+export async function downloadCogitaPublicStoryboardSessionFile(payload: { sessionCode: string; dataItemId: string }) {
+  const response = await fetch(
+    `${apiBase}/cogita/public/storyboard-session/${encodeURIComponent(payload.sessionCode)}/files/${encodeURIComponent(payload.dataItemId)}`,
+    {
+      method: 'GET'
+    }
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(response.status, text || response.statusText);
+  }
+
+  return response.blob();
+}
+
 export function updateDataItem(dataItemId: string, payload: { plainValue?: string | null }) {
   return request<DataItemResponse>(`/account/data/${dataItemId}`, {
     method: 'POST',
@@ -645,13 +661,13 @@ export type CogitaStoryboardImportResult = {
   warnings: string[];
 };
 
-export type CogitaInfoSearchResult = {
-  infoId: string;
-  infoType: string;
+export type CogitaNotionSearchResult = {
+  notionId: string;
+  notionType: string;
   label: string;
 };
 
-export type CogitaInfoPayloadFieldSpec = {
+export type CogitaNotionPayloadFieldSpec = {
   key: string;
   label: string;
   inputType: string;
@@ -660,7 +676,7 @@ export type CogitaInfoPayloadFieldSpec = {
   keepOnCreate: boolean;
 };
 
-export type CogitaInfoLinkFieldSpec = {
+export type CogitaNotionLinkFieldSpec = {
   key: string;
   label: string;
   targetTypes: string[];
@@ -669,24 +685,24 @@ export type CogitaInfoLinkFieldSpec = {
   keepOnCreate: boolean;
 };
 
-export type CogitaInfoTypeSpecification = {
-  infoType: string;
+export type CogitaNotionTypeSpecification = {
+  notionType: string;
   entityKind: string;
-  payloadFields: CogitaInfoPayloadFieldSpec[];
-  linkFields: CogitaInfoLinkFieldSpec[];
+  payloadFields: CogitaNotionPayloadFieldSpec[];
+  linkFields: CogitaNotionLinkFieldSpec[];
 };
 
-export type CogitaInfoApproachSpecification = {
+export type CogitaNotionApproachSpecification = {
   approachKey: string;
   label: string;
   category: string;
-  sourceInfoTypes: string[];
+  sourceNotionTypes: string[];
 };
 
-export type CogitaInfoApproachProjection = {
+export type CogitaNotionApproachProjection = {
   approachKey: string;
-  sourceInfoId: string;
-  sourceInfoType: string;
+  sourceNotionId: string;
+  sourceNotionType: string;
   projection: unknown;
 };
 
@@ -696,7 +712,7 @@ export type CogitaEntitySearchResult = {
   entityType: string;
   title: string;
   summary: string;
-  infoId?: string | null;
+  notionId?: string | null;
   connectionId?: string | null;
 };
 
@@ -705,7 +721,7 @@ export type CogitaCardSearchResult = {
   cardType: string;
   label: string;
   description: string;
-  infoType?: string | null;
+  notionType?: string | null;
   checkType?: string | null;
   direction?: string | null;
   payload?: unknown | null;
@@ -905,8 +921,8 @@ export type CogitaStatisticsTimelinePoint = {
 };
 
 export type CogitaStatisticsKnownessItem = {
-  infoId: string;
-  infoType: string;
+  notionId: string;
+  notionType: string;
   label: string;
   answerCount: number;
   correctCount: number;
@@ -1006,6 +1022,71 @@ export type CogitaPublicStoryboardShare = {
   libraryName: string;
   content?: unknown | null;
   createdUtc: string;
+};
+
+export type CogitaStoryboardSession = {
+  sessionId: string;
+  projectId: string;
+  projectName: string;
+  sessionCode: string;
+  createdUtc: string;
+  revokedUtc?: string | null;
+  participantCount: number;
+  totalAnswers: number;
+  correctAnswers: number;
+};
+
+export type CogitaPublicStoryboardSession = {
+  sessionId: string;
+  projectId: string;
+  projectName: string;
+  libraryId: string;
+  libraryName: string;
+  content?: unknown | null;
+  createdUtc: string;
+};
+
+export type CogitaPublicStoryboardSessionParticipant = {
+  sessionId: string;
+  participantId: string;
+  participantToken: string;
+  joinedUtc: string;
+  updatedUtc: string;
+};
+
+export type CogitaPublicStoryboardSessionAnswerSubmitResponse = {
+  accepted: boolean;
+  attemptCount: number;
+  isCorrect: boolean;
+  updatedUtc: string;
+};
+
+export type CogitaStoryboardSessionParticipantResult = {
+  participantId: string;
+  totalAnswers: number;
+  correctAnswers: number;
+  joinedUtc: string;
+  updatedUtc: string;
+};
+
+export type CogitaStoryboardSessionNodeResult = {
+  nodeKey: string;
+  notionId?: string | null;
+  checkType?: string | null;
+  participantCount: number;
+  totalAnswers: number;
+  correctAnswers: number;
+};
+
+export type CogitaStoryboardSessionResults = {
+  sessionId: string;
+  projectId: string;
+  projectName: string;
+  participantCount: number;
+  totalAnswers: number;
+  correctAnswers: number;
+  participants: CogitaStoryboardSessionParticipantResult[];
+  nodes: CogitaStoryboardSessionNodeResult[];
 };
 
 export type CogitaLiveRevisionParticipantScore = {
@@ -1217,9 +1298,9 @@ export type CogitaMockDataResponse = {
   translations: number;
 };
 
-export type CogitaInfoCreateResponse = {
-  infoId: string;
-  infoType: string;
+export type CogitaNotionCreateResponse = {
+  notionId: string;
+  notionType: string;
 };
 
 export type CogitaConnectionCreateResponse = {
@@ -1358,7 +1439,7 @@ export function importCogitaStoryboardFromJson(payload: {
   );
 }
 
-export function searchCogitaInfos(payload: {
+export function searchCogitaNotions(payload: {
   libraryId: string;
   type?: string;
   query?: string;
@@ -1369,7 +1450,7 @@ export function searchCogitaInfos(payload: {
   if (payload.query) params.set('query', payload.query);
   if (payload.limit) params.set('limit', String(payload.limit));
   const qs = params.toString();
-  return request<CogitaInfoSearchResult[]>(
+  return request<CogitaNotionSearchResult[]>(
     `/cogita/libraries/${payload.libraryId}/notions${qs ? `?${qs}` : ''}`,
     {
       method: 'GET'
@@ -1449,9 +1530,9 @@ export function getCogitaCollection(libraryId: string, collectionId: string) {
   });
 }
 
-export function getCogitaInfoCollections(payload: { libraryId: string; infoId: string }) {
+export function getCogitaNotionCollections(payload: { libraryId: string; notionId: string }) {
   return request<CogitaCollectionSummary[]>(
-    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}/collections`,
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.notionId}/collections`,
     { method: 'GET' }
   );
 }
@@ -1633,8 +1714,8 @@ export function createCogitaReviewOutcomesBulk(payload: {
   });
 }
 
-export function getCogitaComputedSample(payload: { libraryId: string; infoId: string }) {
-  return request<CogitaComputedSample>(`/cogita/libraries/${payload.libraryId}/computed/${payload.infoId}/sample`, {
+export function getCogitaComputedSample(payload: { libraryId: string; notionId: string }) {
+  return request<CogitaComputedSample>(`/cogita/libraries/${payload.libraryId}/computed/${payload.notionId}/sample`, {
     method: 'GET'
   });
 }
@@ -1747,6 +1828,48 @@ export function revokeCogitaStoryboardShare(payload: { libraryId: string; shareI
     method: 'POST',
     body: JSON.stringify({})
   });
+}
+
+export function createCogitaStoryboardSession(payload: {
+  libraryId: string;
+  projectId: string;
+  signatureBase64?: string | null;
+}) {
+  return request<CogitaStoryboardSession>(`/cogita/libraries/${payload.libraryId}/storyboard-sessions`, {
+    method: 'POST',
+    body: JSON.stringify({
+      projectId: payload.projectId,
+      signatureBase64: payload.signatureBase64 ?? null
+    })
+  });
+}
+
+export function getCogitaStoryboardSessions(payload: { libraryId: string; projectId?: string | null }) {
+  const params = new URLSearchParams();
+  if (payload.projectId) params.set('projectId', payload.projectId);
+  const qs = params.toString();
+  return request<CogitaStoryboardSession[]>(
+    `/cogita/libraries/${payload.libraryId}/storyboard-sessions${qs ? `?${qs}` : ''}`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
+export function revokeCogitaStoryboardSession(payload: { libraryId: string; sessionId: string }) {
+  return request<void>(`/cogita/libraries/${payload.libraryId}/storyboard-sessions/${payload.sessionId}/revoke`, {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function getCogitaStoryboardSessionResults(payload: { libraryId: string; sessionId: string }) {
+  return request<CogitaStoryboardSessionResults>(
+    `/cogita/libraries/${payload.libraryId}/storyboard-sessions/${payload.sessionId}/results`,
+    {
+      method: 'GET'
+    }
+  );
 }
 
 export function createCogitaLiveRevisionSession(payload: {
@@ -2616,12 +2739,59 @@ export function getCogitaPublicStoryboardShare(payload: { shareCode: string }) {
   });
 }
 
+export function getCogitaPublicStoryboardSession(payload: { sessionCode: string }) {
+  return request<CogitaPublicStoryboardSession>(
+    `/cogita/public/storyboard-session/${encodeURIComponent(payload.sessionCode)}`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
+export function touchCogitaPublicStoryboardSessionParticipant(payload: {
+  sessionCode: string;
+  participantToken: string;
+}) {
+  return request<CogitaPublicStoryboardSessionParticipant>(
+    `/cogita/public/storyboard-session/${encodeURIComponent(payload.sessionCode)}/participants`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        participantToken: payload.participantToken
+      })
+    }
+  );
+}
+
+export function submitCogitaPublicStoryboardSessionAnswer(payload: {
+  sessionCode: string;
+  participantToken: string;
+  nodeKey: string;
+  notionId?: string | null;
+  checkType?: string | null;
+  isCorrect: boolean;
+}) {
+  return request<CogitaPublicStoryboardSessionAnswerSubmitResponse>(
+    `/cogita/public/storyboard-session/${encodeURIComponent(payload.sessionCode)}/answers`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        participantToken: payload.participantToken,
+        nodeKey: payload.nodeKey,
+        notionId: payload.notionId ?? null,
+        checkType: payload.checkType ?? null,
+        isCorrect: payload.isCorrect
+      })
+    }
+  );
+}
+
 export function getCogitaPublicRevisionInfos(payload: { shareId: string; key?: string; type?: string; query?: string }) {
   const params = new URLSearchParams();
   if (payload.key) params.set('key', payload.key);
   if (payload.type) params.set('type', payload.type);
   if (payload.query) params.set('query', payload.query);
-  return request<CogitaInfoSearchResult[]>(
+  return request<CogitaNotionSearchResult[]>(
     `/cogita/public/revision/${encodeURIComponent(payload.shareId)}/notions${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
@@ -2643,11 +2813,11 @@ export function getCogitaPublicRevisionCards(payload: {
   );
 }
 
-export function getCogitaPublicComputedSample(payload: { shareId: string; infoId: string; key?: string }) {
+export function getCogitaPublicComputedSample(payload: { shareId: string; notionId: string; key?: string }) {
   const params = new URLSearchParams();
   if (payload.key) params.set('key', payload.key);
   return request<CogitaComputedSample>(
-    `/cogita/public/revision/${encodeURIComponent(payload.shareId)}/computed/${payload.infoId}/sample${params.toString() ? `?${params.toString()}` : ''}`,
+    `/cogita/public/revision/${encodeURIComponent(payload.shareId)}/computed/${payload.notionId}/sample${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
 }
@@ -2782,18 +2952,18 @@ export function previewCogitaCollectionGraph(payload: { libraryId: string; colle
   );
 }
 
-export function createCogitaInfo(payload: {
+export function createCogitaNotion(payload: {
   libraryId: string;
-  infoType: string;
+  notionType: string;
   dataKeyId?: string | null;
   payload: unknown;
   links?: Record<string, string | string[] | null | undefined>;
   signatureBase64?: string | null;
 }) {
-  return request<CogitaInfoCreateResponse>(`/cogita/libraries/${payload.libraryId}/notions`, {
+  return request<CogitaNotionCreateResponse>(`/cogita/libraries/${payload.libraryId}/notions`, {
     method: 'POST',
     body: JSON.stringify({
-      infoType: payload.infoType,
+      notionType: payload.notionType,
       payload: payload.payload,
       links: payload.links ?? null,
       dataKeyId: payload.dataKeyId ?? null,
@@ -2802,41 +2972,41 @@ export function createCogitaInfo(payload: {
   });
 }
 
-export function getCogitaInfoDetail(payload: { libraryId: string; infoId: string }) {
-  return request<{ infoId: string; infoType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
-    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}`,
+export function getCogitaNotionDetail(payload: { libraryId: string; notionId: string }) {
+  return request<{ notionId: string; notionType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.notionId}`,
     { method: 'GET' }
   );
 }
 
 export function getCogitaApproachSpecifications(payload: { libraryId: string }) {
-  return request<CogitaInfoApproachSpecification[]>(
+  return request<CogitaNotionApproachSpecification[]>(
     `/cogita/libraries/${payload.libraryId}/approaches/specification`,
     { method: 'GET' }
   );
 }
 
-export function getCogitaInfoApproachProjection(payload: { libraryId: string; infoId: string; approachKey: string }) {
-  return request<CogitaInfoApproachProjection>(
-    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}/approaches/${encodeURIComponent(payload.approachKey)}`,
+export function getCogitaNotionApproachProjection(payload: { libraryId: string; notionId: string; approachKey: string }) {
+  return request<CogitaNotionApproachProjection>(
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.notionId}/approaches/${encodeURIComponent(payload.approachKey)}`,
     { method: 'GET' }
   );
 }
 
-export function getCogitaInfoCheckcards(payload: { libraryId: string; infoId: string }) {
+export function getCogitaNotionCheckcards(payload: { libraryId: string; notionId: string }) {
   return request<CogitaCardSearchBundle>(
-    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}/cards`,
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.notionId}/cards`,
     { method: 'GET' }
   );
 }
 
 export function evaluateCogitaPythonNotion(payload: {
   libraryId: string;
-  infoId: string;
+  notionId: string;
   submissionSource: string;
 }) {
   return request<CogitaPythonEvaluateResponse>(
-    `/cogita/libraries/${payload.libraryId}/python/${payload.infoId}/evaluate`,
+    `/cogita/libraries/${payload.libraryId}/python/${payload.notionId}/evaluate`,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -2846,43 +3016,57 @@ export function evaluateCogitaPythonNotion(payload: {
   );
 }
 
-export function getCogitaInfoCheckcardDependencies(payload: { libraryId: string; infoId: string }) {
+export function getCogitaNotionCheckcardDependencies(payload: { libraryId: string; notionId: string }) {
   return request<CogitaItemDependencyBundle>(
-    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}/cards/dependencies`,
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.notionId}/cards/dependencies`,
     { method: 'GET' }
   );
 }
 
-export function getCogitaPublicInfoDetail(payload: { shareCode: string; infoId: string; key?: string }) {
+export function getCogitaPublicNotionDetail(payload: { shareCode: string; notionId: string; key?: string }) {
   const params = new URLSearchParams();
   if (payload.key) params.set('key', payload.key);
-  return request<{ infoId: string; infoType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
-    `/cogita/public/revision/${encodeURIComponent(payload.shareCode)}/notions/${payload.infoId}${params.toString() ? `?${params.toString()}` : ''}`,
+  return request<{ notionId: string; notionType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
+    `/cogita/public/revision/${encodeURIComponent(payload.shareCode)}/notions/${payload.notionId}${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
 }
 
-export function getCogitaPublicStoryboardInfoDetail(payload: { shareCode: string; infoId: string }) {
-  return request<{ infoId: string; infoType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
-    `/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/notions/${payload.infoId}`,
+export function getCogitaPublicStoryboardNotionDetail(payload: { shareCode: string; notionId: string }) {
+  return request<{ notionId: string; notionType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
+    `/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/notions/${payload.notionId}`,
     { method: 'GET' }
   );
 }
 
-export function getCogitaPublicStoryboardInfoCheckcards(payload: { shareCode: string; infoId: string }) {
+export function getCogitaPublicStoryboardSessionNotionDetail(payload: { sessionCode: string; notionId: string }) {
+  return request<{ notionId: string; notionType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
+    `/cogita/public/storyboard-session/${encodeURIComponent(payload.sessionCode)}/notions/${payload.notionId}`,
+    { method: 'GET' }
+  );
+}
+
+export function getCogitaPublicStoryboardNotionCheckcards(payload: { shareCode: string; notionId: string }) {
   return request<CogitaCardSearchBundle>(
-    `/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/notions/${payload.infoId}/cards`,
+    `/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/notions/${payload.notionId}/cards`,
+    { method: 'GET' }
+  );
+}
+
+export function getCogitaPublicStoryboardSessionNotionCheckcards(payload: { sessionCode: string; notionId: string }) {
+  return request<CogitaCardSearchBundle>(
+    `/cogita/public/storyboard-session/${encodeURIComponent(payload.sessionCode)}/notions/${payload.notionId}/cards`,
     { method: 'GET' }
   );
 }
 
 export function evaluateCogitaPublicStoryboardPythonNotion(payload: {
   shareCode: string;
-  infoId: string;
+  notionId: string;
   submissionSource: string;
 }) {
   return request<CogitaPythonEvaluateResponse>(
-    `/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/python/${payload.infoId}/evaluate`,
+    `/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/python/${payload.notionId}/evaluate`,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -2892,34 +3076,61 @@ export function evaluateCogitaPublicStoryboardPythonNotion(payload: {
   );
 }
 
-export function getCogitaPublicStoryboardInfoApproachProjection(payload: {
+export function evaluateCogitaPublicStoryboardSessionPythonNotion(payload: {
+  sessionCode: string;
+  notionId: string;
+  submissionSource: string;
+}) {
+  return request<CogitaPythonEvaluateResponse>(
+    `/cogita/public/storyboard-session/${encodeURIComponent(payload.sessionCode)}/python/${payload.notionId}/evaluate`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        submissionSource: payload.submissionSource
+      })
+    }
+  );
+}
+
+export function getCogitaPublicStoryboardNotionApproachProjection(payload: {
   shareCode: string;
-  infoId: string;
+  notionId: string;
   approachKey: string;
 }) {
-  return request<CogitaInfoApproachProjection>(
-    `/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/notions/${payload.infoId}/approaches/${encodeURIComponent(payload.approachKey)}`,
+  return request<CogitaNotionApproachProjection>(
+    `/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/notions/${payload.notionId}/approaches/${encodeURIComponent(payload.approachKey)}`,
     { method: 'GET' }
   );
 }
 
-export function getCogitaInfoTypeSpecification(payload: { libraryId: string }) {
-  return request<CogitaInfoTypeSpecification[]>(
-    `/cogita/libraries/${payload.libraryId}/info-types/specification`,
+export function getCogitaPublicStoryboardSessionNotionApproachProjection(payload: {
+  sessionCode: string;
+  notionId: string;
+  approachKey: string;
+}) {
+  return request<CogitaNotionApproachProjection>(
+    `/cogita/public/storyboard-session/${encodeURIComponent(payload.sessionCode)}/notions/${payload.notionId}/approaches/${encodeURIComponent(payload.approachKey)}`,
     { method: 'GET' }
   );
 }
 
-export function updateCogitaInfo(payload: {
+export function getCogitaNotionTypeSpecification(payload: { libraryId: string }) {
+  return request<CogitaNotionTypeSpecification[]>(
+    `/cogita/libraries/${payload.libraryId}/notion-types/specification`,
+    { method: 'GET' }
+  );
+}
+
+export function updateCogitaNotion(payload: {
   libraryId: string;
-  infoId: string;
+  notionId: string;
   payload: unknown;
   links?: Record<string, string | string[] | null | undefined>;
   dataKeyId?: string | null;
   signatureBase64?: string | null;
 }) {
-  return request<{ infoId: string; infoType: string }>(
-    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}`,
+  return request<{ notionId: string; notionType: string }>(
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.notionId}`,
     {
       method: 'PUT',
       body: JSON.stringify({
@@ -2932,9 +3143,9 @@ export function updateCogitaInfo(payload: {
   );
 }
 
-export function deleteCogitaInfo(payload: { libraryId: string; infoId: string }) {
+export function deleteCogitaNotion(payload: { libraryId: string; notionId: string }) {
   return request<{ deleted: boolean }>(
-    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}`,
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.notionId}`,
     { method: 'DELETE' }
   );
 }
@@ -3028,16 +3239,16 @@ export function createCogitaMockData(libraryId: string) {
   });
 }
 
-export type CogitaExportInfo = {
-  infoId: string;
-  infoType: string;
+export type CogitaExportNotion = {
+  notionId: string;
+  notionType: string;
   payload: unknown;
 };
 
 export type CogitaExportConnection = {
   connectionId: string;
   connectionType: string;
-  infoIds: string[];
+  notionIds: string[];
   payload?: unknown | null;
 };
 
@@ -3048,19 +3259,19 @@ export type CogitaExportCollectionItem = {
 };
 
 export type CogitaExportCollection = {
-  collectionInfoId: string;
+  collectionNotionId: string;
   items: CogitaExportCollectionItem[];
 };
 
 export type CogitaLibraryExport = {
   version: number;
-  infos: CogitaExportInfo[];
+  notions: CogitaExportNotion[];
   connections: CogitaExportConnection[];
   collections: CogitaExportCollection[];
 };
 
 export type CogitaLibraryImportResponse = {
-  infosImported: number;
+  notionsImported: number;
   connectionsImported: number;
   collectionsImported: number;
 };

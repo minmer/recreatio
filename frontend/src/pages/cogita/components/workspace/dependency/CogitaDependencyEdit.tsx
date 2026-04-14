@@ -17,8 +17,8 @@ import {
   updateCogitaDependencyGraph,
   type CogitaDependencyGraphPreview,
   type CogitaDependencyGraphSummary,
-  getCogitaInfoDetail,
-  type CogitaInfoSearchResult
+  getCogitaNotionDetail,
+  type CogitaNotionSearchResult
 } from '../../../../../lib/api';
 import { buildQuoteFragmentTree } from '../../../features/revision/quote';
 import {
@@ -289,10 +289,10 @@ export function CogitaDependencyEdit({
     Promise.all(
       linkedInfoIds.map(async (infoId) => {
         try {
-          const detail = await getCogitaInfoDetail({ libraryId, infoId });
+          const detail = await getCogitaNotionDetail({ libraryId, notionId: infoId });
           const payload = (detail.payload ?? {}) as { title?: string; label?: string; name?: string };
           const label = payload.title || payload.label || payload.name || infoId;
-          return { infoId, infoType: detail.infoType ?? null, label };
+          return { infoId, infoType: detail.notionType ?? null, label };
         } catch {
           return { infoId, infoType: null as string | null, label: infoId };
         }
@@ -318,10 +318,10 @@ export function CogitaDependencyEdit({
       requestedInfos.map(async (item) => {
         const infoId = item.infoId;
         try {
-          const detail = await getCogitaInfoDetail({ libraryId, infoId });
+          const detail = await getCogitaNotionDetail({ libraryId, notionId: infoId });
           const payload = (detail.payload ?? {}) as { title?: string; label?: string; name?: string };
           const label = item.label || payload.title || payload.label || payload.name || infoId;
-          return { infoId, infoType: detail.infoType ?? null, label };
+          return { infoId, infoType: detail.notionType ?? null, label };
         } catch {
           return { infoId, infoType: item.infoType ?? null, label: item.label || infoId };
         }
@@ -413,10 +413,10 @@ export function CogitaDependencyEdit({
       requestedInfos.map(async (item) => {
         const infoId = item.infoId;
         try {
-          const detail = await getCogitaInfoDetail({ libraryId, infoId });
+          const detail = await getCogitaNotionDetail({ libraryId, notionId: infoId });
           const payload = (detail.payload ?? {}) as { title?: string; label?: string; name?: string };
           const label = item.label || payload.title || payload.label || payload.name || infoId;
-          return { infoId, infoType: detail.infoType ?? null, label };
+          return { infoId, infoType: detail.notionType ?? null, label };
         } catch {
           return { infoId, infoType: item.infoType ?? null, label: item.label || infoId };
         }
@@ -600,7 +600,7 @@ export function CogitaDependencyEdit({
     navigate(`/cogita/workspace/libraries/${libraryId}/notions?transfer=${encodeURIComponent(token)}`, { replace: true });
   };
 
-  const updateSelectedCollection = (value: CogitaInfoSearchResult | null) => {
+  const updateSelectedCollection = (value: CogitaNotionSearchResult | null) => {
     if (!selectedNode) return;
     setNodes((prev) =>
       prev.map((node) =>
@@ -609,7 +609,7 @@ export function CogitaDependencyEdit({
               ...node,
               data: {
                 ...node.data,
-                itemId: value?.infoId ?? null,
+                itemId: value?.notionId ?? null,
                 itemType: 'collection',
                 infoType: 'collection',
                 label: value?.label ?? copy.cogita.library.infoTypes.collection
@@ -620,7 +620,7 @@ export function CogitaDependencyEdit({
     );
   };
 
-  const updateSelectedInfo = (value: CogitaInfoSearchResult | null) => {
+  const updateSelectedInfo = (value: CogitaNotionSearchResult | null) => {
     if (!selectedNode) return;
     setNodes((prev) =>
       prev.map((node) =>
@@ -629,9 +629,9 @@ export function CogitaDependencyEdit({
               ...node,
               data: {
                 ...node.data,
-                itemId: value?.infoId ?? null,
+                itemId: value?.notionId ?? null,
                 itemType: 'info',
-                infoType: value?.infoType ?? null,
+                infoType: value?.notionType ?? null,
                 label: value?.label ?? copy.cogita.library.infoTypes.any
               }
             }
@@ -646,7 +646,7 @@ export function CogitaDependencyEdit({
       return;
     }
     let mounted = true;
-    getCogitaInfoDetail({ libraryId, infoId: selectedNode.data.itemId })
+    getCogitaNotionDetail({ libraryId, notionId: selectedNode.data.itemId })
       .then((detail) => {
         if (!mounted) return;
         const payload = detail.payload as { text?: string; title?: string };

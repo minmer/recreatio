@@ -11,10 +11,10 @@ import { getInfoTypeLabel } from '../../libraryOptions';
 import { CogitaStatisticsPanel } from '../../runtime/revision/primitives/RevisionStatistics';
 import {
   createCogitaReviewOutcome,
-  getCogitaInfoCheckcardDependencies,
-  getCogitaInfoCheckcards,
-  getCogitaInfoDetail,
-  getCogitaInfoApproachProjection,
+  getCogitaNotionCheckcardDependencies,
+  getCogitaNotionCheckcards,
+  getCogitaNotionDetail,
+  getCogitaNotionApproachProjection,
   type CogitaCardSearchResult,
   type CogitaItemDependency
 } from '../../../../../lib/api';
@@ -135,9 +135,9 @@ export function CogitaNotionCards({
     let cancelled = false;
     setStatus('loading');
     Promise.all([
-      getCogitaInfoDetail({ libraryId, infoId }).catch(() => null),
-      getCogitaInfoCheckcards({ libraryId, infoId }),
-      getCogitaInfoCheckcardDependencies({ libraryId, infoId })
+      getCogitaNotionDetail({ libraryId, notionId: infoId }).catch(() => null),
+      getCogitaNotionCheckcards({ libraryId, notionId: infoId }),
+      getCogitaNotionCheckcardDependencies({ libraryId, notionId: infoId })
     ])
       .then(([detail, cardBundle, depBundle]) => {
         if (cancelled) return;
@@ -149,7 +149,7 @@ export function CogitaNotionCards({
           infoId;
         setTitle(resolvedTitle);
         setDetailPayload(payload);
-        setDetailInfoType(detail?.infoType ?? null);
+        setDetailInfoType(detail?.notionType ?? null);
         setCards(cardBundle.items);
         setDependencies(depBundle.items);
         setStatus('ready');
@@ -172,7 +172,7 @@ export function CogitaNotionCards({
       setVocabProjection(null);
       return;
     }
-    getCogitaInfoApproachProjection({ libraryId, infoId, approachKey: 'vocab-card' })
+    getCogitaNotionApproachProjection({ libraryId, notionId: infoId, approachKey: 'vocab-card' })
       .then((response) => setVocabProjection((response.projection ?? null) as Record<string, unknown> | null))
       .catch(() => setVocabProjection(null));
   }, [detailInfoType, infoId, libraryId]);
@@ -288,7 +288,7 @@ export function CogitaNotionCards({
 
   const cardPreview = useMemo<DirectCardPreview | null>(() => {
     if (!selectedCard) return null;
-    const infoType = detailInfoType ?? selectedCard.infoType ?? null;
+    const infoType = detailInfoType ?? selectedCard.notionType ?? null;
     const checkType = selectedCard.checkType ?? 'info';
     const direction = selectedCard.direction ?? null;
     const payload = detailPayload ?? {};
@@ -442,10 +442,10 @@ export function CogitaNotionCards({
 
   const currentRevisionCard = useMemo(() => {
     if (!selectedCard) return null;
-    if (selectedCard.infoType === 'question') {
+    if (selectedCard.notionType === 'question') {
       return { ...selectedCard, description: selectedCard.label };
     }
-    if (selectedCard.infoType === 'citation') {
+    if (selectedCard.notionType === 'citation') {
       return { ...selectedCard, description: title };
     }
     return { ...selectedCard, description: selectedCard.label };

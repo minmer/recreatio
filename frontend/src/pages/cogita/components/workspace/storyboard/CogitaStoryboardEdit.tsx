@@ -21,17 +21,23 @@ import { useCogitaLibraryMeta } from '../../useCogitaLibraryMeta';
 import {
   ApiError,
   createCogitaStoryboardShare,
+  createCogitaStoryboardSession,
   createCogitaCreationProject,
-  getCogitaInfoCheckcards,
+  getCogitaStoryboardSessionResults,
+  getCogitaStoryboardSessions,
+  getCogitaNotionCheckcards,
   getCogitaLibraries,
   getCogitaCreationProjects,
   getCogitaStoryboardShares,
   importCogitaStoryboardFromJson,
+  revokeCogitaStoryboardSession,
   revokeCogitaStoryboardShare,
   uploadDataItemFile,
   updateCogitaCreationProject,
   type CogitaCardSearchResult,
   type CogitaCreationProject,
+  type CogitaStoryboardSession,
+  type CogitaStoryboardSessionResults,
   type CogitaStoryboardShare
 } from '../../../../../lib/api';
 import { CogitaNotionSearchList as CogitaNotionSearch, type CogitaNotionSearchResult } from '../notion/CogitaNotionSearch';
@@ -1175,6 +1181,11 @@ export function CogitaStoryboardEdit({
   const [activeShare, setActiveShare] = useState<CogitaStoryboardShare | null>(null);
   const [shareStatus, setShareStatus] = useState<'idle' | 'working' | 'ready' | 'error'>('idle');
   const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [activeSession, setActiveSession] = useState<CogitaStoryboardSession | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<'idle' | 'working' | 'ready' | 'error'>('idle');
+  const [sessionCopyStatus, setSessionCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [sessionResults, setSessionResults] = useState<CogitaStoryboardSessionResults | null>(null);
+  const [sessionResultsStatus, setSessionResultsStatus] = useState<'idle' | 'working' | 'error'>('idle');
   const [importOverlayOpen, setImportOverlayOpen] = useState(false);
   const [importJsonInput, setImportJsonInput] = useState('');
   const [importDeleteOldNotions, setImportDeleteOldNotions] = useState(false);
@@ -1189,6 +1200,78 @@ export function CogitaStoryboardEdit({
         : language === 'de'
           ? 'Sitzung abgelaufen. Melde dich erneut an und lade das Storyboard neu.'
           : 'Session expired. Sign in again and reload the storyboard.',
+    [language]
+  );
+  const sessionUiCopy = useMemo(
+    () =>
+      language === 'pl'
+        ? {
+            createAction: 'Utwórz sesję',
+            copyAction: 'Kopiuj link sesji',
+            revokeAction: 'Zamknij sesję',
+            refreshResultsAction: 'Odśwież wyniki',
+            working: 'Przetwarzanie...',
+            linkLabel: 'Link sesji (z zapisem wyników)',
+            linkEmpty: 'Brak aktywnej sesji. Utwórz sesję, aby zbierać wyniki użytkowników.',
+            updateError: 'Nie udało się zaktualizować sesji.',
+            copyError: 'Nie udało się skopiować linku sesji.',
+            copied: 'Link sesji skopiowany.',
+            resultsTitle: 'Wyniki sesji',
+            noResults: 'Brak odpowiedzi w tej sesji.',
+            participantsLabel: 'Uczestnicy',
+            answersLabel: 'Odpowiedzi',
+            correctLabel: 'Poprawne',
+            participantResultsTitle: 'Wyniki uczestników',
+            nodeResultsTitle: 'Wyniki pytań',
+            rowNode: 'Węzeł',
+            rowCheckType: 'Typ',
+            rowParticipants: 'Uczestnicy'
+          }
+        : language === 'de'
+          ? {
+              createAction: 'Sitzung erstellen',
+              copyAction: 'Sitzungslink kopieren',
+              revokeAction: 'Sitzung beenden',
+              refreshResultsAction: 'Ergebnisse aktualisieren',
+              working: 'Wird verarbeitet...',
+              linkLabel: 'Sitzungslink (mit Ergebnisspeicherung)',
+              linkEmpty: 'Keine aktive Sitzung. Erstelle eine Sitzung, um Ergebnisse zu sammeln.',
+              updateError: 'Sitzung konnte nicht aktualisiert werden.',
+              copyError: 'Sitzungslink konnte nicht kopiert werden.',
+              copied: 'Sitzungslink kopiert.',
+              resultsTitle: 'Sitzungsergebnisse',
+              noResults: 'Keine Antworten in dieser Sitzung.',
+              participantsLabel: 'Teilnehmer',
+              answersLabel: 'Antworten',
+              correctLabel: 'Richtig',
+              participantResultsTitle: 'Teilnehmerergebnisse',
+              nodeResultsTitle: 'Fragen-Ergebnisse',
+              rowNode: 'Knoten',
+              rowCheckType: 'Typ',
+              rowParticipants: 'Teilnehmer'
+            }
+          : {
+              createAction: 'Create session',
+              copyAction: 'Copy session link',
+              revokeAction: 'Close session',
+              refreshResultsAction: 'Refresh results',
+              working: 'Working...',
+              linkLabel: 'Session link (with result tracking)',
+              linkEmpty: 'No active session. Create one to collect user results.',
+              updateError: 'Unable to update the session.',
+              copyError: 'Unable to copy the session link.',
+              copied: 'Session link copied.',
+              resultsTitle: 'Session results',
+              noResults: 'No answers in this session yet.',
+              participantsLabel: 'Participants',
+              answersLabel: 'Answers',
+              correctLabel: 'Correct',
+              participantResultsTitle: 'Participant results',
+              nodeResultsTitle: 'Question results',
+              rowNode: 'Node',
+              rowCheckType: 'Type',
+              rowParticipants: 'Participants'
+            },
     [language]
   );
   const importUiCopy = useMemo(
@@ -1310,6 +1393,14 @@ export function CogitaStoryboardEdit({
       setImportDeleteOldNotions(false);
       setImportStatus('idle');
       setImportError(null);
+      setActiveShare(null);
+      setShareStatus('idle');
+      setShareCopyStatus('idle');
+      setActiveSession(null);
+      setSessionStatus('idle');
+      setSessionCopyStatus('idle');
+      setSessionResults(null);
+      setSessionResultsStatus('idle');
       return;
     }
 
@@ -1328,6 +1419,11 @@ export function CogitaStoryboardEdit({
     setActiveShare(null);
     setShareStatus('idle');
     setShareCopyStatus('idle');
+    setActiveSession(null);
+    setSessionStatus('idle');
+    setSessionCopyStatus('idle');
+    setSessionResults(null);
+    setSessionResultsStatus('idle');
     setImportOverlayOpen(false);
     setImportJsonInput('');
     setImportDeleteOldNotions(false);
@@ -1337,6 +1433,7 @@ export function CogitaStoryboardEdit({
 
   useEffect(() => {
     setShareCopyStatus('idle');
+    setSessionCopyStatus('idle');
   }, [resolvedMode]);
 
   useEffect(() => {
@@ -1365,6 +1462,61 @@ export function CogitaStoryboardEdit({
       cancelled = true;
     };
   }, [isOverviewMode, libraryId, selectedProject]);
+
+  useEffect(() => {
+    if (!selectedProject || !isOverviewMode) {
+      setActiveSession(null);
+      setSessionStatus('idle');
+      setSessionResults(null);
+      setSessionResultsStatus('idle');
+      return;
+    }
+
+    let cancelled = false;
+    setSessionStatus('working');
+    getCogitaStoryboardSessions({ libraryId, projectId: selectedProject.projectId })
+      .then((sessions) => {
+        if (cancelled) return;
+        const current = sessions.find((session) => !session.revokedUtc) ?? null;
+        setActiveSession(current);
+        setSessionStatus('ready');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setActiveSession(null);
+        setSessionStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOverviewMode, libraryId, selectedProject]);
+
+  useEffect(() => {
+    if (!activeSession) {
+      setSessionResults(null);
+      setSessionResultsStatus('idle');
+      return;
+    }
+
+    let cancelled = false;
+    setSessionResultsStatus('working');
+    getCogitaStoryboardSessionResults({ libraryId, sessionId: activeSession.sessionId })
+      .then((results) => {
+        if (cancelled) return;
+        setSessionResults(results);
+        setSessionResultsStatus('idle');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSessionResults(null);
+        setSessionResultsStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSession, libraryId]);
 
   const activeGraph = useMemo(
     () => getGraphAtPath(documentState.rootGraph, activeGroupPath),
@@ -1401,7 +1553,7 @@ export function CogitaStoryboardEdit({
 
     let cancelled = false;
     setCardNodeCardsStatus('loading');
-    getCogitaInfoCheckcards({ libraryId, infoId: selectedNode.notionId.trim() })
+    getCogitaNotionCheckcards({ libraryId, notionId: selectedNode.notionId.trim() })
       .then((bundle) => {
         if (cancelled) return;
         setCardNodeCards((current) => ({ ...current, [selectedNode.nodeId]: bundle.items }));
@@ -1533,10 +1685,10 @@ export function CogitaStoryboardEdit({
         next.sort((a, b) => b.info.label.localeCompare(a.info.label));
         break;
       case 'type_asc':
-        next.sort((a, b) => (a.info.infoType === b.info.infoType ? a.info.label.localeCompare(b.info.label) : a.info.infoType.localeCompare(b.info.infoType)));
+        next.sort((a, b) => (a.info.notionType === b.info.notionType ? a.info.label.localeCompare(b.info.label) : a.info.notionType.localeCompare(b.info.notionType)));
         break;
       case 'type_desc':
-        next.sort((a, b) => (a.info.infoType === b.info.infoType ? a.info.label.localeCompare(b.info.label) : b.info.infoType.localeCompare(a.info.infoType)));
+        next.sort((a, b) => (a.info.notionType === b.info.notionType ? a.info.label.localeCompare(b.info.label) : b.info.notionType.localeCompare(a.info.notionType)));
         break;
       default:
         break;
@@ -1552,7 +1704,7 @@ export function CogitaStoryboardEdit({
         : selectedNode.cardDirection;
     updateSelectedNode((node) => ({
       ...node,
-      notionId: result.info.infoId,
+      notionId: result.info.notionId,
       cardCheckType: result.cards[0]?.checkType ?? '',
       cardDirection: fallbackDirection
     }));
@@ -1926,6 +2078,13 @@ export function CogitaStoryboardEdit({
     }
     return `${window.location.origin}/#/cogita/public/storyboard/${encodeURIComponent(activeShare.shareCode)}`;
   }, [activeShare?.shareCode]);
+  const storyboardSessionUrl = useMemo(() => {
+    if (!activeSession?.sessionCode) return '';
+    if (typeof window === 'undefined') {
+      return `/#/cogita/public/storyboard-session/${encodeURIComponent(activeSession.sessionCode)}`;
+    }
+    return `${window.location.origin}/#/cogita/public/storyboard-session/${encodeURIComponent(activeSession.sessionCode)}`;
+  }, [activeSession?.sessionCode]);
 
   const handleCopySharedLink = async () => {
     if (!storyboardSharedUrl) return;
@@ -1934,6 +2093,16 @@ export function CogitaStoryboardEdit({
       setShareCopyStatus('copied');
     } catch {
       setShareCopyStatus('failed');
+    }
+  };
+
+  const handleCopySessionLink = async () => {
+    if (!storyboardSessionUrl) return;
+    try {
+      await navigator.clipboard.writeText(storyboardSessionUrl);
+      setSessionCopyStatus('copied');
+    } catch {
+      setSessionCopyStatus('failed');
     }
   };
 
@@ -1967,6 +2136,55 @@ export function CogitaStoryboardEdit({
       setShareCopyStatus('idle');
     } catch {
       setShareStatus('error');
+    }
+  };
+
+  const handleCreateSession = async () => {
+    if (!selectedProject) return;
+    setSessionStatus('working');
+    setSessionCopyStatus('idle');
+    try {
+      const response = await createCogitaStoryboardSession({ libraryId, projectId: selectedProject.projectId });
+      setActiveSession(response);
+      setSessionStatus('ready');
+      setSessionResultsStatus('working');
+      try {
+        const results = await getCogitaStoryboardSessionResults({ libraryId, sessionId: response.sessionId });
+        setSessionResults(results);
+        setSessionResultsStatus('idle');
+      } catch {
+        setSessionResults(null);
+        setSessionResultsStatus('error');
+      }
+    } catch {
+      setSessionStatus('error');
+    }
+  };
+
+  const handleRevokeSession = async () => {
+    if (!activeSession) return;
+    setSessionStatus('working');
+    try {
+      await revokeCogitaStoryboardSession({ libraryId, sessionId: activeSession.sessionId });
+      setActiveSession(null);
+      setSessionResults(null);
+      setSessionStatus('idle');
+      setSessionCopyStatus('idle');
+      setSessionResultsStatus('idle');
+    } catch {
+      setSessionStatus('error');
+    }
+  };
+
+  const handleRefreshSessionResults = async () => {
+    if (!activeSession) return;
+    setSessionResultsStatus('working');
+    try {
+      const results = await getCogitaStoryboardSessionResults({ libraryId, sessionId: activeSession.sessionId });
+      setSessionResults(results);
+      setSessionResultsStatus('idle');
+    } catch {
+      setSessionResultsStatus('error');
     }
   };
 
@@ -2183,6 +2401,24 @@ export function CogitaStoryboardEdit({
                       {storyboardEditorCopy.shareRevokeAction}
                     </button>
                   ) : null}
+                  <button type="button" className="cta ghost" onClick={() => void handleCreateSession()} disabled={sessionStatus === 'working'}>
+                    {sessionStatus === 'working' ? sessionUiCopy.working : sessionUiCopy.createAction}
+                  </button>
+                  {storyboardSessionUrl ? (
+                    <button type="button" className="cta ghost" onClick={() => void handleCopySessionLink()}>
+                      {sessionUiCopy.copyAction}
+                    </button>
+                  ) : null}
+                  {activeSession ? (
+                    <>
+                      <button type="button" className="cta ghost" onClick={() => void handleRefreshSessionResults()} disabled={sessionResultsStatus === 'working'}>
+                        {sessionResultsStatus === 'working' ? sessionUiCopy.working : sessionUiCopy.refreshResultsAction}
+                      </button>
+                      <button type="button" className="cta ghost" onClick={() => void handleRevokeSession()} disabled={sessionStatus === 'working'}>
+                        {sessionUiCopy.revokeAction}
+                      </button>
+                    </>
+                  ) : null}
                   <button type="button" className="cta" onClick={() => navigateToEdit(selectedProject.projectId)}>
                     {copy.cogita.workspace.infoActions.edit}
                   </button>
@@ -2238,6 +2474,99 @@ export function CogitaStoryboardEdit({
                   {shareStatus === 'error' ? <p className="cogita-form-error">{storyboardEditorCopy.shareUpdateError}</p> : null}
                   {shareCopyStatus === 'copied' ? <p className="cogita-help">{storyboardEditorCopy.shareCopied}</p> : null}
                   {shareCopyStatus === 'failed' ? <p className="cogita-form-error">{storyboardEditorCopy.shareCopyError}</p> : null}
+
+                  {storyboardSessionUrl ? (
+                    <label className="cogita-field full">
+                      <span>{sessionUiCopy.linkLabel}</span>
+                      <input type="text" value={storyboardSessionUrl} readOnly />
+                    </label>
+                  ) : (
+                    <p>{sessionUiCopy.linkEmpty}</p>
+                  )}
+                  {sessionStatus === 'error' ? <p className="cogita-form-error">{sessionUiCopy.updateError}</p> : null}
+                  {sessionCopyStatus === 'copied' ? <p className="cogita-help">{sessionUiCopy.copied}</p> : null}
+                  {sessionCopyStatus === 'failed' ? <p className="cogita-form-error">{sessionUiCopy.copyError}</p> : null}
+                  {sessionResultsStatus === 'error' ? <p className="cogita-form-error">{sessionUiCopy.updateError}</p> : null}
+
+                  {sessionResults ? (
+                    <div className="cogita-share-list" style={{ gap: '0.65rem' }}>
+                      <strong>{sessionUiCopy.resultsTitle}</strong>
+                      <div className="cogita-storyboard-form-grid">
+                        <label className="cogita-field">
+                          <span>{sessionUiCopy.participantsLabel}</span>
+                          <input type="text" value={String(sessionResults.participantCount)} readOnly />
+                        </label>
+                        <label className="cogita-field">
+                          <span>{sessionUiCopy.answersLabel}</span>
+                          <input type="text" value={String(sessionResults.totalAnswers)} readOnly />
+                        </label>
+                        <label className="cogita-field">
+                          <span>{sessionUiCopy.correctLabel}</span>
+                          <input type="text" value={String(sessionResults.correctAnswers)} readOnly />
+                        </label>
+                      </div>
+
+                      {sessionResults.totalAnswers > 0 ? (
+                        <>
+                          <div style={{ display: 'grid', gap: '0.45rem' }}>
+                            <strong>{sessionUiCopy.participantResultsTitle}</strong>
+                            <div style={{ overflowX: 'auto' }}>
+                              <table className="cogita-table">
+                                <thead>
+                                  <tr>
+                                    <th>#</th>
+                                    <th>{sessionUiCopy.answersLabel}</th>
+                                    <th>{sessionUiCopy.correctLabel}</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {sessionResults.participants.map((row, index) => (
+                                    <tr key={row.participantId}>
+                                      <td>{index + 1}</td>
+                                      <td>{row.totalAnswers}</td>
+                                      <td>{row.correctAnswers}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'grid', gap: '0.45rem' }}>
+                            <strong>{sessionUiCopy.nodeResultsTitle}</strong>
+                            <div style={{ overflowX: 'auto' }}>
+                              <table className="cogita-table">
+                                <thead>
+                                  <tr>
+                                    <th>{sessionUiCopy.rowNode}</th>
+                                    <th>{sessionUiCopy.rowCheckType}</th>
+                                    <th>{sessionUiCopy.rowParticipants}</th>
+                                    <th>{sessionUiCopy.answersLabel}</th>
+                                    <th>{sessionUiCopy.correctLabel}</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {sessionResults.nodes.map((row) => (
+                                    <tr key={`${row.nodeKey}|${row.checkType ?? ''}`}>
+                                      <td>{row.nodeKey}</td>
+                                      <td>{row.checkType ?? '-'}</td>
+                                      <td>{row.participantCount}</td>
+                                      <td>{row.totalAnswers}</td>
+                                      <td>{row.correctAnswers}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="cogita-help" style={{ margin: 0 }}>
+                          {sessionUiCopy.noResults}
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               </section>
             </div>

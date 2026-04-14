@@ -1,4 +1,4 @@
-import type { CogitaInfoSearchResult } from '../../../lib/api';
+import type { CogitaNotionSearchResult } from '../../../lib/api';
 import type { CogitaInfoType } from './types';
 
 export type InfoEntityKind = 'single' | 'connection' | 'complex';
@@ -24,7 +24,7 @@ export type InfoFilterFieldSchema = {
 };
 
 export type InfoSchema = {
-  infoType: string;
+  notionType: string;
   entityKind: InfoEntityKind;
   structure: {
     payloadFields: string[];
@@ -58,13 +58,13 @@ const LANGUAGE_FILTER: InfoFilterFieldSchema = {
 
 const INFO_SCHEMAS: Record<string, InfoSchema> = {
   language: {
-    infoType: 'language',
+    notionType: 'language',
     entityKind: 'single',
     structure: { payloadFields: ['label', 'name', 'code'] },
     filterFields: []
   },
   word: {
-    infoType: 'word',
+    notionType: 'word',
     entityKind: 'single',
     structure: {
       payloadFields: ['label', 'lemma', 'languageId'],
@@ -73,7 +73,7 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
     filterFields: [LANGUAGE_FILTER]
   },
   sentence: {
-    infoType: 'sentence',
+    notionType: 'sentence',
     entityKind: 'single',
     structure: {
       payloadFields: ['label', 'text', 'languageId'],
@@ -82,67 +82,67 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
     filterFields: [LANGUAGE_FILTER]
   },
   topic: {
-    infoType: 'topic',
+    notionType: 'topic',
     entityKind: 'single',
     structure: { payloadFields: ['label', 'name'] },
     filterFields: []
   },
   collection: {
-    infoType: 'collection',
+    notionType: 'collection',
     entityKind: 'complex',
     structure: { payloadFields: ['label', 'name'] },
     filterFields: []
   },
   person: {
-    infoType: 'person',
+    notionType: 'person',
     entityKind: 'single',
     structure: { payloadFields: ['label', 'name'] },
     filterFields: []
   },
   institution: {
-    infoType: 'institution',
+    notionType: 'institution',
     entityKind: 'single',
     structure: { payloadFields: ['label', 'name'] },
     filterFields: []
   },
   collective: {
-    infoType: 'collective',
+    notionType: 'collective',
     entityKind: 'single',
     structure: { payloadFields: ['label', 'name'] },
     filterFields: []
   },
   orcid: {
-    infoType: 'orcid',
+    notionType: 'orcid',
     entityKind: 'single',
     structure: { payloadFields: ['label', 'orcid'] },
     filterFields: [{ key: 'orcid', label: 'ORCID', kind: 'text', path: 'orcid', matcher: 'contains' }]
   },
   address: {
-    infoType: 'address',
+    notionType: 'address',
     entityKind: 'single',
     structure: { payloadFields: ['label', 'street', 'city', 'postalCode', 'country'] },
     filterFields: []
   },
   email: {
-    infoType: 'email',
+    notionType: 'email',
     entityKind: 'single',
     structure: { payloadFields: ['label', 'email', 'address'] },
     filterFields: []
   },
   phone: {
-    infoType: 'phone',
+    notionType: 'phone',
     entityKind: 'single',
     structure: { payloadFields: ['label', 'phone', 'number'] },
     filterFields: []
   },
   media: {
-    infoType: 'media',
+    notionType: 'media',
     entityKind: 'single',
     structure: { payloadFields: ['label', 'name', 'url', 'kind'] },
     filterFields: []
   },
   work: {
-    infoType: 'work',
+    notionType: 'work',
     entityKind: 'single',
     structure: {
       payloadFields: ['label', 'title', 'subtitle', 'doi', 'isbn', 'issn', 'languageId', 'originalLanguageId']
@@ -161,25 +161,25 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
     ]
   },
   geo: {
-    infoType: 'geo',
+    notionType: 'geo',
     entityKind: 'single',
     structure: { payloadFields: ['label', 'name', 'country', 'region', 'city'] },
     filterFields: []
   },
   music_piece: {
-    infoType: 'music_piece',
+    notionType: 'music_piece',
     entityKind: 'single',
     structure: { payloadFields: ['label', 'title', 'composer'] },
     filterFields: []
   },
   music_fragment: {
-    infoType: 'music_fragment',
+    notionType: 'music_fragment',
     entityKind: 'single',
     structure: { payloadFields: ['label', 'title', 'text'] },
     filterFields: []
   },
   source: {
-    infoType: 'source',
+    notionType: 'source',
     entityKind: 'single',
     structure: {
       payloadFields: ['label', 'title', 'sourceKind', 'locator'],
@@ -191,7 +191,7 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
     ]
   },
   citation: {
-    infoType: 'citation',
+    notionType: 'citation',
     entityKind: 'single',
     structure: {
       payloadFields: ['title', 'text'],
@@ -203,7 +203,7 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
     filterFields: [{ key: 'text', labelKey: 'citationText', kind: 'text', path: 'text', matcher: 'contains' }]
   },
   question: {
-    infoType: 'question',
+    notionType: 'question',
     entityKind: 'single',
     structure: {
       payloadFields: ['definition']
@@ -214,7 +214,7 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
     ]
   },
   computed: {
-    infoType: 'computed',
+    notionType: 'computed',
     entityKind: 'complex',
     structure: {
       payloadFields: ['label', 'title', 'definition']
@@ -222,7 +222,7 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
     filterFields: []
   },
   translation: {
-    infoType: 'translation',
+    notionType: 'translation',
     entityKind: 'connection',
     structure: {
       payloadFields: ['note', 'tagIds'],
@@ -241,7 +241,7 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
 };
 
 const DEFAULT_SCHEMA: InfoSchema = {
-  infoType: 'default',
+  notionType: 'default',
   entityKind: 'single',
   structure: { payloadFields: ['label'] },
   filterFields: []
@@ -254,10 +254,10 @@ export function getInfoSchema(type?: string | null): InfoSchema {
 
 export function resolveSchemaFieldOptions(
   schemaField: InfoFilterFieldSchema,
-  context: { languages: CogitaInfoSearchResult[] }
+  context: { languages: CogitaNotionSearchResult[] }
 ): Array<{ value: string; label: string }> {
   if (schemaField.optionsSource === 'languages') {
-    return context.languages.map((item) => ({ value: item.infoId, label: item.label }));
+    return context.languages.map((item) => ({ value: item.notionId, label: item.label }));
   }
   if (schemaField.optionsSource === 'sourceKinds') {
     return SOURCE_KIND_OPTIONS;

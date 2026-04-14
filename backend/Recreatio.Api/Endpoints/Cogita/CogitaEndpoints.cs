@@ -27,6 +27,8 @@ public static class CogitaEndpoints
         "Database schema for Cogita revision shares is outdated. Apply backend/Recreatio.Api/Sql/patch_cogita_revision_shares_runtime_compat.sql on the API database.";
     private const string CogitaStoryboardShareSchemaError =
         "Database schema for Cogita storyboard shares is outdated. Apply backend/Recreatio.Api/Sql/schema.sql on the API database.";
+    private const string CogitaStoryboardSessionSchemaError =
+        "Database schema for Cogita storyboard sessions is outdated. Apply backend/Recreatio.Api/Sql/patch_cogita_storyboard_sessions_runtime.sql on the API database.";
     private const string PythonDefinitionType = "python_transform_v1";
     private const int DefaultPythonCaseCount = 5;
     private const int DefaultPythonMaxCaseCount = 20;
@@ -1101,7 +1103,7 @@ public static class CogitaEndpoints
                 {
                     var created = await CreateInfoInternalAsync(
                         library,
-                        new CogitaCreateInfoRequest(infoType, payloadElement.Clone(), null, null, links),
+                        new CogitaCreateNotionRequest(infoType, payloadElement.Clone(), null, null, links),
                         readKey,
                         ownerKey,
                         userId,
@@ -1115,16 +1117,16 @@ public static class CogitaEndpoints
 
                     if (!string.IsNullOrWhiteSpace(reference))
                     {
-                        notionReferences[reference] = created.InfoId;
+                        notionReferences[reference] = created.NotionId;
                     }
 
-                    AddNotionResult(reference ?? contextLabel, created.InfoId, true, infoType);
-                    notionTypeCache[created.InfoId] = infoType;
+                    AddNotionResult(reference ?? contextLabel, created.NotionId, true, infoType);
+                    notionTypeCache[created.NotionId] = infoType;
                     if (!string.Equals(infoType, "topic", StringComparison.Ordinal))
                     {
-                        createdManagedNotionIds.Add(created.InfoId);
+                        createdManagedNotionIds.Add(created.NotionId);
                     }
-                    return created.InfoId;
+                    return created.NotionId;
                 }
                 catch (InvalidOperationException ex)
                 {
@@ -1452,7 +1454,7 @@ public static class CogitaEndpoints
                 {
                     var createdTopic = await CreateInfoInternalAsync(
                         library,
-                        new CogitaCreateInfoRequest("topic", topicPayload, null, null, null),
+                        new CogitaCreateNotionRequest("topic", topicPayload, null, null, null),
                         readKey,
                         ownerKey,
                         userId,
@@ -1464,9 +1466,9 @@ public static class CogitaEndpoints
                         ct,
                         saveChanges: true);
 
-                    storyboardTopicNotionId = createdTopic.InfoId;
-                    notionTypeCache[createdTopic.InfoId] = "topic";
-                    AddNotionResult("storyboard-topic", createdTopic.InfoId, true, "topic");
+                    storyboardTopicNotionId = createdTopic.NotionId;
+                    notionTypeCache[createdTopic.NotionId] = "topic";
+                    AddNotionResult("storyboard-topic", createdTopic.NotionId, true, "topic");
                 }
                 catch (InvalidOperationException ex)
                 {
@@ -2066,7 +2068,419 @@ public static class CogitaEndpoints
             return Results.Ok();
         });
 
-        group.MapGet("/libraries/{libraryId:guid}/info-types/specification", async (
+        group.MapPost("/libraries/{libraryId:guid}/storyboard-sessions", async (
+            Guid libraryId,
+            CogitaStoryboardSessionCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!await HasCogitaStoryboardSessionRuntimeSchemaAsync(dbContext, ct))
+            {
+                return Results.BadRequest(new { error = CogitaStoryboardSessionSchemaError });
+            }
+
+            var projectId = request.ProjectId;
+            if (projectId == Guid.Empty)
+            {
+                return Results.BadRequest(new { error = "ProjectId is invalid." });
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            var project = await dbContext.CogitaCreationProjects.AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.Id == projectId &&
+                    x.LibraryId == libraryId &&
+                    x.ProjectType == "storyboard", ct);
+            if (project is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey) ||
+                !keyRing.TryGetReadKey(library.RoleId, out var readKey))
+            {
+                return Results.Forbid();
+            }
+
+            string publicCode;
+            byte[] publicCodeBytes;
+            byte[] publicCodeHash;
+            var attempts = 0;
+            while (true)
+            {
+                publicCode = GenerateAlphaNumericCode(10);
+                publicCodeBytes = Encoding.UTF8.GetBytes(publicCode);
+                publicCodeHash = hashingService.Hash(publicCodeBytes);
+                var exists = await dbContext.CogitaStoryboardSessions.AsNoTracking()
+                    .AnyAsync(x => x.PublicCodeHash == publicCodeHash, ct);
+                attempts++;
+                if (!exists || attempts >= 5)
+                {
+                    break;
+                }
+            }
+
+            if (attempts >= 5)
+            {
+                return Results.Problem("Unable to generate a unique storyboard session code.");
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var sessionEntityId = Guid.NewGuid();
+            var encSessionCode = encryptionService.Encrypt(ownerKey, publicCodeBytes, sessionEntityId.ToByteArray());
+            var shareKey = masterKeyService.DeriveSharedViewKey(publicCodeBytes, sessionEntityId);
+            var encLibraryReadKey = encryptionService.Encrypt(shareKey, readKey, library.RoleId.ToByteArray());
+
+            dbContext.CogitaStoryboardSessions.Add(new CogitaStoryboardSession
+            {
+                Id = sessionEntityId,
+                LibraryId = libraryId,
+                ProjectId = projectId,
+                OwnerRoleId = library.RoleId,
+                PublicCodeHash = publicCodeHash,
+                EncSessionCode = encSessionCode,
+                EncLibraryReadKey = encLibraryReadKey,
+                CreatedUtc = now,
+                RevokedUtc = null
+            });
+
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new CogitaStoryboardSessionResponse(
+                sessionEntityId,
+                projectId,
+                project.Name,
+                publicCode,
+                now,
+                null,
+                0,
+                0,
+                0
+            ));
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/storyboard-sessions", async (
+            Guid libraryId,
+            Guid? projectId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!await HasCogitaStoryboardSessionRuntimeSchemaAsync(dbContext, ct))
+            {
+                return Results.BadRequest(new { error = CogitaStoryboardSessionSchemaError });
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
+            {
+                return Results.Forbid();
+            }
+
+            var query = dbContext.CogitaStoryboardSessions.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId);
+            if (projectId.HasValue && projectId.Value != Guid.Empty)
+            {
+                query = query.Where(x => x.ProjectId == projectId.Value);
+            }
+
+            var sessions = await query
+                .OrderByDescending(x => x.CreatedUtc)
+                .ToListAsync(ct);
+            if (sessions.Count == 0)
+            {
+                return Results.Ok(new List<CogitaStoryboardSessionResponse>());
+            }
+
+            var projectIds = sessions.Select(x => x.ProjectId).Distinct().ToList();
+            var projectNames = await dbContext.CogitaCreationProjects.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && x.ProjectType == "storyboard" && projectIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.Name })
+                .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+
+            var sessionIds = sessions.Select(x => x.Id).ToList();
+            var participantCounts = await dbContext.CogitaStoryboardSessionParticipants.AsNoTracking()
+                .Where(x => sessionIds.Contains(x.SessionId))
+                .GroupBy(x => x.SessionId)
+                .Select(g => new { SessionId = g.Key, Count = g.Count() })
+                .ToListAsync(ct);
+            var participantCountBySession = participantCounts.ToDictionary(x => x.SessionId, x => x.Count);
+
+            var answerStats = await dbContext.CogitaStoryboardSessionAnswers.AsNoTracking()
+                .Where(x => sessionIds.Contains(x.SessionId))
+                .GroupBy(x => x.SessionId)
+                .Select(g => new
+                {
+                    SessionId = g.Key,
+                    TotalAnswers = g.Count(),
+                    CorrectAnswers = g.Sum(x => x.IsCorrect ? 1 : 0)
+                })
+                .ToListAsync(ct);
+            var answerStatsBySession = answerStats.ToDictionary(x => x.SessionId, x => (x.TotalAnswers, x.CorrectAnswers));
+
+            var response = new List<CogitaStoryboardSessionResponse>(sessions.Count);
+            foreach (var session in sessions)
+            {
+                var sessionCode = string.Empty;
+                if (session.EncSessionCode.Length > 0)
+                {
+                    try
+                    {
+                        var plain = encryptionService.Decrypt(ownerKey, session.EncSessionCode, session.Id.ToByteArray());
+                        sessionCode = Encoding.UTF8.GetString(plain);
+                    }
+                    catch (CryptographicException)
+                    {
+                        sessionCode = string.Empty;
+                    }
+                }
+
+                var projectName = projectNames.TryGetValue(session.ProjectId, out var value)
+                    ? value
+                    : "Storyboard";
+                var participantCount = participantCountBySession.TryGetValue(session.Id, out var resolvedParticipantCount)
+                    ? resolvedParticipantCount
+                    : 0;
+                var (totalAnswers, correctAnswers) = answerStatsBySession.TryGetValue(session.Id, out var stats)
+                    ? stats
+                    : (0, 0);
+
+                response.Add(new CogitaStoryboardSessionResponse(
+                    session.Id,
+                    session.ProjectId,
+                    projectName,
+                    sessionCode,
+                    session.CreatedUtc,
+                    session.RevokedUtc,
+                    participantCount,
+                    totalAnswers,
+                    correctAnswers
+                ));
+            }
+
+            return Results.Ok(response);
+        });
+
+        group.MapPost("/libraries/{libraryId:guid}/storyboard-sessions/{sessionId:guid}/revoke", async (
+            Guid libraryId,
+            Guid sessionId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var userSessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!await HasCogitaStoryboardSessionRuntimeSchemaAsync(dbContext, ct))
+            {
+                return Results.BadRequest(new { error = CogitaStoryboardSessionSchemaError });
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, userSessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetOwnerKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var session = await dbContext.CogitaStoryboardSessions
+                .FirstOrDefaultAsync(x => x.Id == sessionId && x.LibraryId == libraryId, ct);
+            if (session is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (session.RevokedUtc is not null)
+            {
+                return Results.Ok();
+            }
+
+            session.RevokedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok();
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/storyboard-sessions/{sessionId:guid}/results", async (
+            Guid libraryId,
+            Guid sessionId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var userSessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!await HasCogitaStoryboardSessionRuntimeSchemaAsync(dbContext, ct))
+            {
+                return Results.BadRequest(new { error = CogitaStoryboardSessionSchemaError });
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, userSessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var session = await dbContext.CogitaStoryboardSessions.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == sessionId && x.LibraryId == libraryId, ct);
+            if (session is null)
+            {
+                return Results.NotFound();
+            }
+
+            var projectName = await dbContext.CogitaCreationProjects.AsNoTracking()
+                .Where(x => x.Id == session.ProjectId && x.LibraryId == libraryId && x.ProjectType == "storyboard")
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync(ct) ?? "Storyboard";
+
+            var participants = await dbContext.CogitaStoryboardSessionParticipants.AsNoTracking()
+                .Where(x => x.SessionId == session.Id)
+                .OrderBy(x => x.JoinedUtc)
+                .ToListAsync(ct);
+            var answers = await dbContext.CogitaStoryboardSessionAnswers.AsNoTracking()
+                .Where(x => x.SessionId == session.Id)
+                .ToListAsync(ct);
+
+            var answerByParticipant = answers
+                .GroupBy(x => x.ParticipantId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => new
+                    {
+                        TotalAnswers = g.Count(),
+                        CorrectAnswers = g.Count(x => x.IsCorrect)
+                    });
+
+            var participantResults = participants.Select(participant =>
+            {
+                var stats = answerByParticipant.TryGetValue(participant.Id, out var value)
+                    ? value
+                    : null;
+                return new CogitaStoryboardSessionParticipantResultResponse(
+                    participant.Id,
+                    stats?.TotalAnswers ?? 0,
+                    stats?.CorrectAnswers ?? 0,
+                    participant.JoinedUtc,
+                    participant.UpdatedUtc
+                );
+            }).ToList();
+
+            var nodeResults = answers
+                .GroupBy(x => new { x.NodeKey, x.NotionId, x.CheckType })
+                .Select(g => new CogitaStoryboardSessionNodeResultResponse(
+                    g.Key.NodeKey,
+                    g.Key.NotionId,
+                    g.Key.CheckType,
+                    g.Select(x => x.ParticipantId).Distinct().Count(),
+                    g.Count(),
+                    g.Count(x => x.IsCorrect)))
+                .OrderByDescending(x => x.TotalAnswers)
+                .ThenBy(x => x.NodeKey, StringComparer.Ordinal)
+                .ToList();
+
+            return Results.Ok(new CogitaStoryboardSessionResultsResponse(
+                session.Id,
+                session.ProjectId,
+                projectName,
+                participants.Count,
+                answers.Count,
+                answers.Count(x => x.IsCorrect),
+                participantResults,
+                nodeResults
+            ));
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/notion-types/specification", async (
             Guid libraryId,
             HttpContext context,
             RecreatioDbContext dbContext,
@@ -2109,24 +2523,24 @@ public static class CogitaEndpoints
                 {
                     var descriptor = CogitaTypeRegistry.GetEditorDescriptor(infoType);
                     var payloadFields = descriptor?.PayloadFields
-                        .Select(field => new CogitaInfoPayloadFieldSpecResponse(
+                        .Select(field => new CogitaNotionPayloadFieldSpecResponse(
                             field.Key,
                             field.Label,
                             field.InputType,
                             field.Required,
                             field.Searchable,
                             field.KeepOnCreate))
-                        .ToList() ?? new List<CogitaInfoPayloadFieldSpecResponse>();
+                        .ToList() ?? new List<CogitaNotionPayloadFieldSpecResponse>();
                     var linkFields = descriptor?.LinkFields
-                        .Select(field => new CogitaInfoLinkFieldSpecResponse(
+                        .Select(field => new CogitaNotionLinkFieldSpecResponse(
                             field.Key,
                             field.Label,
                             field.TargetTypes.ToList(),
                             field.Required,
                             field.Multiple,
                             field.KeepOnCreate))
-                        .ToList() ?? new List<CogitaInfoLinkFieldSpecResponse>();
-                    return new CogitaInfoTypeSpecResponse(
+                        .ToList() ?? new List<CogitaNotionLinkFieldSpecResponse>();
+                    return new CogitaNotionTypeSpecResponse(
                         infoType,
                         CogitaTypeRegistry.InferEntityKind(infoType),
                         payloadFields,
@@ -2175,7 +2589,7 @@ public static class CogitaEndpoints
             var specs = CogitaApproachRegistry.Approaches.Values
                 .OrderBy(x => x.Category)
                 .ThenBy(x => x.Label)
-                .Select(x => new CogitaInfoApproachSpecResponse(
+                .Select(x => new CogitaNotionApproachSpecResponse(
                     x.ApproachKey,
                     x.Label,
                     x.Category,
@@ -2259,7 +2673,7 @@ public static class CogitaEndpoints
             var responses = await indexQuery
                 .OrderBy(x => x.LabelNormalized)
                 .Take(pageSize)
-                .Select(x => new CogitaInfoSearchResponse(x.InfoId, x.InfoType, x.Label))
+                .Select(x => new CogitaNotionSearchResponse(x.InfoId, x.InfoType, x.Label))
                 .ToListAsync(ct);
 
             return Results.Ok(responses);
@@ -2436,7 +2850,7 @@ public static class CogitaEndpoints
             }
 
             var linksJson = await LoadInfoLinksAsJsonAsync(libraryId, info.Id, info.InfoType, dbContext, ct);
-            return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
+            return Results.Ok(new CogitaNotionDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
         });
 
         group.MapGet("/libraries/{libraryId:guid}/notions/{infoId:guid}/collections", async (
@@ -2637,7 +3051,7 @@ public static class CogitaEndpoints
                 return Results.NotFound();
             }
 
-            return Results.Ok(new CogitaInfoApproachProjectionResponse(approach.ApproachKey, info.Id, info.InfoType, projection.Value));
+            return Results.Ok(new CogitaNotionApproachProjectionResponse(approach.ApproachKey, info.Id, info.InfoType, projection.Value));
         });
 
         group.MapGet("/libraries/{libraryId:guid}/notions/{infoId:guid}/cards", async (
@@ -2766,7 +3180,7 @@ public static class CogitaEndpoints
         group.MapPut("/libraries/{libraryId:guid}/notions/{infoId:guid}", async (
             Guid libraryId,
             Guid infoId,
-            CogitaUpdateInfoRequest request,
+            CogitaUpdateNotionRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
@@ -2903,7 +3317,7 @@ public static class CogitaEndpoints
                 });
             }
 
-            return Results.Ok(new CogitaUpdateInfoResponse(info.Id, info.InfoType));
+            return Results.Ok(new CogitaUpdateNotionResponse(info.Id, info.InfoType));
         });
 
         group.MapDelete("/libraries/{libraryId:guid}/notions/{infoId:guid}", async (
@@ -3820,7 +4234,7 @@ public static class CogitaEndpoints
 
             var infoResponse = await CreateInfoInternalAsync(
                 library,
-                new CogitaCreateInfoRequest("collection", payload, request.DataKeyId, request.SignatureBase64),
+                new CogitaCreateNotionRequest("collection", payload, request.DataKeyId, request.SignatureBase64),
                 readKey,
                 ownerKey,
                 userId,
@@ -3838,7 +4252,7 @@ public static class CogitaEndpoints
                 dbContext.CogitaCollectionItems.Add(new CogitaCollectionItem
                 {
                     Id = Guid.NewGuid(),
-                    CollectionInfoId = infoResponse.InfoId,
+                    CollectionInfoId = infoResponse.NotionId,
                     ItemType = itemType,
                     ItemId = itemId,
                     SortOrder = sortOrder++,
@@ -3872,7 +4286,7 @@ public static class CogitaEndpoints
                 var graph = new CogitaCollectionGraph
                 {
                     Id = Guid.NewGuid(),
-                    CollectionInfoId = infoResponse.InfoId,
+                    CollectionInfoId = infoResponse.NotionId,
                     DataKeyId = graphKeyResult.DataKeyId,
                     EncryptedBlob = Array.Empty<byte>(),
                     CreatedUtc = now,
@@ -3920,7 +4334,7 @@ public static class CogitaEndpoints
 
             await dbContext.SaveChangesAsync(ct);
 
-            return Results.Ok(new CogitaCreateCollectionResponse(infoResponse.InfoId));
+            return Results.Ok(new CogitaCreateCollectionResponse(infoResponse.NotionId));
         });
 
         group.MapGet("/libraries/{libraryId:guid}/collections/{collectionId:guid}", async (
@@ -11088,6 +11502,551 @@ public static class CogitaEndpoints
             ));
         }).AllowAnonymous();
 
+        group.MapGet("/public/storyboard-session/{code}", async (
+            string code,
+            RecreatioDbContext dbContext,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            var sessionContext = await TryResolveStoryboardSessionAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (sessionContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var (session, library, _) = sessionContext.Value;
+            var project = await dbContext.CogitaCreationProjects.AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.Id == session.ProjectId &&
+                    x.LibraryId == session.LibraryId &&
+                    x.ProjectType == "storyboard", ct);
+            if (project is null)
+            {
+                return Results.NotFound();
+            }
+
+            return Results.Ok(new CogitaPublicStoryboardSessionResponse(
+                session.Id,
+                project.Id,
+                project.Name,
+                library.Id,
+                "Cogita Library",
+                ParseOptionalJson(project.ContentJson),
+                session.CreatedUtc
+            ));
+        }).AllowAnonymous();
+
+        group.MapPost("/public/storyboard-session/{code}/participants", async (
+            string code,
+            CogitaPublicStoryboardSessionParticipantTouchRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            var sessionContext = await TryResolveStoryboardSessionAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (sessionContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var participantToken = (request.ParticipantToken ?? string.Empty).Trim();
+            if (participantToken.Length < 8 || participantToken.Length > 256)
+            {
+                return Results.BadRequest(new { error = "participantToken is invalid." });
+            }
+
+            Guid? userId = null;
+            if (EndpointHelpers.TryGetUserId(context, out var resolvedUserId))
+            {
+                userId = resolvedUserId;
+            }
+
+            var (session, _, _) = sessionContext.Value;
+            var participant = await UpsertStoryboardSessionParticipantAsync(
+                session.Id,
+                participantToken,
+                userId,
+                dbContext,
+                hashingService,
+                ct);
+
+            return Results.Ok(new CogitaPublicStoryboardSessionParticipantTouchResponse(
+                session.Id,
+                participant.Id,
+                participantToken,
+                participant.JoinedUtc,
+                participant.UpdatedUtc
+            ));
+        }).AllowAnonymous();
+
+        group.MapPost("/public/storyboard-session/{code}/answers", async (
+            string code,
+            CogitaPublicStoryboardSessionAnswerSubmitRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            var sessionContext = await TryResolveStoryboardSessionAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (sessionContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var participantToken = (request.ParticipantToken ?? string.Empty).Trim();
+            if (participantToken.Length < 8 || participantToken.Length > 256)
+            {
+                return Results.BadRequest(new { error = "participantToken is invalid." });
+            }
+
+            var nodeKey = (request.NodeKey ?? string.Empty).Trim();
+            if (nodeKey.Length == 0 || nodeKey.Length > 256)
+            {
+                return Results.BadRequest(new { error = "nodeKey is invalid." });
+            }
+
+            var checkType = string.IsNullOrWhiteSpace(request.CheckType)
+                ? null
+                : request.CheckType.Trim();
+            if (checkType is { Length: > 64 })
+            {
+                checkType = checkType[..64];
+            }
+
+            Guid? userId = null;
+            if (EndpointHelpers.TryGetUserId(context, out var resolvedUserId))
+            {
+                userId = resolvedUserId;
+            }
+
+            var (session, _, _) = sessionContext.Value;
+            var participant = await UpsertStoryboardSessionParticipantAsync(
+                session.Id,
+                participantToken,
+                userId,
+                dbContext,
+                hashingService,
+                ct);
+
+            var now = DateTimeOffset.UtcNow;
+            var answer = await dbContext.CogitaStoryboardSessionAnswers
+                .FirstOrDefaultAsync(x =>
+                    x.SessionId == session.Id &&
+                    x.ParticipantId == participant.Id &&
+                    x.NodeKey == nodeKey, ct);
+            if (answer is null)
+            {
+                answer = new CogitaStoryboardSessionAnswer
+                {
+                    Id = Guid.NewGuid(),
+                    SessionId = session.Id,
+                    ParticipantId = participant.Id,
+                    NodeKey = nodeKey,
+                    NotionId = request.NotionId,
+                    CheckType = checkType,
+                    IsCorrect = request.IsCorrect,
+                    AttemptCount = 1,
+                    FirstSubmittedUtc = now,
+                    UpdatedUtc = now
+                };
+                dbContext.CogitaStoryboardSessionAnswers.Add(answer);
+            }
+            else
+            {
+                answer.NotionId = request.NotionId ?? answer.NotionId;
+                answer.CheckType = checkType ?? answer.CheckType;
+                answer.IsCorrect = request.IsCorrect;
+                answer.AttemptCount = Math.Max(1, answer.AttemptCount) + 1;
+                answer.UpdatedUtc = now;
+            }
+
+            participant.UpdatedUtc = now;
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new CogitaPublicStoryboardSessionAnswerSubmitResponse(
+                true,
+                answer.AttemptCount,
+                answer.IsCorrect,
+                answer.UpdatedUtc
+            ));
+        }).AllowAnonymous();
+
+        group.MapGet("/public/storyboard-session/{code}/notions/{infoId:guid}", async (
+            string code,
+            Guid infoId,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            var sessionContext = await TryResolveStoryboardSessionAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (sessionContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var (session, _, readKey) = sessionContext.Value;
+            var info = await dbContext.CogitaInfos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == session.LibraryId, ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
+            if (payload is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyEntry = await dbContext.Keys.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == payload.Value.DataKeyId, ct);
+            if (keyEntry is null)
+            {
+                return Results.NotFound();
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+            }
+            catch (CryptographicException)
+            {
+                return Results.NotFound();
+            }
+
+            JsonElement payloadJson;
+            try
+            {
+                var plain = encryptionService.Decrypt(dataKey, payload.Value.EncryptedBlob, info.Id.ToByteArray());
+                using var doc = JsonDocument.Parse(plain);
+                payloadJson = doc.RootElement.Clone();
+            }
+            catch (CryptographicException)
+            {
+                return Results.NotFound();
+            }
+
+            if (string.Equals(info.InfoType, "python", StringComparison.OrdinalIgnoreCase))
+            {
+                payloadJson = BuildPythonLearnerPayload(payloadJson);
+            }
+
+            var linksJson = await LoadInfoLinksAsJsonAsync(session.LibraryId, info.Id, info.InfoType, dbContext, ct);
+            return Results.Ok(new CogitaNotionDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
+        }).AllowAnonymous();
+
+        group.MapGet("/public/storyboard-session/{code}/notions/{infoId:guid}/cards", async (
+            string code,
+            Guid infoId,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            var sessionContext = await TryResolveStoryboardSessionAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (sessionContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var (session, _, readKey) = sessionContext.Value;
+            var info = await dbContext.CogitaInfos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == session.LibraryId, ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            var cards = await BuildEffectiveInfoCheckcardsAsync(
+                session.LibraryId,
+                info,
+                readKey,
+                keyRingService,
+                encryptionService,
+                dbContext,
+                ct);
+
+            return Results.Ok(new CogitaCardSearchBundleResponse(cards.Count, cards.Count, null, cards));
+        }).AllowAnonymous();
+
+        group.MapPost("/public/storyboard-session/{code}/python/{infoId:guid}/evaluate", async (
+            string code,
+            Guid infoId,
+            CogitaPythonEvaluateRequest request,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            IPythonSandboxClient pythonSandboxClient,
+            Microsoft.Extensions.Options.IOptions<PythonSandboxOptions> pythonSandboxOptions,
+            CancellationToken ct) =>
+        {
+            var options = pythonSandboxOptions.Value;
+            if (!options.AllowPublicStoryboard)
+            {
+                var unavailableResponse = new CogitaPythonEvaluateResponse(
+                    false,
+                    "runner_unavailable",
+                    0,
+                    null,
+                    null,
+                    "Public storyboard python evaluation is disabled.");
+                return Results.Ok(unavailableResponse);
+            }
+
+            var sessionContext = await TryResolveStoryboardSessionAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (sessionContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var (session, _, readKey) = sessionContext.Value;
+            var info = await dbContext.CogitaInfos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == session.LibraryId && x.InfoType == "python", ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            var response = await EvaluatePythonNotionAsync(
+                session.LibraryId,
+                infoId,
+                request,
+                readKey,
+                dbContext,
+                keyRingService,
+                encryptionService,
+                pythonSandboxClient,
+                options,
+                ct);
+
+            return Results.Ok(response);
+        }).AllowAnonymous();
+
+        group.MapGet("/public/storyboard-session/{code}/notions/{infoId:guid}/approaches/{approachKey}", async (
+            string code,
+            Guid infoId,
+            string approachKey,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            var sessionContext = await TryResolveStoryboardSessionAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (sessionContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var (session, _, readKey) = sessionContext.Value;
+            var info = await dbContext.CogitaInfos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == session.LibraryId, ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            var approach = CogitaApproachRegistry.Get(approachKey.Trim());
+            if (approach is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (!approach.SourceInfoTypes.Contains(info.InfoType, StringComparer.OrdinalIgnoreCase))
+            {
+                return Results.BadRequest(new { error = $"Approach '{approach.ApproachKey}' is not valid for info type '{info.InfoType}'." });
+            }
+
+            var projection = await BuildInfoApproachProjectionAsync(
+                session.LibraryId,
+                info,
+                approach.ApproachKey,
+                readKey,
+                keyRingService,
+                encryptionService,
+                dbContext,
+                ct);
+            if (projection is null)
+            {
+                return Results.NotFound();
+            }
+
+            return Results.Ok(new CogitaNotionApproachProjectionResponse(approach.ApproachKey, info.Id, info.InfoType, projection.Value));
+        }).AllowAnonymous();
+
+        group.MapGet("/public/storyboard-session/{code}/files/{dataItemId:guid}", async (
+            string code,
+            Guid dataItemId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            IEncryptedBlobStore encryptedBlobStore,
+            CancellationToken ct) =>
+        {
+            var sessionContext = await TryResolveStoryboardSessionAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (sessionContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var (_, library, readKey) = sessionContext.Value;
+            var dataItem = await dbContext.DataItems.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == dataItemId && x.OwnerRoleId == library.RoleId, ct);
+            if (dataItem is null || string.IsNullOrWhiteSpace(dataItem.StoragePath))
+            {
+                return Results.NotFound();
+            }
+
+            var readGrant = await dbContext.DataKeyGrants.AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.DataItemId == dataItemId &&
+                    x.RoleId == library.RoleId &&
+                    x.RevokedUtc == null, ct);
+            if (readGrant is null)
+            {
+                return Results.NotFound();
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = encryptionService.Decrypt(readKey, readGrant.EncryptedDataKeyBlob, dataItemId.ToByteArray());
+            }
+            catch (CryptographicException)
+            {
+                return Results.NotFound();
+            }
+
+            var itemType = keyRingService.TryDecryptDataItemMeta(dataKey, dataItem.EncryptedItemType, dataItemId, "item-type");
+            if (!string.Equals(itemType, "file", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.NotFound();
+            }
+
+            var itemName = keyRingService.TryDecryptDataItemMeta(dataKey, dataItem.EncryptedItemName, dataItemId, "item-name");
+            var fileName = string.IsNullOrWhiteSpace(itemName) ? $"{dataItemId:N}.bin" : Path.GetFileName(itemName);
+            var contentType = "application/octet-stream";
+
+            if (dataItem.EncryptedValue is { Length: > 0 })
+            {
+                var fileMetaJson = keyRingService.TryDecryptDataItemMeta(dataKey, dataItem.EncryptedValue, dataItemId, "file-meta");
+                if (!string.IsNullOrWhiteSpace(fileMetaJson))
+                {
+                    try
+                    {
+                        var fileMeta = JsonSerializer.Deserialize<CogitaStoryboardMediaFileMeta>(fileMetaJson);
+                        if (!string.IsNullOrWhiteSpace(fileMeta?.FileName))
+                        {
+                            fileName = Path.GetFileName(fileMeta.FileName);
+                        }
+                        if (!string.IsNullOrWhiteSpace(fileMeta?.ContentType))
+                        {
+                            contentType = fileMeta.ContentType;
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // Keep fallback file metadata.
+                    }
+                }
+            }
+
+            context.Response.ContentType = contentType;
+            if (dataItem.StorageSizeBytes is > 0)
+            {
+                context.Response.ContentLength = dataItem.StorageSizeBytes.Value;
+            }
+            context.Response.Headers.ContentDisposition = $"inline; filename*=UTF-8''{Uri.EscapeDataString(fileName)}";
+
+            bool downloaded;
+            try
+            {
+                downloaded = await encryptedBlobStore.DecryptToStreamAsync(
+                    dataItem.StoragePath,
+                    dataKey,
+                    dataItemId,
+                    context.Response.Body,
+                    ct);
+            }
+            catch (CryptographicException)
+            {
+                return Results.NotFound();
+            }
+            if (!downloaded)
+            {
+                return Results.NotFound();
+            }
+
+            return Results.Empty;
+        }).AllowAnonymous();
+
         group.MapGet("/public/storyboard/{code}", async (
             string code,
             RecreatioDbContext dbContext,
@@ -11219,7 +12178,7 @@ public static class CogitaEndpoints
             }
 
             var linksJson = await LoadInfoLinksAsJsonAsync(share.LibraryId, info.Id, info.InfoType, dbContext, ct);
-            return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
+            return Results.Ok(new CogitaNotionDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
         }).AllowAnonymous();
 
         group.MapGet("/public/storyboard/{code}/notions/{infoId:guid}/cards", async (
@@ -11381,7 +12340,7 @@ public static class CogitaEndpoints
                 return Results.NotFound();
             }
 
-            return Results.Ok(new CogitaInfoApproachProjectionResponse(approach.ApproachKey, info.Id, info.InfoType, projection.Value));
+            return Results.Ok(new CogitaNotionApproachProjectionResponse(approach.ApproachKey, info.Id, info.InfoType, projection.Value));
         }).AllowAnonymous();
 
         group.MapGet("/public/storyboard/{code}/files/{dataItemId:guid}", async (
@@ -11539,7 +12498,7 @@ public static class CogitaEndpoints
                 .ToDictionaryAsync(x => x.Id, ct);
 
             var loweredQuery = query?.Trim().ToLowerInvariant();
-            var responses = new List<CogitaInfoSearchResponse>();
+            var responses = new List<CogitaNotionSearchResponse>();
 
             foreach (var entry in lookup.Values)
             {
@@ -11575,7 +12534,7 @@ public static class CogitaEndpoints
                     continue;
                 }
 
-                responses.Add(new CogitaInfoSearchResponse(entry.InfoId, entry.InfoType, label));
+                responses.Add(new CogitaNotionSearchResponse(entry.InfoId, entry.InfoType, label));
             }
 
             return Results.Ok(responses);
@@ -11649,7 +12608,7 @@ public static class CogitaEndpoints
             }
 
             var linksJson = await LoadInfoLinksAsJsonAsync(share.LibraryId, info.Id, info.InfoType, dbContext, ct);
-            return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
+            return Results.Ok(new CogitaNotionDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
         }).AllowAnonymous();
 
         group.MapGet("/public/revision/{code}/dependencies", async (
@@ -13755,7 +14714,7 @@ public static class CogitaEndpoints
                 var payload = JsonSerializer.SerializeToElement(new { label = name, notes = "Mock language" });
                 var infoResponse = await CreateInfoInternalAsync(
                     library,
-                    new CogitaCreateInfoRequest("language", payload, null, null),
+                    new CogitaCreateNotionRequest("language", payload, null, null),
                     readKey,
                     ownerKey,
                     userId,
@@ -13765,7 +14724,7 @@ public static class CogitaEndpoints
                     ledgerService,
                     dbContext,
                     ct);
-                languages[name] = infoResponse.InfoId;
+                languages[name] = infoResponse.NotionId;
                 wordsByLanguage[name] = new List<Guid>();
             }
 
@@ -13785,7 +14744,7 @@ public static class CogitaEndpoints
                     var payload = JsonSerializer.SerializeToElement(new { label = wordLabel, notes = "Mock word" });
                     var wordResponse = await CreateInfoInternalAsync(
                         library,
-                        new CogitaCreateInfoRequest("word", payload, null, null),
+                        new CogitaCreateNotionRequest("word", payload, null, null),
                         readKey,
                         ownerKey,
                         userId,
@@ -13957,7 +14916,7 @@ public static class CogitaEndpoints
             writer.WriteStartObject();
             writer.WriteNumber("version", 1);
 
-            writer.WritePropertyName("infos");
+            writer.WritePropertyName("notions");
             writer.WriteStartArray();
             var infoIndex = 0;
             foreach (var info in infos)
@@ -13990,8 +14949,8 @@ public static class CogitaEndpoints
                     var plain = encryptionService.Decrypt(dataKey, payload.Value.EncryptedBlob, info.Id.ToByteArray());
                     using var doc = JsonDocument.Parse(plain);
                     writer.WriteStartObject();
-                    writer.WriteString("infoId", info.Id);
-                    writer.WriteString("infoType", info.InfoType);
+                    writer.WriteString("notionId", info.Id);
+                    writer.WriteString("notionType", info.InfoType);
                     writer.WritePropertyName("payload");
                     doc.RootElement.WriteTo(writer);
                     writer.WriteEndObject();
@@ -14033,7 +14992,7 @@ public static class CogitaEndpoints
                 writer.WriteStartObject();
                 writer.WriteString("connectionId", connection.Id);
                 writer.WriteString("connectionType", connection.ConnectionType);
-                writer.WritePropertyName("infoIds");
+                writer.WritePropertyName("notionIds");
                 writer.WriteStartArray();
                 if (connectionItemsLookup.TryGetValue(connection.Id, out var infoIdsForConnection))
                 {
@@ -14070,7 +15029,7 @@ public static class CogitaEndpoints
             foreach (var group in collectionGroups)
             {
                 writer.WriteStartObject();
-                writer.WriteString("collectionInfoId", group.Key);
+                writer.WriteString("collectionNotionId", group.Key);
                 writer.WritePropertyName("items");
                 writer.WriteStartArray();
                 foreach (var item in group.OrderBy(x => x.SortOrder))
@@ -14158,7 +15117,7 @@ public static class CogitaEndpoints
                 var infoKeyMap = new Dictionary<string, Guid>();
                 var connectionKeyMap = new Dictionary<string, Guid>();
 
-                foreach (var infoType in request.Infos.Select(x => x.InfoType.Trim().ToLowerInvariant()).Distinct())
+                foreach (var infoType in request.Notions.Select(x => x.NotionType.Trim().ToLowerInvariant()).Distinct())
                 {
                     if (!SupportedInfoTypes.Contains(infoType))
                     {
@@ -14211,9 +15170,9 @@ public static class CogitaEndpoints
                 }
 
                 var pendingInfos = 0;
-                foreach (var info in request.Infos)
+                foreach (var info in request.Notions)
                 {
-                    var infoType = info.InfoType.Trim().ToLowerInvariant();
+                    var infoType = info.NotionType.Trim().ToLowerInvariant();
                     if (!SupportedInfoTypes.Contains(infoType))
                     {
                         continue;
@@ -14224,7 +15183,7 @@ public static class CogitaEndpoints
                     {
                         var created = await CreateInfoInternalAsync(
                             library,
-                            new CogitaCreateInfoRequest(infoType, info.Payload, infoKeyId == Guid.Empty ? null : infoKeyId, null),
+                            new CogitaCreateNotionRequest(infoType, info.Payload, infoKeyId == Guid.Empty ? null : infoKeyId, null),
                             readKey,
                             ownerKey,
                             userId,
@@ -14235,7 +15194,7 @@ public static class CogitaEndpoints
                             dbContext,
                             ct,
                             saveChanges: false);
-                        infoMap[info.InfoId] = created.InfoId;
+                        infoMap[info.NotionId] = created.NotionId;
                         pendingInfos++;
                     }
                     catch (InvalidOperationException)
@@ -14264,7 +15223,7 @@ public static class CogitaEndpoints
                     {
                         continue;
                     }
-                    var mappedIds = connection.InfoIds
+                    var mappedIds = connection.NotionIds
                         .Where(id => infoMap.ContainsKey(id))
                         .Select(id => infoMap[id])
                         .ToList();
@@ -14465,7 +15424,7 @@ public static class CogitaEndpoints
 
             try
             {
-                foreach (var infoType in request.Infos.Select(x => x.InfoType.Trim().ToLowerInvariant()).Distinct())
+                foreach (var infoType in request.Notions.Select(x => x.NotionType.Trim().ToLowerInvariant()).Distinct())
                 {
                     if (!SupportedInfoTypes.Contains(infoType))
                     {
@@ -14517,14 +15476,14 @@ public static class CogitaEndpoints
                     dbContext.ChangeTracker.Clear();
                 }
 
-                var totalInfos = request.Infos.Count;
+                var totalInfos = request.Notions.Count;
                 var totalConnections = request.Connections.Count;
                 var totalCollections = request.Collections.Count;
                 var pendingInfos = 0;
                 var processedInfos = 0;
-                foreach (var info in request.Infos)
+                foreach (var info in request.Notions)
                 {
-                    var infoType = info.InfoType.Trim().ToLowerInvariant();
+                    var infoType = info.NotionType.Trim().ToLowerInvariant();
                     if (!SupportedInfoTypes.Contains(infoType))
                     {
                         processedInfos++;
@@ -14537,7 +15496,7 @@ public static class CogitaEndpoints
                     {
                         var created = await CreateInfoInternalAsync(
                             library,
-                            new CogitaCreateInfoRequest(infoType, info.Payload, infoKeyId == Guid.Empty ? null : infoKeyId, null),
+                            new CogitaCreateNotionRequest(infoType, info.Payload, infoKeyId == Guid.Empty ? null : infoKeyId, null),
                             readKey,
                             ownerKey,
                             userId,
@@ -14548,7 +15507,7 @@ public static class CogitaEndpoints
                             dbContext,
                             ct,
                             saveChanges: false);
-                        infoMap[info.InfoId] = created.InfoId;
+                        infoMap[info.NotionId] = created.NotionId;
                         pendingInfos++;
                     }
                     catch (InvalidOperationException)
@@ -14581,7 +15540,7 @@ public static class CogitaEndpoints
                         processedConnections++;
                         continue;
                     }
-                    var mappedIds = connection.InfoIds
+                    var mappedIds = connection.NotionIds
                         .Where(id => infoMap.ContainsKey(id))
                         .Select(id => infoMap[id])
                         .ToList();
@@ -14714,7 +15673,7 @@ public static class CogitaEndpoints
 
         group.MapPost("/libraries/{libraryId:guid}/notions", async (
             Guid libraryId,
-            CogitaCreateInfoRequest request,
+            CogitaCreateNotionRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
@@ -14849,7 +15808,7 @@ public static class CogitaEndpoints
 
             await transaction.CommitAsync(ct);
 
-            return Results.Ok(new CogitaCreateInfoResponse(infoId, infoType));
+            return Results.Ok(new CogitaCreateNotionResponse(infoId, infoType));
         });
 
         group.MapPost("/libraries/{libraryId:guid}/connections", async (
@@ -19656,9 +20615,9 @@ public static class CogitaEndpoints
         return (newKeyId, newKey);
     }
 
-    private static async Task<CogitaCreateInfoResponse> CreateInfoInternalAsync(
+    private static async Task<CogitaCreateNotionResponse> CreateInfoInternalAsync(
         CogitaLibrary library,
-        CogitaCreateInfoRequest request,
+        CogitaCreateNotionRequest request,
         byte[] readKey,
         byte[] ownerKey,
         Guid userId,
@@ -19742,7 +20701,7 @@ public static class CogitaEndpoints
             await dbContext.SaveChangesAsync(ct);
         }
 
-        return new CogitaCreateInfoResponse(infoId, infoType);
+        return new CogitaCreateNotionResponse(infoId, infoType);
     }
 
     private static async Task<CogitaCreateConnectionResponse> CreateConnectionInternalAsync(
@@ -26206,6 +27165,99 @@ public static class CogitaEndpoints
         return (share, library, libraryReadKey);
     }
 
+    private static async Task<(CogitaStoryboardSession Session, CogitaLibrary Library, byte[] LibraryReadKey)?> TryResolveStoryboardSessionAsync(
+        string? code,
+        RecreatioDbContext dbContext,
+        IEncryptionService encryptionService,
+        IMasterKeyService masterKeyService,
+        IHashingService hashingService,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return null;
+        }
+
+        if (!await HasCogitaStoryboardSessionRuntimeSchemaAsync(dbContext, ct))
+        {
+            return null;
+        }
+
+        code = code.Trim();
+        if (code.Length < 6 || code.Length > 128)
+        {
+            return null;
+        }
+
+        var codeBytes = Encoding.UTF8.GetBytes(code);
+        var codeHash = hashingService.Hash(codeBytes);
+
+        var session = await dbContext.CogitaStoryboardSessions.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.PublicCodeHash == codeHash && x.RevokedUtc == null, ct);
+        if (session is null || session.EncLibraryReadKey.Length == 0)
+        {
+            return null;
+        }
+
+        var library = await dbContext.CogitaLibraries.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == session.LibraryId, ct);
+        if (library is null)
+        {
+            return null;
+        }
+
+        byte[] libraryReadKey;
+        try
+        {
+            var sessionKey = masterKeyService.DeriveSharedViewKey(codeBytes, session.Id);
+            libraryReadKey = encryptionService.Decrypt(sessionKey, session.EncLibraryReadKey, library.RoleId.ToByteArray());
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+
+        return (session, library, libraryReadKey);
+    }
+
+    private static async Task<CogitaStoryboardSessionParticipant> UpsertStoryboardSessionParticipantAsync(
+        Guid storyboardSessionId,
+        string participantToken,
+        Guid? userId,
+        RecreatioDbContext dbContext,
+        IHashingService hashingService,
+        CancellationToken ct)
+    {
+        var tokenHash = hashingService.Hash(Encoding.UTF8.GetBytes((participantToken ?? string.Empty).Trim()));
+        var participant = await dbContext.CogitaStoryboardSessionParticipants
+            .FirstOrDefaultAsync(x => x.SessionId == storyboardSessionId && x.JoinTokenHash == tokenHash, ct);
+        var now = DateTimeOffset.UtcNow;
+        if (participant is null)
+        {
+            participant = new CogitaStoryboardSessionParticipant
+            {
+                Id = Guid.NewGuid(),
+                SessionId = storyboardSessionId,
+                JoinTokenHash = tokenHash,
+                UserId = userId,
+                JoinedUtc = now,
+                UpdatedUtc = now
+            };
+            dbContext.CogitaStoryboardSessionParticipants.Add(participant);
+        }
+        else
+        {
+            participant.UpdatedUtc = now;
+            if (userId.HasValue && participant.UserId is null)
+            {
+                participant.UserId = userId;
+            }
+        }
+
+        await dbContext.SaveChangesAsync(ct);
+        return participant;
+    }
+
     private static async Task<(CogitaRevisionShare Share, CogitaLibrary Library, byte[] LibraryReadKey)?> TryResolveRevisionShareAsync(
         string? code,
         string? key,
@@ -26362,6 +27414,66 @@ public static class CogitaEndpoints
                 COL_LENGTH('dbo.CogitaStoryboardShares', 'EncLibraryReadKey') IS NOT NULL AND
                 COL_LENGTH('dbo.CogitaStoryboardShares', 'CreatedUtc') IS NOT NULL AND
                 COL_LENGTH('dbo.CogitaStoryboardShares', 'RevokedUtc') IS NOT NULL
+            THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END;";
+
+        try
+        {
+            var connection = dbContext.Database.GetDbConnection();
+            var shouldClose = connection.State != ConnectionState.Open;
+            if (shouldClose)
+            {
+                await connection.OpenAsync(ct);
+            }
+
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = sql;
+                var scalar = await command.ExecuteScalarAsync(ct);
+                return scalar is bool value && value;
+            }
+            finally
+            {
+                if (shouldClose)
+                {
+                    await connection.CloseAsync();
+                }
+            }
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static async Task<bool> HasCogitaStoryboardSessionRuntimeSchemaAsync(
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        const string sql = @"
+            SELECT CASE WHEN
+                OBJECT_ID(N'dbo.CogitaStoryboardSessions', N'U') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessions', 'LibraryId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessions', 'ProjectId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessions', 'OwnerRoleId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessions', 'PublicCodeHash') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessions', 'EncSessionCode') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessions', 'EncLibraryReadKey') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessions', 'CreatedUtc') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessions', 'RevokedUtc') IS NOT NULL AND
+                OBJECT_ID(N'dbo.CogitaStoryboardSessionParticipants', N'U') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'SessionId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'JoinTokenHash') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'JoinedUtc') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'UpdatedUtc') IS NOT NULL AND
+                OBJECT_ID(N'dbo.CogitaStoryboardSessionAnswers', N'U') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionAnswers', 'SessionId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionAnswers', 'ParticipantId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionAnswers', 'NodeKey') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionAnswers', 'IsCorrect') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionAnswers', 'AttemptCount') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionAnswers', 'FirstSubmittedUtc') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionAnswers', 'UpdatedUtc') IS NOT NULL
             THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END;";
 
         try

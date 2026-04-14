@@ -124,6 +124,9 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaRevision> CogitaRevisions => Set<Data.Cogita.CogitaRevision>();
     public DbSet<Data.Cogita.CogitaRevisionShare> CogitaRevisionShares => Set<Data.Cogita.CogitaRevisionShare>();
     public DbSet<Data.Cogita.CogitaStoryboardShare> CogitaStoryboardShares => Set<Data.Cogita.CogitaStoryboardShare>();
+    public DbSet<Data.Cogita.CogitaStoryboardSession> CogitaStoryboardSessions => Set<Data.Cogita.CogitaStoryboardSession>();
+    public DbSet<Data.Cogita.CogitaStoryboardSessionParticipant> CogitaStoryboardSessionParticipants => Set<Data.Cogita.CogitaStoryboardSessionParticipant>();
+    public DbSet<Data.Cogita.CogitaStoryboardSessionAnswer> CogitaStoryboardSessionAnswers => Set<Data.Cogita.CogitaStoryboardSessionAnswer>();
     public DbSet<Data.Cogita.CogitaLiveRevisionSession> CogitaLiveRevisionSessions => Set<Data.Cogita.CogitaLiveRevisionSession>();
     public DbSet<Data.Cogita.CogitaLiveRevisionParticipant> CogitaLiveRevisionParticipants => Set<Data.Cogita.CogitaLiveRevisionParticipant>();
     public DbSet<Data.Cogita.CogitaLiveRevisionAnswer> CogitaLiveRevisionAnswers => Set<Data.Cogita.CogitaLiveRevisionAnswer>();
@@ -937,6 +940,25 @@ public sealed class RecreatioDbContext : DbContext
             .IsUnique();
         modelBuilder.Entity<Data.Cogita.CogitaStoryboardShare>()
             .HasIndex(x => x.PublicCodeHash);
+        modelBuilder.Entity<Data.Cogita.CogitaStoryboardSession>()
+            .HasIndex(x => new { x.LibraryId, x.ProjectId, x.RevokedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaStoryboardSession>()
+            .HasIndex(x => x.PublicCodeHash)
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaStoryboardSessionParticipant>()
+            .HasIndex(x => new { x.SessionId, x.JoinTokenHash })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaStoryboardSessionAnswer>()
+            .Property(x => x.NodeKey)
+            .HasMaxLength(256);
+        modelBuilder.Entity<Data.Cogita.CogitaStoryboardSessionAnswer>()
+            .Property(x => x.CheckType)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaStoryboardSessionAnswer>()
+            .HasIndex(x => new { x.SessionId, x.ParticipantId, x.NodeKey })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaStoryboardSessionAnswer>()
+            .HasIndex(x => new { x.SessionId, x.NodeKey });
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionSession>()
             .Property(x => x.Status)
             .HasMaxLength(24);

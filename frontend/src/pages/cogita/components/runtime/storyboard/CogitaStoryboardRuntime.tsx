@@ -2,15 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   downloadCogitaPublicStoryboardFile,
+  downloadCogitaPublicStoryboardSessionFile,
   downloadDataItemFile,
   getCogitaCreationProjects,
-  getCogitaInfoApproachProjection,
-  getCogitaInfoCheckcards,
-  getCogitaInfoDetail,
-  getCogitaPublicStoryboardInfoApproachProjection,
-  getCogitaPublicStoryboardInfoCheckcards,
-  getCogitaPublicStoryboardInfoDetail,
+  getCogitaNotionApproachProjection,
+  getCogitaNotionCheckcards,
+  getCogitaNotionDetail,
+  getCogitaPublicStoryboardSession,
+  getCogitaPublicStoryboardSessionNotionApproachProjection,
+  getCogitaPublicStoryboardSessionNotionCheckcards,
+  getCogitaPublicStoryboardSessionNotionDetail,
+  getCogitaPublicStoryboardNotionApproachProjection,
+  getCogitaPublicStoryboardNotionCheckcards,
+  getCogitaPublicStoryboardNotionDetail,
   getCogitaPublicStoryboardShare,
+  submitCogitaPublicStoryboardSessionAnswer,
+  touchCogitaPublicStoryboardSessionParticipant,
   type CogitaCardSearchResult,
   type CogitaCreationProject
 } from '../../../../../lib/api';
@@ -1360,6 +1367,7 @@ export type CogitaStoryboardRuntimeProps = {
   libraryId?: string;
   storyboardId?: string;
   shareCode?: string;
+  sessionCode?: string;
 };
 
 export function CogitaStoryboardRuntime({
@@ -1375,7 +1383,8 @@ export function CogitaStoryboardRuntime({
   onLanguageChange,
   libraryId,
   storyboardId,
-  shareCode
+  shareCode,
+  sessionCode
 }: CogitaStoryboardRuntimeProps) {
   const navigate = useNavigate();
   const runtimeCopy = copy.cogita.library.modules.storyboardsRuntime;
@@ -1425,6 +1434,66 @@ export function CogitaStoryboardRuntime({
     typeof window !== 'undefined' ? window.innerWidth < 980 : false
   );
   const [outlineOpenOnNarrow, setOutlineOpenOnNarrow] = useState(false);
+  const sessionParticipantTokenRef = useRef<string | null>(null);
+  const activeRuntimeSessionCode = useMemo(() => {
+    const normalized = sessionCode?.trim();
+    return normalized ? normalized : null;
+  }, [sessionCode]);
+
+  const ensureSessionParticipantToken = useCallback(async () => {
+    if (!activeRuntimeSessionCode) return null;
+    if (sessionParticipantTokenRef.current) return sessionParticipantTokenRef.current;
+
+    const storageKey = `cogita.storyboard.session.participant.${activeRuntimeSessionCode}`;
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem(storageKey) : null;
+    const fallbackToken =
+      stored && stored.trim().length >= 8
+        ? stored.trim()
+        : typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 18)}`;
+
+    const touched = await touchCogitaPublicStoryboardSessionParticipant({
+      sessionCode: activeRuntimeSessionCode,
+      participantToken: fallbackToken
+    });
+    const participantToken = (touched.participantToken ?? fallbackToken).trim() || fallbackToken;
+    sessionParticipantTokenRef.current = participantToken;
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(storageKey, participantToken);
+    }
+    return participantToken;
+  }, [activeRuntimeSessionCode]);
+
+  const submitSessionOutcome = useCallback(async (
+    nodeKey: string,
+    notionId: string,
+    checkType: string | null,
+    isCorrect: boolean
+  ) => {
+    if (!activeRuntimeSessionCode) return;
+    const participantToken = await ensureSessionParticipantToken();
+    if (!participantToken) return;
+
+    let notionIdValue: string | null = null;
+    const normalizedNotionId = notionId.trim();
+    if (normalizedNotionId && /^[0-9a-fA-F-]{32,36}$/.test(normalizedNotionId)) {
+      notionIdValue = normalizedNotionId;
+    }
+
+    try {
+      await submitCogitaPublicStoryboardSessionAnswer({
+        sessionCode: activeRuntimeSessionCode,
+        participantToken,
+        nodeKey,
+        notionId: notionIdValue,
+        checkType,
+        isCorrect
+      });
+    } catch {
+      // Keep runtime flow uninterrupted even if telemetry submit fails.
+    }
+  }, [activeRuntimeSessionCode, ensureSessionParticipantToken]);
 
   const refreshRuntimeNavigation = useCallback(() => {
     const stack = runtimeHistoryRef.current;
@@ -1501,9 +1570,50 @@ export function CogitaStoryboardRuntime({
   useEffect(() => {
     cardRuntimeCacheRef.current = {};
     cardRuntimeInFlightRef.current = {};
-  }, [libraryId, runtimeLibraryId, shareCode, storyboardId]);
+    sessionParticipantTokenRef.current = null;
+  }, [libraryId, runtimeLibraryId, shareCode, sessionCode, storyboardId]);
 
   useEffect(() => {
+    if (activeRuntimeSessionCode) {
+      let cancelled = false;
+      setLoading(true);
+      setStatus(null);
+      setRuntimeLibraryId(undefined);
+
+      getCogitaPublicStoryboardSession({ sessionCode: activeRuntimeSessionCode })
+        .then((session) => {
+          if (cancelled) return;
+          const normalized = normalizeDocument(session.content);
+          setRuntimeLibraryId(session.libraryId);
+          setProject({
+            projectId: session.projectId,
+            projectType: 'storyboard',
+            name: session.projectName,
+            content: session.content ?? null,
+            createdUtc: session.createdUtc,
+            updatedUtc: session.createdUtc
+          });
+          setDocumentState(normalized);
+          setInitialRuntimeState(createInitialRuntime(normalized.rootGraph));
+          setLoading(false);
+          void ensureSessionParticipantToken().catch(() => {
+            // Keep runtime usable even when participant registration fails.
+          });
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setStatus(err instanceof Error ? err.message : runtimeCopy.statusLoadSharedFailed);
+          setProject(null);
+          setDocumentState(null);
+          setInitialRuntimeState(null);
+          setLoading(false);
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
     if (shareCode) {
       let cancelled = false;
       setLoading(true);
@@ -1587,7 +1697,7 @@ export function CogitaStoryboardRuntime({
     return () => {
       cancelled = true;
     };
-  }, [libraryId, storyboardId, setInitialRuntimeState, shareCode, runtimeCopy.statusLoadFailed, runtimeCopy.statusLoadSharedFailed, runtimeCopy.statusNotFound]);
+  }, [activeRuntimeSessionCode, ensureSessionParticipantToken, libraryId, storyboardId, setInitialRuntimeState, shareCode, runtimeCopy.statusLoadFailed, runtimeCopy.statusLoadSharedFailed, runtimeCopy.statusNotFound]);
 
   useEffect(() => {
     return () => {
@@ -1837,19 +1947,23 @@ export function CogitaStoryboardRuntime({
     let checkType: string | null = node.cardCheckType.trim() || null;
     let pythonDefinition: PythonRuntimeDefinition | null = null;
     const isSharedRuntime = Boolean(shareCode);
+    const isSessionRuntime = Boolean(activeRuntimeSessionCode);
+    const isPublicRuntime = isSharedRuntime || isSessionRuntime;
     const notionId = node.notionId.trim();
     const publicNotionPayload =
       notionId && documentState?.publicNotionPayloads
         ? documentState.publicNotionPayloads[notionId]
         : undefined;
 
-    if ((isSharedRuntime || runtimeLibraryId) && notionId) {
+    if ((isPublicRuntime || runtimeLibraryId) && notionId) {
       try {
-        const cardsBundle = isSharedRuntime
-          ? await getCogitaPublicStoryboardInfoCheckcards({ shareCode: shareCode!, infoId: notionId })
-          : await getCogitaInfoCheckcards({ libraryId: runtimeLibraryId!, infoId: notionId });
+        const cardsBundle = isSessionRuntime
+          ? await getCogitaPublicStoryboardSessionNotionCheckcards({ sessionCode: activeRuntimeSessionCode!, notionId })
+          : isSharedRuntime
+            ? await getCogitaPublicStoryboardNotionCheckcards({ shareCode: shareCode!, notionId })
+            : await getCogitaNotionCheckcards({ libraryId: runtimeLibraryId!, notionId });
         const initialQuestionPayload =
-          cardsBundle.items.find((card) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
+          cardsBundle.items.find((card: CogitaCardSearchResult) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
           null;
         const preferredQuestionCheckType =
           node.cardCheckType.trim().toLowerCase() === 'question'
@@ -1860,26 +1974,34 @@ export function CogitaStoryboardRuntime({
             : null;
         const selectedCard = pickNodeCard(node, cardsBundle.items, preferredQuestionCheckType);
         const selectedCheckType = (selectedCard?.checkType ?? node.cardCheckType ?? '').trim().toLowerCase();
-        const selectedInfoType = (selectedCard?.infoType ?? '').trim().toLowerCase();
+        const selectedInfoType = (selectedCard?.notionType ?? '').trim().toLowerCase();
         const isPythonCard = selectedCheckType === 'python' || selectedInfoType === 'python';
-        const detail = await (isSharedRuntime
-          ? getCogitaPublicStoryboardInfoDetail({ shareCode: shareCode!, infoId: notionId })
-          : getCogitaInfoDetail({ libraryId: runtimeLibraryId!, infoId: notionId })
+        const detail = await (isSessionRuntime
+          ? getCogitaPublicStoryboardSessionNotionDetail({ sessionCode: activeRuntimeSessionCode!, notionId })
+          : isSharedRuntime
+            ? getCogitaPublicStoryboardNotionDetail({ shareCode: shareCode!, notionId })
+            : getCogitaNotionDetail({ libraryId: runtimeLibraryId!, notionId })
         ).catch(() => null);
         let vocabProjection: Record<string, unknown> | null = null;
-        if (detail?.infoType === 'translation') {
+        if (detail?.notionType === 'translation') {
           try {
-            const projection = isSharedRuntime
-              ? await getCogitaPublicStoryboardInfoApproachProjection({
-                  shareCode: shareCode!,
-                  infoId: notionId,
+            const projection = isSessionRuntime
+              ? await getCogitaPublicStoryboardSessionNotionApproachProjection({
+                  sessionCode: activeRuntimeSessionCode!,
+                  notionId,
                   approachKey: 'vocab-card'
                 })
-              : await getCogitaInfoApproachProjection({
-                  libraryId: runtimeLibraryId!,
-                  infoId: notionId,
-                  approachKey: 'vocab-card'
-                });
+              : isSharedRuntime
+                ? await getCogitaPublicStoryboardNotionApproachProjection({
+                    shareCode: shareCode!,
+                    notionId,
+                    approachKey: 'vocab-card'
+                  })
+                : await getCogitaNotionApproachProjection({
+                    libraryId: runtimeLibraryId!,
+                    notionId,
+                    approachKey: 'vocab-card'
+                  });
             vocabProjection = (projection.projection ?? null) as Record<string, unknown> | null;
           } catch {
             vocabProjection = null;
@@ -1888,11 +2010,11 @@ export function CogitaStoryboardRuntime({
         const built = buildCardPromptAndExpected({
           node,
           card: selectedCard,
-          infoType: detail?.infoType ?? selectedCard?.infoType ?? null,
+          infoType: detail?.notionType ?? selectedCard?.notionType ?? null,
           infoPayload: detail?.payload ? (detail.payload as Record<string, unknown>) : null,
           vocabProjection
         });
-        notionType = detail?.infoType ?? selectedCard?.infoType ?? null;
+        notionType = detail?.notionType ?? selectedCard?.notionType ?? null;
         cardType = selectedCard?.cardType ?? null;
         checkType = selectedCard?.checkType ?? checkType;
         prompt = built.prompt;
@@ -1931,11 +2053,11 @@ export function CogitaStoryboardRuntime({
           pythonDefinition = null;
         } else {
         const questionRuntime =
-          (detail?.infoType === 'question' || selectedCard?.infoType === 'question')
+          (detail?.notionType === 'question' || selectedCard?.notionType === 'question')
             ? buildStoryboardQuestionRuntime(
                 detail?.payload ??
                   selectedCard?.payload ??
-                  cardsBundle.items.find((card) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
+                  cardsBundle.items.find((card: CogitaCardSearchResult) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
                   publicNotionPayload ??
                   null,
                 prompt
@@ -2036,7 +2158,7 @@ export function CogitaStoryboardRuntime({
       checkType,
       pythonDefinition
     };
-  }, [documentState, runtimeLibraryId, shareCode]);
+  }, [activeRuntimeSessionCode, documentState, runtimeLibraryId, shareCode]);
 
   const getOrLoadCardRuntime = useCallback((node: StoryboardNodeRecord, graphPath: string[]) => {
     const nodeKey = buildNodeKey(graphPath, node.nodeId);
@@ -2222,9 +2344,11 @@ export function CogitaStoryboardRuntime({
       }
 
       mediaLoadingKeysRef.current.add(key);
-      const loader = shareCode
-        ? downloadCogitaPublicStoryboardFile({ shareCode, dataItemId: fileId })
-        : downloadDataItemFile(fileId);
+      const loader = activeRuntimeSessionCode
+        ? downloadCogitaPublicStoryboardSessionFile({ sessionCode: activeRuntimeSessionCode, dataItemId: fileId })
+        : shareCode
+          ? downloadCogitaPublicStoryboardFile({ shareCode, dataItemId: fileId })
+          : downloadDataItemFile(fileId);
 
       void loader
         .then((blob) => {
@@ -2251,7 +2375,7 @@ export function CogitaStoryboardRuntime({
     return () => {
       cancelled = true;
     };
-  }, [runtime, shareCode]);
+  }, [activeRuntimeSessionCode, runtime, shareCode]);
 
   const pathChoices = useMemo(() => {
     if (!runtime || !currentNode || currentNode.kind === 'card') return [];
@@ -2520,6 +2644,12 @@ export function CogitaStoryboardRuntime({
             pythonProgress: null
           };
         });
+        void submitSessionOutcome(
+          cardState.nodeKey,
+          currentNode.notionId,
+          normalizedCheckType || null,
+          true
+        );
 
         const outcomeEdge =
           cardRightEdge ??
@@ -2541,6 +2671,12 @@ export function CogitaStoryboardRuntime({
           pythonProgress: null
         };
       });
+      void submitSessionOutcome(
+        cardState.nodeKey,
+        currentNode.notionId,
+        normalizedCheckType || null,
+        false
+      );
       setStatus(null);
       return;
     }
@@ -2569,6 +2705,12 @@ export function CogitaStoryboardRuntime({
         pythonProgress: null
       };
     });
+    void submitSessionOutcome(
+      cardState.nodeKey,
+      currentNode.notionId,
+      normalizedCheckType || null,
+      isCorrect
+    );
 
     const outcomeEdge =
       (isCorrect ? cardRightEdge : cardWrongEdge) ??
@@ -2593,6 +2735,12 @@ export function CogitaStoryboardRuntime({
         pythonProgress: null
       };
     });
+    void submitSessionOutcome(
+      cardState.nodeKey,
+      currentNode.notionId,
+      normalizedCheckType || null,
+      false
+    );
 
     const outcomeEdge =
       cardWrongEdge ??

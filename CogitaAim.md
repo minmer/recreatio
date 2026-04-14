@@ -20,7 +20,7 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +
 +1. **Part I — Data, Domain Model, and Cryptography**
 +   - Canonical entities.
-+   - Knowledge Item and Card model.
++   - Notion and Card model.
 +   - Knowness and dependency semantics.
 +   - Cryptographic and hashing approach.
 +
@@ -52,16 +52,18 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +
 +## I.2 Canonical terminology
 +
-+1. “Info” is deprecated and **MUST** be replaced by **Knowledge Item**.
-+2. “Checkcard / Checking Card” is deprecated and **MUST** be replaced by **Card**.
-+3. “Core revision/runtime” label is deprecated and **MUST** be replaced by canonical **Revision/Runtime** language.
++1. "Info" is deprecated and **MUST** be replaced by **Notion**.
++2. "Checkcard / Checking Card" is deprecated and **MUST** be replaced by **Card**.
++3. "Core revision/runtime" label is deprecated and **MUST** be replaced by canonical **Revision/Runtime** language.
++
++Note on DB-stored string values: `ItemType` column values (e.g. `"info"`, `"collection"`) are persisted in existing DB rows and remain unchanged at the storage level. Only the external API naming uses "notion".
 +
 +## I.3 Logical entity families
 +
 +Cogita data model **MUST** include at least these logical families:
 +1. Access and role.
 +2. Library.
-+3. Knowledge Item.
++3. Notion.
 +4. Card.
 +5. Dependency.
 +6. Collection.
@@ -71,6 +73,7 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +10. Storyboard.
 +11. Writing.
 +12. Knowness/statistics.
++13. Game.
 +
 +## I.4 Library
 +
@@ -82,24 +85,24 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +3. Scoped subset publication (e.g., selected revision/storyboard scope).
 +
 +A library **SHOULD** support aggregated indicators:
-+- item counts,
++- notion counts,
 +- card counts,
 +- revision usage,
 +- knowness coverage.
 +
-+## I.5 Knowledge Item
++## I.5 Notion
 +
-+Knowledge Item is the canonical semantic content entity.
++Notion is the canonical semantic content entity (replacing the deprecated "Info" term).
 +
-+Each Knowledge Item **MUST** include:
++Each Notion **MUST** include:
 +1. Identity metadata.
-+2. Type/schema metadata.
++2. Type/schema metadata (`notionType`).
 +3. Payload section for single-use fields.
 +4. Link/reference section to other notions.
 +5. Derived card metadata (0..N cards).
 +
 +### I.5.1 Payload principle
-+Fields that are local-only and not used as cross-item selectors **MUST** be stored in item payload.
++Fields that are local-only and not used as cross-notion selectors **MUST** be stored in notion payload.
 +
 +### I.5.2 Link/reference principle
 +Fields linking to other notions **MUST** use encrypted link storage and deterministic hash indexing for performant relation lookup.
@@ -108,7 +111,7 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +
 +Cards are generated from notions and power revision checks.
 +
-+Card cardinality per item:
++Card cardinality per notion:
 +- 0 cards,
 +- 1 card,
 +- N cards.
@@ -185,7 +188,7 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +
 +## I.10 Collections
 +
-+Collection defines structured scope over knowledge/card space.
++Collection defines structured scope over notion/card space.
 +
 +Collection **MUST** carry a rule describing how content is selected.
 +
@@ -237,7 +240,15 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +
 +Storyboard and writing are first-class modules in final product shape.
 +
-+Both modules **MUST** integrate with Knowledge Item references and reuse shared entity components.
++Both modules **MUST** integrate with Notion references and reuse shared entity components.
++
++### I.15.1 Storyboard session (public session mode)
++Storyboard **MUST** support a public session mode:
++- Owner creates a session with an encrypted session code.
++- Participants join via code without requiring authentication.
++- Participant identity tracked via hashed join token (stored in DB).
++- Answers recorded per participant, per node, with attempt count.
++- Results (per-participant and per-node aggregates) accessible to the session owner.
 +
 +## I.16 Cryptographic approach
 +
@@ -383,15 +394,18 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +1. libraries,
 +2. notions,
 +3. cards,
-+4. dependencies,
-+5. collections,
-+6. revisions,
-+7. runtime runs,
-+8. live sessions,
-+9. storyboard,
-+10. writing,
-+11. statistics,
-+12. dashboard personalization.
++4. notion-types,
++5. dependencies,
++6. collections,
++7. revisions,
++8. runtime runs,
++9. live sessions,
++10. storyboard,
++11. storyboard-sessions,
++12. writing,
++13. statistics,
++14. dashboard personalization,
++15. games.
 +
 +## II.13 Dashboard personalization backend contract
 +
@@ -470,17 +484,19 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +   - Live Mode
 +   - Storyboard Mode
 +   - Writing Mode
++   - Game Mode
 +
 +2. Workspace Mode hierarchy
 +   - Libraries
 +     - Library Overview
-+     - Knowledge Item domain
++     - Notion domain
 +     - Card domain
 +     - Dependency domain
 +     - Collection domain
 +     - Revision template domain
 +     - Storyboard authoring domain
 +     - Writing authoring domain
++     - Game authoring domain
 +     - Access/publication domain
 +
 +3. Runtime hierarchy (outside workspace)
@@ -489,6 +505,10 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +   - Group async pages
 +   - Group sync pages
 +   - Live wall pages
++   - Storyboard playback pages
++   - Storyboard session pages (public)
++   - Writing runtime pages
++   - Game pages
 +
 +## III.2 URL policy
 +
@@ -499,11 +519,27 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +
 +Examples:
 +- `/cogita/workspace/libraries/{libraryId}`
-+- `/cogita/revision/solo/{revisionId}`
-+- `/cogita/revision/shared/{shareCode}`
-+- `/cogita/revision/group-sync/{revisionId}`
-+- `/cogita/live/wall/participant/{sessionId}`
-+- `/cogita/live/wall/host/{sessionId}`
++- `/cogita/workspace/libraries/{libraryId}/notions`
++- `/cogita/revision/solo/{libraryId}/{runId}`
++- `/cogita/revision/shared/{shareCode}/{runId}`
++- `/cogita/revision/group-async/{libraryId}/{runId}`
++- `/cogita/revision/group-sync/{libraryId}/{runId}`
++- `/cogita/live/wall/participant/{code}`
++- `/cogita/live/wall/host/{libraryId}/{revisionId}`
++- `/cogita/public/storyboard/{code}`
++- `/cogita/public/storyboard-session/{code}`
++- `/cogita/runtime/storyboard/{libraryId}/{storyboardId}`
++- `/cogita/writing/{libraryId}/{projectId}`
++- `/cogita/game/join/{code}`
++- `/cogita/game/host/{libraryId}/{sessionId}`
++
++Legacy redirect aliases (kept for backwards compatibility):
++- `/cogita/core` → `/cogita/revision`
++- `/cogita/library/` → `/cogita/workspace/libraries/`
++- `/cogita/persons` → `/cogita/workspace/persons`
++- `/cogita/revision/shared-run/` → `/cogita/revision/shared/`
++- `/cogita/storyboard/shared/` → `/cogita/public/storyboard/`
++- `/cogita/core/runs/` → `/cogita/revision/solo/`
 +
 +## III.3 Display model taxonomy
 +
@@ -550,7 +586,7 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +
 +Workspace entity components **MUST** be reusable standalone components.
 +
-+Reusable components **MUST** support “Show in workspace” action when opened from non-workspace contexts.
++Reusable components **MUST** support "Show in workspace" action when opened from non-workspace contexts.
 +
 +## III.6 Revision fullscreen requirements
 +
@@ -642,13 +678,13 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +  - role read grants,
 +  - subset publication scope management.
 +
-+#### Knowledge Item List
++#### Notion List
 +- Display: Model C.
 +- Functions:
 +  - filter/sort,
 +  - open editors.
 +
-+#### Knowledge Item Detail
++#### Notion Detail
 +- Display: standalone component (Model C or overlay).
 +- Functions:
 +  - payload,
@@ -656,7 +692,7 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +  - generated cards,
 +  - dependencies.
 +
-+#### Knowledge Item Editor
++#### Notion Editor
 +- Display: standalone component.
 +- Functions:
 +  - payload edit,
@@ -746,7 +782,15 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +- Functions:
 +  - long-form composition,
 +  - citation/LaTeX handling,
-+  - knowledge insertion.
++  - notion insertion.
++
++#### Game Authoring
++- Display: Model C.
++- Functions:
++  - game definition,
++  - action graph,
++  - layout configuration per role,
++  - game values.
 +
 +### III.9.3 Revision execution pages
 +
@@ -815,13 +859,36 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +  - guided progression,
 +  - optional handoff to revision.
 +
++#### Storyboard Public Session
++- Display: immersive learning mode (public, no auth required).
++- Functions:
++  - join via session code,
++  - answer questions at card nodes,
++  - attempt count tracked per node per participant,
++  - session results visible to owner.
++
 +#### Writing Editor Runtime
 +- Display: focused writing mode.
 +- Functions:
 +  - project editing,
 +  - citations,
 +  - latex,
-+  - knowledge references.
++  - notion references.
++
++### III.9.6 Game pages
++
++#### Game Join Page
++- Display: Model D/E hybrid entry.
++- Functions:
++  - code join,
++  - location-based participation.
++
++#### Game Host Page
++- Display: Model E host.
++- Functions:
++  - real-time game control,
++  - location tracking,
++  - score management.
 +
 +## III.10 Overlay reuse model
 +
@@ -852,7 +919,7 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +The following IDs replace scattered repetitive guarantee sections.
 +
 +## RQ-01 Terminology
-+- Requirement: Knowledge Item/Card/Revision canonical naming.
++- Requirement: Notion/Card/Revision canonical naming.
 +- Type: MUST.
 +- Defined in: I.2.
 +
@@ -916,13 +983,13 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +- Type: MUST.
 +- Defined in: III.7.
 +
-+## RQ-14 Knowledge Item payload/reference split
++## RQ-14 Notion payload/reference split
 +- Requirement: single-use payload + encrypted linked references with deterministic hash.
 +- Type: MUST.
 +- Defined in: I.5.
 +
 +## RQ-15 Card generation cardinality
-+- Requirement: one item can generate 0..N cards.
++- Requirement: one notion can generate 0..N cards.
 +- Type: MUST.
 +- Defined in: I.6.
 +
@@ -982,7 +1049,7 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +- Defined in: II.9.
 +
 +## RQ-27 Storyboard first-class module
-+- Requirement: integrated in authoring and user-facing surfaces.
++- Requirement: integrated in authoring and user-facing surfaces, including public session mode.
 +- Type: MUST.
 +- Defined in: I.15, III.8.
 +
@@ -1001,6 +1068,16 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +- Type: MUST.
 +- Defined in: I.1.
 +
++## RQ-31 Game module
++- Requirement: game is a first-class authoring and runtime module.
++- Type: MUST.
++- Defined in: I.3, III.9.6.
++
++## RQ-32 Storyboard session tracking
++- Requirement: public storyboard sessions track participants and answers with aggregate results.
++- Type: MUST.
++- Defined in: I.15.1, II.12.
++
 +---
 +
 +## Appendix A — Compact URL exemplars
@@ -1014,22 +1091,39 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +- `/cogita/workspace/libraries`
 +- `/cogita/workspace/libraries/{libraryId}`
 +- `/cogita/workspace/libraries/{libraryId}/notions`
++- `/cogita/workspace/libraries/{libraryId}/notions/{notionId}`
 +- `/cogita/workspace/libraries/{libraryId}/cards`
 +- `/cogita/workspace/libraries/{libraryId}/dependencies`
 +- `/cogita/workspace/libraries/{libraryId}/collections`
 +- `/cogita/workspace/libraries/{libraryId}/revisions`
++- `/cogita/workspace/libraries/{libraryId}/storyboards`
++- `/cogita/workspace/libraries/{libraryId}/writings`
++- `/cogita/workspace/libraries/{libraryId}/games`
 +
 +### A.3 Revision runtime
-+- `/cogita/revision/solo/{revisionId}`
-+- `/cogita/revision/shared/{shareCode}`
-+- `/cogita/revision/group-async/{revisionId}`
-+- `/cogita/revision/group-sync/{revisionId}`
++- `/cogita/revision/solo/{libraryId}/{runId}`
++- `/cogita/revision/shared/{shareCode}/{runId}`
++- `/cogita/revision/group-async/{libraryId}/{runId}`
++- `/cogita/revision/group-sync/{libraryId}/{runId}`
 +
 +### A.4 Live
 +- `/cogita/live/join/{code}`
-+- `/cogita/live/wall/participant/{sessionId}`
-+- `/cogita/live/wall/host/{sessionId}`
-+- `/cogita/live/wall/output/{sessionId}`
++- `/cogita/live/wall/participant/{code}`
++- `/cogita/live/wall/host/{libraryId}/{revisionId}`
++- `/cogita/live/wall/output/{code}`
++- `/cogita/live/sessions/{libraryId}`
++
++### A.5 Storyboard
++- `/cogita/runtime/storyboard/{libraryId}/{storyboardId}`
++- `/cogita/public/storyboard/{code}`
++- `/cogita/public/storyboard-session/{code}`
++
++### A.6 Writing
++- `/cogita/writing/{libraryId}/{projectId}`
++
++### A.7 Game
++- `/cogita/game/join/{code}`
++- `/cogita/game/host/{libraryId}/{sessionId}`
 +
 +---
 +
@@ -1045,11 +1139,32 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +| Live host | E Live host | desktop multipanel |
 +| Live output | E Safe output | external display |
 +| Storyboard playback | immersive | mobile immersive |
++| Storyboard public session | immersive public | mobile immersive |
 +| Writing editor | focused writing | mobile compact writing |
++| Game join | D/E hybrid | mobile |
++| Game host | E host | desktop multipanel |
 +
 +---
 +
-+## Appendix C — Final statement
++## Appendix C — API naming conventions
++
++| Concept | URL segment | JSON field | C# contract prefix |
++|---|---|---|---|
++| Notion (main content entity) | `notions` | `notionId`, `notionType` | `CogitaNotion*` |
++| Card (revision check) | `cards` | `cardId`, `cardType` | `CogitaCard*` |
++| Notion type spec | `notion-types` | `notionType` | `CogitaNotionType*` |
++| Collection | `collections` | `collectionId` | `CogitaCollection*` |
++| Revision | `revisions` | `revisionId` | `CogitaRevision*` |
++| Library | `libraries` | `libraryId` | `CogitaLibrary*` |
++| Live session | `live-sessions` | `sessionId` | `CogitaLiveRevision*` |
++| Storyboard session | `storyboard-sessions` | `sessionId` | `CogitaStoryboardSession*` |
++| Game | `games` | `gameId` | `CogitaGame*` |
++
++Note: DB-level `ItemType` column stores the legacy value `"info"` for notions. This is an internal storage detail and does not affect the API contract.
++
++---
++
++## Appendix D — Final statement
 +
 +After recreation, Cogita is a coherent product where:
 +1. users start in a configurable operational home,
@@ -1058,4 +1173,6 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +4. shared flow includes short token recovery,
 +5. dependency propagation follows `childKnowness * impact` additive rule,
 +6. storyboard and writing are integrated first-class modules,
-+7. all major surfaces work across desktop and phone.
++7. storyboard supports public session mode with participant tracking,
++8. game is a first-class location-based interactive module,
++9. all major surfaces work across desktop and phone.

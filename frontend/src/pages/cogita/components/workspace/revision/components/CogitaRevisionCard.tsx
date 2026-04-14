@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import type { KeyboardEvent, MutableRefObject } from 'react';
 import type { Copy } from '../../../../../../content/types';
-import type { CogitaCardSearchResult, CogitaInfoSearchResult } from '../../../../../../lib/api';
+import type { CogitaCardSearchResult, CogitaNotionSearchResult } from '../../../../../../lib/api';
 import { LatexBlock } from '../../../../../../components/LatexText';
 import { anchorMaskValueToRgb } from '../../../../features/revision/compare';
 import { CogitaLivePromptCard } from '../../../../live/components/CogitaLivePromptCard';
@@ -70,7 +70,7 @@ export function CogitaRevisionCard({
   currentCard: CogitaCardSearchResult;
   currentTypeLabel: string;
   prompt: string | null;
-  languages: CogitaInfoSearchResult[];
+  languages: CogitaNotionSearchResult[];
   answer: string;
   onAnswerChange: (value: string) => void;
   computedExpected: Array<{ key: string; expected: string }>;
@@ -632,7 +632,7 @@ export function CogitaRevisionCard({
           <div className="cogita-choice-grid">
             {languages.length ? (
               languages.map((lang) => (
-                <button key={lang.infoId} type="button" className="ghost" onClick={() => onLanguageSelect(lang.label)}>
+                <button key={lang.notionId} type="button" className="ghost" onClick={() => onLanguageSelect(lang.label)}>
                   {lang.label}
                 </button>
               ))

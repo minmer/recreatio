@@ -15,7 +15,7 @@ public sealed record CogitaLibraryResponse(
 );
 
 public sealed record CogitaLibraryStatsResponse(
-    int TotalInfos,
+    int TotalNotions,
     int TotalConnections,
     int TotalGroups,
     int TotalCollections,
@@ -80,13 +80,13 @@ public sealed record CogitaStoryboardImportResponse(
     List<string> Warnings
 );
 
-public sealed record CogitaInfoSearchResponse(
-    Guid InfoId,
-    string InfoType,
+public sealed record CogitaNotionSearchResponse(
+    Guid NotionId,
+    string NotionType,
     string Label
 );
 
-public sealed record CogitaInfoPayloadFieldSpecResponse(
+public sealed record CogitaNotionPayloadFieldSpecResponse(
     string Key,
     string Label,
     string InputType,
@@ -95,7 +95,7 @@ public sealed record CogitaInfoPayloadFieldSpecResponse(
     bool KeepOnCreate
 );
 
-public sealed record CogitaInfoLinkFieldSpecResponse(
+public sealed record CogitaNotionLinkFieldSpecResponse(
     string Key,
     string Label,
     List<string> TargetTypes,
@@ -104,18 +104,18 @@ public sealed record CogitaInfoLinkFieldSpecResponse(
     bool KeepOnCreate
 );
 
-public sealed record CogitaInfoTypeSpecResponse(
-    string InfoType,
+public sealed record CogitaNotionTypeSpecResponse(
+    string NotionType,
     string EntityKind,
-    List<CogitaInfoPayloadFieldSpecResponse> PayloadFields,
-    List<CogitaInfoLinkFieldSpecResponse> LinkFields
+    List<CogitaNotionPayloadFieldSpecResponse> PayloadFields,
+    List<CogitaNotionLinkFieldSpecResponse> LinkFields
 );
 
-public sealed record CogitaInfoApproachSpecResponse(
+public sealed record CogitaNotionApproachSpecResponse(
     string ApproachKey,
     string Label,
     string Category,
-    List<string> SourceInfoTypes
+    List<string> SourceNotionTypes
 );
 
 public sealed record CogitaEntitySearchResponse(
@@ -124,7 +124,7 @@ public sealed record CogitaEntitySearchResponse(
     string EntityType,
     string Title,
     string Summary,
-    Guid? InfoId,
+    Guid? NotionId,
     Guid? ConnectionId
 );
 
@@ -133,7 +133,7 @@ public sealed record CogitaCardSearchResponse(
     string CardType,
     string Label,
     string Description,
-    string? InfoType,
+    string? NotionType,
     string? CheckType = null,
     string? Direction = null,
     JsonElement? Payload = null
@@ -146,43 +146,43 @@ public sealed record CogitaCardSearchBundleResponse(
     List<CogitaCardSearchResponse> Items
 );
 
-public sealed record CogitaCreateInfoRequest(
-    string InfoType,
+public sealed record CogitaCreateNotionRequest(
+    string NotionType,
     JsonElement Payload,
     Guid? DataKeyId,
     string? SignatureBase64,
     JsonElement? Links = null
 );
 
-public sealed record CogitaCreateInfoResponse(
-    Guid InfoId,
-    string InfoType
+public sealed record CogitaCreateNotionResponse(
+    Guid NotionId,
+    string NotionType
 );
 
-public sealed record CogitaInfoDetailResponse(
-    Guid InfoId,
-    string InfoType,
+public sealed record CogitaNotionDetailResponse(
+    Guid NotionId,
+    string NotionType,
     JsonElement Payload,
     JsonElement? Links = null
 );
 
-public sealed record CogitaInfoApproachProjectionResponse(
+public sealed record CogitaNotionApproachProjectionResponse(
     string ApproachKey,
-    Guid SourceInfoId,
-    string SourceInfoType,
+    Guid SourceNotionId,
+    string SourceNotionType,
     JsonElement Projection
 );
 
-public sealed record CogitaUpdateInfoRequest(
+public sealed record CogitaUpdateNotionRequest(
     JsonElement Payload,
     Guid? DataKeyId,
     string? SignatureBase64,
     JsonElement? Links = null
 );
 
-public sealed record CogitaUpdateInfoResponse(
-    Guid InfoId,
-    string InfoType
+public sealed record CogitaUpdateNotionResponse(
+    Guid NotionId,
+    string NotionType
 );
 
 public sealed record CogitaCreateConnectionRequest(
@@ -406,8 +406,8 @@ public sealed record CogitaStatisticsTimelinePointResponse(
 );
 
 public sealed record CogitaStatisticsKnownessItemResponse(
-    Guid InfoId,
-    string InfoType,
+    Guid NotionId,
+    string NotionType,
     string Label,
     int AnswerCount,
     int CorrectCount,
@@ -470,6 +470,86 @@ public sealed record CogitaPublicStoryboardShareResponse(
     string LibraryName,
     JsonElement? Content,
     DateTimeOffset CreatedUtc
+);
+
+public sealed record CogitaStoryboardSessionCreateRequest(
+    Guid ProjectId,
+    string? SignatureBase64
+);
+
+public sealed record CogitaStoryboardSessionResponse(
+    Guid SessionId,
+    Guid ProjectId,
+    string ProjectName,
+    string SessionCode,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset? RevokedUtc,
+    int ParticipantCount,
+    int TotalAnswers,
+    int CorrectAnswers
+);
+
+public sealed record CogitaPublicStoryboardSessionResponse(
+    Guid SessionId,
+    Guid ProjectId,
+    string ProjectName,
+    Guid LibraryId,
+    string LibraryName,
+    JsonElement? Content,
+    DateTimeOffset CreatedUtc
+);
+
+public sealed record CogitaPublicStoryboardSessionParticipantTouchRequest(string ParticipantToken);
+
+public sealed record CogitaPublicStoryboardSessionParticipantTouchResponse(
+    Guid SessionId,
+    Guid ParticipantId,
+    string ParticipantToken,
+    DateTimeOffset JoinedUtc,
+    DateTimeOffset UpdatedUtc
+);
+
+public sealed record CogitaPublicStoryboardSessionAnswerSubmitRequest(
+    string ParticipantToken,
+    string NodeKey,
+    Guid? NotionId,
+    string? CheckType,
+    bool IsCorrect
+);
+
+public sealed record CogitaPublicStoryboardSessionAnswerSubmitResponse(
+    bool Accepted,
+    int AttemptCount,
+    bool IsCorrect,
+    DateTimeOffset UpdatedUtc
+);
+
+public sealed record CogitaStoryboardSessionParticipantResultResponse(
+    Guid ParticipantId,
+    int TotalAnswers,
+    int CorrectAnswers,
+    DateTimeOffset JoinedUtc,
+    DateTimeOffset UpdatedUtc
+);
+
+public sealed record CogitaStoryboardSessionNodeResultResponse(
+    string NodeKey,
+    Guid? NotionId,
+    string? CheckType,
+    int ParticipantCount,
+    int TotalAnswers,
+    int CorrectAnswers
+);
+
+public sealed record CogitaStoryboardSessionResultsResponse(
+    Guid SessionId,
+    Guid ProjectId,
+    string ProjectName,
+    int ParticipantCount,
+    int TotalAnswers,
+    int CorrectAnswers,
+    List<CogitaStoryboardSessionParticipantResultResponse> Participants,
+    List<CogitaStoryboardSessionNodeResultResponse> Nodes
 );
 
 public sealed record CogitaRevisionShareCreateResponse(
@@ -812,7 +892,7 @@ public sealed record CogitaCollectionGraphResponse(
 public sealed record CogitaCollectionGraphPreviewResponse(
     int Total,
     int Connections,
-    int Infos
+    int Notions
 );
 
 public sealed record CogitaDependencyGraphNodeRequest(
@@ -886,16 +966,16 @@ public sealed record CogitaMockDataResponse(
     int Translations
 );
 
-public sealed record CogitaExportInfo(
-    Guid InfoId,
-    string InfoType,
+public sealed record CogitaExportNotion(
+    Guid NotionId,
+    string NotionType,
     JsonElement Payload
 );
 
 public sealed record CogitaExportConnection(
     Guid ConnectionId,
     string ConnectionType,
-    List<Guid> InfoIds,
+    List<Guid> NotionIds,
     JsonElement? Payload
 );
 
@@ -906,26 +986,26 @@ public sealed record CogitaExportCollectionItem(
 );
 
 public sealed record CogitaExportCollection(
-    Guid CollectionInfoId,
+    Guid CollectionNotionId,
     List<CogitaExportCollectionItem> Items
 );
 
 public sealed record CogitaLibraryExportResponse(
     int Version,
-    List<CogitaExportInfo> Infos,
+    List<CogitaExportNotion> Notions,
     List<CogitaExportConnection> Connections,
     List<CogitaExportCollection> Collections
 );
 
 public sealed record CogitaLibraryImportRequest(
     int Version,
-    List<CogitaExportInfo> Infos,
+    List<CogitaExportNotion> Notions,
     List<CogitaExportConnection> Connections,
     List<CogitaExportCollection> Collections
 );
 
 public sealed record CogitaLibraryImportResponse(
-    int InfosImported,
+    int NotionsImported,
     int ConnectionsImported,
     int CollectionsImported
 );
