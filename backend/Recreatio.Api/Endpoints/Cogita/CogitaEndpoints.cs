@@ -14887,7 +14887,7 @@ public static class CogitaEndpoints
                         ledgerService,
                         dbContext,
                         ct);
-                    wordsByLanguage[langName].Add(wordResponse.InfoId);
+                    wordsByLanguage[langName].Add(wordResponse.NotionId);
 
                     try
                     {
@@ -14895,7 +14895,7 @@ public static class CogitaEndpoints
                             library,
                             new CogitaCreateConnectionRequest(
                                 "word-language",
-                                new List<Guid> { langId, wordResponse.InfoId },
+                                new List<Guid> { langId, wordResponse.NotionId },
                                 JsonSerializer.SerializeToElement(new { note = "Mock word-language" }),
                                 null,
                                 null),
@@ -15409,7 +15409,7 @@ public static class CogitaEndpoints
                 var pendingCollections = 0;
                 foreach (var collection in request.Collections)
                 {
-                    if (!infoMap.TryGetValue(collection.CollectionInfoId, out var collectionInfoId))
+                    if (!infoMap.TryGetValue(collection.CollectionNotionId, out var collectionInfoId))
                     {
                         continue;
                     }
@@ -15732,7 +15732,7 @@ public static class CogitaEndpoints
                 var processedCollections = 0;
                 foreach (var collection in request.Collections)
                 {
-                    if (!infoMap.TryGetValue(collection.CollectionInfoId, out var collectionInfoId))
+                    if (!infoMap.TryGetValue(collection.CollectionNotionId, out var collectionInfoId))
                     {
                         processedCollections++;
                         continue;
@@ -15821,7 +15821,7 @@ public static class CogitaEndpoints
                 return Results.Unauthorized();
             }
 
-            var infoType = request.InfoType.Trim().ToLowerInvariant();
+            var infoType = request.NotionType.Trim().ToLowerInvariant();
             if (!SupportedInfoTypes.Contains(infoType))
             {
                 return Results.BadRequest(new { error = "InfoType is invalid." });
@@ -20762,7 +20762,7 @@ public static class CogitaEndpoints
         CancellationToken ct,
         bool saveChanges = true)
     {
-        var infoType = request.InfoType.Trim().ToLowerInvariant();
+        var infoType = request.NotionType.Trim().ToLowerInvariant();
         if (!SupportedInfoTypes.Contains(infoType))
         {
             throw new InvalidOperationException("InfoType is invalid.");
