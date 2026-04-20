@@ -5,7 +5,7 @@ import {
   type CogitaLiveRevisionPublicState,
   type CogitaLiveRevisionReviewRound
 } from '../../../lib/api';
-import { CogitaCheckcardSurface } from '../components/workspace/revision/components/CogitaCheckcardSurface';
+import { CogitaCardSurface } from '../components/workspace/revision/components/CogitaCardSurface';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 import { CogitaStatisticsPanel } from '../components/runtime/revision/primitives/RevisionStatistics';
 import type { Copy } from '../../../content/types';
@@ -529,7 +529,7 @@ export function CogitaLivePublicWallPage({
                     </div>
                   </div>
                 ) : null}
-                <CogitaCheckcardSurface className="cogita-live-card-container" feedbackToken={reveal ? `correct-${state?.revealVersion ?? 0}` : 'idle'}>
+                <CogitaCardSurface className="cogita-live-card-container" feedbackToken={reveal ? `correct-${state?.revealVersion ?? 0}` : 'idle'}>
                   <CogitaLivePromptCard
                     prompt={prompt}
                     revealExpected={reveal?.expected}
@@ -550,7 +550,7 @@ export function CogitaLivePublicWallPage({
                       columnPrefix: liveCopy.columnPrefixLabel
                     }}
                   />
-                </CogitaCheckcardSurface>
+                </CogitaCardSurface>
               </>
             )}
           </div>
@@ -605,7 +605,7 @@ export function CogitaLivePublicWallPage({
                       const reviewReveal = (round.reveal as Record<string, unknown> | undefined) ?? null;
                       if (!reviewPrompt) return null;
                       return (
-                        <CogitaCheckcardSurface
+                        <CogitaCardSurface
                           key={`public-review-round:${round.roundIndex}:${round.cardKey}`}
                           className="cogita-live-card-container"
                           feedbackToken={`public-review:${round.roundIndex}`}
@@ -630,7 +630,7 @@ export function CogitaLivePublicWallPage({
                               columnPrefix: liveCopy.columnPrefixLabel
                             }}
                           />
-                        </CogitaCheckcardSurface>
+                        </CogitaCardSurface>
                       );
                     })}
                   </div>

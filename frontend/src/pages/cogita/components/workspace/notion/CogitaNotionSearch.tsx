@@ -33,7 +33,7 @@ import { createWorkspaceTransfer, loadWorkspaceTransfer, updateWorkspaceTransfer
 
 type InfoSort = 'relevance' | 'label_asc' | 'label_desc' | 'type_asc' | 'type_desc';
 type ResultView = 'details' | 'wide' | 'grid';
-type SelectedInfoStackItem = { infoId: string; infoType: string; label: string };
+type SelectedInfoStackItem = { notionId: string; notionType: string; label: string };
 type InfoDetailState = { notionId: string; notionType: string; payload: unknown; links?: Record<string, string | string[] | null> | null };
 
 const PAGE_SIZE = 60;
@@ -243,7 +243,7 @@ export function CogitaNotionSearch({
       .then((items) => {
         const mapped = items
           .map((item) => ({
-            notionId: item.infoId ?? '',
+            notionId: item.notionId ?? '',
             notionType: item.entityType,
             label: item.title
           }))
@@ -263,7 +263,7 @@ export function CogitaNotionSearch({
       .then((items) => {
         const mapped = items
           .map((item) => ({
-            notionId: item.infoId ?? '',
+            notionId: item.notionId ?? '',
             notionType: item.entityType,
             label: item.title
           }))
@@ -514,7 +514,7 @@ export function CogitaNotionSearch({
   const selectedByType = useMemo(() => {
     const bucket = new Map<string, number>();
     for (const item of selectedItems) {
-      bucket.set(item.infoType, (bucket.get(item.infoType) ?? 0) + 1);
+      bucket.set(item.notionType, (bucket.get(item.notionType) ?? 0) + 1);
     }
     return Array.from(bucket.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   }, [selectedItems]);
@@ -543,18 +543,18 @@ export function CogitaNotionSearch({
     setSelectionStack((prev) => ({
       ...prev,
       [item.notionId]: {
-        infoId: item.notionId,
-        infoType: item.notionType,
+        notionId: item.notionId,
+        notionType: item.notionType,
         label: item.label
       }
     }));
   };
 
-  const removeSelection = (infoId: string) => {
+  const removeSelection = (notionId: string) => {
     setSelectionStack((prev) => {
-      if (!prev[infoId]) return prev;
+      if (!prev[notionId]) return prev;
       const next = { ...prev };
-      delete next[infoId];
+      delete next[notionId];
       return next;
     });
   };
@@ -563,17 +563,17 @@ export function CogitaNotionSearch({
     if (selectedItems.length === 0) return;
     if (!window.confirm(bulkDeleteCopy.confirm)) return;
     setBulkDeleteStatus(null);
-    const ids = Array.from(new Set(selectedItems.map((item) => item.infoId).filter(Boolean)));
+    const ids = Array.from(new Set(selectedItems.map((item) => item.notionId).filter(Boolean)));
     if (ids.length === 0) return;
-    const settled = await Promise.allSettled(ids.map((infoId) => deleteCogitaNotion({ libraryId, notionId: infoId })));
+    const settled = await Promise.allSettled(ids.map((notionId) => deleteCogitaNotion({ libraryId, notionId })));
     const deletedIds = ids.filter((_, index) => settled[index]?.status === 'fulfilled');
     const failedCount = ids.length - deletedIds.length;
     if (deletedIds.length > 0) {
       const deletedSet = new Set(deletedIds);
       setSelectionStack((prev) => {
         const next = { ...prev };
-        for (const infoId of deletedSet) {
-          delete next[infoId];
+        for (const notionId of deletedSet) {
+          delete next[notionId];
         }
         return next;
       });
@@ -640,13 +640,13 @@ export function CogitaNotionSearch({
   const startCollectionFromSelectedInfos = () => {
     const seedId = saveCollectionDraftFromInfos(
       libraryId,
-      selectedItems.map((item) => item.infoId)
+      selectedItems.map((item) => item.notionId)
     );
     if (!seedId) return;
     navigate(`/cogita/workspace/libraries/${libraryId}/collections/new?draft=${encodeURIComponent(seedId)}&draftType=info-selection`);
   };
 
-  const singleSelectedId = selectedItems.length === 1 ? selectedItems[0]?.infoId ?? null : null;
+  const singleSelectedId = selectedItems.length === 1 ? selectedItems[0]?.notionId ?? null : null;
   const selectedCountLabel = listCopy.selectionCount.replace('{count}', String(selectedItems.length));
 
   const effectiveView: ResultView = mode === 'collection' ? 'grid' : mode === 'detail' ? 'wide' : viewMode;
@@ -981,7 +981,7 @@ export function CogitaNotionSearch({
                       setSelectionStack((prev) => {
                         const next = { ...prev };
                         for (const item of visibleResults) {
-                          next[item.notionId] = { infoId: item.notionId, infoType: item.notionType, label: item.label };
+                          next[item.notionId] = { notionId: item.notionId, notionType: item.notionType, label: item.label };
                         }
                         return next;
                       });
@@ -1061,17 +1061,17 @@ export function CogitaNotionSearch({
                       type="button"
                       className="ghost"
                       onClick={() => {
-                        const ids = selectedItems.map((item) => item.infoId).filter(Boolean);
+                        const ids = selectedItems.map((item) => item.notionId).filter(Boolean);
                         if (!ids.length) return;
                         const token = createWorkspaceTransfer({
                           kind: 'dependency_create_prefill',
                           libraryId,
                           infos: selectedItems
-                            .filter((item) => Boolean(item.infoId))
+                            .filter((item) => Boolean(item.notionId))
                             .map((item) => ({
-                              infoId: item.infoId,
+                              notionId: item.notionId,
                               label: item.label,
-                              infoType: item.infoType ?? null
+                              notionType: item.notionType ?? null
                             }))
                         });
                         if (!token) return;
@@ -1094,9 +1094,9 @@ export function CogitaNotionSearch({
                             return {
                               ...current,
                               resolvedSelection: {
-                                infoId: picked.infoId,
+                                notionId: picked.notionId,
                                 label: picked.label,
-                                infoType: picked.infoType ?? null
+                                notionType: picked.notionType ?? null
                               }
                             };
                           });
@@ -1492,7 +1492,7 @@ export function CogitaNotionSearchList({
           });
           found = entities
             .map((item: CogitaEntitySearchResult) => ({
-              notionId: item.infoId ?? '',
+              notionId: item.notionId ?? '',
               notionType: item.entityType,
               label: item.title
             }))

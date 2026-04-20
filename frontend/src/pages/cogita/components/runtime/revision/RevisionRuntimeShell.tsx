@@ -712,7 +712,7 @@ export const expandQuoteDirectionCards = (cards: CogitaCardSearchResult[]) =>
   (() => {
     const seen = new Set<string>();
     return cards.flatMap((card) => {
-      if (card.cardType !== 'info' || card.infoType !== 'citation') return [card];
+      if (card.cardType !== 'info' || card.notionType !== 'citation') return [card];
       const text = card.description ?? '';
       if (!text.trim()) return [card];
       const tree = buildQuoteFragmentTree(text);

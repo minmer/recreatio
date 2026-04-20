@@ -32,7 +32,7 @@ type GraphNode = {
   id: string;
   type: string;
   position: { x: number; y: number };
-  data: { label: string; nodeType: string; itemType: string; itemId?: string | null; infoType?: string | null };
+  data: { label: string; nodeType: string; itemType: string; itemId?: string | null; notionType?: string | null };
 };
 
 function toNodeLabel(payload: unknown, fallback: string) {
@@ -98,7 +98,7 @@ export function CogitaDependencyEdit({
   const [graphRenameDraft, setGraphRenameDraft] = useState('');
   const [graphLoadTick, setGraphLoadTick] = useState(0);
   const [lastImportedKey, setLastImportedKey] = useState('');
-  const [overviewItems, setOverviewItems] = useState<Array<{ infoId: string; label: string; infoType: string | null }>>([]);
+  const [overviewItems, setOverviewItems] = useState<Array<{ notionId: string; label: string; notionType: string | null }>>([]);
   const [lastCreateSourceKey, setLastCreateSourceKey] = useState('');
   const [hasLocalDraft, setHasLocalDraft] = useState(false);
 
@@ -116,16 +116,16 @@ export function CogitaDependencyEdit({
   const transferPrefillInfos = useMemo(() => {
     if (!transfer || transfer.kind !== 'dependency_create_prefill') return [];
     if (transfer.libraryId !== libraryId) return [];
-    const unique = new Map<string, { infoId: string; label?: string | null; infoType?: string | null }>();
+    const unique = new Map<string, { notionId: string; label?: string | null; notionType?: string | null }>();
     const infos = Array.isArray(transfer.infos) ? transfer.infos : [];
     infos.forEach((entry) => {
-      const infoId = (entry.infoId ?? '').trim();
-      if (!infoId) return;
-      if (!unique.has(infoId)) {
-        unique.set(infoId, {
-          infoId,
+      const notionId = (entry.notionId ?? '').trim();
+      if (!notionId) return;
+      if (!unique.has(notionId)) {
+        unique.set(notionId, {
+          notionId,
           label: entry.label ?? null,
-          infoType: entry.infoType ?? null
+          notionType: entry.notionType ?? null
         });
       }
     });
@@ -244,7 +244,7 @@ export function CogitaDependencyEdit({
             nodeType: node.nodeType,
             itemType: (node.payload as { itemType?: string })?.itemType ?? 'info',
             itemId: (node.payload as { itemId?: string | null })?.itemId ?? null,
-            infoType: (node.payload as { infoType?: string | null })?.infoType ?? null
+            notionType: (node.payload as { notionType?: string | null })?.notionType ?? null
           }
         }));
         setNodes(mappedNodes);
@@ -287,14 +287,14 @@ export function CogitaDependencyEdit({
     }
     let mounted = true;
     Promise.all(
-      linkedInfoIds.map(async (infoId) => {
+      linkedInfoIds.map(async (notionId) => {
         try {
-          const detail = await getCogitaNotionDetail({ libraryId, notionId: infoId });
+          const detail = await getCogitaNotionDetail({ libraryId, notionId });
           const payload = (detail.payload ?? {}) as { title?: string; label?: string; name?: string };
-          const label = payload.title || payload.label || payload.name || infoId;
-          return { infoId, infoType: detail.notionType ?? null, label };
+          const label = payload.title || payload.label || payload.name || notionId;
+          return { notionId, notionType: detail.notionType ?? null, label };
         } catch {
-          return { infoId, infoType: null as string | null, label: infoId };
+          return { notionId, notionType: null as string | null, label: notionId };
         }
       })
     ).then((items) => {
@@ -316,14 +316,14 @@ export function CogitaDependencyEdit({
     let mounted = true;
     Promise.all(
       requestedInfos.map(async (item) => {
-        const infoId = item.infoId;
+        const notionId = item.notionId;
         try {
-          const detail = await getCogitaNotionDetail({ libraryId, notionId: infoId });
+          const detail = await getCogitaNotionDetail({ libraryId, notionId });
           const payload = (detail.payload ?? {}) as { title?: string; label?: string; name?: string };
-          const label = item.label || payload.title || payload.label || payload.name || infoId;
-          return { infoId, infoType: detail.notionType ?? null, label };
+          const label = item.label || payload.title || payload.label || payload.name || notionId;
+          return { notionId, notionType: detail.notionType ?? null, label };
         } catch {
-          return { infoId, infoType: item.infoType ?? null, label: item.label || infoId };
+          return { notionId, notionType: item.notionType ?? null, label: item.label || notionId };
         }
       })
     ).then((items) => {
@@ -334,10 +334,10 @@ export function CogitaDependencyEdit({
         position: { x: 180 + (index % 5) * 140, y: 120 + Math.floor(index / 5) * 110 },
         data: {
           label: item.label,
-          nodeType: item.infoType === 'collection' ? 'collection' : 'info',
-          itemType: item.infoType === 'collection' ? 'collection' : 'info',
-          itemId: item.infoId,
-          infoType: item.infoType
+          nodeType: item.notionType === 'collection' ? 'collection' : 'info',
+          itemType: item.notionType === 'collection' ? 'collection' : 'info',
+          itemId: item.notionId,
+          notionType: item.notionType
         }
       }));
       setNodes(prefilledNodes);
@@ -378,10 +378,10 @@ export function CogitaDependencyEdit({
           ...node,
           data: {
             ...node.data,
-            itemId: transfer.resolvedSelection?.infoId ?? null,
+            itemId: transfer.resolvedSelection?.notionId ?? null,
             label: transfer.resolvedSelection?.label ?? node.data.label,
             itemType: isCollectionTarget ? 'collection' : 'info',
-            infoType: isCollectionTarget ? 'collection' : (transfer.resolvedSelection?.infoType ?? null),
+            notionType: isCollectionTarget ? 'collection' : (transfer.resolvedSelection?.notionType ?? null),
             nodeType: isCollectionTarget ? 'collection' : 'info'
           }
         };
@@ -403,7 +403,7 @@ export function CogitaDependencyEdit({
     if (!selectedGraphId || requestedInfos.length === 0) {
       return;
     }
-    const importKey = `${selectedGraphId}|${requestedInfos.map((item) => item.infoId).join(',')}`;
+    const importKey = `${selectedGraphId}|${requestedInfos.map((item) => item.notionId).join(',')}`;
     if (lastImportedKey === importKey) {
       return;
     }
@@ -411,14 +411,14 @@ export function CogitaDependencyEdit({
     let mounted = true;
     Promise.all(
       requestedInfos.map(async (item) => {
-        const infoId = item.infoId;
+        const notionId = item.notionId;
         try {
-          const detail = await getCogitaNotionDetail({ libraryId, notionId: infoId });
+          const detail = await getCogitaNotionDetail({ libraryId, notionId });
           const payload = (detail.payload ?? {}) as { title?: string; label?: string; name?: string };
-          const label = item.label || payload.title || payload.label || payload.name || infoId;
-          return { infoId, infoType: detail.notionType ?? null, label };
+          const label = item.label || payload.title || payload.label || payload.name || notionId;
+          return { notionId, notionType: detail.notionType ?? null, label };
         } catch {
-          return { infoId, infoType: item.infoType ?? null, label: item.label || infoId };
+          return { notionId, notionType: item.notionType ?? null, label: item.label || notionId };
         }
       })
     ).then((items) => {
@@ -427,17 +427,17 @@ export function CogitaDependencyEdit({
         const existing = new Set(prev.map((node) => node.data.itemId).filter((id): id is string => Boolean(id)));
         const additions: GraphNode[] = [];
         items.forEach((item, index) => {
-          if (existing.has(item.infoId)) return;
+          if (existing.has(item.notionId)) return;
           additions.push({
             id: crypto.randomUUID(),
             type: 'default',
             position: { x: 220 + ((prev.length + index) % 5) * 140, y: 120 + Math.floor((prev.length + index) / 5) * 110 },
             data: {
               label: item.label,
-              nodeType: item.infoType === 'collection' ? 'collection' : 'info',
-              itemType: item.infoType === 'collection' ? 'collection' : 'info',
-              itemId: item.infoId,
-              infoType: item.infoType
+              nodeType: item.notionType === 'collection' ? 'collection' : 'info',
+              itemType: item.notionType === 'collection' ? 'collection' : 'info',
+              itemId: item.notionId,
+              notionType: item.notionType
             }
           });
         });
@@ -471,7 +471,7 @@ export function CogitaDependencyEdit({
           nodeType: 'collection',
           itemType: 'collection',
           itemId: null,
-          infoType: 'collection'
+          notionType: 'collection'
         }
       }
     ]);
@@ -490,7 +490,7 @@ export function CogitaDependencyEdit({
           nodeType: 'info',
           itemType: 'info',
           itemId: null,
-          infoType: null
+          notionType: null
         }
       }
     ]);
@@ -510,7 +510,7 @@ export function CogitaDependencyEdit({
           itemType: node.data.itemType,
           itemId: node.data.itemId ?? null,
           label: node.data.label,
-          infoType: node.data.infoType ?? null
+          notionType: node.data.notionType ?? null
         }
       }));
       const payloadEdges = edges.map((edge) => ({
@@ -611,7 +611,7 @@ export function CogitaDependencyEdit({
                 ...node.data,
                 itemId: value?.notionId ?? null,
                 itemType: 'collection',
-                infoType: 'collection',
+                notionType: 'collection',
                 label: value?.label ?? copy.cogita.library.infoTypes.collection
               }
             }
@@ -631,7 +631,7 @@ export function CogitaDependencyEdit({
                 ...node.data,
                 itemId: value?.notionId ?? null,
                 itemType: 'info',
-                infoType: value?.notionType ?? null,
+                notionType: value?.notionType ?? null,
                 label: value?.label ?? copy.cogita.library.infoTypes.any
               }
             }
@@ -641,7 +641,7 @@ export function CogitaDependencyEdit({
   };
 
   useEffect(() => {
-    if (!selectedNode || selectedNode.data.nodeType !== 'info' || selectedNode.data.infoType !== 'citation' || !selectedNode.data.itemId) {
+    if (!selectedNode || selectedNode.data.nodeType !== 'info' || selectedNode.data.notionType !== 'citation' || !selectedNode.data.itemId) {
       setQuotePreview(null);
       return;
     }
@@ -811,9 +811,9 @@ export function CogitaDependencyEdit({
                 <div className="cogita-card-list" data-view="list">
                   {overviewItems.length > 0 ? (
                     overviewItems.map((item) => (
-                      <div key={item.infoId} className="cogita-card-item">
+                      <div key={item.notionId} className="cogita-card-item">
                         <div className="cogita-card-select">
-                          <div className="cogita-card-type">{item.infoType ?? copy.cogita.library.infoTypes.any}</div>
+                          <div className="cogita-card-type">{item.notionType ?? copy.cogita.library.infoTypes.any}</div>
                           <h3 className="cogita-card-title">{item.label}</h3>
                         </div>
                       </div>
@@ -957,7 +957,7 @@ export function CogitaDependencyEdit({
                             ? ({
                                 id: selectedNode.data.itemId,
                                 label: selectedNode.data.label,
-                                infoType: 'collection'
+                                notionType: 'collection'
                               } as never)
                             : null
                         }
@@ -979,7 +979,7 @@ export function CogitaDependencyEdit({
                             ? ({
                                 id: selectedNode.data.itemId,
                                 label: selectedNode.data.label,
-                                infoType: selectedNode.data.infoType ?? undefined
+                                infoType: selectedNode.data.notionType ?? undefined
                               } as never)
                             : null
                         }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-export function CogitaCheckcardSurface({
+export function CogitaCardSurface({
   children,
   flashState,
   flashTick = 0,

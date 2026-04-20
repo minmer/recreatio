@@ -478,11 +478,11 @@ function pickNodeCard(
 function buildCardPromptAndExpected(payload: {
   node: StoryboardNodeRecord;
   card: CogitaCardSearchResult | null;
-  infoType: string | null;
+  notionType: string | null;
   infoPayload: Record<string, unknown> | null;
   vocabProjection: Record<string, unknown> | null;
 }): { prompt: string; expected: string } {
-  const { node, card, infoType, infoPayload, vocabProjection } = payload;
+  const { node, card, notionType: infoType, infoPayload, vocabProjection } = payload;
   let prompt = card?.description?.trim() || node.description.trim() || card?.label || node.title;
   let expected = card?.label?.trim() || node.title;
 
@@ -2010,7 +2010,7 @@ export function CogitaStoryboardRuntime({
         const built = buildCardPromptAndExpected({
           node,
           card: selectedCard,
-          infoType: detail?.notionType ?? selectedCard?.notionType ?? null,
+          notionType: detail?.notionType ?? selectedCard?.notionType ?? null,
           infoPayload: detail?.payload ? (detail.payload as Record<string, unknown>) : null,
           vocabProjection
         });

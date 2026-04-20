@@ -3,9 +3,9 @@ export type WorkspaceTransfer =
       kind: 'dependency_create_prefill';
       libraryId: string;
       infos: Array<{
-        infoId: string;
+        notionId: string;
         label?: string | null;
-        infoType?: string | null;
+        notionType?: string | null;
       }>;
       createdAt: string;
     }
@@ -26,15 +26,15 @@ export type WorkspaceTransfer =
             nodeType: string;
             itemType: string;
             itemId?: string | null;
-            infoType?: string | null;
+            notionType?: string | null;
           };
         }>;
         edges: Array<{ id: string; source: string; target: string }>;
       };
       resolvedSelection?: {
-        infoId: string;
+        notionId: string;
         label: string;
-        infoType?: string | null;
+        notionType?: string | null;
       };
       createdAt: string;
     };

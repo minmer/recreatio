@@ -123,7 +123,7 @@ type ParsedCogitaPath = {
   liveSessionId?: string;
   liveSessionView?: LiveSessionView;
   cardMode?: CogitaLibraryMode;
-  infoId?: string;
+  notionId?: string;
   infoView?: 'overview' | 'cards' | 'collections';
   collectionView?: 'overview' | 'infos';
   dependencyGraphId?: string;
@@ -1065,23 +1065,23 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
   }
 
   if (section === 'infos' || section === 'notions') {
-    const infoId = sectionArg1;
-    if (!infoId) {
+    const notionId = sectionArg1;
+    if (!notionId) {
       return { libraryId, target: 'all_cards', cardMode: 'list' };
     }
-    if (infoId === 'new') {
+    if (notionId === 'new') {
       return { libraryId, target: 'new_card' };
     }
     if (sectionArg2 === 'edit') {
-      return { libraryId, target: 'new_card', infoId };
+      return { libraryId, target: 'new_card', notionId };
     }
     if (sectionArg2 === 'checkcards' || sectionArg2 === 'cards') {
-      return { libraryId, target: 'all_cards', cardMode: 'list', infoId, infoView: 'cards' };
+      return { libraryId, target: 'all_cards', cardMode: 'list', notionId, infoView: 'cards' };
     }
     if (sectionArg2 === 'collections') {
-      return { libraryId, target: 'all_cards', cardMode: 'list', infoId, infoView: 'collections' };
+      return { libraryId, target: 'all_cards', cardMode: 'list', notionId, infoView: 'collections' };
     }
-    return { libraryId, target: 'all_cards', cardMode: 'list', infoId, infoView: 'overview' };
+    return { libraryId, target: 'all_cards', cardMode: 'list', notionId, infoView: 'overview' };
   }
 
   if (section === 'revisions') {
@@ -1233,7 +1233,7 @@ function buildCogitaPath(
   revisionId?: string,
   liveSessionId?: string,
   liveSessionView: LiveSessionView = 'list',
-  infoId?: string,
+  notionId?: string,
   infoView: 'overview' | 'cards' | 'collections' = 'overview',
   collectionView: 'overview' | 'infos' = 'infos',
   filterCollectionId?: string,
@@ -1275,23 +1275,23 @@ function buildCogitaPath(
     return workspaceBase;
   }
   if (target === 'all_cards') {
-    if (filterCollectionId && !infoId) {
+    if (filterCollectionId && !notionId) {
       return `${workspaceBase}/collections/${filterCollectionId}/cards`;
     }
-    if (infoId) {
+    if (notionId) {
       if (infoView === 'cards') {
-        return `${workspaceBase}/notions/${infoId}/cards`;
+        return `${workspaceBase}/notions/${notionId}/cards`;
       }
       if (infoView === 'collections') {
-        return `${workspaceBase}/notions/${infoId}/collections`;
+        return `${workspaceBase}/notions/${notionId}/collections`;
       }
-      return `${workspaceBase}/notions/${infoId}`;
+      return `${workspaceBase}/notions/${notionId}`;
     }
     return `${workspaceBase}/cards`;
   }
   if (target === 'new_card') {
-    if (infoId) {
-      return `${workspaceBase}/notions/${infoId}/edit`;
+    if (notionId) {
+      return `${workspaceBase}/notions/${notionId}/edit`;
     }
     return `${workspaceBase}/notions/new`;
   }
@@ -1580,10 +1580,10 @@ export function CogitaWorkspacePage({
     return 'search';
   }, [selectedCollectionId, selectedTarget]);
   const infoMode = useMemo<InfoMode>(() => {
-    if (pathState.infoId) return 'selected';
+    if (pathState.notionId) return 'selected';
     if (selectedTarget === 'new_card') return 'create';
     return 'search';
-  }, [pathState.infoId, selectedTarget]);
+  }, [pathState.notionId, selectedTarget]);
   const revisionMode = useMemo<RevisionMode>(() => {
     if (displayRevisionView === 'live' && !selectedRevisionId) return 'live_sessions';
     if (selectedRevisionView === 'new') return 'create';
@@ -1617,8 +1617,8 @@ export function CogitaWorkspacePage({
     return pathState.gameView ?? 'overview';
   }, [pathState.gameId, pathState.gameView]);
   const selectedInfoOption = useMemo(
-    () => infos.find((item) => item.notionId === pathState.infoId) ?? null,
-    [infos, pathState.infoId]
+    () => infos.find((item) => item.notionId === pathState.notionId) ?? null,
+    [infos, pathState.notionId]
   );
   const targetLabels = useMemo<Record<CogitaTarget, string>>(
     () => ({
@@ -1755,7 +1755,7 @@ export function CogitaWorkspacePage({
       revisionView: RevisionView;
       liveSessionId?: string;
       liveSessionView?: LiveSessionView;
-      infoId?: string;
+      notionId?: string;
       infoView?: 'overview' | 'cards' | 'collections';
       collectionView?: 'overview' | 'infos';
       filterCollectionId?: string;
@@ -1770,7 +1770,7 @@ export function CogitaWorkspacePage({
       let resolvedRevision = next.revisionView;
       let resolvedLiveSessionId = next.liveSessionId;
       let resolvedLiveSessionView = next.liveSessionView ?? pathState.liveSessionView ?? 'list';
-      let resolvedInfoId = next.infoId;
+      let resolvedInfoId = next.notionId;
       let resolvedInfoView = next.infoView ?? pathState.infoView ?? 'overview';
       let resolvedCollectionView = next.collectionView ?? pathState.collectionView ?? 'infos';
       let resolvedFilterCollectionId = next.filterCollectionId ?? pathState.filterCollectionId;
@@ -1940,7 +1940,7 @@ export function CogitaWorkspacePage({
             collectionId: selectedCollectionId,
             revisionId: selectedRevisionId,
             revisionView: selectedRevisionView,
-            infoId: nextTarget === 'new_card' ? pathState.infoId : undefined,
+            notionId: nextTarget === 'new_card' ? pathState.notionId : undefined,
             dependencyGraphId: nextTarget === 'dependencies' ? pathState.dependencyGraphId : undefined,
             dependencyView: nextTarget === 'dependencies' ? (pathState.dependencyView ?? 'search') : 'search'
           });
@@ -2216,7 +2216,7 @@ export function CogitaWorkspacePage({
         options: [
           { value: 'search', label: workspaceCopy.infoMode.search },
           { value: 'create', label: workspaceCopy.infoMode.create },
-          ...(pathState.infoId
+          ...(pathState.notionId
             ? [
                 {
                   value: 'selected',
@@ -2227,14 +2227,14 @@ export function CogitaWorkspacePage({
         ],
         onSelect: (value: string) => {
           if (value === 'selected') {
-            if (!pathState.infoId) return;
+            if (!pathState.notionId) return;
             applyNavigationSelection({
               libraryId: selectedLibraryId,
               target: 'all_cards',
               collectionId: selectedCollectionId,
               revisionId: selectedRevisionId,
               revisionView: selectedRevisionView,
-              infoId: pathState.infoId,
+              notionId: pathState.notionId,
               infoView: 'overview'
             });
             return;
@@ -2246,7 +2246,7 @@ export function CogitaWorkspacePage({
               collectionId: selectedCollectionId,
               revisionId: selectedRevisionId,
               revisionView: selectedRevisionView,
-              infoId: undefined
+              notionId: undefined
             });
             return;
           }
@@ -2256,7 +2256,7 @@ export function CogitaWorkspacePage({
             collectionId: selectedCollectionId,
             revisionId: selectedRevisionId,
             revisionView: selectedRevisionView,
-            infoId: undefined,
+            notionId: undefined,
             infoView: 'overview'
           });
         }
@@ -2264,9 +2264,9 @@ export function CogitaWorkspacePage({
       {
         key: 'info_selected_action',
         label: workspaceCopy.layers.target,
-        visible: displayTarget === 'all_cards' && Boolean(pathState.infoId),
+        visible: displayTarget === 'all_cards' && Boolean(pathState.notionId),
         value:
-          selectedTarget === 'new_card' && pathState.infoId
+          selectedTarget === 'new_card' && pathState.notionId
             ? 'edit'
             : pathState.infoView === 'cards'
             ? 'cards'
@@ -2274,7 +2274,7 @@ export function CogitaWorkspacePage({
             ? 'collections'
             : 'overview',
         selectedLabel:
-          selectedTarget === 'new_card' && pathState.infoId
+          selectedTarget === 'new_card' && pathState.notionId
             ? workspaceCopy.infoActions.edit
             : selectedTarget === 'dependencies'
             ? workspaceCopy.targets.dependencies
@@ -2283,7 +2283,7 @@ export function CogitaWorkspacePage({
             : pathState.infoView === 'collections'
             ? 'Kolekcje'
             : workspaceCopy.infoActions.overview,
-        disabled: !hasLibrarySelection || !pathState.infoId,
+        disabled: !hasLibrarySelection || !pathState.notionId,
         options: [
           { value: 'overview', label: workspaceCopy.infoActions.overview },
           { value: 'edit', label: workspaceCopy.infoActions.edit },
@@ -2292,16 +2292,16 @@ export function CogitaWorkspacePage({
           { value: 'dependencies', label: workspaceCopy.targets.dependencies }
         ],
         onSelect: (value: string) => {
-          if (!pathState.infoId) return;
+          if (!pathState.notionId) return;
           if (value === 'dependencies') {
             const token = createWorkspaceTransfer({
               kind: 'dependency_create_prefill',
               libraryId: selectedLibraryId ?? '',
               infos: [
                 {
-                  infoId: pathState.infoId,
-                  label: selectedInfoOption?.label ?? selectedInfoLabel ?? pathState.infoId,
-                  infoType: selectedInfoOption?.notionType ?? null
+                  notionId: pathState.notionId,
+                  label: selectedInfoOption?.label ?? selectedInfoLabel ?? pathState.notionId,
+                  notionType: selectedInfoOption?.notionType ?? null
                 }
               ]
             });
@@ -2317,7 +2317,7 @@ export function CogitaWorkspacePage({
               collectionId: selectedCollectionId,
               revisionId: selectedRevisionId,
               revisionView: selectedRevisionView,
-              infoId: pathState.infoId
+              notionId: pathState.notionId
             });
             return;
           }
@@ -2328,7 +2328,7 @@ export function CogitaWorkspacePage({
               collectionId: selectedCollectionId,
               revisionId: selectedRevisionId,
               revisionView: selectedRevisionView,
-              infoId: pathState.infoId,
+              notionId: pathState.notionId,
               infoView: 'cards'
             });
             return;
@@ -2339,7 +2339,7 @@ export function CogitaWorkspacePage({
             collectionId: selectedCollectionId,
             revisionId: selectedRevisionId,
             revisionView: selectedRevisionView,
-            infoId: pathState.infoId,
+            infoId: pathState.notionId,
             infoView: 'overview'
           });
         }
@@ -2460,7 +2460,7 @@ export function CogitaWorkspacePage({
             collectionId: selectedCollectionId,
             revisionId: undefined,
             revisionView: 'detail',
-            infoId: pathState.infoId,
+            infoId: pathState.notionId,
             infoView: pathState.infoView,
             collectionView: value === 'overview' ? 'overview' : 'infos'
           });
@@ -2663,7 +2663,7 @@ export function CogitaWorkspacePage({
       showRevisionActionLayer,
       targetLabels,
       copy.cogita.library.list.selectedEmpty,
-      pathState.infoId,
+      pathState.notionId,
       pathState.infoView,
       pathState.collectionView,
       pathState.dependencyGraphId,
@@ -2799,7 +2799,7 @@ export function CogitaWorkspacePage({
                     selectedRevisionId,
                     pathState.liveSessionId,
                     pathState.liveSessionView ?? 'list',
-                    nextTarget === 'new_card' ? pathState.infoId : undefined,
+                    nextTarget === 'new_card' ? pathState.notionId : undefined,
                     pathState.infoView ?? 'overview',
                     pathState.collectionView ?? 'infos',
                     pathState.filterCollectionId,
@@ -2818,7 +2818,7 @@ export function CogitaWorkspacePage({
                       selectedRevisionId
                     );
                   }
-                  if (option.value === 'selected' && pathState.infoId) {
+                  if (option.value === 'selected' && pathState.notionId) {
                     return buildCogitaPath(
                       selectedLibraryId,
                       'all_cards',
@@ -2827,7 +2827,7 @@ export function CogitaWorkspacePage({
                       selectedRevisionId,
                       pathState.liveSessionId,
                       pathState.liveSessionView ?? 'list',
-                      pathState.infoId,
+                      pathState.notionId,
                       'overview'
                     );
                   }
@@ -2839,7 +2839,7 @@ export function CogitaWorkspacePage({
                     selectedRevisionId
                   );
                 }
-                if (level.key === 'info_selected_action' && pathState.infoId) {
+                if (level.key === 'info_selected_action' && pathState.notionId) {
                   if (option.value === 'dependencies') {
                     const query = new URLSearchParams({ dependencyView: 'create' });
                     return `/cogita/workspace/libraries/${selectedLibraryId}/dependencies?${query.toString()}`;
@@ -2853,7 +2853,7 @@ export function CogitaWorkspacePage({
                       selectedRevisionId,
                       pathState.liveSessionId,
                       pathState.liveSessionView ?? 'list',
-                      pathState.infoId
+                      pathState.notionId
                     );
                   }
                   return buildCogitaPath(
@@ -2864,7 +2864,7 @@ export function CogitaWorkspacePage({
                     selectedRevisionId,
                     pathState.liveSessionId,
                     pathState.liveSessionView ?? 'list',
-                    pathState.infoId,
+                    pathState.notionId,
                     option.value === 'cards' ? 'cards' : option.value === 'collections' ? 'collections' : 'overview'
                   );
                 }
@@ -2878,7 +2878,7 @@ export function CogitaWorkspacePage({
                       selectedRevisionId,
                       pathState.liveSessionId,
                       pathState.liveSessionView ?? 'list',
-                      pathState.infoId,
+                      pathState.notionId,
                       pathState.infoView ?? 'overview',
                       pathState.collectionView ?? 'infos',
                       pathState.filterCollectionId,
@@ -2896,7 +2896,7 @@ export function CogitaWorkspacePage({
                       selectedRevisionId,
                       pathState.liveSessionId,
                       pathState.liveSessionView ?? 'list',
-                      pathState.infoId,
+                      pathState.notionId,
                       pathState.infoView ?? 'overview',
                       pathState.collectionView ?? 'infos',
                       pathState.filterCollectionId,
@@ -2913,7 +2913,7 @@ export function CogitaWorkspacePage({
                     selectedRevisionId,
                     pathState.liveSessionId,
                     pathState.liveSessionView ?? 'list',
-                    pathState.infoId,
+                    pathState.notionId,
                     pathState.infoView ?? 'overview',
                     pathState.collectionView ?? 'infos',
                     pathState.filterCollectionId,
@@ -2931,7 +2931,7 @@ export function CogitaWorkspacePage({
                     selectedRevisionId,
                     pathState.liveSessionId,
                     pathState.liveSessionView ?? 'list',
-                    pathState.infoId,
+                    pathState.notionId,
                     pathState.infoView ?? 'overview',
                     pathState.collectionView ?? 'infos',
                     pathState.filterCollectionId,
@@ -3039,7 +3039,7 @@ export function CogitaWorkspacePage({
                     undefined,
                     undefined,
                     'list',
-                    pathState.infoId,
+                    pathState.notionId,
                     pathState.infoView ?? 'overview',
                     option.value === 'overview' ? 'overview' : 'infos',
                     pathState.filterCollectionId
@@ -3134,7 +3134,7 @@ export function CogitaWorkspacePage({
       pathState.dependencyTransferToken,
       pathState.dependencyView,
       pathState.filterCollectionId,
-      pathState.infoId,
+      pathState.notionId,
       pathState.infoView,
       pathState.liveSessionId,
       pathState.liveSessionView,
@@ -3176,10 +3176,10 @@ export function CogitaWorkspacePage({
       return <CogitaLibraryOverview {...baseProps} selectedReviewerRoleId={selectedReviewerRoleId || null} />;
     }
     if (pathState.target === 'all_cards') {
-      if (pathState.infoId && pathState.infoView === 'cards') {
-        return <CogitaNotionCards {...baseProps} infoId={pathState.infoId} selectedReviewerRoleId={selectedReviewerRoleId || null} />;
+      if (pathState.notionId && pathState.infoView === 'cards') {
+        return <CogitaNotionCards {...baseProps} notionId={pathState.notionId} selectedReviewerRoleId={selectedReviewerRoleId || null} />;
       }
-      if (pathState.infoId && (pathState.infoView ?? 'overview') === 'overview') {
+      if (pathState.notionId && (pathState.infoView ?? 'overview') === 'overview') {
         return (
           <CogitaNotionOverview
             {...baseProps}
@@ -3198,7 +3198,7 @@ export function CogitaWorkspacePage({
       );
     }
     if (pathState.target === 'new_card') {
-      return <CogitaNotionEdit {...baseProps} editInfoId={pathState.infoId} />;
+      return <CogitaNotionEdit {...baseProps} editInfoId={pathState.notionId} />;
     }
     if (pathState.target === 'dependencies') {
       const dependencyView = pathState.dependencyView ?? 'search';
@@ -3378,7 +3378,7 @@ export function CogitaWorkspacePage({
     pathState.dependencyView,
     pathState.gameId,
     pathState.gameView,
-    pathState.infoId,
+    pathState.notionId,
     pathState.libraryId,
     pathState.liveSessionId,
     pathState.liveSessionView,
@@ -3538,7 +3538,7 @@ export function CogitaWorkspacePage({
     const cachedInfos = infosCacheRef.current[selectedLibraryId];
     if (cachedInfos) {
       setInfos(cachedInfos);
-      if (!pathState.infoId || cachedInfos.some((item) => item.notionId === pathState.infoId)) {
+      if (!pathState.notionId || cachedInfos.some((item) => item.notionId === pathState.notionId)) {
         return;
       }
     }
@@ -3556,7 +3556,7 @@ export function CogitaWorkspacePage({
     return () => {
       cancelled = true;
     };
-  }, [displayTarget, pathState.infoId, selectedLibraryId, selectedTarget]);
+  }, [displayTarget, pathState.notionId, selectedLibraryId, selectedTarget]);
 
   useEffect(() => {
     if (!selectedLibraryId || selectedTarget !== 'dependencies') {
@@ -3658,7 +3658,7 @@ export function CogitaWorkspacePage({
   }, [pathState.liveSessionId, selectedLibraryId, selectedRevisionId]);
 
   useEffect(() => {
-    const infoId = pathState.infoId;
+    const infoId = pathState.notionId;
     if (!selectedLibraryId || !infoId) {
       setSelectedInfoLabel(undefined);
       return;
@@ -3687,7 +3687,7 @@ export function CogitaWorkspacePage({
     return () => {
       cancelled = true;
     };
-  }, [pathState.infoId, selectedLibraryId]);
+  }, [pathState.notionId, selectedLibraryId]);
 
   useEffect(() => {
     if (!initializedRef.current) return;
@@ -3739,7 +3739,7 @@ export function CogitaWorkspacePage({
         selectedRevisionId,
         pathState.liveSessionId,
         pathState.liveSessionView ?? 'list',
-        pathState.infoId,
+        pathState.notionId,
         pathState.infoView ?? 'overview',
         pathState.collectionView ?? 'infos',
         pathState.filterCollectionId,
@@ -3767,7 +3767,7 @@ export function CogitaWorkspacePage({
     location.search,
     navigate,
     pathState.collectionId,
-    pathState.infoId,
+    pathState.notionId,
     pathState.infoView,
     pathState.collectionView,
     pathState.dependencyGraphId,

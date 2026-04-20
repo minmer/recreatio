@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import type { Copy } from '../../../../../content/types';
 import type { RouteKey } from '../../../../../types/navigation';
 import { CogitaShell } from '../../../CogitaShell';
-import { CogitaCheckcardSurface } from '../revision/components/CogitaCheckcardSurface';
+import { CogitaCardSurface } from '../revision/components/CogitaCardSurface';
 import { CogitaRevisionCard } from '../revision/components/CogitaRevisionCard';
 import { getInfoTypeLabel } from '../../libraryOptions';
 import { CogitaStatisticsPanel } from '../../runtime/revision/primitives/RevisionStatistics';
@@ -18,7 +18,7 @@ import {
   type CogitaCardSearchResult,
   type CogitaItemDependency
 } from '../../../../../lib/api';
-import { buildCheckcardKey, formatCheckTarget } from '../../../features/revision/checkcardDisplay';
+import { buildCheckcardKey, formatCheckTarget } from '../../../features/revision/cardDisplay';
 import { evaluateAnchorTextAnswer } from '../../../features/revision/compare';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../features/revision/quote';
 import {
@@ -89,7 +89,7 @@ export function CogitaNotionCards({
   language,
   onLanguageChange,
   libraryId,
-  infoId,
+  notionId,
   selectedReviewerRoleId
 }: {
   copy: Copy;
@@ -103,10 +103,10 @@ export function CogitaNotionCards({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
-  infoId: string;
+  notionId: string;
   selectedReviewerRoleId?: string | null;
 }) {
-  const [title, setTitle] = useState<string>(infoId);
+  const [title, setTitle] = useState<string>(notionId);
   const [cards, setCards] = useState<CogitaCardSearchResult[]>([]);
   const [dependencies, setDependencies] = useState<CogitaItemDependency[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -135,9 +135,9 @@ export function CogitaNotionCards({
     let cancelled = false;
     setStatus('loading');
     Promise.all([
-      getCogitaNotionDetail({ libraryId, notionId: infoId }).catch(() => null),
-      getCogitaNotionCheckcards({ libraryId, notionId: infoId }),
-      getCogitaNotionCheckcardDependencies({ libraryId, notionId: infoId })
+      getCogitaNotionDetail({ libraryId, notionId: notionId }).catch(() => null),
+      getCogitaNotionCheckcards({ libraryId, notionId: notionId }),
+      getCogitaNotionCheckcardDependencies({ libraryId, notionId: notionId })
     ])
       .then(([detail, cardBundle, depBundle]) => {
         if (cancelled) return;
@@ -146,7 +146,7 @@ export function CogitaNotionCards({
           (typeof payload.title === 'string' && payload.title) ||
           (typeof payload.label === 'string' && payload.label) ||
           (typeof payload.name === 'string' && payload.name) ||
-          infoId;
+          notionId;
         setTitle(resolvedTitle);
         setDetailPayload(payload);
         setDetailInfoType(detail?.notionType ?? null);
@@ -165,17 +165,17 @@ export function CogitaNotionCards({
     return () => {
       cancelled = true;
     };
-  }, [libraryId, infoId]);
+  }, [libraryId, notionId]);
 
   useEffect(() => {
     if (detailInfoType !== 'translation') {
       setVocabProjection(null);
       return;
     }
-    getCogitaNotionApproachProjection({ libraryId, notionId: infoId, approachKey: 'vocab-card' })
+    getCogitaNotionApproachProjection({ libraryId, notionId: notionId, approachKey: 'vocab-card' })
       .then((response) => setVocabProjection((response.projection ?? null) as Record<string, unknown> | null))
       .catch(() => setVocabProjection(null));
-  }, [detailInfoType, infoId, libraryId]);
+  }, [detailInfoType, notionId, libraryId]);
 
   const graphNodes = useMemo<Node<CheckcardNodeData>[]>(() => {
     const cardMap = new Map(cards.map((card) => [buildCheckcardKey(card), card]));
@@ -540,7 +540,7 @@ export function CogitaNotionCards({
                 <div>
                   <p className="cogita-user-kicker">{infoTypeLabel}</p>
                   <h2 className="cogita-card-title">{title}</h2>
-                  <p className="cogita-card-subtitle">{infoId}</p>
+                  <p className="cogita-card-subtitle">{notionId}</p>
                 </div>
                 <div className="cogita-selection-overview">
                   <span className="cogita-tag-chip">{`Cards: ${cards.length}`}</span>
@@ -551,7 +551,7 @@ export function CogitaNotionCards({
                     disabled={cards.length === 0}
                     onClick={() =>
                       navigate(
-                        `/cogita/revision/solo/${encodeURIComponent(libraryId)}/new?scope=info&infoId=${encodeURIComponent(infoId)}`
+                        `/cogita/revision/solo/${encodeURIComponent(libraryId)}/new?scope=info&notionId=${encodeURIComponent(notionId)}`
                       )
                     }
                   >
@@ -585,7 +585,7 @@ export function CogitaNotionCards({
                     {selectedCard ? (
                       <div className="cogita-info-checkcards-selected">
                         {cardPreview && currentRevisionCard ? (
-                          <CogitaCheckcardSurface flashState={feedback} flashTick={flashTick}>
+                          <CogitaCardSurface flashState={feedback} flashTick={flashTick}>
                             {cardPreview.kind === 'question' ? (
                               <CogitaRevisionCard
                                 copy={copy}
@@ -703,7 +703,7 @@ export function CogitaNotionCards({
                                 disableCheckAfterAnswer
                               />
                             )}
-                          </CogitaCheckcardSurface>
+                          </CogitaCardSurface>
                         ) : null}
                         {!selectedReviewerRoleId ? (
                           <p className="cogita-library-hint">Result can be checked without a person; saving knowness requires a selected person in the header.</p>
@@ -738,7 +738,7 @@ export function CogitaNotionCards({
                     <CogitaStatisticsPanel
                       libraryId={libraryId}
                       scopeType="info"
-                      scopeId={infoId}
+                      scopeId={notionId}
                       selectedPersonRoleId={selectedReviewerRoleId}
                       persistentOnly={!!selectedReviewerRoleId}
                       title="Notion statistics"

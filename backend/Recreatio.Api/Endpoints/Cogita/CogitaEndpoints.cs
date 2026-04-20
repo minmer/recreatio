@@ -1307,6 +1307,9 @@ public static class CogitaEndpoints
             var isImportEnvelope = string.Equals(rootSchema, "cogita_storyboard_import", StringComparison.OrdinalIgnoreCase);
             var targetProjectId = request.ProjectId;
             var targetProjectName = string.IsNullOrWhiteSpace(request.Name) ? null : request.Name.Trim();
+            var targetGroupNodeId = string.IsNullOrWhiteSpace(request.TargetGroupNodeId)
+                ? null
+                : request.TargetGroupNodeId.Trim();
             string? descriptionOverride = null;
             CogitaCreationProject? existingTargetProject = null;
             var hasProjectElement = TryGetPropertyCaseInsensitive(importRoot, "project", out var projectElement) &&
@@ -1354,6 +1357,10 @@ public static class CogitaEndpoints
                     existingTargetProject.ContentJson,
                     out existingStoryboardTopicNotionId,
                     existingManagedNotionIds);
+            }
+            else if (!string.IsNullOrWhiteSpace(targetGroupNodeId))
+            {
+                return Results.BadRequest(new { error = "targetGroupNodeId requires an existing storyboard projectId." });
             }
 
             JsonElement storyboardElement;
@@ -1537,6 +1544,104 @@ public static class CogitaEndpoints
                 ct);
             rootGraph = await NormalizeStoryboardImportCardCheckTypesAsync(rootGraph, libraryId, dbContext, warnings, ct);
 
+            async Task<StoryboardImportGraph?> ParseStoryboardRootGraphFromExistingProjectAsync(string? contentJson)
+            {
+                if (string.IsNullOrWhiteSpace(contentJson))
+                {
+                    return null;
+                }
+
+                try
+                {
+                    using var document = JsonDocument.Parse(contentJson);
+                    if (document.RootElement.ValueKind != JsonValueKind.Object)
+                    {
+                        return null;
+                    }
+
+                    var root = document.RootElement;
+                    if (TryGetPropertyCaseInsensitive(root, "rootGraph", out var existingRootGraphElement) &&
+                        existingRootGraphElement.ValueKind == JsonValueKind.Object)
+                    {
+                        return await ParseStoryboardImportGraphAsync(
+                            existingRootGraphElement,
+                            "existing.rootGraph",
+                            new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase),
+                            (_, _) => Task.FromResult<Guid?>(null),
+                            _ => Task.FromResult(true),
+                            warnings,
+                            ct);
+                    }
+
+                    if (TryGetPropertyCaseInsensitive(root, "nodes", out var existingNodesElement) &&
+                        existingNodesElement.ValueKind == JsonValueKind.Array)
+                    {
+                        return await ParseStoryboardImportGraphAsync(
+                            root,
+                            "existing.rootGraph",
+                            new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase),
+                            (_, _) => Task.FromResult<Guid?>(null),
+                            _ => Task.FromResult(true),
+                            warnings,
+                            ct);
+                    }
+                }
+                catch
+                {
+                    return null;
+                }
+
+                return null;
+            }
+
+            static StoryboardImportGraph ReplaceGroupGraphByNodeId(
+                StoryboardImportGraph graph,
+                string targetNodeId,
+                StoryboardImportGraph replacement,
+                ref bool replaced)
+            {
+                var nextNodes = new List<StoryboardImportNode>(graph.Nodes.Count);
+                foreach (var node in graph.Nodes)
+                {
+                    if (string.Equals(node.Kind, "group", StringComparison.Ordinal) &&
+                        string.Equals(node.NodeId, targetNodeId, StringComparison.Ordinal))
+                    {
+                        nextNodes.Add(node with { GroupGraph = replacement });
+                        replaced = true;
+                        continue;
+                    }
+
+                    if (node.GroupGraph is not null)
+                    {
+                        var nested = ReplaceGroupGraphByNodeId(node.GroupGraph, targetNodeId, replacement, ref replaced);
+                        nextNodes.Add(node with { GroupGraph = nested });
+                        continue;
+                    }
+
+                    nextNodes.Add(node);
+                }
+
+                return graph with { Nodes = nextNodes };
+            }
+
+            if (!string.IsNullOrWhiteSpace(targetGroupNodeId))
+            {
+                var existingGraph = await ParseStoryboardRootGraphFromExistingProjectAsync(existingTargetProject?.ContentJson);
+                if (existingGraph is null)
+                {
+                    return Results.BadRequest(new { error = "Existing storyboard content is missing a valid rootGraph." });
+                }
+
+                var replaced = false;
+                var mergedRootGraph = ReplaceGroupGraphByNodeId(existingGraph, targetGroupNodeId, rootGraph, ref replaced);
+                if (!replaced)
+                {
+                    return Results.BadRequest(new { error = $"targetGroupNodeId '{targetGroupNodeId}' was not found in the target storyboard." });
+                }
+
+                rootGraph = mergedRootGraph;
+            }
+
             static void CollectStoryboardGraphNotionIds(StoryboardImportGraph graph, HashSet<Guid> buffer)
             {
                 foreach (var node in graph.Nodes)
@@ -1613,14 +1718,42 @@ public static class CogitaEndpoints
                 managedNotionIds = existingManagedIds.ToHashSet();
             }
 
+            var existingDocumentRoot = default(JsonElement);
+            if (existingTargetProject is not null &&
+                !string.IsNullOrWhiteSpace(existingTargetProject.ContentJson))
+            {
+                try
+                {
+                    using var existingDoc = JsonDocument.Parse(existingTargetProject.ContentJson);
+                    if (existingDoc.RootElement.ValueKind == JsonValueKind.Object)
+                    {
+                        existingDocumentRoot = existingDoc.RootElement.Clone();
+                    }
+                }
+                catch
+                {
+                    existingDocumentRoot = default;
+                }
+            }
+
             var description = ReadFirstNonEmptyString(storyboardElement, "description")
                 ?? descriptionOverride
                 ?? ReadFirstNonEmptyString(importRoot, "description")
+                ?? ReadFirstNonEmptyString(existingDocumentRoot, "description")
                 ?? string.Empty;
             var script = ReadFirstNonEmptyString(storyboardElement, "script")
                 ?? ReadFirstNonEmptyString(importRoot, "script")
+                ?? ReadFirstNonEmptyString(existingDocumentRoot, "script")
                 ?? string.Empty;
             var steps = ReadStringArray(storyboardElement, "steps");
+            if (steps.Count == 0)
+            {
+                steps = ReadStringArray(importRoot, "steps");
+            }
+            if (steps.Count == 0)
+            {
+                steps = ReadStringArray(existingDocumentRoot, "steps");
+            }
             if (steps.Count == 0)
             {
                 steps = BuildStoryboardImportScriptLines(rootGraph);

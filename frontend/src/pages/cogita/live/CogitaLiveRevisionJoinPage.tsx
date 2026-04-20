@@ -11,7 +11,7 @@ import {
   type CogitaLiveRevisionReviewRound
 } from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
-import { CogitaCheckcardSurface } from '../components/workspace/revision/components/CogitaCheckcardSurface';
+import { CogitaCardSurface } from '../components/workspace/revision/components/CogitaCardSurface';
 import { CogitaStatisticsPanel } from '../components/runtime/revision/primitives/RevisionStatistics';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
@@ -1832,7 +1832,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                                     : (roundEvaluation?.correct ? 'correct' : roundEvaluation ? 'incorrect' : null);
                                 return (
                                   <div key={`review-round:${round.roundIndex}:${round.cardKey}`} className="cogita-live-round-review-item">
-                                    <CogitaCheckcardSurface
+                                    <CogitaCardSurface
                                       className="cogita-live-card-container"
                                       feedbackToken={`review-${round.roundIndex}-${roundFeedbackState ?? 'idle'}`}
                                     >
@@ -1878,7 +1878,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                                         onMatchingPick={() => undefined}
                                         onMatchingRemovePath={() => undefined}
                                       />
-                                    </CogitaCheckcardSurface>
+                                    </CogitaCardSurface>
                                     {roundBreakdown ? (
                                       <div className="cogita-live-round-gain">
                                         <p className="cogita-user-kicker">{liveCopy.roundGainTitle}</p>
@@ -1934,7 +1934,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                           : null}
                 {prompt ? (
                   <>
-                    <CogitaCheckcardSurface
+                    <CogitaCardSurface
                       className="cogita-live-card-container"
                       feedbackToken={
                         reveal
@@ -1983,7 +1983,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                           setMatchingRows((prev) => prev.filter((_, idx) => idx !== pathIndex))
                         }
                       />
-                    </CogitaCheckcardSurface>
+                    </CogitaCardSurface>
                     {selfRoundBreakdown && reveal ? (
                       <div className="cogita-live-round-gain">
                         <p className="cogita-user-kicker">{liveCopy.roundGainTitle}</p>

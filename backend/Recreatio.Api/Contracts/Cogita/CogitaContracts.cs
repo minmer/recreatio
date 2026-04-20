@@ -62,7 +62,8 @@ public sealed record CogitaStoryboardImportRequest(
     string? Name,
     JsonElement Json,
     Guid? TopicNotionId = null,
-    bool DeleteOldStoryboardNotions = false
+    bool DeleteOldStoryboardNotions = false,
+    string? TargetGroupNodeId = null
 );
 
 public sealed record CogitaStoryboardImportNotionResultResponse(

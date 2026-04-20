@@ -17,7 +17,7 @@ import {
 } from '../../../lib/api';
 import { clampInt, parseLiveRules } from './liveSessionRules';
 import { evaluateCheckcardAnswer } from '../components/runtime/revision/primitives/RevisionCheckcardShell';
-import { CogitaCheckcardSurface } from '../components/workspace/revision/components/CogitaCheckcardSurface';
+import { CogitaCardSurface } from '../components/workspace/revision/components/CogitaCardSurface';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../features/revision/quote';
 import { selectNextCardIndexByMode } from '../features/revision/nextCardRoutine';
@@ -316,7 +316,7 @@ async function buildLiveRounds(payload: {
   const computedSamples = new Map<string, CogitaComputedSample>();
   await Promise.all(
     Array.from(infoDetails.entries())
-      .filter(([, d]) => d.infoType === 'computed')
+      .filter(([, d]) => d.notionType === 'computed')
       .map(async ([infoId]) => {
         try {
           const sample = await getCogitaComputedSample({ libraryId: payload.libraryId, notionId: infoId });
@@ -405,7 +405,7 @@ async function buildLiveRounds(payload: {
 
     if (card.cardType !== 'info') continue;
     const detail = infoDetails.get(card.cardId);
-    const normalizedInfoType = String(detail?.infoType ?? card.infoType ?? '').toLowerCase();
+    const normalizedInfoType = String(detail?.notionType ?? card.notionType ?? '').toLowerCase();
     const sourcePayload = detail?.payload ?? card.payload;
     const normalizedCheckType = String(card.checkType ?? '').toLowerCase();
 
@@ -1867,7 +1867,7 @@ export function CogitaLiveHostWallPage({
           {!roundLoadError && rounds.length === 0 ? <p className="cogita-help">{liveCopy.waitingForPublishedRound}</p> : null}
           {!isAsyncSession ? (
             <>
-              <CogitaCheckcardSurface className="cogita-live-card-container" feedbackToken={reveal ? `correct-${session?.revealVersion ?? 0}` : 'idle'}>
+              <CogitaCardSurface className="cogita-live-card-container" feedbackToken={reveal ? `correct-${session?.revealVersion ?? 0}` : 'idle'}>
                 <CogitaLivePromptCard
                   prompt={prompt}
                   revealExpected={revealExpected}
@@ -1888,7 +1888,7 @@ export function CogitaLiveHostWallPage({
                     columnPrefix: liveCopy.columnPrefixLabel
                   }}
                 />
-              </CogitaCheckcardSurface>
+              </CogitaCardSurface>
               <div className="cogita-share-list">
                 {roundAnswers.map((row: CogitaLiveRevisionAnswer) => {
                   const participant = participantById.get(row.participantId);

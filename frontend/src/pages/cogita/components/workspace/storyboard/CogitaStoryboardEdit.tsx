@@ -41,7 +41,7 @@ import {
   type CogitaStoryboardShare
 } from '../../../../../lib/api';
 import { CogitaNotionSearchList as CogitaNotionSearch, type CogitaNotionSearchResult } from '../notion/CogitaNotionSearch';
-import { buildCheckcardKey } from '../../../features/revision/checkcardDisplay';
+import { buildCheckcardKey } from '../../../features/revision/cardDisplay';
 
 export type StoryboardWorkspaceMode = 'search' | 'create' | 'overview' | 'edit';
 export type CogitaStoryboardEditProps = {
@@ -2211,6 +2211,7 @@ export function CogitaStoryboardEdit({
         name: projectTitle.trim() || selectedProject?.name || null,
         topicNotionId: documentState.storyboardTopicNotionId?.trim() || undefined,
         deleteOldStoryboardNotions: hasLinkedTopicNotion ? importDeleteOldNotions : false,
+        targetGroupNodeId: activeGroupPath.length > 0 ? activeGroupPath[activeGroupPath.length - 1] : null,
         json: parsedJson
       });
 

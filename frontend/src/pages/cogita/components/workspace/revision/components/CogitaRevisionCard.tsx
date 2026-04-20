@@ -224,7 +224,7 @@ export function CogitaRevisionCard({
   }, [matchPairs]);
 
   useEffect(() => {
-    if (currentCard.cardType !== 'info' || currentCard.infoType !== 'computed') return;
+    if (currentCard.cardType !== 'info' || currentCard.notionType !== 'computed') return;
     if (computedExpected.length === 0) return;
     const active = typeof document !== 'undefined' ? document.activeElement : null;
     if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
@@ -282,7 +282,7 @@ export function CogitaRevisionCard({
   };
 
   const headerDetail =
-    currentCard.cardType === 'info' && currentCard.infoType === 'citation'
+    currentCard.cardType === 'info' && currentCard.notionType === 'citation'
       ? quoteContext?.title || currentCard.label
       : currentCard.description;
 
@@ -421,7 +421,7 @@ export function CogitaRevisionCard({
             ) : null}
           </div>
         </div>
-      ) : currentCard.cardType === 'info' && currentCard.infoType === 'question' ? (
+      ) : currentCard.cardType === 'info' && currentCard.notionType === 'question' ? (
         <div className="cogita-revision-body">
           {questionPrompt ? (
             <CogitaLivePromptCard
@@ -490,7 +490,7 @@ export function CogitaRevisionCard({
             ) : null}
           </div>
         </div>
-      ) : currentCard.cardType === 'info' && currentCard.infoType === 'computed' ? (
+      ) : currentCard.cardType === 'info' && currentCard.notionType === 'computed' ? (
         <div className="cogita-revision-body">
           {currentCard.label ? <p className="cogita-revision-hint">{currentCard.label}</p> : null}
           {answerTemplate ? null : <LatexBlock value={prompt ?? ''} mode="auto" />}
@@ -580,7 +580,7 @@ export function CogitaRevisionCard({
             ) : null}
           </div>
         </div>
-      ) : currentCard.cardType === 'info' && currentCard.infoType === 'citation' && quoteContext ? (
+      ) : currentCard.cardType === 'info' && currentCard.notionType === 'citation' && quoteContext ? (
         <div className="cogita-revision-body">
           <div className="cogita-quote-block">
             <p className="cogita-revision-hint">
@@ -625,7 +625,7 @@ export function CogitaRevisionCard({
             ) : null}
           </div>
         </div>
-      ) : currentCard.cardType === 'info' && currentCard.infoType === 'word' ? (
+      ) : currentCard.cardType === 'info' && currentCard.notionType === 'word' ? (
         <div className="cogita-revision-body">
           <h2>{prompt}</h2>
           <p className="cogita-revision-hint">{copy.cogita.library.revision.hintSelectLanguage}</p>

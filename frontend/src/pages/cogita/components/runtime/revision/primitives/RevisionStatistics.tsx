@@ -378,15 +378,15 @@ function normalizeKnownessWords(source: CogitaStatisticsResponse['bestKnownWords
   return (source ?? [])
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
     .map((item) => ({
-      infoId: String(item.infoId ?? ''),
-      infoType: String(item.infoType ?? ''),
-      label: String(item.label ?? '').trim() || String(item.infoType ?? 'word'),
+      notionId: String(item.notionId ?? ''),
+      notionType: String(item.notionType ?? ''),
+      label: String(item.label ?? '').trim() || String(item.notionType ?? 'word'),
       answerCount: Number.isFinite(item.answerCount) ? Math.max(0, Number(item.answerCount)) : 0,
       correctCount: Number.isFinite(item.correctCount) ? Math.max(0, Number(item.correctCount)) : 0,
       averageCorrectness: Number.isFinite(item.averageCorrectness) ? clamp(Number(item.averageCorrectness), 0, 100) : 0,
       knownessScore: Number.isFinite(item.knownessScore) ? clamp(Number(item.knownessScore), 0, 100) : 0
     }))
-    .filter((item) => item.infoId.length > 0);
+    .filter((item) => item.notionId.length > 0);
 }
 
 function buildLinePath(points: Array<{ x: number; y: number }>) {
@@ -1133,7 +1133,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
             {context.bestKnownWords.length > 0 ? (
               <ol className="cogita-statistics-word-list">
                 {context.bestKnownWords.map((item, index) => (
-                  <li key={`best-${item.infoId}`} className="cogita-statistics-word-row">
+                  <li key={`best-${item.notionId}`} className="cogita-statistics-word-row">
                     <span className="cogita-statistics-word-rank">#{index + 1}</span>
                     <div className="cogita-statistics-word-content">
                       <strong title={item.label}>{item.label}</strong>
@@ -1151,7 +1151,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
             {context.worstKnownWords.length > 0 ? (
               <ol className="cogita-statistics-word-list">
                 {context.worstKnownWords.map((item, index) => (
-                  <li key={`worst-${item.infoId}`} className="cogita-statistics-word-row">
+                  <li key={`worst-${item.notionId}`} className="cogita-statistics-word-row">
                     <span className="cogita-statistics-word-rank">#{index + 1}</span>
                     <div className="cogita-statistics-word-content">
                       <strong title={item.label}>{item.label}</strong>
