@@ -2205,13 +2205,31 @@ export function CogitaStoryboardEdit({
     setStatus(null);
 
     try {
+      const targetProjectId = isEditMode ? selectedProject?.projectId ?? storyboardId ?? null : null;
+      const targetGroupNodeId =
+        targetProjectId && activeGroupPath.length > 0
+          ? activeGroupPath[activeGroupPath.length - 1]
+          : null;
+
+      // Group-target import must resolve against persisted storyboard content.
+      // Persist current editor state first to keep group path/node ids in sync.
+      if (targetProjectId && targetGroupNodeId) {
+        const prepared = buildDocumentForSave(documentState, projectDescription.trim());
+        await updateCogitaCreationProject({
+          libraryId,
+          projectId: targetProjectId,
+          name: (projectTitle.trim() || selectedProject?.name || 'Storyboard').trim(),
+          content: prepared
+        });
+      }
+
       const result = await importCogitaStoryboardFromJson({
         libraryId,
-        projectId: isEditMode ? selectedProject?.projectId ?? storyboardId ?? null : null,
+        projectId: targetProjectId,
         name: projectTitle.trim() || selectedProject?.name || null,
         topicNotionId: documentState.storyboardTopicNotionId?.trim() || undefined,
         deleteOldStoryboardNotions: hasLinkedTopicNotion ? importDeleteOldNotions : false,
-        targetGroupNodeId: activeGroupPath.length > 0 ? activeGroupPath[activeGroupPath.length - 1] : null,
+        targetGroupNodeId,
         json: parsedJson
       });
 
