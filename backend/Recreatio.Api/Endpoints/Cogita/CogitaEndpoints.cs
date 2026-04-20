@@ -27121,17 +27121,22 @@ public static class CogitaEndpoints
                 continue;
             }
 
-            if (string.Equals(infoType, "question", StringComparison.OrdinalIgnoreCase))
+            var expectedCheckType = string.Equals(infoType, "question", StringComparison.OrdinalIgnoreCase)
+                ? "question"
+                : string.Equals(infoType, "computed", StringComparison.OrdinalIgnoreCase)
+                    ? "computed"
+                    : string.Equals(infoType, "python", StringComparison.OrdinalIgnoreCase)
+                        ? "python"
+                        : null;
+            if (!string.IsNullOrWhiteSpace(expectedCheckType) &&
+                !string.Equals(normalizedCheckType, expectedCheckType, StringComparison.Ordinal))
             {
-                if (!string.Equals(normalizedCheckType, "question", StringComparison.Ordinal))
+                if (!string.IsNullOrWhiteSpace(normalizedCheckType))
                 {
-                    if (!string.IsNullOrWhiteSpace(normalizedCheckType))
-                    {
-                        warnings.Add(
-                            $"Node '{node.NodeId}': question notion uses checkcard type 'question'. Replaced '{normalizedCheckType}' with 'question'.");
-                    }
-                    normalizedCheckType = "question";
+                    warnings.Add(
+                        $"Node '{node.NodeId}': {infoType} notion uses checkcard type '{expectedCheckType}'. Replaced '{normalizedCheckType}' with '{expectedCheckType}'.");
                 }
+                normalizedCheckType = expectedCheckType;
             }
 
             var normalizedGroupGraph = node.GroupGraph is null

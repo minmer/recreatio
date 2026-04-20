@@ -7,6 +7,7 @@ import ReactFlow, {
   MiniMap,
   MarkerType,
   Position,
+  type ReactFlowInstance,
   type Connection,
   type Edge,
   type Node,
@@ -137,6 +138,8 @@ type StoryboardFlowNodeData = {
   kind: StoryboardNodeKind;
   title: string;
   subtitle: string;
+  compact: boolean;
+  ultraCompact: boolean;
 };
 
 type StoryboardGraphStats = {
@@ -969,26 +972,35 @@ function getNodeVisual(kind: StoryboardNodeKind) {
 
 function StoryboardFlowNode({ data }: NodeProps<StoryboardFlowNodeData>) {
   const visual = getNodeVisual(data.kind);
+  const width = data.ultraCompact ? 128 : data.compact ? 168 : 218;
+  const padY = data.ultraCompact ? '0.34rem' : data.compact ? '0.4rem' : '0.5rem';
+  const padX = data.ultraCompact ? '0.4rem' : data.compact ? '0.48rem' : '0.58rem';
+  const badgeFont = data.ultraCompact ? '0.52rem' : data.compact ? '0.56rem' : '0.62rem';
+  const titleFont = data.ultraCompact ? '0.68rem' : data.compact ? '0.78rem' : '0.9rem';
+  const subtitleFont = data.ultraCompact ? '0.62rem' : data.compact ? '0.66rem' : '0.73rem';
+  const handleSize = data.ultraCompact ? 7 : data.compact ? 8 : 10;
+  const handleBorder = data.ultraCompact ? 1 : 2;
+  const handleOffset = data.ultraCompact ? -5 : -7;
 
   const handleBase = {
-    width: 10,
-    height: 10,
+    width: handleSize,
+    height: handleSize,
     borderRadius: 999,
-    border: '2px solid rgba(9, 20, 36, 0.95)',
+    border: `${handleBorder}px solid rgba(9, 20, 36, 0.95)`,
     background: '#89d2ff'
   };
 
   return (
     <div
       style={{
-        width: 218,
+        width,
         borderRadius: 12,
         border: `1px solid ${visual.border}`,
         background: visual.bg,
         color: 'rgba(238, 246, 255, 0.95)',
-        padding: '0.5rem 0.58rem',
+        padding: `${padY} ${padX}`,
         display: 'grid',
-        gap: '0.22rem',
+        gap: data.ultraCompact ? '0.14rem' : data.compact ? '0.18rem' : '0.22rem',
         boxShadow: '0 8px 22px rgba(0, 0, 0, 0.28)'
       }}
     >
@@ -998,13 +1010,13 @@ function StoryboardFlowNode({ data }: NodeProps<StoryboardFlowNodeData>) {
             type="target"
             position={Position.Left}
             id="in-path"
-            style={{ ...handleBase, left: -7, top: '35%', background: 'rgba(148, 209, 255, 0.96)' }}
+            style={{ ...handleBase, left: handleOffset, top: '35%', background: 'rgba(148, 209, 255, 0.96)' }}
           />
           <Handle
             type="target"
             position={Position.Left}
             id="in-dependency"
-            style={{ ...handleBase, left: -7, top: '72%', background: 'rgba(255, 207, 129, 0.98)' }}
+            style={{ ...handleBase, left: handleOffset, top: '72%', background: 'rgba(255, 207, 129, 0.98)' }}
           />
         </>
       ) : null}
@@ -1015,13 +1027,13 @@ function StoryboardFlowNode({ data }: NodeProps<StoryboardFlowNodeData>) {
             type="source"
             position={Position.Right}
             id="out-right"
-            style={{ ...handleBase, right: -7, top: '35%', background: 'rgba(154, 241, 178, 0.98)' }}
+            style={{ ...handleBase, right: handleOffset, top: '35%', background: 'rgba(154, 241, 178, 0.98)' }}
           />
           <Handle
             type="source"
             position={Position.Right}
             id="out-wrong"
-            style={{ ...handleBase, right: -7, top: '72%', background: 'rgba(252, 166, 166, 0.98)' }}
+            style={{ ...handleBase, right: handleOffset, top: '72%', background: 'rgba(252, 166, 166, 0.98)' }}
           />
         </>
       ) : null}
@@ -1031,13 +1043,15 @@ function StoryboardFlowNode({ data }: NodeProps<StoryboardFlowNodeData>) {
           type="source"
           position={Position.Right}
           id="out-path"
-          style={{ ...handleBase, right: -7, top: '53%', background: 'rgba(148, 209, 255, 0.96)' }}
+          style={{ ...handleBase, right: handleOffset, top: '53%', background: 'rgba(148, 209, 255, 0.96)' }}
         />
       ) : null}
 
-      <div style={{ fontSize: '0.62rem', letterSpacing: '0.12em', opacity: 0.9 }}>{visual.badge}</div>
-      <strong style={{ fontSize: '0.9rem', lineHeight: 1.2 }}>{data.title}</strong>
-      <small style={{ fontSize: '0.73rem', color: 'rgba(205, 228, 249, 0.92)' }}>{data.subtitle}</small>
+      <div style={{ fontSize: badgeFont, letterSpacing: '0.12em', opacity: 0.9 }}>{visual.badge}</div>
+      <strong style={{ fontSize: titleFont, lineHeight: 1.2 }}>{data.title}</strong>
+      {!data.ultraCompact ? (
+        <small style={{ fontSize: subtitleFont, color: 'rgba(205, 228, 249, 0.92)' }}>{data.subtitle}</small>
+      ) : null}
     </div>
   );
 }
@@ -1167,6 +1181,7 @@ export function CogitaStoryboardEdit({
   const [activeGroupPath, setActiveGroupPath] = useState<string[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState('');
   const [selectedEdgeId, setSelectedEdgeId] = useState('');
+  const [viewportZoom, setViewportZoom] = useState(1);
   const [cardPickerOpen, setCardPickerOpen] = useState(false);
   const [overlaySearchQuery, setOverlaySearchQuery] = useState('');
   const [overlaySortBy, setOverlaySortBy] = useState<OverlayKnowledgeSort>('relevance');
@@ -1193,6 +1208,7 @@ export function CogitaStoryboardEdit({
   const [importError, setImportError] = useState<string | null>(null);
   const imageUploadInputRef = useRef<HTMLInputElement | null>(null);
   const audioUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const reactFlowRef = useRef<ReactFlowInstance | null>(null);
   const authExpiredStatus = useMemo(
     () =>
       language === 'pl'
@@ -1577,6 +1593,8 @@ export function CogitaStoryboardEdit({
   const flowNodes = useMemo<Node<StoryboardFlowNodeData>[]>(
     () =>
       activeGraph.nodes.map((node) => {
+        const compact = viewportZoom <= 0.5;
+        const ultraCompact = viewportZoom <= 0.28;
         const kindLabel = node.kind === 'static'
           ? `${storyboardEditorCopy.nodeKindStatic} · ${staticTypeLabels[node.staticType]}`
           : node.kind === 'card'
@@ -1597,7 +1615,9 @@ export function CogitaStoryboardEdit({
           data: {
             kind: node.kind,
             title: node.title || node.nodeId,
-            subtitle: kindLabel
+            subtitle: kindLabel,
+            compact,
+            ultraCompact
           },
           position: node.position,
           draggable: canEdit,
@@ -1613,6 +1633,7 @@ export function CogitaStoryboardEdit({
       selectedNodeId,
       separatorNodeKindLabel,
       staticTypeLabels,
+      viewportZoom,
       storyboardEditorCopy.nodeKindCard,
       storyboardEditorCopy.nodeKindEnd,
       storyboardEditorCopy.nodeKindGroup,
@@ -1620,6 +1641,22 @@ export function CogitaStoryboardEdit({
       storyboardEditorCopy.nodeKindStatic
     ]
   );
+
+  const fitActiveGraph = () => {
+    reactFlowRef.current?.fitView({
+      padding: 0.2,
+      minZoom: 0.02,
+      maxZoom: 1.2,
+      duration: 180
+    });
+  };
+
+  useEffect(() => {
+    const raf = window.requestAnimationFrame(() => {
+      fitActiveGraph();
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [activeGroupPath, activeGraph.nodes.length, activeGraph.edges.length]);
 
   const flowEdges = useMemo<Edge[]>(
     () =>
@@ -2627,6 +2664,9 @@ export function CogitaStoryboardEdit({
                     <button type="button" className="ghost" onClick={() => addNode('group')} disabled={!canEdit}>{storyboardEditorCopy.addGroupAction}</button>
                     <button type="button" className="ghost" onClick={() => addNode('separator')} disabled={!canEdit}>{addSeparatorActionLabel}</button>
                     <button type="button" className="ghost" onClick={() => addNode('join')} disabled={!canEdit}>{addJoinActionLabel}</button>
+                    <button type="button" className="ghost" onClick={fitActiveGraph}>
+                      {language === 'pl' ? 'Dopasuj widok' : language === 'de' ? 'Ansicht anpassen' : 'Fit view'}
+                    </button>
                   </div>
 
                   <div className="cogita-storyboard-graph-canvas">
@@ -2635,8 +2675,18 @@ export function CogitaStoryboardEdit({
                       edges={flowEdges}
                       nodeTypes={nodeTypes}
                       fitView
+                      fitViewOptions={{ padding: 0.2, minZoom: 0.02, maxZoom: 1.2 }}
+                      minZoom={0.02}
+                      maxZoom={2}
                       elementsSelectable
                       nodesDraggable={canEdit}
+                      onInit={(instance) => {
+                        reactFlowRef.current = instance;
+                        fitActiveGraph();
+                      }}
+                      onMove={(_, viewport) => {
+                        setViewportZoom(viewport.zoom);
+                      }}
                       onConnect={handleConnect}
                       onNodeClick={(event, node) => {
                         event.stopPropagation();
