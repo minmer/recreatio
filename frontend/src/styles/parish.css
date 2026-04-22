@@ -2254,9 +2254,14 @@
   color: #92400e;
   font-size: 0.82rem;
   font-weight: 700;
-  padding: 4px 10px;
-  display: inline-flex;
-  width: fit-content;
+  line-height: 1.2;
+  padding: 6px 12px;
+  display: inline-block;
+  width: auto;
+  min-height: 0;
+  max-width: max-content;
+  justify-self: start;
+  align-self: start;
 }
 
 .confirmation-celebration-comment {

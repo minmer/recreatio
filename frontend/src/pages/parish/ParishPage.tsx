@@ -6780,8 +6780,7 @@ export function ParishPage({
                         ) : null}
                         <div className="confirmation-celebration-join-panel">
                           <p className="note">
-                            <strong>Wydarzenia z zapisami:</strong> sekcja zapisów została wydzielona z celebracji. Zapisy i
-                            akceptacje dotyczą wyłącznie wydarzeń.
+                            <strong>Wydarzenia z zapisami:</strong>
                           </p>
                           {confirmationDisplayPortalData.upcomingEvents.length === 0 ? (
                             <p className="muted">Brak aktywnych wydarzeń do zapisów.</p>
