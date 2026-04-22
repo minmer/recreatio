@@ -22,6 +22,8 @@ public sealed class ParishConfirmationCelebration
     [MaxLength(4000)]
     public string Description { get; set; } = string.Empty;
 
+    public int? Capacity { get; set; }
+
     public bool IsActive { get; set; }
 
     public DateTimeOffset CreatedUtc { get; set; }

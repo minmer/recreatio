@@ -4005,11 +4005,28 @@ export type ParishConfirmationCelebration = {
   startsAtUtc: string;
   endsAtUtc: string;
   description: string;
+  capacity?: number | null;
   isActive: boolean;
   createdUtc: string;
   updatedUtc: string;
   candidateComment?: string | null;
   candidateCommentUpdatedUtc?: string | null;
+  candidateJoinStatus?: string | null;
+  candidateJoinUpdatedUtc?: string | null;
+  reservedCount?: number;
+  acceptedCount?: number;
+  joins?: ParishConfirmationCelebrationJoin[] | null;
+};
+
+export type ParishConfirmationCelebrationJoin = {
+  id: string;
+  candidateId: string;
+  candidateName: string;
+  candidateSurname: string;
+  status: string;
+  requestedUtc: string;
+  decisionUtc?: string | null;
+  updatedUtc: string;
 };
 
 export type ParishConfirmationNote = {
@@ -4133,6 +4150,7 @@ export type ParishConfirmationExportCelebration = {
   startsAtUtc: string;
   endsAtUtc: string;
   description: string;
+  capacity?: number | null;
   isActive: boolean;
   createdUtc: string;
   updatedUtc: string;
@@ -4144,6 +4162,18 @@ export type ParishConfirmationExportCelebrationParticipation = {
   candidateMeetingToken?: string | null;
   celebrationId: string;
   commentText: string;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type ParishConfirmationExportCelebrationJoin = {
+  id: string;
+  candidateId: string;
+  candidateMeetingToken?: string | null;
+  celebrationId: string;
+  status: string;
+  requestedUtc: string;
+  decisionUtc?: string | null;
   createdUtc: string;
   updatedUtc: string;
 };
@@ -4160,6 +4190,7 @@ export type ParishConfirmationExport = {
   notes?: ParishConfirmationExportNote[];
   celebrations?: ParishConfirmationExportCelebration[];
   celebrationParticipations?: ParishConfirmationExportCelebrationParticipation[];
+  celebrationJoins?: ParishConfirmationExportCelebrationJoin[];
 };
 
 export type ParishConfirmationImport = {
@@ -4167,6 +4198,7 @@ export type ParishConfirmationImport = {
   replaceExisting: boolean;
   celebrations?: ParishConfirmationExportCelebration[];
   celebrationParticipations?: ParishConfirmationExportCelebrationParticipation[];
+  celebrationJoins?: ParishConfirmationExportCelebrationJoin[];
 };
 
 export type ParishConfirmationImportResponse = {
@@ -4317,7 +4349,8 @@ export function importParishConfirmationCandidates(parishId: string, payload: Pa
       candidates: payload.candidates,
       replaceExisting: payload.replaceExisting,
       celebrations: payload.celebrations ?? [],
-      celebrationParticipations: payload.celebrationParticipations ?? []
+      celebrationParticipations: payload.celebrationParticipations ?? [],
+      celebrationJoins: payload.celebrationJoins ?? []
     })
   });
 }
@@ -4461,6 +4494,38 @@ export function sendParishConfirmationCelebrationComment(
   );
 }
 
+export function joinParishConfirmationCelebration(
+  slug: string,
+  payload: { token: string; celebrationId: string }
+) {
+  return request<{ status: string; joinId?: string | null; updatedUtc?: string | null }>(
+    `/parish/${slug}/public/confirmation-celebration-join`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        token: payload.token,
+        celebrationId: payload.celebrationId
+      })
+    }
+  );
+}
+
+export function leaveParishConfirmationCelebration(
+  slug: string,
+  payload: { token: string; celebrationId: string }
+) {
+  return request<{ status: string; joinId?: string | null; updatedUtc?: string | null }>(
+    `/parish/${slug}/public/confirmation-celebration-leave`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        token: payload.token,
+        celebrationId: payload.celebrationId
+      })
+    }
+  );
+}
+
 export function listParishConfirmationCelebrations(parishId: string) {
   return request<ParishConfirmationCelebration[]>(`/parish/${parishId}/confirmation-celebrations`, {
     method: 'GET'
@@ -4475,6 +4540,7 @@ export function createParishConfirmationCelebration(
     startsAtUtc: string;
     endsAtUtc: string;
     description: string;
+    capacity?: number | null;
     isActive: boolean;
   }
 ) {
@@ -4493,6 +4559,7 @@ export function updateParishConfirmationCelebration(
     startsAtUtc: string;
     endsAtUtc: string;
     description: string;
+    capacity?: number | null;
     isActive: boolean;
   }
 ) {
@@ -4500,6 +4567,24 @@ export function updateParishConfirmationCelebration(
     method: 'PUT',
     body: JSON.stringify(payload)
   });
+}
+
+export function acceptParishConfirmationCelebrationJoin(parishId: string, celebrationId: string, joinId: string) {
+  return request<{ status: string; joinId?: string | null; updatedUtc?: string | null }>(
+    `/parish/${parishId}/confirmation-celebrations/${celebrationId}/joins/${joinId}/accept`,
+    {
+      method: 'POST'
+    }
+  );
+}
+
+export function removeParishConfirmationCelebrationJoin(parishId: string, celebrationId: string, joinId: string) {
+  return request<{ status: string; joinId?: string | null; updatedUtc?: string | null }>(
+    `/parish/${parishId}/confirmation-celebrations/${celebrationId}/joins/${joinId}/remove`,
+    {
+      method: 'POST'
+    }
+  );
 }
 
 export function getParishConfirmationCandidatePortalAdmin(parishId: string, candidateId: string) {

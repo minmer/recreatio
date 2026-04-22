@@ -2267,6 +2267,36 @@
   gap: 8px;
 }
 
+.confirmation-celebration-join-panel {
+  border: 1px solid var(--parish-line);
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 8px 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.confirmation-celebration-join-status {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.confirmation-celebration-join-status.is-pending {
+  color: #92400e;
+  font-weight: 700;
+}
+
+.confirmation-celebration-join-status.is-accepted {
+  color: #166534;
+  font-weight: 700;
+}
+
+.confirmation-celebration-join-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .confirmation-celebration-comment.is-required {
   border-color: #f59e0b;
   background: #fffdf5;

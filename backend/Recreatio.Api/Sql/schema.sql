@@ -135,6 +135,7 @@ IF OBJECT_ID(N'dbo.SharedViews', N'U') IS NOT NULL DROP TABLE dbo.SharedViews;
 IF OBJECT_ID(N'dbo.ParishConfirmationNotes', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationNotes;
 IF OBJECT_ID(N'dbo.ParishConfirmationMessages', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationMessages;
 IF OBJECT_ID(N'dbo.ParishConfirmationCelebrationParticipations', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationCelebrationParticipations;
+IF OBJECT_ID(N'dbo.ParishConfirmationCelebrationJoins', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationCelebrationJoins;
 IF OBJECT_ID(N'dbo.ParishConfirmationCelebrations', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationCelebrations;
 IF OBJECT_ID(N'dbo.ParishConfirmationMeetingJoinRequests', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationMeetingJoinRequests;
 IF OBJECT_ID(N'dbo.ParishConfirmationMeetingLinks', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationMeetingLinks;
@@ -513,11 +514,13 @@ CREATE TABLE dbo.ParishConfirmationCelebrations
     StartsAtUtc DATETIMEOFFSET NOT NULL,
     EndsAtUtc DATETIMEOFFSET NOT NULL,
     Description NVARCHAR(4000) NOT NULL,
+    Capacity INT NULL,
     IsActive BIT NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_ParishConfirmationCelebrations_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id),
-    CONSTRAINT CK_ParishConfirmationCelebrations_Range CHECK (EndsAtUtc > StartsAtUtc)
+    CONSTRAINT CK_ParishConfirmationCelebrations_Range CHECK (EndsAtUtc > StartsAtUtc),
+    CONSTRAINT CK_ParishConfirmationCelebrations_Capacity CHECK (Capacity IS NULL OR Capacity > 0)
 );
 GO
 
@@ -550,6 +553,36 @@ GO
 
 CREATE INDEX IX_ParishConfirmationCelebrationParticipations_ParishCandidateUpdated
     ON dbo.ParishConfirmationCelebrationParticipations(ParishId, CandidateId, UpdatedUtc);
+GO
+
+CREATE TABLE dbo.ParishConfirmationCelebrationJoins
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ParishId UNIQUEIDENTIFIER NOT NULL,
+    CandidateId UNIQUEIDENTIFIER NOT NULL,
+    CelebrationId UNIQUEIDENTIFIER NOT NULL,
+    Status NVARCHAR(16) NOT NULL,
+    RequestedUtc DATETIMEOFFSET NOT NULL,
+    DecisionUtc DATETIMEOFFSET NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_ParishConfirmationCelebrationJoins_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id),
+    CONSTRAINT FK_ParishConfirmationCelebrationJoins_Candidate FOREIGN KEY (CandidateId) REFERENCES dbo.ParishConfirmationCandidates(Id),
+    CONSTRAINT FK_ParishConfirmationCelebrationJoins_Celebration FOREIGN KEY (CelebrationId) REFERENCES dbo.ParishConfirmationCelebrations(Id),
+    CONSTRAINT CK_ParishConfirmationCelebrationJoins_Status CHECK (Status IN ('pending', 'accepted', 'cancelled', 'removed', 'rejected'))
+);
+GO
+
+CREATE UNIQUE INDEX UX_ParishConfirmationCelebrationJoins_CandidateCelebration
+    ON dbo.ParishConfirmationCelebrationJoins(CandidateId, CelebrationId);
+GO
+
+CREATE INDEX IX_ParishConfirmationCelebrationJoins_ParishCelebrationStatusRequested
+    ON dbo.ParishConfirmationCelebrationJoins(ParishId, CelebrationId, Status, RequestedUtc);
+GO
+
+CREATE INDEX IX_ParishConfirmationCelebrationJoins_ParishCandidateStatusUpdated
+    ON dbo.ParishConfirmationCelebrationJoins(ParishId, CandidateId, Status, UpdatedUtc);
 GO
 
 CREATE TABLE dbo.ParishMasses

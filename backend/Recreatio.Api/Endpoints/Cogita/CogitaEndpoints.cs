@@ -1074,6 +1074,10 @@ public static class CogitaEndpoints
                 var infoType = (ReadFirstNonEmptyString(notionElement, "infoType", "type") ?? string.Empty)
                     .Trim()
                     .ToLowerInvariant();
+                if (string.Equals(infoType, "python_definition", StringComparison.OrdinalIgnoreCase))
+                {
+                    infoType = "python";
+                }
                 if (!SupportedInfoTypes.Contains(infoType))
                 {
                     warnings.Add($"{contextLabel}: unsupported infoType '{infoType}'.");
@@ -1086,6 +1090,47 @@ public static class CogitaEndpoints
                 {
                     warnings.Add($"{contextLabel}: payload is required for notion creation.");
                     return null;
+                }
+
+                var payloadForCreate = payloadElement.Clone();
+                if (string.Equals(infoType, "python", StringComparison.Ordinal))
+                {
+                    try
+                    {
+                        var payloadNode = JsonNode.Parse(payloadElement.GetRawText()) as JsonObject;
+                        if (payloadNode is not null &&
+                            payloadNode.TryGetPropertyValue("definition", out var definitionNode) &&
+                            definitionNode is JsonObject definitionObject)
+                        {
+                            if ((!definitionObject.TryGetPropertyValue("starterSource", out var starterNode) ||
+                                 string.IsNullOrWhiteSpace(starterNode?.GetValue<string>())) &&
+                                definitionObject.TryGetPropertyValue("transformStarterSource", out var transformStarterNode))
+                            {
+                                definitionObject["starterSource"] = transformStarterNode?.DeepClone();
+                            }
+
+                            if ((!definitionObject.TryGetPropertyValue("caseCount", out var caseCountNode) ||
+                                 (caseCountNode is JsonValue caseValue &&
+                                  !caseValue.TryGetValue<int>(out _) &&
+                                  !caseValue.TryGetValue<string>(out _))) &&
+                                definitionObject.TryGetPropertyValue("cases", out var casesNode))
+                            {
+                                definitionObject["caseCount"] = casesNode?.DeepClone();
+                            }
+
+                            if (!definitionObject.TryGetPropertyValue("type", out var typeNode) ||
+                                string.IsNullOrWhiteSpace(typeNode?.GetValue<string>()))
+                            {
+                                definitionObject["type"] = PythonDefinitionType;
+                            }
+                        }
+
+                        payloadForCreate = JsonSerializer.SerializeToElement(payloadNode);
+                    }
+                    catch
+                    {
+                        payloadForCreate = payloadElement.Clone();
+                    }
                 }
 
                 JsonElement? links = null;
@@ -1103,7 +1148,7 @@ public static class CogitaEndpoints
                 {
                     var created = await CreateInfoInternalAsync(
                         library,
-                        new CogitaCreateNotionRequest(infoType, payloadElement.Clone(), null, null, links),
+                        new CogitaCreateNotionRequest(infoType, payloadForCreate, null, null, links),
                         readKey,
                         ownerKey,
                         userId,

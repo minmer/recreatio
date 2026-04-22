@@ -65,6 +65,8 @@ import {
   simulateParishMassRule,
   sendParishConfirmationAdminMessage,
   sendParishConfirmationCelebrationComment,
+  joinParishConfirmationCelebration,
+  leaveParishConfirmationCelebration,
   sendParishConfirmationCandidateMessage,
   bookParishConfirmationMeetingSlot,
   listParishConfirmationMeetingSlots,
@@ -75,6 +77,8 @@ import {
   updateParishConfirmationCandidate,
   updateParishConfirmationCandidatePaperConsent,
   updateParishConfirmationCelebration,
+  acceptParishConfirmationCelebrationJoin,
+  removeParishConfirmationCelebrationJoin,
   updateParishConfirmationSmsTemplates,
   updateParishMassRule,
   updateParishSite,
@@ -88,6 +92,7 @@ import {
   type ParishConfirmationAggregatedNote,
   type ParishConfirmationExportCandidate,
   type ParishConfirmationExportCelebration,
+  type ParishConfirmationExportCelebrationJoin,
   type ParishConfirmationExportCelebrationParticipation,
   type ParishConfirmationSmsTemplates,
   type ParishHomepageConfig,
@@ -2019,6 +2024,7 @@ export function ParishPage({
   const [confirmationCelebrationExpandedId, setConfirmationCelebrationExpandedId] = useState<string | null>(null);
   const [confirmationCelebrationDrafts, setConfirmationCelebrationDrafts] = useState<Record<string, string>>({});
   const [confirmationCelebrationSavingId, setConfirmationCelebrationSavingId] = useState<string | null>(null);
+  const [confirmationCelebrationJoinActionId, setConfirmationCelebrationJoinActionId] = useState<string | null>(null);
   const [confirmationCelebrationInfo, setConfirmationCelebrationInfo] = useState<string | null>(null);
   const [confirmationCelebrationError, setConfirmationCelebrationError] = useState<string | null>(null);
   const [confirmationCelebrationsAdminList, setConfirmationCelebrationsAdminList] = useState<ParishConfirmationCelebration[]>([]);
@@ -2031,8 +2037,10 @@ export function ParishPage({
   const [confirmationCelebrationEditStartsLocal, setConfirmationCelebrationEditStartsLocal] = useState('');
   const [confirmationCelebrationEditEndsLocal, setConfirmationCelebrationEditEndsLocal] = useState('');
   const [confirmationCelebrationEditDescription, setConfirmationCelebrationEditDescription] = useState('');
+  const [confirmationCelebrationEditCapacity, setConfirmationCelebrationEditCapacity] = useState('');
   const [confirmationCelebrationEditIsActive, setConfirmationCelebrationEditIsActive] = useState(true);
   const [confirmationCelebrationEditSaving, setConfirmationCelebrationEditSaving] = useState(false);
+  const [confirmationCelebrationAdminJoinActionId, setConfirmationCelebrationAdminJoinActionId] = useState<string | null>(null);
   const [confirmationAdminCandidateSearch, setConfirmationAdminCandidateSearch] = useState('');
   const [confirmationAdminSelectedCandidateId, setConfirmationAdminSelectedCandidateId] = useState<string | null>(null);
   const [confirmationAdminPortalData, setConfirmationAdminPortalData] = useState<ParishConfirmationPortal | null>(null);
@@ -2871,6 +2879,7 @@ export function ParishPage({
     setConfirmationCelebrationEditStartsLocal('');
     setConfirmationCelebrationEditEndsLocal('');
     setConfirmationCelebrationEditDescription('');
+    setConfirmationCelebrationEditCapacity('');
     setConfirmationCelebrationEditIsActive(true);
   };
 
@@ -2879,6 +2888,9 @@ export function ParishPage({
     setConfirmationCelebrationEditName(celebration.name);
     setConfirmationCelebrationEditShortInfo(celebration.shortInfo);
     setConfirmationCelebrationEditDescription(celebration.description);
+    setConfirmationCelebrationEditCapacity(
+      celebration.capacity && Number.isFinite(Number(celebration.capacity)) ? String(celebration.capacity) : ''
+    );
     setConfirmationCelebrationEditIsActive(celebration.isActive);
     const starts = new Date(celebration.startsAtUtc);
     const ends = new Date(celebration.endsAtUtc);
@@ -2900,6 +2912,17 @@ export function ParishPage({
       return;
     }
 
+    const capacityRaw = confirmationCelebrationEditCapacity.trim();
+    let capacity: number | null = null;
+    if (capacityRaw) {
+      const parsedCapacity = Number.parseInt(capacityRaw, 10);
+      if (!Number.isFinite(parsedCapacity) || parsedCapacity <= 0 || parsedCapacity > 500) {
+        setConfirmationCelebrationsAdminError('Limit miejsc musi być liczbą z zakresu 1-500 lub pusty (bez limitu).');
+        return;
+      }
+      capacity = parsedCapacity;
+    }
+
     const starts = new Date(confirmationCelebrationEditStartsLocal);
     const ends = new Date(confirmationCelebrationEditEndsLocal);
     if (Number.isNaN(starts.getTime()) || Number.isNaN(ends.getTime()) || ends <= starts) {
@@ -2918,6 +2941,7 @@ export function ParishPage({
           startsAtUtc: starts.toISOString(),
           endsAtUtc: ends.toISOString(),
           description,
+          capacity,
           isActive: confirmationCelebrationEditIsActive
         });
         setConfirmationCelebrationsAdminInfo('Zaktualizowano celebrację.');
@@ -2928,6 +2952,7 @@ export function ParishPage({
           startsAtUtc: starts.toISOString(),
           endsAtUtc: ends.toISOString(),
           description,
+          capacity,
           isActive: confirmationCelebrationEditIsActive
         });
         setConfirmationCelebrationsAdminInfo('Dodano nową celebrację.');
@@ -2979,6 +3004,128 @@ export function ParishPage({
       setConfirmationCelebrationError('Nie udało się zapisać komentarza do celebracji.');
     } finally {
       setConfirmationCelebrationSavingId(null);
+    }
+  };
+
+  const handleJoinConfirmationCelebration = async (celebrationId: string) => {
+    if (!parishSlug || !activeConfirmationPortalToken) return;
+
+    setConfirmationCelebrationJoinActionId(`join:${celebrationId}`);
+    setConfirmationCelebrationError(null);
+    setConfirmationCelebrationInfo(null);
+    try {
+      const result = await joinParishConfirmationCelebration(parishSlug, {
+        token: activeConfirmationPortalToken,
+        celebrationId
+      });
+      if (result.status === 'full') {
+        setConfirmationCelebrationError('Brak wolnych miejsc na to wydarzenie.');
+      } else if (result.status === 'already-accepted') {
+        setConfirmationCelebrationInfo('Jesteś już zaakceptowany(a) na to wydarzenie.');
+      } else if (result.status === 'already-pending') {
+        setConfirmationCelebrationInfo('Twoje zgłoszenie już oczekuje na akceptację.');
+      } else {
+        setConfirmationCelebrationInfo('Wysłano zgłoszenie udziału. Oczekuj na akceptację admina.');
+      }
+
+      await loadConfirmationCandidatePortal(activeConfirmationPortalToken, confirmationMeetingInviteCodeApplied);
+      if (confirmationAdminSelectedCandidateId) {
+        await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
+      }
+      await loadConfirmationCelebrationsAdmin();
+    } catch {
+      setConfirmationCelebrationError('Nie udało się zgłosić udziału w wydarzeniu.');
+    } finally {
+      setConfirmationCelebrationJoinActionId(null);
+    }
+  };
+
+  const handleLeaveConfirmationCelebration = async (celebrationId: string) => {
+    if (!parishSlug || !activeConfirmationPortalToken) return;
+
+    setConfirmationCelebrationJoinActionId(`leave:${celebrationId}`);
+    setConfirmationCelebrationError(null);
+    setConfirmationCelebrationInfo(null);
+    try {
+      const result = await leaveParishConfirmationCelebration(parishSlug, {
+        token: activeConfirmationPortalToken,
+        celebrationId
+      });
+      if (result.status === 'cancelled') {
+        setConfirmationCelebrationInfo('Anulowano zgłoszenie oczekujące na akceptację.');
+      } else {
+        setConfirmationCelebrationError('Tego zgłoszenia nie można już anulować samodzielnie.');
+      }
+
+      await loadConfirmationCandidatePortal(activeConfirmationPortalToken, confirmationMeetingInviteCodeApplied);
+      if (confirmationAdminSelectedCandidateId) {
+        await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
+      }
+      await loadConfirmationCelebrationsAdmin();
+    } catch {
+      setConfirmationCelebrationError('Nie udało się anulować zgłoszenia.');
+    } finally {
+      setConfirmationCelebrationJoinActionId(null);
+    }
+  };
+
+  const handleAcceptConfirmationCelebrationJoin = async (celebrationId: string, joinId: string) => {
+    if (!parish) return;
+
+    setConfirmationCelebrationAdminJoinActionId(`accept:${joinId}`);
+    setConfirmationCelebrationsAdminError(null);
+    setConfirmationCelebrationsAdminInfo(null);
+    try {
+      const result = await acceptParishConfirmationCelebrationJoin(parish.id, celebrationId, joinId);
+      if (result.status === 'accepted') {
+        setConfirmationCelebrationsAdminInfo('Zaakceptowano zgłoszenie udziału.');
+      } else if (result.status === 'full') {
+        setConfirmationCelebrationsAdminError('Brak wolnych miejsc dla tego wydarzenia.');
+      } else if (result.status === 'already-accepted') {
+        setConfirmationCelebrationsAdminInfo('To zgłoszenie było już zaakceptowane.');
+      } else {
+        setConfirmationCelebrationsAdminError('Nie można zaakceptować tego zgłoszenia.');
+      }
+
+      await loadConfirmationCelebrationsAdmin();
+      if (activeConfirmationPortalToken) {
+        await loadConfirmationCandidatePortal(activeConfirmationPortalToken, confirmationMeetingInviteCodeApplied);
+      }
+      if (confirmationAdminSelectedCandidateId) {
+        await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
+      }
+    } catch {
+      setConfirmationCelebrationsAdminError('Nie udało się zaakceptować zgłoszenia.');
+    } finally {
+      setConfirmationCelebrationAdminJoinActionId(null);
+    }
+  };
+
+  const handleRemoveConfirmationCelebrationJoin = async (celebrationId: string, joinId: string) => {
+    if (!parish) return;
+
+    setConfirmationCelebrationAdminJoinActionId(`remove:${joinId}`);
+    setConfirmationCelebrationsAdminError(null);
+    setConfirmationCelebrationsAdminInfo(null);
+    try {
+      const result = await removeParishConfirmationCelebrationJoin(parish.id, celebrationId, joinId);
+      if (result.status === 'removed' || result.status === 'already-removed') {
+        setConfirmationCelebrationsAdminInfo('Usunięto osobę z wydarzenia.');
+      } else {
+        setConfirmationCelebrationsAdminError('Nie udało się usunąć osoby z wydarzenia.');
+      }
+
+      await loadConfirmationCelebrationsAdmin();
+      if (activeConfirmationPortalToken) {
+        await loadConfirmationCandidatePortal(activeConfirmationPortalToken, confirmationMeetingInviteCodeApplied);
+      }
+      if (confirmationAdminSelectedCandidateId) {
+        await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
+      }
+    } catch {
+      setConfirmationCelebrationsAdminError('Nie udało się usunąć osoby z wydarzenia.');
+    } finally {
+      setConfirmationCelebrationAdminJoinActionId(null);
     }
   };
 
@@ -3525,12 +3672,14 @@ export function ParishPage({
     candidates: ParishConfirmationExportCandidate[];
     celebrations: ParishConfirmationExportCelebration[] | undefined;
     celebrationParticipations: ParishConfirmationExportCelebrationParticipation[] | undefined;
+    celebrationJoins: ParishConfirmationExportCelebrationJoin[] | undefined;
   } | null => {
     if (Array.isArray(value)) {
       return {
         candidates: value as ParishConfirmationExportCandidate[],
         celebrations: undefined,
-        celebrationParticipations: undefined
+        celebrationParticipations: undefined,
+        celebrationJoins: undefined
       };
     }
     if (!value || typeof value !== 'object') {
@@ -3541,6 +3690,7 @@ export function ParishPage({
       candidates?: unknown;
       celebrations?: unknown;
       celebrationParticipations?: unknown;
+      celebrationJoins?: unknown;
     };
     if (!Array.isArray(withCandidates.candidates)) {
       return null;
@@ -3552,6 +3702,9 @@ export function ParishPage({
         : undefined,
       celebrationParticipations: Array.isArray(withCandidates.celebrationParticipations)
         ? (withCandidates.celebrationParticipations as ParishConfirmationExportCelebrationParticipation[])
+        : undefined,
+      celebrationJoins: Array.isArray(withCandidates.celebrationJoins)
+        ? (withCandidates.celebrationJoins as ParishConfirmationExportCelebrationJoin[])
         : undefined
     };
   };
@@ -3574,7 +3727,8 @@ export function ParishPage({
         `Wyeksportowano pełny zestaw danych: kandydaci ${exportPayload.candidates.length}, ` +
           `sloty ${exportPayload.meetingSlots?.length ?? 0}, wiadomości ${exportPayload.messages?.length ?? 0}, ` +
           `notatki ${exportPayload.notes?.length ?? 0}, celebracje ${exportPayload.celebrations?.length ?? 0}, ` +
-          `komentarze celebracji ${exportPayload.celebrationParticipations?.length ?? 0}.`
+          `komentarze celebracji ${exportPayload.celebrationParticipations?.length ?? 0}, ` +
+          `zgłoszenia na celebracje ${exportPayload.celebrationJoins?.length ?? 0}.`
       );
     } catch {
       setConfirmationTransferError('Nie udało się wyeksportować zgłoszeń.');
@@ -3604,7 +3758,8 @@ export function ParishPage({
         candidates: importPayload.candidates,
         replaceExisting: confirmationImportReplaceExisting,
         celebrations: importPayload.celebrations,
-        celebrationParticipations: importPayload.celebrationParticipations
+        celebrationParticipations: importPayload.celebrationParticipations,
+        celebrationJoins: importPayload.celebrationJoins
       });
       setConfirmationTransferInfo(
         `Import zakończony: ${result.importedCandidates} zgłoszeń, ${result.importedPhoneNumbers} numerów, pominięto ${result.skippedCandidates}.`
@@ -6629,6 +6784,22 @@ export function ParishPage({
                             {confirmationDisplayPortalData.upcomingCelebrations.map((celebration) => {
                               const isExpanded = confirmationCelebrationExpandedId === celebration.id;
                               const draftValue = confirmationCelebrationDrafts[celebration.id] ?? '';
+                              const joinStatus = (celebration.candidateJoinStatus ?? '').trim().toLowerCase();
+                              const isJoinPending = joinStatus === 'pending';
+                              const isJoinAccepted = joinStatus === 'accepted';
+                              const hasCapacityLimit = Number.isFinite(Number(celebration.capacity));
+                              const capacityValue = hasCapacityLimit ? Number(celebration.capacity) : null;
+                              const reservedCount = celebration.reservedCount ?? 0;
+                              const acceptedCount = celebration.acceptedCount ?? 0;
+                              const freePlaces = capacityValue !== null ? Math.max(capacityValue - reservedCount, 0) : null;
+                              const canJoin =
+                                !isJoinPending &&
+                                !isJoinAccepted &&
+                                (freePlaces === null || freePlaces > 0) &&
+                                Boolean(activeConfirmationPortalToken);
+                              const canLeavePending = isJoinPending && Boolean(activeConfirmationPortalToken);
+                              const joinBusy = confirmationCelebrationJoinActionId === `join:${celebration.id}`;
+                              const leaveBusy = confirmationCelebrationJoinActionId === `leave:${celebration.id}`;
                               const endsAt = new Date(celebration.endsAtUtc);
                               const commentEditDeadline = new Date(
                                 endsAt.getTime() + confirmationCelebrationCommentEditGraceDays * 24 * 60 * 60 * 1000
@@ -6661,6 +6832,62 @@ export function ParishPage({
                                   {needsCandidateResponse ? (
                                     <p className="confirmation-celebration-attention">Wymagana odpowiedź kandydata</p>
                                   ) : null}
+                                  <div className="confirmation-celebration-join-panel">
+                                    <p className="note">
+                                      <strong>Miejsca:</strong>{' '}
+                                      {capacityValue === null
+                                        ? 'bez limitu'
+                                        : `${freePlaces ?? 0}/${capacityValue} wolnych`} • Zgłoszenia: {reservedCount} •
+                                      Zaakceptowane: {acceptedCount}
+                                    </p>
+                                    {isJoinAccepted ? (
+                                      <p className="confirmation-celebration-join-status is-accepted">
+                                        Twoje zgłoszenie zostało zaakceptowane.
+                                      </p>
+                                    ) : isJoinPending ? (
+                                      <p className="confirmation-celebration-join-status is-pending">
+                                        Twoje zgłoszenie oczekuje na akceptację.
+                                      </p>
+                                    ) : joinStatus === 'cancelled' ? (
+                                      <p className="confirmation-celebration-join-status">
+                                        Wycofałeś(-aś) wcześniejsze zgłoszenie. Możesz zgłosić się ponownie.
+                                      </p>
+                                    ) : joinStatus === 'removed' ? (
+                                      <p className="confirmation-celebration-join-status">
+                                        Zostałeś(-aś) usunięty(-a) z listy. W razie potrzeby zgłoś się ponownie.
+                                      </p>
+                                    ) : joinStatus === 'rejected' ? (
+                                      <p className="confirmation-celebration-join-status">
+                                        Zgłoszenie zostało odrzucone. Skontaktuj się z parafią.
+                                      </p>
+                                    ) : null}
+                                    <div className="confirmation-celebration-join-actions">
+                                      {!isJoinPending && !isJoinAccepted ? (
+                                        <button
+                                          type="button"
+                                          className="parish-login"
+                                          disabled={!canJoin || joinBusy}
+                                          onClick={() => void handleJoinConfirmationCelebration(celebration.id)}
+                                        >
+                                          {joinBusy
+                                            ? 'Wysyłanie...'
+                                            : freePlaces === 0
+                                            ? 'Brak wolnych miejsc'
+                                            : 'Zgłoś udział'}
+                                        </button>
+                                      ) : null}
+                                      {canLeavePending ? (
+                                        <button
+                                          type="button"
+                                          className="ghost"
+                                          disabled={leaveBusy}
+                                          onClick={() => void handleLeaveConfirmationCelebration(celebration.id)}
+                                        >
+                                          {leaveBusy ? 'Wycofywanie...' : 'Wycofaj zgłoszenie'}
+                                        </button>
+                                      ) : null}
+                                    </div>
+                                  </div>
                                   {isExpanded ? (
                                     <>
                                       <p className="note">{celebration.description}</p>
@@ -7246,6 +7473,17 @@ export function ParishPage({
                                 onChange={(event) => setConfirmationCelebrationEditDescription(event.target.value)}
                               />
                             </label>
+                            <label>
+                              <span>Limit miejsc (opcjonalnie)</span>
+                              <input
+                                type="number"
+                                min={1}
+                                max={500}
+                                value={confirmationCelebrationEditCapacity}
+                                onChange={(event) => setConfirmationCelebrationEditCapacity(event.target.value)}
+                                placeholder="np. 20"
+                              />
+                            </label>
                             <label className="admin-form-full builder-option">
                               <input
                                 type="checkbox"
@@ -7289,6 +7527,11 @@ export function ParishPage({
                                     {new Date(celebration.endsAtUtc).toLocaleString('pl-PL')}
                                   </span>
                                   <br />
+                                  <span className="muted">
+                                    Miejsca: {celebration.capacity ?? 'bez limitu'} • Zajęte: {celebration.reservedCount ?? 0} •
+                                    Zaakceptowane: {celebration.acceptedCount ?? 0}
+                                  </span>
+                                  <br />
                                   <button
                                     type="button"
                                     className="ghost"
@@ -7296,6 +7539,47 @@ export function ParishPage({
                                   >
                                     Edytuj
                                   </button>
+                                  {(celebration.joins?.length ?? 0) > 0 ? (
+                                    <div className="note" style={{ marginTop: 8 }}>
+                                      <strong>Zgłoszenia:</strong>
+                                      <ul className="confirmation-portal-message-list" style={{ marginTop: 6 }}>
+                                        {(celebration.joins ?? []).map((join) => (
+                                          <li key={`celebration-join-${join.id}`}>
+                                            {join.candidateName} {join.candidateSurname} • {join.status} •{' '}
+                                            {new Date(join.updatedUtc).toLocaleString('pl-PL')}
+                                            <div className="builder-actions">
+                                              {join.status === 'pending' ? (
+                                                <button
+                                                  type="button"
+                                                  className="parish-login"
+                                                  disabled={confirmationCelebrationAdminJoinActionId === `accept:${join.id}`}
+                                                  onClick={() => void handleAcceptConfirmationCelebrationJoin(celebration.id, join.id)}
+                                                >
+                                                  {confirmationCelebrationAdminJoinActionId === `accept:${join.id}`
+                                                    ? 'Akceptuję...'
+                                                    : 'Akceptuj'}
+                                                </button>
+                                              ) : null}
+                                              <button
+                                                type="button"
+                                                className="ghost"
+                                                disabled={confirmationCelebrationAdminJoinActionId === `remove:${join.id}`}
+                                                onClick={() => void handleRemoveConfirmationCelebrationJoin(celebration.id, join.id)}
+                                              >
+                                                {confirmationCelebrationAdminJoinActionId === `remove:${join.id}`
+                                                  ? 'Usuwam...'
+                                                  : 'Usuń z wydarzenia'}
+                                              </button>
+                                            </div>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  ) : (
+                                    <p className="muted" style={{ marginTop: 6 }}>
+                                      Brak zgłoszeń na to wydarzenie.
+                                    </p>
+                                  )}
                                 </li>
                               ))}
                             </ul>

@@ -54,6 +54,8 @@ public sealed class RecreatioDbContext : DbContext
         Set<Data.Parish.ParishConfirmationCelebration>();
     public DbSet<Data.Parish.ParishConfirmationCelebrationParticipation> ParishConfirmationCelebrationParticipations =>
         Set<Data.Parish.ParishConfirmationCelebrationParticipation>();
+    public DbSet<Data.Parish.ParishConfirmationCelebrationJoin> ParishConfirmationCelebrationJoins =>
+        Set<Data.Parish.ParishConfirmationCelebrationJoin>();
     public DbSet<Data.Pilgrimage.PilgrimageEvent> PilgrimageEvents => Set<Data.Pilgrimage.PilgrimageEvent>();
     public DbSet<Data.Pilgrimage.PilgrimageSiteConfig> PilgrimageSiteConfigs => Set<Data.Pilgrimage.PilgrimageSiteConfig>();
     public DbSet<Data.Pilgrimage.PilgrimageParticipant> PilgrimageParticipants => Set<Data.Pilgrimage.PilgrimageParticipant>();
@@ -304,6 +306,16 @@ public sealed class RecreatioDbContext : DbContext
 
         modelBuilder.Entity<Data.Parish.ParishConfirmationCelebrationParticipation>()
             .HasIndex(x => new { x.ParishId, x.CandidateId, x.UpdatedUtc });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationCelebrationJoin>()
+            .HasIndex(x => new { x.CandidateId, x.CelebrationId })
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationCelebrationJoin>()
+            .HasIndex(x => new { x.ParishId, x.CelebrationId, x.Status, x.RequestedUtc });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationCelebrationJoin>()
+            .HasIndex(x => new { x.ParishId, x.CandidateId, x.Status, x.UpdatedUtc });
 
         modelBuilder.Entity<Data.Pilgrimage.PilgrimageEvent>()
             .HasIndex(x => x.Slug)
