@@ -553,6 +553,16 @@ public sealed record ParishConfirmationCelebrationJoinResponse(
     DateTimeOffset? DecisionUtc,
     DateTimeOffset UpdatedUtc);
 
+public sealed record ParishConfirmationEventJoinResponse(
+    Guid Id,
+    Guid CandidateId,
+    string CandidateName,
+    string CandidateSurname,
+    string Status,
+    DateTimeOffset RequestedUtc,
+    DateTimeOffset? DecisionUtc,
+    DateTimeOffset UpdatedUtc);
+
 public sealed record ParishConfirmationCelebrationResponse(
     Guid Id,
     string Name,
@@ -572,11 +582,29 @@ public sealed record ParishConfirmationCelebrationResponse(
     int AcceptedCount,
     IReadOnlyList<ParishConfirmationCelebrationJoinResponse>? Joins);
 
+public sealed record ParishConfirmationEventResponse(
+    Guid Id,
+    string Name,
+    string ShortInfo,
+    DateTimeOffset StartsAtUtc,
+    DateTimeOffset EndsAtUtc,
+    string Description,
+    int? Capacity,
+    bool IsActive,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc,
+    string? CandidateJoinStatus,
+    DateTimeOffset? CandidateJoinUpdatedUtc,
+    int ReservedCount,
+    int AcceptedCount,
+    IReadOnlyList<ParishConfirmationEventJoinResponse>? Joins);
+
 public sealed record ParishConfirmationPortalResponse(
     ParishConfirmationPortalCandidateDataResponse Candidate,
     IReadOnlyList<ParishConfirmationMeetingPublicSlotResponse> FirstYearStartSlots,
     IReadOnlyList<ParishConfirmationMeetingJoinRequestResponse> PendingJoinRequests,
     string SecondMeetingAnnouncement,
+    IReadOnlyList<ParishConfirmationEventResponse> UpcomingEvents,
     IReadOnlyList<ParishConfirmationCelebrationResponse> UpcomingCelebrations,
     IReadOnlyList<ParishConfirmationMessageResponse> Messages,
     IReadOnlyList<ParishConfirmationNoteResponse> PublicNotes,
@@ -641,6 +669,24 @@ public sealed record ParishConfirmationCelebrationJoinCreateRequest(
     Guid CelebrationId);
 
 public sealed record ParishConfirmationCelebrationJoinActionResponse(
+    string Status,
+    Guid? JoinId,
+    DateTimeOffset? UpdatedUtc);
+
+public sealed record ParishConfirmationEventCreateRequest(
+    string Name,
+    string ShortInfo,
+    DateTimeOffset StartsAtUtc,
+    DateTimeOffset EndsAtUtc,
+    string Description,
+    int? Capacity,
+    bool IsActive);
+
+public sealed record ParishConfirmationEventJoinCreateRequest(
+    string Token,
+    Guid EventId);
+
+public sealed record ParishConfirmationEventJoinActionResponse(
     string Status,
     Guid? JoinId,
     DateTimeOffset? UpdatedUtc);

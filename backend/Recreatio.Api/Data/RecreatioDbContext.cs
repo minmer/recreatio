@@ -56,6 +56,10 @@ public sealed class RecreatioDbContext : DbContext
         Set<Data.Parish.ParishConfirmationCelebrationParticipation>();
     public DbSet<Data.Parish.ParishConfirmationCelebrationJoin> ParishConfirmationCelebrationJoins =>
         Set<Data.Parish.ParishConfirmationCelebrationJoin>();
+    public DbSet<Data.Parish.ParishConfirmationEvent> ParishConfirmationEvents =>
+        Set<Data.Parish.ParishConfirmationEvent>();
+    public DbSet<Data.Parish.ParishConfirmationEventJoin> ParishConfirmationEventJoins =>
+        Set<Data.Parish.ParishConfirmationEventJoin>();
     public DbSet<Data.Pilgrimage.PilgrimageEvent> PilgrimageEvents => Set<Data.Pilgrimage.PilgrimageEvent>();
     public DbSet<Data.Pilgrimage.PilgrimageSiteConfig> PilgrimageSiteConfigs => Set<Data.Pilgrimage.PilgrimageSiteConfig>();
     public DbSet<Data.Pilgrimage.PilgrimageParticipant> PilgrimageParticipants => Set<Data.Pilgrimage.PilgrimageParticipant>();
@@ -315,6 +319,22 @@ public sealed class RecreatioDbContext : DbContext
             .HasIndex(x => new { x.ParishId, x.CelebrationId, x.Status, x.RequestedUtc });
 
         modelBuilder.Entity<Data.Parish.ParishConfirmationCelebrationJoin>()
+            .HasIndex(x => new { x.ParishId, x.CandidateId, x.Status, x.UpdatedUtc });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationEvent>()
+            .HasIndex(x => new { x.ParishId, x.StartsAtUtc });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationEvent>()
+            .HasIndex(x => new { x.ParishId, x.IsActive, x.StartsAtUtc });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationEventJoin>()
+            .HasIndex(x => new { x.CandidateId, x.EventId })
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationEventJoin>()
+            .HasIndex(x => new { x.ParishId, x.EventId, x.Status, x.RequestedUtc });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationEventJoin>()
             .HasIndex(x => new { x.ParishId, x.CandidateId, x.Status, x.UpdatedUtc });
 
         modelBuilder.Entity<Data.Pilgrimage.PilgrimageEvent>()

@@ -43,12 +43,13 @@ public static class ParishEndpoints
     private const string ConfirmationJoinDecisionReject = "reject";
     private const int ConfirmationCelebrationUpcomingDays = 7;
     private const int ConfirmationCelebrationCommentEditGraceDays = 7;
-    private const int ConfirmationCelebrationCapacityMax = 500;
-    private const string ConfirmationCelebrationJoinPending = "pending";
-    private const string ConfirmationCelebrationJoinAccepted = "accepted";
-    private const string ConfirmationCelebrationJoinCancelled = "cancelled";
-    private const string ConfirmationCelebrationJoinRemoved = "removed";
-    private const string ConfirmationCelebrationJoinRejected = "rejected";
+    private const int ConfirmationEventCapacityMax = 500;
+    private const int ConfirmationEventCapacityMax = 500;
+    private const string ConfirmationEventJoinPending = "pending";
+    private const string ConfirmationEventJoinAccepted = "accepted";
+    private const string ConfirmationEventJoinCancelled = "cancelled";
+    private const string ConfirmationEventJoinRemoved = "removed";
+    private const string ConfirmationEventJoinRejected = "rejected";
     private const string ConfirmationSmsTemplatesLegacyPageKey = "__confirmation_sms_templates";
     private static readonly string[] Breakpoints = { "desktop", "tablet", "mobile" };
 
@@ -248,35 +249,61 @@ public static class ParishEndpoints
         }
     }
 
-    private static bool IsConfirmationCelebrationJoinStatusActive(string? status)
+    private static bool IsConfirmationEventJoinStatusActive(string? status)
     {
-        return string.Equals(status, ConfirmationCelebrationJoinPending, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(status, ConfirmationCelebrationJoinAccepted, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(status, ConfirmationEventJoinPending, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(status, ConfirmationEventJoinAccepted, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsConfirmationCelebrationJoinStatusAccepted(string? status)
+    private static bool IsConfirmationEventJoinStatusAccepted(string? status)
     {
-        return string.Equals(status, ConfirmationCelebrationJoinAccepted, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(status, ConfirmationEventJoinAccepted, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string? NormalizeConfirmationCelebrationJoinStatus(string? status)
+    private static string? NormalizeConfirmationEventJoinStatus(string? status)
     {
         var normalized = (status ?? string.Empty).Trim().ToLowerInvariant();
         return normalized switch
         {
-            ConfirmationCelebrationJoinPending => ConfirmationCelebrationJoinPending,
-            ConfirmationCelebrationJoinAccepted => ConfirmationCelebrationJoinAccepted,
-            ConfirmationCelebrationJoinCancelled => ConfirmationCelebrationJoinCancelled,
-            ConfirmationCelebrationJoinRemoved => ConfirmationCelebrationJoinRemoved,
-            ConfirmationCelebrationJoinRejected => ConfirmationCelebrationJoinRejected,
+            ConfirmationEventJoinPending => ConfirmationEventJoinPending,
+            ConfirmationEventJoinAccepted => ConfirmationEventJoinAccepted,
+            ConfirmationEventJoinCancelled => ConfirmationEventJoinCancelled,
+            ConfirmationEventJoinRemoved => ConfirmationEventJoinRemoved,
+            ConfirmationEventJoinRejected => ConfirmationEventJoinRejected,
             _ => null
         };
+    }
+
+    private static ParishConfirmationEventResponse BuildConfirmationEventResponse(
+        ParishConfirmationEvent confirmationEvent,
+        ParishConfirmationEventJoin? candidateJoin,
+        int reservedCount,
+        int acceptedCount,
+        IReadOnlyList<ParishConfirmationEventJoinResponse>? joins)
+    {
+        return new ParishConfirmationEventResponse(
+            confirmationEvent.Id,
+            confirmationEvent.Name,
+            confirmationEvent.ShortInfo,
+            confirmationEvent.StartsAtUtc,
+            confirmationEvent.EndsAtUtc,
+            confirmationEvent.Description,
+            confirmationEvent.Capacity,
+            confirmationEvent.IsActive,
+            confirmationEvent.CreatedUtc,
+            confirmationEvent.UpdatedUtc,
+            candidateJoin?.Status,
+            candidateJoin?.UpdatedUtc,
+            reservedCount,
+            acceptedCount,
+            joins);
     }
 
     private static ParishConfirmationCelebrationResponse BuildConfirmationCelebrationResponse(
         ParishConfirmationCelebration celebration,
         ParishConfirmationCelebrationParticipation? participation,
-        ParishConfirmationCelebrationJoin? candidateJoin,
+        string? candidateJoinStatus,
+        DateTimeOffset? candidateJoinUpdatedUtc,
         int reservedCount,
         int acceptedCount,
         IReadOnlyList<ParishConfirmationCelebrationJoinResponse>? joins)
@@ -294,8 +321,8 @@ public static class ParishEndpoints
             celebration.UpdatedUtc,
             participation?.CommentText,
             participation?.UpdatedUtc,
-            candidateJoin?.Status,
-            candidateJoin?.UpdatedUtc,
+            candidateJoinStatus,
+            candidateJoinUpdatedUtc,
             reservedCount,
             acceptedCount,
             joins);
@@ -1320,6 +1347,11 @@ public static class ParishEndpoints
                 candidate.Id,
                 dbContext,
                 ct);
+            var upcomingEvents = await LoadConfirmationUpcomingEventsAsync(
+                parish.Id,
+                candidate.Id,
+                dbContext,
+                ct);
 
             var now = DateTimeOffset.UtcNow;
             var selectedSlot = link.SlotId is null
@@ -1377,6 +1409,7 @@ public static class ParishEndpoints
                 }).ToList(),
                 pendingJoinRequests,
                 ConfirmationSecondMeetingAnnouncement,
+                upcomingEvents,
                 upcomingCelebrations,
                 messages,
                 publicNotes,
@@ -1544,9 +1577,9 @@ public static class ParishEndpoints
             });
         });
 
-        group.MapPost("/{slug}/public/confirmation-celebration-join", async (
+        group.MapPost("/{slug}/public/confirmation-events/join", async (
             string slug,
-            ParishConfirmationCelebrationJoinCreateRequest request,
+            ParishConfirmationEventJoinCreateRequest request,
             RecreatioDbContext dbContext,
             ILedgerService ledgerService,
             CancellationToken ct) =>
@@ -1578,66 +1611,66 @@ public static class ParishEndpoints
 
             var now = DateTimeOffset.UtcNow;
             var windowEnd = now.AddDays(ConfirmationCelebrationUpcomingDays);
-            var celebration = await dbContext.ParishConfirmationCelebrations.AsNoTracking()
+            var confirmationEvent = await dbContext.ParishConfirmationEvents.AsNoTracking()
                 .FirstOrDefaultAsync(
                     x =>
-                        x.Id == request.CelebrationId &&
+                        x.Id == request.EventId &&
                         x.ParishId == parish.Id &&
                         x.IsActive &&
                         x.EndsAtUtc >= now &&
                         x.StartsAtUtc <= windowEnd,
                     ct);
-            if (celebration is null)
+            if (confirmationEvent is null)
             {
-                return Results.NotFound(new { status = "celebration-not-found" });
+                return Results.NotFound(new { status = "event-not-found" });
             }
 
-            var join = await dbContext.ParishConfirmationCelebrationJoins
+            var join = await dbContext.ParishConfirmationEventJoins
                 .FirstOrDefaultAsync(
-                    x => x.ParishId == parish.Id && x.CandidateId == link.CandidateId && x.CelebrationId == celebration.Id,
+                    x => x.ParishId == parish.Id && x.CandidateId == link.CandidateId && x.EventId == confirmationEvent.Id,
                     ct);
-            var normalizedStatus = NormalizeConfirmationCelebrationJoinStatus(join?.Status);
-            if (normalizedStatus == ConfirmationCelebrationJoinAccepted)
+            var normalizedStatus = NormalizeConfirmationEventJoinStatus(join?.Status);
+            if (normalizedStatus == ConfirmationEventJoinAccepted)
             {
-                return Results.Ok(new ParishConfirmationCelebrationJoinActionResponse("already-accepted", join!.Id, join.UpdatedUtc));
+                return Results.Ok(new ParishConfirmationEventJoinActionResponse("already-accepted", join!.Id, join.UpdatedUtc));
             }
 
-            if (normalizedStatus == ConfirmationCelebrationJoinPending)
+            if (normalizedStatus == ConfirmationEventJoinPending)
             {
-                return Results.Ok(new ParishConfirmationCelebrationJoinActionResponse("already-pending", join!.Id, join.UpdatedUtc));
+                return Results.Ok(new ParishConfirmationEventJoinActionResponse("already-pending", join!.Id, join.UpdatedUtc));
             }
 
-            var reservedCount = await dbContext.ParishConfirmationCelebrationJoins.AsNoTracking()
+            var reservedCount = await dbContext.ParishConfirmationEventJoins.AsNoTracking()
                 .Where(x =>
                     x.ParishId == parish.Id &&
-                    x.CelebrationId == celebration.Id &&
-                    (x.Status == ConfirmationCelebrationJoinPending || x.Status == ConfirmationCelebrationJoinAccepted) &&
+                    x.EventId == confirmationEvent.Id &&
+                    (x.Status == ConfirmationEventJoinPending || x.Status == ConfirmationEventJoinAccepted) &&
                     (join == null || x.Id != join.Id))
                 .CountAsync(ct);
-            if (celebration.Capacity is > 0 && reservedCount >= celebration.Capacity.Value)
+            if (confirmationEvent.Capacity is > 0 && reservedCount >= confirmationEvent.Capacity.Value)
             {
-                return Results.Ok(new ParishConfirmationCelebrationJoinActionResponse("full", join?.Id, join?.UpdatedUtc));
+                return Results.Ok(new ParishConfirmationEventJoinActionResponse("full", join?.Id, join?.UpdatedUtc));
             }
 
             if (join is null)
             {
-                join = new ParishConfirmationCelebrationJoin
+                join = new ParishConfirmationEventJoin
                 {
                     Id = Guid.NewGuid(),
                     ParishId = parish.Id,
                     CandidateId = link.CandidateId,
-                    CelebrationId = celebration.Id,
-                    Status = ConfirmationCelebrationJoinPending,
+                    EventId = confirmationEvent.Id,
+                    Status = ConfirmationEventJoinPending,
                     RequestedUtc = now,
                     DecisionUtc = null,
                     CreatedUtc = now,
                     UpdatedUtc = now
                 };
-                dbContext.ParishConfirmationCelebrationJoins.Add(join);
+                dbContext.ParishConfirmationEventJoins.Add(join);
             }
             else
             {
-                join.Status = ConfirmationCelebrationJoinPending;
+                join.Status = ConfirmationEventJoinPending;
                 join.RequestedUtc = now;
                 join.DecisionUtc = null;
                 join.UpdatedUtc = now;
@@ -1647,22 +1680,22 @@ public static class ParishEndpoints
 
             await ledgerService.AppendParishAsync(
                 parish.Id,
-                "ConfirmationCelebrationJoinRequested",
+                "ConfirmationEventJoinRequested",
                 "public",
                 JsonSerializer.Serialize(new
                 {
                     CandidateId = link.CandidateId,
-                    CelebrationId = celebration.Id,
+                    EventId = confirmationEvent.Id,
                     JoinId = join.Id
                 }),
                 ct);
 
-            return Results.Ok(new ParishConfirmationCelebrationJoinActionResponse("requested", join.Id, join.UpdatedUtc));
+            return Results.Ok(new ParishConfirmationEventJoinActionResponse("requested", join.Id, join.UpdatedUtc));
         });
 
-        group.MapPost("/{slug}/public/confirmation-celebration-leave", async (
+        group.MapPost("/{slug}/public/confirmation-events/leave", async (
             string slug,
-            ParishConfirmationCelebrationJoinCreateRequest request,
+            ParishConfirmationEventJoinCreateRequest request,
             RecreatioDbContext dbContext,
             ILedgerService ledgerService,
             CancellationToken ct) =>
@@ -1692,30 +1725,30 @@ public static class ParishEndpoints
                 return Results.NotFound(new { status = "invalid-token" });
             }
 
-            var join = await dbContext.ParishConfirmationCelebrationJoins
+            var join = await dbContext.ParishConfirmationEventJoins
                 .FirstOrDefaultAsync(
-                    x => x.ParishId == parish.Id && x.CandidateId == link.CandidateId && x.CelebrationId == request.CelebrationId,
+                    x => x.ParishId == parish.Id && x.CandidateId == link.CandidateId && x.EventId == request.EventId,
                     ct);
-            var normalizedStatus = NormalizeConfirmationCelebrationJoinStatus(join?.Status);
-            if (join is null || normalizedStatus != ConfirmationCelebrationJoinPending)
+            var normalizedStatus = NormalizeConfirmationEventJoinStatus(join?.Status);
+            if (join is null || normalizedStatus != ConfirmationEventJoinPending)
             {
-                return Results.Ok(new ParishConfirmationCelebrationJoinActionResponse("cannot-leave", join?.Id, join?.UpdatedUtc));
+                return Results.Ok(new ParishConfirmationEventJoinActionResponse("cannot-leave", join?.Id, join?.UpdatedUtc));
             }
 
             var now = DateTimeOffset.UtcNow;
-            join.Status = ConfirmationCelebrationJoinCancelled;
+            join.Status = ConfirmationEventJoinCancelled;
             join.DecisionUtc = now;
             join.UpdatedUtc = now;
             await dbContext.SaveChangesAsync(ct);
 
             await ledgerService.AppendParishAsync(
                 parish.Id,
-                "ConfirmationCelebrationJoinCancelled",
+                "ConfirmationEventJoinCancelled",
                 "public",
-                JsonSerializer.Serialize(new { link.CandidateId, request.CelebrationId, join.Id }),
+                JsonSerializer.Serialize(new { link.CandidateId, request.EventId, join.Id }),
                 ct);
 
-            return Results.Ok(new ParishConfirmationCelebrationJoinActionResponse("cancelled", join.Id, join.UpdatedUtc));
+            return Results.Ok(new ParishConfirmationEventJoinActionResponse("cancelled", join.Id, join.UpdatedUtc));
         });
 
         group.MapPost("", async (
@@ -2375,7 +2408,7 @@ public static class ParishEndpoints
                     x.CreatedUtc,
                     x.UpdatedUtc))
                 .ToList();
-            var celebrationJoins = await dbContext.ParishConfirmationCelebrationJoins.AsNoTracking()
+            var celebrationJoins = await dbContext.ParishConfirmationEventJoins.AsNoTracking()
                 .Where(x => x.ParishId == parishId)
                 .OrderBy(x => x.RequestedUtc)
                 .ThenBy(x => x.UpdatedUtc)
@@ -2383,7 +2416,7 @@ public static class ParishEndpoints
                     x.Id,
                     x.CandidateId,
                     meetingTokenByCandidate.GetValueOrDefault(x.CandidateId),
-                    x.CelebrationId,
+                    x.EventId,
                     x.Status,
                     x.RequestedUtc,
                     x.DecisionUtc,
@@ -2516,12 +2549,12 @@ public static class ParishEndpoints
                     dbContext.ParishConfirmationCelebrationParticipations.RemoveRange(existingCelebrationParticipations);
                 }
 
-                var existingCelebrationJoins = await dbContext.ParishConfirmationCelebrationJoins
+                var existingCelebrationJoins = await dbContext.ParishConfirmationEventJoins
                     .Where(x => x.ParishId == parishId)
                     .ToListAsync(ct);
                 if (existingCelebrationJoins.Count > 0)
                 {
-                    dbContext.ParishConfirmationCelebrationJoins.RemoveRange(existingCelebrationJoins);
+                    dbContext.ParishConfirmationEventJoins.RemoveRange(existingCelebrationJoins);
                 }
 
                 var existingCelebrations = await dbContext.ParishConfirmationCelebrations
@@ -2739,7 +2772,7 @@ public static class ParishEndpoints
                 var updatedUtc = sourceCelebration.UpdatedUtc is { } updated && updated >= createdUtc
                     ? updated
                     : createdUtc;
-                var capacity = sourceCelebration.Capacity is >= 1 and <= ConfirmationCelebrationCapacityMax
+                var capacity = sourceCelebration.Capacity is >= 1 and <= ConfirmationEventCapacityMax
                     ? sourceCelebration.Capacity
                     : null;
                 var celebrationId = Guid.NewGuid();
@@ -2807,7 +2840,7 @@ public static class ParishEndpoints
             foreach (var sourceJoin in sourceCelebrationJoins)
             {
                 var meetingToken = NormalizeConfirmationToken(sourceJoin.CandidateMeetingToken);
-                var normalizedStatus = NormalizeConfirmationCelebrationJoinStatus(sourceJoin.Status);
+                var normalizedStatus = NormalizeConfirmationEventJoinStatus(sourceJoin.Status);
                 if (meetingToken is null || normalizedStatus is null)
                 {
                     continue;
@@ -2841,12 +2874,12 @@ public static class ParishEndpoints
                     : createdUtc;
                 var decisionUtc = sourceJoin.DecisionUtc;
 
-                dbContext.ParishConfirmationCelebrationJoins.Add(new ParishConfirmationCelebrationJoin
+                dbContext.ParishConfirmationEventJoins.Add(new ParishConfirmationEventJoin
                 {
                     Id = Guid.NewGuid(),
                     ParishId = parishId,
                     CandidateId = candidateId,
-                    CelebrationId = celebrationId,
+                    EventId = celebrationId,
                     Status = normalizedStatus,
                     RequestedUtc = requestedUtc,
                     DecisionUtc = decisionUtc,
@@ -3615,6 +3648,11 @@ public static class ParishEndpoints
                 candidateId,
                 dbContext,
                 ct);
+            var upcomingEvents = await LoadConfirmationUpcomingEventsAsync(
+                parishId,
+                candidateId,
+                dbContext,
+                ct);
 
             var now = DateTimeOffset.UtcNow;
             var selectedSlot = link.SlotId is null
@@ -3672,6 +3710,7 @@ public static class ParishEndpoints
                 }).ToList(),
                 pendingJoinRequests,
                 ConfirmationSecondMeetingAnnouncement,
+                upcomingEvents,
                 upcomingCelebrations,
                 messages,
                 publicNotes,
@@ -4175,55 +4214,17 @@ public static class ParishEndpoints
                 return Results.Ok(Array.Empty<ParishConfirmationCelebrationResponse>());
             }
 
-            var candidateViews = await LoadParishConfirmationCandidateViewsAsync(
-                parishId,
-                dbContext,
-                dataProtectionProvider,
-                ct);
-            var candidateById = candidateViews.ToDictionary(x => x.CandidateId, x => x);
-            var celebrationIds = celebrations.Select(x => x.Id).ToList();
-            var joinRows = await dbContext.ParishConfirmationCelebrationJoins.AsNoTracking()
-                .Where(x =>
-                    x.ParishId == parishId &&
-                    celebrationIds.Contains(x.CelebrationId) &&
-                    ((x.Status == ConfirmationCelebrationJoinPending || x.Status == ConfirmationCelebrationJoinAccepted) ||
-                     x.Status == ConfirmationCelebrationJoinCancelled ||
-                     x.Status == ConfirmationCelebrationJoinRemoved ||
-                     x.Status == ConfirmationCelebrationJoinRejected))
-                .OrderByDescending(x => x.UpdatedUtc)
-                .ToListAsync(ct);
-            var joinsByCelebration = joinRows
-                .GroupBy(x => x.CelebrationId)
-                .ToDictionary(group => group.Key, group => group.ToList());
-
             var response = celebrations
                 .Select(celebration =>
                 {
-                    var joins = joinsByCelebration.GetValueOrDefault(celebration.Id) ?? new List<ParishConfirmationCelebrationJoin>();
-                    var reservedCount = joins.Count(join => IsConfirmationCelebrationJoinStatusActive(join.Status));
-                    var acceptedCount = joins.Count(join => IsConfirmationCelebrationJoinStatusAccepted(join.Status));
-                    var joinResponses = joins
-                        .Select(join =>
-                        {
-                            var candidate = candidateById.GetValueOrDefault(join.CandidateId);
-                            return new ParishConfirmationCelebrationJoinResponse(
-                                join.Id,
-                                join.CandidateId,
-                                candidate?.Name ?? "Nieznany",
-                                candidate?.Surname ?? "kandydat",
-                                join.Status,
-                                join.RequestedUtc,
-                                join.DecisionUtc,
-                                join.UpdatedUtc);
-                        })
-                        .ToList();
                     return BuildConfirmationCelebrationResponse(
                         celebration,
                         null,
                         null,
-                        reservedCount,
-                        acceptedCount,
-                        joinResponses);
+                        null,
+                        0,
+                        0,
+                        null);
                 })
                 .ToList();
 
@@ -4266,9 +4267,9 @@ public static class ParishEndpoints
                 return Results.BadRequest(new { error = "Invalid celebration data." });
             }
 
-            if (request.Capacity is < 1 or > ConfirmationCelebrationCapacityMax)
+            if (request.Capacity is < 1 or > ConfirmationEventCapacityMax)
             {
-                return Results.BadRequest(new { error = $"Celebration capacity must be between 1 and {ConfirmationCelebrationCapacityMax}." });
+                return Results.BadRequest(new { error = $"Celebration capacity must be between 1 and {ConfirmationEventCapacityMax}." });
             }
 
             if (request.EndsAtUtc <= request.StartsAtUtc)
@@ -4365,9 +4366,9 @@ public static class ParishEndpoints
                 return Results.BadRequest(new { error = "Invalid celebration data." });
             }
 
-            if (request.Capacity is < 1 or > ConfirmationCelebrationCapacityMax)
+            if (request.Capacity is < 1 or > ConfirmationEventCapacityMax)
             {
-                return Results.BadRequest(new { error = $"Celebration capacity must be between 1 and {ConfirmationCelebrationCapacityMax}." });
+                return Results.BadRequest(new { error = $"Celebration capacity must be between 1 and {ConfirmationEventCapacityMax}." });
             }
 
             if (request.EndsAtUtc <= request.StartsAtUtc)
@@ -4412,9 +4413,231 @@ public static class ParishEndpoints
                 null));
         }).RequireAuthorization();
 
-        group.MapPost("/{parishId:guid}/confirmation-celebrations/{celebrationId:guid}/joins/{joinId:guid}/accept", async (
+        group.MapGet("/{parishId:guid}/confirmation-events", async (
             Guid parishId,
-            Guid celebrationId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var events = await dbContext.ParishConfirmationEvents.AsNoTracking()
+                .Where(x => x.ParishId == parishId)
+                .OrderBy(x => x.StartsAtUtc)
+                .ThenBy(x => x.CreatedUtc)
+                .ToListAsync(ct);
+            if (events.Count == 0)
+            {
+                return Results.Ok(Array.Empty<ParishConfirmationEventResponse>());
+            }
+
+            var candidateViews = await LoadParishConfirmationCandidateViewsAsync(parishId, dbContext, dataProtectionProvider, ct);
+            var candidateById = candidateViews.ToDictionary(x => x.CandidateId, x => x);
+            var eventIds = events.Select(x => x.Id).ToList();
+            var joinRows = await dbContext.ParishConfirmationEventJoins.AsNoTracking()
+                .Where(x =>
+                    x.ParishId == parishId &&
+                    eventIds.Contains(x.EventId) &&
+                    ((x.Status == ConfirmationEventJoinPending || x.Status == ConfirmationEventJoinAccepted) ||
+                     x.Status == ConfirmationEventJoinCancelled ||
+                     x.Status == ConfirmationEventJoinRemoved ||
+                     x.Status == ConfirmationEventJoinRejected))
+                .OrderByDescending(x => x.UpdatedUtc)
+                .ToListAsync(ct);
+            var joinsByEvent = joinRows.GroupBy(x => x.EventId).ToDictionary(group => group.Key, group => group.ToList());
+
+            var response = events.Select(confirmationEvent =>
+            {
+                var joins = joinsByEvent.GetValueOrDefault(confirmationEvent.Id) ?? new List<ParishConfirmationEventJoin>();
+                var reservedCount = joins.Count(join => IsConfirmationEventJoinStatusActive(join.Status));
+                var acceptedCount = joins.Count(join => IsConfirmationEventJoinStatusAccepted(join.Status));
+                var joinResponses = joins.Select(join =>
+                {
+                    var candidate = candidateById.GetValueOrDefault(join.CandidateId);
+                    return new ParishConfirmationEventJoinResponse(
+                        join.Id,
+                        join.CandidateId,
+                        candidate?.Name ?? "Nieznany",
+                        candidate?.Surname ?? "kandydat",
+                        join.Status,
+                        join.RequestedUtc,
+                        join.DecisionUtc,
+                        join.UpdatedUtc);
+                }).ToList();
+
+                return BuildConfirmationEventResponse(confirmationEvent, null, reservedCount, acceptedCount, joinResponses);
+            }).ToList();
+
+            return Results.Ok(response);
+        }).RequireAuthorization();
+
+        group.MapPost("/{parishId:guid}/confirmation-events", async (
+            Guid parishId,
+            ParishConfirmationEventCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var name = NormalizeConfirmationText(request.Name, 160);
+            var shortInfo = NormalizeConfirmationText(request.ShortInfo, 320);
+            var description = NormalizeConfirmationText(request.Description, 4000);
+            if (name is null || shortInfo is null || description is null)
+            {
+                return Results.BadRequest(new { error = "Invalid event data." });
+            }
+
+            if (request.Capacity is < 1 or > ConfirmationEventCapacityMax)
+            {
+                return Results.BadRequest(new { error = $"Event capacity must be between 1 and {ConfirmationEventCapacityMax}." });
+            }
+
+            if (request.EndsAtUtc <= request.StartsAtUtc)
+            {
+                return Results.BadRequest(new { error = "Event end time must be after start time." });
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var confirmationEvent = new ParishConfirmationEvent
+            {
+                Id = Guid.NewGuid(),
+                ParishId = parishId,
+                Name = name,
+                ShortInfo = shortInfo,
+                StartsAtUtc = request.StartsAtUtc,
+                EndsAtUtc = request.EndsAtUtc,
+                Description = description,
+                Capacity = request.Capacity,
+                IsActive = request.IsActive,
+                CreatedUtc = now,
+                UpdatedUtc = now
+            };
+            dbContext.ParishConfirmationEvents.Add(confirmationEvent);
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationEventCreated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { confirmationEvent.Id, confirmationEvent.StartsAtUtc, confirmationEvent.EndsAtUtc }),
+                ct);
+
+            return Results.Ok(BuildConfirmationEventResponse(confirmationEvent, null, 0, 0, null));
+        }).RequireAuthorization();
+
+        group.MapPut("/{parishId:guid}/confirmation-events/{eventId:guid}", async (
+            Guid parishId,
+            Guid eventId,
+            ParishConfirmationEventCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var confirmationEvent = await dbContext.ParishConfirmationEvents
+                .FirstOrDefaultAsync(x => x.ParishId == parishId && x.Id == eventId, ct);
+            if (confirmationEvent is null)
+            {
+                return Results.NotFound();
+            }
+
+            var name = NormalizeConfirmationText(request.Name, 160);
+            var shortInfo = NormalizeConfirmationText(request.ShortInfo, 320);
+            var description = NormalizeConfirmationText(request.Description, 4000);
+            if (name is null || shortInfo is null || description is null)
+            {
+                return Results.BadRequest(new { error = "Invalid event data." });
+            }
+
+            if (request.Capacity is < 1 or > ConfirmationEventCapacityMax)
+            {
+                return Results.BadRequest(new { error = $"Event capacity must be between 1 and {ConfirmationEventCapacityMax}." });
+            }
+
+            if (request.EndsAtUtc <= request.StartsAtUtc)
+            {
+                return Results.BadRequest(new { error = "Event end time must be after start time." });
+            }
+
+            confirmationEvent.Name = name;
+            confirmationEvent.ShortInfo = shortInfo;
+            confirmationEvent.StartsAtUtc = request.StartsAtUtc;
+            confirmationEvent.EndsAtUtc = request.EndsAtUtc;
+            confirmationEvent.Description = description;
+            confirmationEvent.Capacity = request.Capacity;
+            confirmationEvent.IsActive = request.IsActive;
+            confirmationEvent.UpdatedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationEventUpdated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { confirmationEvent.Id, confirmationEvent.StartsAtUtc, confirmationEvent.EndsAtUtc }),
+                ct);
+
+            return Results.Ok(BuildConfirmationEventResponse(confirmationEvent, null, 0, 0, null));
+        }).RequireAuthorization();
+
+        group.MapPost("/{parishId:guid}/confirmation-events/{eventId:guid}/joins/{joinId:guid}/accept", async (
+            Guid parishId,
+            Guid eventId,
             Guid joinId,
             HttpContext context,
             RecreatioDbContext dbContext,
@@ -4441,65 +4664,65 @@ public static class ParishEndpoints
                 return Results.Forbid();
             }
 
-            var celebration = await dbContext.ParishConfirmationCelebrations.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.ParishId == parishId && x.Id == celebrationId, ct);
-            if (celebration is null)
+            var confirmationEvent = await dbContext.ParishConfirmationEvents.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ParishId == parishId && x.Id == eventId, ct);
+            if (confirmationEvent is null)
             {
                 return Results.NotFound();
             }
 
-            var join = await dbContext.ParishConfirmationCelebrationJoins
-                .FirstOrDefaultAsync(x => x.ParishId == parishId && x.CelebrationId == celebrationId && x.Id == joinId, ct);
+            var join = await dbContext.ParishConfirmationEventJoins
+                .FirstOrDefaultAsync(x => x.ParishId == parishId && x.EventId == eventId && x.Id == joinId, ct);
             if (join is null)
             {
                 return Results.NotFound();
             }
 
-            var normalizedStatus = NormalizeConfirmationCelebrationJoinStatus(join.Status);
-            if (normalizedStatus == ConfirmationCelebrationJoinAccepted)
+            var normalizedStatus = NormalizeConfirmationEventJoinStatus(join.Status);
+            if (normalizedStatus == ConfirmationEventJoinAccepted)
             {
-                return Results.Ok(new ParishConfirmationCelebrationJoinActionResponse("already-accepted", join.Id, join.UpdatedUtc));
+                return Results.Ok(new ParishConfirmationEventJoinActionResponse("already-accepted", join.Id, join.UpdatedUtc));
             }
 
-            if (normalizedStatus != ConfirmationCelebrationJoinPending)
+            if (normalizedStatus != ConfirmationEventJoinPending)
             {
-                return Results.Ok(new ParishConfirmationCelebrationJoinActionResponse("invalid-status", join.Id, join.UpdatedUtc));
+                return Results.Ok(new ParishConfirmationEventJoinActionResponse("invalid-status", join.Id, join.UpdatedUtc));
             }
 
-            if (celebration.Capacity is > 0)
+            if (confirmationEvent.Capacity is > 0)
             {
-                var reservedOthers = await dbContext.ParishConfirmationCelebrationJoins.AsNoTracking()
+                var reservedOthers = await dbContext.ParishConfirmationEventJoins.AsNoTracking()
                     .Where(x =>
                         x.ParishId == parishId &&
-                        x.CelebrationId == celebrationId &&
-                        (x.Status == ConfirmationCelebrationJoinPending || x.Status == ConfirmationCelebrationJoinAccepted) &&
+                        x.EventId == eventId &&
+                        (x.Status == ConfirmationEventJoinPending || x.Status == ConfirmationEventJoinAccepted) &&
                         x.Id != join.Id)
                     .CountAsync(ct);
-                if (reservedOthers >= celebration.Capacity.Value)
+                if (reservedOthers >= confirmationEvent.Capacity.Value)
                 {
-                    return Results.Ok(new ParishConfirmationCelebrationJoinActionResponse("full", join.Id, join.UpdatedUtc));
+                    return Results.Ok(new ParishConfirmationEventJoinActionResponse("full", join.Id, join.UpdatedUtc));
                 }
             }
 
             var now = DateTimeOffset.UtcNow;
-            join.Status = ConfirmationCelebrationJoinAccepted;
+            join.Status = ConfirmationEventJoinAccepted;
             join.DecisionUtc = now;
             join.UpdatedUtc = now;
             await dbContext.SaveChangesAsync(ct);
 
             await ledgerService.AppendParishAsync(
                 parishId,
-                "ConfirmationCelebrationJoinAccepted",
+                "ConfirmationEventJoinAccepted",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { celebrationId, joinId, join.CandidateId }),
+                JsonSerializer.Serialize(new { eventId, joinId, join.CandidateId }),
                 ct);
 
-            return Results.Ok(new ParishConfirmationCelebrationJoinActionResponse("accepted", join.Id, join.UpdatedUtc));
+            return Results.Ok(new ParishConfirmationEventJoinActionResponse("accepted", join.Id, join.UpdatedUtc));
         }).RequireAuthorization();
 
-        group.MapPost("/{parishId:guid}/confirmation-celebrations/{celebrationId:guid}/joins/{joinId:guid}/remove", async (
+        group.MapPost("/{parishId:guid}/confirmation-events/{eventId:guid}/joins/{joinId:guid}/remove", async (
             Guid parishId,
-            Guid celebrationId,
+            Guid eventId,
             Guid joinId,
             HttpContext context,
             RecreatioDbContext dbContext,
@@ -4526,33 +4749,33 @@ public static class ParishEndpoints
                 return Results.Forbid();
             }
 
-            var join = await dbContext.ParishConfirmationCelebrationJoins
-                .FirstOrDefaultAsync(x => x.ParishId == parishId && x.CelebrationId == celebrationId && x.Id == joinId, ct);
+            var join = await dbContext.ParishConfirmationEventJoins
+                .FirstOrDefaultAsync(x => x.ParishId == parishId && x.EventId == eventId && x.Id == joinId, ct);
             if (join is null)
             {
                 return Results.NotFound();
             }
 
-            var normalizedStatus = NormalizeConfirmationCelebrationJoinStatus(join.Status);
-            if (normalizedStatus == ConfirmationCelebrationJoinRemoved)
+            var normalizedStatus = NormalizeConfirmationEventJoinStatus(join.Status);
+            if (normalizedStatus == ConfirmationEventJoinRemoved)
             {
-                return Results.Ok(new ParishConfirmationCelebrationJoinActionResponse("already-removed", join.Id, join.UpdatedUtc));
+                return Results.Ok(new ParishConfirmationEventJoinActionResponse("already-removed", join.Id, join.UpdatedUtc));
             }
 
             var now = DateTimeOffset.UtcNow;
-            join.Status = ConfirmationCelebrationJoinRemoved;
+            join.Status = ConfirmationEventJoinRemoved;
             join.DecisionUtc = now;
             join.UpdatedUtc = now;
             await dbContext.SaveChangesAsync(ct);
 
             await ledgerService.AppendParishAsync(
                 parishId,
-                "ConfirmationCelebrationJoinRemoved",
+                "ConfirmationEventJoinRemoved",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { celebrationId, joinId, join.CandidateId }),
+                JsonSerializer.Serialize(new { eventId, joinId, join.CandidateId }),
                 ct);
 
-            return Results.Ok(new ParishConfirmationCelebrationJoinActionResponse("removed", join.Id, join.UpdatedUtc));
+            return Results.Ok(new ParishConfirmationEventJoinActionResponse("removed", join.Id, join.UpdatedUtc));
         }).RequireAuthorization();
 
         group.MapPost("/{parishId:guid}/intentions", async (
@@ -6379,40 +6602,77 @@ public static class ParishEndpoints
         var participationByCelebrationId = participationRows
             .GroupBy(x => x.CelebrationId)
             .ToDictionary(group => group.Key, group => group.First());
-        var candidateJoinRows = await dbContext.ParishConfirmationCelebrationJoins.AsNoTracking()
-            .Where(x =>
-                x.ParishId == parishId &&
-                x.CandidateId == candidateId &&
-                celebrationIds.Contains(x.CelebrationId))
-            .OrderByDescending(x => x.UpdatedUtc)
-            .ToListAsync(ct);
-        var candidateJoinByCelebrationId = candidateJoinRows
-            .GroupBy(x => x.CelebrationId)
-            .ToDictionary(group => group.Key, group => group.First());
-        var activeJoinStats = await dbContext.ParishConfirmationCelebrationJoins.AsNoTracking()
-            .Where(x =>
-                x.ParishId == parishId &&
-                celebrationIds.Contains(x.CelebrationId) &&
-                (x.Status == ConfirmationCelebrationJoinPending || x.Status == ConfirmationCelebrationJoinAccepted))
-            .GroupBy(x => x.CelebrationId)
-            .Select(group => new
-            {
-                CelebrationId = group.Key,
-                ReservedCount = group.Count(),
-                AcceptedCount = group.Count(item => item.Status == ConfirmationCelebrationJoinAccepted)
-            })
-            .ToListAsync(ct);
-        var activeJoinStatsByCelebrationId = activeJoinStats.ToDictionary(x => x.CelebrationId, x => (x.ReservedCount, x.AcceptedCount));
-
         return celebrationRows
             .Select(celebration =>
             {
                 var participation = participationByCelebrationId.GetValueOrDefault(celebration.Id);
-                var candidateJoin = candidateJoinByCelebrationId.GetValueOrDefault(celebration.Id);
-                var joinStats = activeJoinStatsByCelebrationId.GetValueOrDefault(celebration.Id, (0, 0));
                 return BuildConfirmationCelebrationResponse(
                     celebration,
                     participation,
+                    null,
+                    null,
+                    0,
+                    0,
+                    null);
+            })
+            .ToList();
+    }
+
+    private static async Task<List<ParishConfirmationEventResponse>> LoadConfirmationUpcomingEventsAsync(
+        Guid parishId,
+        Guid candidateId,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var windowEnd = now.AddDays(ConfirmationCelebrationUpcomingDays);
+        var eventRows = await dbContext.ParishConfirmationEvents.AsNoTracking()
+            .Where(x =>
+                x.ParishId == parishId &&
+                x.IsActive &&
+                x.EndsAtUtc >= now &&
+                x.StartsAtUtc <= windowEnd)
+            .OrderBy(x => x.StartsAtUtc)
+            .ThenBy(x => x.CreatedUtc)
+            .ToListAsync(ct);
+        if (eventRows.Count == 0)
+        {
+            return new List<ParishConfirmationEventResponse>();
+        }
+
+        var eventIds = eventRows.Select(x => x.Id).ToList();
+        var candidateJoinRows = await dbContext.ParishConfirmationEventJoins.AsNoTracking()
+            .Where(x =>
+                x.ParishId == parishId &&
+                x.CandidateId == candidateId &&
+                eventIds.Contains(x.EventId))
+            .OrderByDescending(x => x.UpdatedUtc)
+            .ToListAsync(ct);
+        var candidateJoinByEventId = candidateJoinRows
+            .GroupBy(x => x.EventId)
+            .ToDictionary(group => group.Key, group => group.First());
+        var activeJoinStats = await dbContext.ParishConfirmationEventJoins.AsNoTracking()
+            .Where(x =>
+                x.ParishId == parishId &&
+                eventIds.Contains(x.EventId) &&
+                (x.Status == ConfirmationEventJoinPending || x.Status == ConfirmationEventJoinAccepted))
+            .GroupBy(x => x.EventId)
+            .Select(group => new
+            {
+                EventId = group.Key,
+                ReservedCount = group.Count(),
+                AcceptedCount = group.Count(item => item.Status == ConfirmationEventJoinAccepted)
+            })
+            .ToListAsync(ct);
+        var activeJoinStatsByEventId = activeJoinStats.ToDictionary(x => x.EventId, x => (x.ReservedCount, x.AcceptedCount));
+
+        return eventRows
+            .Select(confirmationEvent =>
+            {
+                var candidateJoin = candidateJoinByEventId.GetValueOrDefault(confirmationEvent.Id);
+                var joinStats = activeJoinStatsByEventId.GetValueOrDefault(confirmationEvent.Id, (0, 0));
+                return BuildConfirmationEventResponse(
+                    confirmationEvent,
                     candidateJoin,
                     joinStats.Item1,
                     joinStats.Item2,

@@ -46,7 +46,7 @@ import {
   listParishes,
   applyParishMassRule,
   createParishConfirmationCandidate,
-  createParishConfirmationCelebration,
+  createParishConfirmationEvent,
   createParishConfirmationMeetingSlot,
   getParishConfirmationSmsTemplates,
   deleteParishConfirmationMeetingSlot,
@@ -70,13 +70,13 @@ import {
   sendParishConfirmationCandidateMessage,
   bookParishConfirmationMeetingSlot,
   listParishConfirmationMeetingSlots,
-  listParishConfirmationCelebrations,
+  listParishConfirmationEvents,
   listParishConfirmationCandidates,
   addParishConfirmationNote,
   updateParishConfirmationNote,
   updateParishConfirmationCandidate,
   updateParishConfirmationCandidatePaperConsent,
-  updateParishConfirmationCelebration,
+  updateParishConfirmationEvent,
   acceptParishConfirmationCelebrationJoin,
   removeParishConfirmationCelebrationJoin,
   updateParishConfirmationSmsTemplates,
@@ -89,6 +89,7 @@ import {
   type ParishConfirmationPortal,
   type ParishConfirmationMeetingSummary,
   type ParishConfirmationCelebration,
+  type ParishConfirmationEvent,
   type ParishConfirmationAggregatedNote,
   type ParishConfirmationExportCandidate,
   type ParishConfirmationExportCelebration,
@@ -2027,7 +2028,7 @@ export function ParishPage({
   const [confirmationCelebrationJoinActionId, setConfirmationCelebrationJoinActionId] = useState<string | null>(null);
   const [confirmationCelebrationInfo, setConfirmationCelebrationInfo] = useState<string | null>(null);
   const [confirmationCelebrationError, setConfirmationCelebrationError] = useState<string | null>(null);
-  const [confirmationCelebrationsAdminList, setConfirmationCelebrationsAdminList] = useState<ParishConfirmationCelebration[]>([]);
+  const [confirmationCelebrationsAdminList, setConfirmationCelebrationsAdminList] = useState<ParishConfirmationEvent[]>([]);
   const [confirmationCelebrationsAdminLoading, setConfirmationCelebrationsAdminLoading] = useState(false);
   const [confirmationCelebrationsAdminError, setConfirmationCelebrationsAdminError] = useState<string | null>(null);
   const [confirmationCelebrationsAdminInfo, setConfirmationCelebrationsAdminInfo] = useState<string | null>(null);
@@ -2860,7 +2861,7 @@ export function ParishPage({
     setConfirmationCelebrationsAdminLoading(true);
     setConfirmationCelebrationsAdminError(null);
     try {
-      const list = await listParishConfirmationCelebrations(parish.id);
+      const list = await listParishConfirmationEvents(parish.id);
       setConfirmationCelebrationsAdminList(
         [...list].sort((a, b) => new Date(a.startsAtUtc).getTime() - new Date(b.startsAtUtc).getTime())
       );
@@ -2883,7 +2884,7 @@ export function ParishPage({
     setConfirmationCelebrationEditIsActive(true);
   };
 
-  const startEditConfirmationCelebration = (celebration: ParishConfirmationCelebration) => {
+  const startEditConfirmationCelebration = (celebration: ParishConfirmationEvent) => {
     setConfirmationCelebrationEditId(celebration.id);
     setConfirmationCelebrationEditName(celebration.name);
     setConfirmationCelebrationEditShortInfo(celebration.shortInfo);
@@ -2935,7 +2936,7 @@ export function ParishPage({
     setConfirmationCelebrationsAdminInfo(null);
     try {
       if (confirmationCelebrationEditId) {
-        await updateParishConfirmationCelebration(parish.id, confirmationCelebrationEditId, {
+        await updateParishConfirmationEvent(parish.id, confirmationCelebrationEditId, {
           name,
           shortInfo,
           startsAtUtc: starts.toISOString(),
@@ -2946,7 +2947,7 @@ export function ParishPage({
         });
         setConfirmationCelebrationsAdminInfo('Zaktualizowano celebrację.');
       } else {
-        await createParishConfirmationCelebration(parish.id, {
+        await createParishConfirmationEvent(parish.id, {
           name,
           shortInfo,
           startsAtUtc: starts.toISOString(),
@@ -3016,7 +3017,7 @@ export function ParishPage({
     try {
       const result = await joinParishConfirmationCelebration(parishSlug, {
         token: activeConfirmationPortalToken,
-        celebrationId
+        eventId: celebrationId
       });
       if (result.status === 'full') {
         setConfirmationCelebrationError('Brak wolnych miejsc na to wydarzenie.');
@@ -3049,7 +3050,7 @@ export function ParishPage({
     try {
       const result = await leaveParishConfirmationCelebration(parishSlug, {
         token: activeConfirmationPortalToken,
-        celebrationId
+        eventId: celebrationId
       });
       if (result.status === 'cancelled') {
         setConfirmationCelebrationInfo('Anulowano zgłoszenie oczekujące na akceptację.');
@@ -6782,11 +6783,11 @@ export function ParishPage({
                             <strong>Wydarzenia z zapisami:</strong> sekcja zapisów została wydzielona z celebracji. Zapisy i
                             akceptacje dotyczą wyłącznie wydarzeń.
                           </p>
-                          {confirmationDisplayPortalData.upcomingCelebrations.length === 0 ? (
+                          {confirmationDisplayPortalData.upcomingEvents.length === 0 ? (
                             <p className="muted">Brak aktywnych wydarzeń do zapisów.</p>
                           ) : (
                             <div className="confirmation-celebration-list">
-                              {confirmationDisplayPortalData.upcomingCelebrations.map((celebration) => {
+                              {confirmationDisplayPortalData.upcomingEvents.map((celebration) => {
                                 const joinStatus = (celebration.candidateJoinStatus ?? '').trim().toLowerCase();
                                 const isJoinPending = joinStatus === 'pending';
                                 const isJoinAccepted = joinStatus === 'accepted';
