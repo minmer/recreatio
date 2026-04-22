@@ -1649,7 +1649,12 @@ public static class ParishEndpoints
                 parish.Id,
                 "ConfirmationCelebrationJoinRequested",
                 "public",
-                JsonSerializer.Serialize(new { link.CandidateId, celebration.Id, join.Id }),
+                JsonSerializer.Serialize(new
+                {
+                    CandidateId = link.CandidateId,
+                    CelebrationId = celebration.Id,
+                    JoinId = join.Id
+                }),
                 ct);
 
             return Results.Ok(new ParishConfirmationCelebrationJoinActionResponse("requested", join.Id, join.UpdatedUtc));
