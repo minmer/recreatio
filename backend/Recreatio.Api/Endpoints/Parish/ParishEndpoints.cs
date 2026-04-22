@@ -44,7 +44,6 @@ public static class ParishEndpoints
     private const int ConfirmationCelebrationUpcomingDays = 7;
     private const int ConfirmationCelebrationCommentEditGraceDays = 7;
     private const int ConfirmationEventCapacityMax = 500;
-    private const int ConfirmationEventCapacityMax = 500;
     private const string ConfirmationEventJoinPending = "pending";
     private const string ConfirmationEventJoinAccepted = "accepted";
     private const string ConfirmationEventJoinCancelled = "cancelled";
