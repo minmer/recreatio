@@ -6777,62 +6777,37 @@ export function ParishPage({
                         {confirmationCelebrationInfo ? (
                           <p className="confirmation-info confirmation-info-success">{confirmationCelebrationInfo}</p>
                         ) : null}
-                        {confirmationDisplayPortalData.upcomingCelebrations.length === 0 ? (
-                          <p className="muted">Brak zaplanowanych celebracji w najbliższych 7 dniach.</p>
-                        ) : (
-                          <div className="confirmation-celebration-list">
-                            {confirmationDisplayPortalData.upcomingCelebrations.map((celebration) => {
-                              const isExpanded = confirmationCelebrationExpandedId === celebration.id;
-                              const draftValue = confirmationCelebrationDrafts[celebration.id] ?? '';
-                              const joinStatus = (celebration.candidateJoinStatus ?? '').trim().toLowerCase();
-                              const isJoinPending = joinStatus === 'pending';
-                              const isJoinAccepted = joinStatus === 'accepted';
-                              const hasCapacityLimit = Number.isFinite(Number(celebration.capacity));
-                              const capacityValue = hasCapacityLimit ? Number(celebration.capacity) : null;
-                              const reservedCount = celebration.reservedCount ?? 0;
-                              const acceptedCount = celebration.acceptedCount ?? 0;
-                              const freePlaces = capacityValue !== null ? Math.max(capacityValue - reservedCount, 0) : null;
-                              const canJoin =
-                                !isJoinPending &&
-                                !isJoinAccepted &&
-                                (freePlaces === null || freePlaces > 0) &&
-                                Boolean(activeConfirmationPortalToken);
-                              const canLeavePending = isJoinPending && Boolean(activeConfirmationPortalToken);
-                              const joinBusy = confirmationCelebrationJoinActionId === `join:${celebration.id}`;
-                              const leaveBusy = confirmationCelebrationJoinActionId === `leave:${celebration.id}`;
-                              const endsAt = new Date(celebration.endsAtUtc);
-                              const commentEditDeadline = new Date(
-                                endsAt.getTime() + confirmationCelebrationCommentEditGraceDays * 24 * 60 * 60 * 1000
-                              );
-                              const isCommentLocked = Date.now() > commentEditDeadline.getTime();
-                              const hasSavedComment = Boolean((celebration.candidateComment ?? '').trim());
-                              const needsCandidateResponse = !hasSavedComment;
-                              return (
-                                <article
-                                  key={`celebration-${celebration.id}`}
-                                  className={`confirmation-celebration-card ${needsCandidateResponse ? 'is-unanswered' : 'is-answered'} ${isExpanded ? 'is-expanded' : ''}`}
-                                >
-                                  <button
-                                    type="button"
-                                    className="confirmation-celebration-toggle"
-                                    onClick={() =>
-                                      setConfirmationCelebrationExpandedId((current) =>
-                                        current === celebration.id ? null : celebration.id
-                                      )
-                                    }
-                                  >
-                                    <span className="confirmation-celebration-toggle-main">
-                                      <strong>{celebration.name}</strong>
-                                      <span className="note">{celebration.shortInfo}</span>
-                                    </span>
-                                    <span className="confirmation-celebration-toggle-action">
-                                      {isExpanded ? 'Ukryj' : 'Otwórz'}
-                                    </span>
-                                  </button>
-                                  {needsCandidateResponse ? (
-                                    <p className="confirmation-celebration-attention">Wymagana odpowiedź kandydata</p>
-                                  ) : null}
-                                  <div className="confirmation-celebration-join-panel">
+                        <div className="confirmation-celebration-join-panel">
+                          <p className="note">
+                            <strong>Wydarzenia z zapisami:</strong> sekcja zapisów została wydzielona z celebracji. Zapisy i
+                            akceptacje dotyczą wyłącznie wydarzeń.
+                          </p>
+                          {confirmationDisplayPortalData.upcomingCelebrations.length === 0 ? (
+                            <p className="muted">Brak aktywnych wydarzeń do zapisów.</p>
+                          ) : (
+                            <div className="confirmation-celebration-list">
+                              {confirmationDisplayPortalData.upcomingCelebrations.map((celebration) => {
+                                const joinStatus = (celebration.candidateJoinStatus ?? '').trim().toLowerCase();
+                                const isJoinPending = joinStatus === 'pending';
+                                const isJoinAccepted = joinStatus === 'accepted';
+                                const hasCapacityLimit = Number.isFinite(Number(celebration.capacity));
+                                const capacityValue = hasCapacityLimit ? Number(celebration.capacity) : null;
+                                const reservedCount = celebration.reservedCount ?? 0;
+                                const acceptedCount = celebration.acceptedCount ?? 0;
+                                const freePlaces = capacityValue !== null ? Math.max(capacityValue - reservedCount, 0) : null;
+                                const canJoin =
+                                  !isJoinPending &&
+                                  !isJoinAccepted &&
+                                  (freePlaces === null || freePlaces > 0) &&
+                                  Boolean(activeConfirmationPortalToken);
+                                const canLeavePending = isJoinPending && Boolean(activeConfirmationPortalToken);
+                                const joinBusy = confirmationCelebrationJoinActionId === `join:${celebration.id}`;
+                                const leaveBusy = confirmationCelebrationJoinActionId === `leave:${celebration.id}`;
+
+                                return (
+                                  <article key={`event-join-${celebration.id}`} className="confirmation-celebration-card is-expanded">
+                                    <strong>{celebration.name}</strong>
+                                    <p className="note">{celebration.shortInfo}</p>
                                     <p className="note">
                                       <strong>Miejsca:</strong>{' '}
                                       {capacityValue === null
@@ -6887,7 +6862,51 @@ export function ParishPage({
                                         </button>
                                       ) : null}
                                     </div>
-                                  </div>
+                                  </article>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        {confirmationDisplayPortalData.upcomingCelebrations.length === 0 ? (
+                          <p className="muted">Brak zaplanowanych celebracji w najbliższych 7 dniach.</p>
+                        ) : (
+                          <div className="confirmation-celebration-list">
+                            {confirmationDisplayPortalData.upcomingCelebrations.map((celebration) => {
+                              const isExpanded = confirmationCelebrationExpandedId === celebration.id;
+                              const draftValue = confirmationCelebrationDrafts[celebration.id] ?? '';
+                              const endsAt = new Date(celebration.endsAtUtc);
+                              const commentEditDeadline = new Date(
+                                endsAt.getTime() + confirmationCelebrationCommentEditGraceDays * 24 * 60 * 60 * 1000
+                              );
+                              const isCommentLocked = Date.now() > commentEditDeadline.getTime();
+                              const hasSavedComment = Boolean((celebration.candidateComment ?? '').trim());
+                              const needsCandidateResponse = !hasSavedComment;
+                              return (
+                                <article
+                                  key={`celebration-${celebration.id}`}
+                                  className={`confirmation-celebration-card ${needsCandidateResponse ? 'is-unanswered' : 'is-answered'} ${isExpanded ? 'is-expanded' : ''}`}
+                                >
+                                  <button
+                                    type="button"
+                                    className="confirmation-celebration-toggle"
+                                    onClick={() =>
+                                      setConfirmationCelebrationExpandedId((current) =>
+                                        current === celebration.id ? null : celebration.id
+                                      )
+                                    }
+                                  >
+                                    <span className="confirmation-celebration-toggle-main">
+                                      <strong>{celebration.name}</strong>
+                                      <span className="note">{celebration.shortInfo}</span>
+                                    </span>
+                                    <span className="confirmation-celebration-toggle-action">
+                                      {isExpanded ? 'Ukryj' : 'Otwórz'}
+                                    </span>
+                                  </button>
+                                  {needsCandidateResponse ? (
+                                    <p className="confirmation-celebration-attention">Wymagana odpowiedź kandydata</p>
+                                  ) : null}
                                   {isExpanded ? (
                                     <>
                                       <p className="note">{celebration.description}</p>
@@ -7474,7 +7493,7 @@ export function ParishPage({
                               />
                             </label>
                             <label>
-                              <span>Limit miejsc (opcjonalnie)</span>
+                              <span>Limit miejsc wydarzenia (opcjonalnie)</span>
                               <input
                                 type="number"
                                 min={1}
@@ -7490,7 +7509,7 @@ export function ParishPage({
                                 checked={confirmationCelebrationEditIsActive}
                                 onChange={(event) => setConfirmationCelebrationEditIsActive(event.target.checked)}
                               />
-                              <span>Celebracja aktywna (widoczna w 7-dniowym podglądzie)</span>
+                              <span>Pozycja aktywna (widoczna w 7-dniowym podglądzie)</span>
                             </label>
                           </div>
                           <div className="builder-actions">
@@ -7503,8 +7522,8 @@ export function ParishPage({
                               {confirmationCelebrationEditSaving
                                 ? 'Zapisywanie...'
                                 : confirmationCelebrationEditId
-                                ? 'Zapisz zmiany celebracji'
-                                : 'Dodaj celebrację'}
+                                ? 'Zapisz zmiany'
+                                : 'Dodaj pozycję'}
                             </button>
                             <button
                               type="button"
@@ -7515,7 +7534,7 @@ export function ParishPage({
                             </button>
                           </div>
                           {confirmationCelebrationsAdminList.length === 0 ? (
-                            <p className="muted">Brak celebracji.</p>
+                            <p className="muted">Brak pozycji.</p>
                           ) : (
                             <ul className="confirmation-portal-message-list">
                               {confirmationCelebrationsAdminList.map((celebration) => (
@@ -7539,9 +7558,22 @@ export function ParishPage({
                                   >
                                     Edytuj
                                   </button>
-                                  {(celebration.joins?.length ?? 0) > 0 ? (
-                                    <div className="note" style={{ marginTop: 8 }}>
-                                      <strong>Zgłoszenia:</strong>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          <div className="note" style={{ marginTop: 12 }}>
+                            <strong>Wydarzenia - zapisy i akceptacje (oddzielnie od celebracji):</strong>
+                            {confirmationCelebrationsAdminList.length === 0 ? (
+                              <p className="muted" style={{ marginTop: 6 }}>
+                                Brak wydarzeń.
+                              </p>
+                            ) : (
+                              <ul className="confirmation-portal-message-list" style={{ marginTop: 6 }}>
+                                {confirmationCelebrationsAdminList.map((celebration) => (
+                                  <li key={`admin-event-joins-${celebration.id}`}>
+                                    <strong>{celebration.name}</strong>
+                                    {(celebration.joins?.length ?? 0) > 0 ? (
                                       <ul className="confirmation-portal-message-list" style={{ marginTop: 6 }}>
                                         {(celebration.joins ?? []).map((join) => (
                                           <li key={`celebration-join-${join.id}`}>
@@ -7574,16 +7606,16 @@ export function ParishPage({
                                           </li>
                                         ))}
                                       </ul>
-                                    </div>
-                                  ) : (
-                                    <p className="muted" style={{ marginTop: 6 }}>
-                                      Brak zgłoszeń na to wydarzenie.
-                                    </p>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                                    ) : (
+                                      <p className="muted" style={{ marginTop: 6 }}>
+                                        Brak zgłoszeń.
+                                      </p>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
                         </article>
                       </article>
                     ) : null}
