@@ -1611,7 +1611,7 @@ public static class ParishEndpoints
                 .Where(x =>
                     x.ParishId == parish.Id &&
                     x.CelebrationId == celebration.Id &&
-                    IsConfirmationCelebrationJoinStatusActive(x.Status) &&
+                    (x.Status == ConfirmationCelebrationJoinPending || x.Status == ConfirmationCelebrationJoinAccepted) &&
                     (join == null || x.Id != join.Id))
                 .CountAsync(ct);
             if (celebration.Capacity is > 0 && reservedCount >= celebration.Capacity.Value)
@@ -4186,7 +4186,7 @@ public static class ParishEndpoints
                 .Where(x =>
                     x.ParishId == parishId &&
                     celebrationIds.Contains(x.CelebrationId) &&
-                    (IsConfirmationCelebrationJoinStatusActive(x.Status) ||
+                    ((x.Status == ConfirmationCelebrationJoinPending || x.Status == ConfirmationCelebrationJoinAccepted) ||
                      x.Status == ConfirmationCelebrationJoinCancelled ||
                      x.Status == ConfirmationCelebrationJoinRemoved ||
                      x.Status == ConfirmationCelebrationJoinRejected))
@@ -4472,7 +4472,7 @@ public static class ParishEndpoints
                     .Where(x =>
                         x.ParishId == parishId &&
                         x.CelebrationId == celebrationId &&
-                        IsConfirmationCelebrationJoinStatusActive(x.Status) &&
+                        (x.Status == ConfirmationCelebrationJoinPending || x.Status == ConfirmationCelebrationJoinAccepted) &&
                         x.Id != join.Id)
                     .CountAsync(ct);
                 if (reservedOthers >= celebration.Capacity.Value)
@@ -6393,7 +6393,7 @@ public static class ParishEndpoints
             .Where(x =>
                 x.ParishId == parishId &&
                 celebrationIds.Contains(x.CelebrationId) &&
-                IsConfirmationCelebrationJoinStatusActive(x.Status))
+                (x.Status == ConfirmationCelebrationJoinPending || x.Status == ConfirmationCelebrationJoinAccepted))
             .GroupBy(x => x.CelebrationId)
             .Select(group => new
             {
