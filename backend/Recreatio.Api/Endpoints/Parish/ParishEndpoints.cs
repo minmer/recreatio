@@ -1612,7 +1612,7 @@ public static class ParishEndpoints
                     x.ParishId == parish.Id &&
                     x.CelebrationId == celebration.Id &&
                     IsConfirmationCelebrationJoinStatusActive(x.Status) &&
-                    (join is null || x.Id != join.Id))
+                    (join == null || x.Id != join.Id))
                 .CountAsync(ct);
             if (celebration.Capacity is > 0 && reservedCount >= celebration.Capacity.Value)
             {
