@@ -46,6 +46,7 @@ import {
   listParishes,
   applyParishMassRule,
   createParishConfirmationCandidate,
+  createParishConfirmationCelebration,
   createParishConfirmationEvent,
   createParishConfirmationMeetingSlot,
   getParishConfirmationSmsTemplates,
@@ -71,11 +72,13 @@ import {
   bookParishConfirmationMeetingSlot,
   listParishConfirmationMeetingSlots,
   listParishConfirmationEvents,
+  listParishConfirmationCelebrations,
   listParishConfirmationCandidates,
   addParishConfirmationNote,
   updateParishConfirmationNote,
   updateParishConfirmationCandidate,
   updateParishConfirmationCandidatePaperConsent,
+  updateParishConfirmationCelebration,
   updateParishConfirmationEvent,
   acceptParishConfirmationCelebrationJoin,
   removeParishConfirmationCelebrationJoin,
@@ -118,6 +121,8 @@ type ConfirmationDuplicateGroup = {
   displayName: string;
   candidates: ParishConfirmationCandidate[];
 };
+type ConfirmationAdminItemType = 'celebration' | 'event';
+type ConfirmationAdminItem = ParishConfirmationCelebration | ParishConfirmationEvent;
 type MassRuleNodeData = {
   label: string;
   type: string;
@@ -2028,10 +2033,11 @@ export function ParishPage({
   const [confirmationCelebrationJoinActionId, setConfirmationCelebrationJoinActionId] = useState<string | null>(null);
   const [confirmationCelebrationInfo, setConfirmationCelebrationInfo] = useState<string | null>(null);
   const [confirmationCelebrationError, setConfirmationCelebrationError] = useState<string | null>(null);
-  const [confirmationCelebrationsAdminList, setConfirmationCelebrationsAdminList] = useState<ParishConfirmationEvent[]>([]);
+  const [confirmationCelebrationsAdminList, setConfirmationCelebrationsAdminList] = useState<ConfirmationAdminItem[]>([]);
   const [confirmationCelebrationsAdminLoading, setConfirmationCelebrationsAdminLoading] = useState(false);
   const [confirmationCelebrationsAdminError, setConfirmationCelebrationsAdminError] = useState<string | null>(null);
   const [confirmationCelebrationsAdminInfo, setConfirmationCelebrationsAdminInfo] = useState<string | null>(null);
+  const [confirmationAdminItemType, setConfirmationAdminItemType] = useState<ConfirmationAdminItemType>('event');
   const [confirmationCelebrationEditId, setConfirmationCelebrationEditId] = useState<string | null>(null);
   const [confirmationCelebrationEditName, setConfirmationCelebrationEditName] = useState('');
   const [confirmationCelebrationEditShortInfo, setConfirmationCelebrationEditShortInfo] = useState('');
@@ -2861,13 +2867,20 @@ export function ParishPage({
     setConfirmationCelebrationsAdminLoading(true);
     setConfirmationCelebrationsAdminError(null);
     try {
-      const list = await listParishConfirmationEvents(parish.id);
+      const list =
+        confirmationAdminItemType === 'event'
+          ? await listParishConfirmationEvents(parish.id)
+          : await listParishConfirmationCelebrations(parish.id);
       setConfirmationCelebrationsAdminList(
         [...list].sort((a, b) => new Date(a.startsAtUtc).getTime() - new Date(b.startsAtUtc).getTime())
       );
     } catch {
       setConfirmationCelebrationsAdminList([]);
-      setConfirmationCelebrationsAdminError('Nie udało się pobrać listy celebracji.');
+      setConfirmationCelebrationsAdminError(
+        confirmationAdminItemType === 'event'
+          ? 'Nie udało się pobrać listy wydarzeń.'
+          : 'Nie udało się pobrać listy celebracji.'
+      );
     } finally {
       setConfirmationCelebrationsAdminLoading(false);
     }
@@ -2884,7 +2897,7 @@ export function ParishPage({
     setConfirmationCelebrationEditIsActive(true);
   };
 
-  const startEditConfirmationCelebration = (celebration: ParishConfirmationEvent) => {
+  const startEditConfirmationCelebration = (celebration: ConfirmationAdminItem) => {
     setConfirmationCelebrationEditId(celebration.id);
     setConfirmationCelebrationEditName(celebration.name);
     setConfirmationCelebrationEditShortInfo(celebration.shortInfo);
@@ -2909,13 +2922,17 @@ export function ParishPage({
     const shortInfo = confirmationCelebrationEditShortInfo.trim();
     const description = confirmationCelebrationEditDescription.trim();
     if (!name || !shortInfo || !description) {
-      setConfirmationCelebrationsAdminError('Uzupełnij nazwę, krótki opis i pełny opis celebracji.');
+      setConfirmationCelebrationsAdminError(
+        confirmationAdminItemType === 'event'
+          ? 'Uzupełnij nazwę, krótki opis i pełny opis wydarzenia.'
+          : 'Uzupełnij nazwę, krótki opis i pełny opis celebracji.'
+      );
       return;
     }
 
     const capacityRaw = confirmationCelebrationEditCapacity.trim();
     let capacity: number | null = null;
-    if (capacityRaw) {
+    if (confirmationAdminItemType === 'event' && capacityRaw) {
       const parsedCapacity = Number.parseInt(capacityRaw, 10);
       if (!Number.isFinite(parsedCapacity) || parsedCapacity <= 0 || parsedCapacity > 500) {
         setConfirmationCelebrationsAdminError('Limit miejsc musi być liczbą z zakresu 1-500 lub pusty (bez limitu).');
@@ -2936,27 +2953,53 @@ export function ParishPage({
     setConfirmationCelebrationsAdminInfo(null);
     try {
       if (confirmationCelebrationEditId) {
-        await updateParishConfirmationEvent(parish.id, confirmationCelebrationEditId, {
-          name,
-          shortInfo,
-          startsAtUtc: starts.toISOString(),
-          endsAtUtc: ends.toISOString(),
-          description,
-          capacity,
-          isActive: confirmationCelebrationEditIsActive
-        });
-        setConfirmationCelebrationsAdminInfo('Zaktualizowano celebrację.');
+        if (confirmationAdminItemType === 'event') {
+          await updateParishConfirmationEvent(parish.id, confirmationCelebrationEditId, {
+            name,
+            shortInfo,
+            startsAtUtc: starts.toISOString(),
+            endsAtUtc: ends.toISOString(),
+            description,
+            capacity,
+            isActive: confirmationCelebrationEditIsActive
+          });
+          setConfirmationCelebrationsAdminInfo('Zaktualizowano wydarzenie.');
+        } else {
+          await updateParishConfirmationCelebration(parish.id, confirmationCelebrationEditId, {
+            name,
+            shortInfo,
+            startsAtUtc: starts.toISOString(),
+            endsAtUtc: ends.toISOString(),
+            description,
+            capacity: null,
+            isActive: confirmationCelebrationEditIsActive
+          });
+          setConfirmationCelebrationsAdminInfo('Zaktualizowano celebrację.');
+        }
       } else {
-        await createParishConfirmationEvent(parish.id, {
-          name,
-          shortInfo,
-          startsAtUtc: starts.toISOString(),
-          endsAtUtc: ends.toISOString(),
-          description,
-          capacity,
-          isActive: confirmationCelebrationEditIsActive
-        });
-        setConfirmationCelebrationsAdminInfo('Dodano nową celebrację.');
+        if (confirmationAdminItemType === 'event') {
+          await createParishConfirmationEvent(parish.id, {
+            name,
+            shortInfo,
+            startsAtUtc: starts.toISOString(),
+            endsAtUtc: ends.toISOString(),
+            description,
+            capacity,
+            isActive: confirmationCelebrationEditIsActive
+          });
+          setConfirmationCelebrationsAdminInfo('Dodano nowe wydarzenie.');
+        } else {
+          await createParishConfirmationCelebration(parish.id, {
+            name,
+            shortInfo,
+            startsAtUtc: starts.toISOString(),
+            endsAtUtc: ends.toISOString(),
+            description,
+            capacity: null,
+            isActive: confirmationCelebrationEditIsActive
+          });
+          setConfirmationCelebrationsAdminInfo('Dodano nową celebrację.');
+        }
       }
       await loadConfirmationCelebrationsAdmin();
       if (activeConfirmationPortalToken) {
@@ -2966,7 +3009,11 @@ export function ParishPage({
         await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
       }
     } catch {
-      setConfirmationCelebrationsAdminError('Nie udało się zapisać celebracji.');
+      setConfirmationCelebrationsAdminError(
+        confirmationAdminItemType === 'event'
+          ? 'Nie udało się zapisać wydarzenia.'
+          : 'Nie udało się zapisać celebracji.'
+      );
     } finally {
       setConfirmationCelebrationEditSaving(false);
     }
@@ -4125,7 +4172,7 @@ export function ParishPage({
       return;
     }
     void loadConfirmationMeetingSummary();
-  }, [isConfirmationSubpage, isAuthenticated, parish?.id, confirmationPanelSection]);
+  }, [isConfirmationSubpage, isAuthenticated, parish?.id, confirmationPanelSection, confirmationAdminItemType]);
 
   useEffect(() => {
     if (!isConfirmationSubpage || !isAuthenticated || !parish || confirmationPanelSection !== 'candidate') {
@@ -7443,14 +7490,40 @@ export function ParishPage({
                           </>
                         ) : null}
                         <article className="confirmation-portal-card">
-                          <h4>Zarządzanie celebracjami (7-dniowy podgląd kandydata)</h4>
+                          <h4>Zarządzanie pozycjami (celebracje i wydarzenia)</h4>
                           {confirmationCelebrationsAdminError ? (
                             <p className="confirmation-info confirmation-info-error">{confirmationCelebrationsAdminError}</p>
                           ) : null}
                           {confirmationCelebrationsAdminInfo ? (
                             <p className="confirmation-info confirmation-info-success">{confirmationCelebrationsAdminInfo}</p>
                           ) : null}
-                          {confirmationCelebrationsAdminLoading ? <p className="muted">Ładowanie celebracji...</p> : null}
+                          <div className="builder-actions" style={{ marginBottom: 8 }}>
+                            <button
+                              type="button"
+                              className={confirmationAdminItemType === 'celebration' ? 'parish-login' : 'ghost'}
+                              onClick={() => {
+                                setConfirmationAdminItemType('celebration');
+                                resetConfirmationCelebrationEditor();
+                              }}
+                            >
+                              Dodaj jako celebracja
+                            </button>
+                            <button
+                              type="button"
+                              className={confirmationAdminItemType === 'event' ? 'parish-login' : 'ghost'}
+                              onClick={() => {
+                                setConfirmationAdminItemType('event');
+                                resetConfirmationCelebrationEditor();
+                              }}
+                            >
+                              Dodaj jako wydarzenie
+                            </button>
+                          </div>
+                          {confirmationCelebrationsAdminLoading ? (
+                            <p className="muted">
+                              {confirmationAdminItemType === 'event' ? 'Ładowanie wydarzeń...' : 'Ładowanie celebracji...'}
+                            </p>
+                          ) : null}
                           <div className="admin-form-grid">
                             <label>
                               <span>Nazwa</span>
@@ -7492,17 +7565,19 @@ export function ParishPage({
                                 onChange={(event) => setConfirmationCelebrationEditDescription(event.target.value)}
                               />
                             </label>
-                            <label>
-                              <span>Limit miejsc wydarzenia (opcjonalnie)</span>
-                              <input
-                                type="number"
-                                min={1}
-                                max={500}
-                                value={confirmationCelebrationEditCapacity}
-                                onChange={(event) => setConfirmationCelebrationEditCapacity(event.target.value)}
-                                placeholder="np. 20"
-                              />
-                            </label>
+                            {confirmationAdminItemType === 'event' ? (
+                              <label>
+                                <span>Limit miejsc wydarzenia (opcjonalnie)</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={500}
+                                  value={confirmationCelebrationEditCapacity}
+                                  onChange={(event) => setConfirmationCelebrationEditCapacity(event.target.value)}
+                                  placeholder="np. 20"
+                                />
+                              </label>
+                            ) : null}
                             <label className="admin-form-full builder-option">
                               <input
                                 type="checkbox"
@@ -7522,8 +7597,12 @@ export function ParishPage({
                               {confirmationCelebrationEditSaving
                                 ? 'Zapisywanie...'
                                 : confirmationCelebrationEditId
-                                ? 'Zapisz zmiany'
-                                : 'Dodaj pozycję'}
+                                ? confirmationAdminItemType === 'event'
+                                  ? 'Zapisz wydarzenie'
+                                  : 'Zapisz celebrację'
+                                : confirmationAdminItemType === 'event'
+                                ? 'Dodaj jako wydarzenie'
+                                : 'Dodaj jako celebracja'}
                             </button>
                             <button
                               type="button"
@@ -7534,7 +7613,9 @@ export function ParishPage({
                             </button>
                           </div>
                           {confirmationCelebrationsAdminList.length === 0 ? (
-                            <p className="muted">Brak pozycji.</p>
+                            <p className="muted">
+                              {confirmationAdminItemType === 'event' ? 'Brak wydarzeń.' : 'Brak celebracji.'}
+                            </p>
                           ) : (
                             <ul className="confirmation-portal-message-list">
                               {confirmationCelebrationsAdminList.map((celebration) => (
@@ -7546,11 +7627,16 @@ export function ParishPage({
                                     {new Date(celebration.endsAtUtc).toLocaleString('pl-PL')}
                                   </span>
                                   <br />
-                                  <span className="muted">
-                                    Miejsca: {celebration.capacity ?? 'bez limitu'} • Zajęte: {celebration.reservedCount ?? 0} •
-                                    Zaakceptowane: {celebration.acceptedCount ?? 0}
-                                  </span>
-                                  <br />
+                                  {confirmationAdminItemType === 'event' ? (
+                                    <>
+                                      <span className="muted">
+                                        Miejsca: {celebration.capacity ?? 'bez limitu'} • Zajęte:{' '}
+                                        {'reservedCount' in celebration ? celebration.reservedCount ?? 0 : 0} • Zaakceptowane:{' '}
+                                        {'acceptedCount' in celebration ? celebration.acceptedCount ?? 0 : 0}
+                                      </span>
+                                      <br />
+                                    </>
+                                  ) : null}
                                   <button
                                     type="button"
                                     className="ghost"
@@ -7562,7 +7648,8 @@ export function ParishPage({
                               ))}
                             </ul>
                           )}
-                          <div className="note" style={{ marginTop: 12 }}>
+                          {confirmationAdminItemType === 'event' ? (
+                            <div className="note" style={{ marginTop: 12 }}>
                             <strong>Wydarzenia - zapisy i akceptacje (oddzielnie od celebracji):</strong>
                             {confirmationCelebrationsAdminList.length === 0 ? (
                               <p className="muted" style={{ marginTop: 6 }}>
@@ -7570,12 +7657,12 @@ export function ParishPage({
                               </p>
                             ) : (
                               <ul className="confirmation-portal-message-list" style={{ marginTop: 6 }}>
-                                {confirmationCelebrationsAdminList.map((celebration) => (
-                                  <li key={`admin-event-joins-${celebration.id}`}>
-                                    <strong>{celebration.name}</strong>
-                                    {(celebration.joins?.length ?? 0) > 0 ? (
+                                {(confirmationCelebrationsAdminList as ParishConfirmationEvent[]).map((eventItem) => (
+                                  <li key={`admin-event-joins-${eventItem.id}`}>
+                                    <strong>{eventItem.name}</strong>
+                                    {(eventItem.joins?.length ?? 0) > 0 ? (
                                       <ul className="confirmation-portal-message-list" style={{ marginTop: 6 }}>
-                                        {(celebration.joins ?? []).map((join) => (
+                                        {(eventItem.joins ?? []).map((join) => (
                                           <li key={`celebration-join-${join.id}`}>
                                             {join.candidateName} {join.candidateSurname} • {join.status} •{' '}
                                             {new Date(join.updatedUtc).toLocaleString('pl-PL')}
@@ -7585,7 +7672,7 @@ export function ParishPage({
                                                   type="button"
                                                   className="parish-login"
                                                   disabled={confirmationCelebrationAdminJoinActionId === `accept:${join.id}`}
-                                                  onClick={() => void handleAcceptConfirmationCelebrationJoin(celebration.id, join.id)}
+                                                  onClick={() => void handleAcceptConfirmationCelebrationJoin(eventItem.id, join.id)}
                                                 >
                                                   {confirmationCelebrationAdminJoinActionId === `accept:${join.id}`
                                                     ? 'Akceptuję...'
@@ -7596,7 +7683,7 @@ export function ParishPage({
                                                 type="button"
                                                 className="ghost"
                                                 disabled={confirmationCelebrationAdminJoinActionId === `remove:${join.id}`}
-                                                onClick={() => void handleRemoveConfirmationCelebrationJoin(celebration.id, join.id)}
+                                                onClick={() => void handleRemoveConfirmationCelebrationJoin(eventItem.id, join.id)}
                                               >
                                                 {confirmationCelebrationAdminJoinActionId === `remove:${join.id}`
                                                   ? 'Usuwam...'
@@ -7615,7 +7702,8 @@ export function ParishPage({
                                 ))}
                               </ul>
                             )}
-                          </div>
+                            </div>
+                          ) : null}
                         </article>
                       </article>
                     ) : null}
