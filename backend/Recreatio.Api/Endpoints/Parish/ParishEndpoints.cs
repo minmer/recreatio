@@ -1609,15 +1609,13 @@ public static class ParishEndpoints
             }
 
             var now = DateTimeOffset.UtcNow;
-            var windowEnd = now.AddDays(ConfirmationCelebrationUpcomingDays);
             var confirmationEvent = await dbContext.ParishConfirmationEvents.AsNoTracking()
                 .FirstOrDefaultAsync(
                     x =>
                         x.Id == request.EventId &&
                         x.ParishId == parish.Id &&
                         x.IsActive &&
-                        x.EndsAtUtc >= now &&
-                        x.StartsAtUtc <= windowEnd,
+                        x.EndsAtUtc >= now,
                     ct);
             if (confirmationEvent is null)
             {
@@ -6624,13 +6622,11 @@ public static class ParishEndpoints
         CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;
-        var windowEnd = now.AddDays(ConfirmationCelebrationUpcomingDays);
         var eventRows = await dbContext.ParishConfirmationEvents.AsNoTracking()
             .Where(x =>
                 x.ParishId == parishId &&
                 x.IsActive &&
-                x.EndsAtUtc >= now &&
-                x.StartsAtUtc <= windowEnd)
+                x.EndsAtUtc >= now)
             .OrderBy(x => x.StartsAtUtc)
             .ThenBy(x => x.CreatedUtc)
             .ToListAsync(ct);
