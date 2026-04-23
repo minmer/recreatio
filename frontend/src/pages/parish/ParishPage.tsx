@@ -2028,6 +2028,7 @@ export function ParishPage({
   const [confirmationPortalSendingMessage, setConfirmationPortalSendingMessage] = useState(false);
   const [confirmationPortalStandaloneTab, setConfirmationPortalStandaloneTab] = useState<'meetings' | 'messages' | 'status'>('meetings');
   const [confirmationCelebrationExpandedId, setConfirmationCelebrationExpandedId] = useState<string | null>(null);
+  const [confirmationEventExpandedId, setConfirmationEventExpandedId] = useState<string | null>(null);
   const [confirmationCelebrationDrafts, setConfirmationCelebrationDrafts] = useState<Record<string, string>>({});
   const [confirmationCelebrationSavingId, setConfirmationCelebrationSavingId] = useState<string | null>(null);
   const [confirmationCelebrationJoinActionId, setConfirmationCelebrationJoinActionId] = useState<string | null>(null);
@@ -6840,6 +6841,7 @@ export function ParishPage({
                           ) : (
                             <div className="confirmation-celebration-list">
                               {confirmationDisplayPortalData.upcomingEvents.map((celebration) => {
+                                const isExpanded = confirmationEventExpandedId === celebration.id;
                                 const joinStatus = (celebration.candidateJoinStatus ?? '').trim().toLowerCase();
                                 const isJoinPending = joinStatus === 'pending';
                                 const isJoinAccepted = joinStatus === 'accepted';
@@ -6858,36 +6860,57 @@ export function ParishPage({
                                 const leaveBusy = confirmationCelebrationJoinActionId === `leave:${celebration.id}`;
 
                                 return (
-                                  <article key={`event-join-${celebration.id}`} className="confirmation-celebration-card is-expanded">
-                                    <strong>{celebration.name}</strong>
-                                    <p className="note">{celebration.shortInfo}</p>
-                                    <p className="note">
-                                      <strong>Miejsca:</strong>{' '}
-                                      {capacityValue === null
-                                        ? 'bez limitu'
-                                        : `${freePlaces ?? 0}/${capacityValue} wolnych`} • Zgłoszenia: {reservedCount} •
-                                      Zaakceptowane: {acceptedCount}
-                                    </p>
-                                    {isJoinAccepted ? (
-                                      <p className="confirmation-celebration-join-status is-accepted">
-                                        Twoje zgłoszenie zostało zaakceptowane.
-                                      </p>
-                                    ) : isJoinPending ? (
-                                      <p className="confirmation-celebration-join-status is-pending">
-                                        Twoje zgłoszenie oczekuje na akceptację.
-                                      </p>
-                                    ) : joinStatus === 'cancelled' ? (
-                                      <p className="confirmation-celebration-join-status">
-                                        Wycofałeś(-aś) wcześniejsze zgłoszenie. Możesz zgłosić się ponownie.
-                                      </p>
-                                    ) : joinStatus === 'removed' ? (
-                                      <p className="confirmation-celebration-join-status">
-                                        Zostałeś(-aś) usunięty(-a) z listy. W razie potrzeby zgłoś się ponownie.
-                                      </p>
-                                    ) : joinStatus === 'rejected' ? (
-                                      <p className="confirmation-celebration-join-status">
-                                        Zgłoszenie zostało odrzucone. Skontaktuj się z parafią.
-                                      </p>
+                                  <article
+                                    key={`event-join-${celebration.id}`}
+                                    className={`confirmation-celebration-card ${isExpanded ? 'is-expanded' : ''}`}
+                                  >
+                                    <button
+                                      type="button"
+                                      className="confirmation-celebration-toggle"
+                                      onClick={() =>
+                                        setConfirmationEventExpandedId((current) => (current === celebration.id ? null : celebration.id))
+                                      }
+                                    >
+                                      <span className="confirmation-celebration-toggle-main">
+                                        <strong>{celebration.name}</strong>
+                                        <span className="note">{celebration.shortInfo}</span>
+                                      </span>
+                                      <span className="confirmation-celebration-toggle-action">
+                                        {isExpanded ? 'Ukryj' : 'Szczegóły'}
+                                      </span>
+                                    </button>
+                                    {isExpanded ? (
+                                      <>
+                                        <p className="note">{celebration.description}</p>
+                                        <p className="note">
+                                          <strong>Miejsca:</strong>{' '}
+                                          {capacityValue === null
+                                            ? 'bez limitu'
+                                            : `${freePlaces ?? 0}/${capacityValue} wolnych`} • Zgłoszenia: {reservedCount} •
+                                          Zaakceptowane: {acceptedCount}
+                                        </p>
+                                        {isJoinAccepted ? (
+                                          <p className="confirmation-celebration-join-status is-accepted">
+                                            Twoje zgłoszenie zostało zaakceptowane.
+                                          </p>
+                                        ) : isJoinPending ? (
+                                          <p className="confirmation-celebration-join-status is-pending">
+                                            Twoje zgłoszenie oczekuje na akceptację.
+                                          </p>
+                                        ) : joinStatus === 'cancelled' ? (
+                                          <p className="confirmation-celebration-join-status">
+                                            Wycofałeś(-aś) wcześniejsze zgłoszenie. Możesz zgłosić się ponownie.
+                                          </p>
+                                        ) : joinStatus === 'removed' ? (
+                                          <p className="confirmation-celebration-join-status">
+                                            Zostałeś(-aś) usunięty(-a) z listy. W razie potrzeby zgłoś się ponownie.
+                                          </p>
+                                        ) : joinStatus === 'rejected' ? (
+                                          <p className="confirmation-celebration-join-status">
+                                            Zgłoszenie zostało odrzucone. Skontaktuj się z parafią.
+                                          </p>
+                                        ) : null}
+                                      </>
                                     ) : null}
                                     <div className="confirmation-celebration-join-actions">
                                       {!isJoinPending && !isJoinAccepted ? (
