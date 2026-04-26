@@ -124,10 +124,7 @@ export function buildLiveStatisticsResponse(state: CogitaLiveRevisionPublicState
         meta.answerCount += 1;
         if (correctness > 0) {
           meta.correctCount += 1;
-          const basePoints =
-            typeof entry.basePoints === 'number' && Number.isFinite(entry.basePoints) && entry.basePoints >= 0
-              ? Math.round(entry.basePoints)
-              : Math.max(0, pointsAwarded);
+          // Compute bonuses first so the basePoints fallback can subtract them correctly.
           const firstBonusPoints =
             typeof entry.firstBonusPoints === 'number' && Number.isFinite(entry.firstBonusPoints) && entry.firstBonusPoints >= 0
               ? Math.round(entry.firstBonusPoints)
@@ -148,6 +145,12 @@ export function buildLiveStatisticsResponse(state: CogitaLiveRevisionPublicState
                   ((entry as { streakPoints?: number | null }).streakPoints ?? 0) >= 0
                 ? Math.round((entry as { streakPoints?: number | null }).streakPoints ?? 0)
               : 0;
+          // When basePoints is not provided by the server, estimate it as pointsAwarded minus bonuses
+          // so that averageBasePointsPerCorrectAnswer is not inflated by bonus contributions.
+          const basePoints =
+            typeof entry.basePoints === 'number' && Number.isFinite(entry.basePoints) && entry.basePoints >= 0
+              ? Math.round(entry.basePoints)
+              : Math.max(0, pointsAwarded - firstBonusPoints - speedBonusPoints - streakBonusPoints);
           meta.correctPointsSum += Math.max(0, pointsAwarded);
           meta.correctBasePointsSum += basePoints;
           meta.correctFirstBonusPointsSum += firstBonusPoints;

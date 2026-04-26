@@ -633,6 +633,38 @@ export function CogitaLiveHostWallPage({
     return 'question' as const;
   }, [hasPublishedRound, isCurrentRoundScored, isLobbyStage, reveal, session]);
   const hidePreRevealTimers = roundPhase === 'revealed' || roundPhase === 'scored';
+
+  // Pre-compute the next round data during the scored/revealed phase so the transition
+  // to the next question is instantaneous when the host triggers it.
+  const precomputedNextRound = useMemo(() => {
+    if (!session || rounds.length === 0) return null;
+    if (roundPhase !== 'scored' && roundPhase !== 'revealed') return null;
+    const promptState =
+      session.currentPrompt && typeof session.currentPrompt === 'object'
+        ? (session.currentPrompt as Record<string, unknown>)
+        : null;
+    const revealState =
+      session.currentReveal && typeof session.currentReveal === 'object'
+        ? (session.currentReveal as Record<string, unknown>)
+        : null;
+    const knownessByCardKey =
+      (revealState?.knownessByCardKey as Record<string, number> | undefined) ??
+      (promptState?.knownessByCardKey as Record<string, number> | undefined) ??
+      {};
+    const askedCardKeysRaw = Array.isArray(promptState?.askedCardKeys) ? (promptState.askedCardKeys as unknown[]) : [];
+    const askedCardKeys = Array.from(
+      new Set(askedCardKeysRaw.map((key) => String(key)).concat(currentRound?.cardKey ?? '').filter((key) => key.length > 0))
+    );
+    const nextIndex = selectNextCardIndexByMode({
+      mode: revisionMode,
+      currentIndex: session.currentRoundIndex,
+      cardKeys: rounds.map((round) => round.cardKey),
+      askedCardKeys,
+      knownessByCardKey
+    });
+    return { nextIndex, askedCardKeys, knownessByCardKey };
+  }, [currentRound?.cardKey, revisionMode, roundPhase, rounds, session]);
+
   const actionTimerStarted =
     typeof promptRoot?.actionTimerStartedUtc === 'string' && promptRoot.actionTimerStartedUtc.length > 0;
   const mutationInFlight = mutationInFlightRef.current || busy !== 'none';
@@ -875,7 +907,7 @@ export function CogitaLiveHostWallPage({
     } else {
       void pollSession();
     }
-    const id = window.setInterval(pollSession, 1200);
+    const id = window.setInterval(pollSession, 800);
     return () => window.clearInterval(id);
   }, [libraryId, sessionId, effectiveHostSecret]);
 
@@ -1461,30 +1493,41 @@ export function CogitaLiveHostWallPage({
     if (!session) return;
     if (!canNextQuestion) return;
     await runHostMutation('next', async () => {
-      const promptState =
-        session.currentPrompt && typeof session.currentPrompt === 'object'
-          ? (session.currentPrompt as Record<string, unknown>)
-          : null;
-      const revealState =
-        session.currentReveal && typeof session.currentReveal === 'object'
-          ? (session.currentReveal as Record<string, unknown>)
-          : null;
-      const knownessByCardKey =
-        (revealState?.knownessByCardKey as Record<string, number> | undefined) ??
-        (promptState?.knownessByCardKey as Record<string, number> | undefined) ??
-        {};
-      const askedCardKeysRaw =
-        Array.isArray(promptState?.askedCardKeys) ? (promptState?.askedCardKeys as unknown[]) : [];
-      const askedCardKeys = Array.from(
-        new Set(askedCardKeysRaw.map((key) => String(key)).concat(currentRound?.cardKey ?? '').filter((key) => key.length > 0))
-      );
-      const nextIndex = selectNextCardIndexByMode({
-        mode: revisionMode,
-        currentIndex: session.currentRoundIndex,
-        cardKeys: rounds.map((round) => round.cardKey),
-        askedCardKeys,
-        knownessByCardKey
-      });
+      // Use pre-computed values when available (they are computed during the scored/revealed phase)
+      // to minimize the time between clicking "Next" and the new question appearing.
+      let nextIndex: number | null = null;
+      let askedCardKeys: string[] = [];
+      let knownessByCardKey: Record<string, number> = {};
+
+      if (precomputedNextRound) {
+        ({ nextIndex, askedCardKeys, knownessByCardKey } = precomputedNextRound);
+      } else {
+        const promptState =
+          session.currentPrompt && typeof session.currentPrompt === 'object'
+            ? (session.currentPrompt as Record<string, unknown>)
+            : null;
+        const revealState =
+          session.currentReveal && typeof session.currentReveal === 'object'
+            ? (session.currentReveal as Record<string, unknown>)
+            : null;
+        knownessByCardKey =
+          (revealState?.knownessByCardKey as Record<string, number> | undefined) ??
+          (promptState?.knownessByCardKey as Record<string, number> | undefined) ??
+          {};
+        const askedCardKeysRaw =
+          Array.isArray(promptState?.askedCardKeys) ? (promptState.askedCardKeys as unknown[]) : [];
+        askedCardKeys = Array.from(
+          new Set(askedCardKeysRaw.map((key) => String(key)).concat(currentRound?.cardKey ?? '').filter((key) => key.length > 0))
+        );
+        nextIndex = selectNextCardIndexByMode({
+          mode: revisionMode,
+          currentIndex: session.currentRoundIndex,
+          cardKeys: rounds.map((round) => round.cardKey),
+          askedCardKeys,
+          knownessByCardKey
+        });
+      }
+
       if (nextIndex == null) {
         await pushState({ status: 'finished', currentReveal: null });
       } else {

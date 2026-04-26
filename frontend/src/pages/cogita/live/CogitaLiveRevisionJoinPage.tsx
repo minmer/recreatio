@@ -419,6 +419,8 @@ export function CogitaLiveRevisionJoinPage(props: {
   const introTimerSyncRef = useRef<'idle' | 'pause' | 'resume'>('idle');
   const participantRecoverRef = useRef(false);
   const participantRecoverLastAttemptRef = useRef(0);
+  const statusRef = useRef(status);
+  useEffect(() => { statusRef.current = status; }, [status]);
 
   const prompt = (state?.currentPrompt as LivePrompt | undefined) ?? null;
   const reveal = (state?.currentReveal as Record<string, unknown> | undefined) ?? null;
@@ -774,10 +776,36 @@ export function CogitaLiveRevisionJoinPage(props: {
 
   useEffect(() => {
     let mounted = true;
-    const poll = async () => {
+    let pollTimeoutId: ReturnType<typeof window.setTimeout> | null = null;
+    // Track last known state fingerprint to detect changes and trigger a fast re-poll.
+    let lastRevealVersion = -1;
+    let lastRoundIndex = -1;
+    let lastSessionStatus = '';
+
+    const schedulePoll = (delayMs: number) => {
+      if (!mounted) return;
+      if (pollTimeoutId !== null) window.clearTimeout(pollTimeoutId);
+      pollTimeoutId = window.setTimeout(() => void doPoll(), delayMs);
+    };
+
+    const doPoll = async () => {
+      if (!mounted) return;
+      pollTimeoutId = null;
       try {
         const next = await getCogitaLiveRevisionPublicState({ code, participantToken });
         if (!mounted) return;
+
+        const nextRevealVersion = next.revealVersion ?? -1;
+        const nextRoundIndex = next.currentRoundIndex ?? -1;
+        const nextSessionStatus = next.status ?? '';
+        const stateChanged =
+          (lastRevealVersion >= 0 && lastRevealVersion !== nextRevealVersion) ||
+          (lastRoundIndex >= 0 && lastRoundIndex !== nextRoundIndex) ||
+          (lastSessionStatus !== '' && lastSessionStatus !== nextSessionStatus);
+        lastRevealVersion = nextRevealVersion;
+        lastRoundIndex = nextRoundIndex;
+        lastSessionStatus = nextSessionStatus;
+
         setState(next);
         if (!manualParticipantSwitch && !participantToken && typeof next.participantToken === 'string' && next.participantToken.trim()) {
           setParticipantToken(next.participantToken);
@@ -793,17 +821,22 @@ export function CogitaLiveRevisionJoinPage(props: {
           localStorage.setItem(participantMetaStorageKey(code), JSON.stringify(meta));
         }
         if (participantToken) setStatus('ready');
+
+        // After a state change, re-poll quickly to catch any follow-on transitions
+        // (e.g. host scores then immediately reveals). Otherwise use the normal interval.
+        schedulePoll(stateChanged ? 150 : 800);
       } catch {
-        if (mounted && status !== 'joining') setStatus('error');
+        if (mounted && statusRef.current !== 'joining') setStatus('error');
+        schedulePoll(800);
       }
     };
-    poll();
-    const id = window.setInterval(poll, 1200);
+
+    void doPoll();
     return () => {
       mounted = false;
-      window.clearInterval(id);
+      if (pollTimeoutId !== null) window.clearTimeout(pollTimeoutId);
     };
-  }, [code, manualParticipantSwitch, participantToken, status]);
+  }, [code, manualParticipantSwitch, participantToken]);
 
   const handleJoin = async (useExistingName = false) => {
     setStatus('joining');
