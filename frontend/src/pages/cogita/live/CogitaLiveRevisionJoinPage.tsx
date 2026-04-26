@@ -1488,6 +1488,10 @@ export function CogitaLiveRevisionJoinPage(props: {
   const liveStatisticsData = useMemo(() => buildLiveStatisticsResponse(state), [state]);
   const effectiveReviewRounds = useMemo(() => {
     if (reviewRounds.length > 0) return reviewRounds;
+    // While the review API is loading, show nothing rather than misleading incomplete data.
+    if (reviewLoading) return [];
+    // After a failed API load, fall back to the last visible round so the participant
+    // sees at least their final answer.
     if (!isSessionFinished || !prompt || !reveal) return [];
     const fallbackRoundIndex = Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0);
     const fallbackCardKey =
@@ -1505,7 +1509,7 @@ export function CogitaLiveRevisionJoinPage(props: {
         pointsAwarded: 0
       } satisfies CogitaLiveRevisionReviewRound
     ];
-  }, [isSessionFinished, prompt, reveal, reviewRounds, state?.currentRoundIndex]);
+  }, [isSessionFinished, prompt, reveal, reviewLoading, reviewRounds, state?.currentRoundIndex]);
 
   useEffect(() => {
     if (!isSessionFinished || !participantToken) return;

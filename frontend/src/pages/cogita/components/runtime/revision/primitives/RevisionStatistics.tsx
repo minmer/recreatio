@@ -486,37 +486,27 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
         } satisfies ParticipantSeriesPoint;
       });
 
-      // Fill missing durations on the fly from per-participant answer timestamps.
+      // For points without a server-provided durationMs, fall back to the participant's
+      // pre-computed average duration (also server-sourced) rather than deriving from
+      // consecutive timestamps — timestamp deltas include reveal-screen dwell time and
+      // are systematically inflated.
       const answerPointIndexes = points
         .map((point, index) => ({ point, index }))
         .filter(({ point }) => point.correctness !== null)
         .map(({ index }) => index);
+      const avgFallbackSeconds =
+        typeof summary?.averageDurationMs === 'number' &&
+        Number.isFinite(summary.averageDurationMs) &&
+        summary.averageDurationMs > 0
+          ? summary.averageDurationMs / 1000
+          : null;
       for (let i = 0; i < answerPointIndexes.length; i += 1) {
         const currentIndex = answerPointIndexes[i];
         const currentPoint = points[currentIndex];
         if (typeof currentPoint.durationSeconds === 'number' && Number.isFinite(currentPoint.durationSeconds)) {
           continue;
         }
-        let derivedDuration: number | null = null;
-        const nextAnswerIndex = answerPointIndexes[i + 1];
-        if (typeof nextAnswerIndex === 'number') {
-          const nextPoint = points[nextAnswerIndex];
-          if (currentPoint.recordedAtMs !== null && nextPoint.recordedAtMs !== null) {
-            const delta = (nextPoint.recordedAtMs - currentPoint.recordedAtMs) / 1000;
-            if (Number.isFinite(delta) && delta >= 0) {
-              derivedDuration = delta;
-            }
-          }
-        }
-        if (
-          derivedDuration === null &&
-          typeof summary?.averageDurationMs === 'number' &&
-          Number.isFinite(summary.averageDurationMs) &&
-          summary.averageDurationMs > 0
-        ) {
-          derivedDuration = summary.averageDurationMs / 1000;
-        }
-        currentPoint.durationSeconds = derivedDuration;
+        currentPoint.durationSeconds = avgFallbackSeconds;
       }
 
       const computedAnswerCount = summary?.answerCount ?? points.filter((point) => point.correctness !== null).length;

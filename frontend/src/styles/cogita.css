@@ -1974,15 +1974,23 @@
 .cogita-live-finished-layout {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.8rem;
+  gap: 1rem;
   min-height: 0;
-  align-items: stretch;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .cogita-live-finished-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
 }
 
 .cogita-live-finished-column {
   display: grid;
   gap: 0.8rem;
   min-height: 0;
+  min-width: 0;
 }
 
 .cogita-live-finished-column--primary {
@@ -1995,11 +2003,12 @@
 
 .cogita-live-finished-column--secondary .cogita-statistics-panel {
   gap: 0.7rem;
+  min-width: 0;
 }
 
 .cogita-live-finished-column--secondary .cogita-statistics-chart {
-  min-width: 760px;
-  max-height: min(28vh, 260px);
+  min-width: 0;
+  max-height: min(36vh, 300px);
 }
 
 .cogita-live-finished-podium {
@@ -2009,7 +2018,7 @@
 
 .cogita-live-finished-review {
   min-height: 0;
-  overflow: visible;
+  overflow-x: hidden;
 }
 
 .cogita-live-round-review-item {
@@ -2491,9 +2500,14 @@
   overflow: visible;
 }
 
-.cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-session-layout[data-stage='finished'] .cogita-statistics-chart-card,
+.cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-session-layout[data-stage='finished'] .cogita-statistics-chart-card {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
 .cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-session-layout[data-stage='finished'] .cogita-statistics-table-panel {
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-session-layout[data-stage='finished'] .cogita-statistics-chart,
@@ -3599,10 +3613,6 @@
 
   .cogita-live-session-layout[data-stage='finished'] > .cogita-library-panel {
     max-height: none;
-    overflow: visible;
-  }
-
-  .cogita-live-finished-review {
     overflow: visible;
   }
 }
