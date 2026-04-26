@@ -2573,6 +2573,10 @@
   overflow: hidden;
 }
 
+.cogita-live-wall--finished-podium {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
 .cogita-live-wall-header {
   display: flex;
   align-items: flex-start;
@@ -2585,6 +2589,10 @@
   gap: 0.55rem;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.cogita-live-wall-top {
+  min-width: 0;
 }
 
 .cogita-live-wall-split {
@@ -3523,6 +3531,48 @@
   animation: cogita-podium-pulse 2.1s ease-in-out infinite;
 }
 
+.cogita-live-podium-wrap--wall-finale {
+  width: 100%;
+  min-height: clamp(260px, 38vh, 440px);
+  padding: clamp(0.85rem, 1.8vw, 1.35rem) clamp(1rem, 2.4vw, 1.7rem) clamp(1rem, 2vw, 1.5rem);
+  border-color: rgba(138, 215, 255, 0.5);
+  background:
+    radial-gradient(55% 95% at 50% 4%, rgba(119, 219, 255, 0.18), rgba(119, 219, 255, 0) 64%),
+    linear-gradient(180deg, rgba(7, 26, 48, 0.96) 0%, rgba(7, 21, 38, 0.9) 100%);
+  box-shadow: inset 0 0 0 1px rgba(140, 215, 255, 0.14), 0 0 34px rgba(103, 200, 255, 0.28);
+}
+
+.cogita-live-podium-wrap--wall-finale > .cogita-user-kicker {
+  font-size: clamp(0.9rem, 1.2vw, 1.15rem);
+}
+
+.cogita-live-podium-wrap--wall-finale .cogita-live-podium {
+  min-height: clamp(210px, 31vh, 360px);
+  gap: clamp(0.8rem, 2vw, 1.45rem);
+}
+
+.cogita-live-podium-wrap--wall-finale .cogita-live-podium-slot {
+  min-height: clamp(190px, 29vh, 335px);
+  gap: clamp(0.5rem, 1.1vw, 0.8rem);
+}
+
+.cogita-live-podium-wrap--wall-finale .cogita-live-podium-name {
+  font-size: clamp(1rem, 1.55vw, 1.45rem);
+  font-weight: 800;
+}
+
+.cogita-live-podium-wrap--wall-finale .cogita-live-podium-pillar {
+  min-height: 76px;
+  border-radius: 16px 16px 10px 10px;
+  font-size: clamp(1rem, 1.5vw, 1.35rem);
+}
+
+.cogita-live-podium-wrap--wall-finale .cogita-live-podium-medal {
+  min-width: clamp(1.8rem, 2.4vw, 2.35rem);
+  height: clamp(1.8rem, 2.4vw, 2.35rem);
+  font-size: clamp(1rem, 1.4vw, 1.25rem);
+}
+
 @keyframes cogita-podium-rise {
   from {
     transform: translateY(16px) scaleY(0.65);
@@ -3564,6 +3614,22 @@
     overflow-x: hidden;
     grid-template-rows: auto auto;
     align-content: start;
+  }
+
+  .cogita-live-wall--finished-podium {
+    grid-template-rows: auto auto auto;
+  }
+
+  .cogita-live-podium-wrap--wall-finale {
+    min-height: 240px;
+  }
+
+  .cogita-live-podium-wrap--wall-finale .cogita-live-podium {
+    min-height: 190px;
+  }
+
+  .cogita-live-podium-wrap--wall-finale .cogita-live-podium-slot {
+    min-height: 170px;
   }
 
   .cogita-live-wall-split {

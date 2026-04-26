@@ -419,11 +419,41 @@ export function CogitaLivePublicWallPage({
     };
   }, [code, isSessionFinished, state?.revealVersion]);
 
+  const publicPodium = showPodiumOnPublicScreen && podiumRows.length > 0 ? (
+    <div className="cogita-live-podium-wrap cogita-live-podium-wrap--wall-finale">
+      <div className="cogita-live-podium-celebration-layer" aria-hidden="true">
+        <PodiumFireworksLayer active={status === 'ready' && isSessionFinished} />
+      </div>
+      <p className="cogita-user-kicker">{liveCopy.podiumTitle}</p>
+      <div className="cogita-live-podium" role="presentation">
+        {podiumDisplayRows.map((row) => {
+          const order = podiumRows.findIndex((entry) => entry.participantId === row.participantId) + 1;
+          const color = participantColorById.get(row.participantId) ?? CHART_COLORS[Math.max(0, order - 1) % CHART_COLORS.length];
+          const heightByRank: Record<number, number> = { 1: 100, 2: 74, 3: 58 };
+          const height = heightByRank[order] ?? 52;
+          return (
+            <div key={`podium:${row.participantId}`} className="cogita-live-podium-slot" data-rank={order}>
+              <div className="cogita-live-podium-name" title={row.displayName}>
+                {row.displayName}
+              </div>
+              <div className="cogita-live-podium-pillar" style={{ height: `${height}%`, borderColor: color, boxShadow: `inset 0 0 0 1px ${color}55, 0 0 18px ${color}33` }}>
+                <span className="cogita-live-podium-medal" style={{ background: color }}>{order}</span>
+                <strong>{`${row.score} ${liveCopy.scoreUnit}`}</strong>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <>
       <CogitaLiveWallLayout
+        className={publicPodium ? 'cogita-live-wall--finished-podium' : undefined}
         title={liveCopy.hostTitle}
         subtitle={liveCopy.hostKicker}
+        top={publicPodium}
         left={
           <div className="cogita-live-wall-stack">
             {sessionDescriptionLines.length > 0 && showSessionDescription ? (
@@ -558,33 +588,6 @@ export function CogitaLivePublicWallPage({
         right={
           <div className="cogita-live-wall-stack">
             {showRightScoreboard ? <p className="cogita-user-kicker">{liveCopy.pointsTitle}</p> : null}
-            {showPodiumOnPublicScreen && podiumRows.length > 0 ? (
-              <div className="cogita-live-podium-wrap">
-                <div className="cogita-live-podium-celebration-layer" aria-hidden="true">
-                  <PodiumFireworksLayer active={status === 'ready' && isSessionFinished} />
-                </div>
-                <p className="cogita-user-kicker">{liveCopy.podiumTitle}</p>
-                <div className="cogita-live-podium" role="presentation">
-                  {podiumDisplayRows.map((row) => {
-                    const order = podiumRows.findIndex((entry) => entry.participantId === row.participantId) + 1;
-                    const color = participantColorById.get(row.participantId) ?? CHART_COLORS[Math.max(0, order - 1) % CHART_COLORS.length];
-                    const heightByRank: Record<number, number> = { 1: 100, 2: 74, 3: 58 };
-                    const height = heightByRank[order] ?? 52;
-                    return (
-                      <div key={`podium:${row.participantId}`} className="cogita-live-podium-slot" data-rank={order}>
-                        <div className="cogita-live-podium-name" title={row.displayName}>
-                          {row.displayName}
-                        </div>
-                        <div className="cogita-live-podium-pillar" style={{ height: `${height}%`, borderColor: color, boxShadow: `inset 0 0 0 1px ${color}55, 0 0 18px ${color}33` }}>
-                          <span className="cogita-live-podium-medal" style={{ background: color }}>{order}</span>
-                          <strong>{`${row.score} ${liveCopy.scoreUnit}`}</strong>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
             {isSessionFinished ? (
               <section className="cogita-library-panel">
                 <div className="cogita-detail-header">
