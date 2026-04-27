@@ -1420,8 +1420,10 @@ export function CogitaStoryboardRuntime({
   const cardTransitionTimer = useRef<number | null>(null);
   const mediaObjectUrlsRef = useRef<Record<string, string>>({});
   const mediaLoadingKeysRef = useRef<Set<string>>(new Set());
-  const runtimeScrollAnchorRef = useRef<HTMLDivElement | null>(null);
+  const runtimeScrollTargetsRef = useRef<Record<string, HTMLElement | null>>({});
+  const runtimeHighlightTimerRef = useRef<number | null>(null);
   const previousRuntimeSignatureRef = useRef('');
+  const [runtimeHighlightKey, setRuntimeHighlightKey] = useState<string | null>(null);
   const cardRuntimeCacheRef = useRef<Record<string, LoadedCardRuntime>>({});
   const cardRuntimeInFlightRef = useRef<Record<string, Promise<LoadedCardRuntime | null>>>({});
   const pythonRunnerRef = useRef<BrowserPythonRunnerClient | null>(null);
@@ -1937,6 +1939,14 @@ export function CogitaStoryboardRuntime({
     return findNode(runtime.graph, runtime.currentNodeId);
   }, [runtime]);
 
+  const runtimeFocusKey = useMemo(() => {
+    if (!runtime || !currentNode) return null;
+    const nodeKey = buildNodeKey(runtime.graphPath, currentNode.nodeId);
+    if (currentNode.kind === 'card') return `card:${nodeKey}`;
+    if (runtime.displayedBlocks.some((block) => block.key === nodeKey)) return `block:${nodeKey}`;
+    return null;
+  }, [currentNode, runtime]);
+
   const resolveCardRuntime = useCallback(async (node: StoryboardNodeRecord, graphPath: string[]): Promise<LoadedCardRuntime> => {
     let prompt = node.description.trim() || node.title;
     let expected = node.title;
@@ -2185,14 +2195,39 @@ export function CogitaStoryboardRuntime({
   }, [resolveCardRuntime]);
 
   useEffect(() => {
-    if (!runtime || loading) return;
+    if (!runtime || loading || !runtimeFocusKey) return;
     const signature = `${runtime.currentNodeId}|${runtime.finished ? '1' : '0'}|${runtime.displayedBlocks.map((block) => block.key).join(',')}`;
     if (previousRuntimeSignatureRef.current === signature) return;
     previousRuntimeSignatureRef.current = signature;
+    setRuntimeHighlightKey(runtimeFocusKey);
+    if (runtimeHighlightTimerRef.current != null) {
+      window.clearTimeout(runtimeHighlightTimerRef.current);
+    }
+    runtimeHighlightTimerRef.current = window.setTimeout(() => {
+      setRuntimeHighlightKey((current) => (current === runtimeFocusKey ? null : current));
+      runtimeHighlightTimerRef.current = null;
+    }, 2200);
     window.requestAnimationFrame(() => {
-      runtimeScrollAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      const target = runtimeScrollTargetsRef.current[runtimeFocusKey];
+      if (!target) return;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
+      const desiredTop = Math.max(72, Math.min(128, viewportHeight * 0.14));
+      const rect = target.getBoundingClientRect();
+      const alreadyComfortable = rect.top >= desiredTop - 12 && rect.top <= desiredTop + 42;
+      if (alreadyComfortable) return;
+      const maxTop = Math.max(0, document.documentElement.scrollHeight - viewportHeight);
+      const top = Math.max(0, Math.min(maxTop, window.scrollY + rect.top - desiredTop));
+      window.scrollTo({ top, behavior: 'smooth' });
     });
-  }, [loading, runtime]);
+  }, [loading, runtime, runtimeFocusKey]);
+
+  useEffect(() => {
+    return () => {
+      if (runtimeHighlightTimerRef.current != null) {
+        window.clearTimeout(runtimeHighlightTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (cardTransitionTimer.current != null) {
@@ -2959,8 +2994,18 @@ export function CogitaStoryboardRuntime({
           <div className="cogita-pane" style={{ display: 'grid', gap: '1rem', marginLeft: runtimeContentOffset }}>
             {runtime.displayedBlocks
               .filter((block) => block.kind !== 'card')
-              .map((block) => (
-              <article key={block.key} className="cogita-library-detail" style={{ margin: 0 }}>
+              .map((block) => {
+                const focusKey = `block:${block.key}`;
+                return (
+              <article
+                key={block.key}
+                ref={(element) => {
+                  runtimeScrollTargetsRef.current[focusKey] = element;
+                }}
+                className="cogita-library-detail cogita-storyboard-runtime-focus"
+                data-highlight={runtimeHighlightKey === focusKey ? 'true' : undefined}
+                style={{ margin: 0 }}
+              >
                 <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.55rem' }}>
                   {block.kind === 'static' ? (
                     <>
@@ -2997,7 +3042,8 @@ export function CogitaStoryboardRuntime({
                   ) : null}
                 </div>
               </article>
-            ))}
+                );
+              })}
 
             {runtime.finished ? (
               <div className="cogita-library-detail">
@@ -3008,7 +3054,16 @@ export function CogitaStoryboardRuntime({
             ) : null}
 
             {currentNode?.kind === 'card' && !runtime.finished ? (
-              <article className="cogita-library-detail" style={{ margin: 0 }}>
+              <article
+                ref={(element) => {
+                  if (currentRuntimeNodeKey) {
+                    runtimeScrollTargetsRef.current[`card:${currentRuntimeNodeKey}`] = element;
+                  }
+                }}
+                className="cogita-library-detail cogita-storyboard-runtime-focus"
+                data-highlight={currentRuntimeNodeKey && runtimeHighlightKey === `card:${currentRuntimeNodeKey}` ? 'true' : undefined}
+                style={{ margin: 0 }}
+              >
                 <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.55rem' }}>
                   {cardState?.status === 'loading' || cardState?.status === 'submitting' ? (
                     <p className="cogita-help" style={{ margin: 0 }}>
@@ -3325,7 +3380,6 @@ export function CogitaStoryboardRuntime({
                 ) : null}
               </div>
             ) : null}
-            <div ref={runtimeScrollAnchorRef} />
           </div>
         ) : null}
         {!isNarrowScreen && showOutlinePanel ? <div style={{ clear: 'both' }} /> : null}

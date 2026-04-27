@@ -4998,6 +4998,39 @@ textarea.cogita-input {
   color: rgba(214, 230, 248, 0.92);
 }
 
+.cogita-storyboard-runtime-focus {
+  position: relative;
+  border-radius: 18px;
+  isolation: isolate;
+  transition:
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    background-color 220ms ease;
+}
+
+.cogita-storyboard-runtime-focus > * {
+  position: relative;
+  z-index: 1;
+}
+
+.cogita-storyboard-runtime-focus[data-highlight='true'] {
+  border-color: rgba(111, 214, 255, 0.62);
+  box-shadow:
+    inset 0 0 0 1px rgba(111, 214, 255, 0.22),
+    0 0 0 3px rgba(111, 214, 255, 0.08),
+    0 16px 40px rgba(48, 148, 220, 0.18);
+}
+
+.cogita-storyboard-runtime-focus[data-highlight='true']::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgba(111, 214, 255, 0.12), rgba(142, 240, 184, 0.06));
+  pointer-events: none;
+}
+
 .cogita-storyboard-editor-section-head {
   display: flex;
   align-items: center;

@@ -1098,34 +1098,56 @@ public static class CogitaEndpoints
                     try
                     {
                         var payloadNode = JsonNode.Parse(payloadElement.GetRawText()) as JsonObject;
-                        if (payloadNode is not null &&
-                            payloadNode.TryGetPropertyValue("definition", out var definitionNode) &&
-                            definitionNode is JsonObject definitionObject)
+                        if (payloadNode is not null)
                         {
-                            if ((!definitionObject.TryGetPropertyValue("starterSource", out var starterNode) ||
-                                 string.IsNullOrWhiteSpace(starterNode?.GetValue<string>())) &&
-                                definitionObject.TryGetPropertyValue("transformStarterSource", out var transformStarterNode))
+                            if (payloadNode.TryGetPropertyValue("definition", out var definitionNode) &&
+                                definitionNode is JsonObject definitionObject)
                             {
-                                definitionObject["starterSource"] = transformStarterNode?.DeepClone();
+                                if ((!definitionObject.TryGetPropertyValue("starterSource", out var starterNode) ||
+                                     string.IsNullOrWhiteSpace(starterNode?.GetValue<string>())) &&
+                                    definitionObject.TryGetPropertyValue("transformStarterSource", out var transformStarterNode))
+                                {
+                                    definitionObject["starterSource"] = transformStarterNode?.DeepClone();
+                                }
+
+                                if ((!definitionObject.TryGetPropertyValue("caseCount", out var caseCountNode) ||
+                                     (caseCountNode is JsonValue caseValue &&
+                                      !caseValue.TryGetValue<int>(out _) &&
+                                      !caseValue.TryGetValue<string>(out _))) &&
+                                    definitionObject.TryGetPropertyValue("cases", out var casesNode))
+                                {
+                                    definitionObject["caseCount"] = casesNode?.DeepClone();
+                                }
+
+                                if (!definitionObject.TryGetPropertyValue("type", out var typeNode) ||
+                                    string.IsNullOrWhiteSpace(typeNode?.GetValue<string>()))
+                                {
+                                    definitionObject["type"] = PythonDefinitionType;
+                                }
+                            }
+                            else if (!payloadNode.ContainsKey("definition"))
+                            {
+                                // Flat-structure payload: apply the same alias normalization before
+                                // SanitizePythonPayload promotes flat keys into the definition object.
+                                if ((!payloadNode.TryGetPropertyValue("starterSource", out var flatStarterNode) ||
+                                     string.IsNullOrWhiteSpace(flatStarterNode?.GetValue<string>())) &&
+                                    payloadNode.TryGetPropertyValue("transformStarterSource", out var flatTransformNode))
+                                {
+                                    payloadNode["starterSource"] = flatTransformNode?.DeepClone();
+                                }
+
+                                if ((!payloadNode.TryGetPropertyValue("caseCount", out var flatCaseCountNode) ||
+                                     (flatCaseCountNode is JsonValue flatCaseValue &&
+                                      !flatCaseValue.TryGetValue<int>(out _) &&
+                                      !flatCaseValue.TryGetValue<string>(out _))) &&
+                                    payloadNode.TryGetPropertyValue("cases", out var flatCasesNode))
+                                {
+                                    payloadNode["caseCount"] = flatCasesNode?.DeepClone();
+                                }
                             }
 
-                            if ((!definitionObject.TryGetPropertyValue("caseCount", out var caseCountNode) ||
-                                 (caseCountNode is JsonValue caseValue &&
-                                  !caseValue.TryGetValue<int>(out _) &&
-                                  !caseValue.TryGetValue<string>(out _))) &&
-                                definitionObject.TryGetPropertyValue("cases", out var casesNode))
-                            {
-                                definitionObject["caseCount"] = casesNode?.DeepClone();
-                            }
-
-                            if (!definitionObject.TryGetPropertyValue("type", out var typeNode) ||
-                                string.IsNullOrWhiteSpace(typeNode?.GetValue<string>()))
-                            {
-                                definitionObject["type"] = PythonDefinitionType;
-                            }
+                            payloadForCreate = JsonSerializer.SerializeToElement(payloadNode);
                         }
-
-                        payloadForCreate = JsonSerializer.SerializeToElement(payloadNode);
                     }
                     catch
                     {
@@ -16506,7 +16528,9 @@ public static class CogitaEndpoints
             else if (node.ContainsKey("createInputSource") ||
                      node.ContainsKey("referenceSource") ||
                      node.ContainsKey("starterSource") ||
-                     node.ContainsKey("taskText"))
+                     node.ContainsKey("transformStarterSource") ||
+                     node.ContainsKey("taskText") ||
+                     node.ContainsKey("cases"))
             {
                 definition = new JsonObject
                 {
@@ -16524,6 +16548,10 @@ public static class CogitaEndpoints
                 {
                     definition["starterSource"] = starterNode?.DeepClone();
                 }
+                else if (node.TryGetPropertyValue("transformStarterSource", out var transformStarterNode))
+                {
+                    definition["starterSource"] = transformStarterNode?.DeepClone();
+                }
                 if (node.TryGetPropertyValue("taskText", out var taskTextNode))
                 {
                     definition["taskText"] = taskTextNode?.DeepClone();
@@ -16531,6 +16559,10 @@ public static class CogitaEndpoints
                 if (node.TryGetPropertyValue("caseCount", out var caseCountNode))
                 {
                     definition["caseCount"] = caseCountNode?.DeepClone();
+                }
+                else if (node.TryGetPropertyValue("cases", out var casesNode))
+                {
+                    definition["caseCount"] = casesNode?.DeepClone();
                 }
             }
             else
@@ -16571,8 +16603,10 @@ public static class CogitaEndpoints
             node.Remove("createInputSource");
             node.Remove("referenceSource");
             node.Remove("starterSource");
+            node.Remove("transformStarterSource");
             node.Remove("taskText");
             node.Remove("caseCount");
+            node.Remove("cases");
 
             return JsonSerializer.SerializeToElement(node);
         }
