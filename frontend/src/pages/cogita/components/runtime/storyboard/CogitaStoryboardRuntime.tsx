@@ -23,6 +23,7 @@ import {
 } from '../../../../../lib/api';
 import type { Copy } from '../../../../../content/types';
 import type { RouteKey } from '../../../../../types/navigation';
+import { LatexBlock } from '../../../../../components/LatexText';
 import { CogitaShell } from '../../../CogitaShell';
 import { CogitaLivePromptCard } from '../../../live/components/CogitaLivePromptCard';
 import { buildRevisionQuestionRuntime } from '../revision/RevisionRuntimeShell';
@@ -2976,8 +2977,8 @@ export function CogitaStoryboardRuntime({
                           }}
                         />
                       ) : null}
-                      {block.staticBody ? <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{block.staticBody}</p> : null}
-                      {block.description ? <p className="cogita-help" style={{ margin: 0 }}>{block.description}</p> : null}
+                      {block.staticBody ? <LatexBlock value={block.staticBody} mode="auto" /> : null}
+                      {block.description ? <LatexBlock className="cogita-help" value={block.description} mode="auto" /> : null}
                       {block.narrationAudioEnabled && block.narrationAudioFileId.trim() && mediaObjectUrls[`audio:${block.narrationAudioFileId.trim()}`] ? (
                         <audio
                           controls

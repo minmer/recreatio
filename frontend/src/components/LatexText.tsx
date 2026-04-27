@@ -1,4 +1,5 @@
 import { BlockMath, InlineMath } from 'react-katex';
+import 'katex/dist/katex.min.css';
 
 type LatexMode = 'math' | 'auto';
 type LatexSegment = { type: 'text' | 'inline' | 'block'; value: string };

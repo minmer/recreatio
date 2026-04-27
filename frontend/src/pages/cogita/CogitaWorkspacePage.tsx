@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import '../../styles/cogita.css';
-import 'katex/dist/katex.min.css';
 import {
   ApiError,
   createCogitaGame,
