@@ -139,6 +139,7 @@
 
 .chat-thread {
   display: grid;
+  /* head | link-boxes (optional, auto) | messages (fills space) | send form | participants */
   grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   min-height: 0;
   padding: 16px;
@@ -163,15 +164,27 @@
 }
 
 .chat-public-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 10px;
   border-radius: 10px;
   background: #ecfeff;
   border: 1px solid rgba(6, 182, 212, 0.25);
+  flex-wrap: wrap;
+}
+
+.chat-public-link span {
+  font-size: 0.82rem;
+  color: #164e63;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .chat-public-link a {
   color: #155e75;
   word-break: break-all;
+  font-size: 0.82rem;
 }
 
 .chat-messages {
@@ -275,6 +288,32 @@
   padding: 8px;
 }
 
+.chat-field-row {
+  display: grid;
+  gap: 4px;
+}
+
+.chat-field-label {
+  font-size: 0.82rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+.chat-field-hint {
+  font-size: 0.76rem;
+  color: #94a3b8;
+}
+
+.chat-role-select {
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  padding: 6px 8px;
+  font: inherit;
+  min-height: 80px;
+}
+
 .chat-note {
   color: #64748b;
   font-size: 0.9rem;
@@ -331,6 +370,152 @@
 .chat-public-head p {
   margin: 4px 0 0;
   color: #475569;
+}
+
+.chat-thread-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  align-items: start;
+}
+
+/* Container wrapping all link boxes so they count as one grid row */
+.chat-thread-links {
+  display: grid;
+  gap: 6px;
+}
+
+.chat-message-type {
+  font-size: 0.75rem;
+  background: #e0f2fe;
+  color: #075985;
+  border-radius: 6px;
+  padding: 1px 6px;
+  text-transform: capitalize;
+}
+
+.chat-participant-perms {
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+/* Invite page error state */
+.chat-invite-error {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  padding: 24px 16px;
+}
+
+.chat-invite-error h1 {
+  margin: 0;
+  color: #b91c1c;
+}
+
+.chat-invite-error p {
+  margin: 0;
+  color: #475569;
+}
+
+.chat-invite-loading {
+  color: #64748b;
+  font-weight: 400;
+}
+
+.chat-invite-action-error {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 0.88rem;
+}
+
+.chat-invite-link-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fefce8;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  flex-wrap: wrap;
+}
+
+.chat-invite-link-label {
+  font-size: 0.82rem;
+  color: #713f12;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.chat-invite-link-url {
+  color: #92400e;
+  font-size: 0.82rem;
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-invite-page .chat-invite-main {
+  max-width: 960px;
+  width: min(100%, 960px);
+  margin: 0 auto;
+  padding: 16px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+}
+
+.chat-invite-head h1 {
+  margin: 0;
+}
+
+.chat-invite-scope {
+  margin: 4px 0 0;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.chat-invite-banner {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #eff6ff;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  align-items: center;
+}
+
+.chat-invite-banner p {
+  margin: 0;
+  color: #1e40af;
+}
+
+.chat-invite-banner--auth {
+  background: #f0fdf4;
+  border-color: rgba(22, 163, 74, 0.25);
+}
+
+.chat-invite-banner--auth p {
+  color: #14532d;
+}
+
+.chat-invite-banner--joined {
+  background: #f0fdf4;
+  border-color: rgba(22, 163, 74, 0.4);
+}
+
+.chat-invite-banner--joined p {
+  color: #15803d;
+  font-weight: 500;
+}
+
+.chat-invite-role-select {
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  padding: 8px 10px;
+  font: inherit;
 }
 
 @media (max-width: 1024px) {

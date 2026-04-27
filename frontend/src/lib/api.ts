@@ -6276,6 +6276,47 @@ export function askPublicChatQuestion(payload: { code: string; text: string; dis
   });
 }
 
+export type ChatInviteJoinResponse = {
+  conversationId: string;
+  title: string;
+};
+
+export function createChatInviteLink(conversationId: string, payload?: { label?: string; expiresInHours?: number }) {
+  return request<ChatPublicLinkResponse>(`/chat/conversations/${conversationId}/invite-links`, {
+    method: 'POST',
+    body: JSON.stringify({
+      label: payload?.label ?? null,
+      expiresInHours: payload?.expiresInHours ?? null
+    })
+  });
+}
+
+export function getChatInviteConversation(payload: { code: string; afterSequence?: number; take?: number }) {
+  const params = new URLSearchParams();
+  if (typeof payload.afterSequence === 'number') params.set('afterSequence', String(payload.afterSequence));
+  if (typeof payload.take === 'number') params.set('take', String(payload.take));
+  return request<ChatPublicConversation>(`/chat/invite/${encodeURIComponent(payload.code)}${params.toString() ? `?${params.toString()}` : ''}`, {
+    method: 'GET'
+  });
+}
+
+export function pollChatInviteConversation(payload: { code: string; afterSequence: number; waitSeconds?: number; take?: number }) {
+  const params = new URLSearchParams();
+  params.set('afterSequence', String(payload.afterSequence));
+  if (typeof payload.waitSeconds === 'number') params.set('waitSeconds', String(payload.waitSeconds));
+  if (typeof payload.take === 'number') params.set('take', String(payload.take));
+  return request<ChatPublicConversation>(`/chat/invite/${encodeURIComponent(payload.code)}/poll?${params.toString()}`, {
+    method: 'GET'
+  });
+}
+
+export function joinChatViaInvite(payload: { code: string; roleId?: string }) {
+  return request<ChatInviteJoinResponse>(`/chat/invite/${encodeURIComponent(payload.code)}/join`, {
+    method: 'POST',
+    body: JSON.stringify({ roleId: payload.roleId ?? null })
+  });
+}
+
 // Calendar core v1
 export type CalendarRoleBindingRequest = {
   roleId: string;

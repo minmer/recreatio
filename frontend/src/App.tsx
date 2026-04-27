@@ -24,6 +24,7 @@ const CogitaWritingRuntimePage = lazy(() =>
 );
 const ChatPage = lazy(() => import('./pages/chat/ChatPage').then((module) => ({ default: module.ChatPage })));
 const ChatPublicPage = lazy(() => import('./pages/chat/ChatPublicPage').then((module) => ({ default: module.ChatPublicPage })));
+const ChatInvitePage = lazy(() => import('./pages/chat/ChatInvitePage').then((module) => ({ default: module.ChatInvitePage })));
 const CalendarPage = lazy(() =>
   import('./pages/calendar/CalendarPage').then((module) => ({ default: module.CalendarPage }))
 );
@@ -198,6 +199,7 @@ export default function App() {
   const isChatPath = pathname === '/chat' || pathname.startsWith('/chat/');
   const isCalendarPath = pathname === '/calendar' || pathname.startsWith('/calendar/');
   const isChatPublicPath = pathname.startsWith('/chat/public/');
+  const isChatInvitePath = pathname.startsWith('/chat/invite/');
   const isCogitaSharePath =
     pathname.startsWith('/cogita/public/revision') ||
     (pathname.startsWith('/cogita/revision/shared/') &&
@@ -222,6 +224,7 @@ export default function App() {
   const isCogitaGameJoinPath = pathname.startsWith('/cogita/game/join/') && pathSegments.length >= 4;
   const isCogitaGameHostPath = pathname.startsWith('/cogita/game/host/') && pathSegments.length >= 5;
   const chatPublicCode = isChatPublicPath ? decodeRouteSegment(pathSegments[2]) : undefined;
+  const chatInviteCode = isChatInvitePath ? decodeRouteSegment(pathSegments[2]) : undefined;
   const cogitaStoryboardLibraryId = isCogitaStoryboardPath ? decodeRouteSegment(pathSegments[2]) : undefined;
   const cogitaStoryboardId = isCogitaStoryboardPath ? decodeRouteSegment(pathSegments[3]) : undefined;
   const cogitaStoryboardRuntimeLibraryId = isCogitaStoryboardRuntimePath ? decodeRouteSegment(pathSegments[3]) : undefined;
@@ -635,7 +638,30 @@ export default function App() {
           />
         </Suspense>
       )}
-      {isChatPublicPath && chatPublicCode ? (
+      {isChatInvitePath && chatInviteCode ? (
+        <Suspense fallback={lazyFallback}>
+          <ChatInvitePage
+            copy={t}
+            code={chatInviteCode}
+            onAuthAction={() => {
+              if (isAuthenticated) {
+                handleProtectedNavigation('account', 'chat');
+              } else {
+                openLoginCard('chat');
+              }
+            }}
+            authLabel={isAuthenticated ? t.nav.account : t.nav.login}
+            showProfileMenu={isAuthenticated}
+            onProfileNavigate={() => handleProtectedNavigation('account', 'chat')}
+            onToggleSecureMode={handleToggleMode}
+            onLogout={handleLogout}
+            secureMode={secureMode}
+            onNavigate={navigateRoute}
+            language={language}
+            onLanguageChange={setLanguage}
+          />
+        </Suspense>
+      ) : isChatPublicPath && chatPublicCode ? (
         <Suspense fallback={lazyFallback}>
           <ChatPublicPage
             copy={t}

@@ -888,8 +888,7 @@ export function CalendarPage({
 
   const personRoles = useMemo(
     () => roles
-      .filter((role) => isPersonRoleKind(getRoleKind(role)))
-      .map((role) => ({ roleId: role.roleId, label: getRoleLabel(role) }))
+      .map((role) => ({ roleId: role.roleId, label: getRoleLabel(role), kind: getRoleKind(role) }))
       .sort((left, right) => left.label.localeCompare(right.label)),
     [roles]
   );
@@ -963,11 +962,12 @@ export function CalendarPage({
     loadPromise
       .then(async ({ calendarList, roleList, templateList }) => {
         setRoles(roleList);
-        const defaultPersonRoleId = roleList.find((role) => isPersonRoleKind(getRoleKind(role)))?.roleId ?? null;
+        const defaultPersonRoleId =
+          roleList.find((role) => isPersonRoleKind(getRoleKind(role)))?.roleId ??
+          roleList[0]?.roleId ??
+          null;
         const defaultGroupRoleId = roleList.find((role) => isGroupRoleKind(getRoleKind(role)))?.roleId ?? null;
-        const personRoleIds = roleList
-          .filter((role) => isPersonRoleKind(getRoleKind(role)))
-          .map((role) => role.roleId);
+        const personRoleIds = roleList.map((role) => role.roleId);
         const savedPersonRoleId = (() => {
           if (typeof window === 'undefined') return '';
           try {
@@ -997,10 +997,10 @@ export function CalendarPage({
           resolvedCalendars = [createdCalendar];
         }
         if (resolvedCalendars.length === 0) {
-          setError('No calendar available. A person role is required to auto-create one.');
+          setError('No roles found. Go to your Account to create a role, then return here to start using the calendar.');
         } else {
           if (!preferredPersonRoleId) {
-            setError('No person role available. Create/select a person role to link appointments.');
+            setError('No role available to view events. Go to your Account to create a role.');
           } else {
             setError(null);
           }
@@ -2251,7 +2251,7 @@ export function CalendarPage({
             <div className="calendar-panel">
               <h1>{copy.calendar.title}</h1>
               <div className="calendar-field-row">
-                <label>Person</label>
+                <label>View as</label>
                 <select
                   value={calendarPersonRoleId}
                   onChange={(event) => {
@@ -2260,7 +2260,7 @@ export function CalendarPage({
                     if (value) setOwnerRoleId(value);
                   }}
                 >
-                  {personRoles.length === 0 && <option value="">no person roles available</option>}
+                  {personRoles.length === 0 && <option value="">no roles available — go to Account</option>}
                   {personRoles.map((role) => <option key={role.roleId} value={role.roleId}>{role.label}</option>)}
                 </select>
               </div>
@@ -2516,7 +2516,16 @@ export function CalendarPage({
                 </div>
               ) : null}
 
-            {error && <p className="calendar-error">{error}</p>}
+            {error && (
+              <div className="calendar-error-block">
+                <p className="calendar-error">{error}</p>
+                {personRoles.length === 0 && (
+                  <button type="button" className="cta" onClick={() => onNavigate('account')}>
+                    Go to Account →
+                  </button>
+                )}
+              </div>
+            )}
           </section>
 
           <aside className="calendar-shell-right">
@@ -2532,7 +2541,18 @@ export function CalendarPage({
                 Add
               </button>
               {(!effectiveCalendarId || !calendarPersonRoleId) && (
-                <p className="calendar-error">Calendar and person role must be available.</p>
+                <div className="calendar-error-block">
+                  <p className="calendar-error">
+                    {personRoles.length === 0
+                      ? 'No roles found. Create a role in your Account first.'
+                      : 'Select a role above to enable adding items.'}
+                  </p>
+                  {personRoles.length === 0 && (
+                    <button type="button" className="ghost" onClick={() => onNavigate('account')}>
+                      Go to Account →
+                    </button>
+                  )}
+                </div>
               )}
             </section>
             <section className="calendar-panel calendar-shell-meta">
@@ -2576,7 +2596,7 @@ export function CalendarPage({
         <aside className="calendar-sidebar">
           <h1>{copy.calendar.title}</h1>
           <div className="calendar-field-row">
-            <label>Person</label>
+            <label>View as</label>
             <select
               value={calendarPersonRoleId}
               onChange={(event) => {
@@ -2585,7 +2605,7 @@ export function CalendarPage({
                 if (value) setOwnerRoleId(value);
               }}
             >
-              {personRoles.length === 0 && <option value="">no person roles available</option>}
+              {personRoles.length === 0 && <option value="">no roles available — go to Account</option>}
               {personRoles.map((role) => <option key={role.roleId} value={role.roleId}>{role.label}</option>)}
             </select>
           </div>

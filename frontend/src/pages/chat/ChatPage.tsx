@@ -6,6 +6,7 @@ import { AuthAction } from '../../components/AuthAction';
 import {
   addChatParticipants,
   createChatConversation,
+  createChatInviteLink,
   createChatPublicLink,
   getChatConversation,
   getChatMessages,
@@ -20,6 +21,8 @@ import {
   type ChatSummary,
   type RoleResponse
 } from '../../lib/api';
+
+const JOIN_CONVERSATION_KEY = 'chatJoinConversationId';
 
 function formatDateTime(value: string) {
   const parsed = Date.parse(value);
@@ -100,24 +103,35 @@ export function ChatPage({
   const [status, setStatus] = useState<string | null>(null);
   const [createTitle, setCreateTitle] = useState('');
   const [createDescription, setCreateDescription] = useState('');
-  const [createScopeType, setCreateScopeType] = useState<'global' | 'parish' | 'event' | 'limanowa' | 'cogita'>('global');
   const [createScopeId, setCreateScopeId] = useState('');
   const [createChatType, setCreateChatType] = useState<'group' | 'direct' | 'public-board'>('group');
   const [createParticipantSubjects, setCreateParticipantSubjects] = useState('');
+  const [createSelectedRoleIds, setCreateSelectedRoleIds] = useState<string[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [messageVisibility, setMessageVisibility] = useState<'internal' | 'public'>('internal');
   const [publicLink, setPublicLink] = useState<string | null>(null);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [participantSubjectType, setParticipantSubjectType] = useState<'role' | 'user'>('role');
   const [participantSubjectId, setParticipantSubjectId] = useState('');
   const [participantCanWrite, setParticipantCanWrite] = useState(true);
   const [participantCanManage, setParticipantCanManage] = useState(false);
   const [participantCanRespondPublic, setParticipantCanRespondPublic] = useState(true);
   const [participantIncludeHistory, setParticipantIncludeHistory] = useState(true);
-  const [scopeFilter, setScopeFilter] = useState<'all' | 'global' | 'parish' | 'event' | 'limanowa' | 'cogita'>('all');
+  const scopeFilter = 'all' as const;
   const [availableRoles, setAvailableRoles] = useState<RoleResponse[]>([]);
   const [senderRoleId, setSenderRoleId] = useState('');
   const lastReadSentRef = useRef<number>(0);
   const lastSequenceRef = useRef<number>(0);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-select a conversation after joining via invite link
+  useEffect(() => {
+    const pendingId = sessionStorage.getItem(JOIN_CONVERSATION_KEY);
+    if (pendingId) {
+      sessionStorage.removeItem(JOIN_CONVERSATION_KEY);
+      setSelectedConversationId(pendingId);
+    }
+  }, []);
 
   const selectedSummary = useMemo(
     () => conversations.find((item) => item.conversationId === selectedConversationId) ?? null,
@@ -266,6 +280,16 @@ export function ChatPage({
   }, [messages]);
 
   useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    if (!status) return;
+    const timer = window.setTimeout(() => setStatus(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [status]);
+
+  useEffect(() => {
     if (!selectedConversation?.summary.isPublic && messageVisibility === 'public') {
       setMessageVisibility('internal');
     }
@@ -280,7 +304,10 @@ export function ChatPage({
 
     try {
       setStatus('Creating conversation...');
-      const participants = parseSubjectTargets(createParticipantSubjects).map((target) => ({
+      const subjectTargets = availableRoles.length > 0
+        ? createSelectedRoleIds.map((id) => ({ subjectType: 'role' as const, subjectId: id }))
+        : parseSubjectTargets(createParticipantSubjects);
+      const participants = subjectTargets.map((target) => ({
         subjectType: target.subjectType,
         subjectId: target.subjectId,
         canRead: true,
@@ -291,7 +318,7 @@ export function ChatPage({
 
       const detail = await createChatConversation({
         chatType: createChatType,
-        scopeType: createScopeType,
+        scopeType: 'global',
         scopeId: createScopeId.trim() || null,
         title: createTitle.trim(),
         description: createDescription.trim() || null,
@@ -305,6 +332,7 @@ export function ChatPage({
       setCreateDescription('');
       setCreateScopeId('');
       setCreateParticipantSubjects('');
+      setCreateSelectedRoleIds([]);
       setStatus('Conversation created.');
       setSelectedConversationId(detail.summary.conversationId);
       await loadConversations();
@@ -401,6 +429,19 @@ export function ChatPage({
     }
   };
 
+  const handleCreateInviteLink = async () => {
+    if (!selectedConversationId) return;
+    try {
+      const response = await createChatInviteLink(selectedConversationId, {});
+      const url = `${window.location.origin}/#/chat/invite/${encodeURIComponent(response.code)}`;
+      setInviteLink(url);
+      await navigator.clipboard.writeText(url).catch(() => undefined);
+      setStatus('Invite link created and copied to clipboard.');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Failed to create invite link.');
+    }
+  };
+
   const canSendInternal = selectedConversation?.summary.canWrite ?? false;
   const canSendPublic = (selectedConversation?.summary.canWrite || selectedConversation?.summary.canRespondPublic) ?? false;
 
@@ -467,17 +508,6 @@ export function ChatPage({
         <aside className="chat-sidebar">
           <div className="chat-sidebar-head">
             <h1>{copy.chat.title}</h1>
-            <select
-              value={scopeFilter}
-              onChange={(event) => setScopeFilter(event.target.value as typeof scopeFilter)}
-            >
-              <option value="all">All scopes</option>
-              <option value="global">Global</option>
-              <option value="parish">Parish</option>
-              <option value="event">Event</option>
-              <option value="limanowa">Limanowa</option>
-              <option value="cogita">Cogita</option>
-            </select>
           </div>
 
           <form className="chat-create-form" onSubmit={handleCreateConversation}>
@@ -488,36 +518,49 @@ export function ChatPage({
               onChange={(event) => setCreateDescription(event.target.value)}
               placeholder="Description (optional)"
             />
-            <div className="chat-create-row">
-              <select value={createScopeType} onChange={(event) => setCreateScopeType(event.target.value as typeof createScopeType)}>
-                <option value="global">global</option>
-                <option value="parish">parish</option>
-                <option value="event">event</option>
-                <option value="limanowa">limanowa</option>
-                <option value="cogita">cogita</option>
-              </select>
-              <select value={createChatType} onChange={(event) => setCreateChatType(event.target.value as typeof createChatType)}>
-                <option value="group">group</option>
-                <option value="direct">direct</option>
-                <option value="public-board">public-board</option>
-              </select>
-            </div>
-            <input
-              value={createScopeId}
-              onChange={(event) => setCreateScopeId(event.target.value)}
-              placeholder="Scope id (slug/id, optional)"
-            />
-            <textarea
-              value={createParticipantSubjects}
-              onChange={(event) => setCreateParticipantSubjects(event.target.value)}
-              placeholder="Participants: role:<id>, user:<id> (comma separated, optional)"
-            />
+            <select value={createChatType} onChange={(event) => setCreateChatType(event.target.value as typeof createChatType)}>
+              <option value="group">Group</option>
+              <option value="direct">Direct message</option>
+              <option value="public-board">Public Q&amp;A board</option>
+            </select>
+            {availableRoles.length > 0 ? (
+              <div className="chat-field-row">
+                <label className="chat-field-label">Add participants</label>
+                <select
+                  multiple
+                  className="chat-role-select"
+                  value={createSelectedRoleIds}
+                  onChange={(event) => {
+                    const selected = Array.from(event.target.selectedOptions, (opt) => opt.value);
+                    setCreateSelectedRoleIds(selected);
+                  }}
+                >
+                  {availableRoles.map((role) => (
+                    <option key={role.roleId} value={role.roleId}>
+                      {getRoleNick(role)}
+                    </option>
+                  ))}
+                </select>
+                <span className="chat-field-hint">Hold Ctrl / Cmd to select multiple</span>
+              </div>
+            ) : (
+              <textarea
+                value={createParticipantSubjects}
+                onChange={(event) => setCreateParticipantSubjects(event.target.value)}
+                placeholder="Add participants later via the conversation settings"
+              />
+            )}
             <button type="submit" className="cta">Create</button>
           </form>
 
           <div className="chat-list">
             {loadingList && <div className="chat-note">Loading chats...</div>}
-            {!loadingList && visibleConversations.length === 0 && <div className="chat-note">No conversations yet.</div>}
+            {!loadingList && conversations.length === 0 && (
+              <div className="chat-note">No conversations yet — create one above to get started.</div>
+            )}
+            {!loadingList && conversations.length > 0 && visibleConversations.length === 0 && (
+              <div className="chat-note">No conversations match this filter.</div>
+            )}
             {visibleConversations.map((conversation) => (
               <button
                 key={conversation.conversationId}
@@ -526,11 +569,12 @@ export function ChatPage({
                 onClick={() => {
                   setSelectedConversationId(conversation.conversationId);
                   setPublicLink(null);
+                  setInviteLink(null);
                 }}
               >
                 <strong>{conversation.title}</strong>
-                <span>{conversation.scopeType}{conversation.scopeId ? ` / ${conversation.scopeId}` : ''}</span>
-                <span>{conversation.unreadCount > 0 ? `${conversation.unreadCount} unread` : 'up to date'}</span>
+                {conversation.scopeId && <span>{conversation.scopeId}</span>}
+                <span>{conversation.unreadCount > 0 ? `${conversation.unreadCount} unread` : ''}</span>
               </button>
             ))}
           </div>
@@ -545,36 +589,61 @@ export function ChatPage({
                 <div>
                   <h2>{selectedConversation.summary.title}</h2>
                   <p>
-                    {selectedConversation.summary.scopeType}
-                    {selectedConversation.summary.scopeId ? ` / ${selectedConversation.summary.scopeId}` : ''}
-                    {' · '}
-                    {selectedConversation.summary.chatType}
-                    {selectedConversation.summary.isPublic ? ' · public-enabled' : ''}
+                    {selectedConversation.summary.chatType === 'group' ? 'Group chat'
+                      : selectedConversation.summary.chatType === 'direct' ? 'Direct message'
+                      : 'Public Q&A board'}
+                    {selectedConversation.summary.scopeId ? ` · ${selectedConversation.summary.scopeId}` : ''}
                   </p>
                 </div>
-                {selectedConversation.summary.isPublic && selectedConversation.summary.canManage && (
-                  <button type="button" className="ghost" onClick={handleCreatePublicLink}>Create public link</button>
-                )}
+                <div className="chat-thread-actions">
+                  {selectedConversation.summary.canManage && (
+                    <button type="button" className="ghost" onClick={handleCreateInviteLink}>
+                      Share invite link
+                    </button>
+                  )}
+                  {selectedConversation.summary.isPublic && selectedConversation.summary.canManage && (
+                    <button type="button" className="ghost" onClick={handleCreatePublicLink}>Create public link</button>
+                  )}
+                </div>
               </header>
 
-              {publicLink && (
-                <div className="chat-public-link">
-                  <a href={publicLink}>{publicLink}</a>
+              {(inviteLink || publicLink) && (
+                <div className="chat-thread-links">
+                  {inviteLink && (
+                    <div className="chat-invite-link-box">
+                      <span className="chat-invite-link-label">Invite link — anyone with this link can read and join:</span>
+                      <a href={inviteLink} target="_blank" rel="noopener noreferrer" className="chat-invite-link-url">{inviteLink}</a>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => navigator.clipboard.writeText(inviteLink).then(() => setStatus('Invite link copied.')).catch(() => undefined)}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  )}
+                  {publicLink && (
+                    <div className="chat-public-link">
+                      <span>Public board link:</span>
+                      <a href={publicLink}>{publicLink}</a>
+                    </div>
+                  )}
                 </div>
               )}
 
               <div className="chat-messages" role="log" aria-live="polite">
-                {messages.length === 0 && <div className="chat-note">No messages yet.</div>}
+                {messages.length === 0 && <div className="chat-note">No messages yet. Say hello!</div>}
                 {messages.map((message) => (
                   <article key={message.messageId} className={`chat-message ${message.visibility === 'public' ? 'public' : ''}`}>
                     <header>
                       <strong>{message.senderDisplay}</strong>
-                      <span>{message.messageType}</span>
+                      {message.messageType !== 'text' && <span className="chat-message-type">{message.messageType}</span>}
                       <time>{formatDateTime(message.createdUtc)}</time>
                     </header>
                     <p>{message.text}</p>
                   </article>
                 ))}
+                <div ref={messagesEndRef} />
               </div>
 
               <form className="chat-send-form" onSubmit={handleSendMessage}>
@@ -587,18 +656,18 @@ export function ChatPage({
                 <div className="chat-send-actions">
                   {availableRoles.length > 0 && (
                     <select value={senderRoleId} onChange={(event) => setSenderRoleId(event.target.value)}>
-                      <option value="">send as account</option>
+                      <option value="">— as my account —</option>
                       {availableRoles.map((role) => (
                         <option key={role.roleId} value={role.roleId}>
-                          role: {getRoleNick(role)}
+                          {getRoleNick(role)}
                         </option>
                       ))}
                     </select>
                   )}
                   {selectedConversation.summary.isPublic && canSendPublic && (
                     <select value={messageVisibility} onChange={(event) => setMessageVisibility(event.target.value as 'internal' | 'public')}>
-                      <option value="internal">internal</option>
-                      <option value="public">public</option>
+                      <option value="internal">Members only</option>
+                      <option value="public">Post publicly</option>
                     </select>
                   )}
                   <button
@@ -617,23 +686,40 @@ export function ChatPage({
                   <form onSubmit={handleAddParticipant} className="chat-participant-form">
                     <select
                       value={participantSubjectType}
-                      onChange={(event) => setParticipantSubjectType(event.target.value as 'role' | 'user')}
+                      onChange={(event) => {
+                        setParticipantSubjectType(event.target.value as 'role' | 'user');
+                        setParticipantSubjectId('');
+                      }}
                     >
                       <option value="role">role</option>
                       <option value="user">user</option>
                     </select>
-                    <input
-                      value={participantSubjectId}
-                      onChange={(event) => setParticipantSubjectId(event.target.value)}
-                      placeholder={participantSubjectType === 'role' ? 'Role ID' : 'User ID'}
-                    />
+                    {participantSubjectType === 'role' && availableRoles.length > 0 ? (
+                      <select
+                        value={participantSubjectId}
+                        onChange={(event) => setParticipantSubjectId(event.target.value)}
+                      >
+                        <option value="">— select role —</option>
+                        {availableRoles.map((role) => (
+                          <option key={role.roleId} value={role.roleId}>
+                            {getRoleNick(role)}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={participantSubjectId}
+                        onChange={(event) => setParticipantSubjectId(event.target.value)}
+                        placeholder={participantSubjectType === 'role' ? 'Role ID' : 'User ID'}
+                      />
+                    )}
                     <label>
                       <input type="checkbox" checked={participantCanWrite} onChange={(event) => setParticipantCanWrite(event.target.checked)} />
-                      write
+                      Can write
                     </label>
                     <label>
                       <input type="checkbox" checked={participantCanManage} onChange={(event) => setParticipantCanManage(event.target.checked)} />
-                      manage
+                      Can manage
                     </label>
                     <label>
                       <input
@@ -641,7 +727,7 @@ export function ChatPage({
                         checked={participantCanRespondPublic}
                         onChange={(event) => setParticipantCanRespondPublic(event.target.checked)}
                       />
-                      public-answer
+                      Can answer publicly
                     </label>
                     <label>
                       <input
@@ -649,7 +735,7 @@ export function ChatPage({
                         checked={participantIncludeHistory}
                         onChange={(event) => setParticipantIncludeHistory(event.target.checked)}
                       />
-                      include-history
+                      Include history
                     </label>
                     <button type="submit" className="ghost">Add participant</button>
                   </form>
@@ -657,10 +743,13 @@ export function ChatPage({
                   <ul>
                     {selectedConversation.participants.map((participant) => (
                       <li key={participant.participantId}>
-                        <span>{participant.subjectType}: {participant.subjectId}</span>
                         <span>
-                          {participant.canManage ? 'manage' : participant.canWrite ? 'write' : 'read'}
-                          {participant.canRespondPublic ? ' +public' : ''}
+                          {participant.displayLabel
+                            ?? `${participant.subjectType === 'role' ? 'Role' : 'User'} ${participant.subjectId.slice(0, 8)}…`}
+                          {participant.removedUtc ? ' (removed)' : ''}
+                        </span>
+                        <span className="chat-participant-perms">
+                          {participant.canManage ? 'manage' : participant.canWrite ? 'write' : 'read only'}
                         </span>
                         {!participant.removedUtc && (
                           <button type="button" className="ghost" onClick={() => handleRemoveParticipant(participant.participantId)}>

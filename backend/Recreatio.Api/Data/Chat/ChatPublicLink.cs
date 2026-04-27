@@ -27,4 +27,8 @@ public sealed class ChatPublicLink
     public DateTimeOffset? LastUsedUtc { get; set; }
 
     public DateTimeOffset? RevokedUtc { get; set; }
+
+    // Invite links work for any chat type and allow unauthenticated read + authenticated self-join.
+    // SQL: ALTER TABLE chat."ChatPublicLinks" ADD COLUMN IF NOT EXISTS "IsInviteLink" boolean NOT NULL DEFAULT false;
+    public bool IsInviteLink { get; set; }
 }

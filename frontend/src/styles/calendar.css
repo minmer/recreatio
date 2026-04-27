@@ -504,6 +504,15 @@
   color: #b91c1c;
 }
 
+.calendar-error-block {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(185, 28, 28, 0.2);
+  border-radius: 10px;
+  background: #fef2f2;
+}
+
 .calendar-main-teamup {
   grid-template-columns: minmax(250px, 300px) minmax(0, 1fr) minmax(280px, 340px);
   max-width: 1400px;

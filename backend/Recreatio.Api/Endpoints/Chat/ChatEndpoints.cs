@@ -1154,6 +1154,298 @@ public static class ChatEndpoints
                 message.EditedUtc,
                 message.DeletedUtc));
         }).RequireRateLimiting("auth");
+
+        // Invite links — work for any chat type, allow unauthenticated read + authenticated self-join
+
+        auth.MapPost("/conversations/{conversationId:guid}/invite-links", async (
+            Guid conversationId,
+            ChatPublicLinkCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IChatCryptoService chatCryptoService,
+            ICsrfService csrfService,
+            CancellationToken ct) =>
+        {
+            if (!csrfService.Validate(context))
+            {
+                return Results.Forbid();
+            }
+
+            var access = await ResolveConversationAccessAsync(conversationId, context, dbContext, keyRingService, ct);
+            if (access.Error is not null)
+            {
+                return access.Error;
+            }
+
+            if (!access.Context!.CanManage)
+            {
+                return Results.Forbid();
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            DateTimeOffset? expiresUtc = request.ExpiresInHours is > 0
+                ? now.AddHours(Math.Clamp(request.ExpiresInHours.Value, 1, 24 * 365))
+                : null;
+            var code = chatCryptoService.CreatePublicCode();
+            var codeHash = chatCryptoService.HashPublicCode(code);
+            var label = string.IsNullOrWhiteSpace(request.Label) ? "invite" : request.Label.Trim();
+            if (label.Length > MaxPublicLinkLabelLength)
+            {
+                return Results.BadRequest(new { error = "Invite link label is too long." });
+            }
+
+            var activeLinks = await dbContext.ChatPublicLinks
+                .Where(link =>
+                    link.ConversationId == conversationId &&
+                    link.IsActive &&
+                    link.RevokedUtc == null &&
+                    link.IsInviteLink)
+                .ToListAsync(ct);
+            foreach (var link in activeLinks)
+            {
+                link.IsActive = false;
+                link.RevokedUtc = now;
+            }
+
+            var inviteLink = new ChatPublicLink
+            {
+                Id = Guid.NewGuid(),
+                ConversationId = conversationId,
+                CodeHash = codeHash,
+                Label = label,
+                IsActive = true,
+                IsInviteLink = true,
+                ExpiresUtc = expiresUtc,
+                CreatedByUserId = access.Context.User.UserId,
+                CreatedUtc = now,
+                LastUsedUtc = null,
+                RevokedUtc = null
+            };
+
+            dbContext.ChatPublicLinks.Add(inviteLink);
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new ChatPublicLinkResponse(
+                inviteLink.Id,
+                code,
+                inviteLink.Label,
+                inviteLink.CreatedUtc,
+                inviteLink.ExpiresUtc,
+                inviteLink.IsActive));
+        });
+
+        group.MapGet("/invite/{code}", async (
+            string code,
+            long? afterSequence,
+            int? take,
+            RecreatioDbContext dbContext,
+            IChatCryptoService chatCryptoService,
+            CancellationToken ct) =>
+        {
+            var resolved = await ResolveInviteLinkAsync(code, dbContext, chatCryptoService, ct);
+            if (resolved.Error is not null)
+            {
+                return resolved.Error;
+            }
+
+            var response = await LoadMessagesAsync(
+                dbContext,
+                chatCryptoService,
+                resolved.Conversation!,
+                afterSequence,
+                take,
+                0,
+                publicOnly: false,
+                ct);
+
+            return Results.Ok(new ChatPublicConversationResponse(
+                resolved.Conversation!.Id,
+                resolved.Conversation.Title,
+                resolved.Conversation.ScopeType,
+                resolved.Conversation.ScopeId,
+                response));
+        });
+
+        group.MapGet("/invite/{code}/poll", async (
+            string code,
+            long? afterSequence,
+            int? waitSeconds,
+            int? take,
+            RecreatioDbContext dbContext,
+            IChatCryptoService chatCryptoService,
+            CancellationToken ct) =>
+        {
+            var resolved = await ResolveInviteLinkAsync(code, dbContext, chatCryptoService, ct);
+            if (resolved.Error is not null)
+            {
+                return resolved.Error;
+            }
+
+            var conversation = resolved.Conversation!;
+            var after = Math.Max(afterSequence ?? 0, 0);
+            var wait = Math.Clamp(waitSeconds ?? 20, 0, 30);
+            if (wait > 0)
+            {
+                var deadline = DateTimeOffset.UtcNow.AddSeconds(wait);
+                while (DateTimeOffset.UtcNow < deadline)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var currentSequence = await dbContext.ChatMessages.AsNoTracking()
+                        .Where(message =>
+                            message.ConversationId == conversation.Id &&
+                            message.DeletedUtc == null)
+                        .Select(message => message.Sequence)
+                        .DefaultIfEmpty(0)
+                        .MaxAsync(ct);
+                    if (currentSequence > after)
+                    {
+                        break;
+                    }
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(900), ct);
+                }
+            }
+
+            var response = await LoadMessagesAsync(
+                dbContext,
+                chatCryptoService,
+                conversation,
+                after,
+                take,
+                0,
+                publicOnly: false,
+                ct);
+
+            return Results.Ok(new ChatPublicConversationResponse(
+                conversation.Id,
+                conversation.Title,
+                conversation.ScopeType,
+                conversation.ScopeId,
+                response));
+        });
+
+        group.MapPost("/invite/{code}/join", async (
+            string code,
+            ChatInviteJoinRequest? request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IChatCryptoService chatCryptoService,
+            ICsrfService csrfService,
+            CancellationToken ct) =>
+        {
+            if (!csrfService.Validate(context))
+            {
+                return Results.Forbid();
+            }
+
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var resolved = await ResolveInviteLinkAsync(code, dbContext, chatCryptoService, ct);
+            if (resolved.Error is not null)
+            {
+                return resolved.Error;
+            }
+
+            var conversation = resolved.Conversation!;
+            var now = DateTimeOffset.UtcNow;
+
+            Guid subjectId;
+            string subjectType;
+            if (request?.RoleId is not null)
+            {
+                var roleExists = await dbContext.Roles.AsNoTracking()
+                    .AnyAsync(r => r.Id == request.RoleId.Value, ct);
+                if (!roleExists)
+                {
+                    return Results.BadRequest(new { error = "Role not found." });
+                }
+
+                subjectId = request.RoleId.Value;
+                subjectType = "role";
+            }
+            else
+            {
+                subjectId = userId;
+                subjectType = "user";
+            }
+
+            var existing = await dbContext.ChatConversationParticipants
+                .FirstOrDefaultAsync(p =>
+                    p.ConversationId == conversation.Id &&
+                    p.SubjectType == subjectType &&
+                    p.SubjectId == subjectId &&
+                    p.RemovedUtc == null,
+                    ct);
+
+            if (existing is null)
+            {
+                dbContext.ChatConversationParticipants.Add(new ChatConversationParticipant
+                {
+                    Id = Guid.NewGuid(),
+                    ConversationId = conversation.Id,
+                    SubjectType = subjectType,
+                    SubjectId = subjectId,
+                    DisplayLabel = null,
+                    CanRead = true,
+                    CanWrite = true,
+                    CanManage = false,
+                    CanRespondPublic = true,
+                    MinReadableSequence = 0,
+                    JoinedUtc = now,
+                    AddedByUserId = userId
+                });
+                await dbContext.SaveChangesAsync(ct);
+            }
+
+            return Results.Ok(new ChatInviteJoinResponse(conversation.Id, conversation.Title));
+        }).RequireAuthorization();
+    }
+
+    private static async Task<(ChatConversation? Conversation, IResult? Error)> ResolveInviteLinkAsync(
+        string code,
+        RecreatioDbContext dbContext,
+        IChatCryptoService chatCryptoService,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return (null, Results.NotFound());
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var hash = chatCryptoService.HashPublicCode(code);
+        var candidates = await dbContext.ChatPublicLinks
+            .Where(item =>
+                item.IsActive &&
+                item.RevokedUtc == null &&
+                item.IsInviteLink)
+            .ToListAsync(ct);
+        var link = candidates.FirstOrDefault(item => item.CodeHash.SequenceEqual(hash));
+        if (link is null)
+        {
+            return (null, Results.NotFound());
+        }
+
+        if (link.ExpiresUtc is not null && link.ExpiresUtc <= now)
+        {
+            return (null, Results.NotFound());
+        }
+
+        var conversation = await dbContext.ChatConversations
+            .FirstOrDefaultAsync(item =>
+                item.Id == link.ConversationId &&
+                !item.IsArchived,
+                ct);
+        if (conversation is null)
+        {
+            return (null, Results.NotFound());
+        }
+
+        return (conversation, null);
     }
 
     private static async Task RotateConversationKeyAsync(

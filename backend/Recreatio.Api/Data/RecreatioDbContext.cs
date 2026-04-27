@@ -668,6 +668,9 @@ public sealed class RecreatioDbContext : DbContext
             .HasOne<Data.Chat.ChatConversation>()
             .WithMany()
             .HasForeignKey(x => x.ConversationId);
+        modelBuilder.Entity<Data.Chat.ChatPublicLink>()
+            .Property(x => x.IsInviteLink)
+            .HasDefaultValue(false);
 
         modelBuilder.Entity<Data.Calendar.CalendarContainer>()
             .HasIndex(x => x.UpdatedUtc);

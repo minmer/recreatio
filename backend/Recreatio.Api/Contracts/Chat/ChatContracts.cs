@@ -112,3 +112,7 @@ public sealed record ChatPublicQuestionRequest(
     string Text,
     string? DisplayName,
     string? ClientMessageId);
+
+public sealed record ChatInviteJoinRequest(Guid? RoleId);
+
+public sealed record ChatInviteJoinResponse(Guid ConversationId, string Title);
