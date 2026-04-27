@@ -909,7 +909,7 @@ public static class ChatEndpoints
             }
 
             var activeLinks = await dbContext.ChatPublicLinks
-                .Where(link => link.ConversationId == conversationId && link.IsActive && link.RevokedUtc == null)
+                .Where(link => link.ConversationId == conversationId && link.IsActive && link.RevokedUtc == null && !link.Label.StartsWith("invite"))
                 .ToListAsync(ct);
             foreach (var link in activeLinks)
             {
@@ -1200,7 +1200,7 @@ public static class ChatEndpoints
                     link.ConversationId == conversationId &&
                     link.IsActive &&
                     link.RevokedUtc == null &&
-                    link.IsInviteLink)
+                    link.Label.StartsWith("invite"))
                 .ToListAsync(ct);
             foreach (var link in activeLinks)
             {
@@ -1215,7 +1215,6 @@ public static class ChatEndpoints
                 CodeHash = codeHash,
                 Label = label,
                 IsActive = true,
-                IsInviteLink = true,
                 ExpiresUtc = expiresUtc,
                 CreatedByUserId = access.Context.User.UserId,
                 CreatedUtc = now,
@@ -1422,7 +1421,7 @@ public static class ChatEndpoints
             .Where(item =>
                 item.IsActive &&
                 item.RevokedUtc == null &&
-                item.IsInviteLink)
+                item.Label.StartsWith("invite"))
             .ToListAsync(ct);
         var link = candidates.FirstOrDefault(item => item.CodeHash.SequenceEqual(hash));
         if (link is null)
