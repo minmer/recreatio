@@ -114,7 +114,9 @@ export function CogitaLivePromptCard({
   const kind = String(prompt.kind ?? '');
   const expectedSelection = Array.isArray(revealExpected)
     ? revealExpected.map((x) => Number(x)).filter(Number.isFinite)
-    : [];
+    : typeof revealExpected === 'number' && Number.isFinite(revealExpected)
+      ? [revealExpected]
+      : [];
   const selectedOnReveal = Array.isArray(revealedAnswer)
     ? revealedAnswer.map((x) => Number(x)).filter(Number.isFinite)
     : answers?.selection ?? [];

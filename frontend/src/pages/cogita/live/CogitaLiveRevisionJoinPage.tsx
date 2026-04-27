@@ -86,9 +86,14 @@ function evaluatePromptAnswer(prompt: LivePrompt | null, expected: unknown, answ
   if (!prompt || typeof expected === 'undefined') return null;
   const promptKind = String(prompt.kind ?? '');
   if (promptKind === 'selection') {
+    const normalizedExpected = Array.isArray(expected)
+      ? expected
+      : typeof expected === 'number' && Number.isFinite(expected)
+        ? [expected]
+        : expected;
     return evaluateCheckcardAnswer({
       prompt: { kind: 'selection', options: Array.isArray(prompt.options) ? prompt.options : [] },
-      expected,
+      expected: normalizedExpected,
       answer: { selection: Array.isArray(answerValue) ? answerValue.map((value) => Number(value)).filter(Number.isFinite) : [] }
     });
   }
@@ -2021,7 +2026,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                         }
                       />
                     </CogitaCardSurface>
-                    {selfRoundBreakdown && reveal ? (
+                    {selfRoundBreakdown && reveal && selfRoundScoring ? (
                       <div className="cogita-live-round-gain">
                         <p className="cogita-user-kicker">{liveCopy.roundGainTitle}</p>
                         <p className="cogita-detail-title">{`${formatPoints(selfRoundBreakdown.total)} ${liveCopy.scoreUnit}`}</p>
@@ -2038,8 +2043,8 @@ export function CogitaLiveRevisionJoinPage(props: {
                             </div>
                           )}
                         </div>
-                        {Number(selfRoundScoring.streak ?? 0) > 1 ? (
-                          <p className="cogita-help">{`${liveCopy.streakLabel} ${Math.round(Number(selfRoundScoring.streak ?? 0))}`}</p>
+                        {Number(selfRoundScoring?.streak ?? 0) > 1 ? (
+                          <p className="cogita-help">{`${liveCopy.streakLabel} ${Math.round(Number(selfRoundScoring?.streak ?? 0))}`}</p>
                         ) : null}
                       </div>
                     ) : null}
