@@ -5000,6 +5000,8 @@ textarea.cogita-input {
 
 .cogita-storyboard-runtime-focus {
   position: relative;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid transparent;
   border-radius: 18px;
   isolation: isolate;
   transition:
@@ -5024,10 +5026,10 @@ textarea.cogita-input {
 .cogita-storyboard-runtime-focus[data-highlight='true']::before {
   content: "";
   position: absolute;
-  inset: -0.35rem;
+  inset: -0.45rem;
   z-index: 0;
-  border-radius: inherit;
-  border: 1px solid rgba(111, 214, 255, 0.36);
+  border-radius: 22px;
+  border: 2px solid rgba(111, 214, 255, 0.34);
   background: transparent;
   pointer-events: none;
 }
