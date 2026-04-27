@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { LatexBlock, LatexInline } from '../../../../components/LatexText';
 import { anchorMaskValueToRgb } from '../../features/revision/compare';
 
 export type LivePrompt = Record<string, unknown> & {
@@ -171,6 +172,9 @@ export function CogitaLivePromptCard({
       })
       .join('');
 
+  const renderPromptText = (value: unknown) => <LatexBlock value={String(value ?? '')} mode="auto" />;
+  const renderInlineText = (value: unknown) => <LatexInline value={String(value ?? '')} mode="auto" />;
+
   const wrap = (content: ReactNode) => (
     <div className="cogita-live-card-surface" data-state={surfaceState ?? (isRevealed ? 'correct' : 'idle')}>
       {content}
@@ -220,16 +224,16 @@ export function CogitaLivePromptCard({
     return wrap(
       <>
         <p>
-          <span style={{ opacity: 0.7 }}>{String(prompt.before ?? '')}</span>
+          <span style={{ opacity: 0.7 }}>{renderInlineText(prompt.before)}</span>
           <strong> [ ... ] </strong>
-          <span style={{ opacity: 0.7 }}>{String(prompt.after ?? '')}</span>
+          <span style={{ opacity: 0.7 }}>{renderInlineText(prompt.after)}</span>
         </p>
         {isRevealed ? (
           <div className="cogita-share-list">
             {typeof revealedAnswer !== 'undefined' ? (
               <div className="cogita-share-row" data-state={isSame ? 'correct' : 'incorrect'}>
                 <span>{copy.answerLabel}</span>
-                <strong>{revealedText || '—'}</strong>
+                <strong>{revealedText ? renderInlineText(revealedText) : '—'}</strong>
               </div>
             ) : null}
             <div className="cogita-share-row" data-state="correct">
@@ -250,13 +254,13 @@ export function CogitaLivePromptCard({
     const isSame = revealedText.trim().toLocaleLowerCase() === expectedText.trim().toLocaleLowerCase();
     return wrap(
       <>
-        <p>{String(prompt.prompt ?? '')}</p>
+        {renderPromptText(prompt.prompt)}
         {isRevealed ? (
           <div className="cogita-share-list">
             {typeof revealedAnswer !== 'undefined' ? (
               <div className="cogita-share-row" data-state={isSame ? 'correct' : 'incorrect'}>
                 <span>{copy.answerLabel}</span>
-                <strong>{revealedText || '—'}</strong>
+                <strong>{revealedText ? renderInlineText(revealedText) : '—'}</strong>
               </div>
             ) : null}
             <div className="cogita-share-row" data-state="correct">
@@ -296,7 +300,7 @@ export function CogitaLivePromptCard({
     const falseShareAlpha = Number.isFinite(falseShare) ? (0.12 + (Math.max(0, Math.min(100, falseShare)) / 100) * 0.3) : 0;
     return wrap(
       <>
-        <p>{String(prompt.prompt ?? '')}</p>
+        {renderPromptText(prompt.prompt)}
         <div className="cogita-form-actions">
           <button
             type="button"
@@ -351,7 +355,7 @@ export function CogitaLivePromptCard({
     const selected = answers?.selection ?? [];
     return wrap(
       <>
-        <p>{String(prompt.prompt ?? '')}</p>
+        {renderPromptText(prompt.prompt)}
         <div className="cogita-share-list">
           {options.map((option, index) => (
             (() => {
@@ -377,7 +381,7 @@ export function CogitaLivePromptCard({
                     backgroundImage: `linear-gradient(90deg, rgba(108,194,255,${alpha}) 0%, rgba(108,194,255,${alpha}) ${share}%, transparent ${share}%, transparent 100%)`
                   }}
             >
-              <span>{option}</span>
+              <span>{renderInlineText(option)}</span>
               {isRevealed && selectionDistributionByIndex.has(index) ? (
                 <small>{`${selectionDistributionByIndex.get(index)?.toFixed(1)}%`}</small>
               ) : null}
@@ -411,11 +415,11 @@ export function CogitaLivePromptCard({
     })();
     return wrap(
       <>
-        <p>{String(prompt.prompt ?? '')}</p>
+        {renderPromptText(prompt.prompt)}
         <div className="cogita-share-list">
           {shown.map((option, index) => (
             <div className="cogita-share-row" data-state={isRevealed ? 'correct' : undefined} key={`${index}-${option}`}>
-              <span>{option}</span>
+              <span>{renderInlineText(option)}</span>
               <div className="cogita-form-actions">
                 <button
                   type="button"
@@ -452,7 +456,7 @@ export function CogitaLivePromptCard({
     const activeSelection = Array.from({ length: width }, (_, index) => answers?.matchingSelection[index] ?? null);
     return wrap(
       <>
-        <p>{String(prompt.prompt ?? '')}</p>
+        {renderPromptText(prompt.prompt)}
         <div
           style={{
             display: 'grid',
@@ -474,7 +478,7 @@ export function CogitaLivePromptCard({
                   onClick={() => onMatchingPick?.(columnIndex, optionIndex)}
                   disabled={mode === 'readonly' || isRevealed}
                 >
-                  <span>{option}</span>
+                  <span>{renderInlineText(option)}</span>
                   <small>{optionIndex}</small>
                 </button>
               ))}
@@ -491,7 +495,7 @@ export function CogitaLivePromptCard({
                     const key = path.join('|');
                     return (
                       <div key={`selected-path-${pathIndex}`} className="cogita-share-row" data-state={revealKeySet.has(key) ? 'correct' : 'incorrect'}>
-                        <span>{renderPathLabel(columns, path)}</span>
+                        <span>{renderInlineText(renderPathLabel(columns, path))}</span>
                       </div>
                     );
                   })}
@@ -500,7 +504,7 @@ export function CogitaLivePromptCard({
               <div className="cogita-share-list">
                 {revealPaths.map((path, pathIndex) => (
                   <div key={`path-${pathIndex}`} className="cogita-share-row" data-state="correct">
-                    <span>{renderPathLabel(columns, path)}</span>
+                    <span>{renderInlineText(renderPathLabel(columns, path))}</span>
                   </div>
                 ))}
               </div>
@@ -509,7 +513,7 @@ export function CogitaLivePromptCard({
             <div className="cogita-share-list">
               {(answers?.matchingRows ?? []).map((path, pathIndex) => (
                 <div key={`path-${pathIndex}`} className="cogita-share-row">
-                  <span>{renderPathLabel(columns, path)}</span>
+                  <span>{renderInlineText(renderPathLabel(columns, path))}</span>
                   <button
                     type="button"
                     className="ghost"
