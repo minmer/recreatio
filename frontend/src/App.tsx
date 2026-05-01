@@ -6,6 +6,8 @@ import { checkPasswordStrength } from './lib/passwordPolicy';
 import { copy } from './content';
 import type { RouteKey, Mode } from './types/navigation';
 import { LoginCard } from './components/LoginCard';
+import { PersonCard } from './components/PersonCard';
+import { PersonProvider } from './lib/personContext';
 import { AuthPanel } from './components/AuthPanel';
 import { FaqPage } from './pages/FaqPage';
 import { LegalPage } from './pages/LegalPage';
@@ -556,6 +558,7 @@ export default function App() {
   const showHome = isHomePath || panel !== null;
 
   return (
+    <PersonProvider>
     <div className={`app ${panel ? 'panel-open' : ''}`}>
       {showHome && (
         <HomePage
@@ -1307,6 +1310,7 @@ export default function App() {
         </div>
       )}
 
+      <PersonCard />
       <LoginCard
         copy={t}
         open={loginCardOpen}
@@ -1332,5 +1336,6 @@ export default function App() {
         onSubmit={mode === 'login' ? handleLogin : handleRegister}
       />
     </div>
+    </PersonProvider>
   );
 }

@@ -6,7 +6,8 @@
       "Bash(./node_modules/.bin/tsc --noEmit)",
       "Bash(node node_modules/typescript/bin/tsc --noEmit)",
       "Bash(node node_modules/.bin/tsc --noEmit)",
-      "Bash(frontend/node_modules/.bin/tsc --noEmit -p frontend/tsconfig.json)"
+      "Bash(frontend/node_modules/.bin/tsc --noEmit -p frontend/tsconfig.json)",
+      "WebSearch"
     ]
   }
 }

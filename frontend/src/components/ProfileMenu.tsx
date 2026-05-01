@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Copy } from '../content/types';
+import { usePersonContext } from '../lib/personContext';
 
 export function ProfileMenu({
   copy,
@@ -16,6 +17,7 @@ export function ProfileMenu({
   onToggleSecureMode: () => void;
   onLogout: () => void;
 }) {
+  const { activePerson, openPersonCard } = usePersonContext();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const pointerTypeRef = useRef<'mouse' | 'touch' | 'pen' | 'unknown'>('unknown');
@@ -60,7 +62,10 @@ export function ProfileMenu({
           onNavigateProfile();
         }}
       >
-        {label}
+        <span className="profile-button-label">{label}</span>
+        {activePerson ? (
+          <span className="profile-button-person">{activePerson.label}</span>
+        ) : null}
       </button>
       <div className={`profile-dropdown ${open ? 'open' : ''}`}>
         <button
@@ -81,6 +86,18 @@ export function ProfileMenu({
         >
           {secureMode ? copy.accountMenu.secureModeOff : copy.accountMenu.secureModeOn}
         </button>
+        {activePerson ? (
+          <button
+            type="button"
+            className="profile-dropdown-person"
+            onClick={() => {
+              openPersonCard();
+              setOpen(false);
+            }}
+          >
+            {activePerson.label} · switch
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => {

@@ -3,6 +3,7 @@ import { AuthAction } from '../../components/AuthAction';
 import { LanguageSelect } from '../../components/LanguageSelect';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
+import { usePersonContext } from '../../lib/personContext';
 
 export const CogitaEmbeddedContext = createContext(false);
 
@@ -34,6 +35,7 @@ export function CogitaShell({
   children: ReactNode;
 }) {
   const embedded = useContext(CogitaEmbeddedContext);
+  const { activePerson, openPersonCard } = usePersonContext();
 
   if (embedded) {
     return <>{children}</>;
@@ -63,6 +65,16 @@ export function CogitaShell({
         </div>
         <LanguageSelect value={language} onChange={onLanguageChange} />
         <div className="cogita-header-right">
+          {activePerson ? (
+            <button
+              type="button"
+              className="cogita-person-chip ghost"
+              onClick={openPersonCard}
+              title="Switch learner profile"
+            >
+              {activePerson.label}
+            </button>
+          ) : null}
           {headerExtra}
           <AuthAction
             copy={copy}

@@ -115,3 +115,49 @@
   transform: translateY(0);
   pointer-events: auto;
 }
+
+.profile-button-label {
+  display: block;
+  line-height: 1.2;
+}
+
+.profile-button-person {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.2;
+  font-weight: 400;
+}
+
+.profile-dropdown-person {
+  font-size: 0.82rem;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  margin-top: 0.25rem;
+  padding-top: 0.4rem !important;
+}
+
+.profile-dropdown-person:hover {
+  color: var(--text);
+}
+
+/* Active person chip in Cogita header */
+.cogita-person-chip {
+  font-size: 0.82rem;
+  color: var(--muted);
+  padding: 0.3rem 0.6rem;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.cogita-person-chip:hover {
+  color: var(--text);
+  border-color: var(--accent, #e86c3a);
+}
