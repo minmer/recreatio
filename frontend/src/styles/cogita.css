@@ -6693,3 +6693,120 @@ textarea.cogita-input {
     align-items: flex-start;
   }
 }
+
+/* Role intro overlay */
+.cogita-role-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 15, 28, 0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+}
+
+.cogita-role-intro.is-active {
+  opacity: 1;
+}
+
+.cogita-role-intro-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 860px;
+}
+
+.cogita-role-intro-kicker {
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(160, 200, 240, 0.6);
+  margin: 0;
+}
+
+.cogita-role-intro-title {
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 600;
+  color: #e8f4ff;
+  margin: 0 0 1.5rem;
+  text-align: center;
+}
+
+.cogita-role-intro-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  width: 100%;
+}
+
+.cogita-role-intro-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(160, 200, 255, 0.12);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  color: inherit;
+}
+
+.cogita-role-intro-card:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(160, 200, 255, 0.3);
+  transform: translateY(-3px);
+}
+
+.cogita-role-intro-card-img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cogita-role-intro-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cogita-role-intro-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e8f4ff;
+  line-height: 1.3;
+}
+
+.cogita-role-intro-card-sub {
+  font-size: 0.82rem;
+  color: rgba(160, 200, 240, 0.7);
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .cogita-role-intro-cards {
+    grid-template-columns: 1fr;
+    max-width: 340px;
+  }
+
+  .cogita-role-intro-card-img {
+    aspect-ratio: 16 / 7;
+  }
+}
+

@@ -1,9 +1,15 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { AuthAction } from '../../components/AuthAction';
 import { LanguageSelect } from '../../components/LanguageSelect';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { usePersonContext } from '../../lib/personContext';
+import {
+  CogitaRoleIntro,
+  getStoredCogitaRole,
+  saveStoredCogitaRole,
+  type CogitaRole
+} from './components/CogitaRoleIntro';
 
 export const CogitaEmbeddedContext = createContext(false);
 
@@ -36,6 +42,25 @@ export function CogitaShell({
 }) {
   const embedded = useContext(CogitaEmbeddedContext);
   const { activePerson, openPersonCard } = usePersonContext();
+  const [showIntro, setShowIntro] = useState(false);
+
+  useEffect(() => {
+    if (!activePerson) {
+      setShowIntro(false);
+      return;
+    }
+    if (!getStoredCogitaRole(activePerson.roleId)) {
+      setShowIntro(true);
+    }
+  }, [activePerson]);
+
+  const handleRoleSelect = useCallback(
+    (role: CogitaRole) => {
+      if (activePerson) saveStoredCogitaRole(activePerson.roleId, role);
+      setShowIntro(false);
+    },
+    [activePerson]
+  );
 
   if (embedded) {
     return <>{children}</>;
@@ -70,7 +95,7 @@ export function CogitaShell({
               type="button"
               className="cogita-person-chip ghost"
               onClick={openPersonCard}
-              title="Switch learner profile"
+              title="Switch profile"
             >
               {activePerson.label}
             </button>
@@ -96,6 +121,7 @@ export function CogitaShell({
         </a>
         <span>{copy.footer.headline}</span>
       </footer>
+      {showIntro ? <CogitaRoleIntro onDone={handleRoleSelect} /> : null}
     </div>
   );
 }

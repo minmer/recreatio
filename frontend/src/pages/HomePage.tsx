@@ -3,6 +3,7 @@ import type { Copy } from '../content/types';
 import type { RouteKey } from '../types/navigation';
 import { LanguageSelect } from '../components/LanguageSelect';
 import { AuthAction } from '../components/AuthAction';
+import { usePersonContext } from '../lib/personContext';
 
 type PanelType = 'faq' | 'legal' | 'login';
 
@@ -197,6 +198,7 @@ export function HomePage({
     }
   }, [activeSectionId, panelOpen, slides]);
 
+  const { activePerson, openPersonCard } = usePersonContext();
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -270,6 +272,16 @@ export function HomePage({
         </nav>
         <div className="home-actions">
           <LanguageSelect value={language} onChange={onLanguageChange} />
+          {activePerson ? (
+            <button
+              type="button"
+              className="cogita-person-chip ghost"
+              onClick={openPersonCard}
+              title="Switch profile"
+            >
+              {activePerson.label}
+            </button>
+          ) : null}
           <AuthAction
             copy={copy}
             label={authLabel}

@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { createRole, getRoles, type RoleResponse } from './api';
 import { useAuth } from './authContext';
 
-const STORAGE_KEY = 'cogita.activePerson';
+const STORAGE_KEY = 'recreatio.activePerson';
 
 export type Person = { roleId: string; label: string };
 

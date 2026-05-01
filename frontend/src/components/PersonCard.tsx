@@ -71,13 +71,13 @@ export function PersonCard() {
     >
       <div className="login-card person-card" onClick={(e) => e.stopPropagation()}>
         <div className="login-card-header">
-          <img src="/cogita/logo/Cogita_Plain.svg" alt="Cogita" />
-          <span>Cogita</span>
+          <img src="/logo_new.png" alt="Recreatio" />
+          <span>Recreatio</span>
         </div>
 
         {hasPersons ? (
           <>
-            <p className="login-card-note">Who is learning?</p>
+            <p className="login-card-note">Who is using the app?</p>
             <div className="person-card-list">
               {persons.map((person) => (
                 <button
@@ -113,7 +113,7 @@ export function PersonCard() {
           </>
         ) : (
           <>
-            <p className="login-card-note">Create your learner profile to get started.</p>
+            <p className="login-card-note">Create a profile to get started.</p>
             <form onSubmit={handleCreate} className="person-card-form">
               <input
                 ref={inputRef}
