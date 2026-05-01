@@ -148,6 +148,42 @@ export type Copy = {
         explore: { title: string; subtitle: string };
       };
     };
+    libraryPicker: {
+      kicker: string;
+      title: string;
+      done: string;
+      skip: string;
+      tabs: {
+        own: string;
+        public: string;
+        linked: string;
+      };
+      status: {
+        open: string;
+        hidden: string;
+        removed: string;
+      };
+      consequences: {
+        ownOpen: string;
+        ownHidden: string;
+        ownRemoved: string;
+        otherRemoved: string;
+      };
+      link: {
+        placeholder: string;
+        add: string;
+        loading: string;
+        error: string;
+        notFound: string;
+        alreadyAdded: string;
+      };
+      empty: {
+        own: string;
+        public: string;
+        linked: string;
+      };
+      publicNote: string;
+    };
     user: {
       librariesKicker: string;
       librariesTitle: string;

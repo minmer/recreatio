@@ -211,6 +211,42 @@ export const de: Copy = {
         }
       }
     },
+    libraryPicker: {
+      kicker: 'Schritt 2',
+      title: 'Wähle deine Bibliotheken',
+      done: 'Weiter',
+      skip: 'Vorerst überspringen',
+      tabs: {
+        own: 'Meine',
+        public: 'Öffentlich',
+        linked: 'Verknüpft'
+      },
+      status: {
+        open: 'Offen',
+        hidden: 'Versteckt',
+        removed: 'Entfernt'
+      },
+      consequences: {
+        ownOpen: 'Sichtbar und verfügbar in deinem Lernfluss.',
+        ownHidden: 'Existiert, erscheint aber nicht in deinem Lernfluss.',
+        ownRemoved: 'Aus der Ansicht entfernt — die Bibliothek und ihre Daten bleiben erhalten.',
+        otherRemoved: 'Nicht mehr verfügbar. Erneut hinzufügen, um den Zugriff wiederherzustellen.'
+      },
+      link: {
+        placeholder: 'Geteilten Bibliothekslink einfügen…',
+        add: 'Hinzufügen',
+        loading: 'Lädt…',
+        error: 'Unter diesem Link konnte keine Bibliothek gefunden werden.',
+        notFound: 'Keine Bibliothek gefunden. Link prüfen und erneut versuchen.',
+        alreadyAdded: 'Diese Bibliothek ist bereits in deiner Liste.'
+      },
+      empty: {
+        own: 'Noch keine Bibliotheken. Erstelle eine im Cogita-Arbeitsbereich.',
+        public: 'Noch keine öffentlichen Bibliotheken verfügbar.',
+        linked: 'Link oben einfügen, um eine geteilte Bibliothek hinzuzufügen.'
+      },
+      publicNote: 'Öffentliche Bibliotheken werden bald durchsuchbar sein. Nutze den Tab „Verknüpft", um eine Bibliothek per Link hinzuzufügen.'
+    },
     user: {
       librariesKicker: 'Bibliotheken',
       librariesTitle: 'Deine Wissensbibliotheken',

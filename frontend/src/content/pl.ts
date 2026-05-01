@@ -211,6 +211,42 @@ export const pl: Copy = {
         }
       }
     },
+    libraryPicker: {
+      kicker: 'Krok 2',
+      title: 'Wybierz swoje biblioteki',
+      done: 'Dalej',
+      skip: 'Pomiń na razie',
+      tabs: {
+        own: 'Moje',
+        public: 'Publiczne',
+        linked: 'Połączone'
+      },
+      status: {
+        open: 'Otwarta',
+        hidden: 'Ukryta',
+        removed: 'Usunięta'
+      },
+      consequences: {
+        ownOpen: 'Widoczna i dostępna w Twoim przepływie nauki.',
+        ownHidden: 'Istnieje, ale nie pojawi się w Twoim przepływie nauki.',
+        ownRemoved: 'Usunięta z widoku — biblioteka i jej dane pozostają nienaruszone.',
+        otherRemoved: 'Niedostępna. Dodaj ponownie, aby przywrócić dostęp.'
+      },
+      link: {
+        placeholder: 'Wklej link do udostępnionej biblioteki…',
+        add: 'Dodaj',
+        loading: 'Ładowanie…',
+        error: 'Nie można znaleźć biblioteki pod tym linkiem.',
+        notFound: 'Nie znaleziono biblioteki. Sprawdź link i spróbuj ponownie.',
+        alreadyAdded: 'Ta biblioteka jest już na Twojej liście.'
+      },
+      empty: {
+        own: 'Brak bibliotek. Utwórz je w przestrzeni roboczej Cogita.',
+        public: 'Brak dostępnych bibliotek publicznych.',
+        linked: 'Wklej link powyżej, aby dodać udostępnioną bibliotekę.'
+      },
+      publicNote: 'Wyszukiwanie publicznych bibliotek wkrótce dostępne. Użyj zakładki Połączone, aby dodać bibliotekę przez link.'
+    },
     user: {
       librariesKicker: 'Biblioteki',
       librariesTitle: 'Twoje biblioteki wiedzy',

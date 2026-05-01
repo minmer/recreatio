@@ -211,6 +211,42 @@ export const en: Copy = {
         }
       }
     },
+    libraryPicker: {
+      kicker: 'Step 2',
+      title: 'Choose your libraries',
+      done: 'Continue',
+      skip: 'Skip for now',
+      tabs: {
+        own: 'Mine',
+        public: 'Public',
+        linked: 'Linked'
+      },
+      status: {
+        open: 'Open',
+        hidden: 'Hidden',
+        removed: 'Removed'
+      },
+      consequences: {
+        ownOpen: 'Visible and available in your learning flow.',
+        ownHidden: 'Exists but will not appear in your learning flow.',
+        ownRemoved: 'Removed from your view — the library and its data remain intact.',
+        otherRemoved: 'No longer available. Re-add it to restore access.'
+      },
+      link: {
+        placeholder: 'Paste a library share link…',
+        add: 'Add',
+        loading: 'Loading…',
+        error: 'Could not find a library at this link.',
+        notFound: 'No library found. Check the link and try again.',
+        alreadyAdded: 'This library is already in your list.'
+      },
+      empty: {
+        own: 'No libraries yet. Create one in the Cogita workspace.',
+        public: 'No public libraries available yet.',
+        linked: 'Paste a link above to add a shared library.'
+      },
+      publicNote: 'Public library discovery is coming soon. Use the Linked tab to add a library via a share link.'
+    },
     user: {
       librariesKicker: 'Libraries',
       librariesTitle: 'Your knowledge libraries',

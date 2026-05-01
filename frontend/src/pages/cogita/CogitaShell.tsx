@@ -10,6 +10,7 @@ import {
   saveStoredCogitaRole,
   type CogitaRole
 } from './components/CogitaRoleIntro';
+import { CogitaLibraryPicker } from './components/CogitaLibraryPicker';
 
 export const CogitaEmbeddedContext = createContext(false);
 
@@ -43,10 +44,12 @@ export function CogitaShell({
   const embedded = useContext(CogitaEmbeddedContext);
   const { activePerson } = usePersonContext();
   const [showIntro, setShowIntro] = useState(false);
+  const [showLibraryPicker, setShowLibraryPicker] = useState(false);
 
   useEffect(() => {
     if (!activePerson) {
       setShowIntro(false);
+      setShowLibraryPicker(false);
       return;
     }
     if (!getStoredCogitaRole(activePerson.roleId)) {
@@ -58,6 +61,9 @@ export function CogitaShell({
     (role: CogitaRole) => {
       if (activePerson) saveStoredCogitaRole(activePerson.roleId, role);
       setShowIntro(false);
+      if (role === 'student' || role === 'teacher') {
+        setShowLibraryPicker(true);
+      }
     },
     [activePerson]
   );
@@ -126,6 +132,13 @@ export function CogitaShell({
           title={copy.cogita.roleIntro.title}
           roles={copy.cogita.roleIntro.roles}
           onDone={handleRoleSelect}
+        />
+      ) : null}
+      {showLibraryPicker && activePerson ? (
+        <CogitaLibraryPicker
+          personRoleId={activePerson.roleId}
+          copy={copy.cogita.libraryPicker}
+          onDone={() => setShowLibraryPicker(false)}
         />
       ) : null}
     </div>
