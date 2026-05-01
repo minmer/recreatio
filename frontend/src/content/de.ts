@@ -207,7 +207,7 @@ export const de: Copy = {
         },
         explore: {
           title: 'Ich möchte erkunden',
-          subtitle: 'Entdecke alles, was Cogita zu bieten hat — in deinem eigenen Tempo.'
+          subtitle: 'Entdecke alles, was Cogita zu bieten hat — auf eigene Verantwortung.'
         }
       }
     },

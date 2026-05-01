@@ -41,7 +41,7 @@ export function CogitaShell({
   children: ReactNode;
 }) {
   const embedded = useContext(CogitaEmbeddedContext);
-  const { activePerson, openPersonCard } = usePersonContext();
+  const { activePerson } = usePersonContext();
   const [showIntro, setShowIntro] = useState(false);
 
   useEffect(() => {
@@ -91,23 +91,13 @@ export function CogitaShell({
         <LanguageSelect value={language} onChange={onLanguageChange} />
         <div className="cogita-header-right">
           {activePerson ? (
-            <>
-              <button
-                type="button"
-                className="cogita-person-chip ghost"
-                onClick={() => setShowIntro(true)}
-              >
-                {copy.cogita.shell.changeRole}
-              </button>
-              <button
-                type="button"
-                className="cogita-person-chip ghost"
-                onClick={openPersonCard}
-                title="Switch profile"
-              >
-                {activePerson.label}
-              </button>
-            </>
+            <button
+              type="button"
+              className="cogita-person-chip ghost"
+              onClick={() => setShowIntro(true)}
+            >
+              {copy.cogita.shell.changeRole}
+            </button>
           ) : null}
           {headerExtra}
           <AuthAction
