@@ -245,7 +245,15 @@ export const pl: Copy = {
         public: 'Brak dostępnych bibliotek publicznych.',
         linked: 'Wklej link powyżej, aby dodać udostępnioną bibliotekę.'
       },
-      publicNote: 'Wyszukiwanie publicznych bibliotek wkrótce dostępne. Użyj zakładki Połączone, aby dodać bibliotekę przez link.'
+      publicNote: 'Wyszukiwanie publicznych bibliotek wkrótce dostępne. Użyj zakładki Połączone, aby dodać bibliotekę przez link.',
+      confirm: {
+        title: 'Potwierdź usunięcie',
+        body: 'Następujące biblioteki zostaną trwale usunięte z Twojej listy:',
+        ownNote: 'Biblioteka i jej dane pozostają nienaruszone — usuwana jest tylko z Twojego profilu.',
+        linkedNote: 'Link zostanie usunięty. Możesz go ponownie dodać, wklejając go jeszcze raz.',
+        action: 'Usuń i kontynuuj',
+        cancel: 'Wróć'
+      }
     },
     user: {
       librariesKicker: 'Biblioteki',

@@ -183,6 +183,14 @@ export type Copy = {
         linked: string;
       };
       publicNote: string;
+      confirm: {
+        title: string;
+        body: string;
+        ownNote: string;
+        linkedNote: string;
+        action: string;
+        cancel: string;
+      };
     };
     user: {
       librariesKicker: string;

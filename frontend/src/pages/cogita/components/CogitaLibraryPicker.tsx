@@ -113,6 +113,7 @@ export function CogitaLibraryPicker({
   const [linkedLibraries, setLinkedLibraries] = useState<CogitaLibraryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pendingRemovals, setPendingRemovals] = useState<{ name: string; source: CogitaLibrarySource }[] | null>(null);
   const [linkInput, setLinkInput] = useState('');
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -177,22 +178,35 @@ export function CogitaLibraryPicker({
     }
   }, [linkInput, linkLoading, linkedLibraries, ownLibraries, copy]);
 
-  const handleDone = async () => {
+  const buildLibraries = (removeRemoved: boolean): CogitaLibraryEntry[] => [
+    ...ownLibraries
+      .map((lib) => ({ libraryId: lib.libraryId, name: lib.name, source: 'own' as const, status: statuses[lib.libraryId] ?? 'open' }))
+      .filter((e) => !removeRemoved || e.status !== 'removed'),
+    ...linkedLibraries
+      .map((lib) => ({ ...lib, status: statuses[lib.libraryId] ?? lib.status }))
+      .filter((e) => !removeRemoved || e.status !== 'removed')
+  ];
+
+  const handleDone = () => {
+    const removals = [
+      ...ownLibraries
+        .filter((lib) => (statuses[lib.libraryId] ?? 'open') === 'removed')
+        .map((lib) => ({ name: lib.name, source: 'own' as const })),
+      ...linkedLibraries
+        .filter((lib) => (statuses[lib.libraryId] ?? lib.status) === 'removed')
+        .map((lib) => ({ name: lib.name, source: 'linked' as const }))
+    ];
+    if (removals.length > 0) {
+      setPendingRemovals(removals);
+    } else {
+      commitSave();
+    }
+  };
+
+  const commitSave = async () => {
     setSaving(true);
     try {
-      const libraries: CogitaLibraryEntry[] = [
-        ...ownLibraries.map((lib) => ({
-          libraryId: lib.libraryId,
-          name: lib.name,
-          source: 'own' as const,
-          status: statuses[lib.libraryId] ?? 'open'
-        })),
-        ...linkedLibraries.map((lib) => ({
-          ...lib,
-          status: statuses[lib.libraryId] ?? lib.status
-        }))
-      ];
-      const prefs: CogitaPersonPrefs = { version: 1, libraries };
+      const prefs: CogitaPersonPrefs = { version: 1, libraries: buildLibraries(true) };
       if (savedFieldId.current) {
         try { await deleteRoleField(personRoleId, savedFieldId.current); } catch {}
       }
@@ -285,19 +299,49 @@ export function CogitaLibraryPicker({
           )}
         </div>
 
-        <div className="cogita-lib-picker-actions">
-          <button type="button" className="cogita-lib-picker-actions-skip" onClick={onDone}>
-            {copy.skip}
-          </button>
-          <button
-            type="button"
-            className="cogita-lib-picker-actions-done"
-            onClick={handleDone}
-            disabled={saving}
-          >
-            {copy.done}
-          </button>
-        </div>
+        {pendingRemovals ? (
+          <div className="cogita-lib-picker-confirm">
+            <p className="cogita-lib-picker-confirm-title">{copy.confirm.title}</p>
+            <p className="cogita-lib-picker-confirm-body">{copy.confirm.body}</p>
+            <ul className="cogita-lib-picker-confirm-list">
+              {pendingRemovals.map((r) => (
+                <li key={r.name} className="cogita-lib-picker-confirm-item">
+                  <span className="cogita-lib-picker-confirm-name">{r.name}</span>
+                  <span className="cogita-lib-picker-confirm-note">
+                    {r.source === 'own' ? copy.confirm.ownNote : copy.confirm.linkedNote}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="cogita-lib-picker-actions">
+              <button type="button" className="cogita-lib-picker-actions-skip" onClick={() => setPendingRemovals(null)}>
+                {copy.confirm.cancel}
+              </button>
+              <button
+                type="button"
+                className="cogita-lib-picker-actions-done cogita-lib-picker-actions-danger"
+                onClick={commitSave}
+                disabled={saving}
+              >
+                {copy.confirm.action}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="cogita-lib-picker-actions">
+            <button type="button" className="cogita-lib-picker-actions-skip" onClick={onDone}>
+              {copy.skip}
+            </button>
+            <button
+              type="button"
+              className="cogita-lib-picker-actions-done"
+              onClick={handleDone}
+              disabled={saving}
+            >
+              {copy.done}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

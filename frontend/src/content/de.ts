@@ -245,7 +245,15 @@ export const de: Copy = {
         public: 'Noch keine öffentlichen Bibliotheken verfügbar.',
         linked: 'Link oben einfügen, um eine geteilte Bibliothek hinzuzufügen.'
       },
-      publicNote: 'Öffentliche Bibliotheken werden bald durchsuchbar sein. Nutze den Tab „Verknüpft", um eine Bibliothek per Link hinzuzufügen.'
+      publicNote: 'Öffentliche Bibliotheken werden bald durchsuchbar sein. Nutze den Tab „Verknüpft", um eine Bibliothek per Link hinzuzufügen.',
+      confirm: {
+        title: 'Entfernung bestätigen',
+        body: 'Die folgenden Bibliotheken werden dauerhaft aus deiner Liste entfernt:',
+        ownNote: 'Die Bibliothek und ihre Daten bleiben erhalten — sie wird nur aus deinem Profil entfernt.',
+        linkedNote: 'Der Link wird entfernt. Du kannst ihn später erneut einfügen.',
+        action: 'Entfernen und fortfahren',
+        cancel: 'Zurück'
+      }
     },
     user: {
       librariesKicker: 'Bibliotheken',

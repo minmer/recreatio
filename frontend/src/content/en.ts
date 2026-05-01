@@ -245,7 +245,15 @@ export const en: Copy = {
         public: 'No public libraries available yet.',
         linked: 'Paste a link above to add a shared library.'
       },
-      publicNote: 'Public library discovery is coming soon. Use the Linked tab to add a library via a share link.'
+      publicNote: 'Public library discovery is coming soon. Use the Linked tab to add a library via a share link.',
+      confirm: {
+        title: 'Confirm removals',
+        body: 'The following libraries will be permanently removed from your list:',
+        ownNote: 'The library and its data remain intact — only removed from your profile.',
+        linkedNote: 'The link will be removed. You can re-add it later by pasting the link again.',
+        action: 'Remove and continue',
+        cancel: 'Go back'
+      }
     },
     user: {
       librariesKicker: 'Libraries',

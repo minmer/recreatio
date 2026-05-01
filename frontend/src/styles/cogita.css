@@ -7034,6 +7034,60 @@ textarea.cogita-input {
   cursor: pointer;
 }
 
+.cogita-lib-picker-actions-danger {
+  background: rgba(210, 60, 60, 0.85);
+  color: #fff;
+}
+
+.cogita-lib-picker-confirm {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+.cogita-lib-picker-confirm-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e8f4ff;
+  margin: 0 0 0.3rem;
+}
+
+.cogita-lib-picker-confirm-body {
+  font-size: 0.8rem;
+  color: rgba(160, 200, 240, 0.55);
+  margin: 0 0 0.75rem;
+}
+
+.cogita-lib-picker-confirm-list {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.cogita-lib-picker-confirm-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(210, 60, 60, 0.08);
+  border: 1px solid rgba(210, 60, 60, 0.2);
+  border-radius: 6px;
+}
+
+.cogita-lib-picker-confirm-name {
+  font-size: 0.875rem;
+  color: #e8f4ff;
+  font-weight: 500;
+}
+
+.cogita-lib-picker-confirm-note {
+  font-size: 0.72rem;
+  color: rgba(160, 200, 240, 0.4);
+}
+
 @media (max-width: 640px) {
   .cogita-lib-picker-inner {
     padding: 1.5rem 1rem 1rem;
