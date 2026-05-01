@@ -91,14 +91,23 @@ export function CogitaShell({
         <LanguageSelect value={language} onChange={onLanguageChange} />
         <div className="cogita-header-right">
           {activePerson ? (
-            <button
-              type="button"
-              className="cogita-person-chip ghost"
-              onClick={openPersonCard}
-              title="Switch profile"
-            >
-              {activePerson.label}
-            </button>
+            <>
+              <button
+                type="button"
+                className="cogita-person-chip ghost"
+                onClick={() => setShowIntro(true)}
+              >
+                {copy.cogita.shell.changeRole}
+              </button>
+              <button
+                type="button"
+                className="cogita-person-chip ghost"
+                onClick={openPersonCard}
+                title="Switch profile"
+              >
+                {activePerson.label}
+              </button>
+            </>
           ) : null}
           {headerExtra}
           <AuthAction
@@ -121,7 +130,14 @@ export function CogitaShell({
         </a>
         <span>{copy.footer.headline}</span>
       </footer>
-      {showIntro ? <CogitaRoleIntro onDone={handleRoleSelect} /> : null}
+      {showIntro ? (
+        <CogitaRoleIntro
+          kicker={copy.cogita.roleIntro.kicker}
+          title={copy.cogita.roleIntro.title}
+          roles={copy.cogita.roleIntro.roles}
+          onDone={handleRoleSelect}
+        />
+      ) : null}
     </div>
   );
 }

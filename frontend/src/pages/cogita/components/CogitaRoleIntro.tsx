@@ -20,28 +20,25 @@ export function saveStoredCogitaRole(personRoleId: string, role: CogitaRole) {
   } catch {}
 }
 
-const ROLES: { id: CogitaRole; image: string; title: string; subtitle: string }[] = [
-  {
-    id: 'student',
-    image: '/cogita/Student.png',
-    title: 'I want to learn',
-    subtitle: 'Explore knowledge through stories, revision and guided challenges.'
-  },
-  {
-    id: 'teacher',
-    image: '/cogita/Teacher.png',
-    title: 'I want to teach',
-    subtitle: 'Build storyboards, create revision sets and guide others through knowledge.'
-  },
-  {
-    id: 'explore',
-    image: '/cogita/Workspace.png',
-    title: 'I want to explore',
-    subtitle: 'Discover everything Cogita can do — at your own pace.'
-  }
-];
+const ROLE_IMAGES: Record<CogitaRole, string> = {
+  student: '/cogita/Student.png',
+  teacher: '/cogita/Teacher.png',
+  explore: '/cogita/Workspace.png'
+};
 
-export function CogitaRoleIntro({ onDone }: { onDone: (role: CogitaRole) => void }) {
+const ROLE_IDS: CogitaRole[] = ['student', 'teacher', 'explore'];
+
+export function CogitaRoleIntro({
+  kicker,
+  title,
+  roles,
+  onDone
+}: {
+  kicker: string;
+  title: string;
+  roles: Record<CogitaRole, { title: string; subtitle: string }>;
+  onDone: (role: CogitaRole) => void;
+}) {
   const [active, setActive] = useState(false);
 
   useEffect(() => {
@@ -52,21 +49,21 @@ export function CogitaRoleIntro({ onDone }: { onDone: (role: CogitaRole) => void
   return (
     <div className={`cogita-role-intro${active ? ' is-active' : ''}`}>
       <div className="cogita-role-intro-inner">
-        <p className="cogita-role-intro-kicker">Welcome to Cogita</p>
-        <h1 className="cogita-role-intro-title">How would you like to begin?</h1>
+        <p className="cogita-role-intro-kicker">{kicker}</p>
+        <h1 className="cogita-role-intro-title">{title}</h1>
         <div className="cogita-role-intro-cards">
-          {ROLES.map((role) => (
+          {ROLE_IDS.map((id) => (
             <button
-              key={role.id}
+              key={id}
               type="button"
               className="cogita-role-intro-card"
-              onClick={() => onDone(role.id)}
+              onClick={() => onDone(id)}
             >
               <div className="cogita-role-intro-card-img">
-                <img src={role.image} alt="" aria-hidden="true" />
+                <img src={ROLE_IMAGES[id]} alt="" aria-hidden="true" />
               </div>
-              <span className="cogita-role-intro-card-title">{role.title}</span>
-              <span className="cogita-role-intro-card-sub">{role.subtitle}</span>
+              <span className="cogita-role-intro-card-title">{roles[id].title}</span>
+              <span className="cogita-role-intro-card-sub">{roles[id].subtitle}</span>
             </button>
           ))}
         </div>

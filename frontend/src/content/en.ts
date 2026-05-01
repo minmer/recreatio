@@ -190,7 +190,26 @@ export const en: Copy = {
     loginCta: 'Sign in via REcreatio',
     shell: {
       back: 'Back',
-      up: 'Up'
+      up: 'Up',
+      changeRole: 'Change role'
+    },
+    roleIntro: {
+      kicker: 'Welcome to Cogita',
+      title: 'How would you like to begin?',
+      roles: {
+        student: {
+          title: 'I want to learn',
+          subtitle: 'Explore knowledge through stories, revision and guided challenges.'
+        },
+        teacher: {
+          title: 'I want to teach',
+          subtitle: 'Build storyboards, create revision sets and guide others through knowledge.'
+        },
+        explore: {
+          title: 'I want to explore',
+          subtitle: 'Discover everything Cogita can do — at your own pace.'
+        }
+      }
     },
     user: {
       librariesKicker: 'Libraries',

@@ -137,6 +137,16 @@ export type Copy = {
     shell: {
       back: string;
       up: string;
+      changeRole: string;
+    };
+    roleIntro: {
+      kicker: string;
+      title: string;
+      roles: {
+        student: { title: string; subtitle: string };
+        teacher: { title: string; subtitle: string };
+        explore: { title: string; subtitle: string };
+      };
     };
     user: {
       librariesKicker: string;
