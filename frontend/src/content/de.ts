@@ -229,7 +229,7 @@ export const de: Copy = {
       consequences: {
         ownOpen: 'Sichtbar und verfügbar in deinem Lernfluss.',
         ownHidden: 'Existiert, erscheint aber nicht in deinem Lernfluss.',
-        ownRemoved: 'Aus der Ansicht entfernt — die Bibliothek und ihre Daten bleiben erhalten.',
+        ownRemoved: 'Wird aus dem Profil dieser Person entfernt. Die Bibliothek und ihre Daten bleiben im Cogita-Arbeitsbereich erhalten.',
         otherRemoved: 'Nicht mehr verfügbar. Erneut hinzufügen, um den Zugriff wiederherzustellen.'
       },
       link: {
@@ -249,7 +249,7 @@ export const de: Copy = {
       confirm: {
         title: 'Entfernung bestätigen',
         body: 'Die folgenden Bibliotheken werden dauerhaft aus deiner Liste entfernt:',
-        ownNote: 'Die Bibliothek und ihre Daten bleiben erhalten — sie wird nur aus deinem Profil entfernt.',
+        ownNote: 'Die Bibliothek und alle ihre Daten bleiben in Cogita erhalten und sind über den Arbeitsbereich weiterhin zugänglich. Sie erscheint im Lernprofil dieser Person nicht mehr, bis sie erneut hinzugefügt wird.',
         linkedNote: 'Der Link wird entfernt. Du kannst ihn später erneut einfügen.',
         action: 'Entfernen und fortfahren',
         cancel: 'Zurück'

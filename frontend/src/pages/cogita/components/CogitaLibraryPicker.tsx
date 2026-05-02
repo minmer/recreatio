@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   getCogitaLibraries,
   getRoles,
   updateRoleField,
-  deleteRoleField,
   getCogitaPublicStoryboardShare,
   getCogitaPublicRevisionShare,
   type CogitaLibrary
@@ -117,8 +116,6 @@ export function CogitaLibraryPicker({
   const [linkInput, setLinkInput] = useState('');
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
-  const savedFieldId = useRef<string | null>(null);
-
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => setActive(true));
     return () => window.cancelAnimationFrame(raf);
@@ -131,8 +128,6 @@ export function CogitaLibraryPicker({
         if (cancelled) return;
         const personRole = roles.find((r) => r.roleId === personRoleId);
         const prefsField = personRole?.fields.find((f) => f.fieldType === PREFS_FIELD_TYPE);
-        savedFieldId.current = prefsField?.fieldId ?? null;
-
         const prefs = parsePersonPrefs(prefsField?.plainValue);
         const statusMap: Record<string, CogitaLibraryStatus> = {};
         for (const entry of prefs.libraries) statusMap[entry.libraryId] = entry.status;
@@ -207,9 +202,6 @@ export function CogitaLibraryPicker({
     setSaving(true);
     try {
       const prefs: CogitaPersonPrefs = { version: 1, libraries: buildLibraries(true) };
-      if (savedFieldId.current) {
-        try { await deleteRoleField(personRoleId, savedFieldId.current); } catch {}
-      }
       const result = await updateRoleField(personRoleId, {
         fieldType: PREFS_FIELD_TYPE,
         plainValue: JSON.stringify(prefs)

@@ -229,7 +229,7 @@ export const en: Copy = {
       consequences: {
         ownOpen: 'Visible and available in your learning flow.',
         ownHidden: 'Exists but will not appear in your learning flow.',
-        ownRemoved: 'Removed from your view — the library and its data remain intact.',
+        ownRemoved: 'Will be removed from this person\'s profile. The library and its data remain in the Cogita workspace.',
         otherRemoved: 'No longer available. Re-add it to restore access.'
       },
       link: {
@@ -249,7 +249,7 @@ export const en: Copy = {
       confirm: {
         title: 'Confirm removals',
         body: 'The following libraries will be permanently removed from your list:',
-        ownNote: 'The library and its data remain intact — only removed from your profile.',
+        ownNote: 'The library and all its data stay in Cogita and remain accessible via the workspace. It will no longer appear in this person\'s learning profile until re-added.',
         linkedNote: 'The link will be removed. You can re-add it later by pasting the link again.',
         action: 'Remove and continue',
         cancel: 'Go back'

@@ -229,7 +229,7 @@ export const pl: Copy = {
       consequences: {
         ownOpen: 'Widoczna i dostępna w Twoim przepływie nauki.',
         ownHidden: 'Istnieje, ale nie pojawi się w Twoim przepływie nauki.',
-        ownRemoved: 'Usunięta z widoku — biblioteka i jej dane pozostają nienaruszone.',
+        ownRemoved: 'Zostanie usunięta z profilu tej osoby. Biblioteka i jej dane pozostają w przestrzeni roboczej Cogita.',
         otherRemoved: 'Niedostępna. Dodaj ponownie, aby przywrócić dostęp.'
       },
       link: {
@@ -249,7 +249,7 @@ export const pl: Copy = {
       confirm: {
         title: 'Potwierdź usunięcie',
         body: 'Następujące biblioteki zostaną trwale usunięte z Twojej listy:',
-        ownNote: 'Biblioteka i jej dane pozostają nienaruszone — usuwana jest tylko z Twojego profilu.',
+        ownNote: 'Biblioteka i wszystkie jej dane pozostają w Cogita i są dostępne przez przestrzeń roboczą. Nie będzie pojawiać się w profilu tej osoby, dopóki nie zostanie ponownie dodana.',
         linkedNote: 'Link zostanie usunięty. Możesz go ponownie dodać, wklejając go jeszcze raz.',
         action: 'Usuń i kontynuuj',
         cancel: 'Wróć'
