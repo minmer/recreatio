@@ -148,6 +148,26 @@ export type Copy = {
         explore: { title: string; subtitle: string };
       };
     };
+    libraryTemplates: {
+      title: string;
+      subtitle: string;
+      nameLabel: string;
+      namePlaceholder: string;
+      create: string;
+      creating: string;
+      back: string;
+      nameRequired: string;
+      createFailed: string;
+      newLibraryButton: string;
+      templates: {
+        vocabulary:   { title: string; desc: string };
+        knowledgeMap: { title: string; desc: string };
+        course:       { title: string; desc: string };
+        research:     { title: string; desc: string };
+        flashcards:   { title: string; desc: string };
+        custom:       { title: string; desc: string };
+      };
+    };
     libraryPicker: {
       kicker: string;
       title: string;

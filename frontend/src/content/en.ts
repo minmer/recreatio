@@ -211,6 +211,44 @@ export const en: Copy = {
         }
       }
     },
+    libraryTemplates: {
+      title: 'Create a new library',
+      subtitle: 'Choose a template that fits how you want to build and learn.',
+      nameLabel: 'Library name',
+      namePlaceholder: 'Give your library a name…',
+      create: 'Create',
+      creating: 'Creating…',
+      back: 'Back',
+      nameRequired: 'Please enter a name for the library.',
+      createFailed: 'Could not create the library. Try again.',
+      newLibraryButton: 'New library from template',
+      templates: {
+        vocabulary: {
+          title: 'Vocabulary',
+          desc: 'Word pairs, translations and bilingual content. Best for language learning and language courses.'
+        },
+        knowledgeMap: {
+          title: 'Knowledge Map',
+          desc: 'Concepts connected by dependencies and relationships. Ideal for think maps and subject overviews.'
+        },
+        course: {
+          title: 'Guided Course',
+          desc: 'Chapters and storyboards that guide learners through knowledge step by step.'
+        },
+        research: {
+          title: 'Research',
+          desc: 'Sources, citations, quotes and references. Best for academic work and structured knowledge bases.'
+        },
+        flashcards: {
+          title: 'Flashcards',
+          desc: 'Question-and-answer cards with spaced repetition. Perfect for exam preparation and revision.'
+        },
+        custom: {
+          title: 'Free Workspace',
+          desc: 'Blank slate with full access to all Cogita features. No constraints, no preset structure.'
+        }
+      }
+    },
     libraryPicker: {
       kicker: 'Step 2',
       title: 'Choose your libraries',

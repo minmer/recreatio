@@ -8,6 +8,7 @@ import {
   type CogitaLibrary
 } from '../../../lib/api';
 import type { Copy } from '../../../content/types';
+import { CogitaLibraryTemplates } from './CogitaLibraryTemplates';
 
 export type CogitaLibraryStatus = 'open' | 'hidden' | 'removed';
 export type CogitaLibrarySource = 'own' | 'linked';
@@ -99,10 +100,12 @@ function LibraryItem({
 export function CogitaLibraryPicker({
   personRoleId,
   copy,
+  copyTemplates,
   onDone
 }: {
   personRoleId: string;
   copy: Copy['cogita']['libraryPicker'];
+  copyTemplates: Copy['cogita']['libraryTemplates'];
   onDone: () => void;
 }) {
   const [active, setActive] = useState(false);
@@ -113,6 +116,7 @@ export function CogitaLibraryPicker({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pendingRemovals, setPendingRemovals] = useState<{ name: string; source: CogitaLibrarySource }[] | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [linkInput, setLinkInput] = useState('');
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -202,11 +206,10 @@ export function CogitaLibraryPicker({
     setSaving(true);
     try {
       const prefs: CogitaPersonPrefs = { version: 1, libraries: buildLibraries(true) };
-      const result = await updateRoleField(personRoleId, {
+      await updateRoleField(personRoleId, {
         fieldType: PREFS_FIELD_TYPE,
         plainValue: JSON.stringify(prefs)
       });
-      savedFieldId.current = result.fieldId;
       onDone();
     } catch {
       setSaving(false);
@@ -216,6 +219,17 @@ export function CogitaLibraryPicker({
   return (
     <div className={`cogita-lib-picker${active ? ' is-active' : ''}`}>
       <div className="cogita-lib-picker-inner">
+        {showTemplates ? (
+          <CogitaLibraryTemplates
+            copy={copyTemplates}
+            onCreated={(lib) => {
+              setOwnLibraries((prev) => [...prev, lib]);
+              setShowTemplates(false);
+            }}
+            onCancel={() => setShowTemplates(false)}
+          />
+        ) : (
+        <>
         <p className="cogita-lib-picker-kicker">{copy.kicker}</p>
         <h2 className="cogita-lib-picker-title">{copy.title}</h2>
         <div className="cogita-lib-picker-tabs" role="tablist">
@@ -235,7 +249,8 @@ export function CogitaLibraryPicker({
 
         <div className="cogita-lib-picker-list">
           {loading ? null : tab === 'own' ? (
-            ownLibraries.length === 0 ? (
+            <>
+            {ownLibraries.length === 0 ? (
               <p className="cogita-lib-picker-empty">{copy.empty.own}</p>
             ) : (
               ownLibraries.map((lib) => (
@@ -248,7 +263,15 @@ export function CogitaLibraryPicker({
                   onChange={(s) => handleStatus(lib.libraryId, s)}
                 />
               ))
-            )
+            )}
+            <button
+              type="button"
+              className="cogita-lib-picker-new-lib"
+              onClick={() => setShowTemplates(true)}
+            >
+              {copyTemplates.newLibraryButton}
+            </button>
+            </>
           ) : tab === 'public' ? (
             <p className="cogita-lib-picker-note">{copy.publicNote}</p>
           ) : (
@@ -333,6 +356,8 @@ export function CogitaLibraryPicker({
               {copy.done}
             </button>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>

@@ -211,6 +211,44 @@ export const pl: Copy = {
         }
       }
     },
+    libraryTemplates: {
+      title: 'Utwórz nową bibliotekę',
+      subtitle: 'Wybierz szablon, który odpowiada temu, jak chcesz budować i uczyć się.',
+      nameLabel: 'Nazwa biblioteki',
+      namePlaceholder: 'Nadaj bibliotece nazwę…',
+      create: 'Utwórz',
+      creating: 'Tworzenie…',
+      back: 'Wróć',
+      nameRequired: 'Wpisz nazwę biblioteki.',
+      createFailed: 'Nie udało się utworzyć biblioteki. Spróbuj ponownie.',
+      newLibraryButton: 'Nowa biblioteka z szablonu',
+      templates: {
+        vocabulary: {
+          title: 'Słownictwo',
+          desc: 'Pary słów, tłumaczenia i treści dwujęzyczne. Najlepsze do nauki języków i kursów językowych.'
+        },
+        knowledgeMap: {
+          title: 'Mapa Wiedzy',
+          desc: 'Pojęcia połączone zależnościami i relacjami. Idealna do map myśli i przeglądów tematycznych.'
+        },
+        course: {
+          title: 'Kurs',
+          desc: 'Rozdziały i storyboardy prowadzące uczących się krok po kroku przez wiedzę.'
+        },
+        research: {
+          title: 'Badania',
+          desc: 'Źródła, cytaty i referencje. Najlepsza do pracy naukowej i baz wiedzy.'
+        },
+        flashcards: {
+          title: 'Fiszki',
+          desc: 'Karty pytanie-odpowiedź z powtarzaniem rozłożonym w czasie. Idealne do nauki przed egzaminami.'
+        },
+        custom: {
+          title: 'Wolna Przestrzeń',
+          desc: 'Pusta karta z pełnym dostępem do wszystkich funkcji Cogita. Bez ograniczeń i narzuconych struktur.'
+        }
+      }
+    },
     libraryPicker: {
       kicker: 'Krok 2',
       title: 'Wybierz swoje biblioteki',

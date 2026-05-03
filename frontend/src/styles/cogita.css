@@ -7103,3 +7103,139 @@ textarea.cogita-input {
   }
 }
 
+.cogita-lib-picker-new-lib {
+  display: block;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.55rem 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(106, 183, 232, 0.3);
+  border-radius: 6px;
+  color: rgba(106, 183, 232, 0.65);
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.cogita-lib-picker-new-lib:hover {
+  background: rgba(106, 183, 232, 0.08);
+  border-color: rgba(106, 183, 232, 0.55);
+  color: #6ab7e8;
+}
+
+.cogita-lib-templates {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.cogita-lib-templates-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cogita-lib-templates-back {
+  align-self: flex-start;
+  padding: 0;
+  background: none;
+  border: none;
+  color: rgba(106, 183, 232, 0.6);
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+  transition: color 0.15s;
+}
+
+.cogita-lib-templates-back:hover {
+  color: #6ab7e8;
+}
+
+.cogita-lib-templates-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #e8f4ff;
+  margin: 0;
+}
+
+.cogita-lib-templates-subtitle {
+  font-size: 0.82rem;
+  color: rgba(160, 200, 240, 0.45);
+  margin: 0;
+}
+
+.cogita-lib-templates-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .cogita-lib-templates-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.cogita-lib-template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.9rem 0.85rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.cogita-lib-template-card:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.cogita-lib-template-card.is-selected {
+  background: color-mix(in srgb, var(--tmpl-color) 12%, transparent);
+  border-color: color-mix(in srgb, var(--tmpl-color) 55%, transparent);
+}
+
+.cogita-lib-template-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--tmpl-color);
+}
+
+.cogita-lib-template-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #e8f4ff;
+}
+
+.cogita-lib-template-desc {
+  font-size: 0.72rem;
+  color: rgba(160, 200, 240, 0.4);
+  line-height: 1.4;
+}
+
+.cogita-lib-templates-create {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.cogita-lib-templates-label {
+  font-size: 0.78rem;
+  color: rgba(160, 200, 240, 0.55);
+}
+
+.cogita-lib-templates-name-row {
+  display: flex;
+  gap: 0.5rem;
+}
+

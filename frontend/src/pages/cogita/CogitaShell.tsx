@@ -138,6 +138,7 @@ export function CogitaShell({
         <CogitaLibraryPicker
           personRoleId={activePerson.roleId}
           copy={copy.cogita.libraryPicker}
+          copyTemplates={copy.cogita.libraryTemplates}
           onDone={() => setShowLibraryPicker(false)}
         />
       ) : null}

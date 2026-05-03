@@ -211,6 +211,44 @@ export const de: Copy = {
         }
       }
     },
+    libraryTemplates: {
+      title: 'Neue Bibliothek erstellen',
+      subtitle: 'Wähle eine Vorlage, die zu deiner Art zu erstellen und zu lernen passt.',
+      nameLabel: 'Name der Bibliothek',
+      namePlaceholder: 'Gib deiner Bibliothek einen Namen…',
+      create: 'Erstellen',
+      creating: 'Wird erstellt…',
+      back: 'Zurück',
+      nameRequired: 'Bitte gib einen Namen für die Bibliothek ein.',
+      createFailed: 'Bibliothek konnte nicht erstellt werden. Erneut versuchen.',
+      newLibraryButton: 'Neue Bibliothek aus Vorlage',
+      templates: {
+        vocabulary: {
+          title: 'Vokabular',
+          desc: 'Wortpaare, Übersetzungen und zweisprachige Inhalte. Ideal für Sprachlernende und Sprachkurse.'
+        },
+        knowledgeMap: {
+          title: 'Wissenskarte',
+          desc: 'Konzepte, verbunden durch Abhängigkeiten und Beziehungen. Ideal für Mindmaps und Themenüberblicke.'
+        },
+        course: {
+          title: 'Kurs',
+          desc: 'Kapitel und Storyboards, die Lernende Schritt für Schritt durch Wissen führen.'
+        },
+        research: {
+          title: 'Forschung',
+          desc: 'Quellen, Zitate und Referenzen. Ideal für wissenschaftliche Arbeit und Wissensdatenbanken.'
+        },
+        flashcards: {
+          title: 'Karteikarten',
+          desc: 'Frage-Antwort-Karten mit Spaced Repetition. Perfekt für Prüfungsvorbereitung und Wiederholung.'
+        },
+        custom: {
+          title: 'Freier Arbeitsbereich',
+          desc: 'Leere Leinwand mit vollem Zugriff auf alle Cogita-Funktionen. Keine Einschränkungen.'
+        }
+      }
+    },
     libraryPicker: {
       kicker: 'Schritt 2',
       title: 'Wähle deine Bibliotheken',
