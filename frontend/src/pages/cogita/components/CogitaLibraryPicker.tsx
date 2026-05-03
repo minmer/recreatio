@@ -177,13 +177,12 @@ export function CogitaLibraryPicker({
     }
   }, [linkInput, linkLoading, linkedLibraries, ownLibraries, copy]);
 
-  const buildLibraries = (removeRemoved: boolean): CogitaLibraryEntry[] => [
+  const buildLibraries = (): CogitaLibraryEntry[] => [
     ...ownLibraries
-      .map((lib) => ({ libraryId: lib.libraryId, name: lib.name, source: 'own' as const, status: statuses[lib.libraryId] ?? 'open' }))
-      .filter((e) => !removeRemoved || e.status !== 'removed'),
+      .map((lib) => ({ libraryId: lib.libraryId, name: lib.name, source: 'own' as const, status: statuses[lib.libraryId] ?? 'open' })),
     ...linkedLibraries
       .map((lib) => ({ ...lib, status: statuses[lib.libraryId] ?? lib.status }))
-      .filter((e) => !removeRemoved || e.status !== 'removed')
+      .filter((e) => e.status !== 'removed')
   ];
 
   const handleDone = () => {
@@ -205,7 +204,7 @@ export function CogitaLibraryPicker({
   const commitSave = async () => {
     setSaving(true);
     try {
-      const prefs: CogitaPersonPrefs = { version: 1, libraries: buildLibraries(true) };
+      const prefs: CogitaPersonPrefs = { version: 1, libraries: buildLibraries() };
       await updateRoleField(personRoleId, {
         fieldType: PREFS_FIELD_TYPE,
         plainValue: JSON.stringify(prefs)
