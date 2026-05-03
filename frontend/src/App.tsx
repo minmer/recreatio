@@ -66,6 +66,12 @@ const CogitaRevisionRunPage = lazy(() =>
   import('./pages/cogita/revision/CogitaRevisionRunPage').then((module) => ({ default: module.CogitaRevisionRunPage }))
 );
 const AccountPage = lazy(() => import('./pages/account/AccountPage').then((module) => ({ default: module.AccountPage })));
+const CogitaLibraryHomePage = lazy(() =>
+  import('./pages/cogita/library/CogitaLibraryHomePage').then((module) => ({ default: module.CogitaLibraryHomePage }))
+);
+const CogitaLibraryPage = lazy(() =>
+  import('./pages/cogita/library/CogitaLibraryPage').then((module) => ({ default: module.CogitaLibraryPage }))
+);
 
 const deviceInfo = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
 const languages = ['pl', 'en', 'de'] as const;
@@ -174,6 +180,9 @@ export default function App() {
   const isCogitaStoryboardRuntimePath =
     pathname.startsWith('/cogita/runtime/storyboard/') && pathSegments.length >= 5;
   const isCogitaWritingPath = pathname === '/cogita/writing' || pathname.startsWith('/cogita/writing/');
+  const isCogitaLibraryPath = pathname.startsWith('/cogita/libraries/') && pathSegments.length >= 3;
+  const isCogitaLibrariesPath = pathname === '/cogita/libraries' || pathname === '/cogita/libraries/';
+  const cogitaLibraryId = isCogitaLibraryPath ? decodeRouteSegment(pathSegments[2]) : undefined;
   const isCogitaWorkspacePath = pathname === '/cogita/workspace' || pathname.startsWith('/cogita/workspace/');
   const isCogitaRevisionHomePath = pathname === '/cogita/revision' || pathname === '/cogita/revision/';
   const isCogitaRevisionSharedRuntimePath = pathname.startsWith('/cogita/revision/shared/') && pathSegments.length >= 5;
@@ -1110,6 +1119,69 @@ export default function App() {
               onLanguageChange={setLanguage}
               libraryId={cogitaWritingLibraryId}
               projectId={cogitaWritingProjectId}
+            />
+          ) : (
+            <CogitaPage
+              copy={t}
+              onAuthAction={() => openLoginCard('cogita')}
+              authLabel={isAuthenticated ? t.nav.account : t.cogita.loginCta}
+              showProfileMenu={isAuthenticated}
+              onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+              onToggleSecureMode={handleToggleMode}
+              onLogout={handleLogout}
+              secureMode={secureMode}
+              onNavigate={navigateRoute}
+              language={language}
+              onLanguageChange={setLanguage}
+            />
+          )}
+        </Suspense>
+      ) : isCogitaLibraryPath && cogitaLibraryId ? (
+        <Suspense fallback={lazyFallback}>
+          {isAuthenticated ? (
+            <CogitaLibraryPage
+              copy={t}
+              authLabel={t.nav.account}
+              showProfileMenu
+              onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+              onToggleSecureMode={handleToggleMode}
+              onLogout={handleLogout}
+              secureMode={secureMode}
+              onNavigate={navigateRoute}
+              language={language}
+              onLanguageChange={setLanguage}
+              libraryId={cogitaLibraryId}
+            />
+          ) : (
+            <CogitaPage
+              copy={t}
+              onAuthAction={() => openLoginCard('cogita')}
+              authLabel={isAuthenticated ? t.nav.account : t.cogita.loginCta}
+              showProfileMenu={isAuthenticated}
+              onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+              onToggleSecureMode={handleToggleMode}
+              onLogout={handleLogout}
+              secureMode={secureMode}
+              onNavigate={navigateRoute}
+              language={language}
+              onLanguageChange={setLanguage}
+            />
+          )}
+        </Suspense>
+      ) : isCogitaLibrariesPath ? (
+        <Suspense fallback={lazyFallback}>
+          {isAuthenticated ? (
+            <CogitaLibraryHomePage
+              copy={t}
+              authLabel={t.nav.account}
+              showProfileMenu
+              onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+              onToggleSecureMode={handleToggleMode}
+              onLogout={handleLogout}
+              secureMode={secureMode}
+              onNavigate={navigateRoute}
+              language={language}
+              onLanguageChange={setLanguage}
             />
           ) : (
             <CogitaPage

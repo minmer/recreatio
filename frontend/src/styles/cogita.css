@@ -7241,3 +7241,293 @@ textarea.cogita-input {
   gap: 0.5rem;
 }
 
+/* ── Library home page ─────────────────────────────────── */
+
+.cogita-lib-home {
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 2.5rem 2rem 3rem;
+}
+
+.cogita-lib-home-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.cogita-lib-home-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #e8f4ff;
+  margin: 0.25rem 0 0;
+}
+
+.cogita-lib-home-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.cogita-lib-home-toggle {
+  font-size: 0.8rem;
+  color: rgba(160, 200, 240, 0.45);
+  padding: 0.3rem 0.6rem;
+}
+
+.cogita-lib-home-empty {
+  color: rgba(160, 200, 240, 0.35);
+  font-size: 0.9rem;
+  padding: 3rem 0;
+  text-align: center;
+}
+
+.cogita-lib-home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.cogita-lib-home-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.cogita-lib-home-card:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: color-mix(in srgb, var(--lib-color) 40%, transparent);
+  transform: translateY(-1px);
+}
+
+.cogita-lib-home-card.is-hidden {
+  opacity: 0.5;
+}
+
+.cogita-lib-home-card-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--lib-color);
+  flex-shrink: 0;
+  width: 2.25rem;
+  text-align: center;
+}
+
+.cogita-lib-home-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.cogita-lib-home-card-template {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lib-color);
+  opacity: 0.75;
+}
+
+.cogita-lib-home-card-name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #e8f4ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cogita-lib-home-card-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(160, 200, 240, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+}
+
+/* ── Library template pages ────────────────────────────── */
+
+.cogita-lib-template {
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 2.5rem 2rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.cogita-lib-template-header {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.cogita-lib-template-icon-wrap {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--tmpl-color) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tmpl-color) 35%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: var(--tmpl-color);
+  flex-shrink: 0;
+}
+
+.cogita-lib-template-kicker {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tmpl-color, #6ab7e8);
+  margin: 0 0 0.2rem;
+  opacity: 0.8;
+}
+
+.cogita-lib-template-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #e8f4ff;
+  margin: 0;
+}
+
+.cogita-lib-template-stats {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.cogita-lib-template-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 5rem;
+}
+
+.cogita-lib-template-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #e8f4ff;
+  line-height: 1;
+}
+
+.cogita-lib-template-stat-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(160, 200, 240, 0.4);
+}
+
+.cogita-lib-template-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.cogita-lib-template-action {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.25rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(200, 225, 248, 0.85);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.cogita-lib-template-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.cogita-lib-template-action--primary {
+  background: color-mix(in srgb, var(--tmpl-color, #6ab7e8) 15%, transparent);
+  border-color: color-mix(in srgb, var(--tmpl-color, #6ab7e8) 40%, transparent);
+  color: var(--tmpl-color, #6ab7e8);
+  font-weight: 600;
+}
+
+.cogita-lib-template-action--primary:hover {
+  background: color-mix(in srgb, var(--tmpl-color, #6ab7e8) 22%, transparent);
+  border-color: color-mix(in srgb, var(--tmpl-color, #6ab7e8) 60%, transparent);
+}
+
+.cogita-lib-template-action-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.cogita-lib-template-nav {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 1.25rem;
+}
+
+.cogita-lib-template-nav-title {
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(160, 200, 240, 0.3);
+  margin: 0 0 0.75rem;
+}
+
+.cogita-lib-template-nav-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.cogita-lib-template-nav-item {
+  font-size: 0.82rem;
+  color: rgba(160, 200, 240, 0.5);
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.cogita-lib-template-nav-item:hover {
+  color: rgba(160, 200, 240, 0.85);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+@media (max-width: 640px) {
+  .cogita-lib-home {
+    padding: 1.5rem 1rem 2rem;
+  }
+
+  .cogita-lib-home-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cogita-lib-template {
+    padding: 1.5rem 1rem 2rem;
+  }
+
+  .cogita-lib-template-actions {
+    flex-direction: column;
+  }
+}
+
