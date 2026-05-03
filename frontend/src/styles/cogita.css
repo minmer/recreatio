@@ -6879,9 +6879,9 @@ textarea.cogita-input {
 
 .cogita-lib-picker-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  min-height: 160px;
-  padding-top: 0.5rem;
+  padding: 0.5rem 0 1rem;
 }
 
 .cogita-lib-picker-item {
@@ -7129,7 +7129,9 @@ textarea.cogita-input {
   flex-direction: column;
   gap: 1.25rem;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  padding-bottom: 1.5rem;
 }
 
 .cogita-lib-templates-header {
