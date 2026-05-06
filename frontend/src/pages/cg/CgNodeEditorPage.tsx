@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { Copy } from '../../content/types';
 import {
   type CgFieldDef,
   type CgFieldValue,
@@ -12,12 +13,14 @@ import {
 } from './api/cgApi';
 
 interface Props {
+  copy: Copy;
   libId: string;
   nodeId: string;
   onBack: () => void;
 }
 
-export function CgNodeEditorPage({ libId, nodeId, onBack }: Props) {
+export function CgNodeEditorPage({ copy, libId, nodeId, onBack }: Props) {
+  const t = copy.cg.node;
   const [detail, setDetail] = useState<CgNodeDetail | null>(null);
   const [kinds, setKinds] = useState<CgNodeKind[]>([]);
   const [fieldDefs, setFieldDefs] = useState<CgFieldDef[]>([]);
@@ -26,7 +29,6 @@ export function CgNodeEditorPage({ libId, nodeId, onBack }: Props) {
   const [labelDraft, setLabelDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Per-field edit state: fieldDefId -> draft value
   const [fieldDrafts, setFieldDrafts] = useState<Record<string, string>>({});
   const [fieldSaving, setFieldSaving] = useState<Record<string, boolean>>({});
 
@@ -38,7 +40,7 @@ export function CgNodeEditorPage({ libId, nodeId, onBack }: Props) {
         setKinds(libDetail.nodeKinds);
         setFieldDefs(libDetail.fieldDefs);
       })
-      .catch(() => setError('Failed to load node'))
+      .catch(() => setError(t.saveFailed))
       .finally(() => setLoading(false));
   }, [libId, nodeId]);
 
@@ -50,13 +52,13 @@ export function CgNodeEditorPage({ libId, nodeId, onBack }: Props) {
       setDetail((d) => d ? { ...d, node: updated } : d);
       setLabelDraft(null);
     } catch {
-      setError('Failed to save label');
+      setError(t.saveFailed);
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleSaveField(def: CgFieldDef, existingValue: CgFieldValue | undefined, sortOrder: number) {
+  async function handleSaveField(def: CgFieldDef, _existingValue: CgFieldValue | undefined, sortOrder: number) {
     const draft = fieldDrafts[`${def.id}:${sortOrder}`] ?? '';
     setFieldSaving((prev) => ({ ...prev, [`${def.id}:${sortOrder}`]: true }));
     try {
@@ -75,7 +77,7 @@ export function CgNodeEditorPage({ libId, nodeId, onBack }: Props) {
         return next;
       });
     } catch {
-      setError('Failed to save field');
+      setError(t.fieldSaveFailed);
     } finally {
       setFieldSaving((prev) => ({ ...prev, [`${def.id}:${sortOrder}`]: false }));
     }
@@ -86,7 +88,7 @@ export function CgNodeEditorPage({ libId, nodeId, onBack }: Props) {
       await deleteFieldValue(libId, nodeId, valueId);
       setDetail((d) => d ? { ...d, fieldValues: d.fieldValues.filter((v) => v.id !== valueId) } : d);
     } catch {
-      setError('Failed to delete value');
+      setError(t.deleteValueFailed);
     }
   }
 
@@ -106,16 +108,15 @@ export function CgNodeEditorPage({ libId, nodeId, onBack }: Props) {
     <div className="cg-node-editor">
       <div className="cg-node-editor-header">
         <button className="cg-btn cg-btn-ghost cg-btn-sm" type="button" onClick={onBack}>
-          ← Back
+          {t.backAction}
         </button>
         {nodeKind && (
           <span className="cg-field-type" style={{ fontSize: '0.8rem' }}>{nodeKind.name}</span>
         )}
       </div>
 
-      {/* Label */}
       <div className="cg-section">
-        <p className="cg-section-title">Label</p>
+        <p className="cg-section-title">{t.labelSection}</p>
         {labelDraft !== null ? (
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <input
@@ -127,10 +128,10 @@ export function CgNodeEditorPage({ libId, nodeId, onBack }: Props) {
               style={{ maxWidth: 400 }}
             />
             <button className="cg-btn cg-btn-primary cg-btn-sm" onClick={handleSaveLabel} disabled={saving} type="button">
-              Save
+              {t.saveAction}
             </button>
             <button className="cg-btn cg-btn-ghost cg-btn-sm" onClick={() => setLabelDraft(null)} type="button">
-              Cancel
+              {t.cancelAction}
             </button>
           </div>
         ) : (
@@ -139,26 +140,25 @@ export function CgNodeEditorPage({ libId, nodeId, onBack }: Props) {
             onClick={() => setLabelDraft(node.label ?? '')}
             title="Click to edit"
           >
-            {node.label || <span style={{ color: 'var(--cg-text-dim)', fontWeight: 400, fontSize: '1rem' }}>(no label — click to set)</span>}
+            {node.label || <span style={{ color: 'var(--cg-text-dim)', fontWeight: 400, fontSize: '1rem' }}>{t.noLabel}</span>}
           </p>
         )}
       </div>
 
-      {/* Field values */}
       {thisKindFields.length > 0 && (
         <div className="cg-section">
-          <p className="cg-section-title">Fields</p>
+          <p className="cg-section-title">{t.fieldsSection}</p>
           {thisKindFields.map((def) => {
             const existing = valsByFieldDef[def.id] ?? [];
             const allValues = def.isMultiValue
-              ? [...existing, undefined]  // one extra slot for adding
+              ? [...existing, undefined]
               : [existing[0]];
 
             return (
               <div key={def.id} style={{ marginBottom: '1.25rem' }}>
                 <p style={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--cg-text-dim)', marginBottom: '0.4rem' }}>
                   {def.fieldName}
-                  {def.isMultiValue && <span style={{ fontWeight: 400, marginLeft: '0.35rem' }}>(multi)</span>}
+                  {def.isMultiValue && <span style={{ fontWeight: 400, marginLeft: '0.35rem' }}>{t.multi}</span>}
                 </p>
                 {allValues.map((val, idx) => {
                   const draftKey = `${def.id}:${idx}`;
@@ -183,7 +183,7 @@ export function CgNodeEditorPage({ libId, nodeId, onBack }: Props) {
                       ) : (
                         <input
                           className="cg-input cg-field-value-input"
-                          placeholder={isNewSlot ? `Add ${def.fieldName}…` : `${def.fieldName}`}
+                          placeholder={isNewSlot ? `${def.fieldName}…` : def.fieldName}
                           value={displayVal}
                           onChange={(e) => setFieldDrafts((prev) => ({ ...prev, [draftKey]: e.target.value }))}
                           onKeyDown={(e) => {
@@ -201,7 +201,7 @@ export function CgNodeEditorPage({ libId, nodeId, onBack }: Props) {
                           disabled={isSaving}
                           style={{ flexShrink: 0 }}
                         >
-                          {isSaving ? '…' : 'Save'}
+                          {isSaving ? '…' : t.saveAction}
                         </button>
                       )}
                       {val && (
@@ -223,19 +223,18 @@ export function CgNodeEditorPage({ libId, nodeId, onBack }: Props) {
         </div>
       )}
 
-      {/* Connections */}
       {(detail.outEdges.length > 0 || detail.inEdges.length > 0) && (
         <div className="cg-section">
-          <p className="cg-section-title">Connections</p>
+          <p className="cg-section-title">{t.connectionsSection}</p>
           {detail.outEdges.map((e) => (
             <div key={e.id} className="cg-field-row">
-              <span style={{ color: 'var(--cg-text-dim)', fontSize: '0.8rem' }}>→</span>
+              <span style={{ color: 'var(--cg-text-dim)', fontSize: '0.8rem' }}>{t.outgoing}</span>
               <span style={{ fontSize: '0.85rem', color: 'var(--cg-text-dim)' }}>{e.targetNodeId}</span>
             </div>
           ))}
           {detail.inEdges.map((e) => (
             <div key={e.id} className="cg-field-row">
-              <span style={{ color: 'var(--cg-text-dim)', fontSize: '0.8rem' }}>←</span>
+              <span style={{ color: 'var(--cg-text-dim)', fontSize: '0.8rem' }}>{t.incoming}</span>
               <span style={{ fontSize: '0.85rem', color: 'var(--cg-text-dim)' }}>{e.sourceNodeId}</span>
             </div>
           ))}
@@ -243,8 +242,8 @@ export function CgNodeEditorPage({ libId, nodeId, onBack }: Props) {
       )}
 
       <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--cg-border)', fontSize: '0.75rem', color: 'var(--cg-text-dim)' }}>
-        Created: {new Date(node.createdUtc).toLocaleString()} ·
-        Updated: {new Date(node.updatedUtc).toLocaleString()}
+        {t.created} {new Date(node.createdUtc).toLocaleString()} ·
+        {t.updated} {new Date(node.updatedUtc).toLocaleString()}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { Copy } from '../../content/types';
 import {
   type CgFieldDef,
   type CgNodeKind,
@@ -10,23 +11,23 @@ import {
 } from './api/cgApi';
 
 interface Props {
+  copy: Copy;
   libId: string;
 }
 
 const FIELD_TYPES = ['Text', 'Number', 'Date', 'Boolean', 'Media', 'Ref'];
 
-export function CgStudioPage({ libId }: Props) {
+export function CgStudioPage({ copy, libId }: Props) {
+  const t = copy.cg.studio;
   const [kinds, setKinds] = useState<CgNodeKind[]>([]);
   const [fieldDefs, setFieldDefs] = useState<CgFieldDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // New kind form
   const [newKindName, setNewKindName] = useState('');
   const [newKindSubentity, setNewKindSubentity] = useState(false);
   const [addingKind, setAddingKind] = useState(false);
 
-  // New field form — keyed by kindId
   const [fieldForms, setFieldForms] = useState<Record<string, { name: string; type: string; multi: boolean; range: boolean }>>({});
   const [expandedKind, setExpandedKind] = useState<string | null>(null);
 
@@ -36,7 +37,7 @@ export function CgStudioPage({ libId }: Props) {
         setKinds(d.nodeKinds);
         setFieldDefs(d.fieldDefs);
       })
-      .catch(() => setError('Failed to load schema'))
+      .catch(() => setError(t.addTypeFailed))
       .finally(() => setLoading(false));
   }, [libId]);
 
@@ -51,7 +52,7 @@ export function CgStudioPage({ libId }: Props) {
       setNewKindSubentity(false);
       setExpandedKind(kind.id);
     } catch {
-      setError('Failed to add node type');
+      setError(t.addTypeFailed);
     } finally {
       setAddingKind(false);
     }
@@ -63,7 +64,7 @@ export function CgStudioPage({ libId }: Props) {
       setKinds((prev) => prev.filter((k) => k.id !== kindId));
       setFieldDefs((prev) => prev.filter((f) => f.nodeKindId !== kindId));
     } catch {
-      setError('Failed to delete node type');
+      setError(t.deleteTypeFailed);
     }
   }
 
@@ -81,7 +82,7 @@ export function CgStudioPage({ libId }: Props) {
       setFieldDefs((prev) => [...prev, def]);
       setFieldForms((prev) => ({ ...prev, [kindId]: { name: '', type: 'Text', multi: false, range: false } }));
     } catch {
-      setError('Failed to add field');
+      setError(t.addFieldFailed);
     }
   }
 
@@ -90,7 +91,7 @@ export function CgStudioPage({ libId }: Props) {
       await deleteFieldDef(libId, kindId, defId);
       setFieldDefs((prev) => prev.filter((f) => f.id !== defId));
     } catch {
-      setError('Failed to delete field');
+      setError(t.deleteFieldFailed);
     }
   }
 
@@ -110,8 +111,8 @@ export function CgStudioPage({ libId }: Props) {
 
   return (
     <div>
-      <h1 className="cg-page-title">Schema editor</h1>
-      <p className="cg-page-sub">Define node types and their fields. The first field becomes the display label.</p>
+      <h1 className="cg-page-title">{t.title}</h1>
+      <p className="cg-page-sub">{t.sub}</p>
 
       {kinds.map((kind) => {
         const kindFields = fieldsByKind[kind.id] ?? [];
@@ -125,16 +126,16 @@ export function CgStudioPage({ libId }: Props) {
                 {expanded ? '▾' : '▸'}
               </span>
               <span className="cg-kind-name">{kind.name}</span>
-              {kind.isSubentity && <span className="cg-kind-subentity-badge">subentity</span>}
+              {kind.isSubentity && <span className="cg-kind-subentity-badge">{t.isSubentity}</span>}
               <span style={{ fontSize: '0.78rem', color: 'var(--cg-text-dim)', marginLeft: 'auto', marginRight: '0.5rem' }}>
-                {kindFields.length} field{kindFields.length !== 1 ? 's' : ''}
+                {kindFields.length}
               </span>
               <button
                 className="cg-btn cg-btn-danger cg-btn-sm"
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleDeleteKind(kind.id); }}
               >
-                Delete type
+                {t.deleteType}
               </button>
             </div>
 
@@ -142,20 +143,20 @@ export function CgStudioPage({ libId }: Props) {
               <div className="cg-kind-body">
                 {kindFields.length === 0 && (
                   <p style={{ color: 'var(--cg-text-dim)', fontSize: '0.82rem', margin: '0 0 0.75rem' }}>
-                    No fields yet. Add one below.
+                    {t.noFields}
                   </p>
                 )}
 
                 {kindFields.map((f, idx) => (
                   <div key={f.id} className="cg-field-row">
                     <span style={{ fontSize: '0.72rem', color: 'var(--cg-text-dim)', minWidth: '1.5rem' }}>
-                      {idx === 0 ? '★' : `${idx + 1}`}
+                      {idx === 0 ? t.labelIndex : `${idx + 1}`}
                     </span>
                     <span className="cg-field-name">{f.fieldName}</span>
                     <span className="cg-field-type">{f.fieldType}</span>
                     <div className="cg-field-flags">
-                      {f.isMultiValue && <span>multi</span>}
-                      {f.isRangeCapable && <span>range</span>}
+                      {f.isMultiValue && <span>{t.multiValue}</span>}
+                      {f.isRangeCapable && <span>{t.range}</span>}
                     </div>
                     <button
                       className="cg-btn cg-btn-danger cg-btn-sm"
@@ -170,12 +171,12 @@ export function CgStudioPage({ libId }: Props) {
 
                 <div style={{ borderTop: '1px solid var(--cg-border)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
                   <p style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--cg-text-dim)', margin: '0 0 0.5rem' }}>
-                    Add field
+                    {t.addField}
                   </p>
                   <div className="cg-inline-form" style={{ flexWrap: 'wrap' }}>
                     <input
                       className="cg-input"
-                      placeholder="Field name"
+                      placeholder={t.fieldName}
                       value={form.name}
                       onChange={(e) => setForm(kind.id, { name: e.target.value })}
                       onKeyDown={(e) => e.key === 'Enter' && handleAddField(kind.id)}
@@ -186,17 +187,17 @@ export function CgStudioPage({ libId }: Props) {
                       value={form.type}
                       onChange={(e) => setForm(kind.id, { type: e.target.value })}
                     >
-                      {FIELD_TYPES.map((t) => (
-                        <option key={t} value={t}>{t}</option>
+                      {FIELD_TYPES.map((ft) => (
+                        <option key={ft} value={ft}>{ft}</option>
                       ))}
                     </select>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: 'var(--cg-text-dim)', cursor: 'pointer' }}>
                       <input type="checkbox" checked={form.multi} onChange={(e) => setForm(kind.id, { multi: e.target.checked })} />
-                      Multi-value
+                      {t.multiValue}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: 'var(--cg-text-dim)', cursor: 'pointer' }}>
                       <input type="checkbox" checked={form.range} onChange={(e) => setForm(kind.id, { range: e.target.checked })} />
-                      Range
+                      {t.range}
                     </label>
                     <button
                       className="cg-btn cg-btn-primary cg-btn-sm"
@@ -204,7 +205,7 @@ export function CgStudioPage({ libId }: Props) {
                       onClick={() => handleAddField(kind.id)}
                       disabled={!form.name.trim()}
                     >
-                      Add
+                      {t.addAction}
                     </button>
                   </div>
                 </div>
@@ -216,12 +217,12 @@ export function CgStudioPage({ libId }: Props) {
 
       <div style={{ marginTop: '1.5rem', background: 'var(--cg-surface)', border: '1px solid var(--cg-border)', borderRadius: 'var(--cg-radius)', padding: '1rem' }}>
         <p style={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cg-text-dim)', margin: '0 0 0.75rem' }}>
-          Add node type
+          {t.addTypeTitle}
         </p>
         <div className="cg-inline-form">
           <input
             className="cg-input"
-            placeholder="Type name (e.g. Person, WordPair…)"
+            placeholder={t.typePlaceholder}
             value={newKindName}
             onChange={(e) => setNewKindName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAddKind()}
@@ -229,7 +230,7 @@ export function CgStudioPage({ libId }: Props) {
           />
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: 'var(--cg-text-dim)', cursor: 'pointer' }}>
             <input type="checkbox" checked={newKindSubentity} onChange={(e) => setNewKindSubentity(e.target.checked)} />
-            Subentity
+            {t.isSubentity}
           </label>
           <button
             className="cg-btn cg-btn-primary"
@@ -237,7 +238,7 @@ export function CgStudioPage({ libId }: Props) {
             onClick={handleAddKind}
             disabled={addingKind || !newKindName.trim()}
           >
-            {addingKind ? 'Adding…' : 'Add type'}
+            {addingKind ? t.addingType : t.addTypeAction}
           </button>
         </div>
       </div>

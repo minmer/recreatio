@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
+import type { Copy } from '../../content/types';
 import { type CgFieldDef, type CgFieldValue, type CgNode, type CgNodeKind, createNode, deleteNode, getLibrary, getNode, listNodes, upsertFieldValue } from './api/cgApi';
 
 interface Props {
+  copy: Copy;
   libId: string;
   onOpenNode: (nodeId: string) => void;
 }
 
-export function CgGraphPage({ libId, onOpenNode }: Props) {
+export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
+  const t = copy.cg.graph;
   const [nodes, setNodes] = useState<CgNode[]>([]);
   const [kinds, setKinds] = useState<CgNodeKind[]>([]);
   const [fieldDefs, setFieldDefs] = useState<CgFieldDef[]>([]);
@@ -17,11 +20,9 @@ export function CgGraphPage({ libId, onOpenNode }: Props) {
   const [filterQ, setFilterQ] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  // Quick-add form
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newKindId, setNewKindId] = useState('');
-  // Inline field values for quick-add
   const [inlineValues, setInlineValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -31,7 +32,7 @@ export function CgGraphPage({ libId, onOpenNode }: Props) {
         setFieldDefs(d.fieldDefs);
         if (d.nodeKinds.length > 0) setNewKindId(d.nodeKinds[0].id);
       })
-      .catch(() => setError('Failed to load schema'));
+      .catch(() => setError(t.loadFailed));
   }, [libId]);
 
   useEffect(() => {
@@ -43,7 +44,7 @@ export function CgGraphPage({ libId, onOpenNode }: Props) {
     };
     listNodes(libId, params)
       .then(setNodes)
-      .catch(() => setError('Failed to load nodes'))
+      .catch(() => setError(t.loadFailed))
       .finally(() => setLoading(false));
   }, [libId, filterKindId, filterQ]);
 
@@ -51,9 +52,6 @@ export function CgGraphPage({ libId, onOpenNode }: Props) {
   const selectedKindFields = fieldDefs.filter((f) => f.nodeKindId === (selectedKind?.id ?? ''));
 
   async function handleAddNode() {
-    if (!newLabel.trim() && selectedKindFields.length > 0) {
-      // Use the first field's value as label if no explicit label given
-    }
     const label = newLabel.trim() || inlineValues[selectedKindFields[0]?.id ?? '']?.trim() || '(unnamed)';
     setAdding(true);
     try {
@@ -63,7 +61,6 @@ export function CgGraphPage({ libId, onOpenNode }: Props) {
         label,
       });
 
-      // Save inline field values
       for (const [fieldDefId, val] of Object.entries(inlineValues)) {
         if (val.trim()) {
           await upsertFieldValue(libId, node.id, { fieldDefId, textValue: val.trim(), sortOrder: 0 });
@@ -74,7 +71,7 @@ export function CgGraphPage({ libId, onOpenNode }: Props) {
       setNewLabel('');
       setInlineValues({});
     } catch {
-      setError('Failed to create node');
+      setError(t.createFailed);
     } finally {
       setAdding(false);
     }
@@ -86,24 +83,23 @@ export function CgGraphPage({ libId, onOpenNode }: Props) {
       setNodes((prev) => prev.filter((n) => n.id !== nodeId));
       setDeleteConfirm(null);
     } catch {
-      setError('Failed to delete node');
+      setError(t.deleteFailed);
     }
   }
 
   const kindMap = Object.fromEntries(kinds.map((k) => [k.id, k]));
 
-  // Columns: for the selected filter kind, show its field names
   const displayKind = filterKindId ? kinds.find((k) => k.id === filterKindId) : null;
   const displayFields = displayKind ? fieldDefs.filter((f) => f.nodeKindId === displayKind.id).slice(0, 4) : [];
 
   return (
     <div>
-      <h1 className="cg-page-title">Nodes</h1>
+      <h1 className="cg-page-title">{t.title}</h1>
 
       <div className="cg-toolbar">
         <input
           className="cg-input cg-search"
-          placeholder="Search by label…"
+          placeholder={t.searchPlaceholder}
           value={filterQ}
           onChange={(e) => setFilterQ(e.target.value)}
         />
@@ -112,18 +108,17 @@ export function CgGraphPage({ libId, onOpenNode }: Props) {
           value={filterKindId}
           onChange={(e) => setFilterKindId(e.target.value)}
         >
-          <option value="">All types</option>
+          <option value="">{t.allTypes}</option>
           {kinds.map((k) => (
             <option key={k.id} value={k.id}>{k.name}</option>
           ))}
         </select>
       </div>
 
-      {/* Quick-add row */}
       {kinds.length > 0 && (
         <div style={{ background: 'var(--cg-surface)', border: '1px solid var(--cg-border)', borderRadius: 'var(--cg-radius)', padding: '1rem', marginBottom: '1rem' }}>
           <p style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cg-text-dim)', margin: '0 0 0.6rem' }}>
-            Add node
+            {t.addNode}
           </p>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <select
@@ -150,7 +145,7 @@ export function CgGraphPage({ libId, onOpenNode }: Props) {
             {selectedKindFields.length === 0 && (
               <input
                 className="cg-input"
-                placeholder="Label"
+                placeholder={t.labelPlaceholder}
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddNode()}
@@ -164,7 +159,7 @@ export function CgGraphPage({ libId, onOpenNode }: Props) {
               onClick={handleAddNode}
               disabled={adding}
             >
-              {adding ? 'Adding…' : '+ Add'}
+              {adding ? t.adding : t.addAction}
             </button>
           </div>
         </div>
@@ -177,15 +172,16 @@ export function CgGraphPage({ libId, onOpenNode }: Props) {
       ) : nodes.length === 0 ? (
         <div className="cg-empty">
           <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>◎</p>
-          <p>No nodes yet. Add your first one above.</p>
+          <p>{t.noNodes}</p>
+          <p>{t.noNodesDesc}</p>
         </div>
       ) : (
         <div className="cg-table-wrap">
           <table className="cg-table">
             <thead>
               <tr>
-                <th>Label</th>
-                <th>Type</th>
+                <th>{t.labelColumn}</th>
+                <th>{t.typeColumn}</th>
                 {displayFields.map((f) => <th key={f.id}>{f.fieldName}</th>)}
                 <th style={{ width: '6rem' }}></th>
               </tr>

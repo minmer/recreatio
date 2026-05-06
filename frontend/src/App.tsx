@@ -731,12 +731,14 @@ export default function App() {
         <Suspense fallback={lazyFallback}>
           {isAuthenticated ? (
             <CgApp
+              copy={t}
               onNavigate={navigateRoute}
               secureMode={secureMode}
               onLogout={handleLogout}
             />
           ) : (
             <CgLandingPage
+              copy={t}
               onAuthAction={() => openLoginCard('cogita')}
               onNavigate={navigateRoute}
             />

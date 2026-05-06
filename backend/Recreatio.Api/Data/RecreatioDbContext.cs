@@ -398,6 +398,28 @@ public sealed class RecreatioDbContext : DbContext
             .HasIndex(x => x.ScopeKey)
             .IsUnique();
 
+        modelBuilder.Entity<Data.Cg.CgNodeKind>()
+            .HasOne<Data.Cg.CgLibrary>()
+            .WithMany()
+            .HasForeignKey(x => x.LibraryId);
+
+        modelBuilder.Entity<Data.Cg.CgFieldDef>()
+            .HasOne<Data.Cg.CgLibrary>()
+            .WithMany()
+            .HasForeignKey(x => x.LibraryId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Cg.CgFieldDef>()
+            .HasOne<Data.Cg.CgNodeKind>()
+            .WithMany()
+            .HasForeignKey(x => x.NodeKindId);
+
+        modelBuilder.Entity<Data.Cg.CgFieldDef>()
+            .HasOne<Data.Cg.CgNodeKind>()
+            .WithMany()
+            .HasForeignKey(x => x.RefNodeKindId)
+            .OnDelete(DeleteBehavior.NoAction);
+
         modelBuilder.Entity<Data.Edk.EdkEvent>()
             .HasIndex(x => x.Slug)
             .IsUnique();

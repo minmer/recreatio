@@ -1,68 +1,49 @@
+import type { Copy } from '../../content/types';
+import type { RouteKey } from '../../types/navigation';
 import '../../styles/cg.css';
 
 interface Props {
+  copy: Copy;
   onAuthAction: () => void;
-  onNavigate: (route: string) => void;
+  onNavigate: (route: RouteKey) => void;
 }
 
-export function CgLandingPage({ onAuthAction, onNavigate }: Props) {
+export function CgLandingPage({ copy, onAuthAction, onNavigate }: Props) {
+  const t = copy.cg.landing;
+
   return (
     <div className="cg-landing">
-      <p className="cg-landing-logo">Cogita Graph</p>
+      <p className="cg-landing-logo">{t.logo}</p>
 
       <h1 className="cg-landing-title">
-        Your knowledge,<br />
-        as a <span>connected graph</span>
+        {t.headline}<br />
+        <span>{t.headlineAccent}</span>
       </h1>
 
-      <p className="cg-landing-sub">
-        Build vocabulary lists, phonebooks, structured lessons and anything in between
-        using a flexible node-graph model. Every piece of information connects.
-      </p>
+      <p className="cg-landing-sub">{t.sub}</p>
 
       <div className="cg-landing-features">
-        <div className="cg-landing-feature">
-          <div className="cg-landing-feature-icon">📖</div>
-          <p className="cg-landing-feature-title">Vocabulary</p>
-          <p className="cg-landing-feature-desc">
-            Bilingual word pairs in any language combination, ready for revision.
-          </p>
-        </div>
-        <div className="cg-landing-feature">
-          <div className="cg-landing-feature-icon">📇</div>
-          <p className="cg-landing-feature-title">Phonebook</p>
-          <p className="cg-landing-feature-desc">
-            Contacts with multiple phones, emails and notes — always searchable.
-          </p>
-        </div>
-        <div className="cg-landing-feature">
-          <div className="cg-landing-feature-icon">🎓</div>
-          <p className="cg-landing-feature-title">Lesson</p>
-          <p className="cg-landing-feature-desc">
-            Concepts, questions and topics wired together into a structured session.
-          </p>
-        </div>
-        <div className="cg-landing-feature">
-          <div className="cg-landing-feature-icon">◉</div>
-          <p className="cg-landing-feature-title">Any graph</p>
-          <p className="cg-landing-feature-desc">
-            Define your own node types, fields and relationships from scratch.
-          </p>
-        </div>
+        {t.features.map((f) => (
+          <div key={f.title} className="cg-landing-feature">
+            <div className="cg-landing-feature-icon">{f.icon}</div>
+            <p className="cg-landing-feature-title">{f.title}</p>
+            <p className="cg-landing-feature-desc">{f.desc}</p>
+          </div>
+        ))}
       </div>
 
       <div className="cg-landing-cta">
         <button className="cg-btn cg-btn-primary" onClick={onAuthAction} type="button">
-          Sign in to start
+          {t.cta}
         </button>
       </div>
 
       <div className="cg-landing-links">
         <button className="cg-landing-link" onClick={() => onNavigate('cogita')} type="button">
-          ← Back to Cogita (classic)
+          {t.linkCogita}
         </button>
         <button className="cg-landing-link" onClick={() => onNavigate('home')} type="button">
-          Recreatio home
+          {t.linkHome}
         </button>
       </div>
     </div>

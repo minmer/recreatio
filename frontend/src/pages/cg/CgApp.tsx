@@ -1,4 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
+import type { Copy } from '../../content/types';
+import type { RouteKey } from '../../types/navigation';
 import '../../styles/cg.css';
 import { CgGraphPage } from './CgGraphPage';
 import { CgHomePage } from './CgHomePage';
@@ -29,12 +31,13 @@ function parseRoute(pathname: string) {
 }
 
 interface Props {
-  onNavigate: (route: string) => void;
+  copy: Copy;
+  onNavigate: (route: RouteKey) => void;
   secureMode: boolean;
   onLogout: () => void;
 }
 
-export function CgApp({ onNavigate, secureMode: _secureMode, onLogout }: Props) {
+export function CgApp({ copy, onNavigate, secureMode: _secureMode, onLogout }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const route = parseRoute(location.pathname);
@@ -56,12 +59,14 @@ export function CgApp({ onNavigate, secureMode: _secureMode, onLogout }: Props) 
 
   const currentLibId = route.view !== 'home' ? (route as { libId: string }).libId : undefined;
 
+  const cg = copy.cg;
+
   // Sidebar nav items when inside a library
   const libraryNav = currentLibId
     ? [
-        { key: 'library', label: 'Overview',      icon: '◎' },
-        { key: 'studio',  label: 'Schema editor', icon: '✎' },
-        { key: 'nodes',   label: 'Nodes',         icon: '⊞' },
+        { key: 'library', label: cg.nav.overview,      icon: '◎' },
+        { key: 'studio',  label: cg.nav.schemaEditor,  icon: '✎' },
+        { key: 'nodes',   label: cg.nav.nodes,         icon: '⊞' },
       ]
     : [];
 
@@ -78,10 +83,10 @@ export function CgApp({ onNavigate, secureMode: _secureMode, onLogout }: Props) 
           <>
             <span className="cg-header-sep">/</span>
             <span className="cg-header-crumb">
-              {route.view === 'studio' ? 'Schema editor'
-               : route.view === 'nodes' ? 'Nodes'
-               : route.view === 'node' ? 'Node editor'
-               : 'Overview'}
+              {route.view === 'studio' ? cg.nav.schemaEditor
+               : route.view === 'nodes' ? cg.nav.nodes
+               : route.view === 'node' ? cg.studio.title
+               : cg.nav.overview}
             </span>
           </>
         )}
@@ -90,16 +95,16 @@ export function CgApp({ onNavigate, secureMode: _secureMode, onLogout }: Props) 
             className="cg-btn cg-btn-ghost cg-btn-sm"
             type="button"
             onClick={() => onNavigate('cogita')}
-            title="Switch to Cogita (classic)"
+            title={cg.nav.switchToCogita}
           >
-            Cogita ↗
+            {cg.nav.switchToCogita}
           </button>
           <button
             className="cg-btn cg-btn-ghost cg-btn-sm"
             type="button"
             onClick={onLogout}
           >
-            Sign out
+            {cg.nav.signOut}
           </button>
         </div>
       </header>
@@ -115,11 +120,11 @@ export function CgApp({ onNavigate, secureMode: _secureMode, onLogout }: Props) 
                 onClick={goHome}
               >
                 <span className="cg-nav-item-icon">☰</span>
-                All libraries
+                {cg.nav.allLibraries}
               </button>
             </div>
             <div className="cg-sidebar-section">
-              <p className="cg-sidebar-label">Library</p>
+              <p className="cg-sidebar-label">{cg.title}</p>
               {libraryNav.map((item) => (
                 <button
                   key={item.key}
@@ -143,27 +148,31 @@ export function CgApp({ onNavigate, secureMode: _secureMode, onLogout }: Props) 
         <main className="cg-main">
           {route.view === 'home' && (
             <CgHomePage
+              copy={copy}
               onOpenLibrary={goLibrary}
               onNavigateToCogita={() => onNavigate('cogita')}
             />
           )}
           {route.view === 'library' && currentLibId && (
             <CgLibraryPage
+              copy={copy}
               libId={currentLibId}
               onNavigate={handleLibraryNav}
             />
           )}
           {route.view === 'studio' && currentLibId && (
-            <CgStudioPage libId={currentLibId} />
+            <CgStudioPage copy={copy} libId={currentLibId} />
           )}
           {route.view === 'nodes' && currentLibId && (
             <CgGraphPage
+              copy={copy}
               libId={currentLibId}
               onOpenNode={(nodeId) => goNode(currentLibId, nodeId)}
             />
           )}
           {route.view === 'node' && currentLibId && (route as { nodeId: string }).nodeId && (
             <CgNodeEditorPage
+              copy={copy}
               libId={currentLibId}
               nodeId={(route as { nodeId: string }).nodeId}
               onBack={() => goNodes(currentLibId)}

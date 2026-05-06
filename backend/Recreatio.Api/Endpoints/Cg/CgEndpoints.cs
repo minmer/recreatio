@@ -428,7 +428,7 @@ public static class CgEndpoints
         return await db.CgLibraries.AsNoTracking().AnyAsync(x => x.Id == libId && x.OwnerAccountId == userId, ct);
     }
 
-    private static async Task SeedTemplateAsync(RecreatioDbContext db, Data.Cg.CgLibrary lib, DateTimeOffset now, CancellationToken ct)
+    private static Task SeedTemplateAsync(RecreatioDbContext db, Data.Cg.CgLibrary lib, DateTimeOffset now, CancellationToken ct)
     {
         var kindId = Guid.NewGuid();
         var kinds = new List<Data.Cg.CgNodeKind>();
@@ -468,6 +468,7 @@ public static class CgEndpoints
 
         if (kinds.Count > 0) db.CgNodeKinds.AddRange(kinds);
         if (defs.Count > 0) db.CgFieldDefs.AddRange(defs);
+        return Task.CompletedTask;
     }
 
     // ── Request records ──────────────────────────────────────────────────────────
