@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Copy } from '../../content/types';
 import {
   type CgFieldDef,
@@ -13,6 +13,7 @@ import {
 
 interface SlotState {
   value: string;
+  nodeId?: string; // set when user picks from autocomplete
   stable: boolean;
 }
 
@@ -53,8 +54,8 @@ function adjustSlots(slots: SlotState[], count: number): SlotState[] {
   return [...slots, ...Array.from({ length: count - slots.length }, () => ({ value: '', stable: false }))];
 }
 
-function setSlotValue(fs: FieldState, slotIdx: number, value: string): FieldState {
-  return { ...fs, slots: fs.slots.map((s, i) => (i === slotIdx ? { ...s, value } : s)) };
+function setSlotValue(fs: FieldState, slotIdx: number, value: string, nodeId?: string): FieldState {
+  return { ...fs, slots: fs.slots.map((s, i) => (i === slotIdx ? { ...s, value, nodeId } : s)) };
 }
 
 function toggleStable(fs: FieldState, slotIdx: number): FieldState {
@@ -104,19 +105,8 @@ function applyStableField(fs: FieldState, def: CgFieldDef, allDefs: CgFieldDef[]
 
 function isFormEmpty(formState: FormState): boolean {
   return Object.values(formState).every(
-    (fs) =>
-      fs.slots.every((s) => !s.value.trim()) &&
-      fs.subForms.every((sf) => isFormEmpty(sf)),
+    (fs) => fs.slots.every((s) => !s.value.trim()) && fs.subForms.every((sf) => isFormEmpty(sf)),
   );
-}
-
-async function findOrCreate(libId: string, kindId: string, label: string): Promise<CgNode> {
-  if (label) {
-    const existing = await listNodes(libId, { kindId, q: label, limit: 20 });
-    const match = existing.find((n) => n.label?.toLowerCase() === label.toLowerCase());
-    if (match) return match;
-  }
-  return createNode(libId, { nodeType: 'Entity', nodeKindId: kindId, label: label || undefined });
 }
 
 async function submitKind(
@@ -129,13 +119,8 @@ async function submitKind(
 ): Promise<{ node: CgNode; label: string }> {
   const kindDefs = allDefs.filter((d) => d.nodeKindId === kindId).sort((a, b) => a.sortOrder - b.sortOrder);
   const fieldValues: Array<{
-    defId: string;
-    textValue?: string;
-    refNodeId?: string;
-    numberValue?: number;
-    dateValue?: string;
-    boolValue?: boolean;
-    sortOrder: number;
+    defId: string; textValue?: string; refNodeId?: string;
+    numberValue?: number; dateValue?: string; boolValue?: boolean; sortOrder: number;
   }> = [];
   const labelParts: string[] = [];
 
@@ -149,22 +134,26 @@ async function submitKind(
           const sf = fieldState.subForms[i];
           if (isFormEmpty(sf)) continue;
           const { node: refNode, label: refLabel } = await submitKind(
-            def.refNodeKindId,
-            sf,
-            libId,
-            allDefs,
-            depth + 1,
-            true,
+            def.refNodeKindId, sf, libId, allDefs, depth + 1, true,
           );
           fieldValues.push({ defId: def.id, refNodeId: refNode.id, sortOrder: i });
           if (labelParts.length === 0 || i > 0) labelParts.push(refLabel);
         }
       } else {
         for (let i = 0; i < fieldState.count; i++) {
-          const label = fieldState.slots[i]?.value.trim() ?? '';
-          if (!label) continue;
-          const refNode = await findOrCreate(libId, def.refNodeKindId, label);
-          fieldValues.push({ defId: def.id, refNodeId: refNode.id, sortOrder: i });
+          const slot = fieldState.slots[i];
+          if (!slot) continue;
+          // Use pinned nodeId directly, skip API search
+          if (slot.nodeId) {
+            fieldValues.push({ defId: def.id, refNodeId: slot.nodeId, sortOrder: i });
+          } else {
+            const label = slot.value.trim();
+            if (!label) continue;
+            const existing = await listNodes(libId, { kindId: def.refNodeKindId, q: label, limit: 20 });
+            const match = existing.find((n) => n.label?.toLowerCase() === label.toLowerCase());
+            const refNode = match ?? await createNode(libId, { nodeType: 'Entity', nodeKindId: def.refNodeKindId, label });
+            fieldValues.push({ defId: def.id, refNodeId: refNode.id, sortOrder: i });
+          }
         }
       }
     } else {
@@ -185,7 +174,6 @@ async function submitKind(
   }
 
   const label = labelParts.join(' / ');
-
   let node: CgNode;
   if (findOrCreateMode && label) {
     const existing = await listNodes(libId, { kindId, q: label, limit: 20 });
@@ -198,17 +186,150 @@ async function submitKind(
 
   for (const fv of fieldValues) {
     await upsertFieldValue(libId, node.id, {
-      fieldDefId: fv.defId,
-      textValue: fv.textValue,
-      refNodeId: fv.refNodeId,
-      numberValue: fv.numberValue,
-      dateValue: fv.dateValue,
-      boolValue: fv.boolValue,
+      fieldDefId: fv.defId, textValue: fv.textValue, refNodeId: fv.refNodeId,
+      numberValue: fv.numberValue, dateValue: fv.dateValue, boolValue: fv.boolValue,
       sortOrder: fv.sortOrder,
     });
   }
 
   return { node, label };
+}
+
+// ── RefSelect ─────────────────────────────────────────────────────────────────
+
+function RefSelect({ libId, refKindId, slot, onUpdate, placeholder, onEnter, tabIndex: tabIdx }: {
+  libId: string;
+  refKindId: string;
+  slot: SlotState;
+  onUpdate: (slot: SlotState) => void;
+  placeholder: string;
+  onEnter: (el: HTMLInputElement) => void;
+  tabIndex?: number;
+}) {
+  const [query, setQuery] = useState(slot.value);
+  const [suggestions, setSuggestions] = useState<CgNode[]>([]);
+  const [open, setOpen] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!slot.stable) setQuery(slot.value);
+  }, [slot.value, slot.stable]);
+
+  function handleChange(val: string) {
+    setQuery(val);
+    onUpdate({ ...slot, value: val, nodeId: undefined });
+    if (timer.current) clearTimeout(timer.current);
+    if (val.length >= 1) {
+      timer.current = setTimeout(async () => {
+        try {
+          const results = await listNodes(libId, { kindId: refKindId, q: val, limit: 8 });
+          setSuggestions(results);
+          setOpen(results.length > 0);
+        } catch { /* ignore */ }
+      }, 200);
+    } else {
+      setSuggestions([]);
+      setOpen(false);
+    }
+  }
+
+  function select(node: CgNode) {
+    const label = node.label ?? '';
+    setQuery(label);
+    setSuggestions([]);
+    setOpen(false);
+    onUpdate({ value: label, nodeId: node.id, stable: true });
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Escape') { setOpen(false); return; }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (open && suggestions.length > 0) {
+        select(suggestions[0]);
+      } else {
+        setOpen(false);
+        if (inputRef.current) onEnter(inputRef.current);
+      }
+    }
+  }
+
+  if (slot.nodeId) {
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+        background: 'var(--cg-cyan)22', color: 'var(--cg-cyan)',
+        borderRadius: '999px', padding: '0.15rem 0.55rem',
+        fontSize: '0.82rem', fontWeight: 600, flex: 1,
+      }}>
+        {slot.value}
+        <button
+          type="button"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1 }}
+          onClick={() => { onUpdate({ value: '', nodeId: undefined, stable: false }); setQuery(''); }}
+        >
+          ×
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <div style={{ position: 'relative', flex: 1 }}>
+      <input
+        ref={inputRef}
+        className="cg-input"
+        style={{ width: '100%' }}
+        placeholder={placeholder}
+        value={query}
+        tabIndex={tabIdx}
+        onChange={(e) => handleChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={() => { setTimeout(() => setOpen(false), 150); }}
+        onFocus={() => { if (suggestions.length > 0) setOpen(true); }}
+      />
+      {open && suggestions.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+          background: 'var(--cg-surface)', border: '1px solid var(--cg-border)',
+          borderRadius: 'var(--cg-radius)', boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+          marginTop: 2, maxHeight: 160, overflowY: 'auto',
+        }}>
+          {suggestions.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              onMouseDown={() => select(n)}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                padding: '0.4rem 0.65rem', background: 'none', border: 'none',
+                cursor: 'pointer', fontSize: '0.85rem', color: 'var(--cg-text)',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--cg-hover)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+            >
+              {n.label ?? '(unnamed)'}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Schema description ────────────────────────────────────────────────────────
+
+function buildDescription(kindId: string, allKinds: CgNodeKind[], allDefs: CgFieldDef[]): string {
+  const kindDefs = allDefs.filter((d) => d.nodeKindId === kindId).sort((a, b) => a.sortOrder - b.sortOrder);
+  const parts = kindDefs.map((d) => {
+    if (d.fieldType === 'Ref' && d.refNodeKindId) {
+      const refKind = allKinds.find((k) => k.id === d.refNodeKindId);
+      return refKind ? `${d.fieldName} (${refKind.name})` : d.fieldName;
+    }
+    return d.fieldName;
+  });
+  return parts.join(' · ');
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -229,19 +350,24 @@ export function CgSmartAddForm({ copy, libId, kinds, fieldDefs, selectedKindId, 
   const [formState, setFormState] = useState<FormState>(() => initForm(selectedKindId, fieldDefs, 0));
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setFormState(initForm(selectedKindId, fieldDefs, 0));
   }, [selectedKindId]);
+
+  const selectedKind = kinds.find((k) => k.id === selectedKindId);
+  if (!selectedKind) return null;
+
+  const kindDefs = fieldDefs.filter((d) => d.nodeKindId === selectedKindId).sort((a, b) => a.sortOrder - b.sortOrder);
+  const description = buildDescription(selectedKindId, kinds, fieldDefs);
 
   async function handleSubmit() {
     setAdding(true);
     setError(null);
     try {
       const { node } = await submitKind(selectedKindId, formState, libId, fieldDefs, 0, false);
-      const kindDefs = fieldDefs
-        .filter((d) => d.nodeKindId === selectedKindId)
-        .sort((a, b) => a.sortOrder - b.sortOrder);
       const newState: FormState = {};
       for (const def of kindDefs) {
         if (formState[def.id]) {
@@ -250,6 +376,11 @@ export function CgSmartAddForm({ copy, libId, kinds, fieldDefs, selectedKindId, 
       }
       setFormState(newState);
       onCreated(node);
+      // refocus first non-stable input
+      setTimeout(() => {
+        const first = formRef.current?.querySelector<HTMLElement>('input:not([tabindex="-1"]), select:not([tabindex="-1"])');
+        first?.focus();
+      }, 50);
     } catch {
       setError(copy.cg.graph.createFailed);
     } finally {
@@ -257,11 +388,24 @@ export function CgSmartAddForm({ copy, libId, kinds, fieldDefs, selectedKindId, 
     }
   }
 
-  const selectedKind = kinds.find((k) => k.id === selectedKindId);
-  if (!selectedKind) return null;
-  const kindDefs = fieldDefs
-    .filter((d) => d.nodeKindId === selectedKindId)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+  function focusNext(currentEl: HTMLElement) {
+    if (!formRef.current) return;
+    const inputs = Array.from(
+      formRef.current.querySelectorAll<HTMLElement>('input:not([tabindex="-1"]), select:not([tabindex="-1"])')
+    );
+    const idx = inputs.indexOf(currentEl);
+    if (idx >= 0 && idx < inputs.length - 1) {
+      inputs[idx + 1].focus();
+    } else {
+      handleSubmit();
+    }
+  }
+
+  function handleFieldKey(e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    focusNext(e.currentTarget as HTMLElement);
+  }
 
   function renderField(
     def: CgFieldDef,
@@ -270,211 +414,183 @@ export function CgSmartAddForm({ copy, libId, kinds, fieldDefs, selectedKindId, 
     depth: number,
   ): React.ReactNode {
     const isExpandedRef = def.fieldType === 'Ref' && def.refNodeKindId && depth < MAX_DEPTH;
-    const subKind = isExpandedRef ? kinds.find((k) => k.id === def.refNodeKindId) : null;
+    const isLeafRef = def.fieldType === 'Ref' && def.refNodeKindId && depth >= MAX_DEPTH;
+    const refKind = def.fieldType === 'Ref' && def.refNodeKindId ? kinds.find((k) => k.id === def.refNodeKindId) : null;
+    const subKind = isExpandedRef ? refKind : null;
     const subDefs = subKind
       ? fieldDefs.filter((d) => d.nodeKindId === subKind.id).sort((a, b) => a.sortOrder - b.sortOrder)
       : [];
 
     return (
       <div key={def.id} style={{ marginBottom: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-          <span
-            style={{
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              letterSpacing: '0.07em',
-              textTransform: 'uppercase',
-              color: 'var(--cg-text-dim)',
-            }}
-          >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--cg-text-dim)' }}>
             {def.fieldName}
+            {refKind && (
+              <span style={{ fontWeight: 400, marginLeft: '0.25rem', textTransform: 'none' }}>→ {refKind.name}</span>
+            )}
           </span>
           {def.isMultiValue && (
             <>
-              <button
-                className="cg-btn cg-btn-ghost cg-btn-sm"
-                type="button"
+              <button className="cg-btn cg-btn-ghost cg-btn-sm" type="button" tabIndex={-1}
                 onClick={() => onChange(adjustCount(fieldState, fieldState.count - 1, def, fieldDefs, depth))}
-                disabled={fieldState.count <= 1}
-              >
-                −
-              </button>
-              <span style={{ fontSize: '0.8rem', color: 'var(--cg-text)' }}>{fieldState.count}</span>
+                disabled={fieldState.count <= 1}>−</button>
+              <span style={{ fontSize: '0.8rem', color: 'var(--cg-text)', minWidth: '1rem', textAlign: 'center' }}>{fieldState.count}</span>
+              <button className="cg-btn cg-btn-ghost cg-btn-sm" type="button" tabIndex={-1}
+                onClick={() => onChange(adjustCount(fieldState, fieldState.count + 1, def, fieldDefs, depth))}>+</button>
               <button
                 className="cg-btn cg-btn-ghost cg-btn-sm"
-                type="button"
-                onClick={() => onChange(adjustCount(fieldState, fieldState.count + 1, def, fieldDefs, depth))}
-              >
-                +
-              </button>
-              <button
-                className={`cg-btn cg-btn-ghost cg-btn-sm${fieldState.countStable ? ' active' : ''}`}
                 style={fieldState.countStable ? { color: 'var(--cg-cyan)' } : {}}
-                type="button"
+                type="button" tabIndex={-1}
                 title={fieldState.countStable ? 'Count pinned' : 'Pin count'}
-                onClick={() => onChange({ ...fieldState, countStable: !fieldState.countStable })}
-              >
+                onClick={() => onChange({ ...fieldState, countStable: !fieldState.countStable })}>
                 {fieldState.countStable ? '🔒' : '🔓'}
               </button>
             </>
           )}
         </div>
 
-        {Array.from({ length: fieldState.count }, (_, slotIdx) => (
-          <div
-            key={slotIdx}
-            style={
-              isExpandedRef
-                ? {
-                    border: '1px solid var(--cg-border)',
-                    borderRadius: 'var(--cg-radius)',
-                    padding: '0.65rem',
-                    marginBottom: '0.5rem',
-                    background: depth === 0 ? 'var(--cg-surface)' : 'var(--cg-bg)',
-                  }
-                : { display: 'flex', gap: '0.35rem', alignItems: 'center', marginBottom: '0.3rem' }
-            }
-          >
-            {isExpandedRef && subKind && fieldState.count > 1 && (
-              <p
-                style={{
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  color: 'var(--cg-text-dim)',
-                  margin: '0 0 0.4rem',
-                }}
-              >
-                {subKind.name} {slotIdx + 1}
-              </p>
-            )}
+        {Array.from({ length: fieldState.count }, (_, slotIdx) => {
+          const slot = fieldState.slots[slotIdx] ?? { value: '', stable: false };
+          const isStable = slot.stable;
 
-            {isExpandedRef ? (
-              subDefs.map((subDef) => {
-                const subFieldState = fieldState.subForms[slotIdx]?.[subDef.id];
-                if (!subFieldState) return null;
-                return renderField(subDef, subFieldState, (updated) => {
-                  const newSubForms = fieldState.subForms.map((sf, i) =>
-                    i === slotIdx ? { ...sf, [subDef.id]: updated } : sf,
-                  );
-                  onChange({ ...fieldState, subForms: newSubForms });
-                }, depth + 1);
-              })
-            ) : (
-              <>
-                {def.fieldType === 'Boolean' ? (
-                  <select
-                    className="cg-select"
-                    style={{ flex: 1 }}
-                    value={fieldState.slots[slotIdx]?.value || 'false'}
-                    onChange={(e) => onChange(setSlotValue(fieldState, slotIdx, e.target.value))}
-                  >
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
-                  </select>
-                ) : (
-                  <input
-                    className="cg-input"
-                    style={{ flex: 1 }}
-                    placeholder={def.fieldName}
-                    value={fieldState.slots[slotIdx]?.value ?? ''}
-                    type={
-                      def.fieldType === 'Number' ? 'number' : def.fieldType === 'Date' ? 'date' : 'text'
+          return (
+            <div
+              key={slotIdx}
+              style={
+                isExpandedRef
+                  ? {
+                      border: '1px solid var(--cg-border)', borderRadius: 'var(--cg-radius)',
+                      padding: '0.65rem', marginBottom: '0.5rem',
+                      background: depth === 0 ? 'var(--cg-surface)' : 'var(--cg-bg)',
                     }
-                    onChange={(e) => onChange(setSlotValue(fieldState, slotIdx, e.target.value))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSubmit();
-                    }}
+                  : { display: 'flex', gap: '0.35rem', alignItems: 'center', marginBottom: '0.3rem' }
+              }
+            >
+              {isExpandedRef && subKind && fieldState.count > 1 && (
+                <p style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--cg-text-dim)', margin: '0 0 0.4rem' }}>
+                  {subKind.name} {slotIdx + 1}
+                </p>
+              )}
+
+              {isExpandedRef ? (
+                subDefs.map((subDef) => {
+                  const subFieldState = fieldState.subForms[slotIdx]?.[subDef.id];
+                  if (!subFieldState) return null;
+                  return renderField(subDef, subFieldState, (updated) => {
+                    const newSubForms = fieldState.subForms.map((sf, i) =>
+                      i === slotIdx ? { ...sf, [subDef.id]: updated } : sf,
+                    );
+                    onChange({ ...fieldState, subForms: newSubForms });
+                  }, depth + 1);
+                })
+              ) : isLeafRef ? (
+                <>
+                  <RefSelect
+                    libId={libId}
+                    refKindId={def.refNodeKindId!}
+                    slot={slot}
+                    onUpdate={(newSlot) =>
+                      onChange({ ...fieldState, slots: fieldState.slots.map((s, i) => (i === slotIdx ? newSlot : s)) })
+                    }
+                    placeholder={def.fieldName}
+                    onEnter={(el) => focusNext(el)}
+                    tabIndex={isStable ? -1 : 0}
                   />
-                )}
-                <button
-                  className="cg-btn cg-btn-ghost cg-btn-sm"
-                  style={
-                    fieldState.slots[slotIdx]?.stable
-                      ? { color: 'var(--cg-cyan)' }
-                      : { color: 'var(--cg-text-dim)' }
-                  }
-                  type="button"
-                  title={
-                    fieldState.slots[slotIdx]?.stable
-                      ? 'Pinned (persists after add)'
-                      : 'Pin this value'
-                  }
-                  onClick={() => onChange(toggleStable(fieldState, slotIdx))}
-                >
-                  {fieldState.slots[slotIdx]?.stable ? '🔒' : '🔓'}
-                </button>
-              </>
-            )}
-          </div>
-        ))}
+                  <button
+                    className="cg-btn cg-btn-ghost cg-btn-sm"
+                    style={isStable ? { color: 'var(--cg-cyan)' } : { color: 'var(--cg-text-dim)' }}
+                    type="button" tabIndex={-1}
+                    title={isStable ? 'Pinned' : 'Pin this value'}
+                    onClick={() => onChange(toggleStable(fieldState, slotIdx))}>
+                    {isStable ? '🔒' : '🔓'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {def.fieldType === 'Boolean' ? (
+                    <select
+                      className="cg-select" style={{ flex: 1 }}
+                      value={slot.value || 'false'}
+                      tabIndex={isStable ? -1 : 0}
+                      onChange={(e) => onChange(setSlotValue(fieldState, slotIdx, e.target.value))}
+                      onKeyDown={handleFieldKey}
+                    >
+                      <option value="true">Yes</option>
+                      <option value="false">No</option>
+                    </select>
+                  ) : (
+                    <input
+                      className="cg-input" style={{ flex: 1 }}
+                      placeholder={def.fieldName}
+                      value={slot.value}
+                      type={def.fieldType === 'Number' ? 'number' : def.fieldType === 'Date' ? 'date' : 'text'}
+                      tabIndex={isStable ? -1 : 0}
+                      onChange={(e) => onChange(setSlotValue(fieldState, slotIdx, e.target.value))}
+                      onKeyDown={handleFieldKey}
+                    />
+                  )}
+                  <button
+                    className="cg-btn cg-btn-ghost cg-btn-sm"
+                    style={isStable ? { color: 'var(--cg-cyan)' } : { color: 'var(--cg-text-dim)' }}
+                    type="button" tabIndex={-1}
+                    title={isStable ? 'Pinned' : 'Pin this value'}
+                    onClick={() => onChange(toggleStable(fieldState, slotIdx))}>
+                    {isStable ? '🔒' : '🔓'}
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        background: 'var(--cg-surface)',
-        border: '1px solid var(--cg-border)',
-        borderRadius: 'var(--cg-radius)',
-        padding: '1rem',
-        marginBottom: '1rem',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          marginBottom: '0.85rem',
-          flexWrap: 'wrap',
-        }}
-      >
-        <p
-          style={{
-            fontSize: '0.72rem',
-            fontWeight: 700,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'var(--cg-text-dim)',
-            margin: 0,
-          }}
-        >
+    <div style={{ background: 'var(--cg-surface)', border: '1px solid var(--cg-border)', borderRadius: 'var(--cg-radius)', padding: '1rem', marginBottom: '1rem' }}>
+      {/* Collapsed header — always visible */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <p style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cg-text-dim)', margin: 0, flexShrink: 0 }}>
           {copy.cg.graph.addNode}
         </p>
         <select
           className="cg-select"
           value={selectedKindId}
-          onChange={(e) => onKindChange(e.target.value)}
+          onChange={(e) => { onKindChange(e.target.value); setExpanded(true); }}
         >
-          {kinds.map((k) => (
-            <option key={k.id} value={k.id}>
-              {k.name}
-            </option>
-          ))}
+          {kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
         </select>
+        {!expanded && (
+          <span style={{ fontSize: '0.8rem', color: 'var(--cg-text-dim)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {description}
+          </span>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.4rem' }}>
+          {expanded ? (
+            <button className="cg-btn cg-btn-ghost cg-btn-sm" type="button" tabIndex={-1} onClick={() => setExpanded(false)}>✕</button>
+          ) : (
+            <button className="cg-btn cg-btn-primary" type="button" onClick={() => { setExpanded(true); setTimeout(() => { const first = formRef.current?.querySelector<HTMLElement>('input:not([tabindex="-1"]), select:not([tabindex="-1"])'); first?.focus(); }, 50); }}>
+              {copy.cg.graph.addAction}
+            </button>
+          )}
+        </div>
       </div>
 
-      {error && <p className="cg-error" style={{ marginBottom: '0.5rem' }}>{error}</p>}
-
-      {kindDefs.map((def) =>
-        formState[def.id]
-          ? renderField(def, formState[def.id], (updated) =>
-              setFormState((prev) => ({ ...prev, [def.id]: updated })),
-            0)
-          : null,
+      {/* Expanded form */}
+      {expanded && (
+        <div ref={formRef} style={{ marginTop: '1rem' }}>
+          {error && <p className="cg-error" style={{ marginBottom: '0.5rem' }}>{error}</p>}
+          {kindDefs.map((def) =>
+            formState[def.id]
+              ? renderField(def, formState[def.id], (updated) => setFormState((prev) => ({ ...prev, [def.id]: updated })), 0)
+              : null
+          )}
+          <button className="cg-btn cg-btn-primary" type="button" onClick={handleSubmit} disabled={adding} style={{ marginTop: '0.5rem' }}>
+            {adding ? copy.cg.graph.adding : copy.cg.graph.addAction}
+          </button>
+        </div>
       )}
-
-      <button
-        className="cg-btn cg-btn-primary"
-        type="button"
-        onClick={handleSubmit}
-        disabled={adding}
-      >
-        {adding ? copy.cg.graph.adding : copy.cg.graph.addAction}
-      </button>
     </div>
   );
 }
