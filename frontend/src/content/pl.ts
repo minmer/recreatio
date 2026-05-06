@@ -2224,6 +2224,7 @@ export const pl: Copy = {
       deleteFieldFailed: 'Nie udało się usunąć pola',
       deleteTypeFailed: 'Nie udało się usunąć typu węzła',
       labelIndex: '★',
+      addFormPreview: 'Formularz dodawania',
     },
     graph: {
       title: 'Węzły',

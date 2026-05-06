@@ -1788,6 +1788,7 @@ export type Copy = {
       deleteFieldFailed: string;
       deleteTypeFailed: string;
       labelIndex: string;
+      addFormPreview: string;
     };
     graph: {
       title: string;

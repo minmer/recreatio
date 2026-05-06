@@ -197,12 +197,12 @@ async function submitKind(
 
 // ── RefSelect ─────────────────────────────────────────────────────────────────
 
-function RefSelect({ libId, refKindId, slot, onUpdate, placeholder, onEnter, tabIndex: tabIdx }: {
+function RefSelect({ libId, refKindId, refKindName, slot, onUpdate, onEnter, tabIndex: tabIdx }: {
   libId: string;
   refKindId: string;
+  refKindName: string;
   slot: SlotState;
   onUpdate: (slot: SlotState) => void;
-  placeholder: string;
   onEnter: (el: HTMLInputElement) => void;
   tabIndex?: number;
 }) {
@@ -257,21 +257,26 @@ function RefSelect({ libId, refKindId, slot, onUpdate, placeholder, onEnter, tab
 
   if (slot.nodeId) {
     return (
-      <span style={{
-        display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
-        background: 'var(--cg-cyan)22', color: 'var(--cg-cyan)',
-        borderRadius: '999px', padding: '0.15rem 0.55rem',
-        fontSize: '0.82rem', fontWeight: 600, flex: 1,
-      }}>
-        {slot.value}
-        <button
-          type="button"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1 }}
-          onClick={() => { onUpdate({ value: '', nodeId: undefined, stable: false }); setQuery(''); }}
-        >
-          ×
-        </button>
-      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flex: 1 }}>
+        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--cg-cyan)', letterSpacing: '0.05em', textTransform: 'uppercase', flexShrink: 0 }}>
+          {refKindName}
+        </span>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+          background: 'var(--cg-cyan)22', color: 'var(--cg-cyan)',
+          borderRadius: '999px', padding: '0.15rem 0.55rem',
+          fontSize: '0.82rem', fontWeight: 600,
+        }}>
+          {slot.value}
+          <button
+            type="button"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1 }}
+            onClick={() => { onUpdate({ value: '', nodeId: undefined, stable: false }); setQuery(''); }}
+          >
+            ×
+          </button>
+        </span>
+      </div>
     );
   }
 
@@ -281,7 +286,7 @@ function RefSelect({ libId, refKindId, slot, onUpdate, placeholder, onEnter, tab
         ref={inputRef}
         className="cg-input"
         style={{ width: '100%' }}
-        placeholder={placeholder}
+        placeholder={`${refKindName}…`}
         value={query}
         tabIndex={tabIdx}
         onChange={(e) => handleChange(e.target.value)}
@@ -489,11 +494,11 @@ export function CgSmartAddForm({ copy, libId, kinds, fieldDefs, selectedKindId, 
                   <RefSelect
                     libId={libId}
                     refKindId={def.refNodeKindId!}
+                    refKindName={refKind?.name ?? def.fieldName}
                     slot={slot}
                     onUpdate={(newSlot) =>
                       onChange({ ...fieldState, slots: fieldState.slots.map((s, i) => (i === slotIdx ? newSlot : s)) })
                     }
-                    placeholder={def.fieldName}
                     onEnter={(el) => focusNext(el)}
                     tabIndex={isStable ? -1 : 0}
                   />

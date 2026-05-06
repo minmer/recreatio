@@ -144,27 +144,71 @@ export function CgStudioPage({ copy, libId }: Props) {
                   </p>
                 )}
 
-                {kindFields.map((f, idx) => (
-                  <div key={f.id} className="cg-field-row">
-                    <span style={{ fontSize: '0.72rem', color: 'var(--cg-text-dim)', minWidth: '1.5rem' }}>
-                      {idx === 0 ? t.labelIndex : `${idx + 1}`}
-                    </span>
-                    <span className="cg-field-name">{f.fieldName}</span>
-                    <span className="cg-field-type">{f.fieldType}</span>
-                    <div className="cg-field-flags">
-                      {f.isMultiValue && <span>{t.multiValue}</span>}
-                      {f.isRangeCapable && <span>{t.range}</span>}
+                {kindFields.map((f, idx) => {
+                  const refKind = f.fieldType === 'Ref' && f.refNodeKindId
+                    ? kinds.find((k) => k.id === f.refNodeKindId)
+                    : null;
+                  return (
+                    <div key={f.id} className="cg-field-row">
+                      <span style={{ fontSize: '0.72rem', color: 'var(--cg-text-dim)', minWidth: '1.5rem' }}>
+                        {idx === 0 ? t.labelIndex : `${idx + 1}`}
+                      </span>
+                      <span className="cg-field-name">{f.fieldName}</span>
+                      <span className="cg-field-type">
+                        {refKind ? `Ref → ${refKind.name}` : f.fieldType}
+                      </span>
+                      <div className="cg-field-flags">
+                        {f.isMultiValue && <span>{t.multiValue}</span>}
+                        {f.isRangeCapable && <span>{t.range}</span>}
+                      </div>
+                      <button
+                        className="cg-btn cg-btn-danger cg-btn-sm"
+                        type="button"
+                        onClick={() => handleDeleteField(f.id, kind.id)}
+                        style={{ marginLeft: 'auto' }}
+                      >
+                        ✕
+                      </button>
                     </div>
-                    <button
-                      className="cg-btn cg-btn-danger cg-btn-sm"
-                      type="button"
-                      onClick={() => handleDeleteField(f.id, kind.id)}
-                      style={{ marginLeft: 'auto' }}
-                    >
-                      ✕
-                    </button>
+                  );
+                })}
+
+                {kindFields.length > 0 && (
+                  <div style={{ margin: '0.75rem 0 0.25rem', padding: '0.6rem 0.75rem', background: 'var(--cg-bg)', borderRadius: 'var(--cg-radius)', border: '1px solid var(--cg-border)' }}>
+                    <p style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--cg-text-dim)', margin: '0 0 0.4rem' }}>
+                      {t.addFormPreview}
+                    </p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+                      {kindFields.map((f) => {
+                        const refKind = f.fieldType === 'Ref' && f.refNodeKindId
+                          ? kinds.find((k) => k.id === f.refNodeKindId)
+                          : null;
+                        const refFields = refKind
+                          ? fieldDefs.filter((d) => d.nodeKindId === refKind.id).sort((a, b) => a.sortOrder - b.sortOrder)
+                          : [];
+                        return (
+                          <span
+                            key={f.id}
+                            title={refKind ? `Expands to ${refKind.name} (${refFields.map(d => d.fieldName).join(', ')})` : f.fieldType}
+                            style={{
+                              fontSize: '0.75rem',
+                              background: refKind ? 'var(--cg-cyan)18' : 'var(--cg-surface)',
+                              color: refKind ? 'var(--cg-cyan)' : 'var(--cg-text)',
+                              border: `1px solid ${refKind ? 'var(--cg-cyan)44' : 'var(--cg-border)'}`,
+                              borderRadius: 'var(--cg-radius)',
+                              padding: '0.15rem 0.45rem',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {f.fieldName}
+                            {refKind && <span style={{ opacity: 0.7, marginLeft: '0.2rem' }}>→ {refKind.name}</span>}
+                            {f.isMultiValue && <span style={{ opacity: 0.6, marginLeft: '0.2rem' }}>×{f.isMultiValue ? 'n' : ''}</span>}
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
-                ))}
+                )}
 
                 <div style={{ borderTop: '1px solid var(--cg-border)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
                   <p style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--cg-text-dim)', margin: '0 0 0.5rem' }}>

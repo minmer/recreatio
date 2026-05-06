@@ -453,7 +453,6 @@ public static class CgEndpoints
 
                 // Topic fields
                 defs.Add(new Data.Cg.CgFieldDef { Id = Guid.NewGuid(), NodeKindId = topicKindId, LibraryId = lib.Id, FieldName = "name", FieldType = "Text", SortOrder = 0, CreatedUtc = now });
-                defs.Add(new Data.Cg.CgFieldDef { Id = Guid.NewGuid(), NodeKindId = topicKindId, LibraryId = lib.Id, FieldName = "language", FieldType = "Ref", RefNodeKindId = langKindId, SortOrder = 1, CreatedUtc = now });
 
                 // Word fields
                 defs.Add(new Data.Cg.CgFieldDef { Id = Guid.NewGuid(), NodeKindId = wordKindId, LibraryId = lib.Id, FieldName = "text", FieldType = "Text", SortOrder = 0, CreatedUtc = now });

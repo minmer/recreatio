@@ -2223,6 +2223,7 @@ export const en: Copy = {
       deleteFieldFailed: 'Failed to delete field',
       deleteTypeFailed: 'Failed to delete node type',
       labelIndex: '★',
+      addFormPreview: 'Add form',
     },
     graph: {
       title: 'Nodes',
