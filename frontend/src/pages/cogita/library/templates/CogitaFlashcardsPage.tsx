@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import type { LibraryTemplateProps } from '../CogitaLibraryPage';
 
-export function CogitaFlashcardsPage({ library, stats, copy, onNavigate }: LibraryTemplateProps) {
+export function CogitaFlashcardsPage({ library, stats }: LibraryTemplateProps) {
   const navigate = useNavigate();
   const libId = encodeURIComponent(library.libraryId);
 

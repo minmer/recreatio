@@ -10,7 +10,10 @@
       "WebSearch",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\frontend\\\\src\\\\pages\\\\cogita\" -Recurse -Force)",
       "Bash(Select-Object -Property FullName)",
-      "Bash(Sort-Object FullName)"
+      "Bash(Sort-Object FullName)",
+      "Bash(Move-Item \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\docs\\\\cogita-graph.md\" \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\cogita-graph.md\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)"
     ]
   }
 }

@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import type { LibraryTemplateProps } from '../CogitaLibraryPage';
 
-export function CogitaKnowledgeMapPage({ library, stats, copy, onNavigate }: LibraryTemplateProps) {
+export function CogitaKnowledgeMapPage({ library, stats }: LibraryTemplateProps) {
   const navigate = useNavigate();
   const libId = encodeURIComponent(library.libraryId);
 

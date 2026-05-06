@@ -7513,6 +7513,48 @@ textarea.cogita-input {
   border-color: rgba(255, 255, 255, 0.14);
 }
 
+/* ── KnowScore progress bar (Vocabulary + Flashcards pages) ── */
+.cogita-lib-template-progress {
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cogita-lib-template-progress-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.cogita-lib-template-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--tmpl-color, #3a9bd5);
+  transition: width 0.4s ease;
+}
+
+.cogita-lib-template-progress-legend {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.cogita-lib-template-progress-known {
+  color: rgba(130, 220, 160, 0.9);
+}
+
+.cogita-lib-template-progress-learning {
+  color: rgba(200, 180, 100, 0.85);
+}
+
+.cogita-lib-template-progress-avg {
+  margin-left: auto;
+  color: rgba(180, 200, 230, 0.6);
+}
+
 @media (max-width: 640px) {
   .cogita-lib-home {
     padding: 1.5rem 1rem 2rem;
