@@ -1,4 +1,34 @@
-import { request } from '../../../lib/api';
+import { ApiError } from '../../../lib/api';
+
+const apiBase = import.meta.env.VITE_API_BASE ?? 'https://api.recreatio.pl';
+
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const csrfToken = getCsrfToken();
+  const response = await fetch(`${apiBase}${path}`, {
+    ...options,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {}),
+      ...(options.headers ?? {}),
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(response.status, text || response.statusText);
+  }
+
+  if (response.status === 204) return undefined as T;
+  const text = await response.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
+}
 
 export interface CgLibrary {
   id: string;

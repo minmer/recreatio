@@ -477,6 +477,9 @@ export function CogitaDashboardPage({
                 <button type="button" className="ghost" onClick={() => navigate(defaultLibraryId ? `/cogita/writing/${encodeURIComponent(defaultLibraryId)}` : '/cogita/writing')}>
                   Writing mode
                 </button>
+                <button type="button" className="ghost" onClick={() => navigate('/cg')}>
+                  Cogita Graph ↗
+                </button>
                 {lastWorkspacePath ? (
                   <button type="button" className="ghost" onClick={() => navigate(lastWorkspacePath)}>
                     Continue last change

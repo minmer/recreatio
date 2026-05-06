@@ -100,6 +100,13 @@ export function HomePage({
         ctaAction: () => onNavigate('cogita')
       },
       {
+        id: 'section-5b',
+        title: 'Cogita Graph',
+        text: 'Build connected knowledge graphs — vocabulary lists, phonebooks, structured lessons and any custom node schema.',
+        ctaLabel: 'Explore Cogita Graph',
+        ctaAction: () => onNavigate('cg')
+      },
+      {
         id: 'section-6',
         title: copy.chat.slideTitle,
         text: copy.chat.slideSubtitle,
@@ -256,6 +263,9 @@ export function HomePage({
           </a>
           <a href="/#/cogita" onClick={() => setMenuOpen(false)}>
             {copy.nav.cogita}
+          </a>
+          <a href="/#/cg" onClick={() => setMenuOpen(false)}>
+            Cogita Graph
           </a>
           <a href="/#/chat" onClick={() => setMenuOpen(false)}>
             {copy.nav.chat}

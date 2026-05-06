@@ -72,6 +72,12 @@ const CogitaLibraryHomePage = lazy(() =>
 const CogitaLibraryPage = lazy(() =>
   import('./pages/cogita/library/CogitaLibraryPage').then((module) => ({ default: module.CogitaLibraryPage }))
 );
+const CgApp = lazy(() =>
+  import('./pages/cg/CgApp').then((module) => ({ default: module.CgApp }))
+);
+const CgLandingPage = lazy(() =>
+  import('./pages/cg/CgLandingPage').then((module) => ({ default: module.CgLandingPage }))
+);
 
 const deviceInfo = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
 const languages = ['pl', 'en', 'de'] as const;
@@ -205,6 +211,7 @@ export default function App() {
   const cogitaRevisionRuntimeRunId = isCogitaRevisionRuntimePath
     ? decodeRouteSegment(pathSegments[4] ?? 'new')
     : undefined;
+  const isCgPath = pathname === '/cg' || pathname.startsWith('/cg/');
   const isEventsPath = pathname === '/event' || pathname.startsWith('/event/');
   const isLegacyLimanowaPath = pathname === '/limanowa' || pathname.startsWith('/limanowa/');
   const isChatPath = pathname === '/chat' || pathname.startsWith('/chat/');
@@ -311,6 +318,7 @@ export default function App() {
       else if (next === 'events') navigate('/event');
       else if (next === 'limanowa') navigate('/event/limanowa/start');
       else if (next === 'cogita') navigate('/cogita');
+      else if (next === 'cg') navigate('/cg');
       else if (next === 'chat') navigate('/chat');
       else if (next === 'calendar') navigate('/calendar');
       else if (next === 'faq') navigate('/faq');
@@ -719,6 +727,22 @@ export default function App() {
           />
         </Suspense>
       ) : null}
+      {isCgPath && (
+        <Suspense fallback={lazyFallback}>
+          {isAuthenticated ? (
+            <CgApp
+              onNavigate={navigateRoute}
+              secureMode={secureMode}
+              onLogout={handleLogout}
+            />
+          ) : (
+            <CgLandingPage
+              onAuthAction={() => openLoginCard('cogita')}
+              onNavigate={navigateRoute}
+            />
+          )}
+        </Suspense>
+      )}
       {isCalendarPath && (
         <Suspense fallback={lazyFallback}>
           <CalendarPage

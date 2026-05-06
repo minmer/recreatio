@@ -1,0 +1,176 @@
+import { useNavigate, useLocation } from 'react-router-dom';
+import '../../styles/cg.css';
+import { CgGraphPage } from './CgGraphPage';
+import { CgHomePage } from './CgHomePage';
+import { CgLibraryPage } from './CgLibraryPage';
+import { CgNodeEditorPage } from './CgNodeEditorPage';
+import { CgStudioPage } from './CgStudioPage';
+
+// Route structure:
+//   /cg                          → home (library list)
+//   /cg/library/:libId           → library overview
+//   /cg/library/:libId/studio    → schema editor
+//   /cg/library/:libId/nodes     → node list
+//   /cg/library/:libId/nodes/:nodeId → node editor
+
+function parseRoute(pathname: string) {
+  const segs = pathname.split('/').filter(Boolean);
+  // segs[0] === 'cg'
+  if (segs.length <= 1) return { view: 'home' as const };
+  if (segs[1] === 'library' && segs[2]) {
+    const libId = segs[2];
+    if (!segs[3]) return { view: 'library' as const, libId };
+    if (segs[3] === 'studio') return { view: 'studio' as const, libId };
+    if (segs[3] === 'nodes' && segs[4]) return { view: 'node' as const, libId, nodeId: segs[4] };
+    if (segs[3] === 'nodes') return { view: 'nodes' as const, libId };
+    return { view: 'library' as const, libId };
+  }
+  return { view: 'home' as const };
+}
+
+interface Props {
+  onNavigate: (route: string) => void;
+  secureMode: boolean;
+  onLogout: () => void;
+}
+
+export function CgApp({ onNavigate, secureMode: _secureMode, onLogout }: Props) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const route = parseRoute(location.pathname);
+
+  const goHome = () => navigate('/cg');
+  const goLibrary = (libId: string) => navigate(`/cg/library/${libId}`);
+  const goStudio = (libId: string) => navigate(`/cg/library/${libId}/studio`);
+  const goNodes = (libId: string) => navigate(`/cg/library/${libId}/nodes`);
+  const goNode = (libId: string, nodeId: string) => navigate(`/cg/library/${libId}/nodes/${nodeId}`);
+
+  function handleLibraryNav(sub: string) {
+    if (route.view === 'home') return;
+    const libId = (route as { libId: string }).libId;
+    if (sub === 'home') goHome();
+    else if (sub === 'studio') goStudio(libId);
+    else if (sub === 'nodes') goNodes(libId);
+    else goLibrary(libId);
+  }
+
+  const currentLibId = route.view !== 'home' ? (route as { libId: string }).libId : undefined;
+
+  // Sidebar nav items when inside a library
+  const libraryNav = currentLibId
+    ? [
+        { key: 'library', label: 'Overview',      icon: '◎' },
+        { key: 'studio',  label: 'Schema editor', icon: '✎' },
+        { key: 'nodes',   label: 'Nodes',         icon: '⊞' },
+      ]
+    : [];
+
+  const activeView = route.view === 'node' ? 'nodes' : route.view;
+
+  return (
+    <div className="cg-root">
+      {/* Header */}
+      <header className="cg-header">
+        <button className="cg-header-logo" type="button" onClick={goHome}>
+          CG
+        </button>
+        {currentLibId && (
+          <>
+            <span className="cg-header-sep">/</span>
+            <span className="cg-header-crumb">
+              {route.view === 'studio' ? 'Schema editor'
+               : route.view === 'nodes' ? 'Nodes'
+               : route.view === 'node' ? 'Node editor'
+               : 'Overview'}
+            </span>
+          </>
+        )}
+        <div className="cg-header-actions">
+          <button
+            className="cg-btn cg-btn-ghost cg-btn-sm"
+            type="button"
+            onClick={() => onNavigate('cogita')}
+            title="Switch to Cogita (classic)"
+          >
+            Cogita ↗
+          </button>
+          <button
+            className="cg-btn cg-btn-ghost cg-btn-sm"
+            type="button"
+            onClick={onLogout}
+          >
+            Sign out
+          </button>
+        </div>
+      </header>
+
+      <div className="cg-body">
+        {/* Sidebar — only when inside a library */}
+        {currentLibId && (
+          <nav className="cg-sidebar">
+            <div className="cg-sidebar-section">
+              <button
+                className="cg-nav-item"
+                type="button"
+                onClick={goHome}
+              >
+                <span className="cg-nav-item-icon">☰</span>
+                All libraries
+              </button>
+            </div>
+            <div className="cg-sidebar-section">
+              <p className="cg-sidebar-label">Library</p>
+              {libraryNav.map((item) => (
+                <button
+                  key={item.key}
+                  className={`cg-nav-item${activeView === item.key ? ' active' : ''}`}
+                  type="button"
+                  onClick={() => {
+                    if (item.key === 'library') goLibrary(currentLibId);
+                    else if (item.key === 'studio') goStudio(currentLibId);
+                    else if (item.key === 'nodes') goNodes(currentLibId);
+                  }}
+                >
+                  <span className="cg-nav-item-icon">{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </nav>
+        )}
+
+        {/* Main content */}
+        <main className="cg-main">
+          {route.view === 'home' && (
+            <CgHomePage
+              onOpenLibrary={goLibrary}
+              onNavigateToCogita={() => onNavigate('cogita')}
+            />
+          )}
+          {route.view === 'library' && currentLibId && (
+            <CgLibraryPage
+              libId={currentLibId}
+              onNavigate={handleLibraryNav}
+            />
+          )}
+          {route.view === 'studio' && currentLibId && (
+            <CgStudioPage libId={currentLibId} />
+          )}
+          {route.view === 'nodes' && currentLibId && (
+            <CgGraphPage
+              libId={currentLibId}
+              onOpenNode={(nodeId) => goNode(currentLibId, nodeId)}
+            />
+          )}
+          {route.view === 'node' && currentLibId && (route as { nodeId: string }).nodeId && (
+            <CgNodeEditorPage
+              libId={currentLibId}
+              nodeId={(route as { nodeId: string }).nodeId}
+              onBack={() => goNodes(currentLibId)}
+            />
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
