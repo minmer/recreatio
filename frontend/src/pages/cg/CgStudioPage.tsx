@@ -25,7 +25,6 @@ export function CgStudioPage({ copy, libId }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const [newKindName, setNewKindName] = useState('');
-  const [newKindSubentity, setNewKindSubentity] = useState(false);
   const [addingKind, setAddingKind] = useState(false);
 
   const [fieldForms, setFieldForms] = useState<Record<string, { name: string; type: string; multi: boolean; range: boolean }>>({});
@@ -46,10 +45,9 @@ export function CgStudioPage({ copy, libId }: Props) {
     if (!name) return;
     setAddingKind(true);
     try {
-      const kind = await createNodeKind(libId, name, newKindSubentity, kinds.length);
+      const kind = await createNodeKind(libId, name, false, kinds.length);
       setKinds((prev) => [...prev, kind]);
       setNewKindName('');
-      setNewKindSubentity(false);
       setExpandedKind(kind.id);
     } catch {
       setError(t.addTypeFailed);
@@ -126,7 +124,6 @@ export function CgStudioPage({ copy, libId }: Props) {
                 {expanded ? '▾' : '▸'}
               </span>
               <span className="cg-kind-name">{kind.name}</span>
-              {kind.isSubentity && <span className="cg-kind-subentity-badge">{t.isSubentity}</span>}
               <span style={{ fontSize: '0.78rem', color: 'var(--cg-text-dim)', marginLeft: 'auto', marginRight: '0.5rem' }}>
                 {kindFields.length}
               </span>
@@ -228,10 +225,6 @@ export function CgStudioPage({ copy, libId }: Props) {
             onKeyDown={(e) => e.key === 'Enter' && handleAddKind()}
             style={{ maxWidth: 280 }}
           />
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: 'var(--cg-text-dim)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={newKindSubentity} onChange={(e) => setNewKindSubentity(e.target.checked)} />
-            {t.isSubentity}
-          </label>
           <button
             className="cg-btn cg-btn-primary"
             type="button"

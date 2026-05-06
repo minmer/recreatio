@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Copy } from '../../content/types';
-import { type CgFieldDef, type CgFieldValue, type CgNode, type CgNodeKind, createNode, deleteNode, getLibrary, getNode, listNodes, upsertFieldValue } from './api/cgApi';
+import { type CgFieldDef, type CgFieldValue, type CgNode, type CgNodeKind, deleteNode, getLibrary, getNode, listNodes } from './api/cgApi';
+import { CgSmartAddForm } from './CgSmartAddForm';
 
 interface Props {
   copy: Copy;
@@ -20,17 +21,14 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
   const [filterQ, setFilterQ] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  const [adding, setAdding] = useState(false);
-  const [newLabel, setNewLabel] = useState('');
-  const [newKindId, setNewKindId] = useState('');
-  const [inlineValues, setInlineValues] = useState<Record<string, string>>({});
+  const [selectedKindId, setSelectedKindId] = useState('');
 
   useEffect(() => {
     getLibrary(libId)
       .then((d) => {
         setKinds(d.nodeKinds);
         setFieldDefs(d.fieldDefs);
-        if (d.nodeKinds.length > 0) setNewKindId(d.nodeKinds[0].id);
+        if (d.nodeKinds.length > 0) setSelectedKindId(d.nodeKinds[0].id);
       })
       .catch(() => setError(t.loadFailed));
   }, [libId]);
@@ -47,35 +45,6 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
       .catch(() => setError(t.loadFailed))
       .finally(() => setLoading(false));
   }, [libId, filterKindId, filterQ]);
-
-  const selectedKind = kinds.find((k) => k.id === newKindId) ?? kinds[0];
-  const selectedKindFields = fieldDefs.filter((f) => f.nodeKindId === (selectedKind?.id ?? ''));
-
-  async function handleAddNode() {
-    const label = newLabel.trim() || inlineValues[selectedKindFields[0]?.id ?? '']?.trim() || '(unnamed)';
-    setAdding(true);
-    try {
-      const node = await createNode(libId, {
-        nodeType: 'Entity',
-        nodeKindId: selectedKind?.id,
-        label,
-      });
-
-      for (const [fieldDefId, val] of Object.entries(inlineValues)) {
-        if (val.trim()) {
-          await upsertFieldValue(libId, node.id, { fieldDefId, textValue: val.trim(), sortOrder: 0 });
-        }
-      }
-
-      setNodes((prev) => [node, ...prev]);
-      setNewLabel('');
-      setInlineValues({});
-    } catch {
-      setError(t.createFailed);
-    } finally {
-      setAdding(false);
-    }
-  }
 
   async function handleDelete(nodeId: string) {
     try {
@@ -115,54 +84,16 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
         </select>
       </div>
 
-      {kinds.length > 0 && (
-        <div style={{ background: 'var(--cg-surface)', border: '1px solid var(--cg-border)', borderRadius: 'var(--cg-radius)', padding: '1rem', marginBottom: '1rem' }}>
-          <p style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cg-text-dim)', margin: '0 0 0.6rem' }}>
-            {t.addNode}
-          </p>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <select
-              className="cg-select"
-              value={newKindId}
-              onChange={(e) => { setNewKindId(e.target.value); setInlineValues({}); setNewLabel(''); }}
-            >
-              {kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
-            </select>
-
-            {selectedKindFields.slice(0, 3).map((f, idx) => (
-              <input
-                key={f.id}
-                className="cg-input"
-                placeholder={f.fieldName}
-                value={inlineValues[f.id] ?? ''}
-                onChange={(e) => setInlineValues((prev) => ({ ...prev, [f.id]: e.target.value }))}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddNode()}
-                style={{ maxWidth: idx === 0 ? 220 : 160 }}
-                autoFocus={idx === 0}
-              />
-            ))}
-
-            {selectedKindFields.length === 0 && (
-              <input
-                className="cg-input"
-                placeholder={t.labelPlaceholder}
-                value={newLabel}
-                onChange={(e) => setNewLabel(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddNode()}
-                style={{ maxWidth: 220 }}
-              />
-            )}
-
-            <button
-              className="cg-btn cg-btn-primary"
-              type="button"
-              onClick={handleAddNode}
-              disabled={adding}
-            >
-              {adding ? t.adding : t.addAction}
-            </button>
-          </div>
-        </div>
+      {kinds.length > 0 && selectedKindId && (
+        <CgSmartAddForm
+          copy={copy}
+          libId={libId}
+          kinds={kinds}
+          fieldDefs={fieldDefs}
+          selectedKindId={selectedKindId}
+          onKindChange={setSelectedKindId}
+          onCreated={(node) => setNodes((prev) => [node, ...prev])}
+        />
       )}
 
       {error && <p className="cg-error" style={{ marginBottom: '1rem' }}>{error}</p>}

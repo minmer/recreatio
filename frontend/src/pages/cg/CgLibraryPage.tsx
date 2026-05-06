@@ -134,7 +134,6 @@ export function CgLibraryPage({ copy, libId, onNavigate }: Props) {
               <div key={kind.id} className="cg-kind-panel">
                 <div className="cg-kind-header">
                   <span className="cg-kind-name">{kind.name}</span>
-                  {kind.isSubentity && <span className="cg-kind-subentity-badge">{t.subentity}</span>}
                   <span style={{ fontSize: '0.78rem', color: 'var(--cg-text-dim)' }}>
                     {kindFields.length}
                   </span>

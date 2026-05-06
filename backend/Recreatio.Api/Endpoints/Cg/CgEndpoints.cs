@@ -438,11 +438,31 @@ public static class CgEndpoints
         {
             case "vocabulary":
             {
-                var kind = new Data.Cg.CgNodeKind { Id = kindId, LibraryId = lib.Id, Name = "WordPair", SortOrder = 0, CreatedUtc = now, UpdatedUtc = now };
-                kinds.Add(kind);
-                defs.Add(new Data.Cg.CgFieldDef { Id = Guid.NewGuid(), NodeKindId = kindId, LibraryId = lib.Id, FieldName = "Source", FieldType = "Text", SortOrder = 0, CreatedUtc = now });
-                defs.Add(new Data.Cg.CgFieldDef { Id = Guid.NewGuid(), NodeKindId = kindId, LibraryId = lib.Id, FieldName = "Translation", FieldType = "Text", SortOrder = 1, CreatedUtc = now });
-                defs.Add(new Data.Cg.CgFieldDef { Id = Guid.NewGuid(), NodeKindId = kindId, LibraryId = lib.Id, FieldName = "Notes", FieldType = "Text", IsMultiValue = false, SortOrder = 2, CreatedUtc = now });
+                var langKindId = Guid.NewGuid();
+                var topicKindId = Guid.NewGuid();
+                var wordKindId = Guid.NewGuid();
+                var translationKindId = Guid.NewGuid();
+
+                kinds.Add(new Data.Cg.CgNodeKind { Id = langKindId, LibraryId = lib.Id, Name = "Language", SortOrder = 0, CreatedUtc = now, UpdatedUtc = now });
+                kinds.Add(new Data.Cg.CgNodeKind { Id = topicKindId, LibraryId = lib.Id, Name = "Topic", SortOrder = 1, CreatedUtc = now, UpdatedUtc = now });
+                kinds.Add(new Data.Cg.CgNodeKind { Id = wordKindId, LibraryId = lib.Id, Name = "Word", SortOrder = 2, CreatedUtc = now, UpdatedUtc = now });
+                kinds.Add(new Data.Cg.CgNodeKind { Id = translationKindId, LibraryId = lib.Id, Name = "Translation", SortOrder = 3, CreatedUtc = now, UpdatedUtc = now });
+
+                // Language fields
+                defs.Add(new Data.Cg.CgFieldDef { Id = Guid.NewGuid(), NodeKindId = langKindId, LibraryId = lib.Id, FieldName = "name", FieldType = "Text", SortOrder = 0, CreatedUtc = now });
+
+                // Topic fields
+                defs.Add(new Data.Cg.CgFieldDef { Id = Guid.NewGuid(), NodeKindId = topicKindId, LibraryId = lib.Id, FieldName = "name", FieldType = "Text", SortOrder = 0, CreatedUtc = now });
+                defs.Add(new Data.Cg.CgFieldDef { Id = Guid.NewGuid(), NodeKindId = topicKindId, LibraryId = lib.Id, FieldName = "language", FieldType = "Ref", RefNodeKindId = langKindId, SortOrder = 1, CreatedUtc = now });
+
+                // Word fields
+                defs.Add(new Data.Cg.CgFieldDef { Id = Guid.NewGuid(), NodeKindId = wordKindId, LibraryId = lib.Id, FieldName = "text", FieldType = "Text", SortOrder = 0, CreatedUtc = now });
+                defs.Add(new Data.Cg.CgFieldDef { Id = Guid.NewGuid(), NodeKindId = wordKindId, LibraryId = lib.Id, FieldName = "language", FieldType = "Ref", RefNodeKindId = langKindId, SortOrder = 1, CreatedUtc = now });
+                defs.Add(new Data.Cg.CgFieldDef { Id = Guid.NewGuid(), NodeKindId = wordKindId, LibraryId = lib.Id, FieldName = "topic", FieldType = "Ref", RefNodeKindId = topicKindId, IsMultiValue = true, SortOrder = 2, CreatedUtc = now });
+
+                // Translation fields
+                defs.Add(new Data.Cg.CgFieldDef { Id = Guid.NewGuid(), NodeKindId = translationKindId, LibraryId = lib.Id, FieldName = "word", FieldType = "Ref", RefNodeKindId = wordKindId, IsMultiValue = true, SortOrder = 0, CreatedUtc = now });
+
                 break;
             }
             case "phonebook":

@@ -157,10 +157,11 @@ export const createFieldDef = (
   libId: string, kindId: string,
   fieldName: string, fieldType: string,
   isMultiValue = false, isRangeCapable = false, sortOrder = 0,
+  refNodeKindId?: string,
 ) =>
   request<CgFieldDef>(`/cg/libraries/${libId}/node-kinds/${kindId}/field-defs`, {
     method: 'POST',
-    body: JSON.stringify({ fieldName, fieldType, isMultiValue, isRangeCapable, sortOrder }),
+    body: JSON.stringify({ fieldName, fieldType, isMultiValue, isRangeCapable, sortOrder, refNodeKindId }),
   });
 
 export const deleteFieldDef = (libId: string, kindId: string, defId: string) =>
