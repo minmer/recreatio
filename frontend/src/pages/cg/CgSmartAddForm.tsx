@@ -195,9 +195,18 @@ async function submitKind(
   return { node, label };
 }
 
-// ── RefSelect ─────────────────────────────────────────────────────────────────
+// ── CgNodeSelect ─────────────────────────────────────────────────────────────
+// Search-and-select for a specific node kind. Debounced, cached, keyboard-navigable.
+// Selecting an existing node auto-pins it (stable=true). Unknown queries get a
+// "Create" button so new nodes can be added inline.
 
-function RefSelect({ libId, refKindId, refKindName, slot, onUpdate, onEnter, tabIndex: tabIdx }: {
+const NODE_SELECT_MAX_VISIBLE = 5;
+const NODE_SELECT_PAGE = 5;
+const NODE_SELECT_FETCH_LIMIT = 50;
+const NODE_SELECT_MIN_LEN = 1;
+const NODE_SELECT_DEBOUNCE = 250;
+
+function CgNodeSelect({ libId, refKindId, refKindName, slot, onUpdate, onEnter, tabIndex: tabIdx }: {
   libId: string;
   refKindId: string;
   refKindName: string;
@@ -206,55 +215,112 @@ function RefSelect({ libId, refKindId, refKindName, slot, onUpdate, onEnter, tab
   onEnter: (el: HTMLInputElement) => void;
   tabIndex?: number;
 }) {
-  const [query, setQuery] = useState(slot.value);
-  const [suggestions, setSuggestions] = useState<CgNode[]>([]);
-  const [open, setOpen] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [query, setQuery] = useState(slot.nodeId ? '' : slot.value);
+  const [results, setResults] = useState<CgNode[]>([]);
+  const [visibleCount, setVisibleCount] = useState(NODE_SELECT_MAX_VISIBLE);
+  const [highlightedIdx, setHighlightedIdx] = useState(-1);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const cache = useRef(new Map<string, CgNode[]>());
+  const lastReq = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Sync query when slot resets after submit (non-stable)
   useEffect(() => {
-    if (!slot.stable) setQuery(slot.value);
-  }, [slot.value, slot.stable]);
+    if (!slot.stable) { setQuery(''); setResults([]); setIsOpen(false); }
+  }, [slot.stable]);
 
-  function handleChange(val: string) {
-    setQuery(val);
-    onUpdate({ ...slot, value: val, nodeId: undefined });
-    if (timer.current) clearTimeout(timer.current);
-    if (val.length >= 1) {
-      timer.current = setTimeout(async () => {
-        try {
-          const results = await listNodes(libId, { kindId: refKindId, q: val, limit: 8 });
-          setSuggestions(results);
-          setOpen(results.length > 0);
-        } catch { /* ignore */ }
-      }, 200);
-    } else {
-      setSuggestions([]);
-      setOpen(false);
+  // Debounced search
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < NODE_SELECT_MIN_LEN) {
+      setResults([]); setIsOpen(false); setHighlightedIdx(-1); setIsLoading(false);
+      return;
     }
-  }
+    const key = `${libId}:${refKindId}:${trimmed.toLowerCase()}`;
+    const cached = cache.current.get(key);
+    if (cached) {
+      setResults(cached); setVisibleCount(NODE_SELECT_MAX_VISIBLE);
+      setHighlightedIdx(-1); setIsOpen(true); setIsLoading(false);
+      return;
+    }
+    const id = window.setTimeout(async () => {
+      const ts = Date.now();
+      lastReq.current = ts;
+      setIsLoading(true);
+      try {
+        const nodes = await listNodes(libId, { kindId: refKindId, q: trimmed, limit: NODE_SELECT_FETCH_LIMIT });
+        if (lastReq.current !== ts) return;
+        cache.current.set(key, nodes);
+        setResults(nodes); setVisibleCount(NODE_SELECT_MAX_VISIBLE);
+        setHighlightedIdx(-1); setIsOpen(true);
+      } catch { /* silent */ }
+      finally { if (lastReq.current === ts) setIsLoading(false); }
+    }, NODE_SELECT_DEBOUNCE);
+    return () => window.clearTimeout(id);
+  }, [libId, refKindId, query]);
 
-  function select(node: CgNode) {
+  function selectNode(node: CgNode) {
     const label = node.label ?? '';
-    setQuery(label);
-    setSuggestions([]);
-    setOpen(false);
+    setQuery('');
+    setResults([]); setIsOpen(false); setHighlightedIdx(-1);
     onUpdate({ value: label, nodeId: node.id, stable: true });
   }
 
+  async function handleCreate() {
+    const label = query.trim();
+    if (!label) return;
+    setIsLoading(true); setCreateError(null);
+    try {
+      const node = await createNode(libId, { nodeType: 'Entity', nodeKindId: refKindId, label });
+      const key = `${libId}:${refKindId}:${label.toLowerCase()}`;
+      cache.current.set(key, [node, ...(cache.current.get(key) ?? [])]);
+      selectNode(node);
+    } catch {
+      setCreateError('Create failed');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Escape') { setOpen(false); return; }
+    if (e.key === 'Escape') { setIsOpen(false); return; }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!results.length) return;
+      setIsOpen(true);
+      setHighlightedIdx((prev) => {
+        const maxIdx = Math.min(results.length, visibleCount) - 1;
+        const next = prev < 0 ? 0 : Math.min(prev + 1, maxIdx);
+        if (next === maxIdx && results.length > visibleCount)
+          setVisibleCount((c) => Math.min(c + NODE_SELECT_PAGE, results.length));
+        return next;
+      });
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIdx((prev) => (prev <= 0 ? 0 : prev - 1));
+      return;
+    }
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (open && suggestions.length > 0) {
-        select(suggestions[0]);
+      if (highlightedIdx >= 0 && results[highlightedIdx]) {
+        selectNode(results[highlightedIdx]);
+      } else if (query.trim()) {
+        handleCreate();
       } else {
-        setOpen(false);
+        setIsOpen(false);
         if (inputRef.current) onEnter(inputRef.current);
       }
     }
   }
 
+  const showCreate = query.trim().length >= NODE_SELECT_MIN_LEN;
+  const exactMatch = results.some((n) => n.label?.toLowerCase() === query.trim().toLowerCase());
+
+  // ── Selected chip ──
   if (slot.nodeId) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flex: 1 }}>
@@ -262,16 +328,16 @@ function RefSelect({ libId, refKindId, refKindName, slot, onUpdate, onEnter, tab
           {refKindName}
         </span>
         <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+          display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
           background: 'var(--cg-cyan)22', color: 'var(--cg-cyan)',
-          borderRadius: '999px', padding: '0.15rem 0.55rem',
+          borderRadius: '999px', padding: '0.15rem 0.6rem',
           fontSize: '0.82rem', fontWeight: 600,
         }}>
           {slot.value}
           <button
             type="button"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1 }}
-            onClick={() => { onUpdate({ value: '', nodeId: undefined, stable: false }); setQuery(''); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1, fontSize: '1rem' }}
+            onClick={() => onUpdate({ value: '', nodeId: undefined, stable: false })}
           >
             ×
           </button>
@@ -280,43 +346,70 @@ function RefSelect({ libId, refKindId, refKindName, slot, onUpdate, onEnter, tab
     );
   }
 
+  // ── Search input + dropdown ──
   return (
     <div style={{ position: 'relative', flex: 1 }}>
-      <input
-        ref={inputRef}
-        className="cg-input"
-        style={{ width: '100%' }}
-        placeholder={`${refKindName}…`}
-        value={query}
-        tabIndex={tabIdx}
-        onChange={(e) => handleChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={() => { setTimeout(() => setOpen(false), 150); }}
-        onFocus={() => { if (suggestions.length > 0) setOpen(true); }}
-      />
-      {open && suggestions.length > 0 && (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--cg-text-dim)', letterSpacing: '0.05em', textTransform: 'uppercase', flexShrink: 0 }}>
+          {refKindName}
+        </span>
+        <input
+          ref={inputRef}
+          className="cg-input"
+          style={{ flex: 1 }}
+          placeholder={`Search or create ${refKindName}…`}
+          value={query}
+          tabIndex={tabIdx}
+          onChange={(e) => { setQuery(e.target.value); onUpdate({ ...slot, value: e.target.value, nodeId: undefined }); }}
+          onKeyDown={handleKeyDown}
+          onFocus={() => { if (results.length > 0) setIsOpen(true); }}
+          onBlur={() => window.setTimeout(() => setIsOpen(false), 150)}
+        />
+        {isLoading && <span style={{ fontSize: '0.75rem', color: 'var(--cg-text-dim)', flexShrink: 0 }}>…</span>}
+      </div>
+      {createError && <p style={{ fontSize: '0.75rem', color: 'var(--cg-danger)', margin: '0.2rem 0 0' }}>{createError}</p>}
+      {isOpen && (results.length > 0 || showCreate) && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
           background: 'var(--cg-surface)', border: '1px solid var(--cg-border)',
-          borderRadius: 'var(--cg-radius)', boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-          marginTop: 2, maxHeight: 160, overflowY: 'auto',
+          borderRadius: 'var(--cg-radius)', boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+          marginTop: 3,
         }}>
-          {suggestions.map((n) => (
+          {results.slice(0, visibleCount).map((node, idx) => (
             <button
-              key={n.id}
+              key={node.id}
               type="button"
-              onMouseDown={() => select(n)}
+              onMouseDown={() => selectNode(node)}
               style={{
-                display: 'block', width: '100%', textAlign: 'left',
-                padding: '0.4rem 0.65rem', background: 'none', border: 'none',
-                cursor: 'pointer', fontSize: '0.85rem', color: 'var(--cg-text)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%', textAlign: 'left', padding: '0.4rem 0.7rem',
+                background: idx === highlightedIdx ? 'var(--cg-hover)' : 'none',
+                border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--cg-text)',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--cg-hover)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
             >
-              {n.label ?? '(unnamed)'}
+              <span>{node.label ?? '(unnamed)'}</span>
+              <span style={{ fontSize: '0.7rem', color: 'var(--cg-text-dim)', marginLeft: '0.5rem' }}>{refKindName}</span>
             </button>
           ))}
+          {results.length > visibleCount && (
+            <button
+              type="button"
+              onMouseDown={() => setVisibleCount((c) => c + NODE_SELECT_PAGE)}
+              style={{ display: 'block', width: '100%', textAlign: 'center', padding: '0.3rem', background: 'none', border: 'none', borderTop: '1px solid var(--cg-border)', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--cg-text-dim)' }}
+            >
+              Load more
+            </button>
+          )}
+          {showCreate && !exactMatch && (
+            <button
+              type="button"
+              onMouseDown={handleCreate}
+              disabled={isLoading}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.4rem 0.7rem', background: 'none', border: 'none', borderTop: results.length > 0 ? '1px solid var(--cg-border)' : 'none', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--cg-cyan)', fontWeight: 600 }}
+            >
+              {isLoading ? 'Creating…' : `+ Create "${query.trim()}"`}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -491,7 +584,7 @@ export function CgSmartAddForm({ copy, libId, kinds, fieldDefs, selectedKindId, 
                 })
               ) : isLeafRef ? (
                 <>
-                  <RefSelect
+                  <CgNodeSelect
                     libId={libId}
                     refKindId={def.refNodeKindId!}
                     refKindName={refKind?.name ?? def.fieldName}
