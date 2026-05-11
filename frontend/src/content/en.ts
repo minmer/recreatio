@@ -2224,6 +2224,7 @@ export const en: Copy = {
       deleteTypeFailed: 'Failed to delete node type',
       labelIndex: '★',
       addFormPreview: 'Add form',
+      selectRefKind: 'select type',
     },
     graph: {
       title: 'Nodes',

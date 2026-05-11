@@ -1789,6 +1789,7 @@ export type Copy = {
       deleteTypeFailed: string;
       labelIndex: string;
       addFormPreview: string;
+      selectRefKind: string;
     };
     graph: {
       title: string;

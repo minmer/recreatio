@@ -27,7 +27,7 @@ export function CgStudioPage({ copy, libId }: Props) {
   const [newKindName, setNewKindName] = useState('');
   const [addingKind, setAddingKind] = useState(false);
 
-  const [fieldForms, setFieldForms] = useState<Record<string, { name: string; type: string; multi: boolean; range: boolean }>>({});
+  const [fieldForms, setFieldForms] = useState<Record<string, { name: string; type: string; refKindId: string; multi: boolean; range: boolean }>>({});
   const [expandedKind, setExpandedKind] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,9 +76,10 @@ export function CgStudioPage({ copy, libId }: Props) {
         form.name.trim(), form.type,
         form.multi, form.range,
         existingCount,
+        form.type === 'Ref' && form.refKindId ? form.refKindId : undefined,
       );
       setFieldDefs((prev) => [...prev, def]);
-      setFieldForms((prev) => ({ ...prev, [kindId]: { name: '', type: 'Text', multi: false, range: false } }));
+      setFieldForms((prev) => ({ ...prev, [kindId]: { name: '', type: 'Text', refKindId: '', multi: false, range: false } }));
     } catch {
       setError(t.addFieldFailed);
     }
@@ -94,9 +95,9 @@ export function CgStudioPage({ copy, libId }: Props) {
   }
 
   const getForm = (kindId: string) =>
-    fieldForms[kindId] ?? { name: '', type: 'Text', multi: false, range: false };
+    fieldForms[kindId] ?? { name: '', type: 'Text', refKindId: '', multi: false, range: false };
 
-  const setForm = (kindId: string, patch: Partial<{ name: string; type: string; multi: boolean; range: boolean }>) =>
+  const setForm = (kindId: string, patch: Partial<{ name: string; type: string; refKindId: string; multi: boolean; range: boolean }>) =>
     setFieldForms((prev) => ({ ...prev, [kindId]: { ...getForm(kindId), ...patch } }));
 
   if (loading) return <div className="cg-loading">Loading…</div>;
@@ -226,12 +227,25 @@ export function CgStudioPage({ copy, libId }: Props) {
                     <select
                       className="cg-select"
                       value={form.type}
-                      onChange={(e) => setForm(kind.id, { type: e.target.value })}
+                      onChange={(e) => setForm(kind.id, { type: e.target.value, refKindId: '' })}
                     >
                       {FIELD_TYPES.map((ft) => (
                         <option key={ft} value={ft}>{ft}</option>
                       ))}
                     </select>
+                    {form.type === 'Ref' && (
+                      <select
+                        className="cg-select"
+                        value={form.refKindId}
+                        onChange={(e) => setForm(kind.id, { refKindId: e.target.value })}
+                        style={{ color: form.refKindId ? 'var(--cg-text)' : 'var(--cg-text-dim)' }}
+                      >
+                        <option value="">— {t.selectRefKind} —</option>
+                        {kinds.filter((k) => k.id !== kind.id).map((k) => (
+                          <option key={k.id} value={k.id}>{k.name}</option>
+                        ))}
+                      </select>
+                    )}
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: 'var(--cg-text-dim)', cursor: 'pointer' }}>
                       <input type="checkbox" checked={form.multi} onChange={(e) => setForm(kind.id, { multi: e.target.checked })} />
                       {t.multiValue}

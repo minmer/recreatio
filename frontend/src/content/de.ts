@@ -2222,6 +2222,7 @@ export const de: Copy = {
       deleteTypeFailed: 'Knotentyp konnte nicht gelöscht werden',
       labelIndex: '★',
       addFormPreview: 'Hinzufügen-Formular',
+      selectRefKind: 'Typ wählen',
     },
     graph: {
       title: 'Knoten',
