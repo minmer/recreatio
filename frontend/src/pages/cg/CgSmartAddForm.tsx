@@ -1,430 +1,67 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Copy } from '../../content/types';
 import {
   type CgFieldDef,
   type CgNode,
   type CgNodeKind,
   createNode,
-  listNodes,
   upsertFieldValue,
 } from './api/cgApi';
+import { CgNodePicker, type PickedNode } from './CgNodePicker';
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Form state ────────────────────────────────────────────────────────────────
 
-interface SlotState {
+interface ScalarField {
+  kind: 'scalar';
   value: string;
-  nodeId?: string; // set when user picks from autocomplete
   stable: boolean;
 }
 
-interface FieldState {
-  count: number;
-  countStable: boolean;
-  slots: SlotState[];
-  subForms: Array<Record<string, FieldState>>;
+interface RefField {
+  kind: 'ref';
+  nodes: PickedNode[];
+  stable: boolean;
 }
 
-type FormState = Record<string, FieldState>;
+type FieldEntry = ScalarField | RefField;
+type AddFormState = Record<string, FieldEntry>; // keyed by fieldDefId
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
-const MAX_DEPTH = 2;
-
-// ── Init helpers ─────────────────────────────────────────────────────────────
-
-function initField(def: CgFieldDef, allDefs: CgFieldDef[], depth: number): FieldState {
-  const defaultCount = def.isMultiValue ? (depth === 0 ? 2 : 1) : 1;
-  const slots: SlotState[] = Array.from({ length: defaultCount }, () => ({ value: '', stable: false }));
-  const subForms: Array<Record<string, FieldState>> =
-    def.fieldType === 'Ref' && def.refNodeKindId && depth < MAX_DEPTH
-      ? slots.map(() => initForm(def.refNodeKindId!, allDefs, depth + 1))
-      : [];
-  return { count: defaultCount, countStable: false, slots, subForms };
-}
-
-function initForm(kindId: string, allDefs: CgFieldDef[], depth: number): FormState {
-  const kindDefs = allDefs.filter((d) => d.nodeKindId === kindId).sort((a, b) => a.sortOrder - b.sortOrder);
-  return Object.fromEntries(kindDefs.map((d) => [d.id, initField(d, allDefs, depth)]));
-}
-
-// ── Slot helpers ──────────────────────────────────────────────────────────────
-
-function adjustSlots(slots: SlotState[], count: number): SlotState[] {
-  if (slots.length >= count) return slots.slice(0, count);
-  return [...slots, ...Array.from({ length: count - slots.length }, () => ({ value: '', stable: false }))];
-}
-
-function setSlotValue(fs: FieldState, slotIdx: number, value: string, nodeId?: string): FieldState {
-  return { ...fs, slots: fs.slots.map((s, i) => (i === slotIdx ? { ...s, value, nodeId } : s)) };
-}
-
-function toggleStable(fs: FieldState, slotIdx: number): FieldState {
-  return { ...fs, slots: fs.slots.map((s, i) => (i === slotIdx ? { ...s, stable: !s.stable } : s)) };
-}
-
-function adjustCount(fs: FieldState, newCount: number, def: CgFieldDef, allDefs: CgFieldDef[], depth: number): FieldState {
-  if (newCount < 1) newCount = 1;
-  const newSlots = adjustSlots(fs.slots, newCount);
-  let newSubForms = fs.subForms.slice(0, newCount);
-  if (def.fieldType === 'Ref' && def.refNodeKindId && depth < MAX_DEPTH) {
-    while (newSubForms.length < newCount) {
-      newSubForms = [...newSubForms, initForm(def.refNodeKindId!, allDefs, depth + 1)];
-    }
-  }
-  return { ...fs, count: newCount, slots: newSlots, subForms: newSubForms };
-}
-
-// ── Stable persistence after submit ──────────────────────────────────────────
-
-function applyStableField(fs: FieldState, def: CgFieldDef, allDefs: CgFieldDef[], depth: number): FieldState {
-  const defaultCount = def.isMultiValue ? (depth === 0 ? 2 : 1) : 1;
-  const newCount = fs.countStable ? fs.count : defaultCount;
-  const newSlots = adjustSlots(
-    fs.slots.map((s) => (s.stable ? s : { value: '', stable: false })),
-    newCount,
-  );
-  const subDefs =
-    def.fieldType === 'Ref' && def.refNodeKindId && depth < MAX_DEPTH
-      ? allDefs.filter((d) => d.nodeKindId === def.refNodeKindId!).sort((a, b) => a.sortOrder - b.sortOrder)
-      : [];
-  let newSubForms = fs.subForms.slice(0, newCount).map((sf) =>
-    Object.fromEntries(
-      subDefs.map((sd) => [
-        sd.id,
-        applyStableField(sf[sd.id] ?? initField(sd, allDefs, depth + 1), sd, allDefs, depth + 1),
-      ]),
-    ),
-  );
-  while (newSubForms.length < newCount && def.fieldType === 'Ref' && def.refNodeKindId && depth < MAX_DEPTH) {
-    newSubForms = [...newSubForms, initForm(def.refNodeKindId!, allDefs, depth + 1)];
-  }
-  return { count: newCount, countStable: fs.countStable, slots: newSlots, subForms: newSubForms };
-}
-
-// ── Submit helpers ────────────────────────────────────────────────────────────
-
-function isFormEmpty(formState: FormState): boolean {
-  return Object.values(formState).every(
-    (fs) => fs.slots.every((s) => !s.value.trim() && !s.nodeId) && fs.subForms.every((sf) => isFormEmpty(sf)),
+function initFormState(kindId: string, allDefs: CgFieldDef[]): AddFormState {
+  const defs = allDefs.filter((d) => d.nodeKindId === kindId).sort((a, b) => a.sortOrder - b.sortOrder);
+  return Object.fromEntries(
+    defs.map((d) => [
+      d.id,
+      d.fieldType === 'Ref'
+        ? { kind: 'ref', nodes: [], stable: false }
+        : { kind: 'scalar', value: '', stable: false },
+    ]),
   );
 }
 
-async function submitKind(
-  kindId: string,
-  formState: FormState,
-  libId: string,
-  allDefs: CgFieldDef[],
-  depth: number,
-  findOrCreateMode: boolean,
-): Promise<{ node: CgNode; label: string }> {
-  const kindDefs = allDefs.filter((d) => d.nodeKindId === kindId).sort((a, b) => a.sortOrder - b.sortOrder);
-  const fieldValues: Array<{
-    defId: string; textValue?: string; refNodeId?: string;
-    numberValue?: number; dateValue?: string; boolValue?: boolean; sortOrder: number;
-  }> = [];
-  const labelParts: string[] = [];
-
-  for (const def of kindDefs) {
-    const fieldState = formState[def.id];
-    if (!fieldState) continue;
-
-    if (def.fieldType === 'Ref' && def.refNodeKindId) {
-      if (depth < MAX_DEPTH && fieldState.subForms.length > 0) {
-        for (let i = 0; i < Math.min(fieldState.count, fieldState.subForms.length); i++) {
-          const sf = fieldState.subForms[i];
-          if (isFormEmpty(sf)) continue;
-          const { node: refNode, label: refLabel } = await submitKind(
-            def.refNodeKindId, sf, libId, allDefs, depth + 1, true,
-          );
-          fieldValues.push({ defId: def.id, refNodeId: refNode.id, sortOrder: i });
-          if (labelParts.length === 0 || i > 0) labelParts.push(refLabel);
-        }
-      } else {
-        for (let i = 0; i < fieldState.count; i++) {
-          const slot = fieldState.slots[i];
-          if (!slot) continue;
-          // Use pinned nodeId directly, skip API search
-          if (slot.nodeId) {
-            fieldValues.push({ defId: def.id, refNodeId: slot.nodeId, sortOrder: i });
-          } else {
-            const label = slot.value.trim();
-            if (!label) continue;
-            const existing = await listNodes(libId, { kindId: def.refNodeKindId, q: label, limit: 20 });
-            const match = existing.find((n) => n.label?.toLowerCase() === label.toLowerCase());
-            const refNode = match ?? await createNode(libId, { nodeType: 'Entity', nodeKindId: def.refNodeKindId, label });
-            fieldValues.push({ defId: def.id, refNodeId: refNode.id, sortOrder: i });
-          }
-        }
+function applyStable(state: AddFormState): AddFormState {
+  return Object.fromEntries(
+    Object.entries(state).map(([id, entry]) => {
+      if (entry.kind === 'ref') {
+        return [id, { ...entry, nodes: entry.stable ? entry.nodes : [] }];
       }
-    } else {
-      for (let i = 0; i < fieldState.count; i++) {
-        const slot = fieldState.slots[i];
-        if (!slot) continue;
-        const value = slot.value.trim();
-        if (!value) continue;
-        const fv: (typeof fieldValues)[0] = { defId: def.id, sortOrder: i };
-        if (def.fieldType === 'Text') fv.textValue = value;
-        else if (def.fieldType === 'Number') fv.numberValue = Number(value);
-        else if (def.fieldType === 'Date') fv.dateValue = value;
-        else if (def.fieldType === 'Boolean') fv.boolValue = value === 'true';
-        fieldValues.push(fv);
-        if (i === 0 && labelParts.length === 0) labelParts.push(value);
-      }
-    }
-  }
-
-  const label = labelParts.join(' / ');
-  let node: CgNode;
-  if (findOrCreateMode && label) {
-    const existing = await listNodes(libId, { kindId, q: label, limit: 20 });
-    const match = existing.find((n) => n.label?.toLowerCase() === label.toLowerCase());
-    if (match) return { node: match, label };
-    node = await createNode(libId, { nodeType: 'Entity', nodeKindId: kindId, label });
-  } else {
-    node = await createNode(libId, { nodeType: 'Entity', nodeKindId: kindId, label: label || undefined });
-  }
-
-  for (const fv of fieldValues) {
-    await upsertFieldValue(libId, node.id, {
-      fieldDefId: fv.defId, textValue: fv.textValue, refNodeId: fv.refNodeId,
-      numberValue: fv.numberValue, dateValue: fv.dateValue, boolValue: fv.boolValue,
-      sortOrder: fv.sortOrder,
-    });
-  }
-
-  return { node, label };
-}
-
-// ── CgNodeSelect ─────────────────────────────────────────────────────────────
-// Search-and-select for a specific node kind. Debounced, cached, keyboard-navigable.
-// Selecting an existing node auto-pins it (stable=true). Unknown queries get a
-// "Create" button so new nodes can be added inline.
-
-const NODE_SELECT_MAX_VISIBLE = 5;
-const NODE_SELECT_PAGE = 5;
-const NODE_SELECT_FETCH_LIMIT = 50;
-const NODE_SELECT_MIN_LEN = 1;
-const NODE_SELECT_DEBOUNCE = 250;
-
-function CgNodeSelect({ libId, refKindId, refKindName, slot, onUpdate, onEnter, tabIndex: tabIdx }: {
-  libId: string;
-  refKindId: string;
-  refKindName: string;
-  slot: SlotState;
-  onUpdate: (slot: SlotState) => void;
-  onEnter: (el: HTMLInputElement) => void;
-  tabIndex?: number;
-}) {
-  const [query, setQuery] = useState(slot.nodeId ? '' : slot.value);
-  const [results, setResults] = useState<CgNode[]>([]);
-  const [visibleCount, setVisibleCount] = useState(NODE_SELECT_MAX_VISIBLE);
-  const [highlightedIdx, setHighlightedIdx] = useState(-1);
-  const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const cache = useRef(new Map<string, CgNode[]>());
-  const lastReq = useRef(0);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Sync query when slot resets after submit (non-stable)
-  useEffect(() => {
-    if (!slot.stable) { setQuery(''); setResults([]); setIsOpen(false); }
-  }, [slot.stable]);
-
-  // Debounced search
-  useEffect(() => {
-    const trimmed = query.trim();
-    if (trimmed.length < NODE_SELECT_MIN_LEN) {
-      setResults([]); setIsOpen(false); setHighlightedIdx(-1); setIsLoading(false);
-      return;
-    }
-    const key = `${libId}:${refKindId}:${trimmed.toLowerCase()}`;
-    const cached = cache.current.get(key);
-    if (cached) {
-      setResults(cached); setVisibleCount(NODE_SELECT_MAX_VISIBLE);
-      setHighlightedIdx(-1); setIsOpen(true); setIsLoading(false);
-      return;
-    }
-    const id = window.setTimeout(async () => {
-      const ts = Date.now();
-      lastReq.current = ts;
-      setIsLoading(true);
-      try {
-        const nodes = await listNodes(libId, { kindId: refKindId, q: trimmed, limit: NODE_SELECT_FETCH_LIMIT });
-        if (lastReq.current !== ts) return;
-        cache.current.set(key, nodes);
-        setResults(nodes); setVisibleCount(NODE_SELECT_MAX_VISIBLE);
-        setHighlightedIdx(-1); setIsOpen(true);
-      } catch { /* silent */ }
-      finally { if (lastReq.current === ts) setIsLoading(false); }
-    }, NODE_SELECT_DEBOUNCE);
-    return () => window.clearTimeout(id);
-  }, [libId, refKindId, query]);
-
-  function selectNode(node: CgNode) {
-    const label = node.label ?? '';
-    setQuery('');
-    setResults([]); setIsOpen(false); setHighlightedIdx(-1);
-    onUpdate({ value: label, nodeId: node.id, stable: true });
-  }
-
-  async function handleCreate() {
-    const label = query.trim();
-    if (!label) return;
-    setIsLoading(true); setCreateError(null);
-    try {
-      const node = await createNode(libId, { nodeType: 'Entity', nodeKindId: refKindId, label });
-      const key = `${libId}:${refKindId}:${label.toLowerCase()}`;
-      cache.current.set(key, [node, ...(cache.current.get(key) ?? [])]);
-      selectNode(node);
-    } catch {
-      setCreateError('Create failed');
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Escape') { setIsOpen(false); return; }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (!results.length) return;
-      setIsOpen(true);
-      setHighlightedIdx((prev) => {
-        const maxIdx = Math.min(results.length, visibleCount) - 1;
-        const next = prev < 0 ? 0 : Math.min(prev + 1, maxIdx);
-        if (next === maxIdx && results.length > visibleCount)
-          setVisibleCount((c) => Math.min(c + NODE_SELECT_PAGE, results.length));
-        return next;
-      });
-      return;
-    }
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setHighlightedIdx((prev) => (prev <= 0 ? 0 : prev - 1));
-      return;
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (highlightedIdx >= 0 && results[highlightedIdx]) {
-        selectNode(results[highlightedIdx]);
-      } else if (query.trim()) {
-        handleCreate();
-      } else {
-        setIsOpen(false);
-        if (inputRef.current) onEnter(inputRef.current);
-      }
-    }
-  }
-
-  const showCreate = query.trim().length >= NODE_SELECT_MIN_LEN;
-  const exactMatch = results.some((n) => n.label?.toLowerCase() === query.trim().toLowerCase());
-
-  // ── Selected chip ──
-  if (slot.nodeId) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flex: 1 }}>
-        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--cg-cyan)', letterSpacing: '0.05em', textTransform: 'uppercase', flexShrink: 0 }}>
-          {refKindName}
-        </span>
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-          background: 'var(--cg-cyan)22', color: 'var(--cg-cyan)',
-          borderRadius: '999px', padding: '0.15rem 0.6rem',
-          fontSize: '0.82rem', fontWeight: 600,
-        }}>
-          {slot.value}
-          <button
-            type="button"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1, fontSize: '1rem' }}
-            onClick={() => onUpdate({ value: '', nodeId: undefined, stable: false })}
-          >
-            ×
-          </button>
-        </span>
-      </div>
-    );
-  }
-
-  // ── Search input + dropdown ──
-  return (
-    <div style={{ position: 'relative', flex: 1 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-        <input
-          ref={inputRef}
-          className="cg-input"
-          style={{ flex: 1 }}
-          placeholder={`Search or create ${refKindName}…`}
-          value={query}
-          tabIndex={tabIdx}
-          onChange={(e) => { setQuery(e.target.value); onUpdate({ ...slot, value: e.target.value, nodeId: undefined }); }}
-          onKeyDown={handleKeyDown}
-          onFocus={() => { if (results.length > 0) setIsOpen(true); }}
-          onBlur={() => window.setTimeout(() => setIsOpen(false), 150)}
-        />
-        {isLoading && <span style={{ fontSize: '0.75rem', color: 'var(--cg-text-dim)', flexShrink: 0 }}>…</span>}
-      </div>
-      {createError && <p style={{ fontSize: '0.75rem', color: 'var(--cg-danger)', margin: '0.2rem 0 0' }}>{createError}</p>}
-      {isOpen && (results.length > 0 || showCreate) && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-          background: 'var(--cg-surface)', border: '1px solid var(--cg-border)',
-          borderRadius: 'var(--cg-radius)', boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-          marginTop: 3,
-        }}>
-          {results.slice(0, visibleCount).map((node, idx) => (
-            <button
-              key={node.id}
-              type="button"
-              onMouseDown={() => selectNode(node)}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                width: '100%', textAlign: 'left', padding: '0.4rem 0.7rem',
-                background: idx === highlightedIdx ? 'var(--cg-hover)' : 'none',
-                border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--cg-text)',
-              }}
-            >
-              <span>{node.label ?? '(unnamed)'}</span>
-              <span style={{ fontSize: '0.7rem', color: 'var(--cg-text-dim)', marginLeft: '0.5rem' }}>{refKindName}</span>
-            </button>
-          ))}
-          {results.length > visibleCount && (
-            <button
-              type="button"
-              onMouseDown={() => setVisibleCount((c) => c + NODE_SELECT_PAGE)}
-              style={{ display: 'block', width: '100%', textAlign: 'center', padding: '0.3rem', background: 'none', border: 'none', borderTop: '1px solid var(--cg-border)', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--cg-text-dim)' }}
-            >
-              Load more
-            </button>
-          )}
-          {showCreate && !exactMatch && (
-            <button
-              type="button"
-              onMouseDown={handleCreate}
-              disabled={isLoading}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.4rem 0.7rem', background: 'none', border: 'none', borderTop: results.length > 0 ? '1px solid var(--cg-border)' : 'none', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--cg-cyan)', fontWeight: 600 }}
-            >
-              {isLoading ? 'Creating…' : `+ Create "${query.trim()}"`}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
+      return [id, { ...entry, value: entry.stable ? entry.value : '' }];
+    }),
   );
 }
 
-// ── Schema description ────────────────────────────────────────────────────────
+// ── Schema description (collapsed summary) ────────────────────────────────────
 
 function buildDescription(kindId: string, allKinds: CgNodeKind[], allDefs: CgFieldDef[]): string {
-  const kindDefs = allDefs.filter((d) => d.nodeKindId === kindId).sort((a, b) => a.sortOrder - b.sortOrder);
-  const parts = kindDefs.map((d) => {
-    if (d.fieldType === 'Ref' && d.refNodeKindId) {
-      const refKind = allKinds.find((k) => k.id === d.refNodeKindId);
-      return refKind ? `${d.fieldName} (${refKind.name})` : d.fieldName;
-    }
-    return d.fieldName;
-  });
-  return parts.join(' · ');
+  const defs = allDefs.filter((d) => d.nodeKindId === kindId).sort((a, b) => a.sortOrder - b.sortOrder);
+  return defs
+    .map((d) => {
+      if (d.fieldType === 'Ref' && d.refNodeKindId) {
+        const ref = allKinds.find((k) => k.id === d.refNodeKindId);
+        return ref ? `${d.fieldName} → ${ref.name}` : d.fieldName;
+      }
+      return d.fieldName;
+    })
+    .join(' · ');
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -441,41 +78,76 @@ interface Props {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function CgSmartAddForm({ copy, libId, kinds, fieldDefs, selectedKindId, onKindChange, onCreated }: Props) {
-  const [formState, setFormState] = useState<FormState>(() => initForm(selectedKindId, fieldDefs, 0));
+export function CgSmartAddForm({
+  copy, libId, kinds, fieldDefs, selectedKindId, onKindChange, onCreated,
+}: Props) {
+  const [formState, setFormState] = useState<AddFormState>(
+    () => initFormState(selectedKindId, fieldDefs),
+  );
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const formRef = useRef<HTMLDivElement>(null);
+  const firstInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setFormState(initForm(selectedKindId, fieldDefs, 0));
-  }, [selectedKindId]);
+    setFormState(initFormState(selectedKindId, fieldDefs));
+  }, [selectedKindId, fieldDefs]);
 
   const selectedKind = kinds.find((k) => k.id === selectedKindId);
   if (!selectedKind) return null;
 
-  const kindDefs = fieldDefs.filter((d) => d.nodeKindId === selectedKindId).sort((a, b) => a.sortOrder - b.sortOrder);
+  const kindDefs = fieldDefs
+    .filter((d) => d.nodeKindId === selectedKindId)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
   const description = buildDescription(selectedKindId, kinds, fieldDefs);
+
+  // ── Submit ──
 
   async function handleSubmit() {
     setAdding(true);
     setError(null);
     try {
-      const { node } = await submitKind(selectedKindId, formState, libId, fieldDefs, 0, false);
-      const newState: FormState = {};
+      // Derive label from first scalar Text field
+      const firstText = kindDefs.find((d) => d.fieldType === 'Text');
+      const labelEntry = firstText ? formState[firstText.id] : undefined;
+      const label =
+        labelEntry?.kind === 'scalar' ? labelEntry.value.trim() || undefined : undefined;
+
+      const node = await createNode(libId, {
+        nodeType: 'Entity',
+        nodeKindId: selectedKindId,
+        label,
+      });
+
       for (const def of kindDefs) {
-        if (formState[def.id]) {
-          newState[def.id] = applyStableField(formState[def.id], def, fieldDefs, 0);
+        const entry = formState[def.id];
+        if (!entry) continue;
+
+        if (entry.kind === 'ref') {
+          for (let i = 0; i < entry.nodes.length; i++) {
+            await upsertFieldValue(libId, node.id, {
+              fieldDefId: def.id,
+              refNodeId: entry.nodes[i].id,
+              sortOrder: i,
+            });
+          }
+        } else {
+          const val = entry.value.trim();
+          if (!val) continue;
+          const body: Parameters<typeof upsertFieldValue>[2] = { fieldDefId: def.id, sortOrder: 0 };
+          if (def.fieldType === 'Text') body.textValue = val;
+          else if (def.fieldType === 'Number') body.numberValue = Number(val);
+          else if (def.fieldType === 'Date') body.dateValue = val;
+          else if (def.fieldType === 'Boolean') body.boolValue = val === 'true';
+          else continue;
+          await upsertFieldValue(libId, node.id, body);
         }
       }
-      setFormState(newState);
+
+      setFormState(applyStable(formState));
       onCreated(node);
-      // refocus first non-stable input
-      setTimeout(() => {
-        const first = formRef.current?.querySelector<HTMLElement>('input:not([tabindex="-1"]), select:not([tabindex="-1"])');
-        first?.focus();
-      }, 50);
+      setTimeout(() => firstInputRef.current?.focus(), 50);
     } catch {
       setError(copy.cg.graph.createFailed);
     } finally {
@@ -483,170 +155,64 @@ export function CgSmartAddForm({ copy, libId, kinds, fieldDefs, selectedKindId, 
     }
   }
 
-  function focusNext(currentEl: HTMLElement) {
-    if (!formRef.current) return;
-    const inputs = Array.from(
-      formRef.current.querySelectorAll<HTMLElement>('input:not([tabindex="-1"]), select:not([tabindex="-1"])')
+  // ── Helpers to update individual fields ──
+
+  function setScalar(defId: string, value: string) {
+    setFormState((prev) => ({
+      ...prev,
+      [defId]: { ...prev[defId], kind: 'scalar', value } as ScalarField,
+    }));
+  }
+
+  function toggleScalarStable(defId: string) {
+    setFormState((prev) => {
+      const e = prev[defId];
+      return { ...prev, [defId]: { ...e, stable: !e.stable } };
+    });
+  }
+
+  function setRefNodes(defId: string, nodes: PickedNode[]) {
+    setFormState((prev) => ({
+      ...prev,
+      [defId]: { ...prev[defId], kind: 'ref', nodes } as RefField,
+    }));
+  }
+
+  function toggleRefStable(defId: string) {
+    setFormState((prev) => {
+      const e = prev[defId];
+      return { ...prev, [defId]: { ...e, stable: !e.stable } };
+    });
+  }
+
+  function handleScalarKey(e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>, defId: string) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    // find next scalar input
+    const scalarInputs = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-cg-scalar-input]'),
     );
-    const idx = inputs.indexOf(currentEl);
-    if (idx >= 0 && idx < inputs.length - 1) {
-      inputs[idx + 1].focus();
+    const idx = scalarInputs.findIndex((el) => el.dataset.cgScalarInput === defId);
+    if (idx >= 0 && idx < scalarInputs.length - 1) {
+      scalarInputs[idx + 1].focus();
     } else {
       handleSubmit();
     }
   }
 
-  function handleFieldKey(e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    focusNext(e.currentTarget as HTMLElement);
-  }
-
-  function renderField(
-    def: CgFieldDef,
-    fieldState: FieldState,
-    onChange: (f: FieldState) => void,
-    depth: number,
-  ): ReactNode {
-    const isExpandedRef = def.fieldType === 'Ref' && def.refNodeKindId && depth < MAX_DEPTH;
-    const isLeafRef = def.fieldType === 'Ref' && def.refNodeKindId && depth >= MAX_DEPTH;
-    const refKind = def.fieldType === 'Ref' && def.refNodeKindId ? kinds.find((k) => k.id === def.refNodeKindId) : null;
-    const subKind = isExpandedRef ? refKind : null;
-    const subDefs = subKind
-      ? fieldDefs.filter((d) => d.nodeKindId === subKind.id).sort((a, b) => a.sortOrder - b.sortOrder)
-      : [];
-
-    return (
-      <div key={def.id} style={{ marginBottom: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--cg-text-dim)' }}>
-            {def.fieldName}
-            {refKind && (
-              <span style={{ fontWeight: 400, marginLeft: '0.25rem', textTransform: 'none' }}>→ {refKind.name}</span>
-            )}
-          </span>
-          {def.isMultiValue && (
-            <>
-              <button className="cg-btn cg-btn-ghost cg-btn-sm" type="button" tabIndex={-1}
-                onClick={() => onChange(adjustCount(fieldState, fieldState.count - 1, def, fieldDefs, depth))}
-                disabled={fieldState.count <= 1}>−</button>
-              <span style={{ fontSize: '0.8rem', color: 'var(--cg-text)', minWidth: '1rem', textAlign: 'center' }}>{fieldState.count}</span>
-              <button className="cg-btn cg-btn-ghost cg-btn-sm" type="button" tabIndex={-1}
-                onClick={() => onChange(adjustCount(fieldState, fieldState.count + 1, def, fieldDefs, depth))}>+</button>
-              <button
-                className="cg-btn cg-btn-ghost cg-btn-sm"
-                style={fieldState.countStable ? { color: 'var(--cg-cyan)' } : {}}
-                type="button" tabIndex={-1}
-                title={fieldState.countStable ? 'Count pinned' : 'Pin count'}
-                onClick={() => onChange({ ...fieldState, countStable: !fieldState.countStable })}>
-                {fieldState.countStable ? '🔒' : '🔓'}
-              </button>
-            </>
-          )}
-        </div>
-
-        {Array.from({ length: fieldState.count }, (_, slotIdx) => {
-          const slot = fieldState.slots[slotIdx] ?? { value: '', stable: false };
-          const isStable = slot.stable;
-
-          return (
-            <div
-              key={slotIdx}
-              style={
-                isExpandedRef
-                  ? {
-                      border: '1px solid var(--cg-border)', borderRadius: 'var(--cg-radius)',
-                      padding: '0.65rem', marginBottom: '0.5rem',
-                      background: depth === 0 ? 'var(--cg-surface)' : 'var(--cg-bg)',
-                    }
-                  : { display: 'flex', gap: '0.35rem', alignItems: 'center', marginBottom: '0.3rem' }
-              }
-            >
-              {isExpandedRef && subKind && fieldState.count > 1 && (
-                <p style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--cg-text-dim)', margin: '0 0 0.4rem' }}>
-                  {subKind.name} {slotIdx + 1}
-                </p>
-              )}
-
-              {isExpandedRef ? (
-                subDefs.map((subDef) => {
-                  const subFieldState = fieldState.subForms[slotIdx]?.[subDef.id];
-                  if (!subFieldState) return null;
-                  return renderField(subDef, subFieldState, (updated) => {
-                    const newSubForms = fieldState.subForms.map((sf, i) =>
-                      i === slotIdx ? { ...sf, [subDef.id]: updated } : sf,
-                    );
-                    onChange({ ...fieldState, subForms: newSubForms });
-                  }, depth + 1);
-                })
-              ) : isLeafRef ? (
-                <>
-                  <CgNodeSelect
-                    libId={libId}
-                    refKindId={def.refNodeKindId!}
-                    refKindName={refKind?.name ?? def.fieldName}
-                    slot={slot}
-                    onUpdate={(newSlot) =>
-                      onChange({ ...fieldState, slots: fieldState.slots.map((s, i) => (i === slotIdx ? newSlot : s)) })
-                    }
-                    onEnter={(el) => focusNext(el)}
-                    tabIndex={isStable ? -1 : 0}
-                  />
-                  <button
-                    className="cg-btn cg-btn-ghost cg-btn-sm"
-                    style={isStable ? { color: 'var(--cg-cyan)' } : { color: 'var(--cg-text-dim)' }}
-                    type="button" tabIndex={-1}
-                    title={isStable ? 'Pinned' : 'Pin this value'}
-                    onClick={() => onChange(toggleStable(fieldState, slotIdx))}>
-                    {isStable ? '🔒' : '🔓'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  {def.fieldType === 'Boolean' ? (
-                    <select
-                      className="cg-select" style={{ flex: 1 }}
-                      value={slot.value || 'false'}
-                      tabIndex={isStable ? -1 : 0}
-                      onChange={(e) => onChange(setSlotValue(fieldState, slotIdx, e.target.value))}
-                      onKeyDown={handleFieldKey}
-                    >
-                      <option value="true">Yes</option>
-                      <option value="false">No</option>
-                    </select>
-                  ) : (
-                    <input
-                      className="cg-input" style={{ flex: 1 }}
-                      placeholder={def.fieldName}
-                      value={slot.value}
-                      type={def.fieldType === 'Number' ? 'number' : def.fieldType === 'Date' ? 'date' : 'text'}
-                      tabIndex={isStable ? -1 : 0}
-                      onChange={(e) => onChange(setSlotValue(fieldState, slotIdx, e.target.value))}
-                      onKeyDown={handleFieldKey}
-                    />
-                  )}
-                  <button
-                    className="cg-btn cg-btn-ghost cg-btn-sm"
-                    style={isStable ? { color: 'var(--cg-cyan)' } : { color: 'var(--cg-text-dim)' }}
-                    type="button" tabIndex={-1}
-                    title={isStable ? 'Pinned' : 'Pin this value'}
-                    onClick={() => onChange(toggleStable(fieldState, slotIdx))}>
-                    {isStable ? '🔒' : '🔓'}
-                  </button>
-                </>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
+  // ── Render ──
 
   return (
-    <div style={{ background: 'var(--cg-surface)', border: '1px solid var(--cg-border)', borderRadius: 'var(--cg-radius)', padding: '1rem', marginBottom: '1rem' }}>
-      {/* Collapsed header — always visible */}
+    <div style={{
+      background: 'var(--cg-surface)', border: '1px solid var(--cg-border)',
+      borderRadius: 'var(--cg-radius)', padding: '1rem', marginBottom: '1rem',
+    }}>
+      {/* Header — always visible */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-        <p style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--cg-text-dim)', margin: 0, flexShrink: 0 }}>
+        <p style={{
+          fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em',
+          textTransform: 'uppercase', color: 'var(--cg-text-dim)', margin: 0, flexShrink: 0,
+        }}>
           {copy.cg.graph.addNode}
         </p>
         <select
@@ -657,15 +223,32 @@ export function CgSmartAddForm({ copy, libId, kinds, fieldDefs, selectedKindId, 
           {kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
         </select>
         {!expanded && (
-          <span style={{ fontSize: '0.8rem', color: 'var(--cg-text-dim)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{
+            fontSize: '0.8rem', color: 'var(--cg-text-dim)', flex: 1, minWidth: 0,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
             {description}
           </span>
         )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.4rem' }}>
           {expanded ? (
-            <button className="cg-btn cg-btn-ghost cg-btn-sm" type="button" tabIndex={-1} onClick={() => setExpanded(false)}>✕</button>
+            <button
+              className="cg-btn cg-btn-ghost cg-btn-sm"
+              type="button"
+              tabIndex={-1}
+              onClick={() => setExpanded(false)}
+            >
+              ✕
+            </button>
           ) : (
-            <button className="cg-btn cg-btn-primary" type="button" onClick={() => { setExpanded(true); setTimeout(() => { const first = formRef.current?.querySelector<HTMLElement>('input:not([tabindex="-1"]), select:not([tabindex="-1"])'); first?.focus(); }, 50); }}>
+            <button
+              className="cg-btn cg-btn-primary"
+              type="button"
+              onClick={() => {
+                setExpanded(true);
+                setTimeout(() => firstInputRef.current?.focus(), 50);
+              }}
+            >
               {copy.cg.graph.addAction}
             </button>
           )}
@@ -674,14 +257,109 @@ export function CgSmartAddForm({ copy, libId, kinds, fieldDefs, selectedKindId, 
 
       {/* Expanded form */}
       {expanded && (
-        <div ref={formRef} style={{ marginTop: '1rem' }}>
+        <div style={{ marginTop: '1rem' }}>
           {error && <p className="cg-error" style={{ marginBottom: '0.5rem' }}>{error}</p>}
-          {kindDefs.map((def) =>
-            formState[def.id]
-              ? renderField(def, formState[def.id], (updated) => setFormState((prev) => ({ ...prev, [def.id]: updated })), 0)
-              : null
-          )}
-          <button className="cg-btn cg-btn-primary" type="button" onClick={handleSubmit} disabled={adding} style={{ marginTop: '0.5rem' }}>
+
+          {kindDefs.map((def, defIdx) => {
+            const entry = formState[def.id];
+            if (!entry) return null;
+
+            const refKind = def.fieldType === 'Ref' && def.refNodeKindId
+              ? kinds.find((k) => k.id === def.refNodeKindId)
+              : null;
+
+            return (
+              <div key={def.id} style={{ marginBottom: '0.85rem' }}>
+                {/* Field label */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}>
+                  <span style={{
+                    fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.07em',
+                    textTransform: 'uppercase', color: 'var(--cg-text-dim)',
+                  }}>
+                    {def.fieldName}
+                    {refKind && (
+                      <span style={{ fontWeight: 400, marginLeft: '0.25rem', textTransform: 'none' }}>
+                        → {refKind.name}
+                      </span>
+                    )}
+                  </span>
+
+                  {/* Stable toggle (per-field) */}
+                  <button
+                    className="cg-btn cg-btn-ghost cg-btn-sm"
+                    style={entry.stable ? { color: 'var(--cg-cyan)', marginLeft: 'auto' } : { color: 'var(--cg-text-dim)', marginLeft: 'auto' }}
+                    type="button"
+                    tabIndex={-1}
+                    title={entry.stable ? 'Pinned — persists after add' : 'Pin this field'}
+                    onClick={() =>
+                      entry.kind === 'ref' ? toggleRefStable(def.id) : toggleScalarStable(def.id)
+                    }
+                  >
+                    {entry.stable ? '🔒' : '🔓'}
+                  </button>
+                </div>
+
+                {/* Field input */}
+                {entry.kind === 'ref' && refKind ? (
+                  <CgNodePicker
+                    libId={libId}
+                    refKindId={def.refNodeKindId!}
+                    refKindName={refKind.name}
+                    allKinds={kinds}
+                    allDefs={fieldDefs}
+                    selected={entry.nodes}
+                    onAdd={(node) =>
+                      setRefNodes(
+                        def.id,
+                        def.isMultiValue ? [...entry.nodes, node] : [node],
+                      )
+                    }
+                    onRemove={(nodeId) =>
+                      setRefNodes(def.id, entry.nodes.filter((n) => n.id !== nodeId))
+                    }
+                    maxCount={def.isMultiValue ? Infinity : 1}
+                    depth={0}
+                  />
+                ) : entry.kind === 'scalar' ? (
+                  def.fieldType === 'Boolean' ? (
+                    <select
+                      className="cg-select"
+                      style={{ width: '100%' }}
+                      value={entry.value || 'false'}
+                      tabIndex={entry.stable ? -1 : 0}
+                      onChange={(e) => setScalar(def.id, e.target.value)}
+                      onKeyDown={(e) => handleScalarKey(e, def.id)}
+                      data-cg-scalar-input={def.id}
+                    >
+                      <option value="true">Yes</option>
+                      <option value="false">No</option>
+                    </select>
+                  ) : (
+                    <input
+                      ref={defIdx === 0 ? firstInputRef : undefined}
+                      className="cg-input"
+                      style={{ width: '100%' }}
+                      placeholder={def.fieldName}
+                      value={entry.value}
+                      type={def.fieldType === 'Number' ? 'number' : def.fieldType === 'Date' ? 'date' : 'text'}
+                      tabIndex={entry.stable ? -1 : 0}
+                      data-cg-scalar-input={def.id}
+                      onChange={(e) => setScalar(def.id, e.target.value)}
+                      onKeyDown={(e) => handleScalarKey(e, def.id)}
+                    />
+                  )
+                ) : null}
+              </div>
+            );
+          })}
+
+          <button
+            className="cg-btn cg-btn-primary"
+            type="button"
+            onClick={handleSubmit}
+            disabled={adding}
+            style={{ marginTop: '0.25rem' }}
+          >
             {adding ? copy.cg.graph.adding : copy.cg.graph.addAction}
           </button>
         </div>
