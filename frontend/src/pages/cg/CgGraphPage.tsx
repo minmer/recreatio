@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Copy } from '../../content/types';
 import { type CgFieldDef, type CgFieldValue, type CgNode, type CgNodeKind, deleteNode, getLibrary, getNode, listNodes } from './api/cgApi';
+import { CgNodeEditForm } from './CgNodeEditForm';
 import { CgSmartAddForm } from './CgSmartAddForm';
 
 interface Props {
@@ -22,6 +23,7 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const [selectedKindId, setSelectedKindId] = useState('');
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
 
   useEffect(() => {
     getLibrary(libId)
@@ -51,12 +53,14 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
       await deleteNode(libId, nodeId);
       setNodes((prev) => prev.filter((n) => n.id !== nodeId));
       setDeleteConfirm(null);
+      if (editingNodeId === nodeId) setEditingNodeId(null);
     } catch {
       setError(t.deleteFailed);
     }
   }
 
   const kindMap = Object.fromEntries(kinds.map((k) => [k.id, k]));
+  const editingNode = editingNodeId ? nodes.find((n) => n.id === editingNodeId) ?? null : null;
 
   const displayKind = filterKindId ? kinds.find((k) => k.id === filterKindId) : null;
   const displayFields = displayKind ? fieldDefs.filter((f) => f.nodeKindId === displayKind.id).slice(0, 4) : [];
@@ -84,16 +88,32 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
         </select>
       </div>
 
-      {kinds.length > 0 && selectedKindId && (
-        <CgSmartAddForm
+      {/* Edit form replaces add form while editing */}
+      {editingNode ? (
+        <CgNodeEditForm
           copy={copy}
           libId={libId}
+          node={editingNode}
           kinds={kinds}
           fieldDefs={fieldDefs}
-          selectedKindId={selectedKindId}
-          onKindChange={setSelectedKindId}
-          onCreated={(node) => setNodes((prev) => [node, ...prev])}
+          onSaved={(updated) => {
+            setNodes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+            setEditingNodeId(null);
+          }}
+          onCancel={() => setEditingNodeId(null)}
         />
+      ) : (
+        kinds.length > 0 && selectedKindId && (
+          <CgSmartAddForm
+            copy={copy}
+            libId={libId}
+            kinds={kinds}
+            fieldDefs={fieldDefs}
+            selectedKindId={selectedKindId}
+            onKindChange={setSelectedKindId}
+            onCreated={(node) => setNodes((prev) => [node, ...prev])}
+          />
+        )
       )}
 
       {error && <p className="cg-error" style={{ marginBottom: '1rem' }}>{error}</p>}
@@ -114,7 +134,7 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
                 <th>{t.labelColumn}</th>
                 <th>{t.typeColumn}</th>
                 {displayFields.map((f) => <th key={f.id}>{f.fieldName}</th>)}
-                <th style={{ width: '6rem' }}></th>
+                <th style={{ width: '8rem' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -125,11 +145,14 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
                   kindMap={kindMap}
                   displayFields={displayFields}
                   libId={libId}
+                  isEditing={editingNodeId === node.id}
                   onOpen={() => onOpenNode(node.id)}
+                  onEdit={() => setEditingNodeId(editingNodeId === node.id ? null : node.id)}
                   deleteConfirm={deleteConfirm}
                   onDeleteRequest={() => setDeleteConfirm(node.id)}
                   onDeleteConfirm={() => handleDelete(node.id)}
                   onDeleteCancel={() => setDeleteConfirm(null)}
+                  copy={copy}
                 />
               ))}
             </tbody>
@@ -141,18 +164,21 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
 }
 
 function NodeRow({
-  node, kindMap, displayFields, libId, onOpen,
-  deleteConfirm, onDeleteRequest, onDeleteConfirm, onDeleteCancel,
+  node, kindMap, displayFields, libId, isEditing, onOpen, onEdit,
+  deleteConfirm, onDeleteRequest, onDeleteConfirm, onDeleteCancel, copy,
 }: {
   node: CgNode;
   kindMap: Record<string, CgNodeKind>;
   displayFields: CgFieldDef[];
   libId: string;
+  isEditing: boolean;
   onOpen: () => void;
+  onEdit: () => void;
   deleteConfirm: string | null;
   onDeleteRequest: () => void;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
+  copy: Copy;
 }) {
   const [fieldValues, setFieldValues] = useState<CgFieldValue[] | null>(null);
 
@@ -168,7 +194,7 @@ function NodeRow({
   const isConfirming = deleteConfirm === node.id;
 
   return (
-    <tr>
+    <tr style={isEditing ? { background: 'var(--cg-cyan)0a' } : undefined}>
       <td>
         <button
           type="button"
@@ -196,7 +222,17 @@ function NodeRow({
               <button className="cg-btn cg-btn-ghost cg-btn-sm" type="button" onClick={onDeleteCancel}>Cancel</button>
             </>
           ) : (
-            <button className="cg-btn cg-btn-ghost cg-btn-sm" type="button" onClick={onDeleteRequest}>✕</button>
+            <>
+              <button
+                className="cg-btn cg-btn-ghost cg-btn-sm"
+                type="button"
+                onClick={onEdit}
+                style={isEditing ? { color: 'var(--cg-cyan)' } : undefined}
+              >
+                {copy.cg.graph.editAction}
+              </button>
+              <button className="cg-btn cg-btn-ghost cg-btn-sm" type="button" onClick={onDeleteRequest}>✕</button>
+            </>
           )}
         </div>
       </td>

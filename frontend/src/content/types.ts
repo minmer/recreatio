@@ -1799,8 +1799,12 @@ export type Copy = {
       labelPlaceholder: string;
       addAction: string;
       adding: string;
+      editAction: string;
+      saveAction: string;
+      savingChanges: string;
       loadFailed: string;
       createFailed: string;
+      updateFailed: string;
       deleteFailed: string;
       labelColumn: string;
       typeColumn: string;

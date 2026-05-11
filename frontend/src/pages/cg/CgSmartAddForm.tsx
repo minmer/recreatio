@@ -11,24 +11,24 @@ import { CgNodePicker, type PickedNode } from './CgNodePicker';
 
 // ── Form state ────────────────────────────────────────────────────────────────
 
-interface ScalarField {
+export interface ScalarField {
   kind: 'scalar';
   value: string;
   stable: boolean;
 }
 
-interface RefSlot {
+export interface RefSlot {
   node: PickedNode | null;
   pinned: boolean;
 }
 
-interface RefField {
+export interface RefField {
   kind: 'ref';
   slots: RefSlot[];
 }
 
 type FieldEntry = ScalarField | RefField;
-type AddFormState = Record<string, FieldEntry>; // keyed by fieldDefId
+export type AddFormState = Record<string, FieldEntry>; // keyed by fieldDefId
 
 function initFormState(kindId: string, allDefs: CgFieldDef[]): AddFormState {
   const defs = allDefs
