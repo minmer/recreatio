@@ -99,6 +99,8 @@ interface Props {
   selected: PickedNode[];
   onAdd: (node: PickedNode) => void;
   onRemove: (nodeId: string) => void;
+  // When provided, chip labels become clickable (opens the referenced entity)
+  onClickNode?: (nodeId: string) => void;
   // maxCount: 1 for single-value refs, Infinity for multi-value
   maxCount?: number;
   // depth: prevents infinite nesting of pickers inside create forms
@@ -114,6 +116,7 @@ export function CgNodePicker({
   selected,
   onAdd,
   onRemove,
+  onClickNode,
   maxCount = Infinity,
   depth = 0,
 }: Props) {
@@ -347,8 +350,13 @@ export function CgNodePicker({
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (!isOpen && results.length > 0) { setIsOpen(true); return; }
       if (!results.length) return;
+      if (!isOpen) {
+        // Open and immediately highlight the first row so Tab can pick right away
+        setIsOpen(true);
+        setHighlighted(0);
+        return;
+      }
       setHighlighted((prev) => {
         const max = Math.min(results.length, visibleCount) - 1;
         const next = prev < 0 ? 0 : Math.min(prev + 1, max);
@@ -364,13 +372,17 @@ export function CgNodePicker({
       return;
     }
     if (e.key === 'Tab') {
-      // Tab with a highlighted result → pick it and advance focus past the entire picker
-      if (isOpen && highlighted >= 0 && results[highlighted]) {
+      if (isOpen) {
         e.preventDefault();
-        pick(results[highlighted]);
+        if (highlighted >= 0 && results[highlighted]) {
+          // Pick the highlighted row and advance past the whole picker
+          pick(results[highlighted]);
+        } else {
+          // Close the dropdown without picking; don't let Tab land on a dropdown button
+          setIsOpen(false);
+        }
         focusAfterPicker();
       }
-      // No highlight → let Tab flow naturally (blur closes the dropdown)
       return;
     }
     if (e.key === 'Enter') {
@@ -405,12 +417,27 @@ export function CgNodePicker({
                 background: 'var(--cg-cyan)22',
                 color: 'var(--cg-cyan)',
                 borderRadius: '999px',
-                padding: '0.15rem 0.6rem',
+                padding: '0.15rem 0.25rem 0.15rem 0.6rem',
                 fontSize: '0.82rem',
                 fontWeight: 600,
               }}
             >
-              {node.label || '(unnamed)'}
+              {onClickNode ? (
+                <button
+                  type="button"
+                  onClick={() => onClickNode(node.id)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'inherit', padding: 0, fontWeight: 'inherit',
+                    fontSize: 'inherit', textDecoration: 'underline',
+                    textDecorationStyle: 'dotted', textUnderlineOffset: '2px',
+                  }}
+                >
+                  {node.label || '(unnamed)'}
+                </button>
+              ) : (
+                <span>{node.label || '(unnamed)'}</span>
+              )}
               <button
                 type="button"
                 onClick={() => onRemove(node.id)}
@@ -419,7 +446,7 @@ export function CgNodePicker({
                   border: 'none',
                   cursor: 'pointer',
                   color: 'inherit',
-                  padding: 0,
+                  padding: '0 0.25rem',
                   lineHeight: 1,
                 }}
               >

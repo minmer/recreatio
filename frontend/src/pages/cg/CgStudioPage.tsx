@@ -242,40 +242,49 @@ export function CgStudioPage({ copy, libId }: Props) {
                       ))}
                     </select>
                     {form.type === 'Ref' && (
-                      <div style={{
-                        display: 'flex', flexWrap: 'wrap', gap: '0.3rem', alignItems: 'center',
-                        padding: '0.3rem 0.6rem',
-                        border: '1px solid var(--cg-border)',
-                        borderRadius: 'var(--cg-radius)',
-                        background: 'var(--cg-bg)',
-                        minWidth: 140,
-                      }}>
-                        {kinds.filter((k) => k.id !== kind.id).length === 0 ? (
-                          <span style={{ fontSize: '0.78rem', color: 'var(--cg-text-dim)' }}>
-                            No other types
-                          </span>
-                        ) : (
-                          kinds.filter((k) => k.id !== kind.id).map((k) => {
-                            const checked = form.refKindIds.includes(k.id);
-                            return (
-                              <label key={k.id} style={{
-                                display: 'flex', alignItems: 'center', gap: '0.25rem',
-                                fontSize: '0.8rem', cursor: 'pointer',
-                                color: checked ? 'var(--cg-cyan)' : 'var(--cg-text-dim)',
-                              }}>
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={(e) => setForm(kind.id, {
-                                    refKindIds: e.target.checked
-                                      ? [...form.refKindIds, k.id]
-                                      : form.refKindIds.filter((id) => id !== k.id),
-                                  })}
-                                />
-                                {k.name}
-                              </label>
-                            );
-                          })
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 160 }}>
+                        {/* Selected kind chips */}
+                        {form.refKindIds.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                            {form.refKindIds.map((kid) => {
+                              const kObj = kinds.find((k) => k.id === kid);
+                              return kObj ? (
+                                <span key={kid} style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+                                  background: 'var(--cg-cyan)22', color: 'var(--cg-cyan)',
+                                  border: '1px solid var(--cg-cyan)44',
+                                  borderRadius: '999px', padding: '0.1rem 0.5rem',
+                                  fontSize: '0.78rem', fontWeight: 600,
+                                }}>
+                                  {kObj.name}
+                                  <button
+                                    type="button"
+                                    onClick={() => setForm(kind.id, { refKindIds: form.refKindIds.filter((id) => id !== kid) })}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1, fontSize: '0.9rem' }}
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ) : null;
+                            })}
+                          </div>
+                        )}
+                        {/* Dropdown to add more kinds */}
+                        {kinds.filter((k) => k.id !== kind.id && !form.refKindIds.includes(k.id)).length > 0 && (
+                          <select
+                            className="cg-select"
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) setForm(kind.id, { refKindIds: [...form.refKindIds, e.target.value] });
+                            }}
+                            style={{ color: 'var(--cg-text-dim)' }}
+                          >
+                            <option value="">+ {t.selectRefKind}</option>
+                            {kinds
+                              .filter((k) => k.id !== kind.id && !form.refKindIds.includes(k.id))
+                              .map((k) => <option key={k.id} value={k.id}>{k.name}</option>)
+                            }
+                          </select>
                         )}
                       </div>
                     )}

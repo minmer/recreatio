@@ -60,23 +60,6 @@ function applyStable(state: AddFormState): AddFormState {
   );
 }
 
-// ── Schema description (collapsed summary) ────────────────────────────────────
-
-function buildDescription(kindId: string, allKinds: CgNodeKind[], allDefs: CgFieldDef[]): string {
-  const defs = allDefs
-    .filter((d) => d.nodeKindId === kindId)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-  return defs
-    .map((d) => {
-      const refKindIds = getRefKindIds(d);
-      if (d.fieldType === 'Ref' && refKindIds.length > 0) {
-        const names = refKindIds.map((id) => allKinds.find((k) => k.id === id)?.name).filter(Boolean);
-        return names.length ? `${d.fieldName} → ${names.join(', ')}` : d.fieldName;
-      }
-      return d.fieldName;
-    })
-    .join(' · ');
-}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -100,7 +83,6 @@ export function CgSmartAddForm({
   );
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
   const firstInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -113,8 +95,6 @@ export function CgSmartAddForm({
   const kindDefs = fieldDefs
     .filter((d) => d.nodeKindId === selectedKindId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
-
-  const description = buildDescription(selectedKindId, kinds, fieldDefs);
 
   // ── Submit ──
 
@@ -253,8 +233,7 @@ export function CgSmartAddForm({
       background: 'var(--cg-surface)', border: '1px solid var(--cg-border)',
       borderRadius: 'var(--cg-radius)', padding: '1rem', marginBottom: '1rem',
     }}>
-      {/* Header — always visible */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
         <p style={{
           fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em',
           textTransform: 'uppercase', color: 'var(--cg-text-dim)', margin: 0, flexShrink: 0,
@@ -264,47 +243,14 @@ export function CgSmartAddForm({
         <select
           className="cg-select"
           value={selectedKindId}
-          onChange={(e) => { onKindChange(e.target.value); setExpanded(true); }}
+          onChange={(e) => onKindChange(e.target.value)}
         >
           {kinds.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
         </select>
-        {!expanded && (
-          <span style={{
-            fontSize: '0.8rem', color: 'var(--cg-text-dim)', flex: 1, minWidth: 0,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {description}
-          </span>
-        )}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.4rem' }}>
-          {expanded ? (
-            <button
-              className="cg-btn cg-btn-ghost cg-btn-sm"
-              type="button"
-              tabIndex={-1}
-              onClick={() => setExpanded(false)}
-            >
-              ✕
-            </button>
-          ) : (
-            <button
-              className="cg-btn cg-btn-primary"
-              type="button"
-              onClick={() => {
-                setExpanded(true);
-                setTimeout(() => firstInputRef.current?.focus(), 50);
-              }}
-            >
-              {copy.cg.graph.addAction}
-            </button>
-          )}
-        </div>
       </div>
 
-      {/* Expanded form */}
-      {expanded && (
-        <div style={{ marginTop: '1rem' }}>
-          {error && <p className="cg-error" style={{ marginBottom: '0.5rem' }}>{error}</p>}
+      <div>
+        {error && <p className="cg-error" style={{ marginBottom: '0.5rem' }}>{error}</p>}
 
           {kindDefs.map((def, defIdx) => {
             const entry = formState[def.id];
@@ -457,17 +403,16 @@ export function CgSmartAddForm({
             );
           })}
 
-          <button
-            className="cg-btn cg-btn-primary"
-            type="button"
-            onClick={handleSubmit}
-            disabled={adding}
-            style={{ marginTop: '0.25rem' }}
-          >
-            {adding ? copy.cg.graph.adding : copy.cg.graph.addAction}
-          </button>
-        </div>
-      )}
+        <button
+          className="cg-btn cg-btn-primary"
+          type="button"
+          onClick={handleSubmit}
+          disabled={adding}
+          style={{ marginTop: '0.25rem' }}
+        >
+          {adding ? copy.cg.graph.adding : copy.cg.graph.addAction}
+        </button>
+      </div>
     </div>
   );
 }

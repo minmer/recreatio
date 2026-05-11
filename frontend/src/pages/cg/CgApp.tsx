@@ -176,6 +176,7 @@ export function CgApp({ copy, onNavigate, secureMode: _secureMode, onLogout }: P
               libId={currentLibId}
               nodeId={(route as { nodeId: string }).nodeId}
               onBack={() => goNodes(currentLibId)}
+              onOpenNode={(nodeId) => goNode(currentLibId, nodeId)}
             />
           )}
         </main>

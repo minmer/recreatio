@@ -101,6 +101,7 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
             setEditingNodeId(null);
           }}
           onCancel={() => setEditingNodeId(null)}
+          onClickNode={onOpenNode}
         />
       ) : (
         kinds.length > 0 && selectedKindId && (

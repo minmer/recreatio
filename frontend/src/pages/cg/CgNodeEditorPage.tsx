@@ -19,9 +19,10 @@ interface Props {
   libId: string;
   nodeId: string;
   onBack: () => void;
+  onOpenNode: (nodeId: string) => void;
 }
 
-export function CgNodeEditorPage({ copy, libId, nodeId, onBack }: Props) {
+export function CgNodeEditorPage({ copy, libId, nodeId, onBack, onOpenNode }: Props) {
   const t = copy.cg.node;
   const [detail, setDetail] = useState<CgNodeDetail | null>(null);
   const [kinds, setKinds] = useState<CgNodeKind[]>([]);
@@ -233,6 +234,7 @@ export function CgNodeEditorPage({ copy, libId, nodeId, onBack }: Props) {
                       }))}
                     onAdd={(picked) => handleRefAdd(def, existing, picked)}
                     onRemove={(removedId) => handleRefRemove(existing, removedId)}
+                    onClickNode={onOpenNode}
                     maxCount={def.isMultiValue ? Infinity : 1}
                     depth={0}
                   />

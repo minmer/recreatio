@@ -22,9 +22,10 @@ interface Props {
   fieldDefs: CgFieldDef[];
   onSaved: (updatedNode: CgNode) => void;
   onCancel: () => void;
+  onClickNode?: (nodeId: string) => void;
 }
 
-export function CgNodeEditForm({ copy, libId, node, kinds, fieldDefs, onSaved, onCancel }: Props) {
+export function CgNodeEditForm({ copy, libId, node, kinds, fieldDefs, onSaved, onCancel, onClickNode }: Props) {
   const t = copy.cg.graph;
 
   const kindDefs = fieldDefs
@@ -300,6 +301,7 @@ export function CgNodeEditForm({ copy, libId, node, kinds, fieldDefs, onSaved, o
                         selected={slot.node ? [slot.node] : []}
                         onAdd={(n) => setSlotNode(def.id, slotIdx, n)}
                         onRemove={() => setSlotNode(def.id, slotIdx, null)}
+                        onClickNode={onClickNode}
                         maxCount={1}
                         depth={0}
                       />
