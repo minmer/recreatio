@@ -141,6 +141,7 @@ export function CgNodePicker({
   const cache = useRef(new Map<string, CgNode[]>());
   const lastReq = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // ── Create-form state ──
   const [showCreate, setShowCreate] = useState(false);
@@ -272,6 +273,30 @@ export function CgNodePicker({
     }
   }
 
+  // After picking via Tab, focus the element that follows this entire picker in DOM order.
+  // Runs in a setTimeout so React has re-rendered (input may have unmounted for single-value).
+  function focusAfterPicker() {
+    window.setTimeout(() => {
+      if (!containerRef.current) return;
+      const focusable = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          'input:not([disabled]), select:not([disabled]), button:not([disabled]), textarea:not([disabled])',
+        ),
+      ).filter((el) => el.tabIndex !== -1 && el.offsetParent !== null);
+
+      const inContainer = Array.from(
+        containerRef.current.querySelectorAll<HTMLElement>(
+          'input:not([disabled]), select:not([disabled]), button:not([disabled])',
+        ),
+      ).filter((el) => el.tabIndex !== -1 && el.offsetParent !== null);
+
+      const anchor = inContainer[inContainer.length - 1];
+      if (!anchor) return;
+      const idx = focusable.indexOf(anchor);
+      if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1].focus();
+    }, 0);
+  }
+
   function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Escape') {
       setIsOpen(false);
@@ -279,8 +304,8 @@ export function CgNodePicker({
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
+      if (!isOpen && results.length > 0) { setIsOpen(true); return; }
       if (!results.length) return;
-      setIsOpen(true);
       setHighlighted((prev) => {
         const max = Math.min(results.length, visibleCount) - 1;
         const next = prev < 0 ? 0 : Math.min(prev + 1, max);
@@ -293,6 +318,16 @@ export function CgNodePicker({
     if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlighted((prev) => (prev <= 0 ? 0 : prev - 1));
+      return;
+    }
+    if (e.key === 'Tab') {
+      // Tab with a highlighted result → pick it and advance focus past the entire picker
+      if (isOpen && highlighted >= 0 && results[highlighted]) {
+        e.preventDefault();
+        pick(results[highlighted]);
+        focusAfterPicker();
+      }
+      // No highlight → let Tab flow naturally (blur closes the dropdown)
       return;
     }
     if (e.key === 'Enter') {
@@ -313,7 +348,7 @@ export function CgNodePicker({
   // ── Render ──
 
   return (
-    <div>
+    <div ref={containerRef}>
       {/* Selected chips */}
       {selected.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.4rem' }}>

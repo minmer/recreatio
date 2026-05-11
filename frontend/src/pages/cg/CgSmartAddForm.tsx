@@ -17,34 +17,44 @@ interface ScalarField {
   stable: boolean;
 }
 
+interface RefSlot {
+  node: PickedNode | null;
+  pinned: boolean;
+}
+
 interface RefField {
   kind: 'ref';
-  nodes: PickedNode[];
-  stable: boolean;
+  slots: RefSlot[];
 }
 
 type FieldEntry = ScalarField | RefField;
 type AddFormState = Record<string, FieldEntry>; // keyed by fieldDefId
 
 function initFormState(kindId: string, allDefs: CgFieldDef[]): AddFormState {
-  const defs = allDefs.filter((d) => d.nodeKindId === kindId).sort((a, b) => a.sortOrder - b.sortOrder);
+  const defs = allDefs
+    .filter((d) => d.nodeKindId === kindId)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
   return Object.fromEntries(
     defs.map((d) => [
       d.id,
       d.fieldType === 'Ref'
-        ? { kind: 'ref', nodes: [], stable: false }
-        : { kind: 'scalar', value: '', stable: false },
+        ? ({ kind: 'ref', slots: [{ node: null, pinned: false }] } as RefField)
+        : ({ kind: 'scalar', value: '', stable: false } as ScalarField),
     ]),
   );
 }
 
+// After each submission: clear non-pinned ref slots, reset non-stable scalar values.
+// Always keep at least one slot per ref field.
 function applyStable(state: AddFormState): AddFormState {
   return Object.fromEntries(
     Object.entries(state).map(([id, entry]) => {
       if (entry.kind === 'ref') {
-        return [id, { ...entry, nodes: entry.stable ? entry.nodes : [] }];
+        const kept = entry.slots.filter((s) => s.pinned);
+        return [id, { ...entry, slots: kept.length > 0 ? kept : [{ node: null, pinned: false }] }];
+      } else {
+        return [id, { ...entry, value: entry.stable ? entry.value : '' }];
       }
-      return [id, { ...entry, value: entry.stable ? entry.value : '' }];
     }),
   );
 }
@@ -52,7 +62,9 @@ function applyStable(state: AddFormState): AddFormState {
 // ── Schema description (collapsed summary) ────────────────────────────────────
 
 function buildDescription(kindId: string, allKinds: CgNodeKind[], allDefs: CgFieldDef[]): string {
-  const defs = allDefs.filter((d) => d.nodeKindId === kindId).sort((a, b) => a.sortOrder - b.sortOrder);
+  const defs = allDefs
+    .filter((d) => d.nodeKindId === kindId)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
   return defs
     .map((d) => {
       if (d.fieldType === 'Ref' && d.refNodeKindId) {
@@ -108,7 +120,6 @@ export function CgSmartAddForm({
     setAdding(true);
     setError(null);
     try {
-      // Derive label from first scalar Text field
       const firstText = kindDefs.find((d) => d.fieldType === 'Text');
       const labelEntry = firstText ? formState[firstText.id] : undefined;
       const label =
@@ -125,11 +136,13 @@ export function CgSmartAddForm({
         if (!entry) continue;
 
         if (entry.kind === 'ref') {
-          for (let i = 0; i < entry.nodes.length; i++) {
+          let sortIdx = 0;
+          for (const slot of entry.slots) {
+            if (!slot.node) continue;
             await upsertFieldValue(libId, node.id, {
               fieldDefId: def.id,
-              refNodeId: entry.nodes[i].id,
-              sortOrder: i,
+              refNodeId: slot.node.id,
+              sortOrder: sortIdx++,
             });
           }
         } else {
@@ -155,7 +168,7 @@ export function CgSmartAddForm({
     }
   }
 
-  // ── Helpers to update individual fields ──
+  // ── Scalar helpers ──
 
   function setScalar(defId: string, value: string) {
     setFormState((prev) => ({
@@ -166,29 +179,17 @@ export function CgSmartAddForm({
 
   function toggleScalarStable(defId: string) {
     setFormState((prev) => {
-      const e = prev[defId];
+      const e = prev[defId] as ScalarField;
       return { ...prev, [defId]: { ...e, stable: !e.stable } };
     });
   }
 
-  function setRefNodes(defId: string, nodes: PickedNode[]) {
-    setFormState((prev) => ({
-      ...prev,
-      [defId]: { ...prev[defId], kind: 'ref', nodes } as RefField,
-    }));
-  }
-
-  function toggleRefStable(defId: string) {
-    setFormState((prev) => {
-      const e = prev[defId];
-      return { ...prev, [defId]: { ...e, stable: !e.stable } };
-    });
-  }
-
-  function handleScalarKey(e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>, defId: string) {
+  function handleScalarKey(
+    e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
+    defId: string,
+  ) {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    // find next scalar input
     const scalarInputs = Array.from(
       document.querySelectorAll<HTMLElement>('[data-cg-scalar-input]'),
     );
@@ -198,6 +199,49 @@ export function CgSmartAddForm({
     } else {
       handleSubmit();
     }
+  }
+
+  // ── Ref slot helpers ──
+
+  function setSlotNode(defId: string, slotIdx: number, node: PickedNode | null) {
+    setFormState((prev) => {
+      const entry = prev[defId] as RefField;
+      const slots = entry.slots.map((s, i) =>
+        i === slotIdx ? { ...s, node } : s,
+      );
+      return { ...prev, [defId]: { ...entry, slots } };
+    });
+  }
+
+  function toggleSlotPin(defId: string, slotIdx: number) {
+    setFormState((prev) => {
+      const entry = prev[defId] as RefField;
+      const slots = entry.slots.map((s, i) =>
+        i === slotIdx ? { ...s, pinned: !s.pinned } : s,
+      );
+      return { ...prev, [defId]: { ...entry, slots } };
+    });
+  }
+
+  function addSlot(defId: string) {
+    setFormState((prev) => {
+      const entry = prev[defId] as RefField;
+      return {
+        ...prev,
+        [defId]: { ...entry, slots: [...entry.slots, { node: null, pinned: false }] },
+      };
+    });
+  }
+
+  function removeSlot(defId: string, slotIdx: number) {
+    setFormState((prev) => {
+      const entry = prev[defId] as RefField;
+      const slots = entry.slots.filter((_, i) => i !== slotIdx);
+      return {
+        ...prev,
+        [defId]: { ...entry, slots: slots.length > 0 ? slots : [{ node: null, pinned: false }] },
+      };
+    });
   }
 
   // ── Render ──
@@ -264,14 +308,17 @@ export function CgSmartAddForm({
             const entry = formState[def.id];
             if (!entry) return null;
 
-            const refKind = def.fieldType === 'Ref' && def.refNodeKindId
-              ? kinds.find((k) => k.id === def.refNodeKindId)
-              : null;
+            const refKind =
+              def.fieldType === 'Ref' && def.refNodeKindId
+                ? kinds.find((k) => k.id === def.refNodeKindId)
+                : null;
 
             return (
               <div key={def.id} style={{ marginBottom: '0.85rem' }}>
-                {/* Field label */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}>
+                {/* Field label row */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem',
+                }}>
                   <span style={{
                     fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.07em',
                     textTransform: 'uppercase', color: 'var(--cg-text-dim)',
@@ -284,42 +331,90 @@ export function CgSmartAddForm({
                     )}
                   </span>
 
-                  {/* Stable toggle (per-field) */}
-                  <button
-                    className="cg-btn cg-btn-ghost cg-btn-sm"
-                    style={entry.stable ? { color: 'var(--cg-cyan)', marginLeft: 'auto' } : { color: 'var(--cg-text-dim)', marginLeft: 'auto' }}
-                    type="button"
-                    tabIndex={-1}
-                    title={entry.stable ? 'Pinned — persists after add' : 'Pin this field'}
-                    onClick={() =>
-                      entry.kind === 'ref' ? toggleRefStable(def.id) : toggleScalarStable(def.id)
-                    }
-                  >
-                    {entry.stable ? '🔒' : '🔓'}
-                  </button>
+                  {/* Stable toggle only for scalar fields */}
+                  {entry.kind === 'scalar' && (
+                    <button
+                      className="cg-btn cg-btn-ghost cg-btn-sm"
+                      style={entry.stable
+                        ? { color: 'var(--cg-cyan)', marginLeft: 'auto' }
+                        : { color: 'var(--cg-text-dim)', marginLeft: 'auto' }}
+                      type="button"
+                      tabIndex={-1}
+                      title={entry.stable ? 'Pinned — persists after add' : 'Pin this field'}
+                      onClick={() => toggleScalarStable(def.id)}
+                    >
+                      {entry.stable ? '🔒' : '🔓'}
+                    </button>
+                  )}
                 </div>
 
                 {/* Field input */}
                 {entry.kind === 'ref' && refKind ? (
-                  <CgNodePicker
-                    libId={libId}
-                    refKindId={def.refNodeKindId!}
-                    refKindName={refKind.name}
-                    allKinds={kinds}
-                    allDefs={fieldDefs}
-                    selected={entry.nodes}
-                    onAdd={(node) =>
-                      setRefNodes(
-                        def.id,
-                        def.isMultiValue ? [...entry.nodes, node] : [node],
-                      )
-                    }
-                    onRemove={(nodeId) =>
-                      setRefNodes(def.id, entry.nodes.filter((n) => n.id !== nodeId))
-                    }
-                    maxCount={def.isMultiValue ? Infinity : 1}
-                    depth={0}
-                  />
+                  <div>
+                    {entry.slots.map((slot, slotIdx) => (
+                      <div
+                        key={slotIdx}
+                        style={{
+                          display: 'flex', alignItems: 'flex-start', gap: '0.35rem',
+                          marginBottom: '0.35rem',
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <CgNodePicker
+                            libId={libId}
+                            refKindId={def.refNodeKindId!}
+                            refKindName={refKind.name}
+                            allKinds={kinds}
+                            allDefs={fieldDefs}
+                            selected={slot.node ? [slot.node] : []}
+                            onAdd={(node) => setSlotNode(def.id, slotIdx, node)}
+                            onRemove={() => setSlotNode(def.id, slotIdx, null)}
+                            maxCount={1}
+                            depth={0}
+                          />
+                        </div>
+
+                        {/* Per-slot pin toggle */}
+                        <button
+                          className="cg-btn cg-btn-ghost cg-btn-sm"
+                          type="button"
+                          tabIndex={-1}
+                          title={slot.pinned ? 'Pinned — persists after add' : 'Pin this slot'}
+                          style={{ color: slot.pinned ? 'var(--cg-cyan)' : 'var(--cg-text-dim)', marginTop: '1px' }}
+                          onClick={() => toggleSlotPin(def.id, slotIdx)}
+                        >
+                          {slot.pinned ? '🔒' : '🔓'}
+                        </button>
+
+                        {/* Remove slot (only if multi-value and more than one slot) */}
+                        {def.isMultiValue && entry.slots.length > 1 && (
+                          <button
+                            className="cg-btn cg-btn-ghost cg-btn-sm"
+                            type="button"
+                            tabIndex={-1}
+                            title="Remove this slot"
+                            style={{ color: 'var(--cg-text-dim)', marginTop: '1px' }}
+                            onClick={() => removeSlot(def.id, slotIdx)}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Add another slot for multi-value fields */}
+                    {def.isMultiValue && (
+                      <button
+                        className="cg-btn cg-btn-ghost cg-btn-sm"
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => addSlot(def.id)}
+                        style={{ color: 'var(--cg-cyan)', marginTop: '0.1rem' }}
+                      >
+                        + {refKind.name}
+                      </button>
+                    )}
+                  </div>
                 ) : entry.kind === 'scalar' ? (
                   def.fieldType === 'Boolean' ? (
                     <select
@@ -341,7 +436,13 @@ export function CgSmartAddForm({
                       style={{ width: '100%' }}
                       placeholder={def.fieldName}
                       value={entry.value}
-                      type={def.fieldType === 'Number' ? 'number' : def.fieldType === 'Date' ? 'date' : 'text'}
+                      type={
+                        def.fieldType === 'Number'
+                          ? 'number'
+                          : def.fieldType === 'Date'
+                            ? 'date'
+                            : 'text'
+                      }
                       tabIndex={entry.stable ? -1 : 0}
                       data-cg-scalar-input={def.id}
                       onChange={(e) => setScalar(def.id, e.target.value)}
