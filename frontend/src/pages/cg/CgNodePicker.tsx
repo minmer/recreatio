@@ -21,9 +21,8 @@ const DEBOUNCE = 250;
 const MAX_VISIBLE = 5;
 const PAGE = 5;
 const FETCH_LIMIT = 50;
-// At this nesting depth Ref fields inside the create-form fall back to plain
-// text (find-or-create by label on save) to prevent infinite recursion.
-const MAX_PICKER_DEPTH = 2;
+// Ref fields inside create forms fall back to plain text at this nesting depth.
+const MAX_PICKER_DEPTH = 3;
 
 // ── Inline-create form helpers ────────────────────────────────────────────────
 
@@ -36,6 +35,13 @@ type CreateForm = Record<string, CreateField>; // keyed by fieldDefId
 
 function emptyCreateForm(kindDefs: CgFieldDef[]): CreateForm {
   return Object.fromEntries(kindDefs.map((d) => [d.id, { scalar: '', refs: [] }]));
+}
+
+function prefillCreateForm(kindDefs: CgFieldDef[], query: string): CreateForm {
+  const form = emptyCreateForm(kindDefs);
+  const firstText = kindDefs.find((d) => d.fieldType === 'Text');
+  if (firstText && query) form[firstText.id] = { scalar: query, refs: [] };
+  return form;
 }
 
 async function persistCreateForm(
@@ -56,14 +62,20 @@ async function persistCreateForm(
     if (def.fieldType === 'Ref' && def.refNodeKindId) {
       if (field.refs.length > 0) {
         for (let i = 0; i < field.refs.length; i++) {
-          await upsertFieldValue(libId, node.id, { fieldDefId: def.id, refNodeId: field.refs[i].id, sortOrder: i });
+          await upsertFieldValue(libId, node.id, {
+            fieldDefId: def.id,
+            refNodeId: field.refs[i].id,
+            sortOrder: i,
+          });
         }
       } else if (field.scalar.trim()) {
         // Plain-text fallback at max depth — find-or-create by label
         const lbl = field.scalar.trim();
         const hits = await listNodes(libId, { kindId: def.refNodeKindId, q: lbl, limit: 20 });
         const match = hits.find((n) => n.label?.toLowerCase() === lbl.toLowerCase());
-        const ref = match ?? await createNode(libId, { nodeType: 'Entity', nodeKindId: def.refNodeKindId, label: lbl });
+        const ref =
+          match ??
+          (await createNode(libId, { nodeType: 'Entity', nodeKindId: def.refNodeKindId, label: lbl }));
         await upsertFieldValue(libId, node.id, { fieldDefId: def.id, refNodeId: ref.id, sortOrder: 0 });
       }
     } else {
@@ -135,21 +147,37 @@ export function CgNodePicker({
   const [createForm, setCreateForm] = useState<CreateForm>(() => emptyCreateForm(kindDefs));
   const [isSaving, setIsSaving] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const createFormRef = useRef<HTMLDivElement>(null);
 
   const selectedIds = new Set(selected.map((n) => n.id));
+
+  // Focus first focusable input in the create form whenever it opens
+  useEffect(() => {
+    if (!showCreate || !createFormRef.current) return;
+    const first = createFormRef.current.querySelector<HTMLElement>(
+      'input:not([disabled]), select:not([disabled])',
+    );
+    first?.focus();
+  }, [showCreate]);
 
   // Debounced search
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 1) {
-      setResults([]); setIsOpen(false); setHighlighted(-1); setIsSearching(false);
+      setResults([]);
+      setIsOpen(false);
+      setHighlighted(-1);
+      setIsSearching(false);
       return;
     }
     const key = `${libId}:${refKindId}:${trimmed.toLowerCase()}`;
     const hit = cache.current.get(key);
     if (hit) {
       setResults(hit.filter((n) => !selectedIds.has(n.id)));
-      setVisibleCount(MAX_VISIBLE); setHighlighted(-1); setIsOpen(true); setIsSearching(false);
+      setVisibleCount(MAX_VISIBLE);
+      setHighlighted(-1);
+      setIsOpen(true);
+      setIsSearching(false);
       return;
     }
     const id = window.setTimeout(async () => {
@@ -161,35 +189,50 @@ export function CgNodePicker({
         if (lastReq.current !== ts) return;
         cache.current.set(key, nodes);
         setResults(nodes.filter((n) => !selectedIds.has(n.id)));
-        setVisibleCount(MAX_VISIBLE); setHighlighted(-1); setIsOpen(true);
-      } catch { /* silent */ }
-      finally { if (lastReq.current === ts) setIsSearching(false); }
+        setVisibleCount(MAX_VISIBLE);
+        setHighlighted(-1);
+        setIsOpen(true);
+      } catch {
+        /* silent */
+      } finally {
+        if (lastReq.current === ts) setIsSearching(false);
+      }
     }, DEBOUNCE);
     return () => window.clearTimeout(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [libId, refKindId, query]);
 
   function pick(node: CgNode) {
     onAdd({ id: node.id, label: node.label ?? '' });
-    setQuery(''); setResults([]); setIsOpen(false); setHighlighted(-1);
+    setQuery('');
+    setResults([]);
+    setIsOpen(false);
+    setHighlighted(-1);
   }
 
   function openCreate() {
-    setCreateForm(emptyCreateForm(kindDefs));
+    setCreateForm(prefillCreateForm(kindDefs, query.trim()));
     setCreateError(null);
     setShowCreate(true);
     setIsOpen(false);
     setQuery('');
   }
 
+  function cancelCreate() {
+    setShowCreate(false);
+    window.setTimeout(() => inputRef.current?.focus(), 30);
+  }
+
   async function saveCreate() {
-    setIsSaving(true); setCreateError(null);
+    setIsSaving(true);
+    setCreateError(null);
     try {
       const node = await persistCreateForm(libId, refKindId, kindDefs, createForm);
       const key = `${libId}:${refKindId}:${(node.label ?? '').toLowerCase()}`;
       cache.current.set(key, [node, ...(cache.current.get(key) ?? [])]);
       onAdd({ id: node.id, label: node.label ?? '' });
       setShowCreate(false);
+      window.setTimeout(() => inputRef.current?.focus(), 30);
     } catch {
       setCreateError('Failed to save');
     } finally {
@@ -197,8 +240,43 @@ export function CgNodePicker({
     }
   }
 
+  // Navigate between scalar inputs in THIS create form (depth-scoped to avoid matching nested forms)
+  function handleCreateScalarKey(
+    e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
+  ) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      cancelCreate();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!createFormRef.current) {
+        saveCreate();
+        return;
+      }
+      // data-cg-create-scalar={depth} is set ONLY on scalars in THIS form; nested
+      // forms at depth+1 have a different attribute value so they are skipped.
+      const myInputs = Array.from(
+        createFormRef.current.querySelectorAll<HTMLElement>(
+          `[data-cg-create-scalar="${depth}"]`,
+        ),
+      );
+      const idx = myInputs.findIndex((el) => el === e.currentTarget);
+      if (idx >= 0 && idx < myInputs.length - 1) {
+        (myInputs[idx + 1] as HTMLInputElement).focus();
+      } else {
+        saveCreate();
+      }
+    }
+  }
+
   function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Escape') { setIsOpen(false); return; }
+    if (e.key === 'Escape') {
+      setIsOpen(false);
+      return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (!results.length) return;
@@ -219,12 +297,17 @@ export function CgNodePicker({
     }
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (highlighted >= 0 && results[highlighted]) { pick(results[highlighted]); return; }
+      if (highlighted >= 0 && results[highlighted]) {
+        pick(results[highlighted]);
+        return;
+      }
       if (query.trim()) openCreate();
     }
   }
 
-  const exactMatch = results.some((n) => n.label?.toLowerCase() === query.trim().toLowerCase());
+  const exactMatch = results.some(
+    (n) => n.label?.toLowerCase() === query.trim().toLowerCase(),
+  );
   const showCreateBtn = query.trim().length >= 1 && !exactMatch;
 
   // ── Render ──
@@ -238,17 +321,29 @@ export function CgNodePicker({
             <span
               key={node.id}
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
-                background: 'var(--cg-cyan)22', color: 'var(--cg-cyan)',
-                borderRadius: '999px', padding: '0.15rem 0.6rem',
-                fontSize: '0.82rem', fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                background: 'var(--cg-cyan)22',
+                color: 'var(--cg-cyan)',
+                borderRadius: '999px',
+                padding: '0.15rem 0.6rem',
+                fontSize: '0.82rem',
+                fontWeight: 600,
               }}
             >
               {node.label || '(unnamed)'}
               <button
                 type="button"
                 onClick={() => onRemove(node.id)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, lineHeight: 1 }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'inherit',
+                  padding: 0,
+                  lineHeight: 1,
+                }}
               >
                 ×
               </button>
@@ -269,36 +364,61 @@ export function CgNodePicker({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKey}
-              onFocus={() => { if (results.length > 0) setIsOpen(true); }}
+              onFocus={() => {
+                if (results.length > 0) setIsOpen(true);
+              }}
               onBlur={() => window.setTimeout(() => setIsOpen(false), 150)}
             />
             {isSearching && (
-              <span style={{ fontSize: '0.75rem', color: 'var(--cg-text-dim)', flexShrink: 0 }}>…</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--cg-text-dim)', flexShrink: 0 }}>
+                …
+              </span>
             )}
           </div>
 
           {/* Dropdown */}
           {isOpen && (results.length > 0 || showCreateBtn) && (
-            <div style={{
-              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-              background: 'var(--cg-surface)', border: '1px solid var(--cg-border)',
-              borderRadius: 'var(--cg-radius)', boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-              marginTop: 3,
-            }}>
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                zIndex: 50,
+                background: 'var(--cg-surface)',
+                border: '1px solid var(--cg-border)',
+                borderRadius: 'var(--cg-radius)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+                marginTop: 3,
+              }}
+            >
               {results.slice(0, visibleCount).map((node, idx) => (
                 <button
                   key={node.id}
                   type="button"
                   onMouseDown={() => pick(node)}
                   style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    width: '100%', textAlign: 'left', padding: '0.4rem 0.7rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '0.4rem 0.7rem',
                     background: idx === highlighted ? 'var(--cg-hover)' : 'none',
-                    border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--cg-text)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    color: 'var(--cg-text)',
                   }}
                 >
                   <span>{node.label ?? '(unnamed)'}</span>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--cg-text-dim)', marginLeft: '0.5rem' }}>
+                  <span
+                    style={{
+                      fontSize: '0.7rem',
+                      color: 'var(--cg-text-dim)',
+                      marginLeft: '0.5rem',
+                    }}
+                  >
                     {refKindName}
                   </span>
                 </button>
@@ -308,9 +428,16 @@ export function CgNodePicker({
                   type="button"
                   onMouseDown={() => setVisibleCount((c) => c + PAGE)}
                   style={{
-                    display: 'block', width: '100%', textAlign: 'center', padding: '0.3rem',
-                    background: 'none', border: 'none', borderTop: '1px solid var(--cg-border)',
-                    cursor: 'pointer', fontSize: '0.78rem', color: 'var(--cg-text-dim)',
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'center',
+                    padding: '0.3rem',
+                    background: 'none',
+                    border: 'none',
+                    borderTop: '1px solid var(--cg-border)',
+                    cursor: 'pointer',
+                    fontSize: '0.78rem',
+                    color: 'var(--cg-text-dim)',
                   }}
                 >
                   Load more
@@ -321,10 +448,17 @@ export function CgNodePicker({
                   type="button"
                   onMouseDown={openCreate}
                   style={{
-                    display: 'block', width: '100%', textAlign: 'left', padding: '0.4rem 0.7rem',
-                    background: 'none', border: 'none',
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '0.4rem 0.7rem',
+                    background: 'none',
+                    border: 'none',
                     borderTop: results.length > 0 ? '1px solid var(--cg-border)' : 'none',
-                    cursor: 'pointer', fontSize: '0.82rem', color: 'var(--cg-cyan)', fontWeight: 600,
+                    cursor: 'pointer',
+                    fontSize: '0.82rem',
+                    color: 'var(--cg-cyan)',
+                    fontWeight: 600,
                   }}
                 >
                   + Create "{query.trim()}"
@@ -337,43 +471,63 @@ export function CgNodePicker({
 
       {/* Inline create form */}
       {showCreate && (
-        <div style={{
-          border: '1px solid var(--cg-cyan)44', borderRadius: 'var(--cg-radius)',
-          padding: '0.75rem', background: 'var(--cg-bg)', marginTop: '0.35rem',
-        }}>
-          <p style={{
-            fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.07em',
-            textTransform: 'uppercase', color: 'var(--cg-cyan)', margin: '0 0 0.6rem',
-          }}>
+        <div
+          ref={createFormRef}
+          style={{
+            border: '1px solid var(--cg-cyan)44',
+            borderRadius: 'var(--cg-radius)',
+            padding: '0.75rem',
+            background: 'var(--cg-bg)',
+            marginTop: '0.35rem',
+          }}
+        >
+          <p
+            style={{
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              letterSpacing: '0.07em',
+              textTransform: 'uppercase',
+              color: 'var(--cg-cyan)',
+              margin: '0 0 0.6rem',
+            }}
+          >
             New {refKindName}
           </p>
 
           {createError && (
-            <p style={{ fontSize: '0.75rem', color: 'var(--cg-danger)', marginBottom: '0.4rem' }}>
+            <p
+              style={{ fontSize: '0.75rem', color: 'var(--cg-danger)', marginBottom: '0.4rem' }}
+            >
               {createError}
             </p>
           )}
 
-          {kindDefs.map((def, defIdx) => {
+          {kindDefs.map((def) => {
             const field = createForm[def.id] ?? { scalar: '', refs: [] };
-            const refKindObj = def.fieldType === 'Ref' && def.refNodeKindId
-              ? allKinds.find((k) => k.id === def.refNodeKindId)
-              : null;
+            const refKindObj =
+              def.fieldType === 'Ref' && def.refNodeKindId
+                ? allKinds.find((k) => k.id === def.refNodeKindId)
+                : null;
 
             return (
               <div key={def.id} style={{ marginBottom: '0.55rem' }}>
-                <p style={{
-                  fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em',
-                  textTransform: 'uppercase', color: 'var(--cg-text-dim)', margin: '0 0 0.25rem',
-                }}>
+                <p
+                  style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    color: 'var(--cg-text-dim)',
+                    margin: '0 0 0.25rem',
+                  }}
+                >
                   {def.fieldName}
-                  {refKindObj && (
-                    <span style={{ fontWeight: 400 }}> → {refKindObj.name}</span>
-                  )}
+                  {refKindObj && <span style={{ fontWeight: 400 }}> → {refKindObj.name}</span>}
                 </p>
 
                 {def.fieldType === 'Ref' && def.refNodeKindId && refKindObj ? (
                   depth < MAX_PICKER_DEPTH ? (
+                    // Nested picker — fixed stale-closure by reading from prev, not closure variable
                     <CgNodePicker
                       libId={libId}
                       refKindId={def.refNodeKindId}
@@ -382,36 +536,50 @@ export function CgNodePicker({
                       allDefs={allDefs}
                       selected={field.refs}
                       onAdd={(node) =>
-                        setCreateForm((prev) => ({
-                          ...prev,
-                          [def.id]: {
-                            ...field,
-                            refs: def.isMultiValue ? [...field.refs, node] : [node],
-                          },
-                        }))
+                        setCreateForm((prev) => {
+                          const cur = prev[def.id] ?? { scalar: '', refs: [] };
+                          return {
+                            ...prev,
+                            [def.id]: {
+                              ...cur,
+                              refs: def.isMultiValue ? [...cur.refs, node] : [node],
+                            },
+                          };
+                        })
                       }
                       onRemove={(nodeId) =>
-                        setCreateForm((prev) => ({
-                          ...prev,
-                          [def.id]: { ...field, refs: field.refs.filter((n) => n.id !== nodeId) },
-                        }))
+                        setCreateForm((prev) => {
+                          const cur = prev[def.id] ?? { scalar: '', refs: [] };
+                          return {
+                            ...prev,
+                            [def.id]: {
+                              ...cur,
+                              refs: cur.refs.filter((n) => n.id !== nodeId),
+                            },
+                          };
+                        })
                       }
                       maxCount={def.isMultiValue ? Infinity : 1}
                       depth={depth + 1}
                     />
                   ) : (
-                    // Max depth reached — plain text, find-or-create by label on save
+                    // Max depth — plain text, find-or-create by label on save
                     <input
                       className="cg-input"
                       style={{ width: '100%' }}
                       placeholder={`${refKindObj.name}…`}
                       value={field.scalar}
+                      data-cg-create-scalar={depth}
                       onChange={(e) =>
                         setCreateForm((prev) => ({
                           ...prev,
-                          [def.id]: { ...field, scalar: e.target.value },
+                          [def.id]: {
+                            ...(prev[def.id] ?? { scalar: '', refs: [] }),
+                            scalar: e.target.value,
+                          },
                         }))
                       }
+                      onKeyDown={handleCreateScalarKey}
                     />
                   )
                 ) : def.fieldType === 'Boolean' ? (
@@ -419,12 +587,17 @@ export function CgNodePicker({
                     className="cg-select"
                     style={{ width: '100%' }}
                     value={field.scalar || 'false'}
+                    data-cg-create-scalar={depth}
                     onChange={(e) =>
                       setCreateForm((prev) => ({
                         ...prev,
-                        [def.id]: { ...field, scalar: e.target.value },
+                        [def.id]: {
+                          ...(prev[def.id] ?? { scalar: '', refs: [] }),
+                          scalar: e.target.value,
+                        },
                       }))
                     }
+                    onKeyDown={handleCreateScalarKey}
                   >
                     <option value="true">Yes</option>
                     <option value="false">No</option>
@@ -435,17 +608,24 @@ export function CgNodePicker({
                     style={{ width: '100%' }}
                     placeholder={def.fieldName}
                     value={field.scalar}
-                    type={def.fieldType === 'Number' ? 'number' : def.fieldType === 'Date' ? 'date' : 'text'}
-                    autoFocus={defIdx === 0}
+                    type={
+                      def.fieldType === 'Number'
+                        ? 'number'
+                        : def.fieldType === 'Date'
+                          ? 'date'
+                          : 'text'
+                    }
+                    data-cg-create-scalar={depth}
                     onChange={(e) =>
                       setCreateForm((prev) => ({
                         ...prev,
-                        [def.id]: { ...field, scalar: e.target.value },
+                        [def.id]: {
+                          ...(prev[def.id] ?? { scalar: '', refs: [] }),
+                          scalar: e.target.value,
+                        },
                       }))
                     }
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') { e.preventDefault(); saveCreate(); }
-                    }}
+                    onKeyDown={handleCreateScalarKey}
                   />
                 )}
               </div>
@@ -464,7 +644,7 @@ export function CgNodePicker({
             <button
               className="cg-btn cg-btn-ghost cg-btn-sm"
               type="button"
-              onClick={() => setShowCreate(false)}
+              onClick={cancelCreate}
             >
               Cancel
             </button>
