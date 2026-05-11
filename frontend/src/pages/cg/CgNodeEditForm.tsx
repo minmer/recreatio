@@ -7,6 +7,7 @@ import {
   type CgNodeKind,
   deleteFieldValue,
   getNode,
+  getRefKindIds,
   updateNode,
   upsertFieldValue,
 } from './api/cgApi';
@@ -257,10 +258,11 @@ export function CgNodeEditForm({ copy, libId, node, kinds, fieldDefs, onSaved, o
         const entry = formState[def.id];
         if (!entry) return null;
 
-        const refKind =
-          def.fieldType === 'Ref' && def.refNodeKindId
-            ? kinds.find((k) => k.id === def.refNodeKindId)
-            : null;
+        const defRefKindIds = getRefKindIds(def);
+        const refKinds = def.fieldType === 'Ref'
+          ? defRefKindIds.map((id) => kinds.find((k) => k.id === id)).filter(Boolean) as CgNodeKind[]
+          : [];
+        const refKindName = refKinds.map((k) => k.name).join(' / ');
 
         return (
           <div key={def.id} style={{ marginBottom: '0.85rem' }}>
@@ -270,15 +272,15 @@ export function CgNodeEditForm({ copy, libId, node, kinds, fieldDefs, onSaved, o
                 textTransform: 'uppercase', color: 'var(--cg-text-dim)',
               }}>
                 {def.fieldName}
-                {refKind && (
+                {refKinds.length > 0 && (
                   <span style={{ fontWeight: 400, marginLeft: '0.25rem', textTransform: 'none' }}>
-                    → {refKind.name}
+                    → {refKinds.map((k) => k.name).join(', ')}
                   </span>
                 )}
               </span>
             </div>
 
-            {entry.kind === 'ref' && refKind ? (
+            {entry.kind === 'ref' && refKinds.length > 0 ? (
               <div>
                 {entry.slots.map((slot, slotIdx) => (
                   <div
@@ -291,8 +293,8 @@ export function CgNodeEditForm({ copy, libId, node, kinds, fieldDefs, onSaved, o
                     <div style={{ flex: 1 }}>
                       <CgNodePicker
                         libId={libId}
-                        refKindId={def.refNodeKindId!}
-                        refKindName={refKind.name}
+                        refKindIds={defRefKindIds}
+                        refKindName={refKindName}
                         allKinds={kinds}
                         allDefs={fieldDefs}
                         selected={slot.node ? [slot.node] : []}
@@ -323,7 +325,7 @@ export function CgNodeEditForm({ copy, libId, node, kinds, fieldDefs, onSaved, o
                     onClick={() => addSlot(def.id)}
                     style={{ color: 'var(--cg-cyan)', marginTop: '0.1rem' }}
                   >
-                    + {refKind.name}
+                    + {refKindName}
                   </button>
                 )}
               </div>

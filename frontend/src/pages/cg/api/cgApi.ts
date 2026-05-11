@@ -56,10 +56,18 @@ export interface CgFieldDef {
   fieldName: string;
   fieldType: 'Text' | 'Number' | 'Date' | 'Boolean' | 'Media' | 'Ref';
   refNodeKindId: string | null;
+  refNodeKindIds: string[] | null;
   isMultiValue: boolean;
   isRangeCapable: boolean;
   sortOrder: number;
   createdUtc: string;
+}
+
+/** Returns all ref kind IDs for a field def, supporting both legacy single and new multi. */
+export function getRefKindIds(def: CgFieldDef): string[] {
+  if (def.refNodeKindIds?.length) return def.refNodeKindIds;
+  if (def.refNodeKindId) return [def.refNodeKindId];
+  return [];
 }
 
 export interface CgNode {
@@ -157,11 +165,15 @@ export const createFieldDef = (
   libId: string, kindId: string,
   fieldName: string, fieldType: string,
   isMultiValue = false, isRangeCapable = false, sortOrder = 0,
-  refNodeKindId?: string,
+  refNodeKindIds?: string[],
 ) =>
   request<CgFieldDef>(`/cg/libraries/${libId}/node-kinds/${kindId}/field-defs`, {
     method: 'POST',
-    body: JSON.stringify({ fieldName, fieldType, isMultiValue, isRangeCapable, sortOrder, refNodeKindId }),
+    body: JSON.stringify({
+      fieldName, fieldType, isMultiValue, isRangeCapable, sortOrder,
+      refNodeKindId: refNodeKindIds?.[0] ?? null,
+      refNodeKindIds: refNodeKindIds?.length ? refNodeKindIds : null,
+    }),
   });
 
 export const deleteFieldDef = (libId: string, kindId: string, defId: string) =>

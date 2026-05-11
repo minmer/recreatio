@@ -8,6 +8,7 @@ import {
   deleteFieldDef,
   deleteNodeKind,
   getLibrary,
+  getRefKindIds,
 } from './api/cgApi';
 
 interface Props {
@@ -27,7 +28,7 @@ export function CgStudioPage({ copy, libId }: Props) {
   const [newKindName, setNewKindName] = useState('');
   const [addingKind, setAddingKind] = useState(false);
 
-  const [fieldForms, setFieldForms] = useState<Record<string, { name: string; type: string; refKindId: string; multi: boolean; range: boolean }>>({});
+  const [fieldForms, setFieldForms] = useState<Record<string, { name: string; type: string; refKindIds: string[]; multi: boolean; range: boolean }>>({});
   const [expandedKind, setExpandedKind] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,10 +77,10 @@ export function CgStudioPage({ copy, libId }: Props) {
         form.name.trim(), form.type,
         form.multi, form.range,
         existingCount,
-        form.type === 'Ref' && form.refKindId ? form.refKindId : undefined,
+        form.type === 'Ref' && form.refKindIds.length > 0 ? form.refKindIds : undefined,
       );
       setFieldDefs((prev) => [...prev, def]);
-      setFieldForms((prev) => ({ ...prev, [kindId]: { name: '', type: 'Text', refKindId: '', multi: false, range: false } }));
+      setFieldForms((prev) => ({ ...prev, [kindId]: { name: '', type: 'Text', refKindIds: [], multi: false, range: false } }));
     } catch {
       setError(t.addFieldFailed);
     }
@@ -95,9 +96,9 @@ export function CgStudioPage({ copy, libId }: Props) {
   }
 
   const getForm = (kindId: string) =>
-    fieldForms[kindId] ?? { name: '', type: 'Text', refKindId: '', multi: false, range: false };
+    fieldForms[kindId] ?? { name: '', type: 'Text', refKindIds: [], multi: false, range: false };
 
-  const setForm = (kindId: string, patch: Partial<{ name: string; type: string; refKindId: string; multi: boolean; range: boolean }>) =>
+  const setForm = (kindId: string, patch: Partial<{ name: string; type: string; refKindIds: string[]; multi: boolean; range: boolean }>) =>
     setFieldForms((prev) => ({ ...prev, [kindId]: { ...getForm(kindId), ...patch } }));
 
   if (loading) return <div className="cg-loading">Loading…</div>;
@@ -146,9 +147,9 @@ export function CgStudioPage({ copy, libId }: Props) {
                 )}
 
                 {kindFields.map((f, idx) => {
-                  const refKind = f.fieldType === 'Ref' && f.refNodeKindId
-                    ? kinds.find((k) => k.id === f.refNodeKindId)
-                    : null;
+                  const refKinds = f.fieldType === 'Ref'
+                    ? getRefKindIds(f).map((id) => kinds.find((k) => k.id === id)).filter(Boolean) as CgNodeKind[]
+                    : [];
                   return (
                     <div key={f.id} className="cg-field-row">
                       <span style={{ fontSize: '0.72rem', color: 'var(--cg-text-dim)', minWidth: '1.5rem' }}>
@@ -156,7 +157,7 @@ export function CgStudioPage({ copy, libId }: Props) {
                       </span>
                       <span className="cg-field-name">{f.fieldName}</span>
                       <span className="cg-field-type">
-                        {refKind ? `Ref → ${refKind.name}` : f.fieldType}
+                        {refKinds.length ? `Ref → ${refKinds.map((k) => k.name).join(', ')}` : f.fieldType}
                       </span>
                       <div className="cg-field-flags">
                         {f.isMultiValue && <span>{t.multiValue}</span>}
@@ -181,29 +182,36 @@ export function CgStudioPage({ copy, libId }: Props) {
                     </p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
                       {kindFields.map((f) => {
-                        const refKind = f.fieldType === 'Ref' && f.refNodeKindId
-                          ? kinds.find((k) => k.id === f.refNodeKindId)
-                          : null;
-                        const refFields = refKind
-                          ? fieldDefs.filter((d) => d.nodeKindId === refKind.id).sort((a, b) => a.sortOrder - b.sortOrder)
+                        const fRefKinds = f.fieldType === 'Ref'
+                          ? getRefKindIds(f).map((id) => kinds.find((k) => k.id === id)).filter(Boolean) as CgNodeKind[]
                           : [];
+                        const tooltip = fRefKinds.length
+                          ? fRefKinds.map((rk) => {
+                              const rfs = fieldDefs.filter((d) => d.nodeKindId === rk.id).sort((a, b) => a.sortOrder - b.sortOrder);
+                              return `${rk.name} (${rfs.map((d) => d.fieldName).join(', ')})`;
+                            }).join(' | ')
+                          : f.fieldType;
                         return (
                           <span
                             key={f.id}
-                            title={refKind ? `Expands to ${refKind.name} (${refFields.map(d => d.fieldName).join(', ')})` : f.fieldType}
+                            title={tooltip}
                             style={{
                               fontSize: '0.75rem',
-                              background: refKind ? 'var(--cg-cyan)18' : 'var(--cg-surface)',
-                              color: refKind ? 'var(--cg-cyan)' : 'var(--cg-text)',
-                              border: `1px solid ${refKind ? 'var(--cg-cyan)44' : 'var(--cg-border)'}`,
+                              background: fRefKinds.length ? 'var(--cg-cyan)18' : 'var(--cg-surface)',
+                              color: fRefKinds.length ? 'var(--cg-cyan)' : 'var(--cg-text)',
+                              border: `1px solid ${fRefKinds.length ? 'var(--cg-cyan)44' : 'var(--cg-border)'}`,
                               borderRadius: 'var(--cg-radius)',
                               padding: '0.15rem 0.45rem',
                               whiteSpace: 'nowrap',
                             }}
                           >
                             {f.fieldName}
-                            {refKind && <span style={{ opacity: 0.7, marginLeft: '0.2rem' }}>→ {refKind.name}</span>}
-                            {f.isMultiValue && <span style={{ opacity: 0.6, marginLeft: '0.2rem' }}>×{f.isMultiValue ? 'n' : ''}</span>}
+                            {fRefKinds.length > 0 && (
+                              <span style={{ opacity: 0.7, marginLeft: '0.2rem' }}>
+                                → {fRefKinds.map((k) => k.name).join(', ')}
+                              </span>
+                            )}
+                            {f.isMultiValue && <span style={{ opacity: 0.6, marginLeft: '0.2rem' }}>×n</span>}
                           </span>
                         );
                       })}
@@ -227,24 +235,49 @@ export function CgStudioPage({ copy, libId }: Props) {
                     <select
                       className="cg-select"
                       value={form.type}
-                      onChange={(e) => setForm(kind.id, { type: e.target.value, refKindId: '' })}
+                      onChange={(e) => setForm(kind.id, { type: e.target.value, refKindIds: [] })}
                     >
                       {FIELD_TYPES.map((ft) => (
                         <option key={ft} value={ft}>{ft}</option>
                       ))}
                     </select>
                     {form.type === 'Ref' && (
-                      <select
-                        className="cg-select"
-                        value={form.refKindId}
-                        onChange={(e) => setForm(kind.id, { refKindId: e.target.value })}
-                        style={{ color: form.refKindId ? 'var(--cg-text)' : 'var(--cg-text-dim)' }}
-                      >
-                        <option value="">— {t.selectRefKind} —</option>
-                        {kinds.filter((k) => k.id !== kind.id).map((k) => (
-                          <option key={k.id} value={k.id}>{k.name}</option>
-                        ))}
-                      </select>
+                      <div style={{
+                        display: 'flex', flexWrap: 'wrap', gap: '0.3rem', alignItems: 'center',
+                        padding: '0.3rem 0.6rem',
+                        border: '1px solid var(--cg-border)',
+                        borderRadius: 'var(--cg-radius)',
+                        background: 'var(--cg-bg)',
+                        minWidth: 140,
+                      }}>
+                        {kinds.filter((k) => k.id !== kind.id).length === 0 ? (
+                          <span style={{ fontSize: '0.78rem', color: 'var(--cg-text-dim)' }}>
+                            No other types
+                          </span>
+                        ) : (
+                          kinds.filter((k) => k.id !== kind.id).map((k) => {
+                            const checked = form.refKindIds.includes(k.id);
+                            return (
+                              <label key={k.id} style={{
+                                display: 'flex', alignItems: 'center', gap: '0.25rem',
+                                fontSize: '0.8rem', cursor: 'pointer',
+                                color: checked ? 'var(--cg-cyan)' : 'var(--cg-text-dim)',
+                              }}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => setForm(kind.id, {
+                                    refKindIds: e.target.checked
+                                      ? [...form.refKindIds, k.id]
+                                      : form.refKindIds.filter((id) => id !== k.id),
+                                  })}
+                                />
+                                {k.name}
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
                     )}
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: 'var(--cg-text-dim)', cursor: 'pointer' }}>
                       <input type="checkbox" checked={form.multi} onChange={(e) => setForm(kind.id, { multi: e.target.checked })} />

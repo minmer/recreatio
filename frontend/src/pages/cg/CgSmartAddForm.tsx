@@ -5,6 +5,7 @@ import {
   type CgNode,
   type CgNodeKind,
   createNode,
+  getRefKindIds,
   upsertFieldValue,
 } from './api/cgApi';
 import { CgNodePicker, type PickedNode } from './CgNodePicker';
@@ -67,9 +68,10 @@ function buildDescription(kindId: string, allKinds: CgNodeKind[], allDefs: CgFie
     .sort((a, b) => a.sortOrder - b.sortOrder);
   return defs
     .map((d) => {
-      if (d.fieldType === 'Ref' && d.refNodeKindId) {
-        const ref = allKinds.find((k) => k.id === d.refNodeKindId);
-        return ref ? `${d.fieldName} → ${ref.name}` : d.fieldName;
+      const refKindIds = getRefKindIds(d);
+      if (d.fieldType === 'Ref' && refKindIds.length > 0) {
+        const names = refKindIds.map((id) => allKinds.find((k) => k.id === id)?.name).filter(Boolean);
+        return names.length ? `${d.fieldName} → ${names.join(', ')}` : d.fieldName;
       }
       return d.fieldName;
     })
@@ -308,10 +310,11 @@ export function CgSmartAddForm({
             const entry = formState[def.id];
             if (!entry) return null;
 
-            const refKind =
-              def.fieldType === 'Ref' && def.refNodeKindId
-                ? kinds.find((k) => k.id === def.refNodeKindId)
-                : null;
+            const defRefKindIds = getRefKindIds(def);
+            const refKinds = def.fieldType === 'Ref'
+              ? defRefKindIds.map((id) => kinds.find((k) => k.id === id)).filter(Boolean) as CgNodeKind[]
+              : [];
+            const refKindName = refKinds.map((k) => k.name).join(' / ');
 
             return (
               <div key={def.id} style={{ marginBottom: '0.85rem' }}>
@@ -324,9 +327,9 @@ export function CgSmartAddForm({
                     textTransform: 'uppercase', color: 'var(--cg-text-dim)',
                   }}>
                     {def.fieldName}
-                    {refKind && (
+                    {refKinds.length > 0 && (
                       <span style={{ fontWeight: 400, marginLeft: '0.25rem', textTransform: 'none' }}>
-                        → {refKind.name}
+                        → {refKinds.map((k) => k.name).join(', ')}
                       </span>
                     )}
                   </span>
@@ -349,7 +352,7 @@ export function CgSmartAddForm({
                 </div>
 
                 {/* Field input */}
-                {entry.kind === 'ref' && refKind ? (
+                {entry.kind === 'ref' && refKinds.length > 0 ? (
                   <div>
                     {entry.slots.map((slot, slotIdx) => (
                       <div
@@ -362,8 +365,8 @@ export function CgSmartAddForm({
                         <div style={{ flex: 1 }}>
                           <CgNodePicker
                             libId={libId}
-                            refKindId={def.refNodeKindId!}
-                            refKindName={refKind.name}
+                            refKindIds={defRefKindIds}
+                            refKindName={refKindName}
                             allKinds={kinds}
                             allDefs={fieldDefs}
                             selected={slot.node ? [slot.node] : []}
@@ -411,7 +414,7 @@ export function CgSmartAddForm({
                         onClick={() => addSlot(def.id)}
                         style={{ color: 'var(--cg-cyan)', marginTop: '0.1rem' }}
                       >
-                        + {refKind.name}
+                        + {refKindName}
                       </button>
                     )}
                   </div>

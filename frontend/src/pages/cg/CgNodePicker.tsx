@@ -4,6 +4,7 @@ import {
   type CgNode,
   type CgNodeKind,
   createNode,
+  getRefKindIds,
   listNodes,
   upsertFieldValue,
 } from './api/cgApi';
@@ -33,16 +34,7 @@ interface CreateField {
 
 type CreateForm = Record<string, CreateField>; // keyed by fieldDefId
 
-function emptyCreateForm(kindDefs: CgFieldDef[]): CreateForm {
-  return Object.fromEntries(kindDefs.map((d) => [d.id, { scalar: '', refs: [] }]));
-}
 
-function prefillCreateForm(kindDefs: CgFieldDef[], query: string): CreateForm {
-  const form = emptyCreateForm(kindDefs);
-  const firstText = kindDefs.find((d) => d.fieldType === 'Text');
-  if (firstText && query) form[firstText.id] = { scalar: query, refs: [] };
-  return form;
-}
 
 async function persistCreateForm(
   libId: string,
@@ -100,7 +92,7 @@ async function persistCreateForm(
 
 interface Props {
   libId: string;
-  refKindId: string;
+  refKindIds: string[];
   refKindName: string;
   allKinds: CgNodeKind[];
   allDefs: CgFieldDef[];
@@ -115,7 +107,7 @@ interface Props {
 
 export function CgNodePicker({
   libId,
-  refKindId,
+  refKindIds,
   refKindName,
   allKinds,
   allDefs,
@@ -125,9 +117,12 @@ export function CgNodePicker({
   maxCount = Infinity,
   depth = 0,
 }: Props) {
-  const kindDefs = allDefs
-    .filter((d) => d.nodeKindId === refKindId)
+  // Which kind to create in the inline form (defaults to first; user can switch when multi-kind)
+  const [createKindId, setCreateKindId] = useState(() => refKindIds[0] ?? '');
+  const createKindDefs = allDefs
+    .filter((d) => d.nodeKindId === createKindId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
+
 
   const canAddMore = selected.length < maxCount;
 
@@ -145,10 +140,14 @@ export function CgNodePicker({
 
   // ── Create-form state ──
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState<CreateForm>(() => emptyCreateForm(kindDefs));
+  const [createForm, setCreateForm] = useState<CreateForm>({});
   const [isSaving, setIsSaving] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const createFormRef = useRef<HTMLDivElement>(null);
+
+  // Per-field pin/stable: pinned fields survive between successive creates
+  const [pinnedInCreate, setPinnedInCreate] = useState<Set<string>>(new Set());
+  const [stableInCreate, setStableInCreate] = useState<CreateForm>({});
 
   const selectedIds = new Set(selected.map((n) => n.id));
 
@@ -161,7 +160,7 @@ export function CgNodePicker({
     first?.focus();
   }, [showCreate]);
 
-  // Debounced search
+  // Debounced search — runs across all refKindIds in parallel and merges results
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 1) {
@@ -171,8 +170,8 @@ export function CgNodePicker({
       setIsSearching(false);
       return;
     }
-    const key = `${libId}:${refKindId}:${trimmed.toLowerCase()}`;
-    const hit = cache.current.get(key);
+    const cacheKey = `${libId}:${refKindIds.join(',')}:${trimmed.toLowerCase()}`;
+    const hit = cache.current.get(cacheKey);
     if (hit) {
       setResults(hit.filter((n) => !selectedIds.has(n.id)));
       setVisibleCount(MAX_VISIBLE);
@@ -186,9 +185,19 @@ export function CgNodePicker({
       lastReq.current = ts;
       setIsSearching(true);
       try {
-        const nodes = await listNodes(libId, { kindId: refKindId, q: trimmed, limit: FETCH_LIMIT });
+        const perKind = await Promise.all(
+          refKindIds.map((kindId) => listNodes(libId, { kindId, q: trimmed, limit: FETCH_LIMIT })),
+        );
         if (lastReq.current !== ts) return;
-        cache.current.set(key, nodes);
+        // Merge and deduplicate preserving order (first kind's results first)
+        const seen = new Set<string>();
+        const nodes: CgNode[] = [];
+        for (const list of perKind) {
+          for (const n of list) {
+            if (!seen.has(n.id)) { seen.add(n.id); nodes.push(n); }
+          }
+        }
+        cache.current.set(cacheKey, nodes);
         setResults(nodes.filter((n) => !selectedIds.has(n.id)));
         setVisibleCount(MAX_VISIBLE);
         setHighlighted(-1);
@@ -201,7 +210,7 @@ export function CgNodePicker({
     }, DEBOUNCE);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [libId, refKindId, query]);
+  }, [libId, refKindIds.join(','), query]);
 
   function pick(node: CgNode) {
     onAdd({ id: node.id, label: node.label ?? '' });
@@ -211,12 +220,36 @@ export function CgNodePicker({
     setHighlighted(-1);
   }
 
-  function openCreate() {
-    setCreateForm(prefillCreateForm(kindDefs, query.trim()));
+  function openCreate(kindIdOverride?: string) {
+    const targetKindId = kindIdOverride ?? refKindIds[0] ?? '';
+    setCreateKindId(targetKindId);
+    const defs = allDefs
+      .filter((d) => d.nodeKindId === targetKindId)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    // Seed pinned fields from stable values; pre-fill query into first UNPINNED text field
+    const form: CreateForm = {};
+    for (const def of defs) {
+      form[def.id] = pinnedInCreate.has(def.id)
+        ? (stableInCreate[def.id] ?? { scalar: '', refs: [] })
+        : { scalar: '', refs: [] };
+    }
+    const firstUnpinnedText = defs.find((d) => d.fieldType === 'Text' && !pinnedInCreate.has(d.id));
+    if (firstUnpinnedText && query.trim()) {
+      form[firstUnpinnedText.id] = { scalar: query.trim(), refs: [] };
+    }
+    setCreateForm(form);
     setCreateError(null);
     setShowCreate(true);
     setIsOpen(false);
     setQuery('');
+  }
+
+  function togglePinInCreate(defId: string) {
+    setPinnedInCreate((prev) => {
+      const next = new Set(prev);
+      if (next.has(defId)) next.delete(defId); else next.add(defId);
+      return next;
+    });
   }
 
   function cancelCreate() {
@@ -228,9 +261,19 @@ export function CgNodePicker({
     setIsSaving(true);
     setCreateError(null);
     try {
-      const node = await persistCreateForm(libId, refKindId, kindDefs, createForm);
-      const key = `${libId}:${refKindId}:${(node.label ?? '').toLowerCase()}`;
-      cache.current.set(key, [node, ...(cache.current.get(key) ?? [])]);
+      const node = await persistCreateForm(libId, createKindId, createKindDefs, createForm);
+      const cacheKey = `${libId}:${refKindIds.join(',')}:${(node.label ?? '').toLowerCase()}`;
+      cache.current.set(cacheKey, [node, ...(cache.current.get(cacheKey) ?? [])]);
+      // Persist current values for pinned fields so next open re-uses them
+      if (pinnedInCreate.size > 0) {
+        setStableInCreate((prev) => {
+          const next = { ...prev };
+          for (const defId of pinnedInCreate) {
+            next[defId] = createForm[defId] ?? { scalar: '', refs: [] };
+          }
+          return next;
+        });
+      }
       onAdd({ id: node.id, label: node.label ?? '' });
       setShowCreate(false);
       window.setTimeout(() => inputRef.current?.focus(), 30);
@@ -481,7 +524,7 @@ export function CgNodePicker({
               {showCreateBtn && (
                 <button
                   type="button"
-                  onMouseDown={openCreate}
+                  onMouseDown={() => openCreate()}
                   style={{
                     display: 'block',
                     width: '100%',
@@ -516,18 +559,34 @@ export function CgNodePicker({
             marginTop: '0.35rem',
           }}
         >
-          <p
-            style={{
-              fontSize: '0.68rem',
-              fontWeight: 700,
-              letterSpacing: '0.07em',
-              textTransform: 'uppercase',
-              color: 'var(--cg-cyan)',
-              margin: '0 0 0.6rem',
-            }}
-          >
-            New {refKindName}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+            <p style={{
+              fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.07em',
+              textTransform: 'uppercase', color: 'var(--cg-cyan)', margin: 0,
+            }}>
+              New
+            </p>
+            {refKindIds.length > 1 ? (
+              <select
+                className="cg-select"
+                style={{ fontSize: '0.78rem', padding: '0.15rem 0.4rem' }}
+                value={createKindId}
+                onChange={(e) => openCreate(e.target.value)}
+              >
+                {refKindIds.map((kid) => {
+                  const kObj = allKinds.find((k) => k.id === kid);
+                  return kObj ? <option key={kid} value={kid}>{kObj.name}</option> : null;
+                })}
+              </select>
+            ) : (
+              <p style={{
+                fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.07em',
+                textTransform: 'uppercase', color: 'var(--cg-cyan)', margin: 0,
+              }}>
+                {refKindName}
+              </p>
+            )}
+          </div>
 
           {createError && (
             <p
@@ -537,36 +596,52 @@ export function CgNodePicker({
             </p>
           )}
 
-          {kindDefs.map((def) => {
+          {createKindDefs.map((def) => {
             const field = createForm[def.id] ?? { scalar: '', refs: [] };
-            const refKindObj =
-              def.fieldType === 'Ref' && def.refNodeKindId
-                ? allKinds.find((k) => k.id === def.refNodeKindId)
-                : null;
+            const defRefKindIds = getRefKindIds(def);
+            const defRefKindNames = defRefKindIds
+              .map((id) => allKinds.find((k) => k.id === id)?.name)
+              .filter(Boolean) as string[];
+            const isPinned = pinnedInCreate.has(def.id);
 
             return (
-              <div key={def.id} style={{ marginBottom: '0.55rem' }}>
-                <p
-                  style={{
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    color: 'var(--cg-text-dim)',
-                    margin: '0 0 0.25rem',
-                  }}
-                >
-                  {def.fieldName}
-                  {refKindObj && <span style={{ fontWeight: 400 }}> → {refKindObj.name}</span>}
-                </p>
+              <div key={def.id} style={{ marginBottom: '0.55rem', opacity: isPinned ? 0.55 : 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.25rem' }}>
+                  <p
+                    style={{
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      color: 'var(--cg-text-dim)',
+                      margin: 0,
+                      flex: 1,
+                    }}
+                  >
+                    {def.fieldName}
+                    {defRefKindNames.length > 0 && (
+                      <span style={{ fontWeight: 400 }}> → {defRefKindNames.join(', ')}</span>
+                    )}
+                  </p>
+                  <button
+                    className="cg-btn cg-btn-ghost cg-btn-sm"
+                    type="button"
+                    tabIndex={-1}
+                    title={isPinned ? 'Pinned — persists after create' : 'Pin this field'}
+                    style={{ color: isPinned ? 'var(--cg-cyan)' : 'var(--cg-text-dim)', padding: '0 0.2rem', lineHeight: 1 }}
+                    onClick={() => togglePinInCreate(def.id)}
+                  >
+                    {isPinned ? '🔒' : '🔓'}
+                  </button>
+                </div>
 
-                {def.fieldType === 'Ref' && def.refNodeKindId && refKindObj ? (
+                {def.fieldType === 'Ref' && defRefKindIds.length > 0 ? (
                   depth < MAX_PICKER_DEPTH ? (
-                    // Nested picker — fixed stale-closure by reading from prev, not closure variable
+                    // Nested picker
                     <CgNodePicker
                       libId={libId}
-                      refKindId={def.refNodeKindId}
-                      refKindName={refKindObj.name}
+                      refKindIds={defRefKindIds}
+                      refKindName={defRefKindNames.join(' / ')}
                       allKinds={allKinds}
                       allDefs={allDefs}
                       selected={field.refs}
@@ -602,7 +677,7 @@ export function CgNodePicker({
                     <input
                       className="cg-input"
                       style={{ width: '100%' }}
-                      placeholder={`${refKindObj.name}…`}
+                      placeholder={`${defRefKindNames.join(' / ')}…`}
                       value={field.scalar}
                       data-cg-create-scalar={depth}
                       onChange={(e) =>
