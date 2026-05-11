@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Copy } from '../../content/types';
 import {
   type CgFieldDef,
@@ -105,7 +105,7 @@ function applyStableField(fs: FieldState, def: CgFieldDef, allDefs: CgFieldDef[]
 
 function isFormEmpty(formState: FormState): boolean {
   return Object.values(formState).every(
-    (fs) => fs.slots.every((s) => !s.value.trim()) && fs.subForms.every((sf) => isFormEmpty(sf)),
+    (fs) => fs.slots.every((s) => !s.value.trim() && !s.nodeId) && fs.subForms.every((sf) => isFormEmpty(sf)),
   );
 }
 
@@ -350,9 +350,6 @@ function CgNodeSelect({ libId, refKindId, refKindName, slot, onUpdate, onEnter, 
   return (
     <div style={{ position: 'relative', flex: 1 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--cg-text-dim)', letterSpacing: '0.05em', textTransform: 'uppercase', flexShrink: 0 }}>
-          {refKindName}
-        </span>
         <input
           ref={inputRef}
           className="cg-input"
@@ -510,7 +507,7 @@ export function CgSmartAddForm({ copy, libId, kinds, fieldDefs, selectedKindId, 
     fieldState: FieldState,
     onChange: (f: FieldState) => void,
     depth: number,
-  ): React.ReactNode {
+  ): ReactNode {
     const isExpandedRef = def.fieldType === 'Ref' && def.refNodeKindId && depth < MAX_DEPTH;
     const isLeafRef = def.fieldType === 'Ref' && def.refNodeKindId && depth >= MAX_DEPTH;
     const refKind = def.fieldType === 'Ref' && def.refNodeKindId ? kinds.find((k) => k.id === def.refNodeKindId) : null;
