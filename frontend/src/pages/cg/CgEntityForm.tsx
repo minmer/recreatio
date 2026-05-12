@@ -71,7 +71,6 @@ export function CgEntityForm({
   const nodeIdRef = useRef<string | null>(nodeIdProp);
   const creatingRef = useRef<Promise<string> | null>(null);
 
-  const [label, setLabel] = useState(initialLabel);
   const [fieldValues, setFieldValues] = useState<CgFieldValue[]>([]);
   const [refLabels, setRefLabels] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(!!nodeIdProp);
@@ -82,7 +81,6 @@ export function CgEntityForm({
   // scalar inputs: draft values before debounced save
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
-  const labelDebRef = useRef<ReturnType<typeof setTimeout>>();
   const fieldDebRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const kind = kinds.find((k) => k.id === kindId);
@@ -94,13 +92,16 @@ export function CgEntityForm({
 
   useEffect(() => {
     nodeIdRef.current = nodeIdProp;
-    setLabel(initialLabel);
     setFieldValues([]);
     setRefLabels(new Map());
-    setDrafts({});
     setOpenSubs({});
 
     if (!nodeIdProp) {
+      // Pre-fill first text field from initialLabel (replaces separate label input)
+      const firstText = kindDefs.find((d) => d.fieldType === 'Text');
+      const initDrafts: Record<string, string> = firstText && initialLabel
+        ? { [`${firstText.id}:0`]: initialLabel }
+        : {};
       // Pre-populate locked refs for batch creation
       if (lockState) {
         const labels = new Map<string, string>();
@@ -116,14 +117,15 @@ export function CgEntityForm({
         );
         setFieldValues(synthetic);
       }
+      setDrafts(initDrafts);
       setLoading(false);
       return;
     }
 
+    setDrafts({});
     setLoading(true);
     getNode(libId, nodeIdProp)
       .then(async (detail) => {
-        setLabel(detail.node.label ?? '');
         setFieldValues(detail.fieldValues);
         const refIds = [...new Set(
           detail.fieldValues.filter((v) => v.refNodeId).map((v) => v.refNodeId!),
@@ -140,10 +142,12 @@ export function CgEntityForm({
   function ensureNode(): Promise<string> {
     if (nodeIdRef.current) return Promise.resolve(nodeIdRef.current);
     if (creatingRef.current) return creatingRef.current;
+    const firstText = kindDefs.find((d) => d.fieldType === 'Text');
+    const derivedLabel = firstText ? (drafts[`${firstText.id}:0`] ?? '').trim() : '';
     creatingRef.current = createNode(libId, {
       nodeType: 'Entity',
       nodeKindId: kindId,
-      label: label.trim() || undefined,
+      label: derivedLabel || undefined,
     }).then(async (created) => {
       nodeIdRef.current = created.id;
       onCreated?.(created);
@@ -163,21 +167,6 @@ export function CgEntityForm({
       return created.id;
     });
     return creatingRef.current;
-  }
-
-  // ── Label ──
-
-  function handleLabelChange(val: string) {
-    setLabel(val);
-    clearTimeout(labelDebRef.current);
-    labelDebRef.current = setTimeout(async () => {
-      setSaving(true);
-      try {
-        const nid = await ensureNode();
-        await updateNode(libId, nid, val.trim() || undefined);
-      } catch { setError('Failed to save label'); }
-      finally { setSaving(false); }
-    }, DEBOUNCE_MS);
   }
 
   // ── Scalar ──
@@ -212,6 +201,11 @@ export function CgEntityForm({
         });
         setFieldValues(updated);
         setDrafts((prev) => { const n = { ...prev }; delete n[key]; return n; });
+        // Keep node.label in sync with the first text field (slot 0)
+        const firstText = kindDefs.find((d) => d.fieldType === 'Text');
+        if (firstText && def.id === firstText.id && sortOrder === 0) {
+          await updateNode(libId, nid, val.trim() || undefined);
+        }
       } catch { setError('Failed to save'); }
       finally { setSaving(false); }
     }, DEBOUNCE_MS);
@@ -270,9 +264,11 @@ export function CgEntityForm({
     ? { marginLeft: `${depth * 0.75}rem`, borderLeft: '2px solid var(--cg-cyan)33', paddingLeft: '0.75rem' }
     : {};
 
+  const firstTextDef = kindDefs.find((d) => d.fieldType === 'Text');
+
   return (
     <div style={indentStyle}>
-      {/* Header: kind badge + label input + saving + open-full + close */}
+      {/* Header: kind badge + status + open-full */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
         {kind && (
           <span style={{
@@ -282,15 +278,7 @@ export function CgEntityForm({
             {getKindLabel(kind, fieldDefs)}
           </span>
         )}
-        <input
-          className="cg-input"
-          style={{ flex: 1, fontWeight: 600, minWidth: 0 }}
-          placeholder={`${kind ? getKindLabel(kind, fieldDefs) : 'Entity'} name…`}
-          value={label}
-          onChange={(e) => handleLabelChange(e.target.value)}
-          // eslint-disable-next-line jsx-a11y/no-autofocus
-          autoFocus={!nodeIdProp && depth === 0}
-        />
+        <span style={{ flex: 1 }} />
         {saving && (
           <span style={{ fontSize: '0.67rem', color: 'var(--cg-text-dim)', flexShrink: 0 }}>
             saving…
@@ -534,6 +522,8 @@ export function CgEntityForm({
                               : def.fieldType === 'Date' ? 'date'
                               : 'text'
                             }
+                            // eslint-disable-next-line jsx-a11y/no-autofocus
+                            autoFocus={!nodeIdProp && depth === 0 && def.id === firstTextDef?.id && sortOrder === 0}
                             onChange={(e) => handleScalarChange(def, e.target.value, sortOrder)}
                           />
                         )}
