@@ -7,6 +7,7 @@ import {
   type CgNodeKind,
   createNode,
   deleteFieldValue,
+  getKindLabel,
   getNode,
   getRefKindIds,
   updateNode,
@@ -17,8 +18,8 @@ import { CgNodePicker } from './CgNodePicker';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface LockState {
-  // ref node IDs that persist to the next entity creation
-  refNodeIds: Set<string>;
+  // per-fieldDefId list of refs that persist to the next entity creation
+  lockedRefs: Record<string, Array<{ id: string; label: string }>>;
   // per-fieldDefId locked count (null = not locked)
   refCounts: Record<string, number | null>;
 }
@@ -35,7 +36,7 @@ export interface CgEntityFormProps {
   initialLabel?: string;
   // Lock state for batch-create reuse (managed by parent)
   lockState?: LockState;
-  onToggleLockRef?: (nodeId: string) => void;
+  onToggleLockRef?: (defId: string, nodeId: string, label: string) => void;
   onToggleLockCount?: (defId: string, currentCount: number) => void;
   // Lifecycle
   onCreated?: (node: CgNode) => void;
@@ -43,11 +44,12 @@ export interface CgEntityFormProps {
   // Batch mode
   onNext?: () => void;
   nextLabel?: string;
+  onAddAnother?: () => void;
   // Nesting depth — controls hierarchical sub-entity expansion
   depth?: number;
 }
 
-const DEBOUNCE_MS = 600;
+const DEBOUNCE_MS = 300;
 const MAX_DEPTH = 5;
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -62,6 +64,7 @@ export function CgEntityForm({
   onCreated,
   onOpenNode,
   onNext, nextLabel,
+  onAddAnother,
   depth = 0,
 }: CgEntityFormProps) {
   // Use a ref for nodeId to avoid stale closures in debounce callbacks
@@ -75,7 +78,6 @@ export function CgEntityForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [fieldExpanded, setFieldExpanded] = useState<Record<string, boolean>>({});
   const [openSubs, setOpenSubs] = useState<Record<string, boolean>>({});
   // scalar inputs: draft values before debounced save
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -98,7 +100,25 @@ export function CgEntityForm({
     setDrafts({});
     setOpenSubs({});
 
-    if (!nodeIdProp) { setLoading(false); return; }
+    if (!nodeIdProp) {
+      // Pre-populate locked refs for batch creation
+      if (lockState) {
+        const labels = new Map<string, string>();
+        Object.values(lockState.lockedRefs).flat().forEach((r) => labels.set(r.id, r.label));
+        setRefLabels(labels);
+        const synthetic: CgFieldValue[] = Object.entries(lockState.lockedRefs).flatMap(([defId, refs]) =>
+          refs.map((ref, i) => ({
+            id: `__locked_${defId}_${ref.id}`,
+            nodeId: '', fieldDefId: defId,
+            textValue: null, numberValue: null, dateValue: null, boolValue: null,
+            refNodeId: ref.id, pvState: null, pvNote: null, sortOrder: i, createdUtc: '',
+          })),
+        );
+        setFieldValues(synthetic);
+      }
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     getNode(libId, nodeIdProp)
@@ -124,10 +144,22 @@ export function CgEntityForm({
       nodeType: 'Entity',
       nodeKindId: kindId,
       label: label.trim() || undefined,
-    }).then((created) => {
+    }).then(async (created) => {
       nodeIdRef.current = created.id;
       onCreated?.(created);
       creatingRef.current = null;
+      // Persist locked refs into the newly created node
+      if (lockState) {
+        let latestValues: CgFieldValue[] = [];
+        for (const [defId, refs] of Object.entries(lockState.lockedRefs)) {
+          for (let i = 0; i < refs.length; i++) {
+            latestValues = await upsertFieldValue(libId, created.id, {
+              fieldDefId: defId, refNodeId: refs[i].id, sortOrder: i,
+            });
+          }
+        }
+        if (latestValues.length > 0) setFieldValues(latestValues);
+      }
       return created.id;
     });
     return creatingRef.current;
@@ -247,13 +279,13 @@ export function CgEntityForm({
             fontSize: '0.67rem', fontWeight: 700, letterSpacing: '0.08em',
             textTransform: 'uppercase', color: 'var(--cg-cyan)', flexShrink: 0,
           }}>
-            {kind.name}
+            {getKindLabel(kind, fieldDefs)}
           </span>
         )}
         <input
           className="cg-input"
           style={{ flex: 1, fontWeight: 600, minWidth: 0 }}
-          placeholder={`${kind?.name ?? 'Entity'} name…`}
+          placeholder={`${kind ? getKindLabel(kind, fieldDefs) : 'Entity'} name…`}
           value={label}
           onChange={(e) => handleLabelChange(e.target.value)}
           // eslint-disable-next-line jsx-a11y/no-autofocus
@@ -287,7 +319,7 @@ export function CgEntityForm({
         const refKinds = def.fieldType === 'Ref'
           ? defRefKindIds.map((id) => kinds.find((k) => k.id === id)).filter(Boolean) as CgNodeKind[]
           : [];
-        const refKindName = refKinds.map((k) => k.name).join(' / ');
+        const refKindName = refKinds.map((k) => getKindLabel(k, fieldDefs)).join(' / ');
 
         const existingRefs = fieldValues
           .filter((v) => v.fieldDefId === def.id && v.refNodeId)
@@ -296,38 +328,20 @@ export function CgEntityForm({
           .filter((v) => v.fieldDefId === def.id && !v.refNodeId)
           .sort((a, b) => a.sortOrder - b.sortOrder);
 
-        const expanded = fieldExpanded[def.id] ?? true;
         const lockedCount = lockState?.refCounts[def.id] ?? null;
-
-        const collapsedSummary = def.fieldType === 'Ref'
-          ? (existingRefs.map((v) => refLabels.get(v.refNodeId!) ?? '…').join(', ') || '—')
-          : (() => {
-              const v = existingScalars[0];
-              if (!v) return '—';
-              return v.textValue ?? v.dateValue
-                ?? (v.numberValue != null ? String(v.numberValue) : '')
-                ?? (v.boolValue != null ? String(v.boolValue) : '') ?? '—';
-            })();
 
         return (
           <div
             key={def.id}
             style={{ marginBottom: '0.45rem', border: '1px solid var(--cg-border)', borderRadius: 'var(--cg-radius)' }}
           >
-            {/* Collapsible field header */}
-            <div
-              style={{
-                display: 'flex', alignItems: 'center', gap: '0.35rem',
-                padding: '0.28rem 0.5rem', cursor: 'pointer', userSelect: 'none',
-                borderRadius: expanded
-                  ? 'calc(var(--cg-radius) - 1px) calc(var(--cg-radius) - 1px) 0 0'
-                  : 'calc(var(--cg-radius) - 1px)',
-              }}
-              onClick={() => setFieldExpanded((fe) => ({ ...fe, [def.id]: !expanded }))}
-            >
-              <span style={{ fontSize: '0.6rem', color: 'var(--cg-text-dim)', flexShrink: 0 }}>
-                {expanded ? '▾' : '▸'}
-              </span>
+            {/* Field header — always visible, not collapsible */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '0.35rem',
+              padding: '0.28rem 0.5rem',
+              borderBottom: '1px solid var(--cg-border)',
+              borderRadius: 'calc(var(--cg-radius) - 1px) calc(var(--cg-radius) - 1px) 0 0',
+            }}>
               <span style={{
                 fontSize: '0.69rem', fontWeight: 700, letterSpacing: '0.07em',
                 textTransform: 'uppercase', color: 'var(--cg-text-dim)',
@@ -336,20 +350,11 @@ export function CgEntityForm({
                 {def.fieldName}
                 {refKinds.length > 0 && (
                   <span style={{ fontWeight: 400, textTransform: 'none', marginLeft: '0.25rem' }}>
-                    → {refKinds.map((k) => k.name).join(', ')}
+                    → {refKinds.map((k) => getKindLabel(k, fieldDefs)).join(', ')}
                   </span>
                 )}
               </span>
-              {/* Collapsed: show value summary */}
-              {!expanded && (
-                <span style={{
-                  fontSize: '0.77rem', color: 'var(--cg-text-dim)', flexShrink: 0,
-                  maxWidth: '10rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>
-                  {collapsedSummary}
-                </span>
-              )}
-              {/* Lock count (ref fields only, when lock callbacks are provided) */}
+              {/* Lock count button — visible when lock callbacks provided */}
               {def.fieldType === 'Ref' && onToggleLockCount && (
                 <button
                   className="cg-btn cg-btn-ghost cg-btn-sm"
@@ -360,82 +365,79 @@ export function CgEntityForm({
                     : 'Lock count for batch creation'}
                   style={{
                     color: lockedCount != null ? 'var(--cg-cyan)' : 'var(--cg-text-dim)',
-                    padding: '0 0.1rem', fontSize: '0.75rem', flexShrink: 0,
+                    padding: '0 0.25rem', fontSize: '0.75rem', flexShrink: 0,
                   }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleLockCount(def.id, lockedCount ?? Math.max(1, existingRefs.length));
-                  }}
+                  onClick={() => onToggleLockCount(def.id, lockedCount ?? Math.max(1, existingRefs.length))}
                 >
-                  {lockedCount != null ? `🔒×${lockedCount}` : '🔓'}
+                  {lockedCount != null ? `🔒 ×${lockedCount}` : '🔓'}
                 </button>
               )}
             </div>
 
-            {/* Field body */}
-            {expanded && (
-              <div style={{ padding: '0.3rem 0.5rem 0.45rem', borderTop: '1px solid var(--cg-border)' }}>
-                {def.fieldType === 'Ref' && refKinds.length > 0 ? (
-                  <div>
-                    {/* Ref chips — each with lock, hierarchical expand, remove */}
-                    {existingRefs.map((v) => {
-                      const rid = v.refNodeId!;
-                      const rlabel = refLabels.get(rid) ?? rid;
-                      const isLocked = lockState?.refNodeIds.has(rid) ?? false;
-                      const subKey = `${def.id}:${v.id}`;
-                      const subOpen = openSubs[subKey] ?? false;
-                      const subKindId = defRefKindIds[0];
+            {/* Field body — always visible */}
+            <div style={{ padding: '0.3rem 0.5rem 0.45rem' }}>
+              {def.fieldType === 'Ref' && refKinds.length > 0 ? (
+                <div>
+                  {/* Ref chips — each with lock, hierarchical expand, remove */}
+                  {existingRefs.map((v) => {
+                    const rid = v.refNodeId!;
+                    const rlabel = refLabels.get(rid) ?? rid;
+                    const isLocked = lockState?.lockedRefs[def.id]?.some((r) => r.id === rid) ?? false;
+                    const subKey = `${def.id}:${v.id}`;
+                    const subOpen = openSubs[subKey] ?? false;
+                    const subKindId = defRefKindIds[0];
 
-                      return (
-                        <div key={v.id} style={{ marginBottom: '0.35rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.22rem' }}>
-                            {/* Chip */}
-                            <span style={{
-                              display: 'inline-flex', alignItems: 'center',
-                              background: 'var(--cg-cyan)18', color: 'var(--cg-cyan)',
-                              borderRadius: '999px', padding: '0.13rem 0.55rem',
-                              fontSize: '0.81rem', fontWeight: 600,
-                              flex: 1, minWidth: 0,
-                            }}>
-                              <span
-                                style={{
-                                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                  cursor: onOpenNode ? 'pointer' : 'default',
-                                  textDecoration: onOpenNode ? 'underline dotted' : 'none',
-                                  textUnderlineOffset: '2px',
-                                }}
-                                onClick={onOpenNode ? () => onOpenNode(rid) : undefined}
-                              >
-                                {rlabel}
-                              </span>
+                    return (
+                      <div key={v.id} style={{ marginBottom: '0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.22rem' }}>
+                          {/* Chip */}
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center',
+                            background: 'var(--cg-cyan)18', color: 'var(--cg-cyan)',
+                            borderRadius: '999px', padding: '0.13rem 0.55rem',
+                            fontSize: '0.81rem', fontWeight: 600,
+                            flex: 1, minWidth: 0,
+                          }}>
+                            <span
+                              style={{
+                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                cursor: onOpenNode ? 'pointer' : 'default',
+                                textDecoration: onOpenNode ? 'underline dotted' : 'none',
+                                textUnderlineOffset: '2px',
+                              }}
+                              onClick={onOpenNode ? () => onOpenNode(rid) : undefined}
+                            >
+                              {rlabel}
                             </span>
-                            {/* Lock ref node */}
-                            {onToggleLockRef && (
-                              <button
-                                className="cg-btn cg-btn-ghost cg-btn-sm"
-                                type="button"
-                                tabIndex={-1}
-                                title={isLocked ? 'Locked — persists to next entry' : 'Lock this reference'}
-                                style={{ color: isLocked ? 'var(--cg-cyan)' : 'var(--cg-text-dim)', padding: '0 0.1rem' }}
-                                onClick={() => onToggleLockRef(rid)}
-                              >
-                                {isLocked ? '🔒' : '🔓'}
-                              </button>
-                            )}
-                            {/* Expand sub-entity hierarchically */}
-                            {depth < MAX_DEPTH && subKindId && (
-                              <button
-                                className="cg-btn cg-btn-ghost cg-btn-sm"
-                                type="button"
-                                tabIndex={-1}
-                                title={subOpen ? 'Collapse' : 'Expand sub-entity'}
-                                style={{ color: subOpen ? 'var(--cg-cyan)' : 'var(--cg-text-dim)', padding: '0 0.1rem' }}
-                                onClick={() => setOpenSubs((prev) => ({ ...prev, [subKey]: !prev[subKey] }))}
-                              >
-                                {subOpen ? '▾' : '▸'}
-                              </button>
-                            )}
-                            {/* Remove */}
+                          </span>
+                          {/* Lock ref node */}
+                          {onToggleLockRef && (
+                            <button
+                              className="cg-btn cg-btn-ghost cg-btn-sm"
+                              type="button"
+                              tabIndex={-1}
+                              title={isLocked ? 'Locked — persists to next entry' : 'Lock this reference'}
+                              style={{ color: isLocked ? 'var(--cg-cyan)' : 'var(--cg-text-dim)', padding: '0 0.1rem' }}
+                              onClick={() => onToggleLockRef(def.id, rid, rlabel)}
+                            >
+                              {isLocked ? '🔒' : '🔓'}
+                            </button>
+                          )}
+                          {/* Expand sub-entity hierarchically */}
+                          {depth < MAX_DEPTH && subKindId && (
+                            <button
+                              className="cg-btn cg-btn-ghost cg-btn-sm"
+                              type="button"
+                              tabIndex={-1}
+                              title={subOpen ? 'Collapse' : 'Expand sub-entity'}
+                              style={{ color: subOpen ? 'var(--cg-cyan)' : 'var(--cg-text-dim)', padding: '0 0.1rem' }}
+                              onClick={() => setOpenSubs((prev) => ({ ...prev, [subKey]: !subOpen }))}
+                            >
+                              {subOpen ? '▾' : '▸'}
+                            </button>
+                          )}
+                          {/* Remove (disabled for locked refs) */}
+                          {!isLocked && (
                             <button
                               className="cg-btn cg-btn-ghost cg-btn-sm"
                               type="button"
@@ -445,123 +447,130 @@ export function CgEntityForm({
                             >
                               ✕
                             </button>
-                          </div>
-
-                          {/* Hierarchical sub-entity editor — same component, deeper indent */}
-                          {subOpen && subKindId && depth < MAX_DEPTH && (
-                            <div style={{ marginTop: '0.4rem' }}>
-                              <CgEntityForm
-                                copy={_copy}
-                                libId={libId}
-                                kinds={kinds}
-                                fieldDefs={fieldDefs}
-                                kindId={subKindId}
-                                nodeId={rid}
-                                onOpenNode={onOpenNode}
-                                depth={depth + 1}
-                              />
-                            </div>
                           )}
                         </div>
-                      );
-                    })}
 
-                    {/* Picker to add refs (respects locked count) */}
-                    {(def.isMultiValue || existingRefs.length === 0) &&
-                      (lockedCount === null || existingRefs.length < lockedCount) && (
-                        <CgNodePicker
-                          libId={libId}
-                          refKindIds={defRefKindIds}
-                          refKindName={refKindName}
-                          allKinds={kinds}
-                          allDefs={fieldDefs}
-                          selected={existingRefs.map((v) => ({
-                            id: v.refNodeId!,
-                            label: refLabels.get(v.refNodeId!) ?? '',
-                          }))}
-                          onAdd={(picked) => handleRefAdd(def, picked)}
-                          onRemove={(removedId) => {
-                            const val = existingRefs.find((v) => v.refNodeId === removedId);
-                            if (val) handleRefRemove(val.id);
-                          }}
-                          onClickNode={onOpenNode}
-                          maxCount={def.isMultiValue ? (lockedCount ?? Infinity) : 1}
-                          depth={depth}
-                        />
-                      )}
-
-                    {lockedCount !== null && existingRefs.length >= lockedCount && (
-                      <p style={{ fontSize: '0.72rem', color: 'var(--cg-text-dim)', margin: '0.2rem 0 0' }}>
-                        Count locked at {lockedCount} ×
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  // Scalar slots
-                  (() => {
-                    const slots = def.isMultiValue
-                      ? Array.from({ length: existingScalars.length + 1 }, (_, i) => i)
-                      : [0];
-                    return slots.map((sortOrder) => {
-                      const valAtSlot = existingScalars[sortOrder];
-                      const display = getScalarDisplay(def.id, sortOrder);
-                      return (
-                        <div
-                          key={sortOrder}
-                          style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.22rem', alignItems: 'center' }}
-                        >
-                          {def.fieldType === 'Boolean' ? (
-                            <select
-                              className="cg-select"
-                              style={{ flex: 1 }}
-                              value={display || 'false'}
-                              onChange={(e) => handleScalarChange(def, e.target.value, sortOrder)}
-                            >
-                              <option value="true">Yes</option>
-                              <option value="false">No</option>
-                            </select>
-                          ) : (
-                            <input
-                              className="cg-input"
-                              style={{ flex: 1 }}
-                              placeholder={!valAtSlot ? `${def.fieldName}…` : def.fieldName}
-                              value={display}
-                              type={
-                                def.fieldType === 'Number' ? 'number'
-                                : def.fieldType === 'Date' ? 'date'
-                                : 'text'
-                              }
-                              onChange={(e) => handleScalarChange(def, e.target.value, sortOrder)}
+                        {/* Hierarchical sub-entity editor — same component, deeper indent */}
+                        {subOpen && subKindId && depth < MAX_DEPTH && (
+                          <div style={{ marginTop: '0.4rem' }}>
+                            <CgEntityForm
+                              copy={_copy}
+                              libId={libId}
+                              kinds={kinds}
+                              fieldDefs={fieldDefs}
+                              kindId={subKindId}
+                              nodeId={rid}
+                              onOpenNode={onOpenNode}
+                              depth={depth + 1}
                             />
-                          )}
-                          {valAtSlot && (
-                            <button
-                              className="cg-btn cg-btn-ghost cg-btn-sm"
-                              type="button"
-                              tabIndex={-1}
-                              style={{ color: 'var(--cg-text-dim)', flexShrink: 0 }}
-                              onClick={() => handleDeleteScalar(valAtSlot.id)}
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </div>
-                      );
-                    });
-                  })()
-                )}
-              </div>
-            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Picker to add refs (respects locked count) */}
+                  {(def.isMultiValue || existingRefs.length === 0) &&
+                    (lockedCount === null || existingRefs.length < lockedCount) && (
+                      <CgNodePicker
+                        libId={libId}
+                        refKindIds={defRefKindIds}
+                        refKindName={refKindName}
+                        allKinds={kinds}
+                        allDefs={fieldDefs}
+                        selected={existingRefs.map((v) => ({
+                          id: v.refNodeId!,
+                          label: refLabels.get(v.refNodeId!) ?? '',
+                        }))}
+                        onAdd={(picked) => handleRefAdd(def, picked)}
+                        onRemove={(removedId) => {
+                          const val = existingRefs.find((v) => v.refNodeId === removedId);
+                          if (val) handleRefRemove(val.id);
+                        }}
+                        onClickNode={onOpenNode}
+                        maxCount={def.isMultiValue ? (lockedCount ?? Infinity) : 1}
+                        depth={depth}
+                      />
+                    )}
+
+                  {lockedCount !== null && existingRefs.length >= lockedCount && (
+                    <p style={{ fontSize: '0.72rem', color: 'var(--cg-text-dim)', margin: '0.2rem 0 0' }}>
+                      Count locked at {lockedCount} ×
+                    </p>
+                  )}
+                </div>
+              ) : (
+                // Scalar slots
+                (() => {
+                  const slots = def.isMultiValue
+                    ? Array.from({ length: existingScalars.length + 1 }, (_, i) => i)
+                    : [0];
+                  return slots.map((sortOrder) => {
+                    const valAtSlot = existingScalars[sortOrder];
+                    const display = getScalarDisplay(def.id, sortOrder);
+                    return (
+                      <div
+                        key={sortOrder}
+                        style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.22rem', alignItems: 'center' }}
+                      >
+                        {def.fieldType === 'Boolean' ? (
+                          <select
+                            className="cg-select"
+                            style={{ flex: 1 }}
+                            value={display || 'false'}
+                            onChange={(e) => handleScalarChange(def, e.target.value, sortOrder)}
+                          >
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                          </select>
+                        ) : (
+                          <input
+                            className="cg-input"
+                            style={{ flex: 1 }}
+                            placeholder={!valAtSlot ? `${def.fieldName}…` : def.fieldName}
+                            value={display}
+                            type={
+                              def.fieldType === 'Number' ? 'number'
+                              : def.fieldType === 'Date' ? 'date'
+                              : 'text'
+                            }
+                            onChange={(e) => handleScalarChange(def, e.target.value, sortOrder)}
+                          />
+                        )}
+                        {valAtSlot && (
+                          <button
+                            className="cg-btn cg-btn-ghost cg-btn-sm"
+                            type="button"
+                            tabIndex={-1}
+                            style={{ color: 'var(--cg-text-dim)', flexShrink: 0 }}
+                            onClick={() => handleDeleteScalar(valAtSlot.id)}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    );
+                  });
+                })()
+              )}
+            </div>
           </div>
         );
       })}
 
-      {/* Batch mode: Next button */}
-      {onNext && (
-        <div style={{ marginTop: '0.65rem' }}>
-          <button className="cg-btn cg-btn-primary" type="button" onClick={onNext}>
-            {nextLabel ?? 'Next →'}
-          </button>
+      {/* Batch / add-another buttons */}
+      {(onNext || onAddAnother) && (
+        <div style={{ marginTop: '0.65rem', display: 'flex', gap: '0.5rem' }}>
+          {onNext && (
+            <button className="cg-btn cg-btn-primary" type="button" onClick={onNext}>
+              {nextLabel ?? 'Next →'}
+            </button>
+          )}
+          {onAddAnother && (
+            <button className="cg-btn cg-btn-ghost" type="button" onClick={onAddAnother}>
+              + Add another
+            </button>
+          )}
         </div>
       )}
     </div>

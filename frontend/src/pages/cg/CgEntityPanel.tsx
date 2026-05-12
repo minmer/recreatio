@@ -5,6 +5,7 @@ import {
   type CgNode,
   type CgNodeKind,
   deleteNode,
+  getKindLabel,
   listNodes,
 } from './api/cgApi';
 import { CgEntityForm, type LockState } from './CgEntityForm';
@@ -96,7 +97,7 @@ export function CgEntityPanel({
   // ── Batch / lock state ──
   const [targetCount, setTargetCount] = useState(1);
   const [addedCount, setAddedCount] = useState(0);
-  const [lockState, setLockState] = useState<LockState>({ refNodeIds: new Set(), refCounts: {} });
+  const [lockState, setLockState] = useState<LockState>({ lockedRefs: {}, refCounts: {} });
 
   // ── Load full-mode node list ──
   const loadNodes = useCallback(() => {
@@ -224,11 +225,17 @@ export function CgEntityPanel({
 
   // ── Lock state toggles ──
 
-  function toggleLockRef(nodeId: string) {
+  function toggleLockRef(defId: string, nodeId: string, label: string) {
     setLockState((prev) => {
-      const next = new Set(prev.refNodeIds);
-      if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId);
-      return { ...prev, refNodeIds: next };
+      const current = prev.lockedRefs[defId] ?? [];
+      const exists = current.some((r) => r.id === nodeId);
+      return {
+        ...prev,
+        lockedRefs: {
+          ...prev.lockedRefs,
+          [defId]: exists ? current.filter((r) => r.id !== nodeId) : [...current, { id: nodeId, label }],
+        },
+      };
     });
   }
 
@@ -317,7 +324,7 @@ export function CgEntityPanel({
         >
           <span>{node.label ?? '(unnamed)'}</span>
           <span style={{ fontSize: '0.7rem', color: 'var(--cg-text-dim)', marginLeft: '0.5rem' }}>
-            {node.nodeKindId ? kinds.find((k) => k.id === node.nodeKindId)?.name ?? '' : ''}
+            {(() => { const k = node.nodeKindId ? kinds.find((kk) => kk.id === node.nodeKindId) : undefined; return k ? getKindLabel(k, fieldDefs) : ''; })()}
           </span>
         </button>
       ))}
@@ -327,27 +334,34 @@ export function CgEntityPanel({
         <div style={{ borderTop: results.length > 0 ? '1px solid var(--cg-border)' : 'none' }}>
           {effectiveKinds.map((k, i) => {
             const idx = results.length + i;
+            const isHl = idx === highlighted;
             return (
               <button
                 key={k.id}
                 type="button"
                 onMouseDown={() => { openCreate(k.id, query.trim()); }}
                 style={{
-                  display: 'block', width: '100%', textAlign: 'left',
-                  padding: '0.42rem 0.75rem',
-                  background: idx === highlighted ? 'var(--cg-cyan)22' : 'none',
-                  color: 'var(--cg-cyan)',
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  width: '100%', textAlign: 'left',
+                  padding: '0.45rem 0.75rem',
+                  background: isHl ? 'var(--cg-cyan)44' : 'var(--cg-cyan)11',
+                  color: isHl ? 'var(--cg-text)' : 'var(--cg-cyan)',
                   border: 'none', cursor: 'pointer',
                   fontSize: '0.82rem', fontWeight: 600,
+                  borderLeft: `3px solid ${isHl ? 'var(--cg-cyan)' : 'transparent'}`,
+                  transition: 'background 0.1s',
                 }}
               >
-                + Create <span style={{ fontStyle: 'italic' }}>{k.name}</span>
-                {effectiveKinds.length > 1 && (
-                  <span style={{ fontWeight: 400 }}> "{query.trim()}"</span>
-                )}
-                {effectiveKinds.length === 1 && (
-                  <span style={{ fontWeight: 400 }}> "{query.trim()}"</span>
-                )}
+                <span style={{ opacity: 0.7 }}>+</span>
+                <span>Create</span>
+                <span style={{
+                  background: isHl ? 'rgba(255,255,255,0.15)' : 'var(--cg-cyan)22',
+                  borderRadius: '4px', padding: '0.05rem 0.4rem',
+                  fontSize: '0.76rem', fontStyle: 'italic',
+                }}>
+                  {getKindLabel(k, fieldDefs)}
+                </span>
+                <span style={{ fontWeight: 400, opacity: 0.8 }}>"{query.trim()}"</span>
               </button>
             );
           })}
@@ -410,7 +424,7 @@ export function CgEntityPanel({
                 ref={searchInputRef}
                 className="cg-input"
                 style={{ flex: 1 }}
-                placeholder={`Search or create ${effectiveKinds.map((k) => k.name).join(' / ')}…`}
+                placeholder={`Search or create ${effectiveKinds.map((k) => getKindLabel(k, fieldDefs)).join(' / ')}…`}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleKey}
@@ -430,7 +444,7 @@ export function CgEntityPanel({
           isOpen={modalOpen}
           onClose={closeModal}
           title={isCreating
-            ? `New ${kinds.find((k) => k.id === modalKindId)?.name ?? ''}`
+            ? `New ${(() => { const k = kinds.find((kk) => kk.id === modalKindId); return k ? getKindLabel(k, fieldDefs) : ''; })()}`
             : undefined}
         >
           {modalOpen && modalKindId && (
@@ -449,6 +463,7 @@ export function CgEntityPanel({
               onOpenNode={onOpenNode}
               onNext={targetCount > 1 ? handleNext : undefined}
               nextLabel={targetCount > 1 ? `Next (${addedCount + 1} / ${targetCount})` : undefined}
+              onAddAnother={isCreating ? handleNext : undefined}
               depth={0}
             />
           )}
@@ -528,7 +543,7 @@ export function CgEntityPanel({
                     cursor: 'pointer',
                   }}
                 >
-                  {k.name}
+                  {getKindLabel(k, fieldDefs)}
                 </button>
               );
             })}
@@ -580,6 +595,7 @@ export function CgEntityPanel({
                   key={node.id}
                   node={node}
                   kindMap={kindMap}
+                  fieldDefs={fieldDefs}
                   allowEdit={allowEdit}
                   allowDelete={allowDelete}
                   deleteConfirm={deleteConfirm}
@@ -601,7 +617,7 @@ export function CgEntityPanel({
         isOpen={modalOpen}
         onClose={closeModal}
         title={isCreating
-          ? `New ${kinds.find((k) => k.id === modalKindId)?.name ?? ''}`
+          ? `New ${(() => { const k = kinds.find((kk) => kk.id === modalKindId); return k ? getKindLabel(k, fieldDefs) : ''; })()}`
           : undefined}
       >
         {modalOpen && modalKindId && (
@@ -622,6 +638,7 @@ export function CgEntityPanel({
             nextLabel={isCreating && targetCount > 1
               ? `Next (${addedCount + 1} / ${targetCount})`
               : undefined}
+            onAddAnother={isCreating ? handleNext : undefined}
             depth={0}
           />
         )}
@@ -633,13 +650,14 @@ export function CgEntityPanel({
 // ── NodeRow ───────────────────────────────────────────────────────────────────
 
 function NodeRow({
-  node, kindMap, allowEdit, allowDelete,
+  node, kindMap, fieldDefs, allowEdit, allowDelete,
   deleteConfirm, onEdit, onOpenNode,
   onDeleteRequest, onDeleteConfirm, onDeleteCancel,
   copy,
 }: {
   node: CgNode;
   kindMap: Record<string, CgNodeKind>;
+  fieldDefs: CgFieldDef[];
   allowEdit: boolean;
   allowDelete: boolean;
   deleteConfirm: string | null;
@@ -651,6 +669,7 @@ function NodeRow({
   copy: Copy;
 }) {
   const isConfirming = deleteConfirm === node.id;
+  const kindForNode = node.nodeKindId ? kindMap[node.nodeKindId] : undefined;
 
   return (
     <tr>
@@ -669,7 +688,7 @@ function NodeRow({
       </td>
       <td>
         <span className="cg-field-type" style={{ fontSize: '0.78rem' }}>
-          {node.nodeKindId ? (kindMap[node.nodeKindId]?.name ?? '—') : node.nodeType}
+          {kindForNode ? getKindLabel(kindForNode, fieldDefs) : (node.nodeKindId ? '—' : node.nodeType)}
         </span>
       </td>
       <td>

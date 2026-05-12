@@ -70,6 +70,15 @@ export function getRefKindIds(def: CgFieldDef): string[] {
   return [];
 }
 
+/** Derives a display label for a kind from its field definitions (first-level connected parts). */
+export function getKindLabel(kind: CgNodeKind, fieldDefs: CgFieldDef[]): string {
+  const fields = fieldDefs
+    .filter((d) => d.nodeKindId === kind.id)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  if (!fields.length) return kind.name;
+  return fields.map((d) => d.fieldName).join(' · ');
+}
+
 export interface CgNode {
   id: string;
   libraryId: string;

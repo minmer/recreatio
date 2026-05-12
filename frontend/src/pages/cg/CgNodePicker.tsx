@@ -89,6 +89,47 @@ async function persistCreateForm(
   return node;
 }
 
+// ── CreateOption ──────────────────────────────────────────────────────────────
+
+function CreateOption({ query, label, hasSeparator, onMouseDown }: {
+  query: string; label: string; hasSeparator: boolean; onMouseDown: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      onMouseDown={onMouseDown}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: '0.35rem',
+        width: '100%', textAlign: 'left',
+        padding: '0.42rem 0.7rem',
+        background: hover ? 'var(--cg-cyan)44' : 'var(--cg-cyan)11',
+        border: 'none',
+        borderTop: hasSeparator ? '1px solid var(--cg-border)' : 'none',
+        borderLeft: `3px solid ${hover ? 'var(--cg-cyan)' : 'transparent'}`,
+        cursor: 'pointer',
+        fontSize: '0.82rem',
+        color: hover ? 'var(--cg-text)' : 'var(--cg-cyan)',
+        fontWeight: 600,
+        transition: 'background 0.1s',
+      }}
+    >
+      <span style={{ opacity: 0.7 }}>+</span>
+      <span>Create</span>
+      <span style={{
+        background: hover ? 'rgba(255,255,255,0.15)' : 'var(--cg-cyan)22',
+        borderRadius: '4px', padding: '0.05rem 0.4rem',
+        fontSize: '0.76rem', fontStyle: 'italic',
+      }}>
+        {label}
+      </span>
+      <span style={{ fontWeight: 400, opacity: 0.8 }}>"{query}"</span>
+    </button>
+  );
+}
+
 // ── CgNodePicker ──────────────────────────────────────────────────────────────
 // Reusable controlled component: search existing nodes of a given kind and/or
 // create new ones inline. Passes selections up to the parent via onAdd/onRemove.
@@ -566,25 +607,12 @@ export function CgNodePicker({
                 </button>
               )}
               {showCreateBtn && (
-                <button
-                  type="button"
+                <CreateOption
+                  query={query.trim()}
+                  label={refKindName}
+                  hasSeparator={results.length > 0}
                   onMouseDown={() => openCreate()}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '0.4rem 0.7rem',
-                    background: 'none',
-                    border: 'none',
-                    borderTop: results.length > 0 ? '1px solid var(--cg-border)' : 'none',
-                    cursor: 'pointer',
-                    fontSize: '0.82rem',
-                    color: 'var(--cg-cyan)',
-                    fontWeight: 600,
-                  }}
-                >
-                  + Create "{query.trim()}"
-                </button>
+                />
               )}
             </div>
           )}
