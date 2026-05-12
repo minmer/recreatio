@@ -395,10 +395,7 @@ export function CgNodePicker({
     }
   }
 
-  const exactMatch = results.some(
-    (n) => n.label?.toLowerCase() === query.trim().toLowerCase(),
-  );
-  const showCreateBtn = query.trim().length >= 1 && !exactMatch;
+  const showCreateBtn = query.trim().length >= 1;
 
   // ── Render ──
 
@@ -509,11 +506,11 @@ export function CgNodePicker({
                     width: '100%',
                     textAlign: 'left',
                     padding: '0.4rem 0.7rem',
-                    background: idx === highlighted ? 'var(--cg-hover)' : 'none',
+                    background: idx === highlighted ? 'var(--cg-cyan)22' : 'none',
                     border: 'none',
                     cursor: 'pointer',
                     fontSize: '0.85rem',
-                    color: 'var(--cg-text)',
+                    color: idx === highlighted ? 'var(--cg-cyan)' : 'var(--cg-text)',
                   }}
                 >
                   <span>{node.label ?? '(unnamed)'}</span>
