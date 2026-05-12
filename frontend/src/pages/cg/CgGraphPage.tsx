@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { Copy } from '../../content/types';
 import { type CgFieldDef, type CgFieldValue, type CgNode, type CgNodeKind, deleteNode, getLibrary, getNode, listNodes } from './api/cgApi';
-import { CgNodeEditForm } from './CgNodeEditForm';
-import { CgSmartAddForm } from './CgSmartAddForm';
+import { CgEntityEditor } from './CgEntityEditor';
+import { CgEntitySearch } from './CgEntitySearch';
 
 interface Props {
   copy: Copy;
@@ -24,7 +24,6 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
 
   const [selectedKindId, setSelectedKindId] = useState('');
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [editMode, setEditMode] = useState<'inline' | 'card'>('inline');
 
   useEffect(() => {
     getLibrary(libId)
@@ -60,32 +59,22 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
     }
   }
 
-  function handleSaved(updated: CgNode) {
-    setNodes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
-    setEditingNodeId(null);
-  }
-
-  function toggleEdit(nodeId: string, mode: 'inline' | 'card') {
-    if (editingNodeId === nodeId && editMode === mode) {
-      setEditingNodeId(null);
-    } else {
-      setEditingNodeId(nodeId);
-      setEditMode(mode);
-    }
+  function handleNodeCreated(node: CgNode) {
+    setNodes((prev) => (prev.some((n) => n.id === node.id) ? prev : [node, ...prev]));
   }
 
   const kindMap = Object.fromEntries(kinds.map((k) => [k.id, k]));
-  const cardNode = editingNodeId && editMode === 'card'
-    ? nodes.find((n) => n.id === editingNodeId) ?? null
-    : null;
 
   const displayKind = filterKindId ? kinds.find((k) => k.id === filterKindId) : null;
-  const displayFields = displayKind ? fieldDefs.filter((f) => f.nodeKindId === displayKind.id).slice(0, 4) : [];
+  const displayFields = displayKind
+    ? fieldDefs.filter((f) => f.nodeKindId === displayKind.id).slice(0, 4)
+    : [];
 
   return (
     <div>
       <h1 className="cg-page-title">{t.title}</h1>
 
+      {/* Filters */}
       <div className="cg-toolbar">
         <input
           className="cg-input cg-search"
@@ -105,29 +94,17 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
         </select>
       </div>
 
+      {/* Unified search + create panel */}
       {kinds.length > 0 && selectedKindId && (
-        <CgSmartAddForm
+        <CgEntitySearch
           copy={copy}
           libId={libId}
           kinds={kinds}
           fieldDefs={fieldDefs}
           selectedKindId={selectedKindId}
           onKindChange={setSelectedKindId}
-          onCreated={(node) => setNodes((prev) => [node, ...prev])}
-        />
-      )}
-
-      {/* Card-mode edit form, shown between add form and table */}
-      {cardNode && (
-        <CgNodeEditForm
-          copy={copy}
-          libId={libId}
-          node={cardNode}
-          kinds={kinds}
-          fieldDefs={fieldDefs}
-          onSaved={handleSaved}
-          onCancel={() => setEditingNodeId(null)}
-          onClickNode={onOpenNode}
+          onCreated={handleNodeCreated}
+          onOpenNode={onOpenNode}
         />
       )}
 
@@ -149,13 +126,13 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
                 <th>{t.labelColumn}</th>
                 <th>{t.typeColumn}</th>
                 {displayFields.map((f) => <th key={f.id}>{f.fieldName}</th>)}
-                <th style={{ width: '10rem' }}></th>
+                <th style={{ width: '8rem' }}></th>
               </tr>
             </thead>
             <tbody>
               {nodes.map((node) => {
-                const isInlineEditing = editingNodeId === node.id && editMode === 'inline';
-                const isCardEditing = editingNodeId === node.id && editMode === 'card';
+                const isEditing = editingNodeId === node.id;
+                const colSpan = 2 + displayFields.length + 1;
                 return (
                   <NodeRow
                     key={node.id}
@@ -163,26 +140,27 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
                     kindMap={kindMap}
                     displayFields={displayFields}
                     libId={libId}
-                    isInlineEditing={isInlineEditing}
-                    isCardEditing={isCardEditing}
+                    isEditing={isEditing}
                     onOpen={() => onOpenNode(node.id)}
-                    onToggleInline={() => toggleEdit(node.id, 'inline')}
-                    onToggleCard={() => toggleEdit(node.id, 'card')}
+                    onToggleEdit={() => setEditingNodeId(isEditing ? null : node.id)}
                     deleteConfirm={deleteConfirm}
                     onDeleteRequest={() => setDeleteConfirm(node.id)}
                     onDeleteConfirm={() => handleDelete(node.id)}
                     onDeleteCancel={() => setDeleteConfirm(null)}
                     copy={copy}
-                    inlineEdit={isInlineEditing ? (
-                      <CgNodeEditForm
+                    colSpan={colSpan}
+                    inlineEdit={isEditing ? (
+                      <CgEntityEditor
                         copy={copy}
                         libId={libId}
-                        node={node}
                         kinds={kinds}
                         fieldDefs={fieldDefs}
-                        onSaved={handleSaved}
-                        onCancel={() => setEditingNodeId(null)}
-                        onClickNode={onOpenNode}
+                        kindId={node.nodeKindId ?? ''}
+                        initialNodeId={node.id}
+                        onCreated={handleNodeCreated}
+                        onClose={() => setEditingNodeId(null)}
+                        onOpenNode={onOpenNode}
+                        depth={0}
                       />
                     ) : null}
                   />
@@ -198,25 +176,23 @@ export function CgGraphPage({ copy, libId, onOpenNode }: Props) {
 
 function NodeRow({
   node, kindMap, displayFields, libId,
-  isInlineEditing, isCardEditing,
-  onOpen, onToggleInline, onToggleCard,
+  isEditing, onOpen, onToggleEdit,
   deleteConfirm, onDeleteRequest, onDeleteConfirm, onDeleteCancel,
-  copy, inlineEdit,
+  copy, colSpan, inlineEdit,
 }: {
   node: CgNode;
   kindMap: Record<string, CgNodeKind>;
   displayFields: CgFieldDef[];
   libId: string;
-  isInlineEditing: boolean;
-  isCardEditing: boolean;
+  isEditing: boolean;
   onOpen: () => void;
-  onToggleInline: () => void;
-  onToggleCard: () => void;
+  onToggleEdit: () => void;
   deleteConfirm: string | null;
   onDeleteRequest: () => void;
   onDeleteConfirm: () => void;
   onDeleteCancel: () => void;
   copy: Copy;
+  colSpan: number;
   inlineEdit: React.ReactNode;
 }) {
   const [fieldValues, setFieldValues] = useState<CgFieldValue[] | null>(null);
@@ -231,17 +207,18 @@ function NodeRow({
     : {};
 
   const isConfirming = deleteConfirm === node.id;
-  const isActive = isInlineEditing || isCardEditing;
-  const colSpan = 2 + displayFields.length + 1;
 
   return (
     <>
-      <tr style={isActive ? { background: 'var(--cg-cyan)0a' } : undefined}>
+      <tr style={isEditing ? { background: 'var(--cg-cyan)08' } : undefined}>
         <td>
           <button
             type="button"
             onClick={onOpen}
-            style={{ background: 'none', border: 'none', color: 'var(--cg-cyan)', cursor: 'pointer', fontWeight: 600, textAlign: 'left', padding: 0 }}
+            style={{
+              background: 'none', border: 'none', color: 'var(--cg-cyan)',
+              cursor: 'pointer', fontWeight: 600, textAlign: 'left', padding: 0,
+            }}
           >
             {node.label ?? '(unnamed)'}
           </button>
@@ -260,29 +237,38 @@ function NodeRow({
           <div className="cg-table-actions">
             {isConfirming ? (
               <>
-                <button className="cg-btn cg-btn-danger cg-btn-sm" type="button" onClick={onDeleteConfirm}>Del</button>
-                <button className="cg-btn cg-btn-ghost cg-btn-sm" type="button" onClick={onDeleteCancel}>Cancel</button>
+                <button
+                  className="cg-btn cg-btn-danger cg-btn-sm"
+                  type="button"
+                  onClick={onDeleteConfirm}
+                >
+                  Del
+                </button>
+                <button
+                  className="cg-btn cg-btn-ghost cg-btn-sm"
+                  type="button"
+                  onClick={onDeleteCancel}
+                >
+                  Cancel
+                </button>
               </>
             ) : (
               <>
                 <button
                   className="cg-btn cg-btn-ghost cg-btn-sm"
                   type="button"
-                  onClick={onToggleInline}
-                  style={isInlineEditing ? { color: 'var(--cg-cyan)' } : undefined}
+                  onClick={onToggleEdit}
+                  style={isEditing ? { color: 'var(--cg-cyan)' } : undefined}
                 >
                   {copy.cg.graph.editAction}
                 </button>
                 <button
                   className="cg-btn cg-btn-ghost cg-btn-sm"
                   type="button"
-                  onClick={onToggleCard}
-                  style={isCardEditing ? { color: 'var(--cg-cyan)' } : undefined}
-                  title="Open as card"
+                  onClick={onDeleteRequest}
                 >
-                  ⊡
+                  ✕
                 </button>
-                <button className="cg-btn cg-btn-ghost cg-btn-sm" type="button" onClick={onDeleteRequest}>✕</button>
               </>
             )}
           </div>
