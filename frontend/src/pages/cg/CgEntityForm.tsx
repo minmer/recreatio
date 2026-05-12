@@ -10,7 +10,6 @@ import {
   getKindLabel,
   getNode,
   getRefKindIds,
-  updateNode,
   upsertFieldValue,
 } from './api/cgApi';
 import { CgNodePicker } from './CgNodePicker';
@@ -32,8 +31,6 @@ export interface CgEntityFormProps {
   kindId: string;
   // null = new entity, string = editing existing
   nodeId: string | null;
-  // Pre-fill label for new entity
-  initialLabel?: string;
   // Lock state for batch-create reuse (managed by parent)
   lockState?: LockState;
   onToggleLockRef?: (defId: string, nodeId: string, label: string) => void;
@@ -57,7 +54,7 @@ const MAX_DEPTH = 5;
 export function CgEntityForm({
   copy: _copy,
   libId, kinds, fieldDefs, kindId,
-  nodeId: nodeIdProp, initialLabel = '',
+  nodeId: nodeIdProp,
   lockState,
   onToggleLockRef,
   onToggleLockCount,
@@ -97,11 +94,6 @@ export function CgEntityForm({
     setOpenSubs({});
 
     if (!nodeIdProp) {
-      // Pre-fill first text field from initialLabel (replaces separate label input)
-      const firstText = kindDefs.find((d) => d.fieldType === 'Text');
-      const initDrafts: Record<string, string> = firstText && initialLabel
-        ? { [`${firstText.id}:0`]: initialLabel }
-        : {};
       // Pre-populate locked refs for batch creation
       if (lockState) {
         const labels = new Map<string, string>();
@@ -117,7 +109,7 @@ export function CgEntityForm({
         );
         setFieldValues(synthetic);
       }
-      setDrafts(initDrafts);
+      setDrafts({});
       setLoading(false);
       return;
     }
@@ -142,12 +134,9 @@ export function CgEntityForm({
   function ensureNode(): Promise<string> {
     if (nodeIdRef.current) return Promise.resolve(nodeIdRef.current);
     if (creatingRef.current) return creatingRef.current;
-    const firstText = kindDefs.find((d) => d.fieldType === 'Text');
-    const derivedLabel = firstText ? (drafts[`${firstText.id}:0`] ?? '').trim() : '';
     creatingRef.current = createNode(libId, {
       nodeType: 'Entity',
       nodeKindId: kindId,
-      label: derivedLabel || undefined,
     }).then(async (created) => {
       nodeIdRef.current = created.id;
       onCreated?.(created);
@@ -201,11 +190,6 @@ export function CgEntityForm({
         });
         setFieldValues(updated);
         setDrafts((prev) => { const n = { ...prev }; delete n[key]; return n; });
-        // Keep node.label in sync with the first text field (slot 0)
-        const firstText = kindDefs.find((d) => d.fieldType === 'Text');
-        if (firstText && def.id === firstText.id && sortOrder === 0) {
-          await updateNode(libId, nid, val.trim() || undefined);
-        }
       } catch { setError('Failed to save'); }
       finally { setSaving(false); }
     }, DEBOUNCE_MS);

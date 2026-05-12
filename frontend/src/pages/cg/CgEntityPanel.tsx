@@ -92,7 +92,6 @@ export function CgEntityPanel({
   // undefined = closed, null = new entity, string = existing node id
   const [modalNodeId, setModalNodeId] = useState<string | null | undefined>(undefined);
   const [modalKindId, setModalKindId] = useState<string>('');
-  const [modalLabel, setModalLabel] = useState('');
 
   // ── Batch / lock state ──
   const [targetCount, setTargetCount] = useState(1);
@@ -171,9 +170,8 @@ export function CgEntityPanel({
 
   // ── Modal open helpers ──
 
-  function openCreate(kindId: string, label: string) {
+  function openCreate(kindId: string) {
     setModalKindId(kindId);
-    setModalLabel(label);
     setModalNodeId(null);
     setQuery('');
     setSearchOpen(false);
@@ -181,7 +179,6 @@ export function CgEntityPanel({
 
   function openEdit(nodeId: string, kindId: string) {
     setModalKindId(kindId);
-    setModalLabel('');
     setModalNodeId(nodeId);
   }
 
@@ -207,7 +204,6 @@ export function CgEntityPanel({
     window.setTimeout(() => {
       // Re-open create modal with same kind, locked state intact
       setModalKindId(modalKindId);
-      setModalLabel('');
       setModalNodeId(null);
     }, 50);
   }
@@ -281,7 +277,7 @@ export function CgEntityPanel({
       } else if (allowCreate) {
         const createIdx = highlighted - results.length;
         const targetKind = effectiveKinds[createIdx] ?? effectiveKinds[0];
-        if (targetKind) openCreate(targetKind.id, query.trim());
+        if (targetKind) openCreate(targetKind.id);
       }
     } else if (e.key === 'Escape') {
       setSearchOpen(false);
@@ -339,7 +335,7 @@ export function CgEntityPanel({
               <button
                 key={k.id}
                 type="button"
-                onMouseDown={() => { openCreate(k.id, query.trim()); }}
+                onMouseDown={() => { openCreate(k.id); }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.35rem',
                   width: '100%', textAlign: 'left',
@@ -455,7 +451,7 @@ export function CgEntityPanel({
               fieldDefs={fieldDefs}
               kindId={modalKindId}
               nodeId={modalNodeId}
-              initialLabel={modalLabel}
+
               lockState={lockState}
               onToggleLockRef={toggleLockRef}
               onToggleLockCount={toggleLockCount}
@@ -628,7 +624,6 @@ export function CgEntityPanel({
             fieldDefs={fieldDefs}
             kindId={modalKindId}
             nodeId={modalNodeId}
-            initialLabel={modalLabel}
             lockState={isCreating ? lockState : undefined}
             onToggleLockRef={isCreating ? toggleLockRef : undefined}
             onToggleLockCount={isCreating ? toggleLockCount : undefined}
