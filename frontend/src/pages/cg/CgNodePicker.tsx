@@ -3,12 +3,10 @@ import {
   type CgFieldDef,
   type CgNode,
   type CgNodeKind,
-  createNode,
-  getRefKindIds,
+  getNode,
   listNodes,
-  upsertFieldValue,
 } from './api/cgApi';
-import { CgEntityForm } from './CgEntityForm';
+import { CgEntityForm, type LockState } from './CgEntityForm';
 import { CgModal } from './CgModal';
 import type { Copy } from '../../content/types';
 
@@ -25,69 +23,6 @@ const DEBOUNCE = 250;
 const MAX_VISIBLE = 5;
 const PAGE = 5;
 const FETCH_LIMIT = 50;
-// Ref fields inside create forms fall back to plain text at this nesting depth.
-const MAX_PICKER_DEPTH = 3;
-
-// ── Inline-create form helpers ────────────────────────────────────────────────
-
-interface CreateField {
-  scalar: string;
-  refs: PickedNode[];
-}
-
-type CreateForm = Record<string, CreateField>; // keyed by fieldDefId
-
-
-
-async function persistCreateForm(
-  libId: string,
-  kindId: string,
-  kindDefs: CgFieldDef[],
-  form: CreateForm,
-): Promise<CgNode> {
-  const firstText = kindDefs.find((d) => d.fieldType === 'Text');
-  const label = firstText ? form[firstText.id]?.scalar.trim() || undefined : undefined;
-
-  const node = await createNode(libId, { nodeType: 'Entity', nodeKindId: kindId, label });
-
-  for (const def of kindDefs) {
-    const field = form[def.id];
-    if (!field) continue;
-
-    if (def.fieldType === 'Ref' && def.refNodeKindId) {
-      if (field.refs.length > 0) {
-        for (let i = 0; i < field.refs.length; i++) {
-          await upsertFieldValue(libId, node.id, {
-            fieldDefId: def.id,
-            refNodeId: field.refs[i].id,
-            sortOrder: i,
-          });
-        }
-      } else if (field.scalar.trim()) {
-        // Plain-text fallback at max depth — find-or-create by label
-        const lbl = field.scalar.trim();
-        const hits = await listNodes(libId, { kindId: def.refNodeKindId, q: lbl, limit: 20 });
-        const match = hits.find((n) => n.label?.toLowerCase() === lbl.toLowerCase());
-        const ref =
-          match ??
-          (await createNode(libId, { nodeType: 'Entity', nodeKindId: def.refNodeKindId, label: lbl }));
-        await upsertFieldValue(libId, node.id, { fieldDefId: def.id, refNodeId: ref.id, sortOrder: 0 });
-      }
-    } else {
-      const val = field.scalar.trim();
-      if (!val) continue;
-      const body: Parameters<typeof upsertFieldValue>[2] = { fieldDefId: def.id, sortOrder: 0 };
-      if (def.fieldType === 'Text') body.textValue = val;
-      else if (def.fieldType === 'Number') body.numberValue = Number(val);
-      else if (def.fieldType === 'Date') body.dateValue = val;
-      else if (def.fieldType === 'Boolean') body.boolValue = val === 'true';
-      else continue;
-      await upsertFieldValue(libId, node.id, body);
-    }
-  }
-
-  return node;
-}
 
 // ── CreateOption ──────────────────────────────────────────────────────────────
 
@@ -172,12 +107,37 @@ export function CgNodePicker({
     : '';
   // Which kind to create in the inline form (defaults to first; user can switch when multi-kind)
   const [createKindId, setCreateKindId] = useState(() => refKindIds[0] ?? '');
-  const createKindDefs = allDefs
-    .filter((d) => d.nodeKindId === createKindId)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-
 
   const canAddMore = selected.length < maxCount;
+
+  // ── Nested create lock state ──
+  const [nestedLockState, setNestedLockState] = useState<LockState>({ lockedRefs: {}, refCounts: {} });
+  // ID of node created in inline form (null until first auto-save fires onCreated)
+  const [pendingNodeId, setPendingNodeId] = useState<string | null>(null);
+
+  function toggleNestedLockRef(defId: string, nodeId: string, label: string) {
+    setNestedLockState((prev) => {
+      const current = prev.lockedRefs[defId] ?? [];
+      const exists = current.some((r) => r.id === nodeId);
+      return {
+        ...prev,
+        lockedRefs: {
+          ...prev.lockedRefs,
+          [defId]: exists ? current.filter((r) => r.id !== nodeId) : [...current, { id: nodeId, label }],
+        },
+      };
+    });
+  }
+
+  function toggleNestedLockCount(defId: string, currentCount: number) {
+    setNestedLockState((prev) => ({
+      ...prev,
+      refCounts: {
+        ...prev.refCounts,
+        [defId]: prev.refCounts[defId] != null ? null : currentCount,
+      },
+    }));
+  }
 
   // ── Search state ──
   const [query, setQuery] = useState('');
@@ -193,25 +153,8 @@ export function CgNodePicker({
 
   // ── Create-form state ──
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState<CreateForm>({});
-  const [isSaving, setIsSaving] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const createFormRef = useRef<HTMLDivElement>(null);
-
-  // Per-field pin/stable: pinned fields survive between successive creates
-  const [pinnedInCreate, setPinnedInCreate] = useState<Set<string>>(new Set());
-  const [stableInCreate, setStableInCreate] = useState<CreateForm>({});
 
   const selectedIds = new Set(selected.map((n) => n.id));
-
-  // Focus first focusable input in the create form whenever it opens
-  useEffect(() => {
-    if (!showCreate || !createFormRef.current) return;
-    const first = createFormRef.current.querySelector<HTMLElement>(
-      'input:not([disabled]), select:not([disabled])',
-    );
-    first?.focus();
-  }, [showCreate]);
 
   // Debounced search — runs across all refKindIds in parallel and merges results
   useEffect(() => {
@@ -274,99 +217,24 @@ export function CgNodePicker({
   }
 
   function openCreate(kindIdOverride?: string) {
-    const targetKindId = kindIdOverride ?? refKindIds[0] ?? '';
-    setCreateKindId(targetKindId);
-    const defs = allDefs
-      .filter((d) => d.nodeKindId === targetKindId)
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-    // Seed pinned fields from stable values; pre-fill query into first UNPINNED text field
-    const form: CreateForm = {};
-    for (const def of defs) {
-      form[def.id] = pinnedInCreate.has(def.id)
-        ? (stableInCreate[def.id] ?? { scalar: '', refs: [] })
-        : { scalar: '', refs: [] };
-    }
-    const firstUnpinnedText = defs.find((d) => d.fieldType === 'Text' && !pinnedInCreate.has(d.id));
-    if (firstUnpinnedText && query.trim()) {
-      form[firstUnpinnedText.id] = { scalar: query.trim(), refs: [] };
-    }
-    setCreateForm(form);
-    setCreateError(null);
+    setCreateKindId(kindIdOverride ?? refKindIds[0] ?? '');
+    setPendingNodeId(null);
     setShowCreate(true);
     setIsOpen(false);
     setQuery('');
   }
 
-  function togglePinInCreate(defId: string) {
-    setPinnedInCreate((prev) => {
-      const next = new Set(prev);
-      if (next.has(defId)) next.delete(defId); else next.add(defId);
-      return next;
-    });
-  }
-
-  function cancelCreate() {
+  function closeCreate() {
     setShowCreate(false);
+    setPendingNodeId(null);
     window.setTimeout(() => inputRef.current?.focus(), 30);
   }
 
-  async function saveCreate() {
-    setIsSaving(true);
-    setCreateError(null);
-    try {
-      const node = await persistCreateForm(libId, createKindId, createKindDefs, createForm);
-      const cacheKey = `${libId}:${refKindIds.join(',')}:${(node.label ?? '').toLowerCase()}`;
-      cache.current.set(cacheKey, [node, ...(cache.current.get(cacheKey) ?? [])]);
-      // Persist current values for pinned fields so next open re-uses them
-      if (pinnedInCreate.size > 0) {
-        setStableInCreate((prev) => {
-          const next = { ...prev };
-          for (const defId of pinnedInCreate) {
-            next[defId] = createForm[defId] ?? { scalar: '', refs: [] };
-          }
-          return next;
-        });
-      }
-      onAdd({ id: node.id, label: node.label ?? '' });
-      setShowCreate(false);
-      window.setTimeout(() => inputRef.current?.focus(), 30);
-    } catch {
-      setCreateError('Failed to save');
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  // Navigate between scalar inputs in THIS create form (depth-scoped to avoid matching nested forms)
-  function handleCreateScalarKey(
-    e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
-  ) {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      cancelCreate();
-      return;
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (!createFormRef.current) {
-        saveCreate();
-        return;
-      }
-      // data-cg-create-scalar={depth} is set ONLY on scalars in THIS form; nested
-      // forms at depth+1 have a different attribute value so they are skipped.
-      const myInputs = Array.from(
-        createFormRef.current.querySelectorAll<HTMLElement>(
-          `[data-cg-create-scalar="${depth}"]`,
-        ),
-      );
-      const idx = myInputs.findIndex((el) => el === e.currentTarget);
-      if (idx >= 0 && idx < myInputs.length - 1) {
-        (myInputs[idx + 1] as HTMLInputElement).focus();
-      } else {
-        saveCreate();
-      }
-    }
+  async function addPending() {
+    if (!pendingNodeId) return;
+    const detail = await getNode(libId, pendingNodeId);
+    onAdd({ id: detail.node.id, label: detail.node.label ?? '' });
+    closeCreate();
   }
 
   // After picking via Tab, focus the element that follows this entire picker in DOM order.
@@ -515,8 +383,8 @@ export function CgNodePicker({
         </div>
       )}
 
-      {/* Search input — hidden when at max count or create form is open */}
-      {canAddMore && !showCreate && (
+      {/* Search input — hidden only when at max count */}
+      {canAddMore && (
         <div style={{ position: 'relative' }}>
           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
             <input
@@ -622,26 +490,24 @@ export function CgNodePicker({
       {/* Inline create form */}
       {showCreate && (
         <div
-          ref={createFormRef}
           style={{
             border: '1px solid var(--cg-cyan)44',
             borderRadius: 'var(--cg-radius)',
-            padding: '0.75rem',
-            background: 'var(--cg-bg)',
             marginTop: '0.35rem',
+            overflow: 'hidden',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
-            <p style={{
-              fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.07em',
-              textTransform: 'uppercase', color: 'var(--cg-cyan)', margin: 0,
-            }}>
-              New
-            </p>
+          {/* Header: kind selector (multi-kind) or kind name + close */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.45rem',
+            padding: '0.3rem 0.5rem',
+            borderBottom: '1px solid var(--cg-cyan)33',
+            background: 'var(--cg-cyan)08',
+          }}>
             {refKindIds.length > 1 ? (
               <select
                 className="cg-select"
-                style={{ fontSize: '0.78rem', padding: '0.15rem 0.4rem' }}
+                style={{ fontSize: '0.78rem', padding: '0.1rem 0.3rem', flex: 1 }}
                 value={createKindId}
                 onChange={(e) => openCreate(e.target.value)}
               >
@@ -651,186 +517,58 @@ export function CgNodePicker({
                 })}
               </select>
             ) : (
-              <p style={{
+              <span style={{
                 fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.07em',
-                textTransform: 'uppercase', color: 'var(--cg-cyan)', margin: 0,
+                textTransform: 'uppercase', color: 'var(--cg-cyan)', flex: 1,
               }}>
                 {refKindName}
-              </p>
+              </span>
             )}
+            <button
+              type="button"
+              tabIndex={-1}
+              title="Close"
+              onClick={closeCreate}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--cg-text-dim)', fontSize: '0.85rem', lineHeight: 1,
+                padding: '0 0.1rem',
+              }}
+            >
+              ×
+            </button>
           </div>
 
-          {createError && (
-            <p
-              style={{ fontSize: '0.75rem', color: 'var(--cg-danger)', marginBottom: '0.4rem' }}
-            >
-              {createError}
-            </p>
+          {/* CgEntityForm with lock support */}
+          <CgEntityForm
+            libId={libId}
+            kinds={allKinds}
+            fieldDefs={allDefs}
+            kindId={createKindId}
+            nodeId={null}
+            lockState={nestedLockState}
+            onToggleLockRef={toggleNestedLockRef}
+            onToggleLockCount={toggleNestedLockCount}
+            onCreated={(node) => setPendingNodeId(node.id)}
+            depth={(depth ?? 0) + 1}
+          />
+
+          {/* Footer: Add button (appears once the node is created via auto-save) */}
+          {pendingNodeId && (
+            <div style={{
+              padding: '0.3rem 0.5rem',
+              borderTop: '1px solid var(--cg-cyan)33',
+              background: 'var(--cg-cyan)08',
+            }}>
+              <button
+                type="button"
+                className="cg-btn cg-btn-primary cg-btn-sm"
+                onClick={addPending}
+              >
+                + Add {refKindName}
+              </button>
+            </div>
           )}
-
-          {createKindDefs.map((def) => {
-            const field = createForm[def.id] ?? { scalar: '', refs: [] };
-            const defRefKindIds = getRefKindIds(def);
-            const defRefKindNames = defRefKindIds
-              .map((id) => allKinds.find((k) => k.id === id)?.name)
-              .filter(Boolean) as string[];
-            const isPinned = pinnedInCreate.has(def.id);
-
-            return (
-              <div key={def.id} style={{ marginBottom: '0.55rem', opacity: isPinned ? 0.55 : 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.25rem' }}>
-                  <p
-                    style={{
-                      fontSize: '0.68rem',
-                      fontWeight: 700,
-                      letterSpacing: '0.06em',
-                      textTransform: 'uppercase',
-                      color: 'var(--cg-text-dim)',
-                      margin: 0,
-                      flex: 1,
-                    }}
-                  >
-                    {def.fieldName}
-                    {defRefKindNames.length > 0 && (
-                      <span style={{ fontWeight: 400 }}> → {defRefKindNames.join(', ')}</span>
-                    )}
-                  </p>
-                  <button
-                    className="cg-btn cg-btn-ghost cg-btn-sm"
-                    type="button"
-                    tabIndex={-1}
-                    title={isPinned ? 'Pinned — persists after create' : 'Pin this field'}
-                    style={{ color: isPinned ? 'var(--cg-cyan)' : 'var(--cg-text-dim)', padding: '0 0.2rem', lineHeight: 1 }}
-                    onClick={() => togglePinInCreate(def.id)}
-                  >
-                    {isPinned ? '🔒' : '🔓'}
-                  </button>
-                </div>
-
-                {def.fieldType === 'Ref' && defRefKindIds.length > 0 ? (
-                  depth < MAX_PICKER_DEPTH ? (
-                    // Nested picker
-                    <CgNodePicker
-                      libId={libId}
-                      refKindIds={defRefKindIds}
-                      refKindName={defRefKindNames.join(' / ')}
-                      allKinds={allKinds}
-                      allDefs={allDefs}
-                      selected={field.refs}
-                      onAdd={(node) =>
-                        setCreateForm((prev) => {
-                          const cur = prev[def.id] ?? { scalar: '', refs: [] };
-                          return {
-                            ...prev,
-                            [def.id]: {
-                              ...cur,
-                              refs: def.isMultiValue ? [...cur.refs, node] : [node],
-                            },
-                          };
-                        })
-                      }
-                      onRemove={(nodeId) =>
-                        setCreateForm((prev) => {
-                          const cur = prev[def.id] ?? { scalar: '', refs: [] };
-                          return {
-                            ...prev,
-                            [def.id]: {
-                              ...cur,
-                              refs: cur.refs.filter((n) => n.id !== nodeId),
-                            },
-                          };
-                        })
-                      }
-                      maxCount={def.isMultiValue ? Infinity : 1}
-                      depth={depth + 1}
-                    />
-                  ) : (
-                    // Max depth — plain text, find-or-create by label on save
-                    <input
-                      className="cg-input"
-                      style={{ width: '100%' }}
-                      placeholder={`${defRefKindNames.join(' / ')}…`}
-                      value={field.scalar}
-                      data-cg-create-scalar={depth}
-                      onChange={(e) =>
-                        setCreateForm((prev) => ({
-                          ...prev,
-                          [def.id]: {
-                            ...(prev[def.id] ?? { scalar: '', refs: [] }),
-                            scalar: e.target.value,
-                          },
-                        }))
-                      }
-                      onKeyDown={handleCreateScalarKey}
-                    />
-                  )
-                ) : def.fieldType === 'Boolean' ? (
-                  <select
-                    className="cg-select"
-                    style={{ width: '100%' }}
-                    value={field.scalar || 'false'}
-                    data-cg-create-scalar={depth}
-                    onChange={(e) =>
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        [def.id]: {
-                          ...(prev[def.id] ?? { scalar: '', refs: [] }),
-                          scalar: e.target.value,
-                        },
-                      }))
-                    }
-                    onKeyDown={handleCreateScalarKey}
-                  >
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
-                  </select>
-                ) : (
-                  <input
-                    className="cg-input"
-                    style={{ width: '100%' }}
-                    placeholder={def.fieldName}
-                    value={field.scalar}
-                    type={
-                      def.fieldType === 'Number'
-                        ? 'number'
-                        : def.fieldType === 'Date'
-                          ? 'date'
-                          : 'text'
-                    }
-                    data-cg-create-scalar={depth}
-                    onChange={(e) =>
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        [def.id]: {
-                          ...(prev[def.id] ?? { scalar: '', refs: [] }),
-                          scalar: e.target.value,
-                        },
-                      }))
-                    }
-                    onKeyDown={handleCreateScalarKey}
-                  />
-                )}
-              </div>
-            );
-          })}
-
-          <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.55rem' }}>
-            <button
-              className="cg-btn cg-btn-primary cg-btn-sm"
-              type="button"
-              onClick={saveCreate}
-              disabled={isSaving}
-            >
-              {isSaving ? 'Saving…' : `Save ${refKindName}`}
-            </button>
-            <button
-              className="cg-btn cg-btn-ghost cg-btn-sm"
-              type="button"
-              onClick={cancelCreate}
-            >
-              Cancel
-            </button>
-          </div>
         </div>
       )}
 

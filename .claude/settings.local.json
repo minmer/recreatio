@@ -15,7 +15,9 @@
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\" -Force)",
       "Bash(Select-Object Name, PSIsContainer)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\frontend\\\\src\\\\pages\" -Recurse -File)",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "PowerShell(cd \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\frontend\"; npx tsc --noEmit 2> \"$env:TEMP\\\\tsc_err.txt\"; Get-Content \"$env:TEMP\\\\tsc_err.txt\" | Select-String \"pages.cg\")",
+      "PowerShell(cd \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\frontend\"; npx tsc --noEmit 2> \"$env:TEMP\\\\tsc2.txt\"; Get-Content \"$env:TEMP\\\\tsc2.txt\" | Where-Object { $_ -match \"pages.cg\" })"
     ]
   }
 }

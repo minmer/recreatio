@@ -10,6 +10,7 @@ import {
   getKindLabel,
   getNode,
   getRefKindIds,
+  updateNode,
   upsertFieldValue,
 } from './api/cgApi';
 import { CgNodePicker } from './CgNodePicker';
@@ -24,7 +25,7 @@ export interface LockState {
 }
 
 export interface CgEntityFormProps {
-  copy: Copy;
+  copy?: Copy;
   libId: string;
   kinds: CgNodeKind[];
   fieldDefs: CgFieldDef[];
@@ -84,6 +85,7 @@ export function CgEntityForm({
   const kindDefs = fieldDefs
     .filter((d) => d.nodeKindId === kindId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
+  const firstTextDef = kindDefs.find((d) => d.fieldType === 'Text');
 
   // ── Load existing ──
 
@@ -190,6 +192,9 @@ export function CgEntityForm({
         });
         setFieldValues(updated);
         setDrafts((prev) => { const n = { ...prev }; delete n[key]; return n; });
+        if (def.id === firstTextDef?.id) {
+          await updateNode(libId, nid, val.trim() || undefined);
+        }
       } catch { setError('Failed to save'); }
       finally { setSaving(false); }
     }, DEBOUNCE_MS);
@@ -247,8 +252,6 @@ export function CgEntityForm({
   const indentStyle = depth > 0
     ? { marginLeft: `${depth * 0.75}rem`, borderLeft: '2px solid var(--cg-cyan)33', paddingLeft: '0.75rem' }
     : {};
-
-  const firstTextDef = kindDefs.find((d) => d.fieldType === 'Text');
 
   return (
     <div style={indentStyle}>
@@ -507,7 +510,7 @@ export function CgEntityForm({
                               : 'text'
                             }
                             // eslint-disable-next-line jsx-a11y/no-autofocus
-                            autoFocus={!nodeIdProp && depth === 0 && def.id === firstTextDef?.id && sortOrder === 0}
+                            autoFocus={!nodeIdProp && def.id === firstTextDef?.id && sortOrder === 0}
                             onChange={(e) => handleScalarChange(def, e.target.value, sortOrder)}
                           />
                         )}
