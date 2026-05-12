@@ -8,6 +8,9 @@ import {
   listNodes,
   upsertFieldValue,
 } from './api/cgApi';
+import { CgEntityForm } from './CgEntityForm';
+import { CgModal } from './CgModal';
+import type { Copy } from '../../content/types';
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -91,6 +94,7 @@ async function persistCreateForm(
 // create new ones inline. Passes selections up to the parent via onAdd/onRemove.
 
 interface Props {
+  copy?: Copy;
   libId: string;
   refKindIds: string[];
   refKindName: string;
@@ -108,6 +112,7 @@ interface Props {
 }
 
 export function CgNodePicker({
+  copy,
   libId,
   refKindIds,
   refKindName,
@@ -120,6 +125,10 @@ export function CgNodePicker({
   maxCount = Infinity,
   depth = 0,
 }: Props) {
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const editKindId = editingNodeId
+    ? (allKinds.find((k) => refKindIds.includes(k.id))?.id ?? refKindIds[0] ?? '')
+    : '';
   // Which kind to create in the inline form (defaults to first; user can switch when multi-kind)
   const [createKindId, setCreateKindId] = useState(() => refKindIds[0] ?? '');
   const createKindDefs = allDefs
@@ -410,7 +419,7 @@ export function CgNodePicker({
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.25rem',
+                gap: '0.2rem',
                 background: 'var(--cg-cyan)22',
                 color: 'var(--cg-cyan)',
                 borderRadius: '999px',
@@ -435,16 +444,27 @@ export function CgNodePicker({
               ) : (
                 <span>{node.label || '(unnamed)'}</span>
               )}
+              {/* Edit chip — opens modal */}
+              {copy && (
+                <button
+                  type="button"
+                  onClick={() => setEditingNodeId(node.id)}
+                  title="Edit"
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'inherit', padding: '0 0.1rem', lineHeight: 1,
+                    fontSize: '0.75rem', opacity: 0.7,
+                  }}
+                >
+                  ✎
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => onRemove(node.id)}
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'inherit',
-                  padding: '0 0.25rem',
-                  lineHeight: 1,
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'inherit', padding: '0 0.25rem', lineHeight: 1,
                 }}
               >
                 ×
@@ -784,6 +804,27 @@ export function CgNodePicker({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Edit modal — opens CgEntityForm for chip editing */}
+      {copy && (
+        <CgModal
+          isOpen={!!editingNodeId}
+          onClose={() => setEditingNodeId(null)}
+        >
+          {editingNodeId && editKindId && (
+            <CgEntityForm
+              copy={copy}
+              libId={libId}
+              kinds={allKinds}
+              fieldDefs={allDefs}
+              kindId={editKindId}
+              nodeId={editingNodeId}
+              onOpenNode={onClickNode}
+              depth={0}
+            />
+          )}
+        </CgModal>
       )}
     </div>
   );
