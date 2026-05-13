@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Copy } from '../../content/types';
 import {
   type CgFieldDef,
@@ -22,6 +22,8 @@ interface Props {
   onOpenNode: (nodeId: string) => void;
 }
 
+const DEBOUNCE_MS = 300;
+
 export function CgNodeEditorPage({ copy, libId, nodeId, onBack, onOpenNode }: Props) {
   const t = copy.cg.node;
   const [detail, setDetail] = useState<CgNodeDetail | null>(null);
@@ -29,12 +31,11 @@ export function CgNodeEditorPage({ copy, libId, nodeId, onBack, onOpenNode }: Pr
   const [fieldDefs, setFieldDefs] = useState<CgFieldDef[]>([]);
   const [refNodeLabels, setRefNodeLabels] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [labelDraft, setLabelDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [fieldDrafts, setFieldDrafts] = useState<Record<string, string>>({});
-  const [fieldSaving, setFieldSaving] = useState<Record<string, boolean>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const debRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -45,8 +46,6 @@ export function CgNodeEditorPage({ copy, libId, nodeId, onBack, onOpenNode }: Pr
         setDetail(nodeDetail);
         setKinds(libDetail.nodeKinds);
         setFieldDefs(libDetail.fieldDefs);
-
-        // Resolve labels for all referenced nodes
         const uniqueRefIds = [
           ...new Set(nodeDetail.fieldValues.filter((v) => v.refNodeId).map((v) => v.refNodeId!)),
         ];
@@ -59,40 +58,33 @@ export function CgNodeEditorPage({ copy, libId, nodeId, onBack, onOpenNode }: Pr
     return () => { cancelled = true; };
   }, [libId, nodeId]);
 
-  async function handleSaveLabel() {
-    if (labelDraft === null) return;
-    setSaving(true);
-    try {
-      const updated = await updateNode(libId, nodeId, labelDraft.trim());
-      setDetail((d) => d ? { ...d, node: updated } : d);
-      setLabelDraft(null);
-    } catch {
-      setError(t.saveFailed);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleSaveField(def: CgFieldDef, _existing: CgFieldValue | undefined, sortOrder: number) {
-    const draftKey = `${def.id}:${sortOrder}`;
-    const draft = fieldDrafts[draftKey] ?? '';
-    setFieldSaving((prev) => ({ ...prev, [draftKey]: true }));
-    try {
-      const updated = await upsertFieldValue(libId, nodeId, {
-        fieldDefId: def.id,
-        textValue: def.fieldType === 'Text' ? draft : undefined,
-        numberValue: def.fieldType === 'Number' ? Number(draft) : undefined,
-        dateValue: def.fieldType === 'Date' ? draft : undefined,
-        boolValue: def.fieldType === 'Boolean' ? draft === 'true' : undefined,
-        sortOrder,
-      });
-      setDetail((d) => d ? { ...d, fieldValues: updated } : d);
-      setFieldDrafts((prev) => { const n = { ...prev }; delete n[draftKey]; return n; });
-    } catch {
-      setError(t.fieldSaveFailed);
-    } finally {
-      setFieldSaving((prev) => ({ ...prev, [draftKey]: false }));
-    }
+  function handleScalarChange(def: CgFieldDef, val: string, sortOrder: number, firstTextDefId?: string) {
+    const key = `${def.id}:${sortOrder}`;
+    setDrafts((prev) => ({ ...prev, [key]: val }));
+    clearTimeout(debRefs.current[key]);
+    debRefs.current[key] = setTimeout(async () => {
+      setSaving(true);
+      try {
+        const updated = await upsertFieldValue(libId, nodeId, {
+          fieldDefId: def.id,
+          textValue: def.fieldType === 'Text' ? (val.trim() || undefined) : undefined,
+          numberValue: def.fieldType === 'Number' ? (val ? Number(val) : undefined) : undefined,
+          dateValue: def.fieldType === 'Date' ? (val || undefined) : undefined,
+          boolValue: def.fieldType === 'Boolean' ? (val === 'true') : undefined,
+          sortOrder,
+        });
+        setDetail((d) => d ? { ...d, fieldValues: updated } : d);
+        setDrafts((prev) => { const n = { ...prev }; delete n[key]; return n; });
+        if (def.id === firstTextDefId) {
+          await updateNode(libId, nodeId, val.trim() || undefined);
+          setDetail((d) => d ? { ...d, node: { ...d.node, label: val.trim() || null } } : d);
+        }
+      } catch {
+        setError(t.fieldSaveFailed);
+      } finally {
+        setSaving(false);
+      }
+    }, DEBOUNCE_MS);
   }
 
   async function handleDeleteValue(valueId: string) {
@@ -103,8 +95,6 @@ export function CgNodeEditorPage({ copy, libId, nodeId, onBack, onOpenNode }: Pr
       setError(t.deleteValueFailed);
     }
   }
-
-  // ── Ref field handlers (auto-save on pick / remove) ──
 
   function handleRefAdd(def: CgFieldDef, existing: CgFieldValue[], picked: PickedNode) {
     setRefNodeLabels((prev) => new Map(prev).set(picked.id, picked.label));
@@ -135,6 +125,7 @@ export function CgNodeEditorPage({ copy, libId, nodeId, onBack, onOpenNode }: Pr
   const thisKindFields = fieldDefs
     .filter((f) => f.nodeKindId === (node.nodeKindId ?? ''))
     .sort((a, b) => a.sortOrder - b.sortOrder);
+  const firstTextDefId = thisKindFields.find((f) => f.fieldType === 'Text')?.id;
 
   const valsByFieldDef = fieldValues.reduce<Record<string, CgFieldValue[]>>((acc, v) => {
     (acc[v.fieldDefId] ??= []).push(v);
@@ -150,44 +141,14 @@ export function CgNodeEditorPage({ copy, libId, nodeId, onBack, onOpenNode }: Pr
         {nodeKind && (
           <span className="cg-field-type" style={{ fontSize: '0.8rem' }}>{nodeKind.name}</span>
         )}
-      </div>
-
-      <div className="cg-section">
-        <p className="cg-section-title">{t.labelSection}</p>
-        {labelDraft !== null ? (
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <input
-              className="cg-input"
-              value={labelDraft}
-              onChange={(e) => setLabelDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveLabel();
-                if (e.key === 'Escape') setLabelDraft(null);
-              }}
-              autoFocus
-              style={{ maxWidth: 400 }}
-            />
-            <button className="cg-btn cg-btn-primary cg-btn-sm" onClick={handleSaveLabel} disabled={saving} type="button">
-              {t.saveAction}
-            </button>
-            <button className="cg-btn cg-btn-ghost cg-btn-sm" onClick={() => setLabelDraft(null)} type="button">
-              {t.cancelAction}
-            </button>
-          </div>
-        ) : (
-          <p
-            style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--cg-text)', cursor: 'pointer', margin: 0 }}
-            onClick={() => setLabelDraft(node.label ?? '')}
-            title="Click to edit"
-          >
-            {node.label || (
-              <span style={{ color: 'var(--cg-text-dim)', fontWeight: 400, fontSize: '1rem' }}>
-                {t.noLabel}
-              </span>
-            )}
-          </p>
+        {saving && (
+          <span style={{ fontSize: '0.72rem', color: 'var(--cg-text-dim)', marginLeft: 'auto' }}>
+            saving…
+          </span>
         )}
       </div>
+
+      {error && <p className="cg-error" style={{ marginBottom: '0.5rem' }}>{error}</p>}
 
       {thisKindFields.length > 0 && (
         <div className="cg-section">
@@ -218,7 +179,6 @@ export function CgNodeEditorPage({ copy, libId, nodeId, onBack, onOpenNode }: Pr
                   )}
                 </p>
 
-                {/* Ref field → CgNodePicker (auto-saves on pick / remove) */}
                 {def.fieldType === 'Ref' && refKinds.length > 0 ? (
                   <CgNodePicker
                     libId={libId}
@@ -239,20 +199,16 @@ export function CgNodeEditorPage({ copy, libId, nodeId, onBack, onOpenNode }: Pr
                     depth={0}
                   />
                 ) : (
-                  // Scalar fields — per-field draft + save button when dirty
                   (() => {
                     const allValues = def.isMultiValue ? [...existing, undefined] : [existing[0]];
                     return allValues.map((val, idx) => {
-                      const draftKey = `${def.id}:${idx}`;
-                      const draft = fieldDrafts[draftKey];
+                      const key = `${def.id}:${idx}`;
                       const currentText =
                         val?.textValue ??
                         val?.dateValue ??
                         (val?.numberValue != null ? String(val.numberValue) : '') ??
                         (val?.boolValue != null ? String(val.boolValue) : '');
-                      const displayVal = draft ?? currentText;
-                      const isDirty = draft !== undefined && draft !== currentText;
-                      const isSaving = fieldSaving[draftKey];
+                      const displayVal = drafts[key] ?? currentText;
                       const isNewSlot = val === undefined && def.isMultiValue;
 
                       return (
@@ -261,9 +217,7 @@ export function CgNodeEditorPage({ copy, libId, nodeId, onBack, onOpenNode }: Pr
                             <select
                               className="cg-select cg-field-value-input"
                               value={displayVal || 'false'}
-                              onChange={(e) =>
-                                setFieldDrafts((prev) => ({ ...prev, [draftKey]: e.target.value }))
-                              }
+                              onChange={(e) => handleScalarChange(def, e.target.value, idx, firstTextDefId)}
                             >
                               <option value="true">Yes</option>
                               <option value="false">No</option>
@@ -273,33 +227,13 @@ export function CgNodeEditorPage({ copy, libId, nodeId, onBack, onOpenNode }: Pr
                               className="cg-input cg-field-value-input"
                               placeholder={isNewSlot ? `${def.fieldName}…` : def.fieldName}
                               value={displayVal}
-                              onChange={(e) =>
-                                setFieldDrafts((prev) => ({ ...prev, [draftKey]: e.target.value }))
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && isDirty) handleSaveField(def, val, idx);
-                                if (e.key === 'Escape')
-                                  setFieldDrafts((prev) => { const n = { ...prev }; delete n[draftKey]; return n; });
-                              }}
                               type={
-                                def.fieldType === 'Number'
-                                  ? 'number'
-                                  : def.fieldType === 'Date'
-                                    ? 'date'
-                                    : 'text'
+                                def.fieldType === 'Number' ? 'number'
+                                : def.fieldType === 'Date' ? 'date'
+                                : 'text'
                               }
+                              onChange={(e) => handleScalarChange(def, e.target.value, idx, firstTextDefId)}
                             />
-                          )}
-                          {isDirty && (
-                            <button
-                              className="cg-btn cg-btn-primary cg-btn-sm"
-                              type="button"
-                              onClick={() => handleSaveField(def, val, idx)}
-                              disabled={isSaving}
-                              style={{ flexShrink: 0 }}
-                            >
-                              {isSaving ? '…' : t.saveAction}
-                            </button>
                           )}
                           {val && def.fieldType !== 'Ref' && (
                             <button
