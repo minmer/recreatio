@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts.Cg;
 using Recreatio.Api.Data;
@@ -9,6 +11,49 @@ public static class CgEndpoints
 {
     private static readonly HashSet<string> ValidInputTypes =
         new(["text", "number", "date", "reference"], StringComparer.Ordinal);
+
+    // ── Crypto helpers (placeholder — replace with AES + user session key) ──
+
+    private static string EncryptValue(string plain) =>
+        Convert.ToBase64String(Encoding.UTF8.GetBytes(plain));
+
+    private static string DecryptValue(string cipher) =>
+        Encoding.UTF8.GetString(Convert.FromBase64String(cipher));
+
+    // Lexicographic float: encodes first 6 chars into [0,1) preserving order.
+    // Placeholder for order-preserving shift with user-derived private offset.
+    private static double ComputeSearchFloat(string normalized)
+    {
+        const double CharRange = 65536.0;
+        const int MaxChars = 6;
+        double result = 0.0;
+        double scale = 1.0 / CharRange;
+        foreach (var ch in normalized.Take(MaxChars))
+        {
+            result += ch * scale;
+            scale /= CharRange;
+        }
+        return result;
+    }
+
+    private static (double Min, double Max) SearchFloatRange(string prefix)
+    {
+        if (string.IsNullOrEmpty(prefix)) return (0.0, 1.0);
+        double min = ComputeSearchFloat(prefix);
+        const double CharRange = 65536.0;
+        double rangeUnit = Math.Pow(1.0 / CharRange, Math.Min(prefix.Length, 6));
+        return (min, min + rangeUnit);
+    }
+
+    // Placeholder for HMAC-based reference hash with user key.
+    private static byte[] ComputeSearchHash(long libId, long fieldDefId, long refEntityId)
+    {
+        var input = $"{libId}:{fieldDefId}:{refEntityId}";
+        return SHA256.HashData(Encoding.UTF8.GetBytes(input));
+    }
+
+    private static string NormalizeSearch(string value) =>
+        value.Trim().ToLowerInvariant();
 
     public static void MapCgEndpoints(this WebApplication app)
     {
@@ -469,5 +514,444 @@ public static class CgEndpoints
                 new DateTimeOffset(type.UpdatedUtc, TimeSpan.Zero)
             ));
         });
+
+        // ── Entities ───────────────────────────────────────────────────────────
+
+        // GET /libraries/{libId}/types/{typeId}/entities?skip=0&limit=50
+        group.MapGet("/libraries/{libId:long}/types/{typeId:long}/entities", async (
+            long libId, long typeId,
+            int skip, int limit,
+            HttpContext ctx, RecreatioDbContext db, CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(ctx, out var userId)) return Results.Unauthorized();
+            var lib = await db.CgLibraries.AsNoTracking().FirstOrDefaultAsync(x => x.Id == libId, ct);
+            if (lib is null || lib.OwnerAccountId != userId) return Results.NotFound();
+
+            limit = Math.Clamp(limit == 0 ? 50 : limit, 1, 200);
+
+            var entities = await db.CgEntities.AsNoTracking()
+                .Where(e => e.LibraryId == libId && e.TypeDefId == typeId)
+                .OrderByDescending(e => e.UpdatedUtc)
+                .Skip(skip).Take(limit)
+                .ToListAsync(ct);
+
+            if (entities.Count == 0) return Results.Ok(Array.Empty<CgEntityListItem>());
+
+            // Get first non-reference FieldDef for this type (display value).
+            var firstField = await db.CgFieldDefs.AsNoTracking()
+                .Where(f => f.TypeDefId == typeId && f.InputType != "reference")
+                .OrderBy(f => f.SortOrder)
+                .FirstOrDefaultAsync(ct);
+
+            var entityIds = entities.Select(e => e.Id).ToList();
+            var displayValues = new Dictionary<long, string>();
+
+            if (firstField is not null)
+            {
+                var firstValues = await db.CgFieldValues.AsNoTracking()
+                    .Where(v => entityIds.Contains(v.EntityId) && v.FieldDefId == firstField.Id)
+                    .GroupBy(v => v.EntityId)
+                    .Select(g => new { EntityId = g.Key, Value = g.OrderBy(v => v.SortOrder).First() })
+                    .ToListAsync(ct);
+
+                foreach (var fv in firstValues)
+                    if (fv.Value.EncryptedValue is not null)
+                        displayValues[fv.EntityId] = DecryptValue(fv.Value.EncryptedValue);
+            }
+
+            var items = entities.Select(e => new CgEntityListItem(
+                e.Id,
+                displayValues.GetValueOrDefault(e.Id, ""),
+                new DateTimeOffset(e.CreatedUtc, TimeSpan.Zero),
+                new DateTimeOffset(e.UpdatedUtc, TimeSpan.Zero)
+            )).ToList();
+
+            return Results.Ok(items);
+        });
+
+        // POST /libraries/{libId}/types/{typeId}/entities
+        group.MapPost("/libraries/{libId:long}/types/{typeId:long}/entities", async (
+            long libId, long typeId, CgEntitySaveRequest req,
+            HttpContext ctx, RecreatioDbContext db, CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(ctx, out var userId)) return Results.Unauthorized();
+            var lib = await db.CgLibraries.AsNoTracking().FirstOrDefaultAsync(x => x.Id == libId, ct);
+            if (lib is null || lib.OwnerAccountId != userId) return Results.NotFound();
+
+            var typeDef = await db.CgTypeDefs.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == typeId && x.LibraryId == libId, ct);
+            if (typeDef is null) return Results.NotFound();
+
+            var fieldDefs = await db.CgFieldDefs.AsNoTracking()
+                .Where(f => f.TypeDefId == typeId)
+                .ToListAsync(ct);
+            var fieldDefMap = fieldDefs.ToDictionary(f => f.Id);
+
+            var now = DateTime.UtcNow;
+            var entity = new CgEntity { LibraryId = libId, TypeDefId = typeId, CreatedUtc = now, UpdatedUtc = now };
+            db.CgEntities.Add(entity);
+            await db.SaveChangesAsync(ct);
+
+            foreach (var v in req.Values ?? [])
+            {
+                if (!fieldDefMap.TryGetValue(v.FieldDefId, out var fd)) continue;
+                var fv = new CgFieldValue
+                {
+                    EntityId = entity.Id,
+                    FieldDefId = v.FieldDefId,
+                    SortOrder = v.SortOrder
+                };
+                if (fd.InputType == "reference")
+                {
+                    fv.RefEntityId = v.RefEntityId;
+                    if (v.RefEntityId.HasValue)
+                        fv.SearchHash = ComputeSearchHash(libId, v.FieldDefId, v.RefEntityId.Value);
+                }
+                else if (!string.IsNullOrEmpty(v.PlainValue))
+                {
+                    var normalized = NormalizeSearch(v.PlainValue);
+                    fv.EncryptedValue = EncryptValue(v.PlainValue);
+                    fv.SearchFloat = ComputeSearchFloat(normalized);
+                }
+                db.CgFieldValues.Add(fv);
+            }
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(await BuildEntityDetail(entity.Id, libId, db, ct));
+        });
+
+        // GET /libraries/{libId}/entities/{entityId}
+        group.MapGet("/libraries/{libId:long}/entities/{entityId:long}", async (
+            long libId, long entityId,
+            HttpContext ctx, RecreatioDbContext db, CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(ctx, out var userId)) return Results.Unauthorized();
+            var lib = await db.CgLibraries.AsNoTracking().FirstOrDefaultAsync(x => x.Id == libId, ct);
+            if (lib is null || lib.OwnerAccountId != userId) return Results.NotFound();
+
+            var entity = await db.CgEntities.AsNoTracking()
+                .FirstOrDefaultAsync(e => e.Id == entityId && e.LibraryId == libId, ct);
+            if (entity is null) return Results.NotFound();
+
+            return Results.Ok(await BuildEntityDetail(entityId, libId, db, ct));
+        });
+
+        // PUT /libraries/{libId}/entities/{entityId}
+        group.MapPut("/libraries/{libId:long}/entities/{entityId:long}", async (
+            long libId, long entityId, CgEntitySaveRequest req,
+            HttpContext ctx, RecreatioDbContext db, CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(ctx, out var userId)) return Results.Unauthorized();
+            var lib = await db.CgLibraries.AsNoTracking().FirstOrDefaultAsync(x => x.Id == libId, ct);
+            if (lib is null || lib.OwnerAccountId != userId) return Results.NotFound();
+
+            var entity = await db.CgEntities
+                .FirstOrDefaultAsync(e => e.Id == entityId && e.LibraryId == libId, ct);
+            if (entity is null) return Results.NotFound();
+
+            var fieldDefs = await db.CgFieldDefs.AsNoTracking()
+                .Where(f => f.TypeDefId == entity.TypeDefId)
+                .ToListAsync(ct);
+            var fieldDefMap = fieldDefs.ToDictionary(f => f.Id);
+
+            // Replace all field values.
+            await db.CgFieldValues.Where(v => v.EntityId == entityId).ExecuteDeleteAsync(ct);
+
+            var now = DateTime.UtcNow;
+            entity.UpdatedUtc = now;
+
+            foreach (var v in req.Values ?? [])
+            {
+                if (!fieldDefMap.TryGetValue(v.FieldDefId, out var fd)) continue;
+                var fv = new CgFieldValue
+                {
+                    EntityId = entityId,
+                    FieldDefId = v.FieldDefId,
+                    SortOrder = v.SortOrder
+                };
+                if (fd.InputType == "reference")
+                {
+                    fv.RefEntityId = v.RefEntityId;
+                    if (v.RefEntityId.HasValue)
+                        fv.SearchHash = ComputeSearchHash(libId, v.FieldDefId, v.RefEntityId.Value);
+                }
+                else if (!string.IsNullOrEmpty(v.PlainValue))
+                {
+                    var normalized = NormalizeSearch(v.PlainValue);
+                    fv.EncryptedValue = EncryptValue(v.PlainValue);
+                    fv.SearchFloat = ComputeSearchFloat(normalized);
+                }
+                db.CgFieldValues.Add(fv);
+            }
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(await BuildEntityDetail(entityId, libId, db, ct));
+        });
+
+        // DELETE /libraries/{libId}/entities/{entityId}
+        group.MapDelete("/libraries/{libId:long}/entities/{entityId:long}", async (
+            long libId, long entityId,
+            HttpContext ctx, RecreatioDbContext db, CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(ctx, out var userId)) return Results.Unauthorized();
+            var lib = await db.CgLibraries.AsNoTracking().FirstOrDefaultAsync(x => x.Id == libId, ct);
+            if (lib is null || lib.OwnerAccountId != userId) return Results.NotFound();
+
+            var entity = await db.CgEntities
+                .FirstOrDefaultAsync(e => e.Id == entityId && e.LibraryId == libId, ct);
+            if (entity is null) return Results.NotFound();
+
+            await db.CgFieldValues.Where(v => v.EntityId == entityId).ExecuteDeleteAsync(ct);
+            db.CgEntities.Remove(entity);
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
+
+        // GET /libraries/{libId}/entities/search?term=...&typeIds=1,2,3&limit=20
+        group.MapGet("/libraries/{libId:long}/entities/search", async (
+            long libId, string term, string? typeIds, int limit,
+            HttpContext ctx, RecreatioDbContext db, CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(ctx, out var userId)) return Results.Unauthorized();
+            var lib = await db.CgLibraries.AsNoTracking().FirstOrDefaultAsync(x => x.Id == libId, ct);
+            if (lib is null || lib.OwnerAccountId != userId) return Results.NotFound();
+
+            var normalized = NormalizeSearch(term ?? "");
+            if (string.IsNullOrEmpty(normalized)) return Results.Ok(Array.Empty<CgEntitySearchItem>());
+
+            limit = Math.Clamp(limit == 0 ? 20 : limit, 1, 50);
+
+            // Parse optional type filter.
+            var typeIdFilter = typeIds?
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => long.TryParse(s, out var id) ? id : 0L)
+                .Where(id => id > 0)
+                .ToHashSet();
+
+            // Find first non-reference FieldDef per relevant type.
+            var allTypeDefs = await db.CgTypeDefs.AsNoTracking()
+                .Where(t => t.LibraryId == libId)
+                .ToListAsync(ct);
+
+            var relevantTypeIds = typeIdFilter?.Count > 0
+                ? allTypeDefs.Where(t => typeIdFilter.Contains(t.Id)).Select(t => t.Id).ToList()
+                : allTypeDefs.Select(t => t.Id).ToList();
+
+            var typeDefMap = allTypeDefs.ToDictionary(t => t.Id);
+
+            var allFieldDefs = await db.CgFieldDefs.AsNoTracking()
+                .Where(f => relevantTypeIds.Contains(f.TypeDefId) && f.InputType != "reference")
+                .OrderBy(f => f.SortOrder)
+                .ToListAsync(ct);
+
+            var firstFieldIds = allFieldDefs
+                .GroupBy(f => f.TypeDefId)
+                .Select(g => g.First().Id)
+                .ToHashSet();
+
+            if (firstFieldIds.Count == 0) return Results.Ok(Array.Empty<CgEntitySearchItem>());
+
+            var (minFloat, maxFloat) = SearchFloatRange(normalized);
+
+            // Phase 1: range query on SearchFloat.
+            var candidates = await db.CgFieldValues.AsNoTracking()
+                .Where(v => firstFieldIds.Contains(v.FieldDefId)
+                         && v.SearchFloat >= minFloat
+                         && v.SearchFloat < maxFloat)
+                .Take(limit * 5)
+                .ToListAsync(ct);
+
+            var candidateEntityIds = candidates.Select(v => v.EntityId).Distinct().ToList();
+
+            var entities = await db.CgEntities.AsNoTracking()
+                .Where(e => candidateEntityIds.Contains(e.Id) && e.LibraryId == libId)
+                .ToDictionaryAsync(e => e.Id, ct);
+
+            // Phase 2: decrypt and verify.
+            var results = new List<CgEntitySearchItem>();
+            foreach (var v in candidates)
+            {
+                if (results.Count >= limit) break;
+                if (!entities.TryGetValue(v.EntityId, out var entity)) continue;
+                if (v.EncryptedValue is null) continue;
+
+                var plain = DecryptValue(v.EncryptedValue);
+                if (!plain.ToLowerInvariant().Contains(normalized)) continue;
+
+                if (!typeDefMap.TryGetValue(entity.TypeDefId, out var typeDef)) continue;
+
+                results.Add(new CgEntitySearchItem(entity.Id, plain, entity.TypeDefId, typeDef.Name));
+            }
+
+            return Results.Ok(results);
+        });
+
+        // POST /libraries/{libId}/entities/resolve  — batch display value lookup
+        group.MapPost("/libraries/{libId:long}/entities/resolve", async (
+            long libId, CgEntityResolveRequest req,
+            HttpContext ctx, RecreatioDbContext db, CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(ctx, out var userId)) return Results.Unauthorized();
+            var lib = await db.CgLibraries.AsNoTracking().FirstOrDefaultAsync(x => x.Id == libId, ct);
+            if (lib is null || lib.OwnerAccountId != userId) return Results.NotFound();
+
+            var ids = (req.EntityIds ?? []).Distinct().Take(200).ToList();
+            if (ids.Count == 0) return Results.Ok(Array.Empty<CgEntitySearchItem>());
+
+            var entities = await db.CgEntities.AsNoTracking()
+                .Where(e => ids.Contains(e.Id) && e.LibraryId == libId)
+                .ToListAsync(ct);
+
+            var typeIds = entities.Select(e => e.TypeDefId).Distinct().ToList();
+            var typeDefs = await db.CgTypeDefs.AsNoTracking()
+                .Where(t => typeIds.Contains(t.Id))
+                .ToDictionaryAsync(t => t.Id, ct);
+
+            // First non-reference field per type.
+            var fieldDefs = await db.CgFieldDefs.AsNoTracking()
+                .Where(f => typeIds.Contains(f.TypeDefId) && f.InputType != "reference")
+                .OrderBy(f => f.SortOrder)
+                .ToListAsync(ct);
+            var firstFieldByType = fieldDefs
+                .GroupBy(f => f.TypeDefId)
+                .ToDictionary(g => g.Key, g => g.First().Id);
+
+            var fieldValueMap = firstFieldByType.Values.Distinct().ToList();
+            var entityIds = entities.Select(e => e.Id).ToList();
+
+            var firstValues = await db.CgFieldValues.AsNoTracking()
+                .Where(v => entityIds.Contains(v.EntityId) && fieldValueMap.Contains(v.FieldDefId))
+                .GroupBy(v => v.EntityId)
+                .Select(g => new { EntityId = g.Key, Value = g.OrderBy(v => v.SortOrder).First() })
+                .ToListAsync(ct);
+
+            var displayMap = firstValues
+                .Where(x => x.Value.EncryptedValue is not null)
+                .ToDictionary(x => x.EntityId, x => DecryptValue(x.Value.EncryptedValue!));
+
+            var result = entities
+                .Where(e => typeDefs.ContainsKey(e.TypeDefId))
+                .Select(e => new CgEntitySearchItem(
+                    e.Id,
+                    displayMap.GetValueOrDefault(e.Id, ""),
+                    e.TypeDefId,
+                    typeDefs[e.TypeDefId].Name
+                ))
+                .ToList();
+
+            return Results.Ok(result);
+        });
+    }
+
+    // ── Shared helper ──────────────────────────────────────────────────────────
+
+    private static async Task<CgEntityDetailResponse> BuildEntityDetail(
+        long entityId, long libId, RecreatioDbContext db, CancellationToken ct)
+    {
+        var entity = await db.CgEntities.AsNoTracking()
+            .FirstAsync(e => e.Id == entityId, ct);
+
+        var typeDef = await db.CgTypeDefs.AsNoTracking()
+            .FirstAsync(t => t.Id == entity.TypeDefId, ct);
+
+        var fieldDefs = await db.CgFieldDefs.AsNoTracking()
+            .Where(f => f.TypeDefId == entity.TypeDefId)
+            .OrderBy(f => f.SortOrder)
+            .ToListAsync(ct);
+
+        var targets = await db.CgFieldDefTargets.AsNoTracking()
+            .Where(t => fieldDefs.Select(f => f.Id).Contains(t.FieldDefId))
+            .ToListAsync(ct);
+
+        var values = await db.CgFieldValues.AsNoTracking()
+            .Where(v => v.EntityId == entityId)
+            .ToListAsync(ct);
+
+        // Resolve display values for all referenced entities.
+        var refEntityIds = values.Where(v => v.RefEntityId.HasValue)
+            .Select(v => v.RefEntityId!.Value).Distinct().ToList();
+
+        var refEntities = refEntityIds.Count > 0
+            ? await db.CgEntities.AsNoTracking()
+                .Where(e => refEntityIds.Contains(e.Id))
+                .ToListAsync(ct)
+            : [];
+
+        var refTypeIds = refEntities.Select(e => e.TypeDefId).Distinct().ToList();
+        var refTypeDefs = refTypeIds.Count > 0
+            ? await db.CgTypeDefs.AsNoTracking()
+                .Where(t => refTypeIds.Contains(t.Id))
+                .ToDictionaryAsync(t => t.Id, ct)
+            : new Dictionary<long, CgTypeDef>();
+
+        var refFieldDefs = refTypeIds.Count > 0
+            ? await db.CgFieldDefs.AsNoTracking()
+                .Where(f => refTypeIds.Contains(f.TypeDefId) && f.InputType != "reference")
+                .OrderBy(f => f.SortOrder)
+                .ToListAsync(ct)
+            : [];
+
+        var refFirstFieldByType = refFieldDefs
+            .GroupBy(f => f.TypeDefId)
+            .ToDictionary(g => g.Key, g => g.First().Id);
+
+        var refFirstValues = refEntityIds.Count > 0
+            ? await db.CgFieldValues.AsNoTracking()
+                .Where(v => refEntityIds.Contains(v.EntityId)
+                         && refFirstFieldByType.Values.Contains(v.FieldDefId))
+                .ToListAsync(ct)
+            : [];
+
+        var refDisplayMap = new Dictionary<long, (string Display, long TypeDefId)>();
+        foreach (var re in refEntities)
+        {
+            if (!refFirstFieldByType.TryGetValue(re.TypeDefId, out var firstFieldId)) continue;
+            var fv = refFirstValues.Where(v => v.EntityId == re.Id && v.FieldDefId == firstFieldId)
+                .OrderBy(v => v.SortOrder).FirstOrDefault();
+            var display = fv?.EncryptedValue is not null ? DecryptValue(fv.EncryptedValue) : "";
+            refDisplayMap[re.Id] = (display, re.TypeDefId);
+        }
+
+        var valuesByField = values.GroupBy(v => v.FieldDefId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(v => v.SortOrder).ToList());
+
+        var fieldResponses = fieldDefs.Select(fd =>
+        {
+            var fieldValues = valuesByField.GetValueOrDefault(fd.Id, []);
+            var valueResponses = fieldValues.Select(v =>
+            {
+                string? plainValue = null;
+                string? refDisplay = null;
+                long? refTypeDefId = null;
+                string? refTypeName = null;
+
+                if (fd.InputType == "reference" && v.RefEntityId.HasValue)
+                {
+                    if (refDisplayMap.TryGetValue(v.RefEntityId.Value, out var rd))
+                    {
+                        refDisplay = rd.Display;
+                        refTypeDefId = rd.TypeDefId;
+                        refTypeDefs.TryGetValue(rd.TypeDefId, out var rdt);
+                        refTypeName = rdt?.Name;
+                    }
+                }
+                else if (v.EncryptedValue is not null)
+                {
+                    plainValue = DecryptValue(v.EncryptedValue);
+                }
+
+                return new CgEntityValueResponse(
+                    v.Id, v.SortOrder, plainValue,
+                    v.RefEntityId, refDisplay, refTypeDefId, refTypeName);
+            }).ToList();
+
+            return new CgEntityFieldResponse(
+                fd.Id, fd.Label, fd.InputType, fd.Multiple, fd.IsOrdered, valueResponses);
+        }).ToList();
+
+        return new CgEntityDetailResponse(
+            entity.Id, entity.TypeDefId, typeDef.Name, fieldResponses,
+            new DateTimeOffset(entity.CreatedUtc, TimeSpan.Zero),
+            new DateTimeOffset(entity.UpdatedUtc, TimeSpan.Zero));
     }
 }

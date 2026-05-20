@@ -128,3 +128,99 @@ export const saveCgFields = (libId: number, typeId: number, fields: CgFieldDefSa
     method: 'PUT',
     body: JSON.stringify({ fields })
   });
+
+// ── Entity types ──────────────────────────────────────────────────────────────
+
+export type CgEntityValueResponse = {
+  id: number;
+  sortOrder: number;
+  plainValue: string | null;
+  refEntityId: number | null;
+  refDisplayValue: string | null;
+  refTypeDefId: number | null;
+  refTypeDefName: string | null;
+};
+
+export type CgEntityFieldResponse = {
+  fieldDefId: number;
+  label: string;
+  inputType: string;
+  multiple: boolean;
+  isOrdered: boolean;
+  values: CgEntityValueResponse[];
+};
+
+export type CgEntityDetailResponse = {
+  id: number;
+  typeDefId: number;
+  typeDefName: string;
+  fields: CgEntityFieldResponse[];
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type CgEntityListItem = {
+  id: number;
+  displayValue: string;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type CgEntitySearchItem = {
+  id: number;
+  displayValue: string;
+  typeDefId: number;
+  typeDefName: string;
+};
+
+export type CgEntityValueSaveItem = {
+  fieldDefId: number;
+  sortOrder: number;
+  plainValue: string | null;
+  refEntityId: number | null;
+};
+
+// ── Entity API functions ───────────────────────────────────────────────────────
+
+export const getCgEntities = (libId: number, typeId: number, skip = 0, limit = 50) =>
+  req<CgEntityListItem[]>(
+    `/cg/libraries/${libId}/types/${typeId}/entities?skip=${skip}&limit=${limit}`,
+    { method: 'GET' }
+  );
+
+export const createCgEntity = (libId: number, typeId: number, values: CgEntityValueSaveItem[]) =>
+  req<CgEntityDetailResponse>(`/cg/libraries/${libId}/types/${typeId}/entities`, {
+    method: 'POST',
+    body: JSON.stringify({ values })
+  });
+
+export const getCgEntityDetail = (libId: number, entityId: number) =>
+  req<CgEntityDetailResponse>(`/cg/libraries/${libId}/entities/${entityId}`, { method: 'GET' });
+
+export const updateCgEntity = (libId: number, entityId: number, values: CgEntityValueSaveItem[]) =>
+  req<CgEntityDetailResponse>(`/cg/libraries/${libId}/entities/${entityId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ values })
+  });
+
+export const deleteCgEntity = (libId: number, entityId: number) =>
+  req<void>(`/cg/libraries/${libId}/entities/${entityId}`, { method: 'DELETE' });
+
+export const searchCgEntities = (
+  libId: number,
+  term: string,
+  typeIds?: number[],
+  limit = 20
+) => {
+  const params = new URLSearchParams({ term, limit: String(limit) });
+  if (typeIds && typeIds.length > 0) params.set('typeIds', typeIds.join(','));
+  return req<CgEntitySearchItem[]>(`/cg/libraries/${libId}/entities/search?${params}`, {
+    method: 'GET'
+  });
+};
+
+export const resolveCgEntities = (libId: number, entityIds: number[]) =>
+  req<CgEntitySearchItem[]>(`/cg/libraries/${libId}/entities/resolve`, {
+    method: 'POST',
+    body: JSON.stringify({ entityIds })
+  });

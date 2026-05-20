@@ -162,6 +162,12 @@ export function CgLibraryPage({ libId }: { libId: number }) {
                     </button>
                     <div className="cg-list-actions">
                       <button
+                        className="cg-btn cg-btn-sm"
+                        onClick={() => navigate(`/cg/libraries/${libId}/types/${type.id}/entities`)}
+                      >
+                        Entities
+                      </button>
+                      <button
                         className="cg-btn cg-btn-sm cg-btn-ghost"
                         onClick={() => {
                           setRenameId(type.id);

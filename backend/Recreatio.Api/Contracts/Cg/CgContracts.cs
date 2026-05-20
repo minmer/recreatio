@@ -62,3 +62,62 @@ public sealed record CgTypeDeleteConflictEntry(
 public sealed record CgTypeDeleteConflictResponse(
     IReadOnlyList<CgTypeDeleteConflictEntry> References
 );
+
+// ── Entities ───────────────────────────────────────────────────────────────
+
+public sealed record CgEntityValueSaveItem(
+    long FieldDefId,
+    int SortOrder,
+    string? PlainValue,
+    long? RefEntityId
+);
+
+public sealed record CgEntitySaveRequest(
+    IReadOnlyList<CgEntityValueSaveItem> Values
+);
+
+public sealed record CgEntityValueResponse(
+    long Id,
+    int SortOrder,
+    string? PlainValue,
+    long? RefEntityId,
+    string? RefDisplayValue,
+    long? RefTypeDefId,
+    string? RefTypeDefName
+);
+
+public sealed record CgEntityFieldResponse(
+    long FieldDefId,
+    string Label,
+    string InputType,
+    bool Multiple,
+    bool IsOrdered,
+    IReadOnlyList<CgEntityValueResponse> Values
+);
+
+public sealed record CgEntityDetailResponse(
+    long Id,
+    long TypeDefId,
+    string TypeDefName,
+    IReadOnlyList<CgEntityFieldResponse> Fields,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc
+);
+
+public sealed record CgEntityListItem(
+    long Id,
+    string DisplayValue,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc
+);
+
+public sealed record CgEntitySearchItem(
+    long Id,
+    string DisplayValue,
+    long TypeDefId,
+    string TypeDefName
+);
+
+public sealed record CgEntityResolveRequest(
+    IReadOnlyList<long> EntityIds
+);

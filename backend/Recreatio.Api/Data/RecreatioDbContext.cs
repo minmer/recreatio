@@ -196,6 +196,8 @@ public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefi
     public DbSet<Data.Cg.CgTypeDef> CgTypeDefs => Set<Data.Cg.CgTypeDef>();
     public DbSet<Data.Cg.CgFieldDef> CgFieldDefs => Set<Data.Cg.CgFieldDef>();
     public DbSet<Data.Cg.CgFieldDefTarget> CgFieldDefTargets => Set<Data.Cg.CgFieldDefTarget>();
+    public DbSet<Data.Cg.CgEntity> CgEntities => Set<Data.Cg.CgEntity>();
+    public DbSet<Data.Cg.CgFieldValue> CgFieldValues => Set<Data.Cg.CgFieldValue>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1592,5 +1594,25 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
             .HasIndex(x => x.FieldDefId);
         modelBuilder.Entity<Data.Cg.CgFieldDefTarget>()
             .HasIndex(x => x.TargetTypeDefId);
+
+        modelBuilder.Entity<Data.Cg.CgEntity>()
+            .HasIndex(x => x.LibraryId);
+        modelBuilder.Entity<Data.Cg.CgEntity>()
+            .HasIndex(x => x.TypeDefId);
+
+        modelBuilder.Entity<Data.Cg.CgFieldValue>()
+            .HasIndex(x => x.EntityId);
+        modelBuilder.Entity<Data.Cg.CgFieldValue>()
+            .HasIndex(x => new { x.FieldDefId, x.SearchFloat })
+            .HasFilter("[SearchFloat] IS NOT NULL");
+        modelBuilder.Entity<Data.Cg.CgFieldValue>()
+            .HasIndex(x => new { x.FieldDefId, x.SearchHash })
+            .HasFilter("[SearchHash] IS NOT NULL");
+        modelBuilder.Entity<Data.Cg.CgFieldValue>()
+            .HasIndex(x => x.RefEntityId)
+            .HasFilter("[RefEntityId] IS NOT NULL");
+        modelBuilder.Entity<Data.Cg.CgFieldValue>()
+            .Property(x => x.SearchHash)
+            .HasColumnType("varbinary(32)");
     }
 }
