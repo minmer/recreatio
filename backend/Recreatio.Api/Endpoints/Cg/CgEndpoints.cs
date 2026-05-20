@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts.Cg;
@@ -19,41 +18,6 @@ public static class CgEndpoints
 
     private static string DecryptValue(string cipher) =>
         Encoding.UTF8.GetString(Convert.FromBase64String(cipher));
-
-    // Lexicographic float: encodes first 6 chars into [0,1) preserving order.
-    // Placeholder for order-preserving shift with user-derived private offset.
-    private static double ComputeSearchFloat(string normalized)
-    {
-        const double CharRange = 65536.0;
-        const int MaxChars = 6;
-        double result = 0.0;
-        double scale = 1.0 / CharRange;
-        foreach (var ch in normalized.Take(MaxChars))
-        {
-            result += ch * scale;
-            scale /= CharRange;
-        }
-        return result;
-    }
-
-    private static (double Min, double Max) SearchFloatRange(string prefix)
-    {
-        if (string.IsNullOrEmpty(prefix)) return (0.0, 1.0);
-        double min = ComputeSearchFloat(prefix);
-        const double CharRange = 65536.0;
-        double rangeUnit = Math.Pow(1.0 / CharRange, Math.Min(prefix.Length, 6));
-        return (min, min + rangeUnit);
-    }
-
-    // Placeholder for HMAC-based reference hash with user key.
-    private static byte[] ComputeSearchHash(long libId, long fieldDefId, long refEntityId)
-    {
-        var input = $"{libId}:{fieldDefId}:{refEntityId}";
-        return SHA256.HashData(Encoding.UTF8.GetBytes(input));
-    }
-
-    private static string NormalizeSearch(string value) =>
-        value.Trim().ToLowerInvariant();
 
     public static void MapCgEndpoints(this WebApplication app)
     {
@@ -602,17 +566,9 @@ public static class CgEndpoints
                     SortOrder = v.SortOrder
                 };
                 if (fd.InputType == "reference")
-                {
                     fv.RefEntityId = v.RefEntityId;
-                    if (v.RefEntityId.HasValue)
-                        fv.SearchHash = ComputeSearchHash(libId, v.FieldDefId, v.RefEntityId.Value);
-                }
                 else if (!string.IsNullOrEmpty(v.PlainValue))
-                {
-                    var normalized = NormalizeSearch(v.PlainValue);
                     fv.EncryptedValue = EncryptValue(v.PlainValue);
-                    fv.SearchFloat = ComputeSearchFloat(normalized);
-                }
                 db.CgFieldValues.Add(fv);
             }
 
@@ -670,17 +626,9 @@ public static class CgEndpoints
                     SortOrder = v.SortOrder
                 };
                 if (fd.InputType == "reference")
-                {
                     fv.RefEntityId = v.RefEntityId;
-                    if (v.RefEntityId.HasValue)
-                        fv.SearchHash = ComputeSearchHash(libId, v.FieldDefId, v.RefEntityId.Value);
-                }
                 else if (!string.IsNullOrEmpty(v.PlainValue))
-                {
-                    var normalized = NormalizeSearch(v.PlainValue);
                     fv.EncryptedValue = EncryptValue(v.PlainValue);
-                    fv.SearchFloat = ComputeSearchFloat(normalized);
-                }
                 db.CgFieldValues.Add(fv);
             }
 
@@ -716,19 +664,17 @@ public static class CgEndpoints
             var lib = await db.CgLibraries.AsNoTracking().FirstOrDefaultAsync(x => x.Id == libId, ct);
             if (lib is null || lib.OwnerAccountId != userId) return Results.NotFound();
 
-            var normalized = NormalizeSearch(term ?? "");
+            var normalized = (term ?? "").Trim().ToLowerInvariant();
             if (string.IsNullOrEmpty(normalized)) return Results.Ok(Array.Empty<CgEntitySearchItem>());
 
             limit = Math.Clamp(limit == 0 ? 20 : limit, 1, 50);
 
-            // Parse optional type filter.
             var typeIdFilter = typeIds?
                 .Split(',', StringSplitOptions.RemoveEmptyEntries)
                 .Select(s => long.TryParse(s, out var id) ? id : 0L)
                 .Where(id => id > 0)
                 .ToHashSet();
 
-            // Find first non-reference FieldDef per relevant type.
             var allTypeDefs = await db.CgTypeDefs.AsNoTracking()
                 .Where(t => t.LibraryId == libId)
                 .ToListAsync(ct);
@@ -739,6 +685,7 @@ public static class CgEndpoints
 
             var typeDefMap = allTypeDefs.ToDictionary(t => t.Id);
 
+            // First non-reference field per type — this is the display/search field.
             var allFieldDefs = await db.CgFieldDefs.AsNoTracking()
                 .Where(f => relevantTypeIds.Contains(f.TypeDefId) && f.InputType != "reference")
                 .OrderBy(f => f.SortOrder)
@@ -746,41 +693,37 @@ public static class CgEndpoints
 
             var firstFieldIds = allFieldDefs
                 .GroupBy(f => f.TypeDefId)
-                .Select(g => g.First().Id)
-                .ToHashSet();
+                .ToDictionary(g => g.Key, g => g.First().Id);
 
             if (firstFieldIds.Count == 0) return Results.Ok(Array.Empty<CgEntitySearchItem>());
 
-            var (minFloat, maxFloat) = SearchFloatRange(normalized);
+            // Load all relevant entities and their first-field values, then decrypt and filter.
+            var entityTypeMap = await db.CgEntities.AsNoTracking()
+                .Where(e => e.LibraryId == libId && relevantTypeIds.Contains(e.TypeDefId))
+                .ToDictionaryAsync(e => e.Id, e => e.TypeDefId, ct);
 
-            // Phase 1: range query on SearchFloat.
-            var candidates = await db.CgFieldValues.AsNoTracking()
-                .Where(v => firstFieldIds.Contains(v.FieldDefId)
-                         && v.SearchFloat >= minFloat
-                         && v.SearchFloat < maxFloat)
-                .Take(limit * 5)
+            var fieldValueIds = firstFieldIds.Values.ToHashSet();
+            var allValues = await db.CgFieldValues.AsNoTracking()
+                .Where(v => entityTypeMap.Keys.Contains(v.EntityId)
+                         && fieldValueIds.Contains(v.FieldDefId)
+                         && v.EncryptedValue != null)
                 .ToListAsync(ct);
 
-            var candidateEntityIds = candidates.Select(v => v.EntityId).Distinct().ToList();
-
-            var entities = await db.CgEntities.AsNoTracking()
-                .Where(e => candidateEntityIds.Contains(e.Id) && e.LibraryId == libId)
-                .ToDictionaryAsync(e => e.Id, ct);
-
-            // Phase 2: decrypt and verify.
             var results = new List<CgEntitySearchItem>();
-            foreach (var v in candidates)
+            var seen = new HashSet<long>();
+
+            foreach (var v in allValues)
             {
                 if (results.Count >= limit) break;
-                if (!entities.TryGetValue(v.EntityId, out var entity)) continue;
-                if (v.EncryptedValue is null) continue;
+                if (!seen.Add(v.EntityId)) continue;
+                if (!entityTypeMap.TryGetValue(v.EntityId, out var typeDefId)) continue;
+                if (!firstFieldIds.TryGetValue(typeDefId, out var firstFieldId) || v.FieldDefId != firstFieldId) continue;
 
-                var plain = DecryptValue(v.EncryptedValue);
+                var plain = DecryptValue(v.EncryptedValue!);
                 if (!plain.ToLowerInvariant().Contains(normalized)) continue;
 
-                if (!typeDefMap.TryGetValue(entity.TypeDefId, out var typeDef)) continue;
-
-                results.Add(new CgEntitySearchItem(entity.Id, plain, entity.TypeDefId, typeDef.Name));
+                if (!typeDefMap.TryGetValue(typeDefId, out var typeDef)) continue;
+                results.Add(new CgEntitySearchItem(v.EntityId, plain, typeDefId, typeDef.Name));
             }
 
             return Results.Ok(results);

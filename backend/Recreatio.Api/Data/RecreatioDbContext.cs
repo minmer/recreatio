@@ -1603,16 +1603,7 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
         modelBuilder.Entity<Data.Cg.CgFieldValue>()
             .HasIndex(x => x.EntityId);
         modelBuilder.Entity<Data.Cg.CgFieldValue>()
-            .HasIndex(x => new { x.FieldDefId, x.SearchFloat })
-            .HasFilter("[SearchFloat] IS NOT NULL");
-        modelBuilder.Entity<Data.Cg.CgFieldValue>()
-            .HasIndex(x => new { x.FieldDefId, x.SearchHash })
-            .HasFilter("[SearchHash] IS NOT NULL");
-        modelBuilder.Entity<Data.Cg.CgFieldValue>()
             .HasIndex(x => x.RefEntityId)
             .HasFilter("[RefEntityId] IS NOT NULL");
-        modelBuilder.Entity<Data.Cg.CgFieldValue>()
-            .Property(x => x.SearchHash)
-            .HasColumnType("varbinary(32)");
     }
 }

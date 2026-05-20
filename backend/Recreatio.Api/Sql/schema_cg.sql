@@ -1,5 +1,5 @@
 -- Cogita Graph schema
--- Apply against the API database before starting the backend.
+-- Run schema_cg_v2.sql for the entity tables (CgEntities, CgFieldValues).
 
 CREATE TABLE dbo.CgLibraries (
     Id            BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_CgLibraries PRIMARY KEY,
@@ -41,30 +41,3 @@ CREATE TABLE dbo.CgFieldDefTargets (
 CREATE INDEX IX_CgFieldDefTargets_FieldDefId ON dbo.CgFieldDefTargets (FieldDefId);
 CREATE INDEX IX_CgFieldDefTargets_TargetTypeDefId ON dbo.CgFieldDefTargets (TargetTypeDefId);
 
-CREATE TABLE dbo.CgEntities (
-    Id         BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_CgEntities PRIMARY KEY,
-    LibraryId  BIGINT NOT NULL,
-    TypeDefId  BIGINT NOT NULL,
-    CreatedUtc DATETIME2 NOT NULL,
-    UpdatedUtc DATETIME2 NOT NULL
-);
-CREATE INDEX IX_CgEntities_LibraryId ON dbo.CgEntities (LibraryId);
-CREATE INDEX IX_CgEntities_TypeDefId ON dbo.CgEntities (TypeDefId);
-
-CREATE TABLE dbo.CgFieldValues (
-    Id             BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_CgFieldValues PRIMARY KEY,
-    EntityId       BIGINT NOT NULL,
-    FieldDefId     BIGINT NOT NULL,
-    SortOrder      INT NOT NULL,
-    EncryptedValue NVARCHAR(MAX) NULL,          -- encrypted text/number/date value
-    SearchFloat    FLOAT NULL,                  -- order-preserving shifted float for range search
-    SearchHash     VARBINARY(32) NULL,          -- keyed hash for reference exact-match search
-    RefEntityId    BIGINT NULL                  -- plaintext FK for graph structure
-);
-CREATE INDEX IX_CgFieldValues_EntityId ON dbo.CgFieldValues (EntityId);
-CREATE INDEX IX_CgFieldValues_FieldDefId_SearchFloat ON dbo.CgFieldValues (FieldDefId, SearchFloat)
-    WHERE SearchFloat IS NOT NULL;
-CREATE INDEX IX_CgFieldValues_FieldDefId_SearchHash ON dbo.CgFieldValues (FieldDefId, SearchHash)
-    WHERE SearchHash IS NOT NULL;
-CREATE INDEX IX_CgFieldValues_RefEntityId ON dbo.CgFieldValues (RefEntityId)
-    WHERE RefEntityId IS NOT NULL;
