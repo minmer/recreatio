@@ -166,19 +166,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaGameLocationAudit> CogitaGameLocationAudits => Set<Data.Cogita.CogitaGameLocationAudit>();
     public DbSet<Data.Cogita.Core.CogitaKnowledgeLinkSingleCore> CogitaKnowledgeLinkSinglesCore => Set<Data.Cogita.Core.CogitaKnowledgeLinkSingleCore>();
     public DbSet<Data.Cogita.Core.CogitaKnowledgeLinkMultiCore> CogitaKnowledgeLinkMultisCore => Set<Data.Cogita.Core.CogitaKnowledgeLinkMultiCore>();
-    public DbSet<Data.Cg.CgLibrary> CgLibraries => Set<Data.Cg.CgLibrary>();
-    public DbSet<Data.Cg.CgNodeKind> CgNodeKinds => Set<Data.Cg.CgNodeKind>();
-    public DbSet<Data.Cg.CgFieldDef> CgFieldDefs => Set<Data.Cg.CgFieldDef>();
-    public DbSet<Data.Cg.CgSubentityKindDef> CgSubentityKindDefs => Set<Data.Cg.CgSubentityKindDef>();
-    public DbSet<Data.Cg.CgEdgeKind> CgEdgeKinds => Set<Data.Cg.CgEdgeKind>();
-    public DbSet<Data.Cg.CgNode> CgNodes => Set<Data.Cg.CgNode>();
-    public DbSet<Data.Cg.CgFieldValue> CgFieldValues => Set<Data.Cg.CgFieldValue>();
-    public DbSet<Data.Cg.CgEdge> CgEdges => Set<Data.Cg.CgEdge>();
-    public DbSet<Data.Cg.CgNodeRelation> CgNodeRelations => Set<Data.Cg.CgNodeRelation>();
-    public DbSet<Data.Cg.CgOpenTopic> CgOpenTopics => Set<Data.Cg.CgOpenTopic>();
-    public DbSet<Data.Cg.CgRangeNode> CgRangeNodes => Set<Data.Cg.CgRangeNode>();
-    public DbSet<Data.Cg.CgRangeSegment> CgRangeSegments => Set<Data.Cg.CgRangeSegment>();
-    public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefinitionsCore => Set<Data.Cogita.Core.CogitaCheckcardDefinitionCore>();
+public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefinitionsCore => Set<Data.Cogita.Core.CogitaCheckcardDefinitionCore>();
     public DbSet<Data.Cogita.Core.CogitaDependencyEdgeCore> CogitaDependencyEdgesCore => Set<Data.Cogita.Core.CogitaDependencyEdgeCore>();
     public DbSet<Data.Cogita.Core.CogitaRevisionPatternCore> CogitaRevisionPatternsCore => Set<Data.Cogita.Core.CogitaRevisionPatternCore>();
     public DbSet<Data.Cogita.Core.CogitaRunParticipantCore> CogitaRunParticipantsCore => Set<Data.Cogita.Core.CogitaRunParticipantCore>();
@@ -204,6 +192,10 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Calendar.CalendarGraphExecution> CalendarGraphExecutions => Set<Data.Calendar.CalendarGraphExecution>();
     public DbSet<Data.Calendar.CalendarSharedViewLink> CalendarSharedViewLinks => Set<Data.Calendar.CalendarSharedViewLink>();
     public DbSet<Data.Calendar.CalendarReminderDispatch> CalendarReminderDispatches => Set<Data.Calendar.CalendarReminderDispatch>();
+    public DbSet<Data.Cg.CgLibrary> CgLibraries => Set<Data.Cg.CgLibrary>();
+    public DbSet<Data.Cg.CgTypeDef> CgTypeDefs => Set<Data.Cg.CgTypeDef>();
+    public DbSet<Data.Cg.CgFieldDef> CgFieldDefs => Set<Data.Cg.CgFieldDef>();
+    public DbSet<Data.Cg.CgFieldDefTarget> CgFieldDefTargets => Set<Data.Cg.CgFieldDefTarget>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -398,29 +390,7 @@ public sealed class RecreatioDbContext : DbContext
             .HasIndex(x => x.ScopeKey)
             .IsUnique();
 
-        modelBuilder.Entity<Data.Cg.CgNodeKind>()
-            .HasOne<Data.Cg.CgLibrary>()
-            .WithMany()
-            .HasForeignKey(x => x.LibraryId);
-
-        modelBuilder.Entity<Data.Cg.CgFieldDef>()
-            .HasOne<Data.Cg.CgLibrary>()
-            .WithMany()
-            .HasForeignKey(x => x.LibraryId)
-            .OnDelete(DeleteBehavior.NoAction);
-
-        modelBuilder.Entity<Data.Cg.CgFieldDef>()
-            .HasOne<Data.Cg.CgNodeKind>()
-            .WithMany()
-            .HasForeignKey(x => x.NodeKindId);
-
-        modelBuilder.Entity<Data.Cg.CgFieldDef>()
-            .HasOne<Data.Cg.CgNodeKind>()
-            .WithMany()
-            .HasForeignKey(x => x.RefNodeKindId)
-            .OnDelete(DeleteBehavior.NoAction);
-
-        modelBuilder.Entity<Data.Edk.EdkEvent>()
+modelBuilder.Entity<Data.Edk.EdkEvent>()
             .HasIndex(x => x.Slug)
             .IsUnique();
 
@@ -1608,5 +1578,19 @@ public sealed class RecreatioDbContext : DbContext
             .IsUnique();
         modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
             .HasIndex(x => new { x.LibraryId, x.GraphId, x.ChildItemType, x.ChildItemId, x.ChildCheckType, x.ChildDirection });
+
+        modelBuilder.Entity<Data.Cg.CgLibrary>()
+            .HasIndex(x => x.OwnerAccountId);
+        modelBuilder.Entity<Data.Cg.CgTypeDef>()
+            .HasIndex(x => x.LibraryId);
+        modelBuilder.Entity<Data.Cg.CgTypeDef>()
+            .HasIndex(x => new { x.LibraryId, x.Name })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cg.CgFieldDef>()
+            .HasIndex(x => x.TypeDefId);
+        modelBuilder.Entity<Data.Cg.CgFieldDefTarget>()
+            .HasIndex(x => x.FieldDefId);
+        modelBuilder.Entity<Data.Cg.CgFieldDefTarget>()
+            .HasIndex(x => x.TargetTypeDefId);
     }
 }

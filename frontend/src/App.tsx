@@ -72,12 +72,7 @@ const CogitaLibraryHomePage = lazy(() =>
 const CogitaLibraryPage = lazy(() =>
   import('./pages/cogita/library/CogitaLibraryPage').then((module) => ({ default: module.CogitaLibraryPage }))
 );
-const CgApp = lazy(() =>
-  import('./pages/cg/CgApp').then((module) => ({ default: module.CgApp }))
-);
-const CgLandingPage = lazy(() =>
-  import('./pages/cg/CgLandingPage').then((module) => ({ default: module.CgLandingPage }))
-);
+const CgApp = lazy(() => import('./pages/cg/CgApp').then((module) => ({ default: module.CgApp })));
 
 const deviceInfo = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
 const languages = ['pl', 'en', 'de'] as const;
@@ -166,8 +161,11 @@ export default function App() {
   const lastHomePathRef = useRef('/section-1');
   const panelTouchRef = useRef<number | null>(null);
   const isAuthenticated = Boolean(session);
-  const protectedRoutes = useMemo(() => new Set<RouteKey>(['account']), []);
-  const protectedPathMap = useMemo(() => new Map<string, RouteKey>([['/account', 'account']]), []);
+  const protectedRoutes = useMemo(() => new Set<RouteKey>(['account', 'cg']), []);
+  const protectedPathMap = useMemo(
+    () => new Map<string, RouteKey>([['/account', 'account'], ['/cg', 'cg']]),
+    []
+  );
 
   const pathname = location.pathname;
   const pathSegments = pathname.split('/').filter(Boolean);
@@ -211,8 +209,8 @@ export default function App() {
   const cogitaRevisionRuntimeRunId = isCogitaRevisionRuntimePath
     ? decodeRouteSegment(pathSegments[4] ?? 'new')
     : undefined;
-  const isCgPath = pathname === '/cg' || pathname.startsWith('/cg/');
-  const isEventsPath = pathname === '/event' || pathname.startsWith('/event/');
+const isCgPath = pathname === '/cg' || pathname.startsWith('/cg/');
+const isEventsPath = pathname === '/event' || pathname.startsWith('/event/');
   const isLegacyLimanowaPath = pathname === '/limanowa' || pathname.startsWith('/limanowa/');
   const isChatPath = pathname === '/chat' || pathname.startsWith('/chat/');
   const isCalendarPath = pathname === '/calendar' || pathname.startsWith('/calendar/');
@@ -317,9 +315,9 @@ export default function App() {
       if (next === 'parish') navigate('/parish');
       else if (next === 'events') navigate('/event');
       else if (next === 'limanowa') navigate('/event/limanowa/start');
+      else if (next === 'cg') navigate('/cg')
       else if (next === 'cogita') navigate('/cogita');
-      else if (next === 'cg') navigate('/cg');
-      else if (next === 'chat') navigate('/chat');
+else if (next === 'chat') navigate('/chat');
       else if (next === 'calendar') navigate('/calendar');
       else if (next === 'faq') navigate('/faq');
       else if (next === 'legal') navigate('/legal');
@@ -727,24 +725,6 @@ export default function App() {
           />
         </Suspense>
       ) : null}
-      {isCgPath && (
-        <Suspense fallback={lazyFallback}>
-          {isAuthenticated ? (
-            <CgApp
-              copy={t}
-              onNavigate={navigateRoute}
-              secureMode={secureMode}
-              onLogout={handleLogout}
-            />
-          ) : (
-            <CgLandingPage
-              copy={t}
-              onAuthAction={() => openLoginCard('cogita')}
-              onNavigate={navigateRoute}
-            />
-          )}
-        </Suspense>
-      )}
       {isCalendarPath && (
         <Suspense fallback={lazyFallback}>
           <CalendarPage
@@ -1331,6 +1311,11 @@ export default function App() {
           )}
         </Suspense>
       ) : null}
+      {isCgPath && session && (
+        <Suspense fallback={lazyFallback}>
+          <CgApp pathname={pathname} />
+        </Suspense>
+      )}
       {pathname === '/account' && session && (
         <Suspense fallback={lazyFallback}>
           <AccountPage

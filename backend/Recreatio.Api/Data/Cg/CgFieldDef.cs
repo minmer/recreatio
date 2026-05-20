@@ -1,29 +1,15 @@
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-
 namespace Recreatio.Api.Data.Cg;
 
-[Table("CgFieldDef")]
-public sealed class CgFieldDef
+public class CgFieldDef
 {
-    [Key]
-    public Guid Id { get; set; }
-
-    public Guid NodeKindId { get; set; }
-
-    public Guid LibraryId { get; set; }
-
-    public string FieldName { get; set; } = string.Empty;
-
-    public string FieldType { get; set; } = "Text";
-
-    public Guid? RefNodeKindId { get; set; }
-
-    public bool IsMultiValue { get; set; }
-
-    public bool IsRangeCapable { get; set; }
-
+    public long Id { get; set; }
+    public long TypeDefId { get; set; }
+    public string Label { get; set; } = "";
     public int SortOrder { get; set; }
-
-    public DateTimeOffset CreatedUtc { get; set; }
+    // text | number | date | reference
+    public string InputType { get; set; } = "text";
+    public bool Multiple { get; set; }
+    public bool IsOrdered { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    public DateTime UpdatedUtc { get; set; }
 }

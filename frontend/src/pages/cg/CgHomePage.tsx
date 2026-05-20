@@ -1,179 +1,162 @@
 import { useEffect, useState } from 'react';
-import type { Copy } from '../../content/types';
-import { type CgLibrary, createLibrary, deleteLibrary, listLibraries } from './api/cgApi';
+import { useNavigate } from 'react-router-dom';
+import {
+  getCgLibraries,
+  createCgLibrary,
+  renameCgLibrary,
+  deleteCgLibrary,
+  type CgLibraryResponse
+} from './cgApi';
 
-interface Props {
-  copy: Copy;
-  onOpenLibrary: (libId: string) => void;
-  onNavigateToCogita: () => void;
-}
-
-export function CgHomePage({ copy, onOpenLibrary, onNavigateToCogita }: Props) {
-  const t = copy.cg.home;
-  const [libraries, setLibraries] = useState<CgLibrary[]>([]);
+export function CgHomePage() {
+  const navigate = useNavigate();
+  const [libraries, setLibraries] = useState<CgLibraryResponse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('custom');
-  const [showWizard, setShowWizard] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-
-  const TEMPLATES = [
-    { key: 'vocabulary', icon: '📖', name: t.templates.vocabulary.name, desc: t.templates.vocabulary.desc },
-    { key: 'phonebook',  icon: '📇', name: t.templates.phonebook.name,  desc: t.templates.phonebook.desc  },
-    { key: 'lesson',     icon: '🎓', name: t.templates.lesson.name,     desc: t.templates.lesson.desc     },
-    { key: 'custom',     icon: '◉',  name: t.templates.custom.name,     desc: t.templates.custom.desc     },
-  ];
+  const [creating, setCreating] = useState(false);
+  const [renameId, setRenameId] = useState<number | null>(null);
+  const [renameName, setRenameName] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    listLibraries()
+    setLoading(true);
+    getCgLibraries()
       .then(setLibraries)
-      .catch(() => setError(t.loadFailed))
+      .catch(() => setError('Failed to load libraries.'))
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleCreate() {
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
     const name = newName.trim();
     if (!name) return;
     setCreating(true);
-    setError(null);
     try {
-      const lib = await createLibrary(name, selectedTemplate);
-      setLibraries((prev) => [lib, ...prev]);
+      const lib = await createCgLibrary(name);
+      setLibraries((prev) => [...prev, lib].sort((a, b) => a.name.localeCompare(b.name)));
       setNewName('');
-      setShowWizard(false);
-      onOpenLibrary(lib.id);
     } catch {
-      setError(t.createFailed);
+      setError('Failed to create library.');
     } finally {
       setCreating(false);
     }
   }
 
-  async function handleDelete(libId: string) {
+  async function handleRename(id: number) {
+    const name = renameName.trim();
+    if (!name) return;
     try {
-      await deleteLibrary(libId);
-      setLibraries((prev) => prev.filter((l) => l.id !== libId));
-      setDeleteConfirm(null);
+      await renameCgLibrary(id, name);
+      setLibraries((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, name } : l)).sort((a, b) => a.name.localeCompare(b.name))
+      );
+      setRenameId(null);
     } catch {
-      setError(t.deleteFailed);
+      setError('Failed to rename library.');
+    }
+  }
+
+  async function handleDelete(id: number, name: string) {
+    if (!confirm(`Delete library "${name}" and all its types? This cannot be undone.`)) return;
+    try {
+      await deleteCgLibrary(id);
+      setLibraries((prev) => prev.filter((l) => l.id !== id));
+    } catch {
+      setError('Failed to delete library.');
     }
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div>
-          <h1 className="cg-page-title">{t.title}</h1>
-          <p className="cg-page-sub">{t.sub}</p>
-        </div>
-        <button className="cg-btn cg-btn-primary" onClick={() => setShowWizard(true)} type="button">
-          {t.newLibrary}
-        </button>
+    <div className="cg-page">
+      <div className="cg-header">
+        <h1 className="cg-title">Cogita Graph</h1>
       </div>
 
-      {error && <p className="cg-error" style={{ marginBottom: '1rem' }}>{error}</p>}
-
-      {showWizard && (
-        <div className="cg-wizard" style={{ marginBottom: '2rem', background: 'var(--cg-surface)', border: '1px solid var(--cg-border)', borderRadius: 'var(--cg-radius)', padding: '1.25rem' }}>
-          <p className="cg-wizard-title">{t.wizardTitle}</p>
-
-          <div className="cg-field-group">
-            <label className="cg-label">{t.nameLabel}</label>
-            <input
-              className="cg-input"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder={t.namePlaceholder}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-              autoFocus
-            />
-          </div>
-
-          <div className="cg-field-group">
-            <label className="cg-label">{t.templateLabel}</label>
-            <div className="cg-template-grid">
-              {TEMPLATES.map((tmpl) => (
-                <button
-                  key={tmpl.key}
-                  type="button"
-                  className={`cg-template-card${selectedTemplate === tmpl.key ? ' selected' : ''}`}
-                  onClick={() => setSelectedTemplate(tmpl.key)}
-                >
-                  <div className="cg-template-icon">{tmpl.icon}</div>
-                  <p className="cg-template-name">{tmpl.name}</p>
-                  <p className="cg-template-desc">{tmpl.desc}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="cg-btn cg-btn-primary" onClick={handleCreate} disabled={creating || !newName.trim()} type="button">
-              {creating ? t.creating : t.createAction}
-            </button>
-            <button className="cg-btn cg-btn-ghost" onClick={() => setShowWizard(false)} type="button">
-              {t.cancel}
-            </button>
-          </div>
+      {error && (
+        <div className="cg-error" onClick={() => setError(null)}>
+          {error}
         </div>
       )}
 
-      {loading ? (
-        <div className="cg-loading">Loading…</div>
-      ) : libraries.length === 0 ? (
-        <div className="cg-empty">
-          <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>◉</p>
-          <p>{t.emptyTitle}</p>
-          <p>{t.emptyDesc}</p>
-        </div>
-      ) : (
-        <div className="cg-card-grid">
-          {libraries.map((lib) => (
-            <div key={lib.id} className="cg-card" onClick={() => onOpenLibrary(lib.id)} style={{ position: 'relative' }}>
-              <p className="cg-card-title">{lib.name}</p>
-              <span className={`cg-card-badge ${lib.template}`}>{t.templateLabels[lib.template] ?? lib.template}</span>
-              <p className="cg-card-meta">{new Date(lib.createdUtc).toLocaleDateString()}</p>
-              {deleteConfirm === lib.id ? (
-                <div
-                  style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem' }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    className="cg-btn cg-btn-danger cg-btn-sm"
-                    type="button"
-                    onClick={() => handleDelete(lib.id)}
-                  >
-                    {t.deleteConfirm}
-                  </button>
-                  <button
-                    className="cg-btn cg-btn-ghost cg-btn-sm"
-                    type="button"
-                    onClick={() => setDeleteConfirm(null)}
-                  >
-                    {t.deleteCancel}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  className="cg-btn cg-btn-ghost cg-btn-sm"
-                  style={{ marginTop: '0.5rem', alignSelf: 'flex-start' }}
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setDeleteConfirm(lib.id); }}
-                >
-                  Delete
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="cg-section">
+        <h2 className="cg-section-title">Libraries</h2>
 
-      <div style={{ marginTop: '3rem', paddingTop: '1.5rem', borderTop: '1px solid var(--cg-border)' }}>
-        <button className="cg-btn cg-btn-ghost cg-btn-sm" onClick={onNavigateToCogita} type="button">
-          {t.backToCogita}
-        </button>
+        {loading ? (
+          <div className="cg-loading">Loading…</div>
+        ) : libraries.length === 0 ? (
+          <p className="cg-empty">No libraries yet. Create one below.</p>
+        ) : (
+          <ul className="cg-list">
+            {libraries.map((lib) => (
+              <li key={lib.id} className="cg-list-item">
+                {renameId === lib.id ? (
+                  <form
+                    className="cg-inline-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleRename(lib.id);
+                    }}
+                  >
+                    <input
+                      className="cg-input"
+                      value={renameName}
+                      onChange={(e) => setRenameName(e.target.value)}
+                      autoFocus
+                    />
+                    <button className="cg-btn cg-btn-sm" type="submit">
+                      Save
+                    </button>
+                    <button
+                      className="cg-btn cg-btn-sm cg-btn-ghost"
+                      type="button"
+                      onClick={() => setRenameId(null)}
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                ) : (
+                  <>
+                    <button
+                      className="cg-list-name"
+                      onClick={() => navigate(`/cg/libraries/${lib.id}`)}
+                    >
+                      {lib.name}
+                    </button>
+                    <div className="cg-list-actions">
+                      <button
+                        className="cg-btn cg-btn-sm cg-btn-ghost"
+                        onClick={() => {
+                          setRenameId(lib.id);
+                          setRenameName(lib.name);
+                        }}
+                      >
+                        Rename
+                      </button>
+                      <button
+                        className="cg-btn cg-btn-sm cg-btn-danger"
+                        onClick={() => handleDelete(lib.id, lib.name)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <form className="cg-create-form" onSubmit={handleCreate}>
+          <input
+            className="cg-input"
+            placeholder="New library name…"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+          <button className="cg-btn" type="submit" disabled={creating || !newName.trim()}>
+            {creating ? 'Creating…' : 'Create Library'}
+          </button>
+        </form>
       </div>
     </div>
   );
