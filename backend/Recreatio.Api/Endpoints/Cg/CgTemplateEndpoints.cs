@@ -273,7 +273,7 @@ public static class CgTemplateEndpoints
         // Compute outputs per node: nodeKey → handleName → string[]
         var outputs = new Dictionary<string, Dictionary<string, List<string>>>();
 
-        // Pass 1: field nodes
+        // Pass 1a: field nodes (text / number / date fields only)
         foreach (var node in nodes.Where(n => n.NodeType == "field"))
         {
             var cfg = ParseConfig<FieldNodeConfig>(node.ConfigJson);
@@ -289,18 +289,92 @@ public static class CgTemplateEndpoints
                 .ToList();
 
             if (vals.Count == 0)
-                warnings.Add($"Field node '{cfg.FieldLabel}' produced no values — entity has no data for this field.");
+                warnings.Add($"Field node '{cfg.FieldLabel}' produced no values — use a Sub-entities node for reference fields.");
 
             outputs[node.NodeKey] = new() { ["value"] = vals };
+        }
+
+        // Pass 1b: sub-entities nodes — follow a reference field and resolve each sub-entity's text value
+        foreach (var node in nodes.Where(n => n.NodeType == "subentities"))
+        {
+            var cfg = ParseConfig<SubEntitiesNodeConfig>(node.ConfigJson);
+            if (cfg is null || cfg.FieldDefId == 0)
+            {
+                warnings.Add($"Sub-entities node has no reference field selected.");
+                continue;
+            }
+
+            var refRows = fieldValues
+                .Where(fv => fv.FieldDefId == cfg.FieldDefId && fv.RefEntityId.HasValue)
+                .OrderBy(fv => fv.SortOrder)
+                .ToList();
+
+            if (refRows.Count == 0)
+            {
+                warnings.Add($"Sub-entities node '{cfg.FieldLabel}': no referenced entities found for this field.");
+                outputs[node.NodeKey] = new() { ["values"] = [] };
+                continue;
+            }
+
+            var refIds = refRows.Select(fv => fv.RefEntityId!.Value).ToList();
+
+            var refEntities = await db.CgEntities.AsNoTracking()
+                .Where(e => refIds.Contains(e.Id))
+                .Select(e => new { e.Id, e.TypeDefId })
+                .ToListAsync(ct);
+
+            var refTypeIds = refEntities.Select(e => e.TypeDefId).Distinct().ToList();
+
+            // Use configured sub-field if given; otherwise fall back to the first field of each type.
+            IReadOnlyCollection<long> targetFieldIds;
+            if (cfg.SubFieldDefId > 0)
+            {
+                targetFieldIds = new HashSet<long> { cfg.SubFieldDefId };
+            }
+            else
+            {
+                var firstFields = await db.CgFieldDefs.AsNoTracking()
+                    .Where(f => refTypeIds.Contains(f.TypeDefId))
+                    .OrderBy(f => f.SortOrder)
+                    .ToListAsync(ct);
+                targetFieldIds = firstFields
+                    .GroupBy(f => f.TypeDefId)
+                    .Select(g => g.First().Id)
+                    .ToHashSet();
+            }
+
+            var subValues = await db.CgFieldValues.AsNoTracking()
+                .Where(v => refIds.Contains(v.EntityId)
+                         && targetFieldIds.Contains(v.FieldDefId)
+                         && v.EncryptedValue != null)
+                .ToListAsync(ct);
+
+            var displayByEntity = subValues
+                .GroupBy(v => v.EntityId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => DecryptValue(g.OrderBy(v => v.SortOrder).First().EncryptedValue!));
+
+            var vals = refIds
+                .Select(id => displayByEntity.TryGetValue(id, out var d) ? d : null)
+                .Where(d => d is not null)
+                .Select(d => d!)
+                .ToList();
+
+            if (vals.Count == 0)
+                warnings.Add($"Sub-entities node '{cfg.FieldLabel}': referenced entities have no text value in the selected sub-field.");
+
+            outputs[node.NodeKey] = new() { ["values"] = vals };
         }
 
         // Pass 2: distractor nodes
         foreach (var node in nodes.Where(n => n.NodeType == "distractor"))
         {
             var cfg = ParseConfig<DistractorNodeConfig>(node.ConfigJson);
-            if (cfg is null) continue;
+            if (cfg is null || cfg.FieldDefId == 0) continue;
 
             var count = Math.Max(1, cfg.Count);
+
             var otherIds = await db.CgEntities.AsNoTracking()
                 .Where(e => e.TypeDefId == entity.TypeDefId && e.Id != entity.Id)
                 .Select(e => e.Id)
@@ -308,17 +382,68 @@ public static class CgTemplateEndpoints
 
             var shuffled = otherIds.OrderBy(_ => Guid.NewGuid()).Take(count * 2).ToList();
 
-            var distractorValues = await db.CgFieldValues.AsNoTracking()
-                .Where(fv => shuffled.Contains(fv.EntityId) && fv.FieldDefId == cfg.FieldDefId
-                             && fv.EncryptedValue != null && fv.SortOrder == 0)
+            var distractorFvs = await db.CgFieldValues.AsNoTracking()
+                .Where(fv => shuffled.Contains(fv.EntityId)
+                          && fv.FieldDefId == cfg.FieldDefId
+                          && fv.SortOrder == 0)
                 .ToListAsync(ct);
 
-            var distractors = shuffled
-                .Select(id => distractorValues.FirstOrDefault(fv => fv.EntityId == id))
-                .Where(fv => fv?.EncryptedValue != null)
-                .Select(fv => DecryptValue(fv!.EncryptedValue!))
-                .Take(count)
-                .ToList();
+            List<string> distractors;
+
+            // Check if the field is a reference by looking at what the rows contain
+            if (distractorFvs.Any(fv => fv.RefEntityId.HasValue))
+            {
+                var refIds = shuffled
+                    .Select(id => distractorFvs.FirstOrDefault(fv => fv.EntityId == id)?.RefEntityId)
+                    .Where(r => r.HasValue)
+                    .Select(r => r!.Value)
+                    .Take(count)
+                    .ToList();
+
+                var refEntities = await db.CgEntities.AsNoTracking()
+                    .Where(e => refIds.Contains(e.Id))
+                    .Select(e => new { e.Id, e.TypeDefId })
+                    .ToListAsync(ct);
+
+                var refTypeIds = refEntities.Select(e => e.TypeDefId).Distinct().ToList();
+
+                var firstFields = await db.CgFieldDefs.AsNoTracking()
+                    .Where(f => refTypeIds.Contains(f.TypeDefId))
+                    .OrderBy(f => f.SortOrder)
+                    .ToListAsync(ct);
+
+                var firstFieldByType = firstFields
+                    .GroupBy(f => f.TypeDefId)
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                var firstFieldIds = firstFieldByType.Values.Select(f => f.Id).ToHashSet();
+
+                var refFieldValues = await db.CgFieldValues.AsNoTracking()
+                    .Where(v => refIds.Contains(v.EntityId)
+                             && firstFieldIds.Contains(v.FieldDefId)
+                             && v.EncryptedValue != null)
+                    .ToListAsync(ct);
+
+                var displayByRef = refFieldValues
+                    .GroupBy(v => v.EntityId)
+                    .ToDictionary(g => g.Key,
+                        g => DecryptValue(g.OrderBy(v => v.SortOrder).First().EncryptedValue!));
+
+                distractors = refIds
+                    .Select(id => displayByRef.TryGetValue(id, out var d) ? d : null)
+                    .Where(d => d is not null)
+                    .Select(d => d!)
+                    .ToList();
+            }
+            else
+            {
+                distractors = shuffled
+                    .Select(id => distractorFvs.FirstOrDefault(fv => fv.EntityId == id))
+                    .Where(fv => fv?.EncryptedValue != null)
+                    .Select(fv => DecryptValue(fv!.EncryptedValue!))
+                    .Take(count)
+                    .ToList();
+            }
 
             outputs[node.NodeKey] = new() { ["distractor"] = distractors };
         }
@@ -513,5 +638,14 @@ public static class CgTemplateEndpoints
     {
         // "random" | "first" | "last"
         public string Position { get; set; } = "random";
+    }
+
+    private sealed class SubEntitiesNodeConfig
+    {
+        public long FieldDefId { get; set; }
+        public string FieldLabel { get; set; } = string.Empty;
+        // 0 = use the first text field of each sub-entity (display value)
+        public long SubFieldDefId { get; set; }
+        public string SubFieldLabel { get; set; } = string.Empty;
     }
 }

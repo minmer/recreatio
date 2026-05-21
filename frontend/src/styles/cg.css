@@ -854,6 +854,19 @@
   color: #fca5a5;
 }
 
+.cgt-node-subentities {
+  background: #0e1a2a;
+  border-color: #2563eb;
+  color: #93c5fd;
+}
+
+.cgt-cfg-hint {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.4;
+  padding: 0.1rem 0;
+}
+
 /* ── Preview modal ──────────────────────────────────── */
 
 .cgt-modal-overlay {

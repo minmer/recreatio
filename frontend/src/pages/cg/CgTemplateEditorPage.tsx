@@ -41,6 +41,7 @@ type AnswerBoolConfig = { trueLabel: string; falseLabel: string };
 type DistractorConfig = { count: number; fieldDefId: number; fieldLabel: string };
 type MaskConfig = { strategy: 'prefix' | 'suffix' | 'random'; keepPct: number };
 type PickConfig = { position: 'random' | 'first' | 'last' };
+type SubEntitiesConfig = { fieldDefId: number; fieldLabel: string; subFieldDefId: number; subFieldLabel: string };
 
 // ── Custom nodes ──────────────────────────────────────────────────────────────
 
@@ -137,6 +138,17 @@ function PickNode({ data }: { data: PickConfig }) {
   );
 }
 
+function SubEntitiesNode({ data }: { data: SubEntitiesConfig }) {
+  return (
+    <div className="cgt-node cgt-node-subentities">
+      <div className="cgt-node-type">Sub-entities</div>
+      <div className="cgt-node-label">{data.fieldLabel || '(select ref field)'}</div>
+      {data.subFieldLabel && <div className="cgt-node-sub">→ {data.subFieldLabel}</div>}
+      <Handle type="source" position={Position.Right} id="values" />
+    </div>
+  );
+}
+
 function MaskNode({ data }: { data: MaskConfig }) {
   return (
     <div className="cgt-node cgt-node-mask" style={{ minHeight: 80 }}>
@@ -162,7 +174,8 @@ const NODE_TYPES = {
   'answer-bool': AnswerBoolNode,
   distractor: DistractorNode,
   pick: PickNode,
-  mask: MaskNode
+  mask: MaskNode,
+  subentities: SubEntitiesNode
 };
 
 // ── Default configs ───────────────────────────────────────────────────────────
@@ -178,6 +191,7 @@ function defaultConfig(nodeType: string): object {
     case 'distractor':    return { count: 3, fieldDefId: 0, fieldLabel: '' };
     case 'pick':          return { position: 'random' };
     case 'mask':          return { strategy: 'suffix', keepPct: 30 };
+    case 'subentities':   return { fieldDefId: 0, fieldLabel: '', subFieldDefId: 0, subFieldLabel: '' };
     default:              return {};
   }
 }
@@ -304,6 +318,42 @@ function ConfigPanel({
         </div>
       )}
 
+      {type === 'subentities' && (
+        <>
+          <div className="cgt-cfg-row">
+            <label className="cgt-cfg-label">Reference field</label>
+            <select
+              className="cg-select"
+              value={(cfg.fieldDefId as number) ?? 0}
+              onChange={e => {
+                const id = Number(e.target.value);
+                const f = fields.find(x => x.id === id);
+                onChange(node.id, { ...cfg, fieldDefId: id, fieldLabel: f?.label ?? '' });
+              }}
+            >
+              <option value={0}>— select field —</option>
+              {fields.filter(f => f.inputType === 'reference').map(f => (
+                <option key={f.id} value={f.id}>{f.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="cgt-cfg-row cgt-cfg-hint">
+            Sub-field to read from each referenced entity (leave blank to use each entity's display value / first field).
+          </div>
+          <div className="cgt-cfg-row">
+            <label className="cgt-cfg-label">Sub-entity field ID</label>
+            <input
+              type="number"
+              className="cg-input cgt-num"
+              min={0}
+              placeholder="0 = display value"
+              value={(cfg.subFieldDefId as number) ?? 0}
+              onChange={e => set('subFieldDefId', Number(e.target.value))}
+            />
+          </div>
+        </>
+      )}
+
       {type === 'mask' && (
         <>
           <div className="cgt-cfg-row">
@@ -335,7 +385,8 @@ const PALETTE = [
   { type: 'answer-bool',   label: 'True/False',   hint: 'boolean answer' },
   { type: 'distractor',    label: 'Distractors',  hint: 'wrong options source' },
   { type: 'pick',          label: 'Pick',         hint: 'hide one from list' },
-  { type: 'mask',          label: 'Mask',         hint: 'hide part of text' }
+  { type: 'mask',          label: 'Mask',         hint: 'hide part of text' },
+  { type: 'subentities',   label: 'Sub-entities', hint: 'resolve reference field' }
 ];
 
 // ── Question preview modal ────────────────────────────────────────────────────
