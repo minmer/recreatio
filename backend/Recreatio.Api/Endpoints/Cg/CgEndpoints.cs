@@ -501,31 +501,12 @@ public static class CgEndpoints
 
             if (entities.Count == 0) return Results.Ok(Array.Empty<CgEntityListItem>());
 
-            // Get first non-reference FieldDef for this type (display value).
-            var firstField = await db.CgFieldDefs.AsNoTracking()
-                .Where(f => f.TypeDefId == typeId && f.InputType != "reference")
-                .OrderBy(f => f.SortOrder)
-                .FirstOrDefaultAsync(ct);
-
-            var entityIds = entities.Select(e => e.Id).ToList();
-            var displayValues = new Dictionary<long, string>();
-
-            if (firstField is not null)
-            {
-                var firstValues = await db.CgFieldValues.AsNoTracking()
-                    .Where(v => entityIds.Contains(v.EntityId) && v.FieldDefId == firstField.Id)
-                    .GroupBy(v => v.EntityId)
-                    .Select(g => new { EntityId = g.Key, Value = g.OrderBy(v => v.SortOrder).First() })
-                    .ToListAsync(ct);
-
-                foreach (var fv in firstValues)
-                    if (fv.Value.EncryptedValue is not null)
-                        displayValues[fv.EntityId] = DecryptValue(fv.Value.EncryptedValue);
-            }
+            var displayMap = await BuildDisplayMapAsync(
+                entities.Select(e => (e.Id, e.TypeDefId)).ToList(), db, ct);
 
             var items = entities.Select(e => new CgEntityListItem(
                 e.Id,
-                displayValues.GetValueOrDefault(e.Id, ""),
+                displayMap.GetValueOrDefault(e.Id, ""),
                 new DateTimeOffset(e.CreatedUtc, TimeSpan.Zero),
                 new DateTimeOffset(e.UpdatedUtc, TimeSpan.Zero)
             )).ToList();
@@ -685,45 +666,23 @@ public static class CgEndpoints
 
             var typeDefMap = allTypeDefs.ToDictionary(t => t.Id);
 
-            // First non-reference field per type — this is the display/search field.
-            var allFieldDefs = await db.CgFieldDefs.AsNoTracking()
-                .Where(f => relevantTypeIds.Contains(f.TypeDefId) && f.InputType != "reference")
-                .OrderBy(f => f.SortOrder)
-                .ToListAsync(ct);
-
-            var firstFieldIds = allFieldDefs
-                .GroupBy(f => f.TypeDefId)
-                .ToDictionary(g => g.Key, g => g.First().Id);
-
-            if (firstFieldIds.Count == 0) return Results.Ok(Array.Empty<CgEntitySearchItem>());
-
-            // Load all relevant entities and their first-field values, then decrypt and filter.
-            var entityTypeMap = await db.CgEntities.AsNoTracking()
+            var allEntities = await db.CgEntities.AsNoTracking()
                 .Where(e => e.LibraryId == libId && relevantTypeIds.Contains(e.TypeDefId))
-                .ToDictionaryAsync(e => e.Id, e => e.TypeDefId, ct);
-
-            var fieldValueIds = firstFieldIds.Values.ToHashSet();
-            var allValues = await db.CgFieldValues.AsNoTracking()
-                .Where(v => entityTypeMap.Keys.Contains(v.EntityId)
-                         && fieldValueIds.Contains(v.FieldDefId)
-                         && v.EncryptedValue != null)
                 .ToListAsync(ct);
+
+            if (allEntities.Count == 0) return Results.Ok(Array.Empty<CgEntitySearchItem>());
+
+            var displayMap = await BuildDisplayMapAsync(
+                allEntities.Select(e => (e.Id, e.TypeDefId)).ToList(), db, ct);
 
             var results = new List<CgEntitySearchItem>();
-            var seen = new HashSet<long>();
-
-            foreach (var v in allValues)
+            foreach (var e in allEntities)
             {
                 if (results.Count >= limit) break;
-                if (!seen.Add(v.EntityId)) continue;
-                if (!entityTypeMap.TryGetValue(v.EntityId, out var typeDefId)) continue;
-                if (!firstFieldIds.TryGetValue(typeDefId, out var firstFieldId) || v.FieldDefId != firstFieldId) continue;
-
-                var plain = DecryptValue(v.EncryptedValue!);
-                if (!plain.ToLowerInvariant().Contains(normalized)) continue;
-
-                if (!typeDefMap.TryGetValue(typeDefId, out var typeDef)) continue;
-                results.Add(new CgEntitySearchItem(v.EntityId, plain, typeDefId, typeDef.Name));
+                if (!displayMap.TryGetValue(e.Id, out var display)) continue;
+                if (!display.ToLowerInvariant().Contains(normalized)) continue;
+                if (!typeDefMap.TryGetValue(e.TypeDefId, out var typeDef)) continue;
+                results.Add(new CgEntitySearchItem(e.Id, display, e.TypeDefId, typeDef.Name));
             }
 
             return Results.Ok(results);
@@ -750,27 +709,8 @@ public static class CgEndpoints
                 .Where(t => typeIds.Contains(t.Id))
                 .ToDictionaryAsync(t => t.Id, ct);
 
-            // First non-reference field per type.
-            var fieldDefs = await db.CgFieldDefs.AsNoTracking()
-                .Where(f => typeIds.Contains(f.TypeDefId) && f.InputType != "reference")
-                .OrderBy(f => f.SortOrder)
-                .ToListAsync(ct);
-            var firstFieldByType = fieldDefs
-                .GroupBy(f => f.TypeDefId)
-                .ToDictionary(g => g.Key, g => g.First().Id);
-
-            var fieldValueMap = firstFieldByType.Values.Distinct().ToList();
-            var entityIds = entities.Select(e => e.Id).ToList();
-
-            var firstValues = await db.CgFieldValues.AsNoTracking()
-                .Where(v => entityIds.Contains(v.EntityId) && fieldValueMap.Contains(v.FieldDefId))
-                .GroupBy(v => v.EntityId)
-                .Select(g => new { EntityId = g.Key, Value = g.OrderBy(v => v.SortOrder).First() })
-                .ToListAsync(ct);
-
-            var displayMap = firstValues
-                .Where(x => x.Value.EncryptedValue is not null)
-                .ToDictionary(x => x.EntityId, x => DecryptValue(x.Value.EncryptedValue!));
+            var displayMap = await BuildDisplayMapAsync(
+                entities.Select(e => (e.Id, e.TypeDefId)).ToList(), db, ct);
 
             var result = entities
                 .Where(e => typeDefs.ContainsKey(e.TypeDefId))
@@ -827,33 +767,12 @@ public static class CgEndpoints
                 .ToDictionaryAsync(t => t.Id, ct)
             : new Dictionary<long, CgTypeDef>();
 
-        var refFieldDefs = refTypeIds.Count > 0
-            ? await db.CgFieldDefs.AsNoTracking()
-                .Where(f => refTypeIds.Contains(f.TypeDefId) && f.InputType != "reference")
-                .OrderBy(f => f.SortOrder)
-                .ToListAsync(ct)
-            : [];
+        var refDisplayValues = await BuildDisplayMapAsync(
+            refEntities.Select(e => (e.Id, e.TypeDefId)).ToList(), db, ct);
 
-        var refFirstFieldByType = refFieldDefs
-            .GroupBy(f => f.TypeDefId)
-            .ToDictionary(g => g.Key, g => g.First().Id);
-
-        var refFirstValues = refEntityIds.Count > 0
-            ? await db.CgFieldValues.AsNoTracking()
-                .Where(v => refEntityIds.Contains(v.EntityId)
-                         && refFirstFieldByType.Values.Contains(v.FieldDefId))
-                .ToListAsync(ct)
-            : [];
-
-        var refDisplayMap = new Dictionary<long, (string Display, long TypeDefId)>();
-        foreach (var re in refEntities)
-        {
-            if (!refFirstFieldByType.TryGetValue(re.TypeDefId, out var firstFieldId)) continue;
-            var fv = refFirstValues.Where(v => v.EntityId == re.Id && v.FieldDefId == firstFieldId)
-                .OrderBy(v => v.SortOrder).FirstOrDefault();
-            var display = fv?.EncryptedValue is not null ? DecryptValue(fv.EncryptedValue) : "";
-            refDisplayMap[re.Id] = (display, re.TypeDefId);
-        }
+        var refDisplayMap = refEntities.ToDictionary(
+            e => e.Id,
+            e => (Display: refDisplayValues.GetValueOrDefault(e.Id, ""), TypeDefId: e.TypeDefId));
 
         var valuesByField = values.GroupBy(v => v.FieldDefId)
             .ToDictionary(g => g.Key, g => g.OrderBy(v => v.SortOrder).ToList());
@@ -896,5 +815,93 @@ public static class CgEndpoints
             entity.Id, entity.TypeDefId, typeDef.Name, fieldResponses,
             new DateTimeOffset(entity.CreatedUtc, TimeSpan.Zero),
             new DateTimeOffset(entity.UpdatedUtc, TimeSpan.Zero));
+    }
+
+    // Returns a display string per entity ID.
+    // For the first field of each entity's type:
+    //   - text/number/date: decrypts the first value
+    //   - reference: resolves the referenced entities' display values (one level deep), joins with ", "
+    private static async Task<Dictionary<long, string>> BuildDisplayMapAsync(
+        IReadOnlyList<(long EntityId, long TypeDefId)> entities,
+        RecreatioDbContext db,
+        CancellationToken ct,
+        int depth = 0)
+    {
+        if (entities.Count == 0) return [];
+
+        var result = new Dictionary<long, string>();
+        var typeIds = entities.Select(e => e.TypeDefId).Distinct().ToList();
+
+        var firstFields = await db.CgFieldDefs.AsNoTracking()
+            .Where(f => typeIds.Contains(f.TypeDefId))
+            .OrderBy(f => f.SortOrder)
+            .ToListAsync(ct);
+
+        var firstFieldByType = firstFields
+            .GroupBy(f => f.TypeDefId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var textEntityIds = new List<long>();
+        var textFieldIds = new HashSet<long>();
+        var refEntityIds = new List<long>();
+        var refFieldIds = new HashSet<long>();
+
+        foreach (var (entityId, typeDefId) in entities)
+        {
+            if (!firstFieldByType.TryGetValue(typeDefId, out var fd)) continue;
+            if (fd.InputType == "reference") { refEntityIds.Add(entityId); refFieldIds.Add(fd.Id); }
+            else { textEntityIds.Add(entityId); textFieldIds.Add(fd.Id); }
+        }
+
+        if (textEntityIds.Count > 0)
+        {
+            var values = await db.CgFieldValues.AsNoTracking()
+                .Where(v => textEntityIds.Contains(v.EntityId)
+                         && textFieldIds.Contains(v.FieldDefId)
+                         && v.EncryptedValue != null)
+                .ToListAsync(ct);
+
+            foreach (var g in values.GroupBy(v => v.EntityId))
+            {
+                var first = g.OrderBy(v => v.SortOrder).First();
+                if (first.EncryptedValue is not null)
+                    result[g.Key] = DecryptValue(first.EncryptedValue);
+            }
+        }
+
+        if (refEntityIds.Count > 0 && depth < 1)
+        {
+            var refValues = await db.CgFieldValues.AsNoTracking()
+                .Where(v => refEntityIds.Contains(v.EntityId)
+                         && refFieldIds.Contains(v.FieldDefId)
+                         && v.RefEntityId != null)
+                .OrderBy(v => v.SortOrder)
+                .ToListAsync(ct);
+
+            var allRefIds = refValues.Select(v => v.RefEntityId!.Value).Distinct().ToList();
+            if (allRefIds.Count > 0)
+            {
+                var refEntities = await db.CgEntities.AsNoTracking()
+                    .Where(e => allRefIds.Contains(e.Id))
+                    .Select(e => new { e.Id, e.TypeDefId })
+                    .ToListAsync(ct);
+
+                var refDisplays = await BuildDisplayMapAsync(
+                    refEntities.Select(e => (e.Id, e.TypeDefId)).ToList(), db, ct, depth + 1);
+
+                foreach (var g in refValues.GroupBy(v => v.EntityId))
+                {
+                    var parts = g.OrderBy(v => v.SortOrder)
+                        .Where(v => v.RefEntityId.HasValue && refDisplays.ContainsKey(v.RefEntityId.Value))
+                        .Select(v => refDisplays[v.RefEntityId!.Value])
+                        .Where(s => s.Length > 0)
+                        .ToList();
+                    if (parts.Count > 0)
+                        result[g.Key] = string.Join(", ", parts);
+                }
+            }
+        }
+
+        return result;
     }
 }
