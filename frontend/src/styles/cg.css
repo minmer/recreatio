@@ -854,16 +854,14 @@
   color: #fca5a5;
 }
 
-.cgt-node-ref-value {
+.cgt-node-field-ref {
+  border-color: #7c3aed;
+}
+
+.cgt-node-entity-field {
   background: #0e1a2a;
   border-color: #2563eb;
   color: #93c5fd;
-}
-
-.cgt-node-ref-group {
-  background: #091a1a;
-  border-color: #0891b2;
-  color: #67e8f9;
 }
 
 .cgt-cfg-hint {

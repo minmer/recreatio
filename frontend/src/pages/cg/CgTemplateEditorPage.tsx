@@ -33,7 +33,7 @@ import {
 
 // ── Config types ──────────────────────────────────────────────────────────────
 
-type FieldConfig = { fieldDefId: number; fieldLabel: string; inputType: string };
+type FieldConfig = { fieldDefId: number; fieldLabel: string; inputType: string; multiple: boolean };
 type PromptConfig = { label: string };
 type AnswerTextConfig = { fuzzy: boolean; thresholdPct: number };
 type AnswerSelectConfig = { multiSelect: boolean; shuffle: boolean };
@@ -41,16 +41,20 @@ type AnswerBoolConfig = { trueLabel: string; falseLabel: string };
 type DistractorConfig = { count: number; fieldDefId: number; fieldLabel: string };
 type MaskConfig = { strategy: 'prefix' | 'suffix' | 'random'; keepPct: number };
 type PickConfig = { position: 'random' | 'first' | 'last' };
-type RefEntityConfig = { targetTypeDefId: number; targetTypeName: string; targetFieldDefId: number; targetFieldLabel: string };
+type EntityFieldConfig = { targetTypeDefId: number; targetTypeName: string; targetFieldDefId: number; targetFieldLabel: string };
 
 // ── Custom nodes ──────────────────────────────────────────────────────────────
 
 function FieldNode({ data }: { data: FieldConfig }) {
+  const isRef = data.inputType === 'reference';
   return (
-    <div className="cgt-node cgt-node-field">
+    <div className={`cgt-node cgt-node-field${isRef ? ' cgt-node-field-ref' : ''}`}>
       <div className="cgt-node-type">Field</div>
       <div className="cgt-node-label">{data.fieldLabel || '(select field)'}</div>
-      <div className="cgt-node-sub">{data.inputType}</div>
+      <div className="cgt-node-sub">
+        {isRef ? '→ entity' : data.inputType}
+        {data.multiple ? '[ ]' : ''}
+      </div>
       <Handle type="source" position={Position.Right} id="value" />
     </div>
   );
@@ -138,24 +142,14 @@ function PickNode({ data }: { data: PickConfig }) {
   );
 }
 
-function RefValueNode({ data }: { data: RefEntityConfig }) {
+function EntityFieldNode({ data }: { data: EntityFieldConfig }) {
   return (
-    <div className="cgt-node cgt-node-ref-value">
-      <div className="cgt-node-type">Entity Value</div>
+    <div className="cgt-node cgt-node-entity-field" style={{ minHeight: 70 }}>
+      <Handle type="target" position={Position.Left} id="in" />
+      <div className="cgt-node-type">Entity Field</div>
       <div className="cgt-node-label">{data.targetTypeName || '(select type)'}</div>
       {data.targetFieldLabel && <div className="cgt-node-sub">→ {data.targetFieldLabel}</div>}
       <Handle type="source" position={Position.Right} id="value" />
-    </div>
-  );
-}
-
-function RefGroupNode({ data }: { data: RefEntityConfig }) {
-  return (
-    <div className="cgt-node cgt-node-ref-group">
-      <div className="cgt-node-type">Entity Group</div>
-      <div className="cgt-node-label">{data.targetTypeName || '(select type)'}</div>
-      {data.targetFieldLabel && <div className="cgt-node-sub">→ {data.targetFieldLabel}</div>}
-      <Handle type="source" position={Position.Right} id="values" />
     </div>
   );
 }
@@ -186,15 +180,14 @@ const NODE_TYPES = {
   distractor: DistractorNode,
   pick: PickNode,
   mask: MaskNode,
-  'ref-value': RefValueNode,
-  'ref-group': RefGroupNode
+  'entity-field': EntityFieldNode
 };
 
 // ── Default configs ───────────────────────────────────────────────────────────
 
 function defaultConfig(nodeType: string): object {
   switch (nodeType) {
-    case 'field':         return { fieldDefId: 0, fieldLabel: '', inputType: 'text' };
+    case 'field':         return { fieldDefId: 0, fieldLabel: '', inputType: 'text', multiple: false };
     case 'prompt':        return { label: 'Prompt' };
     case 'answer-text':   return { fuzzy: true, thresholdPct: 85 };
     case 'answer-select': return { multiSelect: false, shuffle: true };
@@ -203,8 +196,7 @@ function defaultConfig(nodeType: string): object {
     case 'distractor':    return { count: 3, fieldDefId: 0, fieldLabel: '' };
     case 'pick':          return { position: 'random' };
     case 'mask':          return { strategy: 'suffix', keepPct: 30 };
-    case 'ref-value':     return { targetTypeDefId: 0, targetTypeName: '', targetFieldDefId: 0, targetFieldLabel: '' };
-    case 'ref-group':     return { targetTypeDefId: 0, targetTypeName: '', targetFieldDefId: 0, targetFieldLabel: '' };
+    case 'entity-field':  return { targetTypeDefId: 0, targetTypeName: '', targetFieldDefId: 0, targetFieldLabel: '' };
     default:              return {};
   }
 }
@@ -230,7 +222,7 @@ function ConfigPanel({
   const [subTypeFields, setSubTypeFields] = useState<CgFieldDefResponse[]>([]);
   useEffect(() => {
     const targetId = (cfg.targetTypeDefId as number) ?? 0;
-    if (!targetId || (type !== 'ref-value' && type !== 'ref-group')) {
+    if (!targetId || type !== 'entity-field') {
       setSubTypeFields([]);
       return;
     }
@@ -256,7 +248,7 @@ function ConfigPanel({
             ...cfg,
             [defKey]: id,
             [labelKey]: f?.label ?? '',
-            ...(type === 'field' ? { inputType: f?.inputType ?? 'text' } : {})
+            ...(type === 'field' ? { inputType: f?.inputType ?? 'text', multiple: f?.multiple ?? false } : {})
           });
         }}
       >
@@ -347,7 +339,7 @@ function ConfigPanel({
         </div>
       )}
 
-      {(type === 'ref-value' || type === 'ref-group') && (
+      {type === 'entity-field' && (
         <>
           <div className="cgt-cfg-row">
             <label className="cgt-cfg-label">Type</label>
@@ -425,8 +417,7 @@ const PALETTE = [
   { type: 'distractor',    label: 'Distractors',  hint: 'wrong options source' },
   { type: 'pick',          label: 'Pick',         hint: 'hide one from list' },
   { type: 'mask',          label: 'Mask',         hint: 'hide part of text' },
-  { type: 'ref-value',     label: 'Entity Value', hint: 'one referenced entity' },
-  { type: 'ref-group',     label: 'Entity Group', hint: 'all referenced entities' }
+  { type: 'entity-field',  label: 'Entity Field', hint: 'read field from entities' }
 ];
 
 // ── Question preview modal ────────────────────────────────────────────────────

@@ -273,7 +273,10 @@ public static class CgTemplateEndpoints
         // Compute outputs per node: nodeKey → handleName → string[]
         var outputs = new Dictionary<string, Dictionary<string, List<string>>>();
 
-        // Pass 1a: field nodes (text / number / date fields only)
+        // Pass 1a: field nodes
+        // For text/number/date fields: outputs decrypted string values.
+        // For reference fields: outputs referenced entity IDs as strings (feed into entity-field node).
+        // Output handle is always "value"; single vs array cardinality is implicit in the field's multiple flag.
         foreach (var node in nodes.Where(n => n.NodeType == "field"))
         {
             var cfg = ParseConfig<FieldNodeConfig>(node.ConfigJson);
@@ -283,101 +286,92 @@ public static class CgTemplateEndpoints
                 continue;
             }
 
-            var vals = fieldValues
-                .Where(fv => fv.FieldDefId == cfg.FieldDefId && fv.EncryptedValue != null)
-                .Select(fv => DecryptValue(fv.EncryptedValue!))
-                .ToList();
+            List<string> vals;
+            if (cfg.InputType == "reference")
+            {
+                vals = fieldValues
+                    .Where(fv => fv.FieldDefId == cfg.FieldDefId && fv.RefEntityId.HasValue)
+                    .OrderBy(fv => fv.SortOrder)
+                    .Select(fv => fv.RefEntityId!.Value.ToString())
+                    .ToList();
 
-            if (vals.Count == 0)
-                warnings.Add($"Field node '{cfg.FieldLabel}' produced no values — for reference fields use an Entity Value or Entity Group node.");
+                if (vals.Count == 0)
+                    warnings.Add($"Field '{cfg.FieldLabel}': no referenced entities — connect this to an Entity Field node.");
+            }
+            else
+            {
+                vals = fieldValues
+                    .Where(fv => fv.FieldDefId == cfg.FieldDefId && fv.EncryptedValue != null)
+                    .OrderBy(fv => fv.SortOrder)
+                    .Select(fv => DecryptValue(fv.EncryptedValue!))
+                    .ToList();
+
+                if (vals.Count == 0)
+                    warnings.Add($"Field '{cfg.FieldLabel}' produced no values — entity has no data for this field.");
+            }
 
             outputs[node.NodeKey] = new() { ["value"] = vals };
         }
 
-        // Pass 1b: ref-value (single entity) and ref-group (all entities) nodes.
-        // Both are configured with a target type + target field.
-        // The reference field on the main entity that links to the target type is auto-detected.
-        foreach (var node in nodes.Where(n => n.NodeType == "ref-value" || n.NodeType == "ref-group"))
+        // Pass 1b: entity-field nodes
+        // Input "in": entity IDs (strings) coming from a reference-type Field node.
+        // Config: target type + target field on that type.
+        // Output "value": the resolved field values, flattened across all input entities.
+        foreach (var node in nodes.Where(n => n.NodeType == "entity-field"))
         {
-            var cfg = ParseConfig<RefEntityNodeConfig>(node.ConfigJson);
+            var cfg = ParseConfig<EntityFieldNodeConfig>(node.ConfigJson);
             if (cfg is null || cfg.TargetTypeDefId == 0)
             {
-                warnings.Add($"'{node.NodeType}' node has no type selected — configure it in the config panel.");
+                warnings.Add($"Entity Field node has no type selected — configure it in the config panel.");
                 continue;
             }
 
-            // Auto-detect: find reference field(s) on the main entity's type that point to the target type.
-            var refFieldIds = await (
-                from target in db.CgFieldDefTargets
-                join field  in db.CgFieldDefs on target.FieldDefId equals field.Id
-                where target.TargetTypeDefId == cfg.TargetTypeDefId
-                   && field.TypeDefId == entity.TypeDefId
-                select field.Id
-            ).ToListAsync(ct);
-
-            if (refFieldIds.Count == 0)
+            var entityIdStrings = CollectInputs(node.NodeKey, "in", edges, outputs);
+            if (entityIdStrings.Count == 0)
             {
-                warnings.Add($"No reference field on the main type points to '{cfg.TargetTypeName}'. Add one first.");
+                warnings.Add($"Entity Field node '{cfg.TargetTypeName}': no entity IDs on input — connect a reference-type Field node to its 'in' handle.");
                 continue;
             }
 
-            var refRows = fieldValues
-                .Where(fv => refFieldIds.Contains(fv.FieldDefId) && fv.RefEntityId.HasValue)
-                .OrderBy(fv => fv.SortOrder)
+            var entityIds = entityIdStrings
+                .Select(s => long.TryParse(s, out var id) ? id : 0L)
+                .Where(id => id > 0)
+                .Distinct()
                 .ToList();
 
-            if (refRows.Count == 0)
+            if (cfg.TargetFieldDefId == 0)
             {
-                warnings.Add($"'{cfg.TargetTypeName}' node: entity has no linked sub-entities of this type.");
-                continue;
-            }
-
-            // ref-value uses only the first linked entity; ref-group uses all.
-            if (node.NodeType == "ref-value")
-                refRows = [refRows[0]];
-
-            var refIds = refRows.Select(fv => fv.RefEntityId!.Value).ToList();
-
-            // Resolve each referenced entity to its target field value.
-            IReadOnlyCollection<long> targetFieldIds;
-            if (cfg.TargetFieldDefId > 0)
-            {
-                targetFieldIds = new HashSet<long> { cfg.TargetFieldDefId };
-            }
-            else
-            {
-                // Fall back to the first text field of the target type.
+                // Fall back to the first field of the target type.
                 var firstField = await db.CgFieldDefs.AsNoTracking()
                     .Where(f => f.TypeDefId == cfg.TargetTypeDefId)
                     .OrderBy(f => f.SortOrder)
                     .FirstOrDefaultAsync(ct);
-                targetFieldIds = firstField is null ? [] : new HashSet<long> { firstField.Id };
+                if (firstField is null)
+                {
+                    warnings.Add($"Entity Field node: type '{cfg.TargetTypeName}' has no fields.");
+                    continue;
+                }
+                cfg = cfg with { TargetFieldDefId = firstField.Id, TargetFieldLabel = firstField.Label };
             }
 
             var subValues = await db.CgFieldValues.AsNoTracking()
-                .Where(v => refIds.Contains(v.EntityId)
-                         && targetFieldIds.Contains(v.FieldDefId)
+                .Where(v => entityIds.Contains(v.EntityId)
+                         && v.FieldDefId == cfg.TargetFieldDefId
                          && v.EncryptedValue != null)
+                .OrderBy(v => v.EntityId).ThenBy(v => v.SortOrder)
                 .ToListAsync(ct);
 
-            var displayByEntity = subValues
-                .GroupBy(v => v.EntityId)
-                .ToDictionary(
-                    g => g.Key,
-                    g => DecryptValue(g.OrderBy(v => v.SortOrder).First().EncryptedValue!));
-
-            var resolvedVals = refIds
-                .Select(id => displayByEntity.TryGetValue(id, out var d) ? d : null)
-                .Where(d => d is not null)
-                .Select(d => d!)
+            // Flatten: preserve per-entity order from the input, then all values for each entity in sort order.
+            var resolvedVals = entityIds
+                .SelectMany(id => subValues
+                    .Where(v => v.EntityId == id)
+                    .Select(v => DecryptValue(v.EncryptedValue!)))
                 .ToList();
 
             if (resolvedVals.Count == 0)
-                warnings.Add($"'{cfg.TargetTypeName}' node: sub-entities found but have no value for field '{cfg.TargetFieldLabel}'.");
+                warnings.Add($"Entity Field node '{cfg.TargetTypeName}.{cfg.TargetFieldLabel}': entities have no value for this field.");
 
-            // ref-value outputs handle "value"; ref-group outputs handle "values".
-            var outHandle = node.NodeType == "ref-value" ? "value" : "values";
-            outputs[node.NodeKey] = new() { [outHandle] = resolvedVals };
+            outputs[node.NodeKey] = new() { ["value"] = resolvedVals };
         }
 
         // Pass 2: distractor nodes
@@ -628,6 +622,7 @@ public static class CgTemplateEndpoints
         public long FieldDefId { get; set; }
         public string FieldLabel { get; set; } = string.Empty;
         public string InputType { get; set; } = "text";
+        public bool Multiple { get; set; }
     }
 
     private sealed class DistractorNodeConfig
@@ -653,12 +648,10 @@ public static class CgTemplateEndpoints
         public string Position { get; set; } = "random";
     }
 
-    private sealed class RefEntityNodeConfig
-    {
-        public long TargetTypeDefId { get; set; }
-        public string TargetTypeName { get; set; } = string.Empty;
-        // 0 = use the first text field of the target type (display value)
-        public long TargetFieldDefId { get; set; }
-        public string TargetFieldLabel { get; set; } = string.Empty;
-    }
+    private sealed record EntityFieldNodeConfig(
+        long TargetTypeDefId,
+        string TargetTypeName,
+        long TargetFieldDefId,
+        string TargetFieldLabel
+    );
 }
