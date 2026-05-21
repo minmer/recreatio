@@ -842,6 +842,12 @@
   color: #d8b4fe;
 }
 
+.cgt-node-pick {
+  background: #0e1a1a;
+  border-color: #0891b2;
+  color: #67e8f9;
+}
+
 .cgt-node-mask {
   background: #1a1010;
   border-color: #dc2626;

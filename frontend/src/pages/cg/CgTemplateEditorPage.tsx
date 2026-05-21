@@ -38,6 +38,7 @@ type AnswerSelectConfig = { multiSelect: boolean; shuffle: boolean };
 type AnswerBoolConfig = { trueLabel: string; falseLabel: string };
 type DistractorConfig = { count: number; fieldDefId: number; fieldLabel: string };
 type MaskConfig = { strategy: 'prefix' | 'suffix' | 'random'; keepPct: number };
+type PickConfig = { position: 'random' | 'first' | 'last' };
 
 // ── Custom nodes ──────────────────────────────────────────────────────────────
 
@@ -118,6 +119,22 @@ function DistractorNode({ data }: { data: DistractorConfig }) {
   );
 }
 
+function PickNode({ data }: { data: PickConfig }) {
+  return (
+    <div className="cgt-node cgt-node-pick" style={{ minHeight: 80 }}>
+      <Handle type="target" position={Position.Left} id="items" />
+      <div className="cgt-node-type">Pick</div>
+      <div className="cgt-node-sub">hide {data.position} item</div>
+      <Handle type="source" position={Position.Right} id="chosen" style={{ top: '35%' }} />
+      <Handle type="source" position={Position.Right} id="rest" style={{ top: '65%' }} />
+      <div className="cgt-node-port-labels cgt-node-port-labels-right">
+        <span style={{ top: '35%' }}>chosen</span>
+        <span style={{ top: '65%' }}>rest</span>
+      </div>
+    </div>
+  );
+}
+
 function MaskNode({ data }: { data: MaskConfig }) {
   return (
     <div className="cgt-node cgt-node-mask" style={{ minHeight: 80 }}>
@@ -142,6 +159,7 @@ const NODE_TYPES = {
   'answer-order': AnswerOrderNode,
   'answer-bool': AnswerBoolNode,
   distractor: DistractorNode,
+  pick: PickNode,
   mask: MaskNode
 };
 
@@ -156,6 +174,7 @@ function defaultConfig(nodeType: string): object {
     case 'answer-order':  return {};
     case 'answer-bool':   return { trueLabel: 'True', falseLabel: 'False' };
     case 'distractor':    return { count: 3, fieldDefId: 0, fieldLabel: '' };
+    case 'pick':          return { position: 'random' };
     case 'mask':          return { strategy: 'suffix', keepPct: 30 };
     default:              return {};
   }
@@ -272,6 +291,17 @@ function ConfigPanel({
         </>
       )}
 
+      {type === 'pick' && (
+        <div className="cgt-cfg-row">
+          <label className="cgt-cfg-label">Hide which item</label>
+          <select className="cg-select" value={(cfg.position as string) ?? 'random'} onChange={e => set('position', e.target.value)}>
+            <option value="random">Random</option>
+            <option value="first">First</option>
+            <option value="last">Last</option>
+          </select>
+        </div>
+      )}
+
       {type === 'mask' && (
         <>
           <div className="cgt-cfg-row">
@@ -302,6 +332,7 @@ const PALETTE = [
   { type: 'answer-order',  label: 'Order',        hint: 'arrange items' },
   { type: 'answer-bool',   label: 'True/False',   hint: 'boolean answer' },
   { type: 'distractor',    label: 'Distractors',  hint: 'wrong options source' },
+  { type: 'pick',          label: 'Pick',         hint: 'hide one from list' },
   { type: 'mask',          label: 'Mask',         hint: 'hide part of text' }
 ];
 

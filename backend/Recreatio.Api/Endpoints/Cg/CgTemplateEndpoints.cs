@@ -316,7 +316,33 @@ public static class CgTemplateEndpoints
             outputs[node.NodeKey] = new() { ["distractor"] = distractors };
         }
 
-        // Pass 3: mask nodes
+        // Pass 3: pick nodes — select one value from a multi-value field, split into chosen/rest
+        foreach (var node in nodes.Where(n => n.NodeType == "pick"))
+        {
+            var items = CollectInputs(node.NodeKey, "items", edges, outputs);
+            if (items.Count == 0) continue;
+
+            var cfg = ParseConfig<PickNodeConfig>(node.ConfigJson);
+            var pos = cfg?.Position ?? "random";
+
+            int idx = pos switch
+            {
+                "first" => 0,
+                "last"  => items.Count - 1,
+                _       => Random.Shared.Next(items.Count)
+            };
+
+            var chosen = new List<string> { items[idx] };
+            var rest   = items.Where((_, i) => i != idx).ToList();
+
+            outputs[node.NodeKey] = new()
+            {
+                ["chosen"] = chosen,
+                ["rest"]   = rest
+            };
+        }
+
+        // Pass 4: mask nodes
         foreach (var node in nodes.Where(n => n.NodeType == "mask"))
         {
             var textInput = CollectInputs(node.NodeKey, "text", edges, outputs);
@@ -457,5 +483,11 @@ public static class CgTemplateEndpoints
     private sealed class PromptNodeConfig
     {
         public string Label { get; set; } = "Prompt";
+    }
+
+    private sealed class PickNodeConfig
+    {
+        // "random" | "first" | "last"
+        public string Position { get; set; } = "random";
     }
 }
