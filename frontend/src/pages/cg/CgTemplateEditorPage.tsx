@@ -591,6 +591,13 @@ function PreviewModal({
 let _seq = 1;
 function uid() { return `n${_seq++}`; }
 
+function advanceSeqPast(nodes: Node[]) {
+  for (const n of nodes) {
+    const m = n.id.match(/^n(\d+)$/);
+    if (m) _seq = Math.max(_seq, Number(m[1]) + 1);
+  }
+}
+
 function EditorCanvas({
   libId,
   typeId,
@@ -622,6 +629,8 @@ function EditorCanvas({
   const [showPreview, setShowPreview] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const { project } = useReactFlow();
+
+  useEffect(() => { advanceSeqPast(initialNodes); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setNodes(nds => applyNodeChanges(changes, nds));
