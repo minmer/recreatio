@@ -408,11 +408,18 @@ public static class CgTemplateEndpoints
         Dictionary<string, Dictionary<string, List<string>>> outputs)
     {
         var result = new List<string>();
-        foreach (var edge in edges.Where(e => e.TargetKey == nodeKey
-            && (e.TargetHandle ?? "content") == targetHandle))
+        foreach (var edge in edges.Where(e => e.TargetKey == nodeKey))
         {
+            // Match by explicit targetHandle, or fall back to targetHandle=="content"
+            // only when no handle was recorded (legacy/default edges).
+            var edgeTarget = edge.TargetHandle;
+            if (edgeTarget != null && edgeTarget != targetHandle) continue;
+            if (edgeTarget == null && targetHandle != "content") continue;
+
             if (outputs.TryGetValue(edge.SourceKey, out var sourceOut))
             {
+                // Match by explicit sourceHandle, or try targetHandle name as source handle
+                // (e.g. an edge wired to "expected" likely comes from "value" or the handle named by the source)
                 var handle = edge.SourceHandle ?? "value";
                 if (sourceOut.TryGetValue(handle, out var vals))
                     result.AddRange(vals);
