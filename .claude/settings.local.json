@@ -20,7 +20,10 @@
       "PowerShell(cd \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\frontend\"; npx tsc --noEmit 2> \"$env:TEMP\\\\tsc2.txt\"; Get-Content \"$env:TEMP\\\\tsc2.txt\" | Where-Object { $_ -match \"pages.cg\" })",
       "Bash(Remove-Item -Recurse -Force \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\backend\\\\Recreatio.Api\\\\Data\\\\Cg\")",
       "Bash(Remove-Item -Recurse -Force \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\backend\\\\Recreatio.Api\\\\Endpoints\\\\Cg\")",
-      "Read(//c/Users/AKM.LAPTOP-AKM/Downloads/**)"
+      "Read(//c/Users/AKM.LAPTOP-AKM/Downloads/**)",
+      "Bash(Get-Item -Path \"C:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\\" -Force)",
+      "Bash(findstr -i \"reactflow\\\\|xyflow\")",
+      "Bash(Select-String -Pattern \"reactflow|xyflow\" \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\frontend\\\\package.json\")"
     ]
   }
 }

@@ -198,6 +198,9 @@ public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefi
     public DbSet<Data.Cg.CgFieldDefTarget> CgFieldDefTargets => Set<Data.Cg.CgFieldDefTarget>();
     public DbSet<Data.Cg.CgEntity> CgEntities => Set<Data.Cg.CgEntity>();
     public DbSet<Data.Cg.CgFieldValue> CgFieldValues => Set<Data.Cg.CgFieldValue>();
+    public DbSet<Data.Cg.CgTemplateGraph> CgTemplateGraphs => Set<Data.Cg.CgTemplateGraph>();
+    public DbSet<Data.Cg.CgTemplateNode> CgTemplateNodes => Set<Data.Cg.CgTemplateNode>();
+    public DbSet<Data.Cg.CgTemplateEdge> CgTemplateEdges => Set<Data.Cg.CgTemplateEdge>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1605,5 +1608,15 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
         modelBuilder.Entity<Data.Cg.CgFieldValue>()
             .HasIndex(x => x.RefEntityId)
             .HasFilter("[RefEntityId] IS NOT NULL");
+
+        modelBuilder.Entity<Data.Cg.CgTemplateGraph>()
+            .HasIndex(x => x.TypeDefId);
+        modelBuilder.Entity<Data.Cg.CgTemplateNode>()
+            .HasIndex(x => x.GraphId);
+        modelBuilder.Entity<Data.Cg.CgTemplateNode>()
+            .HasIndex(x => new { x.GraphId, x.NodeKey })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cg.CgTemplateEdge>()
+            .HasIndex(x => x.GraphId);
     }
 }

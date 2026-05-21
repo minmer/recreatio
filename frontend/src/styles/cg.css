@@ -611,3 +611,239 @@
   background: #1e2330;
   color: #818cf8;
 }
+
+/* ── Template editor ────────────────────────────────── */
+
+.cgt-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #0e1117;
+  overflow: hidden;
+}
+
+.cgt-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.cgt-palette {
+  width: 160px;
+  flex-shrink: 0;
+  background: #111520;
+  border-right: 1px solid #1e2330;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.75rem 0.5rem;
+  overflow-y: auto;
+}
+
+.cgt-palette-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7c8ba0;
+  padding: 0 0.25rem 0.5rem;
+}
+
+.cgt-palette-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.45rem 0.5rem;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  transition: background 0.12s, border-color 0.12s;
+}
+.cgt-palette-btn:hover {
+  background: #161b27;
+  border-color: #2a3044;
+}
+
+.cgt-palette-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #e2e8f0;
+}
+
+.cgt-palette-hint {
+  font-size: 0.7rem;
+  color: #7c8ba0;
+}
+
+.cgt-canvas {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.cgt-config-panel {
+  width: 220px;
+  flex-shrink: 0;
+  background: #111520;
+  border-left: 1px solid #1e2330;
+  padding: 1rem 0.75rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.cgt-cfg-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #7c8ba0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #1e2330;
+}
+
+.cgt-cfg-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.cgt-cfg-label {
+  font-size: 0.75rem;
+  color: #9aa5b8;
+}
+
+.cgt-cfg-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+.cgt-cfg-check input {
+  accent-color: #3b4cca;
+  cursor: pointer;
+}
+
+.cgt-num {
+  flex: none;
+  width: 80px;
+}
+
+.cgt-name-input {
+  flex: 1;
+  max-width: 280px;
+  font-size: 1rem;
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #f1f5f9;
+  padding: 0.3rem 0.5rem;
+}
+.cgt-name-input:focus {
+  border-color: #3b4cca;
+  background: #0e1117;
+}
+
+.cg-error-inline {
+  font-size: 0.8rem;
+  color: #fca5a5;
+  cursor: pointer;
+}
+
+.cgt-new-form {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+/* ── Template ReactFlow nodes ───────────────────────── */
+
+.cgt-node {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 2px solid;
+  min-width: 130px;
+  font-family: inherit;
+  position: relative;
+}
+
+.cgt-node-type {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 0.2rem;
+  opacity: 0.7;
+}
+
+.cgt-node-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #f1f5f9;
+}
+
+.cgt-node-sub {
+  font-size: 0.7rem;
+  opacity: 0.65;
+  margin-top: 0.15rem;
+}
+
+.cgt-node-port-labels {
+  position: absolute;
+  left: 4px;
+  top: 0;
+  height: 100%;
+  pointer-events: none;
+}
+.cgt-node-port-labels span {
+  position: absolute;
+  font-size: 0.6rem;
+  color: #7c8ba0;
+  transform: translateY(-50%);
+  left: 0;
+}
+
+.cgt-node-port-labels-right {
+  left: auto;
+  right: 4px;
+  text-align: right;
+}
+.cgt-node-port-labels-right span {
+  left: auto;
+  right: 0;
+}
+
+/* Node color themes */
+.cgt-node-field {
+  background: #0e1a30;
+  border-color: #3b5bdb;
+  color: #93c5fd;
+}
+
+.cgt-node-prompt {
+  background: #1a1a0e;
+  border-color: #ca8a04;
+  color: #fde68a;
+}
+
+.cgt-node-answer {
+  background: #0e2010;
+  border-color: #16a34a;
+  color: #86efac;
+}
+
+.cgt-node-distractor {
+  background: #1f0e1e;
+  border-color: #9333ea;
+  color: #d8b4fe;
+}
+
+.cgt-node-mask {
+  background: #1a1010;
+  border-color: #dc2626;
+  color: #fca5a5;
+}

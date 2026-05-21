@@ -1,0 +1,10 @@
+namespace Recreatio.Api.Data.Cg;
+
+public class CgTemplateGraph
+{
+    public long Id { get; set; }
+    public long TypeDefId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public DateTime CreatedUtc { get; set; }
+    public DateTime UpdatedUtc { get; set; }
+}

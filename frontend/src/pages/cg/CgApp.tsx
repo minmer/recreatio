@@ -4,6 +4,7 @@ import { CgLibraryPage } from './CgLibraryPage';
 import { CgTypeEditorPage } from './CgTypeEditorPage';
 import { CgEntityListPage } from './CgEntityListPage';
 import { CgEntityEditorPage } from './CgEntityEditorPage';
+import { CgTemplateEditorPage } from './CgTemplateEditorPage';
 
 export function CgApp({ pathname }: { pathname: string }) {
   const navigate = useNavigate();
@@ -72,6 +73,26 @@ export function CgApp({ pathname }: { pathname: string }) {
           onNew={() => navigate(`/cg/libraries/${libId}/types/${typeId}/entities/new`)}
           onEdit={entityId => navigate(`/cg/libraries/${libId}/types/${typeId}/entities/${entityId}/edit`)}
           onBack={() => navigate(`/cg/libraries/${libId}`)}
+        />
+      );
+    }
+  }
+
+  // /cg/libraries/:libId/types/:typeId/templates
+  if (
+    segments[0] === 'cg' &&
+    segments[1] === 'libraries' && segments[2] &&
+    segments[3] === 'types' && segments[4] &&
+    segments[5] === 'templates'
+  ) {
+    const libId = Number(segments[2]);
+    const typeId = Number(segments[4]);
+    if (!isNaN(libId) && !isNaN(typeId)) {
+      return (
+        <CgTemplateEditorPage
+          libId={libId}
+          typeId={typeId}
+          onBack={() => navigate(`/cg/libraries/${libId}/types/${typeId}`)}
         />
       );
     }

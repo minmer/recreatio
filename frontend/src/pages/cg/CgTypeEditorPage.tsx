@@ -137,6 +137,12 @@ export function CgTypeEditorPage({ libId, typeId }: { libId: number; typeId: num
         <h1 className="cg-title">{typeName}</h1>
         <div className="cg-header-actions">
           {savedMsg && <span className="cg-saved-msg">Saved</span>}
+          <button
+            className="cg-btn"
+            onClick={() => navigate(`/cg/libraries/${libId}/types/${typeId}/templates`)}
+          >
+            Templates
+          </button>
           <button className="cg-btn" onClick={handleSave} disabled={saving || !dirty}>
             {saving ? 'Saving…' : 'Save'}
           </button>
