@@ -507,6 +507,29 @@ public static class CgTemplateEndpoints
             };
         }
 
+        // Pass 4b: text-concat nodes
+        // Each input handle is named by its zero-based index ("0", "1", "2"…).
+        // Arrays are joined with arraySeparator before substitution.
+        // The result is always a single string written to the "value" handle.
+        foreach (var node in nodes.Where(n => n.NodeType == "text-concat"))
+        {
+            var cfg = ParseConfig<TextConcatNodeConfig>(node.ConfigJson);
+            if (cfg is null) continue;
+
+            var template = cfg.Template ?? string.Empty;
+            var sep = cfg.ArraySeparator ?? ", ";
+            var count = Math.Max(1, cfg.InputCount);
+
+            for (var i = 0; i < count; i++)
+            {
+                var vals = CollectInputs(node.NodeKey, i.ToString(), edges, outputs);
+                var substitution = string.Join(sep, vals);
+                template = template.Replace($"{{{i}}}", substitution);
+            }
+
+            outputs[node.NodeKey] = new() { ["value"] = [template] };
+        }
+
         // Pass 5: propagate to prompt and answer nodes
         var stimulus = new List<CgQuizStimulus>();
         foreach (var node in nodes.Where(n => n.NodeType == "prompt"))
@@ -646,6 +669,13 @@ public static class CgTemplateEndpoints
     {
         // "random" | "first" | "last"
         public string Position { get; set; } = "random";
+    }
+
+    private sealed class TextConcatNodeConfig
+    {
+        public string Template { get; set; } = "{0}";
+        public int InputCount { get; set; } = 1;
+        public string ArraySeparator { get; set; } = ", ";
     }
 
     private sealed record EntityFieldNodeConfig(

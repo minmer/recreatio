@@ -864,6 +864,29 @@
   color: #93c5fd;
 }
 
+.cgt-node-text-concat {
+  background: #121a10;
+  border-color: #16a34a;
+  color: #86efac;
+}
+
+.cgt-tc-template {
+  font-family: monospace;
+  font-size: 0.72rem;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+.cgt-textarea {
+  resize: vertical;
+  min-height: 60px;
+  font-family: monospace;
+  font-size: 0.82rem;
+}
+
 .cgt-cfg-hint {
   font-size: 0.75rem;
   color: #64748b;

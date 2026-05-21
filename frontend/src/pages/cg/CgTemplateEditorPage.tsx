@@ -42,6 +42,7 @@ type DistractorConfig = { count: number; fieldDefId: number; fieldLabel: string 
 type MaskConfig = { strategy: 'prefix' | 'suffix' | 'random'; keepPct: number };
 type PickConfig = { position: 'random' | 'first' | 'last' };
 type EntityFieldConfig = { targetTypeDefId: number; targetTypeName: string; targetFieldDefId: number; targetFieldLabel: string };
+type TextConcatConfig = { template: string; inputCount: number; arraySeparator: string };
 
 // ── Custom nodes ──────────────────────────────────────────────────────────────
 
@@ -142,6 +143,31 @@ function PickNode({ data }: { data: PickConfig }) {
   );
 }
 
+function TextConcatNode({ data }: { data: TextConcatConfig }) {
+  const count = Math.max(1, Math.min(10, data.inputCount || 1));
+  return (
+    <div className="cgt-node cgt-node-text-concat" style={{ minHeight: count * 26 + 48 }}>
+      {Array.from({ length: count }, (_, i) => (
+        <Handle
+          key={i}
+          type="target"
+          position={Position.Left}
+          id={String(i)}
+          style={{ top: `${((i + 0.5) / count) * 100}%` }}
+        />
+      ))}
+      <div className="cgt-node-port-labels">
+        {Array.from({ length: count }, (_, i) => (
+          <span key={i} style={{ top: `${((i + 0.5) / count) * 100}%` }}>{i}</span>
+        ))}
+      </div>
+      <div className="cgt-node-type">Text Concat</div>
+      <div className="cgt-node-sub cgt-tc-template">{data.template || '{0}'}</div>
+      <Handle type="source" position={Position.Right} id="value" />
+    </div>
+  );
+}
+
 function EntityFieldNode({ data }: { data: EntityFieldConfig }) {
   return (
     <div className="cgt-node cgt-node-entity-field" style={{ minHeight: 70 }}>
@@ -180,7 +206,8 @@ const NODE_TYPES = {
   distractor: DistractorNode,
   pick: PickNode,
   mask: MaskNode,
-  'entity-field': EntityFieldNode
+  'entity-field': EntityFieldNode,
+  'text-concat': TextConcatNode
 };
 
 // ── Default configs ───────────────────────────────────────────────────────────
@@ -197,6 +224,7 @@ function defaultConfig(nodeType: string): object {
     case 'pick':          return { position: 'random' };
     case 'mask':          return { strategy: 'suffix', keepPct: 30 };
     case 'entity-field':  return { targetTypeDefId: 0, targetTypeName: '', targetFieldDefId: 0, targetFieldLabel: '' };
+    case 'text-concat':   return { template: '{0}', inputCount: 1, arraySeparator: ', ' };
     default:              return {};
   }
 }
@@ -385,6 +413,45 @@ function ConfigPanel({
         </>
       )}
 
+      {type === 'text-concat' && (
+        <>
+          <div className="cgt-cfg-row">
+            <label className="cgt-cfg-label">Inputs</label>
+            <input
+              type="number"
+              className="cg-input cgt-num"
+              min={1} max={10}
+              value={(cfg.inputCount as number) ?? 1}
+              onChange={e => {
+                const n = Math.max(1, Math.min(10, Number(e.target.value)));
+                set('inputCount', n);
+              }}
+            />
+          </div>
+          <div className="cgt-cfg-row cgt-cfg-hint">
+            Use {'{0}'}, {'{1}'}, … as placeholders. Each maps to the matching input handle.
+          </div>
+          <div className="cgt-cfg-row">
+            <label className="cgt-cfg-label">Template</label>
+            <textarea
+              className="cg-input cgt-textarea"
+              rows={3}
+              value={(cfg.template as string) ?? '{0}'}
+              onChange={e => set('template', e.target.value)}
+            />
+          </div>
+          <div className="cgt-cfg-row">
+            <label className="cgt-cfg-label">Array join</label>
+            <input
+              className="cg-input"
+              placeholder=", "
+              value={(cfg.arraySeparator as string) ?? ', '}
+              onChange={e => set('arraySeparator', e.target.value)}
+            />
+          </div>
+        </>
+      )}
+
       {type === 'mask' && (
         <>
           <div className="cgt-cfg-row">
@@ -417,7 +484,8 @@ const PALETTE = [
   { type: 'distractor',    label: 'Distractors',  hint: 'wrong options source' },
   { type: 'pick',          label: 'Pick',         hint: 'hide one from list' },
   { type: 'mask',          label: 'Mask',         hint: 'hide part of text' },
-  { type: 'entity-field',  label: 'Entity Field', hint: 'read field from entities' }
+  { type: 'entity-field',  label: 'Entity Field', hint: 'read field from entities' },
+  { type: 'text-concat',   label: 'Text Concat',  hint: 'template with {0} {1} …' }
 ];
 
 // ── Question preview modal ────────────────────────────────────────────────────
