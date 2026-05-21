@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useId } from 'react';
 import ReactFlow, {
   ReactFlowProvider,
   type Connection,
@@ -16,14 +16,16 @@ import ReactFlow, {
   useReactFlow
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import type { CgFieldDefResponse, CgTypeDefDetailResponse } from './cgApi';
-import { getCgTypeDefDetail } from './cgApi';
+import type { CgEntityListItem, CgFieldDefResponse, CgTypeDefDetailResponse } from './cgApi';
+import { getCgEntities, getCgTypeDefDetail } from './cgApi';
 import {
   createCgTemplate,
   deleteCgTemplate,
+  generateCgQuiz,
   getCgTemplate,
   getCgTemplates,
   saveCgTemplate,
+  type CgQuizQuestion,
   type CgTemplateEdgeSaveItem,
   type CgTemplateListItem,
   type CgTemplateNodeSaveItem
@@ -336,6 +338,155 @@ const PALETTE = [
   { type: 'mask',          label: 'Mask',         hint: 'hide part of text' }
 ];
 
+// ── Question preview modal ────────────────────────────────────────────────────
+
+function QuestionPreview({ question }: { question: CgQuizQuestion }) {
+  const answerLabel: Record<string, string> = {
+    text: 'Type answer',
+    select: 'Pick from options',
+    order: 'Arrange in order',
+    bool: 'True / False'
+  };
+
+  let answerConfig: Record<string, unknown> = {};
+  try { answerConfig = JSON.parse(question.answerConfigJson); } catch { /* ignore */ }
+
+  return (
+    <div className="cgt-preview-question">
+      <div className="cgt-preview-section-title">Stimulus</div>
+      {question.stimulus.length === 0 ? (
+        <p className="cgt-preview-empty">No prompt nodes connected.</p>
+      ) : (
+        question.stimulus.map((s, i) => (
+          <div key={i} className="cgt-preview-stimulus">
+            <span className="cgt-preview-stim-label">{s.label}</span>
+            <div className="cgt-preview-stim-values">
+              {s.values.map((v, j) => <span key={j} className="cgt-preview-stim-val">{v}</span>)}
+            </div>
+          </div>
+        ))
+      )}
+
+      <div className="cgt-preview-section-title" style={{ marginTop: '1rem' }}>Answer</div>
+      <div className="cgt-preview-answer-type">
+        {answerLabel[question.answerType] ?? question.answerType}
+        {question.answerType === 'text' && Boolean(answerConfig.fuzzy) && (
+          <span className="cgt-preview-badge">fuzzy {String(answerConfig.thresholdPct ?? 85)}%</span>
+        )}
+        {question.answerType === 'select' && Boolean(answerConfig.multiSelect) && (
+          <span className="cgt-preview-badge">multi-select</span>
+        )}
+      </div>
+
+      {question.expected.length > 0 && (
+        <div className="cgt-preview-expected">
+          <span className="cgt-preview-field-label">Expected:</span>
+          {question.expected.map((v, i) => <span key={i} className="cgt-preview-chip cgt-preview-chip-correct">{v}</span>)}
+        </div>
+      )}
+
+      {question.distractors.length > 0 && (
+        <div className="cgt-preview-distractors">
+          <span className="cgt-preview-field-label">Distractors:</span>
+          {question.distractors.map((v, i) => <span key={i} className="cgt-preview-chip cgt-preview-chip-wrong">{v}</span>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreviewModal({
+  libId,
+  typeId,
+  graphId,
+  onClose
+}: {
+  libId: number;
+  typeId: number;
+  graphId: number;
+  onClose: () => void;
+}) {
+  const selectId = useId();
+  const [entities, setEntities] = useState<CgEntityListItem[]>([]);
+  const [loadingEntities, setLoadingEntities] = useState(true);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [question, setQuestion] = useState<CgQuizQuestion | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getCgEntities(libId, typeId, 0, 100)
+      .then(list => {
+        setEntities(list);
+        if (list.length > 0) setSelectedId(list[0].id);
+      })
+      .catch(() => setError('Failed to load entities.'))
+      .finally(() => setLoadingEntities(false));
+  }, [libId, typeId]);
+
+  async function handleGenerate() {
+    if (!selectedId) return;
+    setGenerating(true);
+    setQuestion(null);
+    setError(null);
+    try {
+      const q = await generateCgQuiz(libId, typeId, graphId, selectedId);
+      setQuestion(q);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg || 'Failed to generate question.');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <div className="cgt-modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="cgt-modal">
+        <div className="cgt-modal-header">
+          <h2 className="cgt-modal-title">Preview Question</h2>
+          <button className="cgt-modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="cgt-modal-body">
+          {loadingEntities ? (
+            <div className="cg-loading">Loading entities…</div>
+          ) : entities.length === 0 ? (
+            <p className="cg-empty">No entities found. Add some entities first.</p>
+          ) : (
+            <div className="cgt-preview-controls">
+              <label className="cgt-cfg-label" htmlFor={selectId}>Entity</label>
+              <select
+                id={selectId}
+                className="cg-select cgt-preview-select"
+                value={selectedId ?? ''}
+                onChange={e => setSelectedId(Number(e.target.value))}
+              >
+                {entities.map(en => (
+                  <option key={en.id} value={en.id}>{en.displayValue || `#${en.id}`}</option>
+                ))}
+              </select>
+              <button
+                className="cg-btn cg-btn-primary"
+                onClick={handleGenerate}
+                disabled={generating || !selectedId}
+              >
+                {generating ? 'Generating…' : 'Generate'}
+              </button>
+            </div>
+          )}
+
+          {error && (
+            <div className="cg-error" onClick={() => setError(null)}>{error}</div>
+          )}
+
+          {question && <QuestionPreview question={question} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Inner editor (must be inside ReactFlowProvider) ───────────────────────────
 
 let _seq = 1;
@@ -367,6 +518,7 @@ function EditorCanvas({
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const { project } = useReactFlow();
 
@@ -441,6 +593,7 @@ function EditorCanvas({
         />
         <div className="cg-header-actions">
           {error && <span className="cg-error-inline" onClick={() => setError(null)}>{error}</span>}
+          <button className="cg-btn cg-btn-ghost" onClick={() => setShowPreview(true)}>Preview</button>
           <button className="cg-btn" onClick={handleSave} disabled={saving || !dirty}>
             {saving ? 'Saving…' : 'Save'}
           </button>
@@ -480,6 +633,15 @@ function EditorCanvas({
           <ConfigPanel node={selected} fields={typeDef.fields} onChange={updateConfig} />
         )}
       </div>
+
+      {showPreview && (
+        <PreviewModal
+          libId={libId}
+          typeId={typeId}
+          graphId={graphId}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
     </div>
   );
 }
