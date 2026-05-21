@@ -289,58 +289,69 @@ public static class CgTemplateEndpoints
                 .ToList();
 
             if (vals.Count == 0)
-                warnings.Add($"Field node '{cfg.FieldLabel}' produced no values — use a Sub-entities node for reference fields.");
+                warnings.Add($"Field node '{cfg.FieldLabel}' produced no values — for reference fields use an Entity Value or Entity Group node.");
 
             outputs[node.NodeKey] = new() { ["value"] = vals };
         }
 
-        // Pass 1b: sub-entities nodes — follow a reference field and resolve each sub-entity's text value
-        foreach (var node in nodes.Where(n => n.NodeType == "subentities"))
+        // Pass 1b: ref-value (single entity) and ref-group (all entities) nodes.
+        // Both are configured with a target type + target field.
+        // The reference field on the main entity that links to the target type is auto-detected.
+        foreach (var node in nodes.Where(n => n.NodeType == "ref-value" || n.NodeType == "ref-group"))
         {
-            var cfg = ParseConfig<SubEntitiesNodeConfig>(node.ConfigJson);
-            if (cfg is null || cfg.FieldDefId == 0)
+            var cfg = ParseConfig<RefEntityNodeConfig>(node.ConfigJson);
+            if (cfg is null || cfg.TargetTypeDefId == 0)
             {
-                warnings.Add($"Sub-entities node has no reference field selected.");
+                warnings.Add($"'{node.NodeType}' node has no type selected — configure it in the config panel.");
+                continue;
+            }
+
+            // Auto-detect: find reference field(s) on the main entity's type that point to the target type.
+            var refFieldIds = await (
+                from target in db.CgFieldDefTargets
+                join field  in db.CgFieldDefs on target.FieldDefId equals field.Id
+                where target.TargetTypeDefId == cfg.TargetTypeDefId
+                   && field.TypeDefId == entity.TypeDefId
+                select field.Id
+            ).ToListAsync(ct);
+
+            if (refFieldIds.Count == 0)
+            {
+                warnings.Add($"No reference field on the main type points to '{cfg.TargetTypeName}'. Add one first.");
                 continue;
             }
 
             var refRows = fieldValues
-                .Where(fv => fv.FieldDefId == cfg.FieldDefId && fv.RefEntityId.HasValue)
+                .Where(fv => refFieldIds.Contains(fv.FieldDefId) && fv.RefEntityId.HasValue)
                 .OrderBy(fv => fv.SortOrder)
                 .ToList();
 
             if (refRows.Count == 0)
             {
-                warnings.Add($"Sub-entities node '{cfg.FieldLabel}': no referenced entities found for this field.");
-                outputs[node.NodeKey] = new() { ["values"] = [] };
+                warnings.Add($"'{cfg.TargetTypeName}' node: entity has no linked sub-entities of this type.");
                 continue;
             }
 
+            // ref-value uses only the first linked entity; ref-group uses all.
+            if (node.NodeType == "ref-value")
+                refRows = [refRows[0]];
+
             var refIds = refRows.Select(fv => fv.RefEntityId!.Value).ToList();
 
-            var refEntities = await db.CgEntities.AsNoTracking()
-                .Where(e => refIds.Contains(e.Id))
-                .Select(e => new { e.Id, e.TypeDefId })
-                .ToListAsync(ct);
-
-            var refTypeIds = refEntities.Select(e => e.TypeDefId).Distinct().ToList();
-
-            // Use configured sub-field if given; otherwise fall back to the first field of each type.
+            // Resolve each referenced entity to its target field value.
             IReadOnlyCollection<long> targetFieldIds;
-            if (cfg.SubFieldDefId > 0)
+            if (cfg.TargetFieldDefId > 0)
             {
-                targetFieldIds = new HashSet<long> { cfg.SubFieldDefId };
+                targetFieldIds = new HashSet<long> { cfg.TargetFieldDefId };
             }
             else
             {
-                var firstFields = await db.CgFieldDefs.AsNoTracking()
-                    .Where(f => refTypeIds.Contains(f.TypeDefId))
+                // Fall back to the first text field of the target type.
+                var firstField = await db.CgFieldDefs.AsNoTracking()
+                    .Where(f => f.TypeDefId == cfg.TargetTypeDefId)
                     .OrderBy(f => f.SortOrder)
-                    .ToListAsync(ct);
-                targetFieldIds = firstFields
-                    .GroupBy(f => f.TypeDefId)
-                    .Select(g => g.First().Id)
-                    .ToHashSet();
+                    .FirstOrDefaultAsync(ct);
+                targetFieldIds = firstField is null ? [] : new HashSet<long> { firstField.Id };
             }
 
             var subValues = await db.CgFieldValues.AsNoTracking()
@@ -355,16 +366,18 @@ public static class CgTemplateEndpoints
                     g => g.Key,
                     g => DecryptValue(g.OrderBy(v => v.SortOrder).First().EncryptedValue!));
 
-            var vals = refIds
+            var resolvedVals = refIds
                 .Select(id => displayByEntity.TryGetValue(id, out var d) ? d : null)
                 .Where(d => d is not null)
                 .Select(d => d!)
                 .ToList();
 
-            if (vals.Count == 0)
-                warnings.Add($"Sub-entities node '{cfg.FieldLabel}': referenced entities have no text value in the selected sub-field.");
+            if (resolvedVals.Count == 0)
+                warnings.Add($"'{cfg.TargetTypeName}' node: sub-entities found but have no value for field '{cfg.TargetFieldLabel}'.");
 
-            outputs[node.NodeKey] = new() { ["values"] = vals };
+            // ref-value outputs handle "value"; ref-group outputs handle "values".
+            var outHandle = node.NodeType == "ref-value" ? "value" : "values";
+            outputs[node.NodeKey] = new() { [outHandle] = resolvedVals };
         }
 
         // Pass 2: distractor nodes
@@ -640,12 +653,12 @@ public static class CgTemplateEndpoints
         public string Position { get; set; } = "random";
     }
 
-    private sealed class SubEntitiesNodeConfig
+    private sealed class RefEntityNodeConfig
     {
-        public long FieldDefId { get; set; }
-        public string FieldLabel { get; set; } = string.Empty;
-        // 0 = use the first text field of each sub-entity (display value)
-        public long SubFieldDefId { get; set; }
-        public string SubFieldLabel { get; set; } = string.Empty;
+        public long TargetTypeDefId { get; set; }
+        public string TargetTypeName { get; set; } = string.Empty;
+        // 0 = use the first text field of the target type (display value)
+        public long TargetFieldDefId { get; set; }
+        public string TargetFieldLabel { get; set; } = string.Empty;
     }
 }

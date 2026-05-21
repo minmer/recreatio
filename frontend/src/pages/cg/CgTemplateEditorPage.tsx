@@ -17,7 +17,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import type { CgEntityListItem, CgFieldDefResponse, CgTypeDefDetailResponse } from './cgApi';
-import { getCgEntities, getCgTypeDefDetail } from './cgApi';
+import { getCgEntities, getCgTypeDefDetail, getCgTypeDefs } from './cgApi';
 import {
   createCgTemplate,
   deleteCgTemplate,
@@ -41,7 +41,7 @@ type AnswerBoolConfig = { trueLabel: string; falseLabel: string };
 type DistractorConfig = { count: number; fieldDefId: number; fieldLabel: string };
 type MaskConfig = { strategy: 'prefix' | 'suffix' | 'random'; keepPct: number };
 type PickConfig = { position: 'random' | 'first' | 'last' };
-type SubEntitiesConfig = { fieldDefId: number; fieldLabel: string; subFieldDefId: number; subFieldLabel: string };
+type RefEntityConfig = { targetTypeDefId: number; targetTypeName: string; targetFieldDefId: number; targetFieldLabel: string };
 
 // ── Custom nodes ──────────────────────────────────────────────────────────────
 
@@ -138,12 +138,23 @@ function PickNode({ data }: { data: PickConfig }) {
   );
 }
 
-function SubEntitiesNode({ data }: { data: SubEntitiesConfig }) {
+function RefValueNode({ data }: { data: RefEntityConfig }) {
   return (
-    <div className="cgt-node cgt-node-subentities">
-      <div className="cgt-node-type">Sub-entities</div>
-      <div className="cgt-node-label">{data.fieldLabel || '(select ref field)'}</div>
-      {data.subFieldLabel && <div className="cgt-node-sub">→ {data.subFieldLabel}</div>}
+    <div className="cgt-node cgt-node-ref-value">
+      <div className="cgt-node-type">Entity Value</div>
+      <div className="cgt-node-label">{data.targetTypeName || '(select type)'}</div>
+      {data.targetFieldLabel && <div className="cgt-node-sub">→ {data.targetFieldLabel}</div>}
+      <Handle type="source" position={Position.Right} id="value" />
+    </div>
+  );
+}
+
+function RefGroupNode({ data }: { data: RefEntityConfig }) {
+  return (
+    <div className="cgt-node cgt-node-ref-group">
+      <div className="cgt-node-type">Entity Group</div>
+      <div className="cgt-node-label">{data.targetTypeName || '(select type)'}</div>
+      {data.targetFieldLabel && <div className="cgt-node-sub">→ {data.targetFieldLabel}</div>}
       <Handle type="source" position={Position.Right} id="values" />
     </div>
   );
@@ -175,7 +186,8 @@ const NODE_TYPES = {
   distractor: DistractorNode,
   pick: PickNode,
   mask: MaskNode,
-  subentities: SubEntitiesNode
+  'ref-value': RefValueNode,
+  'ref-group': RefGroupNode
 };
 
 // ── Default configs ───────────────────────────────────────────────────────────
@@ -191,7 +203,8 @@ function defaultConfig(nodeType: string): object {
     case 'distractor':    return { count: 3, fieldDefId: 0, fieldLabel: '' };
     case 'pick':          return { position: 'random' };
     case 'mask':          return { strategy: 'suffix', keepPct: 30 };
-    case 'subentities':   return { fieldDefId: 0, fieldLabel: '', subFieldDefId: 0, subFieldLabel: '' };
+    case 'ref-value':     return { targetTypeDefId: 0, targetTypeName: '', targetFieldDefId: 0, targetFieldLabel: '' };
+    case 'ref-group':     return { targetTypeDefId: 0, targetTypeName: '', targetFieldDefId: 0, targetFieldLabel: '' };
     default:              return {};
   }
 }
@@ -201,14 +214,30 @@ function defaultConfig(nodeType: string): object {
 function ConfigPanel({
   node,
   fields,
+  allTypes,
+  libId,
   onChange
 }: {
   node: Node;
   fields: CgFieldDefResponse[];
+  allTypes: import('./cgApi').CgTypeDefResponse[];
+  libId: number;
   onChange: (id: string, config: object) => void;
 }) {
   const cfg = node.data as Record<string, unknown>;
   const type = node.type ?? '';
+
+  const [subTypeFields, setSubTypeFields] = useState<CgFieldDefResponse[]>([]);
+  useEffect(() => {
+    const targetId = (cfg.targetTypeDefId as number) ?? 0;
+    if (!targetId || (type !== 'ref-value' && type !== 'ref-group')) {
+      setSubTypeFields([]);
+      return;
+    }
+    getCgTypeDefDetail(libId, targetId)
+      .then(d => setSubTypeFields(d.fields))
+      .catch(() => setSubTypeFields([]));
+  }, [cfg.targetTypeDefId, type, libId]);
 
   function set(key: string, value: unknown) {
     onChange(node.id, { ...cfg, [key]: value });
@@ -318,38 +347,48 @@ function ConfigPanel({
         </div>
       )}
 
-      {type === 'subentities' && (
+      {(type === 'ref-value' || type === 'ref-group') && (
         <>
           <div className="cgt-cfg-row">
-            <label className="cgt-cfg-label">Reference field</label>
+            <label className="cgt-cfg-label">Type</label>
             <select
               className="cg-select"
-              value={(cfg.fieldDefId as number) ?? 0}
+              value={(cfg.targetTypeDefId as number) ?? 0}
               onChange={e => {
                 const id = Number(e.target.value);
-                const f = fields.find(x => x.id === id);
-                onChange(node.id, { ...cfg, fieldDefId: id, fieldLabel: f?.label ?? '' });
+                const t = allTypes.find(x => x.id === id);
+                onChange(node.id, {
+                  ...cfg,
+                  targetTypeDefId: id,
+                  targetTypeName: t?.name ?? '',
+                  targetFieldDefId: 0,
+                  targetFieldLabel: ''
+                });
               }}
             >
-              <option value={0}>— select field —</option>
-              {fields.filter(f => f.inputType === 'reference').map(f => (
-                <option key={f.id} value={f.id}>{f.label}</option>
+              <option value={0}>— select type —</option>
+              {allTypes.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
           </div>
-          <div className="cgt-cfg-row cgt-cfg-hint">
-            Sub-field to read from each referenced entity (leave blank to use each entity's display value / first field).
-          </div>
           <div className="cgt-cfg-row">
-            <label className="cgt-cfg-label">Sub-entity field ID</label>
-            <input
-              type="number"
-              className="cg-input cgt-num"
-              min={0}
-              placeholder="0 = display value"
-              value={(cfg.subFieldDefId as number) ?? 0}
-              onChange={e => set('subFieldDefId', Number(e.target.value))}
-            />
+            <label className="cgt-cfg-label">Field</label>
+            <select
+              className="cg-select"
+              value={(cfg.targetFieldDefId as number) ?? 0}
+              disabled={subTypeFields.length === 0}
+              onChange={e => {
+                const id = Number(e.target.value);
+                const f = subTypeFields.find(x => x.id === id);
+                onChange(node.id, { ...cfg, targetFieldDefId: id, targetFieldLabel: f?.label ?? '' });
+              }}
+            >
+              <option value={0}>— first / display field —</option>
+              {subTypeFields.map(f => (
+                <option key={f.id} value={f.id}>{f.label} ({f.inputType})</option>
+              ))}
+            </select>
           </div>
         </>
       )}
@@ -386,7 +425,8 @@ const PALETTE = [
   { type: 'distractor',    label: 'Distractors',  hint: 'wrong options source' },
   { type: 'pick',          label: 'Pick',         hint: 'hide one from list' },
   { type: 'mask',          label: 'Mask',         hint: 'hide part of text' },
-  { type: 'subentities',   label: 'Sub-entities', hint: 'resolve reference field' }
+  { type: 'ref-value',     label: 'Entity Value', hint: 'one referenced entity' },
+  { type: 'ref-group',     label: 'Entity Group', hint: 'all referenced entities' }
 ];
 
 // ── Question preview modal ────────────────────────────────────────────────────
@@ -559,6 +599,7 @@ function EditorCanvas({
   initialNodes,
   initialEdges,
   typeDef,
+  allTypes,
   onBack
 }: {
   libId: number;
@@ -568,6 +609,7 @@ function EditorCanvas({
   initialNodes: Node[];
   initialEdges: Edge[];
   typeDef: CgTypeDefDetailResponse;
+  allTypes: import('./cgApi').CgTypeDefResponse[];
   onBack: () => void;
 }) {
   const [name, setName] = useState(graphName);
@@ -689,7 +731,13 @@ function EditorCanvas({
         </div>
 
         {selected && (
-          <ConfigPanel node={selected} fields={typeDef.fields} onChange={updateConfig} />
+          <ConfigPanel
+            node={selected}
+            fields={typeDef.fields}
+            allTypes={allTypes}
+            libId={libId}
+            onChange={updateConfig}
+          />
         )}
       </div>
 
@@ -825,13 +873,14 @@ export function CgTemplateEditorPage({
 }) {
   const [activeGraphId, setActiveGraphId] = useState<number | null>(null);
   const [typeDef, setTypeDef] = useState<CgTypeDefDetailResponse | null>(null);
+  const [allTypes, setAllTypes] = useState<import('./cgApi').CgTypeDefResponse[]>([]);
   const [graphData, setGraphData] = useState<{ name: string; nodes: Node[]; edges: Edge[] } | null>(null);
   const [loadingGraph, setLoadingGraph] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getCgTypeDefDetail(libId, typeId)
-      .then(setTypeDef)
+    Promise.all([getCgTypeDefDetail(libId, typeId), getCgTypeDefs(libId)])
+      .then(([detail, types]) => { setTypeDef(detail); setAllTypes(types); })
       .catch(() => setError('Failed to load type definition.'));
   }, [libId, typeId]);
 
@@ -891,6 +940,7 @@ export function CgTemplateEditorPage({
           initialNodes={graphData.nodes}
           initialEdges={graphData.edges}
           typeDef={typeDef}
+          allTypes={allTypes}
           onBack={() => { setActiveGraphId(null); setGraphData(null); }}
         />
       </ReactFlowProvider>
