@@ -931,6 +931,23 @@
   gap: 0.5rem;
 }
 
+.cgt-preview-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.cgt-preview-warning {
+  background: #2a1f0a;
+  border: 1px solid #7c4a00;
+  color: #f0a832;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
 .cgt-preview-section-title {
   font-size: 0.7rem;
   font-weight: 700;

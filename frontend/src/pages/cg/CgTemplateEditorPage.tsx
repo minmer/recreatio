@@ -353,9 +353,17 @@ function QuestionPreview({ question }: { question: CgQuizQuestion }) {
 
   return (
     <div className="cgt-preview-question">
+      {question.warnings.length > 0 && (
+        <div className="cgt-preview-warnings">
+          {question.warnings.map((w, i) => (
+            <div key={i} className="cgt-preview-warning">{w}</div>
+          ))}
+        </div>
+      )}
+
       <div className="cgt-preview-section-title">Stimulus</div>
       {question.stimulus.length === 0 ? (
-        <p className="cgt-preview-empty">No prompt nodes connected.</p>
+        <p className="cgt-preview-empty">No prompt nodes produced content.</p>
       ) : (
         question.stimulus.map((s, i) => (
           <div key={i} className="cgt-preview-stimulus">

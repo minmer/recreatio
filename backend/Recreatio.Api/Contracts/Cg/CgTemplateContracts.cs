@@ -76,5 +76,6 @@ public sealed record CgQuizQuestion(
     string AnswerType,
     string AnswerConfigJson,
     IReadOnlyList<string> Expected,
-    IReadOnlyList<string> Distractors
+    IReadOnlyList<string> Distractors,
+    IReadOnlyList<string> Warnings
 );

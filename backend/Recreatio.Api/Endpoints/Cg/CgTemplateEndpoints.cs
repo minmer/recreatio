@@ -263,6 +263,8 @@ public static class CgTemplateEndpoints
         RecreatioDbContext db,
         CancellationToken ct)
     {
+        var warnings = new List<string>();
+
         var fieldValues = await db.CgFieldValues.AsNoTracking()
             .Where(fv => fv.EntityId == entity.Id)
             .OrderBy(fv => fv.SortOrder)
@@ -275,12 +277,19 @@ public static class CgTemplateEndpoints
         foreach (var node in nodes.Where(n => n.NodeType == "field"))
         {
             var cfg = ParseConfig<FieldNodeConfig>(node.ConfigJson);
-            if (cfg is null) continue;
+            if (cfg is null || cfg.FieldDefId == 0)
+            {
+                warnings.Add($"Field node '{node.NodeKey}' has no field selected — configure it in the config panel.");
+                continue;
+            }
 
             var vals = fieldValues
                 .Where(fv => fv.FieldDefId == cfg.FieldDefId && fv.EncryptedValue != null)
                 .Select(fv => DecryptValue(fv.EncryptedValue!))
                 .ToList();
+
+            if (vals.Count == 0)
+                warnings.Add($"Field node '{cfg.FieldLabel}' produced no values — entity has no data for this field.");
 
             outputs[node.NodeKey] = new() { ["value"] = vals };
         }
@@ -297,8 +306,6 @@ public static class CgTemplateEndpoints
                 .Select(e => e.Id)
                 .ToListAsync(ct);
 
-            // Shuffle deterministically by hashing entityId + fieldDefId for reproducibility
-            // For now use a simple random selection
             var shuffled = otherIds.OrderBy(_ => Guid.NewGuid()).Take(count * 2).ToList();
 
             var distractorValues = await db.CgFieldValues.AsNoTracking()
@@ -320,7 +327,16 @@ public static class CgTemplateEndpoints
         foreach (var node in nodes.Where(n => n.NodeType == "pick"))
         {
             var items = CollectInputs(node.NodeKey, "items", edges, outputs);
-            if (items.Count == 0) continue;
+            if (items.Count == 0)
+            {
+                warnings.Add($"Pick node has no input — connect a Field node's output to its 'items' handle. Make sure the field is 'multiple'.");
+                continue;
+            }
+            if (items.Count == 1)
+            {
+                warnings.Add($"Pick node received only 1 value ('{items[0]}') — it needs ≥2 values to hide one and show the rest. Use a 'multiple' field or add more values to the entity.");
+                continue;
+            }
 
             var cfg = ParseConfig<PickNodeConfig>(node.ConfigJson);
             var pos = cfg?.Position ?? "random";
@@ -359,7 +375,7 @@ public static class CgTemplateEndpoints
             };
         }
 
-        // Pass 4: propagate to prompt and answer nodes
+        // Pass 5: propagate to prompt and answer nodes
         var stimulus = new List<CgQuizStimulus>();
         foreach (var node in nodes.Where(n => n.NodeType == "prompt"))
         {
@@ -367,23 +383,25 @@ public static class CgTemplateEndpoints
             var content = CollectInputs(node.NodeKey, "content", edges, outputs);
             if (content.Count > 0)
                 stimulus.Add(new CgQuizStimulus(cfg?.Label ?? "Prompt", content));
+            else
+                warnings.Add($"Prompt node '{cfg?.Label ?? node.NodeKey}' received no content — check that its incoming edge's source node produced output.");
         }
 
         foreach (var node in nodes.Where(n => n.NodeType.StartsWith("answer-")))
         {
-            var expected = CollectInputs(node.NodeKey, "expected", edges, outputs);
+            var expected    = CollectInputs(node.NodeKey, "expected",   edges, outputs);
             var distractors = CollectInputs(node.NodeKey, "distractor", edges, outputs);
-            var items = CollectInputs(node.NodeKey, "items", edges, outputs);
+            var items       = CollectInputs(node.NodeKey, "items",      edges, outputs);
 
             if (node.NodeType == "answer-order")
                 expected = items;
 
             var answerType = node.NodeType switch
             {
-                "answer-text" => "text",
+                "answer-text"   => "text",
                 "answer-select" => "select",
-                "answer-order" => "order",
-                "answer-bool" => "bool",
+                "answer-order"  => "order",
+                "answer-bool"   => "bool",
                 _ => "text"
             };
 
@@ -394,7 +412,8 @@ public static class CgTemplateEndpoints
                 answerType,
                 node.ConfigJson,
                 expected,
-                distractors
+                distractors,
+                warnings
             );
         }
 
@@ -410,16 +429,14 @@ public static class CgTemplateEndpoints
         var result = new List<string>();
         foreach (var edge in edges.Where(e => e.TargetKey == nodeKey))
         {
-            // Match by explicit targetHandle, or fall back to targetHandle=="content"
-            // only when no handle was recorded (legacy/default edges).
             var edgeTarget = edge.TargetHandle;
+            // Skip if an explicit target handle is set but doesn't match what we want.
+            // A null target handle is treated as a wildcard (ReactFlow may omit the handle
+            // ID for single-handle nodes even when the handle has an explicit id prop).
             if (edgeTarget != null && edgeTarget != targetHandle) continue;
-            if (edgeTarget == null && targetHandle != "content") continue;
 
             if (outputs.TryGetValue(edge.SourceKey, out var sourceOut))
             {
-                // Match by explicit sourceHandle, or try targetHandle name as source handle
-                // (e.g. an edge wired to "expected" likely comes from "value" or the handle named by the source)
                 var handle = edge.SourceHandle ?? "value";
                 if (sourceOut.TryGetValue(handle, out var vals))
                     result.AddRange(vals);

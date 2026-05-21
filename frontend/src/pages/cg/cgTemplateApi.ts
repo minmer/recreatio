@@ -97,6 +97,7 @@ export type CgQuizQuestion = {
   answerConfigJson: string;
   expected: string[];
   distractors: string[];
+  warnings: string[];
 };
 
 // ── API functions ─────────────────────────────────────────────────────────────
