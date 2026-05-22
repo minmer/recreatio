@@ -356,12 +356,16 @@ public static class CgTemplateEndpoints
                     var subValues = await db.CgFieldValues.AsNoTracking()
                         .Where(v => entityIds.Contains(v.EntityId)
                                  && v.FieldDefId == cfg.TargetFieldDefId
-                                 && v.EncryptedValue != null)
+                                 && (v.EncryptedValue != null || v.RefEntityId.HasValue))
                         .OrderBy(v => v.EntityId).ThenBy(v => v.SortOrder)
                         .ToListAsync(ct);
+                    // Reference fields output entity IDs (for chaining to another EntityField node).
+                    // Text fields output the decrypted value directly.
                     var resolvedVals = entityIds
                         .SelectMany(id => subValues.Where(v => v.EntityId == id)
-                            .Select(v => DecryptValue(v.EncryptedValue!)))
+                            .Select(v => v.RefEntityId.HasValue
+                                ? v.RefEntityId.Value.ToString()
+                                : DecryptValue(v.EncryptedValue!)))
                         .ToList();
                     if (resolvedVals.Count == 0)
                         warnings.Add($"Entity Field node '{cfg.TargetTypeName}.{cfg.TargetFieldLabel}': entities have no value for this field.");
