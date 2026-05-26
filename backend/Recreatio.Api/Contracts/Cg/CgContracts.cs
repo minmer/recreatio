@@ -36,6 +36,7 @@ public sealed record CgFieldDefResponse(
     string Label,
     int SortOrder,
     string InputType,
+    string FileTypes,
     bool Multiple,
     bool IsOrdered,
     IReadOnlyList<long> TargetTypeDefIds
@@ -45,6 +46,7 @@ public sealed record CgFieldDefSaveItem(
     long? Id,
     string Label,
     string InputType,
+    string? FileTypes,
     bool Multiple,
     bool IsOrdered,
     IReadOnlyList<long> TargetTypeDefIds
@@ -90,6 +92,7 @@ public sealed record CgEntityFieldResponse(
     long FieldDefId,
     string Label,
     string InputType,
+    string FileTypes,
     bool Multiple,
     bool IsOrdered,
     IReadOnlyList<CgEntityValueResponse> Values

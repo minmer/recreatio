@@ -11,6 +11,29 @@ import {
 } from './cgApi';
 import { CgReferenceInput } from './components/CgReferenceInput';
 
+function buildAccept(fileTypes: string): string {
+  const cats = fileTypes.split(',').filter(Boolean);
+  if (cats.length === 0) return '*';
+  return cats.map(c => {
+    switch (c) {
+      case 'image': return 'image/*';
+      case 'audio': return 'audio/*';
+      case 'video': return 'video/*';
+      case 'document': return '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt';
+      default: return '';
+    }
+  }).filter(Boolean).join(',');
+}
+
+function FilePreview({ dataUrl }: { dataUrl: string }) {
+  if (!dataUrl) return null;
+  const mime = dataUrl.split(';')[0].replace('data:', '');
+  if (mime.startsWith('image/')) return <img src={dataUrl} className="cg-file-preview-img" alt="" />;
+  if (mime.startsWith('audio/')) return <audio src={dataUrl} controls className="cg-file-preview-audio" />;
+  if (mime.startsWith('video/')) return <video src={dataUrl} controls className="cg-file-preview-video" />;
+  return <div className="cg-file-preview-doc">{mime || 'file'}</div>;
+}
+
 type FieldState = {
   def: CgFieldDefResponse;
   plainValues: string[];
@@ -50,6 +73,7 @@ export function CgEntityEditorPage({ libId, typeId, entityId, onSaved, onBack }:
             refEntityIds: [],
           })));
         }
+
       } catch (e) {
         setError(e instanceof ApiError ? e.message : 'Failed to load');
       } finally {
@@ -108,6 +132,12 @@ export function CgEntityEditorPage({ libId, typeId, entityId, onSaved, onBack }:
     ));
   };
 
+  const handleFileChange = (fi: number, vi: number, file: File) => {
+    const reader = new FileReader();
+    reader.onload = ev => setPlainValue(fi, vi, (ev.target?.result as string) ?? '');
+    reader.readAsDataURL(file);
+  };
+
   const buildSaveValues = (): CgEntityValueSaveItem[] => {
     const items: CgEntityValueSaveItem[] = [];
     for (const f of fields) {
@@ -117,7 +147,9 @@ export function CgEntityEditorPage({ libId, typeId, entityId, onSaved, onBack }:
         });
       } else {
         f.plainValues.forEach((val, idx) => {
-          if (val.trim()) {
+          // File fields store data URLs; text fields store plain strings.
+          // Both are saved when non-empty (data URLs are never just whitespace).
+          if (f.def.inputType === 'file' ? val !== '' : val.trim()) {
             items.push({ fieldDefId: f.def.id, sortOrder: idx, plainValue: val, refEntityId: null });
           }
         });
@@ -170,6 +202,44 @@ export function CgEntityEditorPage({ libId, typeId, entityId, onSaved, onBack }:
                 multiple={f.def.multiple}
                 isOrdered={f.def.isOrdered}
               />
+            ) : f.def.inputType === 'file' ? (
+              <div className="cg-entity-values">
+                {f.plainValues.map((val, vi) => (
+                  <div key={vi} className="cg-entity-file-row">
+                    {val && <FilePreview dataUrl={val} />}
+                    <div className="cg-entity-file-controls">
+                      <label className="cg-btn cg-btn-sm cg-file-label">
+                        {val ? 'Replace' : 'Upload file'}
+                        <input
+                          type="file"
+                          className="cg-file-input-hidden"
+                          accept={buildAccept(f.def.fileTypes)}
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) handleFileChange(fi, vi, file);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      {val && (
+                        <button type="button" className="cg-btn cg-btn-sm cg-btn-danger" onClick={() => setPlainValue(fi, vi, '')}>Remove</button>
+                      )}
+                      {f.def.isOrdered && (
+                        <>
+                          <button type="button" className="cg-btn cg-btn-sm" onClick={() => movePlainValue(fi, vi, -1)} disabled={vi === 0}>▲</button>
+                          <button type="button" className="cg-btn cg-btn-sm" onClick={() => movePlainValue(fi, vi, 1)} disabled={vi === f.plainValues.length - 1}>▼</button>
+                        </>
+                      )}
+                      {f.def.multiple && (
+                        <button type="button" className="cg-btn cg-btn-sm cg-btn-danger" onClick={() => removePlainValue(fi, vi)}>×</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {f.def.multiple && (
+                  <button type="button" className="cg-btn cg-btn-sm" onClick={() => addPlainValue(fi)}>+ Add file</button>
+                )}
+              </div>
             ) : (
               <div className="cg-entity-values">
                 {f.plainValues.map((val, vi) => (

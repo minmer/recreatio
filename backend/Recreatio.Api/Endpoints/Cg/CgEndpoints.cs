@@ -9,7 +9,7 @@ namespace Recreatio.Api.Endpoints.Cg;
 public static class CgEndpoints
 {
     private static readonly HashSet<string> ValidInputTypes =
-        new(["text", "number", "date", "reference"], StringComparer.Ordinal);
+        new(["text", "number", "date", "reference", "file"], StringComparer.Ordinal);
 
     // ── Crypto helpers (placeholder — replace with AES + user session key) ──
 
@@ -239,7 +239,7 @@ public static class CgEndpoints
                 .ToDictionary(g => g.Key, g => g.Select(t => t.TargetTypeDefId).ToList());
 
             var fieldResponses = fields.Select(f => new CgFieldDefResponse(
-                f.Id, f.Label, f.SortOrder, f.InputType, f.Multiple, f.IsOrdered,
+                f.Id, f.Label, f.SortOrder, f.InputType, f.FileTypes ?? "", f.Multiple, f.IsOrdered,
                 targetMap.GetValueOrDefault(f.Id, [])
             )).ToList();
 
@@ -409,6 +409,7 @@ public static class CgEndpoints
                     field.Label = item.Label.Trim();
                     field.SortOrder = i;
                     field.InputType = item.InputType;
+                    field.FileTypes = item.InputType == "file" ? (item.FileTypes ?? "") : null;
                     field.Multiple = item.Multiple;
                     field.IsOrdered = item.IsOrdered;
                     field.UpdatedUtc = now;
@@ -421,6 +422,7 @@ public static class CgEndpoints
                         Label = item.Label.Trim(),
                         SortOrder = i,
                         InputType = item.InputType,
+                        FileTypes = item.InputType == "file" ? (item.FileTypes ?? "") : null,
                         Multiple = item.Multiple,
                         IsOrdered = item.IsOrdered,
                         CreatedUtc = now,
@@ -808,7 +810,7 @@ public static class CgEndpoints
             }).ToList();
 
             return new CgEntityFieldResponse(
-                fd.Id, fd.Label, fd.InputType, fd.Multiple, fd.IsOrdered, valueResponses);
+                fd.Id, fd.Label, fd.InputType, fd.FileTypes ?? "", fd.Multiple, fd.IsOrdered, valueResponses);
         }).ToList();
 
         return new CgEntityDetailResponse(

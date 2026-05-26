@@ -54,6 +54,7 @@ export type CgFieldDefResponse = {
   label: string;
   sortOrder: number;
   inputType: string;
+  fileTypes: string;
   multiple: boolean;
   isOrdered: boolean;
   targetTypeDefIds: number[];
@@ -82,6 +83,7 @@ export type CgFieldDefSaveItem = {
   id?: number;
   label: string;
   inputType: string;
+  fileTypes: string;
   multiple: boolean;
   isOrdered: boolean;
   targetTypeDefIds: number[];
@@ -145,6 +147,7 @@ export type CgEntityFieldResponse = {
   fieldDefId: number;
   label: string;
   inputType: string;
+  fileTypes: string;
   multiple: boolean;
   isOrdered: boolean;
   values: CgEntityValueResponse[];

@@ -13,6 +13,7 @@ type FieldDraft = {
   id?: number;
   label: string;
   inputType: string;
+  fileTypes: string[];
   multiple: boolean;
   isOrdered: boolean;
   targetTypeDefIds: number[];
@@ -23,6 +24,7 @@ function fieldToSaveItem(f: FieldDraft): CgFieldDefSaveItem {
     id: f.id,
     label: f.label,
     inputType: f.inputType,
+    fileTypes: f.inputType === 'file' ? f.fileTypes.join(',') : '',
     multiple: f.multiple,
     isOrdered: f.isOrdered,
     targetTypeDefIds: f.inputType === 'reference' ? f.targetTypeDefIds : []
@@ -34,13 +36,21 @@ function responseToFieldDraft(f: CgFieldDefResponse): FieldDraft {
     id: f.id,
     label: f.label,
     inputType: f.inputType,
+    fileTypes: f.fileTypes ? f.fileTypes.split(',').filter(Boolean) : [],
     multiple: f.multiple,
     isOrdered: f.isOrdered,
     targetTypeDefIds: f.targetTypeDefIds
   };
 }
 
-const INPUT_TYPES = ['text', 'number', 'date', 'reference'] as const;
+const INPUT_TYPES = ['text', 'number', 'date', 'reference', 'file'] as const;
+
+const FILE_CATEGORIES = [
+  { value: 'image',    label: 'Image' },
+  { value: 'audio',    label: 'Audio' },
+  { value: 'video',    label: 'Video' },
+  { value: 'document', label: 'Document' }
+] as const;
 
 export function CgTypeEditorPage({ libId, typeId }: { libId: number; typeId: number }) {
   const navigate = useNavigate();
@@ -73,9 +83,15 @@ export function CgTypeEditorPage({ libId, typeId }: { libId: number; typeId: num
   function addField() {
     setFields((prev) => [
       ...prev,
-      { label: '', inputType: 'text', multiple: false, isOrdered: false, targetTypeDefIds: [] }
+      { label: '', inputType: 'text', fileTypes: [], multiple: false, isOrdered: false, targetTypeDefIds: [] }
     ]);
     setDirty(true);
+  }
+
+  function toggleFileCategory(idx: number, cat: string) {
+    const current = fields[idx].fileTypes;
+    const next = current.includes(cat) ? current.filter((c) => c !== cat) : [...current, cat];
+    updateField(idx, { fileTypes: next });
   }
 
   function removeField(idx: number) {
@@ -250,6 +266,25 @@ export function CgTypeEditorPage({ libId, typeId }: { libId: number; typeId: num
                             {t.name}
                           </label>
                         ))}
+                    </div>
+                  </div>
+                )}
+
+                {field.inputType === 'file' && (
+                  <div className="cg-field-targets">
+                    <span className="cg-targets-label">Allowed file types</span>
+                    <span className="cg-targets-hint">(empty = any file)</span>
+                    <div className="cg-targets-list">
+                      {FILE_CATEGORIES.map((cat) => (
+                        <label key={cat.value} className="cg-target-chip">
+                          <input
+                            type="checkbox"
+                            checked={field.fileTypes.includes(cat.value)}
+                            onChange={() => toggleFileCategory(idx, cat.value)}
+                          />
+                          {cat.label}
+                        </label>
+                      ))}
                     </div>
                   </div>
                 )}
