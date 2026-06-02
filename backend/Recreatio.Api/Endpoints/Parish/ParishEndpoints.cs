@@ -1243,10 +1243,15 @@ public static class ParishEndpoints
             joinRequest.UpdatedUtc = now;
             joinRequest.DecidedUtc = now;
 
+            var sameStageSlotIds = await dbContext.ParishConfirmationMeetingSlots.AsNoTracking()
+                .Where(x => x.ParishId == parish.Id && x.Stage == stage)
+                .Select(x => x.Id)
+                .ToListAsync(ct);
             var otherPendingRequests = await dbContext.ParishConfirmationMeetingJoinRequests
                 .Where(x =>
                     x.ParishId == parish.Id &&
                     x.RequestedByCandidateId == requesterLink.CandidateId &&
+                    sameStageSlotIds.Contains(x.SlotId) &&
                     x.Status == ConfirmationJoinRequestPending &&
                     x.Id != joinRequest.Id)
                 .ToListAsync(ct);
@@ -1401,12 +1406,26 @@ public static class ParishEndpoints
             var selectedSlot = firstYearStartLink.SlotId is null
                 ? null
                 : slots.FirstOrDefault(slot => slot.Id == firstYearStartLink.SlotId.Value);
+            var secondSelectedSlot = firstYearEndLink.SlotId is null
+                ? null
+                : slots.FirstOrDefault(slot => slot.Id == firstYearEndLink.SlotId.Value);
             var canInviteToSelectedSlot = selectedSlot is not null
                 && CanCandidateInviteToConfirmationSlot(selectedSlot, candidate.Id, now);
+            var secondCanInviteToSelectedSlot = secondSelectedSlot is not null
+                && CanCandidateInviteToConfirmationSlot(secondSelectedSlot, candidate.Id, now);
             var pendingJoinRequests = canInviteToSelectedSlot && selectedSlot is not null
                 ? await LoadPendingConfirmationMeetingJoinRequestsAsync(
                     parish.Id,
                     selectedSlot.Id,
+                    candidate.Id,
+                    dbContext,
+                    dataProtectionProvider,
+                    ct)
+                : new List<ParishConfirmationMeetingJoinRequestResponse>();
+            var secondPendingJoinRequests = secondCanInviteToSelectedSlot && secondSelectedSlot is not null
+                ? await LoadPendingConfirmationMeetingJoinRequestsAsync(
+                    parish.Id,
+                    secondSelectedSlot.Id,
                     candidate.Id,
                     dbContext,
                     dataProtectionProvider,
@@ -1429,7 +1448,10 @@ public static class ParishEndpoints
                     firstYearEndLink.BookedUtc,
                     canInviteToSelectedSlot,
                     canInviteToSelectedSlot ? selectedSlot?.HostInviteToken : null,
-                    canInviteToSelectedSlot ? selectedSlot?.HostInviteExpiresUtc : null),
+                    canInviteToSelectedSlot ? selectedSlot?.HostInviteExpiresUtc : null,
+                    secondCanInviteToSelectedSlot,
+                    secondCanInviteToSelectedSlot ? secondSelectedSlot?.HostInviteToken : null,
+                    secondCanInviteToSelectedSlot ? secondSelectedSlot?.HostInviteExpiresUtc : null),
                 slots.Where(slot => slot.Stage == ConfirmationMeetingStageYear1Start).Select(slot =>
                 {
                     var reserved = reservedCounts.GetValueOrDefault(slot.Id);
@@ -1477,6 +1499,7 @@ public static class ParishEndpoints
                         visualStatus);
                 }).ToList(),
                 pendingJoinRequests,
+                secondPendingJoinRequests,
                 ConfirmationSecondMeetingAnnouncement,
                 upcomingEvents,
                 upcomingCelebrations,
@@ -3851,12 +3874,26 @@ public static class ParishEndpoints
             var selectedSlot = firstYearStartLink.SlotId is null
                 ? null
                 : slots.FirstOrDefault(slot => slot.Id == firstYearStartLink.SlotId.Value);
+            var secondSelectedSlot = firstYearEndLink.SlotId is null
+                ? null
+                : slots.FirstOrDefault(slot => slot.Id == firstYearEndLink.SlotId.Value);
             var canInviteToSelectedSlot = selectedSlot is not null
                 && CanCandidateInviteToConfirmationSlot(selectedSlot, candidateId, now);
+            var secondCanInviteToSelectedSlot = secondSelectedSlot is not null
+                && CanCandidateInviteToConfirmationSlot(secondSelectedSlot, candidateId, now);
             var pendingJoinRequests = canInviteToSelectedSlot && selectedSlot is not null
                 ? await LoadPendingConfirmationMeetingJoinRequestsAsync(
                     parishId,
                     selectedSlot.Id,
+                    candidateId,
+                    dbContext,
+                    dataProtectionProvider,
+                    ct)
+                : new List<ParishConfirmationMeetingJoinRequestResponse>();
+            var secondPendingJoinRequests = secondCanInviteToSelectedSlot && secondSelectedSlot is not null
+                ? await LoadPendingConfirmationMeetingJoinRequestsAsync(
+                    parishId,
+                    secondSelectedSlot.Id,
                     candidateId,
                     dbContext,
                     dataProtectionProvider,
@@ -3879,7 +3916,10 @@ public static class ParishEndpoints
                     firstYearEndLink.BookedUtc,
                     canInviteToSelectedSlot,
                     canInviteToSelectedSlot ? selectedSlot?.HostInviteToken : null,
-                    canInviteToSelectedSlot ? selectedSlot?.HostInviteExpiresUtc : null),
+                    canInviteToSelectedSlot ? selectedSlot?.HostInviteExpiresUtc : null,
+                    secondCanInviteToSelectedSlot,
+                    secondCanInviteToSelectedSlot ? secondSelectedSlot?.HostInviteToken : null,
+                    secondCanInviteToSelectedSlot ? secondSelectedSlot?.HostInviteExpiresUtc : null),
                 slots.Where(slot => slot.Stage == ConfirmationMeetingStageYear1Start).Select(slot =>
                 {
                     var reserved = reservedCounts.GetValueOrDefault(slot.Id);
@@ -3927,6 +3967,7 @@ public static class ParishEndpoints
                         visualStatus);
                 }).ToList(),
                 pendingJoinRequests,
+                secondPendingJoinRequests,
                 ConfirmationSecondMeetingAnnouncement,
                 upcomingEvents,
                 upcomingCelebrations,

@@ -6881,6 +6881,30 @@ export function ParishPage({
                               Wybierz
                             </button>
                           </li>
+                          <li className={!confirmationDisplayPortalData.candidate.secondSelectedSlotId ? 'is-todo' : 'is-done'}>
+                            <div>
+                              <strong>Wybierz termin spotkania końcowego</strong>
+                              <p className="note">
+                                {confirmationDisplayPortalData.candidate.secondSelectedSlotId
+                                  ? confirmationDisplaySelectedFirstYearEndSlot
+                                    ? `Wybrano: ${new Date(confirmationDisplaySelectedFirstYearEndSlot.startsAtUtc).toLocaleString('pl-PL')}.`
+                                    : 'Termin spotkania końcowego został już wybrany.'
+                                  : 'Nie wybrano jeszcze terminu spotkania końcowego (1. rok).'}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => {
+                                setConfirmationPortalStandaloneTab('meetings');
+                                if (!confirmationDisplayPortalData.candidate.secondSelectedSlotId) {
+                                  setConfirmationPortalShowSecondSlotPicker(true);
+                                }
+                              }}
+                            >
+                              {confirmationDisplayPortalData.candidate.secondSelectedSlotId ? 'Sprawdź' : 'Wybierz'}
+                            </button>
+                          </li>
                         </ul>
                         <h4 id="confirmation-status">Twoje dane</h4>
                         <p>
@@ -7180,7 +7204,20 @@ export function ParishPage({
                       {confirmationPortalStandaloneTab === 'status' ? (
                         <div className="confirmation-portal-tab-content">
                           <p className="note">
-                            Spotkanie końcowe (1. rok): {confirmationDisplayPortalData.secondMeetingAnnouncement}
+                            <strong>Spotkanie początkowe (1. rok):</strong>{' '}
+                            {confirmationDisplayPortalData.candidate.selectedSlotId
+                              ? confirmationDisplaySelectedFirstYearSlot
+                                ? `wybrano ${new Date(confirmationDisplaySelectedFirstYearSlot.startsAtUtc).toLocaleString('pl-PL')}`
+                                : 'termin został wybrany'
+                              : 'nie wybrano jeszcze terminu'}
+                          </p>
+                          <p className="note">
+                            <strong>Spotkanie końcowe (1. rok):</strong>{' '}
+                            {confirmationDisplayPortalData.candidate.secondSelectedSlotId
+                              ? confirmationDisplaySelectedFirstYearEndSlot
+                                ? `wybrano ${new Date(confirmationDisplaySelectedFirstYearEndSlot.startsAtUtc).toLocaleString('pl-PL')}`
+                                : 'termin został wybrany'
+                              : confirmationDisplayPortalData.secondMeetingAnnouncement}
                           </p>
                           <h4>Publiczne adnotacje parafii</h4>
                           {confirmationDisplayPortalData.publicNotes.length === 0 ? (
@@ -7497,6 +7534,78 @@ export function ParishPage({
                                     {confirmationMeetingPublicSaving ? 'Rezygnowanie...' : 'Zrezygnuj z terminu'}
                                   </button>
                                 </div>
+                                {confirmationDisplayPortalData.candidate.secondCanInviteToSelectedSlot &&
+                                confirmationDisplayPortalData.candidate.secondSelectedSlotInviteCode ? (
+                                  <div className="confirmation-candidate-links">
+                                    <p className="note">
+                                      Kod zaproszenia: <strong>{confirmationDisplayPortalData.candidate.secondSelectedSlotInviteCode}</strong>
+                                      {confirmationDisplayPortalData.candidate.secondSelectedSlotInviteExpiresUtc
+                                        ? ` • Wygasa: ${new Date(
+                                            confirmationDisplayPortalData.candidate.secondSelectedSlotInviteExpiresUtc
+                                          ).toLocaleString('pl-PL')}`
+                                        : ''}
+                                    </p>
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      onClick={() =>
+                                        void handleCopyConfirmationMeetingInviteLink(
+                                          confirmationDisplayPortalData.candidate.secondSelectedSlotInviteCode!
+                                        )
+                                      }
+                                    >
+                                      Kopiuj kod
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      disabled={confirmationMeetingPublicSaving || !activeConfirmationPortalToken}
+                                      onClick={() => void handleReleaseConfirmationMeetingHost('year1-end')}
+                                    >
+                                      Zwolnij uprawnienia administratora
+                                    </button>
+                                  </div>
+                                ) : null}
+                                {(confirmationDisplayPortalData.secondPendingJoinRequests?.length ?? 0) > 0 ? (
+                                  <div className="confirmation-join-request-list">
+                                    <p className="note">
+                                      <strong>Prośby o dołączenie do Twojego terminu końcowego</strong>
+                                    </p>
+                                    <ul className="confirmation-portal-message-list">
+                                      {confirmationDisplayPortalData.secondPendingJoinRequests.map((joinRequest) => (
+                                        <li key={`standalone-second-join-request-${joinRequest.id}`}>
+                                          <strong>
+                                            {joinRequest.candidateName} {joinRequest.candidateSurname}
+                                          </strong>
+                                          <br />
+                                          <span className="muted">{new Date(joinRequest.createdUtc).toLocaleString('pl-PL')}</span>
+                                          <div className="confirmation-phone-actions">
+                                            <button
+                                              type="button"
+                                              className="ghost"
+                                              disabled={confirmationMeetingPublicSaving || !activeConfirmationPortalToken}
+                                              onClick={() =>
+                                                void handleDecideConfirmationMeetingJoinRequest(joinRequest.id, 'accept', 'year1-end')
+                                              }
+                                            >
+                                              Akceptuj
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="ghost"
+                                              disabled={confirmationMeetingPublicSaving || !activeConfirmationPortalToken}
+                                              onClick={() =>
+                                                void handleDecideConfirmationMeetingJoinRequest(joinRequest.id, 'reject', 'year1-end')
+                                              }
+                                            >
+                                              Odrzuć
+                                            </button>
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ) : null}
                               </>
                             ) : (
                               <>
@@ -11290,6 +11399,81 @@ export function ParishPage({
                                     {confirmationMeetingPublicSaving ? 'Rezygnowanie...' : 'Zrezygnuj z terminu'}
                                   </button>
                                 </div>
+                                {confirmationPortalData.candidate.secondCanInviteToSelectedSlot &&
+                                confirmationPortalData.candidate.secondSelectedSlotInviteCode ? (
+                                  <div className="confirmation-candidate-links">
+                                    <p className="note">
+                                      Twój kod zaproszenia:{' '}
+                                      <strong>{confirmationPortalData.candidate.secondSelectedSlotInviteCode}</strong>.
+                                      Kod wygasa:{' '}
+                                      {confirmationPortalData.candidate.secondSelectedSlotInviteExpiresUtc
+                                        ? new Date(confirmationPortalData.candidate.secondSelectedSlotInviteExpiresUtc).toLocaleString('pl-PL')
+                                        : 'wkrótce'}
+                                      .
+                                    </p>
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      onClick={() =>
+                                        void handleCopyConfirmationMeetingInviteLink(
+                                          confirmationPortalData.candidate.secondSelectedSlotInviteCode!
+                                        )
+                                      }
+                                    >
+                                      {confirmationCopiedInviteToken === confirmationPortalData.candidate.secondSelectedSlotInviteCode
+                                        ? 'Skopiowano kod'
+                                        : 'Dodaj zaproszenie (kopiuj kod)'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      disabled={confirmationMeetingPublicSaving}
+                                      onClick={() => void handleReleaseConfirmationMeetingHost('year1-end')}
+                                    >
+                                      {confirmationMeetingPublicSaving ? 'Zwalnianie...' : 'Zwolnij uprawnienia administratora'}
+                                    </button>
+                                  </div>
+                                ) : null}
+                                {(confirmationPortalData.secondPendingJoinRequests?.length ?? 0) > 0 ? (
+                                  <div className="confirmation-join-request-list">
+                                    <p className="note">
+                                      <strong>Prośby o dołączenie do tego terminu końcowego</strong>
+                                    </p>
+                                    <ul className="confirmation-portal-message-list">
+                                      {(confirmationPortalData.secondPendingJoinRequests ?? []).map((joinRequest) => (
+                                        <li key={`portal-second-join-request-${joinRequest.id}`}>
+                                          <strong>
+                                            {joinRequest.candidateName} {joinRequest.candidateSurname}
+                                          </strong>
+                                          <br />
+                                          <span className="muted">{new Date(joinRequest.createdUtc).toLocaleString('pl-PL')}</span>
+                                          <div className="confirmation-phone-actions">
+                                            <button
+                                              type="button"
+                                              className="ghost"
+                                              disabled={confirmationMeetingPublicSaving}
+                                              onClick={() =>
+                                                void handleDecideConfirmationMeetingJoinRequest(joinRequest.id, 'accept', 'year1-end')
+                                              }
+                                            >
+                                              Akceptuj
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="ghost"
+                                              disabled={confirmationMeetingPublicSaving}
+                                              onClick={() =>
+                                                void handleDecideConfirmationMeetingJoinRequest(joinRequest.id, 'reject', 'year1-end')
+                                              }
+                                            >
+                                              Odrzuć
+                                            </button>
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ) : null}
                               </>
                             ) : (
                               <>

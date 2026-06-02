@@ -550,7 +550,10 @@ public sealed record ParishConfirmationPortalCandidateDataResponse(
     DateTimeOffset? SecondBookedUtc,
     bool CanInviteToSelectedSlot,
     string? SelectedSlotInviteCode,
-    DateTimeOffset? SelectedSlotInviteExpiresUtc);
+    DateTimeOffset? SelectedSlotInviteExpiresUtc,
+    bool SecondCanInviteToSelectedSlot,
+    string? SecondSelectedSlotInviteCode,
+    DateTimeOffset? SecondSelectedSlotInviteExpiresUtc);
 
 public sealed record ParishConfirmationCelebrationJoinResponse(
     Guid Id,
@@ -613,6 +616,7 @@ public sealed record ParishConfirmationPortalResponse(
     IReadOnlyList<ParishConfirmationMeetingPublicSlotResponse> FirstYearStartSlots,
     IReadOnlyList<ParishConfirmationMeetingPublicSlotResponse> FirstYearEndSlots,
     IReadOnlyList<ParishConfirmationMeetingJoinRequestResponse> PendingJoinRequests,
+    IReadOnlyList<ParishConfirmationMeetingJoinRequestResponse> SecondPendingJoinRequests,
     string SecondMeetingAnnouncement,
     IReadOnlyList<ParishConfirmationEventResponse> UpcomingEvents,
     IReadOnlyList<ParishConfirmationCelebrationResponse> UpcomingCelebrations,

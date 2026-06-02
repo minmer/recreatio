@@ -3992,6 +3992,9 @@ export type ParishConfirmationPortalCandidate = {
   canInviteToSelectedSlot: boolean;
   selectedSlotInviteCode?: string | null;
   selectedSlotInviteExpiresUtc?: string | null;
+  secondCanInviteToSelectedSlot: boolean;
+  secondSelectedSlotInviteCode?: string | null;
+  secondSelectedSlotInviteExpiresUtc?: string | null;
 };
 
 export type ParishConfirmationMessage = {
@@ -4079,6 +4082,7 @@ export type ParishConfirmationPortal = {
   firstYearStartSlots: ParishConfirmationMeetingPublicSlot[];
   firstYearEndSlots: ParishConfirmationMeetingPublicSlot[];
   pendingJoinRequests: ParishConfirmationMeetingJoinRequest[];
+  secondPendingJoinRequests: ParishConfirmationMeetingJoinRequest[];
   secondMeetingAnnouncement: string;
   upcomingEvents: ParishConfirmationEvent[];
   upcomingCelebrations: ParishConfirmationCelebration[];
