@@ -49,6 +49,7 @@ import {
   createParishConfirmationCelebration,
   createParishConfirmationEvent,
   createParishConfirmationMeetingSlot,
+  updateParishConfirmationMeetingSlotStage,
   getParishConfirmationSmsTemplates,
   deleteParishConfirmationMeetingSlot,
   exportParishConfirmationCandidates,
@@ -2817,6 +2818,31 @@ export function ParishPage({
       await loadConfirmationMeetingSummary();
     } catch {
       setConfirmationMeetingError('Nie udało się usunąć terminu spotkania.');
+    } finally {
+      setConfirmationMeetingSaving(false);
+    }
+  };
+
+  const handleUpdateConfirmationMeetingSlotStage = async (
+    slotId: string,
+    stage: 'year1-start' | 'year1-end'
+  ) => {
+    if (!parish || !isAuthenticated) return;
+    setConfirmationMeetingSaving(true);
+    setConfirmationMeetingError(null);
+    setConfirmationMeetingInfo(null);
+    try {
+      await updateParishConfirmationMeetingSlotStage(parish.id, slotId, stage);
+      setConfirmationMeetingInfo('Zmieniono etap terminu spotkania.');
+      await loadConfirmationMeetingSummary();
+      if (activeConfirmationPortalToken) {
+        await loadConfirmationCandidatePortal(activeConfirmationPortalToken, confirmationMeetingInviteCodeApplied);
+      }
+      if (confirmationAdminSelectedCandidateId) {
+        await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
+      }
+    } catch {
+      setConfirmationMeetingError('Nie udało się zmienić etapu terminu spotkania.');
     } finally {
       setConfirmationMeetingSaving(false);
     }
@@ -11973,9 +11999,24 @@ export function ParishPage({
                                     </p>
                                     <p className="note">
                                       Czas: {slot.durationMinutes} min • Zajętość: {slot.reservedCount}/{slot.capacity}
-                                      {slot.label ? ` • ${slot.label}` : ''} •
-                                      {slot.stage === 'year1-end' ? ' Koniec 1. roku' : ' Początek 1. roku'}
+                                      {slot.label ? ` • ${slot.label}` : ''}
                                     </p>
+                                    <label>
+                                      <span>Etap spotkania</span>
+                                      <select
+                                        value={slot.stage === 'year1-end' ? 'year1-end' : 'year1-start'}
+                                        disabled={confirmationMeetingSaving}
+                                        onChange={(event) =>
+                                          void handleUpdateConfirmationMeetingSlotStage(
+                                            slot.id,
+                                            event.target.value === 'year1-end' ? 'year1-end' : 'year1-start'
+                                          )
+                                        }
+                                      >
+                                        <option value="year1-start">Początek 1. roku</option>
+                                        <option value="year1-end">Koniec 1. roku</option>
+                                      </select>
+                                    </label>
                                     {slot.candidates.length > 0 ? (
                                       <ul className="confirmation-meeting-candidate-list confirmation-meeting-candidate-admin-list">
                                         {slot.candidates.map((candidate) => (

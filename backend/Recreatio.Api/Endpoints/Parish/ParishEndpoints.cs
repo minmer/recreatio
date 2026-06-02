@@ -3550,6 +3550,111 @@ public static class ParishEndpoints
                 Array.Empty<ParishConfirmationMeetingSlotCandidateResponse>()));
         }).RequireAuthorization();
 
+        group.MapPatch("/{parishId:guid}/confirmation-meeting-slots/{slotId:guid}/stage", async (
+            Guid parishId,
+            Guid slotId,
+            ParishConfirmationMeetingSlotStageUpdateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var slot = await dbContext.ParishConfirmationMeetingSlots
+                .FirstOrDefaultAsync(x => x.ParishId == parishId && x.Id == slotId, ct);
+            if (slot is null)
+            {
+                return Results.NotFound();
+            }
+
+            var stage = NormalizeConfirmationMeetingStage(request.Stage);
+            if (string.Equals(slot.Stage, stage, StringComparison.Ordinal))
+            {
+                return Results.Ok(new { status = "unchanged", slotId, stage });
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var previousStage = slot.Stage;
+            var affectedSlotIds = new HashSet<Guid>();
+            var links = await dbContext.ParishConfirmationMeetingLinks
+                .Where(x => x.ParishId == parishId && x.SlotId == slotId)
+                .ToListAsync(ct);
+            foreach (var link in links)
+            {
+                var targetLink = await dbContext.ParishConfirmationMeetingLinks
+                    .FirstOrDefaultAsync(
+                        x =>
+                            x.ParishId == parishId &&
+                            x.CandidateId == link.CandidateId &&
+                            x.Stage == stage,
+                        ct);
+                if (targetLink is null)
+                {
+                    link.Stage = stage;
+                    link.UpdatedUtc = now;
+                    continue;
+                }
+
+                if (targetLink.Id != link.Id)
+                {
+                    if (targetLink.SlotId is not null && targetLink.SlotId.Value != slotId)
+                    {
+                        affectedSlotIds.Add(targetLink.SlotId.Value);
+                    }
+
+                    targetLink.SlotId = slotId;
+                    targetLink.BookedUtc = link.BookedUtc ?? now;
+                    targetLink.UpdatedUtc = now;
+
+                    link.SlotId = null;
+                    link.BookedUtc = null;
+                    link.UpdatedUtc = now;
+                }
+            }
+
+            slot.Stage = stage;
+            slot.UpdatedUtc = now;
+            await dbContext.SaveChangesAsync(ct);
+
+            foreach (var affectedSlotId in affectedSlotIds)
+            {
+                await RefreshConfirmationMeetingSlotHostAsync(parishId, affectedSlotId, dbContext, now, ct);
+            }
+
+            if (affectedSlotIds.Count > 0)
+            {
+                await dbContext.SaveChangesAsync(ct);
+            }
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationMeetingSlotStageChanged",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { slotId, PreviousStage = previousStage, Stage = stage, LinkCount = links.Count }),
+                ct);
+
+            return Results.Ok(new { status = "updated", slotId, stage });
+        }).RequireAuthorization();
+
         group.MapDelete("/{parishId:guid}/confirmation-meeting-slots/{slotId:guid}", async (
             Guid parishId,
             Guid slotId,

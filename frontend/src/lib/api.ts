@@ -4401,6 +4401,20 @@ export function createParishConfirmationMeetingSlot(
   });
 }
 
+export function updateParishConfirmationMeetingSlotStage(
+  parishId: string,
+  slotId: string,
+  stage: 'year1-start' | 'year1-end'
+) {
+  return request<{ status: string; slotId: string; stage: string }>(
+    `/parish/${parishId}/confirmation-meeting-slots/${slotId}/stage`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ stage })
+    }
+  );
+}
+
 export function deleteParishConfirmationMeetingSlot(parishId: string, slotId: string) {
   return request<void>(`/parish/${parishId}/confirmation-meeting-slots/${slotId}`, {
     method: 'DELETE'

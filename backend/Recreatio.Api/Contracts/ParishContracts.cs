@@ -397,6 +397,9 @@ public sealed record ParishConfirmationMeetingSlotCreateRequest(
     string? Label,
     string? Stage);
 
+public sealed record ParishConfirmationMeetingSlotStageUpdateRequest(
+    string? Stage);
+
 public sealed record ParishConfirmationMeetingSlotCandidateResponse(
     Guid CandidateId,
     string Name,
