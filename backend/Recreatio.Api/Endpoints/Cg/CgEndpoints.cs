@@ -470,7 +470,7 @@ public static class CgEndpoints
                 .ToDictionary(g => g.Key, g => g.Select(t => t.TargetTypeDefId).ToList());
 
             var fieldResponses = savedFields.Select(f => new CgFieldDefResponse(
-                f.Id, f.Label, f.SortOrder, f.InputType, f.Multiple, f.IsOrdered,
+                f.Id, f.Label, f.SortOrder, f.InputType, f.FileTypes ?? "", f.Multiple, f.IsOrdered,
                 targetMap.GetValueOrDefault(f.Id, [])
             )).ToList();
 
