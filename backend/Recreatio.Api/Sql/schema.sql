@@ -417,20 +417,22 @@ CREATE TABLE dbo.ParishConfirmationMeetingLinks
     ParishId UNIQUEIDENTIFIER NOT NULL,
     CandidateId UNIQUEIDENTIFIER NOT NULL,
     BookingToken NVARCHAR(128) NOT NULL,
+    Stage NVARCHAR(32) NOT NULL CONSTRAINT DF_ParishConfirmationMeetingLinks_Stage DEFAULT ('year1-start'),
     SlotId UNIQUEIDENTIFIER NULL,
     BookedUtc DATETIMEOFFSET NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_ParishConfirmationMeetingLinks_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id),
     CONSTRAINT FK_ParishConfirmationMeetingLinks_Candidate FOREIGN KEY (CandidateId) REFERENCES dbo.ParishConfirmationCandidates(Id),
-    CONSTRAINT FK_ParishConfirmationMeetingLinks_Slot FOREIGN KEY (SlotId) REFERENCES dbo.ParishConfirmationMeetingSlots(Id)
+    CONSTRAINT FK_ParishConfirmationMeetingLinks_Slot FOREIGN KEY (SlotId) REFERENCES dbo.ParishConfirmationMeetingSlots(Id),
+    CONSTRAINT CK_ParishConfirmationMeetingLinks_Stage CHECK (Stage IN ('year1-start', 'year1-end'))
 );
 GO
 
 CREATE UNIQUE INDEX UX_ParishConfirmationMeetingLinks_Token ON dbo.ParishConfirmationMeetingLinks(BookingToken);
 GO
 
-CREATE UNIQUE INDEX UX_ParishConfirmationMeetingLinks_Candidate ON dbo.ParishConfirmationMeetingLinks(CandidateId);
+CREATE UNIQUE INDEX UX_ParishConfirmationMeetingLinks_CandidateStage ON dbo.ParishConfirmationMeetingLinks(CandidateId, Stage);
 GO
 
 CREATE INDEX IX_ParishConfirmationMeetingLinks_ParishSlot ON dbo.ParishConfirmationMeetingLinks(ParishId, SlotId);

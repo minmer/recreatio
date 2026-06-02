@@ -3966,6 +3966,7 @@ export type ParishConfirmationMeetingAvailability = {
   candidateId: string;
   candidateName: string;
   paperConsentReceived: boolean;
+  stage: 'year1-start' | 'year1-end' | string;
   selectedSlotId?: string | null;
   bookedUtc?: string | null;
   canInviteToSelectedSlot: boolean;
@@ -3986,6 +3987,8 @@ export type ParishConfirmationPortalCandidate = {
   portalToken: string;
   selectedSlotId?: string | null;
   bookedUtc?: string | null;
+  secondSelectedSlotId?: string | null;
+  secondBookedUtc?: string | null;
   canInviteToSelectedSlot: boolean;
   selectedSlotInviteCode?: string | null;
   selectedSlotInviteExpiresUtc?: string | null;
@@ -4074,6 +4077,7 @@ export type ParishConfirmationAggregatedMessage = {
 export type ParishConfirmationPortal = {
   candidate: ParishConfirmationPortalCandidate;
   firstYearStartSlots: ParishConfirmationMeetingPublicSlot[];
+  firstYearEndSlots: ParishConfirmationMeetingPublicSlot[];
   pendingJoinRequests: ParishConfirmationMeetingJoinRequest[];
   secondMeetingAnnouncement: string;
   upcomingEvents: ParishConfirmationEvent[];
@@ -4403,19 +4407,25 @@ export function deleteParishConfirmationMeetingSlot(parishId: string, slotId: st
   });
 }
 
-export function getParishConfirmationMeetingAvailability(slug: string, token: string, inviteCode?: string | null) {
+export function getParishConfirmationMeetingAvailability(
+  slug: string,
+  token: string,
+  inviteCode?: string | null,
+  stage?: 'year1-start' | 'year1-end'
+) {
   return request<ParishConfirmationMeetingAvailability>(`/parish/${slug}/public/confirmation-meeting-availability`, {
     method: 'POST',
     body: JSON.stringify({
       token,
-      inviteCode: inviteCode ?? null
+      inviteCode: inviteCode ?? null,
+      stage: stage ?? null
     })
   });
 }
 
 export function bookParishConfirmationMeetingSlot(
   slug: string,
-  payload: { token: string; slotId: string; inviteCode?: string | null }
+  payload: { token: string; slotId: string; inviteCode?: string | null; stage?: 'year1-start' | 'year1-end' }
 ) {
   return request<{ status: string; slotId?: string | null; bookedUtc?: string | null }>(
     `/parish/${slug}/public/confirmation-meeting-book`,
@@ -4424,39 +4434,44 @@ export function bookParishConfirmationMeetingSlot(
       body: JSON.stringify({
         token: payload.token,
         slotId: payload.slotId,
-        inviteCode: payload.inviteCode ?? null
+        inviteCode: payload.inviteCode ?? null,
+        stage: payload.stage ?? null
       })
     }
   );
 }
 
-export function releaseParishConfirmationMeetingHost(slug: string, token: string) {
+export function releaseParishConfirmationMeetingHost(slug: string, token: string, stage?: 'year1-start' | 'year1-end') {
   return request<{ status: string; slotId?: string | null }>(`/parish/${slug}/public/confirmation-meeting-release-host`, {
     method: 'POST',
-    body: JSON.stringify({ token })
+    body: JSON.stringify({ token, stage: stage ?? null })
   });
 }
 
-export function resignParishConfirmationMeetingSlot(slug: string, token: string) {
+export function resignParishConfirmationMeetingSlot(slug: string, token: string, stage?: 'year1-start' | 'year1-end') {
   return request<{ status: string; slotId?: string | null }>(`/parish/${slug}/public/confirmation-meeting-resign`, {
     method: 'POST',
-    body: JSON.stringify({ token })
+    body: JSON.stringify({ token, stage: stage ?? null })
   });
 }
 
-export function requestParishConfirmationMeetingJoin(slug: string, payload: { token: string; slotId: string }) {
+export function requestParishConfirmationMeetingJoin(
+  slug: string,
+  payload: { token: string; slotId: string; stage?: 'year1-start' | 'year1-end' }
+) {
   return request<{ status: string; requestId?: string | null }>(`/parish/${slug}/public/confirmation-meeting-join-request`, {
     method: 'POST',
     body: JSON.stringify({
       token: payload.token,
-      slotId: payload.slotId
+      slotId: payload.slotId,
+      stage: payload.stage ?? null
     })
   });
 }
 
 export function decideParishConfirmationMeetingJoinRequest(
   slug: string,
-  payload: { token: string; requestId: string; decision: 'accept' | 'reject' }
+  payload: { token: string; requestId: string; decision: 'accept' | 'reject'; stage?: 'year1-start' | 'year1-end' }
 ) {
   return request<{ status: string; requestId?: string | null; candidateId?: string | null }>(
     `/parish/${slug}/public/confirmation-meeting-join-request-decision`,
@@ -4465,7 +4480,8 @@ export function decideParishConfirmationMeetingJoinRequest(
       body: JSON.stringify({
         token: payload.token,
         requestId: payload.requestId,
-        decision: payload.decision
+        decision: payload.decision,
+        stage: payload.stage ?? null
       })
     }
   );

@@ -2024,6 +2024,7 @@ export function ParishPage({
   const [confirmationPortalError, setConfirmationPortalError] = useState<string | null>(null);
   const [confirmationPortalInfo, setConfirmationPortalInfo] = useState<string | null>(null);
   const [confirmationPortalShowSlotPicker, setConfirmationPortalShowSlotPicker] = useState(false);
+  const [confirmationPortalShowSecondSlotPicker, setConfirmationPortalShowSecondSlotPicker] = useState(false);
   const [confirmationPortalMessageDraft, setConfirmationPortalMessageDraft] = useState('');
   const [confirmationPortalSendingMessage, setConfirmationPortalSendingMessage] = useState(false);
   const [confirmationPortalStandaloneTab, setConfirmationPortalStandaloneTab] = useState<'meetings' | 'messages' | 'status'>('meetings');
@@ -2627,6 +2628,14 @@ export function ParishPage({
     );
   }, [confirmationPortalData]);
 
+  const confirmationPortalSelectedSecondMeetingSlot = useMemo(() => {
+    if (!confirmationPortalData?.candidate.secondSelectedSlotId) return null;
+    return (
+      confirmationPortalData.firstYearEndSlots.find((slot) => slot.id === confirmationPortalData.candidate.secondSelectedSlotId) ??
+      null
+    );
+  }, [confirmationPortalData]);
+
   const confirmationMeetingPublicSelectedSlot = useMemo(() => {
     if (!confirmationMeetingPublicData?.selectedSlotId) return null;
     return confirmationMeetingPublicData.slots.find((slot) => slot.id === confirmationMeetingPublicData.selectedSlotId) ?? null;
@@ -2637,6 +2646,11 @@ export function ParishPage({
     [confirmationPortalData?.candidate.selectedSlotId, confirmationPortalShowSlotPicker]
   );
 
+  const shouldShowConfirmationPortalSecondSlotPicker = useMemo(
+    () => !confirmationPortalData?.candidate.secondSelectedSlotId || confirmationPortalShowSecondSlotPicker,
+    [confirmationPortalData?.candidate.secondSelectedSlotId, confirmationPortalShowSecondSlotPicker]
+  );
+
   const shouldShowConfirmationPublicSlotPicker = useMemo(
     () => !confirmationMeetingPublicData?.selectedSlotId || confirmationMeetingPublicShowSlotPicker,
     [confirmationMeetingPublicData?.selectedSlotId, confirmationMeetingPublicShowSlotPicker]
@@ -2645,6 +2659,13 @@ export function ParishPage({
   const confirmationPortalHasFreeSlot = useMemo(
     () =>
       confirmationPortalData?.firstYearStartSlots.some(
+        (slot) => slot.visualStatus === 'free' && slot.isAvailable && !slot.isSelected
+      ) ?? false,
+    [confirmationPortalData]
+  );
+  const confirmationPortalHasFreeSecondSlot = useMemo(
+    () =>
+      confirmationPortalData?.firstYearEndSlots.some(
         (slot) => slot.visualStatus === 'free' && slot.isAvailable && !slot.isSelected
       ) ?? false,
     [confirmationPortalData]
@@ -2801,12 +2822,16 @@ export function ParishPage({
     }
   };
 
-  const loadConfirmationMeetingAvailability = async (token: string, inviteCode?: string | null) => {
+  const loadConfirmationMeetingAvailability = async (
+    token: string,
+    inviteCode?: string | null,
+    stage: 'year1-start' | 'year1-end' = 'year1-start'
+  ) => {
     if (!parishSlug) return;
     setConfirmationMeetingPublicLoading(true);
     setConfirmationMeetingPublicError(null);
     try {
-      const data = await getParishConfirmationMeetingAvailability(parishSlug, token, inviteCode ?? null);
+      const data = await getParishConfirmationMeetingAvailability(parishSlug, token, inviteCode ?? null, stage);
       setConfirmationMeetingPublicData(data);
     } catch {
       setConfirmationMeetingPublicData(null);
@@ -3183,7 +3208,11 @@ export function ParishPage({
     }
   };
 
-  const handleBookConfirmationMeetingSlot = async (slotId: string, inviteCodeOverride?: string | null) => {
+  const handleBookConfirmationMeetingSlot = async (
+    slotId: string,
+    inviteCodeOverride?: string | null,
+    stage: 'year1-start' | 'year1-end' = 'year1-start'
+  ) => {
     const bookingToken = activeConfirmationPortalToken ?? confirmationMeetingToken;
     if (!parishSlug || !bookingToken) return;
     const effectiveInviteCode = normalizeConfirmationInviteCode(inviteCodeOverride ?? confirmationMeetingInviteCodeApplied ?? '');
@@ -3196,7 +3225,8 @@ export function ParishPage({
       const result = await bookParishConfirmationMeetingSlot(parishSlug, {
         token: bookingToken,
         slotId,
-        inviteCode: effectiveInviteCode
+        inviteCode: effectiveInviteCode,
+        stage
       });
       if (result.status === 'slot-full') {
         const message = 'Wybrany termin jest już pełny. Wybierz inny dostępny termin.';
@@ -3216,6 +3246,7 @@ export function ParishPage({
         setConfirmationPortalInfo(message);
         setConfirmationMeetingPublicShowSlotPicker(false);
         setConfirmationPortalShowSlotPicker(false);
+        setConfirmationPortalShowSecondSlotPicker(false);
         setConfirmationMeetingJoinTargetSlotId(null);
       } else {
         const message = 'Termin spotkania został zapisany.';
@@ -3223,6 +3254,7 @@ export function ParishPage({
         setConfirmationPortalInfo(message);
         setConfirmationMeetingPublicShowSlotPicker(false);
         setConfirmationPortalShowSlotPicker(false);
+        setConfirmationPortalShowSecondSlotPicker(false);
         setConfirmationMeetingJoinTargetSlotId(null);
         setConfirmationMeetingSlotInviteInputs((current) => {
           if (!current[slotId]) return current;
@@ -3231,7 +3263,7 @@ export function ParishPage({
           return next;
         });
       }
-      await loadConfirmationMeetingAvailability(bookingToken, effectiveInviteCode ?? confirmationMeetingInviteCodeApplied);
+      await loadConfirmationMeetingAvailability(bookingToken, effectiveInviteCode ?? confirmationMeetingInviteCodeApplied, stage);
       await loadConfirmationCandidatePortal(bookingToken, effectiveInviteCode ?? confirmationMeetingInviteCodeApplied);
       if (isAuthenticated) {
         await loadConfirmationMeetingSummary();
@@ -3244,7 +3276,7 @@ export function ParishPage({
     }
   };
 
-  const handleReleaseConfirmationMeetingHost = async () => {
+  const handleReleaseConfirmationMeetingHost = async (stage: 'year1-start' | 'year1-end' = 'year1-start') => {
     const bookingToken = activeConfirmationPortalToken ?? confirmationMeetingToken;
     if (!parishSlug || !bookingToken) return;
     setConfirmationMeetingPublicSaving(true);
@@ -3253,7 +3285,7 @@ export function ParishPage({
     setConfirmationPortalError(null);
     setConfirmationPortalInfo(null);
     try {
-      const result = await releaseParishConfirmationMeetingHost(parishSlug, bookingToken);
+      const result = await releaseParishConfirmationMeetingHost(parishSlug, bookingToken, stage);
       if (result.status === 'released') {
         setConfirmationMeetingPublicInfo('Uprawnienia administratora terminu zostały zwolnione.');
         setConfirmationPortalInfo('Uprawnienia administratora terminu zostały zwolnione.');
@@ -3275,7 +3307,7 @@ export function ParishPage({
         setConfirmationPortalError(message);
       }
 
-      await loadConfirmationMeetingAvailability(bookingToken, confirmationMeetingInviteCodeApplied);
+      await loadConfirmationMeetingAvailability(bookingToken, confirmationMeetingInviteCodeApplied, stage);
       await loadConfirmationCandidatePortal(bookingToken, confirmationMeetingInviteCodeApplied);
       if (isAuthenticated) {
         await loadConfirmationMeetingSummary();
@@ -3288,7 +3320,7 @@ export function ParishPage({
     }
   };
 
-  const handleResignConfirmationMeetingSlot = async () => {
+  const handleResignConfirmationMeetingSlot = async (stage: 'year1-start' | 'year1-end' = 'year1-start') => {
     const bookingToken = activeConfirmationPortalToken ?? confirmationMeetingToken;
     if (!parishSlug || !bookingToken) return;
     setConfirmationMeetingPublicSaving(true);
@@ -3297,12 +3329,13 @@ export function ParishPage({
     setConfirmationPortalError(null);
     setConfirmationPortalInfo(null);
     try {
-      const result = await resignParishConfirmationMeetingSlot(parishSlug, bookingToken);
+      const result = await resignParishConfirmationMeetingSlot(parishSlug, bookingToken, stage);
       if (result.status === 'resigned') {
         setConfirmationMeetingPublicInfo('Zrezygnowano z wybranego terminu. Wybierz nowy termin z listy.');
         setConfirmationPortalInfo('Zrezygnowano z wybranego terminu. Wybierz nowy termin z listy.');
         setConfirmationMeetingPublicShowSlotPicker(false);
         setConfirmationPortalShowSlotPicker(false);
+        setConfirmationPortalShowSecondSlotPicker(false);
         setConfirmationMeetingJoinTargetSlotId(null);
       } else if (result.status === 'no-slot-selected') {
         const message = 'Nie masz obecnie przypisanego terminu do rezygnacji.';
@@ -3314,7 +3347,7 @@ export function ParishPage({
         setConfirmationPortalError(message);
       }
 
-      await loadConfirmationMeetingAvailability(bookingToken, confirmationMeetingInviteCodeApplied);
+      await loadConfirmationMeetingAvailability(bookingToken, confirmationMeetingInviteCodeApplied, stage);
       await loadConfirmationCandidatePortal(bookingToken, confirmationMeetingInviteCodeApplied);
       if (isAuthenticated) {
         await loadConfirmationMeetingSummary();
@@ -3328,7 +3361,10 @@ export function ParishPage({
     }
   };
 
-  const handleRequestConfirmationMeetingJoin = async (slotId: string) => {
+  const handleRequestConfirmationMeetingJoin = async (
+    slotId: string,
+    stage: 'year1-start' | 'year1-end' = 'year1-start'
+  ) => {
     const bookingToken = activeConfirmationPortalToken ?? confirmationMeetingToken;
     if (!parishSlug || !bookingToken) return;
     setConfirmationMeetingPublicSaving(true);
@@ -3339,7 +3375,8 @@ export function ParishPage({
     try {
       const result = await requestParishConfirmationMeetingJoin(parishSlug, {
         token: bookingToken,
-        slotId
+        slotId,
+        stage
       });
       if (result.status === 'requested' || result.status === 'already-pending') {
         const message =
@@ -3362,7 +3399,7 @@ export function ParishPage({
         setConfirmationPortalError(message);
       }
 
-      await loadConfirmationMeetingAvailability(bookingToken, confirmationMeetingInviteCodeApplied);
+      await loadConfirmationMeetingAvailability(bookingToken, confirmationMeetingInviteCodeApplied, stage);
       await loadConfirmationCandidatePortal(bookingToken, confirmationMeetingInviteCodeApplied);
     } catch {
       setConfirmationMeetingPublicError('Nie udało się wysłać prośby o dołączenie.');
@@ -3372,7 +3409,11 @@ export function ParishPage({
     }
   };
 
-  const handleDecideConfirmationMeetingJoinRequest = async (requestId: string, decision: 'accept' | 'reject') => {
+  const handleDecideConfirmationMeetingJoinRequest = async (
+    requestId: string,
+    decision: 'accept' | 'reject',
+    stage: 'year1-start' | 'year1-end' = 'year1-start'
+  ) => {
     const bookingToken = activeConfirmationPortalToken ?? confirmationMeetingToken;
     if (!parishSlug || !bookingToken) return;
     setConfirmationMeetingPublicSaving(true);
@@ -3384,7 +3425,8 @@ export function ParishPage({
       const result = await decideParishConfirmationMeetingJoinRequest(parishSlug, {
         token: bookingToken,
         requestId,
-        decision
+        decision,
+        stage
       });
       if (result.status === 'accepted') {
         setConfirmationMeetingPublicInfo('Prośba o dołączenie została zaakceptowana.');
@@ -3402,7 +3444,7 @@ export function ParishPage({
         setConfirmationPortalError(message);
       }
 
-      await loadConfirmationMeetingAvailability(bookingToken, confirmationMeetingInviteCodeApplied);
+      await loadConfirmationMeetingAvailability(bookingToken, confirmationMeetingInviteCodeApplied, stage);
       await loadConfirmationCandidatePortal(bookingToken, confirmationMeetingInviteCodeApplied);
       if (isAuthenticated) {
         await loadConfirmationMeetingSummary();
@@ -10976,7 +11018,193 @@ export function ParishPage({
                           </div>
                           <article className="confirmation-portal-card">
                             <h4>Spotkanie końcowe (1. rok)</h4>
-                            <p className="note">{confirmationPortalData.secondMeetingAnnouncement}</p>
+                            {!shouldShowConfirmationPortalSecondSlotPicker ? (
+                              <>
+                                <div className="confirmation-selected-slot">
+                                  <p className="note">
+                                    <strong>Wybrany termin spotkania:</strong>{' '}
+                                    {confirmationPortalSelectedSecondMeetingSlot
+                                      ? new Date(confirmationPortalSelectedSecondMeetingSlot.startsAtUtc).toLocaleString('pl-PL')
+                                      : 'Termin zapisany'}
+                                  </p>
+                                  {confirmationPortalSelectedSecondMeetingSlot ? (
+                                    <p className="note">
+                                      Czas: {confirmationPortalSelectedSecondMeetingSlot.durationMinutes} min • Zajętość:{' '}
+                                      {confirmationPortalSelectedSecondMeetingSlot.reservedCount}/{confirmationPortalSelectedSecondMeetingSlot.capacity}
+                                      {confirmationPortalSelectedSecondMeetingSlot.label
+                                        ? ` • ${confirmationPortalSelectedSecondMeetingSlot.label}`
+                                        : ''}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                <div className="confirmation-candidate-links">
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    disabled={!confirmationPortalHasFreeSecondSlot}
+                                    onClick={() => {
+                                      setConfirmationMeetingJoinTargetSlotId(null);
+                                      setConfirmationPortalShowSecondSlotPicker(true);
+                                    }}
+                                  >
+                                    {confirmationPortalHasFreeSecondSlot ? 'Wybierz nowy termin' : 'Brak wolnych terminów'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    disabled={confirmationMeetingPublicSaving}
+                                    onClick={() => void handleResignConfirmationMeetingSlot('year1-end')}
+                                  >
+                                    {confirmationMeetingPublicSaving ? 'Rezygnowanie...' : 'Zrezygnuj z terminu'}
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="confirmation-candidate-instruction">
+                                  <p className="note">
+                                    <strong>Krok 1: wybierz termin spotkania.</strong>
+                                  </p>
+                                  <ol className="confirmation-meeting-candidate-list">
+                                    <li>Sprawdź status: zielony (wolny), żółty (z administratorem), czerwony (zamknięty).</li>
+                                    <li>Dla żółtego terminu wpisz kod albo poproś o dołączenie.</li>
+                                    <li>Po zapisie lista zostanie ukryta i zobaczysz wybrany termin.</li>
+                                  </ol>
+                                  {!confirmationPortalHasFreeSecondSlot ? (
+                                    <p className="note">Brak wolnych terminów bez administratora. Skorzystaj z kodu zaproszenia.</p>
+                                  ) : null}
+                                </div>
+                                <div className="confirmation-candidate-links">
+                                  {confirmationPortalData.candidate.secondSelectedSlotId ? (
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      onClick={() => {
+                                        setConfirmationMeetingJoinTargetSlotId(null);
+                                        setConfirmationPortalShowSecondSlotPicker(false);
+                                      }}
+                                    >
+                                      Anuluj zmianę terminu
+                                    </button>
+                                  ) : null}
+                                </div>
+                                {confirmationPortalData.firstYearEndSlots.length === 0 ? (
+                                  <p className="muted">{confirmationPortalData.secondMeetingAnnouncement}</p>
+                                ) : (
+                                  <div className="confirmation-meeting-slot-list">
+                                    {confirmationPortalData.firstYearEndSlots.map((slot) => {
+                                      const starts = new Date(slot.startsAtUtc);
+                                      const availablePlaces = Math.max(slot.capacity - slot.reservedCount, 0);
+                                      const hostedJoinOptionsVisible =
+                                        slot.visualStatus === 'hosted' &&
+                                        !slot.isSelected &&
+                                        confirmationMeetingJoinTargetSlotId === slot.id;
+                                      return (
+                                        <article
+                                          key={`portal-second-slot-${slot.id}`}
+                                          className={`confirmation-meeting-slot ${getConfirmationMeetingVisualClass(slot.visualStatus)}`}
+                                        >
+                                          <p>
+                                            <strong>{starts.toLocaleString('pl-PL')}</strong>
+                                          </p>
+                                          <p className="note">
+                                            Czas: {slot.durationMinutes} min • Zajętość: {slot.reservedCount}/{slot.capacity}
+                                            {slot.label ? ` • ${slot.label}` : ''}
+                                          </p>
+                                          <p className="note">{getConfirmationMeetingVisualLabel(slot.visualStatus)}</p>
+                                          <p className="note">
+                                            {slot.isAvailable
+                                              ? `Możesz dołączyć. Pozostało miejsc: ${availablePlaces}.`
+                                              : slot.requiresInviteCode
+                                              ? 'Termin wymaga aktywnego kodu zaproszenia od administratora terminu.'
+                                              : 'Termin jest zamknięty lub pełny.'}
+                                          </p>
+                                          {slot.visualStatus === 'hosted' && !slot.isSelected ? (
+                                            <button
+                                              type="button"
+                                              className="parish-login confirmation-slot-host-action"
+                                              disabled={confirmationMeetingPublicSaving}
+                                              onClick={() =>
+                                                setConfirmationMeetingJoinTargetSlotId((current) =>
+                                                  current === slot.id ? null : slot.id
+                                                )
+                                              }
+                                            >
+                                              {hostedJoinOptionsVisible
+                                                ? 'Ukryj opcje dołączenia'
+                                                : 'Wybierz ten termin i pokaż opcje dołączenia'}
+                                            </button>
+                                          ) : null}
+                                          {hostedJoinOptionsVisible ? (
+                                            <div className="confirmation-slot-invite-card">
+                                              <label>
+                                                <span>Kod zaproszenia do tego terminu</span>
+                                                <input
+                                                  type="text"
+                                                  value={confirmationMeetingSlotInviteInputs[slot.id] ?? ''}
+                                                  onChange={(event) =>
+                                                    updateConfirmationMeetingSlotInviteInput(slot.id, event.target.value)
+                                                  }
+                                                  placeholder="np. A3K9Q2"
+                                                  maxLength={6}
+                                                />
+                                              </label>
+                                              <div className="confirmation-phone-actions">
+                                                <button
+                                                  type="button"
+                                                  className="ghost"
+                                                  disabled={confirmationMeetingPublicSaving}
+                                                  onClick={() =>
+                                                    void handleBookConfirmationMeetingSlot(
+                                                      slot.id,
+                                                      confirmationMeetingSlotInviteInputs[slot.id] ?? null,
+                                                      'year1-end'
+                                                    )
+                                                  }
+                                                >
+                                                  Dołącz z kodem
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className="ghost"
+                                                  disabled={confirmationMeetingPublicSaving}
+                                                  onClick={() => void handleRequestConfirmationMeetingJoin(slot.id, 'year1-end')}
+                                                >
+                                                  Poproś o dołączenie
+                                                </button>
+                                              </div>
+                                            </div>
+                                          ) : null}
+                                          {slot.visualStatus !== 'closed' &&
+                                          !(slot.visualStatus === 'hosted' && !slot.isSelected) ? (
+                                            <button
+                                              type="button"
+                                              className={`parish-login confirmation-slot-join ${
+                                                slot.visualStatus === 'hosted' ? 'is-light' : ''
+                                              }`}
+                                              disabled={
+                                                confirmationMeetingPublicSaving ||
+                                                !slot.isAvailable ||
+                                                (slot.visualStatus === 'hosted' && !slot.isSelected)
+                                              }
+                                              onClick={() => void handleBookConfirmationMeetingSlot(slot.id, null, 'year1-end')}
+                                            >
+                                              {confirmationMeetingPublicSaving
+                                                ? 'Zapisywanie...'
+                                                : slot.isSelected
+                                                ? 'Wybrany termin'
+                                                : slot.visualStatus === 'hosted'
+                                                ? 'Wymaga kodu lub akceptacji'
+                                                : 'Wybierz ten termin'}
+                                            </button>
+                                          ) : null}
+                                        </article>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </article>
                           <div className="confirmation-portal-columns">
                             <article className="confirmation-portal-card">

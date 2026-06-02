@@ -531,6 +531,19 @@ public static class ParishEndpoints
                 ParishId = parish.Id,
                 CandidateId = candidateId,
                 BookingToken = meetingToken,
+                Stage = ConfirmationMeetingStageYear1Start,
+                SlotId = null,
+                BookedUtc = null,
+                CreatedUtc = now,
+                UpdatedUtc = now
+            });
+            dbContext.ParishConfirmationMeetingLinks.Add(new ParishConfirmationMeetingLink
+            {
+                Id = Guid.NewGuid(),
+                ParishId = parish.Id,
+                CandidateId = candidateId,
+                BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct),
+                Stage = ConfirmationMeetingStageYear1End,
                 SlotId = null,
                 BookedUtc = null,
                 CreatedUtc = now,
@@ -612,6 +625,7 @@ public static class ParishEndpoints
 
             var token = NormalizeConfirmationToken(request.Token);
             var inviteCode = NormalizeConfirmationInviteCode(request.InviteCode);
+            var stage = NormalizeConfirmationMeetingStage(request.Stage);
             if (token is null)
             {
                 return Results.BadRequest(new { error = "Meeting token is required." });
@@ -624,15 +638,17 @@ public static class ParishEndpoints
                 return Results.NotFound();
             }
 
-            var link = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+            var tokenLink = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
-            if (link is null)
+            if (tokenLink is null)
             {
                 return Results.NotFound(new { status = "invalid-token" });
             }
 
+            var link = await EnsureConfirmationMeetingLinkAsync(parish.Id, tokenLink.CandidateId, stage, dbContext, ct);
+
             var candidate = await dbContext.ParishConfirmationCandidates.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == link.CandidateId && x.ParishId == parish.Id, ct);
+                .FirstOrDefaultAsync(x => x.Id == tokenLink.CandidateId && x.ParishId == parish.Id, ct);
             if (candidate is null)
             {
                 return Results.NotFound(new { status = "invalid-token" });
@@ -649,7 +665,7 @@ public static class ParishEndpoints
                 .Where(x =>
                     x.ParishId == parish.Id &&
                     x.IsActive &&
-                    x.Stage == ConfirmationMeetingStageYear1Start)
+                    x.Stage == stage)
                 .OrderBy(x => x.StartsAtUtc)
                 .ToListAsync(ct);
             var slotIds = slots.Select(x => x.Id).ToList();
@@ -680,6 +696,7 @@ public static class ParishEndpoints
                 link.CandidateId,
                 $"{payload.Name} {payload.Surname}".Trim(),
                 candidate.PaperConsentReceived,
+                stage,
                 selectedSlotId,
                 link.BookedUtc,
                 canInviteToSelectedSlot,
@@ -727,6 +744,7 @@ public static class ParishEndpoints
 
             var token = NormalizeConfirmationToken(request.Token);
             var inviteCode = NormalizeConfirmationInviteCode(request.InviteCode);
+            var stage = NormalizeConfirmationMeetingStage(request.Stage);
             if (token is null)
             {
                 return Results.BadRequest(new { error = "Meeting token is required." });
@@ -739,12 +757,14 @@ public static class ParishEndpoints
                 return Results.NotFound();
             }
 
-            var link = await dbContext.ParishConfirmationMeetingLinks
+            var tokenLink = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
-            if (link is null)
+            if (tokenLink is null)
             {
                 return Results.NotFound(new { status = "invalid-token" });
             }
+
+            var link = await EnsureConfirmationMeetingLinkAsync(parish.Id, tokenLink.CandidateId, stage, dbContext, ct);
 
             var slot = await dbContext.ParishConfirmationMeetingSlots
                 .FirstOrDefaultAsync(
@@ -752,7 +772,7 @@ public static class ParishEndpoints
                         x.ParishId == parish.Id &&
                         x.Id == request.SlotId &&
                         x.IsActive &&
-                        x.Stage == ConfirmationMeetingStageYear1Start,
+                        x.Stage == stage,
                     ct);
             if (slot is null)
             {
@@ -811,7 +831,7 @@ public static class ParishEndpoints
                 parish.Id,
                 "ConfirmationMeetingSlotSelected",
                 "public",
-                JsonSerializer.Serialize(new { link.CandidateId, slot.Id, Status = "selected" }),
+                JsonSerializer.Serialize(new { link.CandidateId, slot.Id, slot.Stage, Status = "selected" }),
                 ct);
 
             return Results.Ok(new ParishConfirmationMeetingBookResponse("selected", link.SlotId, link.BookedUtc));
@@ -830,6 +850,7 @@ public static class ParishEndpoints
             }
 
             var token = NormalizeConfirmationToken(request.Token);
+            var stage = NormalizeConfirmationMeetingStage(request.Stage);
             if (token is null)
             {
                 return Results.BadRequest(new { error = "Meeting token is required." });
@@ -842,12 +863,14 @@ public static class ParishEndpoints
                 return Results.NotFound();
             }
 
-            var link = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+            var tokenLink = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
-            if (link is null)
+            if (tokenLink is null)
             {
                 return Results.NotFound(new { status = "invalid-token" });
             }
+
+            var link = await EnsureConfirmationMeetingLinkAsync(parish.Id, tokenLink.CandidateId, stage, dbContext, ct);
 
             if (link.SlotId is null)
             {
@@ -860,7 +883,7 @@ public static class ParishEndpoints
                         x.ParishId == parish.Id &&
                         x.Id == link.SlotId.Value &&
                         x.IsActive &&
-                        x.Stage == ConfirmationMeetingStageYear1Start,
+                        x.Stage == stage,
                     ct);
             if (slot is null)
             {
@@ -916,6 +939,7 @@ public static class ParishEndpoints
             }
 
             var token = NormalizeConfirmationToken(request.Token);
+            var stage = NormalizeConfirmationMeetingStage(request.Stage);
             if (token is null)
             {
                 return Results.BadRequest(new { error = "Meeting token is required." });
@@ -928,12 +952,14 @@ public static class ParishEndpoints
                 return Results.NotFound();
             }
 
-            var link = await dbContext.ParishConfirmationMeetingLinks
+            var tokenLink = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
-            if (link is null)
+            if (tokenLink is null)
             {
                 return Results.NotFound(new { status = "invalid-token" });
             }
+
+            var link = await EnsureConfirmationMeetingLinkAsync(parish.Id, tokenLink.CandidateId, stage, dbContext, ct);
 
             if (link.SlotId is null)
             {
@@ -978,6 +1004,7 @@ public static class ParishEndpoints
             }
 
             var token = NormalizeConfirmationToken(request.Token);
+            var stage = NormalizeConfirmationMeetingStage(request.Stage);
             if (token is null)
             {
                 return Results.BadRequest(new { error = "Meeting token is required." });
@@ -990,12 +1017,14 @@ public static class ParishEndpoints
                 return Results.NotFound();
             }
 
-            var link = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+            var tokenLink = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
-            if (link is null)
+            if (tokenLink is null)
             {
                 return Results.NotFound(new { status = "invalid-token" });
             }
+
+            var link = await EnsureConfirmationMeetingLinkAsync(parish.Id, tokenLink.CandidateId, stage, dbContext, ct);
 
             var slot = await dbContext.ParishConfirmationMeetingSlots.AsNoTracking()
                 .FirstOrDefaultAsync(
@@ -1003,7 +1032,7 @@ public static class ParishEndpoints
                         x.ParishId == parish.Id &&
                         x.Id == request.SlotId &&
                         x.IsActive &&
-                        x.Stage == ConfirmationMeetingStageYear1Start,
+                        x.Stage == stage,
                     ct);
             if (slot is null)
             {
@@ -1091,6 +1120,7 @@ public static class ParishEndpoints
             }
 
             var token = NormalizeConfirmationToken(request.Token);
+            var stage = NormalizeConfirmationMeetingStage(request.Stage);
             if (token is null)
             {
                 return Results.BadRequest(new { error = "Meeting token is required." });
@@ -1103,12 +1133,14 @@ public static class ParishEndpoints
                 return Results.NotFound();
             }
 
-            var hostLink = await dbContext.ParishConfirmationMeetingLinks
+            var tokenLink = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
-            if (hostLink is null)
+            if (tokenLink is null)
             {
                 return Results.NotFound(new { status = "invalid-token" });
             }
+
+            var hostLink = await EnsureConfirmationMeetingLinkAsync(parish.Id, tokenLink.CandidateId, stage, dbContext, ct);
 
             if (hostLink.SlotId is null)
             {
@@ -1121,7 +1153,7 @@ public static class ParishEndpoints
                         x.ParishId == parish.Id &&
                         x.Id == hostLink.SlotId.Value &&
                         x.IsActive &&
-                        x.Stage == ConfirmationMeetingStageYear1Start,
+                        x.Stage == stage,
                     ct);
             if (slot is null)
             {
@@ -1173,7 +1205,8 @@ public static class ParishEndpoints
                 .FirstOrDefaultAsync(
                     x =>
                         x.ParishId == parish.Id &&
-                        x.CandidateId == joinRequest.RequestedByCandidateId,
+                        x.CandidateId == joinRequest.RequestedByCandidateId &&
+                        x.Stage == stage,
                     ct);
             if (requesterLink is null)
             {
@@ -1317,7 +1350,7 @@ public static class ParishEndpoints
                 .Where(x =>
                     x.ParishId == parish.Id &&
                     x.IsActive &&
-                    x.Stage == ConfirmationMeetingStageYear1Start)
+                    (x.Stage == ConfirmationMeetingStageYear1Start || x.Stage == ConfirmationMeetingStageYear1End))
                 .OrderBy(x => x.StartsAtUtc)
                 .ToListAsync(ct);
             var slotIds = slots.Select(x => x.Id).ToList();
@@ -1353,9 +1386,21 @@ public static class ParishEndpoints
                 ct);
 
             var now = DateTimeOffset.UtcNow;
-            var selectedSlot = link.SlotId is null
+            var firstYearStartLink = await EnsureConfirmationMeetingLinkAsync(
+                parish.Id,
+                candidate.Id,
+                ConfirmationMeetingStageYear1Start,
+                dbContext,
+                ct);
+            var firstYearEndLink = await EnsureConfirmationMeetingLinkAsync(
+                parish.Id,
+                candidate.Id,
+                ConfirmationMeetingStageYear1End,
+                dbContext,
+                ct);
+            var selectedSlot = firstYearStartLink.SlotId is null
                 ? null
-                : slots.FirstOrDefault(slot => slot.Id == link.SlotId.Value);
+                : slots.FirstOrDefault(slot => slot.Id == firstYearStartLink.SlotId.Value);
             var canInviteToSelectedSlot = selectedSlot is not null
                 && CanCandidateInviteToConfirmationSlot(selectedSlot, candidate.Id, now);
             var pendingJoinRequests = canInviteToSelectedSlot && selectedSlot is not null
@@ -1377,16 +1422,41 @@ public static class ParishEndpoints
                     payload.Address,
                     payload.SchoolShort,
                     candidate.PaperConsentReceived,
-                    link.BookingToken,
-                    link.SlotId,
-                    link.BookedUtc,
+                    firstYearStartLink.BookingToken,
+                    firstYearStartLink.SlotId,
+                    firstYearStartLink.BookedUtc,
+                    firstYearEndLink.SlotId,
+                    firstYearEndLink.BookedUtc,
                     canInviteToSelectedSlot,
                     canInviteToSelectedSlot ? selectedSlot?.HostInviteToken : null,
                     canInviteToSelectedSlot ? selectedSlot?.HostInviteExpiresUtc : null),
-                slots.Select(slot =>
+                slots.Where(slot => slot.Stage == ConfirmationMeetingStageYear1Start).Select(slot =>
                 {
                     var reserved = reservedCounts.GetValueOrDefault(slot.Id);
-                    var isSelected = link.SlotId == slot.Id;
+                    var isSelected = firstYearStartLink.SlotId == slot.Id;
+                    var joinStatus = isSelected
+                        ? ConfirmationMeetingJoinStatus.Allowed
+                        : EvaluateConfirmationMeetingJoinStatus(slot, candidate.Id, reserved, inviteCode, now);
+                    var isAvailable = isSelected || joinStatus == ConfirmationMeetingJoinStatus.Allowed;
+                    var requiresInviteCode = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
+                    var visualStatus = ResolveConfirmationMeetingVisualStatus(slot, reserved, now);
+                    return new ParishConfirmationMeetingPublicSlotResponse(
+                        slot.Id,
+                        slot.StartsAtUtc,
+                        slot.DurationMinutes,
+                        slot.Capacity,
+                        slot.Label,
+                        slot.Stage,
+                        reserved,
+                        isAvailable,
+                        requiresInviteCode,
+                        isSelected,
+                        visualStatus);
+                }).ToList(),
+                slots.Where(slot => slot.Stage == ConfirmationMeetingStageYear1End).Select(slot =>
+                {
+                    var reserved = reservedCounts.GetValueOrDefault(slot.Id);
+                    var isSelected = firstYearEndLink.SlotId == slot.Id;
                     var joinStatus = isSelected
                         ? ConfirmationMeetingJoinStatus.Allowed
                         : EvaluateConfirmationMeetingJoinStatus(slot, candidate.Id, reserved, inviteCode, now);
@@ -2344,6 +2414,7 @@ public static class ParishEndpoints
                     x.Id,
                     x.CandidateId,
                     x.BookingToken,
+                    x.Stage,
                     x.SlotId,
                     x.BookedUtc,
                     x.CreatedUtc,
@@ -2709,6 +2780,7 @@ public static class ParishEndpoints
                     ParishId = parishId,
                     CandidateId = candidateId,
                     BookingToken = meetingToken,
+                    Stage = ConfirmationMeetingStageYear1Start,
                     SlotId = null,
                     BookedUtc = null,
                     CreatedUtc = createdUtc,
@@ -3018,6 +3090,7 @@ public static class ParishEndpoints
                     ParishId = parishId,
                     CandidateId = targetCandidate.Id,
                     BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct),
+                    Stage = ConfirmationMeetingStageYear1Start,
                     SlotId = null,
                     BookedUtc = null,
                     CreatedUtc = now,
@@ -3036,6 +3109,7 @@ public static class ParishEndpoints
                     ParishId = parishId,
                     CandidateId = sourceCandidate.Id,
                     BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct),
+                    Stage = ConfirmationMeetingStageYear1Start,
                     SlotId = null,
                     BookedUtc = null,
                     CreatedUtc = now,
@@ -3572,7 +3646,12 @@ public static class ParishEndpoints
             }
 
             var link = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.ParishId == parishId && x.CandidateId == candidateId, ct);
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.ParishId == parishId &&
+                        x.CandidateId == candidateId &&
+                        x.Stage == ConfirmationMeetingStageYear1Start,
+                    ct);
             if (link is null)
             {
                 return Results.NotFound();
@@ -3609,7 +3688,7 @@ public static class ParishEndpoints
                 .Where(x =>
                     x.ParishId == parishId &&
                     x.IsActive &&
-                    x.Stage == ConfirmationMeetingStageYear1Start)
+                    (x.Stage == ConfirmationMeetingStageYear1Start || x.Stage == ConfirmationMeetingStageYear1End))
                 .OrderBy(x => x.StartsAtUtc)
                 .ToListAsync(ct);
             var slotIds = slots.Select(x => x.Id).ToList();
@@ -3652,9 +3731,21 @@ public static class ParishEndpoints
                 ct);
 
             var now = DateTimeOffset.UtcNow;
-            var selectedSlot = link.SlotId is null
+            var firstYearStartLink = await EnsureConfirmationMeetingLinkAsync(
+                parishId,
+                candidateId,
+                ConfirmationMeetingStageYear1Start,
+                dbContext,
+                ct);
+            var firstYearEndLink = await EnsureConfirmationMeetingLinkAsync(
+                parishId,
+                candidateId,
+                ConfirmationMeetingStageYear1End,
+                dbContext,
+                ct);
+            var selectedSlot = firstYearStartLink.SlotId is null
                 ? null
-                : slots.FirstOrDefault(slot => slot.Id == link.SlotId.Value);
+                : slots.FirstOrDefault(slot => slot.Id == firstYearStartLink.SlotId.Value);
             var canInviteToSelectedSlot = selectedSlot is not null
                 && CanCandidateInviteToConfirmationSlot(selectedSlot, candidateId, now);
             var pendingJoinRequests = canInviteToSelectedSlot && selectedSlot is not null
@@ -3676,16 +3767,41 @@ public static class ParishEndpoints
                     payload.Address,
                     payload.SchoolShort,
                     candidate.PaperConsentReceived,
-                    link.BookingToken,
-                    link.SlotId,
-                    link.BookedUtc,
+                    firstYearStartLink.BookingToken,
+                    firstYearStartLink.SlotId,
+                    firstYearStartLink.BookedUtc,
+                    firstYearEndLink.SlotId,
+                    firstYearEndLink.BookedUtc,
                     canInviteToSelectedSlot,
                     canInviteToSelectedSlot ? selectedSlot?.HostInviteToken : null,
                     canInviteToSelectedSlot ? selectedSlot?.HostInviteExpiresUtc : null),
-                slots.Select(slot =>
+                slots.Where(slot => slot.Stage == ConfirmationMeetingStageYear1Start).Select(slot =>
                 {
                     var reserved = reservedCounts.GetValueOrDefault(slot.Id);
-                    var isSelected = link.SlotId == slot.Id;
+                    var isSelected = firstYearStartLink.SlotId == slot.Id;
+                    var joinStatus = isSelected
+                        ? ConfirmationMeetingJoinStatus.Allowed
+                        : EvaluateConfirmationMeetingJoinStatus(slot, candidateId, reserved, null, now);
+                    var isAvailable = isSelected || joinStatus == ConfirmationMeetingJoinStatus.Allowed;
+                    var requiresInviteCode = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
+                    var visualStatus = ResolveConfirmationMeetingVisualStatus(slot, reserved, now);
+                    return new ParishConfirmationMeetingPublicSlotResponse(
+                        slot.Id,
+                        slot.StartsAtUtc,
+                        slot.DurationMinutes,
+                        slot.Capacity,
+                        slot.Label,
+                        slot.Stage,
+                        reserved,
+                        isAvailable,
+                        requiresInviteCode,
+                        isSelected,
+                        visualStatus);
+                }).ToList(),
+                slots.Where(slot => slot.Stage == ConfirmationMeetingStageYear1End).Select(slot =>
+                {
+                    var reserved = reservedCounts.GetValueOrDefault(slot.Id);
+                    var isSelected = firstYearEndLink.SlotId == slot.Id;
                     var joinStatus = isSelected
                         ? ConfirmationMeetingJoinStatus.Allowed
                         : EvaluateConfirmationMeetingJoinStatus(slot, candidateId, reserved, null, now);
@@ -6469,7 +6585,11 @@ public static class ParishEndpoints
                 group => group.OrderBy(x => x.PhoneIndex).ToList());
         var meetingLinksByCandidate = meetingLinks
             .GroupBy(x => x.CandidateId)
-            .ToDictionary(group => group.Key, group => group.First());
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                    group.FirstOrDefault(x => x.Stage == ConfirmationMeetingStageYear1Start) ??
+                    group.First());
         var protector = CreateParishConfirmationProtector(dataProtectionProvider, parishId);
         var results = new List<ParishConfirmationCandidateView>();
 
@@ -6533,36 +6653,79 @@ public static class ParishEndpoints
             return;
         }
 
-        var linkedCandidateIds = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+        var existingLinks = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
             .Where(x => x.ParishId == parishId && candidateIds.Contains(x.CandidateId))
-            .Select(x => x.CandidateId)
             .ToListAsync(ct);
-        var linkedSet = new HashSet<Guid>(linkedCandidateIds);
-        var missingCandidateIds = candidateIds.Where(id => !linkedSet.Contains(id)).ToList();
-        if (missingCandidateIds.Count == 0)
-        {
-            return;
-        }
+        var linkedSet = existingLinks
+            .Select(x => (x.CandidateId, Stage: NormalizeConfirmationMeetingStage(x.Stage)))
+            .ToHashSet();
 
         var now = DateTimeOffset.UtcNow;
         var usedTokens = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var candidateId in missingCandidateIds)
+        foreach (var candidateId in candidateIds)
         {
-            var token = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, usedTokens, ct);
-            dbContext.ParishConfirmationMeetingLinks.Add(new ParishConfirmationMeetingLink
+            foreach (var stage in new[] { ConfirmationMeetingStageYear1Start, ConfirmationMeetingStageYear1End })
             {
-                Id = Guid.NewGuid(),
-                ParishId = parishId,
-                CandidateId = candidateId,
-                BookingToken = token,
-                SlotId = null,
-                BookedUtc = null,
-                CreatedUtc = now,
-                UpdatedUtc = now
-            });
+                if (linkedSet.Contains((candidateId, stage)))
+                {
+                    continue;
+                }
+
+                var token = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, usedTokens, ct);
+                dbContext.ParishConfirmationMeetingLinks.Add(new ParishConfirmationMeetingLink
+                {
+                    Id = Guid.NewGuid(),
+                    ParishId = parishId,
+                    CandidateId = candidateId,
+                    BookingToken = token,
+                    Stage = stage,
+                    SlotId = null,
+                    BookedUtc = null,
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                });
+            }
         }
 
         await dbContext.SaveChangesAsync(ct);
+    }
+
+    private static async Task<ParishConfirmationMeetingLink> EnsureConfirmationMeetingLinkAsync(
+        Guid parishId,
+        Guid candidateId,
+        string stage,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var normalizedStage = NormalizeConfirmationMeetingStage(stage);
+        var link = await dbContext.ParishConfirmationMeetingLinks
+            .FirstOrDefaultAsync(
+                x =>
+                    x.ParishId == parishId &&
+                    x.CandidateId == candidateId &&
+                    x.Stage == normalizedStage,
+                ct);
+        if (link is not null)
+        {
+            return link;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        link = new ParishConfirmationMeetingLink
+        {
+            Id = Guid.NewGuid(),
+            ParishId = parishId,
+            CandidateId = candidateId,
+            BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct),
+            Stage = normalizedStage,
+            SlotId = null,
+            BookedUtc = null,
+            CreatedUtc = now,
+            UpdatedUtc = now
+        };
+        dbContext.ParishConfirmationMeetingLinks.Add(link);
+        await dbContext.SaveChangesAsync(ct);
+        return link;
     }
 
     private static async Task<List<ParishConfirmationCelebrationResponse>> LoadConfirmationUpcomingCelebrationsAsync(

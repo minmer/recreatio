@@ -264,6 +264,7 @@ public sealed record ParishConfirmationExportMeetingLinkResponse(
     Guid Id,
     Guid CandidateId,
     string BookingToken,
+    string Stage,
     Guid? SlotId,
     DateTimeOffset? BookedUtc,
     DateTimeOffset CreatedUtc,
@@ -418,7 +419,8 @@ public sealed record ParishConfirmationMeetingSummaryResponse(
 
 public sealed record ParishConfirmationMeetingAvailabilityRequest(
     string Token,
-    string? InviteCode);
+    string? InviteCode,
+    string? Stage = null);
 
 public sealed record ParishConfirmationMeetingPublicSlotResponse(
     Guid Id,
@@ -446,6 +448,7 @@ public sealed record ParishConfirmationMeetingAvailabilityResponse(
     Guid CandidateId,
     string CandidateName,
     bool PaperConsentReceived,
+    string Stage,
     Guid? SelectedSlotId,
     DateTimeOffset? BookedUtc,
     bool CanInviteToSelectedSlot,
@@ -457,7 +460,8 @@ public sealed record ParishConfirmationMeetingAvailabilityResponse(
 public sealed record ParishConfirmationMeetingBookRequest(
     string Token,
     Guid SlotId,
-    string? InviteCode);
+    string? InviteCode,
+    string? Stage = null);
 
 public sealed record ParishConfirmationMeetingBookResponse(
     string Status,
@@ -539,6 +543,8 @@ public sealed record ParishConfirmationPortalCandidateDataResponse(
     string PortalToken,
     Guid? SelectedSlotId,
     DateTimeOffset? BookedUtc,
+    Guid? SecondSelectedSlotId,
+    DateTimeOffset? SecondBookedUtc,
     bool CanInviteToSelectedSlot,
     string? SelectedSlotInviteCode,
     DateTimeOffset? SelectedSlotInviteExpiresUtc);
@@ -602,6 +608,7 @@ public sealed record ParishConfirmationEventResponse(
 public sealed record ParishConfirmationPortalResponse(
     ParishConfirmationPortalCandidateDataResponse Candidate,
     IReadOnlyList<ParishConfirmationMeetingPublicSlotResponse> FirstYearStartSlots,
+    IReadOnlyList<ParishConfirmationMeetingPublicSlotResponse> FirstYearEndSlots,
     IReadOnlyList<ParishConfirmationMeetingJoinRequestResponse> PendingJoinRequests,
     string SecondMeetingAnnouncement,
     IReadOnlyList<ParishConfirmationEventResponse> UpcomingEvents,
@@ -615,14 +622,16 @@ public sealed record ParishConfirmationPortalRequest(
     string? InviteCode);
 
 public sealed record ParishConfirmationMeetingReleaseHostRequest(
-    string Token);
+    string Token,
+    string? Stage = null);
 
 public sealed record ParishConfirmationMeetingReleaseHostResponse(
     string Status,
     Guid? SlotId);
 
 public sealed record ParishConfirmationMeetingResignRequest(
-    string Token);
+    string Token,
+    string? Stage = null);
 
 public sealed record ParishConfirmationMeetingResignResponse(
     string Status,
@@ -630,7 +639,8 @@ public sealed record ParishConfirmationMeetingResignResponse(
 
 public sealed record ParishConfirmationMeetingJoinRequestCreateRequest(
     string Token,
-    Guid SlotId);
+    Guid SlotId,
+    string? Stage = null);
 
 public sealed record ParishConfirmationMeetingJoinRequestCreateResponse(
     string Status,
@@ -639,7 +649,8 @@ public sealed record ParishConfirmationMeetingJoinRequestCreateResponse(
 public sealed record ParishConfirmationMeetingJoinRequestDecisionRequest(
     string Token,
     Guid RequestId,
-    string Decision);
+    string Decision,
+    string? Stage = null);
 
 public sealed record ParishConfirmationMeetingJoinRequestDecisionResponse(
     string Status,

@@ -14,6 +14,9 @@ public sealed class ParishConfirmationMeetingLink
     [MaxLength(128)]
     public string BookingToken { get; set; } = string.Empty;
 
+    [MaxLength(32)]
+    public string Stage { get; set; } = "year1-start";
+
     public Guid? SlotId { get; set; }
 
     public DateTimeOffset? BookedUtc { get; set; }

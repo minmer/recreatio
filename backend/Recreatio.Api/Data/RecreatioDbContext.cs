@@ -283,7 +283,7 @@ public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefi
             .IsUnique();
 
         modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingLink>()
-            .HasIndex(x => x.CandidateId)
+            .HasIndex(x => new { x.CandidateId, x.Stage })
             .IsUnique();
 
         modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingLink>()
