@@ -2110,6 +2110,10 @@ export function ParishPage({
     const queryName = new URLSearchParams(location.search).get('name');
     return queryName?.trim() ? queryName.trim() : null;
   }, [location.search]);
+  const confirmationAdminCandidateIdQuery = useMemo(() => {
+    const candidateId = new URLSearchParams(location.search).get('candidateId');
+    return candidateId?.trim() ? candidateId.trim() : null;
+  }, [location.search]);
   const isConfirmationCandidateStandalone = isConfirmationSubpage && confirmationPanelSection === 'candidate';
   const activeConfirmationPortalToken = confirmationPortalToken ?? confirmationAdminPortalData?.candidate.portalToken ?? null;
   const baseColumns = 6;
@@ -2923,7 +2927,15 @@ export function ParishPage({
     const fullName = `${name} ${surname}`.trim();
     setConfirmationAdminCandidateSearch(fullName);
     setConfirmationAdminSelectedCandidateId(candidateId);
-    navigate(`/parish/${parishSlug}/confirmation/candidate?name=${encodeURIComponent(fullName)}`);
+    navigate(
+      `/parish/${parishSlug}/confirmation/candidate?candidateId=${encodeURIComponent(candidateId)}&name=${encodeURIComponent(fullName)}`
+    );
+  };
+
+  const buildConfirmationAdminPortalCandidateHref = (candidateId: string, name: string, surname: string) => {
+    if (!parishSlug) return '#';
+    const fullName = `${name} ${surname}`.trim();
+    return `/#/parish/${parishSlug}/confirmation/candidate?candidateId=${encodeURIComponent(candidateId)}&name=${encodeURIComponent(fullName)}`;
   };
 
   const loadConfirmationCelebrationsAdmin = async () => {
@@ -4383,29 +4395,31 @@ export function ParishPage({
     if (!isConfirmationSubpage || !isAuthenticated || !parish || confirmationPanelSection !== 'candidate') {
       return;
     }
-    if (!confirmationAdminNameQuery || confirmationCandidates.length === 0) {
+    if ((!confirmationAdminCandidateIdQuery && !confirmationAdminNameQuery) || confirmationCandidates.length === 0) {
       return;
     }
 
-    const normalizedQuery = confirmationAdminNameQuery.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return;
+    const normalizedQuery = confirmationAdminNameQuery?.trim().toLowerCase() ?? '';
+    let matchedCandidate = confirmationAdminCandidateIdQuery
+      ? confirmationCandidates.find((candidate) => candidate.id === confirmationAdminCandidateIdQuery)
+      : null;
+    if (!matchedCandidate && normalizedQuery) {
+      matchedCandidate =
+        confirmationCandidates.find(
+          (candidate) => `${candidate.name} ${candidate.surname}`.trim().toLowerCase() === normalizedQuery
+        ) ??
+        confirmationCandidates.find((candidate) =>
+          `${candidate.name} ${candidate.surname}`.trim().toLowerCase().includes(normalizedQuery)
+        );
     }
-
-    const matchedCandidate =
-      confirmationCandidates.find(
-        (candidate) => `${candidate.name} ${candidate.surname}`.trim().toLowerCase() === normalizedQuery
-      ) ??
-      confirmationCandidates.find((candidate) =>
-        `${candidate.name} ${candidate.surname}`.trim().toLowerCase().includes(normalizedQuery)
-      );
 
     if (!matchedCandidate) {
       return;
     }
 
-    if (confirmationAdminCandidateSearch !== confirmationAdminNameQuery) {
-      setConfirmationAdminCandidateSearch(confirmationAdminNameQuery);
+    const matchedName = `${matchedCandidate.name} ${matchedCandidate.surname}`.trim();
+    if (confirmationAdminCandidateSearch !== matchedName) {
+      setConfirmationAdminCandidateSearch(matchedName);
     }
     if (confirmationAdminSelectedCandidateId !== matchedCandidate.id) {
       setConfirmationAdminSelectedCandidateId(matchedCandidate.id);
@@ -4416,6 +4430,7 @@ export function ParishPage({
     parish?.id,
     confirmationPanelSection,
     confirmationCandidates,
+    confirmationAdminCandidateIdQuery,
     confirmationAdminNameQuery,
     confirmationAdminCandidateSearch,
     confirmationAdminSelectedCandidateId
@@ -7902,6 +7917,131 @@ export function ParishPage({
                                 </ul>
                               )}
                             </article>
+                            <div className="confirmation-portal-columns">
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje publiczne</h4>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminPublicNoteDraft}
+                                  onChange={(event) => setConfirmationAdminPublicNoteDraft(event.target.value)}
+                                />
+                                <button
+                                  type="button"
+                                  className="parish-login"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() => void handleAdminAddCandidateNote(true)}
+                                >
+                                  Dodaj adnotację publiczną
+                                </button>
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje prywatne</h4>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminPrivateNoteDraft}
+                                  onChange={(event) => setConfirmationAdminPrivateNoteDraft(event.target.value)}
+                                />
+                                <button
+                                  type="button"
+                                  className="parish-login"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() => void handleAdminAddCandidateNote(false)}
+                                >
+                                  Dodaj adnotację prywatną
+                                </button>
+                              </article>
+                            </div>
+                            <div className="confirmation-portal-columns">
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje publiczne (lista)</h4>
+                                {confirmationAdminPortalData.publicNotes.length === 0 ? (
+                                  <p className="muted">Brak publicznych adnotacji.</p>
+                                ) : (
+                                  <ul className="confirmation-portal-message-list">
+                                    {confirmationAdminPortalData.publicNotes.map((note) => (
+                                      <li key={`standalone-admin-public-note-${note.id}`}>
+                                        {note.noteText}
+                                        <br />
+                                        <span className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</span>
+                                        <br />
+                                        <button
+                                          type="button"
+                                          className="ghost"
+                                          onClick={() => handleAdminStartEditNote(note.id, note.noteText, note.isPublic)}
+                                        >
+                                          Edytuj
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje prywatne (lista)</h4>
+                                {confirmationAdminPortalData.privateNotes && confirmationAdminPortalData.privateNotes.length > 0 ? (
+                                  <ul className="confirmation-portal-message-list">
+                                    {confirmationAdminPortalData.privateNotes.map((note) => (
+                                      <li key={`standalone-admin-private-note-${note.id}`}>
+                                        {note.noteText}
+                                        <br />
+                                        <span className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</span>
+                                        <br />
+                                        <button
+                                          type="button"
+                                          className="ghost"
+                                          onClick={() => handleAdminStartEditNote(note.id, note.noteText, note.isPublic)}
+                                        >
+                                          Edytuj
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="muted">Brak prywatnych adnotacji.</p>
+                                )}
+                              </article>
+                            </div>
+                            {confirmationAdminEditingNoteId ? (
+                              <article className="confirmation-portal-card">
+                                <h4>Edycja adnotacji</h4>
+                                <label>
+                                  <span>Treść</span>
+                                  <textarea
+                                    rows={4}
+                                    value={confirmationAdminEditingNoteText}
+                                    onChange={(event) => setConfirmationAdminEditingNoteText(event.target.value)}
+                                  />
+                                </label>
+                                <label className="mass-require-intentions">
+                                  <input
+                                    type="checkbox"
+                                    checked={confirmationAdminEditingNoteIsPublic}
+                                    onChange={(event) => setConfirmationAdminEditingNoteIsPublic(event.target.checked)}
+                                  />
+                                  <span>Adnotacja publiczna (widoczna dla kandydata)</span>
+                                </label>
+                                <div className="builder-actions">
+                                  <button
+                                    type="button"
+                                    className="parish-login"
+                                    disabled={confirmationAdminSendingAction}
+                                    onClick={() => void handleAdminSaveEditedNote()}
+                                  >
+                                    Zapisz adnotację
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    onClick={() => {
+                                      setConfirmationAdminEditingNoteId(null);
+                                      setConfirmationAdminEditingNoteText('');
+                                    }}
+                                  >
+                                    Anuluj
+                                  </button>
+                                </div>
+                              </article>
+                            ) : null}
                           </>
                         ) : null}
                         <article className="confirmation-portal-card">
@@ -12414,19 +12554,35 @@ export function ParishPage({
                                             <span>
                                               {candidate.name} {candidate.surname}
                                             </span>
-                                            <button
-                                              type="button"
+                                            <a
+                                              href={buildConfirmationAdminPortalCandidateHref(
+                                                candidate.candidateId,
+                                                candidate.name,
+                                                candidate.surname
+                                              )}
                                               className="ghost"
-                                              onClick={() =>
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              onClick={(event) => {
+                                                if (
+                                                  event.metaKey ||
+                                                  event.ctrlKey ||
+                                                  event.shiftKey ||
+                                                  event.altKey ||
+                                                  event.button !== 0
+                                                ) {
+                                                  return;
+                                                }
+                                                event.preventDefault();
                                                 openConfirmationAdminPortalForCandidate(
                                                   candidate.candidateId,
                                                   candidate.name,
                                                   candidate.surname
-                                                )
-                                              }
+                                                );
+                                              }}
                                             >
                                               Otwórz portal admina
-                                            </button>
+                                            </a>
                                           </li>
                                         ))}
                                       </ul>
