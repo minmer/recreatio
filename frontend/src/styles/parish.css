@@ -2057,7 +2057,10 @@
 }
 
 .confirmation-form-card,
-.confirmation-admin-card {
+.confirmation-admin-card,
+.confirmation-admin-appointments,
+.confirmation-candidate-admin-portal,
+.confirmation-meetings-admin {
   margin-top: 16px;
 }
 
@@ -2071,6 +2074,28 @@
 
 .confirmation-admin-tabs {
   margin-bottom: 12px;
+}
+
+.confirmation-meeting-slot.is-ongoing {
+  border-left: 3px solid #16a34a;
+  padding-left: 10px;
+}
+
+.confirmation-meeting-slot.is-past {
+  opacity: 0.6;
+}
+
+.confirmation-pill-live {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
 }
 
 .confirmation-verify-banner {
@@ -2155,6 +2180,30 @@
   border-color: var(--parish-accent-deep);
   background: var(--parish-accent-deep);
   color: #fff;
+}
+
+.confirmation-portal-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--parish-line);
+  margin-top: 2px;
+}
+
+.confirmation-portal-section-nav-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--parish-muted, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 2px;
+}
+
+.confirmation-portal-section-nav button.ghost {
+  font-size: 0.78rem;
+  padding: 2px 8px;
 }
 
 .confirmation-portal-standalone-page {

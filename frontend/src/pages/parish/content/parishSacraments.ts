@@ -46,6 +46,7 @@ export type SacramentPanelMenuCopy = {
   form: string;
   meetings: string;
   candidatePortal: string;
+  adminPanel: string;
 };
 
 const confirmationPl: SacramentContentBundle = {
@@ -371,7 +372,8 @@ export const sacramentPanelMenuCopy: Record<ParishLanguage, SacramentPanelMenuCo
     faq: 'FAQ',
     form: 'Formularz kandydata',
     meetings: 'Spotkania kandydatów',
-    candidatePortal: 'Portal kandydata'
+    candidatePortal: 'Portal kandydata',
+    adminPanel: 'Panel admina'
   },
   en: {
     panelTitle: 'Sacrament panel',
@@ -380,7 +382,8 @@ export const sacramentPanelMenuCopy: Record<ParishLanguage, SacramentPanelMenuCo
     faq: 'FAQ',
     form: 'Candidate form',
     meetings: 'Candidate meetings',
-    candidatePortal: 'Candidate portal'
+    candidatePortal: 'Candidate portal',
+    adminPanel: 'Admin panel'
   },
   de: {
     panelTitle: 'Sakrament-Panel',
@@ -389,7 +392,8 @@ export const sacramentPanelMenuCopy: Record<ParishLanguage, SacramentPanelMenuCo
     faq: 'FAQ',
     form: 'Kandidatenformular',
     meetings: 'Treffen der Kandidaten',
-    candidatePortal: 'Kandidatenportal'
+    candidatePortal: 'Kandidatenportal',
+    adminPanel: 'Admin-Panel'
   }
 };
 

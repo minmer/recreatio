@@ -116,7 +116,7 @@ type ModuleWidth = 'one-third' | 'one-half' | 'two-thirds' | 'full';
 type ModuleHeight = 'one' | 'three' | 'five';
 type MassNodeCategory = 'filter' | 'mass' | 'intention' | 'save' | 'stop';
 type ValidationFinding = { level: 'error' | 'warning'; message: string };
-type SacramentPanelSection = 'overall' | 'parish' | 'faq' | 'form' | 'meetings' | 'candidate';
+type SacramentPanelSection = 'overall' | 'parish' | 'faq' | 'form' | 'meetings' | 'candidate' | 'admin';
 type ConfirmationDuplicateGroup = {
   key: string;
   displayName: string;
@@ -1157,7 +1157,8 @@ const confirmationSectionPath: Record<SacramentPanelSection, string> = {
   faq: 'faq',
   form: 'form',
   meetings: 'meetings',
-  candidate: 'candidate'
+  candidate: 'candidate',
+  admin: 'admin'
 };
 
 const confirmationParentConsentDraft = [
@@ -1278,6 +1279,7 @@ const parseConfirmationSection = (value?: string | null): SacramentPanelSection 
   if (value === 'form') return 'form';
   if (value === 'meetings') return 'meetings';
   if (value === 'candidate') return 'candidate';
+  if (value === 'admin') return 'admin';
   return 'overall';
 };
 
@@ -1287,7 +1289,8 @@ const isKnownConfirmationSectionPath = (value?: string | null): boolean =>
   value === 'faq' ||
   value === 'form' ||
   value === 'meetings' ||
-  value === 'candidate';
+  value === 'candidate' ||
+  value === 'admin';
 
 const sacramentPageMap: Record<PageId, string> = {
   'sacrament-baptism': 'baptism',
@@ -2071,6 +2074,7 @@ export function ParishPage({
   const [confirmationAdminEditingNoteId, setConfirmationAdminEditingNoteId] = useState<string | null>(null);
   const [confirmationAdminEditingNoteText, setConfirmationAdminEditingNoteText] = useState('');
   const [confirmationAdminEditingNoteIsPublic, setConfirmationAdminEditingNoteIsPublic] = useState(true);
+  const [confirmationAdminAppointmentsShowAll, setConfirmationAdminAppointmentsShowAll] = useState(false);
   const [sacramentParishEditTitle, setSacramentParishEditTitle] = useState('');
   const [sacramentParishEditLead, setSacramentParishEditLead] = useState('');
   const [sacramentParishEditNotice, setSacramentParishEditNotice] = useState('');
@@ -4173,7 +4177,7 @@ export function ParishPage({
       !isConfirmationSubpage ||
       !isAuthenticated ||
       !parish ||
-      confirmationPanelSection !== 'form' ||
+      (confirmationPanelSection !== 'form' && confirmationPanelSection !== 'admin') ||
       (confirmationAdminTab !== 'notes' && confirmationAdminTab !== 'messages')
     ) {
       return;
@@ -4268,7 +4272,8 @@ export function ParishPage({
     if (
       confirmationPanelSection !== 'meetings' &&
       confirmationPanelSection !== 'form' &&
-      confirmationPanelSection !== 'candidate'
+      confirmationPanelSection !== 'candidate' &&
+      confirmationPanelSection !== 'admin'
     ) {
       return;
     }
@@ -4276,7 +4281,7 @@ export function ParishPage({
   }, [isConfirmationSubpage, isAuthenticated, parish?.id, confirmationPanelSection]);
 
   useEffect(() => {
-    if (!isConfirmationSubpage || !isAuthenticated || !parish || confirmationPanelSection !== 'candidate') {
+    if (!isConfirmationSubpage || !isAuthenticated || !parish || (confirmationPanelSection !== 'candidate' && confirmationPanelSection !== 'admin')) {
       setConfirmationCelebrationsAdminList([]);
       setConfirmationEventsAdminList([]);
       setConfirmationCelebrationsAdminError(null);
@@ -4514,6 +4519,18 @@ export function ParishPage({
         .includes(query)
     );
   }, [confirmationCandidates, confirmationAdminCandidateSearch]);
+
+  const filteredNearbyConfirmationSlots = useMemo(() => {
+    if (!confirmationMeetingSummary) return [];
+    if (confirmationAdminAppointmentsShowAll) return confirmationMeetingSummary.slots;
+    const now = Date.now();
+    const oneHour = 60 * 60 * 1000;
+    return confirmationMeetingSummary.slots.filter((slot) => {
+      const slotEnd = new Date(slot.startsAtUtc).getTime() + slot.durationMinutes * 60 * 1000;
+      const slotStart = new Date(slot.startsAtUtc).getTime();
+      return slotEnd >= now - oneHour && slotStart <= now + oneHour;
+    });
+  }, [confirmationMeetingSummary, confirmationAdminAppointmentsShowAll]);
   const selectedSacramentOverallInfo = useMemo(
     () => [
       sacramentDescriptions[selectedSacrament.id],
@@ -6781,6 +6798,24 @@ export function ParishPage({
                     onClick={() => openConfirmationPortalStandaloneTab('status')}
                   >
                     Status
+                  </button>
+                </nav>
+                <nav className="confirmation-portal-section-nav" aria-label="Inne sekcje bierzmowania">
+                  <span className="confirmation-portal-section-nav-label">Sekcje:</span>
+                  <button type="button" className="ghost" onClick={() => openSacramentPanelSection('overall')}>
+                    Informacje
+                  </button>
+                  <button type="button" className="ghost" onClick={() => openSacramentPanelSection('parish')}>
+                    Parafia
+                  </button>
+                  <button type="button" className="ghost" onClick={() => openSacramentPanelSection('faq')}>
+                    FAQ
+                  </button>
+                  <button type="button" className="ghost" onClick={() => openSacramentPanelSection('form')}>
+                    Formularz
+                  </button>
+                  <button type="button" className="ghost" onClick={() => openSacramentPanelSection('meetings')}>
+                    Zapisy
                   </button>
                 </nav>
               </div>
@@ -9978,491 +10013,105 @@ export function ParishPage({
                     </div>
                   </article>
                 </div>
-              </section>
-            )}
-            {(activePage === 'community-bible' || activePage === 'community-formation') && communityData && (
-              <section className="parish-section community-page">
-                <div className="section-header">
-                  <div>
-                    <p className="tag">Wspólnoty</p>
-                    <h2>{communityData.title}</h2>
-                  </div>
-                  <button type="button" className="ghost">
-                    Dołącz do wspólnoty
-                  </button>
-                </div>
-                <div className="community-hero">
-                  <img src={communityData.image} alt={communityData.title} />
-                  <div className="parish-card">
-                    <p className="lead">{communityData.lead}</p>
-                    <div className="detail-grid">
-                      <div>
-                        <span className="label">Spotkania</span>
-                        <strong>{communityData.cadence}</strong>
-                      </div>
-                      <div>
-                        <span className="label">Miejsce</span>
-                        <strong>{communityData.location}</strong>
-                      </div>
-                      <div>
-                        <span className="label">Prowadzący</span>
-                        <strong>{communityData.leader}</strong>
-                      </div>
-                    </div>
-                    <div className="chip-row">
-                      {communityData.roles.map((role) => (
-                        <span key={role} className="chip">
-                          {role}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="parish-card">
-                  <h3>Plan spotkania</h3>
-                  <ul className="plan-list">
-                    {communityData.plan.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="parish-card">
-                  <h3>Aktualności wspólnoty</h3>
-                  <p className="note">Najbliższe spotkanie: 19 marca, 19:00. Temat: Ewangelia wg św. Marka.</p>
-                </div>
-              </section>
-            )}
-            {activePage === 'koleda' && (
-              <section className="parish-section koleda-page">
-                <div className="section-header">
-                  <div>
-                    <p className="tag">Kolęda</p>
-                    <h2>Plan wizyt duszpasterskich</h2>
-                  </div>
-                  <span className="pill">Aktualizacja: 5 stycznia</span>
-                </div>
-                <div className="notice">
-                  <strong>Zmiany i aktualizacje</strong>
-                  <p>
-                    Z powodu choroby ks. Pawła, plan na 10 stycznia został przesunięty na 12 stycznia. Szczegóły w tabeli.
-                  </p>
-                </div>
-                <div className="koleda-layout">
-                  <div className="parish-card">
-                    <h3>Plan wg dat</h3>
-                    <ul className="koleda-list">
-                      {koledaByDate.map((item) => (
-                        <li key={item.date}>
-                          <div>
-                            <strong>{item.date}</strong>
-                            <span>{item.window}</span>
-                          </div>
-                          <div>
-                            <span>{item.area}</span>
-                            <span className="chip">{item.priest}</span>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="parish-card">
-                    <h3>Plan wg ulic i rejonów</h3>
-                    <ul className="koleda-list">
-                      {koledaByArea.map((item) => (
-                        <li key={item.area}>
-                          <div>
-                            <strong>{item.area}</strong>
-                            <span>{item.streets}</span>
-                          </div>
-                          <div>
-                            <span>{item.date}</span>
-                            <span className="chip">{item.priest}</span>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <aside className="parish-card my-area">
-                    <h3>Moja okolica</h3>
-                    <p className="note">Os. Zielone 12–24 — 7 stycznia</p>
-                    <button type="button" className="cta ghost">
-                      Zobacz trasę
-                    </button>
-                  </aside>
-                </div>
-              </section>
-            )}
-            {activePage.startsWith('sacrament-') && (
-              <section className="parish-section sacrament-page">
-                <div className="section-header">
-                  <div>
-                    <p className="tag">Sakramenty</p>
-                    <h2>{selectedSacramentDisplayTitle}</h2>
-                    <p className="lead">{selectedSacramentLead}</p>
-                  </div>
-                  <button type="button" className="ghost">
-                    Pobierz checklistę
-                  </button>
-                </div>
-                <div className="parish-card sacrament-shortcuts">
-                  <p className="tag">{sacramentMenuLabels.panelTitle}</p>
-                  <div className="tabs small sacrament-shortcuts-tabs">
-                    <button
-                      type="button"
-                      className={activeSacramentPanelSection === 'overall' ? 'is-active' : undefined}
-                      onClick={() => openSacramentPanelSection('overall')}
-                    >
-                      {sacramentMenuLabels.overall}
-                    </button>
-                    <button
-                      type="button"
-                      className={activeSacramentPanelSection === 'parish' ? 'is-active' : undefined}
-                      onClick={() => openSacramentPanelSection('parish')}
-                    >
-                      {sacramentMenuLabels.parish}
-                    </button>
-                    <button
-                      type="button"
-                      className={activeSacramentPanelSection === 'faq' ? 'is-active' : undefined}
-                      onClick={() => openSacramentPanelSection('faq')}
-                    >
-                      {sacramentMenuLabels.faq}
-                    </button>
-                    {selectedSacrament.id === 'confirmation' && (
-                      <button
-                        type="button"
-                        className={activeSacramentPanelSection === 'form' ? 'is-active' : undefined}
-                        onClick={() => openSacramentPanelSection('form')}
-                      >
-                        {sacramentMenuLabels.form}
-                      </button>
-                    )}
-                    {selectedSacrament.id === 'confirmation' && (
-                      <button
-                        type="button"
-                        className={activeSacramentPanelSection === 'meetings' ? 'is-active' : undefined}
-                        onClick={() => openSacramentPanelSection('meetings')}
-                      >
-                        {sacramentMenuLabels.meetings}
-                      </button>
-                    )}
-                    {selectedSacrament.id === 'confirmation' && (
-                      <button
-                        type="button"
-                        className={activeSacramentPanelSection === 'candidate' ? 'is-active' : undefined}
-                        onClick={() => openSacramentPanelSection('candidate')}
-                      >
-                        {sacramentMenuLabels.candidatePortal}
-                      </button>
-                    )}
-                  </div>
-                  <p className="muted">
-                    Sekcje będą rozwijane o kolejne części dla wszystkich sakramentów. Aktualnie dla bierzmowania dostępny jest formularz online, panel zapisów na spotkania i indywidualny portal kandydata.
-                  </p>
-                </div>
-                {selectedSacrament.id === 'confirmation' && confirmationVerifyInfo ? (
-                  <div
-                    className={`parish-card confirmation-verify-banner ${
-                      confirmationVerifyTone === 'error'
-                        ? 'confirmation-verify-banner-error'
-                        : confirmationVerifyTone === 'notice'
-                        ? 'confirmation-verify-banner-notice'
-                        : 'confirmation-verify-banner-success'
-                    }`}
-                  >
-                    <h3>Weryfikacja numeru telefonu</h3>
-                    <p>{confirmationVerifyInfo}</p>
-                    <p className="note">
-                      Jeśli zgłoszenie zostało już wysłane, nie wysyłaj kolejnego formularza. W razie pomyłki skontaktuj się bezpośrednio z parafią.
-                    </p>
-                    <button type="button" className="ghost" onClick={() => openSacramentPanelSection('form')}>
-                      Przejdź do formularza tylko jeśli to nowe zgłoszenie
-                    </button>
-                  </div>
-                ) : null}
-                {activeSacramentPanelSection === 'overall' && (
+                {selectedSacrament.id === 'confirmation' && activeSacramentPanelSection === 'admin' && (
                   <>
-                    {selectedSacramentOverallPage ? (
-                      <div className="parish-card sacrament-panel-content">
-                        <h3>{selectedSacramentOverallPage.title}</h3>
-                        <p className="note">{selectedSacramentOverallPage.lead}</p>
-                        <div className="sacrament-page-sections">
-                          {selectedSacramentOverallPage.sections.map((section, index) => (
-                            <article key={`${selectedSacrament.id}-overall-section-${index}`}>
-                              <h4>{section.title}</h4>
-                              <p className="note">{section.body}</p>
-                            </article>
-                          ))}
+                    <div className="parish-card confirmation-admin-appointments">
+                      <div className="section-header">
+                        <div>
+                          <p className="tag">Panel admina</p>
+                          <h3>Najbliższe terminy spotkań</h3>
                         </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="sacrament-hero">
-                          <img src={selectedSacrament.img} alt={selectedSacrament.title} />
-                          <div className="parish-card">
-                            <h3>Kontakt w sprawie sakramentu</h3>
-                            <p className="note">Kancelaria: Pon.–Pt. 9:00–11:00, 16:00–18:00</p>
-                            <button type="button" className="cta">
-                              Umów spotkanie
-                            </button>
-                          </div>
-                        </div>
-                        <div className="parish-card sacrament-detail">
-                          <div className="detail-columns">
-                            <div>
-                              <h4>Kroki</h4>
-                              <ol>
-                                {selectedSacrament.steps.map((step) => (
-                                  <li key={step}>{step}</li>
-                                ))}
-                              </ol>
-                            </div>
-                            <div>
-                              <h4>Wymagane dokumenty</h4>
-                              <ul className="download-list">
-                                {selectedSacrament.docs.map((doc) => (
-                                  <li key={doc}>
-                                    <span>{doc}</span>
-                                    <button type="button" className="ghost">
-                                      Pobierz
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                            <div className="contact-box">
-                              <h4>Informacje wspólne (ogólne)</h4>
-                              <ul className="status-list">
-                                {selectedSacramentOverallInfo.map((item, index) => (
-                                  <li key={`${selectedSacrament.id}-overall-${index}`}>
-                                    <span>{item}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-                {activeSacramentPanelSection === 'parish' && (
-                  <>
-                    <div className="parish-card sacrament-panel-content">
-                      {selectedSacramentParishPage ? (
-                        <>
-                          <h3>{selectedSacramentParishPage.title}</h3>
-                          <p className="note">{selectedSacramentParishPage.lead}</p>
-                          {selectedSacramentParishPage.notice ? (
-                            <p className="confirmation-info confirmation-info-success">{selectedSacramentParishPage.notice}</p>
-                          ) : null}
-                          <div className="sacrament-page-sections">
-                            {selectedSacramentParishSections.map((section, index) => (
-                              <article key={`${selectedSacrament.id}-parish-section-${index}`}>
-                                <h4>{section.title}</h4>
-                                <p className="note">{section.body}</p>
-                              </article>
-                            ))}
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <h3>Informacje parafialne</h3>
-                          <ul className="status-list">
-                            {selectedSacramentParishInfo.map((item, index) => (
-                              <li key={`${selectedSacrament.id}-parish-${index}`}>
-                                <span>{item}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </>
-                      )}
-                    </div>
-                    {isAuthenticated && (
-                      <div className="parish-card sacrament-panel-editor">
-                        <div className="section-header">
-                          <div>
-                            <p className="tag">Panel admina</p>
-                            <h3>Treść parafialna: {selectedSacrament.title}</h3>
-                          </div>
-                        </div>
-                        <div className="admin-form-grid">
-                          <label className="admin-form-full">
-                            <span>Tytuł sekcji parafialnej</span>
-                            <input
-                              type="text"
-                              value={sacramentParishEditTitle}
-                              onChange={(event) => setSacramentParishEditTitle(event.target.value)}
-                            />
-                          </label>
-                          <label className="admin-form-full">
-                            <span>Lead (opis)</span>
-                            <textarea
-                              rows={3}
-                              value={sacramentParishEditLead}
-                              onChange={(event) => setSacramentParishEditLead(event.target.value)}
-                            />
-                          </label>
-                          <label className="admin-form-full">
-                            <span>Notatka wyróżniona (opcjonalnie)</span>
-                            <textarea
-                              rows={2}
-                              value={sacramentParishEditNotice}
-                              onChange={(event) => setSacramentParishEditNotice(event.target.value)}
-                            />
-                          </label>
-                        </div>
-                        <div className="sacrament-editor-sections">
-                          <div className="section-header">
-                            <h4>Sekcje parafialne</h4>
-                            <button type="button" className="ghost" onClick={handleAddSacramentParishSection}>
-                              Dodaj sekcję
-                            </button>
-                          </div>
-                          {sacramentParishEditSections.length === 0 ? (
-                            <p className="muted">Brak sekcji. Dodaj pierwszą sekcję lub wyczyść i zapisz.</p>
-                          ) : (
-                            sacramentParishEditSections.map((section, index) => (
-                              <article key={`${selectedSacrament.id}-editor-section-${index}`} className="sacrament-editor-section">
-                                <label>
-                                  <span>Tytuł</span>
-                                  <input
-                                    type="text"
-                                    value={section.title}
-                                    onChange={(event) => handleUpdateSacramentParishSection(index, 'title', event.target.value)}
-                                  />
-                                </label>
-                                <label>
-                                  <span>Treść</span>
-                                  <textarea
-                                    rows={4}
-                                    value={section.body}
-                                    onChange={(event) => handleUpdateSacramentParishSection(index, 'body', event.target.value)}
-                                  />
-                                </label>
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  onClick={() => handleRemoveSacramentParishSection(index)}
-                                >
-                                  Usuń sekcję
-                                </button>
-                              </article>
-                            ))
-                          )}
-                        </div>
-                        {sacramentParishSaveError ? (
-                          <p className="confirmation-info confirmation-info-error">{sacramentParishSaveError}</p>
-                        ) : null}
-                        {sacramentParishSaveInfo ? (
-                          <p className="confirmation-info confirmation-info-success">{sacramentParishSaveInfo}</p>
-                        ) : null}
-                        <div className="builder-actions">
+                        <div className="confirmation-admin-actions">
                           <button
                             type="button"
-                            className="parish-login"
-                            disabled={sacramentParishSaving}
-                            onClick={() => void handleSaveSacramentParishPage()}
+                            className="ghost"
+                            onClick={() => setConfirmationAdminAppointmentsShowAll((v) => !v)}
                           >
-                            {sacramentParishSaving ? 'Zapisywanie...' : 'Zapisz treść parafialną'}
+                            {confirmationAdminAppointmentsShowAll ? 'Pokaż bieżące (±1h)' : 'Pokaż wszystkie terminy'}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => void loadConfirmationMeetingSummary()}
+                          >
+                            Odśwież terminy
                           </button>
                         </div>
                       </div>
-                    )}
-                  </>
-                )}
-                {activeSacramentPanelSection === 'faq' && (
-                  <div className="parish-card sacrament-panel-content">
-                    <h3>{selectedSacramentFaqPage?.title ?? 'FAQ (ogólne)'}</h3>
-                    {selectedSacramentFaqPage?.lead ? <p className="note">{selectedSacramentFaqPage.lead}</p> : null}
-                    <div className="accordion">
-                      {selectedSacramentFaq.map((item, index) => (
-                        <details key={`${selectedSacrament.id}-faq-${index}`}>
-                          <summary>{item.question}</summary>
-                          <div className="accordion-body">
-                            <p className="note">{item.answer}</p>
-                          </div>
-                        </details>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {selectedSacrament.id === 'confirmation' && activeSacramentPanelSection === 'form' && (
-                  <>
-                    <div className="parish-card confirmation-form-card">
-                      <div className="section-header">
-                        <div>
-                          <p className="tag">Bierzmowanie</p>
-                          <h3>Formularz zgłoszeniowy</h3>
-                        </div>
-                        <span className="muted">Bez logowania. Zgłoszenia są jednokierunkowe.</span>
-                      </div>
-                      <div className="admin-form-grid">
-                        <label>
-                          <span>Imię</span>
-                          <input
-                            type="text"
-                            value={confirmationName}
-                            onChange={(event) => setConfirmationName(event.target.value)}
-                          />
-                        </label>
-                        <label>
-                          <span>Nazwisko</span>
-                          <input
-                            type="text"
-                            value={confirmationSurname}
-                            onChange={(event) => setConfirmationSurname(event.target.value)}
-                          />
-                        </label>
-                        <label className="admin-form-full">
-                          <span>Numery telefonów (każdy numer w nowej linii)</span>
-                          <textarea
-                            rows={3}
-                            value={confirmationPhonesRaw}
-                            onChange={(event) => setConfirmationPhonesRaw(event.target.value)}
-                            placeholder="+48 600 111 222&#10;+48 600 333 444"
-                          />
-                        </label>
-                        <label className="admin-form-full">
-                          <span>Adres zamieszkania</span>
-                          <textarea
-                            rows={2}
-                            value={confirmationAddress}
-                            onChange={(event) => setConfirmationAddress(event.target.value)}
-                          />
-                        </label>
-                        <label className="admin-form-full">
-                          <span>Szkoła (skrót)</span>
-                          <input
-                            type="text"
-                            value={confirmationSchoolShort}
-                            onChange={(event) => setConfirmationSchoolShort(event.target.value)}
-                            placeholder="np. SP12"
-                          />
-                        </label>
-                        <label className="mass-require-intentions admin-form-full">
-                          <input
-                            type="checkbox"
-                            checked={confirmationAcceptedRodo}
-                            onChange={(event) => setConfirmationAcceptedRodo(event.target.checked)}
-                          />
-                          <span>Akceptuję RODO.</span>
-                        </label>
-                      </div>
-                      {confirmationFormError ? <p className="confirmation-info confirmation-info-error">{confirmationFormError}</p> : null}
-                      {confirmationFormSuccess ? (
-                        <p className="confirmation-info confirmation-info-success">{confirmationFormSuccess}</p>
-                      ) : null}
-                      <div className="builder-actions">
-                        <button
-                          type="button"
-                          className="parish-login"
-                          disabled={confirmationSubmitting}
-                          onClick={handleSubmitConfirmationCandidate}
-                        >
-                          {confirmationSubmitting ? 'Wysyłanie...' : 'Wyślij zgłoszenie'}
-                        </button>
-                      </div>
+                      {confirmationMeetingLoading ? <p className="muted">Ładowanie terminów...</p> : null}
+                      {confirmationMeetingSummary ? (
+                        <>
+                          <p className="note">
+                            {confirmationAdminAppointmentsShowAll
+                              ? `Wszystkie terminy (${confirmationMeetingSummary.slots.length})`
+                              : `Terminy w oknie ±1 h (${filteredNearbyConfirmationSlots.length} z ${confirmationMeetingSummary.slots.length})`}
+                            {' · '}Kandydaci bez terminu: <strong>{confirmationMeetingSummary.unassignedCount}</strong>
+                          </p>
+                          {filteredNearbyConfirmationSlots.length === 0 ? (
+                            <p className="muted">
+                              {confirmationAdminAppointmentsShowAll
+                                ? 'Brak zdefiniowanych terminów.'
+                                : 'Brak terminów w oknie ±1 h od teraz. Kliknij „Pokaż wszystkie terminy”, aby zobaczyć pełny harmonogram.'}
+                            </p>
+                          ) : (
+                            <div className="confirmation-meeting-slot-list admin">
+                              {filteredNearbyConfirmationSlots.map((slot) => {
+                                const slotStart = new Date(slot.startsAtUtc).getTime();
+                                const slotEnd = slotStart + slot.durationMinutes * 60 * 1000;
+                                const nowTs = Date.now();
+                                const isOngoing = slotStart <= nowTs && slotEnd > nowTs;
+                                const isPast = slotEnd <= nowTs;
+                                return (
+                                  <article
+                                    key={`admin-appt-${slot.id}`}
+                                    className={`confirmation-meeting-slot${isOngoing ? ' is-ongoing' : isPast ? ' is-past' : ''}`}
+                                  >
+                                    <p>
+                                      <strong>{new Date(slot.startsAtUtc).toLocaleString('pl-PL')}</strong>
+                                      {isOngoing ? (
+                                        <span className="pill confirmation-pill-live">Trwa teraz</span>
+                                      ) : isPast ? (
+                                        <span className="pill">Zakończone</span>
+                                      ) : null}
+                                    </p>
+                                    <p className="note">
+                                      {slot.durationMinutes} min{' · '}{slot.stage === 'year1-end' ? 'Koniec 1. roku' : 'Początek 1. roku'}{' · '}{slot.reservedCount}/{slot.capacity} miejsc{slot.label ? ` · ${slot.label}` : ''}
+                                    </p>
+                                    {slot.candidates.length > 0 ? (
+                                      <ul className="confirmation-meeting-candidate-list confirmation-meeting-candidate-admin-list">
+                                        {slot.candidates.map((candidate) => (
+                                          <li key={`appt-${slot.id}-${candidate.candidateId}`}>
+                                            <span>
+                                              {candidate.name} {candidate.surname}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              className="ghost"
+                                              onClick={() =>
+                                                openConfirmationAdminPortalForCandidate(
+                                                  candidate.candidateId,
+                                                  candidate.name,
+                                                  candidate.surname
+                                                )
+                                              }
+                                            >
+                                              Otwórz portal
+                                            </button>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p className="muted">Brak zapisanych kandydatów w tym terminie.</p>
+                                    )}
+                                  </article>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="muted">Terminy nie zostały jeszcze załadowane. Kliknij „Odśwież terminy”.</p>
+                      )}
                     </div>
                     {isAuthenticated && (
                       <div className="parish-card confirmation-admin-card">
@@ -11171,6 +10820,978 @@ export function ParishPage({
                         )}
                       </div>
                     )}
+                    {isAuthenticated && (
+                      <div className="parish-card confirmation-candidate-admin-portal">
+                        <div className="section-header">
+                          <div>
+                            <p className="tag">Panel admina</p>
+                            <h3>Wyszukiwarka i edycja kandydatów</h3>
+                          </div>
+                          <button type="button" className="ghost" onClick={() => void loadConfirmationCandidates()}>
+                            Odśwież kandydatów
+                          </button>
+                        </div>
+                        <div className="admin-form-grid">
+                          <label className="admin-form-full">
+                            <span>Szukaj kandydata</span>
+                            <input
+                              type="text"
+                              value={confirmationAdminCandidateSearch}
+                              onChange={(event) => setConfirmationAdminCandidateSearch(event.target.value)}
+                              placeholder="Imię, nazwisko, adres, szkoła"
+                            />
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Wybierz kandydata</span>
+                            <select
+                              value={confirmationAdminSelectedCandidateId ?? ''}
+                              onChange={(event) => setConfirmationAdminSelectedCandidateId(event.target.value || null)}
+                            >
+                              {filteredConfirmationCandidates.length === 0 ? (
+                                <option value="">Brak kandydatów dla tego filtra</option>
+                              ) : (
+                                filteredConfirmationCandidates.map((candidate) => (
+                                  <option key={`portal-candidate-${candidate.id}`} value={candidate.id}>
+                                    {candidate.name} {candidate.surname} • {candidate.schoolShort}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          </label>
+                        </div>
+                        {confirmationAdminPortalLoading ? <p className="muted">Ładowanie danych kandydata...</p> : null}
+                        {confirmationAdminPortalError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationAdminPortalError}</p>
+                        ) : null}
+                        {confirmationAdminPortalInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{confirmationAdminPortalInfo}</p>
+                        ) : null}
+                        {confirmationAdminPortalData ? (
+                          <>
+                            <div className="confirmation-candidate-links">
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() => void handleCopyConfirmationMeetingLink(confirmationAdminPortalData.candidate.portalToken)}
+                              >
+                                {confirmationCopiedMeetingToken === confirmationAdminPortalData.candidate.portalToken
+                                  ? 'Skopiowano link portalu'
+                                  : 'Kopiuj link portalu kandydata'}
+                              </button>
+                              {confirmationAdminPortalData.candidate.canInviteToSelectedSlot &&
+                              confirmationAdminPortalData.candidate.selectedSlotInviteCode ? (
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  onClick={() =>
+                                    void handleCopyConfirmationMeetingInviteLink(
+                                      confirmationAdminPortalData.candidate.selectedSlotInviteCode
+                                    )
+                                  }
+                                >
+                                  {confirmationCopiedInviteToken === confirmationAdminPortalData.candidate.selectedSlotInviteCode
+                                    ? 'Skopiowano kod zaproszenia'
+                                    : 'Kopiuj kod zaproszenia'}
+                                </button>
+                              ) : null}
+                            </div>
+                            <div className="admin-form-grid">
+                              <label>
+                                <span>Imię</span>
+                                <input
+                                  type="text"
+                                  value={confirmationAdminEditName}
+                                  onChange={(event) => setConfirmationAdminEditName(event.target.value)}
+                                />
+                              </label>
+                              <label>
+                                <span>Nazwisko</span>
+                                <input
+                                  type="text"
+                                  value={confirmationAdminEditSurname}
+                                  onChange={(event) => setConfirmationAdminEditSurname(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>Numery telefonów (linia po linii)</span>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminEditPhonesRaw}
+                                  onChange={(event) => setConfirmationAdminEditPhonesRaw(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>Adres</span>
+                                <textarea
+                                  rows={2}
+                                  value={confirmationAdminEditAddress}
+                                  onChange={(event) => setConfirmationAdminEditAddress(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>Szkoła (skrót)</span>
+                                <input
+                                  type="text"
+                                  value={confirmationAdminEditSchoolShort}
+                                  onChange={(event) => setConfirmationAdminEditSchoolShort(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full builder-option">
+                                <input
+                                  type="checkbox"
+                                  checked={confirmationAdminEditPaperConsentReceived}
+                                  onChange={(event) => setConfirmationAdminEditPaperConsentReceived(event.target.checked)}
+                                />
+                                <span>Oświadczenie papierowe rodzica dostarczone do księdza</span>
+                              </label>
+                            </div>
+                            <div className="builder-actions">
+                              <button
+                                type="button"
+                                className="parish-login"
+                                disabled={confirmationAdminSendingAction}
+                                onClick={() => void handleAdminUpdateCandidateData()}
+                              >
+                                {confirmationAdminSendingAction ? 'Zapisywanie...' : 'Zapisz dane kandydata'}
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost"
+                                disabled={confirmationAdminSendingAction}
+                                onClick={() => void handleAdminUpdateCandidatePaperConsent()}
+                              >
+                                {confirmationAdminSendingAction ? 'Zapisywanie...' : 'Zapisz status oświadczenia papierowego'}
+                              </button>
+                            </div>
+                            <div className="confirmation-portal-columns">
+                              <article className="confirmation-portal-card">
+                                <h4>Wyślij wiadomość do kandydata</h4>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminMessageDraft}
+                                  onChange={(event) => setConfirmationAdminMessageDraft(event.target.value)}
+                                />
+                                <button
+                                  type="button"
+                                  className="parish-login"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() => void handleAdminSendMessageToCandidate()}
+                                >
+                                  Wyślij wiadomość
+                                </button>
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje publiczne</h4>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminPublicNoteDraft}
+                                  onChange={(event) => setConfirmationAdminPublicNoteDraft(event.target.value)}
+                                />
+                                <button
+                                  type="button"
+                                  className="parish-login"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() => void handleAdminAddCandidateNote(true)}
+                                >
+                                  Dodaj adnotację publiczną
+                                </button>
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje prywatne</h4>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminPrivateNoteDraft}
+                                  onChange={(event) => setConfirmationAdminPrivateNoteDraft(event.target.value)}
+                                />
+                                <button
+                                  type="button"
+                                  className="parish-login"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() => void handleAdminAddCandidateNote(false)}
+                                >
+                                  Dodaj adnotację prywatną
+                                </button>
+                              </article>
+                            </div>
+                            <div className="confirmation-portal-columns">
+                              <article className="confirmation-portal-card">
+                                <h4>Historia wiadomości</h4>
+                                {confirmationAdminPortalData.messages.length === 0 ? (
+                                  <p className="muted">Brak wiadomości.</p>
+                                ) : (
+                                  <ul className="confirmation-portal-message-list">
+                                    {confirmationAdminPortalData.messages.map((message) => (
+                                      <li key={`admin-msg-${message.id}`}>
+                                        <strong>{message.senderType === 'admin' ? 'Admin' : 'Kandydat'}:</strong> {message.messageText}
+                                        <br />
+                                        <span className="muted">{new Date(message.createdUtc).toLocaleString('pl-PL')}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje publiczne (lista)</h4>
+                                {confirmationAdminPortalData.publicNotes.length === 0 ? (
+                                  <p className="muted">Brak publicznych adnotacji.</p>
+                                ) : (
+                                  <ul className="confirmation-portal-message-list">
+                                    {confirmationAdminPortalData.publicNotes.map((note) => (
+                                      <li key={`admin-public-note-${note.id}`}>
+                                        {note.noteText}
+                                        <br />
+                                        <span className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</span>
+                                        <br />
+                                        <button
+                                          type="button"
+                                          className="ghost"
+                                          onClick={() => handleAdminStartEditNote(note.id, note.noteText, note.isPublic)}
+                                        >
+                                          Edytuj
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje prywatne (lista)</h4>
+                                {confirmationAdminPortalData.privateNotes && confirmationAdminPortalData.privateNotes.length > 0 ? (
+                                  <ul className="confirmation-portal-message-list">
+                                    {confirmationAdminPortalData.privateNotes.map((note) => (
+                                      <li key={`admin-private-note-${note.id}`}>
+                                        {note.noteText}
+                                        <br />
+                                        <span className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</span>
+                                        <br />
+                                        <button
+                                          type="button"
+                                          className="ghost"
+                                          onClick={() => handleAdminStartEditNote(note.id, note.noteText, note.isPublic)}
+                                        >
+                                          Edytuj
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="muted">Brak prywatnych adnotacji.</p>
+                                )}
+                              </article>
+                            </div>
+                            {confirmationAdminEditingNoteId ? (
+                              <article className="confirmation-portal-card">
+                                <h4>Edycja adnotacji</h4>
+                                <label>
+                                  <span>Treść</span>
+                                  <textarea
+                                    rows={4}
+                                    value={confirmationAdminEditingNoteText}
+                                    onChange={(event) => setConfirmationAdminEditingNoteText(event.target.value)}
+                                  />
+                                </label>
+                                <label className="mass-require-intentions">
+                                  <input
+                                    type="checkbox"
+                                    checked={confirmationAdminEditingNoteIsPublic}
+                                    onChange={(event) => setConfirmationAdminEditingNoteIsPublic(event.target.checked)}
+                                  />
+                                  <span>Adnotacja publiczna (widoczna dla kandydata)</span>
+                                </label>
+                                <div className="builder-actions">
+                                  <button
+                                    type="button"
+                                    className="parish-login"
+                                    disabled={confirmationAdminSendingAction}
+                                    onClick={() => void handleAdminSaveEditedNote()}
+                                  >
+                                    Zapisz adnotację
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    onClick={() => {
+                                      setConfirmationAdminEditingNoteId(null);
+                                      setConfirmationAdminEditingNoteText('');
+                                    }}
+                                  >
+                                    Anuluj
+                                  </button>
+                                </div>
+                              </article>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
+                    )}
+                    {isAuthenticated && (
+                      <div className="parish-card confirmation-meetings-admin">
+                        <div className="section-header">
+                          <div>
+                            <p className="tag">Panel admina</p>
+                            <h3>Terminy spotkań kandydatów</h3>
+                          </div>
+                          <button type="button" className="ghost" onClick={() => void loadConfirmationMeetingSummary()}>
+                            Odśwież terminy
+                          </button>
+                        </div>
+                        <div className="admin-form-grid">
+                          <label>
+                            <span>Data i godzina</span>
+                            <input
+                              type="datetime-local"
+                              value={confirmationMeetingStartsLocal}
+                              onChange={(event) => setConfirmationMeetingStartsLocal(event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Czas trwania (min)</span>
+                            <input
+                              type="number"
+                              min={10}
+                              max={180}
+                              value={confirmationMeetingDuration}
+                              onChange={(event) => setConfirmationMeetingDuration(event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Pojemność slotu</span>
+                            <select
+                              value={confirmationMeetingCapacity}
+                              onChange={(event) => setConfirmationMeetingCapacity(event.target.value === '2' ? '2' : '3')}
+                            >
+                              <option value="2">2 osoby</option>
+                              <option value="3">3 osoby</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>Etap spotkania</span>
+                            <select
+                              value={confirmationMeetingStage}
+                              onChange={(event) =>
+                                setConfirmationMeetingStage(
+                                  event.target.value === 'year1-end' ? 'year1-end' : 'year1-start'
+                                )
+                              }
+                            >
+                              <option value="year1-start">Początek 1. roku</option>
+                              <option value="year1-end">Koniec 1. roku</option>
+                            </select>
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Opis slotu (opcjonalnie)</span>
+                            <input
+                              type="text"
+                              value={confirmationMeetingLabel}
+                              onChange={(event) => setConfirmationMeetingLabel(event.target.value)}
+                              placeholder="np. sala katechetyczna, grupa A"
+                            />
+                          </label>
+                        </div>
+                        <div className="builder-actions">
+                          <button
+                            type="button"
+                            className="parish-login"
+                            disabled={confirmationMeetingSaving}
+                            onClick={() => void handleCreateConfirmationMeetingSlot()}
+                          >
+                            {confirmationMeetingSaving ? 'Zapisywanie...' : 'Dodaj termin'}
+                          </button>
+                        </div>
+                        {confirmationMeetingError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationMeetingError}</p>
+                        ) : null}
+                        {confirmationMeetingInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{confirmationMeetingInfo}</p>
+                        ) : null}
+                        {confirmationMeetingLoading ? <p className="muted">Ładowanie slotów...</p> : null}
+                        {confirmationMeetingSummary ? (
+                          <>
+                            <p className="note">Kandydaci bez wybranego terminu: {confirmationMeetingSummary.unassignedCount}</p>
+                            {confirmationMeetingSummary.slots.length === 0 ? (
+                              <p className="muted">Brak zdefiniowanych terminów.</p>
+                            ) : (
+                              <div className="confirmation-meeting-slot-list admin">
+                                {confirmationMeetingSummary.slots.map((slot) => (
+                                  <article key={`admin-slot-${slot.id}`} className="confirmation-meeting-slot">
+                                    <p>
+                                      <strong>{new Date(slot.startsAtUtc).toLocaleString('pl-PL')}</strong>
+                                    </p>
+                                    <p className="note">
+                                      Czas: {slot.durationMinutes} min • Zajętość: {slot.reservedCount}/{slot.capacity}
+                                      {slot.label ? ` • ${slot.label}` : ''}
+                                    </p>
+                                    <label>
+                                      <span>Etap spotkania</span>
+                                      <select
+                                        value={slot.stage === 'year1-end' ? 'year1-end' : 'year1-start'}
+                                        disabled={confirmationMeetingSaving}
+                                        onChange={(event) =>
+                                          void handleUpdateConfirmationMeetingSlotStage(
+                                            slot.id,
+                                            event.target.value === 'year1-end' ? 'year1-end' : 'year1-start'
+                                          )
+                                        }
+                                      >
+                                        <option value="year1-start">Początek 1. roku</option>
+                                        <option value="year1-end">Koniec 1. roku</option>
+                                      </select>
+                                    </label>
+                                    {slot.candidates.length > 0 ? (
+                                      <ul className="confirmation-meeting-candidate-list confirmation-meeting-candidate-admin-list">
+                                        {slot.candidates.map((candidate) => (
+                                          <li key={`${slot.id}-${candidate.candidateId}`}>
+                                            <span>
+                                              {candidate.name} {candidate.surname}
+                                            </span>
+                                            <a
+                                              href={buildConfirmationAdminPortalCandidateHref(
+                                                candidate.candidateId,
+                                                candidate.name,
+                                                candidate.surname
+                                              )}
+                                              className="ghost"
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              onClick={(event) => {
+                                                if (
+                                                  event.metaKey ||
+                                                  event.ctrlKey ||
+                                                  event.shiftKey ||
+                                                  event.altKey ||
+                                                  event.button !== 0
+                                                ) {
+                                                  return;
+                                                }
+                                                event.preventDefault();
+                                                openConfirmationAdminPortalForCandidate(
+                                                  candidate.candidateId,
+                                                  candidate.name,
+                                                  candidate.surname
+                                                );
+                                              }}
+                                            >
+                                              Otwórz portal admina
+                                            </a>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p className="muted">Brak zapisanych kandydatów.</p>
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      disabled={confirmationMeetingSaving}
+                                      onClick={() => void handleDeleteConfirmationMeetingSlot(slot.id)}
+                                    >
+                                      Usuń termin
+                                    </button>
+                                  </article>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        ) : null}
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+            )}
+            {(activePage === 'community-bible' || activePage === 'community-formation') && communityData && (
+              <section className="parish-section community-page">
+                <div className="section-header">
+                  <div>
+                    <p className="tag">Wspólnoty</p>
+                    <h2>{communityData.title}</h2>
+                  </div>
+                  <button type="button" className="ghost">
+                    Dołącz do wspólnoty
+                  </button>
+                </div>
+                <div className="community-hero">
+                  <img src={communityData.image} alt={communityData.title} />
+                  <div className="parish-card">
+                    <p className="lead">{communityData.lead}</p>
+                    <div className="detail-grid">
+                      <div>
+                        <span className="label">Spotkania</span>
+                        <strong>{communityData.cadence}</strong>
+                      </div>
+                      <div>
+                        <span className="label">Miejsce</span>
+                        <strong>{communityData.location}</strong>
+                      </div>
+                      <div>
+                        <span className="label">Prowadzący</span>
+                        <strong>{communityData.leader}</strong>
+                      </div>
+                    </div>
+                    <div className="chip-row">
+                      {communityData.roles.map((role) => (
+                        <span key={role} className="chip">
+                          {role}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="parish-card">
+                  <h3>Plan spotkania</h3>
+                  <ul className="plan-list">
+                    {communityData.plan.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="parish-card">
+                  <h3>Aktualności wspólnoty</h3>
+                  <p className="note">Najbliższe spotkanie: 19 marca, 19:00. Temat: Ewangelia wg św. Marka.</p>
+                </div>
+              </section>
+            )}
+            {activePage === 'koleda' && (
+              <section className="parish-section koleda-page">
+                <div className="section-header">
+                  <div>
+                    <p className="tag">Kolęda</p>
+                    <h2>Plan wizyt duszpasterskich</h2>
+                  </div>
+                  <span className="pill">Aktualizacja: 5 stycznia</span>
+                </div>
+                <div className="notice">
+                  <strong>Zmiany i aktualizacje</strong>
+                  <p>
+                    Z powodu choroby ks. Pawła, plan na 10 stycznia został przesunięty na 12 stycznia. Szczegóły w tabeli.
+                  </p>
+                </div>
+                <div className="koleda-layout">
+                  <div className="parish-card">
+                    <h3>Plan wg dat</h3>
+                    <ul className="koleda-list">
+                      {koledaByDate.map((item) => (
+                        <li key={item.date}>
+                          <div>
+                            <strong>{item.date}</strong>
+                            <span>{item.window}</span>
+                          </div>
+                          <div>
+                            <span>{item.area}</span>
+                            <span className="chip">{item.priest}</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="parish-card">
+                    <h3>Plan wg ulic i rejonów</h3>
+                    <ul className="koleda-list">
+                      {koledaByArea.map((item) => (
+                        <li key={item.area}>
+                          <div>
+                            <strong>{item.area}</strong>
+                            <span>{item.streets}</span>
+                          </div>
+                          <div>
+                            <span>{item.date}</span>
+                            <span className="chip">{item.priest}</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <aside className="parish-card my-area">
+                    <h3>Moja okolica</h3>
+                    <p className="note">Os. Zielone 12–24 — 7 stycznia</p>
+                    <button type="button" className="cta ghost">
+                      Zobacz trasę
+                    </button>
+                  </aside>
+                </div>
+              </section>
+            )}
+            {activePage.startsWith('sacrament-') && (
+              <section className="parish-section sacrament-page">
+                <div className="section-header">
+                  <div>
+                    <p className="tag">Sakramenty</p>
+                    <h2>{selectedSacramentDisplayTitle}</h2>
+                    <p className="lead">{selectedSacramentLead}</p>
+                  </div>
+                  <button type="button" className="ghost">
+                    Pobierz checklistę
+                  </button>
+                </div>
+                <div className="parish-card sacrament-shortcuts">
+                  <p className="tag">{sacramentMenuLabels.panelTitle}</p>
+                  <div className="tabs small sacrament-shortcuts-tabs">
+                    <button
+                      type="button"
+                      className={activeSacramentPanelSection === 'overall' ? 'is-active' : undefined}
+                      onClick={() => openSacramentPanelSection('overall')}
+                    >
+                      {sacramentMenuLabels.overall}
+                    </button>
+                    <button
+                      type="button"
+                      className={activeSacramentPanelSection === 'parish' ? 'is-active' : undefined}
+                      onClick={() => openSacramentPanelSection('parish')}
+                    >
+                      {sacramentMenuLabels.parish}
+                    </button>
+                    <button
+                      type="button"
+                      className={activeSacramentPanelSection === 'faq' ? 'is-active' : undefined}
+                      onClick={() => openSacramentPanelSection('faq')}
+                    >
+                      {sacramentMenuLabels.faq}
+                    </button>
+                    {selectedSacrament.id === 'confirmation' && (
+                      <button
+                        type="button"
+                        className={activeSacramentPanelSection === 'form' ? 'is-active' : undefined}
+                        onClick={() => openSacramentPanelSection('form')}
+                      >
+                        {sacramentMenuLabels.form}
+                      </button>
+                    )}
+                    {selectedSacrament.id === 'confirmation' && (
+                      <button
+                        type="button"
+                        className={activeSacramentPanelSection === 'meetings' ? 'is-active' : undefined}
+                        onClick={() => openSacramentPanelSection('meetings')}
+                      >
+                        {sacramentMenuLabels.meetings}
+                      </button>
+                    )}
+                    {selectedSacrament.id === 'confirmation' && (
+                      <button
+                        type="button"
+                        className={activeSacramentPanelSection === 'candidate' ? 'is-active' : undefined}
+                        onClick={() => openSacramentPanelSection('candidate')}
+                      >
+                        {sacramentMenuLabels.candidatePortal}
+                      </button>
+                    )}
+                    {selectedSacrament.id === 'confirmation' && isAuthenticated && (
+                      <button
+                        type="button"
+                        className={activeSacramentPanelSection === 'admin' ? 'is-active' : undefined}
+                        onClick={() => openSacramentPanelSection('admin')}
+                      >
+                        {sacramentMenuLabels.adminPanel}
+                      </button>
+                    )}
+                  </div>
+                  <p className="muted">
+                    Sekcje będą rozwijane o kolejne części dla wszystkich sakramentów. Aktualnie dla bierzmowania dostępny jest formularz online, panel zapisów na spotkania i indywidualny portal kandydata.
+                  </p>
+                </div>
+                {selectedSacrament.id === 'confirmation' && confirmationVerifyInfo ? (
+                  <div
+                    className={`parish-card confirmation-verify-banner ${
+                      confirmationVerifyTone === 'error'
+                        ? 'confirmation-verify-banner-error'
+                        : confirmationVerifyTone === 'notice'
+                        ? 'confirmation-verify-banner-notice'
+                        : 'confirmation-verify-banner-success'
+                    }`}
+                  >
+                    <h3>Weryfikacja numeru telefonu</h3>
+                    <p>{confirmationVerifyInfo}</p>
+                    <p className="note">
+                      Jeśli zgłoszenie zostało już wysłane, nie wysyłaj kolejnego formularza. W razie pomyłki skontaktuj się bezpośrednio z parafią.
+                    </p>
+                    <button type="button" className="ghost" onClick={() => openSacramentPanelSection('form')}>
+                      Przejdź do formularza tylko jeśli to nowe zgłoszenie
+                    </button>
+                  </div>
+                ) : null}
+                {activeSacramentPanelSection === 'overall' && (
+                  <>
+                    {selectedSacramentOverallPage ? (
+                      <div className="parish-card sacrament-panel-content">
+                        <h3>{selectedSacramentOverallPage.title}</h3>
+                        <p className="note">{selectedSacramentOverallPage.lead}</p>
+                        <div className="sacrament-page-sections">
+                          {selectedSacramentOverallPage.sections.map((section, index) => (
+                            <article key={`${selectedSacrament.id}-overall-section-${index}`}>
+                              <h4>{section.title}</h4>
+                              <p className="note">{section.body}</p>
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="sacrament-hero">
+                          <img src={selectedSacrament.img} alt={selectedSacrament.title} />
+                          <div className="parish-card">
+                            <h3>Kontakt w sprawie sakramentu</h3>
+                            <p className="note">Kancelaria: Pon.–Pt. 9:00–11:00, 16:00–18:00</p>
+                            <button type="button" className="cta">
+                              Umów spotkanie
+                            </button>
+                          </div>
+                        </div>
+                        <div className="parish-card sacrament-detail">
+                          <div className="detail-columns">
+                            <div>
+                              <h4>Kroki</h4>
+                              <ol>
+                                {selectedSacrament.steps.map((step) => (
+                                  <li key={step}>{step}</li>
+                                ))}
+                              </ol>
+                            </div>
+                            <div>
+                              <h4>Wymagane dokumenty</h4>
+                              <ul className="download-list">
+                                {selectedSacrament.docs.map((doc) => (
+                                  <li key={doc}>
+                                    <span>{doc}</span>
+                                    <button type="button" className="ghost">
+                                      Pobierz
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div className="contact-box">
+                              <h4>Informacje wspólne (ogólne)</h4>
+                              <ul className="status-list">
+                                {selectedSacramentOverallInfo.map((item, index) => (
+                                  <li key={`${selectedSacrament.id}-overall-${index}`}>
+                                    <span>{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+                {activeSacramentPanelSection === 'parish' && (
+                  <>
+                    <div className="parish-card sacrament-panel-content">
+                      {selectedSacramentParishPage ? (
+                        <>
+                          <h3>{selectedSacramentParishPage.title}</h3>
+                          <p className="note">{selectedSacramentParishPage.lead}</p>
+                          {selectedSacramentParishPage.notice ? (
+                            <p className="confirmation-info confirmation-info-success">{selectedSacramentParishPage.notice}</p>
+                          ) : null}
+                          <div className="sacrament-page-sections">
+                            {selectedSacramentParishSections.map((section, index) => (
+                              <article key={`${selectedSacrament.id}-parish-section-${index}`}>
+                                <h4>{section.title}</h4>
+                                <p className="note">{section.body}</p>
+                              </article>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <h3>Informacje parafialne</h3>
+                          <ul className="status-list">
+                            {selectedSacramentParishInfo.map((item, index) => (
+                              <li key={`${selectedSacrament.id}-parish-${index}`}>
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                    {isAuthenticated && (
+                      <div className="parish-card sacrament-panel-editor">
+                        <div className="section-header">
+                          <div>
+                            <p className="tag">Panel admina</p>
+                            <h3>Treść parafialna: {selectedSacrament.title}</h3>
+                          </div>
+                        </div>
+                        <div className="admin-form-grid">
+                          <label className="admin-form-full">
+                            <span>Tytuł sekcji parafialnej</span>
+                            <input
+                              type="text"
+                              value={sacramentParishEditTitle}
+                              onChange={(event) => setSacramentParishEditTitle(event.target.value)}
+                            />
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Lead (opis)</span>
+                            <textarea
+                              rows={3}
+                              value={sacramentParishEditLead}
+                              onChange={(event) => setSacramentParishEditLead(event.target.value)}
+                            />
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Notatka wyróżniona (opcjonalnie)</span>
+                            <textarea
+                              rows={2}
+                              value={sacramentParishEditNotice}
+                              onChange={(event) => setSacramentParishEditNotice(event.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <div className="sacrament-editor-sections">
+                          <div className="section-header">
+                            <h4>Sekcje parafialne</h4>
+                            <button type="button" className="ghost" onClick={handleAddSacramentParishSection}>
+                              Dodaj sekcję
+                            </button>
+                          </div>
+                          {sacramentParishEditSections.length === 0 ? (
+                            <p className="muted">Brak sekcji. Dodaj pierwszą sekcję lub wyczyść i zapisz.</p>
+                          ) : (
+                            sacramentParishEditSections.map((section, index) => (
+                              <article key={`${selectedSacrament.id}-editor-section-${index}`} className="sacrament-editor-section">
+                                <label>
+                                  <span>Tytuł</span>
+                                  <input
+                                    type="text"
+                                    value={section.title}
+                                    onChange={(event) => handleUpdateSacramentParishSection(index, 'title', event.target.value)}
+                                  />
+                                </label>
+                                <label>
+                                  <span>Treść</span>
+                                  <textarea
+                                    rows={4}
+                                    value={section.body}
+                                    onChange={(event) => handleUpdateSacramentParishSection(index, 'body', event.target.value)}
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  onClick={() => handleRemoveSacramentParishSection(index)}
+                                >
+                                  Usuń sekcję
+                                </button>
+                              </article>
+                            ))
+                          )}
+                        </div>
+                        {sacramentParishSaveError ? (
+                          <p className="confirmation-info confirmation-info-error">{sacramentParishSaveError}</p>
+                        ) : null}
+                        {sacramentParishSaveInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{sacramentParishSaveInfo}</p>
+                        ) : null}
+                        <div className="builder-actions">
+                          <button
+                            type="button"
+                            className="parish-login"
+                            disabled={sacramentParishSaving}
+                            onClick={() => void handleSaveSacramentParishPage()}
+                          >
+                            {sacramentParishSaving ? 'Zapisywanie...' : 'Zapisz treść parafialną'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+                {activeSacramentPanelSection === 'faq' && (
+                  <div className="parish-card sacrament-panel-content">
+                    <h3>{selectedSacramentFaqPage?.title ?? 'FAQ (ogólne)'}</h3>
+                    {selectedSacramentFaqPage?.lead ? <p className="note">{selectedSacramentFaqPage.lead}</p> : null}
+                    <div className="accordion">
+                      {selectedSacramentFaq.map((item, index) => (
+                        <details key={`${selectedSacrament.id}-faq-${index}`}>
+                          <summary>{item.question}</summary>
+                          <div className="accordion-body">
+                            <p className="note">{item.answer}</p>
+                          </div>
+                        </details>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {selectedSacrament.id === 'confirmation' && activeSacramentPanelSection === 'form' && (
+                  <>
+                    <div className="parish-card confirmation-form-card">
+                      <div className="section-header">
+                        <div>
+                          <p className="tag">Bierzmowanie</p>
+                          <h3>Formularz zgłoszeniowy</h3>
+                        </div>
+                        <span className="muted">Bez logowania. Zgłoszenia są jednokierunkowe.</span>
+                      </div>
+                      <div className="admin-form-grid">
+                        <label>
+                          <span>Imię</span>
+                          <input
+                            type="text"
+                            value={confirmationName}
+                            onChange={(event) => setConfirmationName(event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          <span>Nazwisko</span>
+                          <input
+                            type="text"
+                            value={confirmationSurname}
+                            onChange={(event) => setConfirmationSurname(event.target.value)}
+                          />
+                        </label>
+                        <label className="admin-form-full">
+                          <span>Numery telefonów (każdy numer w nowej linii)</span>
+                          <textarea
+                            rows={3}
+                            value={confirmationPhonesRaw}
+                            onChange={(event) => setConfirmationPhonesRaw(event.target.value)}
+                            placeholder="+48 600 111 222&#10;+48 600 333 444"
+                          />
+                        </label>
+                        <label className="admin-form-full">
+                          <span>Adres zamieszkania</span>
+                          <textarea
+                            rows={2}
+                            value={confirmationAddress}
+                            onChange={(event) => setConfirmationAddress(event.target.value)}
+                          />
+                        </label>
+                        <label className="admin-form-full">
+                          <span>Szkoła (skrót)</span>
+                          <input
+                            type="text"
+                            value={confirmationSchoolShort}
+                            onChange={(event) => setConfirmationSchoolShort(event.target.value)}
+                            placeholder="np. SP12"
+                          />
+                        </label>
+                        <label className="mass-require-intentions admin-form-full">
+                          <input
+                            type="checkbox"
+                            checked={confirmationAcceptedRodo}
+                            onChange={(event) => setConfirmationAcceptedRodo(event.target.checked)}
+                          />
+                          <span>Akceptuję RODO.</span>
+                        </label>
+                      </div>
+                      {confirmationFormError ? <p className="confirmation-info confirmation-info-error">{confirmationFormError}</p> : null}
+                      {confirmationFormSuccess ? (
+                        <p className="confirmation-info confirmation-info-success">{confirmationFormSuccess}</p>
+                      ) : null}
+                      <div className="builder-actions">
+                        <button
+                          type="button"
+                          className="parish-login"
+                          disabled={confirmationSubmitting}
+                          onClick={handleSubmitConfirmationCandidate}
+                        >
+                          {confirmationSubmitting ? 'Wysyłanie...' : 'Wyślij zgłoszenie'}
+                        </button>
+                      </div>
+                    </div>
                   </>
                 )}
                 {selectedSacrament.id === 'confirmation' && activeSacramentPanelSection === 'candidate' && (
@@ -11815,310 +12436,6 @@ export function ParishPage({
                         </>
                       ) : null}
                     </div>
-                    {isAuthenticated && (
-                      <div className="parish-card confirmation-candidate-admin-portal">
-                        <div className="section-header">
-                          <div>
-                            <p className="tag">Panel admina</p>
-                            <h3>Wyszukiwarka i edycja kandydatów</h3>
-                          </div>
-                          <button type="button" className="ghost" onClick={() => void loadConfirmationCandidates()}>
-                            Odśwież kandydatów
-                          </button>
-                        </div>
-                        <div className="admin-form-grid">
-                          <label className="admin-form-full">
-                            <span>Szukaj kandydata</span>
-                            <input
-                              type="text"
-                              value={confirmationAdminCandidateSearch}
-                              onChange={(event) => setConfirmationAdminCandidateSearch(event.target.value)}
-                              placeholder="Imię, nazwisko, adres, szkoła"
-                            />
-                          </label>
-                          <label className="admin-form-full">
-                            <span>Wybierz kandydata</span>
-                            <select
-                              value={confirmationAdminSelectedCandidateId ?? ''}
-                              onChange={(event) => setConfirmationAdminSelectedCandidateId(event.target.value || null)}
-                            >
-                              {filteredConfirmationCandidates.length === 0 ? (
-                                <option value="">Brak kandydatów dla tego filtra</option>
-                              ) : (
-                                filteredConfirmationCandidates.map((candidate) => (
-                                  <option key={`portal-candidate-${candidate.id}`} value={candidate.id}>
-                                    {candidate.name} {candidate.surname} • {candidate.schoolShort}
-                                  </option>
-                                ))
-                              )}
-                            </select>
-                          </label>
-                        </div>
-                        {confirmationAdminPortalLoading ? <p className="muted">Ładowanie danych kandydata...</p> : null}
-                        {confirmationAdminPortalError ? (
-                          <p className="confirmation-info confirmation-info-error">{confirmationAdminPortalError}</p>
-                        ) : null}
-                        {confirmationAdminPortalInfo ? (
-                          <p className="confirmation-info confirmation-info-success">{confirmationAdminPortalInfo}</p>
-                        ) : null}
-                        {confirmationAdminPortalData ? (
-                          <>
-                            <div className="confirmation-candidate-links">
-                              <button
-                                type="button"
-                                className="ghost"
-                                onClick={() => void handleCopyConfirmationMeetingLink(confirmationAdminPortalData.candidate.portalToken)}
-                              >
-                                {confirmationCopiedMeetingToken === confirmationAdminPortalData.candidate.portalToken
-                                  ? 'Skopiowano link portalu'
-                                  : 'Kopiuj link portalu kandydata'}
-                              </button>
-                              {confirmationAdminPortalData.candidate.canInviteToSelectedSlot &&
-                              confirmationAdminPortalData.candidate.selectedSlotInviteCode ? (
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  onClick={() =>
-                                    void handleCopyConfirmationMeetingInviteLink(
-                                      confirmationAdminPortalData.candidate.selectedSlotInviteCode
-                                    )
-                                  }
-                                >
-                                  {confirmationCopiedInviteToken === confirmationAdminPortalData.candidate.selectedSlotInviteCode
-                                    ? 'Skopiowano kod zaproszenia'
-                                    : 'Kopiuj kod zaproszenia'}
-                                </button>
-                              ) : null}
-                            </div>
-                            <div className="admin-form-grid">
-                              <label>
-                                <span>Imię</span>
-                                <input
-                                  type="text"
-                                  value={confirmationAdminEditName}
-                                  onChange={(event) => setConfirmationAdminEditName(event.target.value)}
-                                />
-                              </label>
-                              <label>
-                                <span>Nazwisko</span>
-                                <input
-                                  type="text"
-                                  value={confirmationAdminEditSurname}
-                                  onChange={(event) => setConfirmationAdminEditSurname(event.target.value)}
-                                />
-                              </label>
-                              <label className="admin-form-full">
-                                <span>Numery telefonów (linia po linii)</span>
-                                <textarea
-                                  rows={3}
-                                  value={confirmationAdminEditPhonesRaw}
-                                  onChange={(event) => setConfirmationAdminEditPhonesRaw(event.target.value)}
-                                />
-                              </label>
-                              <label className="admin-form-full">
-                                <span>Adres</span>
-                                <textarea
-                                  rows={2}
-                                  value={confirmationAdminEditAddress}
-                                  onChange={(event) => setConfirmationAdminEditAddress(event.target.value)}
-                                />
-                              </label>
-                              <label className="admin-form-full">
-                                <span>Szkoła (skrót)</span>
-                                <input
-                                  type="text"
-                                  value={confirmationAdminEditSchoolShort}
-                                  onChange={(event) => setConfirmationAdminEditSchoolShort(event.target.value)}
-                                />
-                              </label>
-                              <label className="admin-form-full builder-option">
-                                <input
-                                  type="checkbox"
-                                  checked={confirmationAdminEditPaperConsentReceived}
-                                  onChange={(event) => setConfirmationAdminEditPaperConsentReceived(event.target.checked)}
-                                />
-                                <span>Oświadczenie papierowe rodzica dostarczone do księdza</span>
-                              </label>
-                            </div>
-                            <div className="builder-actions">
-                              <button
-                                type="button"
-                                className="parish-login"
-                                disabled={confirmationAdminSendingAction}
-                                onClick={() => void handleAdminUpdateCandidateData()}
-                              >
-                                {confirmationAdminSendingAction ? 'Zapisywanie...' : 'Zapisz dane kandydata'}
-                              </button>
-                              <button
-                                type="button"
-                                className="ghost"
-                                disabled={confirmationAdminSendingAction}
-                                onClick={() => void handleAdminUpdateCandidatePaperConsent()}
-                              >
-                                {confirmationAdminSendingAction ? 'Zapisywanie...' : 'Zapisz status oświadczenia papierowego'}
-                              </button>
-                            </div>
-                            <div className="confirmation-portal-columns">
-                              <article className="confirmation-portal-card">
-                                <h4>Wyślij wiadomość do kandydata</h4>
-                                <textarea
-                                  rows={3}
-                                  value={confirmationAdminMessageDraft}
-                                  onChange={(event) => setConfirmationAdminMessageDraft(event.target.value)}
-                                />
-                                <button
-                                  type="button"
-                                  className="parish-login"
-                                  disabled={confirmationAdminSendingAction}
-                                  onClick={() => void handleAdminSendMessageToCandidate()}
-                                >
-                                  Wyślij wiadomość
-                                </button>
-                              </article>
-                              <article className="confirmation-portal-card">
-                                <h4>Adnotacje publiczne</h4>
-                                <textarea
-                                  rows={3}
-                                  value={confirmationAdminPublicNoteDraft}
-                                  onChange={(event) => setConfirmationAdminPublicNoteDraft(event.target.value)}
-                                />
-                                <button
-                                  type="button"
-                                  className="parish-login"
-                                  disabled={confirmationAdminSendingAction}
-                                  onClick={() => void handleAdminAddCandidateNote(true)}
-                                >
-                                  Dodaj adnotację publiczną
-                                </button>
-                              </article>
-                              <article className="confirmation-portal-card">
-                                <h4>Adnotacje prywatne</h4>
-                                <textarea
-                                  rows={3}
-                                  value={confirmationAdminPrivateNoteDraft}
-                                  onChange={(event) => setConfirmationAdminPrivateNoteDraft(event.target.value)}
-                                />
-                                <button
-                                  type="button"
-                                  className="parish-login"
-                                  disabled={confirmationAdminSendingAction}
-                                  onClick={() => void handleAdminAddCandidateNote(false)}
-                                >
-                                  Dodaj adnotację prywatną
-                                </button>
-                              </article>
-                            </div>
-                            <div className="confirmation-portal-columns">
-                              <article className="confirmation-portal-card">
-                                <h4>Historia wiadomości</h4>
-                                {confirmationAdminPortalData.messages.length === 0 ? (
-                                  <p className="muted">Brak wiadomości.</p>
-                                ) : (
-                                  <ul className="confirmation-portal-message-list">
-                                    {confirmationAdminPortalData.messages.map((message) => (
-                                      <li key={`admin-msg-${message.id}`}>
-                                        <strong>{message.senderType === 'admin' ? 'Admin' : 'Kandydat'}:</strong> {message.messageText}
-                                        <br />
-                                        <span className="muted">{new Date(message.createdUtc).toLocaleString('pl-PL')}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </article>
-                              <article className="confirmation-portal-card">
-                                <h4>Adnotacje publiczne (lista)</h4>
-                                {confirmationAdminPortalData.publicNotes.length === 0 ? (
-                                  <p className="muted">Brak publicznych adnotacji.</p>
-                                ) : (
-                                  <ul className="confirmation-portal-message-list">
-                                    {confirmationAdminPortalData.publicNotes.map((note) => (
-                                      <li key={`admin-public-note-${note.id}`}>
-                                        {note.noteText}
-                                        <br />
-                                        <span className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</span>
-                                        <br />
-                                        <button
-                                          type="button"
-                                          className="ghost"
-                                          onClick={() => handleAdminStartEditNote(note.id, note.noteText, note.isPublic)}
-                                        >
-                                          Edytuj
-                                        </button>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </article>
-                              <article className="confirmation-portal-card">
-                                <h4>Adnotacje prywatne (lista)</h4>
-                                {confirmationAdminPortalData.privateNotes && confirmationAdminPortalData.privateNotes.length > 0 ? (
-                                  <ul className="confirmation-portal-message-list">
-                                    {confirmationAdminPortalData.privateNotes.map((note) => (
-                                      <li key={`admin-private-note-${note.id}`}>
-                                        {note.noteText}
-                                        <br />
-                                        <span className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</span>
-                                        <br />
-                                        <button
-                                          type="button"
-                                          className="ghost"
-                                          onClick={() => handleAdminStartEditNote(note.id, note.noteText, note.isPublic)}
-                                        >
-                                          Edytuj
-                                        </button>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <p className="muted">Brak prywatnych adnotacji.</p>
-                                )}
-                              </article>
-                            </div>
-                            {confirmationAdminEditingNoteId ? (
-                              <article className="confirmation-portal-card">
-                                <h4>Edycja adnotacji</h4>
-                                <label>
-                                  <span>Treść</span>
-                                  <textarea
-                                    rows={4}
-                                    value={confirmationAdminEditingNoteText}
-                                    onChange={(event) => setConfirmationAdminEditingNoteText(event.target.value)}
-                                  />
-                                </label>
-                                <label className="mass-require-intentions">
-                                  <input
-                                    type="checkbox"
-                                    checked={confirmationAdminEditingNoteIsPublic}
-                                    onChange={(event) => setConfirmationAdminEditingNoteIsPublic(event.target.checked)}
-                                  />
-                                  <span>Adnotacja publiczna (widoczna dla kandydata)</span>
-                                </label>
-                                <div className="builder-actions">
-                                  <button
-                                    type="button"
-                                    className="parish-login"
-                                    disabled={confirmationAdminSendingAction}
-                                    onClick={() => void handleAdminSaveEditedNote()}
-                                  >
-                                    Zapisz adnotację
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="ghost"
-                                    onClick={() => {
-                                      setConfirmationAdminEditingNoteId(null);
-                                      setConfirmationAdminEditingNoteText('');
-                                    }}
-                                  >
-                                    Anuluj
-                                  </button>
-                                </div>
-                              </article>
-                            ) : null}
-                          </>
-                        ) : null}
-                      </div>
-                    )}
                   </>
                 )}
                 {selectedSacrament.id === 'confirmation' && activeSacramentPanelSection === 'meetings' && (
@@ -12434,177 +12751,6 @@ export function ParishPage({
                         </>
                       ) : null}
                     </div>
-                    {isAuthenticated && (
-                      <div className="parish-card confirmation-meetings-admin">
-                        <div className="section-header">
-                          <div>
-                            <p className="tag">Panel admina</p>
-                            <h3>Terminy spotkań kandydatów</h3>
-                          </div>
-                          <button type="button" className="ghost" onClick={() => void loadConfirmationMeetingSummary()}>
-                            Odśwież terminy
-                          </button>
-                        </div>
-                        <div className="admin-form-grid">
-                          <label>
-                            <span>Data i godzina</span>
-                            <input
-                              type="datetime-local"
-                              value={confirmationMeetingStartsLocal}
-                              onChange={(event) => setConfirmationMeetingStartsLocal(event.target.value)}
-                            />
-                          </label>
-                          <label>
-                            <span>Czas trwania (min)</span>
-                            <input
-                              type="number"
-                              min={10}
-                              max={180}
-                              value={confirmationMeetingDuration}
-                              onChange={(event) => setConfirmationMeetingDuration(event.target.value)}
-                            />
-                          </label>
-                          <label>
-                            <span>Pojemność slotu</span>
-                            <select
-                              value={confirmationMeetingCapacity}
-                              onChange={(event) => setConfirmationMeetingCapacity(event.target.value === '2' ? '2' : '3')}
-                            >
-                              <option value="2">2 osoby</option>
-                              <option value="3">3 osoby</option>
-                            </select>
-                          </label>
-                          <label>
-                            <span>Etap spotkania</span>
-                            <select
-                              value={confirmationMeetingStage}
-                              onChange={(event) =>
-                                setConfirmationMeetingStage(
-                                  event.target.value === 'year1-end' ? 'year1-end' : 'year1-start'
-                                )
-                              }
-                            >
-                              <option value="year1-start">Początek 1. roku</option>
-                              <option value="year1-end">Koniec 1. roku</option>
-                            </select>
-                          </label>
-                          <label className="admin-form-full">
-                            <span>Opis slotu (opcjonalnie)</span>
-                            <input
-                              type="text"
-                              value={confirmationMeetingLabel}
-                              onChange={(event) => setConfirmationMeetingLabel(event.target.value)}
-                              placeholder="np. sala katechetyczna, grupa A"
-                            />
-                          </label>
-                        </div>
-                        <div className="builder-actions">
-                          <button
-                            type="button"
-                            className="parish-login"
-                            disabled={confirmationMeetingSaving}
-                            onClick={() => void handleCreateConfirmationMeetingSlot()}
-                          >
-                            {confirmationMeetingSaving ? 'Zapisywanie...' : 'Dodaj termin'}
-                          </button>
-                        </div>
-                        {confirmationMeetingError ? (
-                          <p className="confirmation-info confirmation-info-error">{confirmationMeetingError}</p>
-                        ) : null}
-                        {confirmationMeetingInfo ? (
-                          <p className="confirmation-info confirmation-info-success">{confirmationMeetingInfo}</p>
-                        ) : null}
-                        {confirmationMeetingLoading ? <p className="muted">Ładowanie slotów...</p> : null}
-                        {confirmationMeetingSummary ? (
-                          <>
-                            <p className="note">Kandydaci bez wybranego terminu: {confirmationMeetingSummary.unassignedCount}</p>
-                            {confirmationMeetingSummary.slots.length === 0 ? (
-                              <p className="muted">Brak zdefiniowanych terminów.</p>
-                            ) : (
-                              <div className="confirmation-meeting-slot-list admin">
-                                {confirmationMeetingSummary.slots.map((slot) => (
-                                  <article key={`admin-slot-${slot.id}`} className="confirmation-meeting-slot">
-                                    <p>
-                                      <strong>{new Date(slot.startsAtUtc).toLocaleString('pl-PL')}</strong>
-                                    </p>
-                                    <p className="note">
-                                      Czas: {slot.durationMinutes} min • Zajętość: {slot.reservedCount}/{slot.capacity}
-                                      {slot.label ? ` • ${slot.label}` : ''}
-                                    </p>
-                                    <label>
-                                      <span>Etap spotkania</span>
-                                      <select
-                                        value={slot.stage === 'year1-end' ? 'year1-end' : 'year1-start'}
-                                        disabled={confirmationMeetingSaving}
-                                        onChange={(event) =>
-                                          void handleUpdateConfirmationMeetingSlotStage(
-                                            slot.id,
-                                            event.target.value === 'year1-end' ? 'year1-end' : 'year1-start'
-                                          )
-                                        }
-                                      >
-                                        <option value="year1-start">Początek 1. roku</option>
-                                        <option value="year1-end">Koniec 1. roku</option>
-                                      </select>
-                                    </label>
-                                    {slot.candidates.length > 0 ? (
-                                      <ul className="confirmation-meeting-candidate-list confirmation-meeting-candidate-admin-list">
-                                        {slot.candidates.map((candidate) => (
-                                          <li key={`${slot.id}-${candidate.candidateId}`}>
-                                            <span>
-                                              {candidate.name} {candidate.surname}
-                                            </span>
-                                            <a
-                                              href={buildConfirmationAdminPortalCandidateHref(
-                                                candidate.candidateId,
-                                                candidate.name,
-                                                candidate.surname
-                                              )}
-                                              className="ghost"
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              onClick={(event) => {
-                                                if (
-                                                  event.metaKey ||
-                                                  event.ctrlKey ||
-                                                  event.shiftKey ||
-                                                  event.altKey ||
-                                                  event.button !== 0
-                                                ) {
-                                                  return;
-                                                }
-                                                event.preventDefault();
-                                                openConfirmationAdminPortalForCandidate(
-                                                  candidate.candidateId,
-                                                  candidate.name,
-                                                  candidate.surname
-                                                );
-                                              }}
-                                            >
-                                              Otwórz portal admina
-                                            </a>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    ) : (
-                                      <p className="muted">Brak zapisanych kandydatów.</p>
-                                    )}
-                                    <button
-                                      type="button"
-                                      className="ghost"
-                                      disabled={confirmationMeetingSaving}
-                                      onClick={() => void handleDeleteConfirmationMeetingSlot(slot.id)}
-                                    >
-                                      Usuń termin
-                                    </button>
-                                  </article>
-                                ))}
-                              </div>
-                            )}
-                          </>
-                        ) : null}
-                      </div>
-                    )}
                   </>
                 )}
               </section>

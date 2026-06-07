@@ -23,7 +23,8 @@
       "Read(//c/Users/AKM.LAPTOP-AKM/Downloads/**)",
       "Bash(Get-Item -Path \"C:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\\" -Force)",
       "Bash(findstr -i \"reactflow\\\\|xyflow\")",
-      "Bash(Select-String -Pattern \"reactflow|xyflow\" \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\frontend\\\\package.json\")"
+      "Bash(Select-String -Pattern \"reactflow|xyflow\" \"c:\\\\Users\\\\AKM.LAPTOP-AKM\\\\recreatio\\\\frontend\\\\package.json\")",
+      "Bash(node -e ' *)"
     ]
   }
 }
