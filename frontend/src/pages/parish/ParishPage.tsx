@@ -6800,24 +6800,6 @@ export function ParishPage({
                     Status
                   </button>
                 </nav>
-                <nav className="confirmation-portal-section-nav" aria-label="Inne sekcje bierzmowania">
-                  <span className="confirmation-portal-section-nav-label">Sekcje:</span>
-                  <button type="button" className="ghost" onClick={() => openSacramentPanelSection('overall')}>
-                    Informacje
-                  </button>
-                  <button type="button" className="ghost" onClick={() => openSacramentPanelSection('parish')}>
-                    Parafia
-                  </button>
-                  <button type="button" className="ghost" onClick={() => openSacramentPanelSection('faq')}>
-                    FAQ
-                  </button>
-                  <button type="button" className="ghost" onClick={() => openSacramentPanelSection('form')}>
-                    Formularz
-                  </button>
-                  <button type="button" className="ghost" onClick={() => openSacramentPanelSection('meetings')}>
-                    Zapisy
-                  </button>
-                </nav>
               </div>
             )}
             <div className="parish-header-right">
@@ -6871,6 +6853,62 @@ export function ParishPage({
                   <p className="note">
                     Widok demonstracyjny. Układ i logika są przygotowane pod docelowy portal kandydata oraz panel administracyjny.
                   </p>
+                </div>
+                <div className="parish-card sacrament-shortcuts">
+                  <p className="tag">{sacramentMenuLabels.panelTitle}</p>
+                  <div className="tabs small sacrament-shortcuts-tabs">
+                    <button
+                      type="button"
+                      className={undefined}
+                      onClick={() => openSacramentPanelSection('overall')}
+                    >
+                      {sacramentMenuLabels.overall}
+                    </button>
+                    <button
+                      type="button"
+                      className={undefined}
+                      onClick={() => openSacramentPanelSection('parish')}
+                    >
+                      {sacramentMenuLabels.parish}
+                    </button>
+                    <button
+                      type="button"
+                      className={undefined}
+                      onClick={() => openSacramentPanelSection('faq')}
+                    >
+                      {sacramentMenuLabels.faq}
+                    </button>
+                    <button
+                      type="button"
+                      className={undefined}
+                      onClick={() => openSacramentPanelSection('form')}
+                    >
+                      {sacramentMenuLabels.form}
+                    </button>
+                    <button
+                      type="button"
+                      className={undefined}
+                      onClick={() => openSacramentPanelSection('meetings')}
+                    >
+                      {sacramentMenuLabels.meetings}
+                    </button>
+                    <button
+                      type="button"
+                      className="is-active"
+                      disabled
+                    >
+                      {sacramentMenuLabels.candidatePortal}
+                    </button>
+                    {isAuthenticated && (
+                      <button
+                        type="button"
+                        className={undefined}
+                        onClick={() => openSacramentPanelSection('admin')}
+                      >
+                        {sacramentMenuLabels.adminPanel}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {confirmationPortalLoading || confirmationAdminPortalLoading ? (
                   <p className="muted">Ładowanie portalu...</p>
@@ -10013,1290 +10051,6 @@ export function ParishPage({
                     </div>
                   </article>
                 </div>
-                {selectedSacrament.id === 'confirmation' && activeSacramentPanelSection === 'admin' && (
-                  <>
-                    <div className="parish-card confirmation-admin-appointments">
-                      <div className="section-header">
-                        <div>
-                          <p className="tag">Panel admina</p>
-                          <h3>Najbliższe terminy spotkań</h3>
-                        </div>
-                        <div className="confirmation-admin-actions">
-                          <button
-                            type="button"
-                            className="ghost"
-                            onClick={() => setConfirmationAdminAppointmentsShowAll((v) => !v)}
-                          >
-                            {confirmationAdminAppointmentsShowAll ? 'Pokaż bieżące (±1h)' : 'Pokaż wszystkie terminy'}
-                          </button>
-                          <button
-                            type="button"
-                            className="ghost"
-                            onClick={() => void loadConfirmationMeetingSummary()}
-                          >
-                            Odśwież terminy
-                          </button>
-                        </div>
-                      </div>
-                      {confirmationMeetingLoading ? <p className="muted">Ładowanie terminów...</p> : null}
-                      {confirmationMeetingSummary ? (
-                        <>
-                          <p className="note">
-                            {confirmationAdminAppointmentsShowAll
-                              ? `Wszystkie terminy (${confirmationMeetingSummary.slots.length})`
-                              : `Terminy w oknie ±1 h (${filteredNearbyConfirmationSlots.length} z ${confirmationMeetingSummary.slots.length})`}
-                            {' · '}Kandydaci bez terminu: <strong>{confirmationMeetingSummary.unassignedCount}</strong>
-                          </p>
-                          {filteredNearbyConfirmationSlots.length === 0 ? (
-                            <p className="muted">
-                              {confirmationAdminAppointmentsShowAll
-                                ? 'Brak zdefiniowanych terminów.'
-                                : 'Brak terminów w oknie ±1 h od teraz. Kliknij „Pokaż wszystkie terminy”, aby zobaczyć pełny harmonogram.'}
-                            </p>
-                          ) : (
-                            <div className="confirmation-meeting-slot-list admin">
-                              {filteredNearbyConfirmationSlots.map((slot) => {
-                                const slotStart = new Date(slot.startsAtUtc).getTime();
-                                const slotEnd = slotStart + slot.durationMinutes * 60 * 1000;
-                                const nowTs = Date.now();
-                                const isOngoing = slotStart <= nowTs && slotEnd > nowTs;
-                                const isPast = slotEnd <= nowTs;
-                                return (
-                                  <article
-                                    key={`admin-appt-${slot.id}`}
-                                    className={`confirmation-meeting-slot${isOngoing ? ' is-ongoing' : isPast ? ' is-past' : ''}`}
-                                  >
-                                    <p>
-                                      <strong>{new Date(slot.startsAtUtc).toLocaleString('pl-PL')}</strong>
-                                      {isOngoing ? (
-                                        <span className="pill confirmation-pill-live">Trwa teraz</span>
-                                      ) : isPast ? (
-                                        <span className="pill">Zakończone</span>
-                                      ) : null}
-                                    </p>
-                                    <p className="note">
-                                      {slot.durationMinutes} min{' · '}{slot.stage === 'year1-end' ? 'Koniec 1. roku' : 'Początek 1. roku'}{' · '}{slot.reservedCount}/{slot.capacity} miejsc{slot.label ? ` · ${slot.label}` : ''}
-                                    </p>
-                                    {slot.candidates.length > 0 ? (
-                                      <ul className="confirmation-meeting-candidate-list confirmation-meeting-candidate-admin-list">
-                                        {slot.candidates.map((candidate) => (
-                                          <li key={`appt-${slot.id}-${candidate.candidateId}`}>
-                                            <span>
-                                              {candidate.name} {candidate.surname}
-                                            </span>
-                                            <button
-                                              type="button"
-                                              className="ghost"
-                                              onClick={() =>
-                                                openConfirmationAdminPortalForCandidate(
-                                                  candidate.candidateId,
-                                                  candidate.name,
-                                                  candidate.surname
-                                                )
-                                              }
-                                            >
-                                              Otwórz portal
-                                            </button>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    ) : (
-                                      <p className="muted">Brak zapisanych kandydatów w tym terminie.</p>
-                                    )}
-                                  </article>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <p className="muted">Terminy nie zostały jeszcze załadowane. Kliknij „Odśwież terminy”.</p>
-                      )}
-                    </div>
-                    {isAuthenticated && (
-                      <div className="parish-card confirmation-admin-card">
-                        <div className="section-header">
-                          <div>
-                            <p className="tag">Panel admina</p>
-                            <h3>Zgłoszenia do bierzmowania</h3>
-                          </div>
-                          <button
-                            type="button"
-                            className="ghost"
-                            onClick={() => {
-                              void loadConfirmationCandidates();
-                              if (confirmationAdminTab === 'notes') {
-                                void loadConfirmationNotesFeed();
-                                return;
-                              }
-                              if (confirmationAdminTab === 'messages') {
-                                void loadConfirmationMessagesFeed();
-                              }
-                            }}
-                          >
-                            Odśwież
-                          </button>
-                        </div>
-                        <div className="tabs small confirmation-admin-tabs">
-                          <button
-                            type="button"
-                            className={confirmationAdminTab === 'submissions' ? 'is-active' : undefined}
-                            onClick={() => setConfirmationAdminTab('submissions')}
-                          >
-                            Zgłoszenia
-                          </button>
-                          <button
-                            type="button"
-                            className={confirmationAdminTab === 'sms' ? 'is-active' : undefined}
-                            onClick={() => setConfirmationAdminTab('sms')}
-                          >
-                            SMS
-                          </button>
-                          <button
-                            type="button"
-                            className={confirmationAdminTab === 'messages' ? 'is-active' : undefined}
-                            onClick={() => setConfirmationAdminTab('messages')}
-                          >
-                            Wiadomości kandydatów (łącznie)
-                          </button>
-                          <button
-                            type="button"
-                            className={confirmationAdminTab === 'notes' ? 'is-active' : undefined}
-                            onClick={() => setConfirmationAdminTab('notes')}
-                          >
-                            Uwagi (łącznie)
-                          </button>
-                          <button
-                            type="button"
-                            className={confirmationAdminTab === 'print' ? 'is-active' : undefined}
-                            onClick={() => setConfirmationAdminTab('print')}
-                          >
-                            Karty do druku (A5)
-                          </button>
-                        </div>
-                        <div className="confirmation-admin-actions">
-                          <button
-                            type="button"
-                            className="ghost"
-                            disabled={confirmationTransferBusy}
-                            onClick={() => void handleExportConfirmationCandidates()}
-                          >
-                            {confirmationTransferBusy ? 'Przetwarzanie...' : 'Eksportuj JSON'}
-                          </button>
-                          <label className="ghost">
-                            Importuj JSON
-                            <input
-                              ref={confirmationImportFileRef}
-                              type="file"
-                              accept="application/json"
-                              disabled={confirmationTransferBusy}
-                              onChange={(event) => void handleImportConfirmationCandidates(event)}
-                              hidden
-                            />
-                          </label>
-                          <label className="mass-require-intentions">
-                            <input
-                              type="checkbox"
-                              checked={confirmationImportReplaceExisting}
-                              disabled={confirmationTransferBusy}
-                              onChange={(event) => setConfirmationImportReplaceExisting(event.target.checked)}
-                            />
-                            <span>Zastąp obecne zgłoszenia przy imporcie</span>
-                          </label>
-                        </div>
-                        {confirmationTransferError ? (
-                          <p className="confirmation-info confirmation-info-error">{confirmationTransferError}</p>
-                        ) : null}
-                        {confirmationTransferInfo ? (
-                          <p className="confirmation-info confirmation-info-success">{confirmationTransferInfo}</p>
-                        ) : null}
-                        {confirmationCandidatesError ? (
-                          <p className="confirmation-info confirmation-info-error">{confirmationCandidatesError}</p>
-                        ) : null}
-                        {confirmationNotesFeedError ? (
-                          <p className="confirmation-info confirmation-info-error">{confirmationNotesFeedError}</p>
-                        ) : null}
-                        {confirmationMessagesFeedError ? (
-                          <p className="confirmation-info confirmation-info-error">{confirmationMessagesFeedError}</p>
-                        ) : null}
-                        {confirmationMessagesFeedInfo ? (
-                          <p className="confirmation-info confirmation-info-success">{confirmationMessagesFeedInfo}</p>
-                        ) : null}
-                        {confirmationAdminTab === 'submissions' ? (
-                          <>
-                            <div className="confirmation-duplicate-panel">
-                              <div className="section-header">
-                                <div>
-                                  <p className="tag">Duplikaty</p>
-                                  <h4>Wykryte zgłoszenia o tym samym imieniu i nazwisku</h4>
-                                </div>
-                              </div>
-                              {confirmationDuplicateGroups.length === 0 ? (
-                                <p className="muted">Brak wykrytych duplikatów kandydatów.</p>
-                              ) : (
-                                <>
-                                  <div className="admin-form-grid">
-                                    <label className="admin-form-full">
-                                      <span>Grupa duplikatów</span>
-                                      <select
-                                        value={confirmationMergeGroupKey ?? ''}
-                                        onChange={(event) => setConfirmationMergeGroupKey(event.target.value || null)}
-                                      >
-                                        {confirmationDuplicateGroups.map((group) => (
-                                          <option key={`dup-group-${group.key}`} value={group.key}>
-                                            {group.displayName} ({group.candidates.length})
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </label>
-                                    <label>
-                                      <span>Rekord docelowy (zostaje)</span>
-                                      <select
-                                        value={confirmationMergeTargetId ?? ''}
-                                        onChange={(event) => setConfirmationMergeTargetId(event.target.value || null)}
-                                      >
-                                        {(selectedConfirmationDuplicateGroup?.candidates ?? []).map((candidate) => (
-                                          <option key={`merge-target-${candidate.id}`} value={candidate.id}>
-                                            {candidate.name} {candidate.surname} • {new Date(candidate.createdUtc).toLocaleDateString('pl-PL')}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </label>
-                                    <label>
-                                      <span>Rekord źródłowy (zniknie)</span>
-                                      <select
-                                        value={confirmationMergeSourceId ?? ''}
-                                        onChange={(event) => setConfirmationMergeSourceId(event.target.value || null)}
-                                      >
-                                        {(selectedConfirmationDuplicateGroup?.candidates ?? [])
-                                          .filter((candidate) => candidate.id !== confirmationMergeTargetId)
-                                          .map((candidate) => (
-                                            <option key={`merge-source-${candidate.id}`} value={candidate.id}>
-                                              {candidate.name} {candidate.surname} • {new Date(candidate.createdUtc).toLocaleDateString('pl-PL')}
-                                            </option>
-                                          ))}
-                                      </select>
-                                    </label>
-                                  </div>
-                                  {confirmationMergeTargetCandidate && confirmationMergeSourceCandidate ? (
-                                    <>
-                                      <div className="admin-form-grid">
-                                        <label>
-                                          <span>Imię</span>
-                                          <select
-                                            value={confirmationMergeNameSource}
-                                            onChange={(event) =>
-                                              setConfirmationMergeNameSource(
-                                                event.target.value === 'source' ? 'source' : 'target'
-                                              )
-                                            }
-                                          >
-                                            <option value="target">{confirmationMergeTargetCandidate.name}</option>
-                                            <option value="source">{confirmationMergeSourceCandidate.name}</option>
-                                          </select>
-                                        </label>
-                                        <label>
-                                          <span>Nazwisko</span>
-                                          <select
-                                            value={confirmationMergeSurnameSource}
-                                            onChange={(event) =>
-                                              setConfirmationMergeSurnameSource(
-                                                event.target.value === 'source' ? 'source' : 'target'
-                                              )
-                                            }
-                                          >
-                                            <option value="target">{confirmationMergeTargetCandidate.surname}</option>
-                                            <option value="source">{confirmationMergeSourceCandidate.surname}</option>
-                                          </select>
-                                        </label>
-                                        <label>
-                                          <span>Adres</span>
-                                          <select
-                                            value={confirmationMergeAddressSource}
-                                            onChange={(event) =>
-                                              setConfirmationMergeAddressSource(
-                                                event.target.value === 'source' ? 'source' : 'target'
-                                              )
-                                            }
-                                          >
-                                            <option value="target">{confirmationMergeTargetCandidate.address}</option>
-                                            <option value="source">{confirmationMergeSourceCandidate.address}</option>
-                                          </select>
-                                        </label>
-                                        <label>
-                                          <span>Szkoła</span>
-                                          <select
-                                            value={confirmationMergeSchoolSource}
-                                            onChange={(event) =>
-                                              setConfirmationMergeSchoolSource(
-                                                event.target.value === 'source' ? 'source' : 'target'
-                                              )
-                                            }
-                                          >
-                                            <option value="target">{confirmationMergeTargetCandidate.schoolShort}</option>
-                                            <option value="source">{confirmationMergeSourceCandidate.schoolShort}</option>
-                                          </select>
-                                        </label>
-                                        <label>
-                                          <span>Termin spotkania</span>
-                                          <select
-                                            value={confirmationMergeMeetingSource}
-                                            onChange={(event) =>
-                                              setConfirmationMergeMeetingSource(
-                                                event.target.value === 'target'
-                                                  ? 'target'
-                                                  : event.target.value === 'source'
-                                                  ? 'source'
-                                                  : 'none'
-                                              )
-                                            }
-                                          >
-                                            <option value="none">Brak terminu</option>
-                                            <option value="target">
-                                              Rekord docelowy {confirmationMergeTargetCandidate.meetingSlotId ? '(ma termin)' : '(bez terminu)'}
-                                            </option>
-                                            <option value="source">
-                                              Rekord źródłowy {confirmationMergeSourceCandidate.meetingSlotId ? '(ma termin)' : '(bez terminu)'}
-                                            </option>
-                                          </select>
-                                        </label>
-                                        <label>
-                                          <span>Link portalu po scaleniu</span>
-                                          <select
-                                            value={confirmationMergePortalSource}
-                                            onChange={(event) =>
-                                              setConfirmationMergePortalSource(
-                                                event.target.value === 'source' ? 'source' : 'target'
-                                              )
-                                            }
-                                          >
-                                            <option value="target">Z rekordu docelowego</option>
-                                            <option value="source">Z rekordu źródłowego</option>
-                                          </select>
-                                        </label>
-                                        <label className="admin-form-full">
-                                          <span>Numery telefonów do zachowania</span>
-                                          <div className="confirmation-merge-phone-list">
-                                            {confirmationMergePhoneOptions.map((option) => (
-                                              <label key={`merge-phone-${option.number}`} className="mass-require-intentions">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={confirmationMergeSelectedPhones.includes(option.number)}
-                                                  onChange={(event) =>
-                                                    handleToggleConfirmationMergePhone(option.number, event.target.checked)
-                                                  }
-                                                />
-                                                <span>
-                                                  {option.number}
-                                                  {option.target ? ' [docelowy]' : ''}
-                                                  {option.source ? ' [źródłowy]' : ''}
-                                                  {option.verified ? ' • zweryfikowany' : ' • niezweryfikowany'}
-                                                </span>
-                                              </label>
-                                            ))}
-                                          </div>
-                                        </label>
-                                      </div>
-                                      <div className="builder-actions">
-                                        <button
-                                          type="button"
-                                          className="parish-login"
-                                          disabled={confirmationMergeBusy || !confirmationMergeSourceId || !confirmationMergeTargetId}
-                                          onClick={() => void handleMergeDuplicateConfirmationCandidates()}
-                                        >
-                                          {confirmationMergeBusy ? 'Scalanie...' : 'Scal wybrane zgłoszenia'}
-                                        </button>
-                                      </div>
-                                    </>
-                                  ) : null}
-                                  {confirmationMergeError ? (
-                                    <p className="confirmation-info confirmation-info-error">{confirmationMergeError}</p>
-                                  ) : null}
-                                  {confirmationMergeInfo ? (
-                                    <p className="confirmation-info confirmation-info-success">{confirmationMergeInfo}</p>
-                                  ) : null}
-                                </>
-                              )}
-                            </div>
-                            <div className="admin-form-grid">
-                              <label>
-                                <span>Filtr statusu</span>
-                                <select
-                                  value={confirmationSubmissionsFilter}
-                                  onChange={(event) =>
-                                    setConfirmationSubmissionsFilter(
-                                      event.target.value === 'no-meeting'
-                                        ? 'no-meeting'
-                                        : event.target.value === 'no-paper-consent'
-                                        ? 'no-paper-consent'
-                                        : event.target.value === 'unverified-phone'
-                                        ? 'unverified-phone'
-                                        : event.target.value === 'needs-follow-up'
-                                        ? 'needs-follow-up'
-                                        : 'all'
-                                    )
-                                  }
-                                >
-                                  <option value="all">Wszystkie zgłoszenia</option>
-                                  <option value="no-meeting">Brak wybranego terminu</option>
-                                  <option value="no-paper-consent">Brak oświadczenia papierowego</option>
-                                  <option value="unverified-phone">Niezweryfikowany numer telefonu</option>
-                                  <option value="needs-follow-up">Wymaga działania admina</option>
-                                </select>
-                              </label>
-                              <label className="admin-form-full">
-                                <span>Szukaj kandydata</span>
-                                <input
-                                  type="text"
-                                  value={confirmationSubmissionsSearch}
-                                  onChange={(event) => setConfirmationSubmissionsSearch(event.target.value)}
-                                  placeholder="Imię, nazwisko, adres, szkoła"
-                                />
-                              </label>
-                            </div>
-                            <p className="note">
-                              Wszystkich: {confirmationSubmissionStats.total} •
-                              Bez terminu: {confirmationSubmissionStats.noMeetingCount} •
-                              Bez oświadczenia papierowego: {confirmationSubmissionStats.noPaperConsentCount} •
-                              Z niezweryfikowanym numerem: {confirmationSubmissionStats.unverifiedPhoneCount} •
-                              Wymaga działania: {confirmationSubmissionStats.needsFollowUpCount}
-                            </p>
-                            {confirmationCandidates.length === 0 ? (
-                              <p className="muted">Brak zgłoszeń.</p>
-                            ) : filteredConfirmationSubmissionCandidates.length === 0 ? (
-                              <p className="muted">Brak zgłoszeń spełniających wybrany filtr.</p>
-                            ) : (
-                              <div className="confirmation-candidate-list">
-                                {filteredConfirmationSubmissionCandidates.map((candidate) => (
-                                  <article key={candidate.id} className="confirmation-candidate-item">
-                                    <div className="confirmation-candidate-head">
-                                      <strong>
-                                        {candidate.name} {candidate.surname}
-                                      </strong>
-                                      <span className="muted">
-                                        {new Date(candidate.createdUtc).toLocaleString('pl-PL')}
-                                      </span>
-                                    </div>
-                                    <p className="note">
-                                      <strong>Adres:</strong> {candidate.address}
-                                    </p>
-                                    <p className="note">
-                                      <strong>Szkoła:</strong> {candidate.schoolShort}
-                                    </p>
-                                    <p className="note">
-                                      <strong>Spotkanie:</strong>{' '}
-                                      {candidate.meetingSlotId ? 'Termin wybrany' : 'Brak wybranego terminu'}
-                                    </p>
-                                    <p className="note">
-                                      <strong>Oświadczenie papierowe rodzica:</strong>{' '}
-                                      {candidate.paperConsentReceived ? 'Dostarczone do księdza' : 'Niepotwierdzone'}
-                                    </p>
-                                    <div className="confirmation-candidate-links">
-                                      <button
-                                        type="button"
-                                        className="ghost"
-                                        onClick={() => void handleCopyConfirmationMeetingLink(candidate.meetingToken)}
-                                      >
-                                        {confirmationCopiedMeetingToken === candidate.meetingToken
-                                          ? 'Skopiowano link portalu'
-                                          : 'Kopiuj link portalu'}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="ghost"
-                                        disabled={confirmationAdminSendingAction}
-                                        onClick={() =>
-                                          void handleAdminToggleCandidatePaperConsent(
-                                            candidate.id,
-                                            !candidate.paperConsentReceived
-                                          )
-                                        }
-                                      >
-                                        {candidate.paperConsentReceived ? 'Oznacz jako brak oświadczenia' : 'Oznacz jako dostarczone'}
-                                      </button>
-                                    </div>
-                                    <ul className="confirmation-phone-list">
-                                      {candidate.phoneNumbers.map((phone) => {
-                                        const verificationSmsHref = buildConfirmationVerificationSmsHref(
-                                          candidate,
-                                          phone.number,
-                                          phone.verificationToken
-                                        );
-                                        const warningSmsHref = buildConfirmationVerificationWarningSmsHref(
-                                          candidate,
-                                          phone.number,
-                                          phone.verificationToken
-                                        );
-                                        const portalSmsHref = buildConfirmationPortalInviteSmsHref(
-                                          candidate,
-                                          phone.number,
-                                          candidate.meetingToken
-                                        );
-                                        return (
-                                          <li key={`${candidate.id}-${phone.index}`}>
-                                            <span>{phone.number}</span>
-                                            {phone.isVerified ? (
-                                              <>
-                                                <span className="pill">Zweryfikowany</span>
-                                                <div className="confirmation-phone-actions">
-                                                  {portalSmsHref ? (
-                                                    <a className="ghost" href={portalSmsHref}>
-                                                      SMS: portal kandydata
-                                                    </a>
-                                                  ) : null}
-                                                </div>
-                                              </>
-                                            ) : (
-                                              <>
-                                                <span className="pill">Niezweryfikowany</span>
-                                                <div className="confirmation-phone-actions">
-                                                  {verificationSmsHref ? (
-                                                    <a className="ghost" href={verificationSmsHref}>
-                                                      SMS: weryfikacja
-                                                    </a>
-                                                  ) : null}
-                                                  {warningSmsHref ? (
-                                                    <a className="ghost" href={warningSmsHref}>
-                                                      SMS: brak weryfikacji
-                                                    </a>
-                                                  ) : null}
-                                                  <button
-                                                    type="button"
-                                                    className="ghost"
-                                                    onClick={() => void handleCopyConfirmationVerificationLink(phone.verificationToken)}
-                                                  >
-                                                    {confirmationCopiedToken === phone.verificationToken
-                                                      ? 'Skopiowano'
-                                                      : 'Kopiuj link weryfikacji'}
-                                                  </button>
-                                                </div>
-                                              </>
-                                            )}
-                                          </li>
-                                        );
-                                      })}
-                                    </ul>
-                                  </article>
-                                ))}
-                              </div>
-                            )}
-                          </>
-                        ) : confirmationAdminTab === 'sms' ? (
-                          <article className="confirmation-duplicate-panel">
-                            <div className="section-header">
-                              <div>
-                                <p className="tag">SMS</p>
-                                <h4>Szablony wiadomości SMS</h4>
-                              </div>
-                            </div>
-                            <p className="note">
-                              Zmienne: {confirmationSmsTemplateVariables.join(', ')}
-                            </p>
-                            {confirmationSmsTemplateError ? (
-                              <p className="confirmation-info confirmation-info-error">{confirmationSmsTemplateError}</p>
-                            ) : null}
-                            {confirmationSmsTemplateInfo ? (
-                              <p className="confirmation-info confirmation-info-success">{confirmationSmsTemplateInfo}</p>
-                            ) : null}
-                            <div className="admin-form-grid">
-                              <label className="admin-form-full">
-                                <span>SMS: weryfikacja numeru</span>
-                                <textarea
-                                  rows={5}
-                                  value={confirmationSmsTemplateVerificationInvite}
-                                  onChange={(event) => setConfirmationSmsTemplateVerificationInvite(event.target.value)}
-                                />
-                              </label>
-                              <label className="admin-form-full">
-                                <span>SMS: brak weryfikacji (ostrzeżenie)</span>
-                                <textarea
-                                  rows={5}
-                                  value={confirmationSmsTemplateVerificationWarning}
-                                  onChange={(event) => setConfirmationSmsTemplateVerificationWarning(event.target.value)}
-                                />
-                              </label>
-                              <label className="admin-form-full">
-                                <span>SMS: portal kandydata</span>
-                                <textarea
-                                  rows={5}
-                                  value={confirmationSmsTemplatePortalInvite}
-                                  onChange={(event) => setConfirmationSmsTemplatePortalInvite(event.target.value)}
-                                />
-                              </label>
-                            </div>
-                            <div className="builder-actions">
-                              <button
-                                type="button"
-                                className="parish-login"
-                                disabled={confirmationSmsTemplateSaving}
-                                onClick={() => void handleSaveConfirmationSmsTemplates()}
-                              >
-                                {confirmationSmsTemplateSaving ? 'Zapisywanie...' : 'Zapisz szablony SMS'}
-                              </button>
-                              <button
-                                type="button"
-                                className="ghost"
-                                disabled={confirmationSmsTemplateSaving}
-                                onClick={() => {
-                                  setConfirmationSmsTemplateVerificationInvite(defaultConfirmationSmsTemplates.verificationInvite);
-                                  setConfirmationSmsTemplateVerificationWarning(defaultConfirmationSmsTemplates.verificationWarning);
-                                  setConfirmationSmsTemplatePortalInvite(defaultConfirmationSmsTemplates.portalInvite);
-                                }}
-                              >
-                                Przywróć domyślne
-                              </button>
-                            </div>
-                          </article>
-                        ) : confirmationAdminTab === 'messages' ? (
-                          <div className="confirmation-notes-feed-panel">
-                            {confirmationMessagesFeedLoading ? <p className="muted">Ładowanie wiadomości kandydatów...</p> : null}
-                            {!confirmationMessagesFeedLoading && confirmationMessagesFeed.length === 0 ? (
-                              <p className="muted">Brak wiadomości od kandydatów.</p>
-                            ) : null}
-                            {confirmationMessagesFeed.length > 0 ? (
-                              <ul className="confirmation-portal-message-list confirmation-notes-feed-list">
-                                {confirmationMessagesFeed.map((message) => (
-                                  <li key={`confirmation-message-feed-${message.id}`}>
-                                    <div className="confirmation-note-feed-head">
-                                      <strong>
-                                        {message.candidateName} {message.candidateSurname}
-                                      </strong>
-                                      <span className="pill is-public">Kandydat</span>
-                                    </div>
-                                    <p>{message.messageText}</p>
-                                    <p className="muted">{new Date(message.createdUtc).toLocaleString('pl-PL')}</p>
-                                    <div className="confirmation-phone-actions">
-                                      <button
-                                        type="button"
-                                        className="ghost"
-                                        onClick={() => {
-                                          setConfirmationAdminSelectedCandidateId(message.candidateId);
-                                          openSacramentPanelSection('candidate');
-                                        }}
-                                      >
-                                        Otwórz kandydata
-                                      </button>
-                                    </div>
-                                    <label className="confirmation-message-reply-box">
-                                      <span>Odpowiedź do kandydata</span>
-                                      <textarea
-                                        rows={2}
-                                        value={confirmationMessagesReplyDrafts[message.candidateId] ?? ''}
-                                        onChange={(event) =>
-                                          updateConfirmationMessagesReplyDraft(message.candidateId, event.target.value)
-                                        }
-                                        placeholder="Napisz krótką odpowiedź..."
-                                      />
-                                    </label>
-                                    <button
-                                      type="button"
-                                      className="parish-login"
-                                      disabled={confirmationAdminSendingAction}
-                                      onClick={() => void handleAdminReplyFromMessagesFeed(message.candidateId)}
-                                    >
-                                      {confirmationAdminSendingAction ? 'Wysyłanie...' : 'Wyślij odpowiedź'}
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </div>
-                        ) : confirmationAdminTab === 'notes' ? (
-                          <div className="confirmation-notes-feed-panel">
-                            {confirmationNotesFeedLoading ? <p className="muted">Ładowanie adnotacji...</p> : null}
-                            {!confirmationNotesFeedLoading && confirmationNotesFeed.length === 0 ? (
-                              <p className="muted">Brak adnotacji w parafii.</p>
-                            ) : null}
-                            {confirmationNotesFeed.length > 0 ? (
-                              <ul className="confirmation-portal-message-list confirmation-notes-feed-list">
-                                {confirmationNotesFeed.map((note) => (
-                                  <li key={`confirmation-note-feed-${note.id}`}>
-                                    <div className="confirmation-note-feed-head">
-                                      <strong>
-                                        {note.candidateName} {note.candidateSurname}
-                                      </strong>
-                                      <span className={`pill ${note.isPublic ? 'is-public' : 'is-private'}`}>
-                                        {note.isPublic ? 'Publiczna' : 'Prywatna'}
-                                      </span>
-                                    </div>
-                                    <p>{note.noteText}</p>
-                                    <p className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</p>
-                                    <button
-                                      type="button"
-                                      className="ghost"
-                                      onClick={() => {
-                                        setConfirmationAdminSelectedCandidateId(note.candidateId);
-                                        openSacramentPanelSection('candidate');
-                                      }}
-                                    >
-                                      Otwórz kandydata
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <div className="confirmation-print-panel">
-                            <div className="confirmation-print-toolbar">
-                              <p className="note">
-                                Wydruk otwiera się jako osobny dokument A5 (preferowana nowa karta; przy blokadzie popup bieżąca karta).
-                              </p>
-                              <button type="button" className="parish-login" onClick={handlePrintConfirmationCards}>
-                                Drukuj wszystkie karty
-                              </button>
-                            </div>
-                            {confirmationCandidates.length === 0 ? (
-                              <p className="muted">Brak zgłoszeń do wydruku.</p>
-                            ) : (
-                              <div className="confirmation-print-root">
-                                {confirmationCandidates.map((candidate) => (
-                                  <article key={`print-${candidate.id}`} className="confirmation-print-sheet">
-                                    <section className="confirmation-print-side confirmation-print-side-front">
-                                      <p className="tag">Bierzmowanie</p>
-                                      <h4>Oświadczenie rodzica / opiekuna prawnego</h4>
-                                      <p className="confirmation-print-lead">
-                                        OŚWIADCZENIE RODZICA / OPIEKUNA PRAWNEGO DOTYCZĄCE UDZIAŁU DZIECKA W PRZYGOTOWANIU DO
-                                        SAKRAMENTU BIERZMOWANIA
-                                      </p>
-                                      <p>
-                                        <strong>Imię i nazwisko:</strong> {candidate.name} {candidate.surname}
-                                      </p>
-                                      <p>
-                                        <strong>Adres zamieszkania:</strong> {candidate.address}
-                                      </p>
-                                      <p>
-                                        <strong>Szkoła (skrót):</strong> {candidate.schoolShort}
-                                      </p>
-                                      <p>
-                                        <strong>Numery kontaktowe:</strong>
-                                      </p>
-                                      <ul className="confirmation-print-phones">
-                                        {candidate.phoneNumbers.map((phone) => (
-                                          <li key={`print-${candidate.id}-${phone.index}`}>
-                                            {phone.number}
-                                          </li>
-                                        ))}
-                                      </ul>
-                                      <p>
-                                        <strong>Data zgłoszenia:</strong> {new Date(candidate.createdUtc).toLocaleDateString('pl-PL')}
-                                      </p>
-                                      {confirmationParentConsentDraft.map((paragraph, index) => (
-                                        <p key={`parent-consent-${candidate.id}-${index}`}>{paragraph}</p>
-                                      ))}
-                                      <div className="confirmation-print-signature-block">
-                                        <p>Miejscowość, data: .............................................................</p>
-                                        <p>Podpis rodzica / opiekuna prawnego: .............................................................</p>
-                                      </div>
-                                    </section>
-                                    <section className="confirmation-print-side confirmation-print-side-back">
-                                      <p className="tag">RODO</p>
-                                      <h4>Klauzula informacyjna RODO</h4>
-                                      <p className="confirmation-print-lead">
-                                        KLAUZULA INFORMACYJNA DOTYCZĄCA PRZETWARZANIA DANYCH OSOBOWYCH
-                                      </p>
-                                      <p>{confirmationRodoClauseDraft.intro}</p>
-                                      <p>{confirmationRodoClauseDraft.admin}</p>
-                                      <p>{confirmationRodoClauseDraft.iod}</p>
-                                      <p>{confirmationRodoClauseDraft.purposesLead}</p>
-                                      <ul className="confirmation-print-phones confirmation-print-rodo-list">
-                                        {confirmationRodoClauseDraft.purposes.map((item, index) => (
-                                          <li key={`rodo-purpose-${candidate.id}-${index}`}>{item}</li>
-                                        ))}
-                                      </ul>
-                                      <p>{confirmationRodoClauseDraft.recipients}</p>
-                                      <p>{confirmationRodoClauseDraft.retention}</p>
-                                      <p>{confirmationRodoClauseDraft.rights}</p>
-                                      <p>{confirmationRodoClauseDraft.supervision}</p>
-                                      <p>{confirmationRodoClauseDraft.automation}</p>
-                                      <p>{confirmationRodoClauseDraft.required}</p>
-                                      <p>{confirmationRodoClauseDraft.acknowledgment}</p>
-                                    </section>
-                                  </article>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {isAuthenticated && (
-                      <div className="parish-card confirmation-candidate-admin-portal">
-                        <div className="section-header">
-                          <div>
-                            <p className="tag">Panel admina</p>
-                            <h3>Wyszukiwarka i edycja kandydatów</h3>
-                          </div>
-                          <button type="button" className="ghost" onClick={() => void loadConfirmationCandidates()}>
-                            Odśwież kandydatów
-                          </button>
-                        </div>
-                        <div className="admin-form-grid">
-                          <label className="admin-form-full">
-                            <span>Szukaj kandydata</span>
-                            <input
-                              type="text"
-                              value={confirmationAdminCandidateSearch}
-                              onChange={(event) => setConfirmationAdminCandidateSearch(event.target.value)}
-                              placeholder="Imię, nazwisko, adres, szkoła"
-                            />
-                          </label>
-                          <label className="admin-form-full">
-                            <span>Wybierz kandydata</span>
-                            <select
-                              value={confirmationAdminSelectedCandidateId ?? ''}
-                              onChange={(event) => setConfirmationAdminSelectedCandidateId(event.target.value || null)}
-                            >
-                              {filteredConfirmationCandidates.length === 0 ? (
-                                <option value="">Brak kandydatów dla tego filtra</option>
-                              ) : (
-                                filteredConfirmationCandidates.map((candidate) => (
-                                  <option key={`portal-candidate-${candidate.id}`} value={candidate.id}>
-                                    {candidate.name} {candidate.surname} • {candidate.schoolShort}
-                                  </option>
-                                ))
-                              )}
-                            </select>
-                          </label>
-                        </div>
-                        {confirmationAdminPortalLoading ? <p className="muted">Ładowanie danych kandydata...</p> : null}
-                        {confirmationAdminPortalError ? (
-                          <p className="confirmation-info confirmation-info-error">{confirmationAdminPortalError}</p>
-                        ) : null}
-                        {confirmationAdminPortalInfo ? (
-                          <p className="confirmation-info confirmation-info-success">{confirmationAdminPortalInfo}</p>
-                        ) : null}
-                        {confirmationAdminPortalData ? (
-                          <>
-                            <div className="confirmation-candidate-links">
-                              <button
-                                type="button"
-                                className="ghost"
-                                onClick={() => void handleCopyConfirmationMeetingLink(confirmationAdminPortalData.candidate.portalToken)}
-                              >
-                                {confirmationCopiedMeetingToken === confirmationAdminPortalData.candidate.portalToken
-                                  ? 'Skopiowano link portalu'
-                                  : 'Kopiuj link portalu kandydata'}
-                              </button>
-                              {confirmationAdminPortalData.candidate.canInviteToSelectedSlot &&
-                              confirmationAdminPortalData.candidate.selectedSlotInviteCode ? (
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  onClick={() =>
-                                    void handleCopyConfirmationMeetingInviteLink(
-                                      confirmationAdminPortalData.candidate.selectedSlotInviteCode
-                                    )
-                                  }
-                                >
-                                  {confirmationCopiedInviteToken === confirmationAdminPortalData.candidate.selectedSlotInviteCode
-                                    ? 'Skopiowano kod zaproszenia'
-                                    : 'Kopiuj kod zaproszenia'}
-                                </button>
-                              ) : null}
-                            </div>
-                            <div className="admin-form-grid">
-                              <label>
-                                <span>Imię</span>
-                                <input
-                                  type="text"
-                                  value={confirmationAdminEditName}
-                                  onChange={(event) => setConfirmationAdminEditName(event.target.value)}
-                                />
-                              </label>
-                              <label>
-                                <span>Nazwisko</span>
-                                <input
-                                  type="text"
-                                  value={confirmationAdminEditSurname}
-                                  onChange={(event) => setConfirmationAdminEditSurname(event.target.value)}
-                                />
-                              </label>
-                              <label className="admin-form-full">
-                                <span>Numery telefonów (linia po linii)</span>
-                                <textarea
-                                  rows={3}
-                                  value={confirmationAdminEditPhonesRaw}
-                                  onChange={(event) => setConfirmationAdminEditPhonesRaw(event.target.value)}
-                                />
-                              </label>
-                              <label className="admin-form-full">
-                                <span>Adres</span>
-                                <textarea
-                                  rows={2}
-                                  value={confirmationAdminEditAddress}
-                                  onChange={(event) => setConfirmationAdminEditAddress(event.target.value)}
-                                />
-                              </label>
-                              <label className="admin-form-full">
-                                <span>Szkoła (skrót)</span>
-                                <input
-                                  type="text"
-                                  value={confirmationAdminEditSchoolShort}
-                                  onChange={(event) => setConfirmationAdminEditSchoolShort(event.target.value)}
-                                />
-                              </label>
-                              <label className="admin-form-full builder-option">
-                                <input
-                                  type="checkbox"
-                                  checked={confirmationAdminEditPaperConsentReceived}
-                                  onChange={(event) => setConfirmationAdminEditPaperConsentReceived(event.target.checked)}
-                                />
-                                <span>Oświadczenie papierowe rodzica dostarczone do księdza</span>
-                              </label>
-                            </div>
-                            <div className="builder-actions">
-                              <button
-                                type="button"
-                                className="parish-login"
-                                disabled={confirmationAdminSendingAction}
-                                onClick={() => void handleAdminUpdateCandidateData()}
-                              >
-                                {confirmationAdminSendingAction ? 'Zapisywanie...' : 'Zapisz dane kandydata'}
-                              </button>
-                              <button
-                                type="button"
-                                className="ghost"
-                                disabled={confirmationAdminSendingAction}
-                                onClick={() => void handleAdminUpdateCandidatePaperConsent()}
-                              >
-                                {confirmationAdminSendingAction ? 'Zapisywanie...' : 'Zapisz status oświadczenia papierowego'}
-                              </button>
-                            </div>
-                            <div className="confirmation-portal-columns">
-                              <article className="confirmation-portal-card">
-                                <h4>Wyślij wiadomość do kandydata</h4>
-                                <textarea
-                                  rows={3}
-                                  value={confirmationAdminMessageDraft}
-                                  onChange={(event) => setConfirmationAdminMessageDraft(event.target.value)}
-                                />
-                                <button
-                                  type="button"
-                                  className="parish-login"
-                                  disabled={confirmationAdminSendingAction}
-                                  onClick={() => void handleAdminSendMessageToCandidate()}
-                                >
-                                  Wyślij wiadomość
-                                </button>
-                              </article>
-                              <article className="confirmation-portal-card">
-                                <h4>Adnotacje publiczne</h4>
-                                <textarea
-                                  rows={3}
-                                  value={confirmationAdminPublicNoteDraft}
-                                  onChange={(event) => setConfirmationAdminPublicNoteDraft(event.target.value)}
-                                />
-                                <button
-                                  type="button"
-                                  className="parish-login"
-                                  disabled={confirmationAdminSendingAction}
-                                  onClick={() => void handleAdminAddCandidateNote(true)}
-                                >
-                                  Dodaj adnotację publiczną
-                                </button>
-                              </article>
-                              <article className="confirmation-portal-card">
-                                <h4>Adnotacje prywatne</h4>
-                                <textarea
-                                  rows={3}
-                                  value={confirmationAdminPrivateNoteDraft}
-                                  onChange={(event) => setConfirmationAdminPrivateNoteDraft(event.target.value)}
-                                />
-                                <button
-                                  type="button"
-                                  className="parish-login"
-                                  disabled={confirmationAdminSendingAction}
-                                  onClick={() => void handleAdminAddCandidateNote(false)}
-                                >
-                                  Dodaj adnotację prywatną
-                                </button>
-                              </article>
-                            </div>
-                            <div className="confirmation-portal-columns">
-                              <article className="confirmation-portal-card">
-                                <h4>Historia wiadomości</h4>
-                                {confirmationAdminPortalData.messages.length === 0 ? (
-                                  <p className="muted">Brak wiadomości.</p>
-                                ) : (
-                                  <ul className="confirmation-portal-message-list">
-                                    {confirmationAdminPortalData.messages.map((message) => (
-                                      <li key={`admin-msg-${message.id}`}>
-                                        <strong>{message.senderType === 'admin' ? 'Admin' : 'Kandydat'}:</strong> {message.messageText}
-                                        <br />
-                                        <span className="muted">{new Date(message.createdUtc).toLocaleString('pl-PL')}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </article>
-                              <article className="confirmation-portal-card">
-                                <h4>Adnotacje publiczne (lista)</h4>
-                                {confirmationAdminPortalData.publicNotes.length === 0 ? (
-                                  <p className="muted">Brak publicznych adnotacji.</p>
-                                ) : (
-                                  <ul className="confirmation-portal-message-list">
-                                    {confirmationAdminPortalData.publicNotes.map((note) => (
-                                      <li key={`admin-public-note-${note.id}`}>
-                                        {note.noteText}
-                                        <br />
-                                        <span className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</span>
-                                        <br />
-                                        <button
-                                          type="button"
-                                          className="ghost"
-                                          onClick={() => handleAdminStartEditNote(note.id, note.noteText, note.isPublic)}
-                                        >
-                                          Edytuj
-                                        </button>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </article>
-                              <article className="confirmation-portal-card">
-                                <h4>Adnotacje prywatne (lista)</h4>
-                                {confirmationAdminPortalData.privateNotes && confirmationAdminPortalData.privateNotes.length > 0 ? (
-                                  <ul className="confirmation-portal-message-list">
-                                    {confirmationAdminPortalData.privateNotes.map((note) => (
-                                      <li key={`admin-private-note-${note.id}`}>
-                                        {note.noteText}
-                                        <br />
-                                        <span className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</span>
-                                        <br />
-                                        <button
-                                          type="button"
-                                          className="ghost"
-                                          onClick={() => handleAdminStartEditNote(note.id, note.noteText, note.isPublic)}
-                                        >
-                                          Edytuj
-                                        </button>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <p className="muted">Brak prywatnych adnotacji.</p>
-                                )}
-                              </article>
-                            </div>
-                            {confirmationAdminEditingNoteId ? (
-                              <article className="confirmation-portal-card">
-                                <h4>Edycja adnotacji</h4>
-                                <label>
-                                  <span>Treść</span>
-                                  <textarea
-                                    rows={4}
-                                    value={confirmationAdminEditingNoteText}
-                                    onChange={(event) => setConfirmationAdminEditingNoteText(event.target.value)}
-                                  />
-                                </label>
-                                <label className="mass-require-intentions">
-                                  <input
-                                    type="checkbox"
-                                    checked={confirmationAdminEditingNoteIsPublic}
-                                    onChange={(event) => setConfirmationAdminEditingNoteIsPublic(event.target.checked)}
-                                  />
-                                  <span>Adnotacja publiczna (widoczna dla kandydata)</span>
-                                </label>
-                                <div className="builder-actions">
-                                  <button
-                                    type="button"
-                                    className="parish-login"
-                                    disabled={confirmationAdminSendingAction}
-                                    onClick={() => void handleAdminSaveEditedNote()}
-                                  >
-                                    Zapisz adnotację
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="ghost"
-                                    onClick={() => {
-                                      setConfirmationAdminEditingNoteId(null);
-                                      setConfirmationAdminEditingNoteText('');
-                                    }}
-                                  >
-                                    Anuluj
-                                  </button>
-                                </div>
-                              </article>
-                            ) : null}
-                          </>
-                        ) : null}
-                      </div>
-                    )}
-                    {isAuthenticated && (
-                      <div className="parish-card confirmation-meetings-admin">
-                        <div className="section-header">
-                          <div>
-                            <p className="tag">Panel admina</p>
-                            <h3>Terminy spotkań kandydatów</h3>
-                          </div>
-                          <button type="button" className="ghost" onClick={() => void loadConfirmationMeetingSummary()}>
-                            Odśwież terminy
-                          </button>
-                        </div>
-                        <div className="admin-form-grid">
-                          <label>
-                            <span>Data i godzina</span>
-                            <input
-                              type="datetime-local"
-                              value={confirmationMeetingStartsLocal}
-                              onChange={(event) => setConfirmationMeetingStartsLocal(event.target.value)}
-                            />
-                          </label>
-                          <label>
-                            <span>Czas trwania (min)</span>
-                            <input
-                              type="number"
-                              min={10}
-                              max={180}
-                              value={confirmationMeetingDuration}
-                              onChange={(event) => setConfirmationMeetingDuration(event.target.value)}
-                            />
-                          </label>
-                          <label>
-                            <span>Pojemność slotu</span>
-                            <select
-                              value={confirmationMeetingCapacity}
-                              onChange={(event) => setConfirmationMeetingCapacity(event.target.value === '2' ? '2' : '3')}
-                            >
-                              <option value="2">2 osoby</option>
-                              <option value="3">3 osoby</option>
-                            </select>
-                          </label>
-                          <label>
-                            <span>Etap spotkania</span>
-                            <select
-                              value={confirmationMeetingStage}
-                              onChange={(event) =>
-                                setConfirmationMeetingStage(
-                                  event.target.value === 'year1-end' ? 'year1-end' : 'year1-start'
-                                )
-                              }
-                            >
-                              <option value="year1-start">Początek 1. roku</option>
-                              <option value="year1-end">Koniec 1. roku</option>
-                            </select>
-                          </label>
-                          <label className="admin-form-full">
-                            <span>Opis slotu (opcjonalnie)</span>
-                            <input
-                              type="text"
-                              value={confirmationMeetingLabel}
-                              onChange={(event) => setConfirmationMeetingLabel(event.target.value)}
-                              placeholder="np. sala katechetyczna, grupa A"
-                            />
-                          </label>
-                        </div>
-                        <div className="builder-actions">
-                          <button
-                            type="button"
-                            className="parish-login"
-                            disabled={confirmationMeetingSaving}
-                            onClick={() => void handleCreateConfirmationMeetingSlot()}
-                          >
-                            {confirmationMeetingSaving ? 'Zapisywanie...' : 'Dodaj termin'}
-                          </button>
-                        </div>
-                        {confirmationMeetingError ? (
-                          <p className="confirmation-info confirmation-info-error">{confirmationMeetingError}</p>
-                        ) : null}
-                        {confirmationMeetingInfo ? (
-                          <p className="confirmation-info confirmation-info-success">{confirmationMeetingInfo}</p>
-                        ) : null}
-                        {confirmationMeetingLoading ? <p className="muted">Ładowanie slotów...</p> : null}
-                        {confirmationMeetingSummary ? (
-                          <>
-                            <p className="note">Kandydaci bez wybranego terminu: {confirmationMeetingSummary.unassignedCount}</p>
-                            {confirmationMeetingSummary.slots.length === 0 ? (
-                              <p className="muted">Brak zdefiniowanych terminów.</p>
-                            ) : (
-                              <div className="confirmation-meeting-slot-list admin">
-                                {confirmationMeetingSummary.slots.map((slot) => (
-                                  <article key={`admin-slot-${slot.id}`} className="confirmation-meeting-slot">
-                                    <p>
-                                      <strong>{new Date(slot.startsAtUtc).toLocaleString('pl-PL')}</strong>
-                                    </p>
-                                    <p className="note">
-                                      Czas: {slot.durationMinutes} min • Zajętość: {slot.reservedCount}/{slot.capacity}
-                                      {slot.label ? ` • ${slot.label}` : ''}
-                                    </p>
-                                    <label>
-                                      <span>Etap spotkania</span>
-                                      <select
-                                        value={slot.stage === 'year1-end' ? 'year1-end' : 'year1-start'}
-                                        disabled={confirmationMeetingSaving}
-                                        onChange={(event) =>
-                                          void handleUpdateConfirmationMeetingSlotStage(
-                                            slot.id,
-                                            event.target.value === 'year1-end' ? 'year1-end' : 'year1-start'
-                                          )
-                                        }
-                                      >
-                                        <option value="year1-start">Początek 1. roku</option>
-                                        <option value="year1-end">Koniec 1. roku</option>
-                                      </select>
-                                    </label>
-                                    {slot.candidates.length > 0 ? (
-                                      <ul className="confirmation-meeting-candidate-list confirmation-meeting-candidate-admin-list">
-                                        {slot.candidates.map((candidate) => (
-                                          <li key={`${slot.id}-${candidate.candidateId}`}>
-                                            <span>
-                                              {candidate.name} {candidate.surname}
-                                            </span>
-                                            <a
-                                              href={buildConfirmationAdminPortalCandidateHref(
-                                                candidate.candidateId,
-                                                candidate.name,
-                                                candidate.surname
-                                              )}
-                                              className="ghost"
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              onClick={(event) => {
-                                                if (
-                                                  event.metaKey ||
-                                                  event.ctrlKey ||
-                                                  event.shiftKey ||
-                                                  event.altKey ||
-                                                  event.button !== 0
-                                                ) {
-                                                  return;
-                                                }
-                                                event.preventDefault();
-                                                openConfirmationAdminPortalForCandidate(
-                                                  candidate.candidateId,
-                                                  candidate.name,
-                                                  candidate.surname
-                                                );
-                                              }}
-                                            >
-                                              Otwórz portal admina
-                                            </a>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    ) : (
-                                      <p className="muted">Brak zapisanych kandydatów.</p>
-                                    )}
-                                    <button
-                                      type="button"
-                                      className="ghost"
-                                      disabled={confirmationMeetingSaving}
-                                      onClick={() => void handleDeleteConfirmationMeetingSlot(slot.id)}
-                                    >
-                                      Usuń termin
-                                    </button>
-                                  </article>
-                                ))}
-                              </div>
-                            )}
-                          </>
-                        ) : null}
-                      </div>
-                    )}
-                  </>
-                )}
               </section>
             )}
             {(activePage === 'community-bible' || activePage === 'community-formation') && communityData && (
@@ -12751,6 +11505,1290 @@ export function ParishPage({
                         </>
                       ) : null}
                     </div>
+                  </>
+                )}
+                {selectedSacrament.id === 'confirmation' && activeSacramentPanelSection === 'admin' && (
+                  <>
+                    <div className="parish-card confirmation-admin-appointments">
+                      <div className="section-header">
+                        <div>
+                          <p className="tag">Panel admina</p>
+                          <h3>Najbliższe terminy spotkań</h3>
+                        </div>
+                        <div className="confirmation-admin-actions">
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => setConfirmationAdminAppointmentsShowAll((v) => !v)}
+                          >
+                            {confirmationAdminAppointmentsShowAll ? 'Pokaż bieżące (±1h)' : 'Pokaż wszystkie terminy'}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => void loadConfirmationMeetingSummary()}
+                          >
+                            Odśwież terminy
+                          </button>
+                        </div>
+                      </div>
+                      {confirmationMeetingLoading ? <p className="muted">Ładowanie terminów...</p> : null}
+                      {confirmationMeetingSummary ? (
+                        <>
+                          <p className="note">
+                            {confirmationAdminAppointmentsShowAll
+                              ? `Wszystkie terminy (${confirmationMeetingSummary.slots.length})`
+                              : `Terminy w oknie ±1 h (${filteredNearbyConfirmationSlots.length} z ${confirmationMeetingSummary.slots.length})`}
+                            {' · '}Kandydaci bez terminu: <strong>{confirmationMeetingSummary.unassignedCount}</strong>
+                          </p>
+                          {filteredNearbyConfirmationSlots.length === 0 ? (
+                            <p className="muted">
+                              {confirmationAdminAppointmentsShowAll
+                                ? 'Brak zdefiniowanych terminów.'
+                                : 'Brak terminów w oknie ±1 h od teraz. Kliknij „Pokaż wszystkie terminy”, aby zobaczyć pełny harmonogram.'}
+                            </p>
+                          ) : (
+                            <div className="confirmation-meeting-slot-list admin">
+                              {filteredNearbyConfirmationSlots.map((slot) => {
+                                const slotStart = new Date(slot.startsAtUtc).getTime();
+                                const slotEnd = slotStart + slot.durationMinutes * 60 * 1000;
+                                const nowTs = Date.now();
+                                const isOngoing = slotStart <= nowTs && slotEnd > nowTs;
+                                const isPast = slotEnd <= nowTs;
+                                return (
+                                  <article
+                                    key={`admin-appt-${slot.id}`}
+                                    className={`confirmation-meeting-slot${isOngoing ? ' is-ongoing' : isPast ? ' is-past' : ''}`}
+                                  >
+                                    <p>
+                                      <strong>{new Date(slot.startsAtUtc).toLocaleString('pl-PL')}</strong>
+                                      {isOngoing ? (
+                                        <span className="pill confirmation-pill-live">Trwa teraz</span>
+                                      ) : isPast ? (
+                                        <span className="pill">Zakończone</span>
+                                      ) : null}
+                                    </p>
+                                    <p className="note">
+                                      {slot.durationMinutes} min{' · '}{slot.stage === 'year1-end' ? 'Koniec 1. roku' : 'Początek 1. roku'}{' · '}{slot.reservedCount}/{slot.capacity} miejsc{slot.label ? ` · ${slot.label}` : ''}
+                                    </p>
+                                    {slot.candidates.length > 0 ? (
+                                      <ul className="confirmation-meeting-candidate-list confirmation-meeting-candidate-admin-list">
+                                        {slot.candidates.map((candidate) => (
+                                          <li key={`appt-${slot.id}-${candidate.candidateId}`}>
+                                            <span>
+                                              {candidate.name} {candidate.surname}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              className="ghost"
+                                              onClick={() =>
+                                                openConfirmationAdminPortalForCandidate(
+                                                  candidate.candidateId,
+                                                  candidate.name,
+                                                  candidate.surname
+                                                )
+                                              }
+                                            >
+                                              Otwórz portal
+                                            </button>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p className="muted">Brak zapisanych kandydatów w tym terminie.</p>
+                                    )}
+                                  </article>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="muted">Terminy nie zostały jeszcze załadowane. Kliknij „Odśwież terminy”.</p>
+                      )}
+                    </div>
+                    {isAuthenticated && (
+                      <div className="parish-card confirmation-admin-card">
+                        <div className="section-header">
+                          <div>
+                            <p className="tag">Panel admina</p>
+                            <h3>Zgłoszenia do bierzmowania</h3>
+                          </div>
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => {
+                              void loadConfirmationCandidates();
+                              if (confirmationAdminTab === 'notes') {
+                                void loadConfirmationNotesFeed();
+                                return;
+                              }
+                              if (confirmationAdminTab === 'messages') {
+                                void loadConfirmationMessagesFeed();
+                              }
+                            }}
+                          >
+                            Odśwież
+                          </button>
+                        </div>
+                        <div className="tabs small confirmation-admin-tabs">
+                          <button
+                            type="button"
+                            className={confirmationAdminTab === 'submissions' ? 'is-active' : undefined}
+                            onClick={() => setConfirmationAdminTab('submissions')}
+                          >
+                            Zgłoszenia
+                          </button>
+                          <button
+                            type="button"
+                            className={confirmationAdminTab === 'sms' ? 'is-active' : undefined}
+                            onClick={() => setConfirmationAdminTab('sms')}
+                          >
+                            SMS
+                          </button>
+                          <button
+                            type="button"
+                            className={confirmationAdminTab === 'messages' ? 'is-active' : undefined}
+                            onClick={() => setConfirmationAdminTab('messages')}
+                          >
+                            Wiadomości kandydatów (łącznie)
+                          </button>
+                          <button
+                            type="button"
+                            className={confirmationAdminTab === 'notes' ? 'is-active' : undefined}
+                            onClick={() => setConfirmationAdminTab('notes')}
+                          >
+                            Uwagi (łącznie)
+                          </button>
+                          <button
+                            type="button"
+                            className={confirmationAdminTab === 'print' ? 'is-active' : undefined}
+                            onClick={() => setConfirmationAdminTab('print')}
+                          >
+                            Karty do druku (A5)
+                          </button>
+                        </div>
+                        <div className="confirmation-admin-actions">
+                          <button
+                            type="button"
+                            className="ghost"
+                            disabled={confirmationTransferBusy}
+                            onClick={() => void handleExportConfirmationCandidates()}
+                          >
+                            {confirmationTransferBusy ? 'Przetwarzanie...' : 'Eksportuj JSON'}
+                          </button>
+                          <label className="ghost">
+                            Importuj JSON
+                            <input
+                              ref={confirmationImportFileRef}
+                              type="file"
+                              accept="application/json"
+                              disabled={confirmationTransferBusy}
+                              onChange={(event) => void handleImportConfirmationCandidates(event)}
+                              hidden
+                            />
+                          </label>
+                          <label className="mass-require-intentions">
+                            <input
+                              type="checkbox"
+                              checked={confirmationImportReplaceExisting}
+                              disabled={confirmationTransferBusy}
+                              onChange={(event) => setConfirmationImportReplaceExisting(event.target.checked)}
+                            />
+                            <span>Zastąp obecne zgłoszenia przy imporcie</span>
+                          </label>
+                        </div>
+                        {confirmationTransferError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationTransferError}</p>
+                        ) : null}
+                        {confirmationTransferInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{confirmationTransferInfo}</p>
+                        ) : null}
+                        {confirmationCandidatesError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationCandidatesError}</p>
+                        ) : null}
+                        {confirmationNotesFeedError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationNotesFeedError}</p>
+                        ) : null}
+                        {confirmationMessagesFeedError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationMessagesFeedError}</p>
+                        ) : null}
+                        {confirmationMessagesFeedInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{confirmationMessagesFeedInfo}</p>
+                        ) : null}
+                        {confirmationAdminTab === 'submissions' ? (
+                          <>
+                            <div className="confirmation-duplicate-panel">
+                              <div className="section-header">
+                                <div>
+                                  <p className="tag">Duplikaty</p>
+                                  <h4>Wykryte zgłoszenia o tym samym imieniu i nazwisku</h4>
+                                </div>
+                              </div>
+                              {confirmationDuplicateGroups.length === 0 ? (
+                                <p className="muted">Brak wykrytych duplikatów kandydatów.</p>
+                              ) : (
+                                <>
+                                  <div className="admin-form-grid">
+                                    <label className="admin-form-full">
+                                      <span>Grupa duplikatów</span>
+                                      <select
+                                        value={confirmationMergeGroupKey ?? ''}
+                                        onChange={(event) => setConfirmationMergeGroupKey(event.target.value || null)}
+                                      >
+                                        {confirmationDuplicateGroups.map((group) => (
+                                          <option key={`dup-group-${group.key}`} value={group.key}>
+                                            {group.displayName} ({group.candidates.length})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <label>
+                                      <span>Rekord docelowy (zostaje)</span>
+                                      <select
+                                        value={confirmationMergeTargetId ?? ''}
+                                        onChange={(event) => setConfirmationMergeTargetId(event.target.value || null)}
+                                      >
+                                        {(selectedConfirmationDuplicateGroup?.candidates ?? []).map((candidate) => (
+                                          <option key={`merge-target-${candidate.id}`} value={candidate.id}>
+                                            {candidate.name} {candidate.surname} • {new Date(candidate.createdUtc).toLocaleDateString('pl-PL')}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <label>
+                                      <span>Rekord źródłowy (zniknie)</span>
+                                      <select
+                                        value={confirmationMergeSourceId ?? ''}
+                                        onChange={(event) => setConfirmationMergeSourceId(event.target.value || null)}
+                                      >
+                                        {(selectedConfirmationDuplicateGroup?.candidates ?? [])
+                                          .filter((candidate) => candidate.id !== confirmationMergeTargetId)
+                                          .map((candidate) => (
+                                            <option key={`merge-source-${candidate.id}`} value={candidate.id}>
+                                              {candidate.name} {candidate.surname} • {new Date(candidate.createdUtc).toLocaleDateString('pl-PL')}
+                                            </option>
+                                          ))}
+                                      </select>
+                                    </label>
+                                  </div>
+                                  {confirmationMergeTargetCandidate && confirmationMergeSourceCandidate ? (
+                                    <>
+                                      <div className="admin-form-grid">
+                                        <label>
+                                          <span>Imię</span>
+                                          <select
+                                            value={confirmationMergeNameSource}
+                                            onChange={(event) =>
+                                              setConfirmationMergeNameSource(
+                                                event.target.value === 'source' ? 'source' : 'target'
+                                              )
+                                            }
+                                          >
+                                            <option value="target">{confirmationMergeTargetCandidate.name}</option>
+                                            <option value="source">{confirmationMergeSourceCandidate.name}</option>
+                                          </select>
+                                        </label>
+                                        <label>
+                                          <span>Nazwisko</span>
+                                          <select
+                                            value={confirmationMergeSurnameSource}
+                                            onChange={(event) =>
+                                              setConfirmationMergeSurnameSource(
+                                                event.target.value === 'source' ? 'source' : 'target'
+                                              )
+                                            }
+                                          >
+                                            <option value="target">{confirmationMergeTargetCandidate.surname}</option>
+                                            <option value="source">{confirmationMergeSourceCandidate.surname}</option>
+                                          </select>
+                                        </label>
+                                        <label>
+                                          <span>Adres</span>
+                                          <select
+                                            value={confirmationMergeAddressSource}
+                                            onChange={(event) =>
+                                              setConfirmationMergeAddressSource(
+                                                event.target.value === 'source' ? 'source' : 'target'
+                                              )
+                                            }
+                                          >
+                                            <option value="target">{confirmationMergeTargetCandidate.address}</option>
+                                            <option value="source">{confirmationMergeSourceCandidate.address}</option>
+                                          </select>
+                                        </label>
+                                        <label>
+                                          <span>Szkoła</span>
+                                          <select
+                                            value={confirmationMergeSchoolSource}
+                                            onChange={(event) =>
+                                              setConfirmationMergeSchoolSource(
+                                                event.target.value === 'source' ? 'source' : 'target'
+                                              )
+                                            }
+                                          >
+                                            <option value="target">{confirmationMergeTargetCandidate.schoolShort}</option>
+                                            <option value="source">{confirmationMergeSourceCandidate.schoolShort}</option>
+                                          </select>
+                                        </label>
+                                        <label>
+                                          <span>Termin spotkania</span>
+                                          <select
+                                            value={confirmationMergeMeetingSource}
+                                            onChange={(event) =>
+                                              setConfirmationMergeMeetingSource(
+                                                event.target.value === 'target'
+                                                  ? 'target'
+                                                  : event.target.value === 'source'
+                                                  ? 'source'
+                                                  : 'none'
+                                              )
+                                            }
+                                          >
+                                            <option value="none">Brak terminu</option>
+                                            <option value="target">
+                                              Rekord docelowy {confirmationMergeTargetCandidate.meetingSlotId ? '(ma termin)' : '(bez terminu)'}
+                                            </option>
+                                            <option value="source">
+                                              Rekord źródłowy {confirmationMergeSourceCandidate.meetingSlotId ? '(ma termin)' : '(bez terminu)'}
+                                            </option>
+                                          </select>
+                                        </label>
+                                        <label>
+                                          <span>Link portalu po scaleniu</span>
+                                          <select
+                                            value={confirmationMergePortalSource}
+                                            onChange={(event) =>
+                                              setConfirmationMergePortalSource(
+                                                event.target.value === 'source' ? 'source' : 'target'
+                                              )
+                                            }
+                                          >
+                                            <option value="target">Z rekordu docelowego</option>
+                                            <option value="source">Z rekordu źródłowego</option>
+                                          </select>
+                                        </label>
+                                        <label className="admin-form-full">
+                                          <span>Numery telefonów do zachowania</span>
+                                          <div className="confirmation-merge-phone-list">
+                                            {confirmationMergePhoneOptions.map((option) => (
+                                              <label key={`merge-phone-${option.number}`} className="mass-require-intentions">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={confirmationMergeSelectedPhones.includes(option.number)}
+                                                  onChange={(event) =>
+                                                    handleToggleConfirmationMergePhone(option.number, event.target.checked)
+                                                  }
+                                                />
+                                                <span>
+                                                  {option.number}
+                                                  {option.target ? ' [docelowy]' : ''}
+                                                  {option.source ? ' [źródłowy]' : ''}
+                                                  {option.verified ? ' • zweryfikowany' : ' • niezweryfikowany'}
+                                                </span>
+                                              </label>
+                                            ))}
+                                          </div>
+                                        </label>
+                                      </div>
+                                      <div className="builder-actions">
+                                        <button
+                                          type="button"
+                                          className="parish-login"
+                                          disabled={confirmationMergeBusy || !confirmationMergeSourceId || !confirmationMergeTargetId}
+                                          onClick={() => void handleMergeDuplicateConfirmationCandidates()}
+                                        >
+                                          {confirmationMergeBusy ? 'Scalanie...' : 'Scal wybrane zgłoszenia'}
+                                        </button>
+                                      </div>
+                                    </>
+                                  ) : null}
+                                  {confirmationMergeError ? (
+                                    <p className="confirmation-info confirmation-info-error">{confirmationMergeError}</p>
+                                  ) : null}
+                                  {confirmationMergeInfo ? (
+                                    <p className="confirmation-info confirmation-info-success">{confirmationMergeInfo}</p>
+                                  ) : null}
+                                </>
+                              )}
+                            </div>
+                            <div className="admin-form-grid">
+                              <label>
+                                <span>Filtr statusu</span>
+                                <select
+                                  value={confirmationSubmissionsFilter}
+                                  onChange={(event) =>
+                                    setConfirmationSubmissionsFilter(
+                                      event.target.value === 'no-meeting'
+                                        ? 'no-meeting'
+                                        : event.target.value === 'no-paper-consent'
+                                        ? 'no-paper-consent'
+                                        : event.target.value === 'unverified-phone'
+                                        ? 'unverified-phone'
+                                        : event.target.value === 'needs-follow-up'
+                                        ? 'needs-follow-up'
+                                        : 'all'
+                                    )
+                                  }
+                                >
+                                  <option value="all">Wszystkie zgłoszenia</option>
+                                  <option value="no-meeting">Brak wybranego terminu</option>
+                                  <option value="no-paper-consent">Brak oświadczenia papierowego</option>
+                                  <option value="unverified-phone">Niezweryfikowany numer telefonu</option>
+                                  <option value="needs-follow-up">Wymaga działania admina</option>
+                                </select>
+                              </label>
+                              <label className="admin-form-full">
+                                <span>Szukaj kandydata</span>
+                                <input
+                                  type="text"
+                                  value={confirmationSubmissionsSearch}
+                                  onChange={(event) => setConfirmationSubmissionsSearch(event.target.value)}
+                                  placeholder="Imię, nazwisko, adres, szkoła"
+                                />
+                              </label>
+                            </div>
+                            <p className="note">
+                              Wszystkich: {confirmationSubmissionStats.total} •
+                              Bez terminu: {confirmationSubmissionStats.noMeetingCount} •
+                              Bez oświadczenia papierowego: {confirmationSubmissionStats.noPaperConsentCount} •
+                              Z niezweryfikowanym numerem: {confirmationSubmissionStats.unverifiedPhoneCount} •
+                              Wymaga działania: {confirmationSubmissionStats.needsFollowUpCount}
+                            </p>
+                            {confirmationCandidates.length === 0 ? (
+                              <p className="muted">Brak zgłoszeń.</p>
+                            ) : filteredConfirmationSubmissionCandidates.length === 0 ? (
+                              <p className="muted">Brak zgłoszeń spełniających wybrany filtr.</p>
+                            ) : (
+                              <div className="confirmation-candidate-list">
+                                {filteredConfirmationSubmissionCandidates.map((candidate) => (
+                                  <article key={candidate.id} className="confirmation-candidate-item">
+                                    <div className="confirmation-candidate-head">
+                                      <strong>
+                                        {candidate.name} {candidate.surname}
+                                      </strong>
+                                      <span className="muted">
+                                        {new Date(candidate.createdUtc).toLocaleString('pl-PL')}
+                                      </span>
+                                    </div>
+                                    <p className="note">
+                                      <strong>Adres:</strong> {candidate.address}
+                                    </p>
+                                    <p className="note">
+                                      <strong>Szkoła:</strong> {candidate.schoolShort}
+                                    </p>
+                                    <p className="note">
+                                      <strong>Spotkanie:</strong>{' '}
+                                      {candidate.meetingSlotId ? 'Termin wybrany' : 'Brak wybranego terminu'}
+                                    </p>
+                                    <p className="note">
+                                      <strong>Oświadczenie papierowe rodzica:</strong>{' '}
+                                      {candidate.paperConsentReceived ? 'Dostarczone do księdza' : 'Niepotwierdzone'}
+                                    </p>
+                                    <div className="confirmation-candidate-links">
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        onClick={() => void handleCopyConfirmationMeetingLink(candidate.meetingToken)}
+                                      >
+                                        {confirmationCopiedMeetingToken === candidate.meetingToken
+                                          ? 'Skopiowano link portalu'
+                                          : 'Kopiuj link portalu'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        disabled={confirmationAdminSendingAction}
+                                        onClick={() =>
+                                          void handleAdminToggleCandidatePaperConsent(
+                                            candidate.id,
+                                            !candidate.paperConsentReceived
+                                          )
+                                        }
+                                      >
+                                        {candidate.paperConsentReceived ? 'Oznacz jako brak oświadczenia' : 'Oznacz jako dostarczone'}
+                                      </button>
+                                    </div>
+                                    <ul className="confirmation-phone-list">
+                                      {candidate.phoneNumbers.map((phone) => {
+                                        const verificationSmsHref = buildConfirmationVerificationSmsHref(
+                                          candidate,
+                                          phone.number,
+                                          phone.verificationToken
+                                        );
+                                        const warningSmsHref = buildConfirmationVerificationWarningSmsHref(
+                                          candidate,
+                                          phone.number,
+                                          phone.verificationToken
+                                        );
+                                        const portalSmsHref = buildConfirmationPortalInviteSmsHref(
+                                          candidate,
+                                          phone.number,
+                                          candidate.meetingToken
+                                        );
+                                        return (
+                                          <li key={`${candidate.id}-${phone.index}`}>
+                                            <span>{phone.number}</span>
+                                            {phone.isVerified ? (
+                                              <>
+                                                <span className="pill">Zweryfikowany</span>
+                                                <div className="confirmation-phone-actions">
+                                                  {portalSmsHref ? (
+                                                    <a className="ghost" href={portalSmsHref}>
+                                                      SMS: portal kandydata
+                                                    </a>
+                                                  ) : null}
+                                                </div>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <span className="pill">Niezweryfikowany</span>
+                                                <div className="confirmation-phone-actions">
+                                                  {verificationSmsHref ? (
+                                                    <a className="ghost" href={verificationSmsHref}>
+                                                      SMS: weryfikacja
+                                                    </a>
+                                                  ) : null}
+                                                  {warningSmsHref ? (
+                                                    <a className="ghost" href={warningSmsHref}>
+                                                      SMS: brak weryfikacji
+                                                    </a>
+                                                  ) : null}
+                                                  <button
+                                                    type="button"
+                                                    className="ghost"
+                                                    onClick={() => void handleCopyConfirmationVerificationLink(phone.verificationToken)}
+                                                  >
+                                                    {confirmationCopiedToken === phone.verificationToken
+                                                      ? 'Skopiowano'
+                                                      : 'Kopiuj link weryfikacji'}
+                                                  </button>
+                                                </div>
+                                              </>
+                                            )}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </article>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        ) : confirmationAdminTab === 'sms' ? (
+                          <article className="confirmation-duplicate-panel">
+                            <div className="section-header">
+                              <div>
+                                <p className="tag">SMS</p>
+                                <h4>Szablony wiadomości SMS</h4>
+                              </div>
+                            </div>
+                            <p className="note">
+                              Zmienne: {confirmationSmsTemplateVariables.join(', ')}
+                            </p>
+                            {confirmationSmsTemplateError ? (
+                              <p className="confirmation-info confirmation-info-error">{confirmationSmsTemplateError}</p>
+                            ) : null}
+                            {confirmationSmsTemplateInfo ? (
+                              <p className="confirmation-info confirmation-info-success">{confirmationSmsTemplateInfo}</p>
+                            ) : null}
+                            <div className="admin-form-grid">
+                              <label className="admin-form-full">
+                                <span>SMS: weryfikacja numeru</span>
+                                <textarea
+                                  rows={5}
+                                  value={confirmationSmsTemplateVerificationInvite}
+                                  onChange={(event) => setConfirmationSmsTemplateVerificationInvite(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>SMS: brak weryfikacji (ostrzeżenie)</span>
+                                <textarea
+                                  rows={5}
+                                  value={confirmationSmsTemplateVerificationWarning}
+                                  onChange={(event) => setConfirmationSmsTemplateVerificationWarning(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>SMS: portal kandydata</span>
+                                <textarea
+                                  rows={5}
+                                  value={confirmationSmsTemplatePortalInvite}
+                                  onChange={(event) => setConfirmationSmsTemplatePortalInvite(event.target.value)}
+                                />
+                              </label>
+                            </div>
+                            <div className="builder-actions">
+                              <button
+                                type="button"
+                                className="parish-login"
+                                disabled={confirmationSmsTemplateSaving}
+                                onClick={() => void handleSaveConfirmationSmsTemplates()}
+                              >
+                                {confirmationSmsTemplateSaving ? 'Zapisywanie...' : 'Zapisz szablony SMS'}
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost"
+                                disabled={confirmationSmsTemplateSaving}
+                                onClick={() => {
+                                  setConfirmationSmsTemplateVerificationInvite(defaultConfirmationSmsTemplates.verificationInvite);
+                                  setConfirmationSmsTemplateVerificationWarning(defaultConfirmationSmsTemplates.verificationWarning);
+                                  setConfirmationSmsTemplatePortalInvite(defaultConfirmationSmsTemplates.portalInvite);
+                                }}
+                              >
+                                Przywróć domyślne
+                              </button>
+                            </div>
+                          </article>
+                        ) : confirmationAdminTab === 'messages' ? (
+                          <div className="confirmation-notes-feed-panel">
+                            {confirmationMessagesFeedLoading ? <p className="muted">Ładowanie wiadomości kandydatów...</p> : null}
+                            {!confirmationMessagesFeedLoading && confirmationMessagesFeed.length === 0 ? (
+                              <p className="muted">Brak wiadomości od kandydatów.</p>
+                            ) : null}
+                            {confirmationMessagesFeed.length > 0 ? (
+                              <ul className="confirmation-portal-message-list confirmation-notes-feed-list">
+                                {confirmationMessagesFeed.map((message) => (
+                                  <li key={`confirmation-message-feed-${message.id}`}>
+                                    <div className="confirmation-note-feed-head">
+                                      <strong>
+                                        {message.candidateName} {message.candidateSurname}
+                                      </strong>
+                                      <span className="pill is-public">Kandydat</span>
+                                    </div>
+                                    <p>{message.messageText}</p>
+                                    <p className="muted">{new Date(message.createdUtc).toLocaleString('pl-PL')}</p>
+                                    <div className="confirmation-phone-actions">
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        onClick={() => {
+                                          setConfirmationAdminSelectedCandidateId(message.candidateId);
+                                          openSacramentPanelSection('candidate');
+                                        }}
+                                      >
+                                        Otwórz kandydata
+                                      </button>
+                                    </div>
+                                    <label className="confirmation-message-reply-box">
+                                      <span>Odpowiedź do kandydata</span>
+                                      <textarea
+                                        rows={2}
+                                        value={confirmationMessagesReplyDrafts[message.candidateId] ?? ''}
+                                        onChange={(event) =>
+                                          updateConfirmationMessagesReplyDraft(message.candidateId, event.target.value)
+                                        }
+                                        placeholder="Napisz krótką odpowiedź..."
+                                      />
+                                    </label>
+                                    <button
+                                      type="button"
+                                      className="parish-login"
+                                      disabled={confirmationAdminSendingAction}
+                                      onClick={() => void handleAdminReplyFromMessagesFeed(message.candidateId)}
+                                    >
+                                      {confirmationAdminSendingAction ? 'Wysyłanie...' : 'Wyślij odpowiedź'}
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        ) : confirmationAdminTab === 'notes' ? (
+                          <div className="confirmation-notes-feed-panel">
+                            {confirmationNotesFeedLoading ? <p className="muted">Ładowanie adnotacji...</p> : null}
+                            {!confirmationNotesFeedLoading && confirmationNotesFeed.length === 0 ? (
+                              <p className="muted">Brak adnotacji w parafii.</p>
+                            ) : null}
+                            {confirmationNotesFeed.length > 0 ? (
+                              <ul className="confirmation-portal-message-list confirmation-notes-feed-list">
+                                {confirmationNotesFeed.map((note) => (
+                                  <li key={`confirmation-note-feed-${note.id}`}>
+                                    <div className="confirmation-note-feed-head">
+                                      <strong>
+                                        {note.candidateName} {note.candidateSurname}
+                                      </strong>
+                                      <span className={`pill ${note.isPublic ? 'is-public' : 'is-private'}`}>
+                                        {note.isPublic ? 'Publiczna' : 'Prywatna'}
+                                      </span>
+                                    </div>
+                                    <p>{note.noteText}</p>
+                                    <p className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</p>
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      onClick={() => {
+                                        setConfirmationAdminSelectedCandidateId(note.candidateId);
+                                        openSacramentPanelSection('candidate');
+                                      }}
+                                    >
+                                      Otwórz kandydata
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className="confirmation-print-panel">
+                            <div className="confirmation-print-toolbar">
+                              <p className="note">
+                                Wydruk otwiera się jako osobny dokument A5 (preferowana nowa karta; przy blokadzie popup bieżąca karta).
+                              </p>
+                              <button type="button" className="parish-login" onClick={handlePrintConfirmationCards}>
+                                Drukuj wszystkie karty
+                              </button>
+                            </div>
+                            {confirmationCandidates.length === 0 ? (
+                              <p className="muted">Brak zgłoszeń do wydruku.</p>
+                            ) : (
+                              <div className="confirmation-print-root">
+                                {confirmationCandidates.map((candidate) => (
+                                  <article key={`print-${candidate.id}`} className="confirmation-print-sheet">
+                                    <section className="confirmation-print-side confirmation-print-side-front">
+                                      <p className="tag">Bierzmowanie</p>
+                                      <h4>Oświadczenie rodzica / opiekuna prawnego</h4>
+                                      <p className="confirmation-print-lead">
+                                        OŚWIADCZENIE RODZICA / OPIEKUNA PRAWNEGO DOTYCZĄCE UDZIAŁU DZIECKA W PRZYGOTOWANIU DO
+                                        SAKRAMENTU BIERZMOWANIA
+                                      </p>
+                                      <p>
+                                        <strong>Imię i nazwisko:</strong> {candidate.name} {candidate.surname}
+                                      </p>
+                                      <p>
+                                        <strong>Adres zamieszkania:</strong> {candidate.address}
+                                      </p>
+                                      <p>
+                                        <strong>Szkoła (skrót):</strong> {candidate.schoolShort}
+                                      </p>
+                                      <p>
+                                        <strong>Numery kontaktowe:</strong>
+                                      </p>
+                                      <ul className="confirmation-print-phones">
+                                        {candidate.phoneNumbers.map((phone) => (
+                                          <li key={`print-${candidate.id}-${phone.index}`}>
+                                            {phone.number}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                      <p>
+                                        <strong>Data zgłoszenia:</strong> {new Date(candidate.createdUtc).toLocaleDateString('pl-PL')}
+                                      </p>
+                                      {confirmationParentConsentDraft.map((paragraph, index) => (
+                                        <p key={`parent-consent-${candidate.id}-${index}`}>{paragraph}</p>
+                                      ))}
+                                      <div className="confirmation-print-signature-block">
+                                        <p>Miejscowość, data: .............................................................</p>
+                                        <p>Podpis rodzica / opiekuna prawnego: .............................................................</p>
+                                      </div>
+                                    </section>
+                                    <section className="confirmation-print-side confirmation-print-side-back">
+                                      <p className="tag">RODO</p>
+                                      <h4>Klauzula informacyjna RODO</h4>
+                                      <p className="confirmation-print-lead">
+                                        KLAUZULA INFORMACYJNA DOTYCZĄCA PRZETWARZANIA DANYCH OSOBOWYCH
+                                      </p>
+                                      <p>{confirmationRodoClauseDraft.intro}</p>
+                                      <p>{confirmationRodoClauseDraft.admin}</p>
+                                      <p>{confirmationRodoClauseDraft.iod}</p>
+                                      <p>{confirmationRodoClauseDraft.purposesLead}</p>
+                                      <ul className="confirmation-print-phones confirmation-print-rodo-list">
+                                        {confirmationRodoClauseDraft.purposes.map((item, index) => (
+                                          <li key={`rodo-purpose-${candidate.id}-${index}`}>{item}</li>
+                                        ))}
+                                      </ul>
+                                      <p>{confirmationRodoClauseDraft.recipients}</p>
+                                      <p>{confirmationRodoClauseDraft.retention}</p>
+                                      <p>{confirmationRodoClauseDraft.rights}</p>
+                                      <p>{confirmationRodoClauseDraft.supervision}</p>
+                                      <p>{confirmationRodoClauseDraft.automation}</p>
+                                      <p>{confirmationRodoClauseDraft.required}</p>
+                                      <p>{confirmationRodoClauseDraft.acknowledgment}</p>
+                                    </section>
+                                  </article>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {isAuthenticated && (
+                      <div className="parish-card confirmation-candidate-admin-portal">
+                        <div className="section-header">
+                          <div>
+                            <p className="tag">Panel admina</p>
+                            <h3>Wyszukiwarka i edycja kandydatów</h3>
+                          </div>
+                          <button type="button" className="ghost" onClick={() => void loadConfirmationCandidates()}>
+                            Odśwież kandydatów
+                          </button>
+                        </div>
+                        <div className="admin-form-grid">
+                          <label className="admin-form-full">
+                            <span>Szukaj kandydata</span>
+                            <input
+                              type="text"
+                              value={confirmationAdminCandidateSearch}
+                              onChange={(event) => setConfirmationAdminCandidateSearch(event.target.value)}
+                              placeholder="Imię, nazwisko, adres, szkoła"
+                            />
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Wybierz kandydata</span>
+                            <select
+                              value={confirmationAdminSelectedCandidateId ?? ''}
+                              onChange={(event) => setConfirmationAdminSelectedCandidateId(event.target.value || null)}
+                            >
+                              {filteredConfirmationCandidates.length === 0 ? (
+                                <option value="">Brak kandydatów dla tego filtra</option>
+                              ) : (
+                                filteredConfirmationCandidates.map((candidate) => (
+                                  <option key={`portal-candidate-${candidate.id}`} value={candidate.id}>
+                                    {candidate.name} {candidate.surname} • {candidate.schoolShort}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          </label>
+                        </div>
+                        {confirmationAdminPortalLoading ? <p className="muted">Ładowanie danych kandydata...</p> : null}
+                        {confirmationAdminPortalError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationAdminPortalError}</p>
+                        ) : null}
+                        {confirmationAdminPortalInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{confirmationAdminPortalInfo}</p>
+                        ) : null}
+                        {confirmationAdminPortalData ? (
+                          <>
+                            <div className="confirmation-candidate-links">
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() => void handleCopyConfirmationMeetingLink(confirmationAdminPortalData.candidate.portalToken)}
+                              >
+                                {confirmationCopiedMeetingToken === confirmationAdminPortalData.candidate.portalToken
+                                  ? 'Skopiowano link portalu'
+                                  : 'Kopiuj link portalu kandydata'}
+                              </button>
+                              {confirmationAdminPortalData.candidate.canInviteToSelectedSlot &&
+                              confirmationAdminPortalData.candidate.selectedSlotInviteCode ? (
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  onClick={() =>
+                                    void handleCopyConfirmationMeetingInviteLink(
+                                      confirmationAdminPortalData.candidate.selectedSlotInviteCode
+                                    )
+                                  }
+                                >
+                                  {confirmationCopiedInviteToken === confirmationAdminPortalData.candidate.selectedSlotInviteCode
+                                    ? 'Skopiowano kod zaproszenia'
+                                    : 'Kopiuj kod zaproszenia'}
+                                </button>
+                              ) : null}
+                            </div>
+                            <div className="admin-form-grid">
+                              <label>
+                                <span>Imię</span>
+                                <input
+                                  type="text"
+                                  value={confirmationAdminEditName}
+                                  onChange={(event) => setConfirmationAdminEditName(event.target.value)}
+                                />
+                              </label>
+                              <label>
+                                <span>Nazwisko</span>
+                                <input
+                                  type="text"
+                                  value={confirmationAdminEditSurname}
+                                  onChange={(event) => setConfirmationAdminEditSurname(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>Numery telefonów (linia po linii)</span>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminEditPhonesRaw}
+                                  onChange={(event) => setConfirmationAdminEditPhonesRaw(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>Adres</span>
+                                <textarea
+                                  rows={2}
+                                  value={confirmationAdminEditAddress}
+                                  onChange={(event) => setConfirmationAdminEditAddress(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>Szkoła (skrót)</span>
+                                <input
+                                  type="text"
+                                  value={confirmationAdminEditSchoolShort}
+                                  onChange={(event) => setConfirmationAdminEditSchoolShort(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full builder-option">
+                                <input
+                                  type="checkbox"
+                                  checked={confirmationAdminEditPaperConsentReceived}
+                                  onChange={(event) => setConfirmationAdminEditPaperConsentReceived(event.target.checked)}
+                                />
+                                <span>Oświadczenie papierowe rodzica dostarczone do księdza</span>
+                              </label>
+                            </div>
+                            <div className="builder-actions">
+                              <button
+                                type="button"
+                                className="parish-login"
+                                disabled={confirmationAdminSendingAction}
+                                onClick={() => void handleAdminUpdateCandidateData()}
+                              >
+                                {confirmationAdminSendingAction ? 'Zapisywanie...' : 'Zapisz dane kandydata'}
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost"
+                                disabled={confirmationAdminSendingAction}
+                                onClick={() => void handleAdminUpdateCandidatePaperConsent()}
+                              >
+                                {confirmationAdminSendingAction ? 'Zapisywanie...' : 'Zapisz status oświadczenia papierowego'}
+                              </button>
+                            </div>
+                            <div className="confirmation-portal-columns">
+                              <article className="confirmation-portal-card">
+                                <h4>Wyślij wiadomość do kandydata</h4>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminMessageDraft}
+                                  onChange={(event) => setConfirmationAdminMessageDraft(event.target.value)}
+                                />
+                                <button
+                                  type="button"
+                                  className="parish-login"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() => void handleAdminSendMessageToCandidate()}
+                                >
+                                  Wyślij wiadomość
+                                </button>
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje publiczne</h4>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminPublicNoteDraft}
+                                  onChange={(event) => setConfirmationAdminPublicNoteDraft(event.target.value)}
+                                />
+                                <button
+                                  type="button"
+                                  className="parish-login"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() => void handleAdminAddCandidateNote(true)}
+                                >
+                                  Dodaj adnotację publiczną
+                                </button>
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje prywatne</h4>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminPrivateNoteDraft}
+                                  onChange={(event) => setConfirmationAdminPrivateNoteDraft(event.target.value)}
+                                />
+                                <button
+                                  type="button"
+                                  className="parish-login"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() => void handleAdminAddCandidateNote(false)}
+                                >
+                                  Dodaj adnotację prywatną
+                                </button>
+                              </article>
+                            </div>
+                            <div className="confirmation-portal-columns">
+                              <article className="confirmation-portal-card">
+                                <h4>Historia wiadomości</h4>
+                                {confirmationAdminPortalData.messages.length === 0 ? (
+                                  <p className="muted">Brak wiadomości.</p>
+                                ) : (
+                                  <ul className="confirmation-portal-message-list">
+                                    {confirmationAdminPortalData.messages.map((message) => (
+                                      <li key={`admin-msg-${message.id}`}>
+                                        <strong>{message.senderType === 'admin' ? 'Admin' : 'Kandydat'}:</strong> {message.messageText}
+                                        <br />
+                                        <span className="muted">{new Date(message.createdUtc).toLocaleString('pl-PL')}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje publiczne (lista)</h4>
+                                {confirmationAdminPortalData.publicNotes.length === 0 ? (
+                                  <p className="muted">Brak publicznych adnotacji.</p>
+                                ) : (
+                                  <ul className="confirmation-portal-message-list">
+                                    {confirmationAdminPortalData.publicNotes.map((note) => (
+                                      <li key={`admin-public-note-${note.id}`}>
+                                        {note.noteText}
+                                        <br />
+                                        <span className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</span>
+                                        <br />
+                                        <button
+                                          type="button"
+                                          className="ghost"
+                                          onClick={() => handleAdminStartEditNote(note.id, note.noteText, note.isPublic)}
+                                        >
+                                          Edytuj
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje prywatne (lista)</h4>
+                                {confirmationAdminPortalData.privateNotes && confirmationAdminPortalData.privateNotes.length > 0 ? (
+                                  <ul className="confirmation-portal-message-list">
+                                    {confirmationAdminPortalData.privateNotes.map((note) => (
+                                      <li key={`admin-private-note-${note.id}`}>
+                                        {note.noteText}
+                                        <br />
+                                        <span className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</span>
+                                        <br />
+                                        <button
+                                          type="button"
+                                          className="ghost"
+                                          onClick={() => handleAdminStartEditNote(note.id, note.noteText, note.isPublic)}
+                                        >
+                                          Edytuj
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="muted">Brak prywatnych adnotacji.</p>
+                                )}
+                              </article>
+                            </div>
+                            {confirmationAdminEditingNoteId ? (
+                              <article className="confirmation-portal-card">
+                                <h4>Edycja adnotacji</h4>
+                                <label>
+                                  <span>Treść</span>
+                                  <textarea
+                                    rows={4}
+                                    value={confirmationAdminEditingNoteText}
+                                    onChange={(event) => setConfirmationAdminEditingNoteText(event.target.value)}
+                                  />
+                                </label>
+                                <label className="mass-require-intentions">
+                                  <input
+                                    type="checkbox"
+                                    checked={confirmationAdminEditingNoteIsPublic}
+                                    onChange={(event) => setConfirmationAdminEditingNoteIsPublic(event.target.checked)}
+                                  />
+                                  <span>Adnotacja publiczna (widoczna dla kandydata)</span>
+                                </label>
+                                <div className="builder-actions">
+                                  <button
+                                    type="button"
+                                    className="parish-login"
+                                    disabled={confirmationAdminSendingAction}
+                                    onClick={() => void handleAdminSaveEditedNote()}
+                                  >
+                                    Zapisz adnotację
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    onClick={() => {
+                                      setConfirmationAdminEditingNoteId(null);
+                                      setConfirmationAdminEditingNoteText('');
+                                    }}
+                                  >
+                                    Anuluj
+                                  </button>
+                                </div>
+                              </article>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
+                    )}
+                    {isAuthenticated && (
+                      <div className="parish-card confirmation-meetings-admin">
+                        <div className="section-header">
+                          <div>
+                            <p className="tag">Panel admina</p>
+                            <h3>Terminy spotkań kandydatów</h3>
+                          </div>
+                          <button type="button" className="ghost" onClick={() => void loadConfirmationMeetingSummary()}>
+                            Odśwież terminy
+                          </button>
+                        </div>
+                        <div className="admin-form-grid">
+                          <label>
+                            <span>Data i godzina</span>
+                            <input
+                              type="datetime-local"
+                              value={confirmationMeetingStartsLocal}
+                              onChange={(event) => setConfirmationMeetingStartsLocal(event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Czas trwania (min)</span>
+                            <input
+                              type="number"
+                              min={10}
+                              max={180}
+                              value={confirmationMeetingDuration}
+                              onChange={(event) => setConfirmationMeetingDuration(event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Pojemność slotu</span>
+                            <select
+                              value={confirmationMeetingCapacity}
+                              onChange={(event) => setConfirmationMeetingCapacity(event.target.value === '2' ? '2' : '3')}
+                            >
+                              <option value="2">2 osoby</option>
+                              <option value="3">3 osoby</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>Etap spotkania</span>
+                            <select
+                              value={confirmationMeetingStage}
+                              onChange={(event) =>
+                                setConfirmationMeetingStage(
+                                  event.target.value === 'year1-end' ? 'year1-end' : 'year1-start'
+                                )
+                              }
+                            >
+                              <option value="year1-start">Początek 1. roku</option>
+                              <option value="year1-end">Koniec 1. roku</option>
+                            </select>
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Opis slotu (opcjonalnie)</span>
+                            <input
+                              type="text"
+                              value={confirmationMeetingLabel}
+                              onChange={(event) => setConfirmationMeetingLabel(event.target.value)}
+                              placeholder="np. sala katechetyczna, grupa A"
+                            />
+                          </label>
+                        </div>
+                        <div className="builder-actions">
+                          <button
+                            type="button"
+                            className="parish-login"
+                            disabled={confirmationMeetingSaving}
+                            onClick={() => void handleCreateConfirmationMeetingSlot()}
+                          >
+                            {confirmationMeetingSaving ? 'Zapisywanie...' : 'Dodaj termin'}
+                          </button>
+                        </div>
+                        {confirmationMeetingError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationMeetingError}</p>
+                        ) : null}
+                        {confirmationMeetingInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{confirmationMeetingInfo}</p>
+                        ) : null}
+                        {confirmationMeetingLoading ? <p className="muted">Ładowanie slotów...</p> : null}
+                        {confirmationMeetingSummary ? (
+                          <>
+                            <p className="note">Kandydaci bez wybranego terminu: {confirmationMeetingSummary.unassignedCount}</p>
+                            {confirmationMeetingSummary.slots.length === 0 ? (
+                              <p className="muted">Brak zdefiniowanych terminów.</p>
+                            ) : (
+                              <div className="confirmation-meeting-slot-list admin">
+                                {confirmationMeetingSummary.slots.map((slot) => (
+                                  <article key={`admin-slot-${slot.id}`} className="confirmation-meeting-slot">
+                                    <p>
+                                      <strong>{new Date(slot.startsAtUtc).toLocaleString('pl-PL')}</strong>
+                                    </p>
+                                    <p className="note">
+                                      Czas: {slot.durationMinutes} min • Zajętość: {slot.reservedCount}/{slot.capacity}
+                                      {slot.label ? ` • ${slot.label}` : ''}
+                                    </p>
+                                    <label>
+                                      <span>Etap spotkania</span>
+                                      <select
+                                        value={slot.stage === 'year1-end' ? 'year1-end' : 'year1-start'}
+                                        disabled={confirmationMeetingSaving}
+                                        onChange={(event) =>
+                                          void handleUpdateConfirmationMeetingSlotStage(
+                                            slot.id,
+                                            event.target.value === 'year1-end' ? 'year1-end' : 'year1-start'
+                                          )
+                                        }
+                                      >
+                                        <option value="year1-start">Początek 1. roku</option>
+                                        <option value="year1-end">Koniec 1. roku</option>
+                                      </select>
+                                    </label>
+                                    {slot.candidates.length > 0 ? (
+                                      <ul className="confirmation-meeting-candidate-list confirmation-meeting-candidate-admin-list">
+                                        {slot.candidates.map((candidate) => (
+                                          <li key={`${slot.id}-${candidate.candidateId}`}>
+                                            <span>
+                                              {candidate.name} {candidate.surname}
+                                            </span>
+                                            <a
+                                              href={buildConfirmationAdminPortalCandidateHref(
+                                                candidate.candidateId,
+                                                candidate.name,
+                                                candidate.surname
+                                              )}
+                                              className="ghost"
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              onClick={(event) => {
+                                                if (
+                                                  event.metaKey ||
+                                                  event.ctrlKey ||
+                                                  event.shiftKey ||
+                                                  event.altKey ||
+                                                  event.button !== 0
+                                                ) {
+                                                  return;
+                                                }
+                                                event.preventDefault();
+                                                openConfirmationAdminPortalForCandidate(
+                                                  candidate.candidateId,
+                                                  candidate.name,
+                                                  candidate.surname
+                                                );
+                                              }}
+                                            >
+                                              Otwórz portal admina
+                                            </a>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p className="muted">Brak zapisanych kandydatów.</p>
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      disabled={confirmationMeetingSaving}
+                                      onClick={() => void handleDeleteConfirmationMeetingSlot(slot.id)}
+                                    >
+                                      Usuń termin
+                                    </button>
+                                  </article>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        ) : null}
+                      </div>
+                    )}
                   </>
                 )}
               </section>
