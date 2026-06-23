@@ -216,16 +216,22 @@ export function EventsPage(props: SharedEventPageProps) {
                   <article key={eventEntry.slug} className={`events-card events-card--${eventEntry.slug}`}>
                     <h3>{eventEntry.title}</h3>
                     <p>{eventEntry.summary}</p>
-                    <dl>
-                      <div>
-                        <dt>Data</dt>
-                        <dd>{eventEntry.date}</dd>
-                      </div>
-                      <div>
-                        <dt>Miejsce</dt>
-                        <dd>{eventEntry.location}</dd>
-                      </div>
-                    </dl>
+                    {(eventEntry.date || eventEntry.location) && (
+                      <dl>
+                        {eventEntry.date && (
+                          <div>
+                            <dt>Data</dt>
+                            <dd>{eventEntry.date}</dd>
+                          </div>
+                        )}
+                        {eventEntry.location && (
+                          <div>
+                            <dt>Miejsce</dt>
+                            <dd>{eventEntry.location}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    )}
                     <a className="cta" href={eventHref}>
                       {copy.events.openEvent}
                     </a>

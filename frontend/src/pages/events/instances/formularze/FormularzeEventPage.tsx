@@ -19,7 +19,7 @@ import {
   type FormSummary,
   type FormsAdminStatus
 } from '../../../../lib/api';
-import type { SharedEventPageProps } from '../../eventTypes';
+import type { EventDefinition, EventInnerPage, SharedEventPageProps } from '../../eventTypes';
 import '../../../../styles/formularze-event.css';
 
 type View =
@@ -43,7 +43,7 @@ function emptyQuestionEdit(): QuestionEditState {
 
 type ResponseViewMode = 'person' | 'question';
 
-export function FormularzeEventPage(props: SharedEventPageProps) {
+export function FormularzeEventPage(props: SharedEventPageProps & { event: EventDefinition; page: EventInnerPage }) {
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

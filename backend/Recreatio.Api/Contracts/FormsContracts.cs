@@ -58,9 +58,6 @@ public sealed record UpdateFormQuestionRequest(
     string[]? Options,
     bool IsRequired);
 
-public sealed record ReorderFormQuestionsRequest(
-    Guid[] QuestionIds);
-
 public sealed record FormAnswerInput(
     Guid QuestionId,
     string? TextValue,

@@ -2284,12 +2284,17 @@ namespace Recreatio.Api.Migrations
                 {
                     table.PrimaryKey("PK_FormAnswers", x => x.Id);
                     table.ForeignKey(
+                        name: "FK_FormAnswers_FormQuestions_QuestionId",
+                        column: x => x.QuestionId,
+                        principalSchema: "forms",
+                        principalTable: "FormQuestions",
+                        principalColumn: "Id");
+                    table.ForeignKey(
                         name: "FK_FormAnswers_FormResponses_ResponseId",
                         column: x => x.ResponseId,
                         principalSchema: "forms",
                         principalTable: "FormResponses",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
@@ -6279,10 +6284,6 @@ namespace Recreatio.Api.Migrations
                 schema: "forms");
 
             migrationBuilder.DropTable(
-                name: "FormQuestions",
-                schema: "forms");
-
-            migrationBuilder.DropTable(
                 name: "KeyEntryBindings");
 
             migrationBuilder.DropTable(
@@ -6479,6 +6480,10 @@ namespace Recreatio.Api.Migrations
 
             migrationBuilder.DropTable(
                 name: "CogitaLiveRevisionParticipants");
+
+            migrationBuilder.DropTable(
+                name: "FormQuestions",
+                schema: "forms");
 
             migrationBuilder.DropTable(
                 name: "FormResponses",

@@ -12,7 +12,7 @@ using Recreatio.Api.Data;
 namespace Recreatio.Api.Migrations
 {
     [DbContext(typeof(RecreatioDbContext))]
-    [Migration("20260621201834_AddFormsTables")]
+    [Migration("20260623220045_AddFormsTables")]
     partial class AddFormsTables
     {
         /// <inheritdoc />
@@ -8661,10 +8661,16 @@ namespace Recreatio.Api.Migrations
 
             modelBuilder.Entity("Recreatio.Api.Data.Forms.FormAnswer", b =>
                 {
+                    b.HasOne("Recreatio.Api.Data.Forms.FormQuestion", null)
+                        .WithMany()
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
                     b.HasOne("Recreatio.Api.Data.Forms.FormResponse", null)
                         .WithMany()
                         .HasForeignKey("ResponseId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
                 });
 

@@ -7426,7 +7426,7 @@ export type FormResponsesData = {
   responses: FormResponseRow[];
 };
 
-export type PublicFormData = {
+export type PublicFormResponse = {
   id: string;
   title: string;
   description: string | null;
@@ -7511,19 +7511,12 @@ export function deleteFormQuestion(formId: string, questionId: string) {
   );
 }
 
-export function reorderFormQuestions(formId: string, questionIds: string[]) {
-  return request<void>(`/forms/admin/${encodeURIComponent(formId)}/questions/reorder`, {
-    method: 'POST',
-    body: JSON.stringify({ questionIds })
-  });
-}
-
 export function getFormResponses(formId: string) {
   return request<FormResponsesData>(`/forms/admin/${encodeURIComponent(formId)}/responses`, { method: 'GET' });
 }
 
 export function getPublicForm(token: string) {
-  return request<PublicFormData>(`/forms/fill/${encodeURIComponent(token)}`, { method: 'GET' });
+  return request<PublicFormResponse>(`/forms/fill/${encodeURIComponent(token)}`, { method: 'GET' });
 }
 
 export function submitPublicForm(

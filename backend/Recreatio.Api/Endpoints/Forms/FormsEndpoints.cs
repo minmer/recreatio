@@ -382,30 +382,6 @@ public static class FormsEndpoints
             return Results.Ok();
         }).RequireAuthorization();
 
-        group.MapPost("/admin/{formId:guid}/questions/reorder", async (
-            Guid formId,
-            ReorderFormQuestionsRequest req,
-            HttpContext context,
-            RecreatioDbContext dbContext,
-            CancellationToken ct) =>
-        {
-            if (!await IsFormsAdminAsync(context, dbContext, ct))
-                return Results.Forbid();
-
-            var questions = await dbContext.FormQuestions
-                .Where(q => q.FormId == formId)
-                .ToListAsync(ct);
-
-            for (var i = 0; i < req.QuestionIds.Length; i++)
-            {
-                var q = questions.FirstOrDefault(x => x.Id == req.QuestionIds[i]);
-                if (q is not null) q.SortOrder = i;
-            }
-
-            await dbContext.SaveChangesAsync(ct);
-            return Results.Ok();
-        }).RequireAuthorization();
-
         group.MapGet("/admin/{formId:guid}/responses", async (
             Guid formId,
             HttpContext context,

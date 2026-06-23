@@ -1649,6 +1649,12 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
         modelBuilder.Entity<Data.Forms.FormAnswer>()
             .HasOne<Data.Forms.FormResponse>()
             .WithMany()
-            .HasForeignKey(x => x.ResponseId);
+            .HasForeignKey(x => x.ResponseId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Data.Forms.FormAnswer>()
+            .HasOne<Data.Forms.FormQuestion>()
+            .WithMany()
+            .HasForeignKey(x => x.QuestionId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

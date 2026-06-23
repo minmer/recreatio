@@ -3,7 +3,7 @@ import {
   ApiError,
   getPublicForm,
   submitPublicForm,
-  type PublicFormData,
+  type PublicFormResponse,
   type PublicFormAnswerInput
 } from '../../lib/api';
 import '../../styles/formularze-event.css';
@@ -15,7 +15,7 @@ type Props = {
 type AnswerMap = Record<string, { text: string; selectedOptions: Set<string> }>;
 
 export function PublicFormPage({ token }: Props) {
-  const [form, setForm] = useState<PublicFormData | null>(null);
+  const [form, setForm] = useState<PublicFormResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [answers, setAnswers] = useState<AnswerMap>({});
