@@ -8,9 +8,18 @@ import { Kal26EventPage } from './instances/kal26/Kal26EventPage';
 import { Edk26EventPage } from './instances/edk26/Edk26EventPage';
 import { LimanowaEventPage } from './instances/limanowa/LimanowaEventPage';
 import { TheaterProjectEventPage } from './instances/teatr26/TheaterProjectEventPage';
+import { FormularzeEventPage } from './instances/formularze/FormularzeEventPage';
 import '../../styles/events.css';
 
 const EVENTS: EventDefinition[] = [
+  {
+    slug: 'formularze',
+    title: 'Formularze',
+    summary: 'Twórz formularze z pytaniami i zbieraj odpowiedzi od uczestników przez link.',
+    date: '',
+    location: '',
+    pages: [{ slug: 'admin', title: 'Panel' }]
+  },
   {
     slug: 'limanowa',
     title: 'Gra o wolność',
@@ -117,7 +126,8 @@ const EVENT_PAGE_RENDERERS: Record<
   kal26: Kal26EventPage,
   edk26: Edk26EventPage,
   limanowa: LimanowaEventPage,
-  teatr26: TheaterProjectEventPage
+  teatr26: TheaterProjectEventPage,
+  formularze: FormularzeEventPage
 };
 
 export function EventsPage(props: SharedEventPageProps) {

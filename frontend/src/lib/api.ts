@@ -7367,3 +7367,172 @@ export function getPublicSharedCalendarGroup(code: string) {
     method: 'GET'
   });
 }
+
+// ─── Forms ───────────────────────────────────────────────────────────────────
+
+export type FormsAdminStatus = {
+  hasAdmin: boolean;
+  isCurrentUserAdmin: boolean;
+  adminDisplayName: string | null;
+};
+
+export type FormSummary = {
+  id: string;
+  title: string;
+  description: string | null;
+  isPublished: boolean;
+  fillToken: string;
+  questionCount: number;
+  responseCount: number;
+  createdUtc: string;
+};
+
+export type FormQuestion = {
+  id: string;
+  sortOrder: number;
+  text: string;
+  type: 'text' | 'multiselect' | 'scale';
+  options: string[] | null;
+  isRequired: boolean;
+};
+
+export type FormDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  isPublished: boolean;
+  fillToken: string;
+  questions: FormQuestion[];
+  createdUtc: string;
+};
+
+export type FormAnswerResponse = {
+  questionId: string;
+  textValue: string | null;
+  selectedOptions: string[] | null;
+};
+
+export type FormResponseRow = {
+  responseId: string;
+  respondentName: string | null;
+  submittedUtc: string;
+  answers: FormAnswerResponse[];
+};
+
+export type FormResponsesData = {
+  formId: string;
+  title: string;
+  questions: FormQuestion[];
+  responses: FormResponseRow[];
+};
+
+export type PublicFormData = {
+  id: string;
+  title: string;
+  description: string | null;
+  questions: FormQuestion[];
+};
+
+export type PublicFormAnswerInput = {
+  questionId: string;
+  textValue: string | null;
+  selectedOptions: string[] | null;
+};
+
+export function getFormsAdminStatus() {
+  return request<FormsAdminStatus>('/forms/admin/status', { method: 'GET' });
+}
+
+export function claimFormsAdmin() {
+  return request<{ claimed: boolean; alreadyOwner?: boolean }>('/forms/admin/claim', { method: 'POST' });
+}
+
+export function getFormsList() {
+  return request<FormSummary[]>('/forms/admin/list', { method: 'GET' });
+}
+
+export function getFormDetail(formId: string) {
+  return request<FormDetail>(`/forms/admin/${encodeURIComponent(formId)}`, { method: 'GET' });
+}
+
+export function createForm(title: string, description: string | null) {
+  return request<FormDetail>('/forms/admin/create', {
+    method: 'POST',
+    body: JSON.stringify({ title, description })
+  });
+}
+
+export function updateForm(formId: string, title: string, description: string | null) {
+  return request<void>(`/forms/admin/${encodeURIComponent(formId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ title, description })
+  });
+}
+
+export function deleteForm(formId: string) {
+  return request<void>(`/forms/admin/${encodeURIComponent(formId)}`, { method: 'DELETE' });
+}
+
+export function publishForm(formId: string) {
+  return request<{ isPublished: boolean }>(`/forms/admin/${encodeURIComponent(formId)}/publish`, { method: 'POST' });
+}
+
+export function createFormQuestion(
+  formId: string,
+  text: string,
+  type: string,
+  options: string[] | null,
+  isRequired: boolean
+) {
+  return request<FormQuestion>(`/forms/admin/${encodeURIComponent(formId)}/questions`, {
+    method: 'POST',
+    body: JSON.stringify({ text, type, options, isRequired })
+  });
+}
+
+export function updateFormQuestion(
+  formId: string,
+  questionId: string,
+  text: string,
+  type: string,
+  options: string[] | null,
+  isRequired: boolean
+) {
+  return request<void>(`/forms/admin/${encodeURIComponent(formId)}/questions/${encodeURIComponent(questionId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ text, type, options, isRequired })
+  });
+}
+
+export function deleteFormQuestion(formId: string, questionId: string) {
+  return request<void>(
+    `/forms/admin/${encodeURIComponent(formId)}/questions/${encodeURIComponent(questionId)}`,
+    { method: 'DELETE' }
+  );
+}
+
+export function reorderFormQuestions(formId: string, questionIds: string[]) {
+  return request<void>(`/forms/admin/${encodeURIComponent(formId)}/questions/reorder`, {
+    method: 'POST',
+    body: JSON.stringify({ questionIds })
+  });
+}
+
+export function getFormResponses(formId: string) {
+  return request<FormResponsesData>(`/forms/admin/${encodeURIComponent(formId)}/responses`, { method: 'GET' });
+}
+
+export function getPublicForm(token: string) {
+  return request<PublicFormData>(`/forms/fill/${encodeURIComponent(token)}`, { method: 'GET' });
+}
+
+export function submitPublicForm(
+  token: string,
+  respondentName: string | null,
+  answers: PublicFormAnswerInput[]
+) {
+  return request<{ submitted: boolean }>(`/forms/fill/${encodeURIComponent(token)}/submit`, {
+    method: 'POST',
+    body: JSON.stringify({ respondentName, answers })
+  });
+}

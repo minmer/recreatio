@@ -201,6 +201,10 @@ public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefi
     public DbSet<Data.Cg.CgTemplateGraph> CgTemplateGraphs => Set<Data.Cg.CgTemplateGraph>();
     public DbSet<Data.Cg.CgTemplateNode> CgTemplateNodes => Set<Data.Cg.CgTemplateNode>();
     public DbSet<Data.Cg.CgTemplateEdge> CgTemplateEdges => Set<Data.Cg.CgTemplateEdge>();
+    public DbSet<Data.Forms.Form> Forms => Set<Data.Forms.Form>();
+    public DbSet<Data.Forms.FormQuestion> FormQuestions => Set<Data.Forms.FormQuestion>();
+    public DbSet<Data.Forms.FormResponse> FormResponses => Set<Data.Forms.FormResponse>();
+    public DbSet<Data.Forms.FormAnswer> FormAnswers => Set<Data.Forms.FormAnswer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1618,5 +1622,33 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
             .IsUnique();
         modelBuilder.Entity<Data.Cg.CgTemplateEdge>()
             .HasIndex(x => x.GraphId);
+
+        modelBuilder.Entity<Data.Forms.Form>()
+            .HasIndex(x => x.FillToken)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Forms.FormQuestion>()
+            .HasIndex(x => new { x.FormId, x.SortOrder });
+        modelBuilder.Entity<Data.Forms.FormQuestion>()
+            .HasOne<Data.Forms.Form>()
+            .WithMany()
+            .HasForeignKey(x => x.FormId);
+
+        modelBuilder.Entity<Data.Forms.FormResponse>()
+            .HasIndex(x => new { x.FormId, x.SubmittedUtc });
+        modelBuilder.Entity<Data.Forms.FormResponse>()
+            .HasOne<Data.Forms.Form>()
+            .WithMany()
+            .HasForeignKey(x => x.FormId);
+
+        modelBuilder.Entity<Data.Forms.FormAnswer>()
+            .HasIndex(x => new { x.ResponseId, x.QuestionId })
+            .IsUnique();
+        modelBuilder.Entity<Data.Forms.FormAnswer>()
+            .HasIndex(x => x.QuestionId);
+        modelBuilder.Entity<Data.Forms.FormAnswer>()
+            .HasOne<Data.Forms.FormResponse>()
+            .WithMany()
+            .HasForeignKey(x => x.ResponseId);
     }
 }

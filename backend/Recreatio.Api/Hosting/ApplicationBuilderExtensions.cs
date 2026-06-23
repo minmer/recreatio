@@ -2,6 +2,7 @@ using Recreatio.Api.Endpoints;
 using Recreatio.Api.Endpoints.Cg;
 using Recreatio.Api.Endpoints.Cogita;
 using Recreatio.Api.Endpoints.Edk;
+using Recreatio.Api.Endpoints.Forms;
 using Recreatio.Api.Endpoints.Limanowa;
 using Recreatio.Api.Endpoints.Pilgrimage;
 
@@ -36,6 +37,7 @@ public static class ApplicationBuilderExtensions
         app.MapPilgrimageEndpoints();
         app.MapEdkEndpoints();
         app.MapLimanowaEndpoints();
+        app.MapFormsEndpoints();
 
         return app;
     }

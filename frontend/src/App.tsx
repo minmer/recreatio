@@ -73,6 +73,9 @@ const CogitaLibraryPage = lazy(() =>
   import('./pages/cogita/library/CogitaLibraryPage').then((module) => ({ default: module.CogitaLibraryPage }))
 );
 const CgApp = lazy(() => import('./pages/cg/CgApp').then((module) => ({ default: module.CgApp })));
+const PublicFormPage = lazy(() =>
+  import('./pages/form/PublicFormPage').then((module) => ({ default: module.PublicFormPage }))
+);
 
 const deviceInfo = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
 const languages = ['pl', 'en', 'de'] as const;
@@ -211,6 +214,8 @@ export default function App() {
     : undefined;
 const isCgPath = pathname === '/cg' || pathname.startsWith('/cg/');
 const isEventsPath = pathname === '/event' || pathname.startsWith('/event/');
+const isFormFillPath = pathname.startsWith('/form/') && pathSegments.length >= 2;
+const formFillToken = isFormFillPath ? pathSegments[1] : undefined;
   const isLegacyLimanowaPath = pathname === '/limanowa' || pathname.startsWith('/limanowa/');
   const isChatPath = pathname === '/chat' || pathname.startsWith('/chat/');
   const isCalendarPath = pathname === '/calendar' || pathname.startsWith('/calendar/');
@@ -654,6 +659,11 @@ else if (next === 'chat') navigate('/chat');
             language={language}
             onLanguageChange={setLanguage}
           />
+        </Suspense>
+      )}
+      {isFormFillPath && formFillToken && (
+        <Suspense fallback={lazyFallback}>
+          <PublicFormPage token={formFillToken} />
         </Suspense>
       )}
       {isChatInvitePath && chatInviteCode ? (
