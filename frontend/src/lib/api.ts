@@ -7462,6 +7462,17 @@ export function createForm(title: string, description: string | null) {
   });
 }
 
+export function importForm(
+  title: string,
+  description: string | null,
+  questions: { text: string; type: string; options: string[] | null; isRequired: boolean }[]
+) {
+  return request<FormDetail>('/forms/admin/import', {
+    method: 'POST',
+    body: JSON.stringify({ title, description, questions })
+  });
+}
+
 export function updateForm(formId: string, title: string, description: string | null) {
   return request<void>(`/forms/admin/${encodeURIComponent(formId)}`, {
     method: 'PUT',

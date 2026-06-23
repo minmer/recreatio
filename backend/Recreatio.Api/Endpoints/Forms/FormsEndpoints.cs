@@ -188,6 +188,71 @@ public static class FormsEndpoints
                 form.Id, form.Title, form.Description, form.IsPublished, form.FillToken, [], form.CreatedUtc));
         }).RequireAuthorization();
 
+        group.MapPost("/admin/import", async (
+            ImportFormRequest req,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            if (!await IsFormsAdminAsync(context, dbContext, ct))
+                return Results.Forbid();
+
+            if (string.IsNullOrWhiteSpace(req.Title))
+                return Results.BadRequest(new { error = "Title is required." });
+
+            if (req.Questions is { Count: > 0 })
+            {
+                foreach (var q in req.Questions)
+                {
+                    if (!AllowedQuestionTypes.Contains(q.Type))
+                        return Results.BadRequest(new { error = $"Invalid question type '{q.Type}'." });
+                    if (string.IsNullOrWhiteSpace(q.Text))
+                        return Results.BadRequest(new { error = "Question text is required." });
+                }
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var form = new Data.Forms.Form
+            {
+                Id = Guid.NewGuid(),
+                Title = req.Title.Trim(),
+                Description = string.IsNullOrWhiteSpace(req.Description) ? null : req.Description.Trim(),
+                IsPublished = false,
+                FillToken = GenerateFillToken(),
+                CreatedUtc = now,
+                UpdatedUtc = now
+            };
+            dbContext.Forms.Add(form);
+
+            var questions = new List<Data.Forms.FormQuestion>();
+            if (req.Questions is { Count: > 0 })
+            {
+                for (var i = 0; i < req.Questions.Count; i++)
+                {
+                    var q = req.Questions[i];
+                    var question = new Data.Forms.FormQuestion
+                    {
+                        Id = Guid.NewGuid(),
+                        FormId = form.Id,
+                        SortOrder = i,
+                        Text = q.Text.Trim(),
+                        Type = q.Type,
+                        OptionsJson = q.Options is { Length: > 0 } ? JsonSerializer.Serialize(q.Options) : null,
+                        IsRequired = q.IsRequired
+                    };
+                    dbContext.FormQuestions.Add(question);
+                    questions.Add(question);
+                }
+            }
+
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new FormDetailResponse(
+                form.Id, form.Title, form.Description, form.IsPublished, form.FillToken,
+                questions.Select(MapQuestion).ToList(),
+                form.CreatedUtc));
+        }).RequireAuthorization();
+
         group.MapGet("/admin/{formId:guid}", async (
             Guid formId,
             HttpContext context,

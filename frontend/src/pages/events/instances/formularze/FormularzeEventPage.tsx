@@ -10,6 +10,7 @@ import {
   getFormResponses,
   getFormsList,
   getFormsAdminStatus,
+  importForm,
   publishForm,
   updateForm,
   updateFormQuestion,
@@ -58,6 +59,12 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // JSON import
+  const [showImport, setShowImport] = useState(false);
+  const [importJson, setImportJson] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   // Responses navigation
   const [responseViewMode, setResponseViewMode] = useState<ResponseViewMode>('person');
@@ -157,6 +164,53 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
       setError('Nie udało się utworzyć formularza.');
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleImport() {
+    setImportError(null);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(importJson);
+    } catch {
+      setImportError('Nieprawidłowy JSON.');
+      return;
+    }
+    const obj = parsed as Record<string, unknown>;
+    const title = typeof obj.title === 'string' ? obj.title.trim() : '';
+    if (!title) { setImportError('Brak pola "title".'); return; }
+    const description = typeof obj.description === 'string' ? obj.description : null;
+    const raw = Array.isArray(obj.questions) ? obj.questions : [];
+    const questions: { text: string; type: string; options: string[] | null; isRequired: boolean }[] = [];
+    for (const q of raw) {
+      if (typeof q !== 'object' || q === null) { setImportError('Pytanie musi być obiektem.'); return; }
+      const qo = q as Record<string, unknown>;
+      const text = typeof qo.text === 'string' ? qo.text.trim() : '';
+      if (!text) { setImportError('Każde pytanie wymaga pola "text".'); return; }
+      const type = typeof qo.type === 'string' ? qo.type : 'text';
+      if (!['text', 'multiselect', 'scale'].includes(type)) {
+        setImportError(`Nieznany typ pytania: "${type}". Dozwolone: text, multiselect, scale.`);
+        return;
+      }
+      const options = Array.isArray(qo.options)
+        ? (qo.options as unknown[]).filter((o): o is string => typeof o === 'string')
+        : null;
+      const isRequired = qo.isRequired === true;
+      questions.push({ text, type, options: options?.length ? options : null, isRequired });
+    }
+    setImporting(true);
+    try {
+      const form = await importForm(title, description, questions);
+      setEditTitle(form.title);
+      setEditDesc(form.description ?? '');
+      setEditingQuestion(null);
+      setImportJson('');
+      setShowImport(false);
+      setView({ kind: 'editor', form });
+    } catch (e) {
+      setImportError(e instanceof ApiError ? e.message : 'Błąd importu.');
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -326,7 +380,60 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
                   Twórz formularze i wysyłaj linki do uczestników.
                 </div>
               </div>
+              <button
+                className="frm-btn ghost small"
+                onClick={() => { setShowImport((v) => !v); setImportError(null); }}
+              >
+                {showImport ? 'Anuluj import' : 'Importuj JSON'}
+              </button>
             </div>
+
+            {/* JSON import panel */}
+            {showImport && (
+              <div
+                style={{
+                  background: 'var(--frm-bg-card)',
+                  border: '1px solid var(--frm-accent)',
+                  borderRadius: 10,
+                  padding: '18px 20px',
+                  marginBottom: 24,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10
+                }}
+              >
+                <strong style={{ fontSize: '0.875rem' }}>Import z JSON</strong>
+                <div style={{ fontSize: '0.78rem', opacity: 0.7 }}>
+                  Format: {'{'}&#34;title&#34;: &#34;…&#34;, &#34;description&#34;: &#34;…&#34;, &#34;questions&#34;: [{'{'}&#34;text&#34;: &#34;…&#34;, &#34;type&#34;: &#34;text|multiselect|scale&#34;, &#34;options&#34;: [&#34;…&#34;], &#34;isRequired&#34;: false{'}'}]{'}'}
+                </div>
+                <textarea
+                  className="frm-textarea"
+                  rows={8}
+                  value={importJson}
+                  onChange={(e) => setImportJson(e.target.value)}
+                  placeholder='{"title": "Mój formularz", "questions": [{"text": "Pytanie 1", "type": "text", "isRequired": true}]}'
+                  style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
+                />
+                {importError && <div className="frm-status error">{importError}</div>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="frm-btn primary"
+                    type="button"
+                    onClick={() => void handleImport()}
+                    disabled={importing || !importJson.trim()}
+                  >
+                    {importing ? 'Importuję…' : 'Importuj'}
+                  </button>
+                  <button
+                    className="frm-btn ghost"
+                    type="button"
+                    onClick={() => { setShowImport(false); setImportJson(''); setImportError(null); }}
+                  >
+                    Anuluj
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Create new form */}
             <form

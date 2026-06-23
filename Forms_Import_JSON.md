@@ -1,0 +1,177 @@
+# Forms_Import_JSON.md
+
+## Overview
+
+The **Formularze** module allows an admin to import a fully prepared form — including all questions — by pasting a single JSON document. This is faster than building a form question by question through the UI, and makes it easy to prepare forms in a text editor or version-control them.
+
+The import is available in the admin panel under **Importuj JSON** on the forms list screen. After a successful import the form is created as a **draft** (not yet published) and the editor opens immediately so you can review and adjust before publishing.
+
+---
+
+## 1. Top-level structure
+
+```json
+{
+  "title": "string (required)",
+  "description": "string (optional)",
+  "questions": [ ...array of question objects... ]
+}
+```
+
+| Field | Type | Required | Max length | Notes |
+|---|---|---|---|---|
+| `title` | string | yes | 200 chars | Name of the form shown to respondents |
+| `description` | string | no | 800 chars | Subtitle / instructions shown below the title |
+| `questions` | array | no | — | Can be empty; questions can be added later in the editor |
+
+---
+
+## 2. Question object
+
+Each element of the `questions` array must be an object with the following fields:
+
+```json
+{
+  "text": "string (required)",
+  "type": "text | multiselect | scale",
+  "options": ["string", ...],
+  "isRequired": true | false
+}
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `text` | string | yes | The question label shown to the respondent. Max 600 chars. |
+| `type` | string | yes | One of the three supported types (see section 3). |
+| `options` | string array | only for `multiselect` | List of selectable answers. Ignored for `text` and `scale`. |
+| `isRequired` | boolean | no | Defaults to `false` if omitted. When `true` the respondent must answer before submitting. |
+
+Questions are created in the **order they appear** in the array. SortOrder is assigned 0, 1, 2, … automatically.
+
+---
+
+## 3. Question types
+
+### 3.1 `text` — free-text answer
+
+The respondent types an answer in a multi-line text box. Use this for open-ended questions.
+
+```json
+{
+  "text": "Co chciałbyś zmienić na następnej edycji?",
+  "type": "text",
+  "isRequired": false
+}
+```
+
+The `options` field is ignored when `type` is `text`.
+
+---
+
+### 3.2 `multiselect` — multiple choice (checkboxes)
+
+The respondent can tick any number of the provided options. The `options` array is **required** and must contain at least one non-empty string.
+
+```json
+{
+  "text": "Które warsztaty Cię interesują?",
+  "type": "multiselect",
+  "options": ["Muzyka liturgiczna", "Śpiew gregoriański", "Organy", "Dyrygowanie"],
+  "isRequired": true
+}
+```
+
+Constraints:
+- Each option is a plain string (no HTML).
+- Duplicate values in `options` are allowed but discouraged.
+- There is no upper limit on the number of options, but keep the list readable.
+
+---
+
+### 3.3 `scale` — numeric scale 1–5
+
+The respondent picks a single value from 1 (lowest) to 5 (highest) by clicking a button. Use this for satisfaction or agreement ratings.
+
+```json
+{
+  "text": "Oceń poziom organizacji wydarzenia (1 = bardzo słaby, 5 = doskonały)",
+  "type": "scale",
+  "isRequired": true
+}
+```
+
+The `options` field is ignored when `type` is `scale`.
+
+---
+
+## 4. Full example
+
+```json
+{
+  "title": "Ankieta po rekolekcjach 2026",
+  "description": "Twoje odpowiedzi są anonimowe i pomogą nam lepiej przygotować kolejną edycję.",
+  "questions": [
+    {
+      "text": "Skąd dowiedziałeś się o rekolekcjach?",
+      "type": "multiselect",
+      "options": ["Od znajomego", "Media społecznościowe", "Plakat / ogłoszenie", "Strona internetowa", "Inne"],
+      "isRequired": true
+    },
+    {
+      "text": "Oceń ogólną atmosferę rekolekcji (1 = bardzo słaba, 5 = doskonała)",
+      "type": "scale",
+      "isRequired": true
+    },
+    {
+      "text": "Oceń poziom konferencji (1 = bardzo słaby, 5 = doskonały)",
+      "type": "scale",
+      "isRequired": true
+    },
+    {
+      "text": "Oceń organizację logistyczną (noclegi, posiłki, harmonogram)",
+      "type": "scale",
+      "isRequired": false
+    },
+    {
+      "text": "Które elementy programu były dla Ciebie najcenniejsze?",
+      "type": "multiselect",
+      "options": ["Konferencje", "Adoracja", "Msza Święta", "Czas wolny", "Praca w grupach", "Warsztaty"],
+      "isRequired": false
+    },
+    {
+      "text": "Co chciałbyś zmienić lub dodać na kolejnej edycji?",
+      "type": "text",
+      "isRequired": false
+    },
+    {
+      "text": "Czy poleciłbyś te rekolekcje znajomemu?",
+      "type": "scale",
+      "isRequired": true
+    }
+  ]
+}
+```
+
+---
+
+## 5. Validation rules
+
+The following checks are performed before the form is created. If any check fails the import is rejected with an error message.
+
+| Rule | Detail |
+|---|---|
+| `title` must be present | An empty or whitespace-only title is rejected. |
+| `type` must be valid | Any value other than `text`, `multiselect`, or `scale` causes an error. |
+| `text` must be present on every question | An empty or whitespace-only question text is rejected. |
+| `options` for `multiselect` | The backend stores whatever strings are provided; empty strings in the array are silently ignored. |
+
+Client-side validation (in the browser) mirrors these rules and gives immediate feedback before the request is sent to the server.
+
+---
+
+## 6. After import
+
+- The form is created as a **draft** (`isPublished: false`). Respondents cannot fill it until it is published.
+- A unique **fill token** is generated automatically. The shareable link is displayed in the editor.
+- All questions can be edited, reordered, or deleted in the editor before publishing.
+- To publish, click **Opublikuj** in the editor header.

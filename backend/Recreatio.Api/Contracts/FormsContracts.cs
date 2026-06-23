@@ -58,6 +58,17 @@ public sealed record UpdateFormQuestionRequest(
     string[]? Options,
     bool IsRequired);
 
+public sealed record ImportFormQuestionItem(
+    string Text,
+    string Type,
+    string[]? Options,
+    bool IsRequired);
+
+public sealed record ImportFormRequest(
+    string Title,
+    string? Description,
+    IReadOnlyList<ImportFormQuestionItem> Questions);
+
 public sealed record FormAnswerInput(
     Guid QuestionId,
     string? TextValue,
