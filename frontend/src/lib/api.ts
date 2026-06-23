@@ -7394,6 +7394,8 @@ export type FormQuestion = {
   type: 'text' | 'multiselect' | 'scale';
   options: string[] | null;
   isRequired: boolean;
+  conditionQuestionId: string | null;
+  conditionValue: string | null;
 };
 
 export type FormDetail = {
@@ -7465,7 +7467,14 @@ export function createForm(title: string, description: string | null) {
 export function importForm(
   title: string,
   description: string | null,
-  questions: { text: string; type: string; options: string[] | null; isRequired: boolean }[]
+  questions: {
+    text: string;
+    type: string;
+    options: string[] | null;
+    isRequired: boolean;
+    conditionQuestionIndex: number | null;
+    conditionValue: string | null;
+  }[]
 ) {
   return request<FormDetail>('/forms/admin/import', {
     method: 'POST',
@@ -7493,11 +7502,13 @@ export function createFormQuestion(
   text: string,
   type: string,
   options: string[] | null,
-  isRequired: boolean
+  isRequired: boolean,
+  conditionQuestionId: string | null,
+  conditionValue: string | null
 ) {
   return request<FormQuestion>(`/forms/admin/${encodeURIComponent(formId)}/questions`, {
     method: 'POST',
-    body: JSON.stringify({ text, type, options, isRequired })
+    body: JSON.stringify({ text, type, options, isRequired, conditionQuestionId, conditionValue })
   });
 }
 
@@ -7507,11 +7518,13 @@ export function updateFormQuestion(
   text: string,
   type: string,
   options: string[] | null,
-  isRequired: boolean
+  isRequired: boolean,
+  conditionQuestionId: string | null,
+  conditionValue: string | null
 ) {
   return request<void>(`/forms/admin/${encodeURIComponent(formId)}/questions/${encodeURIComponent(questionId)}`, {
     method: 'PUT',
-    body: JSON.stringify({ text, type, options, isRequired })
+    body: JSON.stringify({ text, type, options, isRequired, conditionQuestionId, conditionValue })
   });
 }
 

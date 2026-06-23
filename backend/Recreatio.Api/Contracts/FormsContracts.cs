@@ -21,7 +21,9 @@ public sealed record FormQuestionResponse(
     string Text,
     string Type,
     string[]? Options,
-    bool IsRequired);
+    bool IsRequired,
+    Guid? ConditionQuestionId,
+    string? ConditionValue);
 
 public sealed record FormDetailResponse(
     Guid Id,
@@ -50,19 +52,25 @@ public sealed record CreateFormQuestionRequest(
     string Text,
     string Type,
     string[]? Options,
-    bool IsRequired);
+    bool IsRequired,
+    Guid? ConditionQuestionId,
+    string? ConditionValue);
 
 public sealed record UpdateFormQuestionRequest(
     string Text,
     string Type,
     string[]? Options,
-    bool IsRequired);
+    bool IsRequired,
+    Guid? ConditionQuestionId,
+    string? ConditionValue);
 
 public sealed record ImportFormQuestionItem(
     string Text,
     string Type,
     string[]? Options,
-    bool IsRequired);
+    bool IsRequired,
+    int? ConditionQuestionIndex,
+    string? ConditionValue);
 
 public sealed record ImportFormRequest(
     string Title,

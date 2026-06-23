@@ -1656,5 +1656,10 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
             .WithMany()
             .HasForeignKey(x => x.QuestionId)
             .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Data.Forms.FormQuestion>()
+            .HasOne<Data.Forms.FormQuestion>()
+            .WithMany()
+            .HasForeignKey(x => x.ConditionQuestionId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

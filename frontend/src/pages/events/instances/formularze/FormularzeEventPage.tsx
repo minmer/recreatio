@@ -36,10 +36,12 @@ type QuestionEditState = {
   type: 'text' | 'multiselect' | 'scale';
   options: string[];
   isRequired: boolean;
+  conditionQuestionId: string | null;
+  conditionValue: string | null;
 };
 
 function emptyQuestionEdit(): QuestionEditState {
-  return { id: null, text: '', type: 'text', options: [''], isRequired: false };
+  return { id: null, text: '', type: 'text', options: [''], isRequired: false, conditionQuestionId: null, conditionValue: null };
 }
 
 type ResponseViewMode = 'person' | 'question';
@@ -181,8 +183,16 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
     if (!title) { setImportError('Brak pola "title".'); return; }
     const description = typeof obj.description === 'string' ? obj.description : null;
     const raw = Array.isArray(obj.questions) ? obj.questions : [];
-    const questions: { text: string; type: string; options: string[] | null; isRequired: boolean }[] = [];
-    for (const q of raw) {
+    const questions: {
+      text: string;
+      type: string;
+      options: string[] | null;
+      isRequired: boolean;
+      conditionQuestionIndex: number | null;
+      conditionValue: string | null;
+    }[] = [];
+    for (let qi = 0; qi < raw.length; qi++) {
+      const q = raw[qi];
       if (typeof q !== 'object' || q === null) { setImportError('Pytanie musi być obiektem.'); return; }
       const qo = q as Record<string, unknown>;
       const text = typeof qo.text === 'string' ? qo.text.trim() : '';
@@ -196,7 +206,23 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
         ? (qo.options as unknown[]).filter((o): o is string => typeof o === 'string')
         : null;
       const isRequired = qo.isRequired === true;
-      questions.push({ text, type, options: options?.length ? options : null, isRequired });
+      const conditionQuestionIndex = typeof qo.conditionQuestionIndex === 'number'
+        ? Math.floor(qo.conditionQuestionIndex) : null;
+      const conditionValue = typeof qo.conditionValue === 'string' ? qo.conditionValue : null;
+      if (conditionQuestionIndex !== null) {
+        if (conditionQuestionIndex < 0 || conditionQuestionIndex >= qi) {
+          setImportError(`Pytanie ${qi}: conditionQuestionIndex musi być < ${qi}.`);
+          return;
+        }
+        if (!conditionValue) {
+          setImportError(`Pytanie ${qi}: conditionValue jest wymagane gdy conditionQuestionIndex jest ustawiony.`);
+          return;
+        }
+      }
+      questions.push({
+        text, type, options: options?.length ? options : null, isRequired,
+        conditionQuestionIndex, conditionValue
+      });
     }
     setImporting(true);
     try {
@@ -257,17 +283,29 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
 
   async function handleSaveQuestion() {
     if (!editingQuestion || view.kind !== 'editor') return;
-    const { id, text, type, options, isRequired } = editingQuestion;
+    const { id, text, type, options, isRequired, conditionQuestionId, conditionValue } = editingQuestion;
     if (!text.trim()) return;
+    if (conditionQuestionId && !conditionValue) {
+      setError('Wybierz wartość warunku wyświetlenia.');
+      return;
+    }
     const filteredOptions = options.filter((o) => o.trim());
 
     setBusy(true);
     setError(null);
     try {
       if (id) {
-        await updateFormQuestion(view.form.id, id, text.trim(), type, filteredOptions.length ? filteredOptions : null, isRequired);
+        await updateFormQuestion(
+          view.form.id, id, text.trim(), type,
+          filteredOptions.length ? filteredOptions : null, isRequired,
+          conditionQuestionId, conditionValue
+        );
       } else {
-        await createFormQuestion(view.form.id, text.trim(), type, filteredOptions.length ? filteredOptions : null, isRequired);
+        await createFormQuestion(
+          view.form.id, text.trim(), type,
+          filteredOptions.length ? filteredOptions : null, isRequired,
+          conditionQuestionId, conditionValue
+        );
       }
       const updated = await getFormDetail(view.form.id);
       setView({ kind: 'editor', form: updated });
@@ -298,7 +336,9 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
       text: q.text,
       type: q.type,
       options: q.options?.length ? [...q.options] : [''],
-      isRequired: q.isRequired
+      isRequired: q.isRequired,
+      conditionQuestionId: q.conditionQuestionId,
+      conditionValue: q.conditionValue
     });
   }
 
@@ -404,14 +444,14 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
               >
                 <strong style={{ fontSize: '0.875rem' }}>Import z JSON</strong>
                 <div style={{ fontSize: '0.78rem', opacity: 0.7 }}>
-                  Format: {'{'}&#34;title&#34;: &#34;…&#34;, &#34;description&#34;: &#34;…&#34;, &#34;questions&#34;: [{'{'}&#34;text&#34;: &#34;…&#34;, &#34;type&#34;: &#34;text|multiselect|scale&#34;, &#34;options&#34;: [&#34;…&#34;], &#34;isRequired&#34;: false{'}'}]{'}'}
+                  Format: {'{'}&#34;title&#34;: &#34;…&#34;, &#34;questions&#34;: [{'{'}&#34;text&#34;: &#34;…&#34;, &#34;type&#34;: &#34;text|multiselect|scale&#34;, &#34;conditionQuestionIndex&#34;: null, &#34;conditionValue&#34;: null{'}'}]{'}'}
                 </div>
                 <textarea
                   className="frm-textarea"
                   rows={8}
                   value={importJson}
                   onChange={(e) => setImportJson(e.target.value)}
-                  placeholder='{"title": "Mój formularz", "questions": [{"text": "Pytanie 1", "type": "text", "isRequired": true}]}'
+                  placeholder='{"title": "Mój formularz", "questions": [{"text": "Pytanie 1", "type": "scale", "isRequired": true}, {"text": "Dlaczego?", "type": "text", "conditionQuestionIndex": 0, "conditionValue": "1"}]}'
                   style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
                 />
                 {importError && <div className="frm-status error">{importError}</div>}
@@ -612,58 +652,72 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
               </div>
 
               <div className="frm-questions">
-                {view.form.questions.map((q) => (
-                  <div
-                    key={q.id}
-                    className={`frm-question-card ${editingQuestion?.id === q.id ? 'editing' : ''}`}
-                  >
-                    <div className="frm-question-row">
-                      <div style={{ flex: 1 }}>
-                        <div className="frm-question-text">
-                          {q.text}
-                          {q.isRequired && (
-                            <span style={{ color: 'var(--frm-error)', marginLeft: 4 }}>*</span>
+                {view.form.questions.map((q) => {
+                  const condQ = q.conditionQuestionId
+                    ? view.form.questions.find((x) => x.id === q.conditionQuestionId)
+                    : null;
+                  return (
+                    <div
+                      key={q.id}
+                      className={`frm-question-card ${editingQuestion?.id === q.id ? 'editing' : ''}`}
+                    >
+                      <div className="frm-question-row">
+                        <div style={{ flex: 1 }}>
+                          <div className="frm-question-text">
+                            {q.text}
+                            {q.isRequired && (
+                              <span style={{ color: 'var(--frm-error)', marginLeft: 4 }}>*</span>
+                            )}
+                          </div>
+                          <span className="frm-question-type-badge">
+                            {q.type === 'text' ? 'Tekst' : q.type === 'multiselect' ? 'Wielokrotny wybór' : 'Skala 1–5'}
+                          </span>
+                          {q.options && q.options.length > 0 && (
+                            <div className="frm-question-opts">
+                              {q.options.map((o, i) => (
+                                <span key={i} className="frm-opt-chip">{o}</span>
+                              ))}
+                            </div>
+                          )}
+                          {condQ && q.conditionValue && (
+                            <div className="frm-condition-indicator">
+                              ↳ widoczne gdy:{' '}
+                              <em>{condQ.text.length > 50 ? condQ.text.substring(0, 50) + '…' : condQ.text}</em>
+                              {' '}={' '}
+                              <strong>„{q.conditionValue}"</strong>
+                            </div>
                           )}
                         </div>
-                        <span className="frm-question-type-badge">
-                          {q.type === 'text' ? 'Tekst' : q.type === 'multiselect' ? 'Wielokrotny wybór' : 'Skala 1–5'}
-                        </span>
-                        {q.options && q.options.length > 0 && (
-                          <div className="frm-question-opts">
-                            {q.options.map((o, i) => (
-                              <span key={i} className="frm-opt-chip">{o}</span>
-                            ))}
-                          </div>
-                        )}
+                        <div className="frm-question-actions">
+                          <button
+                            className="frm-btn ghost small"
+                            onClick={() => startEditQuestion(q)}
+                            disabled={!!editingQuestion}
+                          >
+                            Edytuj
+                          </button>
+                          <button
+                            className="frm-btn danger small"
+                            onClick={() => void handleDeleteQuestion(q.id)}
+                          >
+                            Usuń
+                          </button>
+                        </div>
                       </div>
-                      <div className="frm-question-actions">
-                        <button
-                          className="frm-btn ghost small"
-                          onClick={() => startEditQuestion(q)}
-                          disabled={!!editingQuestion}
-                        >
-                          Edytuj
-                        </button>
-                        <button
-                          className="frm-btn danger small"
-                          onClick={() => void handleDeleteQuestion(q.id)}
-                        >
-                          Usuń
-                        </button>
-                      </div>
-                    </div>
 
-                    {editingQuestion?.id === q.id && (
-                      <QuestionEditForm
-                        state={editingQuestion}
-                        onChange={setEditingQuestion}
-                        onSave={() => void handleSaveQuestion()}
-                        onCancel={() => setEditingQuestion(null)}
-                        busy={busy}
-                      />
-                    )}
-                  </div>
-                ))}
+                      {editingQuestion?.id === q.id && (
+                        <QuestionEditForm
+                          state={editingQuestion}
+                          onChange={setEditingQuestion}
+                          onSave={() => void handleSaveQuestion()}
+                          onCancel={() => setEditingQuestion(null)}
+                          busy={busy}
+                          precedingQuestions={view.form.questions.filter((x) => x.sortOrder < q.sortOrder)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
 
                 {/* New question form */}
                 {editingQuestion && editingQuestion.id === null && (
@@ -674,6 +728,7 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
                       onSave={() => void handleSaveQuestion()}
                       onCancel={() => setEditingQuestion(null)}
                       busy={busy}
+                      precedingQuestions={view.form.questions}
                     />
                   </div>
                 )}
@@ -706,9 +761,10 @@ type QuestionEditFormProps = {
   onSave: () => void;
   onCancel: () => void;
   busy: boolean;
+  precedingQuestions: FormQuestion[];
 };
 
-function QuestionEditForm({ state, onChange, onSave, onCancel, busy }: QuestionEditFormProps) {
+function QuestionEditForm({ state, onChange, onSave, onCancel, busy, precedingQuestions }: QuestionEditFormProps) {
   function set(patch: Partial<QuestionEditState>) {
     onChange({ ...state, ...patch });
   }
@@ -726,6 +782,14 @@ function QuestionEditForm({ state, onChange, onSave, onCancel, busy }: QuestionE
   function removeOption(i: number) {
     set({ options: state.options.filter((_, idx) => idx !== i) });
   }
+
+  const conditionCandidates = precedingQuestions.filter(
+    (q) => q.type === 'scale' || (q.type === 'multiselect' && q.options && q.options.length > 0)
+  );
+
+  const selectedCondQ = state.conditionQuestionId
+    ? precedingQuestions.find((q) => q.id === state.conditionQuestionId) ?? null
+    : null;
 
   return (
     <div className="frm-qedit">
@@ -789,6 +853,60 @@ function QuestionEditForm({ state, onChange, onSave, onCancel, busy }: QuestionE
               + Dodaj opcję
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Condition section — only shown when preceding scale/multiselect questions exist */}
+      {conditionCandidates.length > 0 && (
+        <div className="frm-condition-section">
+          <label className="frm-label">Warunek wyświetlenia (opcjonalnie)</label>
+          <select
+            className="frm-select"
+            value={state.conditionQuestionId ?? ''}
+            onChange={(e) =>
+              set({ conditionQuestionId: e.target.value || null, conditionValue: null })
+            }
+          >
+            <option value="">— zawsze widoczne —</option>
+            {conditionCandidates.map((q) => (
+              <option key={q.id} value={q.id}>
+                {q.text.length > 70 ? q.text.substring(0, 70) + '…' : q.text}
+              </option>
+            ))}
+          </select>
+
+          {selectedCondQ && (
+            <div style={{ marginTop: 8 }}>
+              <label className="frm-label">Pokaż gdy odpowiedź wynosi:</label>
+              {selectedCondQ.type === 'scale' && (
+                <div className="frm-scale-buttons" style={{ marginTop: 4 }}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      className={`frm-scale-btn ${state.conditionValue === String(n) ? 'selected' : ''}`}
+                      onClick={() => set({ conditionValue: String(n) })}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedCondQ.type === 'multiselect' && selectedCondQ.options && (
+                <select
+                  className="frm-select"
+                  style={{ marginTop: 4 }}
+                  value={state.conditionValue ?? ''}
+                  onChange={(e) => set({ conditionValue: e.target.value || null })}
+                >
+                  <option value="">— wybierz opcję —</option>
+                  {selectedCondQ.options.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
         </div>
       )}
 

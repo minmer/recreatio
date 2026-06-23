@@ -3,6 +3,7 @@ import {
   ApiError,
   getPublicForm,
   submitPublicForm,
+  type FormQuestion,
   type PublicFormResponse,
   type PublicFormAnswerInput
 } from '../../lib/api';
@@ -13,6 +14,24 @@ type Props = {
 };
 
 type AnswerMap = Record<string, { text: string; selectedOptions: Set<string> }>;
+
+function isQuestionVisible(
+  q: FormQuestion,
+  allQuestions: FormQuestion[],
+  answers: AnswerMap
+): boolean {
+  if (!q.conditionQuestionId || !q.conditionValue) return true;
+  const condQuestion = allQuestions.find((x) => x.id === q.conditionQuestionId);
+  if (!condQuestion) return false;
+  // Condition question must itself be visible (handles chained conditions)
+  if (!isQuestionVisible(condQuestion, allQuestions, answers)) return false;
+  const condAnswer = answers[q.conditionQuestionId];
+  if (!condAnswer) return false;
+  if (condQuestion.type === 'multiselect') {
+    return condAnswer.selectedOptions.has(q.conditionValue);
+  }
+  return condAnswer.text === q.conditionValue;
+}
 
 export function PublicFormPage({ token }: Props) {
   const [form, setForm] = useState<PublicFormResponse | null>(null);
@@ -80,7 +99,11 @@ export function PublicFormPage({ token }: Props) {
     e.preventDefault();
     if (!form) return;
 
-    for (const q of form.questions) {
+    const visibleQuestions = form.questions.filter((q) =>
+      isQuestionVisible(q, form.questions, answers)
+    );
+
+    for (const q of visibleQuestions) {
       if (!q.isRequired) continue;
       const a = answers[q.id];
       const hasAnswer =
@@ -96,15 +119,18 @@ export function PublicFormPage({ token }: Props) {
     setSubmitting(true);
     setError(null);
 
-    const payload: PublicFormAnswerInput[] = form.questions.map((q) => {
-      const a = answers[q.id];
-      return {
-        questionId: q.id,
-        textValue: q.type !== 'multiselect' ? (a?.text ?? null) || null : null,
-        selectedOptions:
-          q.type === 'multiselect' ? Array.from(a?.selectedOptions ?? []) : null
-      };
-    });
+    const visibleIds = new Set(visibleQuestions.map((q) => q.id));
+    const payload: PublicFormAnswerInput[] = form.questions
+      .filter((q) => visibleIds.has(q.id))
+      .map((q) => {
+        const a = answers[q.id];
+        return {
+          questionId: q.id,
+          textValue: q.type !== 'multiselect' ? (a?.text ?? null) || null : null,
+          selectedOptions:
+            q.type === 'multiselect' ? Array.from(a?.selectedOptions ?? []) : null
+        };
+      });
 
     try {
       await submitPublicForm(token, respondentName.trim() || null, payload);
@@ -172,6 +198,8 @@ export function PublicFormPage({ token }: Props) {
         {error && <div className="frm-status error">{error}</div>}
 
         {form.questions.map((q) => {
+          const visible = isQuestionVisible(q, form.questions, answers);
+          if (!visible) return null;
           const answer = answers[q.id];
           return (
             <div key={q.id} className="frm-public-question">

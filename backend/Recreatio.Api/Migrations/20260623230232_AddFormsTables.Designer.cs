@@ -12,7 +12,7 @@ using Recreatio.Api.Data;
 namespace Recreatio.Api.Migrations
 {
     [DbContext(typeof(RecreatioDbContext))]
-    [Migration("20260623220045_AddFormsTables")]
+    [Migration("20260623230232_AddFormsTables")]
     partial class AddFormsTables
     {
         /// <inheritdoc />
@@ -5226,6 +5226,13 @@ namespace Recreatio.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("ConditionQuestionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConditionValue")
+                        .HasMaxLength(600)
+                        .HasColumnType("nvarchar(600)");
+
                     b.Property<Guid>("FormId")
                         .HasColumnType("uniqueidentifier");
 
@@ -5249,6 +5256,8 @@ namespace Recreatio.Api.Migrations
                         .HasColumnType("nvarchar(16)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ConditionQuestionId");
 
                     b.HasIndex("FormId", "SortOrder");
 
@@ -8676,6 +8685,11 @@ namespace Recreatio.Api.Migrations
 
             modelBuilder.Entity("Recreatio.Api.Data.Forms.FormQuestion", b =>
                 {
+                    b.HasOne("Recreatio.Api.Data.Forms.FormQuestion", null)
+                        .WithMany()
+                        .HasForeignKey("ConditionQuestionId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("Recreatio.Api.Data.Forms.Form", null)
                         .WithMany()
                         .HasForeignKey("FormId")

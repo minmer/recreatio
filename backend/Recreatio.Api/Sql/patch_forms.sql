@@ -1,6 +1,7 @@
 -- Forms module
 -- Standalone form builder: admin creates forms, shares a fill link, views responses.
 -- Adds the [forms] schema and all four tables to an existing database.
+-- Also handles the conditional questions columns added after initial release.
 
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'forms')
 BEGIN
@@ -28,14 +29,17 @@ IF OBJECT_ID(N'forms.FormQuestions', N'U') IS NULL
 BEGIN
     CREATE TABLE forms.FormQuestions
     (
-        Id          UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_FormQuestions PRIMARY KEY,
-        FormId      UNIQUEIDENTIFIER NOT NULL,
-        SortOrder   INT              NOT NULL,
-        Text        NVARCHAR(600)    NOT NULL,
-        Type        NVARCHAR(16)     NOT NULL,   -- text | multiselect | scale
-        OptionsJson NVARCHAR(MAX)    NULL,        -- JSON array of strings; only for multiselect
-        IsRequired  BIT              NOT NULL,
-        CONSTRAINT FK_FormQuestions_Form FOREIGN KEY (FormId) REFERENCES forms.Forms(Id)
+        Id                  UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_FormQuestions PRIMARY KEY,
+        FormId              UNIQUEIDENTIFIER NOT NULL,
+        SortOrder           INT              NOT NULL,
+        Text                NVARCHAR(600)    NOT NULL,
+        Type                NVARCHAR(16)     NOT NULL,   -- text | multiselect | scale
+        OptionsJson         NVARCHAR(MAX)    NULL,        -- JSON array of strings; only for multiselect
+        IsRequired          BIT              NOT NULL,
+        ConditionQuestionId UNIQUEIDENTIFIER NULL,        -- FK to self; question shown only if condition is met
+        ConditionValue      NVARCHAR(600)    NULL,        -- value to match against the condition question's answer
+        CONSTRAINT FK_FormQuestions_Form FOREIGN KEY (FormId) REFERENCES forms.Forms(Id),
+        CONSTRAINT FK_FormQuestions_Condition FOREIGN KEY (ConditionQuestionId) REFERENCES forms.FormQuestions(Id)
     );
 END
 GO
@@ -47,6 +51,16 @@ IF NOT EXISTS (
 )
 BEGIN
     CREATE INDEX IX_FormQuestions_FormId_SortOrder ON forms.FormQuestions(FormId, SortOrder);
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_FormQuestions_ConditionQuestionId'
+      AND object_id = OBJECT_ID('forms.FormQuestions')
+)
+BEGIN
+    CREATE INDEX IX_FormQuestions_ConditionQuestionId ON forms.FormQuestions(ConditionQuestionId);
 END
 GO
 
@@ -96,5 +110,38 @@ IF NOT EXISTS (
 )
 BEGIN
     CREATE INDEX IX_FormAnswers_QuestionId ON forms.FormAnswers(QuestionId);
+END
+GO
+
+-- ─── Conditional questions columns (idempotent ALTER for existing databases) ──
+
+IF COL_LENGTH('forms.FormQuestions', 'ConditionQuestionId') IS NULL
+BEGIN
+    ALTER TABLE forms.FormQuestions ADD ConditionQuestionId UNIQUEIDENTIFIER NULL;
+END
+GO
+
+IF COL_LENGTH('forms.FormQuestions', 'ConditionValue') IS NULL
+BEGIN
+    ALTER TABLE forms.FormQuestions ADD ConditionValue NVARCHAR(600) NULL;
+END
+GO
+
+IF OBJECT_ID(N'forms.FK_FormQuestions_Condition', N'F') IS NULL
+  AND COL_LENGTH('forms.FormQuestions', 'ConditionQuestionId') IS NOT NULL
+BEGIN
+    ALTER TABLE forms.FormQuestions
+        ADD CONSTRAINT FK_FormQuestions_Condition
+        FOREIGN KEY (ConditionQuestionId) REFERENCES forms.FormQuestions(Id);
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_FormQuestions_ConditionQuestionId'
+      AND object_id = OBJECT_ID('forms.FormQuestions')
+)
+BEGIN
+    CREATE INDEX IX_FormQuestions_ConditionQuestionId ON forms.FormQuestions(ConditionQuestionId);
 END
 GO

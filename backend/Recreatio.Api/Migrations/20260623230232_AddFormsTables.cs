@@ -1974,11 +1974,19 @@ namespace Recreatio.Api.Migrations
                     Text = table.Column<string>(type: "nvarchar(600)", maxLength: 600, nullable: false),
                     Type = table.Column<string>(type: "nvarchar(16)", maxLength: 16, nullable: false),
                     OptionsJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    IsRequired = table.Column<bool>(type: "bit", nullable: false)
+                    IsRequired = table.Column<bool>(type: "bit", nullable: false),
+                    ConditionQuestionId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ConditionValue = table.Column<string>(type: "nvarchar(600)", maxLength: 600, nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_FormQuestions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_FormQuestions_FormQuestions_ConditionQuestionId",
+                        column: x => x.ConditionQuestionId,
+                        principalSchema: "forms",
+                        principalTable: "FormQuestions",
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_FormQuestions_Forms_FormId",
                         column: x => x.FormId,
@@ -5511,6 +5519,12 @@ namespace Recreatio.Api.Migrations
                 table: "FormAnswers",
                 columns: new[] { "ResponseId", "QuestionId" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_FormQuestions_ConditionQuestionId",
+                schema: "forms",
+                table: "FormQuestions",
+                column: "ConditionQuestionId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_FormQuestions_FormId_SortOrder",

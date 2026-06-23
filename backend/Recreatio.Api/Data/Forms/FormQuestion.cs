@@ -22,4 +22,9 @@ public sealed class FormQuestion
     public string? OptionsJson { get; set; }
 
     public bool IsRequired { get; set; }
+
+    public Guid? ConditionQuestionId { get; set; }
+
+    [MaxLength(600)]
+    public string? ConditionValue { get; set; }
 }

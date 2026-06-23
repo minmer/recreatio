@@ -35,7 +35,9 @@ Each element of the `questions` array must be an object with the following field
   "text": "string (required)",
   "type": "text | multiselect | scale",
   "options": ["string", ...],
-  "isRequired": true | false
+  "isRequired": true | false,
+  "conditionQuestionIndex": null | integer,
+  "conditionValue": null | "string"
 }
 ```
 
@@ -45,6 +47,8 @@ Each element of the `questions` array must be an object with the following field
 | `type` | string | yes | One of the three supported types (see section 3). |
 | `options` | string array | only for `multiselect` | List of selectable answers. Ignored for `text` and `scale`. |
 | `isRequired` | boolean | no | Defaults to `false` if omitted. When `true` the respondent must answer before submitting. |
+| `conditionQuestionIndex` | integer or null | no | 0-based index of a **preceding** question in this array. When set, this question is only shown if that question has the answer specified in `conditionValue`. |
+| `conditionValue` | string or null | required when index set | The expected answer value. For `scale` questions use a string like `"3"`; for `multiselect` use one of the option strings. |
 
 Questions are created in the **order they appear** in the array. SortOrder is assigned 0, 1, 2, … automatically.
 
@@ -64,7 +68,7 @@ The respondent types an answer in a multi-line text box. Use this for open-ended
 }
 ```
 
-The `options` field is ignored when `type` is `text`.
+The `options` field is ignored when `type` is `text`. Text questions **cannot** be used as a condition source for other questions (only `scale` and `multiselect` can).
 
 ---
 
@@ -104,7 +108,45 @@ The `options` field is ignored when `type` is `scale`.
 
 ---
 
-## 4. Full example
+## 4. Conditional questions
+
+A question can be made **conditional** — shown only when a preceding question has a specific answer.
+
+Set `conditionQuestionIndex` to the 0-based array index of the trigger question, and `conditionValue` to the expected answer:
+
+- For a `scale` trigger: `conditionValue` is a string like `"1"`, `"2"`, … `"5"`.
+- For a `multiselect` trigger: `conditionValue` is one of the option strings (exact match).
+
+**Rules:**
+- `conditionQuestionIndex` must be less than the current question's index (can only reference preceding questions).
+- If `conditionQuestionIndex` is set, `conditionValue` is required.
+- Only `scale` and `multiselect` questions can be used as triggers.
+- Conditions can be chained: if Q3 depends on Q2 and Q2 is hidden, Q3 is also hidden.
+
+**Example — follow-up on a low rating:**
+
+```json
+[
+  {
+    "text": "Oceń organizację logistyczną (1 = bardzo słaba, 5 = doskonała)",
+    "type": "scale",
+    "isRequired": true
+  },
+  {
+    "text": "Co poszło nie tak z organizacją?",
+    "type": "text",
+    "isRequired": false,
+    "conditionQuestionIndex": 0,
+    "conditionValue": "1"
+  }
+]
+```
+
+The second question only appears when the respondent selected 1 on the scale.
+
+---
+
+## 5. Full example
 
 ```json
 {
@@ -121,6 +163,13 @@ The `options` field is ignored when `type` is `scale`.
       "text": "Oceń ogólną atmosferę rekolekcji (1 = bardzo słaba, 5 = doskonała)",
       "type": "scale",
       "isRequired": true
+    },
+    {
+      "text": "Co sprawiło, że atmosfera była słaba?",
+      "type": "text",
+      "isRequired": false,
+      "conditionQuestionIndex": 1,
+      "conditionValue": "1"
     },
     {
       "text": "Oceń poziom konferencji (1 = bardzo słaby, 5 = doskonały)",
@@ -152,9 +201,11 @@ The `options` field is ignored when `type` is `scale`.
 }
 ```
 
+Questions 0, 1, 3, 4, 5, 6, 7 are always shown. Question 2 (follow-up on atmosphere) only appears when the respondent selects 1 for question 1.
+
 ---
 
-## 5. Validation rules
+## 6. Validation rules
 
 The following checks are performed before the form is created. If any check fails the import is rejected with an error message.
 
@@ -164,14 +215,17 @@ The following checks are performed before the form is created. If any check fail
 | `type` must be valid | Any value other than `text`, `multiselect`, or `scale` causes an error. |
 | `text` must be present on every question | An empty or whitespace-only question text is rejected. |
 | `options` for `multiselect` | The backend stores whatever strings are provided; empty strings in the array are silently ignored. |
+| `conditionQuestionIndex` range | Must be a non-negative integer less than the current question's index in the array. |
+| `conditionValue` when index is set | Must be a non-empty string. |
 
 Client-side validation (in the browser) mirrors these rules and gives immediate feedback before the request is sent to the server.
 
 ---
 
-## 6. After import
+## 7. After import
 
 - The form is created as a **draft** (`isPublished: false`). Respondents cannot fill it until it is published.
 - A unique **fill token** is generated automatically. The shareable link is displayed in the editor.
 - All questions can be edited, reordered, or deleted in the editor before publishing.
+- Conditions can be modified or removed in the question editor after import.
 - To publish, click **Opublikuj** in the editor header.

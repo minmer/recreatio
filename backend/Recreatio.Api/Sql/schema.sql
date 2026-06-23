@@ -5091,14 +5091,17 @@ IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'FormQuestions' AND schema_
 BEGIN
     CREATE TABLE forms.FormQuestions
     (
-        Id          UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-        FormId      UNIQUEIDENTIFIER NOT NULL,
-        SortOrder   INT              NOT NULL,
-        Text        NVARCHAR(600)    NOT NULL,
-        Type        NVARCHAR(16)     NOT NULL,   -- text | multiselect | scale
-        OptionsJson NVARCHAR(MAX)    NULL,        -- JSON array of strings; only for multiselect
-        IsRequired  BIT              NOT NULL,
-        CONSTRAINT FK_FormQuestions_Form FOREIGN KEY (FormId) REFERENCES forms.Forms(Id)
+        Id                  UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        FormId              UNIQUEIDENTIFIER NOT NULL,
+        SortOrder           INT              NOT NULL,
+        Text                NVARCHAR(600)    NOT NULL,
+        Type                NVARCHAR(16)     NOT NULL,   -- text | multiselect | scale
+        OptionsJson         NVARCHAR(MAX)    NULL,        -- JSON array of strings; only for multiselect
+        IsRequired          BIT              NOT NULL,
+        ConditionQuestionId UNIQUEIDENTIFIER NULL,        -- FK to self; question is shown only if condition is met
+        ConditionValue      NVARCHAR(600)    NULL,        -- value to match against the condition question's answer
+        CONSTRAINT FK_FormQuestions_Form FOREIGN KEY (FormId) REFERENCES forms.Forms(Id),
+        CONSTRAINT FK_FormQuestions_Condition FOREIGN KEY (ConditionQuestionId) REFERENCES forms.FormQuestions(Id)
     );
 END
 GO
@@ -5106,6 +5109,12 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_FormQuestions_FormId_SortOrder' AND object_id = OBJECT_ID('forms.FormQuestions'))
 BEGIN
     CREATE INDEX IX_FormQuestions_FormId_SortOrder ON forms.FormQuestions(FormId, SortOrder);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_FormQuestions_ConditionQuestionId' AND object_id = OBJECT_ID('forms.FormQuestions'))
+BEGIN
+    CREATE INDEX IX_FormQuestions_ConditionQuestionId ON forms.FormQuestions(ConditionQuestionId);
 END
 GO
 

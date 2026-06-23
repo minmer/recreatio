@@ -202,12 +202,21 @@ public static class FormsEndpoints
 
             if (req.Questions is { Count: > 0 })
             {
-                foreach (var q in req.Questions)
+                for (var i = 0; i < req.Questions.Count; i++)
                 {
+                    var q = req.Questions[i];
                     if (!AllowedQuestionTypes.Contains(q.Type))
                         return Results.BadRequest(new { error = $"Invalid question type '{q.Type}'." });
                     if (string.IsNullOrWhiteSpace(q.Text))
                         return Results.BadRequest(new { error = "Question text is required." });
+                    if (q.ConditionQuestionIndex.HasValue)
+                    {
+                        var condIdx = q.ConditionQuestionIndex.Value;
+                        if (condIdx < 0 || condIdx >= i)
+                            return Results.BadRequest(new { error = $"Question {i}: conditionQuestionIndex must reference a preceding question (0–{i - 1})." });
+                        if (string.IsNullOrWhiteSpace(q.ConditionValue))
+                            return Results.BadRequest(new { error = $"Question {i}: conditionValue is required when conditionQuestionIndex is set." });
+                    }
                 }
             }
 
@@ -224,13 +233,13 @@ public static class FormsEndpoints
             };
             dbContext.Forms.Add(form);
 
-            var questions = new List<Data.Forms.FormQuestion>();
+            var questionEntities = new List<Data.Forms.FormQuestion>();
             if (req.Questions is { Count: > 0 })
             {
                 for (var i = 0; i < req.Questions.Count; i++)
                 {
                     var q = req.Questions[i];
-                    var question = new Data.Forms.FormQuestion
+                    var entity = new Data.Forms.FormQuestion
                     {
                         Id = Guid.NewGuid(),
                         FormId = form.Id,
@@ -240,16 +249,30 @@ public static class FormsEndpoints
                         OptionsJson = q.Options is { Length: > 0 } ? JsonSerializer.Serialize(q.Options) : null,
                         IsRequired = q.IsRequired
                     };
-                    dbContext.FormQuestions.Add(question);
-                    questions.Add(question);
+                    questionEntities.Add(entity);
                 }
+
+                // Resolve condition references by index into actual GUIDs
+                for (var i = 0; i < req.Questions.Count; i++)
+                {
+                    var q = req.Questions[i];
+                    if (q.ConditionQuestionIndex is int condIdx && condIdx >= 0 && condIdx < i
+                        && !string.IsNullOrWhiteSpace(q.ConditionValue))
+                    {
+                        questionEntities[i].ConditionQuestionId = questionEntities[condIdx].Id;
+                        questionEntities[i].ConditionValue = q.ConditionValue.Trim();
+                    }
+                }
+
+                foreach (var entity in questionEntities)
+                    dbContext.FormQuestions.Add(entity);
             }
 
             await dbContext.SaveChangesAsync(ct);
 
             return Results.Ok(new FormDetailResponse(
                 form.Id, form.Title, form.Description, form.IsPublished, form.FillToken,
-                questions.Select(MapQuestion).ToList(),
+                questionEntities.Select(MapQuestion).ToList(),
                 form.CreatedUtc));
         }).RequireAuthorization();
 
@@ -313,10 +336,10 @@ public static class FormsEndpoints
             var form = await dbContext.Forms.FirstOrDefaultAsync(x => x.Id == formId, ct);
             if (form is null) return Results.NotFound();
 
-            var questionIds = await dbContext.FormQuestions
+            var questions = await dbContext.FormQuestions
                 .Where(q => q.FormId == formId)
-                .Select(q => q.Id)
                 .ToListAsync(ct);
+            var questionIds = questions.Select(q => q.Id).ToList();
 
             var answers = await dbContext.FormAnswers
                 .Where(a => questionIds.Contains(a.QuestionId))
@@ -328,11 +351,13 @@ public static class FormsEndpoints
                 .ToListAsync(ct);
             dbContext.FormResponses.RemoveRange(responses);
 
-            var questions = await dbContext.FormQuestions
-                .Where(q => q.FormId == formId)
-                .ToListAsync(ct);
-            dbContext.FormQuestions.RemoveRange(questions);
+            // Clear self-FK references so bulk question deletion succeeds
+            foreach (var q in questions.Where(q => q.ConditionQuestionId.HasValue))
+                q.ConditionQuestionId = null;
 
+            await dbContext.SaveChangesAsync(ct);
+
+            dbContext.FormQuestions.RemoveRange(questions);
             dbContext.Forms.Remove(form);
             await dbContext.SaveChangesAsync(ct);
 
@@ -374,6 +399,16 @@ public static class FormsEndpoints
             var formExists = await dbContext.Forms.AnyAsync(x => x.Id == formId, ct);
             if (!formExists) return Results.NotFound();
 
+            if (req.ConditionQuestionId.HasValue)
+            {
+                if (string.IsNullOrWhiteSpace(req.ConditionValue))
+                    return Results.BadRequest(new { error = "ConditionValue is required when ConditionQuestionId is set." });
+                var condExists = await dbContext.FormQuestions.AnyAsync(
+                    q => q.Id == req.ConditionQuestionId.Value && q.FormId == formId, ct);
+                if (!condExists)
+                    return Results.BadRequest(new { error = "Condition question not found in this form." });
+            }
+
             var maxOrder = await dbContext.FormQuestions
                 .Where(q => q.FormId == formId)
                 .Select(q => (int?)q.SortOrder)
@@ -387,7 +422,9 @@ public static class FormsEndpoints
                 Text = req.Text.Trim(),
                 Type = req.Type,
                 OptionsJson = req.Options is { Length: > 0 } ? JsonSerializer.Serialize(req.Options) : null,
-                IsRequired = req.IsRequired
+                IsRequired = req.IsRequired,
+                ConditionQuestionId = req.ConditionQuestionId,
+                ConditionValue = string.IsNullOrWhiteSpace(req.ConditionValue) ? null : req.ConditionValue.Trim()
             };
 
             dbContext.FormQuestions.Add(question);
@@ -414,10 +451,24 @@ public static class FormsEndpoints
                 .FirstOrDefaultAsync(q => q.Id == questionId && q.FormId == formId, ct);
             if (question is null) return Results.NotFound();
 
+            if (req.ConditionQuestionId.HasValue)
+            {
+                if (string.IsNullOrWhiteSpace(req.ConditionValue))
+                    return Results.BadRequest(new { error = "ConditionValue is required when ConditionQuestionId is set." });
+                if (req.ConditionQuestionId.Value == questionId)
+                    return Results.BadRequest(new { error = "A question cannot condition on itself." });
+                var condExists = await dbContext.FormQuestions.AnyAsync(
+                    q => q.Id == req.ConditionQuestionId.Value && q.FormId == formId, ct);
+                if (!condExists)
+                    return Results.BadRequest(new { error = "Condition question not found in this form." });
+            }
+
             question.Text = req.Text.Trim();
             question.Type = req.Type;
             question.OptionsJson = req.Options is { Length: > 0 } ? JsonSerializer.Serialize(req.Options) : null;
             question.IsRequired = req.IsRequired;
+            question.ConditionQuestionId = req.ConditionQuestionId;
+            question.ConditionValue = string.IsNullOrWhiteSpace(req.ConditionValue) ? null : req.ConditionValue.Trim();
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok();
@@ -436,6 +487,16 @@ public static class FormsEndpoints
             var question = await dbContext.FormQuestions
                 .FirstOrDefaultAsync(q => q.Id == questionId && q.FormId == formId, ct);
             if (question is null) return Results.NotFound();
+
+            // Clear conditions on other questions that reference this one
+            var dependents = await dbContext.FormQuestions
+                .Where(q => q.ConditionQuestionId == questionId)
+                .ToListAsync(ct);
+            foreach (var dep in dependents)
+            {
+                dep.ConditionQuestionId = null;
+                dep.ConditionValue = null;
+            }
 
             var answers = await dbContext.FormAnswers
                 .Where(a => a.QuestionId == questionId)
@@ -533,8 +594,25 @@ public static class FormsEndpoints
                 .Where(q => q.FormId == form.Id)
                 .ToListAsync(ct);
 
+            var answerMap = req.Answers
+                .GroupBy(a => a.QuestionId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            bool IsVisible(Data.Forms.FormQuestion q)
+            {
+                if (q.ConditionQuestionId is null || q.ConditionValue is null) return true;
+                var condQuestion = questions.FirstOrDefault(x => x.Id == q.ConditionQuestionId.Value);
+                if (condQuestion is null) return false;
+                if (!IsVisible(condQuestion)) return false;
+                if (!answerMap.TryGetValue(q.ConditionQuestionId.Value, out var condAnswer)) return false;
+                return condQuestion.Type == "multiselect"
+                    ? condAnswer.SelectedOptions is { Length: > 0 } && condAnswer.SelectedOptions.Contains(q.ConditionValue)
+                    : string.Equals(condAnswer.TextValue, q.ConditionValue, StringComparison.Ordinal);
+            }
+
             foreach (var q in questions.Where(q => q.IsRequired))
             {
+                if (!IsVisible(q)) continue;
                 var answer = req.Answers.FirstOrDefault(a => a.QuestionId == q.Id);
                 var hasValue = answer is not null
                     && (!string.IsNullOrWhiteSpace(answer.TextValue) || answer.SelectedOptions is { Length: > 0 });
@@ -556,6 +634,8 @@ public static class FormsEndpoints
             foreach (var answerInput in req.Answers)
             {
                 if (!validQuestionIds.Contains(answerInput.QuestionId)) continue;
+                var q = questions.FirstOrDefault(x => x.Id == answerInput.QuestionId);
+                if (q is null || !IsVisible(q)) continue;
 
                 dbContext.FormAnswers.Add(new Data.Forms.FormAnswer
                 {
@@ -577,7 +657,9 @@ public static class FormsEndpoints
     private static FormQuestionResponse MapQuestion(Data.Forms.FormQuestion q) =>
         new(q.Id, q.SortOrder, q.Text, q.Type,
             q.OptionsJson is not null ? JsonSerializer.Deserialize<string[]>(q.OptionsJson) : null,
-            q.IsRequired);
+            q.IsRequired,
+            q.ConditionQuestionId,
+            q.ConditionValue);
 
     private static string GenerateFillToken()
     {

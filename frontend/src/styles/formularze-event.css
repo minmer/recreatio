@@ -490,6 +490,27 @@
   gap: 8px;
 }
 
+.frm-condition-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed var(--frm-line);
+  border-radius: 8px;
+}
+
+.frm-condition-indicator {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--frm-text-soft);
+  font-style: normal;
+}
+
+.frm-condition-indicator em {
+  font-style: italic;
+}
+
 /* ── Responses viewer ───────────────────────────────────── */
 
 .frm-responses {
