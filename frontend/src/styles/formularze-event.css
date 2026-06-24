@@ -671,85 +671,7 @@
   font-size: 0.875rem;
 }
 
-/* ── Public fill page ───────────────────────────────────── */
-
-.frm-public-page {
-  min-height: 100svh;
-  background: var(--frm-bg);
-  color: var(--frm-text);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 48px 20px 80px;
-}
-
-.frm-public-card {
-  width: 100%;
-  max-width: 620px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.frm-public-header {
-  margin-bottom: 8px;
-}
-
-.frm-public-header h1 {
-  font-size: 1.6rem;
-  font-weight: 700;
-  margin: 0 0 8px;
-}
-
-.frm-public-header p {
-  font-size: 0.9rem;
-  color: var(--frm-text-soft);
-  line-height: 1.6;
-  margin: 0;
-}
-
-.frm-public-question {
-  background: var(--frm-bg-card);
-  border: 1px solid var(--frm-line);
-  border-radius: 10px;
-  padding: 20px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.frm-public-q-label {
-  font-size: 0.95rem;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.frm-public-q-label .required {
-  color: var(--frm-error);
-  margin-left: 2px;
-}
-
-.frm-public-checkboxes {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.frm-public-checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.875rem;
-  cursor: pointer;
-  user-select: none;
-}
-
-.frm-public-checkbox-label input[type='checkbox'] {
-  accent-color: var(--frm-accent);
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-}
+/* ── Scale buttons (shared: admin editor + public slide) ─── */
 
 .frm-scale-buttons {
   display: flex;
@@ -785,46 +707,248 @@
   color: var(--frm-accent);
 }
 
-.frm-public-name-section {
-  background: var(--frm-bg-card);
-  border: 1px solid var(--frm-line);
-  border-radius: 10px;
-  padding: 20px 22px;
-}
+/* ── Public slide form ───────────────────────────────────── */
 
-.frm-public-submit {
+.frm-slide-page {
+  min-height: 100svh;
+  background: var(--frm-bg);
+  color: var(--frm-text);
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
 }
 
-.frm-public-submit .frm-btn {
-  padding: 11px 28px;
-  font-size: 0.925rem;
+.frm-slide-page--centered {
+  align-items: center;
+  justify-content: center;
 }
 
+.frm-slide-progress-track {
+  height: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.frm-slide-progress-fill {
+  height: 100%;
+  background: var(--frm-accent);
+  transition: width 0.4s ease;
+}
+
+.frm-slide-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--frm-line);
+  flex-shrink: 0;
+}
+
+.frm-slide-form-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--frm-text-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.frm-slide-step-label {
+  font-size: 0.82rem;
+  color: var(--frm-text-soft);
+  white-space: nowrap;
+  margin-left: 20px;
+}
+
+.frm-slide-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  padding: 52px 28px 28px;
+}
+
+.frm-slide-card {
+  width: 100%;
+  max-width: 660px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.frm-slide-description {
+  font-size: 1.05rem;
+  color: var(--frm-text-soft);
+  line-height: 1.65;
+  margin: 0;
+}
+
+.frm-slide-question {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.frm-slide-q-text {
+  font-size: 1.65rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--frm-text);
+}
+
+.frm-slide-required {
+  color: var(--frm-error);
+}
+
+/* Textarea */
+.frm-slide-textarea {
+  font-size: 1.05rem;
+  min-height: 110px;
+  padding: 14px 16px;
+}
+
+/* Scale */
+.frm-slide-scale {
+  gap: 12px;
+}
+
+.frm-slide-scale .frm-scale-btn {
+  height: 58px;
+  font-size: 1.2rem;
+}
+
+/* Custom checkboxes */
+.frm-slide-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.frm-slide-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 1.05rem;
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+  padding: 12px 16px;
+  border-radius: 9px;
+  border: 1px solid var(--frm-line);
+  background: var(--frm-bg-card);
+  color: var(--frm-text);
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.frm-slide-checkbox-label:hover {
+  border-color: var(--frm-accent-border);
+}
+
+.frm-slide-checkbox-label:has(.frm-slide-checkbox:checked) {
+  border-color: var(--frm-accent-border);
+  background: var(--frm-accent-soft);
+}
+
+.frm-slide-checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+}
+
+.frm-slide-checkbox-box {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.07);
+  position: relative;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.frm-slide-checkbox:checked + .frm-slide-checkbox-box {
+  background: var(--frm-accent);
+  border-color: var(--frm-accent);
+}
+
+.frm-slide-checkbox:checked + .frm-slide-checkbox-box::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 7px;
+  height: 11px;
+  border: 2.5px solid #fff;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg);
+}
+
+/* Name input */
+.frm-slide-name-input {
+  font-size: 1.1rem;
+  padding: 14px 16px;
+  max-width: 420px;
+}
+
+/* Navigation */
+.frm-slide-nav-wrapper {
+  flex-shrink: 0;
+  border-top: 1px solid var(--frm-line);
+  display: flex;
+  justify-content: center;
+  padding: 16px 28px 28px;
+}
+
+.frm-slide-nav {
+  width: 100%;
+  max-width: 660px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.frm-btn.frm-slide-nav-btn {
+  padding: 13px 30px;
+  font-size: 1rem;
+}
+
+/* Thank-you screen */
 .frm-thankyou {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  min-height: 60svh;
   gap: 12px;
+  padding: 48px 24px;
 }
 
 .frm-thankyou-icon {
-  font-size: 3rem;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(111, 207, 151, 0.15);
+  border: 2px solid var(--frm-success);
+  color: var(--frm-success);
+  font-size: 1.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 8px;
 }
 
 .frm-thankyou h2 {
-  font-size: 1.4rem;
+  font-size: 1.6rem;
   font-weight: 700;
   margin: 0;
 }
 
 .frm-thankyou p {
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: var(--frm-text-soft);
   margin: 0;
   max-width: 360px;

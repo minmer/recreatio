@@ -54,16 +54,6 @@ BEGIN
 END
 GO
 
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_FormQuestions_ConditionQuestionId'
-      AND object_id = OBJECT_ID('forms.FormQuestions')
-)
-BEGIN
-    CREATE INDEX IX_FormQuestions_ConditionQuestionId ON forms.FormQuestions(ConditionQuestionId);
-END
-GO
-
 IF OBJECT_ID(N'forms.FormResponses', N'U') IS NULL
 BEGIN
     CREATE TABLE forms.FormResponses

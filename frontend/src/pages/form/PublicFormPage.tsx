@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ApiError,
   getPublicForm,
@@ -23,7 +23,6 @@ function isQuestionVisible(
   if (!q.conditionQuestionId || !q.conditionValue) return true;
   const condQuestion = allQuestions.find((x) => x.id === q.conditionQuestionId);
   if (!condQuestion) return false;
-  // Condition question must itself be visible (handles chained conditions)
   if (!isQuestionVisible(condQuestion, allQuestions, answers)) return false;
   const condAnswer = answers[q.conditionQuestionId];
   if (!condAnswer) return false;
@@ -39,6 +38,7 @@ export function PublicFormPage({ token }: Props) {
   const [notFound, setNotFound] = useState(false);
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [respondentName, setRespondentName] = useState('');
+  const [slideIndex, setSlideIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,11 +79,8 @@ export function PublicFormPage({ token }: Props) {
   function toggleOption(questionId: string, option: string) {
     setAnswers((prev) => {
       const current = new Set(prev[questionId]?.selectedOptions ?? []);
-      if (current.has(option)) {
-        current.delete(option);
-      } else {
-        current.add(option);
-      }
+      if (current.has(option)) current.delete(option);
+      else current.add(option);
       return { ...prev, [questionId]: { ...prev[questionId], selectedOptions: current } };
     });
   }
@@ -95,27 +92,41 @@ export function PublicFormPage({ token }: Props) {
     }));
   }
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!form) return;
+  // ── Derived slide state ──────────────────────────────────────────────────────
 
-    const visibleQuestions = form.questions.filter((q) =>
-      isQuestionVisible(q, form.questions, answers)
-    );
+  const visibleQuestions = form
+    ? form.questions.filter((q) => isQuestionVisible(q, form.questions, answers))
+    : [];
+  const totalSlides = visibleQuestions.length + 1; // last slide = name + submit
+  const safeIdx = Math.min(slideIndex, totalSlides - 1);
+  const isNameSlide = safeIdx >= visibleQuestions.length;
+  const currentQ = isNameSlide ? null : (visibleQuestions[safeIdx] ?? null);
+  const progress =
+    totalSlides > 1 ? Math.round((safeIdx / (totalSlides - 1)) * 100) : 100;
 
-    for (const q of visibleQuestions) {
-      if (!q.isRequired) continue;
-      const a = answers[q.id];
-      const hasAnswer =
-        (q.type === 'text' && a?.text.trim()) ||
-        (q.type === 'scale' && a?.text) ||
-        (q.type === 'multiselect' && (a?.selectedOptions.size ?? 0) > 0);
-      if (!hasAnswer) {
-        setError(`Pytanie "${q.text}" jest wymagane.`);
+  function handleNext() {
+    setError(null);
+    if (currentQ?.isRequired) {
+      const a = answers[currentQ.id];
+      const answered =
+        (currentQ.type === 'text' && !!a?.text.trim()) ||
+        (currentQ.type === 'scale' && !!a?.text) ||
+        (currentQ.type === 'multiselect' && (a?.selectedOptions.size ?? 0) > 0);
+      if (!answered) {
+        setError('To pytanie jest wymagane.');
         return;
       }
     }
+    setSlideIndex((prev) => prev + 1);
+  }
 
+  function handlePrev() {
+    setError(null);
+    setSlideIndex((prev) => Math.max(0, prev - 1));
+  }
+
+  async function handleSubmit() {
+    if (!form || submitting) return;
     setSubmitting(true);
     setError(null);
 
@@ -140,7 +151,7 @@ export function PublicFormPage({ token }: Props) {
         e instanceof ApiError
           ? (() => {
               try {
-                const parsed = JSON.parse(e.message);
+                const parsed = JSON.parse(e.message) as { error?: string };
                 return parsed.error ?? e.message;
               } catch {
                 return e.message;
@@ -153,9 +164,11 @@ export function PublicFormPage({ token }: Props) {
     }
   }
 
+  // ── Non-form states ──────────────────────────────────────────────────────────
+
   if (loading) {
     return (
-      <div className="frm-public-page">
+      <div className="frm-slide-page frm-slide-page--centered">
         <div className="frm-loading">Ładowanie formularza…</div>
       </div>
     );
@@ -163,11 +176,9 @@ export function PublicFormPage({ token }: Props) {
 
   if (notFound) {
     return (
-      <div className="frm-public-page">
-        <div className="frm-public-card">
-          <div className="frm-status error">
-            Formularz nie istnieje lub nie jest dostępny.
-          </div>
+      <div className="frm-slide-page frm-slide-page--centered">
+        <div className="frm-status error" style={{ maxWidth: 480 }}>
+          Formularz nie istnieje lub nie jest dostępny.
         </div>
       </div>
     );
@@ -175,7 +186,7 @@ export function PublicFormPage({ token }: Props) {
 
   if (submitted) {
     return (
-      <div className="frm-public-page">
+      <div className="frm-slide-page frm-slide-page--centered">
         <div className="frm-thankyou">
           <div className="frm-thankyou-icon">✓</div>
           <h2>Dziękujemy!</h2>
@@ -187,45 +198,67 @@ export function PublicFormPage({ token }: Props) {
 
   if (!form) return null;
 
+  // ── Slide form ───────────────────────────────────────────────────────────────
+
   return (
-    <div className="frm-public-page">
-      <form className="frm-public-card" onSubmit={(e) => void handleSubmit(e)}>
-        <div className="frm-public-header">
-          <h1>{form.title}</h1>
-          {form.description && <p>{form.description}</p>}
+    <div className="frm-slide-page">
+      {/* Progress bar */}
+      <div className="frm-slide-progress-track">
+        <div className="frm-slide-progress-fill" style={{ width: `${progress}%` }} />
+      </div>
+
+      {/* Topbar: form title + step counter */}
+      <div className="frm-slide-topbar">
+        <div className="frm-slide-form-title">{form.title}</div>
+        <div className="frm-slide-step-label">
+          {isNameSlide
+            ? 'Ostatni krok'
+            : `${safeIdx + 1} / ${visibleQuestions.length}`}
         </div>
+      </div>
 
-        {error && <div className="frm-status error">{error}</div>}
+      {/* Scrollable body */}
+      <div className="frm-slide-body">
+        <div className="frm-slide-card">
+          {error && <div className="frm-status error">{error}</div>}
 
-        {form.questions.map((q) => {
-          const visible = isQuestionVisible(q, form.questions, answers);
-          if (!visible) return null;
-          const answer = answers[q.id];
-          return (
-            <div key={q.id} className="frm-public-question">
-              <div className="frm-public-q-label">
-                {q.text}
-                {q.isRequired && <span className="required">*</span>}
+          {/* Description shown only on first slide */}
+          {safeIdx === 0 && form.description && (
+            <p className="frm-slide-description">{form.description}</p>
+          )}
+
+          {/* Current question */}
+          {currentQ && (
+            <div key={currentQ.id} className="frm-slide-question">
+              <div className="frm-slide-q-text">
+                {currentQ.text}
+                {currentQ.isRequired && (
+                  <span className="frm-slide-required"> *</span>
+                )}
               </div>
 
-              {q.type === 'text' && (
+              {currentQ.type === 'text' && (
                 <textarea
-                  className="frm-textarea"
-                  value={answer?.text ?? ''}
-                  onChange={(e) => setTextAnswer(q.id, e.target.value)}
-                  rows={3}
+                  key={currentQ.id}
+                  className="frm-textarea frm-slide-textarea"
+                  value={answers[currentQ.id]?.text ?? ''}
+                  onChange={(e) => setTextAnswer(currentQ.id, e.target.value)}
+                  rows={4}
                   placeholder="Twoja odpowiedź…"
+                  autoFocus
                 />
               )}
 
-              {q.type === 'scale' && (
-                <div className="frm-scale-buttons">
+              {currentQ.type === 'scale' && (
+                <div className="frm-scale-buttons frm-slide-scale">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button
                       key={n}
                       type="button"
-                      className={`frm-scale-btn ${answer?.text === String(n) ? 'selected' : ''}`}
-                      onClick={() => setScaleAnswer(q.id, n)}
+                      className={`frm-scale-btn ${
+                        answers[currentQ.id]?.text === String(n) ? 'selected' : ''
+                      }`}
+                      onClick={() => setScaleAnswer(currentQ.id, n)}
                     >
                       {n}
                     </button>
@@ -233,40 +266,82 @@ export function PublicFormPage({ token }: Props) {
                 </div>
               )}
 
-              {q.type === 'multiselect' && q.options && (
-                <div className="frm-public-checkboxes">
-                  {q.options.map((opt) => (
-                    <label key={opt} className="frm-public-checkbox-label">
+              {currentQ.type === 'multiselect' && currentQ.options && (
+                <div className="frm-slide-checkboxes">
+                  {currentQ.options.map((opt) => (
+                    <label key={opt} className="frm-slide-checkbox-label">
                       <input
                         type="checkbox"
-                        checked={answer?.selectedOptions.has(opt) ?? false}
-                        onChange={() => toggleOption(q.id, opt)}
+                        className="frm-slide-checkbox"
+                        checked={answers[currentQ.id]?.selectedOptions.has(opt) ?? false}
+                        onChange={() => toggleOption(currentQ.id, opt)}
                       />
+                      <span className="frm-slide-checkbox-box" />
                       {opt}
                     </label>
                   ))}
                 </div>
               )}
             </div>
-          );
-        })}
+          )}
 
-        <div className="frm-public-name-section">
-          <label className="frm-label">Twoje imię (opcjonalnie)</label>
-          <input
-            className="frm-input"
-            value={respondentName}
-            onChange={(e) => setRespondentName(e.target.value)}
-            placeholder="Imię i nazwisko"
-          />
+          {/* Name + submit slide */}
+          {isNameSlide && (
+            <div className="frm-slide-question">
+              <div className="frm-slide-q-text">
+                {visibleQuestions.length > 0
+                  ? 'Gotowe! Podaj swoje imię (opcjonalnie):'
+                  : 'Podaj swoje imię (opcjonalnie):'}
+              </div>
+              <input
+                className="frm-input frm-slide-name-input"
+                value={respondentName}
+                onChange={(e) => setRespondentName(e.target.value)}
+                placeholder="Imię i nazwisko"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleSubmit();
+                }}
+              />
+            </div>
+          )}
         </div>
+      </div>
 
-        <div className="frm-public-submit">
-          <button className="frm-btn primary" type="submit" disabled={submitting}>
-            {submitting ? 'Wysyłam…' : 'Wyślij odpowiedź'}
+      {/* Navigation */}
+      <div className="frm-slide-nav-wrapper">
+        <div className="frm-slide-nav">
+          <button
+            className="frm-btn ghost frm-slide-nav-btn"
+            type="button"
+            onClick={handlePrev}
+            style={{ visibility: safeIdx === 0 ? 'hidden' : 'visible' }}
+          >
+            ← Wróć
           </button>
+
+          {!isNameSlide && (
+            <button
+              className="frm-btn primary frm-slide-nav-btn"
+              type="button"
+              onClick={handleNext}
+            >
+              Dalej →
+            </button>
+          )}
+
+          {isNameSlide && (
+            <button
+              className="frm-btn primary frm-slide-nav-btn"
+              type="button"
+              onClick={() => void handleSubmit()}
+              disabled={submitting}
+            >
+              {submitting ? 'Wysyłam…' : 'Wyślij odpowiedź →'}
+            </button>
+          )}
         </div>
-      </form>
+      </div>
     </div>
   );
 }
