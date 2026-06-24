@@ -2399,6 +2399,53 @@
   font: inherit;
 }
 
+.confirmation-celebration-card.is-past {
+  opacity: 0.75;
+}
+
+.confirmation-celebration-card.is-past.is-answered {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  opacity: 1;
+}
+
+.confirmation-index-options {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 0;
+}
+
+.confirmation-index-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  padding: 10px 12px;
+  border: 1px solid var(--parish-line);
+  border-radius: 10px;
+  background: #f8fafc;
+  transition: background 0.1s;
+}
+
+.confirmation-index-option:has(input:checked) {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.confirmation-index-option input[type='checkbox'] {
+  margin-top: 2px;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.confirmation-index-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .confirmation-portal-standalone-tabs {
   display: grid;
   gap: 10px;

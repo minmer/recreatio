@@ -1382,6 +1382,7 @@ public static class ParishEndpoints
             var upcomingCelebrations = await LoadConfirmationUpcomingCelebrationsAsync(
                 parish.Id,
                 candidate.Id,
+                payload.UseInternetIndex,
                 dbContext,
                 ct);
             var upcomingEvents = await LoadConfirmationUpcomingEventsAsync(
@@ -1451,7 +1452,10 @@ public static class ParishEndpoints
                     canInviteToSelectedSlot ? selectedSlot?.HostInviteExpiresUtc : null,
                     secondCanInviteToSelectedSlot,
                     secondCanInviteToSelectedSlot ? secondSelectedSlot?.HostInviteToken : null,
-                    secondCanInviteToSelectedSlot ? secondSelectedSlot?.HostInviteExpiresUtc : null),
+                    secondCanInviteToSelectedSlot ? secondSelectedSlot?.HostInviteExpiresUtc : null,
+                    payload.Goal,
+                    payload.UseInternetIndex,
+                    payload.UsePaperIndex),
                 slots.Where(slot => slot.Stage == ConfirmationMeetingStageYear1Start).Select(slot =>
                 {
                     var reserved = reservedCounts.GetValueOrDefault(slot.Id);
@@ -1573,6 +1577,7 @@ public static class ParishEndpoints
             string slug,
             ParishConfirmationCelebrationCommentCreateRequest request,
             RecreatioDbContext dbContext,
+            IDataProtectionProvider dataProtectionProvider,
             ILedgerService ledgerService,
             CancellationToken ct) =>
         {
@@ -1602,6 +1607,13 @@ public static class ParishEndpoints
                 return Results.NotFound(new { status = "invalid-token" });
             }
 
+            var candidateForIndex = await dbContext.ParishConfirmationCandidates.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == link.CandidateId && x.ParishId == parish.Id, ct);
+            var candidatePayload = candidateForIndex is not null
+                ? TryUnprotectConfirmationPayload(candidateForIndex.PayloadEnc, CreateParishConfirmationProtector(dataProtectionProvider, parish.Id))
+                : null;
+            var useInternetIndex = candidatePayload?.UseInternetIndex ?? false;
+
             var celebration = await dbContext.ParishConfirmationCelebrations.AsNoTracking()
                 .FirstOrDefaultAsync(
                     x => x.Id == request.CelebrationId && x.ParishId == parish.Id && x.IsActive,
@@ -1612,17 +1624,20 @@ public static class ParishEndpoints
             }
 
             var now = DateTimeOffset.UtcNow;
-            var windowEnd = now.AddDays(ConfirmationCelebrationUpcomingDays);
-            var pastWindowStart = now.AddDays(-ConfirmationCelebrationCommentEditGraceDays);
-            if (celebration.EndsAtUtc < pastWindowStart || celebration.StartsAtUtc > windowEnd)
+            if (!useInternetIndex)
             {
-                return Results.BadRequest(new { error = "Celebration is outside the upcoming window." });
-            }
+                var windowEnd = now.AddDays(ConfirmationCelebrationUpcomingDays);
+                var pastWindowStart = now.AddDays(-ConfirmationCelebrationCommentEditGraceDays);
+                if (celebration.EndsAtUtc < pastWindowStart || celebration.StartsAtUtc > windowEnd)
+                {
+                    return Results.BadRequest(new { error = "Celebration is outside the upcoming window." });
+                }
 
-            var editDeadline = celebration.EndsAtUtc.AddDays(ConfirmationCelebrationCommentEditGraceDays);
-            if (now > editDeadline)
-            {
-                return Results.BadRequest(new { error = "Celebration comment edit window has closed." });
+                var editDeadline = celebration.EndsAtUtc.AddDays(ConfirmationCelebrationCommentEditGraceDays);
+                if (now > editDeadline)
+                {
+                    return Results.BadRequest(new { error = "Celebration comment edit window has closed." });
+                }
             }
 
             var participation = await dbContext.ParishConfirmationCelebrationParticipations
@@ -1667,6 +1682,140 @@ public static class ParishEndpoints
                 participationId = participation.Id,
                 participation.UpdatedUtc
             });
+        });
+
+        group.MapPost("/{slug}/public/confirmation-candidate-goal", async (
+            string slug,
+            ParishConfirmationCandidateGoalUpdateRequest request,
+            RecreatioDbContext dbContext,
+            IDataProtectionProvider dataProtectionProvider,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return Results.BadRequest(new { error = "Slug is required." });
+            }
+
+            var token = NormalizeConfirmationToken(request.Token);
+            if (token is null)
+            {
+                return Results.BadRequest(new { error = "Token is required." });
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == slug, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var link = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
+            if (link is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var candidate = await dbContext.ParishConfirmationCandidates
+                .FirstOrDefaultAsync(x => x.Id == link.CandidateId && x.ParishId == parish.Id, ct);
+            if (candidate is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var protector = CreateParishConfirmationProtector(dataProtectionProvider, parish.Id);
+            var payload = TryUnprotectConfirmationPayload(candidate.PayloadEnc, protector);
+            if (payload is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var goal = string.IsNullOrWhiteSpace(request.Goal) ? null : request.Goal.Trim();
+            if (goal is not null && goal.Length > 1000)
+            {
+                goal = goal[..1000];
+            }
+
+            var updatedPayload = payload with { Goal = goal };
+            candidate.PayloadEnc = protector.Protect(JsonSerializer.SerializeToUtf8Bytes(updatedPayload));
+            candidate.UpdatedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parish.Id,
+                "ConfirmationCandidateGoalUpdated",
+                "public",
+                JsonSerializer.Serialize(new { link.CandidateId }),
+                ct);
+
+            return Results.Ok(new { status = "saved" });
+        });
+
+        group.MapPost("/{slug}/public/confirmation-candidate-index", async (
+            string slug,
+            ParishConfirmationCandidateIndexUpdateRequest request,
+            RecreatioDbContext dbContext,
+            IDataProtectionProvider dataProtectionProvider,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return Results.BadRequest(new { error = "Slug is required." });
+            }
+
+            var token = NormalizeConfirmationToken(request.Token);
+            if (token is null)
+            {
+                return Results.BadRequest(new { error = "Token is required." });
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == slug, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var link = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
+            if (link is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var candidate = await dbContext.ParishConfirmationCandidates
+                .FirstOrDefaultAsync(x => x.Id == link.CandidateId && x.ParishId == parish.Id, ct);
+            if (candidate is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var protector = CreateParishConfirmationProtector(dataProtectionProvider, parish.Id);
+            var payload = TryUnprotectConfirmationPayload(candidate.PayloadEnc, protector);
+            if (payload is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var updatedPayload = payload with
+            {
+                UseInternetIndex = request.UseInternetIndex,
+                UsePaperIndex = request.UsePaperIndex
+            };
+            candidate.PayloadEnc = protector.Protect(JsonSerializer.SerializeToUtf8Bytes(updatedPayload));
+            candidate.UpdatedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parish.Id,
+                "ConfirmationCandidateIndexUpdated",
+                "public",
+                JsonSerializer.Serialize(new { link.CandidateId, request.UseInternetIndex, request.UsePaperIndex }),
+                ct);
+
+            return Results.Ok(new { status = "saved" });
         });
 
         group.MapPost("/{slug}/public/confirmation-events/join", async (
@@ -3850,6 +3999,7 @@ public static class ParishEndpoints
             var upcomingCelebrations = await LoadConfirmationUpcomingCelebrationsAsync(
                 parishId,
                 candidateId,
+                payload.UseInternetIndex,
                 dbContext,
                 ct);
             var upcomingEvents = await LoadConfirmationUpcomingEventsAsync(
@@ -3919,7 +4069,10 @@ public static class ParishEndpoints
                     canInviteToSelectedSlot ? selectedSlot?.HostInviteExpiresUtc : null,
                     secondCanInviteToSelectedSlot,
                     secondCanInviteToSelectedSlot ? secondSelectedSlot?.HostInviteToken : null,
-                    secondCanInviteToSelectedSlot ? secondSelectedSlot?.HostInviteExpiresUtc : null),
+                    secondCanInviteToSelectedSlot ? secondSelectedSlot?.HostInviteExpiresUtc : null,
+                    payload.Goal,
+                    payload.UseInternetIndex,
+                    payload.UsePaperIndex),
                 slots.Where(slot => slot.Stage == ConfirmationMeetingStageYear1Start).Select(slot =>
                 {
                     var reserved = reservedCounts.GetValueOrDefault(slot.Id);
@@ -6877,18 +7030,30 @@ public static class ParishEndpoints
     private static async Task<List<ParishConfirmationCelebrationResponse>> LoadConfirmationUpcomingCelebrationsAsync(
         Guid parishId,
         Guid candidateId,
+        bool useInternetIndex,
         RecreatioDbContext dbContext,
         CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;
-        var windowEnd = now.AddDays(ConfirmationCelebrationUpcomingDays);
-        var pastWindowStart = now.AddDays(-ConfirmationCelebrationCommentEditGraceDays);
-        var celebrationRows = await dbContext.ParishConfirmationCelebrations.AsNoTracking()
-            .Where(x =>
-                x.ParishId == parishId &&
-                x.IsActive &&
-                x.EndsAtUtc >= pastWindowStart &&
-                x.StartsAtUtc <= windowEnd)
+        IQueryable<ParishConfirmationCelebration> baseQuery;
+        if (useInternetIndex)
+        {
+            baseQuery = dbContext.ParishConfirmationCelebrations.AsNoTracking()
+                .Where(x => x.ParishId == parishId && x.IsActive);
+        }
+        else
+        {
+            var windowEnd = now.AddDays(ConfirmationCelebrationUpcomingDays);
+            var pastWindowStart = now.AddDays(-ConfirmationCelebrationCommentEditGraceDays);
+            baseQuery = dbContext.ParishConfirmationCelebrations.AsNoTracking()
+                .Where(x =>
+                    x.ParishId == parishId &&
+                    x.IsActive &&
+                    x.EndsAtUtc >= pastWindowStart &&
+                    x.StartsAtUtc <= windowEnd);
+        }
+
+        var celebrationRows = await baseQuery
             .OrderBy(x => x.StartsAtUtc)
             .ThenBy(x => x.CreatedUtc)
             .ToListAsync(ct);
@@ -7346,5 +7511,8 @@ public static class ParishEndpoints
         IReadOnlyList<string> PhoneNumbers,
         string Address,
         string SchoolShort,
-        bool AcceptedRodo);
+        bool AcceptedRodo,
+        string? Goal = null,
+        bool UseInternetIndex = false,
+        bool UsePaperIndex = false);
 }

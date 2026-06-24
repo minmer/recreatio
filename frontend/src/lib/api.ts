@@ -3995,6 +3995,9 @@ export type ParishConfirmationPortalCandidate = {
   secondCanInviteToSelectedSlot: boolean;
   secondSelectedSlotInviteCode?: string | null;
   secondSelectedSlotInviteExpiresUtc?: string | null;
+  goal?: string | null;
+  useInternetIndex?: boolean;
+  usePaperIndex?: boolean;
 };
 
 export type ParishConfirmationMessage = {
@@ -4540,6 +4543,30 @@ export function sendParishConfirmationCelebrationComment(
       })
     }
   );
+}
+
+export function updateParishConfirmationCandidateGoal(
+  slug: string,
+  payload: { token: string; goal: string | null }
+) {
+  return request<{ status: string }>(`/parish/${slug}/public/confirmation-candidate-goal`, {
+    method: 'POST',
+    body: JSON.stringify({ token: payload.token, goal: payload.goal })
+  });
+}
+
+export function updateParishConfirmationCandidateIndex(
+  slug: string,
+  payload: { token: string; useInternetIndex: boolean; usePaperIndex: boolean }
+) {
+  return request<{ status: string }>(`/parish/${slug}/public/confirmation-candidate-index`, {
+    method: 'POST',
+    body: JSON.stringify({
+      token: payload.token,
+      useInternetIndex: payload.useInternetIndex,
+      usePaperIndex: payload.usePaperIndex
+    })
+  });
 }
 
 export function joinParishConfirmationEvent(

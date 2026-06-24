@@ -553,7 +553,10 @@ public sealed record ParishConfirmationPortalCandidateDataResponse(
     DateTimeOffset? SelectedSlotInviteExpiresUtc,
     bool SecondCanInviteToSelectedSlot,
     string? SecondSelectedSlotInviteCode,
-    DateTimeOffset? SecondSelectedSlotInviteExpiresUtc);
+    DateTimeOffset? SecondSelectedSlotInviteExpiresUtc,
+    string? Goal,
+    bool UseInternetIndex,
+    bool UsePaperIndex);
 
 public sealed record ParishConfirmationCelebrationJoinResponse(
     Guid Id,
@@ -708,3 +711,12 @@ public sealed record ParishConfirmationEventJoinActionResponse(
     string Status,
     Guid? JoinId,
     DateTimeOffset? UpdatedUtc);
+
+public sealed record ParishConfirmationCandidateGoalUpdateRequest(
+    string Token,
+    string? Goal);
+
+public sealed record ParishConfirmationCandidateIndexUpdateRequest(
+    string Token,
+    bool UseInternetIndex,
+    bool UsePaperIndex);

@@ -67,8 +67,6 @@ import {
   simulateParishMassRule,
   sendParishConfirmationAdminMessage,
   sendParishConfirmationCelebrationComment,
-  joinParishConfirmationCelebration,
-  leaveParishConfirmationCelebration,
   sendParishConfirmationCandidateMessage,
   bookParishConfirmationMeetingSlot,
   listParishConfirmationMeetingSlots,
@@ -79,6 +77,8 @@ import {
   updateParishConfirmationNote,
   updateParishConfirmationCandidate,
   updateParishConfirmationCandidatePaperConsent,
+  updateParishConfirmationCandidateGoal,
+  updateParishConfirmationCandidateIndex,
   updateParishConfirmationCelebration,
   updateParishConfirmationEvent,
   acceptParishConfirmationCelebrationJoin,
@@ -2033,12 +2033,19 @@ export function ParishPage({
   const [confirmationPortalSendingMessage, setConfirmationPortalSendingMessage] = useState(false);
   const [confirmationPortalStandaloneTab, setConfirmationPortalStandaloneTab] = useState<'meetings' | 'messages' | 'status'>('meetings');
   const [confirmationCelebrationExpandedId, setConfirmationCelebrationExpandedId] = useState<string | null>(null);
-  const [confirmationEventExpandedId, setConfirmationEventExpandedId] = useState<string | null>(null);
   const [confirmationCelebrationDrafts, setConfirmationCelebrationDrafts] = useState<Record<string, string>>({});
+  const [confirmationCelebrationFilter, setConfirmationCelebrationFilter] = useState('');
   const [confirmationCelebrationSavingId, setConfirmationCelebrationSavingId] = useState<string | null>(null);
-  const [confirmationCelebrationJoinActionId, setConfirmationCelebrationJoinActionId] = useState<string | null>(null);
   const [confirmationCelebrationInfo, setConfirmationCelebrationInfo] = useState<string | null>(null);
   const [confirmationCelebrationError, setConfirmationCelebrationError] = useState<string | null>(null);
+  const [confirmationGoalDraft, setConfirmationGoalDraft] = useState('');
+  const [confirmationGoalEditing, setConfirmationGoalEditing] = useState(false);
+  const [confirmationGoalSaving, setConfirmationGoalSaving] = useState(false);
+  const [confirmationGoalError, setConfirmationGoalError] = useState<string | null>(null);
+  const [confirmationGoalInfo, setConfirmationGoalInfo] = useState<string | null>(null);
+  const [confirmationIndexSaving, setConfirmationIndexSaving] = useState(false);
+  const [confirmationIndexError, setConfirmationIndexError] = useState<string | null>(null);
+  const [confirmationIndexInfo, setConfirmationIndexInfo] = useState<string | null>(null);
   const [confirmationCelebrationsAdminList, setConfirmationCelebrationsAdminList] = useState<ParishConfirmationCelebration[]>([]);
   const [confirmationEventsAdminList, setConfirmationEventsAdminList] = useState<ParishConfirmationEvent[]>([]);
   const [confirmationCelebrationsAdminLoading, setConfirmationCelebrationsAdminLoading] = useState(false);
@@ -3143,67 +3150,46 @@ export function ParishPage({
     }
   };
 
-  const handleJoinConfirmationCelebration = async (celebrationId: string) => {
+  const handleSaveConfirmationGoal = async () => {
     if (!parishSlug || !activeConfirmationPortalToken) return;
-
-    setConfirmationCelebrationJoinActionId(`join:${celebrationId}`);
-    setConfirmationCelebrationError(null);
-    setConfirmationCelebrationInfo(null);
+    setConfirmationGoalSaving(true);
+    setConfirmationGoalError(null);
+    setConfirmationGoalInfo(null);
     try {
-      const result = await joinParishConfirmationCelebration(parishSlug, {
+      await updateParishConfirmationCandidateGoal(parishSlug, {
         token: activeConfirmationPortalToken,
-        eventId: celebrationId
+        goal: confirmationGoalDraft.trim() || null
       });
-      if (result.status === 'full') {
-        setConfirmationCelebrationError('Brak wolnych miejsc na to wydarzenie.');
-      } else if (result.status === 'already-accepted') {
-        setConfirmationCelebrationInfo('Jesteś już zaakceptowany(a) na to wydarzenie.');
-      } else if (result.status === 'already-pending') {
-        setConfirmationCelebrationInfo('Twoje zgłoszenie już oczekuje na akceptację.');
-      } else {
-        setConfirmationCelebrationInfo('Wysłano zgłoszenie udziału. Oczekuj na akceptację admina.');
-      }
-
+      setConfirmationGoalInfo('Cel bierzmowania zapisany.');
+      setConfirmationGoalEditing(false);
       await loadConfirmationCandidatePortal(activeConfirmationPortalToken, confirmationMeetingInviteCodeApplied);
-      if (confirmationAdminSelectedCandidateId) {
-        await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
-      }
-      await loadConfirmationCelebrationsAdmin();
     } catch {
-      setConfirmationCelebrationError('Nie udało się zgłosić udziału w wydarzeniu.');
+      setConfirmationGoalError('Nie udało się zapisać celu bierzmowania.');
     } finally {
-      setConfirmationCelebrationJoinActionId(null);
+      setConfirmationGoalSaving(false);
     }
   };
 
-  const handleLeaveConfirmationCelebration = async (celebrationId: string) => {
+  const handleUpdateConfirmationIndex = async (useInternetIndex: boolean, usePaperIndex: boolean) => {
     if (!parishSlug || !activeConfirmationPortalToken) return;
-
-    setConfirmationCelebrationJoinActionId(`leave:${celebrationId}`);
-    setConfirmationCelebrationError(null);
-    setConfirmationCelebrationInfo(null);
+    setConfirmationIndexSaving(true);
+    setConfirmationIndexError(null);
+    setConfirmationIndexInfo(null);
     try {
-      const result = await leaveParishConfirmationCelebration(parishSlug, {
+      await updateParishConfirmationCandidateIndex(parishSlug, {
         token: activeConfirmationPortalToken,
-        eventId: celebrationId
+        useInternetIndex,
+        usePaperIndex
       });
-      if (result.status === 'cancelled') {
-        setConfirmationCelebrationInfo('Anulowano zgłoszenie oczekujące na akceptację.');
-      } else {
-        setConfirmationCelebrationError('Tego zgłoszenia nie można już anulować samodzielnie.');
-      }
-
+      setConfirmationIndexInfo('Preferencje indeksu zostały zapisane.');
       await loadConfirmationCandidatePortal(activeConfirmationPortalToken, confirmationMeetingInviteCodeApplied);
-      if (confirmationAdminSelectedCandidateId) {
-        await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
-      }
-      await loadConfirmationCelebrationsAdmin();
     } catch {
-      setConfirmationCelebrationError('Nie udało się anulować zgłoszenia.');
+      setConfirmationIndexError('Nie udało się zapisać preferencji indeksu.');
     } finally {
-      setConfirmationCelebrationJoinActionId(null);
+      setConfirmationIndexSaving(false);
     }
   };
+
 
   const handleAcceptConfirmationCelebrationJoin = async (celebrationId: string, joinId: string) => {
     if (!parish) return;
@@ -6934,6 +6920,43 @@ export function ParishPage({
                               Przejdź
                             </button>
                           </li>
+                          <li className={!confirmationDisplayPortalData.candidate.goal ? 'is-todo' : 'is-done'}>
+                            <div>
+                              <strong>Wpisz cel bierzmowania</strong>
+                              <p className="note">
+                                {confirmationDisplayPortalData.candidate.goal
+                                  ? 'Cel bierzmowania został wpisany.'
+                                  : 'Opisz swój cel do realizacji do października 2026 r.'}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => {
+                                setConfirmationGoalDraft(confirmationDisplayPortalData.candidate.goal ?? '');
+                                setConfirmationGoalEditing(true);
+                                setConfirmationPortalStandaloneTab('status');
+                              }}
+                            >
+                              {confirmationDisplayPortalData.candidate.goal ? 'Edytuj' : 'Wpisz'}
+                            </button>
+                          </li>
+                          <li className={(!confirmationDisplayPortalData.candidate.useInternetIndex && !confirmationDisplayPortalData.candidate.usePaperIndex) ? 'is-todo' : 'is-done'}>
+                            <div>
+                              <strong>Wybierz rodzaj indeksu</strong>
+                              <p className="note">
+                                {(confirmationDisplayPortalData.candidate.useInternetIndex || confirmationDisplayPortalData.candidate.usePaperIndex)
+                                  ? `Indeks: ${[
+                                      confirmationDisplayPortalData.candidate.useInternetIndex ? 'internetowy' : null,
+                                      confirmationDisplayPortalData.candidate.usePaperIndex ? 'papierowy' : null
+                                    ].filter(Boolean).join(' i ')}`
+                                  : 'Wybierz, czy używasz indeksu internetowego, papierowego lub obu.'}
+                              </p>
+                            </div>
+                            <button type="button" className="ghost" onClick={() => setConfirmationPortalStandaloneTab('status')}>
+                              {(confirmationDisplayPortalData.candidate.useInternetIndex || confirmationDisplayPortalData.candidate.usePaperIndex) ? 'Zmień' : 'Wybierz'}
+                            </button>
+                          </li>
                           <li className={!confirmationDisplayPortalData.candidate.paperConsentReceived ? 'is-todo' : 'is-done'}>
                             <div>
                               <strong>Przynieś papierową zgodę rodzica</strong>
@@ -7015,252 +7038,280 @@ export function ParishPage({
                             </li>
                           ))}
                         </ul>
+                        <h4>Cel bierzmowania (do października 2026 r.)</h4>
+                        {confirmationGoalError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationGoalError}</p>
+                        ) : null}
+                        {confirmationGoalInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{confirmationGoalInfo}</p>
+                        ) : null}
+                        {!confirmationGoalEditing ? (
+                          <>
+                            {confirmationDisplayPortalData.candidate.goal ? (
+                              <p className="note">{confirmationDisplayPortalData.candidate.goal}</p>
+                            ) : (
+                              <p className="muted">Nie wpisano jeszcze celu bierzmowania.</p>
+                            )}
+                            <button
+                              type="button"
+                              className="ghost"
+                              disabled={!activeConfirmationPortalToken}
+                              onClick={() => {
+                                setConfirmationGoalDraft(confirmationDisplayPortalData.candidate.goal ?? '');
+                                setConfirmationGoalEditing(true);
+                              }}
+                            >
+                              {confirmationDisplayPortalData.candidate.goal ? 'Zmień cel' : 'Wpisz cel'}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <label>
+                              <span>Twój cel do realizacji do października 2026 r.</span>
+                              <textarea
+                                rows={4}
+                                value={confirmationGoalDraft}
+                                onChange={(event) => setConfirmationGoalDraft(event.target.value)}
+                                placeholder="Opisz, co chcesz osiągnąć lub zrealizować do bierzmowania..."
+                                maxLength={1000}
+                              />
+                            </label>
+                            <div className="confirmation-phone-actions">
+                              <button
+                                type="button"
+                                className="parish-login"
+                                disabled={confirmationGoalSaving}
+                                onClick={() => void handleSaveConfirmationGoal()}
+                              >
+                                {confirmationGoalSaving ? 'Zapisywanie...' : 'Zapisz cel'}
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() => {
+                                  setConfirmationGoalEditing(false);
+                                  setConfirmationGoalError(null);
+                                }}
+                              >
+                                Anuluj
+                              </button>
+                            </div>
+                          </>
+                        )}
+                        <h4>Rodzaj indeksu</h4>
+                        {confirmationIndexError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationIndexError}</p>
+                        ) : null}
+                        {confirmationIndexInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{confirmationIndexInfo}</p>
+                        ) : null}
+                        <p className="note">Zaznacz, jaki rodzaj indeksu stosujesz. Możesz wybrać oba.</p>
+                        <div className="confirmation-index-options">
+                          <label className="confirmation-index-option">
+                            <input
+                              type="checkbox"
+                              checked={confirmationDisplayPortalData.candidate.useInternetIndex ?? false}
+                              disabled={confirmationIndexSaving || !activeConfirmationPortalToken}
+                              onChange={(event) =>
+                                void handleUpdateConfirmationIndex(
+                                  event.target.checked,
+                                  confirmationDisplayPortalData.candidate.usePaperIndex ?? false
+                                )
+                              }
+                            />
+                            <span>
+                              <strong>Indeks internetowy</strong>
+                              <span className="note"> — potwierdź udział w celebracjach online (dostępne wszystkie celebracje)</span>
+                            </span>
+                          </label>
+                          <label className="confirmation-index-option">
+                            <input
+                              type="checkbox"
+                              checked={confirmationDisplayPortalData.candidate.usePaperIndex ?? false}
+                              disabled={confirmationIndexSaving || !activeConfirmationPortalToken}
+                              onChange={(event) =>
+                                void handleUpdateConfirmationIndex(
+                                  confirmationDisplayPortalData.candidate.useInternetIndex ?? false,
+                                  event.target.checked
+                                )
+                              }
+                            />
+                            <span>
+                              <strong>Indeks papierowy</strong>
+                              <span className="note"> — masz indeks w formie papierowej od księdza</span>
+                            </span>
+                          </label>
+                        </div>
                       </article>
                       <article
                         id="confirmation-candidate-celebrations"
                         className="parish-card confirmation-portal-standalone-column confirmation-portal-celebrations-column"
                       >
-                        <h4>Wydarzenia i celebracje</h4>
+                        <h4>Celebracje</h4>
                         {confirmationCelebrationError ? (
                           <p className="confirmation-info confirmation-info-error">{confirmationCelebrationError}</p>
                         ) : null}
                         {confirmationCelebrationInfo ? (
                           <p className="confirmation-info confirmation-info-success">{confirmationCelebrationInfo}</p>
                         ) : null}
-                        <div className="confirmation-celebration-join-panel">
+                        {confirmationDisplayPortalData.candidate.useInternetIndex ? (
                           <p className="note">
-                            <strong>Wydarzenia z zapisami:</strong> widoczne od momentu publikacji do zakończenia wydarzenia.
+                            <strong>Indeks internetowy:</strong> wyświetlane są wszystkie celebracje. Możesz potwierdzić udział w każdej z nich.
                           </p>
-                          {confirmationDisplayPortalData.upcomingEvents.length === 0 ? (
-                            <p className="muted">Brak aktywnych wydarzeń do zapisów.</p>
-                          ) : (
-                            <div className="confirmation-celebration-list">
-                              {confirmationDisplayPortalData.upcomingEvents.map((celebration) => {
-                                const isExpanded = confirmationEventExpandedId === celebration.id;
-                                const joinStatus = (celebration.candidateJoinStatus ?? '').trim().toLowerCase();
-                                const isJoinPending = joinStatus === 'pending';
-                                const isJoinAccepted = joinStatus === 'accepted';
-                                const hasCapacityLimit = Number.isFinite(Number(celebration.capacity));
-                                const capacityValue = hasCapacityLimit ? Number(celebration.capacity) : null;
-                                const reservedCount = celebration.reservedCount ?? 0;
-                                const acceptedCount = celebration.acceptedCount ?? 0;
-                                const freePlaces = capacityValue !== null ? Math.max(capacityValue - reservedCount, 0) : null;
-                                const canJoin =
-                                  !isJoinPending &&
-                                  !isJoinAccepted &&
-                                  (freePlaces === null || freePlaces > 0) &&
-                                  Boolean(activeConfirmationPortalToken);
-                                const canLeavePending = isJoinPending && Boolean(activeConfirmationPortalToken);
-                                const joinBusy = confirmationCelebrationJoinActionId === `join:${celebration.id}`;
-                                const leaveBusy = confirmationCelebrationJoinActionId === `leave:${celebration.id}`;
-
+                        ) : (
+                          <p className="note">
+                            <strong>Podgląd (7 dni):</strong> widoczne celebracje z bieżącego tygodnia.
+                            {(!confirmationDisplayPortalData.candidate.useInternetIndex && !confirmationDisplayPortalData.candidate.usePaperIndex)
+                              ? ' Wybierz indeks internetowy, aby odblokować pełny dostęp do wszystkich celebracji.'
+                              : ''}
+                          </p>
+                        )}
+                        {confirmationDisplayPortalData.candidate.useInternetIndex ? (
+                          <label>
+                            <span>Szukaj celebracji</span>
+                            <input
+                              type="text"
+                              value={confirmationCelebrationFilter}
+                              onChange={(event) => setConfirmationCelebrationFilter(event.target.value)}
+                              placeholder="Wpisz nazwę lub opis..."
+                            />
+                          </label>
+                        ) : null}
+                        {confirmationDisplayPortalData.upcomingCelebrations.length === 0 ? (
+                          <p className="muted">Brak zaplanowanych celebracji.</p>
+                        ) : (
+                          <div className="confirmation-celebration-list">
+                            {confirmationDisplayPortalData.upcomingCelebrations
+                              .filter((celebration) => {
+                                if (!confirmationCelebrationFilter) return true;
+                                const q = confirmationCelebrationFilter.toLowerCase();
+                                return (
+                                  celebration.name.toLowerCase().includes(q) ||
+                                  celebration.shortInfo.toLowerCase().includes(q)
+                                );
+                              })
+                              .map((celebration) => {
+                                const isExpanded = confirmationCelebrationExpandedId === celebration.id;
+                                const draftValue = confirmationCelebrationDrafts[celebration.id] ?? '';
+                                const endsAt = new Date(celebration.endsAtUtc);
+                                const commentEditDeadline = new Date(
+                                  endsAt.getTime() + confirmationCelebrationCommentEditGraceDays * 24 * 60 * 60 * 1000
+                                );
+                                const isCommentLocked = !confirmationDisplayPortalData.candidate.useInternetIndex && Date.now() > commentEditDeadline.getTime();
+                                const hasSavedComment = Boolean((celebration.candidateComment ?? '').trim());
+                                const needsCandidateResponse = !hasSavedComment;
+                                const startsAt = new Date(celebration.startsAtUtc);
+                                const isPast = Date.now() > endsAt.getTime();
                                 return (
                                   <article
-                                    key={`event-join-${celebration.id}`}
-                                    className={`confirmation-celebration-card ${isExpanded ? 'is-expanded' : ''}`}
+                                    key={`celebration-${celebration.id}`}
+                                    className={`confirmation-celebration-card ${needsCandidateResponse ? 'is-unanswered' : 'is-answered'} ${isExpanded ? 'is-expanded' : ''} ${isPast ? 'is-past' : ''}`}
                                   >
                                     <button
                                       type="button"
                                       className="confirmation-celebration-toggle"
                                       onClick={() =>
-                                        setConfirmationEventExpandedId((current) => (current === celebration.id ? null : celebration.id))
+                                        setConfirmationCelebrationExpandedId((current) =>
+                                          current === celebration.id ? null : celebration.id
+                                        )
                                       }
                                     >
                                       <span className="confirmation-celebration-toggle-main">
                                         <strong>{celebration.name}</strong>
-                                        <span className="note">{celebration.shortInfo}</span>
+                                        <span className="note">
+                                          {startsAt.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                          {celebration.shortInfo ? ` · ${celebration.shortInfo}` : ''}
+                                        </span>
                                       </span>
                                       <span className="confirmation-celebration-toggle-action">
-                                        {isExpanded ? 'Ukryj' : 'Szczegóły'}
+                                        {isExpanded ? 'Ukryj' : 'Otwórz'}
                                       </span>
                                     </button>
+                                    {needsCandidateResponse && !isPast ? (
+                                      <p className="confirmation-celebration-attention">Wymagana odpowiedź kandydata</p>
+                                    ) : null}
                                     {isExpanded ? (
                                       <>
                                         <p className="note">{celebration.description}</p>
-                                        <p className="note">
-                                          <strong>Miejsca:</strong>{' '}
-                                          {capacityValue === null
-                                            ? 'bez limitu'
-                                            : `${freePlaces ?? 0}/${capacityValue} wolnych`} • Zgłoszenia: {reservedCount} •
-                                          Zaakceptowane: {acceptedCount}
-                                        </p>
-                                        {isJoinAccepted ? (
-                                          <p className="confirmation-celebration-join-status is-accepted">
-                                            Twoje zgłoszenie zostało zaakceptowane.
+                                        <div
+                                          className={`confirmation-celebration-comment ${needsCandidateResponse ? 'is-required' : ''}`}
+                                        >
+                                          <p className="note">
+                                            <strong>
+                                              {isCommentLocked ? 'Okno edycji komentarza zamknięte' : 'Komentarz kandydata o udziale'}
+                                            </strong>
                                           </p>
-                                        ) : isJoinPending ? (
-                                          <p className="confirmation-celebration-join-status is-pending">
-                                            Twoje zgłoszenie oczekuje na akceptację.
-                                          </p>
-                                        ) : joinStatus === 'cancelled' ? (
-                                          <p className="confirmation-celebration-join-status">
-                                            Wycofałeś(-aś) wcześniejsze zgłoszenie. Możesz zgłosić się ponownie.
-                                          </p>
-                                        ) : joinStatus === 'removed' ? (
-                                          <p className="confirmation-celebration-join-status">
-                                            Zostałeś(-aś) usunięty(-a) z listy. W razie potrzeby zgłoś się ponownie.
-                                          </p>
-                                        ) : joinStatus === 'rejected' ? (
-                                          <p className="confirmation-celebration-join-status">
-                                            Zgłoszenie zostało odrzucone. Skontaktuj się z parafią.
-                                          </p>
-                                        ) : null}
+                                          {!confirmationDisplayPortalData.candidate.useInternetIndex ? (
+                                            <p className="note">
+                                              {isCommentLocked
+                                                ? `Komentarz można było edytować do ${commentEditDeadline.toLocaleString('pl-PL')}.`
+                                                : `Komentarz można edytować do ${commentEditDeadline.toLocaleString('pl-PL')}.`}
+                                            </p>
+                                          ) : null}
+                                          <label>
+                                            <span>Podpowiedź do komentarza</span>
+                                            <select
+                                              value=""
+                                              disabled={isCommentLocked}
+                                              onChange={(event) => {
+                                                const template = event.target.value;
+                                                if (!template) return;
+                                                updateConfirmationCelebrationDraft(celebration.id, template);
+                                              }}
+                                            >
+                                              <option value="">Wybierz podpowiedź...</option>
+                                              <optgroup label="Dla kandydatki">
+                                                {confirmationCelebrationCommentTemplates.female.map((template) => (
+                                                  <option key={`template-female-${celebration.id}-${template}`} value={template}>
+                                                    {template}
+                                                  </option>
+                                                ))}
+                                              </optgroup>
+                                              <optgroup label="Dla kandydata">
+                                                {confirmationCelebrationCommentTemplates.male.map((template) => (
+                                                  <option key={`template-male-${celebration.id}-${template}`} value={template}>
+                                                    {template}
+                                                  </option>
+                                                ))}
+                                              </optgroup>
+                                            </select>
+                                          </label>
+                                          <label>
+                                            <span>Treść komentarza</span>
+                                            <textarea
+                                              rows={4}
+                                              value={draftValue}
+                                              disabled={isCommentLocked}
+                                              onChange={(event) =>
+                                                updateConfirmationCelebrationDraft(celebration.id, event.target.value)
+                                              }
+                                              placeholder="Opisz swój udział..."
+                                            />
+                                          </label>
+                                          <button
+                                            type="button"
+                                            className="parish-login confirmation-celebration-comment-action"
+                                            disabled={
+                                              isCommentLocked ||
+                                              confirmationCelebrationSavingId === celebration.id ||
+                                              !activeConfirmationPortalToken
+                                            }
+                                            onClick={() => void handleSaveConfirmationCelebrationComment(celebration.id)}
+                                          >
+                                            {confirmationCelebrationSavingId === celebration.id ? 'Zapisywanie...' : 'Zapisz komentarz'}
+                                          </button>
+                                          {celebration.candidateCommentUpdatedUtc ? (
+                                            <p className="note">
+                                              Ostatnia aktualizacja:{' '}
+                                              {new Date(celebration.candidateCommentUpdatedUtc).toLocaleString('pl-PL')}
+                                            </p>
+                                          ) : null}
+                                        </div>
                                       </>
                                     ) : null}
-                                    <div className="confirmation-celebration-join-actions">
-                                      {!isJoinPending && !isJoinAccepted ? (
-                                        <button
-                                          type="button"
-                                          className="parish-login"
-                                          disabled={!canJoin || joinBusy}
-                                          onClick={() => void handleJoinConfirmationCelebration(celebration.id)}
-                                        >
-                                          {joinBusy
-                                            ? 'Wysyłanie...'
-                                            : freePlaces === 0
-                                            ? 'Brak wolnych miejsc'
-                                            : 'Zgłoś udział'}
-                                        </button>
-                                      ) : null}
-                                      {canLeavePending ? (
-                                        <button
-                                          type="button"
-                                          className="ghost"
-                                          disabled={leaveBusy}
-                                          onClick={() => void handleLeaveConfirmationCelebration(celebration.id)}
-                                        >
-                                          {leaveBusy ? 'Wycofywanie...' : 'Wycofaj zgłoszenie'}
-                                        </button>
-                                      ) : null}
-                                    </div>
                                   </article>
                                 );
                               })}
-                            </div>
-                          )}
-                        </div>
-                        <p className="note">
-                          <strong>Celebracje (podgląd 7 dni):</strong>
-                        </p>
-                        {confirmationDisplayPortalData.upcomingCelebrations.length === 0 ? (
-                          <p className="muted">Brak zaplanowanych celebracji w tym podglądzie.</p>
-                        ) : (
-                          <div className="confirmation-celebration-list">
-                            {confirmationDisplayPortalData.upcomingCelebrations.map((celebration) => {
-                              const isExpanded = confirmationCelebrationExpandedId === celebration.id;
-                              const draftValue = confirmationCelebrationDrafts[celebration.id] ?? '';
-                              const endsAt = new Date(celebration.endsAtUtc);
-                              const commentEditDeadline = new Date(
-                                endsAt.getTime() + confirmationCelebrationCommentEditGraceDays * 24 * 60 * 60 * 1000
-                              );
-                              const isCommentLocked = Date.now() > commentEditDeadline.getTime();
-                              const hasSavedComment = Boolean((celebration.candidateComment ?? '').trim());
-                              const needsCandidateResponse = !hasSavedComment;
-                              return (
-                                <article
-                                  key={`celebration-${celebration.id}`}
-                                  className={`confirmation-celebration-card ${needsCandidateResponse ? 'is-unanswered' : 'is-answered'} ${isExpanded ? 'is-expanded' : ''}`}
-                                >
-                                  <button
-                                    type="button"
-                                    className="confirmation-celebration-toggle"
-                                    onClick={() =>
-                                      setConfirmationCelebrationExpandedId((current) =>
-                                        current === celebration.id ? null : celebration.id
-                                      )
-                                    }
-                                  >
-                                    <span className="confirmation-celebration-toggle-main">
-                                      <strong>{celebration.name}</strong>
-                                      <span className="note">{celebration.shortInfo}</span>
-                                    </span>
-                                    <span className="confirmation-celebration-toggle-action">
-                                      {isExpanded ? 'Ukryj' : 'Otwórz'}
-                                    </span>
-                                  </button>
-                                  {needsCandidateResponse ? (
-                                    <p className="confirmation-celebration-attention">Wymagana odpowiedź kandydata</p>
-                                  ) : null}
-                                  {isExpanded ? (
-                                    <>
-                                      <p className="note">{celebration.description}</p>
-                                      <div
-                                        className={`confirmation-celebration-comment ${needsCandidateResponse ? 'is-required' : ''}`}
-                                      >
-                                        <p className="note">
-                                          <strong>
-                                            {isCommentLocked ? 'Okno edycji komentarza zamknięte' : 'Komentarz kandydata o udziale'}
-                                          </strong>
-                                        </p>
-                                        <p className="note">
-                                          {isCommentLocked
-                                            ? `Komentarz można było edytować do ${commentEditDeadline.toLocaleString('pl-PL')}.`
-                                            : `Komentarz można edytować do ${commentEditDeadline.toLocaleString('pl-PL')}.`}
-                                        </p>
-                                        <label>
-                                          <span>Podpowiedź do komentarza</span>
-                                          <select
-                                            value=""
-                                            disabled={isCommentLocked}
-                                            onChange={(event) => {
-                                              const template = event.target.value;
-                                              if (!template) return;
-                                              updateConfirmationCelebrationDraft(celebration.id, template);
-                                            }}
-                                          >
-                                            <option value="">Wybierz podpowiedź...</option>
-                                            <optgroup label="Dla kandydatki">
-                                              {confirmationCelebrationCommentTemplates.female.map((template) => (
-                                                <option key={`template-female-${celebration.id}-${template}`} value={template}>
-                                                  {template}
-                                                </option>
-                                              ))}
-                                            </optgroup>
-                                            <optgroup label="Dla kandydata">
-                                              {confirmationCelebrationCommentTemplates.male.map((template) => (
-                                                <option key={`template-male-${celebration.id}-${template}`} value={template}>
-                                                  {template}
-                                                </option>
-                                              ))}
-                                            </optgroup>
-                                          </select>
-                                        </label>
-                                        <label>
-                                          <span>Treść komentarza</span>
-                                          <textarea
-                                            rows={4}
-                                            value={draftValue}
-                                            disabled={isCommentLocked}
-                                            onChange={(event) =>
-                                              updateConfirmationCelebrationDraft(celebration.id, event.target.value)
-                                            }
-                                            placeholder="Opisz swój udział..."
-                                          />
-                                        </label>
-                                        <button
-                                          type="button"
-                                          className="parish-login confirmation-celebration-comment-action"
-                                          disabled={
-                                            isCommentLocked ||
-                                            confirmationCelebrationSavingId === celebration.id ||
-                                            !activeConfirmationPortalToken
-                                          }
-                                          onClick={() => void handleSaveConfirmationCelebrationComment(celebration.id)}
-                                        >
-                                          {confirmationCelebrationSavingId === celebration.id ? 'Zapisywanie...' : 'Wyślij komentarz'}
-                                        </button>
-                                        {celebration.candidateCommentUpdatedUtc ? (
-                                          <p className="note">
-                                            Ostatnia aktualizacja komentarza:{' '}
-                                            {new Date(celebration.candidateCommentUpdatedUtc).toLocaleString('pl-PL')}
-                                          </p>
-                                        ) : null}
-                                      </div>
-                                    </>
-                                  ) : null}
-                                </article>
-                              );
-                            })}
                           </div>
                         )}
                       </article>
