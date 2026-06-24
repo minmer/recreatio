@@ -561,6 +561,30 @@ public static class FormsEndpoints
                 responseRows));
         }).RequireAuthorization();
 
+        group.MapDelete("/admin/{formId:guid}/responses/{responseId:guid}", async (
+            Guid formId,
+            Guid responseId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            if (!await IsFormsAdminAsync(context, dbContext, ct))
+                return Results.Forbid();
+
+            var response = await dbContext.FormResponses
+                .FirstOrDefaultAsync(r => r.Id == responseId && r.FormId == formId, ct);
+            if (response is null) return Results.NotFound();
+
+            var answers = await dbContext.FormAnswers
+                .Where(a => a.ResponseId == responseId)
+                .ToListAsync(ct);
+            dbContext.FormAnswers.RemoveRange(answers);
+            dbContext.FormResponses.Remove(response);
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok();
+        }).RequireAuthorization();
+
         group.MapGet("/fill/{token}", async (
             string token,
             RecreatioDbContext dbContext,

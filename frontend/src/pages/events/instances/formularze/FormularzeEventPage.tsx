@@ -6,6 +6,7 @@ import {
   createFormQuestion,
   deleteForm,
   deleteFormQuestion,
+  deleteFormResponse,
   getFormDetail,
   getFormResponses,
   getFormsList,
@@ -314,6 +315,21 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
       setError('Nie udało się zapisać pytania.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleDeleteResponse(formId: string, responseId: string) {
+    if (!window.confirm('Usunąć tę odpowiedź?')) return;
+    setError(null);
+    try {
+      await deleteFormResponse(formId, responseId);
+      if (view.kind === 'responses') {
+        const updated = view.data.responses.filter((r) => r.responseId !== responseId);
+        setView({ kind: 'responses', data: { ...view.data, responses: updated } });
+        setResponseIdx((prev) => Math.min(prev, Math.max(0, updated.length - 1)));
+      }
+    } catch {
+      setError('Nie udało się usunąć odpowiedzi.');
     }
   }
 
@@ -746,6 +762,7 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
             onPersonIdxChange={setResponseIdx}
             questionIdx={questionIdx}
             onQuestionIdxChange={setQuestionIdx}
+            onDeleteResponse={(id) => void handleDeleteResponse(view.data.formId, id)}
           />
         )}
       </main>
@@ -937,6 +954,7 @@ type ResponsesViewerProps = {
   onPersonIdxChange: (i: number) => void;
   questionIdx: number;
   onQuestionIdxChange: (i: number) => void;
+  onDeleteResponse: (responseId: string) => void;
 };
 
 function ResponsesViewer({
@@ -946,7 +964,8 @@ function ResponsesViewer({
   personIdx,
   onPersonIdxChange,
   questionIdx,
-  onQuestionIdxChange
+  onQuestionIdxChange,
+  onDeleteResponse
 }: ResponsesViewerProps) {
   const { responses, questions } = data;
   const total = responses.length;
@@ -1048,6 +1067,13 @@ function ResponsesViewer({
               <span className="frm-response-date">
                 {new Date(resp.submittedUtc).toLocaleString('pl-PL')}
               </span>
+              <button
+                className="frm-btn danger small"
+                onClick={() => onDeleteResponse(resp.responseId)}
+                title="Usuń odpowiedź"
+              >
+                Usuń
+              </button>
             </div>
             <div className="frm-answers">
               {questions.map((q) => {
@@ -1083,11 +1109,21 @@ function ResponsesViewer({
                   const answer = resp.answers.find((a) => a.questionId === q.id) ?? null;
                   return (
                     <div key={resp.responseId} className="frm-answer-row">
-                      <div className="frm-answer-q">
-                        {resp.respondentName ?? 'Anonim'} —{' '}
-                        <span style={{ opacity: 0.6, fontSize: '0.74rem' }}>
-                          {new Date(resp.submittedUtc).toLocaleString('pl-PL')}
+                      <div className="frm-answer-q" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span>
+                          {resp.respondentName ?? 'Anonim'} —{' '}
+                          <span style={{ opacity: 0.6, fontSize: '0.74rem' }}>
+                            {new Date(resp.submittedUtc).toLocaleString('pl-PL')}
+                          </span>
                         </span>
+                        <button
+                          className="frm-btn danger small"
+                          style={{ marginLeft: 'auto', flexShrink: 0 }}
+                          onClick={() => onDeleteResponse(resp.responseId)}
+                          title="Usuń odpowiedź"
+                        >
+                          Usuń
+                        </button>
                       </div>
                       <AnswerDisplay question={q} answer={answer} />
                     </div>

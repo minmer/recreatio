@@ -7539,6 +7539,13 @@ export function getFormResponses(formId: string) {
   return request<FormResponsesData>(`/forms/admin/${encodeURIComponent(formId)}/responses`, { method: 'GET' });
 }
 
+export function deleteFormResponse(formId: string, responseId: string) {
+  return request<void>(
+    `/forms/admin/${encodeURIComponent(formId)}/responses/${encodeURIComponent(responseId)}`,
+    { method: 'DELETE' }
+  );
+}
+
 export function getPublicForm(token: string) {
   return request<PublicFormResponse>(`/forms/fill/${encodeURIComponent(token)}`, { method: 'GET' });
 }

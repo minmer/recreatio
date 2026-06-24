@@ -93,37 +93,19 @@ export function PublicFormPage({ token }: Props) {
   }
 
   // ── Derived slide state ──────────────────────────────────────────────────────
+  // Slide 0 = name (required), slides 1..N = questions
 
   const visibleQuestions = form
     ? form.questions.filter((q) => isQuestionVisible(q, form.questions, answers))
     : [];
-  const totalSlides = visibleQuestions.length + 1; // last slide = name + submit
+  const totalSlides = 1 + visibleQuestions.length; // slide 0 = name
   const safeIdx = Math.min(slideIndex, totalSlides - 1);
-  const isNameSlide = safeIdx >= visibleQuestions.length;
-  const currentQ = isNameSlide ? null : (visibleQuestions[safeIdx] ?? null);
+  const isNameSlide = safeIdx === 0;
+  const questionSlideIdx = safeIdx - 1; // 0-based into visibleQuestions
+  const currentQ = isNameSlide ? null : (visibleQuestions[questionSlideIdx] ?? null);
+  const isLastSlide = safeIdx === totalSlides - 1;
   const progress =
     totalSlides > 1 ? Math.round((safeIdx / (totalSlides - 1)) * 100) : 100;
-
-  function handleNext() {
-    setError(null);
-    if (currentQ?.isRequired) {
-      const a = answers[currentQ.id];
-      const answered =
-        (currentQ.type === 'text' && !!a?.text.trim()) ||
-        (currentQ.type === 'scale' && !!a?.text) ||
-        (currentQ.type === 'multiselect' && (a?.selectedOptions.size ?? 0) > 0);
-      if (!answered) {
-        setError('To pytanie jest wymagane.');
-        return;
-      }
-    }
-    setSlideIndex((prev) => prev + 1);
-  }
-
-  function handlePrev() {
-    setError(null);
-    setSlideIndex((prev) => Math.max(0, prev - 1));
-  }
 
   async function handleSubmit() {
     if (!form || submitting) return;
@@ -162,6 +144,39 @@ export function PublicFormPage({ token }: Props) {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function handleNext() {
+    setError(null);
+
+    // Validate current slide
+    if (isNameSlide) {
+      if (!respondentName.trim()) {
+        setError('Imię jest wymagane.');
+        return;
+      }
+    } else if (currentQ?.isRequired) {
+      const a = answers[currentQ.id];
+      const answered =
+        (currentQ.type === 'text' && !!a?.text.trim()) ||
+        (currentQ.type === 'scale' && !!a?.text) ||
+        (currentQ.type === 'multiselect' && (a?.selectedOptions.size ?? 0) > 0);
+      if (!answered) {
+        setError('To pytanie jest wymagane.');
+        return;
+      }
+    }
+
+    if (isLastSlide) {
+      void handleSubmit();
+    } else {
+      setSlideIndex((prev) => prev + 1);
+    }
+  }
+
+  function handlePrev() {
+    setError(null);
+    setSlideIndex((prev) => Math.max(0, prev - 1));
   }
 
   // ── Non-form states ──────────────────────────────────────────────────────────
@@ -207,13 +222,13 @@ export function PublicFormPage({ token }: Props) {
         <div className="frm-slide-progress-fill" style={{ width: `${progress}%` }} />
       </div>
 
-      {/* Topbar: form title + step counter */}
+      {/* Topbar */}
       <div className="frm-slide-topbar">
         <div className="frm-slide-form-title">{form.title}</div>
         <div className="frm-slide-step-label">
           {isNameSlide
-            ? 'Ostatni krok'
-            : `${safeIdx + 1} / ${visibleQuestions.length}`}
+            ? 'Twoje imię'
+            : `Pytanie ${questionSlideIdx + 1} / ${visibleQuestions.length}`}
         </div>
       </div>
 
@@ -222,12 +237,29 @@ export function PublicFormPage({ token }: Props) {
         <div className="frm-slide-card">
           {error && <div className="frm-status error">{error}</div>}
 
-          {/* Description shown only on first slide */}
-          {safeIdx === 0 && form.description && (
-            <p className="frm-slide-description">{form.description}</p>
+          {/* Name slide (always slide 0) */}
+          {isNameSlide && (
+            <div className="frm-slide-question">
+              {form.description && (
+                <p className="frm-slide-description">{form.description}</p>
+              )}
+              <div className="frm-slide-q-text">
+                Jak masz na imię? <span className="frm-slide-required">*</span>
+              </div>
+              <input
+                className="frm-input frm-slide-name-input"
+                value={respondentName}
+                onChange={(e) => setRespondentName(e.target.value)}
+                placeholder="Imię i nazwisko"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleNext();
+                }}
+              />
+            </div>
           )}
 
-          {/* Current question */}
+          {/* Question slides */}
           {currentQ && (
             <div key={currentQ.id} className="frm-slide-question">
               <div className="frm-slide-q-text">
@@ -284,27 +316,6 @@ export function PublicFormPage({ token }: Props) {
               )}
             </div>
           )}
-
-          {/* Name + submit slide */}
-          {isNameSlide && (
-            <div className="frm-slide-question">
-              <div className="frm-slide-q-text">
-                {visibleQuestions.length > 0
-                  ? 'Gotowe! Podaj swoje imię (opcjonalnie):'
-                  : 'Podaj swoje imię (opcjonalnie):'}
-              </div>
-              <input
-                className="frm-input frm-slide-name-input"
-                value={respondentName}
-                onChange={(e) => setRespondentName(e.target.value)}
-                placeholder="Imię i nazwisko"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void handleSubmit();
-                }}
-              />
-            </div>
-          )}
         </div>
       </div>
 
@@ -320,26 +331,18 @@ export function PublicFormPage({ token }: Props) {
             ← Wróć
           </button>
 
-          {!isNameSlide && (
-            <button
-              className="frm-btn primary frm-slide-nav-btn"
-              type="button"
-              onClick={handleNext}
-            >
-              Dalej →
-            </button>
-          )}
-
-          {isNameSlide && (
-            <button
-              className="frm-btn primary frm-slide-nav-btn"
-              type="button"
-              onClick={() => void handleSubmit()}
-              disabled={submitting}
-            >
-              {submitting ? 'Wysyłam…' : 'Wyślij odpowiedź →'}
-            </button>
-          )}
+          <button
+            className="frm-btn primary frm-slide-nav-btn"
+            type="button"
+            onClick={handleNext}
+            disabled={submitting}
+          >
+            {submitting
+              ? 'Wysyłam…'
+              : isLastSlide
+              ? 'Wyślij odpowiedź →'
+              : 'Dalej →'}
+          </button>
         </div>
       </div>
     </div>
