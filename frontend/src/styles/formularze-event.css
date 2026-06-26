@@ -815,11 +815,10 @@
 }
 
 .frm-table-td-text {
-  font-size: 0.82rem;
-  line-height: 1.4;
+  font-size: 0.75rem;
+  line-height: 1.45;
   vertical-align: top;
   word-break: break-word;
-  max-width: 200px;
 }
 
 .frm-table-td-empty-text {
@@ -1043,6 +1042,47 @@
   font-size: 0.7rem;
   color: var(--frm-text-soft);
   margin-bottom: 5px;
+}
+
+/* ── Donut tooltip ───────────────────────────────────────── */
+
+.frm-donut-tooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #16192a;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 110px;
+  max-width: 210px;
+  max-height: 180px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  z-index: 60;
+  pointer-events: none;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.frm-donut-tooltip-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.frm-donut-tooltip-person {
+  font-size: 0.74rem;
+  color: rgba(255, 255, 255, 0.82);
+  padding: 2px 0;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Print styles ────────────────────────────────────────── */

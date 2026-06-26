@@ -271,9 +271,8 @@ function TableView({ data, onDeleteResponse }: { data: FormResponsesData; onDele
                       <td
                         key={q.id}
                         className={text ? 'frm-table-td-text' : 'frm-table-td-empty-text'}
-                        title={text || undefined}
                       >
-                        {text ? (text.length > 55 ? text.slice(0, 55) + '…' : text) : '—'}
+                        {text || '—'}
                       </td>
                     );
                   })}
@@ -316,11 +315,10 @@ function QuestionChart({ question, responses, total }: {
   total: number;
 }) {
   if (question.type === 'scale') {
-    const dist = [1, 2, 3, 4, 5].map((n, i) => ({
-      n,
-      color: SCALE_COLORS[i],
-      count: responses.filter(r => r.answers.find(a => a.questionId === question.id)?.textValue === String(n)).length,
-    }));
+    const dist = [1, 2, 3, 4, 5].map((n, i) => {
+      const matched = responses.filter(r => r.answers.find(a => a.questionId === question.id)?.textValue === String(n));
+      return { n, color: SCALE_COLORS[i], count: matched.length, people: matched.map(r => r.respondentName ?? 'Anonim') };
+    });
     const totalAnswered = dist.reduce((s, d) => s + d.count, 0);
     const maxCount = Math.max(...dist.map(d => d.count), 1);
     const avg = totalAnswered > 0
@@ -347,7 +345,12 @@ function QuestionChart({ question, responses, total }: {
             ))}
           </div>
           <div className="frm-chart-donut-col">
-            <DonutChart segments={dist.map(d => ({ color: d.color, pct: totalAnswered > 0 ? d.count / totalAnswered : 0 }))} />
+            <DonutChart segments={dist.map(d => ({
+              color: d.color,
+              pct: totalAnswered > 0 ? d.count / totalAnswered : 0,
+              label: `Ocena ${d.n}`,
+              people: d.people,
+            }))} />
             {avg !== null && (
               <div className="frm-chart-avg">
                 <div className="frm-chart-avg-val">{avg}</div>
@@ -364,13 +367,12 @@ function QuestionChart({ question, responses, total }: {
   if (question.type === 'multiselect') {
     const opts = question.options ?? [];
     const dist = opts
-      .map((opt, i) => ({
-        opt,
-        color: OPTION_COLORS[i % OPTION_COLORS.length],
-        count: responses.filter(r =>
+      .map((opt, i) => {
+        const matched = responses.filter(r =>
           r.answers.find(a => a.questionId === question.id)?.selectedOptions?.includes(opt)
-        ).length,
-      }))
+        );
+        return { opt, color: OPTION_COLORS[i % OPTION_COLORS.length], count: matched.length, people: matched.map(r => r.respondentName ?? 'Anonim') };
+      })
       .sort((a, b) => b.count - a.count);
 
     const totalSelections = dist.reduce((s, d) => s + d.count, 0);
@@ -407,6 +409,8 @@ function QuestionChart({ question, responses, total }: {
                 segments={dist.map(d => ({
                   color: d.color,
                   pct: totalSelections > 0 ? d.count / totalSelections : 0,
+                  label: d.opt,
+                  people: d.people,
                 }))}
               />
               <div className="frm-chart-avg">
@@ -452,9 +456,10 @@ function QuestionChart({ question, responses, total }: {
 // ── SVG Donut chart ───────────────────────────────────────────────────────────
 
 function DonutChart({ segments, size = 110 }: {
-  segments: Array<{ color: string; pct: number }>;
+  segments: Array<{ color: string; pct: number; label?: string; people?: string[] }>;
   size?: number;
 }) {
+  const [hovIdx, setHovIdx] = useState<number | null>(null);
   const cx = size / 2, cy = size / 2;
   const r = size * 0.40, innerR = size * 0.23;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -463,41 +468,69 @@ function DonutChart({ segments, size = 110 }: {
   if (nonEmpty.length === 0) return null;
 
   let cumPct = 0;
+  const hovSeg = hovIdx !== null ? nonEmpty[hovIdx] : null;
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
-      {nonEmpty.map((seg, i) => {
-        const startDeg = cumPct * 360 - 90;
-        cumPct += seg.pct;
-        const endDeg = cumPct * 360 - 90;
+    <div style={{ position: 'relative', display: 'inline-block', flexShrink: 0 }}>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        style={{ display: 'block' }}
+        onMouseLeave={() => setHovIdx(null)}
+      >
+        {nonEmpty.map((seg, i) => {
+          const startDeg = cumPct * 360 - 90;
+          cumPct += seg.pct;
+          const endDeg = cumPct * 360 - 90;
+          const dimmed = hovIdx !== null && hovIdx !== i;
 
-        if (seg.pct >= 0.998) {
+          if (seg.pct >= 0.998) {
+            return (
+              <g key={i} style={{ cursor: 'pointer' }}
+                onMouseEnter={() => setHovIdx(i)}>
+                <circle cx={cx} cy={cy} r={r} fill={seg.color} opacity={dimmed ? 0.35 : 1} style={{ transition: 'opacity 0.15s' }} />
+                <circle cx={cx} cy={cy} r={innerR} fill="var(--frm-bg-card)" />
+              </g>
+            );
+          }
+
+          const large = seg.pct > 0.5 ? 1 : 0;
+          const sx = cx + r * Math.cos(toRad(startDeg));
+          const sy = cy + r * Math.sin(toRad(startDeg));
+          const ex = cx + r * Math.cos(toRad(endDeg));
+          const ey = cy + r * Math.sin(toRad(endDeg));
+          const iex = cx + innerR * Math.cos(toRad(endDeg));
+          const iey = cy + innerR * Math.sin(toRad(endDeg));
+          const isx = cx + innerR * Math.cos(toRad(startDeg));
+          const isy = cy + innerR * Math.sin(toRad(startDeg));
+
           return (
-            <g key={i}>
-              <circle cx={cx} cy={cy} r={r} fill={seg.color} />
-              <circle cx={cx} cy={cy} r={innerR} fill="var(--frm-bg-card)" />
-            </g>
+            <path
+              key={i}
+              d={`M ${sx} ${sy} A ${r} ${r} 0 ${large} 1 ${ex} ${ey} L ${iex} ${iey} A ${innerR} ${innerR} 0 ${large} 0 ${isx} ${isy} Z`}
+              fill={seg.color}
+              opacity={dimmed ? 0.35 : 1}
+              style={{ cursor: 'pointer', transition: 'opacity 0.15s' }}
+              onMouseEnter={() => setHovIdx(i)}
+            />
           );
-        }
-
-        const large = seg.pct > 0.5 ? 1 : 0;
-        const sx = cx + r * Math.cos(toRad(startDeg));
-        const sy = cy + r * Math.sin(toRad(startDeg));
-        const ex = cx + r * Math.cos(toRad(endDeg));
-        const ey = cy + r * Math.sin(toRad(endDeg));
-        const iex = cx + innerR * Math.cos(toRad(endDeg));
-        const iey = cy + innerR * Math.sin(toRad(endDeg));
-        const isx = cx + innerR * Math.cos(toRad(startDeg));
-        const isy = cy + innerR * Math.sin(toRad(startDeg));
-
-        return (
-          <path
-            key={i}
-            d={`M ${sx} ${sy} A ${r} ${r} 0 ${large} 1 ${ex} ${ey} L ${iex} ${iey} A ${innerR} ${innerR} 0 ${large} 0 ${isx} ${isy} Z`}
-            fill={seg.color}
-          />
-        );
-      })}
-    </svg>
+        })}
+      </svg>
+      {hovSeg && hovSeg.people && hovSeg.people.length > 0 && (
+        <div className="frm-donut-tooltip">
+          {hovSeg.label && (
+            <div className="frm-donut-tooltip-label" style={{ color: hovSeg.color }}>
+              {hovSeg.label}
+            </div>
+          )}
+          <div className="frm-donut-tooltip-people">
+            {hovSeg.people.map((p, i) => (
+              <div key={i} className="frm-donut-tooltip-person">{p}</div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
