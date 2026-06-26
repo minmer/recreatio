@@ -735,7 +735,6 @@
 
 .frm-table {
   width: auto;
-  min-width: 100%;
   border-collapse: collapse;
   font-size: 0.82rem;
 }
@@ -763,9 +762,11 @@
 }
 
 .frm-table-th-num { width: 36px; text-align: center; font-size: 0.75rem; }
-.frm-table-th-name { min-width: 130px; }
-.frm-table-th-date { width: 86px; white-space: nowrap; }
+.frm-table-th-name { min-width: 130px; white-space: nowrap; }
+.frm-table-th-date { white-space: nowrap; }
 .frm-table-th-action { width: 56px; }
+.frm-table-td-name { white-space: nowrap; }
+.frm-table-td-date { white-space: nowrap; }
 
 .frm-table-th-q {
   vertical-align: top;
@@ -1042,45 +1043,66 @@
   margin-bottom: 5px;
 }
 
-/* ── Donut tooltip ───────────────────────────────────────── */
+/* ── Person panel (click-pinned list below chart) ────────── */
 
-.frm-donut-tooltip {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: #16192a;
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 8px;
-  padding: 8px 12px;
-  min-width: 110px;
-  max-width: 210px;
-  max-height: 180px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  z-index: 60;
-  pointer-events: none;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+.frm-chart-person-panel {
+  border-top: 1px solid var(--frm-line);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.frm-donut-tooltip-label {
-  font-size: 0.72rem;
+.frm-chart-person-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.frm-chart-person-panel-label {
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  margin-bottom: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  letter-spacing: 0.03em;
 }
 
-.frm-donut-tooltip-person {
-  font-size: 0.74rem;
-  color: rgba(255, 255, 255, 0.82);
-  padding: 2px 0;
+.frm-chart-person-panel-close {
+  background: none;
+  border: none;
+  color: var(--frm-text-soft);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.frm-chart-person-panel-close:hover {
+  color: var(--frm-text);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.frm-chart-person-panel-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.frm-chart-person-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--frm-line);
+  border-radius: 20px;
+  font-size: 0.75rem;
+  color: var(--frm-text);
   line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.frm-chart-bar-row--pinned .frm-chart-bar-track {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
 }
 
 /* ── Print styles ────────────────────────────────────────── */

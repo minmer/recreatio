@@ -233,7 +233,12 @@ function TableView({ data, onDeleteResponse }: { data: FormResponsesData; onDele
               <th className="frm-table-th-name">Imię / Nazwisko</th>
               <th className="frm-table-th-date">Data</th>
               {questions.map((q, i) => (
-                <th key={q.id} className="frm-table-th-q" title={q.text}>
+                <th
+                  key={q.id}
+                  className="frm-table-th-q"
+                  style={q.type === 'scale' ? { width: '64px' } : { minWidth: '180px' }}
+                  title={q.text}
+                >
                   <div className="frm-table-th-badge">P{i + 1}</div>
                   <div className="frm-table-th-text">{q.text}</div>
                   <div className="frm-table-th-type">
@@ -321,16 +326,39 @@ function QuestionChart({ question, responses, total }: {
   responses: FormResponseRow[];
   total: number;
 }) {
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [pinned, setPinned] = useState(false);
+
+  function onHover(key: string | null) {
+    if (!pinned) setActiveKey(key);
+  }
+
+  function onPin(key: string) {
+    if (pinned && activeKey === key) {
+      setPinned(false);
+      setActiveKey(null);
+    } else {
+      setPinned(true);
+      setActiveKey(key);
+    }
+  }
+
+  function clearPin() {
+    setPinned(false);
+    setActiveKey(null);
+  }
+
   if (question.type === 'scale') {
     const dist = [1, 2, 3, 4, 5].map((n, i) => {
       const matched = responses.filter(r => r.answers.find(a => a.questionId === question.id)?.textValue === String(n));
-      return { n, color: SCALE_COLORS[i], count: matched.length, people: matched.map(r => r.respondentName ?? 'Anonim') };
+      return { n, key: String(n), color: SCALE_COLORS[i], count: matched.length, people: matched.map(r => r.respondentName ?? 'Anonim') };
     });
     const totalAnswered = dist.reduce((s, d) => s + d.count, 0);
     const maxCount = Math.max(...dist.map(d => d.count), 1);
     const avg = totalAnswered > 0
       ? (dist.reduce((s, d) => s + d.n * d.count, 0) / totalAnswered).toFixed(1)
       : null;
+    const activeItem = activeKey ? dist.find(d => d.key === activeKey) : null;
 
     return (
       <div className="frm-chart-card">
@@ -338,8 +366,15 @@ function QuestionChart({ question, responses, total }: {
         <div className="frm-chart-question-text">{question.text}</div>
         <div className="frm-chart-body">
           <div className="frm-chart-bars">
-            {dist.map(({ n, color, count }) => (
-              <div key={n} className="frm-chart-bar-row">
+            {dist.map(({ n, key, color, count }) => (
+              <div
+                key={n}
+                className={`frm-chart-bar-row${pinned && activeKey === key ? ' frm-chart-bar-row--pinned' : ''}`}
+                style={{ opacity: activeKey && activeKey !== key ? 0.3 : 1, cursor: 'pointer', transition: 'opacity 0.15s' }}
+                onClick={() => onPin(key)}
+                onMouseEnter={() => onHover(key)}
+                onMouseLeave={() => onHover(null)}
+              >
                 <span className="frm-chart-bar-label" style={{ color }}>{n}</span>
                 <div className="frm-chart-bar-track">
                   <div className="frm-chart-bar-fill" style={{ width: `${(count / maxCount) * 100}%`, background: color }} />
@@ -352,12 +387,12 @@ function QuestionChart({ question, responses, total }: {
             ))}
           </div>
           <div className="frm-chart-donut-col">
-            <DonutChart segments={dist.map(d => ({
-              color: d.color,
-              pct: totalAnswered > 0 ? d.count / totalAnswered : 0,
-              label: `Ocena ${d.n}`,
-              people: d.people,
-            }))} />
+            <DonutChart
+              segments={dist.map(d => ({ color: d.color, pct: totalAnswered > 0 ? d.count / totalAnswered : 0, segKey: d.key }))}
+              activeKey={activeKey}
+              onSegmentHover={onHover}
+              onSegmentClick={onPin}
+            />
             {avg !== null && (
               <div className="frm-chart-avg">
                 <div className="frm-chart-avg-val">{avg}</div>
@@ -366,6 +401,9 @@ function QuestionChart({ question, responses, total }: {
             )}
           </div>
         </div>
+        {activeItem && (
+          <PersonPanel label={`Ocena ${activeItem.n}`} color={activeItem.color} people={activeItem.people} pinned={pinned} onClose={clearPin} />
+        )}
         <div className="frm-chart-footer">{totalAnswered} z {total} odpowiedzi</div>
       </div>
     );
@@ -378,7 +416,7 @@ function QuestionChart({ question, responses, total }: {
         const matched = responses.filter(r =>
           r.answers.find(a => a.questionId === question.id)?.selectedOptions?.includes(opt)
         );
-        return { opt, color: OPTION_COLORS[i % OPTION_COLORS.length], count: matched.length, people: matched.map(r => r.respondentName ?? 'Anonim') };
+        return { opt, key: opt, color: OPTION_COLORS[i % OPTION_COLORS.length], count: matched.length, people: matched.map(r => r.respondentName ?? 'Anonim') };
       })
       .sort((a, b) => b.count - a.count);
 
@@ -388,6 +426,7 @@ function QuestionChart({ question, responses, total }: {
       const a = r.answers.find(ans => ans.questionId === question.id);
       return a?.selectedOptions && a.selectedOptions.length > 0;
     }).length;
+    const activeItem = activeKey ? dist.find(d => d.key === activeKey) : null;
 
     return (
       <div className="frm-chart-card">
@@ -395,8 +434,15 @@ function QuestionChart({ question, responses, total }: {
         <div className="frm-chart-question-text">{question.text}</div>
         <div className="frm-chart-body">
           <div className="frm-chart-bars frm-chart-bars-wide">
-            {dist.map(({ opt, color, count }) => (
-              <div key={opt} className="frm-chart-bar-row">
+            {dist.map(({ opt, key, color, count }) => (
+              <div
+                key={opt}
+                className={`frm-chart-bar-row${pinned && activeKey === key ? ' frm-chart-bar-row--pinned' : ''}`}
+                style={{ opacity: activeKey && activeKey !== key ? 0.3 : 1, cursor: 'pointer', transition: 'opacity 0.15s' }}
+                onClick={() => onPin(key)}
+                onMouseEnter={() => onHover(key)}
+                onMouseLeave={() => onHover(null)}
+              >
                 <span className="frm-chart-bar-label-wide" title={opt}>
                   {opt.length > 20 ? opt.slice(0, 20) + '…' : opt}
                 </span>
@@ -413,12 +459,10 @@ function QuestionChart({ question, responses, total }: {
           {opts.length > 1 && totalSelections > 0 && (
             <div className="frm-chart-donut-col">
               <DonutChart
-                segments={dist.map(d => ({
-                  color: d.color,
-                  pct: totalSelections > 0 ? d.count / totalSelections : 0,
-                  label: d.opt,
-                  people: d.people,
-                }))}
+                segments={dist.map(d => ({ color: d.color, pct: totalSelections > 0 ? d.count / totalSelections : 0, segKey: d.key }))}
+                activeKey={activeKey}
+                onSegmentHover={onHover}
+                onSegmentClick={onPin}
               />
               <div className="frm-chart-avg">
                 <div className="frm-chart-avg-val">{totalSelections}</div>
@@ -427,12 +471,15 @@ function QuestionChart({ question, responses, total }: {
             </div>
           )}
         </div>
+        {activeItem && (
+          <PersonPanel label={activeItem.opt} color={activeItem.color} people={activeItem.people} pinned={pinned} onClose={clearPin} />
+        )}
         <div className="frm-chart-footer">{answeredCount} z {total} odpowiedzi</div>
       </div>
     );
   }
 
-  // Text question
+  // Text question — unchanged
   const textAnswers = responses.flatMap(r => {
     const a = r.answers.find(ans => ans.questionId === question.id);
     if (!a?.textValue?.trim()) return [];
@@ -460,11 +507,34 @@ function QuestionChart({ question, responses, total }: {
   );
 }
 
+// ── Person panel ──────────────────────────────────────────────────────────────
+
+function PersonPanel({ label, color, people, pinned, onClose }: {
+  label: string; color: string; people: string[]; pinned: boolean; onClose: () => void;
+}) {
+  if (people.length === 0) return null;
+  const noun = people.length === 1 ? 'osoba' : people.length < 5 ? 'osoby' : 'osób';
+  return (
+    <div className="frm-chart-person-panel">
+      <div className="frm-chart-person-panel-header">
+        <span className="frm-chart-person-panel-label" style={{ color }}>{label} — {people.length} {noun}</span>
+        {pinned && <button className="frm-chart-person-panel-close" onClick={onClose}>✕</button>}
+      </div>
+      <div className="frm-chart-person-panel-list">
+        {people.map((p, i) => <span key={i} className="frm-chart-person-chip">{p}</span>)}
+      </div>
+    </div>
+  );
+}
+
 // ── SVG Donut chart ───────────────────────────────────────────────────────────
 
-function DonutChart({ segments, size = 110 }: {
-  segments: Array<{ color: string; pct: number; label?: string; people?: string[] }>;
+function DonutChart({ segments, size = 110, activeKey, onSegmentHover, onSegmentClick }: {
+  segments: Array<{ color: string; pct: number; segKey?: string }>;
   size?: number;
+  activeKey?: string | null;
+  onSegmentHover?: (key: string | null) => void;
+  onSegmentClick?: (key: string) => void;
 }) {
   const [hovIdx, setHovIdx] = useState<number | null>(null);
   const cx = size / 2, cy = size / 2;
@@ -475,69 +545,59 @@ function DonutChart({ segments, size = 110 }: {
   if (nonEmpty.length === 0) return null;
 
   let cumPct = 0;
-  const hovSeg = hovIdx !== null ? nonEmpty[hovIdx] : null;
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block', flexShrink: 0 }}>
-      <svg
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        style={{ display: 'block' }}
-        onMouseLeave={() => setHovIdx(null)}
-      >
-        {nonEmpty.map((seg, i) => {
-          const startDeg = cumPct * 360 - 90;
-          cumPct += seg.pct;
-          const endDeg = cumPct * 360 - 90;
-          const dimmed = hovIdx !== null && hovIdx !== i;
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      style={{ display: 'block', flexShrink: 0 }}
+      onMouseLeave={() => { setHovIdx(null); onSegmentHover?.(null); }}
+    >
+      {nonEmpty.map((seg, i) => {
+        const startDeg = cumPct * 360 - 90;
+        cumPct += seg.pct;
+        const endDeg = cumPct * 360 - 90;
 
-          if (seg.pct >= 0.998) {
-            return (
-              <g key={i} style={{ cursor: 'pointer' }}
-                onMouseEnter={() => setHovIdx(i)}>
-                <circle cx={cx} cy={cy} r={r} fill={seg.color} opacity={dimmed ? 0.35 : 1} style={{ transition: 'opacity 0.15s' }} />
-                <circle cx={cx} cy={cy} r={innerR} fill="var(--frm-bg-card)" />
-              </g>
-            );
-          }
+        const anyActive = activeKey != null;
+        const isActive = anyActive && seg.segKey === activeKey;
+        const isHov = !anyActive && hovIdx === i;
+        const opacity = anyActive ? (isActive ? 1 : 0.25) : (hovIdx !== null ? (isHov ? 1 : 0.25) : 1);
 
-          const large = seg.pct > 0.5 ? 1 : 0;
-          const sx = cx + r * Math.cos(toRad(startDeg));
-          const sy = cy + r * Math.sin(toRad(startDeg));
-          const ex = cx + r * Math.cos(toRad(endDeg));
-          const ey = cy + r * Math.sin(toRad(endDeg));
-          const iex = cx + innerR * Math.cos(toRad(endDeg));
-          const iey = cy + innerR * Math.sin(toRad(endDeg));
-          const isx = cx + innerR * Math.cos(toRad(startDeg));
-          const isy = cy + innerR * Math.sin(toRad(startDeg));
+        const enter = () => { setHovIdx(i); onSegmentHover?.(seg.segKey ?? null); };
+        const click = () => { if (seg.segKey) onSegmentClick?.(seg.segKey); };
 
+        if (seg.pct >= 0.998) {
           return (
-            <path
-              key={i}
-              d={`M ${sx} ${sy} A ${r} ${r} 0 ${large} 1 ${ex} ${ey} L ${iex} ${iey} A ${innerR} ${innerR} 0 ${large} 0 ${isx} ${isy} Z`}
-              fill={seg.color}
-              opacity={dimmed ? 0.35 : 1}
-              style={{ cursor: 'pointer', transition: 'opacity 0.15s' }}
-              onMouseEnter={() => setHovIdx(i)}
-            />
+            <g key={i} style={{ cursor: 'pointer' }} onMouseEnter={enter} onClick={click}>
+              <circle cx={cx} cy={cy} r={r} fill={seg.color} opacity={opacity} style={{ transition: 'opacity 0.15s' }} />
+              <circle cx={cx} cy={cy} r={innerR} fill="var(--frm-bg-card)" />
+            </g>
           );
-        })}
-      </svg>
-      {hovSeg && hovSeg.people && hovSeg.people.length > 0 && (
-        <div className="frm-donut-tooltip">
-          {hovSeg.label && (
-            <div className="frm-donut-tooltip-label" style={{ color: hovSeg.color }}>
-              {hovSeg.label}
-            </div>
-          )}
-          <div className="frm-donut-tooltip-people">
-            {hovSeg.people.map((p, i) => (
-              <div key={i} className="frm-donut-tooltip-person">{p}</div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+        }
+
+        const large = seg.pct > 0.5 ? 1 : 0;
+        const sx = cx + r * Math.cos(toRad(startDeg));
+        const sy = cy + r * Math.sin(toRad(startDeg));
+        const ex = cx + r * Math.cos(toRad(endDeg));
+        const ey = cy + r * Math.sin(toRad(endDeg));
+        const iex = cx + innerR * Math.cos(toRad(endDeg));
+        const iey = cy + innerR * Math.sin(toRad(endDeg));
+        const isx = cx + innerR * Math.cos(toRad(startDeg));
+        const isy = cy + innerR * Math.sin(toRad(startDeg));
+
+        return (
+          <path
+            key={i}
+            d={`M ${sx} ${sy} A ${r} ${r} 0 ${large} 1 ${ex} ${ey} L ${iex} ${iey} A ${innerR} ${innerR} 0 ${large} 0 ${isx} ${isy} Z`}
+            fill={seg.color}
+            opacity={opacity}
+            style={{ cursor: 'pointer', transition: 'opacity 0.15s' }}
+            onMouseEnter={enter}
+            onClick={click}
+          />
+        );
+      })}
+    </svg>
   );
 }
