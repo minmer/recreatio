@@ -917,6 +917,28 @@
   display: flex;
   gap: 14px;
   align-items: flex-start;
+  position: relative;
+}
+
+.frm-chart-hover-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 14, 26, 0.88);
+  backdrop-filter: blur(3px);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.frm-chart-hover-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
 /* Bar chart */

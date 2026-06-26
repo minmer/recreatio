@@ -400,9 +400,19 @@ function QuestionChart({ question, responses, total }: {
               </div>
             )}
           </div>
+          {!pinned && activeItem && activeItem.people.length > 0 && (
+            <div className="frm-chart-hover-overlay">
+              <div className="frm-chart-hover-label" style={{ color: activeItem.color }}>
+                Ocena {activeItem.n}
+              </div>
+              <div className="frm-chart-person-panel-list">
+                {activeItem.people.map((p, i) => <span key={i} className="frm-chart-person-chip">{p}</span>)}
+              </div>
+            </div>
+          )}
         </div>
-        {activeItem && (
-          <PersonPanel label={`Ocena ${activeItem.n}`} color={activeItem.color} people={activeItem.people} pinned={pinned} onClose={clearPin} />
+        {pinned && activeItem && (
+          <PersonPanel label={`Ocena ${activeItem.n}`} color={activeItem.color} people={activeItem.people} pinned onClose={clearPin} />
         )}
         <div className="frm-chart-footer">{totalAnswered} z {total} odpowiedzi</div>
       </div>
@@ -470,9 +480,19 @@ function QuestionChart({ question, responses, total }: {
               </div>
             </div>
           )}
+          {!pinned && activeItem && activeItem.people.length > 0 && (
+            <div className="frm-chart-hover-overlay">
+              <div className="frm-chart-hover-label" style={{ color: activeItem.color }}>
+                {activeItem.opt}
+              </div>
+              <div className="frm-chart-person-panel-list">
+                {activeItem.people.map((p, i) => <span key={i} className="frm-chart-person-chip">{p}</span>)}
+              </div>
+            </div>
+          )}
         </div>
-        {activeItem && (
-          <PersonPanel label={activeItem.opt} color={activeItem.color} people={activeItem.people} pinned={pinned} onClose={clearPin} />
+        {pinned && activeItem && (
+          <PersonPanel label={activeItem.opt} color={activeItem.color} people={activeItem.people} pinned onClose={clearPin} />
         )}
         <div className="frm-chart-footer">{answeredCount} z {total} odpowiedzi</div>
       </div>
