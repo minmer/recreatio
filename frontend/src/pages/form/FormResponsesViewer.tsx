@@ -210,6 +210,24 @@ function TableView({ data, onDeleteResponse }: { data: FormResponsesData; onDele
     return a.textValue?.trim() ?? '';
   }
 
+  // Per-question max answer length, used for adaptive column widths
+  const maxLen: Record<string, number> = {};
+  for (const q of questions) {
+    maxLen[q.id] = responses.reduce((m, r) => Math.max(m, getCellText(q, r).length), q.text.length);
+  }
+
+  function colWidth(q: FormQuestion): string {
+    if (q.type === 'scale') return '52px';
+    const len = maxLen[q.id] ?? 0;
+    return `${Math.min(360, Math.max(88, Math.round(len * 2.0)))}px`;
+  }
+
+  function cellFontSize(len: number): string {
+    if (len > 150) return '0.65rem';
+    if (len > 80) return '0.70rem';
+    return '0.75rem';
+  }
+
   return (
     <div className="frm-table-view">
       <div className="frm-table-topbar frm-no-print">
@@ -227,7 +245,7 @@ function TableView({ data, onDeleteResponse }: { data: FormResponsesData; onDele
               <th className="frm-table-th-name">Imię / Nazwisko</th>
               <th className="frm-table-th-date">Data</th>
               {questions.map((q, i) => (
-                <th key={q.id} className="frm-table-th-q" title={q.text}>
+                <th key={q.id} className="frm-table-th-q" style={{ width: colWidth(q) }} title={q.text}>
                   <div className="frm-table-th-badge">P{i + 1}</div>
                   <div className="frm-table-th-text">{q.text}</div>
                   <div className="frm-table-th-type">
@@ -271,6 +289,7 @@ function TableView({ data, onDeleteResponse }: { data: FormResponsesData; onDele
                       <td
                         key={q.id}
                         className={text ? 'frm-table-td-text' : 'frm-table-td-empty-text'}
+                        style={text ? { fontSize: cellFontSize(text.length) } : undefined}
                       >
                         {text || '—'}
                       </td>

@@ -768,8 +768,6 @@
 .frm-table-th-action { width: 56px; }
 
 .frm-table-th-q {
-  min-width: 130px;
-  max-width: 200px;
   vertical-align: top;
   padding: 8px 12px;
 }
