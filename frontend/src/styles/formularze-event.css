@@ -870,6 +870,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  position: relative;
 }
 
 .frm-chart-card--wide {
@@ -917,22 +918,27 @@
   display: flex;
   gap: 14px;
   align-items: flex-start;
-  position: relative;
 }
 
 .frm-chart-hover-overlay {
   position: absolute;
-  inset: 0;
-  background: rgba(12, 14, 26, 0.88);
-  backdrop-filter: blur(3px);
-  border-radius: 8px;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 200px;
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  background: rgba(12, 14, 26, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 10px;
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  justify-content: center;
   pointer-events: none;
-  z-index: 10;
+  z-index: 100;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
 }
 
 .frm-chart-hover-label {
