@@ -1627,6 +1627,11 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
             .HasIndex(x => x.FillToken)
             .IsUnique();
 
+        modelBuilder.Entity<Data.Forms.Form>()
+            .HasIndex(x => x.ViewToken)
+            .IsUnique()
+            .HasFilter("[ViewToken] IS NOT NULL");
+
         modelBuilder.Entity<Data.Forms.FormQuestion>()
             .HasIndex(x => new { x.FormId, x.SortOrder });
         modelBuilder.Entity<Data.Forms.FormQuestion>()

@@ -7409,6 +7409,7 @@ export type FormSummary = {
   description: string | null;
   isPublished: boolean;
   fillToken: string;
+  viewToken: string | null;
   questionCount: number;
   responseCount: number;
   createdUtc: string;
@@ -7431,6 +7432,7 @@ export type FormDetail = {
   description: string | null;
   isPublished: boolean;
   fillToken: string;
+  viewToken: string | null;
   questions: FormQuestion[];
   createdUtc: string;
 };
@@ -7571,6 +7573,14 @@ export function deleteFormResponse(formId: string, responseId: string) {
     `/forms/admin/${encodeURIComponent(formId)}/responses/${encodeURIComponent(responseId)}`,
     { method: 'DELETE' }
   );
+}
+
+export function generateFormViewToken(formId: string) {
+  return request<{ viewToken: string }>(`/forms/admin/${encodeURIComponent(formId)}/view-token`, { method: 'POST' });
+}
+
+export function getPublicFormResponses(viewToken: string) {
+  return request<FormResponsesData>(`/forms/view/${encodeURIComponent(viewToken)}`, { method: 'GET' });
 }
 
 export function getPublicForm(token: string) {

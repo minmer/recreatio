@@ -149,7 +149,7 @@ public static class FormsEndpoints
             var rMap = responseCounts.ToDictionary(x => x.FormId, x => x.Count);
 
             var result = forms.Select(f => new FormSummaryResponse(
-                f.Id, f.Title, f.Description, f.IsPublished, f.FillToken,
+                f.Id, f.Title, f.Description, f.IsPublished, f.FillToken, f.ViewToken,
                 qMap.GetValueOrDefault(f.Id, 0),
                 rMap.GetValueOrDefault(f.Id, 0),
                 f.CreatedUtc)).ToList();
@@ -177,6 +177,7 @@ public static class FormsEndpoints
                 Description = string.IsNullOrWhiteSpace(req.Description) ? null : req.Description.Trim(),
                 IsPublished = false,
                 FillToken = GenerateFillToken(),
+                ViewToken = GenerateFillToken(),
                 CreatedUtc = now,
                 UpdatedUtc = now
             };
@@ -185,7 +186,7 @@ public static class FormsEndpoints
             await dbContext.SaveChangesAsync(ct);
 
             return Results.Ok(new FormDetailResponse(
-                form.Id, form.Title, form.Description, form.IsPublished, form.FillToken, [], form.CreatedUtc));
+                form.Id, form.Title, form.Description, form.IsPublished, form.FillToken, form.ViewToken, [], form.CreatedUtc));
         }).RequireAuthorization();
 
         group.MapPost("/admin/import", async (
@@ -228,6 +229,7 @@ public static class FormsEndpoints
                 Description = string.IsNullOrWhiteSpace(req.Description) ? null : req.Description.Trim(),
                 IsPublished = false,
                 FillToken = GenerateFillToken(),
+                ViewToken = GenerateFillToken(),
                 CreatedUtc = now,
                 UpdatedUtc = now
             };
@@ -271,7 +273,7 @@ public static class FormsEndpoints
             await dbContext.SaveChangesAsync(ct);
 
             return Results.Ok(new FormDetailResponse(
-                form.Id, form.Title, form.Description, form.IsPublished, form.FillToken,
+                form.Id, form.Title, form.Description, form.IsPublished, form.FillToken, form.ViewToken,
                 questionEntities.Select(MapQuestion).ToList(),
                 form.CreatedUtc));
         }).RequireAuthorization();
@@ -295,7 +297,7 @@ public static class FormsEndpoints
                 .ToListAsync(ct);
 
             return Results.Ok(new FormDetailResponse(
-                form.Id, form.Title, form.Description, form.IsPublished, form.FillToken,
+                form.Id, form.Title, form.Description, form.IsPublished, form.FillToken, form.ViewToken,
                 questions.Select(MapQuestion).ToList(),
                 form.CreatedUtc));
         }).RequireAuthorization();
@@ -584,6 +586,75 @@ public static class FormsEndpoints
 
             return Results.Ok();
         }).RequireAuthorization();
+
+        group.MapPost("/admin/{formId:guid}/view-token", async (
+            Guid formId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            if (!await IsFormsAdminAsync(context, dbContext, ct)) return Results.Forbid();
+
+            var form = await dbContext.Forms.FirstOrDefaultAsync(x => x.Id == formId, ct);
+            if (form is null) return Results.NotFound();
+
+            if (form.ViewToken is null)
+            {
+                form.ViewToken = GenerateFillToken();
+                await dbContext.SaveChangesAsync(ct);
+            }
+
+            return Results.Ok(new { viewToken = form.ViewToken });
+        }).RequireAuthorization();
+
+        group.MapGet("/view/{viewToken}", async (
+            string viewToken,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            var form = await dbContext.Forms.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ViewToken == viewToken, ct);
+            if (form is null) return Results.NotFound();
+
+            var questions = await dbContext.FormQuestions.AsNoTracking()
+                .Where(q => q.FormId == form.Id)
+                .OrderBy(q => q.SortOrder)
+                .ToListAsync(ct);
+
+            var responses = await dbContext.FormResponses.AsNoTracking()
+                .Where(r => r.FormId == form.Id)
+                .OrderBy(r => r.SubmittedUtc)
+                .ToListAsync(ct);
+
+            var responseIds = responses.Select(r => r.Id).ToList();
+            var answers = await dbContext.FormAnswers.AsNoTracking()
+                .Where(a => responseIds.Contains(a.ResponseId))
+                .ToListAsync(ct);
+
+            var answersByResponse = answers
+                .GroupBy(a => a.ResponseId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var responseRows = responses.Select(r =>
+            {
+                var rowAnswers = answersByResponse.GetValueOrDefault(r.Id, []);
+                return new FormResponseRow(
+                    r.Id,
+                    r.RespondentName,
+                    r.SubmittedUtc,
+                    rowAnswers.Select(a => new FormAnswerResponse(
+                        a.QuestionId,
+                        a.TextValue,
+                        a.SelectedOptionsJson is not null
+                            ? JsonSerializer.Deserialize<string[]>(a.SelectedOptionsJson)
+                            : null)).ToList());
+            }).ToList();
+
+            return Results.Ok(new FormResponsesResponse(
+                form.Id, form.Title,
+                questions.Select(MapQuestion).ToList(),
+                responseRows));
+        });
 
         group.MapGet("/fill/{token}", async (
             string token,

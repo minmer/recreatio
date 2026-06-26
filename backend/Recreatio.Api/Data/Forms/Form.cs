@@ -20,6 +20,9 @@ public sealed class Form
     [MaxLength(64)]
     public string FillToken { get; set; } = string.Empty;
 
+    [MaxLength(64)]
+    public string? ViewToken { get; set; }
+
     public DateTimeOffset CreatedUtc { get; set; }
 
     public DateTimeOffset UpdatedUtc { get; set; }

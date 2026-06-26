@@ -536,8 +536,8 @@
 }
 
 .frm-view-toggle button {
-  padding: 7px 16px;
-  font-size: 0.82rem;
+  padding: 7px 11px;
+  font-size: 0.8rem;
   background: transparent;
   border: none;
   color: var(--frm-text-soft);
@@ -705,6 +705,448 @@
   background: var(--frm-accent-soft);
   border-color: var(--frm-accent-border);
   color: var(--frm-accent);
+}
+
+/* ── Table view ──────────────────────────────────────────── */
+
+.frm-table-view {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.frm-table-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.frm-table-info {
+  font-size: 0.82rem;
+  color: var(--frm-text-soft);
+}
+
+.frm-table-scroll {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--frm-line);
+}
+
+.frm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  min-width: 480px;
+}
+
+.frm-table th,
+.frm-table td {
+  border-bottom: 1px solid var(--frm-line);
+  padding: 9px 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.frm-table th:not(:last-child),
+.frm-table td:not(:last-child) {
+  border-right: 1px solid var(--frm-line);
+}
+
+.frm-table th {
+  background: var(--frm-bg-card);
+  color: var(--frm-text-soft);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.frm-table-th-num { width: 36px; text-align: center; font-size: 0.75rem; }
+.frm-table-th-name { min-width: 130px; }
+.frm-table-th-date { width: 86px; white-space: nowrap; }
+.frm-table-th-action { width: 56px; }
+
+.frm-table-th-q {
+  min-width: 130px;
+  max-width: 200px;
+  vertical-align: top;
+  padding: 8px 12px;
+}
+
+.frm-table-th-badge {
+  font-size: 0.67rem;
+  font-weight: 700;
+  color: var(--frm-accent);
+  margin-bottom: 3px;
+  letter-spacing: 0.04em;
+}
+
+.frm-table-th-text {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--frm-text-soft);
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.frm-table-th-type {
+  font-size: 0.64rem;
+  color: var(--frm-text-soft);
+  opacity: 0.55;
+  margin-top: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.frm-table-td-num {
+  text-align: center;
+  color: var(--frm-text-soft);
+  font-size: 0.75rem;
+}
+
+.frm-table-td-name { font-weight: 500; }
+
+.frm-table-td-date {
+  color: var(--frm-text-soft);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.frm-table-td-text {
+  font-size: 0.82rem;
+  line-height: 1.4;
+  vertical-align: top;
+  word-break: break-word;
+  max-width: 200px;
+}
+
+.frm-table-td-empty-text {
+  color: var(--frm-text-soft);
+  opacity: 0.35;
+  font-size: 0.82rem;
+}
+
+.frm-table-td-scale {
+  text-align: center;
+}
+
+.frm-table-scale-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.frm-table-td-action { text-align: center; }
+
+.frm-table-empty-cell {
+  text-align: center;
+  padding: 32px;
+  color: var(--frm-text-soft);
+}
+
+.frm-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ── Charts view ─────────────────────────────────────────── */
+
+.frm-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 18px;
+}
+
+.frm-chart-card {
+  background: var(--frm-bg-card);
+  border: 1px solid var(--frm-line);
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.frm-chart-card--wide {
+  grid-column: 1 / -1;
+}
+
+.frm-chart-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-size: 0.67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  width: fit-content;
+}
+
+.frm-chart-type-scale {
+  background: rgba(74, 158, 255, 0.14);
+  color: #4A9EFF;
+  border: 1px solid rgba(74, 158, 255, 0.28);
+}
+
+.frm-chart-type-multi {
+  background: rgba(76, 175, 80, 0.14);
+  color: #4CAF50;
+  border: 1px solid rgba(76, 175, 80, 0.28);
+}
+
+.frm-chart-type-text {
+  background: rgba(255, 107, 107, 0.14);
+  color: #FF7070;
+  border: 1px solid rgba(255, 107, 107, 0.28);
+}
+
+.frm-chart-question-text {
+  font-size: 0.93rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--frm-text);
+}
+
+.frm-chart-body {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+/* Bar chart */
+.frm-chart-bars {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.frm-chart-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.frm-chart-bar-label {
+  width: 20px;
+  text-align: center;
+  font-size: 0.88rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.frm-chart-bar-label-wide {
+  width: 110px;
+  min-width: 110px;
+  text-align: left;
+  font-size: 0.77rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--frm-text-soft);
+}
+
+.frm-chart-bar-track {
+  flex: 1;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.055);
+  border-radius: 5px;
+  overflow: hidden;
+  min-width: 30px;
+}
+
+.frm-chart-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.frm-chart-bar-count {
+  width: 52px;
+  text-align: right;
+  font-size: 0.76rem;
+  color: var(--frm-text);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.frm-chart-bar-pct {
+  color: var(--frm-text-soft);
+}
+
+/* Donut */
+.frm-chart-donut-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.frm-chart-avg {
+  text-align: center;
+}
+
+.frm-chart-avg-val {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--frm-accent);
+  line-height: 1;
+}
+
+.frm-chart-avg-label {
+  font-size: 0.67rem;
+  color: var(--frm-text-soft);
+  margin-top: 3px;
+}
+
+.frm-chart-footer {
+  font-size: 0.74rem;
+  color: var(--frm-text-soft);
+  border-top: 1px solid var(--frm-line);
+  padding-top: 10px;
+  margin-top: auto;
+}
+
+/* Text answers */
+.frm-chart-text-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 340px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.frm-chart-text-item {
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border-left: 3px solid var(--frm-accent);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--frm-text);
+}
+
+.frm-chart-text-meta {
+  font-size: 0.7rem;
+  color: var(--frm-text-soft);
+  margin-bottom: 5px;
+}
+
+/* ── Print styles ────────────────────────────────────────── */
+
+@media print {
+  .frm-no-print,
+  .frm-header {
+    display: none !important;
+  }
+
+  .frm-page {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .frm-main {
+    padding: 12px !important;
+    max-width: 100% !important;
+  }
+
+  .frm-section-title,
+  .frm-section-sub,
+  .frm-chart-question-text,
+  .frm-chart-bar-count,
+  .frm-chart-footer {
+    color: #111 !important;
+  }
+
+  .frm-responses {
+    gap: 12px !important;
+  }
+
+  /* Table print */
+  .frm-table-scroll {
+    overflow: visible !important;
+    border: none !important;
+  }
+
+  .frm-table {
+    font-size: 0.75rem !important;
+  }
+
+  .frm-table th,
+  .frm-table td {
+    border-color: #bbb !important;
+    color: #111 !important;
+    background: #fff !important;
+  }
+
+  .frm-table th {
+    background: #f2f2f2 !important;
+    position: static !important;
+  }
+
+  .frm-table-th-badge { color: #4444cc !important; }
+
+  .frm-table-scale-badge {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .frm-table tbody tr:nth-child(even) td {
+    background: #fafafa !important;
+  }
+
+  /* Charts print */
+  .frm-charts-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .frm-chart-card {
+    background: #fff !important;
+    border-color: #ccc !important;
+    break-inside: avoid;
+  }
+
+  .frm-chart-bar-track {
+    background: #e8e8e8 !important;
+  }
+
+  .frm-chart-bar-fill {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .frm-chart-text-list {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .frm-chart-text-item {
+    background: #f8f8f8 !important;
+    color: #111 !important;
+  }
+
+  .frm-chart-text-meta { color: #666 !important; }
+
+  .frm-chart-avg-val { color: #3355cc !important; }
+
+  @page {
+    size: landscape;
+    margin: 1.5cm;
+  }
 }
 
 /* ── Public slide form ───────────────────────────────────── */

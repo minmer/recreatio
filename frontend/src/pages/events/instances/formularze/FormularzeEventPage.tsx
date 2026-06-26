@@ -7,6 +7,7 @@ import {
   deleteForm,
   deleteFormQuestion,
   deleteFormResponse,
+  generateFormViewToken,
   getFormDetail,
   getFormResponses,
   getFormsList,
@@ -17,11 +18,11 @@ import {
   updateFormQuestion,
   type FormDetail,
   type FormQuestion,
-  type FormResponsesData,
   type FormSummary,
   type FormsAdminStatus
 } from '../../../../lib/api';
 import type { EventDefinition, EventInnerPage, SharedEventPageProps } from '../../eventTypes';
+import { FormResponsesViewer } from '../../../../pages/form/FormResponsesViewer';
 import '../../../../styles/formularze-event.css';
 
 type View =
@@ -29,7 +30,7 @@ type View =
   | { kind: 'claim'; hasAdmin: boolean; adminName: string | null }
   | { kind: 'list'; forms: FormSummary[] }
   | { kind: 'editor'; form: FormDetail }
-  | { kind: 'responses'; data: FormResponsesData };
+  | { kind: 'responses'; data: import('../../../../lib/api').FormResponsesData };
 
 type QuestionEditState = {
   id: string | null;
@@ -44,8 +45,6 @@ type QuestionEditState = {
 function emptyQuestionEdit(): QuestionEditState {
   return { id: null, text: '', type: 'text', options: [''], isRequired: false, conditionQuestionId: null, conditionValue: null };
 }
-
-type ResponseViewMode = 'person' | 'question';
 
 export function FormularzeEventPage(props: SharedEventPageProps & { event: EventDefinition; page: EventInnerPage }) {
   const [view, setView] = useState<View>({ kind: 'loading' });
@@ -69,10 +68,7 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
-  // Responses navigation
-  const [responseViewMode, setResponseViewMode] = useState<ResponseViewMode>('person');
-  const [responseIdx, setResponseIdx] = useState(0);
-  const [questionIdx, setQuestionIdx] = useState(0);
+  const [generatingViewToken, setGeneratingViewToken] = useState(false);
 
   useEffect(() => {
     void loadStatus();
@@ -122,9 +118,6 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
     setBusy(true);
     try {
       const data = await getFormResponses(formId);
-      setResponseIdx(0);
-      setQuestionIdx(0);
-      setResponseViewMode('person');
       setView({ kind: 'responses', data });
     } catch {
       setError('Nie udało się załadować odpowiedzi.');
@@ -362,6 +355,25 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
     return `${window.location.origin}/#/form/${token}`;
   }
 
+  function getViewLink(token: string) {
+    return `${window.location.origin}/#/form-results/${token}`;
+  }
+
+  async function handleGenerateViewToken(formId: string) {
+    setGeneratingViewToken(true);
+    setError(null);
+    try {
+      const { viewToken } = await generateFormViewToken(formId);
+      if (view.kind === 'editor') {
+        setView({ kind: 'editor', form: { ...view.form, viewToken } });
+      }
+    } catch {
+      setError('Nie udało się wygenerować linku do wyników.');
+    } finally {
+      setGeneratingViewToken(false);
+    }
+  }
+
   return (
     <div className="frm-page">
       <header className="frm-header">
@@ -568,10 +580,21 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
                         onClick={() => {
                           void navigator.clipboard.writeText(getFillLink(f.fillToken));
                         }}
-                        title="Skopiuj link"
+                        title="Skopiuj link do wypełnienia"
                       >
                         Kopiuj link
                       </button>
+                      {f.viewToken && (
+                        <button
+                          className="frm-btn ghost small"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(getViewLink(f.viewToken!));
+                          }}
+                          title="Skopiuj link do wyników"
+                        >
+                          Kopiuj wyniki
+                        </button>
+                      )}
                       <button
                         className="frm-btn ghost small"
                         onClick={() => void handleTogglePublish(f.id)}
@@ -636,6 +659,28 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
                   Kopiuj
                 </button>
               </div>
+              {view.form.viewToken ? (
+                <div className="frm-editor-link-row">
+                  <span className="frm-label" style={{ margin: 0, whiteSpace: 'nowrap' }}>Wyniki:</span>
+                  <span className="frm-editor-link">{getViewLink(view.form.viewToken)}</span>
+                  <button
+                    className="frm-btn ghost small"
+                    onClick={() => void navigator.clipboard.writeText(getViewLink(view.form.viewToken!))}
+                  >
+                    Kopiuj
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <button
+                    className="frm-btn ghost small"
+                    onClick={() => void handleGenerateViewToken(view.form.id)}
+                    disabled={generatingViewToken}
+                  >
+                    {generatingViewToken ? 'Generuję…' : 'Generuj link do wyników'}
+                  </button>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   className="frm-btn primary"
@@ -754,14 +799,8 @@ export function FormularzeEventPage(props: SharedEventPageProps & { event: Event
         )}
 
         {view.kind === 'responses' && (
-          <ResponsesViewer
+          <FormResponsesViewer
             data={view.data}
-            viewMode={responseViewMode}
-            onViewModeChange={setResponseViewMode}
-            personIdx={responseIdx}
-            onPersonIdxChange={setResponseIdx}
-            questionIdx={questionIdx}
-            onQuestionIdxChange={setQuestionIdx}
             onDeleteResponse={(id) => void handleDeleteResponse(view.data.formId, id)}
           />
         )}
@@ -944,246 +983,3 @@ function QuestionEditForm({ state, onChange, onSave, onCancel, busy, precedingQu
   );
 }
 
-// ─── Responses viewer ─────────────────────────────────────────────────────────
-
-type ResponsesViewerProps = {
-  data: FormResponsesData;
-  viewMode: ResponseViewMode;
-  onViewModeChange: (m: ResponseViewMode) => void;
-  personIdx: number;
-  onPersonIdxChange: (i: number) => void;
-  questionIdx: number;
-  onQuestionIdxChange: (i: number) => void;
-  onDeleteResponse: (responseId: string) => void;
-};
-
-function ResponsesViewer({
-  data,
-  viewMode,
-  onViewModeChange,
-  personIdx,
-  onPersonIdxChange,
-  questionIdx,
-  onQuestionIdxChange,
-  onDeleteResponse
-}: ResponsesViewerProps) {
-  const { responses, questions } = data;
-  const total = responses.length;
-  const qTotal = questions.length;
-
-  return (
-    <div className="frm-responses">
-      <div>
-        <div className="frm-section-title">{data.title}</div>
-        <div className="frm-section-sub">
-          {total} {total === 1 ? 'odpowiedź' : total < 5 ? 'odpowiedzi' : 'odpowiedzi'}
-        </div>
-      </div>
-
-      <div className="frm-responses-header">
-        <div className="frm-view-toggle">
-          <button
-            className={viewMode === 'person' ? 'active' : ''}
-            onClick={() => onViewModeChange('person')}
-          >
-            Wg osoby
-          </button>
-          <button
-            className={viewMode === 'question' ? 'active' : ''}
-            onClick={() => onViewModeChange('question')}
-          >
-            Wg pytania
-          </button>
-        </div>
-
-        {viewMode === 'person' && total > 0 && (
-          <div className="frm-nav-row">
-            <button
-              className="frm-btn ghost small"
-              onClick={() => onPersonIdxChange(personIdx - 1)}
-              disabled={personIdx === 0}
-            >
-              ←
-            </button>
-            <div>
-              <div className="frm-nav-label">
-                {responses[personIdx]?.respondentName ?? `Osoba ${personIdx + 1}`}
-              </div>
-              <div className="frm-nav-sub">
-                {personIdx + 1} / {total}
-              </div>
-            </div>
-            <button
-              className="frm-btn ghost small"
-              onClick={() => onPersonIdxChange(personIdx + 1)}
-              disabled={personIdx >= total - 1}
-            >
-              →
-            </button>
-          </div>
-        )}
-
-        {viewMode === 'question' && qTotal > 0 && (
-          <div className="frm-nav-row">
-            <button
-              className="frm-btn ghost small"
-              onClick={() => onQuestionIdxChange(questionIdx - 1)}
-              disabled={questionIdx === 0}
-            >
-              ←
-            </button>
-            <div>
-              <div className="frm-nav-label" style={{ fontSize: '0.82rem', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {questions[questionIdx]?.text}
-              </div>
-              <div className="frm-nav-sub">
-                Pytanie {questionIdx + 1} / {qTotal}
-              </div>
-            </div>
-            <button
-              className="frm-btn ghost small"
-              onClick={() => onQuestionIdxChange(questionIdx + 1)}
-              disabled={questionIdx >= qTotal - 1}
-            >
-              →
-            </button>
-          </div>
-        )}
-      </div>
-
-      {total === 0 && (
-        <div className="frm-empty">Brak odpowiedzi na ten formularz.</div>
-      )}
-
-      {viewMode === 'person' && total > 0 && (() => {
-        const resp = responses[personIdx];
-        if (!resp) return null;
-        return (
-          <div className="frm-response-card">
-            <div className="frm-response-card-head">
-              <span className="frm-response-name">
-                {resp.respondentName ?? `Anonimowy respondent`}
-              </span>
-              <span className="frm-response-date">
-                {new Date(resp.submittedUtc).toLocaleString('pl-PL')}
-              </span>
-              <button
-                className="frm-btn danger small"
-                onClick={() => onDeleteResponse(resp.responseId)}
-                title="Usuń odpowiedź"
-              >
-                Usuń
-              </button>
-            </div>
-            <div className="frm-answers">
-              {questions.map((q) => {
-                const answer = resp.answers.find((a) => a.questionId === q.id) ?? null;
-                return (
-                  <div key={q.id} className="frm-answer-row">
-                    <div className="frm-answer-q">{q.text}</div>
-                    <AnswerDisplay question={q} answer={answer} />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
-
-      {viewMode === 'question' && qTotal > 0 && (() => {
-        const q = questions[questionIdx];
-        if (!q) return null;
-        return (
-          <div className="frm-response-card">
-            <div className="frm-response-card-head">
-              <span className="frm-response-name">{q.text}</span>
-              <span className={`frm-badge ${q.type === 'text' ? 'draft' : 'draft'}`}>
-                {q.type === 'text' ? 'Tekst' : q.type === 'multiselect' ? 'Wielokrotny wybór' : 'Skala 1–5'}
-              </span>
-            </div>
-            <div className="frm-answers">
-              {total === 0 ? (
-                <div className="frm-empty">Brak odpowiedzi.</div>
-              ) : (
-                responses.map((resp) => {
-                  const answer = resp.answers.find((a) => a.questionId === q.id) ?? null;
-                  return (
-                    <div key={resp.responseId} className="frm-answer-row">
-                      <div className="frm-answer-q" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span>
-                          {resp.respondentName ?? 'Anonim'} —{' '}
-                          <span style={{ opacity: 0.6, fontSize: '0.74rem' }}>
-                            {new Date(resp.submittedUtc).toLocaleString('pl-PL')}
-                          </span>
-                        </span>
-                        <button
-                          className="frm-btn danger small"
-                          style={{ marginLeft: 'auto', flexShrink: 0 }}
-                          onClick={() => onDeleteResponse(resp.responseId)}
-                          title="Usuń odpowiedź"
-                        >
-                          Usuń
-                        </button>
-                      </div>
-                      <AnswerDisplay question={q} answer={answer} />
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        );
-      })()}
-    </div>
-  );
-}
-
-// ─── Answer display ───────────────────────────────────────────────────────────
-
-type AnswerDisplayProps = {
-  question: FormQuestion;
-  answer: { textValue: string | null; selectedOptions: string[] | null } | null;
-};
-
-function AnswerDisplay({ question, answer }: AnswerDisplayProps) {
-  if (!answer) {
-    return <div className="frm-answer-val empty">brak odpowiedzi</div>;
-  }
-
-  if (question.type === 'text') {
-    return (
-      <div className="frm-answer-val">
-        {answer.textValue?.trim() || <span className="empty">brak odpowiedzi</span>}
-      </div>
-    );
-  }
-
-  if (question.type === 'scale') {
-    const val = answer.textValue ? parseInt(answer.textValue, 10) : null;
-    return (
-      <div className="frm-scale-display">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <div key={n} className={`frm-scale-dot ${val === n ? 'selected' : ''}`}>
-            {n}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (question.type === 'multiselect') {
-    const selected = answer.selectedOptions ?? [];
-    if (selected.length === 0) {
-      return <div className="frm-answer-val empty">brak odpowiedzi</div>;
-    }
-    return (
-      <div className="frm-multiselect-chips">
-        {selected.map((opt, i) => (
-          <span key={i} className="frm-multiselect-chip">{opt}</span>
-        ))}
-      </div>
-    );
-  }
-
-  return <div className="frm-answer-val empty">—</div>;
-}

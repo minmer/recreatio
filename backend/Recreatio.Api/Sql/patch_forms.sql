@@ -103,6 +103,24 @@ BEGIN
 END
 GO
 
+-- ─── View token column (idempotent ALTER for existing databases) ──────────────
+
+IF COL_LENGTH('forms.Forms', 'ViewToken') IS NULL
+BEGIN
+    ALTER TABLE forms.Forms ADD ViewToken NVARCHAR(64) NULL;
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'UX_Forms_ViewToken'
+      AND object_id = OBJECT_ID('forms.Forms')
+)
+BEGIN
+    CREATE UNIQUE INDEX UX_Forms_ViewToken ON forms.Forms(ViewToken) WHERE ViewToken IS NOT NULL;
+END
+GO
+
 -- ─── Conditional questions columns (idempotent ALTER for existing databases) ──
 
 IF COL_LENGTH('forms.FormQuestions', 'ConditionQuestionId') IS NULL

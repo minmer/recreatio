@@ -11,6 +11,7 @@ public sealed record FormSummaryResponse(
     string? Description,
     bool IsPublished,
     string FillToken,
+    string? ViewToken,
     int QuestionCount,
     int ResponseCount,
     DateTimeOffset CreatedUtc);
@@ -31,6 +32,7 @@ public sealed record FormDetailResponse(
     string? Description,
     bool IsPublished,
     string FillToken,
+    string? ViewToken,
     IReadOnlyList<FormQuestionResponse> Questions,
     DateTimeOffset CreatedUtc);
 
