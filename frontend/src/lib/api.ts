@@ -1052,6 +1052,9 @@ export type CogitaPublicStoryboardSessionParticipant = {
   participantToken: string;
   joinedUtc: string;
   updatedUtc: string;
+  participantName?: string | null;
+  startedUtc?: string | null;
+  finishedUtc?: string | null;
 };
 
 export type CogitaPublicStoryboardSessionAnswerSubmitResponse = {
@@ -1067,6 +1070,9 @@ export type CogitaStoryboardSessionParticipantResult = {
   correctAnswers: number;
   joinedUtc: string;
   updatedUtc: string;
+  displayName?: string | null;
+  startedUtc?: string | null;
+  finishedUtc?: string | null;
 };
 
 export type CogitaStoryboardSessionNodeResult = {
@@ -2753,13 +2759,17 @@ export function getCogitaPublicStoryboardSession(payload: { sessionCode: string 
 export function touchCogitaPublicStoryboardSessionParticipant(payload: {
   sessionCode: string;
   participantToken: string;
+  participantName?: string;
+  finished?: boolean;
 }) {
   return request<CogitaPublicStoryboardSessionParticipant>(
     `/cogita/public/storyboard-session/${encodeURIComponent(payload.sessionCode)}/participants`,
     {
       method: 'POST',
       body: JSON.stringify({
-        participantToken: payload.participantToken
+        participantToken: payload.participantToken,
+        participantName: payload.participantName ?? null,
+        finished: payload.finished ?? false
       })
     }
   );

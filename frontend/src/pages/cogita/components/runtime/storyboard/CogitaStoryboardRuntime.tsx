@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   downloadCogitaPublicStoryboardFile,
@@ -1407,6 +1407,36 @@ export function CogitaStoryboardRuntime({
             },
     [language]
   );
+  const sessionJoinCopy = useMemo(
+    () =>
+      language === 'pl'
+        ? {
+            title: 'Zanim zaczniesz',
+            description: 'Podaj swoje imię i nazwisko, aby dołączyć do tej scenorysu.',
+            nameLabel: 'Imię i nazwisko',
+            namePlaceholder: 'np. Jan Kowalski',
+            submitAction: 'Dołącz',
+            nameRequired: 'Podaj imię i nazwisko.'
+          }
+        : language === 'de'
+          ? {
+              title: 'Bevor du beginnst',
+              description: 'Gib deinen Namen ein, um an diesem Storyboard teilzunehmen.',
+              nameLabel: 'Name',
+              namePlaceholder: 'z. B. Max Mustermann',
+              submitAction: 'Beitreten',
+              nameRequired: 'Bitte gib deinen Namen ein.'
+            }
+          : {
+              title: 'Before you begin',
+              description: 'Enter your name to join this storyboard.',
+              nameLabel: 'Name',
+              namePlaceholder: 'e.g. Jane Doe',
+              submitAction: 'Join',
+              nameRequired: 'Please enter your name.'
+            },
+    [language]
+  );
   const [project, setProject] = useState<CogitaCreationProject | null>(null);
   const [runtimeLibraryId, setRuntimeLibraryId] = useState<string | undefined>(libraryId);
   const [documentState, setDocumentState] = useState<StoryboardDocument | null>(null);
@@ -1438,10 +1468,43 @@ export function CogitaStoryboardRuntime({
   );
   const [outlineOpenOnNarrow, setOutlineOpenOnNarrow] = useState(false);
   const sessionParticipantTokenRef = useRef<string | null>(null);
+  const sessionFinishedSentRef = useRef(false);
   const activeRuntimeSessionCode = useMemo(() => {
     const normalized = sessionCode?.trim();
     return normalized ? normalized : null;
   }, [sessionCode]);
+  const sessionNameStorageKey = useMemo(
+    () => (activeRuntimeSessionCode ? `cogita.storyboard.session.participant.${activeRuntimeSessionCode}.name` : null),
+    [activeRuntimeSessionCode]
+  );
+  const [sessionParticipantName, setSessionParticipantName] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const normalized = sessionCode?.trim();
+    if (!normalized) return null;
+    const stored = window.localStorage.getItem(`cogita.storyboard.session.participant.${normalized}.name`);
+    const trimmed = stored?.trim();
+    return trimmed ? trimmed : null;
+  });
+  const [sessionNameDraft, setSessionNameDraft] = useState('');
+  const [sessionNameError, setSessionNameError] = useState<string | null>(null);
+  const sessionNameGateOpen = Boolean(activeRuntimeSessionCode) && !sessionParticipantName;
+
+  const handleSessionNameSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const trimmed = sessionNameDraft.trim().slice(0, 120);
+      if (!trimmed) {
+        setSessionNameError(sessionJoinCopy.nameRequired);
+        return;
+      }
+      setSessionNameError(null);
+      if (sessionNameStorageKey && typeof window !== 'undefined') {
+        window.localStorage.setItem(sessionNameStorageKey, trimmed);
+      }
+      setSessionParticipantName(trimmed);
+    },
+    [sessionNameDraft, sessionNameStorageKey, sessionJoinCopy.nameRequired]
+  );
 
   const ensureSessionParticipantToken = useCallback(async () => {
     if (!activeRuntimeSessionCode) return null;
@@ -1458,7 +1521,8 @@ export function CogitaStoryboardRuntime({
 
     const touched = await touchCogitaPublicStoryboardSessionParticipant({
       sessionCode: activeRuntimeSessionCode,
-      participantToken: fallbackToken
+      participantToken: fallbackToken,
+      participantName: sessionParticipantName ?? undefined
     });
     const participantToken = (touched.participantToken ?? fallbackToken).trim() || fallbackToken;
     sessionParticipantTokenRef.current = participantToken;
@@ -1466,7 +1530,7 @@ export function CogitaStoryboardRuntime({
       window.localStorage.setItem(storageKey, participantToken);
     }
     return participantToken;
-  }, [activeRuntimeSessionCode]);
+  }, [activeRuntimeSessionCode, sessionParticipantName]);
 
   const submitSessionOutcome = useCallback(async (
     nodeKey: string,
@@ -1578,6 +1642,11 @@ export function CogitaStoryboardRuntime({
 
   useEffect(() => {
     if (activeRuntimeSessionCode) {
+      if (sessionNameGateOpen) {
+        setLoading(false);
+        return;
+      }
+
       let cancelled = false;
       setLoading(true);
       setStatus(null);
@@ -1700,7 +1769,27 @@ export function CogitaStoryboardRuntime({
     return () => {
       cancelled = true;
     };
-  }, [activeRuntimeSessionCode, ensureSessionParticipantToken, libraryId, storyboardId, setInitialRuntimeState, shareCode, runtimeCopy.statusLoadFailed, runtimeCopy.statusLoadSharedFailed, runtimeCopy.statusNotFound]);
+  }, [activeRuntimeSessionCode, sessionNameGateOpen, ensureSessionParticipantToken, libraryId, storyboardId, setInitialRuntimeState, shareCode, runtimeCopy.statusLoadFailed, runtimeCopy.statusLoadSharedFailed, runtimeCopy.statusNotFound]);
+
+  useEffect(() => {
+    if (!activeRuntimeSessionCode || !runtime?.finished || sessionFinishedSentRef.current) {
+      return;
+    }
+    sessionFinishedSentRef.current = true;
+    void (async () => {
+      const participantToken = await ensureSessionParticipantToken();
+      if (!participantToken) return;
+      try {
+        await touchCogitaPublicStoryboardSessionParticipant({
+          sessionCode: activeRuntimeSessionCode,
+          participantToken,
+          finished: true
+        });
+      } catch {
+        // Keep runtime usable even when the finish signal fails to send.
+      }
+    })();
+  }, [activeRuntimeSessionCode, runtime?.finished, ensureSessionParticipantToken]);
 
   useEffect(() => {
     return () => {
@@ -2833,8 +2922,35 @@ export function CogitaStoryboardRuntime({
           </div>
         </header>
 
-        {loading ? <p>{runtimeCopy.loading}</p> : null}
-        {status ? <p className="cogita-form-error">{status}</p> : null}
+        {sessionNameGateOpen ? (
+          <form
+            className="cogita-panel"
+            style={{ display: 'grid', gap: '0.6rem', maxWidth: 420 }}
+            onSubmit={handleSessionNameSubmit}
+          >
+            <div>
+              <strong>{sessionJoinCopy.title}</strong>
+              <p className="cogita-help" style={{ margin: '0.25rem 0 0' }}>{sessionJoinCopy.description}</p>
+            </div>
+            <label className="cogita-field">
+              <span>{sessionJoinCopy.nameLabel}</span>
+              <input
+                className="cogita-input"
+                type="text"
+                value={sessionNameDraft}
+                onChange={(event) => setSessionNameDraft(event.target.value)}
+                placeholder={sessionJoinCopy.namePlaceholder}
+                maxLength={120}
+                autoFocus
+              />
+            </label>
+            {sessionNameError ? <p className="cogita-form-error">{sessionNameError}</p> : null}
+            <button type="submit" className="cta">{sessionJoinCopy.submitAction}</button>
+          </form>
+        ) : null}
+
+        {!sessionNameGateOpen && loading ? <p>{runtimeCopy.loading}</p> : null}
+        {!sessionNameGateOpen && status ? <p className="cogita-form-error">{status}</p> : null}
 
         {!loading && runtime && isNarrowScreen ? (
           <div className="cogita-card-actions" style={{ marginBottom: '0.75rem' }}>

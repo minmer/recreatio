@@ -1241,7 +1241,14 @@ export function CogitaStoryboardEdit({
             nodeResultsTitle: 'Wyniki pytań',
             rowNode: 'Węzeł',
             rowCheckType: 'Typ',
-            rowParticipants: 'Uczestnicy'
+            rowParticipants: 'Uczestnicy',
+            participantsListTitle: 'Lista uczestników',
+            nameColumn: 'Imię i nazwisko',
+            startedColumn: 'Rozpoczęto',
+            statusColumn: 'Status',
+            statusStarted: 'Rozpoczęto',
+            statusFinished: 'Zakończono',
+            anonymousLabel: 'Anonimowy'
           }
         : language === 'de'
           ? {
@@ -1264,7 +1271,14 @@ export function CogitaStoryboardEdit({
               nodeResultsTitle: 'Fragen-Ergebnisse',
               rowNode: 'Knoten',
               rowCheckType: 'Typ',
-              rowParticipants: 'Teilnehmer'
+              rowParticipants: 'Teilnehmer',
+              participantsListTitle: 'Teilnehmerliste',
+              nameColumn: 'Name',
+              startedColumn: 'Gestartet',
+              statusColumn: 'Status',
+              statusStarted: 'Gestartet',
+              statusFinished: 'Abgeschlossen',
+              anonymousLabel: 'Anonym'
             }
           : {
               createAction: 'Create session',
@@ -1286,7 +1300,14 @@ export function CogitaStoryboardEdit({
               nodeResultsTitle: 'Question results',
               rowNode: 'Node',
               rowCheckType: 'Type',
-              rowParticipants: 'Participants'
+              rowParticipants: 'Participants',
+              participantsListTitle: 'Participant list',
+              nameColumn: 'Name',
+              startedColumn: 'Started',
+              statusColumn: 'Status',
+              statusStarted: 'Started',
+              statusFinished: 'Finished',
+              anonymousLabel: 'Anonymous'
             },
     [language]
   );
@@ -2561,6 +2582,32 @@ export function CogitaStoryboardEdit({
                           <input type="text" value={String(sessionResults.correctAnswers)} readOnly />
                         </label>
                       </div>
+
+                      {sessionResults.participants.length > 0 ? (
+                        <div style={{ display: 'grid', gap: '0.45rem' }}>
+                          <strong>{sessionUiCopy.participantsListTitle}</strong>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table className="cogita-table">
+                              <thead>
+                                <tr>
+                                  <th>{sessionUiCopy.nameColumn}</th>
+                                  <th>{sessionUiCopy.startedColumn}</th>
+                                  <th>{sessionUiCopy.statusColumn}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {sessionResults.participants.map((row) => (
+                                  <tr key={row.participantId}>
+                                    <td>{row.displayName ?? sessionUiCopy.anonymousLabel}</td>
+                                    <td>{new Date(row.startedUtc ?? row.joinedUtc).toLocaleString()}</td>
+                                    <td>{row.finishedUtc ? sessionUiCopy.statusFinished : sessionUiCopy.statusStarted}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ) : null}
 
                       {sessionResults.totalAnswers > 0 ? (
                         <>

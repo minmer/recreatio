@@ -2041,6 +2041,30 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'DisplayNameHash') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardSessionParticipants ADD DisplayNameHash VARBINARY(64) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'DisplayNameCipher') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardSessionParticipants ADD DisplayNameCipher NVARCHAR(MAX) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'StartedUtc') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardSessionParticipants ADD StartedUtc DATETIMEOFFSET NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'FinishedUtc') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardSessionParticipants ADD FinishedUtc DATETIMEOFFSET NULL;
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaStoryboardSessionAnswers' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
     CREATE TABLE dbo.CogitaStoryboardSessionAnswers
@@ -4614,6 +4638,30 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaStoryboardSessio
    AND COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'JoinTokenHash') IS NOT NULL
 BEGIN
     EXEC(N'CREATE UNIQUE INDEX UX_CogitaStoryboardSessionParticipants_SessionToken ON dbo.CogitaStoryboardSessionParticipants(SessionId, JoinTokenHash);');
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'DisplayNameHash') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardSessionParticipants ADD DisplayNameHash VARBINARY(64) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'DisplayNameCipher') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardSessionParticipants ADD DisplayNameCipher NVARCHAR(MAX) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'StartedUtc') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardSessionParticipants ADD StartedUtc DATETIMEOFFSET NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'FinishedUtc') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardSessionParticipants ADD FinishedUtc DATETIMEOFFSET NULL;
 END
 GO
 

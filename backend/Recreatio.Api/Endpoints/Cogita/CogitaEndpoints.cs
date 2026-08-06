@@ -2576,6 +2576,7 @@ public static class CogitaEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
@@ -2651,7 +2652,10 @@ public static class CogitaEndpoints
                     stats?.TotalAnswers ?? 0,
                     stats?.CorrectAnswers ?? 0,
                     participant.JoinedUtc,
-                    participant.UpdatedUtc
+                    participant.UpdatedUtc,
+                    ResolveStoryboardParticipantDisplayName(participant, dataProtectionProvider, session.Id),
+                    participant.StartedUtc,
+                    participant.FinishedUtc
                 );
             }).ToList();
 
@@ -11752,6 +11756,7 @@ public static class CogitaEndpoints
             IEncryptionService encryptionService,
             IMasterKeyService masterKeyService,
             IHashingService hashingService,
+            IDataProtectionProvider dataProtectionProvider,
             CancellationToken ct) =>
         {
             var sessionContext = await TryResolveStoryboardSessionAsync(
@@ -11772,6 +11777,12 @@ public static class CogitaEndpoints
                 return Results.BadRequest(new { error = "participantToken is invalid." });
             }
 
+            var participantName = (request.ParticipantName ?? string.Empty).Trim();
+            if (participantName.Length > 120)
+            {
+                participantName = participantName[..120];
+            }
+
             Guid? userId = null;
             if (EndpointHelpers.TryGetUserId(context, out var resolvedUserId))
             {
@@ -11785,14 +11796,20 @@ public static class CogitaEndpoints
                 userId,
                 dbContext,
                 hashingService,
-                ct);
+                dataProtectionProvider,
+                ct,
+                participantName.Length > 0 ? participantName : null,
+                request.Finished);
 
             return Results.Ok(new CogitaPublicStoryboardSessionParticipantTouchResponse(
                 session.Id,
                 participant.Id,
                 participantToken,
                 participant.JoinedUtc,
-                participant.UpdatedUtc
+                participant.UpdatedUtc,
+                ResolveStoryboardParticipantDisplayName(participant, dataProtectionProvider, session.Id),
+                participant.StartedUtc,
+                participant.FinishedUtc
             ));
         }).AllowAnonymous();
 
@@ -11804,6 +11821,7 @@ public static class CogitaEndpoints
             IEncryptionService encryptionService,
             IMasterKeyService masterKeyService,
             IHashingService hashingService,
+            IDataProtectionProvider dataProtectionProvider,
             CancellationToken ct) =>
         {
             var sessionContext = await TryResolveStoryboardSessionAsync(
@@ -11851,6 +11869,7 @@ public static class CogitaEndpoints
                 userId,
                 dbContext,
                 hashingService,
+                dataProtectionProvider,
                 ct);
 
             var now = DateTimeOffset.UtcNow;
@@ -25789,6 +25808,58 @@ public static class CogitaEndpoints
         }
     }
 
+    private static string? ProtectStoryboardSessionScopedText(
+        string? plainText,
+        IDataProtectionProvider dataProtectionProvider,
+        Guid sessionId,
+        string purpose)
+    {
+        if (string.IsNullOrWhiteSpace(plainText))
+        {
+            return null;
+        }
+
+        var protector = dataProtectionProvider.CreateProtector("cogita", "storyboard-session", purpose, sessionId.ToString("N"));
+        return $"enc1:{protector.Protect(plainText)}";
+    }
+
+    private static string? UnprotectStoryboardSessionScopedText(
+        string? storedValue,
+        IDataProtectionProvider dataProtectionProvider,
+        Guid sessionId,
+        string purpose)
+    {
+        if (string.IsNullOrWhiteSpace(storedValue))
+        {
+            return null;
+        }
+
+        if (!storedValue.StartsWith("enc1:", StringComparison.Ordinal))
+        {
+            return storedValue;
+        }
+
+        try
+        {
+            var protector = dataProtectionProvider.CreateProtector("cogita", "storyboard-session", purpose, sessionId.ToString("N"));
+            var cipher = storedValue["enc1:".Length..];
+            return protector.Unprotect(cipher);
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+    }
+
+    private static string? ResolveStoryboardParticipantDisplayName(
+        CogitaStoryboardSessionParticipant participant,
+        IDataProtectionProvider dataProtectionProvider,
+        Guid sessionId)
+    {
+        var decrypted = UnprotectStoryboardSessionScopedText(participant.DisplayNameCipher, dataProtectionProvider, sessionId, "participant-name");
+        return string.IsNullOrWhiteSpace(decrypted) ? null : decrypted.Trim();
+    }
+
     private static string ResolveLiveParticipantDisplayName(
         CogitaLiveRevisionParticipant participant,
         IDataProtectionProvider dataProtectionProvider,
@@ -27443,12 +27514,16 @@ public static class CogitaEndpoints
         Guid? userId,
         RecreatioDbContext dbContext,
         IHashingService hashingService,
-        CancellationToken ct)
+        IDataProtectionProvider dataProtectionProvider,
+        CancellationToken ct,
+        string? name = null,
+        bool finished = false)
     {
         var tokenHash = hashingService.Hash(Encoding.UTF8.GetBytes((participantToken ?? string.Empty).Trim()));
         var participant = await dbContext.CogitaStoryboardSessionParticipants
             .FirstOrDefaultAsync(x => x.SessionId == storyboardSessionId && x.JoinTokenHash == tokenHash, ct);
         var now = DateTimeOffset.UtcNow;
+        var normalizedName = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
         if (participant is null)
         {
             participant = new CogitaStoryboardSessionParticipant
@@ -27458,8 +27533,18 @@ public static class CogitaEndpoints
                 JoinTokenHash = tokenHash,
                 UserId = userId,
                 JoinedUtc = now,
-                UpdatedUtc = now
+                UpdatedUtc = now,
+                StartedUtc = now
             };
+            if (normalizedName is not null)
+            {
+                participant.DisplayNameHash = hashingService.Hash(Encoding.UTF8.GetBytes(normalizedName));
+                participant.DisplayNameCipher = ProtectStoryboardSessionScopedText(normalizedName, dataProtectionProvider, storyboardSessionId, "participant-name");
+            }
+            if (finished)
+            {
+                participant.FinishedUtc = now;
+            }
             dbContext.CogitaStoryboardSessionParticipants.Add(participant);
         }
         else
@@ -27468,6 +27553,15 @@ public static class CogitaEndpoints
             if (userId.HasValue && participant.UserId is null)
             {
                 participant.UserId = userId;
+            }
+            if (normalizedName is not null)
+            {
+                participant.DisplayNameHash = hashingService.Hash(Encoding.UTF8.GetBytes(normalizedName));
+                participant.DisplayNameCipher = ProtectStoryboardSessionScopedText(normalizedName, dataProtectionProvider, storyboardSessionId, "participant-name");
+            }
+            if (finished && participant.FinishedUtc is null)
+            {
+                participant.FinishedUtc = now;
             }
         }
 
@@ -27683,6 +27777,10 @@ public static class CogitaEndpoints
                 COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'JoinTokenHash') IS NOT NULL AND
                 COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'JoinedUtc') IS NOT NULL AND
                 COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'UpdatedUtc') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'DisplayNameHash') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'DisplayNameCipher') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'StartedUtc') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'FinishedUtc') IS NOT NULL AND
                 OBJECT_ID(N'dbo.CogitaStoryboardSessionAnswers', N'U') IS NOT NULL AND
                 COL_LENGTH('dbo.CogitaStoryboardSessionAnswers', 'SessionId') IS NOT NULL AND
                 COL_LENGTH('dbo.CogitaStoryboardSessionAnswers', 'ParticipantId') IS NOT NULL AND

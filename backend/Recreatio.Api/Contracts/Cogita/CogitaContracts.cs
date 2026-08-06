@@ -500,14 +500,21 @@ public sealed record CogitaPublicStoryboardSessionResponse(
     DateTimeOffset CreatedUtc
 );
 
-public sealed record CogitaPublicStoryboardSessionParticipantTouchRequest(string ParticipantToken);
+public sealed record CogitaPublicStoryboardSessionParticipantTouchRequest(
+    string ParticipantToken,
+    string? ParticipantName = null,
+    bool Finished = false
+);
 
 public sealed record CogitaPublicStoryboardSessionParticipantTouchResponse(
     Guid SessionId,
     Guid ParticipantId,
     string ParticipantToken,
     DateTimeOffset JoinedUtc,
-    DateTimeOffset UpdatedUtc
+    DateTimeOffset UpdatedUtc,
+    string? ParticipantName,
+    DateTimeOffset? StartedUtc,
+    DateTimeOffset? FinishedUtc
 );
 
 public sealed record CogitaPublicStoryboardSessionAnswerSubmitRequest(
@@ -530,7 +537,10 @@ public sealed record CogitaStoryboardSessionParticipantResultResponse(
     int TotalAnswers,
     int CorrectAnswers,
     DateTimeOffset JoinedUtc,
-    DateTimeOffset UpdatedUtc
+    DateTimeOffset UpdatedUtc,
+    string? DisplayName,
+    DateTimeOffset? StartedUtc,
+    DateTimeOffset? FinishedUtc
 );
 
 public sealed record CogitaStoryboardSessionNodeResultResponse(

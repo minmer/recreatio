@@ -13,7 +13,15 @@ public sealed class CogitaStoryboardSessionParticipant
 
     public Guid? UserId { get; set; }
 
+    public byte[]? DisplayNameHash { get; set; }
+
+    public string? DisplayNameCipher { get; set; }
+
     public DateTimeOffset JoinedUtc { get; set; }
 
     public DateTimeOffset UpdatedUtc { get; set; }
+
+    public DateTimeOffset? StartedUtc { get; set; }
+
+    public DateTimeOffset? FinishedUtc { get; set; }
 }
