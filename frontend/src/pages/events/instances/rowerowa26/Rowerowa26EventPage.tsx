@@ -200,7 +200,7 @@ export function Rowerowa26EventPage(
       })
       .catch((error: unknown) => {
         if (!active) return;
-        setSiteError(error instanceof Error ? error.message : 'Nie udało się pobrać całej konfiguracji wydarzenia.');
+        setSiteError(error instanceof Error ? error.message : 'Nie udało się pobrać konfiguracji wydarzenia.');
       })
       .finally(() => {
         if (!active) return;
