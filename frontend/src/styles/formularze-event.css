@@ -773,6 +773,31 @@
   padding: 8px 12px;
 }
 
+.frm-table-th-q-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.frm-table-hide-col-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--frm-text-soft);
+  font-size: 0.82rem;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.12s;
+  flex-shrink: 0;
+}
+
+.frm-table-th-q:hover .frm-table-hide-col-btn { opacity: 1; }
+.frm-table-hide-col-btn:hover { color: var(--frm-text); background: rgba(255,255,255,0.1); }
+
 .frm-table-th-badge {
   font-size: 0.67rem;
   font-weight: 700;
@@ -803,7 +828,35 @@
   text-align: center;
   color: var(--frm-text-soft);
   font-size: 0.75rem;
+  position: relative;
+  padding: 0;
+  width: 36px;
 }
+
+.frm-table-row-num {
+  display: block;
+  padding: 9px 4px;
+  transition: opacity 0.12s;
+}
+
+.frm-table-hide-row-btn {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--frm-text-soft);
+  font-size: 0.9rem;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.frm-table tbody tr:hover .frm-table-row-num { opacity: 0; }
+.frm-table tbody tr:hover .frm-table-hide-row-btn { opacity: 1; }
+.frm-table-hide-row-btn:hover { color: var(--frm-text); background: rgba(255,255,255,0.06); }
 
 .frm-table-td-name { font-weight: 500; }
 
@@ -1070,6 +1123,82 @@
   color: var(--frm-text-soft);
   margin-bottom: 5px;
 }
+
+/* ── Table hidden-items restore panel ───────────────────── */
+
+.frm-table-hidden-panel {
+  border: 1px solid var(--frm-line);
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.frm-table-hidden-title {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--frm-text-soft);
+}
+
+.frm-table-hidden-section {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.frm-table-hidden-label {
+  font-size: 0.75rem;
+  color: var(--frm-text-soft);
+  padding-top: 4px;
+  flex-shrink: 0;
+}
+
+.frm-table-hidden-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.frm-table-restore-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px 3px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--frm-line);
+  border-radius: 20px;
+  font-size: 0.74rem;
+  color: var(--frm-text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.frm-table-restore-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.frm-restore-arrow {
+  color: var(--frm-accent);
+  font-size: 0.8rem;
+}
+
+.frm-table-restore-all {
+  padding: 3px 11px;
+  background: rgba(74, 158, 255, 0.1);
+  border: 1px solid rgba(74, 158, 255, 0.28);
+  border-radius: 20px;
+  font-size: 0.74rem;
+  color: var(--frm-accent);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.frm-table-restore-all:hover { background: rgba(74, 158, 255, 0.2); }
 
 /* ── Person panel (click-pinned list below chart) ────────── */
 

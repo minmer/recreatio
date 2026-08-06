@@ -9,6 +9,7 @@ import { Edk26EventPage } from './instances/edk26/Edk26EventPage';
 import { LimanowaEventPage } from './instances/limanowa/LimanowaEventPage';
 import { TheaterProjectEventPage } from './instances/teatr26/TheaterProjectEventPage';
 import { FormularzeEventPage } from './instances/formularze/FormularzeEventPage';
+import { Rowerowa26EventPage } from './instances/rowerowa26/Rowerowa26EventPage';
 import '../../styles/events.css';
 
 const EVENTS: EventDefinition[] = [
@@ -83,6 +84,14 @@ const EVENTS: EventDefinition[] = [
     date: '10.10.2026-30.05.2027',
     location: 'Kraków',
     pages: [{ slug: 'start', title: 'Start' }]
+  },
+  {
+    slug: 'rowerowa26',
+    title: 'Rowerowa Częstochowa 2026',
+    summary: 'Dwudniowa pielgrzymka rowerowa z Krakowa do Częstochowy z noclegiem w Domaniewicach.',
+    date: '28-29.08.2026',
+    location: 'Kraków - Częstochowa',
+    pages: [{ slug: 'start', title: 'Start' }]
   }
 ];
 
@@ -127,7 +136,8 @@ const EVENT_PAGE_RENDERERS: Record<
   edk26: Edk26EventPage,
   limanowa: LimanowaEventPage,
   teatr26: TheaterProjectEventPage,
-  formularze: FormularzeEventPage
+  formularze: FormularzeEventPage,
+  rowerowa26: Rowerowa26EventPage
 };
 
 export function EventsPage(props: SharedEventPageProps) {

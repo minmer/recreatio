@@ -5299,6 +5299,130 @@ export function createEdkRegistration(slug: string, payload: EdkRegistrationRequ
   });
 }
 
+export type RowerowaSite = {
+  id?: string | null;
+  slug: string;
+  name: string;
+  motto: string;
+  startDate: string;
+  endDate: string;
+  startLocation: string;
+  endLocation: string;
+  organizerName: string;
+  organizerEmail: string;
+  organizerPhone: string;
+  isProvisioned: boolean;
+};
+
+export type RowerowaRegistrationRequest = {
+  fullName: string;
+  phone: string;
+  email: string;
+  joinPoint: string;
+  fridayAccommodation: string;
+  meals: string[];
+  postPilgrimagePlan: string;
+  bikeReturn: string;
+  luggageDropoff: string;
+  luggagePickup: string;
+  hasHelmet: boolean;
+  bikeRoadworthy: boolean;
+  knowsSafetyRules: boolean;
+  skillLevel: string;
+  helpOffer?: string | null;
+};
+
+export type RowerowaRegistrationResponse = {
+  registrationId: string;
+  submittedUtc: string;
+};
+
+export type RowerowaOrganizerRegistrationRow = {
+  id: string;
+  fullName: string;
+  phone: string;
+  email: string;
+  joinPoint: string;
+  fridayAccommodation: string;
+  meals: string[];
+  postPilgrimagePlan: string;
+  bikeReturn: string;
+  luggageDropoff: string;
+  luggagePickup: string;
+  hasHelmet: boolean;
+  bikeRoadworthy: boolean;
+  knowsSafetyRules: boolean;
+  skillLevel: string;
+  helpOffer?: string | null;
+  createdUtc: string;
+};
+
+export type RowerowaOrganizerStats = {
+  registrations: number;
+  joiningFromKrakow: number;
+  stayingHostelFriday: number;
+};
+
+export type RowerowaOrganizerDashboard = {
+  stats: RowerowaOrganizerStats;
+  registrations: RowerowaOrganizerRegistrationRow[];
+};
+
+export type RowerowaRegistrationExport = {
+  eventId: string;
+  slug: string;
+  exportedUtc: string;
+  rows: RowerowaOrganizerRegistrationRow[];
+};
+
+export function getRowerowaSite(slug: string) {
+  return request<RowerowaSite>(`/rowerowa/${slug}`, {
+    method: 'GET'
+  });
+}
+
+export function createRowerowaRegistration(slug: string, payload: RowerowaRegistrationRequest) {
+  return request<RowerowaRegistrationResponse>(`/rowerowa/${slug}/public/registrations`, {
+    method: 'POST',
+    body: JSON.stringify({
+      fullName: payload.fullName,
+      phone: payload.phone,
+      email: payload.email,
+      joinPoint: payload.joinPoint,
+      fridayAccommodation: payload.fridayAccommodation,
+      meals: payload.meals,
+      postPilgrimagePlan: payload.postPilgrimagePlan,
+      bikeReturn: payload.bikeReturn,
+      luggageDropoff: payload.luggageDropoff,
+      luggagePickup: payload.luggagePickup,
+      hasHelmet: payload.hasHelmet,
+      bikeRoadworthy: payload.bikeRoadworthy,
+      knowsSafetyRules: payload.knowsSafetyRules,
+      skillLevel: payload.skillLevel,
+      helpOffer: payload.helpOffer ?? null
+    })
+  });
+}
+
+export function bootstrapRowerowa26Event() {
+  return request<RowerowaSite>('/rowerowa/admin/events-limanowa/bootstrap-rowerowa26', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function getRowerowaOrganizerDashboard(eventId: string) {
+  return request<RowerowaOrganizerDashboard>(`/rowerowa/${eventId}/organizer/dashboard`, {
+    method: 'GET'
+  });
+}
+
+export function exportRowerowaRegistrations(eventId: string) {
+  return request<RowerowaRegistrationExport>(`/rowerowa/${eventId}/organizer/registrations/export`, {
+    method: 'GET'
+  });
+}
+
 export function getPilgrimageSite(slug: string) {
   return request<PilgrimageSite>(`/pilgrimage/${slug}`, {
     method: 'GET'

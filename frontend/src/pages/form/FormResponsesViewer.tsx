@@ -202,6 +202,17 @@ function AnswerDisplay({ question, answer }: {
 
 function TableView({ data, onDeleteResponse }: { data: FormResponsesData; onDeleteResponse?: (id: string) => void }) {
   const { responses, questions } = data;
+  const [hiddenRows, setHiddenRows] = useState<Set<string>>(new Set());
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
+
+  const visibleResponses = responses.filter(r => !hiddenRows.has(r.responseId));
+  const visibleQuestions = questions.filter(q => !hiddenCols.has(q.id));
+  const qOrigIdx = new Map(questions.map((q, i) => [q.id, i + 1]));
+
+  function hideRow(id: string) { setHiddenRows(s => new Set([...s, id])); }
+  function showRow(id: string) { setHiddenRows(s => { const n = new Set(s); n.delete(id); return n; }); }
+  function hideCol(id: string) { setHiddenCols(s => new Set([...s, id])); }
+  function showCol(id: string) { setHiddenCols(s => { const n = new Set(s); n.delete(id); return n; }); }
 
   function getCellText(q: FormQuestion, resp: FormResponseRow): string {
     const a = resp.answers.find(ans => ans.questionId === q.id);
@@ -216,10 +227,22 @@ function TableView({ data, onDeleteResponse }: { data: FormResponsesData; onDele
     return '0.75rem';
   }
 
+  const hiddenColItems = questions.filter(q => hiddenCols.has(q.id));
+  const hiddenRowItems = responses.filter(r => hiddenRows.has(r.responseId));
+  const hasHidden = hiddenColItems.length > 0 || hiddenRowItems.length > 0;
+
   return (
     <div className="frm-table-view">
       <div className="frm-table-topbar frm-no-print">
-        <span className="frm-table-info">{responses.length} odpowiedzi · {questions.length} pytań</span>
+        <span className="frm-table-info">
+          {visibleResponses.length !== responses.length
+            ? `${visibleResponses.length} z ${responses.length} odpowiedzi`
+            : `${responses.length} odpowiedzi`}
+          {' · '}
+          {visibleQuestions.length !== questions.length
+            ? `${visibleQuestions.length} z ${questions.length} pytań`
+            : `${questions.length} pytań`}
+        </span>
         <button className="frm-btn ghost small" onClick={() => window.print()}>
           Drukuj / Eksportuj PDF
         </button>
@@ -232,14 +255,17 @@ function TableView({ data, onDeleteResponse }: { data: FormResponsesData; onDele
               <th className="frm-table-th-num">#</th>
               <th className="frm-table-th-name">Imię / Nazwisko</th>
               <th className="frm-table-th-date">Data</th>
-              {questions.map((q, i) => (
+              {visibleQuestions.map(q => (
                 <th
                   key={q.id}
                   className="frm-table-th-q"
                   style={q.type === 'scale' ? { width: '64px' } : { minWidth: '180px' }}
                   title={q.text}
                 >
-                  <div className="frm-table-th-badge">P{i + 1}</div>
+                  <div className="frm-table-th-q-head">
+                    <span className="frm-table-th-badge">P{qOrigIdx.get(q.id)}</span>
+                    <button className="frm-table-hide-col-btn frm-no-print" onClick={() => hideCol(q.id)} title="Ukryj kolumnę">×</button>
+                  </div>
                   <div className="frm-table-th-text">{q.text}</div>
                   <div className="frm-table-th-type">
                     {q.type === 'text' ? 'tekst' : q.type === 'multiselect' ? 'wybór' : 'skala'}
@@ -250,55 +276,97 @@ function TableView({ data, onDeleteResponse }: { data: FormResponsesData; onDele
             </tr>
           </thead>
           <tbody>
-            {responses.length === 0 ? (
+            {visibleResponses.length === 0 ? (
               <tr>
-                <td colSpan={3 + questions.length + (onDeleteResponse ? 1 : 0)} className="frm-table-empty-cell">
-                  Brak odpowiedzi
+                <td colSpan={3 + visibleQuestions.length + (onDeleteResponse ? 1 : 0)} className="frm-table-empty-cell">
+                  {responses.length === 0 ? 'Brak odpowiedzi' : 'Wszystkie wiersze są ukryte'}
                 </td>
               </tr>
             ) : (
-              responses.map((resp, i) => (
-                <tr key={resp.responseId}>
-                  <td className="frm-table-td-num">{i + 1}</td>
-                  <td className="frm-table-td-name">
-                    {resp.respondentName ?? <em style={{ opacity: 0.45 }}>Anonim</em>}
-                  </td>
-                  <td className="frm-table-td-date">{new Date(resp.submittedUtc).toLocaleDateString('pl-PL')}</td>
-                  {questions.map(q => {
-                    const text = getCellText(q, resp);
-                    if (q.type === 'scale') {
-                      const n = parseInt(text, 10);
+              visibleResponses.map(resp => {
+                const origIdx = responses.indexOf(resp) + 1;
+                return (
+                  <tr key={resp.responseId}>
+                    <td className="frm-table-td-num">
+                      <span className="frm-table-row-num">{origIdx}</span>
+                      <button className="frm-table-hide-row-btn frm-no-print" onClick={() => hideRow(resp.responseId)} title="Ukryj wiersz">×</button>
+                    </td>
+                    <td className="frm-table-td-name">
+                      {resp.respondentName ?? <em style={{ opacity: 0.45 }}>Anonim</em>}
+                    </td>
+                    <td className="frm-table-td-date">{new Date(resp.submittedUtc).toLocaleDateString('pl-PL')}</td>
+                    {visibleQuestions.map(q => {
+                      const text = getCellText(q, resp);
+                      if (q.type === 'scale') {
+                        const n = parseInt(text, 10);
+                        return (
+                          <td key={q.id} className="frm-table-td-scale">
+                            {!isNaN(n) ? (
+                              <span className="frm-table-scale-badge" style={{ background: SCALE_COLORS[n - 1] }}>{n}</span>
+                            ) : <span className="frm-table-td-empty-text">—</span>}
+                          </td>
+                        );
+                      }
                       return (
-                        <td key={q.id} className="frm-table-td-scale">
-                          {!isNaN(n) ? (
-                            <span className="frm-table-scale-badge" style={{ background: SCALE_COLORS[n - 1] }}>
-                              {n}
-                            </span>
-                          ) : <span className="frm-table-td-empty-text">—</span>}
+                        <td
+                          key={q.id}
+                          className={text ? 'frm-table-td-text' : 'frm-table-td-empty-text'}
+                          style={text ? { fontSize: cellFontSize(text.length) } : undefined}
+                        >
+                          {text || '—'}
                         </td>
                       );
-                    }
-                    return (
-                      <td
-                        key={q.id}
-                        className={text ? 'frm-table-td-text' : 'frm-table-td-empty-text'}
-                        style={text ? { fontSize: cellFontSize(text.length) } : undefined}
-                      >
-                        {text || '—'}
+                    })}
+                    {onDeleteResponse && (
+                      <td className="frm-table-td-action frm-no-print">
+                        <button className="frm-btn danger small" onClick={() => onDeleteResponse(resp.responseId)}>Usuń</button>
                       </td>
-                    );
-                  })}
-                  {onDeleteResponse && (
-                    <td className="frm-table-td-action frm-no-print">
-                      <button className="frm-btn danger small" onClick={() => onDeleteResponse(resp.responseId)}>Usuń</button>
-                    </td>
-                  )}
-                </tr>
-              ))
+                    )}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
+
+      {hasHidden && (
+        <div className="frm-table-hidden-panel frm-no-print">
+          <span className="frm-table-hidden-title">Ukryte elementy</span>
+          {hiddenColItems.length > 0 && (
+            <div className="frm-table-hidden-section">
+              <span className="frm-table-hidden-label">Kolumny:</span>
+              <div className="frm-table-hidden-chips">
+                {hiddenColItems.map(q => (
+                  <button key={q.id} className="frm-table-restore-chip" onClick={() => showCol(q.id)}>
+                    {q.text.length > 32 ? q.text.slice(0, 32) + '…' : q.text}
+                    <span className="frm-restore-arrow">↩</span>
+                  </button>
+                ))}
+                {hiddenColItems.length > 1 && (
+                  <button className="frm-table-restore-all" onClick={() => setHiddenCols(new Set())}>Pokaż wszystkie</button>
+                )}
+              </div>
+            </div>
+          )}
+          {hiddenRowItems.length > 0 && (
+            <div className="frm-table-hidden-section">
+              <span className="frm-table-hidden-label">Wiersze:</span>
+              <div className="frm-table-hidden-chips">
+                {hiddenRowItems.map(r => (
+                  <button key={r.responseId} className="frm-table-restore-chip" onClick={() => showRow(r.responseId)}>
+                    {r.respondentName ?? 'Anonim'}
+                    <span className="frm-restore-arrow">↩</span>
+                  </button>
+                ))}
+                {hiddenRowItems.length > 1 && (
+                  <button className="frm-table-restore-all" onClick={() => setHiddenRows(new Set())}>Pokaż wszystkie</button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

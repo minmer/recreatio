@@ -73,6 +73,8 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Edk.EdkEvent> EdkEvents => Set<Data.Edk.EdkEvent>();
     public DbSet<Data.Edk.EdkSiteConfig> EdkSiteConfigs => Set<Data.Edk.EdkSiteConfig>();
     public DbSet<Data.Edk.EdkRegistration> EdkRegistrations => Set<Data.Edk.EdkRegistration>();
+    public DbSet<Data.Rowerowa.RowerowaEvent> RowerowaEvents => Set<Data.Rowerowa.RowerowaEvent>();
+    public DbSet<Data.Rowerowa.RowerowaRegistration> RowerowaRegistrations => Set<Data.Rowerowa.RowerowaRegistration>();
     public DbSet<Data.Limanowa.LimanowaEvent> LimanowaEvents => Set<Data.Limanowa.LimanowaEvent>();
     public DbSet<Data.Limanowa.LimanowaGroup> LimanowaGroups => Set<Data.Limanowa.LimanowaGroup>();
     public DbSet<Data.Limanowa.LimanowaGroupAdminAccess> LimanowaGroupAdminAccesses => Set<Data.Limanowa.LimanowaGroupAdminAccess>();
@@ -408,6 +410,13 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
             .IsUnique();
 
         modelBuilder.Entity<Data.Edk.EdkRegistration>()
+            .HasIndex(x => new { x.EventId, x.CreatedUtc });
+
+        modelBuilder.Entity<Data.Rowerowa.RowerowaEvent>()
+            .HasIndex(x => x.Slug)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Rowerowa.RowerowaRegistration>()
             .HasIndex(x => new { x.EventId, x.CreatedUtc });
 
         modelBuilder.Entity<Data.Limanowa.LimanowaEvent>()

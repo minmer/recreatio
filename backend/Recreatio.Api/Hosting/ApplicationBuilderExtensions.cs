@@ -5,6 +5,7 @@ using Recreatio.Api.Endpoints.Edk;
 using Recreatio.Api.Endpoints.Forms;
 using Recreatio.Api.Endpoints.Limanowa;
 using Recreatio.Api.Endpoints.Pilgrimage;
+using Recreatio.Api.Endpoints.Rowerowa;
 
 namespace Recreatio.Api.Hosting;
 
@@ -36,6 +37,7 @@ public static class ApplicationBuilderExtensions
         app.MapParishEndpoints();
         app.MapPilgrimageEndpoints();
         app.MapEdkEndpoints();
+        app.MapRowerowaEndpoints();
         app.MapLimanowaEndpoints();
         app.MapFormsEndpoints();
 
