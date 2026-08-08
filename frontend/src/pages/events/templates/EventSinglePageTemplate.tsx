@@ -715,7 +715,13 @@ export function EventSinglePageTemplate({
 
     const onTouchEnd = () => {
       touchYRef.current = null;
-      scheduleSnap();
+      // Only snap when the gesture triggered a slide transition.
+      // For in-slide inner scroll, let the position settle freely — the same
+      // way wheel input works. Unconditional snap here would jump back to the
+      // slide boundary whenever the user scrolled < 22% of a long content slide.
+      if (burstTransitionUsedRef.current) {
+        scheduleSnap();
+      }
     };
 
     const viewport = viewportRef.current;
