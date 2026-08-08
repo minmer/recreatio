@@ -340,6 +340,7 @@ public static partial class Event2Endpoints
         "map" => "Mapa",
         "faq" => "FAQ",
         "form" => "Zapisy",
+        "costs" => "Koszty",
         "contact" => "Kontakt",
         "gallery" => "Galeria",
         "files" => "Pliki",

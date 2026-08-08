@@ -1,0 +1,439 @@
+{
+  "slug": "rowerowa26",
+  "title": "Rowerowa Częstochowa 2026",
+  "subtitle": "Pielgrzymka rowerowa z Krakowa do Częstochowy",
+  "summary": "Dwudniowa pielgrzymka rowerowa z Krakowa do Częstochowy, z noclegiem w Domaniewicach po pierwszym etapie.",
+  "category": "Pielgrzymka rowerowa",
+  "audience": "Osoby gotowe na dwa dni jazdy — łącznie ponad 130 km",
+  "places": ["Kraków", "Domaniewice", "Częstochowa"],
+  "thumbnailUrl": null,
+  "startDate": "2026-08-28",
+  "endDate": "2026-08-29",
+  "dateLabel": null,
+  "theme": {
+    "accent": "#4d9246",
+    "ground": "#0d1a0b",
+    "ink": "#eaf3e5",
+    "muted": "#b4d0ab"
+  },
+  "pages": [
+    {
+      "kind": "public",
+      "slug": "start",
+      "title": "Rowerowa Częstochowa 2026",
+      "menuLabel": "Strona publiczna",
+      "parts": [
+        {
+          "kind": "title",
+          "menuLabel": "Start",
+          "title": null,
+          "config": {
+            "badge": "28–29.08.2026 · Kraków → Częstochowa",
+            "headline": "Rowerowa Częstochowa",
+            "lede": "Pielgrzymka rowerowa z Krakowa do Częstochowy",
+            "paragraphs": [
+              "reCreatio i ks. Michał Mleczek zapraszają na dwudniową pielgrzymkę rowerową z Krakowa do Częstochowy.",
+              "Jedziemy razem, w duchu modlitwy i wysiłku, z noclegiem w Domaniewicach po pierwszym etapie."
+            ],
+            "actions": [
+              { "label": "Zapisz się", "href": "#zapisy", "variant": "cta" },
+              { "label": "Zobacz trasę", "href": "#trasa", "variant": "ghost" }
+            ],
+            "footnote": "Zapisy przez formularz poniżej. Liczba miejsc może być ograniczona."
+          },
+          "layers": [
+            { "kind": "gradient", "speed": 0.12, "angle": 172, "from": "#1b3015", "via": null, "to": "#0a140a" },
+            { "kind": "bigtext", "speed": 0.62, "lines": ["ROWEROWA", "CZĘSTOCHOWA"], "opacity": 0.1 }
+          ]
+        },
+        {
+          "kind": "shortinfos",
+          "menuLabel": "W skrócie",
+          "title": "W skrócie",
+          "config": {
+            "items": [
+              { "label": "Termin", "value": "28–29 sierpnia 2026", "detail": "piątek i sobota" },
+              { "label": "Trasa", "value": "Kraków → Częstochowa", "detail": "meta na Jasnej Górze" },
+              { "label": "Dystans", "value": "131,4 km", "detail": "53,1 km + 78,3 km" },
+              { "label": "Przewyższenia", "value": "↗ 1470 m", "detail": "580 m + 890 m" },
+              { "label": "Nocleg", "value": "Domaniewice", "detail": "hostel (śpiwór) albo własny namiot" },
+              { "label": "Bagaż", "value": "Samochód wsparcia", "detail": "punkt oddania i odbioru wskazujesz w formularzu" }
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "O wydarzeniu",
+          "title": "O wydarzeniu",
+          "intro": "Dwa dni w drodze, wspólnota na trasie i cel w postaci Jasnej Góry.",
+          "config": {
+            "paragraphs": [
+              "Rowerowa Częstochowa to pielgrzymka łącząca wysiłek fizyczny z modlitwą. Wyruszamy z Krakowa, dołączając kolejnych uczestników w Mistrzejowicach i Zielonkach, i jedziemy w stronę Częstochowy.",
+              "Pierwszy dzień kończymy noclegiem w Domaniewicach. Drugiego dnia kontynuujemy jazdę aż do Częstochowy, gdzie pielgrzymka osiąga swój cel — sanktuarium na Jasnej Górze.",
+              "Trasa jest wymagająca dystansem i przewyższeniami, dlatego jedziemy w grupie, dbając o siebie nawzajem i dostosowując tempo do możliwości uczestników."
+            ],
+            "bullets": [],
+            "note": "Pielgrzymka to wspólna droga — dobro grupy jest ważniejsze niż indywidualne ambicje."
+          }
+        },
+        {
+          "kind": "plan",
+          "menuLabel": "Trasa",
+          "title": "Trasa",
+          "intro": "Dwa etapy, łącznie ponad 130 km, z noclegiem w Domaniewicach.",
+          "config": {
+            "groups": [
+              {
+                "label": "Dzień 1 — 28.08.2026 (piątek)",
+                "caption": "Kraków → Domaniewice",
+                "rows": [
+                  { "time": "14:00", "title": "Start w Krakowie", "detail": "Parafia pw. św. Kazimierza Królewicza, ul. Bobrowskiego 6, Grzegórzki — kilkaset metrów od Ronda Grzegórzeckiego." },
+                  { "time": null, "title": "Dołączenie po drodze", "detail": "Mistrzejowice, Zielonki, dalej Ojców." },
+                  { "time": null, "title": "Dystans etapu", "detail": "53,1 km · ↗ 580 m · ↘ 470 m" },
+                  { "time": "20:00", "title": "Meta dnia — Domaniewice", "detail": "Nocleg: hostel (własny śpiwór) albo własny namiot." }
+                ]
+              },
+              {
+                "label": "Dzień 2 — 29.08.2026 (sobota)",
+                "caption": "Domaniewice → Częstochowa",
+                "rows": [
+                  { "time": "8:00", "title": "Start w Domaniewicach", "detail": "Tu można dołączyć do pielgrzymki tylko na drugi etap." },
+                  { "time": null, "title": "Dystans etapu", "detail": "78,3 km · ↗ 890 m · ↘ 570 m" },
+                  { "time": "18:00", "title": "Meta — Częstochowa", "detail": "Jasna Góra." }
+                ]
+              }
+            ],
+            "note": "Dokładne godziny dołączenia w poszczególnych punktach organizator potwierdzi bliżej terminu wydarzenia."
+          }
+        },
+        {
+          "kind": "map",
+          "menuLabel": "Mapa",
+          "title": "Mapa trasy",
+          "intro": "Punkty startu, dołączenia i mety. Współrzędne są przybliżone — do potwierdzenia przed wyjazdem.",
+          "config": {
+            "points": [
+              { "label": "Kraków — parafia św. Kazimierza Królewicza", "lat": 50.0606, "lon": 19.9622, "detail": "ul. Bobrowskiego 6, Grzegórzki. Start pierwszego etapu.", "isStop": true },
+              { "label": "Mistrzejowice", "lat": 50.0956, "lon": 20.03, "detail": "Punkt dołączenia.", "isStop": false },
+              { "label": "Zielonki", "lat": 50.1206, "lon": 19.9142, "detail": "Punkt dołączenia.", "isStop": false },
+              { "label": "Ojców", "lat": 50.2093, "lon": 19.83, "detail": "Na trasie pierwszego etapu.", "isStop": false },
+              { "label": "Domaniewice", "lat": 50.47, "lon": 19.66, "detail": "Nocleg i start drugiego etapu.", "isStop": true },
+              { "label": "Pilica", "lat": 50.4694, "lon": 19.6567, "detail": "Punkt dołączenia.", "isStop": false },
+              { "label": "Żarki", "lat": 50.625, "lon": 19.36, "detail": "Na trasie drugiego etapu.", "isStop": false },
+              { "label": "Częstochowa — Jasna Góra", "lat": 50.8118, "lon": 19.0967, "detail": "Meta pielgrzymki.", "isStop": true }
+            ],
+            "zoom": 9,
+            "showTrack": true,
+            "note": "Punkty pokazują przebieg trasy, a nie dokładny ślad drogowy."
+          }
+        },
+        {
+          "kind": "form",
+          "menuLabel": "Zapisy",
+          "title": "Zapisy",
+          "intro": "Wypełnij formularz, żeby zgłosić swój udział. Pomoże nam to zaplanować nocleg, posiłki, transport bagażu i bezpieczeństwo na trasie.",
+          "config": {
+            "submitLabel": "Wyślij zgłoszenie",
+            "successMessage": "Dziękujemy za zgłoszenie. Skontaktujemy się w sprawach organizacyjnych dotyczących Rowerowej Częstochowy 2026.",
+            "consentNote": "Wysyłając zgłoszenie, potwierdzasz chęć udziału i akceptujesz kontakt organizacyjny."
+          },
+          "fields": [
+            { "kind": "text", "label": "Imię i nazwisko", "helpText": null, "options": null, "isRequired": true, "isHalfWidth": true, "identityRole": "name" },
+            { "kind": "phone", "label": "Telefon", "helpText": "Format +48 i 9 cyfr.", "options": null, "isRequired": true, "isHalfWidth": true, "identityRole": "contact" },
+            {
+              "kind": "select",
+              "label": "Gdzie dołączasz do pielgrzymki?",
+              "helpText": null,
+              "options": [
+                "Kraków (parafia św. Kazimierza, Grzegórzki)",
+                "Mistrzejowice",
+                "Zielonki",
+                "Ojców",
+                "Domaniewice (start w sobotę)",
+                "Pilica",
+                "Żarki"
+              ],
+              "isRequired": true,
+              "isHalfWidth": false,
+              "identityRole": "none"
+            },
+            {
+              "kind": "select",
+              "label": "Czy korzystasz z noclegu w piątek?",
+              "helpText": null,
+              "options": [
+                "Tak, hostel (śpiwór)",
+                "Tak, własny namiot",
+                "Nie, wracam do domu na noc",
+                "Nie, dołączam dopiero w sobotę"
+              ],
+              "isRequired": true,
+              "isHalfWidth": false,
+              "identityRole": "none"
+            },
+            {
+              "kind": "multiselect",
+              "label": "Z których posiłków chcesz korzystać?",
+              "helpText": null,
+              "options": [
+                "Kolacja w piątek",
+                "Śniadanie w sobotę",
+                "Obiad w sobotę",
+                "Kolacja w sobotę",
+                "Przekąski w drodze",
+                "Wolę wozić własne jedzenie"
+              ],
+              "isRequired": true,
+              "isHalfWidth": false,
+              "identityRole": "none"
+            },
+            {
+              "kind": "select",
+              "label": "Co robisz po pielgrzymce?",
+              "helpText": null,
+              "options": [
+                "Proszę o zorganizowanie powrotu",
+                "Wracam samodzielnie",
+                "Mam wolne miejsca w samochodzie i mogę kogoś zabrać",
+                "Zostaję w Częstochowie na noc"
+              ],
+              "isRequired": true,
+              "isHalfWidth": false,
+              "identityRole": "none"
+            },
+            {
+              "kind": "select",
+              "label": "Co się dzieje z Twoim rowerem po pielgrzymce?",
+              "helpText": null,
+              "options": [
+                "Oddaję rower w Częstochowie, odbiorę w Krakowie",
+                "Oddaję rower w Częstochowie, odbiorę w Mistrzejowicach",
+                "Oddaję rower w Częstochowie, odbiorę w Zielonkach",
+                "Wracam na rowerze lub mam własny transport"
+              ],
+              "isRequired": true,
+              "isHalfWidth": false,
+              "identityRole": "none"
+            },
+            {
+              "kind": "select",
+              "label": "Gdzie oddajesz swoje bagaże?",
+              "helpText": null,
+              "options": ["Kraków", "Mistrzejowice", "Zielonki", "Domaniewice"],
+              "isRequired": true,
+              "isHalfWidth": true,
+              "identityRole": "none"
+            },
+            {
+              "kind": "select",
+              "label": "Gdzie odbierasz swoje bagaże?",
+              "helpText": null,
+              "options": ["Częstochowa", "Zielonki", "Mistrzejowice", "Kraków"],
+              "isRequired": true,
+              "isHalfWidth": true,
+              "identityRole": "none"
+            },
+            {
+              "kind": "checkbox",
+              "label": "Oświadczam, że podczas pielgrzymki będę posiadać kask i będę go używać.",
+              "helpText": null,
+              "options": null,
+              "isRequired": true,
+              "isHalfWidth": false,
+              "identityRole": "none"
+            },
+            {
+              "kind": "checkbox",
+              "label": "Rower jest w sprawnym stanie technicznym (hamulce, oświetlenie, opony itd.).",
+              "helpText": null,
+              "options": null,
+              "isRequired": true,
+              "isHalfWidth": false,
+              "identityRole": "none"
+            },
+            {
+              "kind": "checkbox",
+              "label": "Znam i będę przestrzegać zasad bezpiecznej jazdy i przepisów; jadę na własną odpowiedzialność.",
+              "helpText": null,
+              "options": null,
+              "isRequired": true,
+              "isHalfWidth": false,
+              "identityRole": "none"
+            },
+            {
+              "kind": "select",
+              "label": "Jak oceniasz swoje możliwości jazdy?",
+              "helpText": "Pomaga dobrze zaplanować tempo grupy.",
+              "options": [
+                "Poradzę sobie i pomogę innym (mam doświadczenie w dłuższych wyjazdach rowerowych)",
+                "Jadę samodzielnie (nie potrzebuję szczególnego wsparcia)",
+                "Jadę spokojnie (czasem mogę potrzebować doraźnej pomocy)",
+                "Mogę potrzebować wsparcia (nie mam jeszcze dużego doświadczenia)"
+              ],
+              "isRequired": true,
+              "isHalfWidth": false,
+              "identityRole": "none"
+            },
+            {
+              "kind": "textarea",
+              "label": "W czym możesz pomóc?",
+              "helpText": "Pole opcjonalne — np. serwis rowerowy, prowadzenie grupy, pierwsza pomoc, auto wsparcia.",
+              "options": null,
+              "isRequired": false,
+              "isHalfWidth": false,
+              "identityRole": "none"
+            }
+          ]
+        },
+        {
+          "kind": "costs",
+          "menuLabel": "Koszty",
+          "title": "Koszty i darowizny",
+          "intro": "Przejrzyste zestawienie kosztów pielgrzymki. Kwoty na osobę są obliczane automatycznie na podstawie liczby uczestników.",
+          "isVisible": true,
+          "config": {
+            "currency": "PLN",
+            "participantCount": null,
+            "costItems": [
+              { "label": "Nocleg", "suggested": null, "actual": null },
+              { "label": "Wyżywienie", "suggested": null, "actual": null },
+              { "label": "Transport bagażu i rowerów", "suggested": null, "actual": null },
+              { "label": "Pozostałe koszty organizacyjne", "suggested": null, "actual": null }
+            ],
+            "donations": [
+              { "label": "Darowizny uczestników i darczyńców", "amount": null }
+            ],
+            "note": "Strona źródłowa wydarzenia nie podaje jeszcze kwot. Organizator może je uzupełniać w panelu Event2; sumy kosztów, kwoty na osobę i suma darowizn wyliczą się automatycznie."
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Bezpieczeństwo",
+          "title": "Bezpieczeństwo",
+          "intro": "Jedziemy razem, ale każdy uczestnik odpowiada za swoje przygotowanie i sprzęt.",
+          "config": {
+            "paragraphs": [],
+            "bullets": [
+              "Kask jest obowiązkowy i musi być używany przez cały czas jazdy.",
+              "Rower musi być sprawny technicznie: hamulce, oświetlenie, opony.",
+              "Każdy uczestnik jedzie zgodnie z przepisami ruchu drogowego i na własną odpowiedzialność.",
+              "W formularzu zapisu prosimy o ocenę własnego poziomu przygotowania rowerowego, żeby dobrze zaplanować tempo grupy."
+            ],
+            "note": "Zgłoszenie na pielgrzymkę wymaga potwierdzenia powyższych zasad bezpieczeństwa w formularzu."
+          }
+        },
+        {
+          "kind": "faq",
+          "menuLabel": "FAQ",
+          "title": "FAQ",
+          "config": {
+            "items": [
+              {
+                "question": "Skąd dokładnie startujemy w Krakowie?",
+                "answer": "Spod parafii pw. Świętego Kazimierza Królewicza, ul. Bobrowskiego 6, 31-552 Kraków (Grzegórzki). To kilkaset metrów od Ronda Grzegórzeckiego — najprościej dojechać tramwajem do przystanku Rondo Grzegórzeckie i pokonać resztę pieszo lub rowerem."
+              },
+              {
+                "question": "Czy trzeba mieć doświadczenie rowerowe?",
+                "answer": "Nie, ale trzeba liczyć się z dwoma dniami jazdy na dystansie łącznie ponad 130 km. Jedziemy w grupie, w tempie dostosowanym do słabszych uczestników, i pytamy o Twój poziom doświadczenia w formularzu zgłoszeniowym."
+              },
+              {
+                "question": "Czy mogę dołączyć tylko w sobotę?",
+                "answer": "Tak. Można dołączyć w Domaniewicach w sobotę rano, o godzinie startu drugiego etapu (8:00), albo w innym punkcie na trasie po wcześniejszym uzgodnieniu z organizatorem."
+              },
+              {
+                "question": "Gdzie nocujemy w piątek?",
+                "answer": "Nocleg w piątek jest w Domaniewicach. Do wyboru jest hostel (własny śpiwór) albo własny namiot. W formularzu zaznaczasz, z której opcji korzystasz."
+              },
+              {
+                "question": "Co z bagażem?",
+                "answer": "Bagaże są przewożone samochodem wsparcia. Wskazujesz w formularzu, gdzie oddajesz bagaż przed startem i gdzie chcesz go odebrać po pielgrzymce."
+              },
+              {
+                "question": "Co z rowerem po dojechaniu do Częstochowy?",
+                "answer": "Możesz oddać rower do transportu powrotnego (do Krakowa, Mistrzejowic albo Zielonek) albo wracać na rowerze lub własnym transportem — wybierasz to w formularzu."
+              },
+              {
+                "question": "Czy kask jest obowiązkowy?",
+                "answer": "Tak. Udział w pielgrzymce wymaga posiadania i używania kasku przez cały czas jazdy, a także sprawnego technicznie roweru (hamulce, oświetlenie, opony)."
+              },
+              {
+                "question": "Czy jest organizowany powrót z Częstochowy?",
+                "answer": "Tak, dla osób, które o to poproszą w formularzu. Możesz też wracać samodzielnie, zaoferować wolne miejsca w aucie innym uczestnikom albo zostać w Częstochowie na noc."
+              }
+            ]
+          }
+        },
+        {
+          "kind": "contact",
+          "menuLabel": "Kontakt",
+          "title": "Kontakt",
+          "config": {
+            "organizer": "Organizatorem jest reCreatio i ks. Michał Mleczek. Masz pytania dotyczące zapisów, trasy albo logistyki? Skontaktuj się bezpośrednio.",
+            "channels": [
+              { "label": "E-mail", "value": "mleczek_pradnik@outlook.com", "href": "mailto:mleczek_pradnik@outlook.com" },
+              { "label": "Telefon", "value": "+48 505 548 677", "href": "tel:+48505548677" }
+            ],
+            "note": null
+          }
+        }
+      ]
+    },
+    {
+      "kind": "internal",
+      "slug": "uczestnicy",
+      "title": "Strefa uczestnika",
+      "menuLabel": "Uczestnicy",
+      "description": "Widoczne tylko dla osób z nadanym dostępem po zapisaniu się.",
+      "parts": [
+        {
+          "kind": "text",
+          "menuLabel": "Przed wyjazdem",
+          "title": "Przed wyjazdem",
+          "intro": "Ta strona jest widoczna tylko dla zapisanych uczestników.",
+          "config": {
+            "paragraphs": [
+              "Tu organizator umieści szczegóły, które nie są potrzebne na stronie publicznej: dokładne godziny zbiórek, listę rzeczy do zabrania i bieżące ustalenia."
+            ],
+            "bullets": [],
+            "note": "Treść do uzupełnienia przez organizatora."
+          }
+        },
+        {
+          "kind": "files",
+          "menuLabel": "Dokumenty",
+          "title": "Dokumenty do pobrania",
+          "config": { "files": [], "note": "Regulamin, ślad GPX i inne dokumenty — do dodania przez organizatora." }
+        }
+      ]
+    },
+    {
+      "kind": "internal",
+      "slug": "prowadzacy",
+      "title": "Prowadzący trasę",
+      "menuLabel": "Prowadzący",
+      "description": "Dla osób odpowiedzialnych za trasę, bezpieczeństwo i samochód wsparcia.",
+      "parts": [
+        {
+          "kind": "text",
+          "menuLabel": "Zadania",
+          "title": "Podział zadań",
+          "intro": "Strona robocza dla zespołu prowadzącego.",
+          "config": {
+            "paragraphs": [
+              "Tu organizator opisze podział zadań na trasie: kto prowadzi grupę, kto zamyka, kto obsługuje samochód wsparcia i bagaże."
+            ],
+            "bullets": [],
+            "note": "Treść do uzupełnienia przez organizatora."
+          }
+        },
+        {
+          "kind": "people",
+          "menuLabel": "Zespół",
+          "title": "Zespół",
+          "config": { "people": [], "note": "Osoby odpowiedzialne — do uzupełnienia przez organizatora." }
+        }
+      ]
+    }
+  ]
+}

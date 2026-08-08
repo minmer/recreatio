@@ -21,7 +21,7 @@ public static partial class Event2Endpoints
     private static readonly string[] AllowedPartKinds =
     [
         "title", "shortinfos", "text", "plan", "map",
-        "faq", "form", "contact", "gallery", "files", "people"
+        "faq", "form", "costs", "contact", "gallery", "files", "people"
     ];
 
     private static readonly string[] AllowedFieldKinds =

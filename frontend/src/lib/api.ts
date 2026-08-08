@@ -7740,7 +7740,7 @@ export type Event2FieldKind =
 
 export type Event2PartKind =
   | 'title' | 'shortinfos' | 'text' | 'plan' | 'map' | 'faq'
-  | 'form' | 'contact' | 'gallery' | 'files' | 'people';
+  | 'form' | 'costs' | 'contact' | 'gallery' | 'files' | 'people';
 
 export type Event2PartField = {
   id: string;

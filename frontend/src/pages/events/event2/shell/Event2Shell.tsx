@@ -4,6 +4,16 @@ import { getPartModule } from '../parts/registry';
 import { parseLayers, parseTheme, type Layer } from './layers';
 import { useSlideScroll } from './useSlideScroll';
 
+/** Stable in-page anchor for a part, derived from its menu label. */
+export function partAnchor(menuLabel: string): string {
+  return menuLabel
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 function layerBackground(layer: Layer): string | undefined {
   if (layer.kind !== 'gradient') return undefined;
   const stops = layer.via ? `${layer.from}, ${layer.via}, ${layer.to}` : `${layer.from}, ${layer.to}`;
@@ -50,6 +60,22 @@ export function Event2Shell({
   } as CSSProperties;
 
   const showSwitcher = availablePages.length > 1 && typeof onSelectPage === 'function';
+
+  // The track is moved by transform, so the browser's own anchor jump does
+  // nothing. Intercept in-page links and drive the scroller instead.
+  const anchorIndex = new Map(parts.map((part, index) => [partAnchor(part.menuLabel), index]));
+
+  const onTrackClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const anchor = (event.target as HTMLElement).closest('a');
+    const href = anchor?.getAttribute('href');
+    if (!href || !href.startsWith('#')) return;
+
+    const index = anchorIndex.get(href.slice(1).toLowerCase());
+    if (index === undefined) return;
+
+    event.preventDefault();
+    scroll.scrollToSlide(index);
+  };
 
   return (
     <div className={`e2 ${page.kind === 'internal' ? 'is-internal' : ''}`} style={themeStyle}>
@@ -98,7 +124,11 @@ export function Event2Shell({
       </header>
 
       <div className="e2-viewport" ref={scroll.viewportRef}>
-        <div className="e2-track" style={{ transform: `translate3d(0, ${-scroll.position}px, 0)` }}>
+        <div
+          className="e2-track"
+          style={{ transform: `translate3d(0, ${-scroll.position}px, 0)` }}
+          onClick={onTrackClick}
+        >
           {parts.map((part, index) => {
             const slide = scroll.geometry[index];
             if (!slide) return null;
@@ -109,6 +139,7 @@ export function Event2Shell({
             return (
               <section
                 key={part.id}
+                id={partAnchor(part.menuLabel)}
                 className={`e2-slide ${scroll.activeIndex === index ? 'is-active' : ''}`}
                 style={{ height: `${slide.height}px` }}
                 aria-label={part.menuLabel}

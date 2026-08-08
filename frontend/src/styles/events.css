@@ -63,8 +63,21 @@
   gap: 1rem;
 }
 
+.events-chooser-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
 .events-chooser-head h2 {
   margin: 0;
+}
+
+.events-create {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .events-chooser-head p {

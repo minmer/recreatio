@@ -18,7 +18,7 @@ public sealed class Event2Part
 
     public int SortOrder { get; set; }
 
-    /// <summary>title | shortinfos | text | plan | map | faq | form | contact | gallery | files | people</summary>
+    /// <summary>title | shortinfos | text | plan | map | faq | form | costs | contact | gallery | files | people</summary>
     [MaxLength(20)]
     public string Kind { get; set; } = string.Empty;
 

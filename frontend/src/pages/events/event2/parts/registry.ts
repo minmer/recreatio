@@ -1,6 +1,7 @@
 import type { Event2PartKind } from '../../../../lib/api';
 import type { PartModule } from './contracts';
 import { contactPart } from './ContactPart';
+import { costsPart } from './CostsPart';
 import { faqPart } from './FaqPart';
 import { filesPart } from './FilesPart';
 import { formPart } from './FormPart';
@@ -26,6 +27,7 @@ export const PART_MODULES: PartModule[] = [
   planPart,
   mapPart,
   formPart,
+  costsPart,
   faqPart,
   peoplePart,
   filesPart,

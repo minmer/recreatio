@@ -132,7 +132,7 @@ const EVENTS: EventDefinition[] = [
     date: '28-29.08.2026',
     location: 'Kraków - Częstochowa',
     category: 'Pielgrzymka rowerowa',
-    audience: 'Rowerzyści od 16 lat',
+    audience: 'Osoby gotowe na dwa dni jazdy — łącznie ponad 130 km',
     places: ['Kraków', 'Domaniewice', 'Częstochowa'],
     startDate: '2026-08-28',
     endDate: '2026-08-29',
@@ -261,8 +261,17 @@ export function EventsPage(props: SharedEventPageProps) {
 
           <section className="events-chooser">
             <div className="events-chooser-head">
-              <h2>{copy.events.chooserTitle}</h2>
-              <p>{copy.events.chooserSubtitle}</p>
+              <div>
+                <h2>{copy.events.chooserTitle}</h2>
+                <p>{copy.events.chooserSubtitle}</p>
+              </div>
+              {/* Entry to the builder. Shown once signed in; the creator page
+                  itself checks the event2 admin scope. */}
+              {props.showProfileMenu ? (
+                <a className="cta events-create" href="/#/event/event2/admin">
+                  + Nowe wydarzenie
+                </a>
+              ) : null}
             </div>
             <EventsCatalogue legacyEvents={CATALOGUE_EVENTS} openLabel={copy.events.openEvent} />
           </section>
