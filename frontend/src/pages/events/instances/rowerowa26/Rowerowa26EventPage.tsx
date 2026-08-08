@@ -17,7 +17,7 @@ import '../../../../styles/rowerowa26-event.css';
 const ROWEROWA_SLUG = 'rowerowa26';
 
 const JOIN_POINTS = [
-  'Kraków — parafia św. Kazimierza Królewicza, ul. Bobrowskiego 6',
+  'Kraków (parafia św. Kazimierza, Grzegórzki)',
   'Mistrzejowice',
   'Zielonki',
   'Ojców',

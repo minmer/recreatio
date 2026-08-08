@@ -104,6 +104,36 @@
   font-family: 'Source Sans 3', system-ui, sans-serif;
   font-size: 1rem;
   line-height: 1.72;
+  overflow-wrap: break-word;
+}
+
+/* Grid and flex children default to `min-width: auto`, so anything with a wide
+   intrinsic size — a <select> with a long option, a table, an unbroken URL —
+   pushes its whole ancestor chain past the viewport on narrow screens. Every
+   box in that chain has to be allowed to shrink. */
+.rw-content,
+.rw-content .event-template-slide-inner,
+.rw-content .event-template-slide-inner > *,
+.rw-section,
+.rw-section > *,
+.rw-section-body,
+.rw-card-grid,
+.rw-card,
+.rw-card > *,
+.rw-contact-grid,
+.rw-contact-card,
+.rw-faq-list,
+.rw-faq-list details,
+.rw-form,
+.rw-form-grid,
+.rw-form label,
+.rw-fieldset,
+.rw-checkbox-grid,
+.rw-checkbox-row,
+.rw-admin-block,
+.rw-admin-block > *,
+.rw-admin-table-wrap {
+  min-width: 0;
 }
 
 /* Base typographic resets — explicit on every element to avoid inheritance breaks */
@@ -338,7 +368,7 @@
 
 .rw-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 0.65rem;
 }
 
@@ -523,7 +553,8 @@
 
 .rw-form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  /* min() keeps the track from exceeding the container on very narrow screens. */
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 0.65rem;
 }
 
@@ -540,6 +571,9 @@
 .rw-form input:not([type='checkbox']),
 .rw-form select,
 .rw-form textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--rw-line-2);
   border-radius: 8px;
   padding: 0.54rem 0.72rem;
@@ -570,6 +604,7 @@
   background-position: right 0.72rem center;
   padding-right: 2.2rem;
   cursor: pointer;
+  text-overflow: ellipsis;
 }
 
 .rw-form option {
@@ -619,7 +654,7 @@
 
 .rw-checkbox-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 0.45rem 1rem;
 }
 
@@ -784,7 +819,7 @@
 
 .rw-contact-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 0.65rem;
 }
 
