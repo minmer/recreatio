@@ -7,12 +7,21 @@ export type EventInnerPage = {
 };
 
 export type EventDefinition = {
-  slug: 'warsztaty26' | 'kal26' | 'edk26' | 'limanowa' | 'teatr26' | 'formularze' | 'rowerowa26';
+  slug: 'warsztaty26' | 'kal26' | 'edk26' | 'limanowa' | 'teatr26' | 'formularze' | 'rowerowa26' | 'event2';
   title: string;
   summary: string;
+  /** Display label. `startDate`/`endDate` are what the overview sorts on. */
   date: string;
   location: string;
   pages: EventInnerPage[];
+
+  // Catalogue fields, so hand-coded events filter and sort alongside the
+  // database-driven ones. ISO yyyy-mm-dd for the dates.
+  category?: string;
+  audience?: string;
+  places?: string[];
+  startDate?: string;
+  endDate?: string;
 };
 
 export type SharedEventPageProps = {

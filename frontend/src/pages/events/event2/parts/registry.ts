@@ -1,0 +1,44 @@
+import type { Event2PartKind } from '../../../../lib/api';
+import type { PartModule } from './contracts';
+import { contactPart } from './ContactPart';
+import { faqPart } from './FaqPart';
+import { filesPart } from './FilesPart';
+import { formPart } from './FormPart';
+import { galleryPart } from './GalleryPart';
+import { mapPart } from './MapPart';
+import { peoplePart } from './PeoplePart';
+import { planPart } from './PlanPart';
+import { shortInfosPart } from './ShortInfosPart';
+import { textPart } from './TextPart';
+import { titlePart } from './TitlePart';
+
+/**
+ * Every part an event can be built from. Order is the order they appear in the
+ * builder's "add a part" list, roughly the order you would use them.
+ *
+ * Adding a part means writing one file and adding it here — the shell, the
+ * editor and the API need no changes.
+ */
+export const PART_MODULES: PartModule[] = [
+  titlePart,
+  shortInfosPart,
+  textPart,
+  planPart,
+  mapPart,
+  formPart,
+  faqPart,
+  peoplePart,
+  filesPart,
+  galleryPart,
+  contactPart
+];
+
+const BY_KIND = new Map<Event2PartKind, PartModule>(PART_MODULES.map((module) => [module.kind, module]));
+
+export function getPartModule(kind: Event2PartKind): PartModule | null {
+  return BY_KIND.get(kind) ?? null;
+}
+
+export function partLabel(kind: Event2PartKind): string {
+  return BY_KIND.get(kind)?.label ?? kind;
+}

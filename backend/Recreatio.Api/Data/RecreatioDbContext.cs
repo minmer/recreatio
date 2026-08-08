@@ -207,6 +207,15 @@ public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefi
     public DbSet<Data.Forms.FormQuestion> FormQuestions => Set<Data.Forms.FormQuestion>();
     public DbSet<Data.Forms.FormResponse> FormResponses => Set<Data.Forms.FormResponse>();
     public DbSet<Data.Forms.FormAnswer> FormAnswers => Set<Data.Forms.FormAnswer>();
+    public DbSet<Data.Event2.Event2Site> Event2Sites => Set<Data.Event2.Event2Site>();
+    public DbSet<Data.Event2.Event2Page> Event2Pages => Set<Data.Event2.Event2Page>();
+    public DbSet<Data.Event2.Event2Part> Event2Parts => Set<Data.Event2.Event2Part>();
+    public DbSet<Data.Event2.Event2PartField> Event2PartFields => Set<Data.Event2.Event2PartField>();
+    public DbSet<Data.Event2.Event2Registration> Event2Registrations => Set<Data.Event2.Event2Registration>();
+    public DbSet<Data.Event2.Event2RegistrationValue> Event2RegistrationValues => Set<Data.Event2.Event2RegistrationValue>();
+    public DbSet<Data.Event2.Event2AccessLink> Event2AccessLinks => Set<Data.Event2.Event2AccessLink>();
+    public DbSet<Data.Event2.Event2AccessLinkPage> Event2AccessLinkPages => Set<Data.Event2.Event2AccessLinkPage>();
+    public DbSet<Data.Event2.Event2AccessLinkAssignment> Event2AccessLinkAssignments => Set<Data.Event2.Event2AccessLinkAssignment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

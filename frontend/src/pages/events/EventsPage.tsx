@@ -10,6 +10,8 @@ import { LimanowaEventPage } from './instances/limanowa/LimanowaEventPage';
 import { TheaterProjectEventPage } from './instances/teatr26/TheaterProjectEventPage';
 import { FormularzeEventPage } from './instances/formularze/FormularzeEventPage';
 import { Rowerowa26EventPage } from './instances/rowerowa26/Rowerowa26EventPage';
+import { Event2EventPage } from './instances/event2/Event2EventPage';
+import { EventsCatalogue } from './EventsCatalogue';
 import '../../styles/events.css';
 
 const EVENTS: EventDefinition[] = [
@@ -22,11 +24,29 @@ const EVENTS: EventDefinition[] = [
     pages: [{ slug: 'admin', title: 'Panel' }]
   },
   {
+    slug: 'event2',
+    title: 'Kreator wydarzeń',
+    summary:
+      'Buduj stronę wydarzenia z gotowych bloków — start, plan, mapa, formularz, FAQ, kontakt — i rozdawaj linki osobiste z informacjami wewnętrznymi.',
+    date: '',
+    location: '',
+    pages: [
+      { slug: 'admin', title: 'Kreator' },
+      { slug: 'site', title: 'Strona wydarzenia' },
+      { slug: 'link', title: 'Link osobisty' }
+    ]
+  },
+  {
     slug: 'limanowa',
     title: 'Gra o wolność',
     summary: 'Limanowa 2026: historia, przygoda, formacja i zapisy grupowe.',
     date: '19–21.06.2026',
     location: 'Limanowa',
+    category: 'Gra terenowa',
+    audience: 'Młodzież i grupy parafialne',
+    places: ['Limanowa'],
+    startDate: '2026-06-19',
+    endDate: '2026-06-21',
     pages: [
       { slug: 'start', title: 'Start' },
       { slug: 'admin', title: 'Panel główny' },
@@ -40,6 +60,11 @@ const EVENTS: EventDefinition[] = [
     summary: 'Nocna droga w małej wspólnocie: Kraków → Dobczyce.',
     date: '27/28.03.2026',
     location: 'Kraków - Dobczyce',
+    category: 'Ekstremalna Droga Krzyżowa',
+    audience: 'Dorośli i młodzież',
+    places: ['Kraków', 'Dobczyce'],
+    startDate: '2026-03-27',
+    endDate: '2026-03-28',
     pages: [{ slug: 'start', title: 'Start' }]
   },
   {
@@ -48,6 +73,11 @@ const EVENTS: EventDefinition[] = [
     summary: 'Warsztaty liturgiczne SATB: praca nad repertuarem wielkopostnym i eucharystycznym.',
     date: '28.02.2026-01.03.2026',
     location: 'Krakow',
+    category: 'Warsztaty muzyczne',
+    audience: 'Śpiewacy SATB, schole i chóry',
+    places: ['Kraków'],
+    startDate: '2026-02-28',
+    endDate: '2026-03-01',
     pages: [
       { slug: 'o-warsztatach', title: 'O warsztatach' },
       { slug: 'program', title: 'Program' },
@@ -60,6 +90,11 @@ const EVENTS: EventDefinition[] = [
     summary: 'Pelny serwis wydarzenia: publiczny, uczestnika i organizatora.',
     date: '17.04.2026-18.04.2026',
     location: 'Krakow - Kalwaria Zebrzydowska',
+    category: 'Pielgrzymka piesza',
+    audience: 'Wszyscy chętni',
+    places: ['Kraków', 'Kalwaria Zebrzydowska'],
+    startDate: '2026-04-17',
+    endDate: '2026-04-18',
     pages: [
       { slug: 'start', title: 'Start' },
       { slug: 'o-pielgrzymce', title: 'O pielgrzymce' },
@@ -83,6 +118,11 @@ const EVENTS: EventDefinition[] = [
     summary: 'Nowy projekt teatralny: proces twórczy, zespoły produkcyjne i finałowy spektakl.',
     date: '10.10.2026-30.05.2027',
     location: 'Kraków',
+    category: 'Projekt teatralny',
+    audience: 'Młodzież i dorośli',
+    places: ['Kraków'],
+    startDate: '2026-10-10',
+    endDate: '2027-05-30',
     pages: [{ slug: 'start', title: 'Start' }]
   },
   {
@@ -91,9 +131,17 @@ const EVENTS: EventDefinition[] = [
     summary: 'Dwudniowa pielgrzymka rowerowa z Krakowa do Częstochowy z noclegiem w Domaniewicach.',
     date: '28-29.08.2026',
     location: 'Kraków - Częstochowa',
+    category: 'Pielgrzymka rowerowa',
+    audience: 'Rowerzyści od 16 lat',
+    places: ['Kraków', 'Domaniewice', 'Częstochowa'],
+    startDate: '2026-08-28',
+    endDate: '2026-08-29',
     pages: [{ slug: 'start', title: 'Start' }]
   }
 ];
+
+// The builder itself is a tool, not an event — it stays off the overview.
+const CATALOGUE_EVENTS = EVENTS.filter((entry) => entry.slug !== 'event2');
 
 const KAL26_ROUTE_ALIASES: Record<string, string> = {
   // Information
@@ -137,7 +185,8 @@ const EVENT_PAGE_RENDERERS: Record<
   limanowa: LimanowaEventPage,
   teatr26: TheaterProjectEventPage,
   formularze: FormularzeEventPage,
-  rowerowa26: Rowerowa26EventPage
+  rowerowa26: Rowerowa26EventPage,
+  event2: Event2EventPage
 };
 
 export function EventsPage(props: SharedEventPageProps) {
@@ -215,40 +264,7 @@ export function EventsPage(props: SharedEventPageProps) {
               <h2>{copy.events.chooserTitle}</h2>
               <p>{copy.events.chooserSubtitle}</p>
             </div>
-            <div className="events-grid">
-              {EVENTS.map((eventEntry) => {
-                const firstPage = eventEntry.pages[0];
-                const eventHref =
-                  eventEntry.slug === 'edk26'
-                    ? '/#/event/edk26'
-                    : `/#/event/${eventEntry.slug}/${firstPage.slug}`;
-                return (
-                  <article key={eventEntry.slug} className={`events-card events-card--${eventEntry.slug}`}>
-                    <h3>{eventEntry.title}</h3>
-                    <p>{eventEntry.summary}</p>
-                    {(eventEntry.date || eventEntry.location) && (
-                      <dl>
-                        {eventEntry.date && (
-                          <div>
-                            <dt>Data</dt>
-                            <dd>{eventEntry.date}</dd>
-                          </div>
-                        )}
-                        {eventEntry.location && (
-                          <div>
-                            <dt>Miejsce</dt>
-                            <dd>{eventEntry.location}</dd>
-                          </div>
-                        )}
-                      </dl>
-                    )}
-                    <a className="cta" href={eventHref}>
-                      {copy.events.openEvent}
-                    </a>
-                  </article>
-                );
-              })}
-            </div>
+            <EventsCatalogue legacyEvents={CATALOGUE_EVENTS} openLabel={copy.events.openEvent} />
           </section>
         </article>
       </main>
