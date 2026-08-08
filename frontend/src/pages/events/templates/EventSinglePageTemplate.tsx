@@ -87,6 +87,21 @@ function normalizeWheelDelta(event: WheelEvent): number {
   return clamp(delta, -180, 180);
 }
 
+// Elements that consume the scroll keys themselves: Space types a character or
+// toggles a checkbox, arrows move the caret or change a <select>, Home/End jump
+// within the text. The template's scroll shortcuts must yield to them.
+const KEY_CONSUMING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'BUTTON', 'A', 'SUMMARY']);
+
+function ownsKeyboardInput(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (target.isContentEditable) {
+    return true;
+  }
+  return KEY_CONSUMING_TAGS.has(target.tagName);
+}
+
 function resolveScrollReferenceLayerIndex(layers: EventTemplateSlideLayer[]): number {
   if (layers.length === 0) {
     return 0;
@@ -945,7 +960,20 @@ export function EventSinglePageTemplate({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setMenuOpen(false);
+        return;
       }
+
+      // Let the focused control keep its own keys — otherwise typing a space in
+      // the registration form scrolls the slide and never inserts the character.
+      if (ownsKeyboardInput(event.target)) {
+        return;
+      }
+
+      // Browser/OS shortcuts (Ctrl+Home, Cmd+Down, …) are not ours to take.
+      if (event.altKey || event.ctrlKey || event.metaKey) {
+        return;
+      }
+
       if (event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ') {
         event.preventDefault();
         applyDelta(viewportHeight * 0.72);
