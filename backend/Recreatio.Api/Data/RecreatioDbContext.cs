@@ -1684,5 +1684,71 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
             .WithMany()
             .HasForeignKey(x => x.ConditionQuestionId)
             .OnDelete(DeleteBehavior.NoAction);
+
+        // Event2 tables are provisioned by patch_event2.sql. Mirror every SQL
+        // foreign key here so EF can order inserts/deletes when a whole event,
+        // form submission, or access grant is saved in one transaction.
+        modelBuilder.Entity<Data.Event2.Event2Page>()
+            .HasOne<Data.Event2.Event2Site>()
+            .WithMany()
+            .HasForeignKey(x => x.SiteId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Data.Event2.Event2Part>()
+            .HasOne<Data.Event2.Event2Page>()
+            .WithMany()
+            .HasForeignKey(x => x.PageId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Data.Event2.Event2PartField>()
+            .HasOne<Data.Event2.Event2Part>()
+            .WithMany()
+            .HasForeignKey(x => x.PartId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Event2.Event2AccessLink>()
+            .HasOne<Data.Event2.Event2Site>()
+            .WithMany()
+            .HasForeignKey(x => x.SiteId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Data.Event2.Event2AccessLinkPage>()
+            .HasOne<Data.Event2.Event2AccessLink>()
+            .WithMany()
+            .HasForeignKey(x => x.AccessLinkId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Data.Event2.Event2AccessLinkPage>()
+            .HasOne<Data.Event2.Event2Page>()
+            .WithMany()
+            .HasForeignKey(x => x.PageId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Data.Event2.Event2AccessLinkAssignment>()
+            .HasOne<Data.Event2.Event2AccessLink>()
+            .WithMany()
+            .HasForeignKey(x => x.AccessLinkId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Event2.Event2Registration>()
+            .HasOne<Data.Event2.Event2Site>()
+            .WithMany()
+            .HasForeignKey(x => x.SiteId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Data.Event2.Event2Registration>()
+            .HasOne<Data.Event2.Event2Part>()
+            .WithMany()
+            .HasForeignKey(x => x.PartId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Data.Event2.Event2Registration>()
+            .HasOne<Data.Event2.Event2AccessLink>()
+            .WithMany()
+            .HasForeignKey(x => x.AccessLinkId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Data.Event2.Event2RegistrationValue>()
+            .HasOne<Data.Event2.Event2Registration>()
+            .WithMany()
+            .HasForeignKey(x => x.RegistrationId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Data.Event2.Event2RegistrationValue>()
+            .HasOne<Data.Event2.Event2PartField>()
+            .WithMany()
+            .HasForeignKey(x => x.FieldId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }
