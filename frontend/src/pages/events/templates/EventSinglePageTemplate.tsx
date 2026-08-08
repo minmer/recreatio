@@ -47,6 +47,9 @@ const MIDDLE_SNAP_THRESHOLD_MS = 140;
 const MIDDLE_SCROLL_DEADZONE_PX = 10;
 const MIDDLE_SCROLL_GAIN = 0.082;
 const MIDDLE_SCROLL_MAX_DELTA = 34;
+// Event themes with a dark header need the white wordmark; the default
+// header is light, where the black one belongs.
+const DARK_HEADER_EVENT_SLUGS = new Set(['rowerowa26']);
 // Touch fling: finger velocity is sampled in px/ms and coasts with per-frame
 // friction after release, so a hard flick keeps sliding like native scroll.
 const TOUCH_FLING_FRICTION = 0.94;
@@ -1014,7 +1017,10 @@ export function EventSinglePageTemplate({
     <div className={`event-template event-template--${event.slug}`} data-slide={activeSlideIndex + 1}>
       <header className="event-template-header">
         <a className="event-template-brand" href="/#/event">
-          <img src="/logo_new.svg" alt="REcreatio" />
+          <img
+            src={DARK_HEADER_EVENT_SLUGS.has(event.slug) ? '/logo_inv.svg' : '/logo_new.svg'}
+            alt="REcreatio"
+          />
         </a>
 
         <button
