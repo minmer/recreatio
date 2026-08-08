@@ -88,7 +88,6 @@ public static class RowerowaEndpoints
 
             if (string.IsNullOrWhiteSpace(fullName)
                 || string.IsNullOrWhiteSpace(phone)
-                || string.IsNullOrWhiteSpace(email)
                 || string.IsNullOrWhiteSpace(joinPoint)
                 || string.IsNullOrWhiteSpace(fridayAccommodation)
                 || meals.Count == 0
@@ -347,17 +346,17 @@ public static class RowerowaEndpoints
         return $"+48{national}";
     }
 
-    private static string? NormalizeEmail(string? value)
+    private static string NormalizeEmail(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            return null;
+            return string.Empty;
         }
 
         var normalized = value.Trim();
         if (normalized.Length > 180 || !normalized.Contains('@'))
         {
-            return null;
+            return string.Empty;
         }
 
         return normalized;

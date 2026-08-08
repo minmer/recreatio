@@ -105,3 +105,27 @@ BEGIN
     EXEC(N'CREATE INDEX IX_CogitaStoryboardSessionAnswers_SessionNode ON dbo.CogitaStoryboardSessionAnswers(SessionId, NodeKey);');
 END
 GO
+
+IF COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'DisplayNameHash') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardSessionParticipants ADD DisplayNameHash VARBINARY(64) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'DisplayNameCipher') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardSessionParticipants ADD DisplayNameCipher NVARCHAR(MAX) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'StartedUtc') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardSessionParticipants ADD StartedUtc DATETIMEOFFSET NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaStoryboardSessionParticipants', 'FinishedUtc') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardSessionParticipants ADD FinishedUtc DATETIMEOFFSET NULL;
+END
+GO

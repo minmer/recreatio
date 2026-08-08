@@ -136,6 +136,7 @@ export function EventSinglePageTemplate({
   const interpolationRef = useRef(INTERNAL_TRACK_INTERPOLATION);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
+  const sekcjaHandledRef = useRef(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [middleScrollActive, setMiddleScrollActive] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(1);
@@ -450,6 +451,12 @@ export function EventSinglePageTemplate({
       boundaryGateRef.current = null;
       lastInputDirectionRef.current = direction;
       const previousIndex = Math.max(slideIndex - 1, 0);
+      if (previousIndex === slideIndex) {
+        // Already at the first slide – stay pinned to its top
+        setTarget(slideStart, SLIDE_TRANSITION_INTERPOLATION);
+        lockInputAfterSnap();
+        return;
+      }
       const previousStart = slideStarts[previousIndex] ?? 0;
       const previousHeight = slideHeights[previousIndex] ?? viewportHeight;
       const previousInnerEnd = previousStart + Math.max(0, previousHeight - viewportHeight);
@@ -864,6 +871,34 @@ export function EventSinglePageTemplate({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [applyDelta, maxScroll, scheduleSnap, setTarget, viewportHeight]);
+
+  useEffect(() => {
+    if (sekcjaHandledRef.current) return;
+    if (slideHeights.every(h => h === 1)) return;
+    const qIdx = window.location.hash.indexOf('?');
+    if (qIdx === -1) return;
+    const params = new URLSearchParams(window.location.hash.slice(qIdx + 1));
+    const sekcja = params.get('sekcja');
+    if (!sekcja) return;
+    const idx = slideIndexById.get(sekcja);
+    if (typeof idx !== 'number') return;
+    sekcjaHandledRef.current = true;
+    jumpToSlide(idx);
+  }, [jumpToSlide, slideHeights, slideIndexById]);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const qIdx = window.location.hash.indexOf('?');
+      if (qIdx === -1) return;
+      const params = new URLSearchParams(window.location.hash.slice(qIdx + 1));
+      const sekcja = params.get('sekcja');
+      if (!sekcja) return;
+      const idx = slideIndexById.get(sekcja);
+      if (typeof idx === 'number') jumpToSlide(idx);
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [jumpToSlide, slideIndexById]);
 
   useEffect(() => () => {
     stopAnimation();

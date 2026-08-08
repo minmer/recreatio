@@ -268,14 +268,9 @@ export function Rowerowa26EventPage(
 
     const fullName = form.fullName.trim();
     const phone = normalizePolishPhone(form.phone);
-    const email = form.email.trim();
 
     if (!fullName || !phone) {
       setRegistrationError('Uzupełnij imię i nazwisko oraz poprawny numer telefonu (+48 i 9 cyfr).');
-      return;
-    }
-    if (!email || !email.includes('@')) {
-      setRegistrationError('Podaj poprawny adres e-mail.');
       return;
     }
     if (form.meals.length === 0) {
@@ -292,7 +287,7 @@ export function Rowerowa26EventPage(
       await createRowerowaRegistration(ROWEROWA_SLUG, {
         fullName,
         phone,
-        email,
+        email: form.email.trim(),
         joinPoint: form.joinPoint,
         fridayAccommodation: form.fridayAccommodation,
         meals: form.meals,
@@ -405,7 +400,7 @@ export function Rowerowa26EventPage(
                       <span>Pielgrzymka rowerowa z Krakowa do Częstochowy</span>
                     </h1>
                     <p>
-                      Parafia Narodzenia NMP w Zielonkach z mistrzejowicką grupą pielgrzymkową 24 zapraszają na
+                      reCreatio i ks. Michał Mleczek zapraszają na
                       dwudniową pielgrzymkę rowerową z Krakowa do Częstochowy.
                     </p>
                     <p>
@@ -730,6 +725,9 @@ export function Rowerowa26EventPage(
                       Wypełnij formularz, żeby zgłosić swój udział. Pomoże nam to zaplanować nocleg, posiłki,
                       transport bagażu i bezpieczeństwo na trasie.
                     </p>
+                    <p className="rw-inline-note">
+                      Pielgrzymka to wspólna droga — dobro grupy jest ważniejsze niż indywidualne ambicje.
+                    </p>
                   </header>
 
                   {siteLoading ? <p className="rw-inline-note">Ładowanie konfiguracji zapisów...</p> : null}
@@ -750,15 +748,6 @@ export function Rowerowa26EventPage(
                         <input
                           value={form.phone}
                           onChange={(eventInput) => setForm((previous) => ({ ...previous, phone: eventInput.target.value }))}
-                          required
-                        />
-                      </label>
-                      <label>
-                        E-mail
-                        <input
-                          type="email"
-                          value={form.email}
-                          onChange={(eventInput) => setForm((previous) => ({ ...previous, email: eventInput.target.value }))}
                           required
                         />
                       </label>
@@ -1037,7 +1026,7 @@ export function Rowerowa26EventPage(
                   </header>
                   <div className="rw-section-body">
                     <p>
-                      Organizatorem jest Parafia Narodzenia NMP w Zielonkach z mistrzejowicką grupą pielgrzymkową 24.
+                      Organizatorem jest reCreatio i ks. Michał Mleczek.
                       Masz pytania dotyczące zapisów, trasy albo logistyki? Skontaktuj się bezpośrednio.
                     </p>
                   </div>
