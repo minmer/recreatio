@@ -47,6 +47,12 @@ const MIDDLE_SNAP_THRESHOLD_MS = 140;
 const MIDDLE_SCROLL_DEADZONE_PX = 10;
 const MIDDLE_SCROLL_GAIN = 0.082;
 const MIDDLE_SCROLL_MAX_DELTA = 34;
+// Touch fling: finger velocity is sampled in px/ms and coasts with per-frame
+// friction after release, so a hard flick keeps sliding like native scroll.
+const TOUCH_FLING_FRICTION = 0.94;
+const TOUCH_FLING_MIN_VELOCITY = 0.04;
+const TOUCH_FLING_MAX_VELOCITY = 3.2;
+const TOUCH_VELOCITY_SMOOTHING = 0.72;
 
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min;
@@ -119,6 +125,9 @@ export function EventSinglePageTemplate({
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const layerRefs = useRef<Array<Array<HTMLDivElement | null>>>([]);
   const touchYRef = useRef<number | null>(null);
+  const touchVelocityRef = useRef(0);
+  const touchLastMoveAtRef = useRef(0);
+  const flingRafRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const snapTimerRef = useRef<number | null>(null);
   const lastInputDirectionRef = useRef<-1 | 0 | 1>(0);
@@ -265,6 +274,14 @@ export function EventSinglePageTemplate({
 
   const lockInputAfterSnap = useCallback(() => {
     inputLockUntilRef.current = performance.now() + SNAP_INPUT_LOCK_MS;
+  }, []);
+
+  const stopFling = useCallback(() => {
+    if (flingRafRef.current !== null) {
+      cancelAnimationFrame(flingRafRef.current);
+      flingRafRef.current = null;
+    }
+    touchVelocityRef.current = 0;
   }, []);
 
   const snapToNearest = useCallback(() => {
@@ -506,6 +523,7 @@ export function EventSinglePageTemplate({
 
   const jumpToSlide = useCallback((index: number) => {
     const point = slideStarts[index] ?? 0;
+    stopFling();
     lastInputDirectionRef.current = 0;
     lastInputAtRef.current = 0;
     burstTransitionUsedRef.current = false;
@@ -516,7 +534,7 @@ export function EventSinglePageTemplate({
     lockInputAfterSnap();
     scheduleSnap();
     setMenuOpen(false);
-  }, [lockInputAfterSnap, scheduleSnap, setTarget, slideStarts]);
+  }, [lockInputAfterSnap, scheduleSnap, setTarget, slideStarts, stopFling]);
 
   const renderDefaultLayerContent = useCallback((slide: EventTemplateSlide) => (
     <div className="event-template-slide-inner">
@@ -690,11 +708,58 @@ export function EventSinglePageTemplate({
       applyDelta(normalizedDelta);
     };
 
+    // Coast after release with frame-rate independent friction. Each step feeds
+    // applyDelta as touch input, so the burst/boundary gating that governs a
+    // real finger drag governs the fling too.
+    const startFling = () => {
+      let velocity = clamp(touchVelocityRef.current, -TOUCH_FLING_MAX_VELOCITY, TOUCH_FLING_MAX_VELOCITY);
+      touchVelocityRef.current = 0;
+      if (Math.abs(velocity) < TOUCH_FLING_MIN_VELOCITY) {
+        return;
+      }
+
+      let lastFrameAt = performance.now();
+      const step = () => {
+        const now = performance.now();
+        const frameMs = Math.min(now - lastFrameAt, 48);
+        lastFrameAt = now;
+
+        velocity *= Math.pow(TOUCH_FLING_FRICTION, frameMs / 16.67);
+        const delta = velocity * frameMs;
+        if (Math.abs(velocity) < TOUCH_FLING_MIN_VELOCITY || Math.abs(delta) < 0.1) {
+          flingRafRef.current = null;
+          return;
+        }
+
+        const targetBefore = targetRef.current;
+        applyDelta(delta, 'touch');
+
+        if (burstTransitionUsedRef.current) {
+          // The coast carried into the next slide — hand off to the snap.
+          flingRafRef.current = null;
+          scheduleSnap();
+          return;
+        }
+        if (Math.abs(targetRef.current - targetBefore) < 0.05) {
+          // Clamped at an end, or input is locked. Nothing left to coast into.
+          flingRafRef.current = null;
+          return;
+        }
+
+        flingRafRef.current = requestAnimationFrame(step);
+      };
+
+      flingRafRef.current = requestAnimationFrame(step);
+    };
+
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length === 0) {
         return;
       }
+      stopFling();
       touchYRef.current = event.touches[0].clientY;
+      touchVelocityRef.current = 0;
+      touchLastMoveAtRef.current = performance.now();
       lastInputAtRef.current = 0;
       burstTransitionUsedRef.current = false;
       burstTransitionDirectionRef.current = 0;
@@ -709,19 +774,42 @@ export function EventSinglePageTemplate({
       const nextY = event.touches[0].clientY;
       const delta = touchYRef.current - nextY;
       touchYRef.current = nextY;
+
+      const now = performance.now();
+      const elapsed = now - touchLastMoveAtRef.current;
+      touchLastMoveAtRef.current = now;
+      if (elapsed > 0 && elapsed < 100) {
+        // Smooth the samples so one jittery frame can't define the throw.
+        const instant = delta / elapsed;
+        touchVelocityRef.current =
+          touchVelocityRef.current * TOUCH_VELOCITY_SMOOTHING
+          + instant * (1 - TOUCH_VELOCITY_SMOOTHING);
+      }
+
       event.preventDefault();
       applyDelta(delta, 'touch');
     };
 
     const onTouchEnd = () => {
       touchYRef.current = null;
-      // Only snap when the gesture triggered a slide transition.
-      // For in-slide inner scroll, let the position settle freely — the same
-      // way wheel input works. Unconditional snap here would jump back to the
-      // slide boundary whenever the user scrolled < 22% of a long content slide.
+
+      // A gesture that changed slides settles onto the snap point. Inner scroll
+      // instead coasts freely — snapping there would yank the reader back to the
+      // slide boundary, since the 22% threshold is measured against the whole
+      // inner range and no single drag can clear it on a long slide.
       if (burstTransitionUsedRef.current) {
+        touchVelocityRef.current = 0;
         scheduleSnap();
+        return;
       }
+
+      // Stale velocity from a drag that ended in a pause should not throw.
+      if (performance.now() - touchLastMoveAtRef.current > 90) {
+        touchVelocityRef.current = 0;
+        return;
+      }
+
+      startFling();
     };
 
     const viewport = viewportRef.current;
@@ -736,13 +824,14 @@ export function EventSinglePageTemplate({
     viewport.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
     return () => {
+      stopFling();
       window.removeEventListener('wheel', onWheelCapture, { capture: true });
       viewport.removeEventListener('touchstart', onTouchStart);
       viewport.removeEventListener('touchmove', onTouchMove);
       viewport.removeEventListener('touchend', onTouchEnd);
       viewport.removeEventListener('touchcancel', onTouchEnd);
     };
-  }, [applyDelta, scheduleSnap]);
+  }, [applyDelta, scheduleSnap, stopFling]);
 
   useEffect(() => {
     const tickMiddleScroll = () => {

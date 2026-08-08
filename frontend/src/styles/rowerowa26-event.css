@@ -1,0 +1,864 @@
+/* ============================================================
+   Rowerowa Częstochowa 2026 — Component Styles
+   Parallax layers + content design system
+   ============================================================ */
+
+/* ── Parallax layer shell ─────────────────────────────────── */
+
+.rw-layer {
+  width: 100%;
+}
+
+.rw-layer-bg {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.rw-layer-bg-fill {
+  width: min(1280px, 100%);
+  min-height: 100%;
+  padding: 4rem 8vw;
+  box-sizing: border-box;
+  background:
+    radial-gradient(ellipse at 10% 10%, rgba(100, 160, 80, 0.2), transparent 46%),
+    radial-gradient(ellipse at 86% 8%, rgba(56, 108, 48, 0.18), transparent 44%),
+    linear-gradient(175deg, rgba(13, 22, 10, 0.7) 0%, rgba(18, 30, 14, 0.76) 100%);
+}
+
+.rw-layer-bg-fill-2 {
+  background:
+    radial-gradient(ellipse at 14% 10%, rgba(56, 108, 48, 0.22), transparent 46%),
+    radial-gradient(ellipse at 84% 14%, rgba(120, 168, 80, 0.18), transparent 48%),
+    linear-gradient(175deg, rgba(12, 22, 10, 0.7) 0%, rgba(17, 32, 14, 0.78) 100%);
+}
+
+.rw-layer-bg-fill-3 {
+  background:
+    radial-gradient(ellipse at 16% 10%, rgba(76, 126, 60, 0.24), transparent 47%),
+    radial-gradient(ellipse at 85% 12%, rgba(50, 100, 80, 0.2), transparent 48%),
+    linear-gradient(175deg, rgba(12, 22, 10, 0.72) 0%, rgba(16, 30, 14, 0.8) 100%);
+}
+
+.rw-layer-bg-fill-4 {
+  background:
+    radial-gradient(ellipse at 12% 10%, rgba(82, 138, 64, 0.22), transparent 48%),
+    radial-gradient(ellipse at 87% 12%, rgba(60, 108, 50, 0.2), transparent 46%),
+    linear-gradient(175deg, rgba(13, 22, 10, 0.72) 0%, rgba(17, 32, 15, 0.8) 100%);
+}
+
+.rw-layer-type {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.rw-type-banner {
+  width: min(1320px, 100%);
+  min-height: 100%;
+  padding: 11.5rem 8vw;
+  box-sizing: border-box;
+  display: grid;
+  align-content: start;
+}
+
+.rw-type-word {
+  display: block;
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 700;
+  font-size: clamp(4.6rem, 17vw, 12rem);
+  line-height: 0.85;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(220, 242, 210, 0.1);
+}
+
+.rw-type-word-alt {
+  margin-top: 0.28rem;
+  margin-left: 0.55ch;
+  color: rgba(180, 224, 150, 0.09);
+}
+
+.rw-content-layer {
+  width: min(1140px, 100%);
+  padding: clamp(2.4rem, 5vw, 4.6rem) 7vw clamp(3rem, 5.6vw, 5rem);
+}
+
+/* ── Design tokens ────────────────────────────────────────── */
+
+.rw-content {
+  --rw-bg-1: #122010;
+  --rw-bg-2: #1b3317;
+  --rw-bg-3: #263d20;
+  --rw-line: rgba(128, 192, 108, 0.22);
+  --rw-line-2: rgba(128, 192, 108, 0.46);
+  --rw-accent: #4d9246;
+  --rw-accent-hover: #5faa58;
+  --rw-accent-dim: rgba(77, 146, 70, 0.28);
+  --rw-text: #eaf3e5;
+  --rw-text-2: #b4d0ab;
+  --rw-text-3: #789e72;
+  color: var(--rw-text);
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.72;
+}
+
+/* Base typographic resets — explicit on every element to avoid inheritance breaks */
+.rw-content h1,
+.rw-content h2,
+.rw-content h3,
+.rw-content h4 {
+  color: var(--rw-text);
+}
+
+.rw-content p,
+.rw-content li {
+  color: var(--rw-text);
+}
+
+.rw-content a {
+  color: var(--rw-text-2);
+  text-underline-offset: 2px;
+}
+
+.rw-content a:hover {
+  color: var(--rw-text);
+}
+
+/* Slide inner spacing */
+.rw-content .event-template-slide-inner {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+/* ── CTA buttons ─────────────────────────────────────────── */
+
+.rw-content .cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--rw-line-2);
+  background: var(--rw-accent);
+  color: var(--rw-text);
+  padding: 0.54rem 1.4rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+.rw-content .cta:hover,
+.rw-content .cta:focus-visible {
+  background: var(--rw-accent-hover);
+  border-color: rgba(128, 192, 108, 0.62);
+  color: var(--rw-text);
+}
+
+.rw-content .ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--rw-line-2);
+  background: rgba(18, 32, 16, 0.62);
+  color: var(--rw-text);
+  padding: 0.54rem 1.4rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+.rw-content .ghost:hover,
+.rw-content .ghost:focus-visible {
+  background: rgba(27, 46, 23, 0.92);
+  border-color: rgba(128, 192, 108, 0.6);
+  color: var(--rw-text);
+}
+
+/* ── Hero ────────────────────────────────────────────────── */
+
+.rw-hero {
+  border: 1px solid var(--rw-line-2);
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  min-height: clamp(380px, 58vh, 620px);
+}
+
+.rw-hero-media {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(175deg, rgba(10, 18, 8, 0.68) 0%, rgba(10, 18, 8, 0.9) 70%),
+    radial-gradient(ellipse at 70% 35%, rgba(56, 110, 48, 0.38), transparent 56%),
+    linear-gradient(140deg, #1b3015 0%, #0e1e0c 100%);
+}
+
+.rw-hero-overlay {
+  position: relative;
+  z-index: 1;
+  padding: clamp(1.4rem, 4vw, 3rem);
+  max-width: 800px;
+  display: grid;
+  gap: 0.9rem;
+  align-content: start;
+}
+
+.rw-hero-badge {
+  margin: 0;
+  width: fit-content;
+  border: 1px solid var(--rw-line-2);
+  border-radius: 999px;
+  padding: 0.28rem 0.8rem;
+  color: var(--rw-text-2);
+  background: rgba(10, 24, 8, 0.8);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.rw-hero h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  line-height: 1.12;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 600;
+  color: var(--rw-text);
+  text-wrap: balance;
+}
+
+.rw-hero h1 span {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: clamp(1.15rem, 2.5vw, 1.8rem);
+  font-weight: 400;
+  color: var(--rw-text-2);
+}
+
+.rw-hero p {
+  margin: 0;
+  line-height: 1.68;
+  color: var(--rw-text-2);
+}
+
+.rw-hero-actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-top: 0.3rem;
+}
+
+.rw-hero small {
+  color: var(--rw-text-3);
+  font-size: 0.88rem;
+}
+
+/* ── Section panels ──────────────────────────────────────── */
+
+.rw-section {
+  border: 1px solid var(--rw-line);
+  border-radius: 14px;
+  padding: clamp(1.1rem, 3vw, 1.8rem);
+  background: linear-gradient(172deg, rgba(27, 51, 23, 0.94), rgba(18, 32, 15, 0.96));
+  display: grid;
+  gap: 1rem;
+}
+
+.rw-section header {
+  display: grid;
+  gap: 0.4rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--rw-line);
+}
+
+.rw-section header h2 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(1.5rem, 3.2vw, 2.1rem);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--rw-text);
+}
+
+.rw-section header h3 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(1.1rem, 2vw, 1.55rem);
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--rw-text-2);
+}
+
+.rw-section header p {
+  margin: 0;
+  color: var(--rw-text-2);
+  font-size: 0.96rem;
+}
+
+.rw-section-body {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.rw-section-body p {
+  margin: 0;
+  line-height: 1.72;
+  color: var(--rw-text);
+}
+
+.rw-section-body ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.42rem;
+  color: var(--rw-text);
+}
+
+.rw-important-note {
+  margin: 0;
+  color: var(--rw-text);
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  border-left: 3px solid var(--rw-accent);
+  background: rgba(77, 146, 70, 0.1);
+  border-radius: 0 8px 8px 0;
+}
+
+/* ── Card grid ───────────────────────────────────────────── */
+
+.rw-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.65rem;
+}
+
+.rw-card {
+  border: 1px solid var(--rw-line);
+  border-radius: 10px;
+  background: rgba(12, 22, 10, 0.72);
+  padding: 0.9rem 1rem;
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+}
+
+.rw-card h3 {
+  margin: 0;
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rw-text-2);
+}
+
+.rw-card p {
+  margin: 0;
+  color: var(--rw-text);
+  font-size: 0.95rem;
+  line-height: 1.62;
+}
+
+.rw-card--day {
+  border-left: 2px solid rgba(77, 146, 70, 0.48);
+}
+
+.rw-card--start {
+  border-color: var(--rw-line-2);
+  background: rgba(77, 146, 70, 0.12);
+}
+
+.rw-card--start h3 {
+  color: var(--rw-text);
+}
+
+.rw-card--day h3 {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-weight: 700;
+  color: var(--rw-text-2);
+}
+
+.rw-card--day ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.36rem;
+}
+
+.rw-card--day ul li {
+  display: flex;
+  gap: 0.5rem;
+  color: var(--rw-text);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.rw-card--day ul li span {
+  color: var(--rw-text-2);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding-top: 0.14em;
+  flex-shrink: 0;
+}
+
+/* ── Notes ───────────────────────────────────────────────── */
+
+.rw-inline-note {
+  margin: 0;
+  color: var(--rw-text-2);
+  font-size: 0.92rem;
+  line-height: 1.62;
+  padding: 0.56rem 0.9rem;
+  border: 1px solid var(--rw-line);
+  border-radius: 8px;
+  background: rgba(12, 22, 10, 0.52);
+}
+
+/* ── FAQ ─────────────────────────────────────────────────── */
+
+.rw-faq-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.rw-faq-list details {
+  border: 1px solid var(--rw-line);
+  border-radius: 10px;
+  background: rgba(12, 22, 10, 0.72);
+  overflow: hidden;
+  transition: border-color 160ms ease;
+}
+
+.rw-faq-list details[open] {
+  border-color: var(--rw-line-2);
+}
+
+.rw-faq-list summary {
+  cursor: pointer;
+  padding: 0.7rem 0.95rem;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  color: var(--rw-text);
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  user-select: none;
+}
+
+.rw-faq-list summary::-webkit-details-marker {
+  display: none;
+}
+
+.rw-faq-list summary::after {
+  content: '+';
+  flex-shrink: 0;
+  width: 1.35em;
+  height: 1.35em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--rw-line-2);
+  border-radius: 50%;
+  font-size: 1em;
+  line-height: 1;
+  color: var(--rw-text-2);
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.rw-faq-list details[open] summary::after {
+  content: '−';
+  border-color: var(--rw-accent);
+  color: var(--rw-accent);
+}
+
+.rw-faq-list p {
+  margin: 0;
+  padding: 0 0.95rem 0.85rem;
+  color: var(--rw-text-2);
+  font-size: 0.95rem;
+  line-height: 1.68;
+}
+
+/* ── Registration form ───────────────────────────────────── */
+
+.rw-section-cta {
+  background: linear-gradient(172deg, rgba(22, 42, 18, 0.98), rgba(14, 26, 12, 0.98));
+}
+
+/* A form is read and filled top-to-bottom, so it gets a narrower measure than
+   the prose sections. The admin block below opts back out to full width. */
+.rw-section-cta > * {
+  width: 100%;
+  max-width: 660px;
+  justify-self: center;
+}
+
+.rw-section-cta > .rw-admin-block {
+  max-width: none;
+}
+
+.rw-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.rw-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.65rem;
+}
+
+.rw-form label {
+  display: grid;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--rw-text-2);
+}
+
+.rw-form input:not([type='checkbox']),
+.rw-form select,
+.rw-form textarea {
+  border: 1px solid var(--rw-line-2);
+  border-radius: 8px;
+  padding: 0.54rem 0.72rem;
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--rw-text);
+  background: rgba(10, 22, 8, 0.88);
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.rw-form input:not([type='checkbox']):focus,
+.rw-form select:focus,
+.rw-form textarea:focus {
+  border-color: var(--rw-line-2);
+  box-shadow: 0 0 0 3px var(--rw-accent-dim);
+}
+
+/* Custom select arrow */
+.rw-form select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' stroke='%23b4d0ab' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.72rem center;
+  padding-right: 2.2rem;
+  cursor: pointer;
+}
+
+.rw-form option {
+  background: #122010;
+  color: #eaf3e5;
+}
+
+.rw-form input::placeholder,
+.rw-form textarea::placeholder {
+  color: var(--rw-text-3);
+  opacity: 1;
+}
+
+.rw-form textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.rw-form small {
+  display: block;
+  color: var(--rw-text-3);
+  font-size: 0.82rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-top: 0.1rem;
+}
+
+/* ── Fieldset / checkboxes ───────────────────────────────── */
+
+.rw-fieldset {
+  border: 1px solid var(--rw-line);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.rw-fieldset legend {
+  padding: 0 0.45rem;
+  color: var(--rw-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.rw-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.45rem 1rem;
+}
+
+/* Outranks `.rw-form label`, which uppercases field labels. */
+.rw-checkbox-grid .rw-checkbox-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.52rem;
+  font-size: 0.93rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--rw-text);
+  line-height: 1.48;
+  cursor: pointer;
+}
+
+.rw-checkbox-row input[type='checkbox'] {
+  flex-shrink: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0.2rem 0 0;
+  accent-color: var(--rw-accent);
+  cursor: pointer;
+}
+
+.rw-checkbox-row input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--rw-accent-hover);
+  outline-offset: 2px;
+}
+
+/* ── Consent, feedback ───────────────────────────────────── */
+
+.rw-consent {
+  margin: 0;
+  color: var(--rw-text-2);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.rw-consent a {
+  color: var(--rw-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.pilgrimage-error {
+  margin: 0;
+  padding: 0.54rem 0.82rem;
+  border: 1px solid rgba(220, 80, 96, 0.38);
+  border-radius: 8px;
+  background: rgba(160, 40, 52, 0.18);
+  color: #f4a0a8;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.pilgrimage-success {
+  margin: 0;
+  padding: 0.54rem 0.82rem;
+  border: 1px solid rgba(80, 200, 96, 0.38);
+  border-radius: 8px;
+  background: rgba(40, 140, 52, 0.18);
+  color: #a8e6a0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+/* ── Admin panel ─────────────────────────────────────────── */
+
+.rw-admin-block {
+  border: 1px solid var(--rw-line);
+  border-radius: 12px;
+  padding: 0.95rem 1rem;
+  display: grid;
+  gap: 0.75rem;
+  background: rgba(10, 22, 8, 0.8);
+}
+
+.rw-admin-block header h3 {
+  margin: 0;
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rw-text-2);
+}
+
+.rw-admin-block header p {
+  margin: 0.3rem 0 0;
+  color: var(--rw-text-3);
+  font-size: 0.88rem;
+}
+
+.rw-admin-warning {
+  border: 1px solid rgba(128, 192, 108, 0.38);
+  border-radius: 8px;
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.56rem;
+  background: rgba(77, 146, 70, 0.08);
+}
+
+.rw-admin-warning p {
+  margin: 0;
+  color: var(--rw-text-2);
+  font-size: 0.9rem;
+  line-height: 1.58;
+}
+
+.rw-admin-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.rw-admin-stat {
+  border: 1px solid var(--rw-line);
+  border-radius: 999px;
+  padding: 0.28rem 0.72rem;
+  font-size: 0.8rem;
+  color: var(--rw-text-2);
+}
+
+.rw-admin-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--rw-line);
+  border-radius: 8px;
+}
+
+.rw-admin-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.rw-admin-table-wrap th {
+  border-bottom: 1px solid var(--rw-line-2);
+  padding: 0.48rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  color: var(--rw-text-2);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rw-admin-table-wrap td {
+  border-bottom: 1px solid var(--rw-line);
+  padding: 0.44rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  color: var(--rw-text);
+}
+
+/* ── Contact ─────────────────────────────────────────────── */
+
+.rw-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.65rem;
+}
+
+.rw-contact-card {
+  border: 1px solid var(--rw-line);
+  border-radius: 10px;
+  background: rgba(12, 22, 10, 0.72);
+  padding: 0.85rem 1rem;
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+}
+
+.rw-contact-card h3 {
+  margin: 0;
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rw-text-2);
+}
+
+.rw-contact-card p {
+  margin: 0;
+  color: var(--rw-text);
+}
+
+.rw-contact-card a {
+  color: var(--rw-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.rw-contact-card a:hover {
+  color: var(--rw-text-2);
+}
+
+.rw-contact-actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  .rw-type-banner {
+    padding-top: 8.5rem;
+    padding-bottom: 8.5rem;
+  }
+
+  .rw-type-word {
+    font-size: clamp(3.8rem, 22vw, 9rem);
+  }
+
+  .rw-content-layer {
+    padding: 1.6rem 5.5vw 2.6rem;
+  }
+
+  .rw-hero {
+    min-height: clamp(300px, 62vw, 480px);
+  }
+
+  .rw-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rw-checkbox-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rw-admin-tools {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

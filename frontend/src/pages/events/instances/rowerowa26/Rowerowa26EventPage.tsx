@@ -12,10 +12,19 @@ import {
 import { normalizePolishPhone } from '../../../../lib/phone';
 import type { EventDefinition, EventInnerPage, SharedEventPageProps } from '../../eventTypes';
 import { EventSinglePageTemplate, type EventTemplateSlide } from '../../templates/EventSinglePageTemplate';
+import '../../../../styles/rowerowa26-event.css';
 
 const ROWEROWA_SLUG = 'rowerowa26';
 
-const JOIN_POINTS = ['Kraków', 'Mistrzejowice', 'Zielonki', 'Ojców', 'Domaniewice (start w sobotę)', 'Pilica', 'Żarki'];
+const JOIN_POINTS = [
+  'Kraków — parafia św. Kazimierza Królewicza, ul. Bobrowskiego 6',
+  'Mistrzejowice',
+  'Zielonki',
+  'Ojców',
+  'Domaniewice (start w sobotę)',
+  'Pilica',
+  'Żarki'
+];
 
 const FRIDAY_ACCOMMODATION_OPTIONS = [
   'Tak, hostel (śpiwór)',
@@ -94,6 +103,11 @@ const DEFAULT_FORM: RegistrationFormState = {
 };
 
 const FAQ_ITEMS: Array<{ question: string; answer: string }> = [
+  {
+    question: 'Skąd dokładnie startujemy w Krakowie?',
+    answer:
+      'Spod parafii pw. Świętego Kazimierza Królewicza, ul. Bobrowskiego 6, 31-552 Kraków (Grzegórzki). To kilkaset metrów od Ronda Grzegórzeckiego — najprościej dojechać tramwajem do przystanku Rondo Grzegórzeckie i pokonać resztę pieszo lub rowerem.'
+  },
   {
     question: 'Czy trzeba mieć doświadczenie rowerowe?',
     answer:
@@ -421,9 +435,10 @@ export function Rowerowa26EventPage(
                   </header>
                   <div className="rw-section-body">
                     <p>
-                      Rowerowa Częstochowa to pielgrzymka łącząca wysiłek fizyczny z modlitwą. Wyruszamy z Krakowa,
-                      dołączając kolejnych uczestników w Mistrzejowicach i Zielonkach, i jedziemy w stronę
-                      Częstochowy.
+                      Rowerowa Częstochowa to pielgrzymka łącząca wysiłek fizyczny z modlitwą. Wyruszamy z Krakowa
+                      spod parafii pw. Świętego Kazimierza Królewicza przy ul. Bobrowskiego 6 na Grzegórzkach,
+                      kilkaset metrów od Ronda Grzegórzeckiego, dołączając kolejnych uczestników w Mistrzejowicach
+                      i Zielonkach, i jedziemy w stronę Częstochowy.
                     </p>
                     <p>
                       Pierwszy dzień kończymy noclegiem w Domaniewicach. Drugiego dnia kontynuujemy jazdę aż do
@@ -486,7 +501,7 @@ export function Rowerowa26EventPage(
                         <li><span>Dystans:</span> 53,1 km</li>
                         <li><span>Podjazdy:</span> ↗ 580 m</li>
                         <li><span>Zjazdy:</span> ↘ 470 m</li>
-                        <li><span>Start:</span> Kraków (z dołączeniem w Mistrzejowicach i Zielonkach)</li>
+                        <li><span>Start:</span> Kraków, parafia św. Kazimierza Królewicza (z dołączeniem w Mistrzejowicach i Zielonkach)</li>
                         <li><span>Meta dnia / nocleg:</span> Domaniewice</li>
                       </ul>
                     </article>
@@ -502,6 +517,20 @@ export function Rowerowa26EventPage(
                       </ul>
                     </article>
                   </div>
+
+                  <article className="rw-card rw-card--start">
+                    <h3>Miejsce startu w Krakowie</h3>
+                    <p>
+                      Parafia pw. Świętego Kazimierza Królewicza, ul. Bobrowskiego 6, 31-552 Kraków (Grzegórzki).
+                      Kościół stoi kilkaset metrów od Ronda Grzegórzeckiego, przy ul. Grzegórzeckiej — dojazd
+                      tramwajem do przystanku Rondo Grzegórzeckie i krótki odcinek pieszo lub rowerem.
+                    </p>
+                    <p>
+                      Zbiórka i wyjazd z tego miejsca w piątek 28.08.2026. Kolejne punkty dołączenia to
+                      Mistrzejowice i Zielonki.
+                    </p>
+                  </article>
+
                   <p className="rw-inline-note">
                     Dokładne godziny dołączenia w poszczególnych punktach (Kraków, Mistrzejowice, Zielonki i dalej
                     na trasie) organizator potwierdzi bliżej terminu wydarzenia.
