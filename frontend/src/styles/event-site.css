@@ -2443,3 +2443,36 @@
   padding-top: 0.55rem;
   border-top: 1px solid var(--a-line);
 }
+
+/* ── Map: several tracks ─────────────────────────────────── */
+
+.ev-map-tracks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+}
+
+.ev-map-tracks li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+  min-width: 0;
+}
+
+.ev-map-tracks em {
+  font-style: normal;
+  color: var(--ev-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+}
+
+.ev-map-track-swatch {
+  flex-shrink: 0;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+}

@@ -1,19 +1,19 @@
 import { useRef, useState } from 'react';
 import { asArray, asBool, asNumber, asOptionalText, asRecord, asText, definePart, mapEntries } from './contracts';
 import { AreaRow, CheckRow, ListEditor, NumberRow, TextRow } from './editorKit';
-import { parseGpx, simplifyTrack, trackLengthKm, type TrackPoint } from './gpx';
-import { OsmMap, type MapPoint } from './OsmMap';
+import { parseGpx, simplifyTrack, trackLengthKm, type MapTrack, type TrackPoint } from './gpx';
+import { OsmMap, trackColor, type MapPoint } from './OsmMap';
 
 type MapConfig = {
   points: MapPoint[];
-  /** GPX-derived route. Drawn instead of joining the pins when present. */
-  track: TrackPoint[];
+  /** GPX-derived routes. Drawn instead of joining the pins when present. */
+  tracks: MapTrack[];
   zoom: number;
   showTrack: boolean;
   note: string | null;
 };
 
-function readTrack(raw: unknown): TrackPoint[] {
+function readPoints(raw: unknown): TrackPoint[] {
   const result: TrackPoint[] = [];
   for (const entry of asArray(raw)) {
     if (!Array.isArray(entry) || entry.length < 2) continue;
@@ -27,6 +27,32 @@ function readTrack(raw: unknown): TrackPoint[] {
   return simplifyTrack(result);
 }
 
+/**
+ * Reads the track list, and lifts a single legacy `track` array into it so maps
+ * saved before this part carried several routes keep working untouched.
+ */
+function readTracks(record: Record<string, unknown>): MapTrack[] {
+  const tracks: MapTrack[] = [];
+
+  for (const entry of asArray(record.tracks)) {
+    const item = asRecord(entry);
+    const points = readPoints(item.points);
+    if (points.length < 2) continue;
+    tracks.push({
+      name: asText(item.name, '').trim() || `Trasa ${tracks.length + 1}`,
+      color: asOptionalText(item.color),
+      points
+    });
+  }
+
+  if (tracks.length === 0) {
+    const legacy = readPoints(record.track);
+    if (legacy.length >= 2) tracks.push({ name: 'Trasa', color: null, points: legacy });
+  }
+
+  return tracks;
+}
+
 /** Where the event physically happens, on a real map. */
 export const mapPart = definePart<MapConfig>({
   kind: 'map',
@@ -35,7 +61,7 @@ export const mapPart = definePart<MapConfig>({
 
   defaultConfig: () => ({
     points: [{ label: 'Start', lat: 50.0619, lon: 19.9369, detail: null, isStop: true }],
-    track: [],
+    tracks: [],
     zoom: 11,
     showTrack: true,
     note: null
@@ -46,9 +72,9 @@ export const mapPart = definePart<MapConfig>({
       { label: 'Start', lat: 50.0619, lon: 19.9369, detail: 'Miejsce zbiórki', isStop: true },
       { label: 'Meta', lat: 50.8118, lon: 19.0967, detail: 'Jasna Góra', isStop: true }
     ],
-    // Pary [szerokość, długość]. Zwykle wczytywane z pliku GPX w edytorze —
-    // nie wypisuj długiego śladu ręcznie, wystarczą punkty.
-    track: [],
+    // Lista tras. Każda ma "points" — pary [szerokość, długość]. Ślady wczytuje
+    // się z plików GPX w edytorze; nie wypisuj ich ręcznie, wystarczą punkty.
+    tracks: [],
     zoom: 9,
     showTrack: true,
     note: null
@@ -72,7 +98,7 @@ export const mapPart = definePart<MapConfig>({
           isStop: asBool(item.isStop)
         };
       }),
-      track: readTrack(record.track),
+      tracks: readTracks(record),
       zoom: zoom < 2 ? 2 : zoom > 18 ? 18 : zoom,
       showTrack: asBool(record.showTrack, true),
       note: asOptionalText(record.note)
@@ -82,7 +108,7 @@ export const mapPart = definePart<MapConfig>({
   Renderer: ({ config }) => {
     const [active, setActive] = useState<number | null>(null);
 
-    if (config.points.length === 0 && config.track.length === 0) {
+    if (config.points.length === 0 && config.tracks.length === 0) {
       return <p className="ev-note">Nie dodano jeszcze punktów ani śladu trasy.</p>;
     }
 
@@ -90,12 +116,29 @@ export const mapPart = definePart<MapConfig>({
       <div className="ev-map">
         <OsmMap
           points={config.points}
-          track={config.track}
+          tracks={config.tracks}
           zoom={config.zoom}
           showTrack={config.showTrack}
           activeIndex={active}
           onActiveChange={setActive}
         />
+
+        {config.showTrack && config.tracks.length > 1 ? (
+          <ul className="ev-map-tracks">
+            {config.tracks.map((track, index) => (
+              <li key={index}>
+                <span
+                  className="ev-map-track-swatch"
+                  style={{ background: track.color ?? trackColor(index) }}
+                  aria-hidden="true"
+                />
+                <span>{track.name}</span>
+                <em>{trackLengthKm(track.points).toFixed(1)} km</em>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
         {config.points.length > 0 ? (
           <ol className="ev-map-legend">
             {config.points.map((point, index) => (
@@ -183,71 +226,143 @@ function GpxLoader({ config, onChange }: { config: MapConfig; onChange: (next: M
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
 
-  const load = async (file: File) => {
+  /** Several files can be picked at once; each becomes its own track. */
+  const load = async (files: FileList) => {
     setBusy(true);
     setError(null);
     setSummary(null);
-    try {
-      const parsed = parseGpx(await file.text());
 
-      // Named waypoints become pins; unnamed track geometry becomes the line.
-      const merged = [...config.points];
-      for (const waypoint of parsed.waypoints) {
-        merged.push({
-          label: waypoint.label,
-          lat: waypoint.lat,
-          lon: waypoint.lon,
-          detail: null,
-          isStop: false
-        });
+    const added: MapTrack[] = [];
+    const pins = [...config.points];
+    const failures: string[] = [];
+
+    for (const file of Array.from(files)) {
+      try {
+        const parsed = parseGpx(await file.text());
+
+        if (parsed.track.length >= 2) {
+          added.push({
+            // The file's own name first, then the filename without extension.
+            name: parsed.name ?? file.name.replace(/\.gpx$/i, ''),
+            color: null,
+            points: parsed.track
+          });
+        }
+
+        // Named waypoints become pins alongside whatever the track drew.
+        for (const waypoint of parsed.waypoints) {
+          pins.push({
+            label: waypoint.label,
+            lat: waypoint.lat,
+            lon: waypoint.lon,
+            detail: null,
+            isStop: false
+          });
+        }
+      } catch (loadError: unknown) {
+        failures.push(`${file.name}: ${loadError instanceof Error ? loadError.message : 'nie udało się wczytać'}`);
       }
-
-      onChange({ ...config, track: parsed.track, points: merged, showTrack: true });
-      setSummary(
-        `Wczytano ${parsed.track.length} punktów śladu (${trackLengthKm(parsed.track).toFixed(1)} km)` +
-          (parsed.waypoints.length > 0 ? `, dodano ${parsed.waypoints.length} punktów z pliku.` : '.')
-      );
-    } catch (loadError: unknown) {
-      setError(loadError instanceof Error ? loadError.message : 'Nie udało się wczytać pliku GPX.');
-    } finally {
-      setBusy(false);
-      if (inputRef.current) inputRef.current.value = '';
     }
+
+    if (added.length > 0 || pins.length !== config.points.length) {
+      onChange({ ...config, tracks: [...config.tracks, ...added], points: pins, showTrack: true });
+    }
+
+    const newPins = pins.length - config.points.length;
+    if (added.length > 0 || newPins > 0) {
+      setSummary(
+        `Dodano ${added.length} ${added.length === 1 ? 'trasę' : 'tras'}` +
+          (newPins > 0 ? ` i ${newPins} punktów z pliku.` : '.')
+      );
+    }
+    if (failures.length > 0) setError(failures.join(' · '));
+
+    setBusy(false);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const rename = (index: number, name: string) => {
+    const next = config.tracks.map((track, position) => (position === index ? { ...track, name } : track));
+    onChange({ ...config, tracks: next });
+  };
+
+  const remove = (index: number) => {
+    onChange({ ...config, tracks: config.tracks.filter((_, position) => position !== index) });
+  };
+
+  const move = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= config.tracks.length) return;
+    const next = [...config.tracks];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved);
+    onChange({ ...config, tracks: next });
   };
 
   return (
     <fieldset className="eve-group">
-      <legend>Ślad trasy (GPX)</legend>
+      <legend>Ślady tras (GPX)</legend>
 
-      <p className="eve-hint">
-        {config.track.length > 0
-          ? `Wczytany ślad: ${config.track.length} punktów, około ${trackLengthKm(config.track).toFixed(1)} km.`
-          : 'Brak śladu — mapa połączy linią same punkty poniżej.'}
-      </p>
+      {config.tracks.length === 0 ? (
+        <p className="eve-hint">Brak śladów — mapa połączy linią same punkty poniżej.</p>
+      ) : (
+        <div className="eve-list">
+          {config.tracks.map((track, index) => (
+            <article className="eve-item" key={index}>
+              <header>
+                <span
+                  className="ev-map-track-swatch"
+                  style={{ background: track.color ?? trackColor(index) }}
+                  aria-hidden="true"
+                />
+                <strong>{track.name}</strong>
+                <div className="eve-item-tools">
+                  <button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Wyżej">
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => move(index, 1)}
+                    disabled={index === config.tracks.length - 1}
+                    aria-label="Niżej"
+                  >
+                    ↓
+                  </button>
+                  <button type="button" className="eve-remove" onClick={() => remove(index)} aria-label="Usuń ślad">
+                    ×
+                  </button>
+                </div>
+              </header>
+              <div className="eve-item-body">
+                <TextRow label="Nazwa" value={track.name} onChange={(name) => rename(index, name)} />
+                <p className="eve-hint">
+                  {track.points.length} punktów, około {trackLengthKm(track.points).toFixed(1)} km.
+                </p>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
 
       <input
         ref={inputRef}
         type="file"
+        multiple
         accept=".gpx,application/gpx+xml,text/xml,application/xml"
         disabled={busy}
         onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) void load(file);
+          const files = event.target.files;
+          if (files && files.length > 0) void load(files);
         }}
       />
 
       <p className="eve-hint">
-        Długie ślady są upraszczane przy zapisie, żeby strona nie musiała wczytywać dziesiątek tysięcy punktów.
+        Można wskazać kilka plików naraz — każdy stanie się osobnym śladem. Długie ślady są upraszczane przy
+        zapisie, żeby strona nie musiała wczytywać dziesiątek tysięcy punktów.
       </p>
 
       {summary ? <p className="eve-hint">{summary}</p> : null}
       {error ? <p className="eve-error">{error}</p> : null}
-
-      {config.track.length > 0 ? (
-        <button type="button" className="eve-add" onClick={() => onChange({ ...config, track: [] })}>
-          Usuń ślad
-        </button>
-      ) : null}
     </fieldset>
   );
 }

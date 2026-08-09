@@ -6,7 +6,17 @@
 
 export type TrackPoint = [lat: number, lon: number];
 
+/** One route drawn on the map. A map may carry several. */
+export type MapTrack = {
+  name: string;
+  /** Null lets the map pick from its palette by position. */
+  color: string | null;
+  points: TrackPoint[];
+};
+
 export type GpxContents = {
+  /** Name from the file's own <trk><name>, when it has one. */
+  name: string | null;
   track: TrackPoint[];
   waypoints: Array<{ label: string; lat: number; lon: number }>;
 };
@@ -146,7 +156,15 @@ export function parseGpx(text: string): GpxContents {
     throw new Error('Plik nie zawiera ani śladu trasy, ani punktów.');
   }
 
-  return { track: simplifyTrack(route), waypoints };
+  // The name belongs to the track or route element, not to a waypoint.
+  const container = document.getElementsByTagName(track.length > 0 ? 'trk' : 'rte')[0];
+  const rawName = container?.getElementsByTagName('name')[0]?.textContent?.trim();
+
+  return {
+    name: rawName && rawName.length > 0 ? rawName : null,
+    track: simplifyTrack(route),
+    waypoints
+  };
 }
 
 /** Total length of a track in kilometres, by the haversine formula. */

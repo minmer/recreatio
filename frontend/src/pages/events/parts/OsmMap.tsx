@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import type { TrackPoint } from './gpx';
+import type { MapTrack } from './gpx';
+
+/**
+ * Colours for tracks that do not name their own. Distinguishable from each
+ * other and from the pins, and readable on a light map. The first entry defers
+ * to the event's accent so a single track still matches its theme.
+ */
+const TRACK_PALETTE = ['var(--ev-accent, #4c7dd6)', '#c8553d', '#2e8b57', '#8a56c4', '#c9962c', '#1f7f92'];
+
+export function trackColor(index: number): string {
+  return TRACK_PALETTE[index % TRACK_PALETTE.length];
+}
 
 /**
  * A slippy OpenStreetMap viewer with no map library behind it.
@@ -113,9 +124,10 @@ function centerForAnchor(anchor: LatLon, localX: number, localY: number, zoom: n
   );
 }
 
-function boundsOf(points: MapPoint[], track: TrackPoint[]) {
-  const lats = [...points.map((p) => p.lat), ...track.map(([lat]) => lat)];
-  const lons = [...points.map((p) => p.lon), ...track.map(([, lon]) => lon)];
+function boundsOf(points: MapPoint[], tracks: MapTrack[]) {
+  const all = tracks.flatMap((entry) => entry.points);
+  const lats = [...points.map((p) => p.lat), ...all.map(([lat]) => lat)];
+  const lons = [...points.map((p) => p.lon), ...all.map(([, lon]) => lon)];
   if (lats.length === 0) return null;
   return {
     minLat: Math.min(...lats),
@@ -125,15 +137,15 @@ function boundsOf(points: MapPoint[], track: TrackPoint[]) {
   };
 }
 
-function centreOf(points: MapPoint[], track: TrackPoint[]): LatLon {
-  const bounds = boundsOf(points, track);
+function centreOf(points: MapPoint[], tracks: MapTrack[]): LatLon {
+  const bounds = boundsOf(points, tracks);
   if (!bounds) return { lat: 50.0619, lon: 19.9369 };
   return { lat: (bounds.minLat + bounds.maxLat) / 2, lon: (bounds.minLon + bounds.maxLon) / 2 };
 }
 
 /** Zoom at which everything fits, to a fraction rather than a whole level. */
-function fitZoom(points: MapPoint[], track: TrackPoint[], size: Size, fallback: number): number {
-  const bounds = boundsOf(points, track);
+function fitZoom(points: MapPoint[], tracks: MapTrack[], size: Size, fallback: number): number {
+  const bounds = boundsOf(points, tracks);
   const floor = minZoomFor(size);
   if (!bounds || size.width <= 0 || size.height <= 0) return Math.max(floor, fallback);
   if (bounds.minLat === bounds.maxLat && bounds.minLon === bounds.maxLon) {
@@ -158,7 +170,7 @@ function easeOut(t: number): number {
 
 type SurfaceProps = {
   points: MapPoint[];
-  track: TrackPoint[];
+  tracks: MapTrack[];
   zoom: number;
   showTrack: boolean;
   activeIndex: number | null;
@@ -239,7 +251,7 @@ export function OsmMap(props: SurfaceProps) {
 
 function MapSurface({
   points,
-  track,
+  tracks,
   zoom: initialZoom,
   showTrack,
   activeIndex,
@@ -258,7 +270,7 @@ function MapSurface({
   const zoomRafRef = useRef<number | null>(null);
 
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
-  const [view, setView] = useState<View>(() => ({ zoom: initialZoom, center: centreOf(points, track) }));
+  const [view, setView] = useState<View>(() => ({ zoom: initialZoom, center: centreOf(points, tracks) }));
   const [hint, setHint] = useState<string | null>(null);
   const [failedTiles, setFailedTiles] = useState<Set<string>>(() => new Set());
 
@@ -311,17 +323,17 @@ function MapSurface({
   // Identity of the data, so refitting does not depend on array identity — the
   // config is re-parsed on every render and would otherwise churn.
   const dataKey = useMemo(() => {
-    const bounds = boundsOf(points, track);
+    const bounds = boundsOf(points, tracks);
     return bounds ? `${bounds.minLat},${bounds.minLon},${bounds.maxLat},${bounds.maxLon}` : 'empty';
-  }, [points, track]);
+  }, [points, tracks]);
 
   const fitToData = useCallback(() => {
     updateView((_, current) => {
       if (current.width <= 0 || current.height <= 0) return viewRef.current;
-      const zoom = fitZoom(points, track, current, initialZoom);
-      return { zoom, center: clampCenter(centreOf(points, track), zoom, current) };
+      const zoom = fitZoom(points, tracks, current, initialZoom);
+      return { zoom, center: clampCenter(centreOf(points, tracks), zoom, current) };
     });
-  }, [initialZoom, points, track, updateView]);
+  }, [initialZoom, points, tracks, updateView]);
 
   // Refit on data or size change until the reader takes over, which keeps the
   // view correct through an orientation change or a window resize.
@@ -676,22 +688,36 @@ function MapSurface({
     [origin, points, view.zoom]
   );
 
-  /** The GPX route if there is one, otherwise a line joining the pins. */
-  const routeLine = useMemo(() => {
-    if (!showTrack) return '';
+  /**
+   * One polyline per GPX track. With no tracks at all, a single line joining
+   * the pins stands in, which is what a map with only points used to draw.
+   */
+  const routeLines = useMemo(() => {
+    if (!showTrack) return [];
 
-    const source =
-      track.length > 1
-        ? track.map(([lat, lon]) => {
-            const projected = project(lat, lon, view.zoom);
-            return { x: projected.x - origin.x, y: projected.y - origin.y };
-          })
-        : screenPoints.length > 1
-          ? screenPoints.map((entry) => ({ x: entry.x, y: entry.y }))
-          : [];
+    const toScreen = (entries: Array<{ x: number; y: number }>) =>
+      entries.map((entry) => `${entry.x.toFixed(1)},${entry.y.toFixed(1)}`).join(' ');
 
-    return source.map((entry) => `${entry.x.toFixed(1)},${entry.y.toFixed(1)}`).join(' ');
-  }, [origin, screenPoints, showTrack, track, view.zoom]);
+    if (tracks.length > 0) {
+      return tracks
+        .map((entry, index) => ({
+          key: `${entry.name}-${index}`,
+          color: entry.color ?? trackColor(index),
+          points: toScreen(
+            entry.points.map(([lat, lon]) => {
+              const projected = project(lat, lon, view.zoom);
+              return { x: projected.x - origin.x, y: projected.y - origin.y };
+            })
+          )
+        }))
+        .filter((entry) => entry.points.length > 0);
+    }
+
+    if (screenPoints.length > 1) {
+      return [{ key: 'pins', color: trackColor(0), points: toScreen(screenPoints) }];
+    }
+    return [];
+  }, [origin, screenPoints, showTrack, tracks, view.zoom]);
 
   return (
     <div
@@ -727,19 +753,22 @@ function MapSurface({
         )}
       </div>
 
-      {routeLine.length > 0 ? (
+      {routeLines.length > 0 ? (
         // No width/height attributes: CSS sizes it, and user space is CSS
-        // pixels, so the line cannot end up scaled or clipped to a stale box.
+        // pixels, so the lines cannot end up scaled or clipped to a stale box.
         <svg className="ev-map-track" aria-hidden="true">
-          <polyline
-            points={routeLine}
-            fill="none"
-            stroke="var(--ev-accent, #4c7dd6)"
-            strokeWidth={3}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity={0.9}
-          />
+          {routeLines.map((line) => (
+            <polyline
+              key={line.key}
+              points={line.points}
+              fill="none"
+              stroke={line.color}
+              strokeWidth={3}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={0.9}
+            />
+          ))}
         </svg>
       ) : null}
 
