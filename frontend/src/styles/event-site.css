@@ -1007,8 +1007,11 @@
   user-select: none;
 }
 
-/* Preview: paints the route, takes no gestures. The page scrolls over it. */
+/* Preview: paints the route, takes no gestures. The page scrolls over it.
+   No ground of its own — the half-faded tiles are meant to sit on the slide's
+   own background, not on a white card. The full-screen map keeps the white. */
 .ev-map-canvas.is-preview {
+  background: transparent;
   /* Tracks the width so the box keeps a sane shape from phone to desktop. */
   aspect-ratio: 4 / 3;
   min-height: 240px;
