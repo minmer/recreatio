@@ -7942,6 +7942,7 @@ export type EventAdminRegistrationRow = {
   participantName: string | null;
   participantContact: string | null;
   submittedUtc: string;
+  isHidden: boolean;
   accessLinkId: string | null;
   accessToken: string | null;
   values: Array<{ fieldLabel: string; value: string | null }>;
@@ -8133,6 +8134,21 @@ export function reorderEventFields(partId: string, orderedIds: string[]) {
 
 export function getEventRegistrations(siteId: string) {
   return request<EventAdminRegistrationRow[]>(`/events/admin/sites/${siteId}/registrations`, { method: 'GET' });
+}
+
+/** Reversible: keeps the answers, drops the person from counts and the list. */
+export function setEventRegistrationHidden(registrationId: string, hidden: boolean) {
+  return request<{ hidden: boolean }>(`/events/admin/registrations/${registrationId}/hidden`, {
+    method: 'POST',
+    body: JSON.stringify({ hidden })
+  });
+}
+
+/** Permanent: the registration and its answers are gone. */
+export function deleteEventRegistration(registrationId: string) {
+  return request<{ deleted: boolean }>(`/events/admin/registrations/${registrationId}`, {
+    method: 'DELETE'
+  });
 }
 
 export function getEventAccessLinks(siteId: string) {

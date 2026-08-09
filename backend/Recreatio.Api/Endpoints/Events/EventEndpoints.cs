@@ -452,8 +452,9 @@ public static partial class EventEndpoints
                 .Select(g => new { SiteId = g.Key, Count = g.Count() })
                 .ToListAsync(ct);
 
+            // Hidden registrations are set aside, so they do not count.
             var registrationCounts = await dbContext.EventRegistrations.AsNoTracking()
-                .Where(x => siteIds.Contains(x.SiteId))
+                .Where(x => siteIds.Contains(x.SiteId) && !x.IsHidden)
                 .GroupBy(x => x.SiteId)
                 .Select(g => new { SiteId = g.Key, Count = g.Count() })
                 .ToListAsync(ct);
@@ -1125,12 +1126,66 @@ public static partial class EventEndpoints
                     x.ParticipantName,
                     x.ParticipantContact,
                     x.SubmittedUtc,
+                    x.IsHidden,
                     link?.Id,
                     link?.Token,
                     valuesByRegistration.GetValueOrDefault(x.Id) ?? []);
             }).ToList();
 
             return Results.Ok(rows);
+        }).RequireAuthorization();
+
+        // Hiding is the reversible option: the person stays on file with their
+        // answers, but drops out of the counts and out of the working list.
+        group.MapPost("/admin/registrations/{registrationId:guid}/hidden", async (
+            Guid registrationId,
+            EventHiddenRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
+
+            var registration = await dbContext.EventRegistrations
+                .FirstOrDefaultAsync(x => x.Id == registrationId, ct);
+            if (registration is null) return Results.NotFound();
+
+            registration.IsHidden = request.Hidden;
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new { hidden = registration.IsHidden });
+        }).RequireAuthorization();
+
+        // Deleting is permanent: the answers go with it.
+        group.MapDelete("/admin/registrations/{registrationId:guid}", async (
+            Guid registrationId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
+
+            var registration = await dbContext.EventRegistrations
+                .FirstOrDefaultAsync(x => x.Id == registrationId, ct);
+            if (registration is null) return Results.NotFound();
+
+            // An access link granted from this registration outlives it; only
+            // the back-pointer goes, so the person does not lose their access
+            // by surprise. Revoke or delete the link separately to do that.
+            var granted = await dbContext.EventAccessLinks
+                .Where(x => x.RegistrationId == registrationId)
+                .ToListAsync(ct);
+            foreach (var link in granted)
+            {
+                link.RegistrationId = null;
+            }
+
+            dbContext.EventRegistrationValues.RemoveRange(
+                dbContext.EventRegistrationValues.Where(x => x.RegistrationId == registrationId));
+            dbContext.EventRegistrations.Remove(registration);
+
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok(new { deleted = true });
         }).RequireAuthorization();
 
         group.MapGet("/admin/sites/{siteId:guid}/links", async (

@@ -255,6 +255,7 @@ BEGIN
         ParticipantName    NVARCHAR(200)    NULL,
         ParticipantContact NVARCHAR(200)    NULL,
         AccessLinkId       UNIQUEIDENTIFIER NULL,
+        IsHidden           BIT              NOT NULL CONSTRAINT DF_EventRegistrations_Hidden DEFAULT(0),
         SubmittedUtc       DATETIMEOFFSET   NOT NULL,
         CONSTRAINT FK_EventRegistrations_Site
             FOREIGN KEY (SiteId) REFERENCES events.EventSites(Id),
@@ -274,6 +275,16 @@ IF NOT EXISTS (
 BEGIN
     CREATE INDEX IX_EventRegistrations_SiteId_SubmittedUtc
         ON events.EventRegistrations(SiteId, SubmittedUtc);
+END
+GO
+
+-- Added after the first release, so a database built from an earlier run of
+-- this patch picks it up too.
+IF OBJECT_ID(N'events.EventRegistrations', N'U') IS NOT NULL
+   AND COL_LENGTH('events.EventRegistrations', 'IsHidden') IS NULL
+BEGIN
+    ALTER TABLE events.EventRegistrations
+        ADD IsHidden BIT NOT NULL CONSTRAINT DF_EventRegistrations_Hidden DEFAULT(0);
 END
 GO
 

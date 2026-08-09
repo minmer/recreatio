@@ -2266,6 +2266,15 @@
   vertical-align: top;
 }
 
+/* Set aside, not gone: still readable, but plainly out of the running. */
+.eva-table-wrap tr.is-hidden {
+  opacity: 0.5;
+}
+
+.eva-table-wrap tr.is-hidden strong {
+  text-decoration: line-through;
+}
+
 .eva-answers {
   margin: 0;
   display: grid;

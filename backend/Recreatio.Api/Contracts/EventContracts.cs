@@ -187,6 +187,7 @@ public sealed record EventAdminRegistrationRow(
     string? ParticipantName,
     string? ParticipantContact,
     DateTimeOffset SubmittedUtc,
+    bool IsHidden,
     // AccessLinkId is set once this registration has been granted a link.
     Guid? AccessLinkId,
     string? AccessToken,
@@ -218,6 +219,8 @@ public sealed record EventAdminAccessLinkRow(
     IReadOnlyList<EventAssignmentResponse> Assignments);
 
 public sealed record EventStatusRequest(string Status);
+
+public sealed record EventHiddenRequest(bool Hidden);
 
 /// <summary>
 /// Outcome of a bulk import. Warnings list what was skipped and why, so the

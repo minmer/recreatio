@@ -27,5 +27,12 @@ public sealed class EventRegistration
     /// <summary>Set when the form was submitted from inside an access link.</summary>
     public Guid? AccessLinkId { get; set; }
 
+    /// <summary>
+    /// Set aside without being destroyed: a hidden registration drops out of
+    /// the counts and out of the working list, but the answers are still there
+    /// and it can be brought back. Deleting is the irreversible option.
+    /// </summary>
+    public bool IsHidden { get; set; }
+
     public DateTimeOffset SubmittedUtc { get; set; }
 }

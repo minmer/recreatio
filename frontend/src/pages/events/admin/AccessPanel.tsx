@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   createEventAccessLink,
   deleteEventAccessLink,
+  deleteEventRegistration,
   getEventAccessLinks,
   getEventRegistrations,
   rotateEventAccessLink,
   setEventAccessLinkStatus,
+  setEventRegistrationHidden,
   updateEventAccessLink,
   type EventAdminAccessLink,
   type EventAdminPage,
@@ -47,6 +49,7 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: EventAdm
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,6 +96,28 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: EventAdm
     }
   };
 
+  const toggleHidden = async (row: EventAdminRegistrationRow) => {
+    try {
+      await setEventRegistrationHidden(row.id, !row.isHidden);
+      await load();
+    } catch (hideError: unknown) {
+      setError(hideError instanceof Error ? hideError.message : 'Nie udało się zmienić widoczności.');
+    }
+  };
+
+  const removeRegistration = async (row: EventAdminRegistrationRow) => {
+    const who = row.participantName ?? 'to zgłoszenie';
+    if (!window.confirm(`Usunąć ${who} na stałe? Odpowiedzi z formularza zostaną skasowane bez możliwości cofnięcia.`)) {
+      return;
+    }
+    try {
+      await deleteEventRegistration(row.id);
+      await load();
+    } catch (deleteError: unknown) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Nie udało się usunąć zgłoszenia.');
+    }
+  };
+
   const togglePage = async (link: EventAdminAccessLink, pageId: string) => {
     const next = link.pageIds.includes(pageId)
       ? link.pageIds.filter((entry) => entry !== pageId)
@@ -120,6 +145,9 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: EventAdm
     }
   };
 
+  const hiddenCount = registrations.filter((row) => row.isHidden).length;
+  const visibleRegistrations = showHidden ? registrations : registrations.filter((row) => !row.isHidden);
+
   return (
     <div className="eva-access">
       {error ? <p className="eva-error">{error}</p> : null}
@@ -127,12 +155,21 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: EventAdm
 
       <section className="eva-panel">
         <header>
-          <h3>Zgłoszenia ({registrations.length})</h3>
-          <p>Osoby, które wypełniły formularz. Nadaj dostęp, żeby wygenerować dla nich link osobisty.</p>
+          <h3>Zgłoszenia ({visibleRegistrations.length})</h3>
+          <p>
+            Osoby, które wypełniły formularz. Nadaj dostęp, żeby wygenerować dla nich link osobisty. Ukryte
+            zgłoszenia nie liczą się do statystyk, ale zachowują odpowiedzi.
+          </p>
+          {hiddenCount > 0 ? (
+            <label className="eve-check">
+              <input type="checkbox" checked={showHidden} onChange={(event) => setShowHidden(event.target.checked)} />
+              <span>Pokaż ukryte ({hiddenCount})</span>
+            </label>
+          ) : null}
         </header>
 
-        {registrations.length === 0 ? (
-          <p className="eva-hint">Brak zgłoszeń.</p>
+        {visibleRegistrations.length === 0 ? (
+          <p className="eva-hint">{hiddenCount > 0 ? 'Wszystkie zgłoszenia są ukryte.' : 'Brak zgłoszeń.'}</p>
         ) : (
           <div className="eva-table-wrap">
             <table>
@@ -146,10 +183,11 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: EventAdm
                 </tr>
               </thead>
               <tbody>
-                {registrations.map((row) => (
-                  <tr key={row.id}>
+                {visibleRegistrations.map((row) => (
+                  <tr key={row.id} className={row.isHidden ? 'is-hidden' : undefined}>
                     <td>
                       <strong>{row.participantName ?? '— bez nazwiska —'}</strong>
+                      {row.isHidden ? <span className="eva-pill">ukryte</span> : null}
                       {row.participantContact ? <div className="eva-sub">{row.participantContact}</div> : null}
                     </td>
                     <td>
@@ -167,14 +205,20 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: EventAdm
                         ))}
                       </dl>
                     </td>
-                    <td>
+                    <td className="eva-actions-cell">
                       {row.accessLinkId ? (
                         <span className="eva-pill is-live">nadany</span>
-                      ) : (
+                      ) : row.isHidden ? null : (
                         <button type="button" className="eva-cta" onClick={() => void grantFromRegistration(row)}>
                           Nadaj dostęp
                         </button>
                       )}
+                      <button type="button" onClick={() => void toggleHidden(row)}>
+                        {row.isHidden ? 'Przywróć' : 'Ukryj'}
+                      </button>
+                      <button type="button" className="eva-danger" onClick={() => void removeRegistration(row)}>
+                        Usuń
+                      </button>
                     </td>
                   </tr>
                 ))}
