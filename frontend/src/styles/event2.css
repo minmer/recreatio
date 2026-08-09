@@ -1193,10 +1193,12 @@
   pointer-events: none;
 }
 
+/* Above the preview's click overlay — the licence link has to stay usable. */
 .e2-map-attribution {
   position: absolute;
   right: 0;
   bottom: 0;
+  z-index: 5;
   padding: 0.14rem 0.45rem;
   background: rgba(8, 13, 21, 0.82);
   color: var(--e2-muted);
