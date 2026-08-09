@@ -627,40 +627,52 @@ function MapSurface({
   const origin = useMemo(() => originOf(view, size), [size, view]);
 
   /**
-   * Tiles come from the nearest whole level and are drawn scaled to the live
+   * Tiles come from a whole zoom level and are drawn scaled to the live
    * fractional zoom, which is what lets the zoom move continuously without
    * refetching on every frame.
+   *
+   * Two levels are painted. Underneath sits a coarse layer two levels out:
+   * a sixteenth as many tiles, so it is nearly always already cached and gives
+   * instant — if soft — coverage. The sharp layer draws over it as it arrives.
+   * Without it, every zoom step or pan into fresh ground flashes the empty
+   * background until the network answers.
    */
-  const tiles = useMemo(() => {
-    if (size.width <= 0 || size.height <= 0) return [];
+  const tileLayers = useMemo(() => {
+    if (size.width <= 0 || size.height <= 0) return { base: [], sharp: [] };
 
-    const tileZoom = clampNumber(Math.round(view.zoom), Math.ceil(minZoomFor(size)), MAX_ZOOM);
-    const scale = Math.pow(2, view.zoom - tileZoom);
-    const tilePx = TILE_SIZE * scale;
-    const count = Math.pow(2, tileZoom);
+    const floor = Math.ceil(minZoomFor(size));
+    const sharpZoom = clampNumber(Math.round(view.zoom), floor, MAX_ZOOM);
+    const baseZoom = Math.max(floor, sharpZoom - 2);
 
-    const firstX = Math.floor(origin.x / tilePx);
-    const lastX = Math.floor((origin.x + size.width) / tilePx);
-    const firstY = Math.floor(origin.y / tilePx);
-    const lastY = Math.floor((origin.y + size.height) / tilePx);
+    const build = (tileZoom: number) => {
+      const tilePx = TILE_SIZE * Math.pow(2, view.zoom - tileZoom);
+      const count = Math.pow(2, tileZoom);
 
-    const result: Array<{ key: string; url: string; left: number; top: number; size: number }> = [];
-    for (let ty = firstY; ty <= lastY; ty += 1) {
-      if (ty < 0 || ty >= count) continue;
-      for (let tx = firstX; tx <= lastX; tx += 1) {
-        // Wrap horizontally so panning past the antimeridian still paints.
-        const wrappedX = ((tx % count) + count) % count;
-        result.push({
-          key: `${tileZoom}-${tx}-${ty}`,
-          url: `https://tile.openstreetmap.org/${tileZoom}/${wrappedX}/${ty}.png`,
-          left: tx * tilePx - origin.x,
-          top: ty * tilePx - origin.y,
-          // A hairline overlap hides the seams left by fractional positions.
-          size: tilePx + 1
-        });
+      const firstX = Math.floor(origin.x / tilePx);
+      const lastX = Math.floor((origin.x + size.width) / tilePx);
+      const firstY = Math.floor(origin.y / tilePx);
+      const lastY = Math.floor((origin.y + size.height) / tilePx);
+
+      const result: Array<{ key: string; url: string; left: number; top: number; size: number }> = [];
+      for (let ty = firstY; ty <= lastY; ty += 1) {
+        if (ty < 0 || ty >= count) continue;
+        for (let tx = firstX; tx <= lastX; tx += 1) {
+          // Wrap horizontally so panning past the antimeridian still paints.
+          const wrappedX = ((tx % count) + count) % count;
+          result.push({
+            key: `${tileZoom}-${tx}-${ty}`,
+            url: `https://tile.openstreetmap.org/${tileZoom}/${wrappedX}/${ty}.png`,
+            left: tx * tilePx - origin.x,
+            top: ty * tilePx - origin.y,
+            // A hairline overlap hides the seams left by fractional positions.
+            size: tilePx + 1
+          });
+        }
       }
-    }
-    return result;
+      return result;
+    };
+
+    return { base: baseZoom < sharpZoom ? build(baseZoom) : [], sharp: build(sharpZoom) };
   }, [origin, size, view.zoom]);
 
   const screenPoints = useMemo(

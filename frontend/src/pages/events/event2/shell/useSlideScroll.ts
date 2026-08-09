@@ -10,13 +10,20 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
  * The floor guarantees travel > 0 even on a slide whose content fits one
  * screen, so a tall background always has room to slide.
  *
- * For a layer of speed s:
- *   height = viewport + travel × s
- *   offset = (1 − s) × progress × travel
- * At s = 1 that is height = slideHeight and offset = 0, i.e. content scrolling
- * normally. At s = 0 the layer is pinned to the viewport. Because height and
- * offset come from the same travel, a layer covers the viewport at every
- * progress value and can never gap.
+ * ── How the track is allowed to move ─────────────────────────────────────────
+ * The track lives in segments. A slide's inner range, start → innerEnd, is one
+ * segment and scrolls freely: that is reading. Between one slide's innerEnd and
+ * the next slide's start lies a gap a whole viewport wide, where the screen
+ * would show the tail of one slide and the head of the next; that gap is never
+ * entered, it is crossed in a single move.
+ *
+ * Every input is clamped to the current segment, so no gesture — however hard
+ * the flick — can cross more than one edge. On reaching an edge the track holds
+ * there for BOUNDARY_HOLD_MS and ignores further input, so a continuous scroll
+ * pauses at the end of each slide instead of running through several.
+ *
+ * Because the track can never come to rest inside the gap, there is nothing for
+ * a magnet to correct; clamping replaced it.
  */
 
 const MIN_VIEWPORT_FACTOR = 1.05;
@@ -24,28 +31,19 @@ const TRACK_INTERPOLATION = 0.16;
 const JUMP_INTERPOLATION = 0.09;
 const WHEEL_CLAMP = 180;
 
-// ── Settling ─────────────────────────────────────────────────────────────────
-// When a gesture ends, two forces act on the track at the same time: the
-// inertia of the throw, and a magnet pulling the nearest slide boundary out of
-// the viewport. Inertia decides where the reader is heading; the magnet makes
-// sure they land somewhere legal. Because the magnetic term is proportional to
-// the distance remaining, it approaches asymptotically and can never overshoot
-// or oscillate — as inertia decays the magnet quietly takes over.
+/** Pause on reaching a slide edge, during which input is ignored. */
+const BOUNDARY_HOLD_MS = 200;
+/**
+ * Inner travel below this is not worth stopping in — a slide whose content
+ * fits the screen has nothing to read on the way past, so its inner range is
+ * treated as a single point rather than a segment to scroll through.
+ */
+const SHALLOW_TRAVEL_FACTOR = 0.15;
+
 const FLING_FRICTION = 0.94;
 const FLING_MIN_VELOCITY = 0.04;
 const FLING_MAX_VELOCITY = 3.2;
 const VELOCITY_SMOOTHING = 0.72;
-/** Share of the remaining distance the magnet closes per frame. */
-const MAGNET_GAIN = 0.27;
-/** Wheel and keys have no throw of their own — let the burst finish first. */
-const SETTLE_IDLE_MS = 70;
-/**
- * How close to a slide's top or bottom counts as "resting on it". From there a
- * nudge onward commits to the neighbouring slide rather than leaving the track
- * parked a few pixels off. Scrolling down from a slide's *top* is exempt — on a
- * long slide that means reading its content, not leaving it.
- */
-const COMMIT_FACTOR = 0.1;
 
 const KEY_CONSUMING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'BUTTON', 'A', 'SUMMARY']);
 
@@ -71,7 +69,7 @@ export type SlideGeometry = {
   height: number;
   start: number;
   travel: number;
-  /** 0 → 1 across the slide's own inner scroll. Drives the parallax layers. */
+  /** 0 → 1 across the slide's own inner scroll. */
   progress: number;
   /**
    * 0 → 1 across the whole time the slide is on screen: from its top entering
@@ -81,21 +79,22 @@ export type SlideGeometry = {
   visibleProgress: number;
 };
 
+type Slide = { start: number; innerEnd: number; shallow: boolean };
+
 export function useSlideScroll(slideCount: number) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const contentRefs = useRef<Array<HTMLDivElement | null>>([]);
   const rafRef = useRef<number | null>(null);
   const settleRafRef = useRef<number | null>(null);
-  const settleTimerRef = useRef<number | null>(null);
-  const boundariesRef = useRef<number[]>([]);
-  const slidesRef = useRef<Array<{ start: number; innerEnd: number }>>([]);
-  const directionRef = useRef<-1 | 0 | 1>(0);
+  const slidesRef = useRef<Slide[]>([]);
+  const gateUntilRef = useRef(0);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
   const interpolationRef = useRef(TRACK_INTERPOLATION);
   const touchYRef = useRef<number | null>(null);
   const velocityRef = useRef(0);
   const lastTouchAtRef = useRef(0);
+  const maxScrollRef = useRef(0);
 
   const [viewportHeight, setViewportHeight] = useState(1);
   const [position, setPosition] = useState(0);
@@ -116,13 +115,12 @@ export function useSlideScroll(slideCount: number) {
     for (let index = 0; index < slideCount; index += 1) {
       const height = Math.max(contentHeights[index] ?? 0, minSlideHeight);
       const travel = Math.max(0, height - viewportHeight);
-      const onScreenRange = height + viewportHeight;
       result.push({
         height,
         start,
         travel,
         progress: travel > 0 ? clamp((position - start) / travel, 0, 1) : 0,
-        visibleProgress: clamp((position - start + viewportHeight) / onScreenRange, 0, 1)
+        visibleProgress: clamp((position - start + viewportHeight) / (height + viewportHeight), 0, 1)
       });
       start += height;
     }
@@ -131,6 +129,7 @@ export function useSlideScroll(slideCount: number) {
 
   const totalHeight = geometry.reduce((sum, slide) => sum + slide.height, 0);
   const maxScroll = Math.max(0, totalHeight - viewportHeight);
+  maxScrollRef.current = maxScroll;
 
   const activeIndex = useMemo(() => {
     const probe = position + viewportHeight * 0.4;
@@ -140,15 +139,14 @@ export function useSlideScroll(slideCount: number) {
     return 0;
   }, [geometry, position, viewportHeight]);
 
-  // Boundaries between slides. The first slide's start is not one — there is
-  // nothing above it to be split from — and the track end is a clamp.
   useEffect(() => {
-    boundariesRef.current = geometry.slice(1).map((slide) => slide.start);
+    const shallowBelow = viewportHeight * SHALLOW_TRAVEL_FACTOR;
     slidesRef.current = geometry.map((slide) => ({
       start: slide.start,
-      innerEnd: slide.start + slide.travel
+      innerEnd: slide.start + slide.travel,
+      shallow: slide.travel < shallowBelow
     }));
-  }, [geometry]);
+  }, [geometry, viewportHeight]);
 
   // ── Measurement ───────────────────────────────────────────────────────────
 
@@ -211,155 +209,138 @@ export function useSlideScroll(slideCount: number) {
     rafRef.current = requestAnimationFrame(tick);
   }, []);
 
-  const setTarget = useCallback(
-    (value: number, interpolation: number = TRACK_INTERPOLATION) => {
-      interpolationRef.current = interpolation;
-      targetRef.current = clamp(value, 0, maxScroll);
-      animate();
-    },
-    [animate, maxScroll]
-  );
+  const setTarget = useCallback((value: number, interpolation: number = TRACK_INTERPOLATION) => {
+    interpolationRef.current = interpolation;
+    targetRef.current = clamp(value, 0, maxScrollRef.current);
+    animate();
+  }, [animate]);
 
   const stopSettle = useCallback(() => {
     if (settleRafRef.current !== null) {
       cancelAnimationFrame(settleRafRef.current);
       settleRafRef.current = null;
     }
-    if (settleTimerRef.current !== null) {
-      window.clearTimeout(settleTimerRef.current);
-      settleTimerRef.current = null;
-    }
     velocityRef.current = 0;
   }, []);
 
+  const hold = useCallback(() => {
+    gateUntilRef.current = performance.now() + BOUNDARY_HOLD_MS;
+    stopSettle();
+  }, [stopSettle]);
+
   /**
-   * Where the track must end up so no slide boundary is left hanging inside
-   * the viewport, or null when none is. A slide is at least 1.05 viewports
-   * tall, so at most one boundary can ever be straddled.
+   * Moves the track by `delta`, never past the end of the segment it is in.
+   * Returns true when the move landed on an edge, which is the caller's cue
+   * that the track has come to a stop.
    */
-  const resolveMagnet = useCallback(
-    (from: number, direction: -1 | 0 | 1): number | null => {
-      if (viewportHeight <= 1) return null;
-
+  const advance = useCallback(
+    (delta: number): boolean => {
       const slides = slidesRef.current;
-      const commit = viewportHeight * COMMIT_FACTOR;
-
-      // 1. Leaving a slide edge. Checked first, and before the dead band,
-      // because a small scroll from a slide's bottom lands only a little way
-      // into the gap — under any midpoint rule that reads as "not far enough"
-      // and drags the reader straight back where they came from.
-      if (direction > 0) {
-        for (let index = 0; index < slides.length - 1; index += 1) {
-          if (Math.abs(from - slides[index].innerEnd) <= commit) {
-            return slides[index + 1].start;
-          }
-        }
-      } else if (direction < 0) {
-        for (let index = 1; index < slides.length; index += 1) {
-          if (Math.abs(from - slides[index].start) <= commit) {
-            return slides[index - 1].innerEnd;
-          }
-        }
+      if (slides.length === 0) {
+        setTarget(targetRef.current + delta);
+        return false;
       }
 
-      // 2. A boundary hanging inside the viewport is never a legal rest. Once
-      // inside that band the reader has already committed, so direction alone
-      // decides: onward if they were going down, back if they were going up.
-      const straddled = boundariesRef.current.find(
-        (boundary) => boundary > from + 0.5 && boundary < from + viewportHeight - 0.5
-      );
-      if (straddled === undefined) return null;
+      const from = targetRef.current;
+      const forward = delta > 0;
 
-      const advance = straddled; // boundary lifted to the top of the viewport
-      const retreat = straddled - viewportHeight; // boundary pushed past the bottom
+      // Which slide's inner range are we in? The gap between two slides is not
+      // a place to be, so a position inside one resolves straight to its edge.
+      let index = slides.findIndex((slide) => from <= slide.innerEnd + 0.5);
+      if (index === -1) index = slides.length - 1;
+      const slide = slides[index];
 
-      if (direction > 0) return advance;
-      if (direction < 0) return retreat;
-      return from - retreat >= advance - from ? advance : retreat;
+      if (from < slide.start - 0.5) {
+        // In the gap above this slide: leave it in one move.
+        const previous = slides[index - 1];
+        setTarget(forward ? slide.start : (previous?.innerEnd ?? 0), JUMP_INTERPOLATION);
+        return true;
+      }
+
+      // A slide with nothing to scroll through is one point, not a segment.
+      const atStart = slide.shallow || from <= slide.start + 0.5;
+      const atEnd = slide.shallow || from >= slide.innerEnd - 0.5;
+
+      if (forward && atEnd) {
+        const next = slides[index + 1];
+        setTarget(next ? next.start : maxScrollRef.current, JUMP_INTERPOLATION);
+        return true;
+      }
+      if (!forward && atStart) {
+        const previous = slides[index - 1];
+        setTarget(previous ? previous.innerEnd : 0, JUMP_INTERPOLATION);
+        return true;
+      }
+
+      // Free movement inside the slide, stopping at whichever end it reaches.
+      const to = clamp(from + delta, slide.start, slide.innerEnd);
+      setTarget(to);
+      return to <= slide.start + 0.5 || to >= slide.innerEnd - 0.5;
     },
-    [viewportHeight]
+    [setTarget]
   );
 
-  /**
-   * Runs inertia and magnetism together until both are spent. Drives the
-   * target; the interpolation loop above carries the visible track to it, so
-   * the motion matches how a live drag already feels.
-   */
+  const applyDelta = useCallback(
+    (delta: number): boolean => {
+      if (!Number.isFinite(delta) || delta === 0) return false;
+      // Still holding at an edge: swallow the input rather than queue it, so a
+      // continuous scroll resumes from rest instead of lurching onward.
+      if (performance.now() < gateUntilRef.current) return false;
+
+      const stopped = advance(delta);
+      if (stopped) hold();
+      return stopped;
+    },
+    [advance, hold]
+  );
+
+  /** Carries the throw on after a finger lifts, under the same clamping. */
   const startSettle = useCallback(
     (initialVelocity: number) => {
       stopSettle();
 
       let velocity = clamp(initialVelocity, -FLING_MAX_VELOCITY, FLING_MAX_VELOCITY);
-      // Hold the gesture's direction for the whole settle, so the magnet's own
-      // pull can never flip the bias mid-flight.
-      const direction = directionRef.current;
+      if (Math.abs(velocity) < FLING_MIN_VELOCITY) return;
+
       let lastFrameAt = performance.now();
 
       const step = () => {
         const now = performance.now();
         const frameMs = Math.min(now - lastFrameAt, 48);
         lastFrameAt = now;
-        const scale = frameMs / 16.67;
 
-        velocity *= Math.pow(FLING_FRICTION, scale);
-
-        let next = targetRef.current + velocity * frameMs;
-        const magnet = resolveMagnet(next, direction);
-        if (magnet !== null) {
-          next += (magnet - next) * MAGNET_GAIN * scale;
-        }
-
-        const clamped = clamp(next, 0, maxScroll);
-        if (clamped !== next) velocity = 0;
-
-        targetRef.current = clamped;
-        interpolationRef.current = TRACK_INTERPOLATION;
-        animate();
-
-        const coasting = Math.abs(velocity) >= FLING_MIN_VELOCITY;
-        const pulling = magnet !== null && Math.abs(magnet - clamped) >= 0.5;
-
-        if (!coasting && !pulling) {
+        velocity *= Math.pow(FLING_FRICTION, frameMs / 16.67);
+        if (Math.abs(velocity) < FLING_MIN_VELOCITY) {
           settleRafRef.current = null;
           return;
         }
+
+        // An edge ends the coast: one gesture, one slide.
+        if (applyDelta(velocity * frameMs)) {
+          settleRafRef.current = null;
+          return;
+        }
+
         settleRafRef.current = requestAnimationFrame(step);
       };
 
       settleRafRef.current = requestAnimationFrame(step);
     },
-    [animate, maxScroll, resolveMagnet, stopSettle]
-  );
-
-  /** For inputs with no throw of their own: settle once the burst goes quiet. */
-  const scheduleSettle = useCallback(() => {
-    if (settleTimerRef.current !== null) window.clearTimeout(settleTimerRef.current);
-    settleTimerRef.current = window.setTimeout(() => {
-      settleTimerRef.current = null;
-      startSettle(0);
-    }, SETTLE_IDLE_MS);
-  }, [startSettle]);
-
-  const applyDelta = useCallback(
-    (delta: number) => {
-      if (!Number.isFinite(delta) || delta === 0) return;
-      directionRef.current = delta > 0 ? 1 : -1;
-      setTarget(targetRef.current + delta);
-    },
-    [setTarget]
+    [applyDelta, stopSettle]
   );
 
   const scrollToSlide = useCallback(
     (index: number) => {
-      // Already landing on a boundary — a settle would only fight it.
       stopSettle();
-      setTarget(geometry[index]?.start ?? 0, JUMP_INTERPOLATION);
+      gateUntilRef.current = 0;
+      setTarget(slidesRef.current[index]?.start ?? 0, JUMP_INTERPOLATION);
     },
-    [geometry, setTarget, stopSettle]
+    [setTarget, stopSettle]
   );
 
   const scrollToTop = useCallback(() => {
     stopSettle();
+    gateUntilRef.current = 0;
     positionRef.current = 0;
     targetRef.current = 0;
     setPosition(0);
@@ -382,7 +363,6 @@ export function useSlideScroll(slideCount: number) {
       event.preventDefault();
       stopSettle();
       applyDelta(delta);
-      scheduleSettle();
     };
 
     const onTouchStart = (event: TouchEvent) => {
@@ -412,10 +392,9 @@ export function useSlideScroll(slideCount: number) {
 
     const onTouchEnd = () => {
       touchYRef.current = null;
-      // A drag that ended in a pause has no throw left — settle on magnetism
-      // alone rather than on a stale velocity reading.
+      // A drag that ended in a pause has no throw left.
       const stale = performance.now() - lastTouchAtRef.current > 90;
-      startSettle(stale ? 0 : velocityRef.current);
+      if (!stale) startSettle(velocityRef.current);
       velocityRef.current = 0;
     };
 
@@ -433,7 +412,7 @@ export function useSlideScroll(slideCount: number) {
       viewport.removeEventListener('touchend', onTouchEnd);
       viewport.removeEventListener('touchcancel', onTouchEnd);
     };
-  }, [applyDelta, scheduleSettle, startSettle, stopSettle]);
+  }, [applyDelta, startSettle, stopSettle]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -446,32 +425,31 @@ export function useSlideScroll(slideCount: number) {
         event.preventDefault();
         stopSettle();
         applyDelta(page);
-        scheduleSettle();
       } else if (event.key === 'ArrowUp' || event.key === 'PageUp') {
         event.preventDefault();
         stopSettle();
         applyDelta(-page);
-        scheduleSettle();
       } else if (event.key === 'Home') {
         event.preventDefault();
         stopSettle();
+        gateUntilRef.current = 0;
         setTarget(0, JUMP_INTERPOLATION);
       } else if (event.key === 'End') {
         event.preventDefault();
         stopSettle();
+        gateUntilRef.current = 0;
         setTarget(maxScroll, JUMP_INTERPOLATION);
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [applyDelta, maxScroll, scheduleSettle, setTarget, stopSettle, viewportHeight]);
+  }, [applyDelta, maxScroll, setTarget, stopSettle, viewportHeight]);
 
   useEffect(
     () => () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       if (settleRafRef.current !== null) cancelAnimationFrame(settleRafRef.current);
-      if (settleTimerRef.current !== null) window.clearTimeout(settleTimerRef.current);
     },
     []
   );
