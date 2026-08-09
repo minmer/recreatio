@@ -1006,11 +1006,23 @@
   cursor: grabbing;
 }
 
+/* Portalled to document.body, so it sits outside `.e2` and inherits none of
+   the event palette. The live tokens are copied onto this element inline when
+   the map opens; these are the floor if that lookup ever finds no host. */
 .e2-map-overlay {
+  --e2-accent: #4c7dd6;
+  --e2-ink: #eef2f8;
+  --e2-ground: #080d15;
+  --e2-muted: #a3b2c9;
+  --e2-line: rgba(163, 178, 201, 0.22);
+  --e2-line-2: rgba(163, 178, 201, 0.42);
+
   position: fixed;
   inset: 0;
   z-index: 120;
-  background: #05080e;
+  background: var(--e2-ground);
+  color: var(--e2-ink);
+  font-family: 'Source Sans 3', system-ui, sans-serif;
 }
 
 /* Covers the preview so a click anywhere opens the map; the label only
@@ -1071,10 +1083,9 @@
   color: #fff;
 }
 
+/* Size comes from the element's own style — it tracks the fractional zoom. */
 .e2-map-tiles img {
   position: absolute;
-  width: 256px;
-  height: 256px;
   pointer-events: none;
   /* OSM raster tiles are light; damp them so markers and the track read. */
   filter: saturate(0.85) brightness(0.82) contrast(1.05);
@@ -1085,6 +1096,14 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+/* No width/height attributes on the SVG: user space is CSS pixels, so the
+   polyline can never be scaled or clipped against a stale measurement. */
+.e2-map-track {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
 .e2-map-marker {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import type { TrackPoint } from './gpx';
 
@@ -8,18 +8,17 @@ import type { TrackPoint } from './gpx';
  * It comes in two modes. Inline it is a preview: it paints the route but takes
  * no gestures at all, so the page scrolls straight past it and a map can never
  * become a scroll trap. Clicking or tapping it opens the full-screen mode,
- * where the map owns every gesture — drag or one finger to pan, wheel or pinch
- * to zoom, double-click or double-tap to zoom in on a spot. Escape, the browser
- * back button, or the button in the top right corner close it again.
+ * where the map owns every gesture. Escape, the browser back button, or the
+ * button in the top right corner close it again.
  *
- * The full-screen surface is rendered through a portal because the slide track
- * is transformed, and a transformed ancestor makes position:fixed resolve
- * against itself rather than the viewport.
+ * Zoom is continuous rather than stepped: the view holds a fractional zoom and
+ * tiles are drawn at 256 × 2^(zoom − tileZoom), so a pinch or a wheel scrubs
+ * smoothly and only the tile *source* snaps to whole levels.
  *
- * Gesture listeners are attached natively rather than through React: the page's
- * scroll engine listens on an ancestor, and a native ancestor listener runs
- * during bubbling before React delivers its synthetic event at the root, so a
- * React-level stopPropagation would always be too late.
+ * The whole view — zoom and centre together — is a single piece of state,
+ * updated only through functional updates. Holding them apart was what made
+ * zoom drift off centre: two events in one frame both read the same stale
+ * centre from a ref, and the second one anchored against the wrong origin.
  */
 
 const TILE_SIZE = 256;
@@ -27,10 +26,15 @@ const MIN_ZOOM = 2;
 const MAX_ZOOM = 18;
 const DOUBLE_TAP_MS = 300;
 const DOUBLE_TAP_SLOP_PX = 32;
-const PINCH_STEP_RATIO = 1.5;
 const HINT_MS = 2200;
 /** How close a click must land to a pin to be read as naming that pin. */
 const PIN_HIT_PX = 44;
+/** Wheel travel for one whole zoom level. */
+const WHEEL_PER_LEVEL = 260;
+const STEP_ZOOM_MS = 240;
+
+/** Tokens the full-screen portal has to carry with it, out of `.e2` scope. */
+const THEME_TOKENS = ['--e2-accent', '--e2-ink', '--e2-ground', '--e2-muted', '--e2-line', '--e2-line-2'];
 
 export type MapPoint = {
   label: string;
@@ -43,8 +47,9 @@ export type MapPoint = {
 type PixelPoint = { x: number; y: number };
 type LatLon = { lat: number; lon: number };
 type Size = { width: number; height: number };
+type View = { zoom: number; center: LatLon };
 
-/** Geographic degrees → absolute pixel coordinates at `zoom`. */
+/** Geographic degrees → absolute pixel coordinates at `zoom` (may be fractional). */
 function project(lat: number, lon: number, zoom: number): PixelPoint {
   const scale = TILE_SIZE * Math.pow(2, zoom);
   const clampedLat = Math.max(-85.05112878, Math.min(85.05112878, lat));
@@ -72,13 +77,12 @@ function clampNumber(value: number, min: number, max: number): number {
 function minZoomFor(size: Size): number {
   const longest = Math.max(size.width, size.height);
   if (longest <= 0) return MIN_ZOOM;
-  return Math.max(MIN_ZOOM, Math.ceil(Math.log2(longest / TILE_SIZE)));
+  return Math.max(MIN_ZOOM, Math.log2(longest / TILE_SIZE));
 }
 
 /**
  * Keeps the view inside the world vertically. Longitude is free because the
- * tile grid wraps, but latitude has ends, and without this a drag can leave
- * blank space beyond the north edge.
+ * tile grid wraps, but latitude has ends.
  */
 function clampCenter(center: LatLon, zoom: number, size: Size): LatLon {
   const worldPx = TILE_SIZE * Math.pow(2, zoom);
@@ -86,6 +90,27 @@ function clampCenter(center: LatLon, zoom: number, size: Size): LatLon {
   const half = size.height / 2;
   const y = worldPx <= size.height ? worldPx / 2 : clampNumber(projected.y, half, worldPx - half);
   return y === projected.y ? center : unproject({ x: projected.x, y }, zoom);
+}
+
+/** Top-left of the viewport in world pixels at the view's own zoom. */
+function originOf(view: View, size: Size): PixelPoint {
+  const centerPx = project(view.center.lat, view.center.lon, view.zoom);
+  return { x: centerPx.x - size.width / 2, y: centerPx.y - size.height / 2 };
+}
+
+/** What geography sits at a point inside the box. */
+function anchorAt(view: View, localX: number, localY: number, size: Size): LatLon {
+  const origin = originOf(view, size);
+  return unproject({ x: origin.x + localX, y: origin.y + localY }, view.zoom);
+}
+
+/** The centre that puts `anchor` back at (localX, localY) at a given zoom. */
+function centerForAnchor(anchor: LatLon, localX: number, localY: number, zoom: number, size: Size): LatLon {
+  const anchorPx = project(anchor.lat, anchor.lon, zoom);
+  return unproject(
+    { x: anchorPx.x - localX + size.width / 2, y: anchorPx.y - localY + size.height / 2 },
+    zoom
+  );
 }
 
 function boundsOf(points: MapPoint[], track: TrackPoint[]) {
@@ -106,7 +131,7 @@ function centreOf(points: MapPoint[], track: TrackPoint[]): LatLon {
   return { lat: (bounds.minLat + bounds.maxLat) / 2, lon: (bounds.minLon + bounds.maxLon) / 2 };
 }
 
-/** Largest zoom at which everything still fits inside the box. */
+/** Zoom at which everything fits, to a fraction rather than a whole level. */
 function fitZoom(points: MapPoint[], track: TrackPoint[], size: Size, fallback: number): number {
   const bounds = boundsOf(points, track);
   const floor = minZoomFor(size);
@@ -115,14 +140,20 @@ function fitZoom(points: MapPoint[], track: TrackPoint[], size: Size, fallback: 
     return Math.max(floor, fallback);
   }
 
-  for (let zoom = MAX_ZOOM; zoom >= floor; zoom -= 1) {
-    const topLeft = project(bounds.maxLat, bounds.minLon, zoom);
-    const bottomRight = project(bounds.minLat, bounds.maxLon, zoom);
-    if (bottomRight.x - topLeft.x <= size.width * 0.84 && bottomRight.y - topLeft.y <= size.height * 0.8) {
-      return zoom;
-    }
-  }
-  return floor;
+  // Measure the span once at a reference zoom, then solve for the zoom whose
+  // scaling makes it fit — exact, and no loop over levels.
+  const reference = 10;
+  const topLeft = project(bounds.maxLat, bounds.minLon, reference);
+  const bottomRight = project(bounds.minLat, bounds.maxLon, reference);
+  const spanX = Math.max(1, bottomRight.x - topLeft.x);
+  const spanY = Math.max(1, bottomRight.y - topLeft.y);
+
+  const ratio = Math.min((size.width * 0.86) / spanX, (size.height * 0.82) / spanY);
+  return clampNumber(reference + Math.log2(ratio), floor, MAX_ZOOM);
+}
+
+function easeOut(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
 }
 
 type SurfaceProps = {
@@ -136,6 +167,7 @@ type SurfaceProps = {
 
 export function OsmMap(props: SurfaceProps) {
   const [open, setOpen] = useState(false);
+  const [theme, setTheme] = useState<CSSProperties>({});
 
   // Escape, and the browser/Android back button, both close the map. Pushing a
   // history entry is what makes back close the overlay instead of leaving the
@@ -164,12 +196,38 @@ export function OsmMap(props: SurfaceProps) {
     };
   }, [open]);
 
+  /**
+   * The overlay is portalled to document.body, outside the `.e2` element that
+   * declares the event's palette. Without carrying the tokens across, every
+   * `var(--e2-…)` in there resolves to nothing: text falls back to the body
+   * colour and the route's stroke is dropped entirely.
+   */
+  const openFullscreen = useCallback(() => {
+    const host = document.querySelector('.e2');
+    if (host) {
+      const computed = getComputedStyle(host);
+      const carried: Record<string, string> = {};
+      for (const token of THEME_TOKENS) {
+        const value = computed.getPropertyValue(token).trim();
+        if (value.length > 0) carried[token] = value;
+      }
+      setTheme(carried as CSSProperties);
+    }
+    setOpen(true);
+  }, []);
+
   return (
     <>
-      <MapSurface {...props} interactive={false} onOpen={() => setOpen(true)} />
+      <MapSurface {...props} interactive={false} onOpen={openFullscreen} />
       {open
         ? createPortal(
-            <div className="e2-map-overlay" role="dialog" aria-modal="true" aria-label="Mapa na pełnym ekranie">
+            <div
+              className="e2-map-overlay"
+              style={theme}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mapa na pełnym ekranie"
+            >
               <MapSurface {...props} interactive onClose={() => setOpen(false)} />
             </div>,
             document.body
@@ -197,22 +255,28 @@ function MapSurface({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const touchedRef = useRef(false);
   const hintTimerRef = useRef<number | null>(null);
+  const zoomRafRef = useRef<number | null>(null);
 
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
-  const [zoom, setZoom] = useState(initialZoom);
-  const [center, setCenter] = useState<LatLon>(() => centreOf(points, track));
+  const [view, setView] = useState<View>(() => ({ zoom: initialZoom, center: centreOf(points, track) }));
   const [hint, setHint] = useState<string | null>(null);
   const [failedTiles, setFailedTiles] = useState<Set<string>>(() => new Set());
 
-  // Native listeners are installed once and read live values through refs.
-  const zoomRef = useRef(zoom);
-  const centerRef = useRef(center);
+  const viewRef = useRef(view);
   const sizeRef = useRef(size);
   const pointsRef = useRef(points);
-  zoomRef.current = zoom;
-  centerRef.current = center;
+  viewRef.current = view;
   sizeRef.current = size;
   pointsRef.current = points;
+
+  /** Every mutation goes through here, so viewRef can never fall behind. */
+  const updateView = useCallback((updater: (current: View, size: Size) => View) => {
+    setView((current) => {
+      const next = updater(current, sizeRef.current);
+      viewRef.current = next;
+      return next;
+    });
+  }, []);
 
   const showHint = useCallback((message: string) => {
     setHint(message);
@@ -226,6 +290,7 @@ function MapSurface({
   useEffect(
     () => () => {
       if (hintTimerRef.current !== null) window.clearTimeout(hintTimerRef.current);
+      if (zoomRafRef.current !== null) cancelAnimationFrame(zoomRafRef.current);
     },
     []
   );
@@ -251,12 +316,12 @@ function MapSurface({
   }, [points, track]);
 
   const fitToData = useCallback(() => {
-    const current = sizeRef.current;
-    if (current.width <= 0 || current.height <= 0) return;
-    const nextZoom = fitZoom(points, track, current, initialZoom);
-    setZoom(nextZoom);
-    setCenter(clampCenter(centreOf(points, track), nextZoom, current));
-  }, [initialZoom, points, track]);
+    updateView((_, current) => {
+      if (current.width <= 0 || current.height <= 0) return viewRef.current;
+      const zoom = fitZoom(points, track, current, initialZoom);
+      return { zoom, center: clampCenter(centreOf(points, track), zoom, current) };
+    });
+  }, [initialZoom, points, track, updateView]);
 
   // Refit on data or size change until the reader takes over, which keeps the
   // view correct through an orientation change or a window resize.
@@ -265,100 +330,115 @@ function MapSurface({
     fitToData();
   }, [dataKey, fitToData, size.height, size.width]);
 
-  const topLeft = useMemo(() => {
-    const centerPx = project(center.lat, center.lon, zoom);
-    return { x: centerPx.x - size.width / 2, y: centerPx.y - size.height / 2 };
-  }, [center, size.height, size.width, zoom]);
-
   // ── Gestures ──────────────────────────────────────────────────────────────
 
-  const panByPixels = useCallback((dx: number, dy: number) => {
-    touchedRef.current = true;
-    const currentZoom = zoomRef.current;
-    setCenter((current) => {
-      const projected = project(current.lat, current.lon, currentZoom);
-      return clampCenter(
-        unproject({ x: projected.x + dx, y: projected.y + dy }, currentZoom),
-        currentZoom,
-        sizeRef.current
-      );
-    });
+  const localPoint = useCallback((clientX: number, clientY: number) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return { x: clientX - rect.left, y: clientY - rect.top };
   }, []);
+
+  const panByPixels = useCallback(
+    (dx: number, dy: number) => {
+      touchedRef.current = true;
+      updateView((current, box) => {
+        const origin = originOf(current, box);
+        const center = unproject(
+          { x: origin.x + box.width / 2 + dx, y: origin.y + box.height / 2 + dy },
+          current.zoom
+        );
+        return { zoom: current.zoom, center: clampCenter(center, current.zoom, box) };
+      });
+    },
+    [updateView]
+  );
+
+  /** Zooms by a fractional amount, holding the geography under the point still. */
+  const zoomBy = useCallback(
+    (delta: number, clientX: number, clientY: number) => {
+      const local = localPoint(clientX, clientY);
+      touchedRef.current = true;
+      updateView((current, box) => {
+        if (box.width <= 0) return current;
+        const zoom = clampNumber(current.zoom + delta, minZoomFor(box), MAX_ZOOM);
+        if (zoom === current.zoom) return current;
+        const anchor = anchorAt(current, local.x, local.y, box);
+        return { zoom, center: clampCenter(centerForAnchor(anchor, local.x, local.y, zoom, box), zoom, box) };
+      });
+    },
+    [localPoint, updateView]
+  );
 
   /**
-   * Zooms while holding the geography under (clientX, clientY) still, so the
-   * thing you aimed at stays where you aimed it. Returns that anchor, so the
-   * caller can say what was zoomed on.
+   * Same, eased over a moment. Used where the zoom arrives in one jump — the
+   * buttons, a double-click — so it reads as movement rather than a cut. The
+   * anchor is captured once and re-honoured every frame, so a stepped zoom
+   * holds its target exactly as a continuous one does.
    */
-  const zoomAround = useCallback((steps: number, clientX: number, clientY: number): LatLon | null => {
-    const element = containerRef.current;
-    if (!element) return null;
+  const zoomStep = useCallback(
+    (steps: number, clientX: number, clientY: number): LatLon | null => {
+      const box = sizeRef.current;
+      if (box.width <= 0) return null;
 
-    const currentZoom = zoomRef.current;
-    const { width, height } = sizeRef.current;
-    const nextZoom = clampNumber(currentZoom + steps, minZoomFor(sizeRef.current), MAX_ZOOM);
+      if (zoomRafRef.current !== null) cancelAnimationFrame(zoomRafRef.current);
 
-    const rect = element.getBoundingClientRect();
-    const localX = clientX - rect.left;
-    const localY = clientY - rect.top;
+      const local = localPoint(clientX, clientY);
+      const from = viewRef.current.zoom;
+      const anchor = anchorAt(viewRef.current, local.x, local.y, box);
+      const to = clampNumber(from + steps, minZoomFor(box), MAX_ZOOM);
+      if (to === from) return anchor;
 
-    const centerPx = project(centerRef.current.lat, centerRef.current.lon, currentZoom);
-    const anchor = unproject(
-      { x: centerPx.x - width / 2 + localX, y: centerPx.y - height / 2 + localY },
-      currentZoom
-    );
+      touchedRef.current = true;
+      const startedAt = performance.now();
 
-    if (nextZoom === currentZoom) return anchor;
+      const frame = () => {
+        const progress = clampNumber((performance.now() - startedAt) / STEP_ZOOM_MS, 0, 1);
+        const zoom = from + (to - from) * easeOut(progress);
 
-    touchedRef.current = true;
-    const anchorPx = project(anchor.lat, anchor.lon, nextZoom);
-    const nextCenter = unproject(
-      { x: anchorPx.x - localX + width / 2, y: anchorPx.y - localY + height / 2 },
-      nextZoom
-    );
+        updateView((_, current) => ({
+          zoom,
+          center: clampCenter(centerForAnchor(anchor, local.x, local.y, zoom, current), zoom, current)
+        }));
 
-    setZoom(nextZoom);
-    setCenter(clampCenter(nextCenter, nextZoom, sizeRef.current));
-    return anchor;
-  }, []);
+        zoomRafRef.current = progress < 1 ? requestAnimationFrame(frame) : null;
+      };
+
+      zoomRafRef.current = requestAnimationFrame(frame);
+      return anchor;
+    },
+    [localPoint, updateView]
+  );
 
   const zoomAtCentre = useCallback(
     (steps: number) => {
-      const element = containerRef.current;
-      if (!element) return;
-      const rect = element.getBoundingClientRect();
-      zoomAround(steps, rect.left + rect.width / 2, rect.top + rect.height / 2);
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      zoomStep(steps, rect.left + rect.width / 2, rect.top + rect.height / 2);
     },
-    [zoomAround]
+    [zoomStep]
   );
 
   /** Names what sits under a screen position: a pin if one is close, else the spot. */
-  const describePlace = useCallback((clientX: number, clientY: number, anchor: LatLon | null): string => {
-    const element = containerRef.current;
-    if (element) {
-      const rect = element.getBoundingClientRect();
-      const localX = clientX - rect.left;
-      const localY = clientY - rect.top;
-      const currentZoom = zoomRef.current;
-      const centerPx = project(centerRef.current.lat, centerRef.current.lon, currentZoom);
-      const origin = {
-        x: centerPx.x - sizeRef.current.width / 2,
-        y: centerPx.y - sizeRef.current.height / 2
-      };
+  const describePlace = useCallback(
+    (clientX: number, clientY: number, anchor: LatLon | null): string => {
+      const box = sizeRef.current;
+      const local = localPoint(clientX, clientY);
+      const origin = originOf(viewRef.current, box);
 
       let nearest: { label: string; distance: number } | null = null;
       for (const point of pointsRef.current) {
-        const projected = project(point.lat, point.lon, currentZoom);
-        const distance = Math.hypot(projected.x - origin.x - localX, projected.y - origin.y - localY);
+        const projected = project(point.lat, point.lon, viewRef.current.zoom);
+        const distance = Math.hypot(projected.x - origin.x - local.x, projected.y - origin.y - local.y);
         if (distance <= PIN_HIT_PX && (nearest === null || distance < nearest.distance)) {
           nearest = { label: point.label, distance };
         }
       }
       if (nearest) return nearest.label;
-    }
 
-    return anchor ? `${anchor.lat.toFixed(5)}, ${anchor.lon.toFixed(5)}` : '—';
-  }, []);
+      return anchor ? `${anchor.lat.toFixed(5)}, ${anchor.lon.toFixed(5)}` : '—';
+    },
+    [localPoint]
+  );
 
   useEffect(() => {
     const element = containerRef.current;
@@ -370,9 +450,17 @@ function MapSurface({
     // Touch browsers synthesize a click/dblclick pair after a double-tap.
     let lastTouchAt = 0;
 
+    const cancelZoomAnimation = () => {
+      if (zoomRafRef.current !== null) {
+        cancelAnimationFrame(zoomRafRef.current);
+        zoomRafRef.current = null;
+      }
+    };
+
     // ── Mouse ───────────────────────────────────────────────────────────────
     const onPointerDown = (event: PointerEvent) => {
       if (event.pointerType === 'touch' || drag !== null) return;
+      cancelZoomAnimation();
       drag = { pointerId: event.pointerId, lastX: event.clientX, lastY: event.clientY };
       element.setPointerCapture(event.pointerId);
     };
@@ -395,55 +483,56 @@ function MapSurface({
     const onDoubleClick = (event: MouseEvent) => {
       // Emulated from a double-tap that has already been handled.
       if (performance.now() - lastTouchAt < 700) return;
-      if ((event.target as HTMLElement).closest('.e2-map-marker, .e2-map-controls')) return;
+      if ((event.target as HTMLElement).closest('.e2-map-marker, .e2-map-controls, .e2-map-close')) return;
 
       event.preventDefault();
       event.stopPropagation();
-      const anchor = zoomAround(event.shiftKey ? -1 : 1, event.clientX, event.clientY);
+      const anchor = zoomStep(event.shiftKey ? -1 : 1, event.clientX, event.clientY);
       showHint(
         `${event.shiftKey ? 'Oddalono' : 'Przybliżono'}: ${describePlace(event.clientX, event.clientY, anchor)}`
       );
     };
 
     // ── Wheel ───────────────────────────────────────────────────────────────
-    let wheelAccumulator = 0;
-
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       event.stopPropagation();
-
-      // Trackpads emit many small deltas; accumulate so one gesture is one step.
-      wheelAccumulator += event.deltaY;
-      const steps = Math.trunc(wheelAccumulator / 50);
-      if (steps === 0) return;
-      wheelAccumulator -= steps * 50;
-      zoomAround(-steps, event.clientX, event.clientY);
+      cancelZoomAnimation();
+      // Continuous: a trackpad scrubs the zoom, a mouse notch moves ~1/4 level.
+      zoomBy(clampNumber(-event.deltaY / WHEEL_PER_LEVEL, -1, 1), event.clientX, event.clientY);
     };
 
     // ── Touch ───────────────────────────────────────────────────────────────
     let panTouch: { x: number; y: number } | null = null;
-    let pinchDistance = 0;
+    let pinch: { distance: number; midX: number; midY: number } | null = null;
     let tapStart: { x: number; y: number; at: number } | null = null;
     let lastTapAt = 0;
     let lastTapX = 0;
     let lastTapY = 0;
 
-    const distanceBetween = (touches: TouchList) =>
-      Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+    const readPinch = (touches: TouchList) => ({
+      distance: Math.hypot(
+        touches[0].clientX - touches[1].clientX,
+        touches[0].clientY - touches[1].clientY
+      ),
+      midX: (touches[0].clientX + touches[1].clientX) / 2,
+      midY: (touches[0].clientY + touches[1].clientY) / 2
+    });
 
     const onTouchStart = (event: TouchEvent) => {
       event.stopPropagation();
+      cancelZoomAnimation();
       lastTouchAt = performance.now();
 
       if (event.touches.length === 1) {
         const touch = event.touches[0];
         tapStart = { x: touch.clientX, y: touch.clientY, at: lastTouchAt };
         panTouch = { x: touch.clientX, y: touch.clientY };
-        pinchDistance = 0;
+        pinch = null;
       } else if (event.touches.length === 2) {
         tapStart = null;
         panTouch = null;
-        pinchDistance = distanceBetween(event.touches);
+        pinch = readPinch(event.touches);
       }
     };
 
@@ -460,18 +549,15 @@ function MapSurface({
         return;
       }
 
-      if (event.touches.length === 2 && pinchDistance > 0) {
-        const midX = (event.touches[0].clientX + event.touches[1].clientX) / 2;
-        const midY = (event.touches[0].clientY + event.touches[1].clientY) / 2;
-        const next = distanceBetween(event.touches);
-        const ratio = next / pinchDistance;
-
-        // Step a whole zoom level once the fingers have moved far enough, so
-        // tiles never have to be drawn at a fractional scale.
-        if (ratio > PINCH_STEP_RATIO || ratio < 1 / PINCH_STEP_RATIO) {
-          zoomAround(ratio > 1 ? 1 : -1, midX, midY);
-          pinchDistance = next;
+      if (event.touches.length === 2 && pinch) {
+        const next = readPinch(event.touches);
+        if (pinch.distance > 0 && next.distance > 0) {
+          // Continuous: the zoom follows the finger spread exactly, and the
+          // midpoint carries the pan so the gesture can do both at once.
+          panByPixels(-(next.midX - pinch.midX), -(next.midY - pinch.midY));
+          zoomBy(Math.log2(next.distance / pinch.distance), next.midX, next.midY);
         }
+        pinch = next;
       }
     };
 
@@ -482,11 +568,11 @@ function MapSurface({
       const finished = event.changedTouches[0];
       const start = tapStart;
       panTouch = null;
-      pinchDistance = 0;
+      pinch = null;
       tapStart = null;
 
       if (!finished || !start || event.touches.length > 0) return;
-      if ((event.target as HTMLElement).closest('.e2-map-marker, .e2-map-controls')) return;
+      if ((event.target as HTMLElement).closest('.e2-map-marker, .e2-map-controls, .e2-map-close')) return;
 
       // A tap is a touch that neither moved nor lingered.
       const moved = Math.hypot(finished.clientX - start.x, finished.clientY - start.y);
@@ -501,7 +587,7 @@ function MapSurface({
         // Suppress the emulated click pair the browser would send next.
         event.preventDefault();
         lastTapAt = 0;
-        const anchor = zoomAround(1, finished.clientX, finished.clientY);
+        const anchor = zoomStep(1, finished.clientX, finished.clientY);
         showHint(`Przybliżono: ${describePlace(finished.clientX, finished.clientY, anchor)}`);
         return;
       }
@@ -534,38 +620,56 @@ function MapSurface({
       element.removeEventListener('touchend', onTouchEnd);
       element.removeEventListener('touchcancel', onTouchEnd);
     };
-  }, [describePlace, interactive, panByPixels, showHint, zoomAround]);
+  }, [describePlace, interactive, panByPixels, showHint, zoomBy, zoomStep]);
 
   // ── Painting ──────────────────────────────────────────────────────────────
 
+  const origin = useMemo(() => originOf(view, size), [size, view]);
+
+  /**
+   * Tiles come from the nearest whole level and are drawn scaled to the live
+   * fractional zoom, which is what lets the zoom move continuously without
+   * refetching on every frame.
+   */
   const tiles = useMemo(() => {
     if (size.width <= 0 || size.height <= 0) return [];
-    const count = Math.pow(2, zoom);
-    const result: Array<{ key: string; url: string; left: number; top: number }> = [];
 
-    for (let ty = Math.floor(topLeft.y / TILE_SIZE); ty <= Math.floor((topLeft.y + size.height) / TILE_SIZE); ty += 1) {
+    const tileZoom = clampNumber(Math.round(view.zoom), Math.ceil(minZoomFor(size)), MAX_ZOOM);
+    const scale = Math.pow(2, view.zoom - tileZoom);
+    const tilePx = TILE_SIZE * scale;
+    const count = Math.pow(2, tileZoom);
+
+    const firstX = Math.floor(origin.x / tilePx);
+    const lastX = Math.floor((origin.x + size.width) / tilePx);
+    const firstY = Math.floor(origin.y / tilePx);
+    const lastY = Math.floor((origin.y + size.height) / tilePx);
+
+    const result: Array<{ key: string; url: string; left: number; top: number; size: number }> = [];
+    for (let ty = firstY; ty <= lastY; ty += 1) {
       if (ty < 0 || ty >= count) continue;
-      for (let tx = Math.floor(topLeft.x / TILE_SIZE); tx <= Math.floor((topLeft.x + size.width) / TILE_SIZE); tx += 1) {
+      for (let tx = firstX; tx <= lastX; tx += 1) {
         // Wrap horizontally so panning past the antimeridian still paints.
         const wrappedX = ((tx % count) + count) % count;
         result.push({
-          key: `${zoom}-${tx}-${ty}`,
-          url: `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${ty}.png`,
-          left: tx * TILE_SIZE - topLeft.x,
-          top: ty * TILE_SIZE - topLeft.y
+          key: `${tileZoom}-${tx}-${ty}`,
+          url: `https://tile.openstreetmap.org/${tileZoom}/${wrappedX}/${ty}.png`,
+          left: tx * tilePx - origin.x,
+          top: ty * tilePx - origin.y,
+          // A hairline overlap hides the seams left by fractional positions.
+          size: tilePx + 1
         });
       }
     }
     return result;
-  }, [size.height, size.width, topLeft, zoom]);
+  }, [origin, size, view.zoom]);
 
   const screenPoints = useMemo(
     () =>
       points.map((point) => {
-        const projected = project(point.lat, point.lon, zoom);
-        return { point, x: projected.x - topLeft.x, y: projected.y - topLeft.y };
+        const projected = project(point.lat, point.lon, view.zoom);
+        return { point, x: projected.x - origin.x, y: projected.y - origin.y };
       }),
-    [points, topLeft, zoom]
+    [origin, points, view.zoom]
   );
 
   /** The GPX route if there is one, otherwise a line joining the pins. */
@@ -575,15 +679,15 @@ function MapSurface({
     const source =
       track.length > 1
         ? track.map(([lat, lon]) => {
-            const projected = project(lat, lon, zoom);
-            return { x: projected.x - topLeft.x, y: projected.y - topLeft.y };
+            const projected = project(lat, lon, view.zoom);
+            return { x: projected.x - origin.x, y: projected.y - origin.y };
           })
         : screenPoints.length > 1
           ? screenPoints.map((entry) => ({ x: entry.x, y: entry.y }))
           : [];
 
-    return source.map((entry) => `${Math.round(entry.x)},${Math.round(entry.y)}`).join(' ');
-  }, [screenPoints, showTrack, topLeft, track, zoom]);
+    return source.map((entry) => `${entry.x.toFixed(1)},${entry.y.toFixed(1)}`).join(' ');
+  }, [origin, screenPoints, showTrack, track, view.zoom]);
 
   return (
     <div
@@ -599,11 +703,14 @@ function MapSurface({
               key={tile.key}
               src={tile.url}
               alt=""
-              width={TILE_SIZE}
-              height={TILE_SIZE}
               loading="lazy"
               draggable={false}
-              style={{ left: `${tile.left}px`, top: `${tile.top}px` }}
+              style={{
+                left: `${tile.left}px`,
+                top: `${tile.top}px`,
+                width: `${tile.size}px`,
+                height: `${tile.size}px`
+              }}
               onError={() =>
                 setFailedTiles((current) => {
                   if (current.has(tile.key)) return current;
@@ -618,11 +725,13 @@ function MapSurface({
       </div>
 
       {routeLine.length > 0 ? (
-        <svg className="e2-map-track" width={size.width} height={size.height} aria-hidden="true">
+        // No width/height attributes: CSS sizes it, and user space is CSS
+        // pixels, so the line cannot end up scaled or clipped to a stale box.
+        <svg className="e2-map-track" aria-hidden="true">
           <polyline
             points={routeLine}
             fill="none"
-            stroke="var(--e2-accent)"
+            stroke="var(--e2-accent, #4c7dd6)"
             strokeWidth={3}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -661,13 +770,13 @@ function MapSurface({
       {interactive ? (
         <>
           <div className="e2-map-controls">
-            <button type="button" onClick={() => zoomAtCentre(1)} disabled={zoom >= MAX_ZOOM} aria-label="Przybliż">
+            <button type="button" onClick={() => zoomAtCentre(1)} disabled={view.zoom >= MAX_ZOOM} aria-label="Przybliż">
               +
             </button>
             <button
               type="button"
               onClick={() => zoomAtCentre(-1)}
-              disabled={zoom <= minZoomFor(size)}
+              disabled={view.zoom <= minZoomFor(size) + 0.01}
               aria-label="Oddal"
             >
               −

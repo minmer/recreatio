@@ -36,18 +36,16 @@ const FLING_MIN_VELOCITY = 0.04;
 const FLING_MAX_VELOCITY = 3.2;
 const VELOCITY_SMOOTHING = 0.72;
 /** Share of the remaining distance the magnet closes per frame. */
-const MAGNET_GAIN = 0.19;
+const MAGNET_GAIN = 0.27;
 /** Wheel and keys have no throw of their own — let the burst finish first. */
-const SETTLE_IDLE_MS = 85;
-/** Nudges the dead-band midpoint toward the way the reader was already going. */
-const SNAP_DIRECTION_BIAS = 0.15;
+const SETTLE_IDLE_MS = 70;
 /**
  * How close to a slide's top or bottom counts as "resting on it". From there a
  * nudge onward commits to the neighbouring slide rather than leaving the track
  * parked a few pixels off. Scrolling down from a slide's *top* is exempt — on a
  * long slide that means reading its content, not leaving it.
  */
-const COMMIT_FACTOR = 0.06;
+const COMMIT_FACTOR = 0.1;
 
 const KEY_CONSUMING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'BUTTON', 'A', 'SUMMARY']);
 
@@ -243,48 +241,41 @@ export function useSlideScroll(slideCount: number) {
     (from: number, direction: -1 | 0 | 1): number | null => {
       if (viewportHeight <= 1) return null;
 
-      // 1. A boundary hanging inside the viewport is never a legal rest.
+      const slides = slidesRef.current;
+      const commit = viewportHeight * COMMIT_FACTOR;
+
+      // 1. Leaving a slide edge. Checked first, and before the dead band,
+      // because a small scroll from a slide's bottom lands only a little way
+      // into the gap — under any midpoint rule that reads as "not far enough"
+      // and drags the reader straight back where they came from.
+      if (direction > 0) {
+        for (let index = 0; index < slides.length - 1; index += 1) {
+          if (Math.abs(from - slides[index].innerEnd) <= commit) {
+            return slides[index + 1].start;
+          }
+        }
+      } else if (direction < 0) {
+        for (let index = 1; index < slides.length; index += 1) {
+          if (Math.abs(from - slides[index].start) <= commit) {
+            return slides[index - 1].innerEnd;
+          }
+        }
+      }
+
+      // 2. A boundary hanging inside the viewport is never a legal rest. Once
+      // inside that band the reader has already committed, so direction alone
+      // decides: onward if they were going down, back if they were going up.
       const straddled = boundariesRef.current.find(
         (boundary) => boundary > from + 0.5 && boundary < from + viewportHeight - 0.5
       );
-      if (straddled !== undefined) {
-        const advance = straddled; // boundary lifted to the top of the viewport
-        const retreat = straddled - viewportHeight; // boundary pushed past the bottom
-        const midpoint = retreat + viewportHeight * (0.5 - direction * SNAP_DIRECTION_BIAS);
-        return from >= midpoint ? advance : retreat;
-      }
+      if (straddled === undefined) return null;
 
-      if (direction === 0) return null;
+      const advance = straddled; // boundary lifted to the top of the viewport
+      const retreat = straddled - viewportHeight; // boundary pushed past the bottom
 
-      // 2. Resting on a slide's edge and pushing onward. Without this, a small
-      // scroll from a settled slide moved a few pixels and was left there,
-      // because the next boundary is a whole viewport away and rule 1 could
-      // not see it yet.
-      const slides = slidesRef.current;
-      const index = slides.findIndex(
-        (slide, position) =>
-          from >= slide.start - 0.5 &&
-          (position === slides.length - 1 || from < slides[position + 1].start)
-      );
-      if (index === -1) return null;
-
-      const slide = slides[index];
-      const commit = viewportHeight * COMMIT_FACTOR;
-
-      // At the bottom, heading down → the next slide's top.
-      if (direction > 0 && from >= slide.innerEnd - commit) {
-        const next = slides[index + 1];
-        if (next) return next.start;
-      }
-
-      // At the top, heading up → the previous slide's bottom. Going *down* from
-      // a top is left alone: on a long slide that is reading, not leaving.
-      if (direction < 0 && from <= slide.start + commit) {
-        const previous = slides[index - 1];
-        if (previous) return previous.innerEnd;
-      }
-
-      return null;
+      if (direction > 0) return advance;
+      if (direction < 0) return retreat;
+      return from - retreat >= advance - from ? advance : retreat;
     },
     [viewportHeight]
   );
