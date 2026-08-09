@@ -2476,3 +2476,48 @@
   height: 3px;
   border-radius: 2px;
 }
+
+/* ── Wrappers that had no rule of their own ──────────────── */
+/* Each part's outer element sets the rhythm between its own pieces, the way
+   .ev-prose and .ev-contact already did. Without these the children sat flush
+   against each other. */
+
+.ev-shortinfos,
+.ev-gallery,
+.ev-people,
+.ev-files {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+/* Space under the personal-link card, above the first part. */
+.ev-banner {
+  margin-bottom: 0.4rem;
+}
+
+/* Stacked actions inside a table cell: hide / delete / grant. */
+.eva-actions-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+
+.eva-actions-cell button:not(.eva-cta):not(.eva-danger) {
+  border: 1px solid var(--a-line-2);
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  background: transparent;
+  color: #e8eef7;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.eva-actions-cell .eva-cta,
+.eva-actions-cell .eva-danger {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+}
