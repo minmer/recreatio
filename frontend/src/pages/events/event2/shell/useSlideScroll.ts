@@ -270,22 +270,17 @@ export function useSlideScroll(slideCount: number) {
     velocityRef.current = 0;
   }, []);
 
-  const hold = useCallback(() => {
-    gateUntilRef.current = performance.now() + BOUNDARY_HOLD_MS;
-    stopSettle();
-  }, [stopSettle]);
-
   /**
    * Moves the track by `delta`, never past the end of the segment it is in.
-   * Returns true when the move landed on an edge, which is the caller's cue
-   * that the track has come to a stop.
+   * 'jump' means it crossed to a neighbouring slide, 'edge' that it stopped at
+   * the end of the one it was in; both bring the track to rest.
    */
   const advance = useCallback(
-    (delta: number): boolean => {
+    (delta: number): 'none' | 'edge' | 'jump' => {
       const slides = slidesRef.current;
       if (slides.length === 0) {
         setTarget(targetRef.current + delta);
-        return false;
+        return 'none';
       }
 
       const from = targetRef.current;
@@ -300,8 +295,8 @@ export function useSlideScroll(slideCount: number) {
       if (from < slide.start - 0.5) {
         // In the gap above this slide: leave it in one move.
         const previous = slides[index - 1];
-        setTarget(forward ? slide.start : (previous?.innerEnd ?? 0), JUMP_INTERPOLATION);
-        return true;
+        tweenTo(forward ? slide.start : (previous?.innerEnd ?? 0));
+        return 'jump';
       }
 
       // A slide with nothing to scroll through is one point, not a segment.
@@ -310,35 +305,42 @@ export function useSlideScroll(slideCount: number) {
 
       if (forward && atEnd) {
         const next = slides[index + 1];
-        setTarget(next ? next.start : maxScrollRef.current, JUMP_INTERPOLATION);
-        return true;
+        if (!next) return 'none'; // already at the very end
+        tweenTo(next.start);
+        return 'jump';
       }
       if (!forward && atStart) {
         const previous = slides[index - 1];
-        setTarget(previous ? previous.innerEnd : 0, JUMP_INTERPOLATION);
-        return true;
+        if (!previous) return 'none'; // already at the very start
+        tweenTo(previous.innerEnd);
+        return 'jump';
       }
 
       // Free movement inside the slide, stopping at whichever end it reaches.
       const to = clamp(from + delta, slide.start, slide.innerEnd);
       setTarget(to);
-      return to <= slide.start + 0.5 || to >= slide.innerEnd - 0.5;
+      return to <= slide.start + 0.5 || to >= slide.innerEnd - 0.5 ? 'edge' : 'none';
     },
-    [setTarget]
+    [setTarget, tweenTo]
   );
 
   const applyDelta = useCallback(
     (delta: number): boolean => {
       if (!Number.isFinite(delta) || delta === 0) return false;
-      // Still holding at an edge: swallow the input rather than queue it, so a
-      // continuous scroll resumes from rest instead of lurching onward.
+      // Still holding: swallow the input rather than queue it, so a continuous
+      // scroll resumes from rest instead of lurching onward.
       if (performance.now() < gateUntilRef.current) return false;
 
-      const stopped = advance(delta);
-      if (stopped) hold();
-      return stopped;
+      const outcome = advance(delta);
+      if (outcome === 'none') return false;
+
+      stopSettle();
+      // A jump owns the screen until its ease finishes, then the pause.
+      gateUntilRef.current =
+        performance.now() + BOUNDARY_HOLD_MS + (outcome === 'jump' ? SLIDE_TRANSITION_MS : 0);
+      return true;
     },
-    [advance, hold]
+    [advance, stopSettle]
   );
 
   /** Carries the throw on after a finger lifts, under the same clamping. */
@@ -379,15 +381,17 @@ export function useSlideScroll(slideCount: number) {
   const scrollToSlide = useCallback(
     (index: number) => {
       stopSettle();
-      gateUntilRef.current = 0;
-      setTarget(slidesRef.current[index]?.start ?? 0, JUMP_INTERPOLATION);
+      gestureSpentRef.current = true; // a nav click ends whatever drag was running
+      gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS;
+      tweenTo(slidesRef.current[index]?.start ?? 0);
     },
-    [setTarget, stopSettle]
+    [stopSettle, tweenTo]
   );
 
   const scrollToTop = useCallback(() => {
     stopSettle();
     gateUntilRef.current = 0;
+    tweenRef.current = null;
     positionRef.current = 0;
     targetRef.current = 0;
     setPosition(0);
@@ -415,12 +419,21 @@ export function useSlideScroll(slideCount: number) {
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length === 0) return;
       stopSettle();
+      // A new touch earns a fresh move.
+      gestureSpentRef.current = false;
       touchYRef.current = event.touches[0].clientY;
       lastTouchAtRef.current = performance.now();
     };
 
     const onTouchMove = (event: TouchEvent) => {
       if (event.touches.length === 0 || touchYRef.current === null) return;
+      event.preventDefault();
+
+      // One drag moves the track once. The hold alone is not enough here: the
+      // finger is still down when it expires, so the same unbroken drag would
+      // carry straight on into the slide after that, and the one after.
+      if (gestureSpentRef.current) return;
+
       const nextY = event.touches[0].clientY;
       const delta = touchYRef.current - nextY;
       touchYRef.current = nextY;
@@ -433,15 +446,17 @@ export function useSlideScroll(slideCount: number) {
         velocityRef.current = velocityRef.current * VELOCITY_SMOOTHING + (delta / elapsed) * (1 - VELOCITY_SMOOTHING);
       }
 
-      event.preventDefault();
-      applyDelta(delta);
+      if (applyDelta(delta)) {
+        gestureSpentRef.current = true;
+        velocityRef.current = 0;
+      }
     };
 
     const onTouchEnd = () => {
       touchYRef.current = null;
-      // A drag that ended in a pause has no throw left.
+      // A drag that already landed somewhere must not then be thrown further.
       const stale = performance.now() - lastTouchAtRef.current > 90;
-      if (!stale) startSettle(velocityRef.current);
+      if (!stale && !gestureSpentRef.current) startSettle(velocityRef.current);
       velocityRef.current = 0;
     };
 
