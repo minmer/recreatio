@@ -1131,12 +1131,21 @@
   filter: saturate(0.95) contrast(1.02);
 }
 
-/* Closed, the preview is a diagram: the map drops to grey so the route is the
-   only thing carrying colour. Pointing at it brings the map back, which also
-   says the picture is live before it is clicked. Full screen is never greyed. */
+/* Closed, the preview is a diagram: the map drops to grey and fades back into
+   the white canvas, so the route is the only thing carrying colour. Pointing at
+   it brings the map back, which also says the picture is live before it is
+   clicked. Full screen is never greyed. */
 .ev-map-canvas.is-preview .ev-map-tiles img {
   filter: grayscale(1) contrast(1.06) brightness(1.04);
   transition: filter 300ms ease;
+}
+
+/* The fade sits on the whole layer, not the individual tiles: a lower-zoom tile
+   still standing in for one that has not arrived would otherwise show through
+   the tile drawn over it. */
+.ev-map-canvas.is-preview .ev-map-tiles {
+  opacity: 0.55;
+  transition: opacity 300ms ease;
 }
 
 .ev-map-canvas.is-preview:hover .ev-map-tiles img,
@@ -1144,7 +1153,13 @@
   filter: saturate(1.02) contrast(1.02);
 }
 
+.ev-map-canvas.is-preview:hover .ev-map-tiles,
+.ev-map-canvas.is-preview:focus-within .ev-map-tiles {
+  opacity: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .ev-map-canvas.is-preview .ev-map-tiles,
   .ev-map-canvas.is-preview .ev-map-tiles img {
     transition-duration: 0.01ms;
   }
