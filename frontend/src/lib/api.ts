@@ -8136,6 +8136,38 @@ export function getEventRegistrations(siteId: string) {
   return request<EventAdminRegistrationRow[]>(`/events/admin/sites/${siteId}/registrations`, { method: 'GET' });
 }
 
+export type EventImage = {
+  id: string;
+  fileName: string;
+  contentType: string;
+  byteSize: number;
+  createdUtc: string;
+};
+
+/**
+ * Absolute, because the page and the API sit on different origins. The bytes at
+ * an id never change, so this is safe to store in a layer's config.
+ */
+export function eventImageUrl(imageId: string): string {
+  return `${apiBase}/events/images/${imageId}`;
+}
+
+export function getEventImages(siteId: string) {
+  return request<EventImage[]>(`/events/admin/sites/${siteId}/images`, { method: 'GET' });
+}
+
+export function uploadEventImage(siteId: string, file: File) {
+  const body = new FormData();
+  body.append('file', file);
+  // request() leaves the Content-Type off for FormData so the browser can set
+  // its own multipart boundary.
+  return request<EventImage>(`/events/admin/sites/${siteId}/images`, { method: 'POST', body });
+}
+
+export function deleteEventImage(imageId: string) {
+  return request<{ deleted: boolean }>(`/events/admin/images/${imageId}`, { method: 'DELETE' });
+}
+
 /** Reversible: keeps the answers, drops the person from counts and the list. */
 export function setEventRegistrationHidden(registrationId: string, hidden: boolean) {
   return request<{ hidden: boolean }>(`/events/admin/registrations/${registrationId}/hidden`, {

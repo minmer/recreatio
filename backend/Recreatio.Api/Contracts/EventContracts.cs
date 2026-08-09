@@ -222,6 +222,13 @@ public sealed record EventStatusRequest(string Status);
 
 public sealed record EventHiddenRequest(bool Hidden);
 
+public sealed record EventImageResponse(
+    Guid Id,
+    string FileName,
+    string ContentType,
+    int ByteSize,
+    DateTimeOffset CreatedUtc);
+
 /// <summary>
 /// Outcome of a bulk import. Warnings list what was skipped and why, so the
 /// document can be corrected and re-imported.

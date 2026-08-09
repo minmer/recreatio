@@ -288,6 +288,36 @@ BEGIN
 END
 GO
 
+-- Background images uploaded for an event. Stored in-row so they survive a
+-- redeploy and travel with the database backup; the upload cap in the API is
+-- what keeps that reasonable.
+IF OBJECT_ID(N'events.EventImages', N'U') IS NULL
+BEGIN
+    CREATE TABLE events.EventImages
+    (
+        Id          UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventImages PRIMARY KEY,
+        SiteId      UNIQUEIDENTIFIER NOT NULL,
+        FileName    NVARCHAR(200)    NOT NULL,
+        ContentType NVARCHAR(80)     NOT NULL,
+        ByteSize    INT              NOT NULL,
+        Data        VARBINARY(MAX)   NOT NULL,
+        CreatedUtc  DATETIMEOFFSET   NOT NULL,
+        CONSTRAINT FK_EventImages_Site
+            FOREIGN KEY (SiteId) REFERENCES events.EventSites(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_EventImages_SiteId_CreatedUtc'
+      AND object_id = OBJECT_ID('events.EventImages')
+)
+BEGIN
+    CREATE INDEX IX_EventImages_SiteId_CreatedUtc ON events.EventImages(SiteId, CreatedUtc);
+END
+GO
+
 IF OBJECT_ID(N'events.EventRegistrationValues', N'U') IS NULL
 BEGIN
     CREATE TABLE events.EventRegistrationValues

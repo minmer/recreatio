@@ -10,12 +10,14 @@ import { LayerEditor } from './LayerEditor';
  */
 export function PartEditor({
   part,
+  siteId,
   isFirst,
   isLast,
   onMove,
   onChanged
 }: {
   part: EventAdminPart;
+  siteId: string;
   isFirst: boolean;
   isLast: boolean;
   onMove: (direction: -1 | 1) => void;
@@ -161,6 +163,7 @@ export function PartEditor({
           )}
 
           <LayerEditor
+            siteId={siteId}
             layersJson={layersJson}
             menuLabel={menuLabel}
             onChange={(next) => {

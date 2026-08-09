@@ -48,6 +48,7 @@ public static partial class EventEndpoints
         MapAdminFieldEndpoints(group);
         MapAdminAccessEndpoints(group);
         MapImportEndpoints(group);
+        MapImageEndpoints(group);
     }
 
     // ── Public ───────────────────────────────────────────────────────────────

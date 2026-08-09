@@ -421,6 +421,7 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
                       <PartEditor
                         key={part.id}
                         part={part}
+                        siteId={siteId}
                         isFirst={index === 0}
                         isLast={index === sortedParts.length - 1}
                         onMove={(direction) => void movePart(index, direction)}

@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { deleteEventImage, eventImageUrl, getEventImages, uploadEventImage, type EventImage } from '../../../lib/api';
 import { defaultLayersJson, parseLayers, type Layer } from '../shell/layers';
 import { LinesRow, ListEditor, NumberRow, SelectRow, TextRow } from '../parts/editorKit';
 
@@ -27,10 +29,12 @@ function blankLayer(kind: Layer['kind']): Layer {
 
 /** Edits the background stack behind one part. */
 export function LayerEditor({
+  siteId,
   layersJson,
   menuLabel,
   onChange
 }: {
+  siteId: string;
   layersJson: string | null;
   menuLabel: string;
   onChange: (json: string) => void;
@@ -83,7 +87,17 @@ export function LayerEditor({
 
             {layer.kind === 'image' ? (
               <>
-                <TextRow label="Adres obrazu" value={layer.url} onChange={(url) => update({ ...layer, url })} />
+                <ImagePicker
+                  siteId={siteId}
+                  value={layer.url}
+                  onPick={(url) => update({ ...layer, url })}
+                />
+                <TextRow
+                  label="Adres obrazu"
+                  value={layer.url}
+                  hint="Wypełnia się po wgraniu pliku. Można też wkleić adres z zewnątrz."
+                  onChange={(url) => update({ ...layer, url })}
+                />
                 <NumberRow
                   label="Krycie (0–1)"
                   step={0.05}
@@ -135,5 +149,101 @@ export function LayerEditor({
         Przywróć domyślne warstwy
       </button>
     </>
+  );
+}
+
+/**
+ * Upload a picture for this event, or pick one already uploaded. Writes the
+ * chosen image's address back into the layer, so the URL field stays the single
+ * source of truth and an external address still works.
+ */
+function ImagePicker({
+  siteId,
+  value,
+  onPick
+}: {
+  siteId: string;
+  value: string;
+  onPick: (url: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [images, setImages] = useState<EventImage[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setImages(await getEventImages(siteId));
+    } catch {
+      // The list is a convenience; typing an address still works without it.
+      setImages([]);
+    }
+  }, [siteId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const upload = async (file: File) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const uploaded = await uploadEventImage(siteId, file);
+      onPick(eventImageUrl(uploaded.id));
+      await load();
+    } catch (uploadError: unknown) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Nie udało się wgrać obrazu.');
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  const remove = async (image: EventImage) => {
+    if (!window.confirm(`Usunąć „${image.fileName}” z wydarzenia? Części, które go używają, przestaną go pokazywać.`)) {
+      return;
+    }
+    try {
+      await deleteEventImage(image.id);
+      await load();
+    } catch (deleteError: unknown) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Nie udało się usunąć obrazu.');
+    }
+  };
+
+  return (
+    <div className="eva-images">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+        disabled={busy}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void upload(file);
+        }}
+      />
+      <p className="eve-hint">{busy ? 'Wgrywanie…' : 'JPG, PNG, WEBP, GIF lub AVIF, do 6 MB.'}</p>
+
+      {images.length > 0 ? (
+        <div className="eva-image-grid">
+          {images.map((image) => {
+            const url = eventImageUrl(image.id);
+            return (
+              <div key={image.id} className={`eva-image ${url === value ? 'is-picked' : ''}`}>
+                <button type="button" onClick={() => onPick(url)} title={image.fileName}>
+                  <img src={url} alt={image.fileName} loading="lazy" />
+                </button>
+                <button type="button" className="eva-image-remove" onClick={() => void remove(image)} aria-label="Usuń">
+                  ×
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {error ? <p className="eve-error">{error}</p> : null}
+    </div>
   );
 }
