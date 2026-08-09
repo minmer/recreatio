@@ -1083,6 +1083,23 @@
   color: #fff;
 }
 
+.e2-map-tiles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* The coarse fallback: upscaled and soft, so it reads as "still loading"
+   rather than as a broken sharp layer, and never hides the real tiles. */
+.e2-map-tiles.is-base {
+  z-index: 0;
+  filter: blur(1px);
+}
+
+.e2-map-tiles.is-sharp {
+  z-index: 1;
+}
+
 /* Size comes from the element's own style — it tracks the fractional zoom. */
 .e2-map-tiles img {
   position: absolute;
@@ -1095,6 +1112,7 @@
 .e2-map-markers {
   position: absolute;
   inset: 0;
+  z-index: 2;
   pointer-events: none;
 }
 

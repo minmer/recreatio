@@ -34,6 +34,17 @@ const WHEEL_CLAMP = 180;
 /** Pause on reaching a slide edge, during which input is ignored. */
 const BOUNDARY_HOLD_MS = 200;
 /**
+ * Crossing between slides is a timed, eased move rather than the exponential
+ * chase used for free scrolling. An exponential starts at its fastest and
+ * decays, which on a jump of a whole viewport reads as a snap; a fixed
+ * duration with ease-in-out makes every transition the same deliberate length.
+ */
+const SLIDE_TRANSITION_MS = 560;
+
+function easeInOut(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+/**
  * Inner travel below this is not worth stopping in — a slide whose content
  * fits the screen has nothing to read on the way past, so its inner range is
  * treated as a single point rather than a segment to scroll through.
@@ -88,6 +99,9 @@ export function useSlideScroll(slideCount: number) {
   const settleRafRef = useRef<number | null>(null);
   const slidesRef = useRef<Slide[]>([]);
   const gateUntilRef = useRef(0);
+  const tweenRef = useRef<{ from: number; to: number; start: number; duration: number } | null>(null);
+  /** Set once a touch drag has moved the track off a slide; cleared on the next touch. */
+  const gestureSpentRef = useRef(false);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
   const interpolationRef = useRef(TRACK_INTERPOLATION);
@@ -190,6 +204,23 @@ export function useSlideScroll(slideCount: number) {
     if (rafRef.current !== null) return;
 
     const tick = () => {
+      const tween = tweenRef.current;
+
+      if (tween) {
+        const progress = clamp((performance.now() - tween.start) / tween.duration, 0, 1);
+        const next = tween.from + (tween.to - tween.from) * easeInOut(progress);
+        positionRef.current = next;
+        setPosition(next);
+
+        if (progress >= 1) {
+          tweenRef.current = null;
+          rafRef.current = null;
+          return;
+        }
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
       const current = positionRef.current;
       const delta = targetRef.current - current;
 
@@ -209,11 +240,27 @@ export function useSlideScroll(slideCount: number) {
     rafRef.current = requestAnimationFrame(tick);
   }, []);
 
-  const setTarget = useCallback((value: number, interpolation: number = TRACK_INTERPOLATION) => {
-    interpolationRef.current = interpolation;
-    targetRef.current = clamp(value, 0, maxScrollRef.current);
-    animate();
-  }, [animate]);
+  /** Exponential chase — responsive, used while a finger or wheel is driving. */
+  const setTarget = useCallback(
+    (value: number, interpolation: number = TRACK_INTERPOLATION) => {
+      tweenRef.current = null;
+      interpolationRef.current = interpolation;
+      targetRef.current = clamp(value, 0, maxScrollRef.current);
+      animate();
+    },
+    [animate]
+  );
+
+  /** Timed ease — used for the move between one slide and the next. */
+  const tweenTo = useCallback(
+    (value: number, duration: number = SLIDE_TRANSITION_MS) => {
+      const to = clamp(value, 0, maxScrollRef.current);
+      targetRef.current = to;
+      tweenRef.current = { from: positionRef.current, to, start: performance.now(), duration };
+      animate();
+    },
+    [animate]
+  );
 
   const stopSettle = useCallback(() => {
     if (settleRafRef.current !== null) {
@@ -449,19 +496,4 @@ export function useSlideScroll(slideCount: number) {
   useEffect(
     () => () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      if (settleRafRef.current !== null) cancelAnimationFrame(settleRafRef.current);
-    },
-    []
-  );
-
-  return {
-    viewportRef,
-    contentRefs,
-    viewportHeight,
-    position,
-    geometry,
-    activeIndex,
-    scrollToSlide,
-    scrollToTop
-  };
-}
+      if (settleRafRef

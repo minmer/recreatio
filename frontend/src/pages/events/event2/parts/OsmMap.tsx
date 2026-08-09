@@ -708,33 +708,34 @@ function MapSurface({
       role={interactive ? 'application' : undefined}
       aria-label={interactive ? 'Mapa punktów trasy' : undefined}
     >
-      <div className="e2-map-tiles">
-        {tiles.map((tile) =>
-          failedTiles.has(tile.key) ? null : (
-            <img
-              key={tile.key}
-              src={tile.url}
-              alt=""
-              loading="lazy"
-              draggable={false}
-              style={{
-                left: `${tile.left}px`,
-                top: `${tile.top}px`,
-                width: `${tile.size}px`,
-                height: `${tile.size}px`
-              }}
-              onError={() =>
-                setFailedTiles((current) => {
-                  if (current.has(tile.key)) return current;
-                  const next = new Set(current);
-                  next.add(tile.key);
-                  return next;
-                })
-              }
-            />
-          )
-        )}
-      </div>
+      {(['base', 'sharp'] as const).map((layer) => (
+        <div key={layer} className={`e2-map-tiles is-${layer}`}>
+          {tileLayers[layer].map((tile) =>
+            failedTiles.has(tile.key) ? null : (
+              <img
+                key={tile.key}
+                src={tile.url}
+                alt=""
+                draggable={false}
+                style={{
+                  left: `${tile.left}px`,
+                  top: `${tile.top}px`,
+                  width: `${tile.size}px`,
+                  height: `${tile.size}px`
+                }}
+                onError={() =>
+                  setFailedTiles((current) => {
+                    if (current.has(tile.key)) return current;
+                    const next = new Set(current);
+                    next.add(tile.key);
+                    return next;
+                  })
+                }
+              />
+            )
+          )}
+        </div>
+      ))}
 
       {routeLine.length > 0 ? (
         // No width/height attributes: CSS sizes it, and user space is CSS
