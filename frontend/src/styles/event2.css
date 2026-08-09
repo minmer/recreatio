@@ -1379,9 +1379,14 @@
   font-variant-numeric: tabular-nums;
 }
 
-.e2-footer .e2-ghost {
+.e2-footer .e2-ghost,
+.e2-footer .e2-cta {
   padding: 0.28rem 0.75rem;
   font-size: 0.78rem;
+}
+
+.e2-edit {
+  white-space: nowrap;
 }
 
 /* ── Standalone states ───────────────────────────────────── */

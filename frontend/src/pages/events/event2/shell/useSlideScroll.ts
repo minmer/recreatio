@@ -22,6 +22,19 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 const MIN_VIEWPORT_FACTOR = 1.05;
 const TRACK_INTERPOLATION = 0.16;
 const JUMP_INTERPOLATION = 0.09;
+
+// Magnetic settle. Once input stops, the track eases onto a slide boundary —
+// but only one that lies AHEAD in the direction the reader was already moving,
+// and only from within a reach measured against the viewport rather than the
+// slide's own travel. Two consequences, both deliberate:
+//   · a short slide completes its transition as soon as you nudge it;
+//   · part-way down a long slide the next boundary is far, so nothing fires,
+//     and a settle can never drag the reader back against their own scroll.
+// The tiny backward tolerance only cleans up an overshoot of a few pixels.
+const SNAP_IDLE_MS = 130;
+const SNAP_INTERPOLATION = 0.12;
+const SNAP_FORWARD_REACH = 0.34;
+const SNAP_BACKWARD_REACH = 0.06;
 const WHEEL_CLAMP = 180;
 const FLING_FRICTION = 0.94;
 const FLING_MIN_VELOCITY = 0.04;
@@ -60,6 +73,9 @@ export function useSlideScroll(slideCount: number) {
   const contentRefs = useRef<Array<HTMLDivElement | null>>([]);
   const rafRef = useRef<number | null>(null);
   const flingRafRef = useRef<number | null>(null);
+  const snapTimerRef = useRef<number | null>(null);
+  const snapPointsRef = useRef<number[]>([]);
+  const directionRef = useRef<-1 | 0 | 1>(0);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
   const interpolationRef = useRef(TRACK_INTERPOLATION);
@@ -109,6 +125,13 @@ export function useSlideScroll(slideCount: number) {
     }
     return 0;
   }, [geometry, position, viewportHeight]);
+
+  // Slide starts, plus the very bottom so the last slide can settle on its end.
+  useEffect(() => {
+    const points = geometry.map((slide) => slide.start);
+    if (maxScroll > 0) points.push(maxScroll);
+    snapPointsRef.current = points;
+  }, [geometry, maxScroll]);
 
   // ── Measurement ───────────────────────────────────────────────────────────
 
@@ -180,9 +203,58 @@ export function useSlideScroll(slideCount: number) {
     [animate, maxScroll]
   );
 
+  const cancelSnap = useCallback(() => {
+    if (snapTimerRef.current !== null) {
+      window.clearTimeout(snapTimerRef.current);
+      snapTimerRef.current = null;
+    }
+  }, []);
+
+  /** Eases onto the nearest boundary, but only from close range. */
+  const scheduleSnap = useCallback(() => {
+    cancelSnap();
+    snapTimerRef.current = window.setTimeout(() => {
+      snapTimerRef.current = null;
+
+      const points = snapPointsRef.current;
+      if (points.length === 0 || viewportHeight <= 1) return;
+
+      const from = targetRef.current;
+      const direction = directionRef.current;
+      const forwardReach = viewportHeight * SNAP_FORWARD_REACH;
+      const backwardReach = viewportHeight * SNAP_BACKWARD_REACH;
+
+      let best: number | null = null;
+      let bestDistance = Number.POSITIVE_INFINITY;
+
+      for (const point of points) {
+        const offset = point - from;
+        const distance = Math.abs(offset);
+        if (distance < 1) return; // already settled on a boundary
+
+        // Ahead means "further along the way the reader was going".
+        const isAhead = direction === 0 ? false : Math.sign(offset) === direction;
+        const reach = isAhead ? forwardReach : backwardReach;
+        if (distance > reach) continue;
+
+        if (distance < bestDistance) {
+          best = point;
+          bestDistance = distance;
+        }
+      }
+
+      if (best === null) return;
+
+      interpolationRef.current = SNAP_INTERPOLATION;
+      targetRef.current = clamp(best, 0, maxScroll);
+      animate();
+    }, SNAP_IDLE_MS);
+  }, [animate, cancelSnap, maxScroll, viewportHeight]);
+
   const applyDelta = useCallback(
     (delta: number) => {
       if (!Number.isFinite(delta) || delta === 0) return;
+      directionRef.current = delta > 0 ? 1 : -1;
       setTarget(targetRef.current + delta);
     },
     [setTarget]
@@ -199,17 +271,20 @@ export function useSlideScroll(slideCount: number) {
   const scrollToSlide = useCallback(
     (index: number) => {
       stopFling();
+      // Already landing on a boundary — a settle pass would only fight it.
+      cancelSnap();
       setTarget(geometry[index]?.start ?? 0, JUMP_INTERPOLATION);
     },
-    [geometry, setTarget, stopFling]
+    [cancelSnap, geometry, setTarget, stopFling]
   );
 
   const scrollToTop = useCallback(() => {
     stopFling();
+    cancelSnap();
     positionRef.current = 0;
     targetRef.current = 0;
     setPosition(0);
-  }, [stopFling]);
+  }, [cancelSnap, stopFling]);
 
   useEffect(() => {
     if (targetRef.current > maxScroll) setTarget(maxScroll);
@@ -227,7 +302,9 @@ export function useSlideScroll(slideCount: number) {
       if (Math.abs(delta) < 0.01) return;
       event.preventDefault();
       stopFling();
+      cancelSnap();
       applyDelta(delta);
+      scheduleSnap();
     };
 
     const startFling = () => {
@@ -245,6 +322,8 @@ export function useSlideScroll(slideCount: number) {
         const delta = velocity * frameMs;
         if (Math.abs(velocity) < FLING_MIN_VELOCITY || Math.abs(delta) < 0.1) {
           flingRafRef.current = null;
+          // The coast has run out — let it settle onto a boundary.
+          scheduleSnap();
           return;
         }
 
@@ -265,6 +344,7 @@ export function useSlideScroll(slideCount: number) {
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length === 0) return;
       stopFling();
+      cancelSnap();
       touchYRef.current = event.touches[0].clientY;
       lastTouchAtRef.current = performance.now();
     };
@@ -289,12 +369,15 @@ export function useSlideScroll(slideCount: number) {
 
     const onTouchEnd = () => {
       touchYRef.current = null;
-      // A drag that ended in a pause should not throw.
+      // A drag that ended in a pause should not throw — settle straight away.
       if (performance.now() - lastTouchAtRef.current > 90) {
         velocityRef.current = 0;
+        scheduleSnap();
         return;
       }
       startFling();
+      // A flick too weak to coast still deserves a settle.
+      if (flingRafRef.current === null) scheduleSnap();
     };
 
     viewport.addEventListener('wheel', onWheel, { passive: false });
@@ -311,7 +394,7 @@ export function useSlideScroll(slideCount: number) {
       viewport.removeEventListener('touchend', onTouchEnd);
       viewport.removeEventListener('touchcancel', onTouchEnd);
     };
-  }, [applyDelta, stopFling]);
+  }, [applyDelta, cancelSnap, scheduleSnap, stopFling]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -322,10 +405,14 @@ export function useSlideScroll(slideCount: number) {
       const page = viewportHeight * 0.82;
       if (event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ') {
         event.preventDefault();
+        cancelSnap();
         applyDelta(page);
+        scheduleSnap();
       } else if (event.key === 'ArrowUp' || event.key === 'PageUp') {
         event.preventDefault();
+        cancelSnap();
         applyDelta(-page);
+        scheduleSnap();
       } else if (event.key === 'Home') {
         event.preventDefault();
         setTarget(0, JUMP_INTERPOLATION);
@@ -337,12 +424,13 @@ export function useSlideScroll(slideCount: number) {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [applyDelta, maxScroll, setTarget, viewportHeight]);
+  }, [applyDelta, cancelSnap, maxScroll, scheduleSnap, setTarget, viewportHeight]);
 
   useEffect(
     () => () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       if (flingRafRef.current !== null) cancelAnimationFrame(flingRafRef.current);
+      if (snapTimerRef.current !== null) window.clearTimeout(snapTimerRef.current);
     },
     []
   );

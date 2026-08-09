@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ApiError, getEvent2PublicSite, type Event2PublicSite } from '../../../../lib/api';
 import { Event2Shell } from '../shell/Event2Shell';
+import { event2EditHref, useIsEvent2Admin } from '../shell/useIsEvent2Admin';
 
 /** The address anyone can open. Internal pages are never referenced from here. */
 export function Event2PublicView({ slug }: { slug: string }) {
+  const isAdmin = useIsEvent2Admin();
   const [data, setData] = useState<Event2PublicSite | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,5 +70,13 @@ export function Event2PublicView({ slug }: { slug: string }) {
     );
   }
 
-  return <Event2Shell site={data.site} page={data.page} accessToken={null} availablePages={[]} />;
+  return (
+    <Event2Shell
+      site={data.site}
+      page={data.page}
+      accessToken={null}
+      availablePages={[]}
+      adminEditHref={isAdmin ? event2EditHref(data.site.id) : null}
+    />
+  );
 }

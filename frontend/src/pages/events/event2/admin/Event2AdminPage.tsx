@@ -36,10 +36,10 @@ function errorText(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export function Event2AdminPage() {
+export function Event2AdminPage({ initialSiteId }: { initialSiteId?: string | null } = {}) {
   const [status, setStatus] = useState<Event2AdminStatus | null>(null);
   const [sites, setSites] = useState<Event2AdminSiteSummary[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialSiteId ?? null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newSlug, setNewSlug] = useState('');

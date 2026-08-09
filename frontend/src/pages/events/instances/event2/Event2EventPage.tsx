@@ -24,5 +24,6 @@ export function Event2EventPage(
 
   if (mode === 'link' && argument) return <Event2LinkView token={argument} />;
   if (mode === 'site' && argument) return <Event2PublicView slug={argument} />;
-  return <Event2AdminPage />;
+  // /admin/{siteId} opens the builder straight on that event.
+  return <Event2AdminPage initialSiteId={argument} />;
 }

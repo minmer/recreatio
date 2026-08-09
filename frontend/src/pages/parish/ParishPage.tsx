@@ -4598,6 +4598,23 @@ export function ParishPage({
     const section = document.getElementById(sectionId);
     if (!section) return;
     section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    const hadTabIndex = section.hasAttribute('tabindex');
+    if (!hadTabIndex) {
+      section.setAttribute('tabindex', '-1');
+    }
+    section.focus({ preventScroll: true });
+
+    section.classList.remove('confirmation-portal-target-flash');
+    // Force a reflow so the flash animation restarts if the same target is clicked again quickly.
+    void section.offsetWidth;
+    section.classList.add('confirmation-portal-target-flash');
+    window.setTimeout(() => {
+      section.classList.remove('confirmation-portal-target-flash');
+      if (!hadTabIndex) {
+        section.removeAttribute('tabindex');
+      }
+    }, 1600);
   };
 
   const openConfirmationPortalStandaloneTab = (tab: 'meetings' | 'messages' | 'status') => {

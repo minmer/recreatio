@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, getEvent2Link, type Event2LinkView as LinkView } from '../../../../lib/api';
 import { Event2Shell } from '../shell/Event2Shell';
+import { event2EditHref, useIsEvent2Admin } from '../shell/useIsEvent2Admin';
 
 /**
  * The individual link. The token decides which pages come back, so an internal
@@ -11,6 +12,7 @@ export function Event2LinkView({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isAdmin = useIsEvent2Admin();
 
   const load = useCallback(
     async (pageSlug: string | null, isSwitch: boolean) => {
@@ -106,6 +108,7 @@ export function Event2LinkView({ token }: { token: string }) {
         availablePages={data.availablePages}
         onSelectPage={(pageSlug) => void load(pageSlug, true)}
         banner={banner}
+        adminEditHref={isAdmin ? event2EditHref(data.site.id) : null}
       />
     </div>
   );

@@ -31,7 +31,8 @@ export function Event2Shell({
   accessToken,
   availablePages,
   onSelectPage,
-  banner
+  banner,
+  adminEditHref
 }: {
   site: Event2SiteHeader;
   page: Event2Page;
@@ -40,6 +41,8 @@ export function Event2Shell({
   availablePages: Event2PageRef[];
   onSelectPage?: (pageSlug: string) => void;
   banner?: ReactNode;
+  /** Set only for the event2 admin — jumps into the editor for this site. */
+  adminEditHref?: string | null;
 }) {
   const parts = [...page.parts].sort((a, b) => a.sortOrder - b.sortOrder);
   const scroll = useSlideScroll(parts.length);
@@ -223,6 +226,11 @@ export function Event2Shell({
           <span className="e2-progress" aria-hidden="true">
             {parts.length > 0 ? `${scroll.activeIndex + 1} / ${parts.length}` : '—'}
           </span>
+          {adminEditHref ? (
+            <a className="e2-cta e2-edit" href={adminEditHref}>
+              Edytuj
+            </a>
+          ) : null}
           <a className="e2-ghost" href="/#/event">
             Wydarzenia
           </a>
