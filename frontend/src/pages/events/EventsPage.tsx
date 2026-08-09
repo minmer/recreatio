@@ -225,7 +225,7 @@ export function EventsPage(props: SharedEventPageProps) {
       return <EventRouter mode="link" argument={segments[2] ?? null} />;
     }
     if (!RESERVED_EVENT_SLUGS.has(firstSegment)) {
-      return <EventRouter mode="site" argument={firstSegment} />;
+      return <EventRouter mode="site" argument={firstSegment} part={segments[2] ?? null} />;
     }
   }
 
@@ -275,34 +275,23 @@ export function EventsPage(props: SharedEventPageProps) {
           </section>
 
           <section className="events-chooser">
-            <div className="events-chooser-head">
-              <div>
-                <h2>{isLegacyRoute ? 'Stary mechanizm' : copy.events.chooserTitle}</h2>
-                <p>{isLegacyRoute ? 'Strony wpisane bezpośrednio w kod.' : copy.events.chooserSubtitle}</p>
-              </div>
-              <div className="events-head-actions">
-                {isLegacyRoute ? (
-                  <a className="ghost" href="/#/event">
-                    ← Aktualne wydarzenia
+            {/* The organizer's two ways in. Kept out of the way of the list
+                itself, which is what a visitor came for. */}
+            <div className="events-head-actions">
+              {isLegacyRoute ? (
+                <a className="ghost" href="/#/event">
+                  ← Aktualne wydarzenia
+                </a>
+              ) : props.showProfileMenu ? (
+                <>
+                  <a className="ghost" href="/#/event_old">
+                    Poprzednie wydarzenia
                   </a>
-                ) : (
-                  <>
-                    {/* Both are for the organizer. The builder checks the
-                        event admin scope for itself; this only decides
-                        whether the way in is offered. */}
-                    {props.showProfileMenu ? (
-                      <a className="ghost" href="/#/event_old">
-                        Poprzednie wydarzenia
-                      </a>
-                    ) : null}
-                    {props.showProfileMenu ? (
-                      <a className="cta events-create" href="/#/event/admin">
-                        + Nowe wydarzenie
-                      </a>
-                    ) : null}
-                  </>
-                )}
-              </div>
+                  <a className="cta events-create" href="/#/event/admin">
+                    + Nowe wydarzenie
+                  </a>
+                </>
+              ) : null}
             </div>
 
             {isLegacyRoute ? (

@@ -16,10 +16,13 @@ import '../../styles/event-site.css';
  */
 export function EventRouter({
   mode,
-  argument
+  argument,
+  part
 }: {
   mode: 'site' | 'admin' | 'link';
   argument: string | null;
+  /** 1-based part number from /event/{slug}/{n}. */
+  part?: string | null;
 }) {
   if (mode === 'link') {
     if (!argument) return <MissingArgument message="Ten link jest niekompletny." />;
@@ -31,7 +34,7 @@ export function EventRouter({
   }
 
   if (!argument) return <MissingArgument message="Nie podano adresu wydarzenia." />;
-  return <EventSiteView slug={argument} />;
+  return <EventSiteView slug={argument} initialPart={part ?? null} />;
 }
 
 function MissingArgument({ message }: { message: string }) {

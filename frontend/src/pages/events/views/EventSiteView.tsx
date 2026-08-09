@@ -4,7 +4,7 @@ import { EventShell } from '../shell/EventShell';
 import { eventEditHref, useIsEventAdmin } from '../shell/useIsEventAdmin';
 
 /** The address anyone can open. Internal pages are never referenced from here. */
-export function EventSiteView({ slug }: { slug: string }) {
+export function EventSiteView({ slug, initialPart }: { slug: string; initialPart: string | null }) {
   const isAdmin = useIsEventAdmin();
   const [data, setData] = useState<EventPublicSite | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,6 +77,7 @@ export function EventSiteView({ slug }: { slug: string }) {
       accessToken={null}
       availablePages={[]}
       adminEditHref={isAdmin ? eventEditHref(data.site.id) : null}
+      initialPartIndex={initialPart ? Number.parseInt(initialPart, 10) - 1 : null}
     />
   );
 }

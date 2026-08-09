@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import type { EventPage, EventPageRef, EventSiteHeader } from '../../../lib/api';
 import { getPartModule } from '../parts/registry';
 import { parseLayers, parseTheme, type Layer } from './layers';
@@ -32,7 +32,8 @@ export function EventShell({
   availablePages,
   onSelectPage,
   banner,
-  adminEditHref
+  adminEditHref,
+  initialPartIndex
 }: {
   site: EventSiteHeader;
   page: EventPage;
@@ -43,6 +44,8 @@ export function EventShell({
   banner?: ReactNode;
   /** Set only for the event admin — jumps into the editor for this site. */
   adminEditHref?: string | null;
+  /** Zero-based part to open on, from /event/{slug}/{n}. */
+  initialPartIndex?: number | null;
 }) {
   const parts = [...page.parts].sort((a, b) => a.sortOrder - b.sortOrder);
   const scroll = useSlideScroll(parts.length);
@@ -54,6 +57,39 @@ export function EventShell({
   useEffect(() => {
     scrollToTop();
   }, [page.id, scrollToTop]);
+
+  /**
+   * /event/{slug}/{n} opens on part n. The number is the part's position, so
+   * nothing extra has to be stored for a part to be linkable — but it also
+   * means a link points at a position rather than at a specific part, and
+   * reordering the page moves where an old link lands.
+   *
+   * Waits for measurement: before the parts have been measured every slide
+   * starts at the same place and the jump would land on the first one.
+   */
+  const jumpedRef = useRef(false);
+  const { scrollToSlide, geometry } = scroll;
+  const measured = geometry.length > 0 && geometry[geometry.length - 1].height > 1;
+
+  useEffect(() => {
+    if (jumpedRef.current || !measured) return;
+    jumpedRef.current = true;
+
+    if (initialPartIndex === null || initialPartIndex === undefined) return;
+    if (initialPartIndex <= 0 || initialPartIndex >= parts.length) return;
+    scrollToSlide(initialPartIndex);
+  }, [initialPartIndex, measured, parts.length, scrollToSlide]);
+
+  // Keep the address on the part being read, so copying it shares the spot.
+  // replaceState rather than a router navigation: this must not add history
+  // entries, and the router has nothing to re-render for it.
+  useEffect(() => {
+    if (page.kind !== 'public' || parts.length === 0) return;
+    const target = `#/event/${site.slug}/${scroll.activeIndex + 1}`;
+    if (window.location.hash !== target) {
+      window.history.replaceState(window.history.state, '', target);
+    }
+  }, [page.kind, parts.length, scroll.activeIndex, site.slug]);
 
   const themeStyle = {
     '--ev-accent': theme.accent,
