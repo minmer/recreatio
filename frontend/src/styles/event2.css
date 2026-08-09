@@ -972,18 +972,103 @@
 
 .e2-map-canvas {
   position: relative;
-  height: clamp(280px, 46vh, 460px);
-  border: 1px solid var(--e2-line-2);
-  border-radius: 12px;
   overflow: hidden;
   background: #0c1220;
-  cursor: grab;
-  touch-action: none;
   user-select: none;
 }
 
-.e2-map-canvas:active {
+/* Preview: paints the route, takes no gestures. The page scrolls over it. */
+.e2-map-canvas.is-preview {
+  /* Tracks the width so the box keeps a sane shape from phone to desktop. */
+  aspect-ratio: 4 / 3;
+  min-height: 240px;
+  max-height: min(60vh, 460px);
+  border: 1px solid var(--e2-line-2);
+  border-radius: 12px;
+  touch-action: auto;
+}
+
+@media (min-width: 700px) {
+  .e2-map-canvas.is-preview {
+    aspect-ratio: 16 / 9;
+  }
+}
+
+/* Full screen: the map owns every gesture. */
+.e2-map-canvas.is-full {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.e2-map-canvas.is-full:active {
   cursor: grabbing;
+}
+
+.e2-map-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: #05080e;
+}
+
+/* Covers the preview so a click anywhere opens the map; the label only
+   surfaces on hover or keyboard focus so it does not sit over the route. */
+.e2-map-open {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 0.9rem;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+  font: inherit;
+}
+
+.e2-map-open span {
+  border: 1px solid var(--e2-line-2);
+  border-radius: 999px;
+  padding: 0.34rem 0.95rem;
+  background: rgba(8, 13, 21, 0.88);
+  color: var(--e2-ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+  opacity: 0.9;
+  transition: opacity 160ms ease, background-color 160ms ease;
+}
+
+.e2-map-open:hover span,
+.e2-map-open:focus-visible span {
+  opacity: 1;
+  background: var(--e2-accent);
+  border-color: transparent;
+  color: #fff;
+}
+
+.e2-map-close {
+  position: absolute;
+  top: max(0.7rem, env(safe-area-inset-top, 0px));
+  right: 0.7rem;
+  z-index: 4;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--e2-line-2);
+  border-radius: 50%;
+  background: rgba(8, 13, 21, 0.92);
+  color: var(--e2-ink);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.e2-map-close:hover {
+  background: var(--e2-accent);
+  border-color: transparent;
+  color: #fff;
 }
 
 .e2-map-tiles img {
@@ -1059,48 +1144,53 @@
   opacity: 0.8;
 }
 
-.e2-map-zoom {
+/* Sits clear of the close button in the corner. */
+.e2-map-controls {
   position: absolute;
-  top: 0.55rem;
-  right: 0.55rem;
+  top: calc(max(0.7rem, env(safe-area-inset-top, 0px)) + 52px);
+  right: 0.7rem;
+  z-index: 4;
   display: grid;
-  gap: 0.28rem;
+  gap: 0.3rem;
 }
 
-.e2-map-zoom button {
-  width: 32px;
-  height: 32px;
+.e2-map-controls button {
+  width: 38px;
+  height: 38px;
   border: 1px solid var(--e2-line-2);
-  border-radius: 7px;
-  background: rgba(8, 13, 21, 0.9);
+  border-radius: 8px;
+  background: rgba(8, 13, 21, 0.92);
   color: var(--e2-ink);
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   line-height: 1;
   cursor: pointer;
 }
 
-.e2-map-zoom button:disabled {
+.e2-map-controls button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
+/* Transient readout naming what was just zoomed on. */
 .e2-map-hint {
   position: absolute;
-  left: 0;
-  bottom: 0;
+  left: 50%;
+  top: max(0.8rem, env(safe-area-inset-top, 0px));
+  transform: translateX(-50%);
+  z-index: 4;
   margin: 0;
-  padding: 0.14rem 0.5rem;
-  background: rgba(8, 13, 21, 0.82);
-  color: var(--e2-muted);
-  font-size: 0.68rem;
+  max-width: min(76vw, 460px);
+  border: 1px solid var(--e2-line-2);
+  border-radius: 999px;
+  padding: 0.3rem 0.9rem;
+  background: rgba(8, 13, 21, 0.94);
+  color: var(--e2-ink);
+  font-size: 0.82rem;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   pointer-events: none;
-}
-
-/* On touch there is no cursor and no ctrl key — the hint would be wrong. */
-@media (hover: none) {
-  .e2-map-hint {
-    display: none;
-  }
 }
 
 .e2-map-attribution {
