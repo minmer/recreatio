@@ -10,44 +10,48 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
  * The floor guarantees travel > 0 even on a slide whose content fits one
  * screen, so a tall background always has room to slide.
  *
- * ── How the track is allowed to move ─────────────────────────────────────────
- * The track lives in segments. A slide's inner range, start → innerEnd, is one
- * segment and scrolls freely: that is reading. Between one slide's innerEnd and
- * the next slide's start lies a gap a whole viewport wide, where the screen
- * would show the tail of one slide and the head of the next; that gap is never
- * entered, it is crossed in a single move.
+ * ── How a slide is left ──────────────────────────────────────────────────────
+ * A slide's inner range, start → innerEnd, scrolls freely: that is reading.
+ * Push past either end and the track does not stop dead — it follows, with
+ * rising resistance, up to a peek of PEEK_MAX_FACTOR of a viewport. That peek
+ * uncovers the top of the next slide (or the bottom of the previous one) while
+ * the finger is still down, so you can look before you commit.
  *
- * Every input is clamped to the current segment, so no gesture — however hard
- * the flick — can cross more than one edge. On reaching an edge the track holds
- * there for BOUNDARY_HOLD_MS and ignores further input, so a continuous scroll
- * pauses at the end of each slide instead of running through several.
+ * What happens on release is decided by how far you pulled and how fast you
+ * were going. A small peek springs back to the slide you were on; a peek past
+ * PEEK_COMMIT_RATIO of the maximum, or any flick faster than
+ * FLICK_COMMIT_VELOCITY, carries through to the next one. Inertia inside a
+ * slide feeds the same decision: a throw coasts to the edge and its remaining
+ * speed is what commits or bounces.
  *
- * Because the track can never come to rest inside the gap, there is nothing for
- * a magnet to correct; clamping replaced it.
+ * Because the peek is capped, a single gesture can never reach the next slide
+ * on its own — one drag moves the track at most one slide.
  */
 
 const MIN_VIEWPORT_FACTOR = 1.05;
 const TRACK_INTERPOLATION = 0.16;
-const JUMP_INTERPOLATION = 0.09;
 const WHEEL_CLAMP = 180;
 
-/** Pause on reaching a slide edge, during which input is ignored. */
-const BOUNDARY_HOLD_MS = 200;
-/**
- * Crossing between slides is a timed, eased move rather than the exponential
- * chase used for free scrolling. An exponential starts at its fastest and
- * decays, which on a jump of a whole viewport reads as a snap; a fixed
- * duration with ease-in-out makes every transition the same deliberate length.
- */
-const SLIDE_TRANSITION_MS = 560;
+/** How far past a slide's edge the track may be pulled, as a share of viewport. */
+const PEEK_MAX_FACTOR = 0.3;
+/** Share of that maximum which, once reached, commits instead of springing back. */
+const PEEK_COMMIT_RATIO = 0.42;
+/** A throw at least this fast (px/ms) commits regardless of how far it pulled. */
+const FLICK_COMMIT_VELOCITY = 0.5;
 
-function easeInOut(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
+/** Spring back to the slide you were on. */
+const BOUNCE_MS = 300;
+/** Carry through to the next slide. */
+const SLIDE_TRANSITION_MS = 520;
+/** Wheel and keys have no release event; resolve once the burst goes quiet. */
+const RESOLVE_IDLE_MS = 120;
+/** Breathing room after a committed move, so one burst cannot chain. */
+const BOUNDARY_HOLD_MS = 140;
+
 /**
- * Inner travel below this is not worth stopping in — a slide whose content
- * fits the screen has nothing to read on the way past, so its inner range is
- * treated as a single point rather than a segment to scroll through.
+ * Inner travel below this is not worth scrolling through — a slide whose
+ * content fits the screen has nothing to read on the way past, so its inner
+ * range is treated as a single point.
  */
 const SHALLOW_TRAVEL_FACTOR = 0.15;
 
@@ -69,6 +73,20 @@ function clamp(value: number, min: number, max: number): number {
   return value < min ? min : value > max ? max : value;
 }
 
+function easeInOut(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+/**
+ * Rubber band: the first pixels of pull come through nearly whole, later ones
+ * barely at all, approaching `max` without ever quite reaching it. That rising
+ * resistance is what makes the edge feel like a physical stop you are stretching.
+ */
+function damp(raw: number, max: number): number {
+  if (raw <= 0 || max <= 0) return 0;
+  return (max * raw) / (raw + max);
+}
+
 function normalizeWheelDelta(event: WheelEvent): number {
   let delta = event.deltaY;
   if (event.deltaMode === 1) delta *= 16;
@@ -84,24 +102,25 @@ export type SlideGeometry = {
   progress: number;
   /**
    * 0 → 1 across the whole time the slide is on screen: from its top entering
-   * at the bottom of the viewport, to its bottom leaving at the top. Spans the
-   * transitions in and out, not just the inner scroll.
+   * at the bottom of the viewport, to its bottom leaving at the top.
    */
   visibleProgress: number;
 };
 
 type Slide = { start: number; innerEnd: number; shallow: boolean };
+/** A pull past a slide edge that has not yet been resolved. */
+type Peek = { index: number; direction: 1 | -1; raw: number };
 
 export function useSlideScroll(slideCount: number) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const contentRefs = useRef<Array<HTMLDivElement | null>>([]);
   const rafRef = useRef<number | null>(null);
   const settleRafRef = useRef<number | null>(null);
-  const slidesRef = useRef<Slide[]>([]);
-  const gateUntilRef = useRef(0);
+  const resolveTimerRef = useRef<number | null>(null);
   const tweenRef = useRef<{ from: number; to: number; start: number; duration: number } | null>(null);
-  /** Set once a touch drag has moved the track off a slide; cleared on the next touch. */
-  const gestureSpentRef = useRef(false);
+  const slidesRef = useRef<Slide[]>([]);
+  const peekRef = useRef<Peek | null>(null);
+  const gateUntilRef = useRef(0);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
   const interpolationRef = useRef(TRACK_INTERPOLATION);
@@ -109,10 +128,13 @@ export function useSlideScroll(slideCount: number) {
   const velocityRef = useRef(0);
   const lastTouchAtRef = useRef(0);
   const maxScrollRef = useRef(0);
+  const viewportRefValue = useRef(1);
 
   const [viewportHeight, setViewportHeight] = useState(1);
   const [position, setPosition] = useState(0);
   const [contentHeights, setContentHeights] = useState<number[]>(() => new Array(slideCount).fill(0));
+
+  viewportRefValue.current = viewportHeight;
 
   useEffect(() => {
     setContentHeights((previous) => Array.from({ length: slideCount }, (_, index) => previous[index] ?? 0));
@@ -251,9 +273,9 @@ export function useSlideScroll(slideCount: number) {
     [animate]
   );
 
-  /** Timed ease — used for the move between one slide and the next. */
+  /** Timed ease — the spring back, and the move between slides. */
   const tweenTo = useCallback(
-    (value: number, duration: number = SLIDE_TRANSITION_MS) => {
+    (value: number, duration: number) => {
       const to = clamp(value, 0, maxScrollRef.current);
       targetRef.current = to;
       tweenRef.current = { from: positionRef.current, to, start: performance.now(), duration };
@@ -267,89 +289,146 @@ export function useSlideScroll(slideCount: number) {
       cancelAnimationFrame(settleRafRef.current);
       settleRafRef.current = null;
     }
-    velocityRef.current = 0;
   }, []);
 
+  const cancelResolveTimer = useCallback(() => {
+    if (resolveTimerRef.current !== null) {
+      window.clearTimeout(resolveTimerRef.current);
+      resolveTimerRef.current = null;
+    }
+  }, []);
+
+  // ── Peek and commit ───────────────────────────────────────────────────────
+
   /**
-   * Moves the track by `delta`, never past the end of the segment it is in.
-   * 'jump' means it crossed to a neighbouring slide, 'edge' that it stopped at
-   * the end of the one it was in; both bring the track to rest.
+   * Applies `delta`, following past a slide edge with resistance rather than
+   * stopping there. Only ever moves within the current slide plus its peek, so
+   * one gesture cannot reach the slide after next.
    */
   const advance = useCallback(
-    (delta: number): 'none' | 'edge' | 'jump' => {
+    (delta: number) => {
       const slides = slidesRef.current;
       if (slides.length === 0) {
         setTarget(targetRef.current + delta);
-        return 'none';
+        return;
+      }
+
+      const maxPeek = viewportRefValue.current * PEEK_MAX_FACTOR;
+      const active = peekRef.current;
+
+      // Already stretched: feed the pull, and let it be wound back to zero.
+      if (active) {
+        const slide = slides[active.index];
+        if (!slide) {
+          peekRef.current = null;
+          return;
+        }
+        const edge = active.direction > 0 ? slide.innerEnd : slide.start;
+        active.raw += delta * active.direction;
+
+        if (active.raw <= 0) {
+          peekRef.current = null;
+          setTarget(edge + (active.direction > 0 ? active.raw : -active.raw));
+          return;
+        }
+        setTarget(edge + active.direction * damp(active.raw, maxPeek));
+        return;
       }
 
       const from = targetRef.current;
-      const forward = delta > 0;
-
-      // Which slide's inner range are we in? The gap between two slides is not
-      // a place to be, so a position inside one resolves straight to its edge.
       let index = slides.findIndex((slide) => from <= slide.innerEnd + 0.5);
       if (index === -1) index = slides.length - 1;
       const slide = slides[index];
 
-      if (from < slide.start - 0.5) {
-        // In the gap above this slide: leave it in one move.
-        const previous = slides[index - 1];
-        tweenTo(forward ? slide.start : (previous?.innerEnd ?? 0));
-        return 'jump';
+      const lowerBound = slide.shallow ? slide.start : Math.min(slide.start, slide.innerEnd);
+      const upperBound = slide.shallow ? slide.start : slide.innerEnd;
+      const to = from + delta;
+
+      // Peeking is only offered where there is something to peek at.
+      if (to > upperBound && slides[index + 1]) {
+        peekRef.current = { index, direction: 1, raw: to - upperBound };
+        setTarget(upperBound + damp(to - upperBound, maxPeek));
+        return;
+      }
+      if (to < lowerBound && slides[index - 1]) {
+        peekRef.current = { index, direction: -1, raw: lowerBound - to };
+        setTarget(lowerBound - damp(lowerBound - to, maxPeek));
+        return;
       }
 
-      // A slide with nothing to scroll through is one point, not a segment.
-      const atStart = slide.shallow || from <= slide.start + 0.5;
-      const atEnd = slide.shallow || from >= slide.innerEnd - 0.5;
-
-      if (forward && atEnd) {
-        const next = slides[index + 1];
-        if (!next) return 'none'; // already at the very end
-        tweenTo(next.start);
-        return 'jump';
-      }
-      if (!forward && atStart) {
-        const previous = slides[index - 1];
-        if (!previous) return 'none'; // already at the very start
-        tweenTo(previous.innerEnd);
-        return 'jump';
-      }
-
-      // Free movement inside the slide, stopping at whichever end it reaches.
-      const to = clamp(from + delta, slide.start, slide.innerEnd);
-      setTarget(to);
-      return to <= slide.start + 0.5 || to >= slide.innerEnd - 0.5 ? 'edge' : 'none';
+      setTarget(clamp(to, lowerBound, upperBound));
     },
-    [setTarget, tweenTo]
+    [setTarget]
+  );
+
+  /**
+   * Decides what an unresolved peek meant. `velocity` is the speed at release,
+   * positive downwards — a hard flick commits even from a shallow pull.
+   */
+  const resolvePeek = useCallback(
+    (velocity: number): boolean => {
+      const peek = peekRef.current;
+      if (!peek) return false;
+      peekRef.current = null;
+
+      const slides = slidesRef.current;
+      const slide = slides[peek.index];
+      if (!slide) return false;
+
+      const maxPeek = viewportRefValue.current * PEEK_MAX_FACTOR;
+      const edge = peek.direction > 0 ? slide.innerEnd : slide.start;
+      const pulledFar = damp(peek.raw, maxPeek) >= maxPeek * PEEK_COMMIT_RATIO;
+      const flicked = velocity * peek.direction >= FLICK_COMMIT_VELOCITY;
+
+      const destination =
+        peek.direction > 0 ? slides[peek.index + 1]?.start : slides[peek.index - 1]?.innerEnd;
+
+      if ((pulledFar || flicked) && destination !== undefined) {
+        tweenTo(destination, SLIDE_TRANSITION_MS);
+        gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS + BOUNDARY_HOLD_MS;
+        return true;
+      }
+
+      tweenTo(edge, BOUNCE_MS);
+      gateUntilRef.current = performance.now() + BOUNCE_MS;
+      return false;
+    },
+    [tweenTo]
   );
 
   const applyDelta = useCallback(
-    (delta: number): boolean => {
-      if (!Number.isFinite(delta) || delta === 0) return false;
-      // Still holding: swallow the input rather than queue it, so a continuous
-      // scroll resumes from rest instead of lurching onward.
-      if (performance.now() < gateUntilRef.current) return false;
-
-      const outcome = advance(delta);
-      if (outcome === 'none') return false;
-
-      stopSettle();
-      // A jump owns the screen until its ease finishes, then the pause.
-      gateUntilRef.current =
-        performance.now() + BOUNDARY_HOLD_MS + (outcome === 'jump' ? SLIDE_TRANSITION_MS : 0);
-      return true;
+    (delta: number) => {
+      if (!Number.isFinite(delta) || delta === 0) return;
+      // Mid-commit or mid-bounce: swallow input rather than queue it.
+      if (performance.now() < gateUntilRef.current) return;
+      advance(delta);
     },
-    [advance, stopSettle]
+    [advance]
   );
 
-  /** Carries the throw on after a finger lifts, under the same clamping. */
+  /** Wheel and keys never release, so resolve once they go quiet. */
+  const scheduleResolve = useCallback(() => {
+    cancelResolveTimer();
+    resolveTimerRef.current = window.setTimeout(() => {
+      resolveTimerRef.current = null;
+      resolvePeek(0);
+    }, RESOLVE_IDLE_MS);
+  }, [cancelResolveTimer, resolvePeek]);
+
+  /**
+   * Carries a throw on after the finger lifts. Inside a slide it simply coasts;
+   * when the coast runs into an edge it becomes a peek, and whatever speed is
+   * left at that moment is what decides between springing back and going on.
+   */
   const startSettle = useCallback(
     (initialVelocity: number) => {
       stopSettle();
 
       let velocity = clamp(initialVelocity, -FLING_MAX_VELOCITY, FLING_MAX_VELOCITY);
-      if (Math.abs(velocity) < FLING_MIN_VELOCITY) return;
+      if (Math.abs(velocity) < FLING_MIN_VELOCITY) {
+        resolvePeek(initialVelocity);
+        return;
+      }
 
       let lastFrameAt = performance.now();
 
@@ -359,14 +438,19 @@ export function useSlideScroll(slideCount: number) {
         lastFrameAt = now;
 
         velocity *= Math.pow(FLING_FRICTION, frameMs / 16.67);
+
         if (Math.abs(velocity) < FLING_MIN_VELOCITY) {
           settleRafRef.current = null;
+          resolvePeek(velocity);
           return;
         }
 
-        // An edge ends the coast: one gesture, one slide.
-        if (applyDelta(velocity * frameMs)) {
+        advance(velocity * frameMs);
+
+        // The coast reached an edge — hand the remaining speed to the decision.
+        if (peekRef.current) {
           settleRafRef.current = null;
+          resolvePeek(velocity);
           return;
         }
 
@@ -375,27 +459,30 @@ export function useSlideScroll(slideCount: number) {
 
       settleRafRef.current = requestAnimationFrame(step);
     },
-    [applyDelta, stopSettle]
+    [advance, resolvePeek, stopSettle]
   );
 
   const scrollToSlide = useCallback(
     (index: number) => {
       stopSettle();
-      gestureSpentRef.current = true; // a nav click ends whatever drag was running
+      cancelResolveTimer();
+      peekRef.current = null;
       gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS;
-      tweenTo(slidesRef.current[index]?.start ?? 0);
+      tweenTo(slidesRef.current[index]?.start ?? 0, SLIDE_TRANSITION_MS);
     },
-    [stopSettle, tweenTo]
+    [cancelResolveTimer, stopSettle, tweenTo]
   );
 
   const scrollToTop = useCallback(() => {
     stopSettle();
-    gateUntilRef.current = 0;
+    cancelResolveTimer();
+    peekRef.current = null;
     tweenRef.current = null;
+    gateUntilRef.current = 0;
     positionRef.current = 0;
     targetRef.current = 0;
     setPosition(0);
-  }, [stopSettle]);
+  }, [cancelResolveTimer, stopSettle]);
 
   useEffect(() => {
     if (targetRef.current > maxScroll) setTarget(maxScroll);
@@ -414,26 +501,20 @@ export function useSlideScroll(slideCount: number) {
       event.preventDefault();
       stopSettle();
       applyDelta(delta);
+      scheduleResolve();
     };
 
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length === 0) return;
       stopSettle();
-      // A new touch earns a fresh move.
-      gestureSpentRef.current = false;
+      cancelResolveTimer();
       touchYRef.current = event.touches[0].clientY;
       lastTouchAtRef.current = performance.now();
+      velocityRef.current = 0;
     };
 
     const onTouchMove = (event: TouchEvent) => {
       if (event.touches.length === 0 || touchYRef.current === null) return;
-      event.preventDefault();
-
-      // One drag moves the track once. The hold alone is not enough here: the
-      // finger is still down when it expires, so the same unbroken drag would
-      // carry straight on into the slide after that, and the one after.
-      if (gestureSpentRef.current) return;
-
       const nextY = event.touches[0].clientY;
       const delta = touchYRef.current - nextY;
       touchYRef.current = nextY;
@@ -446,17 +527,16 @@ export function useSlideScroll(slideCount: number) {
         velocityRef.current = velocityRef.current * VELOCITY_SMOOTHING + (delta / elapsed) * (1 - VELOCITY_SMOOTHING);
       }
 
-      if (applyDelta(delta)) {
-        gestureSpentRef.current = true;
-        velocityRef.current = 0;
-      }
+      event.preventDefault();
+      applyDelta(delta);
     };
 
     const onTouchEnd = () => {
       touchYRef.current = null;
-      // A drag that already landed somewhere must not then be thrown further.
+      // A drag that ended in a pause has no throw left, but may still be
+      // holding a peek open — that has to be answered either way.
       const stale = performance.now() - lastTouchAtRef.current > 90;
-      if (!stale && !gestureSpentRef.current) startSettle(velocityRef.current);
+      startSettle(stale ? 0 : velocityRef.current);
       velocityRef.current = 0;
     };
 
@@ -474,7 +554,7 @@ export function useSlideScroll(slideCount: number) {
       viewport.removeEventListener('touchend', onTouchEnd);
       viewport.removeEventListener('touchcancel', onTouchEnd);
     };
-  }, [applyDelta, startSettle, stopSettle]);
+  }, [applyDelta, cancelResolveTimer, scheduleResolve, startSettle, stopSettle]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -487,31 +567,38 @@ export function useSlideScroll(slideCount: number) {
         event.preventDefault();
         stopSettle();
         applyDelta(page);
+        scheduleResolve();
       } else if (event.key === 'ArrowUp' || event.key === 'PageUp') {
         event.preventDefault();
         stopSettle();
         applyDelta(-page);
+        scheduleResolve();
       } else if (event.key === 'Home') {
         event.preventDefault();
         stopSettle();
-        gateUntilRef.current = 0;
-        setTarget(0, JUMP_INTERPOLATION);
+        cancelResolveTimer();
+        peekRef.current = null;
+        gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS;
+        tweenTo(0, SLIDE_TRANSITION_MS);
       } else if (event.key === 'End') {
         event.preventDefault();
         stopSettle();
-        gateUntilRef.current = 0;
-        setTarget(maxScroll, JUMP_INTERPOLATION);
+        cancelResolveTimer();
+        peekRef.current = null;
+        gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS;
+        tweenTo(maxScroll, SLIDE_TRANSITION_MS);
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [applyDelta, maxScroll, setTarget, stopSettle, viewportHeight]);
+  }, [applyDelta, cancelResolveTimer, maxScroll, scheduleResolve, stopSettle, tweenTo, viewportHeight]);
 
   useEffect(
     () => () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       if (settleRafRef.current !== null) cancelAnimationFrame(settleRafRef.current);
+      if (resolveTimerRef.current !== null) window.clearTimeout(resolveTimerRef.current);
     },
     []
   );
