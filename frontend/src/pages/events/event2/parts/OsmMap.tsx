@@ -207,6 +207,9 @@ export function OsmMap({
 
     // ── Mouse ───────────────────────────────────────────────────────────────
     let drag: { pointerId: number; lastX: number; lastY: number; moved: boolean } | null = null;
+    // Touch browsers synthesize a click/dblclick pair after a double-tap. This
+    // marks when a real touch last happened so the mouse path can stand down.
+    let lastTouchAt = 0;
 
     const onPointerDown = (event: PointerEvent) => {
       if (event.pointerType === 'touch' || drag !== null) return;
@@ -231,6 +234,8 @@ export function OsmMap({
     };
 
     const onDoubleClick = (event: MouseEvent) => {
+      // Emulated from a double-tap that has already been handled.
+      if (performance.now() - lastTouchAt < 700) return;
       // A double-click on a marker is aimed at the marker, not the map.
       if ((event.target as HTMLElement).closest('.e2-map-marker')) return;
       event.preventDefault();
@@ -309,6 +314,7 @@ export function OsmMap({
 
     const onTouchEnd = (event: TouchEvent) => {
       event.stopPropagation();
+      lastTouchAt = performance.now();
 
       const wasSingle = touchLast !== null && event.touches.length === 0;
       const finished = event.changedTouches[0];
@@ -324,6 +330,8 @@ export function OsmMap({
         Math.hypot(finished.clientX - lastTapX, finished.clientY - lastTapY) < DOUBLE_TAP_SLOP_PX;
 
       if (isDoubleTap) {
+        // Suppress the emulated click pair the browser would send next.
+        event.preventDefault();
         lastTapAt = 0;
         zoomAround(1, finished.clientX, finished.clientY);
         return;

@@ -149,18 +149,25 @@ export function Event2Shell({
               >
                 {layers.map((layer, layerIndex) => {
                   // Big text is not a parallax plane — it is a single line that
-                  // sweeps the viewport. Pin its layer (the speed-0 case) and
-                  // move the text inside it instead, so the sweep is a share of
-                  // the viewport rather than of the slide's travel. Otherwise a
-                  // slide only 5% taller than the screen moves it a few pixels.
+                  // sweeps the viewport, so its layer is pinned (speed 0) and
+                  // the text moves inside it instead.
                   const isBigText = layer.kind === 'bigtext';
+                  const speed = isBigText ? 0 : layer.speed;
 
-                  const height = isBigText
-                    ? scroll.viewportHeight
-                    : scroll.viewportHeight + slide.travel * layer.speed;
-                  const offset = isBigText
-                    ? slide.progress * slide.travel
-                    : (1 - layer.speed) * slide.progress * slide.travel;
+                  // Slide-local scroll, deliberately NOT clamped to the slide's
+                  // own travel. Clamping froze the parallax during the handover
+                  // between slides, so a layer crept at its own rate inside a
+                  // slide and then lurched at full track speed across the gap.
+                  // Measured over the slide's whole time on screen instead, the
+                  // motion is one continuous sweep with nothing to catch on.
+                  const local = scroll.position - slide.start;
+                  const span = slide.height + scroll.viewportHeight;
+
+                  // Screen-space top works out to -speed × (local + viewport),
+                  // and the height covers exactly the rest, so the layer fills
+                  // the viewport at every point of the pass and can never gap.
+                  const height = scroll.viewportHeight + speed * span;
+                  const offset = local * (1 - speed) - speed * scroll.viewportHeight;
 
                   const style: CSSProperties = {
                     height: `${height}px`,
