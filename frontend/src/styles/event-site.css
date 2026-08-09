@@ -1139,7 +1139,9 @@
    it brings the map back, which also says the picture is live before it is
    clicked. Full screen is never greyed. */
 .ev-map-canvas.is-preview .ev-map-tiles img {
-  filter: grayscale(1) contrast(1.06) brightness(1.04);
+  /* Inverted as well as greyed: roads come out light on a dark ground, which is
+     what lets the map read against the slide instead of over it. */
+  filter: grayscale(1) contrast(1.6) brightness(1.04) invert();
   transition: filter 300ms ease;
 }
 
@@ -1147,7 +1149,7 @@
    still standing in for one that has not arrived would otherwise show through
    the tile drawn over it. */
 .ev-map-canvas.is-preview .ev-map-tiles {
-  opacity: 0.55;
+  opacity: 0.25;
   transition: opacity 300ms ease;
 }
 
