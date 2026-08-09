@@ -3920,6 +3920,8 @@ export type ParishConfirmationCandidate = {
   schoolShort: string;
   acceptedRodo: boolean;
   paperConsentReceived?: boolean;
+  paperIndexChecked?: boolean;
+  quizCompleted?: boolean;
   createdUtc: string;
   meetingToken: string;
   meetingSlotId?: string | null;
@@ -3994,6 +3996,8 @@ export type ParishConfirmationPortalCandidate = {
   address: string;
   schoolShort: string;
   paperConsentReceived: boolean;
+  paperIndexChecked: boolean;
+  quizCompleted: boolean;
   portalToken: string;
   selectedSlotId?: string | null;
   bookedUtc?: string | null;
@@ -4121,6 +4125,8 @@ export type ParishConfirmationExportCandidate = {
   schoolShort: string;
   acceptedRodo: boolean;
   paperConsentReceived: boolean;
+  paperIndexChecked: boolean;
+  quizCompleted: boolean;
   createdUtc: string;
   updatedUtc: string;
   meetingToken?: string | null;
@@ -4752,6 +4758,18 @@ export function updateParishConfirmationCandidatePaperConsent(
   return request<void>(`/parish/${parishId}/confirmation-candidates/${candidateId}/paper-consent`, {
     method: 'PUT',
     body: JSON.stringify({ paperConsentReceived })
+  });
+}
+
+export function updateParishConfirmationCandidateIndexProof(
+  parishId: string,
+  candidateId: string,
+  paperIndexChecked: boolean,
+  quizCompleted: boolean
+) {
+  return request<void>(`/parish/${parishId}/confirmation-candidates/${candidateId}/index-proof`, {
+    method: 'PUT',
+    body: JSON.stringify({ paperIndexChecked, quizCompleted })
   });
 }
 

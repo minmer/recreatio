@@ -77,6 +77,7 @@ import {
   updateParishConfirmationNote,
   updateParishConfirmationCandidate,
   updateParishConfirmationCandidatePaperConsent,
+  updateParishConfirmationCandidateIndexProof,
   updateParishConfirmationCandidateGoal,
   updateParishConfirmationCandidateIndex,
   updateParishConfirmationCelebration,
@@ -3616,6 +3617,39 @@ export function ParishPage({
     }
   };
 
+  const handleAdminToggleCandidateIndexProof = async (
+    candidateId: string,
+    field: 'paperIndexChecked' | 'quizCompleted',
+    nextValue: boolean
+  ) => {
+    if (!parish) return;
+    const current = confirmationCandidates.find((candidate) => candidate.id === candidateId);
+    if (!current) return;
+    const nextPaperIndexChecked = field === 'paperIndexChecked' ? nextValue : current.paperIndexChecked ?? false;
+    const nextQuizCompleted = field === 'quizCompleted' ? nextValue : current.quizCompleted ?? false;
+    setConfirmationAdminSendingAction(true);
+    setConfirmationCandidatesError(null);
+    try {
+      await updateParishConfirmationCandidateIndexProof(
+        parish.id,
+        candidateId,
+        nextPaperIndexChecked,
+        nextQuizCompleted
+      );
+      await loadConfirmationCandidates();
+      if (confirmationAdminSelectedCandidateId === candidateId) {
+        await loadConfirmationAdminCandidatePortal(candidateId);
+      }
+      if (confirmationPortalToken && confirmationAdminPortalData?.candidate.portalToken === confirmationPortalToken) {
+        await loadConfirmationCandidatePortal(confirmationPortalToken, confirmationMeetingInviteCodeApplied);
+      }
+    } catch {
+      setConfirmationCandidatesError('Nie udało się zaktualizować statusu indeksu/quizu.');
+    } finally {
+      setConfirmationAdminSendingAction(false);
+    }
+  };
+
   const handleAdminSendMessageToCandidate = async () => {
     if (!parish || !confirmationAdminSelectedCandidateId) return;
     const messageText = confirmationAdminMessageDraft.trim();
@@ -6965,11 +6999,40 @@ export function ParishPage({
                               {(confirmationDisplayPortalData.candidate.useInternetIndex || confirmationDisplayPortalData.candidate.usePaperIndex) ? 'Zmień' : 'Wybierz'}
                             </button>
                           </li>
-                          <li className="is-info">
+                          {confirmationDisplayPortalData.candidate.useInternetIndex ? (() => {
+                            const celebrationsForIndex = confirmationDisplayPortalData.upcomingCelebrations;
+                            const internetIndexFulfilled =
+                              celebrationsForIndex.length > 0 &&
+                              celebrationsForIndex.every((celebration) => (celebration.candidateComment ?? '').trim().length > 0);
+                            return (
+                              <li className={internetIndexFulfilled ? 'is-done' : 'is-todo'}>
+                                <div>
+                                  <strong>Uzupełnij indeks internetowy (celebracje)</strong>
+                                  <p className="note">
+                                    {celebrationsForIndex.length === 0
+                                      ? 'Brak celebracji do uzupełnienia na razie.'
+                                      : internetIndexFulfilled
+                                        ? 'Wpisy przy wszystkich celebracjach zostały uzupełnione.'
+                                        : 'Uzupełnij komentarz przy każdej celebracji poniżej — to sprawdza się samo, bez księdza.'}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  onClick={() => scrollToConfirmationPortalSection('confirmation-candidate-celebrations')}
+                                >
+                                  Przejdź do celebracji
+                                </button>
+                              </li>
+                            );
+                          })() : null}
+                          <li className={confirmationDisplayPortalData.candidate.quizCompleted ? 'is-done' : 'is-todo'}>
                             <div>
                               <strong>Uzupełnij przesłany quiz bierzmowania</strong>
                               <p className="note">
-                                Wypełnij quiz online pod linkiem obok. Ksiądz sprawdzi jego wypełnienie ok. 15.08.2026.
+                                {confirmationDisplayPortalData.candidate.quizCompleted
+                                  ? 'Ksiądz potwierdził wypełnienie quizu.'
+                                  : 'Wypełnij quiz online pod linkiem obok. Ksiądz sprawdzi jego wypełnienie ok. 15.08.2026.'}
                               </p>
                             </div>
                             <a
@@ -6982,11 +7045,13 @@ export function ParishPage({
                             </a>
                           </li>
                           {confirmationDisplayPortalData.candidate.usePaperIndex ? (
-                            <li className="is-info">
+                            <li className={confirmationDisplayPortalData.candidate.paperIndexChecked ? 'is-done' : 'is-todo'}>
                               <div>
                                 <strong>Dostarcz indeks papierowy do sprawdzenia</strong>
                                 <p className="note">
-                                  Przynieś uzupełniony indeks papierowy do księdza. Zostanie sprawdzony ok. 15.08.2026.
+                                  {confirmationDisplayPortalData.candidate.paperIndexChecked
+                                    ? 'Ksiądz potwierdził sprawdzenie indeksu papierowego.'
+                                    : 'Przynieś uzupełniony indeks papierowy do księdza. Zostanie sprawdzony ok. 15.08.2026.'}
                                 </p>
                               </div>
                               <button
@@ -12035,6 +12100,14 @@ export function ParishPage({
                                       <strong>Oświadczenie papierowe rodzica:</strong>{' '}
                                       {candidate.paperConsentReceived ? 'Dostarczone do księdza' : 'Niepotwierdzone'}
                                     </p>
+                                    <p className="note">
+                                      <strong>Indeks papierowy:</strong>{' '}
+                                      {candidate.paperIndexChecked ? 'Sprawdzony przez księdza' : 'Niesprawdzony'}
+                                    </p>
+                                    <p className="note">
+                                      <strong>Quiz bierzmowania:</strong>{' '}
+                                      {candidate.quizCompleted ? 'Sprawdzony przez księdza' : 'Niesprawdzony'}
+                                    </p>
                                     <div className="confirmation-candidate-links">
                                       <button
                                         type="button"
@@ -12057,6 +12130,34 @@ export function ParishPage({
                                         }
                                       >
                                         {candidate.paperConsentReceived ? 'Oznacz jako brak oświadczenia' : 'Oznacz jako dostarczone'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        disabled={confirmationAdminSendingAction}
+                                        onClick={() =>
+                                          void handleAdminToggleCandidateIndexProof(
+                                            candidate.id,
+                                            'paperIndexChecked',
+                                            !candidate.paperIndexChecked
+                                          )
+                                        }
+                                      >
+                                        {candidate.paperIndexChecked ? 'Oznacz indeks jako niesprawdzony' : 'Potwierdź indeks papierowy'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        disabled={confirmationAdminSendingAction}
+                                        onClick={() =>
+                                          void handleAdminToggleCandidateIndexProof(
+                                            candidate.id,
+                                            'quizCompleted',
+                                            !candidate.quizCompleted
+                                          )
+                                        }
+                                      >
+                                        {candidate.quizCompleted ? 'Oznacz quiz jako niesprawdzony' : 'Potwierdź quiz'}
                                       </button>
                                     </div>
                                     <ul className="confirmation-phone-list">

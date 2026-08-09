@@ -503,6 +503,8 @@ public static class ParishEndpoints
                 PayloadEnc = payloadEnc,
                 AcceptedRodo = true,
                 PaperConsentReceived = false,
+                PaperIndexChecked = false,
+                QuizCompleted = false,
                 CreatedUtc = now,
                 UpdatedUtc = now
             });
@@ -1442,6 +1444,8 @@ public static class ParishEndpoints
                     payload.Address,
                     payload.SchoolShort,
                     candidate.PaperConsentReceived,
+                    candidate.PaperIndexChecked,
+                    candidate.QuizCompleted,
                     firstYearStartLink.BookingToken,
                     firstYearStartLink.SlotId,
                     firstYearStartLink.BookedUtc,
@@ -2506,6 +2510,8 @@ public static class ParishEndpoints
                     candidate.SchoolShort,
                     candidate.AcceptedRodo,
                     candidate.PaperConsentReceived,
+                    candidate.PaperIndexChecked,
+                    candidate.QuizCompleted,
                     candidate.CreatedUtc,
                     candidate.MeetingToken,
                     candidate.MeetingSlotId))
@@ -2681,6 +2687,8 @@ public static class ParishEndpoints
                         candidate.SchoolShort,
                         candidate.AcceptedRodo,
                         candidate.PaperConsentReceived,
+                        candidate.PaperIndexChecked,
+                        candidate.QuizCompleted,
                         candidate.CreatedUtc,
                         candidate.UpdatedUtc,
                         candidate.MeetingToken,
@@ -2926,6 +2934,8 @@ public static class ParishEndpoints
                     PayloadEnc = payloadEnc,
                     AcceptedRodo = true,
                     PaperConsentReceived = sourceCandidate.PaperConsentReceived,
+                    PaperIndexChecked = sourceCandidate.PaperIndexChecked,
+                    QuizCompleted = sourceCandidate.QuizCompleted,
                     CreatedUtc = createdUtc,
                     UpdatedUtc = updatedUtc
                 });
@@ -3375,6 +3385,8 @@ public static class ParishEndpoints
             targetCandidate.PayloadEnc = protector.Protect(JsonSerializer.SerializeToUtf8Bytes(mergedPayload));
             targetCandidate.AcceptedRodo = true;
             targetCandidate.PaperConsentReceived = targetCandidate.PaperConsentReceived || sourceCandidate.PaperConsentReceived;
+            targetCandidate.PaperIndexChecked = targetCandidate.PaperIndexChecked || sourceCandidate.PaperIndexChecked;
+            targetCandidate.QuizCompleted = targetCandidate.QuizCompleted || sourceCandidate.QuizCompleted;
             targetCandidate.CreatedUtc = targetCandidate.CreatedUtc <= sourceCandidate.CreatedUtc
                 ? targetCandidate.CreatedUtc
                 : sourceCandidate.CreatedUtc;
@@ -4059,6 +4071,8 @@ public static class ParishEndpoints
                     payload.Address,
                     payload.SchoolShort,
                     candidate.PaperConsentReceived,
+                    candidate.PaperIndexChecked,
+                    candidate.QuizCompleted,
                     firstYearStartLink.BookingToken,
                     firstYearStartLink.SlotId,
                     firstYearStartLink.BookedUtc,
@@ -4176,6 +4190,57 @@ public static class ParishEndpoints
                 "ConfirmationCandidatePaperConsentUpdated",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { candidateId, request.PaperConsentReceived }),
+                ct);
+
+            return Results.Ok();
+        }).RequireAuthorization();
+
+        group.MapPut("/{parishId:guid}/confirmation-candidates/{candidateId:guid}/index-proof", async (
+            Guid parishId,
+            Guid candidateId,
+            ParishConfirmationCandidateIndexProofUpdateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var candidate = await dbContext.ParishConfirmationCandidates
+                .FirstOrDefaultAsync(x => x.Id == candidateId && x.ParishId == parishId, ct);
+            if (candidate is null)
+            {
+                return Results.NotFound();
+            }
+
+            candidate.PaperIndexChecked = request.PaperIndexChecked;
+            candidate.QuizCompleted = request.QuizCompleted;
+            candidate.UpdatedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationCandidateIndexProofUpdated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { candidateId, request.PaperIndexChecked, request.QuizCompleted }),
                 ct);
 
             return Results.Ok();
@@ -6499,6 +6564,8 @@ public static class ParishEndpoints
             var paperConsentReceived = GetJsonBoolean(candidateElement, "paperConsentReceived")
                 ?? GetJsonBoolean(candidateElement, "paperConsent")
                 ?? false;
+            var paperIndexChecked = GetJsonBoolean(candidateElement, "paperIndexChecked") ?? false;
+            var quizCompleted = GetJsonBoolean(candidateElement, "quizCompleted") ?? false;
             var createdUtc = GetJsonDateTimeOffset(candidateElement, "createdUtc");
             var updatedUtc = GetJsonDateTimeOffset(candidateElement, "updatedUtc");
             var meetingToken = GetJsonString(candidateElement, "meetingToken")
@@ -6513,6 +6580,8 @@ public static class ParishEndpoints
                 schoolShort,
                 acceptedRodo,
                 paperConsentReceived,
+                paperIndexChecked,
+                quizCompleted,
                 createdUtc,
                 updatedUtc,
                 meetingToken));
@@ -6928,6 +6997,8 @@ public static class ParishEndpoints
                 payload.SchoolShort,
                 payload.AcceptedRodo,
                 candidate.PaperConsentReceived,
+                candidate.PaperIndexChecked,
+                candidate.QuizCompleted,
                 candidate.CreatedUtc,
                 candidate.UpdatedUtc,
                 meetingLink?.BookingToken ?? string.Empty,
@@ -7493,6 +7564,8 @@ public static class ParishEndpoints
         string SchoolShort,
         bool AcceptedRodo,
         bool PaperConsentReceived,
+        bool PaperIndexChecked,
+        bool QuizCompleted,
         DateTimeOffset CreatedUtc,
         DateTimeOffset UpdatedUtc,
         string MeetingToken,

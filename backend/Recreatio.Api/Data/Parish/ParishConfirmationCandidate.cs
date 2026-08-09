@@ -15,6 +15,10 @@ public sealed class ParishConfirmationCandidate
 
     public bool PaperConsentReceived { get; set; }
 
+    public bool PaperIndexChecked { get; set; }
+
+    public bool QuizCompleted { get; set; }
+
     public DateTimeOffset CreatedUtc { get; set; }
 
     public DateTimeOffset UpdatedUtc { get; set; }

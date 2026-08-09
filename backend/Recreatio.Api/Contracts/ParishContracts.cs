@@ -213,6 +213,8 @@ public sealed record ParishConfirmationCandidateResponse(
     string SchoolShort,
     bool AcceptedRodo,
     bool PaperConsentReceived,
+    bool PaperIndexChecked,
+    bool QuizCompleted,
     DateTimeOffset CreatedUtc,
     string MeetingToken,
     Guid? MeetingSlotId);
@@ -233,6 +235,8 @@ public sealed record ParishConfirmationExportCandidateResponse(
     string SchoolShort,
     bool AcceptedRodo,
     bool PaperConsentReceived,
+    bool PaperIndexChecked,
+    bool QuizCompleted,
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc,
     string? MeetingToken,
@@ -345,6 +349,8 @@ public sealed record ParishConfirmationImportCandidateRequest(
     string SchoolShort,
     bool AcceptedRodo,
     bool PaperConsentReceived,
+    bool PaperIndexChecked,
+    bool QuizCompleted,
     DateTimeOffset? CreatedUtc,
     DateTimeOffset? UpdatedUtc,
     string? MeetingToken);
@@ -481,6 +487,10 @@ public sealed record ParishConfirmationCandidateUpdateRequest(
 public sealed record ParishConfirmationCandidatePaperConsentUpdateRequest(
     bool PaperConsentReceived);
 
+public sealed record ParishConfirmationCandidateIndexProofUpdateRequest(
+    bool PaperIndexChecked,
+    bool QuizCompleted);
+
 public sealed record ParishConfirmationCandidateMergeRequest(
     Guid TargetCandidateId,
     Guid SourceCandidateId,
@@ -543,6 +553,8 @@ public sealed record ParishConfirmationPortalCandidateDataResponse(
     string Address,
     string SchoolShort,
     bool PaperConsentReceived,
+    bool PaperIndexChecked,
+    bool QuizCompleted,
     string PortalToken,
     Guid? SelectedSlotId,
     DateTimeOffset? BookedUtc,

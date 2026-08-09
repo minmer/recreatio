@@ -346,6 +346,8 @@ CREATE TABLE dbo.ParishConfirmationCandidates
     PayloadEnc VARBINARY(MAX) NOT NULL,
     AcceptedRodo BIT NOT NULL,
     PaperConsentReceived BIT NOT NULL CONSTRAINT DF_ParishConfirmationCandidates_PaperConsentReceived DEFAULT 0,
+    PaperIndexChecked BIT NOT NULL CONSTRAINT DF_ParishConfirmationCandidates_PaperIndexChecked DEFAULT 0,
+    QuizCompleted BIT NOT NULL CONSTRAINT DF_ParishConfirmationCandidates_QuizCompleted DEFAULT 0,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_ParishConfirmationCandidates_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id),
