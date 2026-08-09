@@ -44,7 +44,7 @@ const PIN_HIT_PX = 44;
 const WHEEL_PER_LEVEL = 260;
 const STEP_ZOOM_MS = 240;
 
-/** Tokens the full-screen portal has to carry with it, out of `.e2` scope. */
+/** Tokens the full-screen portal has to carry with it, out of `.ev` scope. */
 const THEME_TOKENS = ['--ev-accent', '--ev-ink', '--ev-ground', '--ev-muted', '--ev-line', '--ev-line-2'];
 
 export type MapPoint = {
@@ -187,7 +187,7 @@ export function OsmMap(props: SurfaceProps) {
   useEffect(() => {
     if (!open) return;
 
-    window.history.pushState({ e2map: true }, '');
+    window.history.pushState({ evmap: true }, '');
     const onPopState = () => setOpen(false);
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
@@ -204,18 +204,18 @@ export function OsmMap(props: SurfaceProps) {
       window.removeEventListener('keydown', onKeyDown);
       // Closed by the button or Escape rather than by going back: drop the
       // entry we pushed so back does not have to be pressed twice.
-      if (window.history.state?.e2map) window.history.back();
+      if (window.history.state?.evmap) window.history.back();
     };
   }, [open]);
 
   /**
-   * The overlay is portalled to document.body, outside the `.e2` element that
+   * The overlay is portalled to document.body, outside the `.ev` element that
    * declares the event's palette. Without carrying the tokens across, every
    * `var(--ev-…)` in there resolves to nothing: text falls back to the body
    * colour and the route's stroke is dropped entirely.
    */
   const openFullscreen = useCallback(() => {
-    const host = document.querySelector('.e2');
+    const host = document.querySelector('.ev');
     if (host) {
       const computed = getComputedStyle(host);
       const carried: Record<string, string> = {};

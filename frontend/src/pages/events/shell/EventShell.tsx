@@ -81,7 +81,7 @@ export function EventShell({
   };
 
   return (
-    <div className={`e2 ${page.kind === 'internal' ? 'is-internal' : ''}`} style={themeStyle}>
+    <div className={`ev ${page.kind === 'internal' ? 'is-internal' : ''}`} style={themeStyle}>
       <header className="ev-header">
         <a className="ev-brand" href="/#/event">
           <img src="/logo_inv.svg" alt="REcreatio" />
@@ -177,7 +177,9 @@ export function EventShell({
                   const background = layerBackground(layer);
                   if (background) style.background = background;
 
-                  if (layer.kind === 'image') {
+                  // An image layer with no address yet simply paints nothing,
+                  // rather than emitting url("") for the browser to chase.
+                  if (layer.kind === 'image' && layer.url.length > 0) {
                     style.backgroundImage = `url(${JSON.stringify(layer.url)})`;
                     style.backgroundSize = 'cover';
                     style.backgroundPosition = layer.position;

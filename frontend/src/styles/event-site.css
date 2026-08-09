@@ -1,11 +1,11 @@
 /* ============================================================
    Event — composable events
-   .e2   reader shell (layered slides)
-   .e2e  editor primitives shared by every part
-   .e2a  builder panel
+   .ev    reader shell (layered slides)
+   .eve   editor primitives shared by every part
+   .eva   builder panel
    ============================================================ */
 
-.e2 {
+.ev {
   --ev-accent: #4c7dd6;
   --ev-ink: #eef2f8;
   --ev-ground: #080d15;
@@ -39,7 +39,7 @@
   min-width: 0;
 }
 
-.e2.is-internal .ev-header {
+.ev.is-internal .ev-header {
   border-bottom-color: var(--ev-accent);
 }
 
@@ -1031,7 +1031,7 @@
   cursor: grabbing;
 }
 
-/* Portalled to document.body, so it sits outside `.e2` and inherits none of
+/* Portalled to document.body, so it sits outside `.ev` and inherits none of
    the event palette. The live tokens are copied onto this element inline when
    the map opens; these are the floor if that lookup ever finds no host. */
 .ev-map-overlay {
@@ -1408,7 +1408,7 @@
 /* The global stylesheet carries a bare `label { color: var(--muted) }` for the
    light theme. An element selector beats inheritance, so every label in here
    has to state its own colour or it silently turns near-black on near-black. */
-.e2 label,
+.ev label,
 .ev-map-overlay label {
   color: inherit;
 }
@@ -1597,7 +1597,7 @@
 /* ── Reader responsive ───────────────────────────────────── */
 
 @media (max-width: 900px) {
-  .e2 {
+  .ev {
     grid-template-rows: 52px minmax(0, 1fr) calc(44px + env(safe-area-inset-bottom, 0px));
   }
 
@@ -1624,7 +1624,7 @@
 }
 
 /* ============================================================
-   Editor primitives (.e2e) — used inside every part's editor
+   Editor primitives (.eve) — used inside every part's editor
    ============================================================ */
 
 .eve-row {
@@ -1811,10 +1811,10 @@
 }
 
 /* ============================================================
-   Builder panel (.e2a)
+   Builder panel (.eva)
    ============================================================ */
 
-.e2a {
+.eva {
   --a-line: rgba(150, 170, 200, 0.2);
   --a-line-2: rgba(150, 170, 200, 0.4);
   --a-muted: #9fb0c8;
@@ -2089,7 +2089,7 @@
   font-size: 0.9rem;
 }
 
-.e2a select option,
+.eva select option,
 .eva-add-part select option {
   background: #101825;
   color: #e8eef7;

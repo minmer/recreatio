@@ -64,8 +64,11 @@ export function parseLayers(layersJson: string | null): Layer[] {
         to: asText(record.to, '#050a12')
       });
     } else if (kind === 'image') {
+      // An empty address is a layer being written, not a broken one — dropping
+      // it here made the layer vanish from the editor the moment its kind was
+      // switched to image, before there was anywhere to type the address. The
+      // shell paints nothing until there is a URL.
       const url = asText(record.url).trim();
-      if (url.length === 0) continue;
       const blend = asText(record.blend, 'normal') as ImageLayer['blend'];
       layers.push({
         kind: 'image',
@@ -76,8 +79,8 @@ export function parseLayers(layersJson: string | null): Layer[] {
         position: asText(record.position, 'center')
       });
     } else if (kind === 'bigtext') {
+      // Likewise: clearing the last line is editing, not deleting the layer.
       const lines = asStringList(record.lines).slice(0, 3);
-      if (lines.length === 0) continue;
       layers.push({
         kind: 'bigtext',
         speed: clamp01(asNumber(record.speed, DEFAULT_SPEED.bigtext)),
