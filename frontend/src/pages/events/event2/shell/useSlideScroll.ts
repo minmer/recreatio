@@ -496,4 +496,19 @@ export function useSlideScroll(slideCount: number) {
   useEffect(
     () => () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      if (settleRafRef
+      if (settleRafRef.current !== null) cancelAnimationFrame(settleRafRef.current);
+    },
+    []
+  );
+
+  return {
+    viewportRef,
+    contentRefs,
+    viewportHeight,
+    position,
+    geometry,
+    activeIndex,
+    scrollToSlide,
+    scrollToTop
+  };
+}
