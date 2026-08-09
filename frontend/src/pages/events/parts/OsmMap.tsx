@@ -757,16 +757,33 @@ function MapSurface({
         // No width/height attributes: CSS sizes it, and user space is CSS
         // pixels, so the lines cannot end up scaled or clipped to a stale box.
         <svg className="ev-map-track" aria-hidden="true">
+          {/* Closed, the map behind is grey, so the route carries the picture:
+              it gets a white casing and a heavier stroke. Open, the map is in
+              colour again and the route steps back to a normal line. */}
+          {interactive
+            ? null
+            : routeLines.map((line) => (
+                <polyline
+                  key={`casing-${line.key}`}
+                  points={line.points}
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth={8}
+                  strokeOpacity={0.85}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ))}
           {routeLines.map((line) => (
             <polyline
               key={line.key}
               points={line.points}
               fill="none"
               stroke={line.color}
-              strokeWidth={3}
+              strokeWidth={interactive ? 3 : 4.5}
               strokeLinecap="round"
               strokeLinejoin="round"
-              opacity={0.9}
+              opacity={interactive ? 0.9 : 1}
             />
           ))}
         </svg>

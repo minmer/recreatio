@@ -222,7 +222,14 @@ export function EventsPage(props: SharedEventPageProps) {
       return <EventRouter mode="admin" argument={segments[2] ?? null} />;
     }
     if (firstSegment === 'link') {
-      return <EventRouter mode="link" argument={segments[2] ?? null} />;
+      return (
+        <EventRouter
+          mode="link"
+          argument={segments[2] ?? null}
+          page={segments[3] ?? null}
+          part={segments[4] ?? null}
+        />
+      );
     }
     if (!RESERVED_EVENT_SLUGS.has(firstSegment)) {
       return <EventRouter mode="site" argument={firstSegment} part={segments[2] ?? null} />;
@@ -247,6 +254,22 @@ export function EventsPage(props: SharedEventPageProps) {
           <div className="events-card-head">
             <div className="events-card-nav">
               <a className="ghost" href="/#/section-1">{copy.nav.home}</a>
+              {/* The organizer's two ways in, kept in the chrome so the list
+                  itself stays about the events. */}
+              {isLegacyRoute ? (
+                <a className="ghost" href="/#/event">
+                  ← Aktualne wydarzenia
+                </a>
+              ) : props.showProfileMenu ? (
+                <>
+                  <a className="ghost" href="/#/event_old">
+                    Poprzednie wydarzenia
+                  </a>
+                  <a className="cta events-create" href="/#/event/admin">
+                    + Nowe wydarzenie
+                  </a>
+                </>
+              ) : null}
             </div>
             <div className="events-card-actions">
               <LanguageSelect value={props.language} onChange={props.onLanguageChange} />
@@ -264,36 +287,17 @@ export function EventsPage(props: SharedEventPageProps) {
             </div>
           </div>
 
+          {/* Title only: the search and filters follow immediately, and the
+              events themselves carry the rest. */}
           <section className="events-hero">
             <p className="tag">REcreatio</p>
             <h1>{isLegacyRoute ? 'Poprzednie wydarzenia' : copy.events.title}</h1>
-            <p>
-              {isLegacyRoute
-                ? 'Strony w starym mechanizmie. Zostają dostępne, dopóki trwa przenoszenie treści do kreatora.'
-                : copy.events.subtitle}
-            </p>
+            {isLegacyRoute ? (
+              <p>Strony w starym mechanizmie. Zostają dostępne, dopóki trwa przenoszenie treści do kreatora.</p>
+            ) : null}
           </section>
 
           <section className="events-chooser">
-            {/* The organizer's two ways in. Kept out of the way of the list
-                itself, which is what a visitor came for. */}
-            <div className="events-head-actions">
-              {isLegacyRoute ? (
-                <a className="ghost" href="/#/event">
-                  ← Aktualne wydarzenia
-                </a>
-              ) : props.showProfileMenu ? (
-                <>
-                  <a className="ghost" href="/#/event_old">
-                    Poprzednie wydarzenia
-                  </a>
-                  <a className="cta events-create" href="/#/event/admin">
-                    + Nowe wydarzenie
-                  </a>
-                </>
-              ) : null}
-            </div>
-
             {isLegacyRoute ? (
               <ul className="events-legacy-list">
                 {CATALOGUE_EVENTS.map((entry) => (
@@ -309,7 +313,7 @@ export function EventsPage(props: SharedEventPageProps) {
                 ))}
               </ul>
             ) : (
-              <EventsCatalogue legacyEvents={[]} openLabel={copy.events.openEvent} />
+              <EventsCatalogue legacyEvents={[]} />
             )}
           </section>
         </article>

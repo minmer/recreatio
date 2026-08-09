@@ -103,13 +103,27 @@ function compare(a: CatalogueRow, b: CatalogueRow, sort: SortKey): number {
   return sort === 'date-desc' ? -delta : delta;
 }
 
-export function EventsCatalogue({ legacyEvents, openLabel }: { legacyEvents: EventDefinition[]; openLabel: string }) {
+/** Initials for a tile with no picture, so the grid keeps its rhythm. */
+function initials(title: string): string {
+  return title
+    .split(/\s+/)
+    .filter((word) => /[\p{L}\p{N}]/u.test(word))
+    .slice(0, 2)
+    .map((word) => word[0].toUpperCase())
+    .join('');
+}
+
+export function EventsCatalogue({ legacyEvents }: { legacyEvents: EventDefinition[] }) {
   const [remote, setRemote] = useState<EventCatalogueEntry[]>([]);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
   const [place, setPlace] = useState('');
   const [sort, setSort] = useState<SortKey>('date-asc');
   const [upcomingOnly, setUpcomingOnly] = useState(false);
+
+  // Which tile has its details open on a touch screen. With a pointer that can
+  // hover this stays null and CSS :hover does the work.
+  const [revealed, setRevealed] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -126,6 +140,18 @@ export function EventsCatalogue({ legacyEvents, openLabel }: { legacyEvents: Eve
       active = false;
     };
   }, []);
+
+  // Tapping anywhere else closes the open tile, so a touch reader is never
+  // stuck with details they cannot dismiss without opening the event.
+  useEffect(() => {
+    if (revealed === null) return;
+    const close = (event: PointerEvent) => {
+      if ((event.target as HTMLElement).closest('.events-tile')) return;
+      setRevealed(null);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [revealed]);
 
   const rows = useMemo(
     () => [...remote.map(fromEvent), ...legacyEvents.map(fromLegacy)],
@@ -162,67 +188,71 @@ export function EventsCatalogue({ legacyEvents, openLabel }: { legacyEvents: Eve
 
   const filtered = query.trim().length > 0 || category !== '' || place !== '' || upcomingOnly;
 
+  /**
+   * On a touch screen the first tap opens the tile's details and the second
+   * one opens the event, so the information hidden behind hover stays
+   * reachable. Where the pointer can hover, a click is just a click.
+   */
+  const onTileClick = (event: React.MouseEvent, key: string) => {
+    if (typeof window.matchMedia !== 'function') return;
+    if (!window.matchMedia('(hover: none)').matches) return;
+    if (revealed === key) return;
+
+    event.preventDefault();
+    setRevealed(key);
+  };
+
   return (
     <>
       <div className="events-filters">
-        <label className="events-search">
-          <span className="sr-only">Szukaj wydarzenia</span>
-          <input
-            type="search"
-            placeholder="Szukaj wydarzenia…"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
+        <input
+          className="events-search"
+          type="search"
+          aria-label="Szukaj wydarzenia"
+          placeholder="Szukaj…"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
 
-        <label>
-          <span>Grupa</span>
-          <select value={category} onChange={(event) => setCategory(event.target.value)}>
-            <option value="">Wszystkie</option>
-            {categories.map((entry) => (
-              <option key={entry} value={entry}>
-                {entry}
-              </option>
-            ))}
-          </select>
-        </label>
+        <select aria-label="Grupa wydarzeń" value={category} onChange={(event) => setCategory(event.target.value)}>
+          <option value="">Wszystkie grupy</option>
+          {categories.map((entry) => (
+            <option key={entry} value={entry}>
+              {entry}
+            </option>
+          ))}
+        </select>
 
-        <label>
-          <span>Miejsce</span>
-          <select value={place} onChange={(event) => setPlace(event.target.value)}>
-            <option value="">Wszystkie</option>
-            {placeOptions.map((entry) => (
-              <option key={entry} value={entry}>
-                {entry}
-              </option>
-            ))}
-          </select>
-        </label>
+        <select aria-label="Miejsce" value={place} onChange={(event) => setPlace(event.target.value)}>
+          <option value="">Wszystkie miejsca</option>
+          {placeOptions.map((entry) => (
+            <option key={entry} value={entry}>
+              {entry}
+            </option>
+          ))}
+        </select>
 
-        <label>
-          <span>Sortowanie</span>
-          <select value={sort} onChange={(event) => setSort(event.target.value as SortKey)}>
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <select aria-label="Sortowanie" value={sort} onChange={(event) => setSort(event.target.value as SortKey)}>
+          {SORT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
 
-        <label className="events-toggle">
-          <input
-            type="checkbox"
-            checked={upcomingOnly}
-            onChange={(event) => setUpcomingOnly(event.target.checked)}
-          />
-          <span>Tylko nadchodzące</span>
-        </label>
+        <button
+          type="button"
+          className={`events-chip ${upcomingOnly ? 'is-on' : ''}`}
+          aria-pressed={upcomingOnly}
+          onClick={() => setUpcomingOnly((value) => !value)}
+        >
+          Nadchodzące
+        </button>
 
         {filtered ? (
           <button
             type="button"
-            className="ghost events-clear"
+            className="events-chip events-clear"
             onClick={() => {
               setQuery('');
               setCategory('');
@@ -233,52 +263,45 @@ export function EventsCatalogue({ legacyEvents, openLabel }: { legacyEvents: Eve
             Wyczyść
           </button>
         ) : null}
-      </div>
 
-      <p className="events-count">
-        {visible.length === rows.length
-          ? `${rows.length} wydarzeń`
-          : `${visible.length} z ${rows.length} wydarzeń`}
-      </p>
+        <span className="events-count">
+          {visible.length === rows.length ? rows.length : `${visible.length}/${rows.length}`}
+        </span>
+      </div>
 
       <div className="events-grid">
         {visible.map((row) => (
-          <article key={row.key} className="events-card">
-            {row.thumbnailUrl ? (
-              <div className="events-card-thumb">
+          <a
+            key={row.key}
+            className={`events-tile ${revealed === row.key ? 'is-revealed' : ''}`}
+            href={row.href}
+            aria-label={row.title}
+            onClick={(event) => onTileClick(event, row.key)}
+          >
+            <span className="events-tile-frame">
+              {row.thumbnailUrl ? (
                 <img src={row.thumbnailUrl} alt="" loading="lazy" />
-              </div>
-            ) : null}
+              ) : (
+                <span className="events-tile-mark" aria-hidden="true">
+                  {initials(row.title)}
+                </span>
+              )}
 
-            {row.category ? <p className="events-card-category">{row.category}</p> : null}
-            <h3>{row.title}</h3>
-            {row.summary ? <p>{row.summary}</p> : null}
+              {/* Everything but the date lives here: shown on hover, or after
+                  the first tap on a touch screen. */}
+              <span className="events-tile-veil">
+                {row.category ? <span className="events-tile-kicker">{row.category}</span> : null}
+                <strong>{row.title}</strong>
+                {row.summary ? <span className="events-tile-summary">{row.summary}</span> : null}
+                {row.places.length > 0 ? (
+                  <span className="events-tile-line">{row.places.join(' · ')}</span>
+                ) : null}
+                {row.audience ? <span className="events-tile-line">{row.audience}</span> : null}
+              </span>
+            </span>
 
-            <dl>
-              {row.dateLabel ? (
-                <div>
-                  <dt>Termin</dt>
-                  <dd>{row.dateLabel}</dd>
-                </div>
-              ) : null}
-              {row.places.length > 0 ? (
-                <div>
-                  <dt>Miejsce</dt>
-                  <dd>{row.places.join(' · ')}</dd>
-                </div>
-              ) : null}
-              {row.audience ? (
-                <div>
-                  <dt>Dla kogo</dt>
-                  <dd>{row.audience}</dd>
-                </div>
-              ) : null}
-            </dl>
-
-            <a className="cta" href={row.href}>
-              {openLabel}
-            </a>
-          </article>
+            <span className="events-tile-date">{row.dateLabel || 'Termin wkrótce'}</span>
+          </a>
         ))}
       </div>
 

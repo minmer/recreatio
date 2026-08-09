@@ -70,7 +70,8 @@
   display: none;
 }
 
-.ev-pages button {
+.ev-pages button,
+.ev-pages a {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -86,7 +87,8 @@
   cursor: pointer;
 }
 
-.ev-pages button.active {
+.ev-pages button.active,
+.ev-pages a.active {
   background: var(--ev-accent);
   color: #fff;
 }
@@ -110,7 +112,8 @@
   display: none;
 }
 
-.ev-parts button {
+.ev-parts button,
+.ev-parts a {
   flex-shrink: 0;
   border: 1px solid transparent;
   border-radius: 999px;
@@ -124,12 +127,14 @@
   transition: color 160ms ease, border-color 160ms ease;
 }
 
-.ev-parts button:hover {
+.ev-parts button:hover,
+.ev-parts a:hover {
   color: var(--ev-ink);
   border-color: var(--ev-line);
 }
 
-.ev-parts button.active {
+.ev-parts button.active,
+.ev-parts a.active {
   color: var(--ev-ink);
   border-color: var(--ev-accent);
 }
@@ -1124,6 +1129,25 @@
      around it. Markers carry their own white ring and shadow, so they read
      against a light map without help. */
   filter: saturate(0.95) contrast(1.02);
+}
+
+/* Closed, the preview is a diagram: the map drops to grey so the route is the
+   only thing carrying colour. Pointing at it brings the map back, which also
+   says the picture is live before it is clicked. Full screen is never greyed. */
+.ev-map-canvas.is-preview .ev-map-tiles img {
+  filter: grayscale(1) contrast(1.06) brightness(1.04);
+  transition: filter 300ms ease;
+}
+
+.ev-map-canvas.is-preview:hover .ev-map-tiles img,
+.ev-map-canvas.is-preview:focus-within .ev-map-tiles img {
+  filter: saturate(1.02) contrast(1.02);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ev-map-canvas.is-preview .ev-map-tiles img {
+    transition-duration: 0.01ms;
+  }
 }
 
 .ev-map-track,
@@ -2576,4 +2600,11 @@
   font-size: 0.85rem;
   line-height: 1;
   cursor: pointer;
+}
+
+/* The menu entries are real links so ctrl-click opens a tab; they must not
+   pick up the underline every other link in the shell carries. */
+.ev-pages a,
+.ev-parts a {
+  text-decoration: none;
 }

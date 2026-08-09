@@ -7,7 +7,17 @@ import { eventEditHref, useIsEventAdmin } from '../shell/useIsEventAdmin';
  * The individual link. The token decides which pages come back, so an internal
  * page is never present in the payload for a link that was not granted it.
  */
-export function EventLinkView({ token }: { token: string }) {
+export function EventLinkView({
+  token,
+  initialPage,
+  initialPart
+}: {
+  token: string;
+  /** Page slug from /event/link/{token}/{page}, so a page can be linked to. */
+  initialPage: string | null;
+  /** 1-based part number from /event/link/{token}/{page}/{n}. */
+  initialPart: string | null;
+}) {
   const [data, setData] = useState<LinkView | null>(null);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
@@ -39,8 +49,22 @@ export function EventLinkView({ token }: { token: string }) {
   );
 
   useEffect(() => {
-    void load(null, false);
+    void load(initialPage, false);
+    // Only the first load follows the address; after that the switcher decides
+    // which page is open and rewrites the address itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
+
+  // Both addresses are stable across renders: the shell keys effects off them.
+  const openPage = data?.page.slug ?? '';
+  const pageHref = useCallback((pageSlug: string) => `/#/event/link/${token}/${pageSlug}`, [token]);
+  const partHref = useCallback(
+    (index: number) => {
+      const base = `/#/event/link/${token}/${openPage}`;
+      return index === 0 ? base : `${base}/${index + 1}`;
+    },
+    [openPage, token]
+  );
 
   if (loading) {
     return (
@@ -109,6 +133,9 @@ export function EventLinkView({ token }: { token: string }) {
         onSelectPage={(pageSlug) => void load(pageSlug, true)}
         banner={banner}
         adminEditHref={isAdmin ? eventEditHref(data.site.id) : null}
+        initialPartIndex={initialPart ? Number.parseInt(initialPart, 10) - 1 : null}
+        partHref={partHref}
+        pageHref={pageHref}
       />
     </div>
   );

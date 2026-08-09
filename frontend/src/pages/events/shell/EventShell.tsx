@@ -33,7 +33,9 @@ export function EventShell({
   onSelectPage,
   banner,
   adminEditHref,
-  initialPartIndex
+  initialPartIndex,
+  partHref,
+  pageHref
 }: {
   site: EventSiteHeader;
   page: EventPage;
@@ -46,6 +48,14 @@ export function EventShell({
   adminEditHref?: string | null;
   /** Zero-based part to open on, from /event/{slug}/{n}. */
   initialPartIndex?: number | null;
+  /**
+   * Address of a part on this page. Given one, the menu and the in-page links
+   * become real links — so ctrl-click opens a new tab — and the address bar
+   * follows the part being read.
+   */
+  partHref?: (index: number) => string;
+  /** Address of another page of this event, for the same reason. */
+  pageHref?: (pageSlug: string) => string;
 }) {
   const parts = [...page.parts].sort((a, b) => a.sortOrder - b.sortOrder);
   const scroll = useSlideScroll(parts.length);
@@ -84,12 +94,12 @@ export function EventShell({
   // replaceState rather than a router navigation: this must not add history
   // entries, and the router has nothing to re-render for it.
   useEffect(() => {
-    if (page.kind !== 'public' || parts.length === 0) return;
-    const target = `#/event/${site.slug}/${scroll.activeIndex + 1}`;
-    if (window.location.hash !== target) {
+    if (!partHref || parts.length === 0) return;
+    const target = partHref(scroll.activeIndex);
+    if (window.location.hash !== target.replace(/^\//, '')) {
       window.history.replaceState(window.history.state, '', target);
     }
-  }, [page.kind, parts.length, scroll.activeIndex, site.slug]);
+  }, [partHref, parts.length, scroll.activeIndex]);
 
   const themeStyle = {
     '--ev-accent': theme.accent,
@@ -104,13 +114,47 @@ export function EventShell({
   // nothing. Intercept in-page links and drive the scroller instead.
   const anchorIndex = new Map(parts.map((part, index) => [partAnchor(part.menuLabel), index]));
 
-  const onTrackClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    const anchor = (event.target as HTMLElement).closest('a');
-    const href = anchor?.getAttribute('href');
-    if (!href || !href.startsWith('#')) return;
+  /**
+   * A modified click is the reader asking the browser for a new tab or window.
+   * Those must be left alone, which is the whole reason the menu and the
+   * in-page links carry real addresses.
+   */
+  const isPlainClick = (event: React.MouseEvent) =>
+    event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 
-    const index = anchorIndex.get(href.slice(1).toLowerCase());
-    if (index === undefined) return;
+  /**
+   * Parts write plain "#zapisy" links, which under a hash router would send the
+   * browser to /#zapisy and lose the route. Rewrite them once they are in the
+   * DOM to the part's real address, and remember the target so the click
+   * handler still knows where it points. Doing it here rather than in each part
+   * keeps every part — and any link typed into free text — working the same.
+   */
+  const { viewportRef } = scroll;
+  useEffect(() => {
+    const root = viewportRef.current;
+    if (!root || !partHref) return;
+
+    root.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((anchor) => {
+      const index = anchorIndex.get(anchor.getAttribute('href')!.slice(1).toLowerCase());
+      if (index === undefined) return;
+      anchor.dataset.evPart = String(index);
+      anchor.setAttribute('href', partHref(index));
+    });
+    // anchorIndex is rebuilt on every render; the parts themselves are what
+    // actually changes the links.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page.id, parts.length, partHref, viewportRef]);
+
+  const onTrackClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPlainClick(event)) return;
+
+    const anchor = (event.target as HTMLElement).closest('a');
+    if (!anchor) return;
+
+    const marked = anchor.dataset.evPart;
+    const href = anchor.getAttribute('href') ?? '';
+    const index = marked !== undefined ? Number(marked) : anchorIndex.get(href.replace(/^#/, '').toLowerCase());
+    if (index === undefined || Number.isNaN(index)) return;
 
     event.preventDefault();
     scroll.scrollToSlide(index);
@@ -125,35 +169,64 @@ export function EventShell({
 
         {showSwitcher ? (
           <nav className="ev-pages" aria-label="Strony wydarzenia">
-            {availablePages.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                className={entry.slug === page.slug ? 'active' : ''}
-                onClick={() => onSelectPage?.(entry.slug)}
-              >
-                {entry.kind === 'internal' ? (
-                  <span className="ev-page-mark" aria-hidden="true">
-                    ●
-                  </span>
-                ) : null}
-                {entry.menuLabel}
-              </button>
-            ))}
+            {availablePages.map((entry) => {
+              const label = (
+                <>
+                  {entry.kind === 'internal' ? (
+                    <span className="ev-page-mark" aria-hidden="true">
+                      ●
+                    </span>
+                  ) : null}
+                  {entry.menuLabel}
+                </>
+              );
+              const className = entry.slug === page.slug ? 'active' : '';
+
+              return pageHref ? (
+                <a
+                  key={entry.id}
+                  className={className}
+                  href={pageHref(entry.slug)}
+                  onClick={(event) => {
+                    if (!isPlainClick(event)) return;
+                    event.preventDefault();
+                    onSelectPage?.(entry.slug);
+                  }}
+                >
+                  {label}
+                </a>
+              ) : (
+                <button key={entry.id} type="button" className={className} onClick={() => onSelectPage?.(entry.slug)}>
+                  {label}
+                </button>
+              );
+            })}
           </nav>
         ) : null}
 
         <nav className="ev-parts" aria-label="Sekcje strony">
-          {parts.map((part, index) => (
-            <button
-              key={part.id}
-              type="button"
-              className={scroll.activeIndex === index ? 'active' : ''}
-              onClick={() => scroll.scrollToSlide(index)}
-            >
-              {part.menuLabel}
-            </button>
-          ))}
+          {parts.map((part, index) => {
+            const className = scroll.activeIndex === index ? 'active' : '';
+
+            return partHref ? (
+              <a
+                key={part.id}
+                className={className}
+                href={partHref(index)}
+                onClick={(event) => {
+                  if (!isPlainClick(event)) return;
+                  event.preventDefault();
+                  scroll.scrollToSlide(index);
+                }}
+              >
+                {part.menuLabel}
+              </a>
+            ) : (
+              <button key={part.id} type="button" className={className} onClick={() => scroll.scrollToSlide(index)}>
+                {part.menuLabel}
+              </button>
+            );
+          })}
         </nav>
 
         <div className="ev-header-meta">

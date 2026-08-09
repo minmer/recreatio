@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ApiError, getEventPublicSite, type EventPublicSite } from '../../../lib/api';
 import { EventShell } from '../shell/EventShell';
 import { eventEditHref, useIsEventAdmin } from '../shell/useIsEventAdmin';
@@ -9,6 +9,12 @@ export function EventSiteView({ slug, initialPart }: { slug: string; initialPart
   const [data, setData] = useState<EventPublicSite | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // The first part is the page itself, so it keeps the bare address.
+  const partHref = useCallback(
+    (index: number) => (index === 0 ? `/#/event/${slug}` : `/#/event/${slug}/${index + 1}`),
+    [slug]
+  );
 
   useEffect(() => {
     let active = true;
@@ -78,6 +84,7 @@ export function EventSiteView({ slug, initialPart }: { slug: string; initialPart
       availablePages={[]}
       adminEditHref={isAdmin ? eventEditHref(data.site.id) : null}
       initialPartIndex={initialPart ? Number.parseInt(initialPart, 10) - 1 : null}
+      partHref={partHref}
     />
   );
 }
