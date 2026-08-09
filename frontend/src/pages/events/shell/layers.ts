@@ -47,7 +47,7 @@ function clamp01(value: number): number {
   return value < 0 ? 0 : value > 1 ? 1 : value;
 }
 
-export function parseLayers(layersJson: string | null): Layer[] {
+export function parseLayers(layersJson: string | null, mode: ThemeMode = 'dark'): Layer[] {
   const layers: Layer[] = [];
 
   for (const entry of asArray(parseJson(layersJson))) {
@@ -95,16 +95,29 @@ export function parseLayers(layersJson: string | null): Layer[] {
 
   // A part with no authored layers still needs a ground, or its text sits on
   // whatever is behind it and stops being legible.
+  const fallback = FALLBACK_GROUND[mode];
   return [
-    { kind: 'gradient', speed: DEFAULT_SPEED.gradient, angle: 168, from: '#101a2a', via: null, to: '#050a12' }
+    { kind: 'gradient', speed: DEFAULT_SPEED.gradient, angle: 168, ...fallback, via: null }
   ];
 }
 
-export function defaultLayersJson(menuLabel: string): string {
+/** The ground a part falls back to, per mode. */
+const FALLBACK_GROUND: Record<ThemeMode, { from: string; to: string }> = {
+  dark: { from: '#101a2a', to: '#050a12' },
+  light: { from: '#ffffff', to: '#e2e9f3' }
+};
+
+/** The ground a newly added part starts with, per mode. */
+const STARTING_GROUND: Record<ThemeMode, { from: string; to: string }> = {
+  dark: { from: '#12203a', to: '#060a12' },
+  light: { from: '#fbfcfe', to: '#dfe7f2' }
+};
+
+export function defaultLayersJson(menuLabel: string, mode: ThemeMode = 'dark'): string {
   const word = menuLabel.trim().toUpperCase() || 'SEKCJA';
   return JSON.stringify(
     [
-      { kind: 'gradient', speed: 0.12, angle: 168, from: '#12203a', via: null, to: '#060a12' },
+      { kind: 'gradient', speed: 0.12, angle: 168, ...STARTING_GROUND[mode], via: null },
       { kind: 'bigtext', speed: 0.95, lines: [word], opacity: 0.09 }
     ],
     null,
@@ -114,21 +127,31 @@ export function defaultLayersJson(menuLabel: string): string {
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 
-export type Theme = { accent: string; ink: string; ground: string; muted: string };
+export type ThemeMode = 'dark' | 'light';
 
-export const DEFAULT_THEME: Theme = {
-  accent: '#4c7dd6',
-  ink: '#eef2f8',
-  ground: '#080d15',
-  muted: '#a3b2c9'
+export type Theme = { mode: ThemeMode; accent: string; ink: string; ground: string; muted: string };
+
+/**
+ * The four colours an event may set, per mode. The mode decides far more than
+ * these — every surface, border and piece of chrome in the shell is derived
+ * from it in CSS — but these are the ones the organizer can overrule, so they
+ * need a sensible starting point on both grounds.
+ */
+export const DEFAULT_THEMES: Record<ThemeMode, Theme> = {
+  dark: { mode: 'dark', accent: '#4c7dd6', ink: '#eef2f8', ground: '#080d15', muted: '#a3b2c9' },
+  light: { mode: 'light', accent: '#2f5fb5', ink: '#16202e', ground: '#f4f6fa', muted: '#5a6a80' }
 };
 
 export function parseTheme(themeJson: string | null): Theme {
   const record = asRecord(parseJson(themeJson));
+  const mode: ThemeMode = asText(record.mode) === 'light' ? 'light' : 'dark';
+  const fallback = DEFAULT_THEMES[mode];
+
   return {
-    accent: asText(record.accent, DEFAULT_THEME.accent),
-    ink: asText(record.ink, DEFAULT_THEME.ink),
-    ground: asText(record.ground, DEFAULT_THEME.ground),
-    muted: asText(record.muted, DEFAULT_THEME.muted)
+    mode,
+    accent: asText(record.accent, fallback.accent),
+    ink: asText(record.ink, fallback.ink),
+    ground: asText(record.ground, fallback.ground),
+    muted: asText(record.muted, fallback.muted)
   };
 }

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { asArray, asBool, asNumber, asOptionalText, asRecord, asText, definePart, mapEntries } from './contracts';
 import { AreaRow, CheckRow, ListEditor, NumberRow, TextRow } from './editorKit';
 import { parseGpx, simplifyTrack, trackLengthKm, type MapTrack, type TrackPoint } from './gpx';
-import { OsmMap, trackColor, type MapPoint } from './OsmMap';
+import { googleMapsHref, OsmMap, trackColor, type MapPoint } from './OsmMap';
 
 type MapConfig = {
   points: MapPoint[];
@@ -148,6 +148,16 @@ export const mapPart = definePart<MapConfig>({
                   <span>{point.label}</span>
                 </button>
                 {point.detail ? <p>{point.detail}</p> : null}
+                {/* Straight from the coordinates, so navigation is one tap away
+                    without opening the full map first. */}
+                <a
+                  className="ev-map-legend-link"
+                  href={googleMapsHref(point)}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  Google Maps ↗
+                </a>
               </li>
             ))}
           </ol>

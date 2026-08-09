@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { deleteEventImage, eventImageUrl, getEventImages, uploadEventImage, type EventImage } from '../../../lib/api';
-import { defaultLayersJson, parseLayers, type Layer } from '../shell/layers';
+import { defaultLayersJson, parseLayers, type Layer, type ThemeMode } from '../shell/layers';
 import { LinesRow, ListEditor, NumberRow, SelectRow, TextRow } from '../parts/editorKit';
 
 const KIND_OPTIONS: Array<{ value: Layer['kind']; label: string }> = [
@@ -17,29 +17,34 @@ const BLEND_OPTIONS = [
   { value: 'soft-light' as const, label: 'Miękkie światło' }
 ];
 
-function blankLayer(kind: Layer['kind']): Layer {
+function blankLayer(kind: Layer['kind'], mode: ThemeMode): Layer {
   if (kind === 'image') {
     return { kind: 'image', speed: 0.34, url: '', opacity: 0.45, blend: 'normal', position: 'center' };
   }
   if (kind === 'bigtext') {
     return { kind: 'bigtext', speed: 0.95, lines: ['NAPIS'], opacity: 0.09, color: null };
   }
-  return { kind: 'gradient', speed: 0.12, angle: 168, from: '#12203a', via: null, to: '#060a12' };
+  // A dark gradient under a light event would undo the mode at the first part.
+  return mode === 'light'
+    ? { kind: 'gradient', speed: 0.12, angle: 168, from: '#fbfcfe', via: null, to: '#dfe7f2' }
+    : { kind: 'gradient', speed: 0.12, angle: 168, from: '#12203a', via: null, to: '#060a12' };
 }
 
 /** Edits the background stack behind one part. */
 export function LayerEditor({
   siteId,
+  mode,
   layersJson,
   menuLabel,
   onChange
 }: {
   siteId: string;
+  mode: ThemeMode;
   layersJson: string | null;
   menuLabel: string;
   onChange: (json: string) => void;
 }) {
-  const layers = parseLayers(layersJson);
+  const layers = parseLayers(layersJson, mode);
 
   const write = (next: Layer[]) => onChange(JSON.stringify(next, null, 2));
 
@@ -49,7 +54,7 @@ export function LayerEditor({
         legend="Warstwy tła (od tyłu do przodu)"
         items={layers}
         addLabel="Dodaj warstwę"
-        blank={() => blankLayer('gradient')}
+        blank={() => blankLayer('gradient', mode)}
         titleOf={(layer) => KIND_OPTIONS.find((entry) => entry.value === layer.kind)?.label ?? layer.kind}
         onChange={write}
         renderItem={(layer, update) => (
@@ -58,7 +63,7 @@ export function LayerEditor({
               label="Rodzaj"
               value={layer.kind}
               options={KIND_OPTIONS}
-              onChange={(kind) => update({ ...blankLayer(kind), speed: layer.speed })}
+              onChange={(kind) => update({ ...blankLayer(kind, mode), speed: layer.speed })}
             />
             <NumberRow
               label={layer.kind === 'bigtext' ? 'Długość przejazdu (0–1)' : 'Tempo (0–1)'}
@@ -145,7 +150,7 @@ export function LayerEditor({
           </>
         )}
       />
-      <button type="button" className="eve-add" onClick={() => onChange(defaultLayersJson(menuLabel))}>
+      <button type="button" className="eve-add" onClick={() => onChange(defaultLayersJson(menuLabel, mode))}>
         Przywróć domyślne warstwy
       </button>
     </>

@@ -5,6 +5,11 @@
    .eva   builder panel
    ============================================================ */
 
+/* An event is either dark or light, chosen in the builder and stored with the
+   event. The four colours below arrive as inline custom properties from the
+   stored theme; everything derived from them — borders, panels, form fields,
+   chrome — is a token here, redefined once under `.ev.is-light`. Nothing in the
+   reader may hard-code a colour, or one of the two modes breaks. */
 .ev {
   --ev-accent: #4c7dd6;
   --ev-ink: #eef2f8;
@@ -12,6 +17,26 @@
   --ev-muted: #a3b2c9;
   --ev-line: rgba(163, 178, 201, 0.22);
   --ev-line-2: rgba(163, 178, 201, 0.42);
+
+  /* Panels lifted off the ground, in three steps. */
+  --ev-surface: rgba(255, 255, 255, 0.04);
+  --ev-surface-2: rgba(255, 255, 255, 0.06);
+  --ev-surface-3: rgba(255, 255, 255, 0.11);
+  /* Sunk into it: form fields and other inputs. */
+  --ev-field: rgba(0, 0, 0, 0.38);
+  --ev-option: #0d1420;
+  /* Header, footer and the map's own furniture. */
+  --ev-chrome: rgba(6, 10, 18, 0.94);
+  --ev-chrome-2: rgba(8, 13, 21, 0.92);
+  /* Text that sits on the accent, and the ring/casing that keeps map marks
+     legible over any tile. */
+  --ev-on-accent: #fff;
+  --ev-halo: #fff;
+  --ev-shade: rgba(0, 0, 0, 0.6);
+  /* Message colours: readable on their own tinted panel, in either mode. */
+  --ev-bad: #f6a8b0;
+  --ev-good: #9fe6bf;
+
   --ev-measure: 760px;
 
   position: fixed;
@@ -24,6 +49,25 @@
   font-family: 'Source Sans 3', system-ui, sans-serif;
 }
 
+/* The light mode. Only the derived tokens change: the four stored colours
+   arrive inline, and the builder swaps them for this mode's defaults when the
+   organizer switches. */
+.ev.is-light {
+  --ev-line: rgba(22, 32, 46, 0.14);
+  --ev-line-2: rgba(22, 32, 46, 0.28);
+
+  --ev-surface: rgba(22, 32, 46, 0.045);
+  --ev-surface-2: rgba(22, 32, 46, 0.075);
+  --ev-surface-3: rgba(22, 32, 46, 0.12);
+  --ev-field: rgba(255, 255, 255, 0.92);
+  --ev-option: #ffffff;
+  --ev-chrome: rgba(255, 255, 255, 0.94);
+  --ev-chrome-2: rgba(255, 255, 255, 0.95);
+  --ev-shade: rgba(22, 32, 46, 0.22);
+  --ev-bad: #8d1f2c;
+  --ev-good: #135c38;
+}
+
 /* ── Header ──────────────────────────────────────────────── */
 
 .ev-header {
@@ -33,7 +77,7 @@
   align-items: center;
   gap: 0.9rem;
   padding: 0 clamp(0.8rem, 4vw, 2rem);
-  background: rgba(6, 10, 18, 0.94);
+  background: var(--ev-chrome);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--ev-line);
   min-width: 0;
@@ -90,7 +134,7 @@
 .ev-pages button.active,
 .ev-pages a.active {
   background: var(--ev-accent);
-  color: #fff;
+  color: var(--ev-on-accent);
 }
 
 .ev-page-mark {
@@ -205,6 +249,18 @@
   );
 }
 
+/* Same idea on a light ground, but a black wash that deep would read as grime.
+   Half the strength is enough to part one slide from the next. */
+.ev.is-light .ev-slide::after {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.28) 0%,
+    rgba(255, 255, 255, 0.08) 20%,
+    rgba(0, 0, 0, 0.03) 55%,
+    rgba(0, 0, 0, 0.13) 100%
+  );
+}
+
 /* Full width; the shell sets height and transform from the layer's speed. */
 .ev-layer {
   position: absolute;
@@ -306,7 +362,7 @@
 .ev-cta {
   border: 1px solid transparent;
   background: var(--ev-accent);
-  color: #fff;
+  color: var(--ev-on-accent);
 }
 
 .ev-cta:hover:not(:disabled) {
@@ -320,12 +376,12 @@
 
 .ev-ghost {
   border: 1px solid var(--ev-line-2);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--ev-surface);
   color: var(--ev-ink);
 }
 
 .ev-ghost:hover {
-  background: rgba(255, 255, 255, 0.11);
+  background: var(--ev-surface-3);
 }
 
 .ev-note {
@@ -333,7 +389,7 @@
   border: 1px solid var(--ev-line);
   border-radius: 8px;
   padding: 0.58rem 0.9rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ev-surface);
   color: var(--ev-muted);
   font-size: 0.92rem;
   line-height: 1.6;
@@ -344,7 +400,7 @@
   border-left: 3px solid var(--ev-accent);
   border-radius: 0 8px 8px 0;
   padding: 0.58rem 1rem;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--ev-surface-2);
   font-weight: 600;
 }
 
@@ -360,13 +416,13 @@
 .ev-error {
   border: 1px solid rgba(220, 80, 96, 0.42);
   background: rgba(160, 40, 52, 0.22);
-  color: #f6a8b0;
+  color: var(--ev-bad);
 }
 
 .ev-success {
   border: 1px solid rgba(80, 200, 130, 0.42);
   background: rgba(30, 130, 80, 0.22);
-  color: #9fe6bf;
+  color: var(--ev-good);
 }
 
 .ev-card-grid {
@@ -379,7 +435,7 @@
   border: 1px solid var(--ev-line);
   border-radius: 10px;
   padding: 0.8rem 0.95rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ev-surface);
   display: grid;
   gap: 0.3rem;
   min-width: 0;
@@ -470,7 +526,7 @@
   border: 1px solid var(--ev-line);
   border-radius: 10px;
   padding: 0.7rem 0.85rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ev-surface);
   min-width: 0;
 }
 
@@ -515,7 +571,7 @@
   padding: 0.9rem;
   border: 1px solid var(--ev-line);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.045);
+  background: var(--ev-surface);
 }
 
 .ev-costs-summary article.is-donations {
@@ -592,7 +648,7 @@
   padding: 0.58rem 0.72rem;
   border: 1px solid var(--ev-line);
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--ev-surface);
 }
 
 .ev-costs-donations dt {
@@ -641,7 +697,7 @@
   border: 1px solid var(--ev-line);
   border-radius: 12px;
   padding: 0.95rem 1.05rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ev-surface);
   display: grid;
   gap: 0.65rem;
   min-width: 0;
@@ -716,7 +772,7 @@
 .ev-faq details {
   border: 1px solid var(--ev-line);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ev-surface);
   overflow: hidden;
 }
 
@@ -793,7 +849,7 @@
   border: 1px solid var(--ev-line);
   border-radius: 10px;
   padding: 0.75rem 0.85rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ev-surface);
   min-width: 0;
 }
 
@@ -807,7 +863,7 @@
   align-items: center;
   justify-content: center;
   background: var(--ev-accent);
-  color: #fff;
+  color: var(--ev-on-accent);
   font-weight: 700;
   font-size: 0.9rem;
 }
@@ -866,7 +922,7 @@
   border: 1px solid var(--ev-line);
   border-radius: 10px;
   padding: 0.6rem 0.85rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ev-surface);
   color: var(--ev-ink);
   text-decoration: none;
   min-width: 0;
@@ -1049,6 +1105,10 @@
   --ev-muted: #a3b2c9;
   --ev-line: rgba(163, 178, 201, 0.22);
   --ev-line-2: rgba(163, 178, 201, 0.42);
+  --ev-chrome-2: rgba(8, 13, 21, 0.92);
+  --ev-on-accent: #fff;
+  --ev-halo: #fff;
+  --ev-shade: rgba(0, 0, 0, 0.6);
 
   position: fixed;
   inset: 0;
@@ -1078,7 +1138,7 @@
   border: 1px solid var(--ev-line-2);
   border-radius: 999px;
   padding: 0.34rem 0.95rem;
-  background: rgba(8, 13, 21, 0.88);
+  background: var(--ev-chrome-2);
   color: var(--ev-ink);
   font-size: 0.82rem;
   font-weight: 600;
@@ -1091,7 +1151,7 @@
   opacity: 1;
   background: var(--ev-accent);
   border-color: transparent;
-  color: #fff;
+  color: var(--ev-on-accent);
 }
 
 .ev-map-close {
@@ -1103,7 +1163,7 @@
   height: 42px;
   border: 1px solid var(--ev-line-2);
   border-radius: 50%;
-  background: rgba(8, 13, 21, 0.92);
+  background: var(--ev-chrome-2);
   color: var(--ev-ink);
   font-size: 1.1rem;
   line-height: 1;
@@ -1113,7 +1173,7 @@
 .ev-map-close:hover {
   background: var(--ev-accent);
   border-color: transparent;
-  color: #fff;
+  color: var(--ev-on-accent);
 }
 
 .ev-map-tiles {
@@ -1163,6 +1223,28 @@
   opacity: 1;
 }
 
+/* A light event has a light ground, so inverting would put dark land on it and
+   turn the preview into a grey smear. Greyed and faded is enough there. */
+.ev.is-light .ev-map-canvas.is-preview .ev-map-tiles img {
+  filter: grayscale(1) contrast(1.1);
+}
+
+.ev.is-light .ev-map-canvas.is-preview .ev-map-tiles {
+  opacity: 0.45;
+}
+
+/* No hover on a touch screen, and a tap goes straight to full screen — so the
+   preview would stay a ghost for good. Lift it to something legible instead. */
+@media (hover: none) {
+  .ev-map-canvas.is-preview .ev-map-tiles {
+    opacity: 0.45;
+  }
+
+  .ev.is-light .ev-map-canvas.is-preview .ev-map-tiles {
+    opacity: 0.62;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ev-map-canvas.is-preview .ev-map-tiles,
   .ev-map-canvas.is-preview .ev-map-tiles img {
@@ -1201,9 +1283,9 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid #fff;
+  border: 2px solid var(--ev-halo);
   background: var(--ev-accent);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 1px 6px var(--ev-shade);
 }
 
 .ev-map-marker.is-stop .ev-map-dot {
@@ -1212,11 +1294,13 @@
   border-width: 3px;
 }
 
+/* Positioned from the point's own coordinates, since it is a sibling of the
+   markers rather than a child of one — it holds a link, and an anchor inside a
+   button is neither valid nor reliably clickable. */
 .ev-map-tip {
   position: absolute;
-  left: 50%;
-  bottom: calc(100% + 8px);
-  transform: translateX(-50%);
+  z-index: 3;
+  transform: translate(-50%, calc(-100% - 16px));
   display: grid;
   gap: 0.12rem;
   width: max-content;
@@ -1224,11 +1308,26 @@
   border: 1px solid var(--ev-line-2);
   border-radius: 8px;
   padding: 0.42rem 0.6rem;
-  background: rgba(8, 13, 21, 0.96);
+  background: var(--ev-chrome-2);
   color: var(--ev-ink);
   text-align: left;
   font-size: 0.84rem;
   line-height: 1.4;
+  pointer-events: auto;
+}
+
+.ev-map-tip-link {
+  margin-top: 0.18rem;
+  color: var(--ev-accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ev-map-tip-link:hover,
+.ev-map-tip-link:focus-visible {
+  text-decoration: underline;
 }
 
 .ev-map-tip em {
@@ -1258,7 +1357,7 @@
   height: 38px;
   border: 1px solid var(--ev-line-2);
   border-radius: 8px;
-  background: rgba(8, 13, 21, 0.92);
+  background: var(--ev-chrome-2);
   color: var(--ev-ink);
   font-size: 1.05rem;
   line-height: 1;
@@ -1282,7 +1381,7 @@
   border: 1px solid var(--ev-line-2);
   border-radius: 999px;
   padding: 0.3rem 0.9rem;
-  background: rgba(8, 13, 21, 0.94);
+  background: var(--ev-chrome-2);
   color: var(--ev-ink);
   font-size: 0.82rem;
   text-align: center;
@@ -1299,7 +1398,7 @@
   bottom: 0;
   z-index: 5;
   padding: 0.14rem 0.45rem;
-  background: rgba(8, 13, 21, 0.82);
+  background: var(--ev-chrome-2);
   color: var(--ev-muted);
   font-size: 0.68rem;
   text-decoration: none;
@@ -1340,13 +1439,28 @@
 .ev-map-legend-stop {
   width: 12px;
   height: 12px;
-  border: 2px solid #fff;
+  border: 2px solid var(--ev-halo);
 }
 
 .ev-map-legend p {
   margin: 0 0 0 1.4rem;
   color: var(--ev-muted);
   font-size: 0.85rem;
+}
+
+/* Indented to the label above it, so the point reads as one block. */
+.ev-map-legend-link {
+  display: inline-block;
+  margin-left: 1.4rem;
+  color: var(--ev-accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ev-map-legend-link:hover,
+.ev-map-legend-link:focus-visible {
+  text-decoration: underline;
 }
 
 /* ── Form ────────────────────────────────────────────────── */
@@ -1397,7 +1511,7 @@
   font-family: inherit;
   font-size: 1rem;
   color: var(--ev-ink);
-  background: rgba(0, 0, 0, 0.38);
+  background: var(--ev-field);
   outline: none;
   text-overflow: ellipsis;
   transition: border-color 150ms ease, box-shadow 150ms ease;
@@ -1410,9 +1524,11 @@
   box-shadow: 0 0 0 3px rgba(76, 125, 214, 0.25);
 }
 
+/* The native dropdown paints its own list, so it needs an opaque colour of its
+   own — the translucent field token would let the page show through. */
 .ev-form option {
-  background: #0d1420;
-  color: #eef2f8;
+  background: var(--ev-option);
+  color: var(--ev-ink);
 }
 
 .ev-form textarea {
@@ -1552,7 +1668,7 @@
   border: 1px solid var(--ev-line);
   border-radius: 8px;
   padding: 0.48rem 0.68rem;
-  background: rgba(0, 0, 0, 0.28);
+  background: var(--ev-surface-2);
   min-width: 0;
 }
 
@@ -1584,7 +1700,7 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 0 clamp(0.8rem, 4vw, 2rem);
-  background: rgba(6, 10, 18, 0.94);
+  background: var(--ev-chrome);
   border-top: 1px solid var(--ev-line);
   font-size: 0.8rem;
   color: var(--ev-muted);
@@ -2217,6 +2333,32 @@
   padding: 0.7rem;
   border-top: 1px solid var(--a-line);
   min-width: 0;
+}
+
+/* Dark / light switch for the whole event. */
+.eva-modes {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+  padding: 0.2rem;
+  border: 1px solid var(--a-line-2);
+  border-radius: 999px;
+}
+
+.eva-modes button {
+  border: none;
+  border-radius: 999px;
+  padding: 0.3rem 0.95rem;
+  background: transparent;
+  color: var(--a-muted);
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.eva-modes button.active {
+  background: var(--a-accent, #4c7dd6);
+  color: #fff;
 }
 
 .eva-colors {

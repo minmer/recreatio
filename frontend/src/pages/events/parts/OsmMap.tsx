@@ -45,7 +45,20 @@ const WHEEL_PER_LEVEL = 260;
 const STEP_ZOOM_MS = 240;
 
 /** Tokens the full-screen portal has to carry with it, out of `.ev` scope. */
-const THEME_TOKENS = ['--ev-accent', '--ev-ink', '--ev-ground', '--ev-muted', '--ev-line', '--ev-line-2'];
+const THEME_TOKENS = [
+  '--ev-accent',
+  '--ev-ink',
+  '--ev-ground',
+  '--ev-muted',
+  '--ev-line',
+  '--ev-line-2',
+  // The full-screen map is portalled out of `.ev`, so the light/dark mode
+  // cannot reach it through a selector — its chrome tokens travel by value.
+  '--ev-chrome-2',
+  '--ev-on-accent',
+  '--ev-halo',
+  '--ev-shade'
+];
 
 export type MapPoint = {
   label: string;
@@ -54,6 +67,16 @@ export type MapPoint = {
   detail: string | null;
   isStop: boolean;
 };
+
+/**
+ * Google's documented Maps URL: the coordinates alone, so the pin lands exactly
+ * where the point is instead of wherever a search for its name would guess.
+ * Opening it hands the reader navigation, which this map deliberately does not
+ * try to provide.
+ */
+export function googleMapsHref(point: { lat: number; lon: number }): string {
+  return `https://www.google.com/maps/search/?api=1&query=${point.lat.toFixed(6)},${point.lon.toFixed(6)}`;
+}
 
 type PixelPoint = { x: number; y: number };
 type LatLon = { lat: number; lon: number };
@@ -472,6 +495,9 @@ function MapSurface({
     // ── Mouse ───────────────────────────────────────────────────────────────
     const onPointerDown = (event: PointerEvent) => {
       if (event.pointerType === 'touch' || drag !== null) return;
+      // Never start a drag on the tip: capturing the pointer here retargets the
+      // click away from the Google Maps link inside it.
+      if ((event.target as HTMLElement).closest('.ev-map-tip')) return;
       cancelZoomAnimation();
       drag = { pointerId: event.pointerId, lastX: event.clientX, lastY: event.clientY };
       element.setPointerCapture(event.pointerId);
@@ -495,7 +521,7 @@ function MapSurface({
     const onDoubleClick = (event: MouseEvent) => {
       // Emulated from a double-tap that has already been handled.
       if (performance.now() - lastTouchAt < 700) return;
-      if ((event.target as HTMLElement).closest('.ev-map-marker, .ev-map-controls, .ev-map-close')) return;
+      if ((event.target as HTMLElement).closest('.ev-map-marker, .ev-map-tip, .ev-map-controls, .ev-map-close')) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -584,7 +610,7 @@ function MapSurface({
       tapStart = null;
 
       if (!finished || !start || event.touches.length > 0) return;
-      if ((event.target as HTMLElement).closest('.ev-map-marker, .ev-map-controls, .ev-map-close')) return;
+      if ((event.target as HTMLElement).closest('.ev-map-marker, .ev-map-tip, .ev-map-controls, .ev-map-close')) return;
 
       // A tap is a touch that neither moved nor lingered.
       const moved = Math.hypot(finished.clientX - start.x, finished.clientY - start.y);
@@ -719,6 +745,8 @@ function MapSurface({
     return [];
   }, [origin, screenPoints, showTrack, tracks, view.zoom]);
 
+  const openPoint = activeIndex === null ? null : screenPoints[activeIndex] ?? null;
+
   return (
     <div
       className={`ev-map-canvas ${interactive ? 'is-full' : 'is-preview'}`}
@@ -757,9 +785,10 @@ function MapSurface({
         // No width/height attributes: CSS sizes it, and user space is CSS
         // pixels, so the lines cannot end up scaled or clipped to a stale box.
         <svg className="ev-map-track" aria-hidden="true">
-          {/* Closed, the map behind is grey, so the route carries the picture:
-              it gets a white casing and a heavier stroke. Open, the map is in
-              colour again and the route steps back to a normal line. */}
+          {/* Closed, the map behind is faded, so the route carries the picture:
+              a heavier stroke over a soft casing that separates it from the
+              tiles without becoming the loudest thing on the slide. Open, the
+              map is in colour again and the route steps back to a normal line. */}
           {interactive
             ? null
             : routeLines.map((line) => (
@@ -767,9 +796,9 @@ function MapSurface({
                   key={`casing-${line.key}`}
                   points={line.points}
                   fill="none"
-                  stroke="#ffffff"
-                  strokeWidth={8}
-                  strokeOpacity={0.85}
+                  stroke="var(--ev-halo, #ffffff)"
+                  strokeWidth={6}
+                  strokeOpacity={0.32}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -803,17 +832,28 @@ function MapSurface({
             tabIndex={interactive ? 0 : -1}
           >
             <span className="ev-map-dot" aria-hidden="true" />
-            {interactive && activeIndex === index ? (
-              <span className="ev-map-tip">
-                <strong>{entry.point.label}</strong>
-                {entry.point.detail ? <em>{entry.point.detail}</em> : null}
-                <small>
-                  {entry.point.lat.toFixed(5)}, {entry.point.lon.toFixed(5)}
-                </small>
-              </span>
-            ) : null}
           </button>
         ))}
+
+        {/* A sibling of the markers, not a child: the tip holds a link, and an
+            anchor inside a button is neither valid nor reliably clickable. */}
+        {interactive && openPoint ? (
+          <div className="ev-map-tip" style={{ left: `${openPoint.x}px`, top: `${openPoint.y}px` }}>
+            <strong>{openPoint.point.label}</strong>
+            {openPoint.point.detail ? <em>{openPoint.point.detail}</em> : null}
+            <small>
+              {openPoint.point.lat.toFixed(5)}, {openPoint.point.lon.toFixed(5)}
+            </small>
+            <a
+              className="ev-map-tip-link"
+              href={googleMapsHref(openPoint.point)}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              Otwórz w Google Maps ↗
+            </a>
+          </div>
+        ) : null}
       </div>
 
       {interactive ? (

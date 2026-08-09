@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { deleteEventPart, updateEventPart, type EventAdminPart, type EventPart } from '../../../lib/api';
 import { CheckRow, TextRow } from '../parts/editorKit';
 import { getPartModule, partLabel } from '../parts/registry';
+import type { ThemeMode } from '../shell/layers';
 import { LayerEditor } from './LayerEditor';
 
 /**
@@ -11,6 +12,7 @@ import { LayerEditor } from './LayerEditor';
 export function PartEditor({
   part,
   siteId,
+  mode,
   isFirst,
   isLast,
   onMove,
@@ -18,6 +20,8 @@ export function PartEditor({
 }: {
   part: EventAdminPart;
   siteId: string;
+  /** The event's colour mode, so new backgrounds start on the right ground. */
+  mode: ThemeMode;
   isFirst: boolean;
   isLast: boolean;
   onMove: (direction: -1 | 1) => void;
@@ -164,6 +168,7 @@ export function PartEditor({
 
           <LayerEditor
             siteId={siteId}
+            mode={mode}
             layersJson={layersJson}
             menuLabel={menuLabel}
             onChange={(next) => {

@@ -20,7 +20,7 @@ import {
 } from '../../../lib/api';
 import { AreaRow, CheckRow, LinesRow, TextRow } from '../parts/editorKit';
 import { PART_MODULES, partLabel } from '../parts/registry';
-import { defaultLayersJson } from '../shell/layers';
+import { DEFAULT_THEMES, defaultLayersJson, parseTheme, type ThemeMode } from '../shell/layers';
 import { getPartModule } from '../parts/registry';
 import { AccessPanel } from './AccessPanel';
 import { ImportPanel } from './ImportPanel';
@@ -266,6 +266,8 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
   if (!data) return <p className="eva-error">{error ?? 'Nie znaleziono wydarzenia.'}</p>;
 
   const activePage = data.pages.find((page) => page.id === activePageId) ?? data.pages[0] ?? null;
+  // Backgrounds are authored per part but have to land on the event's ground.
+  const siteMode = parseTheme(data.site.themeJson).mode;
 
   const addPart = async () => {
     if (!activePage) return;
@@ -278,7 +280,7 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
         title: newPartKind === 'title' ? null : label,
         intro: null,
         configJson: module?.defaultConfigJson() ?? null,
-        layersJson: defaultLayersJson(label),
+        layersJson: defaultLayersJson(label, siteMode),
         isVisible: true
       });
       await load();
@@ -422,6 +424,7 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
                         key={part.id}
                         part={part}
                         siteId={siteId}
+                        mode={siteMode}
                         isFirst={index === 0}
                         isLast={index === sortedParts.length - 1}
                         onMove={(direction) => void movePart(index, direction)}
@@ -529,24 +532,37 @@ function SiteSettings({
   const [endDate, setEndDate] = useState(data.catalogue.endDate ?? '');
   const [dateLabel, setDateLabel] = useState(data.site.dateLabel ?? '');
   const [published, setPublished] = useState(data.isPublished);
-  const [accent, setAccent] = useState('#4c7dd6');
-  const [ground, setGround] = useState('#080d15');
-  const [ink, setInk] = useState('#eef2f8');
-  const [muted, setMuted] = useState('#a3b2c9');
+  const [mode, setMode] = useState<ThemeMode>('dark');
+  const [accent, setAccent] = useState(DEFAULT_THEMES.dark.accent);
+  const [ground, setGround] = useState(DEFAULT_THEMES.dark.ground);
+  const [ink, setInk] = useState(DEFAULT_THEMES.dark.ink);
+  const [muted, setMuted] = useState(DEFAULT_THEMES.dark.muted);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const theme = data.site.themeJson ? (JSON.parse(data.site.themeJson) as Record<string, string>) : {};
-      setAccent(theme.accent ?? '#4c7dd6');
-      setGround(theme.ground ?? '#080d15');
-      setInk(theme.ink ?? '#eef2f8');
-      setMuted(theme.muted ?? '#a3b2c9');
-    } catch {
-      // Malformed stored theme just falls back to the defaults above.
-    }
+    const theme = parseTheme(data.site.themeJson);
+    setMode(theme.mode);
+    setAccent(theme.accent);
+    setGround(theme.ground);
+    setInk(theme.ink);
+    setMuted(theme.muted);
   }, [data.site.themeJson]);
+
+  /**
+   * The mode decides every surface in the reader, but the four colours below
+   * are stored per event — a dark ground kept across a switch to light mode
+   * would leave the page unreadable. So switching resets them to the new
+   * mode's defaults; the organizer can retune from there.
+   */
+  const switchMode = (next: ThemeMode) => {
+    const defaults = DEFAULT_THEMES[next];
+    setMode(next);
+    setAccent(defaults.accent);
+    setGround(defaults.ground);
+    setInk(defaults.ink);
+    setMuted(defaults.muted);
+  };
 
   const save = async () => {
     setPending(true);
@@ -564,7 +580,7 @@ function SiteSettings({
         startDate: startDate || null,
         endDate: endDate || null,
         dateLabel: dateLabel.trim() || null,
-        themeJson: JSON.stringify({ accent, ground, ink, muted }),
+        themeJson: JSON.stringify({ mode, accent, ground, ink, muted }),
         isPublished: published
       });
       onSaved();
@@ -659,6 +675,24 @@ function SiteSettings({
 
       <fieldset className="eve-group">
         <legend>Motyw</legend>
+
+        <div className="eva-modes" role="group" aria-label="Tryb kolorystyczny">
+          {(['dark', 'light'] as ThemeMode[]).map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={mode === option ? 'active' : ''}
+              onClick={() => switchMode(option)}
+            >
+              {option === 'dark' ? 'Ciemny' : 'Jasny'}
+            </button>
+          ))}
+        </div>
+        <p className="eve-hint">
+          Tryb ustawia całą stronę wydarzenia — tła sekcji, ramki, pola formularza, nagłówek i stopkę. Zmiana trybu
+          przywraca cztery kolory poniżej do wartości domyślnych dla niego.
+        </p>
+
         <div className="eva-colors">
           <label>
             <span>Akcent</span>

@@ -161,10 +161,16 @@ export function EventShell({
   };
 
   return (
-    <div className={`ev ${page.kind === 'internal' ? 'is-internal' : ''}`} style={themeStyle}>
+    <div
+      className={`ev ${theme.mode === 'light' ? 'is-light' : 'is-dark'} ${
+        page.kind === 'internal' ? 'is-internal' : ''
+      }`}
+      style={themeStyle}
+    >
       <header className="ev-header">
         <a className="ev-brand" href="/#/event">
-          <img src="/logo_inv.svg" alt="REcreatio" />
+          {/* The white mark would vanish on a light header. */}
+          <img src={theme.mode === 'light' ? '/logo_new.svg' : '/logo_inv.svg'} alt="REcreatio" />
         </a>
 
         {showSwitcher ? (
@@ -245,7 +251,7 @@ export function EventShell({
             const slide = scroll.geometry[index];
             if (!slide) return null;
 
-            const layers = parseLayers(part.layersJson);
+            const layers = parseLayers(part.layersJson, theme.mode);
             const module = getPartModule(part.kind);
 
             return (

@@ -39,8 +39,11 @@ strony i części, z których składa się każda strona.
   "startDate":    "2026-08-28",              // RRRR-MM-DD
   "endDate":      "2026-08-29",              // RRRR-MM-DD
   "dateLabel":    null,                      // zostaw null — wyliczy się z dat
-  "theme":        { "accent": "#4c7dd6", "ground": "#080d15",
+  "theme":        { "mode": "dark",          // "dark" albo "light" — cała strona
+                    "accent": "#4c7dd6", "ground": "#080d15",
                     "ink": "#eef2f8", "muted": "#a3b2c9" },
+                    // tryb jasny: ground "#f4f6fa", ink "#16202e",
+                    // muted "#5a6a80", accent "#2f5fb5"
   "pages":        [ … ]                      // patrz niżej
 }
 
@@ -160,7 +163,7 @@ export function buildStarterJson(): string {
       startDate: '2026-08-28',
       endDate: '2026-08-29',
       dateLabel: null,
-      theme: { accent: '#4c7dd6', ground: '#080d15', ink: '#eef2f8', muted: '#a3b2c9' },
+      theme: { mode: 'dark', accent: '#4c7dd6', ground: '#080d15', ink: '#eef2f8', muted: '#a3b2c9' },
       pages: [
         {
           kind: 'public',
