@@ -63,8 +63,8 @@ export function TheaterProjectEventPage(
                   </p>
                 </div>
                 <div className="event-template-actions">
-                  <a className="cta" href="/#/event/teatr26/start">Dolacz do projektu</a>
-                  <a className="cta ghost" href="/#/event/teatr26/wizja">Zobacz harmonogram</a>
+                  <a className="cta" href="/#/event_old/teatr26/start">Dolacz do projektu</a>
+                  <a className="cta ghost" href="/#/event_old/teatr26/wizja">Zobacz harmonogram</a>
                 </div>
               </div>
             )
@@ -193,7 +193,7 @@ export function TheaterProjectEventPage(
                   </ul>
                 </div>
                 <div className="event-template-actions">
-                  <a className="cta" href="/#/event/teatr26/zespoly">Przejdz do zespolow</a>
+                  <a className="cta" href="/#/event_old/teatr26/zespoly">Przejdz do zespolow</a>
                 </div>
               </div>
             )
@@ -315,7 +315,7 @@ export function TheaterProjectEventPage(
                   <p>Start pracy zespolu: 10 pazdziernika 2026.</p>
                 </div>
                 <div className="event-template-actions">
-                  <a className="cta" href="/#/event/teatr26/start">Formularz zgloszeniowy</a>
+                  <a className="cta" href="/#/event_old/teatr26/start">Formularz zgloszeniowy</a>
                   <a className="cta ghost" href="/#/event">Wroc do wydarzen</a>
                 </div>
               </div>

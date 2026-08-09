@@ -1,0 +1,160 @@
+{
+  "slug": "warsztaty26",
+  "title": "Warsztaty Muzyki Liturgicznej 2026",
+  "subtitle": "Spiew wieloglosowy SATB i liturgia",
+  "summary": "Warsztaty liturgiczne SATB: praca nad repertuarem wielkopostnym i eucharystycznym, zwienczona Mszami Swietymi.",
+  "category": "Warsztaty muzyczne",
+  "audience": "Pasjonaci, poczatkujacy i doswiadczeni — takze bez formalnego przygotowania",
+  "places": ["Kraków"],
+  "thumbnailUrl": null,
+  "startDate": "2026-02-28",
+  "endDate": "2026-03-01",
+  "dateLabel": null,
+  "theme": {
+    "accent": "#8a6cc4",
+    "ground": "#0e0b16",
+    "ink": "#f0ecf8",
+    "muted": "#b9adcf"
+  },
+  "pages": [
+    {
+      "kind": "public",
+      "slug": "start",
+      "title": "Warsztaty Muzyki Liturgicznej 2026",
+      "menuLabel": "Strona publiczna",
+      "parts": [
+        {
+          "kind": "title",
+          "menuLabel": "Start",
+          "title": null,
+          "config": {
+            "badge": "28.02–01.03.2026 · Kraków",
+            "headline": "Warsztaty Muzyki Liturgicznej",
+            "lede": "Zachwyt nad Bogiem przez liturgie i muzyke",
+            "paragraphs": [
+              "Pracujemy nad spiewem wieloglosowym SATB, a zwienczeniem sa Msze Swiete, podczas ktorych wykonamy przygotowane utwory."
+            ],
+            "actions": [{ "label": "Zobacz program", "href": "#program", "variant": "cta" }],
+            "footnote": null
+          },
+          "layers": [
+            { "kind": "gradient", "speed": 0.12, "angle": 168, "from": "#1d1630", "via": null, "to": "#0a0812" },
+            { "kind": "bigtext", "speed": 0.95, "lines": ["WARSZTATY", "SATB"], "opacity": 0.1 }
+          ]
+        },
+        {
+          "kind": "shortinfos",
+          "menuLabel": "W skrócie",
+          "title": "W skrócie",
+          "config": {
+            "items": [
+              { "label": "Termin", "value": "28.02 – 01.03.2026", "detail": "sobota i niedziela" },
+              { "label": "Miejsce", "value": "Kraków", "detail": null },
+              { "label": "Tematyka", "value": "Wielkopostna i eucharystyczna", "detail": null },
+              { "label": "Glosy", "value": "SATB", "detail": "podzial ustalany podczas warsztatow" }
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "O warsztatach",
+          "title": "O warsztatach",
+          "config": {
+            "paragraphs": [
+              "Celem warsztatow jest zachwyt nad Bogiem przez liturgie i muzyke. Pracujemy nad spiewem wieloglosowym SATB, a zwienczeniem sa Msze Swiete, podczas ktorych wykonamy przygotowane utwory.",
+              "Tematyka: wielkopostna i eucharystyczna. Po Mszy przewidziany jest czas adoracji."
+            ],
+            "bullets": [
+              "Materialy: nuty beda przygotowane na miejscu.",
+              "Podzial na glosy: SATB ustalany podczas warsztatow.",
+              "Msza jako zwienczenie: wykonanie przecwiczonych utworow w liturgii."
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Dla kogo",
+          "title": "Dla kogo?",
+          "config": {
+            "paragraphs": [
+              "Dla pasjonatow, poczatkujacych i doswiadczonych. Mozna zaczac takze bez formalnego przygotowania, jesli uczestnik spiewa ze sluchu i chce sie uczyc."
+            ],
+            "bullets": [],
+            "note": null
+          }
+        },
+        {
+          "kind": "plan",
+          "menuLabel": "Program",
+          "title": "Program",
+          "intro": "Uklad warsztatow jest praktyczny: rozspiewka, praca w glosach, skladanie calosci i proba generalna. Msza Swieta jest zwienczeniem - spiewamy przecwiczone utwory w liturgii.",
+          "config": {
+            "groups": [
+              {
+                "label": "Sobota - 28.02.2026",
+                "caption": null,
+                "rows": [
+                  { "time": "09:00", "title": "Otwarcie sali, zgloszenia, sprawy organizacyjne.", "detail": null },
+                  { "time": "09:30", "title": "Rozspiewka: oddech, emisja, przygotowanie do wieloglosu.", "detail": null },
+                  { "time": "10:15", "title": "Praca w SATB: nauka materialu, intonacja i tekst.", "detail": null },
+                  { "time": "11:30", "title": "Przerwa: herbata, ciastka, owoce.", "detail": null },
+                  { "time": "13:10", "title": "Obiad dla zapisanych do 24.02.", "detail": null },
+                  { "time": "16:20", "title": "Proba calosci: przejscia, wejscia, zakonczenia.", "detail": null },
+                  { "time": "18:30", "title": "Msza Swieta: wykonanie przecwiczonych utworow.", "detail": null },
+                  { "time": "19:15", "title": "Adoracja i Spowiedz.", "detail": null }
+                ]
+              },
+              {
+                "label": "Niedziela - 01.03.2026",
+                "caption": null,
+                "rows": [
+                  { "time": "09:30", "title": "Rozspiewka.", "detail": null },
+                  { "time": "10:05", "title": "Powtorka repertuaru.", "detail": null },
+                  { "time": "11:10", "title": "Proba generalna.", "detail": null },
+                  { "time": "12:00", "title": "Msza Swieta i krotka adoracja po Mszy.", "detail": null }
+                ]
+              }
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "people",
+          "menuLabel": "Prowadzący",
+          "title": "Prowadzacy",
+          "config": {
+            "people": [
+              {
+                "name": "Pawel Bebenek",
+                "role": "Prowadzacy warsztaty",
+                "detail": "Ceniony dyrygent, kompozytor i wokalista, laczacy duchowosc z tradycja muzyki liturgicznej. Prowadzi chorowe warsztaty w Polsce i za granica. Jego utwory i aranzacje wykonywane sa przez schole i chory w wielu krajach.",
+                "photoUrl": null,
+                "contact": null,
+                "contactHref": null
+              }
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Dorobek",
+          "title": "Dlaczego warto",
+          "config": {
+            "paragraphs": [
+              "Jako prowadzacy inspiruje do wzrostu artystycznego i modlitwy przez muzyke."
+            ],
+            "bullets": [
+              "Doswiadczenie miedzynarodowe.",
+              "Bogaty dorobek kompozytorski i wydawniczy.",
+              "Nacisk na piekno liturgii i formacje muzyczna."
+            ],
+            "note": null
+          }
+        }
+      ]
+    }
+  ]
+}

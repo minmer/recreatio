@@ -29,6 +29,12 @@ public static partial class Event2Endpoints
 
     private static readonly string[] AllowedIdentityRoles = ["none", "name", "contact"];
 
+    /// <summary>
+    /// Segments the front end routes to the builder rather than to an event, so
+    /// no site may claim one as its public address.
+    /// </summary>
+    private static readonly string[] ReservedSlugs = ["admin", "link", "event", "event_old"];
+
     public static void MapEvent2Endpoints(this WebApplication app)
     {
         var group = app.MapGroup("/event2");
@@ -1635,6 +1641,8 @@ public static partial class Event2Endpoints
         }
 
         if (cleaned.Length == 0) return null;
+        // A site addressed /event/admin would shadow the builder itself.
+        if (ReservedSlugs.Contains(cleaned)) return null;
         return cleaned.Length > 80 ? cleaned[..80] : cleaned;
     }
 

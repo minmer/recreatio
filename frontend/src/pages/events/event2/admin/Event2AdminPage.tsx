@@ -27,7 +27,7 @@ import { ImportPanel } from './ImportPanel';
 import { PartEditor } from './PartEditor';
 
 function publicUrl(slug: string): string {
-  return `${window.location.origin}/#/event/event2/site/${slug}`;
+  return `${window.location.origin}/#/event/${slug}`;
 }
 
 function errorText(error: unknown, fallback: string): string {

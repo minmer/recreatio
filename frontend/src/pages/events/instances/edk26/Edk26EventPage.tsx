@@ -273,7 +273,7 @@ export function Edk26EventPage(
       canonical.setAttribute('rel', 'canonical');
       document.head.appendChild(canonical);
     }
-    canonical.setAttribute('href', '/#/event/edk26');
+    canonical.setAttribute('href', '/#/event_old/edk26');
   }, []);
 
   useEffect(() => {
@@ -470,8 +470,8 @@ export function Edk26EventPage(
                       Idziemy po spotkanie z Bogiem i prawda o sobie.
                     </p>
                     <div className="edk-hero-actions">
-                      <a className="cta" href="/#/event/edk26/zapisy">Zapisz sie</a>
-                      <a className="ghost" href="/#/event/edk26/trasa">Zobacz trase</a>
+                      <a className="cta" href="/#/event_old/edk26/zapisy">Zapisz sie</a>
+                      <a className="ghost" href="/#/event_old/edk26/trasa">Zobacz trase</a>
                     </div>
                     <small>Powrot organizujemy w sobote rano, okolo godziny 8:00.</small>
                   </div>

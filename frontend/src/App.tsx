@@ -216,7 +216,13 @@ export default function App() {
     ? decodeRouteSegment(pathSegments[4] ?? 'new')
     : undefined;
 const isCgPath = pathname === '/cg' || pathname.startsWith('/cg/');
-const isEventsPath = pathname === '/event' || pathname.startsWith('/event/');
+// /event is the composable events; /event_old keeps the hand-coded pages
+// reachable during the changeover.
+const isEventsPath =
+  pathname === '/event' ||
+  pathname.startsWith('/event/') ||
+  pathname === '/event_old' ||
+  pathname.startsWith('/event_old/');
 const isFormFillPath = pathname.startsWith('/form/') && pathSegments.length >= 2 && !pathname.startsWith('/form-results/');
 const formFillToken = isFormFillPath ? pathSegments[1] : undefined;
 const isFormViewPath = pathname.startsWith('/form-results/') && pathSegments.length >= 2;

@@ -199,7 +199,7 @@ export function Rowerowa26EventPage(
       canonical.setAttribute('rel', 'canonical');
       document.head.appendChild(canonical);
     }
-    canonical.setAttribute('href', '/#/event/rowerowa26');
+    canonical.setAttribute('href', '/#/event_old/rowerowa26');
   }, []);
 
   useEffect(() => {
@@ -421,8 +421,8 @@ export function Rowerowa26EventPage(
                       Jedziemy razem, w duchu modlitwy i wysiłku, z noclegiem w Domaniewicach po pierwszym etapie.
                     </p>
                     <div className="rw-hero-actions">
-                      <a className="cta" href="/#/event/rowerowa26?sekcja=zapisy">Zapisz się</a>
-                      <a className="ghost" href="/#/event/rowerowa26?sekcja=trasa">Zobacz trasę</a>
+                      <a className="cta" href="/#/event_old/rowerowa26?sekcja=zapisy">Zapisz się</a>
+                      <a className="ghost" href="/#/event_old/rowerowa26?sekcja=trasa">Zobacz trasę</a>
                     </div>
                     <small>Zapisy przez formularz poniżej. Liczba miejsc może być ograniczona.</small>
                   </div>

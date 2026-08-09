@@ -10,7 +10,7 @@ import { LimanowaEventPage } from './instances/limanowa/LimanowaEventPage';
 import { TheaterProjectEventPage } from './instances/teatr26/TheaterProjectEventPage';
 import { FormularzeEventPage } from './instances/formularze/FormularzeEventPage';
 import { Rowerowa26EventPage } from './instances/rowerowa26/Rowerowa26EventPage';
-import { Event2EventPage } from './instances/event2/Event2EventPage';
+import { Event2Router } from './event2/Event2Router';
 import { EventsCatalogue } from './EventsCatalogue';
 import '../../styles/events.css';
 
@@ -22,19 +22,6 @@ const EVENTS: EventDefinition[] = [
     date: '',
     location: '',
     pages: [{ slug: 'admin', title: 'Panel' }]
-  },
-  {
-    slug: 'event2',
-    title: 'Kreator wydarzeń',
-    summary:
-      'Buduj stronę wydarzenia z gotowych bloków — start, plan, mapa, formularz, FAQ, kontakt — i rozdawaj linki osobiste z informacjami wewnętrznymi.',
-    date: '',
-    location: '',
-    pages: [
-      { slug: 'admin', title: 'Kreator' },
-      { slug: 'site', title: 'Strona wydarzenia' },
-      { slug: 'link', title: 'Link osobisty' }
-    ]
   },
   {
     slug: 'limanowa',
@@ -140,8 +127,8 @@ const EVENTS: EventDefinition[] = [
   }
 ];
 
-// The builder itself is a tool, not an event — it stays off the overview.
-const CATALOGUE_EVENTS = EVENTS.filter((entry) => entry.slug !== 'event2');
+/** Everything still served by the hand-coded pages, listed under /event_old. */
+const CATALOGUE_EVENTS = EVENTS;
 
 const KAL26_ROUTE_ALIASES: Record<string, string> = {
   // Information
@@ -185,48 +172,72 @@ const EVENT_PAGE_RENDERERS: Record<
   limanowa: LimanowaEventPage,
   teatr26: TheaterProjectEventPage,
   formularze: FormularzeEventPage,
-  rowerowa26: Rowerowa26EventPage,
-  event2: Event2EventPage
+  rowerowa26: Rowerowa26EventPage
 };
+
+/**
+ * Segments after /event that address the builder rather than an event. No
+ * event2 site may take one of these as its slug; the API rejects them too.
+ */
+const RESERVED_EVENT_SLUGS = new Set(['admin', 'link']);
 
 export function EventsPage(props: SharedEventPageProps) {
   const { copy } = props;
   const navigate = useNavigate();
   const location = useLocation();
   const segments = useMemo(() => location.pathname.split('/').filter(Boolean), [location.pathname]);
-  const routeRoot = segments[0] ?? 'event';
-  const selectedEventSlug = segments[1] ?? null;
-  const selectedPageSlugRaw = routeRoot === 'event' ? segments[2] ?? null : null;
 
-  const selectedEvent = selectedEventSlug ? EVENTS.find((entry) => entry.slug === selectedEventSlug) ?? null : null;
-  const selectedPageSlug =
-    selectedEvent?.slug === 'kal26'
-      ? (KAL26_ROUTE_ALIASES[selectedPageSlugRaw ?? ''] ?? selectedPageSlugRaw)
-      : selectedPageSlugRaw;
-  const defaultPage = selectedEvent?.pages[0] ?? null;
-  const isDirectEdkRoute = routeRoot === 'event' && selectedEvent?.slug === 'edk26' && !selectedPageSlugRaw;
-  const selectedInnerPage =
-    selectedEvent && selectedPageSlug
-      ? selectedEvent.pages.find((eventPage) => eventPage.slug === selectedPageSlug) ?? null
-      : defaultPage;
+  const routeRoot = segments[0] ?? 'event';
+  const isLegacyRoute = routeRoot === 'event_old';
+
+  // ── /event: composable events ───────────────────────────────────────────
+  const firstSegment = segments[1] ?? null;
+
+  // ── /event_old: the hand-coded pages, kept reachable while they are phased
+  // out. The formularze tool still lives here permanently.
+  const legacyEvent = isLegacyRoute && firstSegment
+    ? EVENTS.find((entry) => entry.slug === firstSegment) ?? null
+    : null;
+  const legacyPageSlugRaw = isLegacyRoute ? segments[2] ?? null : null;
+  const legacyPageSlug =
+    legacyEvent?.slug === 'kal26'
+      ? (KAL26_ROUTE_ALIASES[legacyPageSlugRaw ?? ''] ?? legacyPageSlugRaw)
+      : legacyPageSlugRaw;
+  const isDirectEdkRoute = legacyEvent?.slug === 'edk26' && !legacyPageSlugRaw;
+  const legacyInnerPage =
+    legacyEvent && legacyPageSlug
+      ? legacyEvent.pages.find((eventPage) => eventPage.slug === legacyPageSlug) ?? null
+      : (legacyEvent?.pages[0] ?? null);
 
   useEffect(() => {
-    if (isDirectEdkRoute) return;
-    if (!selectedEvent || selectedPageSlug) return;
-    const firstPage = selectedEvent.pages[0];
+    if (!isLegacyRoute || isDirectEdkRoute) return;
+    if (!legacyEvent || legacyPageSlug) return;
+    const firstPage = legacyEvent.pages[0];
     if (!firstPage) return;
-    navigate(`/event/${selectedEvent.slug}/${firstPage.slug}`, { replace: true });
-  }, [isDirectEdkRoute, navigate, selectedEvent, selectedPageSlug]);
+    navigate(`/event_old/${legacyEvent.slug}/${firstPage.slug}`, { replace: true });
+  }, [isDirectEdkRoute, isLegacyRoute, legacyEvent, legacyPageSlug, navigate]);
 
-  if (selectedEvent?.slug === 'edk26' && routeRoot === 'event') {
-    const EventPageRenderer = EVENT_PAGE_RENDERERS.edk26;
-    const fallbackPage = selectedEvent.pages[0] ?? { slug: 'start', title: 'Start' };
-    return <EventPageRenderer {...props} event={selectedEvent} page={fallbackPage} />;
+  if (!isLegacyRoute && firstSegment) {
+    if (firstSegment === 'admin') {
+      return <Event2Router mode="admin" argument={segments[2] ?? null} />;
+    }
+    if (firstSegment === 'link') {
+      return <Event2Router mode="link" argument={segments[2] ?? null} />;
+    }
+    if (!RESERVED_EVENT_SLUGS.has(firstSegment)) {
+      return <Event2Router mode="site" argument={firstSegment} />;
+    }
   }
 
-  if (selectedEvent && selectedInnerPage) {
-    const EventPageRenderer = EVENT_PAGE_RENDERERS[selectedEvent.slug];
-    return <EventPageRenderer {...props} event={selectedEvent} page={selectedInnerPage} />;
+  if (isLegacyRoute && legacyEvent) {
+    const EventPageRenderer = EVENT_PAGE_RENDERERS[legacyEvent.slug];
+    if (isDirectEdkRoute) {
+      const fallbackPage = legacyEvent.pages[0] ?? { slug: 'start', title: 'Start' };
+      return <EventPageRenderer {...props} event={legacyEvent} page={fallbackPage} />;
+    }
+    if (legacyInnerPage) {
+      return <EventPageRenderer {...props} event={legacyEvent} page={legacyInnerPage} />;
+    }
   }
 
   return (
@@ -255,25 +266,62 @@ export function EventsPage(props: SharedEventPageProps) {
 
           <section className="events-hero">
             <p className="tag">REcreatio</p>
-            <h1>{copy.events.title}</h1>
-            <p>{copy.events.subtitle}</p>
+            <h1>{isLegacyRoute ? 'Poprzednie wydarzenia' : copy.events.title}</h1>
+            <p>
+              {isLegacyRoute
+                ? 'Strony w starym mechanizmie. Zostają dostępne, dopóki trwa przenoszenie treści do kreatora.'
+                : copy.events.subtitle}
+            </p>
           </section>
 
           <section className="events-chooser">
             <div className="events-chooser-head">
               <div>
-                <h2>{copy.events.chooserTitle}</h2>
-                <p>{copy.events.chooserSubtitle}</p>
+                <h2>{isLegacyRoute ? 'Stary mechanizm' : copy.events.chooserTitle}</h2>
+                <p>{isLegacyRoute ? 'Strony wpisane bezpośrednio w kod.' : copy.events.chooserSubtitle}</p>
               </div>
-              {/* Entry to the builder. Shown once signed in; the creator page
-                  itself checks the event2 admin scope. */}
-              {props.showProfileMenu ? (
-                <a className="cta events-create" href="/#/event/event2/admin">
-                  + Nowe wydarzenie
-                </a>
-              ) : null}
+              <div className="events-head-actions">
+                {isLegacyRoute ? (
+                  <a className="ghost" href="/#/event">
+                    ← Aktualne wydarzenia
+                  </a>
+                ) : (
+                  <>
+                    {/* Both are for the organizer. The builder checks the
+                        event2 admin scope for itself; this only decides
+                        whether the way in is offered. */}
+                    {props.showProfileMenu ? (
+                      <a className="ghost" href="/#/event_old">
+                        Poprzednie wydarzenia
+                      </a>
+                    ) : null}
+                    {props.showProfileMenu ? (
+                      <a className="cta events-create" href="/#/event/admin">
+                        + Nowe wydarzenie
+                      </a>
+                    ) : null}
+                  </>
+                )}
+              </div>
             </div>
-            <EventsCatalogue legacyEvents={CATALOGUE_EVENTS} openLabel={copy.events.openEvent} />
+
+            {isLegacyRoute ? (
+              <ul className="events-legacy-list">
+                {CATALOGUE_EVENTS.map((entry) => (
+                  <li key={entry.slug}>
+                    <a href={`/#/event_old/${entry.slug}/${entry.pages[0].slug}`}>
+                      <strong>{entry.title}</strong>
+                      <span>{entry.summary}</span>
+                      {entry.date || entry.location ? (
+                        <em>{[entry.date, entry.location].filter(Boolean).join(' · ')}</em>
+                      ) : null}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EventsCatalogue legacyEvents={[]} openLabel={copy.events.openEvent} />
+            )}
           </section>
         </article>
       </main>

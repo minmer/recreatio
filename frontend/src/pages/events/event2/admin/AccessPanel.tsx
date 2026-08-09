@@ -13,7 +13,7 @@ import {
 } from '../../../../lib/api';
 
 function linkUrl(token: string): string {
-  return `${window.location.origin}/#/event/event2/link/${token}`;
+  return `${window.location.origin}/#/event/link/${token}`;
 }
 
 /** "Grupa: 3" per line ⇄ structured assignments. */

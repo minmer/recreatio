@@ -177,6 +177,29 @@
   overflow: hidden;
 }
 
+/* Automatic shading, one pass per slide: lighter at the top, darker towards the
+   bottom. It sits at z-index 1 — above the gradient, image and big-text layers,
+   which are all z-index auto, and below the content layer at 2 — so it shades
+   the decoration without ever dulling the text.
+
+   White and black washes rather than themed colours, so it works the same
+   whatever palette an event sets. The darker foot also parts one slide from the
+   next, since a slide's dark bottom meets the following slide's light top. */
+.e2-slide::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.02) 20%,
+    rgba(0, 0, 0, 0.08) 55%,
+    rgba(0, 0, 0, 0.32) 100%
+  );
+}
+
 /* Full width; the shell sets height and transform from the layer's speed. */
 .e2-layer {
   position: absolute;

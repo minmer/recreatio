@@ -23,8 +23,8 @@ export function InformationPage({ eventSlug }: { eventSlug: string }) {
           ))}
         </ul>
         <div className="kal-text-actions">
-          <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Zapisz się</a>
-          <a className="ghost" href={`/#/event/${eventSlug}/plan`}>Zobacz plan</a>
+          <a className="cta" href={`/#/event_old/${eventSlug}/zapisy`}>Zapisz się</a>
+          <a className="ghost" href={`/#/event_old/${eventSlug}/plan`}>Zobacz plan</a>
         </div>
       </aside>
 
@@ -216,8 +216,8 @@ export function InformationPage({ eventSlug }: { eventSlug: string }) {
           <p>17–18 kwietnia 2026</p>
           <p>Kraków – Tyniec – Kalwaria Zebrzydowska</p>
           <div className="kal-text-actions">
-            <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Zapisz się</a>
-            <a className="ghost" href={`/#/event/${eventSlug}/plan`}>Zobacz plan</a>
+            <a className="cta" href={`/#/event_old/${eventSlug}/zapisy`}>Zapisz się</a>
+            <a className="ghost" href={`/#/event_old/${eventSlug}/plan`}>Zobacz plan</a>
           </div>
         </section>
       </div>

@@ -65,7 +65,7 @@ function fromEvent2(entry: Event2CatalogueEntry): CatalogueRow {
     startDate: entry.startDate,
     endDate: entry.endDate,
     dateLabel: entry.dateLabel ?? formatRange(entry.startDate, entry.endDate),
-    href: `/#/event/event2/site/${entry.slug}`,
+    href: `/#/event/${entry.slug}`,
     source: 'event2'
   };
 }
@@ -84,7 +84,7 @@ function fromLegacy(event: EventDefinition): CatalogueRow {
     startDate: event.startDate ?? null,
     endDate: event.endDate ?? null,
     dateLabel: event.date || formatRange(event.startDate ?? null, event.endDate ?? null),
-    href: event.slug === 'edk26' ? '/#/event/edk26' : `/#/event/${event.slug}/${firstPage.slug}`,
+    href: event.slug === 'edk26' ? '/#/event_old/edk26' : `/#/event_old/${event.slug}/${firstPage.slug}`,
     source: 'legacy'
   };
 }

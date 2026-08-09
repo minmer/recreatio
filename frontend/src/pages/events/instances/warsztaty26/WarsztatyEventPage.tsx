@@ -118,7 +118,7 @@ export function WarsztatyEventPage({
       <main className="warsztaty-main">
         <nav className="warsztaty-tabs">
           {event.pages.map((item) => (
-            <a key={item.slug} href={`/#/event/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
+            <a key={item.slug} href={`/#/event_old/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
               {item.title}
             </a>
           ))}

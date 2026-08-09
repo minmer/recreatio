@@ -7,7 +7,7 @@ export type EventInnerPage = {
 };
 
 export type EventDefinition = {
-  slug: 'warsztaty26' | 'kal26' | 'edk26' | 'limanowa' | 'teatr26' | 'formularze' | 'rowerowa26' | 'event2';
+  slug: 'warsztaty26' | 'kal26' | 'edk26' | 'limanowa' | 'teatr26' | 'formularze' | 'rowerowa26';
   title: string;
   summary: string;
   /** Display label. `startDate`/`endDate` are what the overview sorts on. */

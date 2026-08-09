@@ -206,7 +206,7 @@ function useLimanowaSeo(enabled: boolean) {
       canonical.setAttribute('rel', 'canonical');
       document.head.appendChild(canonical);
     }
-    canonical.setAttribute('href', '/#/event/limanowa/start');
+    canonical.setAttribute('href', '/#/event_old/limanowa/start');
   }, [enabled]);
 }
 
@@ -315,7 +315,7 @@ function LimanowaStartPage({
   };
 
   const privacyLink = site?.policyLinks.privacyPolicyUrl ?? '/#/legal';
-  const rulesLink = site?.policyLinks.eventRulesUrl ?? '/#/event/limanowa/start?sekcja=faq';
+  const rulesLink = site?.policyLinks.eventRulesUrl ?? '/#/event_old/limanowa/start?sekcja=faq';
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 
@@ -472,15 +472,15 @@ function LimanowaStartPage({
       <header className="lim26-header">
         <a className="lim26-back" href="/#/event" onClick={() => onNavigate('events')}>Wydarzenia</a>
         <nav className="lim26-top-nav" aria-label="Nawigacja sekcji">
-          <a href="/#/event/limanowa/start?sekcja=o-wydarzeniu" onClick={handleSectionLink('o-wydarzeniu')}>O wydarzeniu</a>
-          <a href="/#/event/limanowa/start?sekcja=dla-kogo" onClick={handleSectionLink('dla-kogo')}>Dla kogo</a>
-          <a href="/#/event/limanowa/start?sekcja=weekend" onClick={handleSectionLink('weekend')}>Weekend</a>
-          <a href="/#/event/limanowa/start?sekcja=gra" onClick={handleSectionLink('gra')}>Gra</a>
-          <a href="/#/event/limanowa/start?sekcja=historia-i-wartosci" onClick={handleSectionLink('historia-i-wartosci')}>Historia i wartości</a>
-          <a href="/#/event/limanowa/start?sekcja=baza-i-nocleg" onClick={handleSectionLink('baza-i-nocleg')}>Baza i nocleg</a>
-          <a href="/#/event/limanowa/start?sekcja=zapisy" onClick={handleSectionLink('zapisy')}>Zapisy</a>
-          <a href="/#/event/limanowa/start?sekcja=faq" onClick={handleSectionLink('faq')}>FAQ</a>
-          <a href="/#/event/limanowa/start?sekcja=kontakt" onClick={handleSectionLink('kontakt')}>Kontakt</a>
+          <a href="/#/event_old/limanowa/start?sekcja=o-wydarzeniu" onClick={handleSectionLink('o-wydarzeniu')}>O wydarzeniu</a>
+          <a href="/#/event_old/limanowa/start?sekcja=dla-kogo" onClick={handleSectionLink('dla-kogo')}>Dla kogo</a>
+          <a href="/#/event_old/limanowa/start?sekcja=weekend" onClick={handleSectionLink('weekend')}>Weekend</a>
+          <a href="/#/event_old/limanowa/start?sekcja=gra" onClick={handleSectionLink('gra')}>Gra</a>
+          <a href="/#/event_old/limanowa/start?sekcja=historia-i-wartosci" onClick={handleSectionLink('historia-i-wartosci')}>Historia i wartości</a>
+          <a href="/#/event_old/limanowa/start?sekcja=baza-i-nocleg" onClick={handleSectionLink('baza-i-nocleg')}>Baza i nocleg</a>
+          <a href="/#/event_old/limanowa/start?sekcja=zapisy" onClick={handleSectionLink('zapisy')}>Zapisy</a>
+          <a href="/#/event_old/limanowa/start?sekcja=faq" onClick={handleSectionLink('faq')}>FAQ</a>
+          <a href="/#/event_old/limanowa/start?sekcja=kontakt" onClick={handleSectionLink('kontakt')}>Kontakt</a>
         </nav>
       </header>
 
@@ -501,8 +501,8 @@ function LimanowaStartPage({
             </p>
             <p className="lim26-tagline">Śladami tych, którzy byli gotowi.</p>
             <div className="lim26-hero-actions">
-              <a className="lim26-btn lim26-btn--primary" href="/#/event/limanowa/start?sekcja=zapisy" onClick={handleSectionLink('zapisy')}>Zgłoś grupę</a>
-              <a className="lim26-btn lim26-btn--quiet" href="/#/event/limanowa/start?sekcja=weekend" onClick={handleSectionLink('weekend')}>Zobacz, jak wygląda weekend</a>
+              <a className="lim26-btn lim26-btn--primary" href="/#/event_old/limanowa/start?sekcja=zapisy" onClick={handleSectionLink('zapisy')}>Zgłoś grupę</a>
+              <a className="lim26-btn lim26-btn--quiet" href="/#/event_old/limanowa/start?sekcja=weekend" onClick={handleSectionLink('weekend')}>Zobacz, jak wygląda weekend</a>
             </div>
           </div>
         </section>
@@ -1551,8 +1551,8 @@ function LimanowaAdminPage({ showProfileMenu, onAuthAction }: Pick<SharedEventPa
     registrationParticipantsDeadline: '2026-06-01',
     published: true,
     privacyPolicyUrl: '/#/legal',
-    eventRulesUrl: '/#/event/limanowa/start?sekcja=faq',
-    thingsToBringUrl: '/#/event/limanowa/start?sekcja=co-zabrac'
+    eventRulesUrl: '/#/event_old/limanowa/start?sekcja=faq',
+    thingsToBringUrl: '/#/event_old/limanowa/start?sekcja=co-zabrac'
   });
 
   const eventId = dashboard?.event.id ?? null;

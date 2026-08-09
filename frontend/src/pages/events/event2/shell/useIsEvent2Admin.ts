@@ -29,5 +29,5 @@ export function useIsEvent2Admin(): boolean {
 
 /** Deep link into the builder, opened straight on this site. */
 export function event2EditHref(siteId: string): string {
-  return `/#/event/event2/admin/${siteId}`;
+  return `/#/event/admin/${siteId}`;
 }

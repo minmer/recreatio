@@ -396,7 +396,7 @@ function Kal26FaqPage({ eventSlug }: { eventSlug: string }) {
           <li>Szybki kontakt z organizatorami</li>
         </ul>
         <div className="kal-text-actions">
-          <a className="ghost" href={`/#/event/${eventSlug}/kontakt`}>Skontaktuj się z nami</a>
+          <a className="ghost" href={`/#/event_old/${eventSlug}/kontakt`}>Skontaktuj się z nami</a>
         </div>
       </aside>
 
@@ -420,7 +420,7 @@ function Kal26FaqPage({ eventSlug }: { eventSlug: string }) {
           <h2>Nie znalazłeś odpowiedzi?</h2>
           <p>Jeśli Twoje pytanie nie pojawia się powyżej, napisz do nas. Chętnie pomożemy.</p>
           <div className="kal-text-actions">
-            <a className="cta" href={`/#/event/${eventSlug}/kontakt`}>Skontaktuj się z nami</a>
+            <a className="cta" href={`/#/event_old/${eventSlug}/kontakt`}>Skontaktuj się z nami</a>
           </div>
         </section>
       </div>
@@ -440,8 +440,8 @@ function Kal26HistoryPage({ eventSlug }: { eventSlug: string }) {
           <li>Duch drogi: Tradycja, Cisza, Liturgia</li>
         </ul>
         <div className="kal-text-actions">
-          <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Zapisz się</a>
-          <a className="ghost" href={`/#/event/${eventSlug}/plan`}>Zobacz plan</a>
+          <a className="cta" href={`/#/event_old/${eventSlug}/zapisy`}>Zapisz się</a>
+          <a className="ghost" href={`/#/event_old/${eventSlug}/plan`}>Zobacz plan</a>
         </div>
       </aside>
 
@@ -538,8 +538,8 @@ function Kal26HistoryPage({ eventSlug }: { eventSlug: string }) {
             Jeśli chcesz wyruszyć z nami, zapraszamy do wspólnej drogi.
           </p>
           <div className="kal-text-actions">
-            <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Zapisz się</a>
-            <a className="ghost" href={`/#/event/${eventSlug}/plan`}>Zobacz plan</a>
+            <a className="cta" href={`/#/event_old/${eventSlug}/zapisy`}>Zapisz się</a>
+            <a className="ghost" href={`/#/event_old/${eventSlug}/plan`}>Zobacz plan</a>
           </div>
         </section>
       </div>
@@ -775,7 +775,7 @@ function Kal26ContactPage({
           <h2>Kontakt bezpośredni</h2>
           <p>Osoba kontaktowa: ks. Michał Mleczek.</p>
           <div className="kal-text-actions">
-            <a className="ghost" href={`/#/event/${eventSlug}/faq`}>Zobacz FAQ</a>
+            <a className="ghost" href={`/#/event_old/${eventSlug}/faq`}>Zobacz FAQ</a>
           </div>
         </section>
       </div>
@@ -1120,8 +1120,8 @@ function Kal26PlanPage({ eventSlug }: { eventSlug: string }) {
           <li>Trasa: Kraków – Tyniec – Kalwaria Zebrzydowska</li>
         </ul>
         <div className="kal-text-actions">
-          <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Zapisz się</a>
-          <a className="ghost" href={`/#/event/${eventSlug}/informacje`}>Informacje</a>
+          <a className="cta" href={`/#/event_old/${eventSlug}/zapisy`}>Zapisz się</a>
+          <a className="ghost" href={`/#/event_old/${eventSlug}/informacje`}>Informacje</a>
         </div>
       </aside>
 
@@ -2095,9 +2095,9 @@ export function Kal26EventPage({
           <section className="pilgrimage-signup-form">
             <h3>Mapa i pliki trasy</h3>
             <div className="pilgrimage-quick-links">
-              <a className="ghost" href={`/#/event/${event.slug}/kontakt`}>Pobierz mape PDF (w przygotowaniu)</a>
+              <a className="ghost" href={`/#/event_old/${event.slug}/kontakt`}>Pobierz mape PDF (w przygotowaniu)</a>
               <a className="ghost" href="https://maps.google.com" target="_blank" rel="noreferrer">Otworz trase w Google Maps</a>
-              <a className="ghost" href={`/#/event/${event.slug}/kontakt`}>Pobierz plik GPX (w przygotowaniu)</a>
+              <a className="ghost" href={`/#/event_old/${event.slug}/kontakt`}>Pobierz plik GPX (w przygotowaniu)</a>
             </div>
           </section>
         </>
@@ -2127,7 +2127,7 @@ export function Kal26EventPage({
             ))}
           </div>
           <div className="pilgrimage-quick-links">
-            <a className="ghost" href={`/#/event/${event.slug}/kontakt`}>Send more photos to organizers</a>
+            <a className="ghost" href={`/#/event_old/${event.slug}/kontakt`}>Send more photos to organizers</a>
           </div>
         </section>
       );
@@ -2492,7 +2492,7 @@ export function Kal26EventPage({
                 <a className="ghost" href="#kal-participant-schedule">Harmonogram</a>
                 <a className="ghost" href="#kal-participant-checklist">Co zabrac</a>
                 <a className="ghost" href="#kal-participant-emergency">Kontakt awaryjny</a>
-                <a className="ghost" href={`/#/event/${event.slug}/trasa`}>Mapa trasy</a>
+                <a className="ghost" href={`/#/event_old/${event.slug}/trasa`}>Mapa trasy</a>
               </div>
             </section>
 
@@ -3330,14 +3330,14 @@ export function Kal26EventPage({
   return (
     <div className="event-page kal-page">
       <header className={`kal-header${isHeaderCompact ? ' is-compact' : ''}${page.slug === 'start' ? ' kal-header--overlay' : ''}`}>
-        <a className={`kal-header-logo${page.slug === 'start' ? ' active' : ''}`} href={`/#/event/${event.slug}/start`}>
+        <a className={`kal-header-logo${page.slug === 'start' ? ' active' : ''}`} href={`/#/event_old/${event.slug}/start`}>
           <PilgrimageKalwariaLogo />
         </a>
         <nav className="kal-top-nav kal-top-nav--desktop" aria-label="Pilgrimage sections">
           {headerMenuPages.map((item) => (
             <a
               key={item.targetSlug}
-              href={`/#/event/${event.slug}/${item.localizedSlug[language]}`}
+              href={`/#/event_old/${event.slug}/${item.localizedSlug[language]}`}
               className={item.targetSlug === page.slug ? 'active' : ''}
             >
               {item.label}
@@ -3361,7 +3361,7 @@ export function Kal26EventPage({
               {headerMenuPages.map((item) => (
                 <a
                   key={item.targetSlug}
-                  href={`/#/event/${event.slug}/${item.localizedSlug[language]}`}
+                  href={`/#/event_old/${event.slug}/${item.localizedSlug[language]}`}
                   className={item.targetSlug === page.slug ? 'active' : ''}
                 >
                   {item.label}
@@ -3454,9 +3454,9 @@ export function Kal26EventPage({
                         <p className="pilgrimage-hero-route">{site.site.public.routeLabel}</p>
                         <p className="pilgrimage-hero-date">{site.site.public.dateLabel}</p>
                         <div className="pilgrimage-quick-links">
-                          <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Sign up</a>
-                          <a className="ghost" href={`/#/event/${event.slug}/program`}>Program</a>
-                          <a className="ghost" href={`/#/event/${event.slug}/uczestnik`}>Participant zone</a>
+                          <a className="cta" href={`/#/event_old/${event.slug}/zapisy`}>Sign up</a>
+                          <a className="ghost" href={`/#/event_old/${event.slug}/program`}>Program</a>
+                          <a className="ghost" href={`/#/event_old/${event.slug}/uczestnik`}>Participant zone</a>
                         </div>
                         {!site.isProvisioned ? (
                           <p className="pilgrimage-warning">
@@ -3489,7 +3489,7 @@ export function Kal26EventPage({
 
                 {!['uczestnik', 'organizator'].includes(page.slug) ? renderPublicPage() : null}
                 {!['uczestnik', 'organizator', 'start'].includes(page.slug) ? (
-                  <a className="pilgrimage-mobile-sticky cta" href={`/#/event/${event.slug}/zapisy`}>
+                  <a className="pilgrimage-mobile-sticky cta" href={`/#/event_old/${event.slug}/zapisy`}>
                     Zapisz sie
                   </a>
                 ) : null}
@@ -3502,7 +3502,7 @@ export function Kal26EventPage({
       <footer className={`kal-footer${page.slug === 'start' ? ' kal-footer--overlay' : ''}`}>
         <a href="/#/" className="kal-logo">Recreatio</a>
         <nav className="kal-footer-links" aria-label="Footer navigation">
-          <a href={`/#/event/${event.slug}/kontakt`}>Kontakt</a>
+          <a href={`/#/event_old/${event.slug}/kontakt`}>Kontakt</a>
           <a href="/#/legal">Regulamin i RODO</a>
         </nav>
       </footer>
