@@ -7984,25 +7984,25 @@ export type EventImportResult = {
 
 /** `document` is the already-parsed JSON object, sent verbatim. */
 export function importEventSite(document: unknown) {
-  return request<EventImportResult>('/event/admin/import/site', {
+  return request<EventImportResult>('/events/admin/import/site', {
     method: 'POST',
     body: JSON.stringify(document)
   });
 }
 
 export function importEventParts(pageId: string, document: unknown) {
-  return request<EventImportResult>(`/event/admin/pages/${pageId}/import/parts`, {
+  return request<EventImportResult>(`/events/admin/pages/${pageId}/import/parts`, {
     method: 'POST',
     body: JSON.stringify(document)
   });
 }
 
 export function getEventCatalogue() {
-  return request<EventCatalogueEntry[]>('/event/catalogue', { method: 'GET' });
+  return request<EventCatalogueEntry[]>('/events/catalogue', { method: 'GET' });
 }
 
 export function getEventPublicSite(slug: string) {
-  return request<EventPublicSite>(`/event/site/${encodeURIComponent(slug)}`, { method: 'GET' });
+  return request<EventPublicSite>(`/events/site/${encodeURIComponent(slug)}`, { method: 'GET' });
 }
 
 export function submitEventForm(
@@ -8012,162 +8012,162 @@ export function submitEventForm(
   accessToken: string | null
 ) {
   return request<{ registrationId: string; submittedUtc: string }>(
-    `/event/site/${encodeURIComponent(slug)}/parts/${partId}/submit`,
+    `/events/site/${encodeURIComponent(slug)}/parts/${partId}/submit`,
     { method: 'POST', body: JSON.stringify({ values, accessToken }) }
   );
 }
 
 export function getEventLink(token: string, pageSlug?: string | null) {
   const suffix = pageSlug ? `/page/${encodeURIComponent(pageSlug)}` : '';
-  return request<EventLinkView>(`/event/link/${encodeURIComponent(token)}${suffix}`, { method: 'GET' });
+  return request<EventLinkView>(`/events/link/${encodeURIComponent(token)}${suffix}`, { method: 'GET' });
 }
 
 export function getEventAdminStatus() {
-  return request<EventAdminStatus>('/event/admin/status', { method: 'GET' });
+  return request<EventAdminStatus>('/events/admin/status', { method: 'GET' });
 }
 
 export function claimEventAdmin() {
-  return request<{ claimed: boolean }>('/event/admin/claim', { method: 'POST', body: JSON.stringify({}) });
+  return request<{ claimed: boolean }>('/events/admin/claim', { method: 'POST', body: JSON.stringify({}) });
 }
 
 export function getEventAdminSites() {
-  return request<EventAdminSiteSummary[]>('/event/admin/sites', { method: 'GET' });
+  return request<EventAdminSiteSummary[]>('/events/admin/sites', { method: 'GET' });
 }
 
 export function getEventAdminSite(siteId: string) {
-  return request<EventAdminSite>(`/event/admin/sites/${siteId}`, { method: 'GET' });
+  return request<EventAdminSite>(`/events/admin/sites/${siteId}`, { method: 'GET' });
 }
 
 export function createEventSite(payload: EventSiteUpsert) {
-  return request<{ id: string; slug: string; publicPageId: string }>('/event/admin/sites', {
+  return request<{ id: string; slug: string; publicPageId: string }>('/events/admin/sites', {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 }
 
 export function updateEventSite(siteId: string, payload: EventSiteUpsert) {
-  return request<{ id: string; slug: string }>(`/event/admin/sites/${siteId}`, {
+  return request<{ id: string; slug: string }>(`/events/admin/sites/${siteId}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
 }
 
 export function deleteEventSite(siteId: string) {
-  return request<{ deleted: boolean }>(`/event/admin/sites/${siteId}`, { method: 'DELETE' });
+  return request<{ deleted: boolean }>(`/events/admin/sites/${siteId}`, { method: 'DELETE' });
 }
 
 export function createEventPage(siteId: string, payload: EventPageUpsert) {
-  return request<{ id: string; slug: string }>(`/event/admin/sites/${siteId}/pages`, {
+  return request<{ id: string; slug: string }>(`/events/admin/sites/${siteId}/pages`, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 }
 
 export function updateEventPage(pageId: string, payload: EventPageUpsert) {
-  return request<{ id: string }>(`/event/admin/pages/${pageId}`, {
+  return request<{ id: string }>(`/events/admin/pages/${pageId}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
 }
 
 export function deleteEventPage(pageId: string) {
-  return request<{ deleted: boolean }>(`/event/admin/pages/${pageId}`, { method: 'DELETE' });
+  return request<{ deleted: boolean }>(`/events/admin/pages/${pageId}`, { method: 'DELETE' });
 }
 
 export function reorderEventPages(siteId: string, orderedIds: string[]) {
-  return request<{ reordered: boolean }>(`/event/admin/sites/${siteId}/pages/reorder`, {
+  return request<{ reordered: boolean }>(`/events/admin/sites/${siteId}/pages/reorder`, {
     method: 'POST',
     body: JSON.stringify({ orderedIds })
   });
 }
 
 export function createEventPart(pageId: string, payload: EventPartUpsert) {
-  return request<{ id: string; sortOrder: number }>(`/event/admin/pages/${pageId}/parts`, {
+  return request<{ id: string; sortOrder: number }>(`/events/admin/pages/${pageId}/parts`, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 }
 
 export function updateEventPart(partId: string, payload: EventPartUpsert) {
-  return request<{ id: string }>(`/event/admin/parts/${partId}`, {
+  return request<{ id: string }>(`/events/admin/parts/${partId}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
 }
 
 export function deleteEventPart(partId: string) {
-  return request<{ deleted: boolean }>(`/event/admin/parts/${partId}`, { method: 'DELETE' });
+  return request<{ deleted: boolean }>(`/events/admin/parts/${partId}`, { method: 'DELETE' });
 }
 
 export function reorderEventParts(pageId: string, orderedIds: string[]) {
-  return request<{ reordered: boolean }>(`/event/admin/pages/${pageId}/parts/reorder`, {
+  return request<{ reordered: boolean }>(`/events/admin/pages/${pageId}/parts/reorder`, {
     method: 'POST',
     body: JSON.stringify({ orderedIds })
   });
 }
 
 export function createEventField(partId: string, payload: EventFieldUpsert) {
-  return request<{ id: string; sortOrder: number }>(`/event/admin/parts/${partId}/fields`, {
+  return request<{ id: string; sortOrder: number }>(`/events/admin/parts/${partId}/fields`, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 }
 
 export function updateEventField(fieldId: string, payload: EventFieldUpsert) {
-  return request<{ id: string }>(`/event/admin/fields/${fieldId}`, {
+  return request<{ id: string }>(`/events/admin/fields/${fieldId}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
 }
 
 export function deleteEventField(fieldId: string) {
-  return request<{ deleted: boolean }>(`/event/admin/fields/${fieldId}`, { method: 'DELETE' });
+  return request<{ deleted: boolean }>(`/events/admin/fields/${fieldId}`, { method: 'DELETE' });
 }
 
 export function reorderEventFields(partId: string, orderedIds: string[]) {
-  return request<{ reordered: boolean }>(`/event/admin/parts/${partId}/fields/reorder`, {
+  return request<{ reordered: boolean }>(`/events/admin/parts/${partId}/fields/reorder`, {
     method: 'POST',
     body: JSON.stringify({ orderedIds })
   });
 }
 
 export function getEventRegistrations(siteId: string) {
-  return request<EventAdminRegistrationRow[]>(`/event/admin/sites/${siteId}/registrations`, { method: 'GET' });
+  return request<EventAdminRegistrationRow[]>(`/events/admin/sites/${siteId}/registrations`, { method: 'GET' });
 }
 
 export function getEventAccessLinks(siteId: string) {
-  return request<EventAdminAccessLink[]>(`/event/admin/sites/${siteId}/links`, { method: 'GET' });
+  return request<EventAdminAccessLink[]>(`/events/admin/sites/${siteId}/links`, { method: 'GET' });
 }
 
 export function createEventAccessLink(siteId: string, payload: EventAccessLinkUpsert) {
-  return request<{ id: string; token: string }>(`/event/admin/sites/${siteId}/links`, {
+  return request<{ id: string; token: string }>(`/events/admin/sites/${siteId}/links`, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 }
 
 export function updateEventAccessLink(linkId: string, payload: EventAccessLinkUpsert) {
-  return request<{ id: string; token: string }>(`/event/admin/links/${linkId}`, {
+  return request<{ id: string; token: string }>(`/events/admin/links/${linkId}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
 }
 
 export function setEventAccessLinkStatus(linkId: string, status: 'active' | 'revoked') {
-  return request<{ status: string }>(`/event/admin/links/${linkId}/status`, {
+  return request<{ status: string }>(`/events/admin/links/${linkId}/status`, {
     method: 'POST',
     body: JSON.stringify({ status })
   });
 }
 
 export function rotateEventAccessLink(linkId: string) {
-  return request<{ token: string }>(`/event/admin/links/${linkId}/rotate`, {
+  return request<{ token: string }>(`/events/admin/links/${linkId}/rotate`, {
     method: 'POST',
     body: JSON.stringify({})
   });
 }
 
 export function deleteEventAccessLink(linkId: string) {
-  return request<{ deleted: boolean }>(`/event/admin/links/${linkId}`, { method: 'DELETE' });
+  return request<{ deleted: boolean }>(`/events/admin/links/${linkId}`, { method: 'DELETE' });
 }
 
