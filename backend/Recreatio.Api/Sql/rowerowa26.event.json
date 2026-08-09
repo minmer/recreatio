@@ -304,7 +304,7 @@
             "donations": [
               { "label": "Darowizny uczestników i darczyńców", "amount": null }
             ],
-            "note": "Strona źródłowa wydarzenia nie podaje jeszcze kwot. Organizator może je uzupełniać w panelu Event2; sumy kosztów, kwoty na osobę i suma darowizn wyliczą się automatycznie."
+            "note": "Strona źródłowa wydarzenia nie podaje jeszcze kwot. Organizator może je uzupełniać w panelu wydarzeń; sumy kosztów, kwoty na osobę i suma darowizn wyliczą się automatycznie."
           }
         },
         {

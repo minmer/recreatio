@@ -1,14 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Recreatio.Api.Data.Event2;
+namespace Recreatio.Api.Data.Events;
 
 /// <summary>
 /// A label/value pair attached to one access link — the per-person detail
 /// ("Twoja grupa: 3", "Zbiórka: 7:40, brama B").
 /// </summary>
-[Table("Event2AccessLinkAssignments", Schema = "event2")]
-public sealed class Event2AccessLinkAssignment
+[Table("EventAccessLinkAssignments", Schema = "events")]
+public sealed class EventAccessLinkAssignment
 {
     [Key]
     public Guid Id { get; set; }

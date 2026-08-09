@@ -1,5 +1,5 @@
 import { useEffect, type CSSProperties, type ReactNode } from 'react';
-import type { Event2Page, Event2PageRef, Event2SiteHeader } from '../../../../lib/api';
+import type { EventPage, EventPageRef, EventSiteHeader } from '../../../lib/api';
 import { getPartModule } from '../parts/registry';
 import { parseLayers, parseTheme, type Layer } from './layers';
 import { useSlideScroll } from './useSlideScroll';
@@ -25,7 +25,7 @@ function layerBackground(layer: Layer): string | undefined {
  * holds an individual link — a switcher across the pages that link opens.
  * Knows nothing about any individual part.
  */
-export function Event2Shell({
+export function EventShell({
   site,
   page,
   accessToken,
@@ -34,14 +34,14 @@ export function Event2Shell({
   banner,
   adminEditHref
 }: {
-  site: Event2SiteHeader;
-  page: Event2Page;
+  site: EventSiteHeader;
+  page: EventPage;
   accessToken: string | null;
   /** Empty on the public page; the switcher only appears when there is a choice. */
-  availablePages: Event2PageRef[];
+  availablePages: EventPageRef[];
   onSelectPage?: (pageSlug: string) => void;
   banner?: ReactNode;
-  /** Set only for the event2 admin — jumps into the editor for this site. */
+  /** Set only for the event admin — jumps into the editor for this site. */
   adminEditHref?: string | null;
 }) {
   const parts = [...page.parts].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -56,10 +56,10 @@ export function Event2Shell({
   }, [page.id, scrollToTop]);
 
   const themeStyle = {
-    '--e2-accent': theme.accent,
-    '--e2-ink': theme.ink,
-    '--e2-ground': theme.ground,
-    '--e2-muted': theme.muted
+    '--ev-accent': theme.accent,
+    '--ev-ink': theme.ink,
+    '--ev-ground': theme.ground,
+    '--ev-muted': theme.muted
   } as CSSProperties;
 
   const showSwitcher = availablePages.length > 1 && typeof onSelectPage === 'function';
@@ -82,13 +82,13 @@ export function Event2Shell({
 
   return (
     <div className={`e2 ${page.kind === 'internal' ? 'is-internal' : ''}`} style={themeStyle}>
-      <header className="e2-header">
-        <a className="e2-brand" href="/#/event">
+      <header className="ev-header">
+        <a className="ev-brand" href="/#/event">
           <img src="/logo_inv.svg" alt="REcreatio" />
         </a>
 
         {showSwitcher ? (
-          <nav className="e2-pages" aria-label="Strony wydarzenia">
+          <nav className="ev-pages" aria-label="Strony wydarzenia">
             {availablePages.map((entry) => (
               <button
                 key={entry.id}
@@ -97,7 +97,7 @@ export function Event2Shell({
                 onClick={() => onSelectPage?.(entry.slug)}
               >
                 {entry.kind === 'internal' ? (
-                  <span className="e2-page-mark" aria-hidden="true">
+                  <span className="ev-page-mark" aria-hidden="true">
                     ●
                   </span>
                 ) : null}
@@ -107,7 +107,7 @@ export function Event2Shell({
           </nav>
         ) : null}
 
-        <nav className="e2-parts" aria-label="Sekcje strony">
+        <nav className="ev-parts" aria-label="Sekcje strony">
           {parts.map((part, index) => (
             <button
               key={part.id}
@@ -120,15 +120,15 @@ export function Event2Shell({
           ))}
         </nav>
 
-        <div className="e2-header-meta">
-          <span className="e2-header-title">{site.title}</span>
-          {page.kind === 'internal' ? <span className="e2-header-tag">{page.menuLabel}</span> : null}
+        <div className="ev-header-meta">
+          <span className="ev-header-title">{site.title}</span>
+          {page.kind === 'internal' ? <span className="ev-header-tag">{page.menuLabel}</span> : null}
         </div>
       </header>
 
-      <div className="e2-viewport" ref={scroll.viewportRef}>
+      <div className="ev-viewport" ref={scroll.viewportRef}>
         <div
-          className="e2-track"
+          className="ev-track"
           style={{ transform: `translate3d(0, ${-scroll.position}px, 0)` }}
           onClick={onTrackClick}
         >
@@ -143,7 +143,7 @@ export function Event2Shell({
               <section
                 key={part.id}
                 id={partAnchor(part.menuLabel)}
-                className={`e2-slide ${scroll.activeIndex === index ? 'is-active' : ''}`}
+                className={`ev-slide ${scroll.activeIndex === index ? 'is-active' : ''}`}
                 style={{ height: `${slide.height}px` }}
                 aria-label={part.menuLabel}
               >
@@ -188,13 +188,13 @@ export function Event2Shell({
                   return (
                     <div
                       key={layerIndex}
-                      className={`e2-layer e2-layer--${layer.kind}`}
+                      className={`ev-layer ev-layer--${layer.kind}`}
                       style={style}
                       aria-hidden="true"
                     >
                       {layer.kind === 'bigtext' ? (
                         <div
-                          className="e2-bigtext"
+                          className="ev-bigtext"
                           style={{
                             opacity: layer.opacity,
                             // Driven by visibleProgress, not progress: the sweep
@@ -221,17 +221,17 @@ export function Event2Shell({
                 })}
 
                 {/* Content rides at speed 1: no offset, height equal to the slide. */}
-                <div className="e2-content-layer" style={{ height: `${slide.height}px` }}>
+                <div className="ev-content-layer" style={{ height: `${slide.height}px` }}>
                   <div
-                    className="e2-content"
+                    className="ev-content"
                     ref={(element) => {
                       scroll.contentRefs.current[index] = element;
                     }}
                   >
-                    {index === 0 && banner ? <div className="e2-banner">{banner}</div> : null}
+                    {index === 0 && banner ? <div className="ev-banner">{banner}</div> : null}
 
                     {part.title || part.intro ? (
-                      <header className="e2-part-head">
+                      <header className="ev-part-head">
                         {part.title ? <h2>{part.title}</h2> : null}
                         {part.intro ? <p>{part.intro}</p> : null}
                       </header>
@@ -243,7 +243,7 @@ export function Event2Shell({
                         ctx={{ siteSlug: site.slug, accessToken, part }}
                       />
                     ) : (
-                      <p className="e2-note">Nieznany typ sekcji: {part.kind}.</p>
+                      <p className="ev-note">Nieznany typ sekcji: {part.kind}.</p>
                     )}
                   </div>
                 </div>
@@ -253,18 +253,18 @@ export function Event2Shell({
         </div>
       </div>
 
-      <footer className="e2-footer">
+      <footer className="ev-footer">
         <span>{site.dateLabel ? `${site.title} · ${site.dateLabel}` : site.title}</span>
-        <div className="e2-footer-actions">
-          <span className="e2-progress" aria-hidden="true">
+        <div className="ev-footer-actions">
+          <span className="ev-progress" aria-hidden="true">
             {parts.length > 0 ? `${scroll.activeIndex + 1} / ${parts.length}` : '—'}
           </span>
           {adminEditHref ? (
-            <a className="e2-cta e2-edit" href={adminEditHref}>
+            <a className="ev-cta ev-edit" href={adminEditHref}>
               Edytuj
             </a>
           ) : null}
-          <a className="e2-ghost" href="/#/event">
+          <a className="ev-ghost" href="/#/event">
             Wydarzenia
           </a>
         </div>

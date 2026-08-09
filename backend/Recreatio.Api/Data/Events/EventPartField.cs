@@ -1,14 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Recreatio.Api.Data.Event2;
+namespace Recreatio.Api.Data.Events;
 
 /// <summary>
 /// A field of a <c>form</c> part. Relational rather than buried in ConfigJson so
 /// answers can be validated, listed and turned into named registrations.
 /// </summary>
-[Table("Event2PartFields", Schema = "event2")]
-public sealed class Event2PartField
+[Table("EventPartFields", Schema = "events")]
+public sealed class EventPartField
 {
     [Key]
     public Guid Id { get; set; }

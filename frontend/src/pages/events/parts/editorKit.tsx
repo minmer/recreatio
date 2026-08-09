@@ -19,7 +19,7 @@ export function TextRow({
   placeholder?: string;
 }) {
   return (
-    <label className="e2e-row">
+    <label className="eve-row">
       <span>{label}</span>
       <input value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
       {hint ? <small>{hint}</small> : null}
@@ -41,7 +41,7 @@ export function AreaRow({
   hint?: string;
 }) {
   return (
-    <label className="e2e-row">
+    <label className="eve-row">
       <span>{label}</span>
       <textarea rows={rows} value={value} onChange={(event) => onChange(event.target.value)} />
       {hint ? <small>{hint}</small> : null}
@@ -63,7 +63,7 @@ export function NumberRow({
   hint?: string;
 }) {
   return (
-    <label className="e2e-row">
+    <label className="eve-row">
       <span>{label}</span>
       <input
         type="number"
@@ -86,7 +86,7 @@ export function CheckRow({
   onChange: (next: boolean) => void;
 }) {
   return (
-    <label className="e2e-check">
+    <label className="eve-check">
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       <span>{label}</span>
     </label>
@@ -105,7 +105,7 @@ export function SelectRow<T extends string>({
   onChange: (next: T) => void;
 }) {
   return (
-    <label className="e2e-row">
+    <label className="eve-row">
       <span>{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value as T)}>
         {options.map((option) => (
@@ -152,7 +152,7 @@ export function LinesRow({
 
 export function Fieldset({ legend, children }: { legend: string; children: ReactNode }) {
   return (
-    <fieldset className="e2e-group">
+    <fieldset className="eve-group">
       <legend>{legend}</legend>
       {children}
     </fieldset>
@@ -201,12 +201,12 @@ export function ListEditor<T>({
 
   return (
     <Fieldset legend={legend}>
-      <div className="e2e-list">
+      <div className="eve-list">
         {items.map((item, index) => (
-          <article className="e2e-item" key={index}>
+          <article className="eve-item" key={index}>
             <header>
               <strong>{titleOf(item, index)}</strong>
-              <div className="e2e-item-tools">
+              <div className="eve-item-tools">
                 <button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Wyżej">
                   ↑
                 </button>
@@ -218,16 +218,16 @@ export function ListEditor<T>({
                 >
                   ↓
                 </button>
-                <button type="button" className="e2e-remove" onClick={() => remove(index)} aria-label="Usuń">
+                <button type="button" className="eve-remove" onClick={() => remove(index)} aria-label="Usuń">
                   ×
                 </button>
               </div>
             </header>
-            <div className="e2e-item-body">{renderItem(item, (next) => replace(index, next))}</div>
+            <div className="eve-item-body">{renderItem(item, (next) => replace(index, next))}</div>
           </article>
         ))}
       </div>
-      <button type="button" className="e2e-add" onClick={() => onChange([...items, blank()])}>
+      <button type="button" className="eve-add" onClick={() => onChange([...items, blank()])}>
         + {addLabel}
       </button>
     </Fieldset>

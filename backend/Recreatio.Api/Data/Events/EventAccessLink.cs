@@ -1,15 +1,15 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Recreatio.Api.Data.Event2;
+namespace Recreatio.Api.Data.Events;
 
 /// <summary>
 /// One person's individual link. The token is the whole credential, so it comes
 /// from a CSPRNG. Which internal pages it opens is decided per link by the rows
-/// in <see cref="Event2AccessLinkPage"/> — there is no permission ladder.
+/// in <see cref="EventAccessLinkPage"/> — there is no permission ladder.
 /// </summary>
-[Table("Event2AccessLinks", Schema = "event2")]
-public sealed class Event2AccessLink
+[Table("EventAccessLinks", Schema = "events")]
+public sealed class EventAccessLink
 {
     [Key]
     public Guid Id { get; set; }

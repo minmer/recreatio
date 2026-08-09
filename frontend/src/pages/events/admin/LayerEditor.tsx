@@ -131,7 +131,7 @@ export function LayerEditor({
           </>
         )}
       />
-      <button type="button" className="e2e-add" onClick={() => onChange(defaultLayersJson(menuLabel))}>
+      <button type="button" className="eve-add" onClick={() => onChange(defaultLayersJson(menuLabel))}>
         Przywróć domyślne warstwy
       </button>
     </>

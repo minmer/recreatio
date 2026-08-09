@@ -23,9 +23,9 @@ export const faqPart = definePart<FaqConfig>({
 
   Renderer: ({ config }) =>
     config.items.length === 0 ? (
-      <p className="e2-note">Brak pytań w tej sekcji.</p>
+      <p className="ev-note">Brak pytań w tej sekcji.</p>
     ) : (
-      <div className="e2-faq">
+      <div className="ev-faq">
         {config.items.map((item, index) => (
           <details key={index}>
             <summary>{item.question}</summary>

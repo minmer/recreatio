@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  createEvent2AccessLink,
-  deleteEvent2AccessLink,
-  getEvent2AccessLinks,
-  getEvent2Registrations,
-  rotateEvent2AccessLink,
-  setEvent2AccessLinkStatus,
-  updateEvent2AccessLink,
-  type Event2AdminAccessLink,
-  type Event2AdminPage,
-  type Event2AdminRegistrationRow
-} from '../../../../lib/api';
+  createEventAccessLink,
+  deleteEventAccessLink,
+  getEventAccessLinks,
+  getEventRegistrations,
+  rotateEventAccessLink,
+  setEventAccessLinkStatus,
+  updateEventAccessLink,
+  type EventAdminAccessLink,
+  type EventAdminPage,
+  type EventAdminRegistrationRow
+} from '../../../lib/api';
 
 function linkUrl(token: string): string {
   return `${window.location.origin}/#/event/link/${token}`;
@@ -38,11 +38,11 @@ function formatAssignments(entries: Array<{ label: string; value: string }>): st
  * Registrations on the left, links on the right. Granting access to someone who
  * registered is one button — that is the whole point of the identity fields.
  */
-export function AccessPanel({ siteId, pages }: { siteId: string; pages: Event2AdminPage[] }) {
+export function AccessPanel({ siteId, pages }: { siteId: string; pages: EventAdminPage[] }) {
   const internalPages = pages.filter((page) => page.kind === 'internal');
 
-  const [registrations, setRegistrations] = useState<Event2AdminRegistrationRow[]>([]);
-  const [links, setLinks] = useState<Event2AdminAccessLink[]>([]);
+  const [registrations, setRegistrations] = useState<EventAdminRegistrationRow[]>([]);
+  const [links, setLinks] = useState<EventAdminAccessLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -52,8 +52,8 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: Event2Ad
     setLoading(true);
     try {
       const [registrationRows, linkRows] = await Promise.all([
-        getEvent2Registrations(siteId),
-        getEvent2AccessLinks(siteId)
+        getEventRegistrations(siteId),
+        getEventAccessLinks(siteId)
       ]);
       setRegistrations(registrationRows);
       setLinks(linkRows);
@@ -69,7 +69,7 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: Event2Ad
     void load();
   }, [load]);
 
-  const grantFromRegistration = async (row: Event2AdminRegistrationRow) => {
+  const grantFromRegistration = async (row: EventAdminRegistrationRow) => {
     const name = row.participantName?.trim();
     if (!name) {
       setError(
@@ -78,7 +78,7 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: Event2Ad
       return;
     }
     try {
-      await createEvent2AccessLink(siteId, {
+      await createEventAccessLink(siteId, {
         recipientName: name,
         recipientContact: row.participantContact,
         personalNote: null,
@@ -93,12 +93,12 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: Event2Ad
     }
   };
 
-  const togglePage = async (link: Event2AdminAccessLink, pageId: string) => {
+  const togglePage = async (link: EventAdminAccessLink, pageId: string) => {
     const next = link.pageIds.includes(pageId)
       ? link.pageIds.filter((entry) => entry !== pageId)
       : [...link.pageIds, pageId];
 
-    await updateEvent2AccessLink(link.id, {
+    await updateEventAccessLink(link.id, {
       recipientName: link.recipientName,
       recipientContact: link.recipientContact,
       personalNote: link.personalNote,
@@ -121,20 +121,20 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: Event2Ad
   };
 
   return (
-    <div className="e2a-access">
-      {error ? <p className="e2a-error">{error}</p> : null}
-      {loading ? <p className="e2a-hint">Ładowanie…</p> : null}
+    <div className="eva-access">
+      {error ? <p className="eva-error">{error}</p> : null}
+      {loading ? <p className="eva-hint">Ładowanie…</p> : null}
 
-      <section className="e2a-panel">
+      <section className="eva-panel">
         <header>
           <h3>Zgłoszenia ({registrations.length})</h3>
           <p>Osoby, które wypełniły formularz. Nadaj dostęp, żeby wygenerować dla nich link osobisty.</p>
         </header>
 
         {registrations.length === 0 ? (
-          <p className="e2a-hint">Brak zgłoszeń.</p>
+          <p className="eva-hint">Brak zgłoszeń.</p>
         ) : (
-          <div className="e2a-table-wrap">
+          <div className="eva-table-wrap">
             <table>
               <thead>
                 <tr>
@@ -150,15 +150,15 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: Event2Ad
                   <tr key={row.id}>
                     <td>
                       <strong>{row.participantName ?? '— bez nazwiska —'}</strong>
-                      {row.participantContact ? <div className="e2a-sub">{row.participantContact}</div> : null}
+                      {row.participantContact ? <div className="eva-sub">{row.participantContact}</div> : null}
                     </td>
                     <td>
                       {row.partLabel}
-                      <div className="e2a-sub">{row.pageLabel}</div>
+                      <div className="eva-sub">{row.pageLabel}</div>
                     </td>
                     <td>{new Date(row.submittedUtc).toLocaleString('pl-PL')}</td>
                     <td>
-                      <dl className="e2a-answers">
+                      <dl className="eva-answers">
                         {row.values.map((value, index) => (
                           <div key={index}>
                             <dt>{value.fieldLabel}</dt>
@@ -169,9 +169,9 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: Event2Ad
                     </td>
                     <td>
                       {row.accessLinkId ? (
-                        <span className="e2a-pill is-live">nadany</span>
+                        <span className="eva-pill is-live">nadany</span>
                       ) : (
-                        <button type="button" className="e2a-cta" onClick={() => void grantFromRegistration(row)}>
+                        <button type="button" className="eva-cta" onClick={() => void grantFromRegistration(row)}>
                           Nadaj dostęp
                         </button>
                       )}
@@ -184,7 +184,7 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: Event2Ad
         )}
       </section>
 
-      <section className="e2a-panel">
+      <section className="eva-panel">
         <header>
           <h3>Linki osobiste ({links.length})</h3>
           <p>
@@ -197,19 +197,19 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: Event2Ad
         <ManualLinkForm siteId={siteId} onCreated={() => void load()} />
 
         {links.length === 0 ? (
-          <p className="e2a-hint">Brak linków.</p>
+          <p className="eva-hint">Brak linków.</p>
         ) : (
-          <div className="e2a-link-list">
+          <div className="eva-link-list">
             {links.map((link) => (
-              <article className="e2a-link" key={link.id}>
+              <article className="eva-link" key={link.id}>
                 <header>
                   <div>
                     <strong>{link.recipientName}</strong>
-                    {link.recipientContact ? <span className="e2a-sub"> · {link.recipientContact}</span> : null}
+                    {link.recipientContact ? <span className="eva-sub"> · {link.recipientContact}</span> : null}
                   </div>
-                  <div className="e2a-link-stats">
-                    <span className={`e2a-pill ${link.status === 'active' ? 'is-live' : ''}`}>{link.status}</span>
-                    <span className="e2a-sub">
+                  <div className="eva-link-stats">
+                    <span className={`eva-pill ${link.status === 'active' ? 'is-live' : ''}`}>{link.status}</span>
+                    <span className="eva-sub">
                       {link.viewCount} otwarć
                       {link.lastViewedUtc ? ` · ${new Date(link.lastViewedUtc).toLocaleString('pl-PL')}` : ''}
                     </span>
@@ -217,9 +217,9 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: Event2Ad
                 </header>
 
                 {internalPages.length > 0 ? (
-                  <div className="e2a-grants">
+                  <div className="eva-grants">
                     {internalPages.map((page) => (
-                      <label key={page.id} className="e2e-check">
+                      <label key={page.id} className="eve-check">
                         <input
                           type="checkbox"
                           checked={link.pageIds.includes(page.id)}
@@ -231,10 +231,10 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: Event2Ad
                   </div>
                 ) : null}
 
-                {link.internalNote ? <p className="e2a-internal">{link.internalNote}</p> : null}
+                {link.internalNote ? <p className="eva-internal">{link.internalNote}</p> : null}
 
-                <div className="e2a-link-row">
-                  <input className="e2a-linkbox" readOnly value={linkUrl(link.token)} />
+                <div className="eva-link-row">
+                  <input className="eva-linkbox" readOnly value={linkUrl(link.token)} />
                   <button type="button" onClick={() => void copy(link.token)}>
                     {copied === link.token ? 'Skopiowano' : 'Kopiuj'}
                   </button>
@@ -264,7 +264,7 @@ function ManualLinkForm({ siteId, onCreated }: { siteId: string; onCreated: () =
     if (name.trim().length === 0) return;
     setPending(true);
     try {
-      await createEvent2AccessLink(siteId, {
+      await createEventAccessLink(siteId, {
         recipientName: name.trim(),
         recipientContact: contact.trim() || null,
         personalNote: null,
@@ -282,10 +282,10 @@ function ManualLinkForm({ siteId, onCreated }: { siteId: string; onCreated: () =
   };
 
   return (
-    <div className="e2a-inline-form">
+    <div className="eva-inline-form">
       <input placeholder="Imię i nazwisko" value={name} onChange={(event) => setName(event.target.value)} />
       <input placeholder="Kontakt (opcjonalnie)" value={contact} onChange={(event) => setContact(event.target.value)} />
-      <button type="button" className="e2a-cta" onClick={() => void create()} disabled={pending}>
+      <button type="button" className="eva-cta" onClick={() => void create()} disabled={pending}>
         {pending ? 'Tworzenie…' : 'Utwórz link ręcznie'}
       </button>
     </div>
@@ -297,7 +297,7 @@ function LinkDetails({
   onSaved,
   onCopyError
 }: {
-  link: Event2AdminAccessLink;
+  link: EventAdminAccessLink;
   onSaved: () => void;
   onCopyError: (message: string) => void;
 }) {
@@ -309,7 +309,7 @@ function LinkDetails({
   const save = async () => {
     setPending(true);
     try {
-      await updateEvent2AccessLink(link.id, {
+      await updateEventAccessLink(link.id, {
         recipientName: link.recipientName,
         recipientContact: link.recipientContact,
         personalNote: personalNote.trim() || null,
@@ -328,27 +328,27 @@ function LinkDetails({
 
   const rotate = async () => {
     if (!window.confirm('Wygenerować nowy link? Poprzedni przestanie działać natychmiast.')) return;
-    await rotateEvent2AccessLink(link.id);
+    await rotateEventAccessLink(link.id);
     onSaved();
   };
 
   const remove = async () => {
     if (!window.confirm('Usunąć ten link osobisty?')) return;
-    await deleteEvent2AccessLink(link.id);
+    await deleteEventAccessLink(link.id);
     onSaved();
   };
 
   return (
-    <div className="e2a-link-details">
-      <label className="e2e-row">
+    <div className="eva-link-details">
+      <label className="eve-row">
         <span>Notatka dla odbiorcy</span>
         <textarea rows={2} value={personalNote} onChange={(event) => setPersonalNote(event.target.value)} />
       </label>
-      <label className="e2e-row">
+      <label className="eve-row">
         <span>Notatka wewnętrzna (niewidoczna dla odbiorcy)</span>
         <textarea rows={2} value={internalNote} onChange={(event) => setInternalNote(event.target.value)} />
       </label>
-      <label className="e2e-row">
+      <label className="eve-row">
         <span>Przypisania — „Etykieta: wartość”, po jednym na linię</span>
         <textarea
           rows={3}
@@ -358,20 +358,20 @@ function LinkDetails({
         />
       </label>
 
-      <div className="e2a-actions">
-        <button type="button" className="e2a-cta" onClick={() => void save()} disabled={pending}>
+      <div className="eva-actions">
+        <button type="button" className="eva-cta" onClick={() => void save()} disabled={pending}>
           {pending ? 'Zapisywanie…' : 'Zapisz'}
         </button>
         <button
           type="button"
-          onClick={() => void setEvent2AccessLinkStatus(link.id, link.status === 'active' ? 'revoked' : 'active').then(onSaved)}
+          onClick={() => void setEventAccessLinkStatus(link.id, link.status === 'active' ? 'revoked' : 'active').then(onSaved)}
         >
           {link.status === 'active' ? 'Unieważnij' : 'Przywróć'}
         </button>
         <button type="button" onClick={() => void rotate()}>
           Nowy token
         </button>
-        <button type="button" className="e2a-danger" onClick={() => void remove()}>
+        <button type="button" className="eva-danger" onClick={() => void remove()}>
           Usuń
         </button>
       </div>

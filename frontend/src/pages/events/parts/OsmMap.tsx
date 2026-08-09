@@ -34,7 +34,7 @@ const WHEEL_PER_LEVEL = 260;
 const STEP_ZOOM_MS = 240;
 
 /** Tokens the full-screen portal has to carry with it, out of `.e2` scope. */
-const THEME_TOKENS = ['--e2-accent', '--e2-ink', '--e2-ground', '--e2-muted', '--e2-line', '--e2-line-2'];
+const THEME_TOKENS = ['--ev-accent', '--ev-ink', '--ev-ground', '--ev-muted', '--ev-line', '--ev-line-2'];
 
 export type MapPoint = {
   label: string;
@@ -199,7 +199,7 @@ export function OsmMap(props: SurfaceProps) {
   /**
    * The overlay is portalled to document.body, outside the `.e2` element that
    * declares the event's palette. Without carrying the tokens across, every
-   * `var(--e2-…)` in there resolves to nothing: text falls back to the body
+   * `var(--ev-…)` in there resolves to nothing: text falls back to the body
    * colour and the route's stroke is dropped entirely.
    */
   const openFullscreen = useCallback(() => {
@@ -222,7 +222,7 @@ export function OsmMap(props: SurfaceProps) {
       {open
         ? createPortal(
             <div
-              className="e2-map-overlay"
+              className="ev-map-overlay"
               style={theme}
               role="dialog"
               aria-modal="true"
@@ -483,7 +483,7 @@ function MapSurface({
     const onDoubleClick = (event: MouseEvent) => {
       // Emulated from a double-tap that has already been handled.
       if (performance.now() - lastTouchAt < 700) return;
-      if ((event.target as HTMLElement).closest('.e2-map-marker, .e2-map-controls, .e2-map-close')) return;
+      if ((event.target as HTMLElement).closest('.ev-map-marker, .ev-map-controls, .ev-map-close')) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -572,7 +572,7 @@ function MapSurface({
       tapStart = null;
 
       if (!finished || !start || event.touches.length > 0) return;
-      if ((event.target as HTMLElement).closest('.e2-map-marker, .e2-map-controls, .e2-map-close')) return;
+      if ((event.target as HTMLElement).closest('.ev-map-marker, .ev-map-controls, .ev-map-close')) return;
 
       // A tap is a touch that neither moved nor lingered.
       const moved = Math.hypot(finished.clientX - start.x, finished.clientY - start.y);
@@ -631,48 +631,40 @@ function MapSurface({
    * fractional zoom, which is what lets the zoom move continuously without
    * refetching on every frame.
    *
-   * Two levels are painted. Underneath sits a coarse layer two levels out:
-   * a sixteenth as many tiles, so it is nearly always already cached and gives
-   * instant — if soft — coverage. The sharp layer draws over it as it arrives.
-   * Without it, every zoom step or pan into fresh ground flashes the empty
-   * background until the network answers.
+   * One level only. A coarse fallback layer underneath did cover the gap while
+   * tiles loaded, but upscaling it looked worse than the blank it replaced, so
+   * the canvas simply shows white until the real tiles arrive.
    */
-  const tileLayers = useMemo(() => {
-    if (size.width <= 0 || size.height <= 0) return { base: [], sharp: [] };
+  const tiles = useMemo(() => {
+    if (size.width <= 0 || size.height <= 0) return [];
 
     const floor = Math.ceil(minZoomFor(size));
-    const sharpZoom = clampNumber(Math.round(view.zoom), floor, MAX_ZOOM);
-    const baseZoom = Math.max(floor, sharpZoom - 2);
+    const tileZoom = clampNumber(Math.round(view.zoom), floor, MAX_ZOOM);
+    const tilePx = TILE_SIZE * Math.pow(2, view.zoom - tileZoom);
+    const count = Math.pow(2, tileZoom);
 
-    const build = (tileZoom: number) => {
-      const tilePx = TILE_SIZE * Math.pow(2, view.zoom - tileZoom);
-      const count = Math.pow(2, tileZoom);
+    const firstX = Math.floor(origin.x / tilePx);
+    const lastX = Math.floor((origin.x + size.width) / tilePx);
+    const firstY = Math.floor(origin.y / tilePx);
+    const lastY = Math.floor((origin.y + size.height) / tilePx);
 
-      const firstX = Math.floor(origin.x / tilePx);
-      const lastX = Math.floor((origin.x + size.width) / tilePx);
-      const firstY = Math.floor(origin.y / tilePx);
-      const lastY = Math.floor((origin.y + size.height) / tilePx);
-
-      const result: Array<{ key: string; url: string; left: number; top: number; size: number }> = [];
-      for (let ty = firstY; ty <= lastY; ty += 1) {
-        if (ty < 0 || ty >= count) continue;
-        for (let tx = firstX; tx <= lastX; tx += 1) {
-          // Wrap horizontally so panning past the antimeridian still paints.
-          const wrappedX = ((tx % count) + count) % count;
-          result.push({
-            key: `${tileZoom}-${tx}-${ty}`,
-            url: `https://tile.openstreetmap.org/${tileZoom}/${wrappedX}/${ty}.png`,
-            left: tx * tilePx - origin.x,
-            top: ty * tilePx - origin.y,
-            // A hairline overlap hides the seams left by fractional positions.
-            size: tilePx + 1
-          });
-        }
+    const result: Array<{ key: string; url: string; left: number; top: number; size: number }> = [];
+    for (let ty = firstY; ty <= lastY; ty += 1) {
+      if (ty < 0 || ty >= count) continue;
+      for (let tx = firstX; tx <= lastX; tx += 1) {
+        // Wrap horizontally so panning past the antimeridian still paints.
+        const wrappedX = ((tx % count) + count) % count;
+        result.push({
+          key: `${tileZoom}-${tx}-${ty}`,
+          url: `https://tile.openstreetmap.org/${tileZoom}/${wrappedX}/${ty}.png`,
+          left: tx * tilePx - origin.x,
+          top: ty * tilePx - origin.y,
+          // A hairline overlap hides the seams left by fractional positions.
+          size: tilePx + 1
+        });
       }
-      return result;
-    };
-
-    return { base: baseZoom < sharpZoom ? build(baseZoom) : [], sharp: build(sharpZoom) };
+    }
+    return result;
   }, [origin, size, view.zoom]);
 
   const screenPoints = useMemo(
@@ -703,48 +695,46 @@ function MapSurface({
 
   return (
     <div
-      className={`e2-map-canvas ${interactive ? 'is-full' : 'is-preview'}`}
+      className={`ev-map-canvas ${interactive ? 'is-full' : 'is-preview'}`}
       ref={containerRef}
       role={interactive ? 'application' : undefined}
       aria-label={interactive ? 'Mapa punktów trasy' : undefined}
     >
-      {(['base', 'sharp'] as const).map((layer) => (
-        <div key={layer} className={`e2-map-tiles is-${layer}`}>
-          {tileLayers[layer].map((tile) =>
-            failedTiles.has(tile.key) ? null : (
-              <img
-                key={tile.key}
-                src={tile.url}
-                alt=""
-                draggable={false}
-                style={{
-                  left: `${tile.left}px`,
-                  top: `${tile.top}px`,
-                  width: `${tile.size}px`,
-                  height: `${tile.size}px`
-                }}
-                onError={() =>
-                  setFailedTiles((current) => {
-                    if (current.has(tile.key)) return current;
-                    const next = new Set(current);
-                    next.add(tile.key);
-                    return next;
-                  })
-                }
-              />
-            )
-          )}
-        </div>
-      ))}
+      <div className="ev-map-tiles">
+        {tiles.map((tile) =>
+          failedTiles.has(tile.key) ? null : (
+            <img
+              key={tile.key}
+              src={tile.url}
+              alt=""
+              draggable={false}
+              style={{
+                left: `${tile.left}px`,
+                top: `${tile.top}px`,
+                width: `${tile.size}px`,
+                height: `${tile.size}px`
+              }}
+              onError={() =>
+                setFailedTiles((current) => {
+                  if (current.has(tile.key)) return current;
+                  const next = new Set(current);
+                  next.add(tile.key);
+                  return next;
+                })
+              }
+            />
+          )
+        )}
+      </div>
 
       {routeLine.length > 0 ? (
         // No width/height attributes: CSS sizes it, and user space is CSS
         // pixels, so the line cannot end up scaled or clipped to a stale box.
-        <svg className="e2-map-track" aria-hidden="true">
+        <svg className="ev-map-track" aria-hidden="true">
           <polyline
             points={routeLine}
             fill="none"
-            stroke="var(--e2-accent, #4c7dd6)"
+            stroke="var(--ev-accent, #4c7dd6)"
             strokeWidth={3}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -753,12 +743,12 @@ function MapSurface({
         </svg>
       ) : null}
 
-      <div className="e2-map-markers">
+      <div className="ev-map-markers">
         {screenPoints.map((entry, index) => (
           <button
             key={index}
             type="button"
-            className={`e2-map-marker ${entry.point.isStop ? 'is-stop' : ''} ${
+            className={`ev-map-marker ${entry.point.isStop ? 'is-stop' : ''} ${
               interactive && activeIndex === index ? 'is-open' : ''
             }`}
             style={{ left: `${entry.x}px`, top: `${entry.y}px` }}
@@ -766,9 +756,9 @@ function MapSurface({
             aria-label={entry.point.label}
             tabIndex={interactive ? 0 : -1}
           >
-            <span className="e2-map-dot" aria-hidden="true" />
+            <span className="ev-map-dot" aria-hidden="true" />
             {interactive && activeIndex === index ? (
-              <span className="e2-map-tip">
+              <span className="ev-map-tip">
                 <strong>{entry.point.label}</strong>
                 {entry.point.detail ? <em>{entry.point.detail}</em> : null}
                 <small>
@@ -782,7 +772,7 @@ function MapSurface({
 
       {interactive ? (
         <>
-          <div className="e2-map-controls">
+          <div className="ev-map-controls">
             <button type="button" onClick={() => zoomAtCentre(1)} disabled={view.zoom >= MAX_ZOOM} aria-label="Przybliż">
               +
             </button>
@@ -807,23 +797,23 @@ function MapSurface({
             </button>
           </div>
 
-          <button type="button" className="e2-map-close" onClick={onClose} aria-label="Zamknij mapę">
+          <button type="button" className="ev-map-close" onClick={onClose} aria-label="Zamknij mapę">
             ✕
           </button>
 
-          {hint ? <p className="e2-map-hint">{hint}</p> : null}
+          {hint ? <p className="ev-map-hint">{hint}</p> : null}
         </>
       ) : (
         // One button covering the preview: any click or tap opens the map, and
         // it is reachable from the keyboard for free.
-        <button type="button" className="e2-map-open" onClick={onOpen}>
+        <button type="button" className="ev-map-open" onClick={onOpen}>
           <span>Otwórz mapę</span>
         </button>
       )}
 
       {/* Required by the OpenStreetMap tile usage policy. */}
       <a
-        className="e2-map-attribution"
+        className="ev-map-attribution"
         href="https://www.openstreetmap.org/copyright"
         target="_blank"
         rel="noreferrer noopener"

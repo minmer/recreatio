@@ -1,16 +1,16 @@
 import { createElement, type ComponentType } from 'react';
-import type { Event2Part, Event2PartKind } from '../../../../lib/api';
+import type { EventPart, EventPartKind } from '../../../lib/api';
 
 /** What a part renderer is allowed to know about its surroundings. */
 export type PartContext = {
   siteSlug: string;
   /** Present when the reader arrived through an individual link. */
   accessToken: string | null;
-  part: Event2Part;
+  part: EventPart;
 };
 
 export type PartEditorContext = {
-  part: Event2Part;
+  part: EventPart;
   /** Called after a change that lives outside ConfigJson (form fields). */
   onStructureChanged: () => void;
 };
@@ -30,7 +30,7 @@ export type PartEditorProps = {
 };
 
 export type PartModule = {
-  kind: Event2PartKind;
+  kind: EventPartKind;
   label: string;
   description: string;
   defaultConfigJson: () => string;
@@ -46,7 +46,7 @@ export type PartModule = {
  * createElement rather than called as functions, so a part is free to use hooks.
  */
 export function definePart<C>(spec: {
-  kind: Event2PartKind;
+  kind: EventPartKind;
   label: string;
   description: string;
   defaultConfig: () => C;
@@ -60,7 +60,7 @@ export function definePart<C>(spec: {
 
   const Renderer: ComponentType<PartRendererProps> = ({ configJson, ctx }) =>
     createElement(spec.Renderer, { config: read(configJson), ctx });
-  Renderer.displayName = `Event2Part(${spec.kind})`;
+  Renderer.displayName = `EventPart(${spec.kind})`;
 
   const Editor: ComponentType<PartEditorProps> = ({ configJson, onChange, ctx }) =>
     createElement(spec.Editor, {
@@ -68,7 +68,7 @@ export function definePart<C>(spec: {
       onChange: (next: C) => onChange(JSON.stringify(next, null, 2)),
       ctx
     });
-  Editor.displayName = `Event2PartEditor(${spec.kind})`;
+  Editor.displayName = `EventPartEditor(${spec.kind})`;
 
   return {
     kind: spec.kind,

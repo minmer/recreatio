@@ -45,8 +45,8 @@ export const titlePart = definePart<TitleConfig>({
   },
 
   Renderer: ({ config }) => (
-    <section className="e2-title">
-      {config.badge ? <p className="e2-badge">{config.badge}</p> : null}
+    <section className="ev-title">
+      {config.badge ? <p className="ev-badge">{config.badge}</p> : null}
       <h1>
         {config.headline}
         {config.lede ? <span>{config.lede}</span> : null}
@@ -55,9 +55,9 @@ export const titlePart = definePart<TitleConfig>({
         <p key={index}>{paragraph}</p>
       ))}
       {config.actions.length > 0 ? (
-        <div className="e2-actions">
+        <div className="ev-actions">
           {config.actions.map((action, index) => (
-            <a key={index} className={action.variant === 'ghost' ? 'e2-ghost' : 'e2-cta'} href={action.href}>
+            <a key={index} className={action.variant === 'ghost' ? 'ev-ghost' : 'ev-cta'} href={action.href}>
               {action.label}
             </a>
           ))}

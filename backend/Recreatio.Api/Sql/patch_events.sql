@@ -1,29 +1,28 @@
--- Event2 module
+-- Event module
 -- Composable events: an organizer assembles pages from pre-prepared parts, then
 -- hands out individual links that open specific internal pages.
 --
 -- Structure: Site → Pages (one 'public' + N 'internal') → Parts.
--- Access:    Event2AccessLinks × Event2AccessLinkPages (a grant per page).
+-- Access:    EventAccessLinks × EventAccessLinkPages (a grant per page).
 --
--- Safe to run on an existing database; all statements are idempotent.
+-- Safe to run on an existing database; all statements are idempotent, and
+-- nothing outside the [events] schema is touched.
 --
--- NOTE ON THE EARLIER DRAFT: a first version of this module used
--- Event2Blocks / Event2FormFields / Event2Submissions / Event2SubmissionValues /
--- Event2Invites / Event2InviteAssignments. Those tables are NOT touched here, so
--- running this patch destroys nothing. They are unused by the current code and
--- can be dropped once you are satisfied; see the commented block at the bottom.
+-- If an earlier build of this module was ever applied it created its own
+-- [event2] schema, which this patch leaves entirely alone. Nothing in the
+-- running code reads it; see the commented cleanup at the bottom.
 
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'event2')
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'events')
 BEGIN
-    EXEC('CREATE SCHEMA event2 AUTHORIZATION dbo;');
+    EXEC('CREATE SCHEMA events AUTHORIZATION dbo;');
 END
 GO
 
-IF OBJECT_ID(N'event2.Event2Sites', N'U') IS NULL
+IF OBJECT_ID(N'events.EventSites', N'U') IS NULL
 BEGIN
-    CREATE TABLE event2.Event2Sites
+    CREATE TABLE events.EventSites
     (
-        Id           UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_Event2Sites PRIMARY KEY,
+        Id           UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventSites PRIMARY KEY,
         Slug         NVARCHAR(80)     NOT NULL,
         Title        NVARCHAR(200)    NOT NULL,
         Subtitle     NVARCHAR(300)    NULL,
@@ -40,47 +39,47 @@ BEGIN
         IsPublished  BIT              NOT NULL,
         CreatedUtc   DATETIMEOFFSET   NOT NULL,
         UpdatedUtc   DATETIMEOFFSET   NOT NULL,
-        CONSTRAINT UX_Event2Sites_Slug UNIQUE (Slug)
+        CONSTRAINT UX_EventSites_Slug UNIQUE (Slug)
     );
 END
 GO
 
 -- Catalogue columns, added separately so a database created from an earlier
 -- draft of this patch picks them up too.
-IF OBJECT_ID(N'event2.Event2Sites', N'U') IS NOT NULL
+IF OBJECT_ID(N'events.EventSites', N'U') IS NOT NULL
 BEGIN
-    IF COL_LENGTH('event2.Event2Sites', 'Summary') IS NULL
-        ALTER TABLE event2.Event2Sites ADD Summary NVARCHAR(400) NULL;
-    IF COL_LENGTH('event2.Event2Sites', 'Category') IS NULL
-        ALTER TABLE event2.Event2Sites ADD Category NVARCHAR(80) NULL;
-    IF COL_LENGTH('event2.Event2Sites', 'Audience') IS NULL
-        ALTER TABLE event2.Event2Sites ADD Audience NVARCHAR(160) NULL;
-    IF COL_LENGTH('event2.Event2Sites', 'PlacesJson') IS NULL
-        ALTER TABLE event2.Event2Sites ADD PlacesJson NVARCHAR(MAX) NULL;
-    IF COL_LENGTH('event2.Event2Sites', 'ThumbnailUrl') IS NULL
-        ALTER TABLE event2.Event2Sites ADD ThumbnailUrl NVARCHAR(600) NULL;
-    IF COL_LENGTH('event2.Event2Sites', 'StartDate') IS NULL
-        ALTER TABLE event2.Event2Sites ADD StartDate DATE NULL;
-    IF COL_LENGTH('event2.Event2Sites', 'EndDate') IS NULL
-        ALTER TABLE event2.Event2Sites ADD EndDate DATE NULL;
+    IF COL_LENGTH('events.EventSites', 'Summary') IS NULL
+        ALTER TABLE events.EventSites ADD Summary NVARCHAR(400) NULL;
+    IF COL_LENGTH('events.EventSites', 'Category') IS NULL
+        ALTER TABLE events.EventSites ADD Category NVARCHAR(80) NULL;
+    IF COL_LENGTH('events.EventSites', 'Audience') IS NULL
+        ALTER TABLE events.EventSites ADD Audience NVARCHAR(160) NULL;
+    IF COL_LENGTH('events.EventSites', 'PlacesJson') IS NULL
+        ALTER TABLE events.EventSites ADD PlacesJson NVARCHAR(MAX) NULL;
+    IF COL_LENGTH('events.EventSites', 'ThumbnailUrl') IS NULL
+        ALTER TABLE events.EventSites ADD ThumbnailUrl NVARCHAR(600) NULL;
+    IF COL_LENGTH('events.EventSites', 'StartDate') IS NULL
+        ALTER TABLE events.EventSites ADD StartDate DATE NULL;
+    IF COL_LENGTH('events.EventSites', 'EndDate') IS NULL
+        ALTER TABLE events.EventSites ADD EndDate DATE NULL;
 END
 GO
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_Event2Sites_Published_StartDate'
-      AND object_id = OBJECT_ID('event2.Event2Sites')
+    WHERE name = 'IX_EventSites_Published_StartDate'
+      AND object_id = OBJECT_ID('events.EventSites')
 )
 BEGIN
-    CREATE INDEX IX_Event2Sites_Published_StartDate ON event2.Event2Sites(IsPublished, StartDate);
+    CREATE INDEX IX_EventSites_Published_StartDate ON events.EventSites(IsPublished, StartDate);
 END
 GO
 
-IF OBJECT_ID(N'event2.Event2Pages', N'U') IS NULL
+IF OBJECT_ID(N'events.EventPages', N'U') IS NULL
 BEGIN
-    CREATE TABLE event2.Event2Pages
+    CREATE TABLE events.EventPages
     (
-        Id          UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_Event2Pages PRIMARY KEY,
+        Id          UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventPages PRIMARY KEY,
         SiteId      UNIQUEIDENTIFIER NOT NULL,
         SortOrder   INT              NOT NULL,
         Kind        NVARCHAR(16)     NOT NULL,   -- public | internal
@@ -90,28 +89,28 @@ BEGIN
         Description NVARCHAR(600)    NULL,
         CreatedUtc  DATETIMEOFFSET   NOT NULL,
         UpdatedUtc  DATETIMEOFFSET   NOT NULL,
-        CONSTRAINT FK_Event2Pages_Site
-            FOREIGN KEY (SiteId) REFERENCES event2.Event2Sites(Id),
-        CONSTRAINT UX_Event2Pages_Site_Slug UNIQUE (SiteId, Slug)
+        CONSTRAINT FK_EventPages_Site
+            FOREIGN KEY (SiteId) REFERENCES events.EventSites(Id),
+        CONSTRAINT UX_EventPages_Site_Slug UNIQUE (SiteId, Slug)
     );
 END
 GO
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_Event2Pages_SiteId_SortOrder'
-      AND object_id = OBJECT_ID('event2.Event2Pages')
+    WHERE name = 'IX_EventPages_SiteId_SortOrder'
+      AND object_id = OBJECT_ID('events.EventPages')
 )
 BEGIN
-    CREATE INDEX IX_Event2Pages_SiteId_SortOrder ON event2.Event2Pages(SiteId, SortOrder);
+    CREATE INDEX IX_EventPages_SiteId_SortOrder ON events.EventPages(SiteId, SortOrder);
 END
 GO
 
-IF OBJECT_ID(N'event2.Event2Parts', N'U') IS NULL
+IF OBJECT_ID(N'events.EventParts', N'U') IS NULL
 BEGIN
-    CREATE TABLE event2.Event2Parts
+    CREATE TABLE events.EventParts
     (
-        Id         UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_Event2Parts PRIMARY KEY,
+        Id         UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventParts PRIMARY KEY,
         PageId     UNIQUEIDENTIFIER NOT NULL,
         SortOrder  INT              NOT NULL,
         Kind       NVARCHAR(20)     NOT NULL,
@@ -120,30 +119,30 @@ BEGIN
         Intro      NVARCHAR(600)    NULL,
         ConfigJson NVARCHAR(MAX)    NULL,
         LayersJson NVARCHAR(MAX)    NULL,
-        IsVisible  BIT              NOT NULL CONSTRAINT DF_Event2Parts_Visible DEFAULT(1),
+        IsVisible  BIT              NOT NULL CONSTRAINT DF_EventParts_Visible DEFAULT(1),
         CreatedUtc DATETIMEOFFSET   NOT NULL,
         UpdatedUtc DATETIMEOFFSET   NOT NULL,
-        CONSTRAINT FK_Event2Parts_Page
-            FOREIGN KEY (PageId) REFERENCES event2.Event2Pages(Id)
+        CONSTRAINT FK_EventParts_Page
+            FOREIGN KEY (PageId) REFERENCES events.EventPages(Id)
     );
 END
 GO
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_Event2Parts_PageId_SortOrder'
-      AND object_id = OBJECT_ID('event2.Event2Parts')
+    WHERE name = 'IX_EventParts_PageId_SortOrder'
+      AND object_id = OBJECT_ID('events.EventParts')
 )
 BEGIN
-    CREATE INDEX IX_Event2Parts_PageId_SortOrder ON event2.Event2Parts(PageId, SortOrder);
+    CREATE INDEX IX_EventParts_PageId_SortOrder ON events.EventParts(PageId, SortOrder);
 END
 GO
 
-IF OBJECT_ID(N'event2.Event2PartFields', N'U') IS NULL
+IF OBJECT_ID(N'events.EventPartFields', N'U') IS NULL
 BEGIN
-    CREATE TABLE event2.Event2PartFields
+    CREATE TABLE events.EventPartFields
     (
-        Id           UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_Event2PartFields PRIMARY KEY,
+        Id           UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventPartFields PRIMARY KEY,
         PartId       UNIQUEIDENTIFIER NOT NULL,
         SortOrder    INT              NOT NULL,
         Kind         NVARCHAR(16)     NOT NULL,
@@ -151,29 +150,29 @@ BEGIN
         HelpText     NVARCHAR(400)    NULL,
         OptionsJson  NVARCHAR(MAX)    NULL,
         IsRequired   BIT              NOT NULL,
-        IsHalfWidth  BIT              NOT NULL CONSTRAINT DF_Event2PartFields_Half DEFAULT(0),
-        IdentityRole NVARCHAR(12)     NOT NULL CONSTRAINT DF_Event2PartFields_Identity DEFAULT('none'),
-        CONSTRAINT FK_Event2PartFields_Part
-            FOREIGN KEY (PartId) REFERENCES event2.Event2Parts(Id)
+        IsHalfWidth  BIT              NOT NULL CONSTRAINT DF_EventPartFields_Half DEFAULT(0),
+        IdentityRole NVARCHAR(12)     NOT NULL CONSTRAINT DF_EventPartFields_Identity DEFAULT('none'),
+        CONSTRAINT FK_EventPartFields_Part
+            FOREIGN KEY (PartId) REFERENCES events.EventParts(Id)
     );
 END
 GO
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_Event2PartFields_PartId_SortOrder'
-      AND object_id = OBJECT_ID('event2.Event2PartFields')
+    WHERE name = 'IX_EventPartFields_PartId_SortOrder'
+      AND object_id = OBJECT_ID('events.EventPartFields')
 )
 BEGIN
-    CREATE INDEX IX_Event2PartFields_PartId_SortOrder ON event2.Event2PartFields(PartId, SortOrder);
+    CREATE INDEX IX_EventPartFields_PartId_SortOrder ON events.EventPartFields(PartId, SortOrder);
 END
 GO
 
-IF OBJECT_ID(N'event2.Event2AccessLinks', N'U') IS NULL
+IF OBJECT_ID(N'events.EventAccessLinks', N'U') IS NULL
 BEGIN
-    CREATE TABLE event2.Event2AccessLinks
+    CREATE TABLE events.EventAccessLinks
     (
-        Id                 UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_Event2AccessLinks PRIMARY KEY,
+        Id                 UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventAccessLinks PRIMARY KEY,
         SiteId             UNIQUEIDENTIFIER NOT NULL,
         Token              NVARCHAR(64)     NOT NULL,
         RecipientName      NVARCHAR(200)    NOT NULL,
@@ -182,138 +181,149 @@ BEGIN
         Status             NVARCHAR(16)     NOT NULL,  -- active | revoked
         PersonalNote       NVARCHAR(1000)   NULL,
         InternalNote       NVARCHAR(1000)   NULL,
-        ViewCount          INT              NOT NULL CONSTRAINT DF_Event2AccessLinks_Views DEFAULT(0),
+        ViewCount          INT              NOT NULL CONSTRAINT DF_EventAccessLinks_Views DEFAULT(0),
         LastViewedUtc      DATETIMEOFFSET   NULL,
         CreatedUtc         DATETIMEOFFSET   NOT NULL,
         UpdatedUtc         DATETIMEOFFSET   NOT NULL,
-        CONSTRAINT UX_Event2AccessLinks_Token UNIQUE (Token),
-        CONSTRAINT FK_Event2AccessLinks_Site
-            FOREIGN KEY (SiteId) REFERENCES event2.Event2Sites(Id)
+        CONSTRAINT UX_EventAccessLinks_Token UNIQUE (Token),
+        CONSTRAINT FK_EventAccessLinks_Site
+            FOREIGN KEY (SiteId) REFERENCES events.EventSites(Id)
     );
 END
 GO
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_Event2AccessLinks_SiteId_CreatedUtc'
-      AND object_id = OBJECT_ID('event2.Event2AccessLinks')
+    WHERE name = 'IX_EventAccessLinks_SiteId_CreatedUtc'
+      AND object_id = OBJECT_ID('events.EventAccessLinks')
 )
 BEGIN
-    CREATE INDEX IX_Event2AccessLinks_SiteId_CreatedUtc
-        ON event2.Event2AccessLinks(SiteId, CreatedUtc);
+    CREATE INDEX IX_EventAccessLinks_SiteId_CreatedUtc
+        ON events.EventAccessLinks(SiteId, CreatedUtc);
 END
 GO
 
-IF OBJECT_ID(N'event2.Event2AccessLinkPages', N'U') IS NULL
+IF OBJECT_ID(N'events.EventAccessLinkPages', N'U') IS NULL
 BEGIN
-    CREATE TABLE event2.Event2AccessLinkPages
+    CREATE TABLE events.EventAccessLinkPages
     (
-        Id           UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_Event2AccessLinkPages PRIMARY KEY,
+        Id           UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventAccessLinkPages PRIMARY KEY,
         AccessLinkId UNIQUEIDENTIFIER NOT NULL,
         PageId       UNIQUEIDENTIFIER NOT NULL,
-        CONSTRAINT FK_Event2AccessLinkPages_Link
-            FOREIGN KEY (AccessLinkId) REFERENCES event2.Event2AccessLinks(Id),
-        CONSTRAINT FK_Event2AccessLinkPages_Page
-            FOREIGN KEY (PageId) REFERENCES event2.Event2Pages(Id),
-        CONSTRAINT UX_Event2AccessLinkPages_Link_Page UNIQUE (AccessLinkId, PageId)
+        CONSTRAINT FK_EventAccessLinkPages_Link
+            FOREIGN KEY (AccessLinkId) REFERENCES events.EventAccessLinks(Id),
+        CONSTRAINT FK_EventAccessLinkPages_Page
+            FOREIGN KEY (PageId) REFERENCES events.EventPages(Id),
+        CONSTRAINT UX_EventAccessLinkPages_Link_Page UNIQUE (AccessLinkId, PageId)
     );
 END
 GO
 
-IF OBJECT_ID(N'event2.Event2AccessLinkAssignments', N'U') IS NULL
+IF OBJECT_ID(N'events.EventAccessLinkAssignments', N'U') IS NULL
 BEGIN
-    CREATE TABLE event2.Event2AccessLinkAssignments
+    CREATE TABLE events.EventAccessLinkAssignments
     (
-        Id           UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_Event2AccessLinkAssignments PRIMARY KEY,
+        Id           UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventAccessLinkAssignments PRIMARY KEY,
         AccessLinkId UNIQUEIDENTIFIER NOT NULL,
         SortOrder    INT              NOT NULL,
         Label        NVARCHAR(160)    NOT NULL,
         Value        NVARCHAR(600)    NOT NULL,
-        CONSTRAINT FK_Event2AccessLinkAssignments_Link
-            FOREIGN KEY (AccessLinkId) REFERENCES event2.Event2AccessLinks(Id)
+        CONSTRAINT FK_EventAccessLinkAssignments_Link
+            FOREIGN KEY (AccessLinkId) REFERENCES events.EventAccessLinks(Id)
     );
 END
 GO
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_Event2AccessLinkAssignments_Link_SortOrder'
-      AND object_id = OBJECT_ID('event2.Event2AccessLinkAssignments')
+    WHERE name = 'IX_EventAccessLinkAssignments_Link_SortOrder'
+      AND object_id = OBJECT_ID('events.EventAccessLinkAssignments')
 )
 BEGIN
-    CREATE INDEX IX_Event2AccessLinkAssignments_Link_SortOrder
-        ON event2.Event2AccessLinkAssignments(AccessLinkId, SortOrder);
+    CREATE INDEX IX_EventAccessLinkAssignments_Link_SortOrder
+        ON events.EventAccessLinkAssignments(AccessLinkId, SortOrder);
 END
 GO
 
-IF OBJECT_ID(N'event2.Event2Registrations', N'U') IS NULL
+IF OBJECT_ID(N'events.EventRegistrations', N'U') IS NULL
 BEGIN
-    CREATE TABLE event2.Event2Registrations
+    CREATE TABLE events.EventRegistrations
     (
-        Id                 UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_Event2Registrations PRIMARY KEY,
+        Id                 UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventRegistrations PRIMARY KEY,
         SiteId             UNIQUEIDENTIFIER NOT NULL,
         PartId             UNIQUEIDENTIFIER NOT NULL,
         ParticipantName    NVARCHAR(200)    NULL,
         ParticipantContact NVARCHAR(200)    NULL,
         AccessLinkId       UNIQUEIDENTIFIER NULL,
         SubmittedUtc       DATETIMEOFFSET   NOT NULL,
-        CONSTRAINT FK_Event2Registrations_Site
-            FOREIGN KEY (SiteId) REFERENCES event2.Event2Sites(Id),
-        CONSTRAINT FK_Event2Registrations_Part
-            FOREIGN KEY (PartId) REFERENCES event2.Event2Parts(Id),
-        CONSTRAINT FK_Event2Registrations_Link
-            FOREIGN KEY (AccessLinkId) REFERENCES event2.Event2AccessLinks(Id)
+        CONSTRAINT FK_EventRegistrations_Site
+            FOREIGN KEY (SiteId) REFERENCES events.EventSites(Id),
+        CONSTRAINT FK_EventRegistrations_Part
+            FOREIGN KEY (PartId) REFERENCES events.EventParts(Id),
+        CONSTRAINT FK_EventRegistrations_Link
+            FOREIGN KEY (AccessLinkId) REFERENCES events.EventAccessLinks(Id)
     );
 END
 GO
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_Event2Registrations_SiteId_SubmittedUtc'
-      AND object_id = OBJECT_ID('event2.Event2Registrations')
+    WHERE name = 'IX_EventRegistrations_SiteId_SubmittedUtc'
+      AND object_id = OBJECT_ID('events.EventRegistrations')
 )
 BEGIN
-    CREATE INDEX IX_Event2Registrations_SiteId_SubmittedUtc
-        ON event2.Event2Registrations(SiteId, SubmittedUtc);
+    CREATE INDEX IX_EventRegistrations_SiteId_SubmittedUtc
+        ON events.EventRegistrations(SiteId, SubmittedUtc);
 END
 GO
 
-IF OBJECT_ID(N'event2.Event2RegistrationValues', N'U') IS NULL
+IF OBJECT_ID(N'events.EventRegistrationValues', N'U') IS NULL
 BEGIN
-    CREATE TABLE event2.Event2RegistrationValues
+    CREATE TABLE events.EventRegistrationValues
     (
-        Id             UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_Event2RegistrationValues PRIMARY KEY,
+        Id             UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventRegistrationValues PRIMARY KEY,
         RegistrationId UNIQUEIDENTIFIER NOT NULL,
         FieldId        UNIQUEIDENTIFIER NOT NULL,
         FieldLabel     NVARCHAR(300)    NOT NULL,
         Value          NVARCHAR(4000)   NULL,
-        CONSTRAINT FK_Event2RegistrationValues_Registration
-            FOREIGN KEY (RegistrationId) REFERENCES event2.Event2Registrations(Id),
-        CONSTRAINT FK_Event2RegistrationValues_Field
-            FOREIGN KEY (FieldId) REFERENCES event2.Event2PartFields(Id)
+        CONSTRAINT FK_EventRegistrationValues_Registration
+            FOREIGN KEY (RegistrationId) REFERENCES events.EventRegistrations(Id),
+        CONSTRAINT FK_EventRegistrationValues_Field
+            FOREIGN KEY (FieldId) REFERENCES events.EventPartFields(Id)
     );
 END
 GO
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_Event2RegistrationValues_RegistrationId'
-      AND object_id = OBJECT_ID('event2.Event2RegistrationValues')
+    WHERE name = 'IX_EventRegistrationValues_RegistrationId'
+      AND object_id = OBJECT_ID('events.EventRegistrationValues')
 )
 BEGIN
-    CREATE INDEX IX_Event2RegistrationValues_RegistrationId
-        ON event2.Event2RegistrationValues(RegistrationId);
+    CREATE INDEX IX_EventRegistrationValues_RegistrationId
+        ON events.EventRegistrationValues(RegistrationId);
 END
 GO
 
 -- ---------------------------------------------------------------------------
--- Optional cleanup of the superseded first-draft tables. Nothing in the running
--- code reads them. Review before executing; order matters because of the FKs.
+-- Optional cleanup, only if an earlier build was applied and left an [event2]
+-- schema behind. Nothing in the running code reads it. Review before executing;
+-- order matters because of the foreign keys.
 --
+-- DROP TABLE IF EXISTS event2.Event2RegistrationValues;
+-- DROP TABLE IF EXISTS event2.Event2Registrations;
+-- DROP TABLE IF EXISTS event2.Event2AccessLinkAssignments;
+-- DROP TABLE IF EXISTS event2.Event2AccessLinkPages;
+-- DROP TABLE IF EXISTS event2.Event2AccessLinks;
+-- DROP TABLE IF EXISTS event2.Event2PartFields;
+-- DROP TABLE IF EXISTS event2.Event2Parts;
+-- DROP TABLE IF EXISTS event2.Event2Pages;
 -- DROP TABLE IF EXISTS event2.Event2SubmissionValues;
 -- DROP TABLE IF EXISTS event2.Event2Submissions;
 -- DROP TABLE IF EXISTS event2.Event2InviteAssignments;
 -- DROP TABLE IF EXISTS event2.Event2Invites;
 -- DROP TABLE IF EXISTS event2.Event2FormFields;
 -- DROP TABLE IF EXISTS event2.Event2Blocks;
+-- DROP TABLE IF EXISTS event2.Event2Sites;
+-- DROP SCHEMA IF EXISTS event2;
 -- ---------------------------------------------------------------------------

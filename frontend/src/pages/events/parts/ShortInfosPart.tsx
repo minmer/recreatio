@@ -36,9 +36,9 @@ export const shortInfosPart = definePart<ShortInfosConfig>({
   },
 
   Renderer: ({ config }) => (
-    <div className="e2-shortinfos">
+    <div className="ev-shortinfos">
       {config.items.length > 0 ? (
-        <dl className="e2-shortinfos-grid">
+        <dl className="ev-shortinfos-grid">
           {config.items.map((item, index) => (
             <div key={index}>
               <dt>{item.label}</dt>
@@ -48,9 +48,9 @@ export const shortInfosPart = definePart<ShortInfosConfig>({
           ))}
         </dl>
       ) : (
-        <p className="e2-note">Nie dodano jeszcze żadnych informacji.</p>
+        <p className="ev-note">Nie dodano jeszcze żadnych informacji.</p>
       )}
-      {config.note ? <p className="e2-note">{config.note}</p> : null}
+      {config.note ? <p className="ev-note">{config.note}</p> : null}
     </div>
   ),
 

@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, getEvent2Link, type Event2LinkView as LinkView } from '../../../../lib/api';
-import { Event2Shell } from '../shell/Event2Shell';
-import { event2EditHref, useIsEvent2Admin } from '../shell/useIsEvent2Admin';
+import { ApiError, getEventLink, type EventLinkView as LinkView } from '../../../lib/api';
+import { EventShell } from '../shell/EventShell';
+import { eventEditHref, useIsEventAdmin } from '../shell/useIsEventAdmin';
 
 /**
  * The individual link. The token decides which pages come back, so an internal
  * page is never present in the payload for a link that was not granted it.
  */
-export function Event2LinkView({ token }: { token: string }) {
+export function EventLinkView({ token }: { token: string }) {
   const [data, setData] = useState<LinkView | null>(null);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isAdmin = useIsEvent2Admin();
+  const isAdmin = useIsEventAdmin();
 
   const load = useCallback(
     async (pageSlug: string | null, isSwitch: boolean) => {
@@ -20,7 +20,7 @@ export function Event2LinkView({ token }: { token: string }) {
       else setLoading(true);
 
       try {
-        const response = await getEvent2Link(token, pageSlug);
+        const response = await getEventLink(token, pageSlug);
         setData(response);
         setError(null);
         document.title = `${response.site.title} · ${response.page.menuLabel}`;
@@ -44,7 +44,7 @@ export function Event2LinkView({ token }: { token: string }) {
 
   if (loading) {
     return (
-      <div className="e2-standalone">
+      <div className="ev-standalone">
         <p>Ładowanie…</p>
       </div>
     );
@@ -52,10 +52,10 @@ export function Event2LinkView({ token }: { token: string }) {
 
   if (error || !data) {
     return (
-      <div className="e2-standalone">
+      <div className="ev-standalone">
         <h1>Link niedostępny</h1>
         <p>{error ?? 'Nie udało się otworzyć linku.'}</p>
-        <a className="e2-ghost" href="/#/event">
+        <a className="ev-ghost" href="/#/event">
           Wróć do listy wydarzeń
         </a>
       </div>
@@ -65,23 +65,23 @@ export function Event2LinkView({ token }: { token: string }) {
   const internalCount = data.availablePages.filter((entry) => entry.kind === 'internal').length;
 
   const banner = (
-    <section className="e2-link-card">
-      <div className="e2-link-head">
+    <section className="ev-link-card">
+      <div className="ev-link-head">
         <div>
-          <p className="e2-link-eyebrow">Link osobisty</p>
+          <p className="ev-link-eyebrow">Link osobisty</p>
           <h2>{data.recipientName}</h2>
         </div>
-        <span className="e2-chip">
+        <span className="ev-chip">
           {internalCount === 0
             ? 'Brak stron wewnętrznych'
             : `${internalCount} ${internalCount === 1 ? 'strona wewnętrzna' : 'stron wewnętrznych'}`}
         </span>
       </div>
 
-      {data.personalNote ? <p className="e2-link-note">{data.personalNote}</p> : null}
+      {data.personalNote ? <p className="ev-link-note">{data.personalNote}</p> : null}
 
       {data.assignments.length > 0 ? (
-        <dl className="e2-link-assignments">
+        <dl className="ev-link-assignments">
           {data.assignments.map((assignment, index) => (
             <div key={index}>
               <dt>{assignment.label}</dt>
@@ -92,7 +92,7 @@ export function Event2LinkView({ token }: { token: string }) {
       ) : null}
 
       {internalCount === 0 ? (
-        <p className="e2-note">
+        <p className="ev-note">
           Ten link nie ma jeszcze przypisanej żadnej strony wewnętrznej. Widzisz stronę publiczną wydarzenia.
         </p>
       ) : null}
@@ -100,15 +100,15 @@ export function Event2LinkView({ token }: { token: string }) {
   );
 
   return (
-    <div className={switching ? 'e2-switching' : undefined}>
-      <Event2Shell
+    <div className={switching ? 'ev-switching' : undefined}>
+      <EventShell
         site={data.site}
         page={data.page}
         accessToken={token}
         availablePages={data.availablePages}
         onSelectPage={(pageSlug) => void load(pageSlug, true)}
         banner={banner}
-        adminEditHref={isAdmin ? event2EditHref(data.site.id) : null}
+        adminEditHref={isAdmin ? eventEditHref(data.site.id) : null}
       />
     </div>
   );

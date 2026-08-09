@@ -45,20 +45,20 @@ export const planPart = definePart<PlanConfig>({
 
   Renderer: ({ config }) =>
     config.groups.length === 0 ? (
-      <p className="e2-note">Program nie został jeszcze uzupełniony.</p>
+      <p className="ev-note">Program nie został jeszcze uzupełniony.</p>
     ) : (
-      <div className="e2-plan">
+      <div className="ev-plan">
         {config.groups.map((group, groupIndex) => (
-          <section className="e2-plan-group" key={groupIndex}>
+          <section className="ev-plan-group" key={groupIndex}>
             <header>
               <h3>{group.label}</h3>
               {group.caption ? <p>{group.caption}</p> : null}
             </header>
-            <ol className="e2-plan-rows">
+            <ol className="ev-plan-rows">
               {group.rows.map((row, rowIndex) => (
                 <li key={rowIndex}>
-                  <span className="e2-plan-time">{row.time ?? '—'}</span>
-                  <span className="e2-plan-body">
+                  <span className="ev-plan-time">{row.time ?? '—'}</span>
+                  <span className="ev-plan-body">
                     <strong>{row.title}</strong>
                     {row.detail ? <em>{row.detail}</em> : null}
                   </span>
@@ -67,7 +67,7 @@ export const planPart = definePart<PlanConfig>({
             </ol>
           </section>
         ))}
-        {config.note ? <p className="e2-note">{config.note}</p> : null}
+        {config.note ? <p className="ev-note">{config.note}</p> : null}
       </div>
     ),
 

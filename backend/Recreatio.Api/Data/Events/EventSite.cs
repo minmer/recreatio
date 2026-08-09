@@ -1,16 +1,16 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Recreatio.Api.Data.Event2;
+namespace Recreatio.Api.Data.Events;
 
 /// <summary>
 /// A composable event. Carries no layout of its own — it is assembled from its
-/// <see cref="Event2Page"/> rows. The catalogue block below is what the events
+/// <see cref="EventPage"/> rows. The catalogue block below is what the events
 /// overview filters and sorts on, so those fields are structured rather than
 /// free text wherever a filter needs them.
 /// </summary>
-[Table("Event2Sites", Schema = "event2")]
-public sealed class Event2Site
+[Table("EventSites", Schema = "events")]
+public sealed class EventSite
 {
     [Key]
     public Guid Id { get; set; }

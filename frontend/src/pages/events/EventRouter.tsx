@@ -1,7 +1,7 @@
-import { Event2AdminPage } from './admin/Event2AdminPage';
-import { Event2LinkView } from './views/Event2LinkView';
-import { Event2PublicView } from './views/Event2PublicView';
-import '../../../styles/event2.css';
+import { EventAdminPage } from './admin/EventAdminPage';
+import { EventLinkView } from './views/EventLinkView';
+import { EventSiteView } from './views/EventSiteView';
+import '../../styles/event-site.css';
 
 /**
  * Everything under /event that is not the overview.
@@ -14,7 +14,7 @@ import '../../../styles/event2.css';
  * `admin` and `link` are therefore reserved and cannot be event slugs; the API
  * refuses them at creation so the two can never collide.
  */
-export function Event2Router({
+export function EventRouter({
   mode,
   argument
 }: {
@@ -23,23 +23,23 @@ export function Event2Router({
 }) {
   if (mode === 'link') {
     if (!argument) return <MissingArgument message="Ten link jest niekompletny." />;
-    return <Event2LinkView token={argument} />;
+    return <EventLinkView token={argument} />;
   }
 
   if (mode === 'admin') {
-    return <Event2AdminPage initialSiteId={argument} />;
+    return <EventAdminPage initialSiteId={argument} />;
   }
 
   if (!argument) return <MissingArgument message="Nie podano adresu wydarzenia." />;
-  return <Event2PublicView slug={argument} />;
+  return <EventSiteView slug={argument} />;
 }
 
 function MissingArgument({ message }: { message: string }) {
   return (
-    <div className="e2-standalone">
+    <div className="ev-standalone">
       <h1>Nie znaleziono strony</h1>
       <p>{message}</p>
-      <a className="e2-ghost" href="/#/event">
+      <a className="ev-ghost" href="/#/event">
         Wróć do listy wydarzeń
       </a>
     </div>

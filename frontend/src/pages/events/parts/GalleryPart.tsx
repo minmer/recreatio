@@ -16,12 +16,12 @@ function Lightbox({ shot, onClose }: { shot: Shot; onClose: () => void }) {
   }, [onClose]);
 
   return (
-    <div className="e2-lightbox" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="ev-lightbox" role="dialog" aria-modal="true" onClick={onClose}>
       <figure onClick={(event) => event.stopPropagation()}>
         <img src={shot.url} alt={shot.alt} />
         {shot.caption ? <figcaption>{shot.caption}</figcaption> : null}
       </figure>
-      <button type="button" className="e2-lightbox-close" onClick={onClose} aria-label="Zamknij">
+      <button type="button" className="ev-lightbox-close" onClick={onClose} aria-label="Zamknij">
         ×
       </button>
     </div>
@@ -53,12 +53,12 @@ export const galleryPart = definePart<GalleryConfig>({
     const [open, setOpen] = useState<number | null>(null);
 
     if (config.shots.length === 0) {
-      return <p className="e2-note">Nie dodano jeszcze zdjęć.</p>;
+      return <p className="ev-note">Nie dodano jeszcze zdjęć.</p>;
     }
 
     return (
-      <div className="e2-gallery">
-        <div className="e2-gallery-grid">
+      <div className="ev-gallery">
+        <div className="ev-gallery-grid">
           {config.shots.map((shot, index) => (
             <button type="button" key={index} onClick={() => setOpen(index)}>
               <img src={shot.url} alt={shot.alt} loading="lazy" />

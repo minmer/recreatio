@@ -1,0 +1,208 @@
+{
+  "slug": "kal26",
+  "title": "Kalwaria Zebrzydowska na Wielkanoc",
+  "subtitle": "5. piesza pielgrzymka z Krakowa do Kalwarii Zebrzydowskiej",
+  "summary": "Dwudniowa piesza pielgrzymka z Krakowa do Kalwarii Zebrzydowskiej z noclegiem w Tyńcu. Tradycja, Cisza, Liturgia.",
+  "category": "Pielgrzymka piesza",
+  "audience": "Osoby szukające modlitewnej, prostej i skupionej drogi — bez wymaganego doświadczenia",
+  "places": ["Kraków", "Tyniec", "Kalwaria Zebrzydowska"],
+  "thumbnailUrl": null,
+  "startDate": "2026-04-17",
+  "endDate": "2026-04-18",
+  "dateLabel": null,
+  "theme": {
+    "accent": "#3f6ea8",
+    "ground": "#0a0e15",
+    "ink": "#eaf0f8",
+    "muted": "#a8b8cc"
+  },
+  "pages": [
+    {
+      "kind": "public",
+      "slug": "start",
+      "title": "Kalwaria Zebrzydowska na Wielkanoc",
+      "menuLabel": "Strona publiczna",
+      "parts": [
+        {
+          "kind": "title",
+          "menuLabel": "Start",
+          "title": null,
+          "config": {
+            "badge": "17–18 kwietnia 2026 · Kraków → Kalwaria Zebrzydowska",
+            "headline": "Kalwaria Zebrzydowska na Wielkanoc",
+            "lede": "Piesza pielgrzymka z Krakowa do Kalwarii Zebrzydowskiej",
+            "paragraphs": [
+              "W piątek rozpoczynamy wspólną Mszą Świętą o godz. 15:30 w kościele św. Józefa w Krakowie na Podgórzu. Po niej wyruszamy pieszo w stronę Tyńca, gdzie przewidziany jest nocleg. Następnego dnia rano podejmujemy dalszą drogę i idziemy do Kalwarii Zebrzydowskiej.",
+              "To nie jest zwykły wyjazd ani wydarzenie turystyczne. To pielgrzymka, która chce być czasem prawdziwego odejścia od codzienności: od pośpiechu, rozproszenia i nieustannego hałasu. Chcemy iść razem, modlić się razem, milczeć razem i dojść do celu z sercem bardziej otwartym na Boga."
+            ],
+            "actions": [{ "label": "Zobacz trasę", "href": "#trasa", "variant": "cta" }],
+            "footnote": null
+          },
+          "layers": [
+            { "kind": "gradient", "speed": 0.12, "angle": 168, "from": "#131f31", "via": null, "to": "#070a10" },
+            { "kind": "bigtext", "speed": 0.95, "lines": ["KALWARIA", "2026"], "opacity": 0.1 }
+          ]
+        },
+        {
+          "kind": "shortinfos",
+          "menuLabel": "W skrócie",
+          "title": "Najważniejsze informacje w skrócie",
+          "config": {
+            "items": [
+              { "label": "Termin", "value": "17–18 kwietnia 2026", "detail": null },
+              { "label": "Rozpoczęcie", "value": "Piątek, godz. 15:30", "detail": null },
+              { "label": "Miejsce rozpoczęcia", "value": "Kościół św. Józefa", "detail": "Kraków Podgórze" },
+              { "label": "Pierwszy dzień", "value": "Kraków → Tyniec", "detail": null },
+              { "label": "Nocleg", "value": "Tyniec", "detail": null },
+              { "label": "Drugi dzień", "value": "Tyniec → Kalwaria Zebrzydowska", "detail": null },
+              { "label": "Charakter", "value": "Tradycja, Cisza, Liturgia", "detail": null },
+              { "label": "Dla kogo", "value": "Dla szukających modlitewnej, prostej i skupionej drogi", "detail": null }
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "O pielgrzymce",
+          "title": "Czym jest ta pielgrzymka?",
+          "config": {
+            "paragraphs": [
+              "Kalwaria Zebrzydowska na Wielkanoc to dwudniowa piesza pielgrzymka, która zrodziła się z bardzo prostej potrzeby: z pragnienia drogi, modlitwy i ciszy. Jej początki są oddolne — nie powstała jako duży projekt organizacyjny, ale jako odpowiedź na realne pragnienie ludzi, którzy chcieli pielgrzymować inaczej: spokojniej, prościej, bardziej modlitewnie.",
+              "Ta pielgrzymka nie buduje się wokół rozmachu, atrakcji czy zewnętrznej oprawy. Jej centrum stanowi droga przeżywana w duchu skupienia, wspólnoty i liturgii. Chcemy, by było w niej miejsce zarówno na wspólną modlitwę i śpiew, jak i na ciszę, która pozwala usłyszeć to, co naprawdę ważne.",
+              "To właśnie ten prosty charakter jest jej siłą. Nie chodzi o to, by „zaliczyć trasę”, ale by wejść w drogę sercem i pozwolić, by ta droga naprawdę coś w człowieku poruszyła."
+            ],
+            "bullets": [],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Dla kogo",
+          "title": "Dla kogo jest ta pielgrzymka?",
+          "config": {
+            "paragraphs": [
+              "Ta pielgrzymka jest dla osób, które pragną przeżyć drogę w sposób bardziej skupiony i modlitewny. Dla tych, którzy chcą choć na chwilę wyjść z codziennego rytmu, odłożyć na bok nadmiar bodźców i po prostu iść — z intencją, z modlitwą, z wewnętrznym pokojem lub nawet z własnym niepokojem, który chcą przynieść przed Boga.",
+              "Jest to propozycja dla tych, którym bliska jest prostota, wspólnota i życie Kościoła. Dla osób, które szukają nie tylko wydarzenia, ale także przestrzeni duchowej. Dla tych, którzy lubią tradycyjne śpiewy, liturgię, ciszę i drogę przeżywaną w sposób bardziej uważny.",
+              "Nie trzeba mieć wielkiego doświadczenia pielgrzymkowego. Nie trzeba też „idealnie pasować” do jakiegoś gotowego modelu uczestnika. Wystarczy gotowość do drogi, otwartość na charakter tej pielgrzymki i chęć wejścia w jej rytm. Jeśli czujesz, że potrzebujesz chwili zatrzymania, modlitwy i wspólnej drogi do Matki Bożej Kalwaryjskiej — jest to miejsce dla Ciebie."
+            ],
+            "bullets": [],
+            "note": null
+          }
+        },
+        {
+          "kind": "plan",
+          "menuLabel": "Przebieg",
+          "title": "Jak wygląda pielgrzymka w praktyce?",
+          "config": {
+            "groups": [
+              {
+                "label": "Piątek, 17 kwietnia 2026",
+                "caption": "Kraków → Tyniec",
+                "rows": [
+                  { "time": "15:30", "title": "Msza Święta", "detail": "Kościół św. Józefa w Krakowie na Podgórzu." },
+                  { "time": null, "title": "Wyjście na trasę", "detail": "Pierwszy etap pozwala spokojnie wejść w drogę: zostawić za sobą codzienność, uporządkować serce i zacząć pielgrzymować naprawdę." },
+                  { "time": "wieczór", "title": "Dotarcie do Tyńca", "detail": "Nocleg." }
+                ]
+              },
+              {
+                "label": "Sobota, 18 kwietnia 2026",
+                "caption": "Tyniec → Kalwaria Zebrzydowska",
+                "rows": [
+                  { "time": "rano", "title": "Wyjście z Tyńca", "detail": "Dzień bardziej pielgrzymkowy w klasycznym sensie: z odcinkami marszu, odpoczynkiem, wspólnym wysiłkiem i radością dojścia do celu." },
+                  { "time": null, "title": "Dotarcie do sanktuarium", "detail": "Sanktuarium Matki Bożej Kalwaryjskiej." }
+                ]
+              }
+            ],
+            "note": "W czasie drogi towarzyszą nam wspólna modlitwa, śpiew, chwile skupienia oraz momenty ciszy. Staramy się zachować prosty i uporządkowany rytm pielgrzymki."
+          }
+        },
+        {
+          "kind": "map",
+          "menuLabel": "Trasa",
+          "title": "Trasa",
+          "intro": "Kraków → Tyniec → Kalwaria Zebrzydowska. Współrzędne są przybliżone — do potwierdzenia przed wyjściem.",
+          "config": {
+            "points": [
+              { "label": "Kraków — kościół św. Józefa (Podgórze)", "lat": 50.0442, "lon": 19.9553, "detail": "Start. Msza Święta o 15:30.", "isStop": true },
+              { "label": "Tyniec", "lat": 50.0192, "lon": 19.8064, "detail": "Meta pierwszego dnia, nocleg.", "isStop": true },
+              { "label": "Kalwaria Zebrzydowska", "lat": 49.8677, "lon": 19.6786, "detail": "Sanktuarium Matki Bożej Kalwaryjskiej.", "isStop": true }
+            ],
+            "zoom": 11,
+            "showTrack": true,
+            "note": "Punkty pokazują przebieg trasy, a nie dokładny ślad drogowy."
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Co wyróżnia",
+          "title": "Co wyróżnia tę pielgrzymkę?",
+          "intro": "Nasza pielgrzymka koncentruje się wokół trzech słów: Tradycja, Cisza, Liturgia.",
+          "config": {
+            "paragraphs": [
+              "Tradycja — chcemy odkrywać dawne zwyczaje Kościoła i ożywiać je na nowo, nie jako coś martwego lub jedynie historycznego, ale jako żywe dziedzictwo, które może prowadzić do spotkania z Chrystusem. Dlatego zależy nam na prostocie, tradycyjnych śpiewach, modlitwie i pewnym stylu pielgrzymowania, który nie ucieka od korzeni, ale próbuje je na nowo przeżyć.",
+              "Cisza — cisza na tej pielgrzymce nie jest dodatkiem. Jest jedną z najważniejszych przestrzeni tej drogi. W świecie, który nieustannie mówi, przypomina, powiadamia i rozprasza, chcemy odzyskać choć trochę miejsca na słuchanie Boga. Nie chodzi tylko o milczenie zewnętrzne, ale o wewnętrzne wyciszenie — o taką drogę, na której człowiek może naprawdę pobyć przed Panem.",
+              "Liturgia — liturgia zajmuje centralne miejsce w całej pielgrzymce. Jej szczytem jest Msza Święta, ale ważna jest także wspólna modlitwa Kościoła, śpiew i wszystko to, co pomaga przeżywać wiarę nie tylko indywidualnie, ale również wspólnotowo. Chcemy, by ta pielgrzymka była nie tylko ruchem w przestrzeni, ale także prawdziwym przeżyciem duchowym zakorzenionym w liturgii."
+            ],
+            "bullets": [],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Czy dam radę",
+          "title": "Czy trzeba być „typem pielgrzyma”?",
+          "config": {
+            "paragraphs": [
+              "Nie. Nie trzeba mieć za sobą wielu pielgrzymek ani czuć się „specjalistą od takich wydarzeń”. Ta droga jest dla ludzi bardzo różnych — dla tych, którzy już nieraz szli na pielgrzymkę, i dla tych, którzy być może zrobią to po raz pierwszy.",
+              "Ważniejsze od doświadczenia jest nastawienie serca. Potrzebna jest gotowość do prostszych warunków, do wspólnej drogi, do szacunku wobec innych uczestników i do wejścia w duchowy charakter pielgrzymki. Nie trzeba być idealnie przygotowanym „na wszystko”. Trzeba po prostu chcieć wyruszyć uczciwie i z dobrą wolą.",
+              "Jeżeli zastanawiasz się, czy sobie poradzisz, czy odnajdziesz się w takiej formie drogi, czy to na pewno coś dla Ciebie — bardzo możliwe, że właśnie dlatego warto spróbować. Czasem to, czego najbardziej potrzebujemy, zaczyna się od jednego prostego kroku."
+            ],
+            "bullets": [],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Klimat drogi",
+          "title": "Jaki jest klimat tej drogi?",
+          "config": {
+            "paragraphs": [
+              "To pielgrzymka prosta, spokojna i skupiona. Nie oznacza to, że jest smutna czy zamknięta. Przeciwnie — jest w niej miejsce na życzliwość, wzajemną pomoc, rozmowę, wspólny śpiew i zwyczajną radość drogi. Ale wszystko to dzieje się bez nadmiaru i bez chaosu.",
+              "Zależy nam, by pielgrzymka zachowała swój wewnętrzny porządek. By człowiek nie wracał z niej tylko zmęczony fizycznie, ale również umocniony duchowo. By był to czas prosty, ale głęboki. Skromny, ale piękny. Wspólny, a jednocześnie zostawiający miejsce na osobistą modlitwę."
+            ],
+            "bullets": [],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Historia",
+          "title": "Historia pielgrzymki",
+          "intro": "Jak zrodziła się droga do Kalwarii Zebrzydowskiej na Wielkanoc i jak dojrzewała jej obecna forma.",
+          "config": {
+            "paragraphs": [],
+            "bullets": [
+              "Początek: rok 2020",
+              "Pierwsza edycja: 17.04.2021",
+              "Duch drogi: Tradycja, Cisza, Liturgia"
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "contact",
+          "menuLabel": "Kontakt",
+          "title": "Kontakt",
+          "config": {
+            "organizer": "Masz pytania dotyczące udziału albo organizacji? Napisz do nas — chętnie pomożemy.",
+            "channels": [
+              { "label": "E-mail", "value": "mleczek_pradnik@outlook.com", "href": "mailto:mleczek_pradnik@outlook.com" },
+              { "label": "Telefon", "value": "+48 505 548 677", "href": "tel:+48505548677" }
+            ],
+            "note": null
+          }
+        }
+      ]
+    }
+  ]
+}

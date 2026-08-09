@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { importEvent2Parts, importEvent2Site, type Event2ImportResult } from '../../../../lib/api';
+import { importEventParts, importEventSite, type EventImportResult } from '../../../lib/api';
 import { buildJsonDictionary, buildStarterJson } from './jsonDictionary';
 
 type Mode = { kind: 'site' } | { kind: 'parts'; pageId: string; pageLabel: string };
@@ -21,7 +21,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   };
 
   return (
-    <button type="button" className="e2a-cta" onClick={() => void copy()}>
+    <button type="button" className="eva-cta" onClick={() => void copy()}>
       {failed ? 'Zaznacz i skopiuj ręcznie' : copied ? 'Skopiowano' : label}
     </button>
   );
@@ -36,13 +36,13 @@ export function ImportPanel({
   onImported
 }: {
   mode: Mode;
-  onImported: (result: Event2ImportResult) => void;
+  onImported: (result: EventImportResult) => void;
 }) {
   const dictionary = useMemo(() => buildJsonDictionary(), []);
   const [raw, setRaw] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<Event2ImportResult | null>(null);
+  const [result, setResult] = useState<EventImportResult | null>(null);
   const [showDictionary, setShowDictionary] = useState(false);
 
   // Parse as you type so a broken document is caught before any request.
@@ -66,8 +66,8 @@ export function ImportPanel({
     try {
       const response =
         mode.kind === 'site'
-          ? await importEvent2Site(parsed.value)
-          : await importEvent2Parts(mode.pageId, parsed.value);
+          ? await importEventSite(parsed.value)
+          : await importEventParts(mode.pageId, parsed.value);
       setResult(response);
       setRaw('');
       onImported(response);
@@ -79,7 +79,7 @@ export function ImportPanel({
   };
 
   return (
-    <section className="e2a-panel">
+    <section className="eva-panel">
       <header>
         <h3>{mode.kind === 'site' ? 'Import wydarzenia z JSON' : `Import części do strony „${mode.pageLabel}”`}</h3>
         <p>
@@ -89,7 +89,7 @@ export function ImportPanel({
         </p>
       </header>
 
-      <div className="e2a-actions">
+      <div className="eva-actions">
         <CopyButton text={dictionary} label="Kopiuj słownik dla AI" />
         <button type="button" onClick={() => setShowDictionary((current) => !current)}>
           {showDictionary ? 'Ukryj słownik' : 'Pokaż słownik'}
@@ -101,12 +101,12 @@ export function ImportPanel({
         ) : null}
       </div>
 
-      {showDictionary ? <pre className="e2a-dictionary">{dictionary}</pre> : null}
+      {showDictionary ? <pre className="eva-dictionary">{dictionary}</pre> : null}
 
-      <label className="e2e-row">
+      <label className="eve-row">
         <span>JSON do zaimportowania</span>
         <textarea
-          className="e2a-json"
+          className="eva-json"
           rows={14}
           spellCheck={false}
           value={raw}
@@ -115,23 +115,23 @@ export function ImportPanel({
         />
       </label>
 
-      {parseError ? <p className="e2a-error">Nieprawidłowy JSON: {parseError}</p> : null}
-      {error ? <p className="e2a-error">{error}</p> : null}
+      {parseError ? <p className="eva-error">Nieprawidłowy JSON: {parseError}</p> : null}
+      {error ? <p className="eva-error">{error}</p> : null}
 
-      <button type="button" className="e2a-cta" onClick={() => void runImport()} disabled={!canImport}>
+      <button type="button" className="eva-cta" onClick={() => void runImport()} disabled={!canImport}>
         {pending ? 'Importowanie…' : 'Importuj'}
       </button>
 
       {result ? (
-        <div className="e2a-import-result">
+        <div className="eva-import-result">
           <p>
             Zaimportowano: {result.pagesCreated} stron, {result.partsCreated} części, {result.fieldsCreated} pól
             formularza.
           </p>
           {result.warnings.length > 0 ? (
             <>
-              <p className="e2a-sub">Ostrzeżenia — te rzeczy zostały pominięte albo poprawione:</p>
-              <ul className="e2a-warnings">
+              <p className="eva-sub">Ostrzeżenia — te rzeczy zostały pominięte albo poprawione:</p>
+              <ul className="eva-warnings">
                 {result.warnings.map((warning, index) => (
                   <li key={index}>{warning}</li>
                 ))}

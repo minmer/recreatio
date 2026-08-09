@@ -1,4 +1,4 @@
-import type { Event2PartKind } from '../../../../lib/api';
+import type { EventPartKind } from '../../../lib/api';
 import type { PartModule } from './contracts';
 import { contactPart } from './ContactPart';
 import { costsPart } from './CostsPart';
@@ -35,12 +35,12 @@ export const PART_MODULES: PartModule[] = [
   contactPart
 ];
 
-const BY_KIND = new Map<Event2PartKind, PartModule>(PART_MODULES.map((module) => [module.kind, module]));
+const BY_KIND = new Map<EventPartKind, PartModule>(PART_MODULES.map((module) => [module.kind, module]));
 
-export function getPartModule(kind: Event2PartKind): PartModule | null {
+export function getPartModule(kind: EventPartKind): PartModule | null {
   return BY_KIND.get(kind) ?? null;
 }
 
-export function partLabel(kind: Event2PartKind): string {
+export function partLabel(kind: EventPartKind): string {
   return BY_KIND.get(kind)?.label ?? kind;
 }

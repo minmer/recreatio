@@ -37,28 +37,28 @@ export const filesPart = definePart<FilesConfig>({
   },
 
   Renderer: ({ config }) => (
-    <div className="e2-files">
+    <div className="ev-files">
       {config.files.length === 0 ? (
-        <p className="e2-note">Nie dodano jeszcze plików.</p>
+        <p className="ev-note">Nie dodano jeszcze plików.</p>
       ) : (
-        <ul className="e2-file-list">
+        <ul className="ev-file-list">
           {config.files.map((file, index) => (
             <li key={index}>
               <a href={file.url} target="_blank" rel="noreferrer noopener" download>
-                <span className="e2-file-icon" aria-hidden="true">
+                <span className="ev-file-icon" aria-hidden="true">
                   ↓
                 </span>
-                <span className="e2-file-body">
+                <span className="ev-file-body">
                   <strong>{file.label}</strong>
                   {file.note ? <em>{file.note}</em> : null}
                 </span>
-                {file.size ? <span className="e2-file-size">{file.size}</span> : null}
+                {file.size ? <span className="ev-file-size">{file.size}</span> : null}
               </a>
             </li>
           ))}
         </ul>
       )}
-      {config.note ? <p className="e2-note">{config.note}</p> : null}
+      {config.note ? <p className="ev-note">{config.note}</p> : null}
     </div>
   ),
 

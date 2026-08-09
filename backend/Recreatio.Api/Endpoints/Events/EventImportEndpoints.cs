@@ -2,9 +2,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts;
 using Recreatio.Api.Data;
-using Recreatio.Api.Data.Event2;
+using Recreatio.Api.Data.Events;
 
-namespace Recreatio.Api.Endpoints.Event2;
+namespace Recreatio.Api.Endpoints.Events;
 
 /// <summary>
 /// Bulk import. The normal authoring path is a model writing one JSON document
@@ -15,7 +15,7 @@ namespace Recreatio.Api.Endpoints.Event2;
 /// as a warning rather than failing the whole document, because a partly-usable
 /// import the organizer can fix beats a rejection they cannot act on.
 /// </summary>
-public static partial class Event2Endpoints
+public static partial class EventEndpoints
 {
     private static void MapImportEndpoints(RouteGroupBuilder group)
     {
@@ -37,7 +37,7 @@ public static partial class Event2Endpoints
             {
                 return Results.BadRequest(new { error = "JSON musi zawierać „slug” i „title”." });
             }
-            if (await dbContext.Event2Sites.AnyAsync(x => x.Slug == slug, ct))
+            if (await dbContext.EventSites.AnyAsync(x => x.Slug == slug, ct))
             {
                 return Results.Conflict(new { error = $"Wydarzenie o adresie „{slug}” już istnieje. Zmień „slug” w JSON-ie." });
             }
@@ -45,7 +45,7 @@ public static partial class Event2Endpoints
             var warnings = new List<string>();
             var now = DateTimeOffset.UtcNow;
 
-            var site = new Event2Site
+            var site = new EventSite
             {
                 Id = Guid.NewGuid(),
                 Slug = slug,
@@ -54,7 +54,7 @@ public static partial class Event2Endpoints
                 UpdatedUtc = now
             };
             ApplyCatalogue(site, BuildUpsertFromJson(body, slug, title, warnings));
-            dbContext.Event2Sites.Add(site);
+            dbContext.EventSites.Add(site);
 
             var pageElements = ReadArray(body, "pages");
             var publicIndex = FindPublicPageIndex(pageElements);
@@ -66,7 +66,7 @@ public static partial class Event2Endpoints
             // the document remembered to mark one.
             if (pageElements.Count == 0)
             {
-                dbContext.Event2Pages.Add(NewPage(site.Id, 0, "public", "start", title, "Strona publiczna", null, now));
+                dbContext.EventPages.Add(NewPage(site.Id, 0, "public", "start", title, "Strona publiczna", null, now));
                 pagesCreated = 1;
                 warnings.Add("JSON nie zawierał żadnych stron — utworzono pustą stronę publiczną.");
             }
@@ -86,7 +86,7 @@ public static partial class Event2Endpoints
                     // rather than losing the page.
                     var candidate = pageSlug;
                     var attempt = 2;
-                    while (dbContext.Event2Pages.Local.Any(x => x.SiteId == site.Id && x.Slug == candidate))
+                    while (dbContext.EventPages.Local.Any(x => x.SiteId == site.Id && x.Slug == candidate))
                     {
                         candidate = $"{pageSlug}-{attempt++}";
                     }
@@ -105,7 +105,7 @@ public static partial class Event2Endpoints
                         NormalizeShort(ReadString(element, "description"), 600),
                         now);
 
-                    dbContext.Event2Pages.Add(page);
+                    dbContext.EventPages.Add(page);
                     pagesCreated += 1;
 
                     var (parts, fields) = AddParts(dbContext, page, ReadArray(element, "parts"), 0, now, warnings);
@@ -116,7 +116,7 @@ public static partial class Event2Endpoints
 
             await dbContext.SaveChangesAsync(ct);
 
-            return Results.Ok(new Event2ImportResult(
+            return Results.Ok(new EventImportResult(
                 site.Id, site.Slug, pagesCreated, partsCreated, fieldsCreated, warnings));
         }).RequireAuthorization();
 
@@ -129,7 +129,7 @@ public static partial class Event2Endpoints
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var page = await dbContext.Event2Pages.FirstOrDefaultAsync(x => x.Id == pageId, ct);
+            var page = await dbContext.EventPages.FirstOrDefaultAsync(x => x.Id == pageId, ct);
             if (page is null) return Results.NotFound();
 
             // Accept either a bare array of parts or an object wrapping one.
@@ -142,7 +142,7 @@ public static partial class Event2Endpoints
                 return Results.BadRequest(new { error = "JSON nie zawiera żadnych części do zaimportowania." });
             }
 
-            var startOrder = await dbContext.Event2Parts
+            var startOrder = await dbContext.EventParts
                 .Where(x => x.PageId == pageId)
                 .Select(x => (int?)x.SortOrder)
                 .MaxAsync(ct) ?? -1;
@@ -154,13 +154,13 @@ public static partial class Event2Endpoints
             await TouchSiteAsync(dbContext, page.SiteId, ct);
             await dbContext.SaveChangesAsync(ct);
 
-            return Results.Ok(new Event2ImportResult(page.SiteId, page.Slug, 0, parts, fields, warnings));
+            return Results.Ok(new EventImportResult(page.SiteId, page.Slug, 0, parts, fields, warnings));
         }).RequireAuthorization();
     }
 
     // ── Building ─────────────────────────────────────────────────────────────
 
-    private static Event2Page NewPage(
+    private static EventPage NewPage(
         Guid siteId, int sortOrder, string kind, string slug, string title,
         string menuLabel, string? description, DateTimeOffset now) =>
         new()
@@ -179,7 +179,7 @@ public static partial class Event2Endpoints
 
     private static (int Parts, int Fields) AddParts(
         RecreatioDbContext dbContext,
-        Event2Page page,
+        EventPage page,
         List<JsonElement> elements,
         int startOrder,
         DateTimeOffset now,
@@ -200,7 +200,7 @@ public static partial class Event2Endpoints
 
             var menuLabel = NormalizeShort(ReadString(element, "menuLabel"), 60) ?? DefaultPartLabel(kind);
 
-            var part = new Event2Part
+            var part = new EventPart
             {
                 Id = Guid.NewGuid(),
                 PageId = page.Id,
@@ -216,7 +216,7 @@ public static partial class Event2Endpoints
                 UpdatedUtc = now
             };
 
-            dbContext.Event2Parts.Add(part);
+            dbContext.EventParts.Add(part);
             partCount += 1;
 
             if (kind != "form") continue;
@@ -250,7 +250,7 @@ public static partial class Event2Endpoints
                     identityRole = "none";
                 }
 
-                dbContext.Event2PartFields.Add(new Event2PartField
+                dbContext.EventPartFields.Add(new EventPartField
                 {
                     Id = Guid.NewGuid(),
                     PartId = part.Id,
@@ -275,7 +275,7 @@ public static partial class Event2Endpoints
         return (partCount, fieldCount);
     }
 
-    private static Event2SiteUpsertRequest BuildUpsertFromJson(
+    private static EventSiteUpsertRequest BuildUpsertFromJson(
         JsonElement body,
         string slug,
         string title,
@@ -290,7 +290,7 @@ public static partial class Event2Endpoints
             themeJson = theme.GetRawText();
         }
 
-        return new Event2SiteUpsertRequest(
+        return new EventSiteUpsertRequest(
             slug,
             title,
             NormalizeShort(ReadString(body, "subtitle"), 300),

@@ -1,0 +1,178 @@
+{
+  "slug": "teatr26",
+  "title": "Teatr Drogi 2026",
+  "subtitle": "Kolektyw sceniczny",
+  "summary": "Roczny projekt teatralny dla mlodziezy i mlodych doroslych: warsztat aktorski, muzyka, ruch sceniczny i finalowy spektakl plenerowy.",
+  "category": "Projekt teatralny",
+  "audience": "Mlodziez i mlodzi dorosli, bez wymaganego doswiadczenia scenicznego",
+  "places": ["Kraków"],
+  "thumbnailUrl": null,
+  "startDate": "2026-10-10",
+  "endDate": "2027-05-30",
+  "dateLabel": null,
+  "theme": {
+    "accent": "#c8553d",
+    "ground": "#120c0d",
+    "ink": "#f6ece8",
+    "muted": "#c9aca3"
+  },
+  "pages": [
+    {
+      "kind": "public",
+      "slug": "start",
+      "title": "Teatr Drogi 2026",
+      "menuLabel": "Strona publiczna",
+      "parts": [
+        {
+          "kind": "title",
+          "menuLabel": "Start",
+          "title": null,
+          "config": {
+            "badge": "Projekt 2026 · kolektyw sceniczny",
+            "headline": "Teatr Drogi 2026",
+            "lede": "Roczny projekt teatralny dla mlodziezy i mlodych doroslych",
+            "paragraphs": [
+              "Warsztat aktorski, muzyka, ruch sceniczny i finalowy spektakl plenerowy.",
+              "Budujemy zespol, ktory spotyka sie regularnie, cwiczy rzemioslo i tworzy autorski spektakl oparty o historie, wartosci i prace wspolnotowa.",
+              "To format dla osob, ktore chca wejsc w proces tworczy i pracowac nad pelnym przedstawieniem od pierwszej proby do premiery."
+            ],
+            "actions": [{ "label": "Dolacz do projektu", "href": "#dolacz", "variant": "cta" }],
+            "footnote": "Premiera plenerowa: lato 2026."
+          },
+          "layers": [
+            { "kind": "gradient", "speed": 0.12, "angle": 168, "from": "#2a1512", "via": null, "to": "#0d0808" },
+            { "kind": "bigtext", "speed": 0.95, "lines": ["TEATR", "DROGI"], "opacity": 0.11 }
+          ]
+        },
+        {
+          "kind": "shortinfos",
+          "menuLabel": "W skrócie",
+          "title": "W skrócie",
+          "config": {
+            "items": [
+              { "label": "Start pracy zespolu", "value": "10 pazdziernika 2026", "detail": null },
+              { "label": "Spotkanie startowe", "value": "3 pazdziernika 2026", "detail": null },
+              { "label": "Nabor", "value": "Otwarty do konca wrzesnia", "detail": null },
+              { "label": "Proby", "value": "Wtorki i czwartki", "detail": "19:00–21:15" },
+              { "label": "Zjazdy intensywne", "value": "Raz w miesiacu", "detail": "sobota 10:00–17:00" },
+              { "label": "Final", "value": "Spektakl plenerowy", "detail": "oraz dwa pokazy parafialne" }
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Wizja",
+          "title": "Projekt, ktory laczy formacje i scene",
+          "intro": "Dlaczego Teatr Drogi?",
+          "config": {
+            "paragraphs": [
+              "Teatr Drogi powstal z potrzeby stworzenia miejsca, gdzie mlodzi jednoczesnie rozwijaja warsztat artystyczny i buduja odpowiedzialnosc za wspolne dzielo.",
+              "Pracujemy etapami: od pracy z cialem i glosem, przez improwizacje, po budowanie scen i spojnej narracji. Kazdy etap konczy sie konkretna prezentacja robocza.",
+              "W tym projekcie kazda osoba ma realne zadanie: aktorskie, muzyczne, techniczne, scenograficzne albo organizacyjne.",
+              "Pracujemy w rytmie tygodniowym, z dodatkowymi zjazdami intensywnymi przed premiera. Oczekujemy regularnosci, punktualnosci i przygotowania."
+            ],
+            "bullets": [
+              "Proby tygodniowe: wtorki i czwartki, 19:00-21:15.",
+              "Zjazdy intensywne: raz w miesiacu (sobota 10:00-17:00).",
+              "Final: spektakl plenerowy + dwa pokazy parafialne.",
+              "Feedback po kazdym etapie, z indywidualnymi wskazowkami."
+            ],
+            "note": "Nie wymagamy wczesniejszego doswiadczenia scenicznego. Wymagamy gotowosci do uczenia sie i odpowiedzialnosci za grupe."
+          }
+        },
+        {
+          "kind": "plan",
+          "menuLabel": "Proby",
+          "title": "Jak wyglada tydzien pracy zespolu?",
+          "intro": "Rytm pracy",
+          "config": {
+            "groups": [
+              {
+                "label": "Tydzien pracy",
+                "caption": null,
+                "rows": [
+                  { "time": "Wtorek", "title": "Rozgrzewka, emisja glosu, praca nad scenami dialogowymi.", "detail": null },
+                  { "time": "Czwartek", "title": "Ruch sceniczny, kompozycja scen zbiorowych, rytm spektaklu.", "detail": null },
+                  { "time": "Weekend", "title": "Konsultacje techniczne w malych zespolach.", "detail": null },
+                  { "time": "Co 4 tyg.", "title": "Pokaz roboczy i analiza nagrania.", "detail": null }
+                ]
+              }
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Zespoły",
+          "title": "Kazdy ma role w produkcji",
+          "intro": "Role i odpowiedzialnosc",
+          "config": {
+            "paragraphs": [
+              "W projekcie dzialamy jak mala produkcja teatralna. Czesci zespolu sa na scenie, inne odpowiadaja za warstwe techniczna i organizacyjna."
+            ],
+            "bullets": [],
+            "note": null
+          }
+        },
+        {
+          "kind": "plan",
+          "menuLabel": "Podział zespołów",
+          "title": "Cztery zespoly",
+          "config": {
+            "groups": [
+              {
+                "label": "Zespol aktorski",
+                "caption": null,
+                "rows": [
+                  { "time": null, "title": "Budowanie postaci, analiza scen, cwiczenia relacji i partnerowania.", "detail": null },
+                  { "time": null, "title": "Praca nad dykcja, nosnoscia glosu i obecnoscia sceniczna.", "detail": null }
+                ]
+              },
+              {
+                "label": "Zespol muzyczny",
+                "caption": null,
+                "rows": [
+                  { "time": null, "title": "Tworzenie motywow muzycznych i oprawy przejsc miedzy scenami.", "detail": null },
+                  { "time": null, "title": "Synchronizacja z ruchem i tempem spektaklu.", "detail": null }
+                ]
+              },
+              {
+                "label": "Zespol scenograficzno-techniczny",
+                "caption": null,
+                "rows": [
+                  { "time": null, "title": "Projektowanie mobilnych elementow sceny i przygotowanie przestrzeni.", "detail": null },
+                  { "time": null, "title": "Ustawienia swiatla i dzwieku oraz plan montazu i demontazu.", "detail": null }
+                ]
+              },
+              {
+                "label": "Zespol produkcji",
+                "caption": null,
+                "rows": [
+                  { "time": null, "title": "Komunikacja z uczestnikami i opiekunami.", "detail": null },
+                  { "time": null, "title": "Harmonogram, obecnosci i checklisty przed pokazami.", "detail": null }
+                ]
+              }
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Dołącz",
+          "title": "Nabor otwarty do konca wrzesnia",
+          "intro": "Rekrutacja 2026",
+          "config": {
+            "paragraphs": [
+              "Pierwszy etap to spotkanie organizacyjne i krotki warsztat wejsciowy. Potem przypisujemy role i sciezki pracy.",
+              "Jesli chcesz wejsc w projekt od poczatku, zapisz sie teraz. Potrzebujemy osob scenicznych oraz techniczno-organizacyjnych.",
+              "Start pracy zespolu: 10 pazdziernika 2026."
+            ],
+            "bullets": [],
+            "note": "Spotkanie startowe: 3 pazdziernika 2026."
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -81,7 +81,7 @@ function OptionalNumberRow({
   step?: string;
 }) {
   return (
-    <label className="e2e-row">
+    <label className="eve-row">
       <span>{label}</span>
       <input
         type="number"
@@ -166,8 +166,8 @@ export const costsPart = definePart<CostsConfig>({
       : `Przeliczenie dla ${config.participantCount} ${config.participantCount === 1 ? 'osoby' : 'osób'}.`;
 
     return (
-      <div className="e2-costs">
-        <div className="e2-costs-summary">
+      <div className="ev-costs">
+        <div className="ev-costs-summary">
           <article>
             <span>Koszty sugerowane</span>
             <strong>{formatMoney(suggested.total, config.currency)}</strong>
@@ -185,11 +185,11 @@ export const costsPart = definePart<CostsConfig>({
           </article>
         </div>
 
-        <p className="e2-costs-count">{countLabel}</p>
+        <p className="ev-costs-count">{countLabel}</p>
 
         {config.costItems.length > 0 ? (
-          <div className="e2-costs-table-wrap">
-            <table className="e2-costs-table">
+          <div className="ev-costs-table-wrap">
+            <table className="ev-costs-table">
               <thead>
                 <tr>
                   <th>Pozycja</th>
@@ -209,11 +209,11 @@ export const costsPart = definePart<CostsConfig>({
             </table>
           </div>
         ) : (
-          <p className="e2-note">Pozycje kosztów nie zostały jeszcze uzupełnione.</p>
+          <p className="ev-note">Pozycje kosztów nie zostały jeszcze uzupełnione.</p>
         )}
 
         {config.donations.length > 0 ? (
-          <dl className="e2-costs-donations">
+          <dl className="ev-costs-donations">
             {config.donations.map((donation, index) => (
               <div key={`${donation.label}-${index}`}>
                 <dt>{donation.label}</dt>
@@ -223,7 +223,7 @@ export const costsPart = definePart<CostsConfig>({
           </dl>
         ) : null}
 
-        {config.note ? <p className="e2-note">{config.note}</p> : null}
+        {config.note ? <p className="ev-note">{config.note}</p> : null}
       </div>
     );
   },

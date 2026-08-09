@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Recreatio.Api.Data.Event2;
+namespace Recreatio.Api.Data.Events;
 
 /// <summary>
 /// One page of an event. Every site has exactly one <c>public</c> page — the
@@ -9,8 +9,8 @@ namespace Recreatio.Api.Data.Event2;
 /// reachable only through an access link granted that page. Internal pages are
 /// full pages with their own parts, never slides hidden on the public one.
 /// </summary>
-[Table("Event2Pages", Schema = "event2")]
-public sealed class Event2Page
+[Table("EventPages", Schema = "events")]
+public sealed class EventPage
 {
     [Key]
     public Guid Id { get; set; }

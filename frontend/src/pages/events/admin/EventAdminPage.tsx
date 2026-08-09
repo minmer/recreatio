@@ -1,23 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ApiError,
-  claimEvent2Admin,
-  createEvent2Page,
-  createEvent2Part,
-  createEvent2Site,
-  deleteEvent2Page,
-  deleteEvent2Site,
-  getEvent2AdminSite,
-  getEvent2AdminSites,
-  getEvent2AdminStatus,
-  reorderEvent2Parts,
-  updateEvent2Page,
-  updateEvent2Site,
-  type Event2AdminSite,
-  type Event2AdminSiteSummary,
-  type Event2AdminStatus,
-  type Event2PartKind
-} from '../../../../lib/api';
+  claimEventAdmin,
+  createEventPage,
+  createEventPart,
+  createEventSite,
+  deleteEventPage,
+  deleteEventSite,
+  getEventAdminSite,
+  getEventAdminSites,
+  getEventAdminStatus,
+  reorderEventParts,
+  updateEventPage,
+  updateEventSite,
+  type EventAdminSite,
+  type EventAdminSiteSummary,
+  type EventAdminStatus,
+  type EventPartKind
+} from '../../../lib/api';
 import { AreaRow, CheckRow, LinesRow, TextRow } from '../parts/editorKit';
 import { PART_MODULES, partLabel } from '../parts/registry';
 import { defaultLayersJson } from '../shell/layers';
@@ -36,9 +36,9 @@ function errorText(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export function Event2AdminPage({ initialSiteId }: { initialSiteId?: string | null } = {}) {
-  const [status, setStatus] = useState<Event2AdminStatus | null>(null);
-  const [sites, setSites] = useState<Event2AdminSiteSummary[]>([]);
+export function EventAdminPage({ initialSiteId }: { initialSiteId?: string | null } = {}) {
+  const [status, setStatus] = useState<EventAdminStatus | null>(null);
+  const [sites, setSites] = useState<EventAdminSiteSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(initialSiteId ?? null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export function Event2AdminPage({ initialSiteId }: { initialSiteId?: string | nu
 
   const loadSites = useCallback(async () => {
     try {
-      setSites(await getEvent2AdminSites());
+      setSites(await getEventAdminSites());
       setError(null);
     } catch (loadError: unknown) {
       if (loadError instanceof ApiError && (loadError.status === 401 || loadError.status === 403)) return;
@@ -59,7 +59,7 @@ export function Event2AdminPage({ initialSiteId }: { initialSiteId?: string | nu
   useEffect(() => {
     let active = true;
     setLoading(true);
-    getEvent2AdminStatus()
+    getEventAdminStatus()
       .then(async (response) => {
         if (!active) return;
         setStatus(response);
@@ -78,8 +78,8 @@ export function Event2AdminPage({ initialSiteId }: { initialSiteId?: string | nu
 
   const claim = async () => {
     try {
-      await claimEvent2Admin();
-      const refreshed = await getEvent2AdminStatus();
+      await claimEventAdmin();
+      const refreshed = await getEventAdminStatus();
       setStatus(refreshed);
       if (refreshed.isCurrentUserAdmin) await loadSites();
     } catch (claimError: unknown) {
@@ -93,7 +93,7 @@ export function Event2AdminPage({ initialSiteId }: { initialSiteId?: string | nu
       return;
     }
     try {
-      const created = await createEvent2Site({
+      const created = await createEventSite({
         slug: newSlug.trim(),
         title: newTitle.trim(),
         subtitle: null,
@@ -120,7 +120,7 @@ export function Event2AdminPage({ initialSiteId }: { initialSiteId?: string | nu
   if (loading) {
     return (
       <div className="e2a">
-        <p className="e2a-hint">Ładowanie…</p>
+        <p className="eva-hint">Ładowanie…</p>
       </div>
     );
   }
@@ -128,22 +128,22 @@ export function Event2AdminPage({ initialSiteId }: { initialSiteId?: string | nu
   if (!status?.isCurrentUserAdmin) {
     return (
       <div className="e2a">
-        <header className="e2a-head">
+        <header className="eva-head">
           <h1>Kreator wydarzeń</h1>
           <p>Buduj stronę wydarzenia z gotowych części i nadawaj dostęp do stron wewnętrznych.</p>
         </header>
-        <section className="e2a-panel">
+        <section className="eva-panel">
           {status?.hasAdmin ? (
             <p>Panel jest przypisany do: {status.adminDisplayName ?? 'innego użytkownika'}.</p>
           ) : (
             <>
               <p>Panel nie ma jeszcze przypisanego administratora.</p>
-              <button type="button" className="e2a-cta" onClick={() => void claim()}>
+              <button type="button" className="eva-cta" onClick={() => void claim()}>
                 Przejmij panel
               </button>
             </>
           )}
-          {error ? <p className="e2a-error">{error}</p> : null}
+          {error ? <p className="eva-error">{error}</p> : null}
         </section>
       </div>
     );
@@ -165,7 +165,7 @@ export function Event2AdminPage({ initialSiteId }: { initialSiteId?: string | nu
 
   return (
     <div className="e2a">
-      <header className="e2a-head">
+      <header className="eva-head">
         <h1>Kreator wydarzeń</h1>
         <p>
           Najpierw powstaje strona publiczna. Potem dokładasz strony wewnętrzne i nadajesz do nich dostęp osobom, które
@@ -173,18 +173,18 @@ export function Event2AdminPage({ initialSiteId }: { initialSiteId?: string | nu
         </p>
       </header>
 
-      <section className="e2a-panel">
+      <section className="eva-panel">
         <header>
           <h3>Nowe wydarzenie</h3>
           <p>Zacznij od pustego wydarzenia albo zaimportuj gotowy JSON.</p>
         </header>
-        <div className="e2a-grid">
+        <div className="eva-grid">
           <TextRow label="Adres (slug)" value={newSlug} onChange={setNewSlug} placeholder="rajd-2026" />
           <TextRow label="Tytuł" value={newTitle} onChange={setNewTitle} placeholder="Rajd 2026" />
         </div>
-        {error ? <p className="e2a-error">{error}</p> : null}
-        <div className="e2a-actions">
-          <button type="button" className="e2a-cta" onClick={() => void create()}>
+        {error ? <p className="eva-error">{error}</p> : null}
+        <div className="eva-actions">
+          <button type="button" className="eva-cta" onClick={() => void create()}>
             Utwórz puste wydarzenie
           </button>
           <button type="button" onClick={() => setShowImport((current) => !current)}>
@@ -203,23 +203,23 @@ export function Event2AdminPage({ initialSiteId }: { initialSiteId?: string | nu
         />
       ) : null}
 
-      <section className="e2a-panel">
+      <section className="eva-panel">
         <header>
           <h3>Wydarzenia ({sites.length})</h3>
         </header>
         {sites.length === 0 ? (
-          <p className="e2a-hint">Brak wydarzeń.</p>
+          <p className="eva-hint">Brak wydarzeń.</p>
         ) : (
-          <ul className="e2a-site-list">
+          <ul className="eva-site-list">
             {sites.map((site) => (
               <li key={site.id}>
                 <button type="button" onClick={() => setSelected(site.id)}>
                   <strong>{site.title}</strong>
-                  <span className="e2a-sub">/{site.slug}</span>
-                  <span className={`e2a-pill ${site.isPublished ? 'is-live' : ''}`}>
+                  <span className="eva-sub">/{site.slug}</span>
+                  <span className={`eva-pill ${site.isPublished ? 'is-live' : ''}`}>
                     {site.isPublished ? 'Opublikowane' : 'Szkic'}
                   </span>
-                  <span className="e2a-sub">
+                  <span className="eva-sub">
                     {site.pageCount} stron · {site.partCount} części · {site.linkCount} linków ·{' '}
                     {site.registrationCount} zgłoszeń
                   </span>
@@ -236,18 +236,18 @@ export function Event2AdminPage({ initialSiteId }: { initialSiteId?: string | nu
 // ── Site editor ──────────────────────────────────────────────────────────────
 
 function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) {
-  const [data, setData] = useState<Event2AdminSite | null>(null);
+  const [data, setData] = useState<EventAdminSite | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activePageId, setActivePageId] = useState<string | null>(null);
   const [tab, setTab] = useState<'pages' | 'access' | 'settings'>('pages');
-  const [newPartKind, setNewPartKind] = useState<Event2PartKind>('text');
+  const [newPartKind, setNewPartKind] = useState<EventPartKind>('text');
   const [showPartImport, setShowPartImport] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await getEvent2AdminSite(siteId);
+      const response = await getEventAdminSite(siteId);
       setData(response);
       setActivePageId((current) => current ?? response.pages[0]?.id ?? null);
       setError(null);
@@ -262,8 +262,8 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
     void load();
   }, [load]);
 
-  if (loading && !data) return <p className="e2a-hint">Ładowanie…</p>;
-  if (!data) return <p className="e2a-error">{error ?? 'Nie znaleziono wydarzenia.'}</p>;
+  if (loading && !data) return <p className="eva-hint">Ładowanie…</p>;
+  if (!data) return <p className="eva-error">{error ?? 'Nie znaleziono wydarzenia.'}</p>;
 
   const activePage = data.pages.find((page) => page.id === activePageId) ?? data.pages[0] ?? null;
 
@@ -272,7 +272,7 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
     const module = getPartModule(newPartKind);
     const label = partLabel(newPartKind);
     try {
-      await createEvent2Part(activePage.id, {
+      await createEventPart(activePage.id, {
         kind: newPartKind,
         menuLabel: label,
         title: newPartKind === 'title' ? null : label,
@@ -294,7 +294,7 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
     if (target < 0 || target >= ordered.length) return;
     const [moved] = ordered.splice(index, 1);
     ordered.splice(target, 0, moved);
-    await reorderEvent2Parts(activePage.id, ordered.map((part) => part.id));
+    await reorderEventParts(activePage.id, ordered.map((part) => part.id));
     await load();
   };
 
@@ -302,7 +302,7 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
     const title = window.prompt('Nazwa nowej strony wewnętrznej (np. „Prowadzący trasę”)');
     if (!title || title.trim().length === 0) return;
     try {
-      const created = await createEvent2Page(siteId, {
+      const created = await createEventPage(siteId, {
         slug: title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         title: title.trim(),
         menuLabel: title.trim(),
@@ -318,7 +318,7 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
   const removePage = async () => {
     if (!activePage || activePage.kind === 'public') return;
     if (!window.confirm(`Usunąć stronę „${activePage.menuLabel}” razem ze wszystkimi jej częściami?`)) return;
-    await deleteEvent2Page(activePage.id);
+    await deleteEventPage(activePage.id);
     setActivePageId(null);
     await load();
   };
@@ -326,18 +326,18 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
   const sortedParts = activePage ? [...activePage.parts].sort((a, b) => a.sortOrder - b.sortOrder) : [];
 
   return (
-    <div className="e2a-editor">
-      <div className="e2a-editor-head">
-        <button type="button" className="e2a-ghost" onClick={onBack}>
+    <div className="eva-editor">
+      <div className="eva-editor-head">
+        <button type="button" className="eva-ghost" onClick={onBack}>
           ← Wszystkie wydarzenia
         </button>
         <strong>{data.site.title}</strong>
-        <a className="e2a-ghost" href={publicUrl(data.site.slug)} target="_blank" rel="noreferrer">
+        <a className="eva-ghost" href={publicUrl(data.site.slug)} target="_blank" rel="noreferrer">
           Podgląd strony publicznej
         </a>
       </div>
 
-      <nav className="e2a-tabs">
+      <nav className="eva-tabs">
         <button type="button" className={tab === 'pages' ? 'active' : ''} onClick={() => setTab('pages')}>
           Strony i części
         </button>
@@ -349,16 +349,16 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
         </button>
       </nav>
 
-      {error ? <p className="e2a-error">{error}</p> : null}
+      {error ? <p className="eva-error">{error}</p> : null}
 
       {tab === 'pages' ? (
         <>
-          <section className="e2a-panel">
+          <section className="eva-panel">
             <header>
               <h3>Strony</h3>
               <p>Strona publiczna jest jedna. Strony wewnętrzne widzi tylko ten, komu nadasz do nich dostęp.</p>
             </header>
-            <div className="e2a-page-tabs">
+            <div className="eva-page-tabs">
               {data.pages.map((page) => (
                 <button
                   key={page.id}
@@ -366,12 +366,12 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
                   className={page.id === activePage?.id ? 'active' : ''}
                   onClick={() => setActivePageId(page.id)}
                 >
-                  {page.kind === 'internal' ? <span className="e2a-page-mark">●</span> : null}
+                  {page.kind === 'internal' ? <span className="eva-page-mark">●</span> : null}
                   {page.menuLabel}
-                  <span className="e2a-sub">{page.parts.length}</span>
+                  <span className="eva-sub">{page.parts.length}</span>
                 </button>
               ))}
-              <button type="button" className="e2a-add-page" onClick={() => void addPage()}>
+              <button type="button" className="eva-add-page" onClick={() => void addPage()}>
                 + Strona wewnętrzna
               </button>
             </div>
@@ -381,16 +381,16 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
             <>
               <PageSettings page={activePage} onSaved={() => void load()} onRemove={removePage} />
 
-              <section className="e2a-panel">
+              <section className="eva-panel">
                 <header>
                   <h3>Części strony „{activePage.menuLabel}”</h3>
                   <p>Kolejność części to kolejność slajdów na stronie.</p>
                 </header>
 
-                <div className="e2a-add-part">
+                <div className="eva-add-part">
                   <select
                     value={newPartKind}
-                    onChange={(event) => setNewPartKind(event.target.value as Event2PartKind)}
+                    onChange={(event) => setNewPartKind(event.target.value as EventPartKind)}
                   >
                     {PART_MODULES.map((module) => (
                       <option key={module.kind} value={module.kind}>
@@ -398,7 +398,7 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
                       </option>
                     ))}
                   </select>
-                  <button type="button" className="e2a-cta" onClick={() => void addPart()}>
+                  <button type="button" className="eva-cta" onClick={() => void addPart()}>
                     Dodaj część
                   </button>
                   <button type="button" onClick={() => setShowPartImport((current) => !current)}>
@@ -414,9 +414,9 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
                 ) : null}
 
                 {sortedParts.length === 0 ? (
-                  <p className="e2a-hint">Ta strona nie ma jeszcze części.</p>
+                  <p className="eva-hint">Ta strona nie ma jeszcze części.</p>
                 ) : (
-                  <div className="e2a-part-list">
+                  <div className="eva-part-list">
                     {sortedParts.map((part, index) => (
                       <PartEditor
                         key={part.id}
@@ -447,7 +447,7 @@ function PageSettings({
   onSaved,
   onRemove
 }: {
-  page: Event2AdminSite['pages'][number];
+  page: EventAdminSite['pages'][number];
   onSaved: () => void;
   onRemove: () => void;
 }) {
@@ -467,7 +467,7 @@ function PageSettings({
   const save = async () => {
     setPending(true);
     try {
-      await updateEvent2Page(page.id, {
+      await updateEventPage(page.id, {
         slug: slug.trim(),
         title: title.trim(),
         menuLabel: menuLabel.trim(),
@@ -480,23 +480,23 @@ function PageSettings({
   };
 
   return (
-    <section className="e2a-panel">
+    <section className="eva-panel">
       <header>
         <h3>Ustawienia strony</h3>
         <p>{page.kind === 'public' ? 'To jest strona publiczna wydarzenia.' : 'Strona wewnętrzna.'}</p>
       </header>
-      <div className="e2a-grid">
+      <div className="eva-grid">
         <TextRow label="Etykieta" value={menuLabel} onChange={setMenuLabel} />
         <TextRow label="Tytuł" value={title} onChange={setTitle} />
       </div>
       <TextRow label="Adres (slug)" value={slug} onChange={setSlug} />
       <TextRow label="Opis" value={description} onChange={setDescription} />
-      <div className="e2a-actions">
-        <button type="button" className="e2a-cta" onClick={() => void save()} disabled={pending}>
+      <div className="eva-actions">
+        <button type="button" className="eva-cta" onClick={() => void save()} disabled={pending}>
           {pending ? 'Zapisywanie…' : 'Zapisz stronę'}
         </button>
         {page.kind !== 'public' ? (
-          <button type="button" className="e2a-danger" onClick={onRemove}>
+          <button type="button" className="eva-danger" onClick={onRemove}>
             Usuń stronę
           </button>
         ) : null}
@@ -511,7 +511,7 @@ function SiteSettings({
   onSaved,
   onBack
 }: {
-  data: Event2AdminSite;
+  data: EventAdminSite;
   siteId: string;
   onSaved: () => void;
   onBack: () => void;
@@ -551,7 +551,7 @@ function SiteSettings({
     setPending(true);
     setError(null);
     try {
-      await updateEvent2Site(siteId, {
+      await updateEventSite(siteId, {
         slug: slug.trim(),
         title: title.trim(),
         subtitle: subtitle.trim() || null,
@@ -576,26 +576,26 @@ function SiteSettings({
 
   const remove = async () => {
     if (!window.confirm(`Usunąć wydarzenie „${title}” ze wszystkimi stronami, linkami i zgłoszeniami?`)) return;
-    await deleteEvent2Site(siteId);
+    await deleteEventSite(siteId);
     onBack();
   };
 
   return (
-    <section className="e2a-panel">
+    <section className="eva-panel">
       <header>
         <h3>Ustawienia wydarzenia</h3>
         <p>Adres publiczny: {publicUrl(data.site.slug)}</p>
       </header>
 
-      <div className="e2a-grid">
+      <div className="eva-grid">
         <TextRow label="Adres (slug)" value={slug} onChange={setSlug} />
         <TextRow label="Tytuł" value={title} onChange={setTitle} />
       </div>
       <TextRow label="Podtytuł" value={subtitle} onChange={setSubtitle} hint="Hasło na samej stronie wydarzenia." />
 
-      <fieldset className="e2e-group">
+      <fieldset className="eve-group">
         <legend>Dane do przeglądu wydarzeń</legend>
-        <p className="e2e-hint">
+        <p className="eve-hint">
           To, po czym wydarzenie da się znaleźć, przefiltrować i posortować na liście wszystkich wydarzeń.
         </p>
 
@@ -607,7 +607,7 @@ function SiteSettings({
           onChange={setSummary}
         />
 
-        <div className="e2a-grid">
+        <div className="eva-grid">
           <TextRow
             label="Grupa wydarzeń"
             value={category}
@@ -630,12 +630,12 @@ function SiteSettings({
           onChange={setPlaces}
         />
 
-        <div className="e2a-grid">
-          <label className="e2e-row">
+        <div className="eva-grid">
+          <label className="eve-row">
             <span>Data rozpoczęcia</span>
             <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
           </label>
-          <label className="e2e-row">
+          <label className="eve-row">
             <span>Data zakończenia</span>
             <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
           </label>
@@ -656,9 +656,9 @@ function SiteSettings({
         />
       </fieldset>
 
-      <fieldset className="e2e-group">
+      <fieldset className="eve-group">
         <legend>Motyw</legend>
-        <div className="e2a-colors">
+        <div className="eva-colors">
           <label>
             <span>Akcent</span>
             <input type="color" value={accent} onChange={(event) => setAccent(event.target.value)} />
@@ -680,13 +680,13 @@ function SiteSettings({
 
       <CheckRow label="Opublikowane (widoczne pod adresem publicznym)" checked={published} onChange={setPublished} />
 
-      {error ? <p className="e2a-error">{error}</p> : null}
+      {error ? <p className="eva-error">{error}</p> : null}
 
-      <div className="e2a-actions">
-        <button type="button" className="e2a-cta" onClick={() => void save()} disabled={pending}>
+      <div className="eva-actions">
+        <button type="button" className="eva-cta" onClick={() => void save()} disabled={pending}>
           {pending ? 'Zapisywanie…' : 'Zapisz'}
         </button>
-        <button type="button" className="e2a-danger" onClick={() => void remove()}>
+        <button type="button" className="eva-danger" onClick={() => void remove()}>
           Usuń wydarzenie
         </button>
       </div>

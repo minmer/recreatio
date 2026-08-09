@@ -7750,20 +7750,20 @@ export function submitPublicForm(
   });
 }
 
-// ── Event2: composable events ────────────────────────────────────────────────
+// ── Event: composable events ────────────────────────────────────────────────
 
-export type Event2FieldKind =
+export type EventFieldKind =
   | 'text' | 'textarea' | 'select' | 'multiselect' | 'checkbox'
   | 'number' | 'date' | 'email' | 'phone';
 
-export type Event2PartKind =
+export type EventPartKind =
   | 'title' | 'shortinfos' | 'text' | 'plan' | 'map' | 'faq'
   | 'form' | 'costs' | 'contact' | 'gallery' | 'files' | 'people';
 
-export type Event2PartField = {
+export type EventPartField = {
   id: string;
   sortOrder: number;
-  kind: Event2FieldKind;
+  kind: EventFieldKind;
   label: string;
   helpText: string | null;
   options: string[];
@@ -7772,19 +7772,19 @@ export type Event2PartField = {
   identityRole: string;
 };
 
-export type Event2Part = {
+export type EventPart = {
   id: string;
   sortOrder: number;
-  kind: Event2PartKind;
+  kind: EventPartKind;
   menuLabel: string;
   title: string | null;
   intro: string | null;
   configJson: string | null;
   layersJson: string | null;
-  fields: Event2PartField[];
+  fields: EventPartField[];
 };
 
-export type Event2Page = {
+export type EventPage = {
   id: string;
   sortOrder: number;
   kind: 'public' | 'internal';
@@ -7792,17 +7792,17 @@ export type Event2Page = {
   title: string;
   menuLabel: string;
   description: string | null;
-  parts: Event2Part[];
+  parts: EventPart[];
 };
 
-export type Event2PageRef = {
+export type EventPageRef = {
   id: string;
   slug: string;
   menuLabel: string;
   kind: 'public' | 'internal';
 };
 
-export type Event2SiteHeader = {
+export type EventSiteHeader = {
   id: string;
   slug: string;
   title: string;
@@ -7813,7 +7813,7 @@ export type Event2SiteHeader = {
 };
 
 /** One row of the events overview. */
-export type Event2CatalogueEntry = {
+export type EventCatalogueEntry = {
   id: string;
   slug: string;
   title: string;
@@ -7827,26 +7827,26 @@ export type Event2CatalogueEntry = {
   dateLabel: string | null;
 };
 
-export type Event2PublicSite = { site: Event2SiteHeader; page: Event2Page };
+export type EventPublicSite = { site: EventSiteHeader; page: EventPage };
 
-export type Event2Assignment = { label: string; value: string };
+export type EventAssignment = { label: string; value: string };
 
-export type Event2LinkView = {
-  site: Event2SiteHeader;
+export type EventLinkView = {
+  site: EventSiteHeader;
   recipientName: string;
   personalNote: string | null;
-  assignments: Event2Assignment[];
-  availablePages: Event2PageRef[];
-  page: Event2Page;
+  assignments: EventAssignment[];
+  availablePages: EventPageRef[];
+  page: EventPage;
 };
 
-export type Event2AdminStatus = {
+export type EventAdminStatus = {
   hasAdmin: boolean;
   isCurrentUserAdmin: boolean;
   adminDisplayName: string | null;
 };
 
-export type Event2AdminSiteSummary = {
+export type EventAdminSiteSummary = {
   id: string;
   slug: string;
   title: string;
@@ -7860,20 +7860,20 @@ export type Event2AdminSiteSummary = {
   updatedUtc: string;
 };
 
-export type Event2AdminPart = {
+export type EventAdminPart = {
   id: string;
   sortOrder: number;
-  kind: Event2PartKind;
+  kind: EventPartKind;
   menuLabel: string;
   title: string | null;
   intro: string | null;
   configJson: string | null;
   layersJson: string | null;
   isVisible: boolean;
-  fields: Event2PartField[];
+  fields: EventPartField[];
 };
 
-export type Event2AdminPage = {
+export type EventAdminPage = {
   id: string;
   sortOrder: number;
   kind: 'public' | 'internal';
@@ -7881,17 +7881,17 @@ export type Event2AdminPage = {
   title: string;
   menuLabel: string;
   description: string | null;
-  parts: Event2AdminPart[];
+  parts: EventAdminPart[];
 };
 
-export type Event2AdminSite = {
-  site: Event2SiteHeader;
-  catalogue: Event2CatalogueEntry;
+export type EventAdminSite = {
+  site: EventSiteHeader;
+  catalogue: EventCatalogueEntry;
   isPublished: boolean;
-  pages: Event2AdminPage[];
+  pages: EventAdminPage[];
 };
 
-export type Event2SiteUpsert = {
+export type EventSiteUpsert = {
   slug: string;
   title: string;
   subtitle: string | null;
@@ -7907,15 +7907,15 @@ export type Event2SiteUpsert = {
   isPublished: boolean;
 };
 
-export type Event2PageUpsert = {
+export type EventPageUpsert = {
   slug: string;
   title: string;
   menuLabel: string;
   description: string | null;
 };
 
-export type Event2PartUpsert = {
-  kind: Event2PartKind;
+export type EventPartUpsert = {
+  kind: EventPartKind;
   menuLabel: string;
   title: string | null;
   intro: string | null;
@@ -7924,8 +7924,8 @@ export type Event2PartUpsert = {
   isVisible: boolean;
 };
 
-export type Event2FieldUpsert = {
-  kind: Event2FieldKind;
+export type EventFieldUpsert = {
+  kind: EventFieldKind;
   label: string;
   helpText: string | null;
   options: string[] | null;
@@ -7934,7 +7934,7 @@ export type Event2FieldUpsert = {
   identityRole: string;
 };
 
-export type Event2AdminRegistrationRow = {
+export type EventAdminRegistrationRow = {
   id: string;
   partId: string;
   partLabel: string;
@@ -7947,17 +7947,17 @@ export type Event2AdminRegistrationRow = {
   values: Array<{ fieldLabel: string; value: string | null }>;
 };
 
-export type Event2AccessLinkUpsert = {
+export type EventAccessLinkUpsert = {
   recipientName: string;
   recipientContact: string | null;
   personalNote: string | null;
   internalNote: string | null;
   pageIds: string[] | null;
-  assignments: Event2Assignment[] | null;
+  assignments: EventAssignment[] | null;
   registrationId: string | null;
 };
 
-export type Event2AdminAccessLink = {
+export type EventAdminAccessLink = {
   id: string;
   token: string;
   recipientName: string;
@@ -7970,10 +7970,10 @@ export type Event2AdminAccessLink = {
   lastViewedUtc: string | null;
   createdUtc: string;
   pageIds: string[];
-  assignments: Event2Assignment[];
+  assignments: EventAssignment[];
 };
 
-export type Event2ImportResult = {
+export type EventImportResult = {
   siteId: string;
   slug: string;
   pagesCreated: number;
@@ -7983,191 +7983,191 @@ export type Event2ImportResult = {
 };
 
 /** `document` is the already-parsed JSON object, sent verbatim. */
-export function importEvent2Site(document: unknown) {
-  return request<Event2ImportResult>('/event2/admin/import/site', {
+export function importEventSite(document: unknown) {
+  return request<EventImportResult>('/event/admin/import/site', {
     method: 'POST',
     body: JSON.stringify(document)
   });
 }
 
-export function importEvent2Parts(pageId: string, document: unknown) {
-  return request<Event2ImportResult>(`/event2/admin/pages/${pageId}/import/parts`, {
+export function importEventParts(pageId: string, document: unknown) {
+  return request<EventImportResult>(`/event/admin/pages/${pageId}/import/parts`, {
     method: 'POST',
     body: JSON.stringify(document)
   });
 }
 
-export function getEvent2Catalogue() {
-  return request<Event2CatalogueEntry[]>('/event2/catalogue', { method: 'GET' });
+export function getEventCatalogue() {
+  return request<EventCatalogueEntry[]>('/event/catalogue', { method: 'GET' });
 }
 
-export function getEvent2PublicSite(slug: string) {
-  return request<Event2PublicSite>(`/event2/site/${encodeURIComponent(slug)}`, { method: 'GET' });
+export function getEventPublicSite(slug: string) {
+  return request<EventPublicSite>(`/event/site/${encodeURIComponent(slug)}`, { method: 'GET' });
 }
 
-export function submitEvent2Form(
+export function submitEventForm(
   slug: string,
   partId: string,
   values: Array<{ fieldId: string; value: string | null }>,
   accessToken: string | null
 ) {
   return request<{ registrationId: string; submittedUtc: string }>(
-    `/event2/site/${encodeURIComponent(slug)}/parts/${partId}/submit`,
+    `/event/site/${encodeURIComponent(slug)}/parts/${partId}/submit`,
     { method: 'POST', body: JSON.stringify({ values, accessToken }) }
   );
 }
 
-export function getEvent2Link(token: string, pageSlug?: string | null) {
+export function getEventLink(token: string, pageSlug?: string | null) {
   const suffix = pageSlug ? `/page/${encodeURIComponent(pageSlug)}` : '';
-  return request<Event2LinkView>(`/event2/link/${encodeURIComponent(token)}${suffix}`, { method: 'GET' });
+  return request<EventLinkView>(`/event/link/${encodeURIComponent(token)}${suffix}`, { method: 'GET' });
 }
 
-export function getEvent2AdminStatus() {
-  return request<Event2AdminStatus>('/event2/admin/status', { method: 'GET' });
+export function getEventAdminStatus() {
+  return request<EventAdminStatus>('/event/admin/status', { method: 'GET' });
 }
 
-export function claimEvent2Admin() {
-  return request<{ claimed: boolean }>('/event2/admin/claim', { method: 'POST', body: JSON.stringify({}) });
+export function claimEventAdmin() {
+  return request<{ claimed: boolean }>('/event/admin/claim', { method: 'POST', body: JSON.stringify({}) });
 }
 
-export function getEvent2AdminSites() {
-  return request<Event2AdminSiteSummary[]>('/event2/admin/sites', { method: 'GET' });
+export function getEventAdminSites() {
+  return request<EventAdminSiteSummary[]>('/event/admin/sites', { method: 'GET' });
 }
 
-export function getEvent2AdminSite(siteId: string) {
-  return request<Event2AdminSite>(`/event2/admin/sites/${siteId}`, { method: 'GET' });
+export function getEventAdminSite(siteId: string) {
+  return request<EventAdminSite>(`/event/admin/sites/${siteId}`, { method: 'GET' });
 }
 
-export function createEvent2Site(payload: Event2SiteUpsert) {
-  return request<{ id: string; slug: string; publicPageId: string }>('/event2/admin/sites', {
+export function createEventSite(payload: EventSiteUpsert) {
+  return request<{ id: string; slug: string; publicPageId: string }>('/event/admin/sites', {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 }
 
-export function updateEvent2Site(siteId: string, payload: Event2SiteUpsert) {
-  return request<{ id: string; slug: string }>(`/event2/admin/sites/${siteId}`, {
+export function updateEventSite(siteId: string, payload: EventSiteUpsert) {
+  return request<{ id: string; slug: string }>(`/event/admin/sites/${siteId}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
 }
 
-export function deleteEvent2Site(siteId: string) {
-  return request<{ deleted: boolean }>(`/event2/admin/sites/${siteId}`, { method: 'DELETE' });
+export function deleteEventSite(siteId: string) {
+  return request<{ deleted: boolean }>(`/event/admin/sites/${siteId}`, { method: 'DELETE' });
 }
 
-export function createEvent2Page(siteId: string, payload: Event2PageUpsert) {
-  return request<{ id: string; slug: string }>(`/event2/admin/sites/${siteId}/pages`, {
+export function createEventPage(siteId: string, payload: EventPageUpsert) {
+  return request<{ id: string; slug: string }>(`/event/admin/sites/${siteId}/pages`, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 }
 
-export function updateEvent2Page(pageId: string, payload: Event2PageUpsert) {
-  return request<{ id: string }>(`/event2/admin/pages/${pageId}`, {
+export function updateEventPage(pageId: string, payload: EventPageUpsert) {
+  return request<{ id: string }>(`/event/admin/pages/${pageId}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
 }
 
-export function deleteEvent2Page(pageId: string) {
-  return request<{ deleted: boolean }>(`/event2/admin/pages/${pageId}`, { method: 'DELETE' });
+export function deleteEventPage(pageId: string) {
+  return request<{ deleted: boolean }>(`/event/admin/pages/${pageId}`, { method: 'DELETE' });
 }
 
-export function reorderEvent2Pages(siteId: string, orderedIds: string[]) {
-  return request<{ reordered: boolean }>(`/event2/admin/sites/${siteId}/pages/reorder`, {
+export function reorderEventPages(siteId: string, orderedIds: string[]) {
+  return request<{ reordered: boolean }>(`/event/admin/sites/${siteId}/pages/reorder`, {
     method: 'POST',
     body: JSON.stringify({ orderedIds })
   });
 }
 
-export function createEvent2Part(pageId: string, payload: Event2PartUpsert) {
-  return request<{ id: string; sortOrder: number }>(`/event2/admin/pages/${pageId}/parts`, {
+export function createEventPart(pageId: string, payload: EventPartUpsert) {
+  return request<{ id: string; sortOrder: number }>(`/event/admin/pages/${pageId}/parts`, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 }
 
-export function updateEvent2Part(partId: string, payload: Event2PartUpsert) {
-  return request<{ id: string }>(`/event2/admin/parts/${partId}`, {
+export function updateEventPart(partId: string, payload: EventPartUpsert) {
+  return request<{ id: string }>(`/event/admin/parts/${partId}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
 }
 
-export function deleteEvent2Part(partId: string) {
-  return request<{ deleted: boolean }>(`/event2/admin/parts/${partId}`, { method: 'DELETE' });
+export function deleteEventPart(partId: string) {
+  return request<{ deleted: boolean }>(`/event/admin/parts/${partId}`, { method: 'DELETE' });
 }
 
-export function reorderEvent2Parts(pageId: string, orderedIds: string[]) {
-  return request<{ reordered: boolean }>(`/event2/admin/pages/${pageId}/parts/reorder`, {
+export function reorderEventParts(pageId: string, orderedIds: string[]) {
+  return request<{ reordered: boolean }>(`/event/admin/pages/${pageId}/parts/reorder`, {
     method: 'POST',
     body: JSON.stringify({ orderedIds })
   });
 }
 
-export function createEvent2Field(partId: string, payload: Event2FieldUpsert) {
-  return request<{ id: string; sortOrder: number }>(`/event2/admin/parts/${partId}/fields`, {
+export function createEventField(partId: string, payload: EventFieldUpsert) {
+  return request<{ id: string; sortOrder: number }>(`/event/admin/parts/${partId}/fields`, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 }
 
-export function updateEvent2Field(fieldId: string, payload: Event2FieldUpsert) {
-  return request<{ id: string }>(`/event2/admin/fields/${fieldId}`, {
+export function updateEventField(fieldId: string, payload: EventFieldUpsert) {
+  return request<{ id: string }>(`/event/admin/fields/${fieldId}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
 }
 
-export function deleteEvent2Field(fieldId: string) {
-  return request<{ deleted: boolean }>(`/event2/admin/fields/${fieldId}`, { method: 'DELETE' });
+export function deleteEventField(fieldId: string) {
+  return request<{ deleted: boolean }>(`/event/admin/fields/${fieldId}`, { method: 'DELETE' });
 }
 
-export function reorderEvent2Fields(partId: string, orderedIds: string[]) {
-  return request<{ reordered: boolean }>(`/event2/admin/parts/${partId}/fields/reorder`, {
+export function reorderEventFields(partId: string, orderedIds: string[]) {
+  return request<{ reordered: boolean }>(`/event/admin/parts/${partId}/fields/reorder`, {
     method: 'POST',
     body: JSON.stringify({ orderedIds })
   });
 }
 
-export function getEvent2Registrations(siteId: string) {
-  return request<Event2AdminRegistrationRow[]>(`/event2/admin/sites/${siteId}/registrations`, { method: 'GET' });
+export function getEventRegistrations(siteId: string) {
+  return request<EventAdminRegistrationRow[]>(`/event/admin/sites/${siteId}/registrations`, { method: 'GET' });
 }
 
-export function getEvent2AccessLinks(siteId: string) {
-  return request<Event2AdminAccessLink[]>(`/event2/admin/sites/${siteId}/links`, { method: 'GET' });
+export function getEventAccessLinks(siteId: string) {
+  return request<EventAdminAccessLink[]>(`/event/admin/sites/${siteId}/links`, { method: 'GET' });
 }
 
-export function createEvent2AccessLink(siteId: string, payload: Event2AccessLinkUpsert) {
-  return request<{ id: string; token: string }>(`/event2/admin/sites/${siteId}/links`, {
+export function createEventAccessLink(siteId: string, payload: EventAccessLinkUpsert) {
+  return request<{ id: string; token: string }>(`/event/admin/sites/${siteId}/links`, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 }
 
-export function updateEvent2AccessLink(linkId: string, payload: Event2AccessLinkUpsert) {
-  return request<{ id: string; token: string }>(`/event2/admin/links/${linkId}`, {
+export function updateEventAccessLink(linkId: string, payload: EventAccessLinkUpsert) {
+  return request<{ id: string; token: string }>(`/event/admin/links/${linkId}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
 }
 
-export function setEvent2AccessLinkStatus(linkId: string, status: 'active' | 'revoked') {
-  return request<{ status: string }>(`/event2/admin/links/${linkId}/status`, {
+export function setEventAccessLinkStatus(linkId: string, status: 'active' | 'revoked') {
+  return request<{ status: string }>(`/event/admin/links/${linkId}/status`, {
     method: 'POST',
     body: JSON.stringify({ status })
   });
 }
 
-export function rotateEvent2AccessLink(linkId: string) {
-  return request<{ token: string }>(`/event2/admin/links/${linkId}/rotate`, {
+export function rotateEventAccessLink(linkId: string) {
+  return request<{ token: string }>(`/event/admin/links/${linkId}/rotate`, {
     method: 'POST',
     body: JSON.stringify({})
   });
 }
 
-export function deleteEvent2AccessLink(linkId: string) {
-  return request<{ deleted: boolean }>(`/event2/admin/links/${linkId}`, { method: 'DELETE' });
+export function deleteEventAccessLink(linkId: string) {
+  return request<{ deleted: boolean }>(`/event/admin/links/${linkId}`, { method: 'DELETE' });
 }
 

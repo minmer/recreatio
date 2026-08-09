@@ -1,11 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Recreatio.Api.Data.Event2;
+namespace Recreatio.Api.Data.Events;
 
-/// <summary>One field's answer within an <see cref="Event2Registration"/>.</summary>
-[Table("Event2RegistrationValues", Schema = "event2")]
-public sealed class Event2RegistrationValue
+/// <summary>One field's answer within an <see cref="EventRegistration"/>.</summary>
+[Table("EventRegistrationValues", Schema = "events")]
+public sealed class EventRegistrationValue
 {
     [Key]
     public Guid Id { get; set; }

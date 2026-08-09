@@ -1,15 +1,15 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Recreatio.Api.Data.Event2;
+namespace Recreatio.Api.Data.Events;
 
 /// <summary>
 /// One slide of a page. <see cref="Kind"/> selects the part module that renders
 /// the content layer; <see cref="LayersJson"/> describes the gradient, image and
 /// big-text layers behind it.
 /// </summary>
-[Table("Event2Parts", Schema = "event2")]
-public sealed class Event2Part
+[Table("EventParts", Schema = "events")]
+public sealed class EventPart
 {
     [Key]
     public Guid Id { get; set; }

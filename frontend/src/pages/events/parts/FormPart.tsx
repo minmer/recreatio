@@ -1,14 +1,14 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import {
-  createEvent2Field,
-  deleteEvent2Field,
-  reorderEvent2Fields,
-  submitEvent2Form,
-  updateEvent2Field,
-  type Event2FieldKind,
-  type Event2Part,
-  type Event2PartField
-} from '../../../../lib/api';
+  createEventField,
+  deleteEventField,
+  reorderEventFields,
+  submitEventForm,
+  updateEventField,
+  type EventFieldKind,
+  type EventPart,
+  type EventPartField
+} from '../../../lib/api';
 import { asOptionalText, asRecord, definePart } from './contracts';
 import { AreaRow, CheckRow, LinesRow, SelectRow, TextRow } from './editorKit';
 
@@ -18,7 +18,7 @@ type FormConfig = {
   consentNote: string | null;
 };
 
-const FIELD_KINDS: Array<{ value: Event2FieldKind; label: string }> = [
+const FIELD_KINDS: Array<{ value: EventFieldKind; label: string }> = [
   { value: 'text', label: 'Tekst (jedna linia)' },
   { value: 'textarea', label: 'Tekst (wiele linii)' },
   { value: 'select', label: 'Lista wyboru (jedna opcja)' },
@@ -38,7 +38,7 @@ const IDENTITY_ROLES: Array<{ value: string; label: string }> = [
 
 type Values = Record<string, string | string[] | boolean>;
 
-function blankValues(fields: Event2PartField[]): Values {
+function blankValues(fields: EventPartField[]): Values {
   const values: Values = {};
   for (const field of fields) {
     if (field.kind === 'multiselect') values[field.id] = [];
@@ -50,7 +50,7 @@ function blankValues(fields: Event2PartField[]): Values {
 }
 
 /** Turns one field's UI state into the scalar the API stores. */
-function serialize(field: Event2PartField, value: string | string[] | boolean): string | null {
+function serialize(field: EventPartField, value: string | string[] | boolean): string | null {
   if (field.kind === 'multiselect') {
     const picked = Array.isArray(value) ? value : [];
     return picked.length > 0 ? JSON.stringify(picked) : null;
@@ -60,7 +60,7 @@ function serialize(field: Event2PartField, value: string | string[] | boolean): 
   return text.length > 0 ? text : null;
 }
 
-function inputType(kind: Event2FieldKind): string {
+function inputType(kind: EventFieldKind): string {
   if (kind === 'email') return 'email';
   if (kind === 'number') return 'number';
   if (kind === 'date') return 'date';
@@ -100,7 +100,7 @@ export const formPart = definePart<FormConfig>({
     const [success, setSuccess] = useState<string | null>(null);
 
     if (fields.length === 0) {
-      return <p className="e2-note">Ten formularz nie ma jeszcze żadnych pól.</p>;
+      return <p className="ev-note">Ten formularz nie ma jeszcze żadnych pól.</p>;
     }
 
     const setValue = (id: string, value: string | string[] | boolean) =>
@@ -131,7 +131,7 @@ export const formPart = definePart<FormConfig>({
 
       setPending(true);
       try {
-        await submitEvent2Form(ctx.siteSlug, ctx.part.id, payload, ctx.accessToken);
+        await submitEventForm(ctx.siteSlug, ctx.part.id, payload, ctx.accessToken);
         setValues(blankValues(fields));
         setSuccess(config.successMessage ?? 'Dziękujemy, zgłoszenie zostało zapisane.');
       } catch (submitError: unknown) {
@@ -142,13 +142,13 @@ export const formPart = definePart<FormConfig>({
     };
 
     return (
-      <form className="e2-form" onSubmit={(event) => void submit(event)}>
+      <form className="ev-form" onSubmit={(event) => void submit(event)}>
         {fields.map((field) => {
           const value = values[field.id];
 
           if (field.kind === 'checkbox') {
             return (
-              <label className="e2-check-row" key={field.id}>
+              <label className="ev-check-row" key={field.id}>
                 <input
                   type="checkbox"
                   checked={value === true}
@@ -166,12 +166,12 @@ export const formPart = definePart<FormConfig>({
           if (field.kind === 'multiselect') {
             const picked = Array.isArray(value) ? value : [];
             return (
-              <fieldset className="e2-fieldset" key={field.id}>
+              <fieldset className="ev-fieldset" key={field.id}>
                 <legend>{field.label}</legend>
                 {field.helpText ? <small>{field.helpText}</small> : null}
-                <div className="e2-check-grid">
+                <div className="ev-check-grid">
                   {field.options.map((option) => (
-                    <label className="e2-check-row" key={option}>
+                    <label className="ev-check-row" key={option}>
                       <input
                         type="checkbox"
                         checked={picked.includes(option)}
@@ -186,8 +186,8 @@ export const formPart = definePart<FormConfig>({
           }
 
           return (
-            <label className={`e2-field ${field.isHalfWidth ? 'is-half' : ''}`} key={field.id}>
-              <span className="e2-field-label">
+            <label className={`ev-field ${field.isHalfWidth ? 'is-half' : ''}`} key={field.id}>
+              <span className="ev-field-label">
                 {field.label}
                 {field.isRequired ? <em aria-hidden="true"> *</em> : null}
               </span>
@@ -225,14 +225,14 @@ export const formPart = definePart<FormConfig>({
           );
         })}
 
-        {config.consentNote ? <p className="e2-consent">{config.consentNote}</p> : null}
+        {config.consentNote ? <p className="ev-consent">{config.consentNote}</p> : null}
 
-        <button className="e2-cta" type="submit" disabled={pending}>
+        <button className="ev-cta" type="submit" disabled={pending}>
           {pending ? 'Wysyłanie…' : (config.submitLabel ?? 'Wyślij')}
         </button>
 
-        {error ? <p className="e2-error">{error}</p> : null}
-        {success ? <p className="e2-success">{success}</p> : null}
+        {error ? <p className="ev-error">{error}</p> : null}
+        {success ? <p className="ev-success">{success}</p> : null}
       </form>
     );
   },
@@ -265,10 +265,10 @@ export const formPart = definePart<FormConfig>({
 // Fields are rows in the database rather than config, so they are edited through
 // the API instead of the surrounding ConfigJson save.
 
-function FieldsEditor({ part, onChanged }: { part: Event2Part; onChanged: () => void }) {
+function FieldsEditor({ part, onChanged }: { part: EventPart; onChanged: () => void }) {
   const fields = useMemo(() => [...part.fields].sort((a, b) => a.sortOrder - b.sortOrder), [part.fields]);
   const [draft, setDraft] = useState({
-    kind: 'text' as Event2FieldKind,
+    kind: 'text' as EventFieldKind,
     label: '',
     helpText: '',
     options: [] as string[],
@@ -295,7 +295,7 @@ function FieldsEditor({ part, onChanged }: { part: Event2Part; onChanged: () => 
     setBusy(true);
     setError(null);
     try {
-      await createEvent2Field(part.id, {
+      await createEventField(part.id, {
         kind: draft.kind,
         label: draft.label.trim(),
         helpText: draft.helpText.trim() || null,
@@ -321,9 +321,9 @@ function FieldsEditor({ part, onChanged }: { part: Event2Part; onChanged: () => 
     }
   };
 
-  const patch = async (field: Event2PartField, changes: Partial<Event2PartField>) => {
+  const patch = async (field: EventPartField, changes: Partial<EventPartField>) => {
     const next = { ...field, ...changes };
-    await updateEvent2Field(field.id, {
+    await updateEventField(field.id, {
       kind: next.kind,
       label: next.label,
       helpText: next.helpText,
@@ -341,36 +341,36 @@ function FieldsEditor({ part, onChanged }: { part: Event2Part; onChanged: () => 
     const ordered = [...fields];
     const [moved] = ordered.splice(index, 1);
     ordered.splice(target, 0, moved);
-    await reorderEvent2Fields(part.id, ordered.map((field) => field.id));
+    await reorderEventFields(part.id, ordered.map((field) => field.id));
     onChanged();
   };
 
   const remove = async (fieldId: string) => {
     if (!window.confirm('Usunąć to pole? Odpowiedzi na nie zostaną skasowane.')) return;
-    await deleteEvent2Field(fieldId);
+    await deleteEventField(fieldId);
     onChanged();
   };
 
   return (
-    <fieldset className="e2e-group">
+    <fieldset className="eve-group">
       <legend>Pola formularza</legend>
 
       {!hasName ? (
-        <p className="e2e-warn">
+        <p className="eve-warn">
           Żadne pole nie jest oznaczone jako imię i nazwisko. Bez tego zgłoszenia będą anonimowe i nie da się z nich
           wprost nadać linku osobistego.
         </p>
       ) : null}
 
       {fields.length === 0 ? (
-        <p className="e2e-hint">Ten formularz nie ma jeszcze pól.</p>
+        <p className="eve-hint">Ten formularz nie ma jeszcze pól.</p>
       ) : (
-        <div className="e2e-list">
+        <div className="eve-list">
           {fields.map((field, index) => (
-            <article className="e2e-item" key={field.id}>
+            <article className="eve-item" key={field.id}>
               <header>
                 <strong>{field.label}</strong>
-                <div className="e2e-item-tools">
+                <div className="eve-item-tools">
                   <button type="button" onClick={() => void move(index, -1)} disabled={index === 0}>
                     ↑
                   </button>
@@ -381,13 +381,13 @@ function FieldsEditor({ part, onChanged }: { part: Event2Part; onChanged: () => 
                   >
                     ↓
                   </button>
-                  <button type="button" className="e2e-remove" onClick={() => void remove(field.id)}>
+                  <button type="button" className="eve-remove" onClick={() => void remove(field.id)}>
                     ×
                   </button>
                 </div>
               </header>
-              <div className="e2e-item-body">
-                <p className="e2e-hint">
+              <div className="eve-item-body">
+                <p className="eve-hint">
                   {FIELD_KINDS.find((entry) => entry.value === field.kind)?.label ?? field.kind}
                   {field.options.length > 0 ? ` · ${field.options.length} opcji` : ''}
                 </p>
@@ -413,8 +413,8 @@ function FieldsEditor({ part, onChanged }: { part: Event2Part; onChanged: () => 
         </div>
       )}
 
-      <div className="e2e-item-body">
-        <SelectRow<Event2FieldKind>
+      <div className="eve-item-body">
+        <SelectRow<EventFieldKind>
           label="Typ nowego pola"
           value={draft.kind}
           options={FIELD_KINDS}
@@ -446,9 +446,9 @@ function FieldsEditor({ part, onChanged }: { part: Event2Part; onChanged: () => 
           onChange={(identityRole) => setDraft({ ...draft, identityRole })}
         />
 
-        {error ? <p className="e2e-error">{error}</p> : null}
+        {error ? <p className="eve-error">{error}</p> : null}
 
-        <button type="button" className="e2e-add" onClick={() => void add()} disabled={busy}>
+        <button type="button" className="eve-add" onClick={() => void add()} disabled={busy}>
           + {busy ? 'Dodawanie…' : 'Dodaj pole'}
         </button>
       </div>

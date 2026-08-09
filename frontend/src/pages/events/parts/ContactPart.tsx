@@ -36,10 +36,10 @@ export const contactPart = definePart<ContactConfig>({
   },
 
   Renderer: ({ config }) => (
-    <div className="e2-contact">
-      {config.organizer ? <p className="e2-contact-organizer">{config.organizer}</p> : null}
+    <div className="ev-contact">
+      {config.organizer ? <p className="ev-contact-organizer">{config.organizer}</p> : null}
       {config.channels.length > 0 ? (
-        <div className="e2-card-grid">
+        <div className="ev-card-grid">
           {config.channels.map((channel, index) => (
             <article key={index}>
               <h3>{channel.label}</h3>
@@ -48,7 +48,7 @@ export const contactPart = definePart<ContactConfig>({
           ))}
         </div>
       ) : null}
-      {config.note ? <p className="e2-note">{config.note}</p> : null}
+      {config.note ? <p className="ev-note">{config.note}</p> : null}
     </div>
   ),
 

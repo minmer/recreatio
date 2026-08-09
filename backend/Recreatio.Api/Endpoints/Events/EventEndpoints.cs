@@ -3,20 +3,20 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts;
 using Recreatio.Api.Data;
-using Recreatio.Api.Data.Event2;
+using Recreatio.Api.Data.Events;
 using Recreatio.Api.Data.Pilgrimage;
 using Recreatio.Api.Services;
 
-namespace Recreatio.Api.Endpoints.Event2;
+namespace Recreatio.Api.Endpoints.Events;
 
 /// <summary>
 /// Composable events. A site holds one public page plus any number of internal
 /// pages; an individual access link opens exactly the internal pages it has been
 /// granted. There is no permission ladder — a grant row is the whole authority.
 /// </summary>
-public static partial class Event2Endpoints
+public static partial class EventEndpoints
 {
-    private const string Event2AdminScope = "event2";
+    private const string EventAdminScope = "events";
 
     private static readonly string[] AllowedPartKinds =
     [
@@ -35,9 +35,9 @@ public static partial class Event2Endpoints
     /// </summary>
     private static readonly string[] ReservedSlugs = ["admin", "link", "event", "event_old"];
 
-    public static void MapEvent2Endpoints(this WebApplication app)
+    public static void MapEventEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/event2");
+        var group = app.MapGroup("/events");
 
         MapPublicEndpoints(group);
         MapLinkEndpoints(group);
@@ -60,7 +60,7 @@ public static partial class Event2Endpoints
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
-            var sites = await dbContext.Event2Sites.AsNoTracking()
+            var sites = await dbContext.EventSites.AsNoTracking()
                 .Where(x => x.IsPublished)
                 .OrderBy(x => x.StartDate == null)
                 .ThenBy(x => x.StartDate)
@@ -81,7 +81,7 @@ public static partial class Event2Endpoints
                 return Results.NotFound();
             }
 
-            var page = await dbContext.Event2Pages.AsNoTracking()
+            var page = await dbContext.EventPages.AsNoTracking()
                 .Where(x => x.SiteId == site.Id && x.Kind == "public")
                 .OrderBy(x => x.SortOrder)
                 .FirstOrDefaultAsync(ct);
@@ -92,13 +92,13 @@ public static partial class Event2Endpoints
             }
 
             var pageResponse = await BuildPageResponseAsync(dbContext, page, ct);
-            return Results.Ok(new Event2PublicSiteResponse(ToHeader(site), pageResponse));
+            return Results.Ok(new EventPublicSiteResponse(ToHeader(site), pageResponse));
         });
 
         group.MapPost("/site/{slug}/parts/{partId:guid}/submit", async (
             string slug,
             Guid partId,
-            Event2SubmitRequest request,
+            EventSubmitRequest request,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
@@ -108,14 +108,14 @@ public static partial class Event2Endpoints
                 return Results.NotFound();
             }
 
-            var part = await dbContext.Event2Parts.AsNoTracking()
+            var part = await dbContext.EventParts.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == partId, ct);
             if (part is null || !part.IsVisible || part.Kind != "form")
             {
                 return Results.NotFound();
             }
 
-            var page = await dbContext.Event2Pages.AsNoTracking()
+            var page = await dbContext.EventPages.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == part.PageId && x.SiteId == site.Id, ct);
             if (page is null)
             {
@@ -123,10 +123,10 @@ public static partial class Event2Endpoints
             }
 
             // A form on an internal page needs a link that was granted that page.
-            Event2AccessLink? link = null;
+            EventAccessLink? link = null;
             if (!string.IsNullOrWhiteSpace(request.AccessToken))
             {
-                link = await dbContext.Event2AccessLinks
+                link = await dbContext.EventAccessLinks
                     .FirstOrDefaultAsync(x => x.Token == request.AccessToken && x.SiteId == site.Id && x.Status == "active", ct);
             }
 
@@ -136,7 +136,7 @@ public static partial class Event2Endpoints
                 {
                     return Results.NotFound();
                 }
-                var granted = await dbContext.Event2AccessLinkPages.AsNoTracking()
+                var granted = await dbContext.EventAccessLinkPages.AsNoTracking()
                     .AnyAsync(x => x.AccessLinkId == link.Id && x.PageId == page.Id, ct);
                 if (!granted)
                 {
@@ -144,7 +144,7 @@ public static partial class Event2Endpoints
                 }
             }
 
-            var fields = await dbContext.Event2PartFields.AsNoTracking()
+            var fields = await dbContext.EventPartFields.AsNoTracking()
                 .Where(x => x.PartId == partId)
                 .OrderBy(x => x.SortOrder)
                 .ToListAsync(ct);
@@ -158,7 +158,7 @@ public static partial class Event2Endpoints
                 .GroupBy(v => v.FieldId)
                 .ToDictionary(g => g.Key, g => g.First().Value);
 
-            var registration = new Event2Registration
+            var registration = new EventRegistration
             {
                 Id = Guid.NewGuid(),
                 SiteId = site.Id,
@@ -167,7 +167,7 @@ public static partial class Event2Endpoints
                 SubmittedUtc = DateTimeOffset.UtcNow
             };
 
-            var values = new List<Event2RegistrationValue>();
+            var values = new List<EventRegistrationValue>();
             foreach (var field in fields)
             {
                 supplied.TryGetValue(field.Id, out var raw);
@@ -191,7 +191,7 @@ public static partial class Event2Endpoints
                     }
                 }
 
-                values.Add(new Event2RegistrationValue
+                values.Add(new EventRegistrationValue
                 {
                     Id = Guid.NewGuid(),
                     RegistrationId = registration.Id,
@@ -201,11 +201,11 @@ public static partial class Event2Endpoints
                 });
             }
 
-            dbContext.Event2Registrations.Add(registration);
-            dbContext.Event2RegistrationValues.AddRange(values);
+            dbContext.EventRegistrations.Add(registration);
+            dbContext.EventRegistrationValues.AddRange(values);
             await dbContext.SaveChangesAsync(ct);
 
-            return Results.Ok(new Event2SubmitResponse(registration.Id, registration.SubmittedUtc));
+            return Results.Ok(new EventSubmitResponse(registration.Id, registration.SubmittedUtc));
         });
     }
 
@@ -236,28 +236,28 @@ public static partial class Event2Endpoints
             return Results.NotFound();
         }
 
-        var link = await dbContext.Event2AccessLinks
+        var link = await dbContext.EventAccessLinks
             .FirstOrDefaultAsync(x => x.Token == token && x.Status == "active", ct);
         if (link is null)
         {
             return Results.NotFound();
         }
 
-        var site = await dbContext.Event2Sites.AsNoTracking()
+        var site = await dbContext.EventSites.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == link.SiteId, ct);
         if (site is null)
         {
             return Results.NotFound();
         }
 
-        var grantedIds = await dbContext.Event2AccessLinkPages.AsNoTracking()
+        var grantedIds = await dbContext.EventAccessLinkPages.AsNoTracking()
             .Where(x => x.AccessLinkId == link.Id)
             .Select(x => x.PageId)
             .ToListAsync(ct);
 
         // The public page is always reachable from a link, so the recipient can
         // get back to the shared view without a second address.
-        var pages = await dbContext.Event2Pages.AsNoTracking()
+        var pages = await dbContext.EventPages.AsNoTracking()
             .Where(x => x.SiteId == site.Id && (x.Kind == "public" || grantedIds.Contains(x.Id)))
             .OrderBy(x => x.Kind == "public" ? 0 : 1)
             .ThenBy(x => x.SortOrder)
@@ -279,10 +279,10 @@ public static partial class Event2Endpoints
             return Results.NotFound();
         }
 
-        var assignments = await dbContext.Event2AccessLinkAssignments.AsNoTracking()
+        var assignments = await dbContext.EventAccessLinkAssignments.AsNoTracking()
             .Where(x => x.AccessLinkId == link.Id)
             .OrderBy(x => x.SortOrder)
-            .Select(x => new Event2AssignmentResponse(x.Label, x.Value))
+            .Select(x => new EventAssignmentResponse(x.Label, x.Value))
             .ToListAsync(ct);
 
         var pageResponse = await BuildPageResponseAsync(dbContext, selected, ct);
@@ -292,10 +292,10 @@ public static partial class Event2Endpoints
         await dbContext.SaveChangesAsync(ct);
 
         var refs = pages
-            .Select(x => new Event2PageRef(x.Id, x.Slug, x.MenuLabel, x.Kind))
+            .Select(x => new EventPageRef(x.Id, x.Slug, x.MenuLabel, x.Kind))
             .ToList();
 
-        return Results.Ok(new Event2LinkViewResponse(
+        return Results.Ok(new EventLinkViewResponse(
             ToHeader(site),
             link.RecipientName,
             link.PersonalNote,
@@ -314,7 +314,7 @@ public static partial class Event2Endpoints
             CancellationToken ct) =>
         {
             var assignment = await dbContext.PortalAdminAssignments.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.ScopeKey == Event2AdminScope, ct);
+                .FirstOrDefaultAsync(x => x.ScopeKey == EventAdminScope, ct);
 
             string? adminDisplayName = null;
             var hasAdmin = false;
@@ -342,7 +342,7 @@ public static partial class Event2Endpoints
                 }
             }
 
-            return Results.Ok(new Event2AdminStatusResponse(hasAdmin, isCurrentUserAdmin, adminDisplayName));
+            return Results.Ok(new EventAdminStatusResponse(hasAdmin, isCurrentUserAdmin, adminDisplayName));
         });
 
         group.MapPost("/admin/claim", async (
@@ -357,7 +357,7 @@ public static partial class Event2Endpoints
             }
 
             var existing = await dbContext.PortalAdminAssignments
-                .FirstOrDefaultAsync(x => x.ScopeKey == Event2AdminScope, ct);
+                .FirstOrDefaultAsync(x => x.ScopeKey == EventAdminScope, ct);
 
             if (existing is not null)
             {
@@ -387,7 +387,7 @@ public static partial class Event2Endpoints
             dbContext.PortalAdminAssignments.Add(new PortalAdminAssignment
             {
                 Id = Guid.NewGuid(),
-                ScopeKey = Event2AdminScope,
+                ScopeKey = EventAdminScope,
                 UserId = userId,
                 CreatedUtc = now
             });
@@ -402,9 +402,9 @@ public static partial class Event2Endpoints
             }
 
             await ledgerService.AppendBusinessAsync(
-                "Event2AdminClaimed",
+                "EventAdminClaimed",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { scope = Event2AdminScope, userId, createdUtc = now }),
+                JsonSerializer.Serialize(new { scope = EventAdminScope, userId, createdUtc = now }),
                 ct);
 
             return Results.Ok(new { claimed = true });
@@ -422,19 +422,19 @@ public static partial class Event2Endpoints
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var sites = await dbContext.Event2Sites.AsNoTracking()
+            var sites = await dbContext.EventSites.AsNoTracking()
                 .OrderByDescending(x => x.UpdatedUtc)
                 .ToListAsync(ct);
 
             var siteIds = sites.Select(x => x.Id).ToList();
 
-            var pages = await dbContext.Event2Pages.AsNoTracking()
+            var pages = await dbContext.EventPages.AsNoTracking()
                 .Where(x => siteIds.Contains(x.SiteId))
                 .Select(x => new { x.Id, x.SiteId })
                 .ToListAsync(ct);
 
             var pageIds = pages.Select(x => x.Id).ToList();
-            var partCounts = await dbContext.Event2Parts.AsNoTracking()
+            var partCounts = await dbContext.EventParts.AsNoTracking()
                 .Where(x => pageIds.Contains(x.PageId))
                 .GroupBy(x => x.PageId)
                 .Select(g => new { PageId = g.Key, Count = g.Count() })
@@ -446,13 +446,13 @@ public static partial class Event2Endpoints
                 .GroupBy(x => x.SiteId)
                 .ToDictionary(g => g.Key, g => g.Sum(p => partsByPage.GetValueOrDefault(p.Id)));
 
-            var linkCounts = await dbContext.Event2AccessLinks.AsNoTracking()
+            var linkCounts = await dbContext.EventAccessLinks.AsNoTracking()
                 .Where(x => siteIds.Contains(x.SiteId))
                 .GroupBy(x => x.SiteId)
                 .Select(g => new { SiteId = g.Key, Count = g.Count() })
                 .ToListAsync(ct);
 
-            var registrationCounts = await dbContext.Event2Registrations.AsNoTracking()
+            var registrationCounts = await dbContext.EventRegistrations.AsNoTracking()
                 .Where(x => siteIds.Contains(x.SiteId))
                 .GroupBy(x => x.SiteId)
                 .Select(g => new { SiteId = g.Key, Count = g.Count() })
@@ -461,7 +461,7 @@ public static partial class Event2Endpoints
             var linkMap = linkCounts.ToDictionary(x => x.SiteId, x => x.Count);
             var registrationMap = registrationCounts.ToDictionary(x => x.SiteId, x => x.Count);
 
-            var rows = sites.Select(x => new Event2AdminSiteSummary(
+            var rows = sites.Select(x => new EventAdminSiteSummary(
                 x.Id,
                 x.Slug,
                 x.Title,
@@ -485,11 +485,11 @@ public static partial class Event2Endpoints
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var site = await dbContext.Event2Sites.AsNoTracking()
+            var site = await dbContext.EventSites.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == siteId, ct);
             if (site is null) return Results.NotFound();
 
-            var pages = await dbContext.Event2Pages.AsNoTracking()
+            var pages = await dbContext.EventPages.AsNoTracking()
                 .Where(x => x.SiteId == siteId)
                 .OrderBy(x => x.Kind == "public" ? 0 : 1)
                 .ThenBy(x => x.SortOrder)
@@ -499,7 +499,7 @@ public static partial class Event2Endpoints
 
             var parts = pageIds.Count == 0
                 ? []
-                : await dbContext.Event2Parts.AsNoTracking()
+                : await dbContext.EventParts.AsNoTracking()
                     .Where(x => pageIds.Contains(x.PageId))
                     .OrderBy(x => x.SortOrder)
                     .ToListAsync(ct);
@@ -507,34 +507,34 @@ public static partial class Event2Endpoints
             var partIds = parts.Where(x => x.Kind == "form").Select(x => x.Id).ToList();
             var fields = partIds.Count == 0
                 ? []
-                : await dbContext.Event2PartFields.AsNoTracking()
+                : await dbContext.EventPartFields.AsNoTracking()
                     .Where(x => partIds.Contains(x.PartId))
                     .OrderBy(x => x.SortOrder)
                     .ToListAsync(ct);
 
             var fieldsByPart = fields
                 .GroupBy(x => x.PartId)
-                .ToDictionary(g => g.Key, g => (IReadOnlyList<Event2PartFieldResponse>)g.Select(ToFieldResponse).ToList());
+                .ToDictionary(g => g.Key, g => (IReadOnlyList<EventPartFieldResponse>)g.Select(ToFieldResponse).ToList());
 
             var partsByPage = parts
                 .GroupBy(x => x.PageId)
                 .ToDictionary(
                     g => g.Key,
-                    g => (IReadOnlyList<Event2AdminPartResponse>)g.Select(p => new Event2AdminPartResponse(
+                    g => (IReadOnlyList<EventAdminPartResponse>)g.Select(p => new EventAdminPartResponse(
                         p.Id, p.SortOrder, p.Kind, p.MenuLabel, p.Title, p.Intro,
                         p.ConfigJson, p.LayersJson, p.IsVisible,
                         fieldsByPart.GetValueOrDefault(p.Id) ?? [])).ToList());
 
-            var pageResponses = pages.Select(x => new Event2AdminPageResponse(
+            var pageResponses = pages.Select(x => new EventAdminPageResponse(
                 x.Id, x.SortOrder, x.Kind, x.Slug, x.Title, x.MenuLabel, x.Description,
                 partsByPage.GetValueOrDefault(x.Id) ?? [])).ToList();
 
-            return Results.Ok(new Event2AdminSiteResponse(
+            return Results.Ok(new EventAdminSiteResponse(
                 ToHeader(site), ToCatalogueEntry(site), site.IsPublished, pageResponses));
         }).RequireAuthorization();
 
         group.MapPost("/admin/sites", async (
-            Event2SiteUpsertRequest request,
+            EventSiteUpsertRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
@@ -547,13 +547,13 @@ public static partial class Event2Endpoints
             {
                 return Results.BadRequest(new { error = "Podaj adres (slug) i tytuł wydarzenia." });
             }
-            if (await dbContext.Event2Sites.AnyAsync(x => x.Slug == slug, ct))
+            if (await dbContext.EventSites.AnyAsync(x => x.Slug == slug, ct))
             {
                 return Results.Conflict(new { error = "Wydarzenie o tym adresie już istnieje." });
             }
 
             var now = DateTimeOffset.UtcNow;
-            var site = new Event2Site
+            var site = new EventSite
             {
                 Id = Guid.NewGuid(),
                 Slug = slug,
@@ -565,7 +565,7 @@ public static partial class Event2Endpoints
 
             // Every site starts with its public page — the organizer builds that
             // first, then adds internal pages beside it.
-            var publicPage = new Event2Page
+            var publicPage = new EventPage
             {
                 Id = Guid.NewGuid(),
                 SiteId = site.Id,
@@ -578,8 +578,8 @@ public static partial class Event2Endpoints
                 UpdatedUtc = now
             };
 
-            dbContext.Event2Sites.Add(site);
-            dbContext.Event2Pages.Add(publicPage);
+            dbContext.EventSites.Add(site);
+            dbContext.EventPages.Add(publicPage);
             await dbContext.SaveChangesAsync(ct);
 
             return Results.Ok(new { id = site.Id, slug = site.Slug, publicPageId = publicPage.Id });
@@ -587,14 +587,14 @@ public static partial class Event2Endpoints
 
         group.MapPut("/admin/sites/{siteId:guid}", async (
             Guid siteId,
-            Event2SiteUpsertRequest request,
+            EventSiteUpsertRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var site = await dbContext.Event2Sites.FirstOrDefaultAsync(x => x.Id == siteId, ct);
+            var site = await dbContext.EventSites.FirstOrDefaultAsync(x => x.Id == siteId, ct);
             if (site is null) return Results.NotFound();
 
             var slug = NormalizeSlug(request.Slug);
@@ -603,7 +603,7 @@ public static partial class Event2Endpoints
             {
                 return Results.BadRequest(new { error = "Podaj adres (slug) i tytuł wydarzenia." });
             }
-            if (slug != site.Slug && await dbContext.Event2Sites.AnyAsync(x => x.Slug == slug, ct))
+            if (slug != site.Slug && await dbContext.EventSites.AnyAsync(x => x.Slug == slug, ct))
             {
                 return Results.Conflict(new { error = "Wydarzenie o tym adresie już istnieje." });
             }
@@ -625,36 +625,36 @@ public static partial class Event2Endpoints
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var site = await dbContext.Event2Sites.FirstOrDefaultAsync(x => x.Id == siteId, ct);
+            var site = await dbContext.EventSites.FirstOrDefaultAsync(x => x.Id == siteId, ct);
             if (site is null) return Results.NotFound();
 
-            var pageIds = await dbContext.Event2Pages
+            var pageIds = await dbContext.EventPages
                 .Where(x => x.SiteId == siteId).Select(x => x.Id).ToListAsync(ct);
-            var partIds = await dbContext.Event2Parts
+            var partIds = await dbContext.EventParts
                 .Where(x => pageIds.Contains(x.PageId)).Select(x => x.Id).ToListAsync(ct);
-            var registrationIds = await dbContext.Event2Registrations
+            var registrationIds = await dbContext.EventRegistrations
                 .Where(x => x.SiteId == siteId).Select(x => x.Id).ToListAsync(ct);
-            var linkIds = await dbContext.Event2AccessLinks
+            var linkIds = await dbContext.EventAccessLinks
                 .Where(x => x.SiteId == siteId).Select(x => x.Id).ToListAsync(ct);
 
             // Depth-first, so no FK is left dangling mid-delete.
-            dbContext.Event2RegistrationValues.RemoveRange(
-                dbContext.Event2RegistrationValues.Where(x => registrationIds.Contains(x.RegistrationId)));
-            dbContext.Event2Registrations.RemoveRange(
-                dbContext.Event2Registrations.Where(x => x.SiteId == siteId));
-            dbContext.Event2AccessLinkAssignments.RemoveRange(
-                dbContext.Event2AccessLinkAssignments.Where(x => linkIds.Contains(x.AccessLinkId)));
-            dbContext.Event2AccessLinkPages.RemoveRange(
-                dbContext.Event2AccessLinkPages.Where(x => linkIds.Contains(x.AccessLinkId)));
-            dbContext.Event2AccessLinks.RemoveRange(
-                dbContext.Event2AccessLinks.Where(x => x.SiteId == siteId));
-            dbContext.Event2PartFields.RemoveRange(
-                dbContext.Event2PartFields.Where(x => partIds.Contains(x.PartId)));
-            dbContext.Event2Parts.RemoveRange(
-                dbContext.Event2Parts.Where(x => pageIds.Contains(x.PageId)));
-            dbContext.Event2Pages.RemoveRange(
-                dbContext.Event2Pages.Where(x => x.SiteId == siteId));
-            dbContext.Event2Sites.Remove(site);
+            dbContext.EventRegistrationValues.RemoveRange(
+                dbContext.EventRegistrationValues.Where(x => registrationIds.Contains(x.RegistrationId)));
+            dbContext.EventRegistrations.RemoveRange(
+                dbContext.EventRegistrations.Where(x => x.SiteId == siteId));
+            dbContext.EventAccessLinkAssignments.RemoveRange(
+                dbContext.EventAccessLinkAssignments.Where(x => linkIds.Contains(x.AccessLinkId)));
+            dbContext.EventAccessLinkPages.RemoveRange(
+                dbContext.EventAccessLinkPages.Where(x => linkIds.Contains(x.AccessLinkId)));
+            dbContext.EventAccessLinks.RemoveRange(
+                dbContext.EventAccessLinks.Where(x => x.SiteId == siteId));
+            dbContext.EventPartFields.RemoveRange(
+                dbContext.EventPartFields.Where(x => partIds.Contains(x.PartId)));
+            dbContext.EventParts.RemoveRange(
+                dbContext.EventParts.Where(x => pageIds.Contains(x.PageId)));
+            dbContext.EventPages.RemoveRange(
+                dbContext.EventPages.Where(x => x.SiteId == siteId));
+            dbContext.EventSites.Remove(site);
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok(new { deleted = true });
@@ -667,13 +667,13 @@ public static partial class Event2Endpoints
     {
         group.MapPost("/admin/sites/{siteId:guid}/pages", async (
             Guid siteId,
-            Event2PageUpsertRequest request,
+            EventPageUpsertRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
-            if (!await dbContext.Event2Sites.AnyAsync(x => x.Id == siteId, ct)) return Results.NotFound();
+            if (!await dbContext.EventSites.AnyAsync(x => x.Id == siteId, ct)) return Results.NotFound();
 
             var slug = NormalizeSlug(request.Slug);
             var title = NormalizeShort(request.Title, 200);
@@ -681,18 +681,18 @@ public static partial class Event2Endpoints
             {
                 return Results.BadRequest(new { error = "Podaj adres i tytuł strony." });
             }
-            if (await dbContext.Event2Pages.AnyAsync(x => x.SiteId == siteId && x.Slug == slug, ct))
+            if (await dbContext.EventPages.AnyAsync(x => x.SiteId == siteId && x.Slug == slug, ct))
             {
                 return Results.Conflict(new { error = "Strona o tym adresie już istnieje w tym wydarzeniu." });
             }
 
-            var nextOrder = await dbContext.Event2Pages
+            var nextOrder = await dbContext.EventPages
                 .Where(x => x.SiteId == siteId)
                 .Select(x => (int?)x.SortOrder)
                 .MaxAsync(ct) ?? -1;
 
             var now = DateTimeOffset.UtcNow;
-            var page = new Event2Page
+            var page = new EventPage
             {
                 Id = Guid.NewGuid(),
                 SiteId = siteId,
@@ -706,7 +706,7 @@ public static partial class Event2Endpoints
                 UpdatedUtc = now
             };
 
-            dbContext.Event2Pages.Add(page);
+            dbContext.EventPages.Add(page);
             await TouchSiteAsync(dbContext, siteId, ct);
             await dbContext.SaveChangesAsync(ct);
 
@@ -715,14 +715,14 @@ public static partial class Event2Endpoints
 
         group.MapPut("/admin/pages/{pageId:guid}", async (
             Guid pageId,
-            Event2PageUpsertRequest request,
+            EventPageUpsertRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var page = await dbContext.Event2Pages.FirstOrDefaultAsync(x => x.Id == pageId, ct);
+            var page = await dbContext.EventPages.FirstOrDefaultAsync(x => x.Id == pageId, ct);
             if (page is null) return Results.NotFound();
 
             var slug = NormalizeSlug(request.Slug);
@@ -732,7 +732,7 @@ public static partial class Event2Endpoints
                 return Results.BadRequest(new { error = "Podaj adres i tytuł strony." });
             }
             if (slug != page.Slug
-                && await dbContext.Event2Pages.AnyAsync(x => x.SiteId == page.SiteId && x.Slug == slug, ct))
+                && await dbContext.EventPages.AnyAsync(x => x.SiteId == page.SiteId && x.Slug == slug, ct))
             {
                 return Results.Conflict(new { error = "Strona o tym adresie już istnieje w tym wydarzeniu." });
             }
@@ -756,29 +756,29 @@ public static partial class Event2Endpoints
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var page = await dbContext.Event2Pages.FirstOrDefaultAsync(x => x.Id == pageId, ct);
+            var page = await dbContext.EventPages.FirstOrDefaultAsync(x => x.Id == pageId, ct);
             if (page is null) return Results.NotFound();
             if (page.Kind == "public")
             {
                 return Results.BadRequest(new { error = "Strony publicznej nie można usunąć." });
             }
 
-            var partIds = await dbContext.Event2Parts
+            var partIds = await dbContext.EventParts
                 .Where(x => x.PageId == pageId).Select(x => x.Id).ToListAsync(ct);
-            var registrationIds = await dbContext.Event2Registrations
+            var registrationIds = await dbContext.EventRegistrations
                 .Where(x => partIds.Contains(x.PartId)).Select(x => x.Id).ToListAsync(ct);
 
-            dbContext.Event2RegistrationValues.RemoveRange(
-                dbContext.Event2RegistrationValues.Where(x => registrationIds.Contains(x.RegistrationId)));
-            dbContext.Event2Registrations.RemoveRange(
-                dbContext.Event2Registrations.Where(x => partIds.Contains(x.PartId)));
-            dbContext.Event2AccessLinkPages.RemoveRange(
-                dbContext.Event2AccessLinkPages.Where(x => x.PageId == pageId));
-            dbContext.Event2PartFields.RemoveRange(
-                dbContext.Event2PartFields.Where(x => partIds.Contains(x.PartId)));
-            dbContext.Event2Parts.RemoveRange(
-                dbContext.Event2Parts.Where(x => x.PageId == pageId));
-            dbContext.Event2Pages.Remove(page);
+            dbContext.EventRegistrationValues.RemoveRange(
+                dbContext.EventRegistrationValues.Where(x => registrationIds.Contains(x.RegistrationId)));
+            dbContext.EventRegistrations.RemoveRange(
+                dbContext.EventRegistrations.Where(x => partIds.Contains(x.PartId)));
+            dbContext.EventAccessLinkPages.RemoveRange(
+                dbContext.EventAccessLinkPages.Where(x => x.PageId == pageId));
+            dbContext.EventPartFields.RemoveRange(
+                dbContext.EventPartFields.Where(x => partIds.Contains(x.PartId)));
+            dbContext.EventParts.RemoveRange(
+                dbContext.EventParts.Where(x => x.PageId == pageId));
+            dbContext.EventPages.Remove(page);
 
             await TouchSiteAsync(dbContext, page.SiteId, ct);
             await dbContext.SaveChangesAsync(ct);
@@ -787,14 +787,14 @@ public static partial class Event2Endpoints
 
         group.MapPost("/admin/sites/{siteId:guid}/pages/reorder", async (
             Guid siteId,
-            Event2ReorderRequest request,
+            EventReorderRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var pages = await dbContext.Event2Pages.Where(x => x.SiteId == siteId).ToListAsync(ct);
+            var pages = await dbContext.EventPages.Where(x => x.SiteId == siteId).ToListAsync(ct);
             ApplyOrder(pages, request.OrderedIds, x => x.Id, (x, order) => x.SortOrder = order, x => x.SortOrder);
 
             await TouchSiteAsync(dbContext, siteId, ct);
@@ -809,14 +809,14 @@ public static partial class Event2Endpoints
     {
         group.MapPost("/admin/pages/{pageId:guid}/parts", async (
             Guid pageId,
-            Event2PartUpsertRequest request,
+            EventPartUpsertRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var page = await dbContext.Event2Pages.AsNoTracking().FirstOrDefaultAsync(x => x.Id == pageId, ct);
+            var page = await dbContext.EventPages.AsNoTracking().FirstOrDefaultAsync(x => x.Id == pageId, ct);
             if (page is null) return Results.NotFound();
 
             var kind = (request.Kind ?? string.Empty).Trim().ToLowerInvariant();
@@ -825,13 +825,13 @@ public static partial class Event2Endpoints
                 return Results.BadRequest(new { error = $"Nieznany typ części: {kind}." });
             }
 
-            var nextOrder = await dbContext.Event2Parts
+            var nextOrder = await dbContext.EventParts
                 .Where(x => x.PageId == pageId)
                 .Select(x => (int?)x.SortOrder)
                 .MaxAsync(ct) ?? -1;
 
             var now = DateTimeOffset.UtcNow;
-            var part = new Event2Part
+            var part = new EventPart
             {
                 Id = Guid.NewGuid(),
                 PageId = pageId,
@@ -847,7 +847,7 @@ public static partial class Event2Endpoints
                 UpdatedUtc = now
             };
 
-            dbContext.Event2Parts.Add(part);
+            dbContext.EventParts.Add(part);
             await TouchSiteAsync(dbContext, page.SiteId, ct);
             await dbContext.SaveChangesAsync(ct);
 
@@ -856,14 +856,14 @@ public static partial class Event2Endpoints
 
         group.MapPut("/admin/parts/{partId:guid}", async (
             Guid partId,
-            Event2PartUpsertRequest request,
+            EventPartUpsertRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var part = await dbContext.Event2Parts.FirstOrDefaultAsync(x => x.Id == partId, ct);
+            var part = await dbContext.EventParts.FirstOrDefaultAsync(x => x.Id == partId, ct);
             if (part is null) return Results.NotFound();
 
             var kind = (request.Kind ?? string.Empty).Trim().ToLowerInvariant();
@@ -894,19 +894,19 @@ public static partial class Event2Endpoints
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var part = await dbContext.Event2Parts.FirstOrDefaultAsync(x => x.Id == partId, ct);
+            var part = await dbContext.EventParts.FirstOrDefaultAsync(x => x.Id == partId, ct);
             if (part is null) return Results.NotFound();
 
-            var registrationIds = await dbContext.Event2Registrations
+            var registrationIds = await dbContext.EventRegistrations
                 .Where(x => x.PartId == partId).Select(x => x.Id).ToListAsync(ct);
 
-            dbContext.Event2RegistrationValues.RemoveRange(
-                dbContext.Event2RegistrationValues.Where(x => registrationIds.Contains(x.RegistrationId)));
-            dbContext.Event2Registrations.RemoveRange(
-                dbContext.Event2Registrations.Where(x => x.PartId == partId));
-            dbContext.Event2PartFields.RemoveRange(
-                dbContext.Event2PartFields.Where(x => x.PartId == partId));
-            dbContext.Event2Parts.Remove(part);
+            dbContext.EventRegistrationValues.RemoveRange(
+                dbContext.EventRegistrationValues.Where(x => registrationIds.Contains(x.RegistrationId)));
+            dbContext.EventRegistrations.RemoveRange(
+                dbContext.EventRegistrations.Where(x => x.PartId == partId));
+            dbContext.EventPartFields.RemoveRange(
+                dbContext.EventPartFields.Where(x => x.PartId == partId));
+            dbContext.EventParts.Remove(part);
 
             await TouchSiteByPageAsync(dbContext, part.PageId, ct);
             await dbContext.SaveChangesAsync(ct);
@@ -915,14 +915,14 @@ public static partial class Event2Endpoints
 
         group.MapPost("/admin/pages/{pageId:guid}/parts/reorder", async (
             Guid pageId,
-            Event2ReorderRequest request,
+            EventReorderRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var parts = await dbContext.Event2Parts.Where(x => x.PageId == pageId).ToListAsync(ct);
+            var parts = await dbContext.EventParts.Where(x => x.PageId == pageId).ToListAsync(ct);
             ApplyOrder(parts, request.OrderedIds, x => x.Id, (x, order) => x.SortOrder = order, x => x.SortOrder);
 
             await TouchSiteByPageAsync(dbContext, pageId, ct);
@@ -937,14 +937,14 @@ public static partial class Event2Endpoints
     {
         group.MapPost("/admin/parts/{partId:guid}/fields", async (
             Guid partId,
-            Event2FieldUpsertRequest request,
+            EventFieldUpsertRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var part = await dbContext.Event2Parts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == partId, ct);
+            var part = await dbContext.EventParts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == partId, ct);
             if (part is null) return Results.NotFound();
             if (part.Kind != "form")
             {
@@ -954,7 +954,7 @@ public static partial class Event2Endpoints
             var validation = ValidateField(request);
             if (validation is not null) return Results.BadRequest(new { error = validation });
 
-            var nextOrder = await dbContext.Event2PartFields
+            var nextOrder = await dbContext.EventPartFields
                 .Where(x => x.PartId == partId)
                 .Select(x => (int?)x.SortOrder)
                 .MaxAsync(ct) ?? -1;
@@ -966,7 +966,7 @@ public static partial class Event2Endpoints
             }
 
             var options = NormalizeOptions(request.Options);
-            var field = new Event2PartField
+            var field = new EventPartField
             {
                 Id = Guid.NewGuid(),
                 PartId = partId,
@@ -980,21 +980,21 @@ public static partial class Event2Endpoints
                 IdentityRole = identityRole
             };
 
-            dbContext.Event2PartFields.Add(field);
+            dbContext.EventPartFields.Add(field);
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok(new { id = field.Id, sortOrder = field.SortOrder });
         }).RequireAuthorization();
 
         group.MapPut("/admin/fields/{fieldId:guid}", async (
             Guid fieldId,
-            Event2FieldUpsertRequest request,
+            EventFieldUpsertRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var field = await dbContext.Event2PartFields.FirstOrDefaultAsync(x => x.Id == fieldId, ct);
+            var field = await dbContext.EventPartFields.FirstOrDefaultAsync(x => x.Id == fieldId, ct);
             if (field is null) return Results.NotFound();
 
             var validation = ValidateField(request);
@@ -1027,12 +1027,12 @@ public static partial class Event2Endpoints
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var field = await dbContext.Event2PartFields.FirstOrDefaultAsync(x => x.Id == fieldId, ct);
+            var field = await dbContext.EventPartFields.FirstOrDefaultAsync(x => x.Id == fieldId, ct);
             if (field is null) return Results.NotFound();
 
-            dbContext.Event2RegistrationValues.RemoveRange(
-                dbContext.Event2RegistrationValues.Where(x => x.FieldId == fieldId));
-            dbContext.Event2PartFields.Remove(field);
+            dbContext.EventRegistrationValues.RemoveRange(
+                dbContext.EventRegistrationValues.Where(x => x.FieldId == fieldId));
+            dbContext.EventPartFields.Remove(field);
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok(new { deleted = true });
@@ -1040,14 +1040,14 @@ public static partial class Event2Endpoints
 
         group.MapPost("/admin/parts/{partId:guid}/fields/reorder", async (
             Guid partId,
-            Event2ReorderRequest request,
+            EventReorderRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var fields = await dbContext.Event2PartFields.Where(x => x.PartId == partId).ToListAsync(ct);
+            var fields = await dbContext.EventPartFields.Where(x => x.PartId == partId).ToListAsync(ct);
             ApplyOrder(fields, request.OrderedIds, x => x.Id, (x, order) => x.SortOrder = order, x => x.SortOrder);
 
             await dbContext.SaveChangesAsync(ct);
@@ -1067,37 +1067,37 @@ public static partial class Event2Endpoints
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var registrations = await dbContext.Event2Registrations.AsNoTracking()
+            var registrations = await dbContext.EventRegistrations.AsNoTracking()
                 .Where(x => x.SiteId == siteId)
                 .OrderByDescending(x => x.SubmittedUtc)
                 .ToListAsync(ct);
 
             if (registrations.Count == 0)
             {
-                return Results.Ok(new List<Event2AdminRegistrationRow>());
+                return Results.Ok(new List<EventAdminRegistrationRow>());
             }
 
             var registrationIds = registrations.Select(x => x.Id).ToList();
 
-            var values = await dbContext.Event2RegistrationValues.AsNoTracking()
+            var values = await dbContext.EventRegistrationValues.AsNoTracking()
                 .Where(x => registrationIds.Contains(x.RegistrationId))
                 .ToListAsync(ct);
 
-            var pages = await dbContext.Event2Pages.AsNoTracking()
+            var pages = await dbContext.EventPages.AsNoTracking()
                 .Where(x => x.SiteId == siteId)
                 .Select(x => new { x.Id, x.MenuLabel })
                 .ToListAsync(ct);
             var pageLabels = pages.ToDictionary(x => x.Id, x => x.MenuLabel);
 
             var pageIds = pages.Select(x => x.Id).ToList();
-            var parts = await dbContext.Event2Parts.AsNoTracking()
+            var parts = await dbContext.EventParts.AsNoTracking()
                 .Where(x => pageIds.Contains(x.PageId))
                 .Select(x => new { x.Id, x.MenuLabel, x.PageId })
                 .ToListAsync(ct);
             var partInfo = parts.ToDictionary(x => x.Id, x => x);
 
             // Which registrations already have a link granted from them.
-            var links = await dbContext.Event2AccessLinks.AsNoTracking()
+            var links = await dbContext.EventAccessLinks.AsNoTracking()
                 .Where(x => x.SiteId == siteId && x.RegistrationId != null)
                 .Select(x => new { x.Id, x.Token, x.RegistrationId })
                 .ToListAsync(ct);
@@ -1110,14 +1110,14 @@ public static partial class Event2Endpoints
                 .GroupBy(x => x.RegistrationId)
                 .ToDictionary(
                     g => g.Key,
-                    g => (IReadOnlyList<Event2AdminRegistrationValue>)g
-                        .Select(v => new Event2AdminRegistrationValue(v.FieldLabel, v.Value)).ToList());
+                    g => (IReadOnlyList<EventAdminRegistrationValue>)g
+                        .Select(v => new EventAdminRegistrationValue(v.FieldLabel, v.Value)).ToList());
 
             var rows = registrations.Select(x =>
             {
                 partInfo.TryGetValue(x.PartId, out var part);
                 linkByRegistration.TryGetValue(x.Id, out var link);
-                return new Event2AdminRegistrationRow(
+                return new EventAdminRegistrationRow(
                     x.Id,
                     x.PartId,
                     part?.MenuLabel ?? "—",
@@ -1141,7 +1141,7 @@ public static partial class Event2Endpoints
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var links = await dbContext.Event2AccessLinks.AsNoTracking()
+            var links = await dbContext.EventAccessLinks.AsNoTracking()
                 .Where(x => x.SiteId == siteId)
                 .OrderByDescending(x => x.CreatedUtc)
                 .ToListAsync(ct);
@@ -1150,13 +1150,13 @@ public static partial class Event2Endpoints
 
             var grants = linkIds.Count == 0
                 ? []
-                : await dbContext.Event2AccessLinkPages.AsNoTracking()
+                : await dbContext.EventAccessLinkPages.AsNoTracking()
                     .Where(x => linkIds.Contains(x.AccessLinkId))
                     .ToListAsync(ct);
 
             var assignments = linkIds.Count == 0
                 ? []
-                : await dbContext.Event2AccessLinkAssignments.AsNoTracking()
+                : await dbContext.EventAccessLinkAssignments.AsNoTracking()
                     .Where(x => linkIds.Contains(x.AccessLinkId))
                     .OrderBy(x => x.SortOrder)
                     .ToListAsync(ct);
@@ -1169,10 +1169,10 @@ public static partial class Event2Endpoints
                 .GroupBy(x => x.AccessLinkId)
                 .ToDictionary(
                     g => g.Key,
-                    g => (IReadOnlyList<Event2AssignmentResponse>)g
-                        .Select(a => new Event2AssignmentResponse(a.Label, a.Value)).ToList());
+                    g => (IReadOnlyList<EventAssignmentResponse>)g
+                        .Select(a => new EventAssignmentResponse(a.Label, a.Value)).ToList());
 
-            var rows = links.Select(x => new Event2AdminAccessLinkRow(
+            var rows = links.Select(x => new EventAdminAccessLinkRow(
                 x.Id, x.Token, x.RecipientName, x.RecipientContact, x.Status,
                 x.PersonalNote, x.InternalNote, x.RegistrationId,
                 x.ViewCount, x.LastViewedUtc, x.CreatedUtc,
@@ -1184,13 +1184,13 @@ public static partial class Event2Endpoints
 
         group.MapPost("/admin/sites/{siteId:guid}/links", async (
             Guid siteId,
-            Event2AccessLinkUpsertRequest request,
+            EventAccessLinkUpsertRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
-            if (!await dbContext.Event2Sites.AnyAsync(x => x.Id == siteId, ct)) return Results.NotFound();
+            if (!await dbContext.EventSites.AnyAsync(x => x.Id == siteId, ct)) return Results.NotFound();
 
             var name = NormalizeShort(request.RecipientName, 200);
             if (name is null)
@@ -1199,7 +1199,7 @@ public static partial class Event2Endpoints
             }
 
             var now = DateTimeOffset.UtcNow;
-            var link = new Event2AccessLink
+            var link = new EventAccessLink
             {
                 Id = Guid.NewGuid(),
                 SiteId = siteId,
@@ -1214,10 +1214,10 @@ public static partial class Event2Endpoints
                 UpdatedUtc = now
             };
 
-            dbContext.Event2AccessLinks.Add(link);
-            dbContext.Event2AccessLinkPages.AddRange(
+            dbContext.EventAccessLinks.Add(link);
+            dbContext.EventAccessLinkPages.AddRange(
                 await BuildGrantsAsync(dbContext, siteId, link.Id, request.PageIds, ct));
-            dbContext.Event2AccessLinkAssignments.AddRange(
+            dbContext.EventAccessLinkAssignments.AddRange(
                 BuildAssignments(link.Id, request.Assignments));
 
             await dbContext.SaveChangesAsync(ct);
@@ -1226,14 +1226,14 @@ public static partial class Event2Endpoints
 
         group.MapPut("/admin/links/{linkId:guid}", async (
             Guid linkId,
-            Event2AccessLinkUpsertRequest request,
+            EventAccessLinkUpsertRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var link = await dbContext.Event2AccessLinks.FirstOrDefaultAsync(x => x.Id == linkId, ct);
+            var link = await dbContext.EventAccessLinks.FirstOrDefaultAsync(x => x.Id == linkId, ct);
             if (link is null) return Results.NotFound();
 
             var name = NormalizeShort(request.RecipientName, 200);
@@ -1248,14 +1248,14 @@ public static partial class Event2Endpoints
             link.InternalNote = NormalizeShort(request.InternalNote, 1000);
             link.UpdatedUtc = DateTimeOffset.UtcNow;
 
-            dbContext.Event2AccessLinkPages.RemoveRange(
-                dbContext.Event2AccessLinkPages.Where(x => x.AccessLinkId == linkId));
-            dbContext.Event2AccessLinkPages.AddRange(
+            dbContext.EventAccessLinkPages.RemoveRange(
+                dbContext.EventAccessLinkPages.Where(x => x.AccessLinkId == linkId));
+            dbContext.EventAccessLinkPages.AddRange(
                 await BuildGrantsAsync(dbContext, link.SiteId, linkId, request.PageIds, ct));
 
-            dbContext.Event2AccessLinkAssignments.RemoveRange(
-                dbContext.Event2AccessLinkAssignments.Where(x => x.AccessLinkId == linkId));
-            dbContext.Event2AccessLinkAssignments.AddRange(
+            dbContext.EventAccessLinkAssignments.RemoveRange(
+                dbContext.EventAccessLinkAssignments.Where(x => x.AccessLinkId == linkId));
+            dbContext.EventAccessLinkAssignments.AddRange(
                 BuildAssignments(linkId, request.Assignments));
 
             await dbContext.SaveChangesAsync(ct);
@@ -1264,7 +1264,7 @@ public static partial class Event2Endpoints
 
         group.MapPost("/admin/links/{linkId:guid}/status", async (
             Guid linkId,
-            Event2StatusRequest request,
+            EventStatusRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
@@ -1277,7 +1277,7 @@ public static partial class Event2Endpoints
                 return Results.BadRequest(new { error = "Dozwolone statusy: active, revoked." });
             }
 
-            var link = await dbContext.Event2AccessLinks.FirstOrDefaultAsync(x => x.Id == linkId, ct);
+            var link = await dbContext.EventAccessLinks.FirstOrDefaultAsync(x => x.Id == linkId, ct);
             if (link is null) return Results.NotFound();
 
             link.Status = status;
@@ -1294,7 +1294,7 @@ public static partial class Event2Endpoints
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var link = await dbContext.Event2AccessLinks.FirstOrDefaultAsync(x => x.Id == linkId, ct);
+            var link = await dbContext.EventAccessLinks.FirstOrDefaultAsync(x => x.Id == linkId, ct);
             if (link is null) return Results.NotFound();
 
             link.Token = GenerateToken();
@@ -1311,22 +1311,22 @@ public static partial class Event2Endpoints
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
 
-            var link = await dbContext.Event2AccessLinks.FirstOrDefaultAsync(x => x.Id == linkId, ct);
+            var link = await dbContext.EventAccessLinks.FirstOrDefaultAsync(x => x.Id == linkId, ct);
             if (link is null) return Results.NotFound();
 
             // Registrations made through this link survive it, minus the pointer.
-            var linked = await dbContext.Event2Registrations
+            var linked = await dbContext.EventRegistrations
                 .Where(x => x.AccessLinkId == linkId).ToListAsync(ct);
             foreach (var registration in linked)
             {
                 registration.AccessLinkId = null;
             }
 
-            dbContext.Event2AccessLinkAssignments.RemoveRange(
-                dbContext.Event2AccessLinkAssignments.Where(x => x.AccessLinkId == linkId));
-            dbContext.Event2AccessLinkPages.RemoveRange(
-                dbContext.Event2AccessLinkPages.Where(x => x.AccessLinkId == linkId));
-            dbContext.Event2AccessLinks.Remove(link);
+            dbContext.EventAccessLinkAssignments.RemoveRange(
+                dbContext.EventAccessLinkAssignments.Where(x => x.AccessLinkId == linkId));
+            dbContext.EventAccessLinkPages.RemoveRange(
+                dbContext.EventAccessLinkPages.Where(x => x.AccessLinkId == linkId));
+            dbContext.EventAccessLinks.Remove(link);
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok(new { deleted = true });
@@ -1335,24 +1335,24 @@ public static partial class Event2Endpoints
 
     // ── Shared helpers ───────────────────────────────────────────────────────
 
-    private static async Task<Event2Site?> FindPublishedSiteAsync(
+    private static async Task<EventSite?> FindPublishedSiteAsync(
         RecreatioDbContext dbContext,
         string slug,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(slug)) return null;
         var normalized = slug.Trim().ToLowerInvariant();
-        var site = await dbContext.Event2Sites.AsNoTracking()
+        var site = await dbContext.EventSites.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Slug == normalized, ct);
         return site is not null && site.IsPublished ? site : null;
     }
 
-    private static async Task<Event2PageResponse> BuildPageResponseAsync(
+    private static async Task<EventPageResponse> BuildPageResponseAsync(
         RecreatioDbContext dbContext,
-        Event2Page page,
+        EventPage page,
         CancellationToken ct)
     {
-        var parts = await dbContext.Event2Parts.AsNoTracking()
+        var parts = await dbContext.EventParts.AsNoTracking()
             .Where(x => x.PageId == page.Id && x.IsVisible)
             .OrderBy(x => x.SortOrder)
             .ToListAsync(ct);
@@ -1360,40 +1360,40 @@ public static partial class Event2Endpoints
         var formPartIds = parts.Where(x => x.Kind == "form").Select(x => x.Id).ToList();
         var fields = formPartIds.Count == 0
             ? []
-            : await dbContext.Event2PartFields.AsNoTracking()
+            : await dbContext.EventPartFields.AsNoTracking()
                 .Where(x => formPartIds.Contains(x.PartId))
                 .OrderBy(x => x.SortOrder)
                 .ToListAsync(ct);
 
         var fieldsByPart = fields
             .GroupBy(x => x.PartId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<Event2PartFieldResponse>)g.Select(ToFieldResponse).ToList());
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<EventPartFieldResponse>)g.Select(ToFieldResponse).ToList());
 
-        var partResponses = parts.Select(x => new Event2PartResponse(
+        var partResponses = parts.Select(x => new EventPartResponse(
             x.Id, x.SortOrder, x.Kind, x.MenuLabel, x.Title, x.Intro,
             x.ConfigJson, x.LayersJson,
             fieldsByPart.GetValueOrDefault(x.Id) ?? [])).ToList();
 
-        return new Event2PageResponse(
+        return new EventPageResponse(
             page.Id, page.SortOrder, page.Kind, page.Slug, page.Title, page.MenuLabel,
             page.Description, partResponses);
     }
 
-    private static Event2PartFieldResponse ToFieldResponse(Event2PartField field) =>
+    private static EventPartFieldResponse ToFieldResponse(EventPartField field) =>
         new(field.Id, field.SortOrder, field.Kind, field.Label, field.HelpText,
             DeserializeOptions(field.OptionsJson), field.IsRequired, field.IsHalfWidth, field.IdentityRole);
 
-    private static Event2SiteHeader ToHeader(Event2Site site) =>
+    private static EventSiteHeader ToHeader(EventSite site) =>
         new(site.Id, site.Slug, site.Title, site.Subtitle, site.DateLabel,
             DeserializeOptions(site.PlacesJson), site.ThemeJson);
 
-    private static Event2CatalogueEntry ToCatalogueEntry(Event2Site site) =>
+    private static EventCatalogueEntry ToCatalogueEntry(EventSite site) =>
         new(site.Id, site.Slug, site.Title, site.Summary, site.Category, site.Audience,
             DeserializeOptions(site.PlacesJson), site.ThumbnailUrl,
             site.StartDate, site.EndDate, site.DateLabel);
 
     /// <summary>Copies the catalogue block off an upsert onto the entity.</summary>
-    private static void ApplyCatalogue(Event2Site site, Event2SiteUpsertRequest request)
+    private static void ApplyCatalogue(EventSite site, EventSiteUpsertRequest request)
     {
         var places = NormalizeOptions(request.Places);
 
@@ -1422,19 +1422,19 @@ public static partial class Event2Endpoints
     {
         if (!EndpointHelpers.TryGetUserId(context, out var userId)) return false;
         var assignment = await dbContext.PortalAdminAssignments.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.ScopeKey == Event2AdminScope, ct);
+            .FirstOrDefaultAsync(x => x.ScopeKey == EventAdminScope, ct);
         return assignment is not null && assignment.UserId == userId;
     }
 
     private static async Task TouchSiteAsync(RecreatioDbContext dbContext, Guid siteId, CancellationToken ct)
     {
-        var site = await dbContext.Event2Sites.FirstOrDefaultAsync(x => x.Id == siteId, ct);
+        var site = await dbContext.EventSites.FirstOrDefaultAsync(x => x.Id == siteId, ct);
         if (site is not null) site.UpdatedUtc = DateTimeOffset.UtcNow;
     }
 
     private static async Task TouchSiteByPageAsync(RecreatioDbContext dbContext, Guid pageId, CancellationToken ct)
     {
-        var siteId = await dbContext.Event2Pages.AsNoTracking()
+        var siteId = await dbContext.EventPages.AsNoTracking()
             .Where(x => x.Id == pageId)
             .Select(x => (Guid?)x.SiteId)
             .FirstOrDefaultAsync(ct);
@@ -1471,7 +1471,7 @@ public static partial class Event2Endpoints
     }
 
     /// <summary>Grants are only accepted for internal pages of the same site.</summary>
-    private static async Task<List<Event2AccessLinkPage>> BuildGrantsAsync(
+    private static async Task<List<EventAccessLinkPage>> BuildGrantsAsync(
         RecreatioDbContext dbContext,
         Guid siteId,
         Guid linkId,
@@ -1481,12 +1481,12 @@ public static partial class Event2Endpoints
         var requested = (pageIds ?? []).Distinct().ToList();
         if (requested.Count == 0) return [];
 
-        var valid = await dbContext.Event2Pages.AsNoTracking()
+        var valid = await dbContext.EventPages.AsNoTracking()
             .Where(x => x.SiteId == siteId && x.Kind == "internal" && requested.Contains(x.Id))
             .Select(x => x.Id)
             .ToListAsync(ct);
 
-        return valid.Select(pageId => new Event2AccessLinkPage
+        return valid.Select(pageId => new EventAccessLinkPage
         {
             Id = Guid.NewGuid(),
             AccessLinkId = linkId,
@@ -1494,9 +1494,9 @@ public static partial class Event2Endpoints
         }).ToList();
     }
 
-    private static IEnumerable<Event2AccessLinkAssignment> BuildAssignments(
+    private static IEnumerable<EventAccessLinkAssignment> BuildAssignments(
         Guid linkId,
-        IReadOnlyList<Event2AssignmentResponse>? source)
+        IReadOnlyList<EventAssignmentResponse>? source)
     {
         var order = 0;
         foreach (var entry in source ?? [])
@@ -1505,7 +1505,7 @@ public static partial class Event2Endpoints
             var value = NormalizeShort(entry.Value, 600);
             if (label is null || value is null) continue;
 
-            yield return new Event2AccessLinkAssignment
+            yield return new EventAccessLinkAssignment
             {
                 Id = Guid.NewGuid(),
                 AccessLinkId = linkId,
@@ -1523,7 +1523,7 @@ public static partial class Event2Endpoints
         string identityRole,
         CancellationToken ct)
     {
-        var clashes = await dbContext.Event2PartFields
+        var clashes = await dbContext.EventPartFields
             .Where(x => x.PartId == partId && x.IdentityRole == identityRole)
             .ToListAsync(ct);
         foreach (var clash in clashes)
@@ -1532,7 +1532,7 @@ public static partial class Event2Endpoints
         }
     }
 
-    private static string? ValidateField(Event2FieldUpsertRequest request)
+    private static string? ValidateField(EventFieldUpsertRequest request)
     {
         var kind = (request.Kind ?? string.Empty).Trim().ToLowerInvariant();
         if (!AllowedFieldKinds.Contains(kind)) return $"Nieznany typ pola: {kind}.";
@@ -1550,7 +1550,7 @@ public static partial class Event2Endpoints
         return AllowedIdentityRoles.Contains(role) ? role : "none";
     }
 
-    private static string? NormalizeFieldValue(Event2PartField field, string? raw)
+    private static string? NormalizeFieldValue(EventPartField field, string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
         var trimmed = raw.Trim();

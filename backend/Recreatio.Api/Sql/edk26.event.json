@@ -1,0 +1,230 @@
+{
+  "slug": "edk26",
+  "title": "EDK 2026",
+  "subtitle": "Nocna droga w malej wspolnocie",
+  "summary": "Nocna Droga Krzyzowa z Krakowa do Dobczyc, przezywana kameralnie: cisza, modlitwa i odpowiedzialnosc za siebie nawzajem.",
+  "category": "Ekstremalna Droga Krzyzowa",
+  "audience": "Osoby gotowe na nocna droge, wysilek i skupienie",
+  "places": ["Kraków", "Dobczyce"],
+  "thumbnailUrl": null,
+  "startDate": "2026-03-27",
+  "endDate": "2026-03-28",
+  "dateLabel": "27/28.03.2026",
+  "theme": {
+    "accent": "#8e2436",
+    "ground": "#0d0a0c",
+    "ink": "#f2e9ea",
+    "muted": "#bda3a8"
+  },
+  "pages": [
+    {
+      "kind": "public",
+      "slug": "start",
+      "title": "EDK 2026",
+      "menuLabel": "Strona publiczna",
+      "parts": [
+        {
+          "kind": "title",
+          "menuLabel": "Start",
+          "title": null,
+          "config": {
+            "badge": "27/28.03.2026 · Krakow → Dobczyce · prowadzi ks. Michal Mleczek",
+            "headline": "EDK 2026",
+            "lede": "Nocna droga w malej wspolnocie",
+            "paragraphs": [
+              "W nocy z 27 na 28 marca 2026 wyruszamy z Krakowa do Dobczyc. Zaczynamy Msza Swieta o 18:30 w parafii sw. Jana na Pradniku, a potem ruszamy wspolnie na trase.",
+              "To droga ciszy, modlitwy i odpowiedzialnosci za siebie nawzajem. Nie idziemy po wynik. Idziemy po spotkanie z Bogiem i prawda o sobie."
+            ],
+            "actions": [{ "label": "Zobacz trasę", "href": "#trasa", "variant": "cta" }],
+            "footnote": "Powrot organizujemy w sobote rano, okolo godziny 8:00."
+          },
+          "layers": [
+            { "kind": "gradient", "speed": 0.12, "angle": 172, "from": "#241016", "via": null, "to": "#0a0709" },
+            { "kind": "bigtext", "speed": 0.95, "lines": ["EDK", "2026"], "opacity": 0.11 }
+          ]
+        },
+        {
+          "kind": "shortinfos",
+          "menuLabel": "W skrócie",
+          "title": "Najwazniejsze w skrocie",
+          "config": {
+            "items": [
+              { "label": "Start", "value": "Piatek, 27.03.2026", "detail": null },
+              { "label": "Msza Swieta", "value": "18:30", "detail": null },
+              { "label": "Miejsce rozpoczecia", "value": "Parafia sw. Jana na Pradniku, Krakow", "detail": null },
+              { "label": "Trasa", "value": "Krakow → Dobczyce", "detail": null },
+              { "label": "Powrot", "value": "Sobota rano, okolo 8:00", "detail": null },
+              { "label": "Forma", "value": "Mala grupa", "detail": "wspolna modlitwa, nocna droga" }
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "O wydarzeniu",
+          "title": "O wydarzeniu",
+          "intro": "Czym jest nasza EDK 2026",
+          "config": {
+            "paragraphs": [
+              "EDK 2026 w naszej formule to nocna Droga Krzyzowa przezywana kameralnie i odpowiedzialnie. Zachowujemy ducha tej drogi: prostote, cisze, wysilek i modlitwe.",
+              "To nie jest wyjscie sportowe ani towarzyska nocna wyprawa. Nie chodzi o tempo, rekord i dystans. Chodzi o droge, ktora prowadzi przez ciemnosc, zmeczenie i rozwazanie meki Chrystusa.",
+              "Idziemy w malej grupie, dbamy o siebie nawzajem i wspolnie zatrzymujemy sie przy kolejnych stacjach Drogi Krzyzowej."
+            ],
+            "bullets": [],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Jak idziemy",
+          "title": "Jak idziemy",
+          "intro": "Mala grupa, cisza i odpowiedzialnosc.",
+          "config": {
+            "paragraphs": [],
+            "bullets": [
+              "Mala grupa — idziemy razem, ale bez tlumu. Zalezy nam na skupieniu i prostocie.",
+              "Dbamy o siebie nawzajem — nie zostawiamy nikogo samego na trasie i reagujemy na sygnaly zmeczenia.",
+              "Miedzy stacjami wybieramy cisze — rozmowy ograniczamy do tego, co konieczne. Cisza jest czescia drogi.",
+              "Przy stacjach modlimy sie wspolnie — zatrzymujemy sie razem i rozwazamy kolejne stacje Drogi Krzyzowej.",
+              "Szanujemy rytm drogi — nie rywalizujemy i nie poganiamy. Idziemy uczciwie i dojrzale.",
+              "To droga duchowa — wysilek jest wazny, ale ma sluzyc modlitwie i przemianie."
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "plan",
+          "menuLabel": "Plan",
+          "title": "Plan i logistyka",
+          "intro": "Jasny przebieg wydarzenia od startu do powrotu.",
+          "config": {
+            "groups": [
+              {
+                "label": "Przebieg",
+                "caption": null,
+                "rows": [
+                  { "time": "18:30", "title": "1. Rozpoczecie", "detail": "Piatek, 27.03.2026. Msza Swieta o 18:30 w parafii sw. Jana na Pradniku." },
+                  { "time": null, "title": "2. Wyjscie na trase", "detail": "Po Mszy i informacjach organizacyjnych ruszamy wspolnie do Dobczyc." },
+                  { "time": "noc", "title": "3. Nocna droga", "detail": "Cisza, modlitwa, stacje i odpowiedzialnosc za siebie nawzajem." },
+                  { "time": "ok. 8:00", "title": "4. Zakonczenie i powrot", "detail": "Powrot organizowany w sobote rano, okolo godziny 8:00." }
+                ]
+              }
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "map",
+          "menuLabel": "Trasa",
+          "title": "Trasa",
+          "intro": "Krakow → Dobczyce. Wymagajaca nocna droga przezywana w skupieniu. Wspolrzedne sa przyblizone — do potwierdzenia przed wyjsciem.",
+          "config": {
+            "points": [
+              { "label": "Krakow — parafia sw. Jana na Pradniku", "lat": 50.0967, "lon": 19.9469, "detail": "Start. Msza Swieta o 18:30.", "isStop": true },
+              { "label": "Dobczyce", "lat": 49.8797, "lon": 20.0894, "detail": "Meta nocnej drogi.", "isStop": true }
+            ],
+            "zoom": 11,
+            "showTrack": true,
+            "note": "Szczegolowy uklad punktow trasy organizator przekazuje uczestnikom po zapisach."
+          }
+        },
+        {
+          "kind": "people",
+          "menuLabel": "Prowadzący",
+          "title": "Prowadzacy",
+          "config": {
+            "people": [
+              {
+                "name": "ks. Michal Mleczek",
+                "role": "Prowadzacy grupe",
+                "detail": "W tej drodze bedzie nam towarzyszyl ks. Michal Mleczek. Poprowadzi grupe przez kolejne etapy nocnego przejscia i pomoze zachowac modlitewny rytm drogi.",
+                "photoUrl": null,
+                "contact": "+48 505 548 677",
+                "contactHref": "tel:+48505548677"
+              }
+            ],
+            "note": "Wydarzenie jest organizowane i prowadzone w duchu prostoty, skupienia i odpowiedzialnosci za siebie nawzajem."
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Ważne informacje",
+          "title": "Wazne informacje",
+          "config": {
+            "paragraphs": [
+              "Ta noc wymaga prostego, ale odpowiedzialnego przygotowania. Potrzebne beda wygodne buty, odpowiedni ubior, picie, cos do jedzenia, telefon oraz powerbank.",
+              "Kameralny charakter grupy oznacza ograniczona liczbe miejsc. Zalezy nam na modlitewnym rytmie, wzajemnej uwaznosci i bezpieczenstwie.",
+              "Po zapisaniu uczestnicy otrzymaja dodatkowe informacje organizacyjne dotyczace trasy i powrotu."
+            ],
+            "bullets": [
+              "Idziemy noca i w skupieniu.",
+              "To droga wymagajaca fizycznie i duchowo.",
+              "Kazdy odpowiada za wlasne przygotowanie.",
+              "Liczba miejsc moze byc ograniczona.",
+              "Po zapisach przekazemy szczegoly organizacyjne.",
+              "Powrot organizujemy w sobote rano.",
+              "Osoby niepelnoletnie moga isc pod opieka osoby pelnoletniej.",
+              "Jesli potrzebujesz opiekuna, skontaktuj sie z prowadzacym.",
+              "Nie wymagamy pisemnej zgody rodzicow."
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "faq",
+          "menuLabel": "FAQ",
+          "title": "FAQ",
+          "config": {
+            "items": [
+              {
+                "question": "Czy to wydarzenie jest dla kazdego?",
+                "answer": "To propozycja dla osob gotowych na nocna droge, wysilek i skupienie. Nie trzeba miec wynikow sportowych, ale trzeba podejsc do tej drogi dojrzale i odpowiedzialnie."
+              },
+              {
+                "question": "Czy idziemy w ciszy?",
+                "answer": "Tak. Miedzy stacjami chcemy zachowac cisze i ograniczyc rozmowy do minimum. Na stacjach zatrzymujemy sie wspolnie na rozwazanie i modlitwe."
+              },
+              {
+                "question": "Od czego zaczynamy?",
+                "answer": "Spotykamy sie w piatek 27 marca 2026. EDK rozpoczynamy Msza Swieta o godzinie 18:30 w kosciele parafii sw. Jana na Pradniku w Krakowie, a po niej wyruszamy na trase."
+              },
+              {
+                "question": "Czy organizowany jest powrot?",
+                "answer": "Tak. Po zakonczeniu drogi organizujemy powrot w sobote rano, okolo godziny 8:00. Szczegoly przekazemy uczestnikom po zapisach."
+              },
+              {
+                "question": "Czy osoby niepelnoletnie moga wziac udzial?",
+                "answer": "Tak. Osoby niepelnoletnie moga wziac udzial, jesli ida pod opieka wskazanej osoby pelnoletniej, ktora bierze za nie odpowiedzialnosc organizacyjna podczas wydarzenia."
+              },
+              {
+                "question": "Nie mam wskazanego opiekuna. Co wtedy?",
+                "answer": "Skontaktuj sie z ks. Michalem Mleczkiem przed zapisaniem. W razie potrzeby pomoze znalezc osobe pelnoletnia, ktora podejmie sie opieki organizacyjnej."
+              },
+              {
+                "question": "Czy potrzebna jest pisemna zgoda rodzicow?",
+                "answer": "Nie. W ramach zasad organizacyjnych tego wyjscia nie wymagamy pisemnej zgody rodzicow."
+              },
+              {
+                "question": "Czy trzeba zapisac sie wczesniej?",
+                "answer": "Tak, prosimy o wczesniejsze zapisy. Pomaga nam to zadbac o organizacje, bezpieczenstwo i kameralny charakter grupy."
+              }
+            ]
+          }
+        },
+        {
+          "kind": "contact",
+          "menuLabel": "Kontakt",
+          "title": "Kontakt",
+          "config": {
+            "organizer": "Masz pytania dotyczace przygotowania, zapisow albo przebiegu drogi? Skontaktuj sie bezposrednio.",
+            "channels": [
+              { "label": "E-mail", "value": "mleczek_pradnik@outlook.com", "href": "mailto:mleczek_pradnik@outlook.com" },
+              { "label": "Telefon", "value": "+48 505 548 677", "href": "tel:+48505548677" }
+            ],
+            "note": null
+          }
+        }
+      ]
+    }
+  ]
+}

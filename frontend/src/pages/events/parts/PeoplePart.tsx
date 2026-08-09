@@ -66,22 +66,22 @@ export const peoplePart = definePart<PeopleConfig>({
   },
 
   Renderer: ({ config }) => (
-    <div className="e2-people">
+    <div className="ev-people">
       {config.people.length === 0 ? (
-        <p className="e2-note">Nie dodano jeszcze żadnych osób.</p>
+        <p className="ev-note">Nie dodano jeszcze żadnych osób.</p>
       ) : (
-        <div className="e2-people-grid">
+        <div className="ev-people-grid">
           {config.people.map((person, index) => (
             <article key={index}>
-              <div className="e2-person-avatar" aria-hidden="true">
+              <div className="ev-person-avatar" aria-hidden="true">
                 {person.photoUrl ? <img src={person.photoUrl} alt="" loading="lazy" /> : <span>{initials(person.name)}</span>}
               </div>
-              <div className="e2-person-body">
-                {person.role ? <p className="e2-person-role">{person.role}</p> : null}
+              <div className="ev-person-body">
+                {person.role ? <p className="ev-person-role">{person.role}</p> : null}
                 <h3>{person.name}</h3>
                 {person.detail ? <p>{person.detail}</p> : null}
                 {person.contact ? (
-                  <p className="e2-person-contact">
+                  <p className="ev-person-contact">
                     {person.contactHref ? <a href={person.contactHref}>{person.contact}</a> : person.contact}
                   </p>
                 ) : null}
@@ -90,7 +90,7 @@ export const peoplePart = definePart<PeopleConfig>({
           ))}
         </div>
       )}
-      {config.note ? <p className="e2-note">{config.note}</p> : null}
+      {config.note ? <p className="ev-note">{config.note}</p> : null}
     </div>
   ),
 

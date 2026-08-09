@@ -83,11 +83,11 @@ export const mapPart = definePart<MapConfig>({
     const [active, setActive] = useState<number | null>(null);
 
     if (config.points.length === 0 && config.track.length === 0) {
-      return <p className="e2-note">Nie dodano jeszcze punktów ani śladu trasy.</p>;
+      return <p className="ev-note">Nie dodano jeszcze punktów ani śladu trasy.</p>;
     }
 
     return (
-      <div className="e2-map">
+      <div className="ev-map">
         <OsmMap
           points={config.points}
           track={config.track}
@@ -97,11 +97,11 @@ export const mapPart = definePart<MapConfig>({
           onActiveChange={setActive}
         />
         {config.points.length > 0 ? (
-          <ol className="e2-map-legend">
+          <ol className="ev-map-legend">
             {config.points.map((point, index) => (
               <li key={index}>
                 <button type="button" onClick={() => setActive(index)}>
-                  <span className={point.isStop ? 'e2-map-legend-stop' : 'e2-map-legend-dot'} aria-hidden="true" />
+                  <span className={point.isStop ? 'ev-map-legend-stop' : 'ev-map-legend-dot'} aria-hidden="true" />
                   <span>{point.label}</span>
                 </button>
                 {point.detail ? <p>{point.detail}</p> : null}
@@ -109,7 +109,7 @@ export const mapPart = definePart<MapConfig>({
             ))}
           </ol>
         ) : null}
-        {config.note ? <p className="e2-note">{config.note}</p> : null}
+        {config.note ? <p className="ev-note">{config.note}</p> : null}
       </div>
     );
   },
@@ -216,10 +216,10 @@ function GpxLoader({ config, onChange }: { config: MapConfig; onChange: (next: M
   };
 
   return (
-    <fieldset className="e2e-group">
+    <fieldset className="eve-group">
       <legend>Ślad trasy (GPX)</legend>
 
-      <p className="e2e-hint">
+      <p className="eve-hint">
         {config.track.length > 0
           ? `Wczytany ślad: ${config.track.length} punktów, około ${trackLengthKm(config.track).toFixed(1)} km.`
           : 'Brak śladu — mapa połączy linią same punkty poniżej.'}
@@ -236,15 +236,15 @@ function GpxLoader({ config, onChange }: { config: MapConfig; onChange: (next: M
         }}
       />
 
-      <p className="e2e-hint">
+      <p className="eve-hint">
         Długie ślady są upraszczane przy zapisie, żeby strona nie musiała wczytywać dziesiątek tysięcy punktów.
       </p>
 
-      {summary ? <p className="e2e-hint">{summary}</p> : null}
-      {error ? <p className="e2e-error">{error}</p> : null}
+      {summary ? <p className="eve-hint">{summary}</p> : null}
+      {error ? <p className="eve-error">{error}</p> : null}
 
       {config.track.length > 0 ? (
-        <button type="button" className="e2e-add" onClick={() => onChange({ ...config, track: [] })}>
+        <button type="button" className="eve-add" onClick={() => onChange({ ...config, track: [] })}>
           Usuń ślad
         </button>
       ) : null}

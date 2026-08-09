@@ -3,14 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { LanguageSelect } from '../../components/LanguageSelect';
 import { AuthAction } from '../../components/AuthAction';
 import type { EventDefinition, EventInnerPage, SharedEventPageProps } from './eventTypes';
-import { WarsztatyEventPage } from './instances/warsztaty26/WarsztatyEventPage';
-import { Kal26EventPage } from './instances/kal26/Kal26EventPage';
-import { Edk26EventPage } from './instances/edk26/Edk26EventPage';
-import { LimanowaEventPage } from './instances/limanowa/LimanowaEventPage';
-import { TheaterProjectEventPage } from './instances/teatr26/TheaterProjectEventPage';
-import { FormularzeEventPage } from './instances/formularze/FormularzeEventPage';
-import { Rowerowa26EventPage } from './instances/rowerowa26/Rowerowa26EventPage';
-import { Event2Router } from './event2/Event2Router';
+import { WarsztatyEventPage } from './legacy/warsztaty26/WarsztatyEventPage';
+import { Kal26EventPage } from './legacy/kal26/Kal26EventPage';
+import { Edk26EventPage } from './legacy/edk26/Edk26EventPage';
+import { LimanowaEventPage } from './legacy/limanowa/LimanowaEventPage';
+import { TheaterProjectEventPage } from './legacy/teatr26/TheaterProjectEventPage';
+import { FormularzeEventPage } from './legacy/formularze/FormularzeEventPage';
+import { Rowerowa26EventPage } from './legacy/rowerowa26/Rowerowa26EventPage';
+import { EventRouter } from './EventRouter';
 import { EventsCatalogue } from './EventsCatalogue';
 import '../../styles/events.css';
 
@@ -177,7 +177,7 @@ const EVENT_PAGE_RENDERERS: Record<
 
 /**
  * Segments after /event that address the builder rather than an event. No
- * event2 site may take one of these as its slug; the API rejects them too.
+ * event site may take one of these as its slug; the API rejects them too.
  */
 const RESERVED_EVENT_SLUGS = new Set(['admin', 'link']);
 
@@ -219,13 +219,13 @@ export function EventsPage(props: SharedEventPageProps) {
 
   if (!isLegacyRoute && firstSegment) {
     if (firstSegment === 'admin') {
-      return <Event2Router mode="admin" argument={segments[2] ?? null} />;
+      return <EventRouter mode="admin" argument={segments[2] ?? null} />;
     }
     if (firstSegment === 'link') {
-      return <Event2Router mode="link" argument={segments[2] ?? null} />;
+      return <EventRouter mode="link" argument={segments[2] ?? null} />;
     }
     if (!RESERVED_EVENT_SLUGS.has(firstSegment)) {
-      return <Event2Router mode="site" argument={firstSegment} />;
+      return <EventRouter mode="site" argument={firstSegment} />;
     }
   }
 
@@ -288,7 +288,7 @@ export function EventsPage(props: SharedEventPageProps) {
                 ) : (
                   <>
                     {/* Both are for the organizer. The builder checks the
-                        event2 admin scope for itself; this only decides
+                        event admin scope for itself; this only decides
                         whether the way in is offered. */}
                     {props.showProfileMenu ? (
                       <a className="ghost" href="/#/event_old">

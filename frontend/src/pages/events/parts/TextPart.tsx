@@ -25,7 +25,7 @@ export const textPart = definePart<TextConfig>({
   },
 
   Renderer: ({ config }) => (
-    <div className="e2-prose">
+    <div className="ev-prose">
       {config.paragraphs.map((paragraph, index) => (
         <p key={index}>{paragraph}</p>
       ))}
@@ -36,7 +36,7 @@ export const textPart = definePart<TextConfig>({
           ))}
         </ul>
       ) : null}
-      {config.note ? <p className="e2-callout">{config.note}</p> : null}
+      {config.note ? <p className="ev-callout">{config.note}</p> : null}
     </div>
   ),
 

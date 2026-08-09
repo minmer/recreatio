@@ -2,7 +2,7 @@ namespace Recreatio.Api.Contracts;
 
 // ── Reader-facing shapes ─────────────────────────────────────────────────────
 
-public sealed record Event2PartFieldResponse(
+public sealed record EventPartFieldResponse(
     Guid Id,
     int SortOrder,
     string Kind,
@@ -13,7 +13,7 @@ public sealed record Event2PartFieldResponse(
     bool IsHalfWidth,
     string IdentityRole);
 
-public sealed record Event2PartResponse(
+public sealed record EventPartResponse(
     Guid Id,
     int SortOrder,
     string Kind,
@@ -22,9 +22,9 @@ public sealed record Event2PartResponse(
     string? Intro,
     string? ConfigJson,
     string? LayersJson,
-    IReadOnlyList<Event2PartFieldResponse> Fields);
+    IReadOnlyList<EventPartFieldResponse> Fields);
 
-public sealed record Event2PageResponse(
+public sealed record EventPageResponse(
     Guid Id,
     int SortOrder,
     string Kind,
@@ -32,12 +32,12 @@ public sealed record Event2PageResponse(
     string Title,
     string MenuLabel,
     string? Description,
-    IReadOnlyList<Event2PartResponse> Parts);
+    IReadOnlyList<EventPartResponse> Parts);
 
 /// <summary>An entry in the internal page switcher.</summary>
-public sealed record Event2PageRef(Guid Id, string Slug, string MenuLabel, string Kind);
+public sealed record EventPageRef(Guid Id, string Slug, string MenuLabel, string Kind);
 
-public sealed record Event2SiteHeader(
+public sealed record EventSiteHeader(
     Guid Id,
     string Slug,
     string Title,
@@ -50,7 +50,7 @@ public sealed record Event2SiteHeader(
 /// One row of the events overview. Dates are real dates so the client can sort
 /// on them; Category, Audience and Places drive the filters.
 /// </summary>
-public sealed record Event2CatalogueEntry(
+public sealed record EventCatalogueEntry(
     Guid Id,
     string Slug,
     string Title,
@@ -64,35 +64,35 @@ public sealed record Event2CatalogueEntry(
     string? DateLabel);
 
 /// <summary>The public page of a site.</summary>
-public sealed record Event2PublicSiteResponse(Event2SiteHeader Site, Event2PageResponse Page);
+public sealed record EventPublicSiteResponse(EventSiteHeader Site, EventPageResponse Page);
 
 /// <summary>
 /// What an individual link opens: the site header, the recipient's own details,
 /// every page the link may switch to, and the page currently being read.
 /// </summary>
-public sealed record Event2LinkViewResponse(
-    Event2SiteHeader Site,
+public sealed record EventLinkViewResponse(
+    EventSiteHeader Site,
     string RecipientName,
     string? PersonalNote,
-    IReadOnlyList<Event2AssignmentResponse> Assignments,
-    IReadOnlyList<Event2PageRef> AvailablePages,
-    Event2PageResponse Page);
+    IReadOnlyList<EventAssignmentResponse> Assignments,
+    IReadOnlyList<EventPageRef> AvailablePages,
+    EventPageResponse Page);
 
-public sealed record Event2AssignmentResponse(string Label, string Value);
+public sealed record EventAssignmentResponse(string Label, string Value);
 
 // ── Form submission ──────────────────────────────────────────────────────────
 
-public sealed record Event2SubmitValue(Guid FieldId, string? Value);
+public sealed record EventSubmitValue(Guid FieldId, string? Value);
 
-public sealed record Event2SubmitRequest(IReadOnlyList<Event2SubmitValue> Values, string? AccessToken);
+public sealed record EventSubmitRequest(IReadOnlyList<EventSubmitValue> Values, string? AccessToken);
 
-public sealed record Event2SubmitResponse(Guid RegistrationId, DateTimeOffset SubmittedUtc);
+public sealed record EventSubmitResponse(Guid RegistrationId, DateTimeOffset SubmittedUtc);
 
 // ── Admin ────────────────────────────────────────────────────────────────────
 
-public sealed record Event2AdminStatusResponse(bool HasAdmin, bool IsCurrentUserAdmin, string? AdminDisplayName);
+public sealed record EventAdminStatusResponse(bool HasAdmin, bool IsCurrentUserAdmin, string? AdminDisplayName);
 
-public sealed record Event2AdminSiteSummary(
+public sealed record EventAdminSiteSummary(
     Guid Id,
     string Slug,
     string Title,
@@ -105,7 +105,7 @@ public sealed record Event2AdminSiteSummary(
     int RegistrationCount,
     DateTimeOffset UpdatedUtc);
 
-public sealed record Event2SiteUpsertRequest(
+public sealed record EventSiteUpsertRequest(
     string Slug,
     string Title,
     string? Subtitle,
@@ -121,13 +121,13 @@ public sealed record Event2SiteUpsertRequest(
     bool IsPublished);
 
 /// <summary>The whole event as the editor sees it: every page, every part.</summary>
-public sealed record Event2AdminSiteResponse(
-    Event2SiteHeader Site,
-    Event2CatalogueEntry Catalogue,
+public sealed record EventAdminSiteResponse(
+    EventSiteHeader Site,
+    EventCatalogueEntry Catalogue,
     bool IsPublished,
-    IReadOnlyList<Event2AdminPageResponse> Pages);
+    IReadOnlyList<EventAdminPageResponse> Pages);
 
-public sealed record Event2AdminPageResponse(
+public sealed record EventAdminPageResponse(
     Guid Id,
     int SortOrder,
     string Kind,
@@ -135,9 +135,9 @@ public sealed record Event2AdminPageResponse(
     string Title,
     string MenuLabel,
     string? Description,
-    IReadOnlyList<Event2AdminPartResponse> Parts);
+    IReadOnlyList<EventAdminPartResponse> Parts);
 
-public sealed record Event2AdminPartResponse(
+public sealed record EventAdminPartResponse(
     Guid Id,
     int SortOrder,
     string Kind,
@@ -147,15 +147,15 @@ public sealed record Event2AdminPartResponse(
     string? ConfigJson,
     string? LayersJson,
     bool IsVisible,
-    IReadOnlyList<Event2PartFieldResponse> Fields);
+    IReadOnlyList<EventPartFieldResponse> Fields);
 
-public sealed record Event2PageUpsertRequest(
+public sealed record EventPageUpsertRequest(
     string Slug,
     string Title,
     string MenuLabel,
     string? Description);
 
-public sealed record Event2PartUpsertRequest(
+public sealed record EventPartUpsertRequest(
     string Kind,
     string MenuLabel,
     string? Title,
@@ -164,9 +164,9 @@ public sealed record Event2PartUpsertRequest(
     string? LayersJson,
     bool IsVisible);
 
-public sealed record Event2ReorderRequest(IReadOnlyList<Guid> OrderedIds);
+public sealed record EventReorderRequest(IReadOnlyList<Guid> OrderedIds);
 
-public sealed record Event2FieldUpsertRequest(
+public sealed record EventFieldUpsertRequest(
     string Kind,
     string Label,
     string? HelpText,
@@ -177,9 +177,9 @@ public sealed record Event2FieldUpsertRequest(
 
 // ── Registrations and access links ───────────────────────────────────────────
 
-public sealed record Event2AdminRegistrationValue(string FieldLabel, string? Value);
+public sealed record EventAdminRegistrationValue(string FieldLabel, string? Value);
 
-public sealed record Event2AdminRegistrationRow(
+public sealed record EventAdminRegistrationRow(
     Guid Id,
     Guid PartId,
     string PartLabel,
@@ -190,19 +190,19 @@ public sealed record Event2AdminRegistrationRow(
     // AccessLinkId is set once this registration has been granted a link.
     Guid? AccessLinkId,
     string? AccessToken,
-    IReadOnlyList<Event2AdminRegistrationValue> Values);
+    IReadOnlyList<EventAdminRegistrationValue> Values);
 
-public sealed record Event2AccessLinkUpsertRequest(
+public sealed record EventAccessLinkUpsertRequest(
     string RecipientName,
     string? RecipientContact,
     string? PersonalNote,
     string? InternalNote,
     IReadOnlyList<Guid>? PageIds,
-    IReadOnlyList<Event2AssignmentResponse>? Assignments,
+    IReadOnlyList<EventAssignmentResponse>? Assignments,
     // Present when granting access straight from a registration row.
     Guid? RegistrationId);
 
-public sealed record Event2AdminAccessLinkRow(
+public sealed record EventAdminAccessLinkRow(
     Guid Id,
     string Token,
     string RecipientName,
@@ -215,15 +215,15 @@ public sealed record Event2AdminAccessLinkRow(
     DateTimeOffset? LastViewedUtc,
     DateTimeOffset CreatedUtc,
     IReadOnlyList<Guid> PageIds,
-    IReadOnlyList<Event2AssignmentResponse> Assignments);
+    IReadOnlyList<EventAssignmentResponse> Assignments);
 
-public sealed record Event2StatusRequest(string Status);
+public sealed record EventStatusRequest(string Status);
 
 /// <summary>
 /// Outcome of a bulk import. Warnings list what was skipped and why, so the
 /// document can be corrected and re-imported.
 /// </summary>
-public sealed record Event2ImportResult(
+public sealed record EventImportResult(
     Guid SiteId,
     string Slug,
     int PagesCreated,

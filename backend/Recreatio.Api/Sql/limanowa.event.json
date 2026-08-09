@@ -1,0 +1,282 @@
+{
+  "slug": "limanowa",
+  "title": "Gra o wolność",
+  "subtitle": "Zośka i parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.",
+  "summary": "Trzy dni gry terenowej w Limanowej dla grup parafialnych — historia Szarych Szeregów, modlitwa i rywalizacja między drużynami.",
+  "category": "Gra terenowa",
+  "audience": "Grupy parafialne i ministranckie, uczestnicy 10–25 lat",
+  "places": ["Limanowa"],
+  "thumbnailUrl": null,
+  "startDate": "2026-06-19",
+  "endDate": "2026-06-21",
+  "dateLabel": null,
+  "theme": {
+    "accent": "#b08428",
+    "ground": "#12100a",
+    "ink": "#f5efe1",
+    "muted": "#c8b995"
+  },
+  "pages": [
+    {
+      "kind": "public",
+      "slug": "start",
+      "title": "Gra o wolność",
+      "menuLabel": "Strona publiczna",
+      "parts": [
+        {
+          "kind": "title",
+          "menuLabel": "Start",
+          "title": null,
+          "config": {
+            "badge": "19–21.06.2026 · Limanowa · zapisy grupowe otwarte",
+            "headline": "Gra o wolność",
+            "lede": "Zośka i parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.",
+            "paragraphs": ["Śladami tych, którzy byli gotowi."],
+            "actions": [{ "label": "Jak wygląda weekend", "href": "#weekend", "variant": "cta" }],
+            "footnote": null
+          },
+          "layers": [
+            { "kind": "gradient", "speed": 0.12, "angle": 168, "from": "#2b2312", "via": null, "to": "#0c0a06" },
+            { "kind": "bigtext", "speed": 0.95, "lines": ["GRA", "O WOLNOŚĆ"], "opacity": 0.1 }
+          ]
+        },
+        {
+          "kind": "shortinfos",
+          "menuLabel": "W skrócie",
+          "title": "W skrócie",
+          "config": {
+            "items": [
+              { "label": "Termin", "value": "19–21 czerwca 2026", "detail": "piątek – niedziela" },
+              { "label": "Baza", "value": "Limanowa", "detail": "prywatny teren przygotowany na pobyt i nocleg" },
+              { "label": "Wiek uczestników", "value": "10–25 lat", "detail": null },
+              { "label": "Zgłoszenia", "value": "Grupowe", "detail": "przez osobę pełnoletnią odpowiedzialną za ekipę" },
+              { "label": "Nocleg", "value": "Domek, podłoga, namioty", "detail": "sanitariaty, prysznic, prąd i woda na miejscu" },
+              { "label": "Dojazd", "value": "We własnym zakresie", "detail": "parking dostępny na miejscu" }
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "O wydarzeniu",
+          "title": "O wydarzeniu",
+          "intro": "To wejście w opowieść, która zaczyna się w terenie i dojrzewa we wspólnocie.",
+          "config": {
+            "paragraphs": [
+              "Gra o wolność to trzy dni ruchu, decyzji i współpracy. Wchodzisz z grupą w klimat, który buduje napięcie od pierwszego spotkania aż do finału.",
+              "W centrum jest historia, modlitwa i relacje, ale wszystko dzieje się przez działanie: kontakt z terenem, zadaniami i innymi drużynami.",
+              "To nie rekonstrukcja i nie stylizacja. To przygoda, która stawia pytania o gotowość, odpowiedzialność i to, jak działać razem, kiedy liczy się każdy krok."
+            ],
+            "bullets": [],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Dla kogo",
+          "title": "Dla kogo",
+          "intro": "Dla ekip, które chcą wejść razem w mocną przygodę i stanąć do rywalizacji z innymi parafiami.",
+          "config": {
+            "paragraphs": [
+              "Zapraszamy grupy parafialne zgłaszane przez osobę pełnoletnią odpowiedzialną za całość wyjazdu. Najbardziej naturalnie odnajdą się tu wspólnoty ministranckie i chłopcy związani z parafią.",
+              "Wiek uczestników: 10–25 lat.",
+              "Dla kogo szczególnie: od 5 klasy szkoły podstawowej do końca szkoły średniej oraz dla starszych uczestników i opiekunów, którzy chcą iść z grupą jednym rytmem.",
+              "Jak zgłasza się udział: nie zapisujemy pojedynczych osób przez stronę publiczną. Startuje grupa, a nie pojedynczy zawodnik."
+            ],
+            "bullets": [
+              "chłopcy z parafii i wspólnot",
+              "grupy ministranckie",
+              "odpowiedzialni dorośli i opiekunowie",
+              "ekipy gotowe na współpracę, wysiłek i rywalizację"
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "plan",
+          "menuLabel": "Weekend",
+          "title": "Jak wygląda weekend",
+          "intro": "Weekend prowadzi od wejścia w klimat, przez dzień decyzji, aż po wspólny finał.",
+          "config": {
+            "groups": [
+              {
+                "label": "Piątek — przyjazd i wspólny początek",
+                "caption": null,
+                "rows": [
+                  { "time": "17:00", "title": "Przyjazd", "detail": null },
+                  { "time": "19:00", "title": "Ruszamy razem", "detail": "Moment wejścia w opowieść i pierwsze ustawienie drużyn." }
+                ]
+              },
+              {
+                "label": "Sobota — gra, modlitwa i wielka przygoda",
+                "caption": null,
+                "rows": [
+                  { "time": "6:30", "title": "Msza Święta", "detail": null },
+                  { "time": "7:30", "title": "Śniadanie", "detail": null },
+                  { "time": "8:30", "title": "Główna rozgrywka", "detail": "Teren, tempo, decyzje, punkty i starcia między grupami." },
+                  { "time": "19:00", "title": "Adoracja", "detail": null },
+                  { "time": "20:00", "title": "Finał przy ognisku", "detail": null }
+                ]
+              },
+              {
+                "label": "Niedziela — Msza, śniadanie i powrót",
+                "caption": null,
+                "rows": [
+                  { "time": null, "title": "Wspólne śniadanie", "detail": null },
+                  { "time": "10:30", "title": "Msza Święta", "detail": null },
+                  { "time": "ok. 12:00", "title": "Powrót", "detail": "Wracacie ze swoją historią przeżytą razem." }
+                ]
+              }
+            ],
+            "note": "Dodatkowy element wieczorny lub nocny może pojawić się jako niespodzianka — jeśli pozwolą na to pogoda i siły uczestników."
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Gra",
+          "title": "Na czym polega gra",
+          "intro": "To nie jest jedna trasa. To żywa rozgrywka, w której Twoja grupa buduje przewagę krok po kroku.",
+          "config": {
+            "paragraphs": [
+              "Wchodzicie w teren, pracujecie pod presją czasu i punktów, zbieracie tropy, przekazujecie meldunki i podejmujecie decyzje, które od razu zmieniają sytuację.",
+              "Obok ruchu działa warstwa interakcji na żywo: dynamiczne komunikaty, bezpośrednie pojedynki wiedzy i odpowiedzi na to, co robią inne parafie.",
+              "Zaplecze gry korzysta z obszernej bazy wiedzy o „Zośce i Parasolu”, „Kamieniach na szaniec” i realiach epoki, dlatego każda drużyna trafia na inne ścieżki i inne pytania."
+            ],
+            "bullets": [
+              "zadania terenowe",
+              "szyfry i meldunki",
+              "interakcja na żywo",
+              "wiedza: „Zośka i parasol”",
+              "punkty, czas i statystyki"
+            ],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Historia",
+          "title": "Historia i wartości",
+          "intro": "Inspiracją jest historia Szarych Szeregów, „Kamienie na szaniec” i książka naukowa „Zośka i parasol”.",
+          "config": {
+            "paragraphs": [
+              "Wchodzicie w realne tropy lat 1939–1944: ludzi, decyzji i relacji, które miały cenę. To punkt wyjścia do pytań, które stają przed Wami dzisiaj.",
+              "Nie chodzi o hasła i dekoracje. Chodzi o odwagę, wierność i odpowiedzialność przeżyte we wspólnocie, w działaniu i w konkretnych wyborach.",
+              "Dlatego historia nie jest dodatkiem do gry. Jest osią, która porządkuje tempo, relacje i sens całego weekendu."
+            ],
+            "bullets": [
+              "przyjaźń",
+              "dojrzałość",
+              "odpowiedzialność",
+              "wierność",
+              "gotowość",
+              "pamięć",
+              "wspólnota"
+            ],
+            "note": "Każdy ma swoje Westerplatte."
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Baza i nocleg",
+          "title": "Baza i nocleg",
+          "intro": "Wydarzenie ma swoją bazę, ale gra wychodzi szerzej w teren Limanowej.",
+          "config": {
+            "paragraphs": [
+              "Bazą wydarzenia jest prywatny teren w Limanowej, przygotowany do przyjęcia uczestników na pobyt i nocleg. Na miejscu dostępne są sanitariaty, prysznic, prąd, woda, przestrzeń wspólna oraz miejsce na duże ognisko.",
+              "Nocleg odbywa się częściowo w domku letniskowym, częściowo na podłodze oraz w namiotach — własnych albo zapewnionych przez organizatora w granicach możliwości. Liczba miejsc jest ograniczona przez realną pojemność bazy, dlatego przyjmujemy tyle osób, ile jesteśmy w stanie dobrze i odpowiedzialnie przyjąć.",
+              "Dokładniejsze informacje o bazie, przydziale miejsc i sprawach technicznych otrzyma osoba odpowiedzialna za grupę po zgłoszeniu."
+            ],
+            "bullets": [],
+            "note": null
+          }
+        },
+        {
+          "kind": "text",
+          "menuLabel": "Co zabrać",
+          "title": "Co zabrać",
+          "intro": "Warto przyjechać przygotowanym, żeby dobrze wejść w cały weekend.",
+          "config": {
+            "paragraphs": [
+              "Ta gra wymaga ruchu, uwagi, współpracy i gotowości do działania w terenie. Nie chodzi o przesadną ilość sprzętu, ale o rozsądne przygotowanie."
+            ],
+            "bullets": [
+              "śpiwór",
+              "rzeczy do noclegu",
+              "ubranie na zmienną pogodę",
+              "wygodne buty do chodzenia",
+              "telefon",
+              "powerbank",
+              "rzeczy osobiste i higieniczne",
+              "prowiant według własnego rozeznania",
+              "coś do notowania, jeśli chcesz",
+              "otwartość na współpracę i uważność"
+            ],
+            "note": "Na wydarzeniu nie przewidujemy alkoholu ani napojów energetycznych — również dla dorosłych."
+          }
+        },
+        {
+          "kind": "faq",
+          "menuLabel": "FAQ",
+          "title": "FAQ",
+          "config": {
+            "items": [
+              {
+                "question": "Kto może wziąć udział?",
+                "answer": "Wydarzenie jest przygotowane dla chłopaków z parafii i wspólnot, szczególnie ministranckich. Zgłoszenia odbywają się grupowo przez osobę pełnoletnią odpowiedzialną za całą ekipę."
+              },
+              {
+                "question": "Czy można zgłosić się indywidualnie?",
+                "answer": "Nie przez stronę publiczną. Punktem wyjścia jest zgłoszenie grupy przez odpowiedzialnego dorosłego, który później uzupełnia skład uczestników."
+              },
+              {
+                "question": "Jak wygląda nocleg?",
+                "answer": "Nocleg odbywa się w domku letniskowym, na podłodze oraz w namiotach — własnych albo zapewnionych przez organizatora w granicach możliwości."
+              },
+              {
+                "question": "Czy trzeba dużo chodzić?",
+                "answer": "Tak. To wydarzenie terenowe, więc trzeba liczyć się z ruchem, zadaniami w przestrzeni miasta i dłuższym wysiłkiem w ciągu dnia."
+              },
+              {
+                "question": "Czy to bardziej nauka czy bardziej przygoda?",
+                "answer": "Jedno i drugie. Historia nie jest dodatkiem do zabawy, a przygoda nie jest dodatkiem do historii. Te dwie warstwy są ze sobą połączone."
+              },
+              {
+                "question": "Czy będzie też modlitwa?",
+                "answer": "Tak. W programie są Msza Święta, Jutrznia, Nieszpory, modlitwa przed posiłkami, Apel Jasnogórski i sobotnia adoracja."
+              },
+              {
+                "question": "Czy trzeba mieć własny transport?",
+                "answer": "Tak. Dojazd odbywa się we własnym zakresie. Na miejscu dostępny jest parking dla większej liczby samochodów."
+              },
+              {
+                "question": "Czy po zgłoszeniu od razu podaje się wszystkich uczestników?",
+                "answer": "Nie. Najpierw zgłaszana jest grupa przez osobę odpowiedzialną. Następnie przekazywany jest osobny link do dalszego uzupełnienia składu."
+              },
+              {
+                "question": "Czy będzie ognisko?",
+                "answer": "Tak. Finał sobotniego dnia planowany jest przy ognisku."
+              },
+              {
+                "question": "Czy może pojawić się dodatkowy nocny element gry?",
+                "answer": "Tak, ale tylko jako dodatkowa niespodzianka i pod warunkiem, że pozwolą na to pogoda oraz siły uczestników."
+              }
+            ]
+          }
+        },
+        {
+          "kind": "contact",
+          "menuLabel": "Kontakt",
+          "title": "Kontakt",
+          "config": {
+            "organizer": "Masz pytania dotyczące zapisów, organizacji albo samej formuły wydarzenia? Skontaktuj się bezpośrednio z organizatorem — ks. Michałem Mleczkiem.",
+            "channels": [
+              { "label": "Telefon", "value": "+48 505 548 677", "href": "tel:+48505548677" },
+              { "label": "E-mail", "value": "mleczek_pradnik@outlook.com", "href": "mailto:mleczek_pradnik@outlook.com" }
+            ],
+            "note": "Zapisy odbywają się grupowo przez osobę pełnoletnią odpowiedzialną za parafię, wspólnotę albo konkretną ekipę uczestników."
+          }
+        }
+      ]
+    }
+  ]
+}

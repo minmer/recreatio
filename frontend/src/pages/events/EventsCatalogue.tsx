@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getEvent2Catalogue, type Event2CatalogueEntry } from '../../lib/api';
+import { getEventCatalogue, type EventCatalogueEntry } from '../../lib/api';
 import type { EventDefinition } from './eventTypes';
 
 /**
  * One row of the overview, whatever it was built from. Hand-coded events and
- * event2 sites are normalized to this so a single filter and sort covers both.
+ * event sites are normalized to this so a single filter and sort covers both.
  */
 export type CatalogueRow = {
   key: string;
@@ -18,7 +18,7 @@ export type CatalogueRow = {
   endDate: string | null;
   dateLabel: string;
   href: string;
-  source: 'event2' | 'legacy';
+  source: 'event' | 'legacy';
 };
 
 type SortKey = 'date-asc' | 'date-desc' | 'title' | 'category';
@@ -53,9 +53,9 @@ function formatRange(startDate: string | null, endDate: string | null): string {
   return `${start.getDate()} ${MONTHS[start.getMonth()]} – ${end.getDate()} ${MONTHS[end.getMonth()]} ${end.getFullYear()}`;
 }
 
-function fromEvent2(entry: Event2CatalogueEntry): CatalogueRow {
+function fromEvent(entry: EventCatalogueEntry): CatalogueRow {
   return {
-    key: `event2-${entry.id}`,
+    key: `event-${entry.id}`,
     title: entry.title,
     summary: entry.summary ?? '',
     category: entry.category,
@@ -66,7 +66,7 @@ function fromEvent2(entry: Event2CatalogueEntry): CatalogueRow {
     endDate: entry.endDate,
     dateLabel: entry.dateLabel ?? formatRange(entry.startDate, entry.endDate),
     href: `/#/event/${entry.slug}`,
-    source: 'event2'
+    source: 'event'
   };
 }
 
@@ -104,7 +104,7 @@ function compare(a: CatalogueRow, b: CatalogueRow, sort: SortKey): number {
 }
 
 export function EventsCatalogue({ legacyEvents, openLabel }: { legacyEvents: EventDefinition[]; openLabel: string }) {
-  const [remote, setRemote] = useState<Event2CatalogueEntry[]>([]);
+  const [remote, setRemote] = useState<EventCatalogueEntry[]>([]);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
   const [place, setPlace] = useState('');
@@ -113,7 +113,7 @@ export function EventsCatalogue({ legacyEvents, openLabel }: { legacyEvents: Eve
 
   useEffect(() => {
     let active = true;
-    getEvent2Catalogue()
+    getEventCatalogue()
       .then((entries) => {
         if (active) setRemote(entries);
       })
@@ -128,7 +128,7 @@ export function EventsCatalogue({ legacyEvents, openLabel }: { legacyEvents: Eve
   }, []);
 
   const rows = useMemo(
-    () => [...remote.map(fromEvent2), ...legacyEvents.map(fromLegacy)],
+    () => [...remote.map(fromEvent), ...legacyEvents.map(fromLegacy)],
     [legacyEvents, remote]
   );
 

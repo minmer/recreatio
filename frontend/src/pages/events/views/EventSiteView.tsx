@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { ApiError, getEvent2PublicSite, type Event2PublicSite } from '../../../../lib/api';
-import { Event2Shell } from '../shell/Event2Shell';
-import { event2EditHref, useIsEvent2Admin } from '../shell/useIsEvent2Admin';
+import { ApiError, getEventPublicSite, type EventPublicSite } from '../../../lib/api';
+import { EventShell } from '../shell/EventShell';
+import { eventEditHref, useIsEventAdmin } from '../shell/useIsEventAdmin';
 
 /** The address anyone can open. Internal pages are never referenced from here. */
-export function Event2PublicView({ slug }: { slug: string }) {
-  const isAdmin = useIsEvent2Admin();
-  const [data, setData] = useState<Event2PublicSite | null>(null);
+export function EventSiteView({ slug }: { slug: string }) {
+  const isAdmin = useIsEventAdmin();
+  const [data, setData] = useState<EventPublicSite | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,7 +15,7 @@ export function Event2PublicView({ slug }: { slug: string }) {
     setLoading(true);
     setError(null);
 
-    getEvent2PublicSite(slug)
+    getEventPublicSite(slug)
       .then((response) => {
         if (!active) return;
         setData(response);
@@ -40,7 +40,7 @@ export function Event2PublicView({ slug }: { slug: string }) {
 
   if (loading) {
     return (
-      <div className="e2-standalone">
+      <div className="ev-standalone">
         <p>Ładowanie…</p>
       </div>
     );
@@ -48,10 +48,10 @@ export function Event2PublicView({ slug }: { slug: string }) {
 
   if (error || !data) {
     return (
-      <div className="e2-standalone">
+      <div className="ev-standalone">
         <h1>Wydarzenie niedostępne</h1>
         <p>{error ?? 'Nie udało się pobrać wydarzenia.'}</p>
-        <a className="e2-ghost" href="/#/event">
+        <a className="ev-ghost" href="/#/event">
           Wróć do listy wydarzeń
         </a>
       </div>
@@ -60,10 +60,10 @@ export function Event2PublicView({ slug }: { slug: string }) {
 
   if (data.page.parts.length === 0) {
     return (
-      <div className="e2-standalone">
+      <div className="ev-standalone">
         <h1>{data.site.title}</h1>
         <p>Ta strona nie ma jeszcze żadnych sekcji.</p>
-        <a className="e2-ghost" href="/#/event">
+        <a className="ev-ghost" href="/#/event">
           Wróć do listy wydarzeń
         </a>
       </div>
@@ -71,12 +71,12 @@ export function Event2PublicView({ slug }: { slug: string }) {
   }
 
   return (
-    <Event2Shell
+    <EventShell
       site={data.site}
       page={data.page}
       accessToken={null}
       availablePages={[]}
-      adminEditHref={isAdmin ? event2EditHref(data.site.id) : null}
+      adminEditHref={isAdmin ? eventEditHref(data.site.id) : null}
     />
   );
 }

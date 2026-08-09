@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { deleteEvent2Part, updateEvent2Part, type Event2AdminPart, type Event2Part } from '../../../../lib/api';
+import { deleteEventPart, updateEventPart, type EventAdminPart, type EventPart } from '../../../lib/api';
 import { CheckRow, TextRow } from '../parts/editorKit';
 import { getPartModule, partLabel } from '../parts/registry';
 import { LayerEditor } from './LayerEditor';
@@ -15,7 +15,7 @@ export function PartEditor({
   onMove,
   onChanged
 }: {
-  part: Event2AdminPart;
+  part: EventAdminPart;
   isFirst: boolean;
   isLast: boolean;
   onMove: (direction: -1 | 1) => void;
@@ -49,7 +49,7 @@ export function PartEditor({
     setPending(true);
     setError(null);
     try {
-      await updateEvent2Part(part.id, {
+      await updateEventPart(part.id, {
         kind: part.kind,
         menuLabel: menuLabel.trim() || partLabel(part.kind),
         title: title.trim() || null,
@@ -71,7 +71,7 @@ export function PartEditor({
     if (!window.confirm(`Usunąć część „${part.menuLabel}”? Tej operacji nie można cofnąć.`)) return;
     setPending(true);
     try {
-      await deleteEvent2Part(part.id);
+      await deleteEventPart(part.id);
       onChanged();
     } catch (deleteError: unknown) {
       setError(deleteError instanceof Error ? deleteError.message : 'Nie udało się usunąć części.');
@@ -81,7 +81,7 @@ export function PartEditor({
 
   // The form part edits its fields through the API, outside ConfigJson, so it
   // needs a way to tell the page to refetch.
-  const editorPart: Event2Part = {
+  const editorPart: EventPart = {
     id: part.id,
     sortOrder: part.sortOrder,
     kind: part.kind,
@@ -94,15 +94,15 @@ export function PartEditor({
   };
 
   return (
-    <article className={`e2a-part ${isVisible ? '' : 'is-hidden'}`}>
-      <header className="e2a-part-head">
-        <button type="button" className="e2a-part-toggle" onClick={() => setOpen((current) => !current)}>
-          <span className="e2a-kind">{partLabel(part.kind)}</span>
+    <article className={`eva-part ${isVisible ? '' : 'is-hidden'}`}>
+      <header className="eva-part-head">
+        <button type="button" className="eva-part-toggle" onClick={() => setOpen((current) => !current)}>
+          <span className="eva-kind">{partLabel(part.kind)}</span>
           <strong>{part.menuLabel}</strong>
-          {!part.isVisible ? <span className="e2a-tag">ukryta</span> : null}
-          {dirty ? <span className="e2a-tag is-dirty">niezapisane</span> : null}
+          {!part.isVisible ? <span className="eva-tag">ukryta</span> : null}
+          {dirty ? <span className="eva-tag is-dirty">niezapisane</span> : null}
         </button>
-        <div className="e2a-part-tools">
+        <div className="eva-part-tools">
           <button type="button" onClick={() => onMove(-1)} disabled={isFirst} aria-label="Wyżej">
             ↑
           </button>
@@ -113,7 +113,7 @@ export function PartEditor({
       </header>
 
       {open ? (
-        <div className="e2a-part-body">
+        <div className="eva-part-body">
           <TextRow
             label="Etykieta w menu"
             value={menuLabel}
@@ -157,7 +157,7 @@ export function PartEditor({
               ctx={{ part: editorPart, onStructureChanged: onChanged }}
             />
           ) : (
-            <p className="e2a-error">Nieznany typ części: {part.kind}.</p>
+            <p className="eva-error">Nieznany typ części: {part.kind}.</p>
           )}
 
           <LayerEditor
@@ -169,13 +169,13 @@ export function PartEditor({
             }}
           />
 
-          {error ? <p className="e2a-error">{error}</p> : null}
+          {error ? <p className="eva-error">{error}</p> : null}
 
-          <div className="e2a-actions">
-            <button type="button" className="e2a-cta" onClick={() => void save()} disabled={pending}>
+          <div className="eva-actions">
+            <button type="button" className="eva-cta" onClick={() => void save()} disabled={pending}>
               {pending ? 'Zapisywanie…' : 'Zapisz część'}
             </button>
-            <button type="button" className="e2a-danger" onClick={() => void remove()} disabled={pending}>
+            <button type="button" className="eva-danger" onClick={() => void remove()} disabled={pending}>
               Usuń część
             </button>
           </div>
