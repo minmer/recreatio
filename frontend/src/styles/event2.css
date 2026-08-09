@@ -1084,6 +1084,25 @@
   cursor: not-allowed;
 }
 
+.e2-map-hint {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 0.14rem 0.5rem;
+  background: rgba(8, 13, 21, 0.82);
+  color: var(--e2-muted);
+  font-size: 0.68rem;
+  pointer-events: none;
+}
+
+/* On touch there is no cursor and no ctrl key — the hint would be wrong. */
+@media (hover: none) {
+  .e2-map-hint {
+    display: none;
+  }
+}
+
 .e2-map-attribution {
   position: absolute;
   right: 0;
