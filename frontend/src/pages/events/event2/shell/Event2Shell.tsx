@@ -190,10 +190,15 @@ export function Event2Shell({
                           className="e2-bigtext"
                           style={{
                             opacity: layer.opacity,
-                            // progress 0 → below centre, progress 1 → above it.
+                            // Driven by visibleProgress, not progress: the sweep
+                            // runs for the whole time the slide is on screen —
+                            // arriving from the previous slide and leaving
+                            // towards the next — instead of being crammed into
+                            // the slide's own inner scroll, which on a minimal
+                            // slide is only a few percent of a viewport.
                             // speed is the sweep length: 1 = a whole viewport.
                             transform: `translate3d(0, ${
-                              (0.5 - slide.progress) * scroll.viewportHeight * layer.speed
+                              (0.5 - slide.visibleProgress) * scroll.viewportHeight * layer.speed
                             }px, 0)`
                           }}
                         >
