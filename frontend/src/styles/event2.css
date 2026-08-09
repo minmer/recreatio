@@ -1387,6 +1387,14 @@
   gap: 0.35rem 0.9rem;
 }
 
+/* The global stylesheet carries a bare `label { color: var(--muted) }` for the
+   light theme. An element selector beats inheritance, so every label in here
+   has to state its own colour or it silently turns near-black on near-black. */
+.e2 label,
+.e2-map-overlay label {
+  color: inherit;
+}
+
 .e2-check-row {
   display: flex;
   align-items: flex-start;
@@ -1394,6 +1402,7 @@
   line-height: 1.5;
   cursor: pointer;
   min-width: 0;
+  color: var(--e2-ink);
 }
 
 .e2-check-row input[type='checkbox'] {

@@ -12,25 +12,28 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
  *
  * ── How a slide is left ──────────────────────────────────────────────────────
  * A slide's inner range, start → innerEnd, scrolls freely: that is reading.
- * Push past either end and the track does not stop dead — it follows, with
- * rising resistance, up to a peek of PEEK_MAX_FACTOR of a viewport. That peek
- * uncovers the top of the next slide (or the bottom of the previous one) while
- * the finger is still down, so you can look before you commit.
+ * Arriving at either end stops there, and a throw's inertia stops with it — no
+ * amount of speed built up while reading will carry on into the next slide.
  *
- * What happens on release is decided by how far you pulled and how fast you
- * were going. A small peek springs back to the slide you were on; a peek past
- * PEEK_COMMIT_RATIO of the maximum, or any flick faster than
- * FLICK_COMMIT_VELOCITY, carries through to the next one. Inertia inside a
- * slide feeds the same decision: a throw coasts to the edge and its remaining
- * speed is what commits or bounces.
+ * Leaving is a separate, deliberate act. Once the track is already resting on
+ * an edge, further scrolling stretches past it with rising resistance, up to a
+ * peek of PEEK_MAX_FACTOR of a viewport, uncovering the top of the next slide
+ * while the finger is still down so you can look before committing.
  *
- * Because the peek is capped, a single gesture can never reach the next slide
- * on its own — one drag moves the track at most one slide.
+ * That pull is held against the edge and accumulates across separate scrolls,
+ * which is what lets a few notches of a mouse wheel add up to one departure.
+ * A small pull springs back; a pull past PEEK_COMMIT_RATIO of the maximum, or
+ * a flick faster than FLICK_COMMIT_VELOCITY made from the edge itself, carries
+ * through. Since the peek is capped, one gesture can never reach past the
+ * neighbouring slide.
  */
 
-const MIN_VIEWPORT_FACTOR = 1.05;
-const TRACK_INTERPOLATION = 0.16;
+/** A slide is never shorter than the screen; content decides anything more. */
+const MIN_VIEWPORT_FACTOR = 1;
+const TRACK_INTERPOLATION = 0.24;
 const WHEEL_CLAMP = 180;
+/** Reading inside a slide covers ground faster than one notch of the wheel. */
+const WHEEL_GAIN = 1.6;
 
 /** How far past a slide's edge the track may be pulled, as a share of viewport. */
 const PEEK_MAX_FACTOR = 0.3;
@@ -47,6 +50,13 @@ const SLIDE_TRANSITION_MS = 520;
 const RESOLVE_IDLE_MS = 120;
 /** Breathing room after a committed move, so one burst cannot chain. */
 const BOUNDARY_HOLD_MS = 140;
+/**
+ * How long a pull against an edge is remembered after it springs back. A mouse
+ * wheel arrives as separate notches, so without this each one would peek, bounce
+ * and throw its pull away, and no amount of scrolling would ever leave the
+ * slide. Within this window successive scrolls the same way keep adding up.
+ */
+const PULL_MEMORY_MS = 1200;
 
 /**
  * Inner travel below this is not worth scrolling through — a slide whose
@@ -91,7 +101,7 @@ function normalizeWheelDelta(event: WheelEvent): number {
   let delta = event.deltaY;
   if (event.deltaMode === 1) delta *= 16;
   else if (event.deltaMode === 2) delta *= Math.max(480, window.innerHeight * 0.85);
-  return clamp(delta, -WHEEL_CLAMP, WHEEL_CLAMP);
+  return clamp(delta, -WHEEL_CLAMP, WHEEL_CLAMP) * WHEEL_GAIN;
 }
 
 export type SlideGeometry = {
@@ -120,6 +130,8 @@ export function useSlideScroll(slideCount: number) {
   const tweenRef = useRef<{ from: number; to: number; start: number; duration: number } | null>(null);
   const slidesRef = useRef<Slide[]>([]);
   const peekRef = useRef<Peek | null>(null);
+  /** Pull accumulated against one edge, surviving the springs back between scrolls. */
+  const pullRef = useRef<{ index: number; direction: 1 | -1; raw: number; at: number } | null>(null);
   const gateUntilRef = useRef(0);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
@@ -305,12 +317,24 @@ export function useSlideScroll(slideCount: number) {
    * stopping there. Only ever moves within the current slide plus its peek, so
    * one gesture cannot reach the slide after next.
    */
+  /** Adds to the pull held against one edge, starting over if it went stale. */
+  const rememberPull = useCallback((index: number, direction: 1 | -1, added: number): number => {
+    const now = performance.now();
+    const held = pullRef.current;
+    const continues =
+      held !== null && held.index === index && held.direction === direction && now - held.at <= PULL_MEMORY_MS;
+
+    const raw = Math.max(0, (continues ? held.raw : 0) + added);
+    pullRef.current = { index, direction, raw, at: now };
+    return raw;
+  }, []);
+
   const advance = useCallback(
-    (delta: number) => {
+    (delta: number): 'moved' | 'edge' | 'peek' => {
       const slides = slidesRef.current;
       if (slides.length === 0) {
         setTarget(targetRef.current + delta);
-        return;
+        return 'moved';
       }
 
       const maxPeek = viewportRefValue.current * PEEK_MAX_FACTOR;
@@ -321,18 +345,22 @@ export function useSlideScroll(slideCount: number) {
         const slide = slides[active.index];
         if (!slide) {
           peekRef.current = null;
-          return;
+          return 'moved';
         }
         const edge = active.direction > 0 ? slide.innerEnd : slide.start;
-        active.raw += delta * active.direction;
+        const raw = rememberPull(active.index, active.direction, delta * active.direction);
+        active.raw = raw;
 
-        if (active.raw <= 0) {
+        if (raw <= 0) {
+          // Wound all the way back — the reader changed their mind, so the
+          // accumulation starts again from nothing.
           peekRef.current = null;
-          setTarget(edge + (active.direction > 0 ? active.raw : -active.raw));
-          return;
+          pullRef.current = null;
+          setTarget(edge);
+          return 'moved';
         }
-        setTarget(edge + active.direction * damp(active.raw, maxPeek));
-        return;
+        setTarget(edge + active.direction * damp(raw, maxPeek));
+        return 'peek';
       }
 
       const from = targetRef.current;
@@ -344,21 +372,37 @@ export function useSlideScroll(slideCount: number) {
       const upperBound = slide.shallow ? slide.start : slide.innerEnd;
       const to = from + delta;
 
-      // Peeking is only offered where there is something to peek at.
+      // Peeking is only offered where there is something to peek at, and only
+      // once the track is already resting on the edge. Arriving at the edge
+      // stops there instead — which is what keeps a throw made while reading
+      // from spilling over into the next slide.
       if (to > upperBound && slides[index + 1]) {
-        peekRef.current = { index, direction: 1, raw: to - upperBound };
-        setTarget(upperBound + damp(to - upperBound, maxPeek));
-        return;
+        if (from < upperBound - 0.5) {
+          setTarget(upperBound);
+          return 'edge';
+        }
+        const raw = rememberPull(index, 1, delta);
+        peekRef.current = { index, direction: 1, raw };
+        setTarget(upperBound + damp(raw, maxPeek));
+        return 'peek';
       }
       if (to < lowerBound && slides[index - 1]) {
-        peekRef.current = { index, direction: -1, raw: lowerBound - to };
-        setTarget(lowerBound - damp(lowerBound - to, maxPeek));
-        return;
+        if (from > lowerBound + 0.5) {
+          setTarget(lowerBound);
+          return 'edge';
+        }
+        const raw = rememberPull(index, -1, -delta);
+        peekRef.current = { index, direction: -1, raw };
+        setTarget(lowerBound - damp(raw, maxPeek));
+        return 'peek';
       }
 
+      // Back inside the slide: any pull held against an edge is spent.
+      pullRef.current = null;
       setTarget(clamp(to, lowerBound, upperBound));
+      return 'moved';
     },
-    [setTarget]
+    [rememberPull, setTarget]
   );
 
   /**
@@ -384,13 +428,17 @@ export function useSlideScroll(slideCount: number) {
         peek.direction > 0 ? slides[peek.index + 1]?.start : slides[peek.index - 1]?.innerEnd;
 
       if ((pulledFar || flicked) && destination !== undefined) {
+        pullRef.current = null; // spent — the next slide starts from zero
         tweenTo(destination, SLIDE_TRANSITION_MS);
         gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS + BOUNDARY_HOLD_MS;
         return true;
       }
 
+      // Springs back, but takes no gate: a scroll arriving mid-bounce has to be
+      // able to interrupt it and keep building on the pull already held, or the
+      // notches of a mouse wheel would cancel each other out forever.
       tweenTo(edge, BOUNCE_MS);
-      gateUntilRef.current = performance.now() + BOUNCE_MS;
+      pullRef.current = { index: peek.index, direction: peek.direction, raw: peek.raw, at: performance.now() };
       return false;
     },
     [tweenTo]
@@ -416,19 +464,16 @@ export function useSlideScroll(slideCount: number) {
   }, [cancelResolveTimer, resolvePeek]);
 
   /**
-   * Carries a throw on after the finger lifts. Inside a slide it simply coasts;
-   * when the coast runs into an edge it becomes a peek, and whatever speed is
-   * left at that moment is what decides between springing back and going on.
+   * Carries a throw on after the finger lifts, but only within the slide. The
+   * coast ends the moment it meets an edge: momentum built up while reading is
+   * not an intention to leave, so it stops there rather than spilling over.
    */
   const startSettle = useCallback(
     (initialVelocity: number) => {
       stopSettle();
 
       let velocity = clamp(initialVelocity, -FLING_MAX_VELOCITY, FLING_MAX_VELOCITY);
-      if (Math.abs(velocity) < FLING_MIN_VELOCITY) {
-        resolvePeek(initialVelocity);
-        return;
-      }
+      if (Math.abs(velocity) < FLING_MIN_VELOCITY) return;
 
       let lastFrameAt = performance.now();
 
@@ -441,16 +486,11 @@ export function useSlideScroll(slideCount: number) {
 
         if (Math.abs(velocity) < FLING_MIN_VELOCITY) {
           settleRafRef.current = null;
-          resolvePeek(velocity);
           return;
         }
 
-        advance(velocity * frameMs);
-
-        // The coast reached an edge — hand the remaining speed to the decision.
-        if (peekRef.current) {
+        if (advance(velocity * frameMs) !== 'moved') {
           settleRafRef.current = null;
-          resolvePeek(velocity);
           return;
         }
 
@@ -459,7 +499,7 @@ export function useSlideScroll(slideCount: number) {
 
       settleRafRef.current = requestAnimationFrame(step);
     },
-    [advance, resolvePeek, stopSettle]
+    [advance, stopSettle]
   );
 
   const scrollToSlide = useCallback(
@@ -467,6 +507,7 @@ export function useSlideScroll(slideCount: number) {
       stopSettle();
       cancelResolveTimer();
       peekRef.current = null;
+      pullRef.current = null;
       gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS;
       tweenTo(slidesRef.current[index]?.start ?? 0, SLIDE_TRANSITION_MS);
     },
@@ -477,6 +518,7 @@ export function useSlideScroll(slideCount: number) {
     stopSettle();
     cancelResolveTimer();
     peekRef.current = null;
+    pullRef.current = null;
     tweenRef.current = null;
     gateUntilRef.current = 0;
     positionRef.current = 0;
@@ -533,11 +575,16 @@ export function useSlideScroll(slideCount: number) {
 
     const onTouchEnd = () => {
       touchYRef.current = null;
-      // A drag that ended in a pause has no throw left, but may still be
-      // holding a peek open — that has to be answered either way.
+      // A drag that ended in a pause has no throw left.
       const stale = performance.now() - lastTouchAtRef.current > 90;
-      startSettle(stale ? 0 : velocityRef.current);
+      const velocity = stale ? 0 : velocityRef.current;
       velocityRef.current = 0;
+
+      // A peek held open when the finger lifted is a deliberate attempt to
+      // leave, and its speed counts. Anything else is just reading, and only
+      // coasts within the slide.
+      if (peekRef.current) resolvePeek(velocity);
+      else startSettle(velocity);
     };
 
     viewport.addEventListener('wheel', onWheel, { passive: false });
@@ -554,7 +601,7 @@ export function useSlideScroll(slideCount: number) {
       viewport.removeEventListener('touchend', onTouchEnd);
       viewport.removeEventListener('touchcancel', onTouchEnd);
     };
-  }, [applyDelta, cancelResolveTimer, scheduleResolve, startSettle, stopSettle]);
+  }, [applyDelta, cancelResolveTimer, resolvePeek, scheduleResolve, startSettle, stopSettle]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -578,6 +625,7 @@ export function useSlideScroll(slideCount: number) {
         stopSettle();
         cancelResolveTimer();
         peekRef.current = null;
+        pullRef.current = null;
         gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS;
         tweenTo(0, SLIDE_TRANSITION_MS);
       } else if (event.key === 'End') {
@@ -585,6 +633,7 @@ export function useSlideScroll(slideCount: number) {
         stopSettle();
         cancelResolveTimer();
         peekRef.current = null;
+        pullRef.current = null;
         gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS;
         tweenTo(maxScroll, SLIDE_TRANSITION_MS);
       }
