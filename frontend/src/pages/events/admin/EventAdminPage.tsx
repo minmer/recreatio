@@ -23,6 +23,7 @@ import { PART_MODULES, partLabel } from '../parts/registry';
 import { DEFAULT_THEMES, defaultLayersJson, parseTheme, type ThemeMode } from '../shell/layers';
 import { getPartModule } from '../parts/registry';
 import { AccessPanel } from './AccessPanel';
+import { ImagePicker } from './ImagePicker';
 import { ImportPanel } from './ImportPanel';
 import { PartEditor } from './PartEditor';
 
@@ -665,10 +666,13 @@ function SiteSettings({
           onChange={setDateLabel}
         />
 
+        {/* The same picture library as the slide backgrounds: one upload can
+            serve as both a background and the tile on the overview. */}
+        <ImagePicker siteId={siteId} value={thumbnailUrl} onPick={setThumbnailUrl} />
         <TextRow
           label="Miniatura"
           value={thumbnailUrl}
-          hint="Adres obrazka na kafelku listy."
+          hint="Kafelek listy przycina obraz do 16/9. Wypełnia się po wgraniu pliku; można też wkleić adres z zewnątrz."
           onChange={setThumbnailUrl}
         />
       </fieldset>
