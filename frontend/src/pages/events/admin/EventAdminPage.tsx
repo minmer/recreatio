@@ -119,7 +119,7 @@ export function EventAdminPage({ initialSiteId }: { initialSiteId?: string | nul
 
   if (loading) {
     return (
-      <div className="e2a">
+      <div className="eva">
         <p className="eva-hint">Ładowanie…</p>
       </div>
     );
@@ -127,7 +127,7 @@ export function EventAdminPage({ initialSiteId }: { initialSiteId?: string | nul
 
   if (!status?.isCurrentUserAdmin) {
     return (
-      <div className="e2a">
+      <div className="eva">
         <header className="eva-head">
           <h1>Kreator wydarzeń</h1>
           <p>Buduj stronę wydarzenia z gotowych części i nadawaj dostęp do stron wewnętrznych.</p>
@@ -151,7 +151,7 @@ export function EventAdminPage({ initialSiteId }: { initialSiteId?: string | nul
 
   if (selected) {
     return (
-      <div className="e2a">
+      <div className="eva">
         <SiteEditor
           siteId={selected}
           onBack={() => {
@@ -164,7 +164,7 @@ export function EventAdminPage({ initialSiteId }: { initialSiteId?: string | nul
   }
 
   return (
-    <div className="e2a">
+    <div className="eva">
       <header className="eva-head">
         <h1>Kreator wydarzeń</h1>
         <p>
