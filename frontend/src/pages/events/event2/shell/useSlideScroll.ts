@@ -23,18 +23,24 @@ const MIN_VIEWPORT_FACTOR = 1.05;
 const TRACK_INTERPOLATION = 0.16;
 const JUMP_INTERPOLATION = 0.09;
 
-// Magnetic settle. Once input stops, the track eases onto a slide boundary —
-// but only one that lies AHEAD in the direction the reader was already moving,
-// and only from within a reach measured against the viewport rather than the
-// slide's own travel. Two consequences, both deliberate:
-//   · a short slide completes its transition as soon as you nudge it;
-//   · part-way down a long slide the next boundary is far, so nothing fires,
-//     and a settle can never drag the reader back against their own scroll.
-// The tiny backward tolerance only cleans up an overshoot of a few pixels.
-const SNAP_IDLE_MS = 130;
+// Magnetic settle, on one rule: never come to rest with a slide boundary
+// hanging inside the viewport.
+//
+// Between "slide k scrolled to its end" and "slide k+1 at the top" there is a
+// dead band exactly one viewport tall, where the screen shows the tail of one
+// slide and the head of the next. That band is what made the old proximity
+// rule fail — its middle is half a viewport from either resolution, so nothing
+// ever fired and the track could rest split between two slides.
+//
+// Now a straddled boundary is always resolved, with no reach limit: either up
+// to the top of the viewport (advance) or down past its bottom (stay put).
+// A slide is at least 1.05 viewports tall, so at most one boundary can ever be
+// straddled at a time. Inside a long slide no boundary is visible, nothing
+// fires, and reading a form is untouched.
+const SNAP_IDLE_MS = 120;
 const SNAP_INTERPOLATION = 0.12;
-const SNAP_FORWARD_REACH = 0.34;
-const SNAP_BACKWARD_REACH = 0.06;
+/** Nudges the midpoint toward the way the reader was already going. */
+const SNAP_DIRECTION_BIAS = 0.15;
 const WHEEL_CLAMP = 180;
 const FLING_FRICTION = 0.94;
 const FLING_MIN_VELOCITY = 0.04;
@@ -126,12 +132,12 @@ export function useSlideScroll(slideCount: number) {
     return 0;
   }, [geometry, position, viewportHeight]);
 
-  // Slide starts, plus the very bottom so the last slide can settle on its end.
+  // Boundaries between slides. The first slide's start is not one — there is
+  // nothing above it to be split from — and the end of the track is a clamp,
+  // not a boundary.
   useEffect(() => {
-    const points = geometry.map((slide) => slide.start);
-    if (maxScroll > 0) points.push(maxScroll);
-    snapPointsRef.current = points;
-  }, [geometry, maxScroll]);
+    snapPointsRef.current = geometry.slice(1).map((slide) => slide.start);
+  }, [geometry]);
 
   // ── Measurement ───────────────────────────────────────────────────────────
 
@@ -216,37 +222,28 @@ export function useSlideScroll(slideCount: number) {
     snapTimerRef.current = window.setTimeout(() => {
       snapTimerRef.current = null;
 
-      const points = snapPointsRef.current;
-      if (points.length === 0 || viewportHeight <= 1) return;
+      const boundaries = snapPointsRef.current;
+      if (boundaries.length === 0 || viewportHeight <= 1) return;
 
       const from = targetRef.current;
       const direction = directionRef.current;
-      const forwardReach = viewportHeight * SNAP_FORWARD_REACH;
-      const backwardReach = viewportHeight * SNAP_BACKWARD_REACH;
 
-      let best: number | null = null;
-      let bestDistance = Number.POSITIVE_INFINITY;
+      // The one boundary, if any, currently hanging inside the viewport.
+      const straddled = boundaries.find(
+        (boundary) => boundary > from + 1 && boundary < from + viewportHeight - 1
+      );
+      if (straddled === undefined) return;
 
-      for (const point of points) {
-        const offset = point - from;
-        const distance = Math.abs(offset);
-        if (distance < 1) return; // already settled on a boundary
+      const advance = straddled; // boundary to the top of the viewport
+      const retreat = straddled - viewportHeight; // boundary past the bottom
 
-        // Ahead means "further along the way the reader was going".
-        const isAhead = direction === 0 ? false : Math.sign(offset) === direction;
-        const reach = isAhead ? forwardReach : backwardReach;
-        if (distance > reach) continue;
-
-        if (distance < bestDistance) {
-          best = point;
-          bestDistance = distance;
-        }
-      }
-
-      if (best === null) return;
+      // Midpoint of the dead band, shifted toward the reader's own direction so
+      // a deliberate scroll carries through instead of being pulled back.
+      const midpoint =
+        retreat + viewportHeight * (0.5 - direction * SNAP_DIRECTION_BIAS);
 
       interpolationRef.current = SNAP_INTERPOLATION;
-      targetRef.current = clamp(best, 0, maxScroll);
+      targetRef.current = clamp(from >= midpoint ? advance : retreat, 0, maxScroll);
       animate();
     }, SNAP_IDLE_MS);
   }, [animate, cancelSnap, maxScroll, viewportHeight]);

@@ -148,8 +148,19 @@ export function Event2Shell({
                 aria-label={part.menuLabel}
               >
                 {layers.map((layer, layerIndex) => {
-                  const height = scroll.viewportHeight + slide.travel * layer.speed;
-                  const offset = (1 - layer.speed) * slide.progress * slide.travel;
+                  // Big text is not a parallax plane — it is a single line that
+                  // sweeps the viewport. Pin its layer (the speed-0 case) and
+                  // move the text inside it instead, so the sweep is a share of
+                  // the viewport rather than of the slide's travel. Otherwise a
+                  // slide only 5% taller than the screen moves it a few pixels.
+                  const isBigText = layer.kind === 'bigtext';
+
+                  const height = isBigText
+                    ? scroll.viewportHeight
+                    : scroll.viewportHeight + slide.travel * layer.speed;
+                  const offset = isBigText
+                    ? slide.progress * slide.travel
+                    : (1 - layer.speed) * slide.progress * slide.travel;
 
                   const style: CSSProperties = {
                     height: `${height}px`,
@@ -175,7 +186,17 @@ export function Event2Shell({
                       aria-hidden="true"
                     >
                       {layer.kind === 'bigtext' ? (
-                        <div className="e2-bigtext" style={{ opacity: layer.opacity }}>
+                        <div
+                          className="e2-bigtext"
+                          style={{
+                            opacity: layer.opacity,
+                            // progress 0 → below centre, progress 1 → above it.
+                            // speed is the sweep length: 1 = a whole viewport.
+                            transform: `translate3d(0, ${
+                              (0.5 - slide.progress) * scroll.viewportHeight * layer.speed
+                            }px, 0)`
+                          }}
+                        >
                           {layer.lines.map((line, lineIndex) => (
                             <span key={lineIndex} style={layer.color ? { color: layer.color } : undefined}>
                               {line}

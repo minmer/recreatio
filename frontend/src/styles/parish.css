@@ -2271,6 +2271,12 @@
   background: #ecfdf3;
 }
 
+.confirmation-portal-task-list li.is-info {
+  background: #eff6ff;
+  border-style: solid;
+  border-color: rgba(37, 99, 235, 0.25);
+}
+
 .confirmation-celebration-list {
   display: grid;
   gap: 8px;

@@ -43,7 +43,7 @@
           },
           "layers": [
             { "kind": "gradient", "speed": 0.12, "angle": 172, "from": "#1b3015", "via": null, "to": "#0a140a" },
-            { "kind": "bigtext", "speed": 0.62, "lines": ["ROWEROWA", "CZĘSTOCHOWA"], "opacity": 0.1 }
+            { "kind": "bigtext", "speed": 0.95, "lines": ["ROWEROWA", "CZĘSTOCHOWA"], "opacity": 0.1 }
           ]
         },
         {

@@ -327,7 +327,7 @@ public static partial class Event2Endpoints
         return JsonSerializer.Serialize(new object[]
         {
             new { kind = "gradient", speed = 0.12, angle = 168, from = "#12203a", via = (string?)null, to = "#060a12" },
-            new { kind = "bigtext", speed = 0.62, lines = new[] { word.Length > 0 ? word : "SEKCJA" }, opacity = 0.09 }
+            new { kind = "bigtext", speed = 0.95, lines = new[] { word.Length > 0 ? word : "SEKCJA" }, opacity = 0.09 }
         });
     }
 

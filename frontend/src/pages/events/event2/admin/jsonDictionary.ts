@@ -81,16 +81,21 @@ Każda część to jeden ekran strony. Wspólne pola:
 
 ## Warstwy tła
 
-"layers" to lista warstw od tyłu do przodu. Każda ma "speed" od 0 do 1:
-0 stoi w miejscu, 1 przesuwa się razem z treścią. Pomiń "layers", a dostaniesz
+"layers" to lista warstw od tyłu do przodu. Pomiń "layers", a dostaniesz
 gradient plus duży napis z etykiety części — zwykle to wystarczy.
+
+Dla "gradient" i "image" pole "speed" (0–1) to tempo paralaksy:
+0 stoi w miejscu, 1 przesuwa się razem z treścią.
+
+Dla "bigtext" pole "speed" znaczy co innego: to długość przejazdu napisu
+przez ekran. Napis wędruje z dołu do góry; 1 = pełna wysokość ekranu.
 
 [
   { "kind": "gradient", "speed": 0.12, "angle": 168,
     "from": "#12203a", "via": null, "to": "#060a12" },
   { "kind": "image", "speed": 0.34, "url": "https://…/tlo.jpg",
     "opacity": 0.45, "blend": "soft-light", "position": "center" },
-  { "kind": "bigtext", "speed": 0.62, "lines": ["TRASA"], "opacity": 0.09 }
+  { "kind": "bigtext", "speed": 0.95, "lines": ["TRASA"], "opacity": 0.09 }
 ]
 
 ## Pola formularza

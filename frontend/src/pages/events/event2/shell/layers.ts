@@ -34,8 +34,12 @@ export type BigTextLayer = {
 
 export type Layer = GradientLayer | ImageLayer | BigTextLayer;
 
-/** The further back a layer sits, the slower it moves. */
-export const DEFAULT_SPEED = { gradient: 0.12, image: 0.34, bigtext: 0.62 } as const;
+/**
+ * The further back a layer sits, the slower it moves — except for bigtext,
+ * where speed is the sweep length across the viewport (1 = a whole viewport
+ * height, bottom edge to top edge).
+ */
+export const DEFAULT_SPEED = { gradient: 0.12, image: 0.34, bigtext: 0.95 } as const;
 
 const BLENDS: ImageLayer['blend'][] = ['normal', 'multiply', 'screen', 'overlay', 'soft-light'];
 
@@ -98,7 +102,7 @@ export function defaultLayersJson(menuLabel: string): string {
   return JSON.stringify(
     [
       { kind: 'gradient', speed: 0.12, angle: 168, from: '#12203a', via: null, to: '#060a12' },
-      { kind: 'bigtext', speed: 0.62, lines: [word], opacity: 0.09 }
+      { kind: 'bigtext', speed: 0.95, lines: [word], opacity: 0.09 }
     ],
     null,
     2

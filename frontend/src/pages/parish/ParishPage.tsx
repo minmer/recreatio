@@ -6924,19 +6924,6 @@ export function ParishPage({
                       <article id="confirmation-candidate-tasks" className="parish-card confirmation-portal-standalone-column">
                         <h4>Lista zadań</h4>
                         <ul className="confirmation-portal-task-list">
-                          <li className={confirmationDisplayPortalData.candidate.phoneNumbers.some((phone) => !phone.isVerified) ? 'is-todo' : 'is-done'}>
-                            <div>
-                              <strong>Weryfikacja numeru telefonu</strong>
-                              <p className="note">
-                                {confirmationDisplayPortalData.candidate.phoneNumbers.some((phone) => !phone.isVerified)
-                                  ? 'Przynajmniej jeden numer czeka na weryfikację SMS.'
-                                  : 'Wszystkie numery są zweryfikowane.'}
-                              </p>
-                            </div>
-                            <button type="button" className="ghost" onClick={() => setConfirmationPortalStandaloneTab('status')}>
-                              Przejdź
-                            </button>
-                          </li>
                           <li className={!confirmationDisplayPortalData.candidate.goal ? 'is-todo' : 'is-done'}>
                             <div>
                               <strong>Wpisz cel bierzmowania</strong>
@@ -6952,7 +6939,7 @@ export function ParishPage({
                               onClick={() => {
                                 setConfirmationGoalDraft(confirmationDisplayPortalData.candidate.goal ?? '');
                                 setConfirmationGoalEditing(true);
-                                setConfirmationPortalStandaloneTab('status');
+                                scrollToConfirmationPortalSection('confirmation-goal-section');
                               }}
                             >
                               {confirmationDisplayPortalData.candidate.goal ? 'Edytuj' : 'Wpisz'}
@@ -6970,10 +6957,47 @@ export function ParishPage({
                                   : 'Wybierz, czy używasz indeksu internetowego, papierowego lub obu.'}
                               </p>
                             </div>
-                            <button type="button" className="ghost" onClick={() => setConfirmationPortalStandaloneTab('status')}>
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => scrollToConfirmationPortalSection('confirmation-index-section')}
+                            >
                               {(confirmationDisplayPortalData.candidate.useInternetIndex || confirmationDisplayPortalData.candidate.usePaperIndex) ? 'Zmień' : 'Wybierz'}
                             </button>
                           </li>
+                          <li className="is-info">
+                            <div>
+                              <strong>Uzupełnij przesłany quiz bierzmowania</strong>
+                              <p className="note">
+                                Wypełnij quiz online pod linkiem obok. Ksiądz sprawdzi jego wypełnienie ok. 15.08.2026.
+                              </p>
+                            </div>
+                            <a
+                              className="ghost"
+                              href="https://recreatio.pl/#/cogita/public/storyboard-session/SNCA5L72Y8"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Otwórz quiz
+                            </a>
+                          </li>
+                          {confirmationDisplayPortalData.candidate.usePaperIndex ? (
+                            <li className="is-info">
+                              <div>
+                                <strong>Dostarcz indeks papierowy do sprawdzenia</strong>
+                                <p className="note">
+                                  Przynieś uzupełniony indeks papierowy do księdza. Zostanie sprawdzony ok. 15.08.2026.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() => scrollToConfirmationPortalSection('confirmation-index-section')}
+                              >
+                                Sprawdź
+                              </button>
+                            </li>
+                          ) : null}
                           <li className={!confirmationDisplayPortalData.candidate.paperConsentReceived ? 'is-todo' : 'is-done'}>
                             <div>
                               <strong>Przynieś papierową zgodę rodzica</strong>
@@ -6983,54 +7007,12 @@ export function ParishPage({
                                   : 'Dokument jeszcze nie został odnotowany jako dostarczony.'}
                               </p>
                             </div>
-                            <button type="button" className="ghost" onClick={() => setConfirmationPortalStandaloneTab('status')}>
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => scrollToConfirmationPortalSection('confirmation-status')}
+                            >
                               Sprawdź
-                            </button>
-                          </li>
-                          <li className={!confirmationDisplayPortalData.candidate.selectedSlotId ? 'is-todo' : 'is-done'}>
-                            <div>
-                              <strong>Wybierz termin spotkania z księdzem</strong>
-                              <p className="note">
-                                {confirmationDisplayPortalData.candidate.selectedSlotId
-                                  ? 'Termin spotkania został już wybrany.'
-                                  : 'Wybierz termin spotkania początkowego (1. rok).'}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              className="ghost"
-                              onClick={() => {
-                                setConfirmationPortalStandaloneTab('meetings');
-                                if (!confirmationDisplayPortalData.candidate.selectedSlotId) {
-                                  setConfirmationPortalShowSlotPicker(true);
-                                }
-                              }}
-                            >
-                              Wybierz
-                            </button>
-                          </li>
-                          <li className={!confirmationDisplayPortalData.candidate.secondSelectedSlotId ? 'is-todo' : 'is-done'}>
-                            <div>
-                              <strong>Wybierz termin spotkania końcowego</strong>
-                              <p className="note">
-                                {confirmationDisplayPortalData.candidate.secondSelectedSlotId
-                                  ? confirmationDisplaySelectedFirstYearEndSlot
-                                    ? `Wybrano: ${new Date(confirmationDisplaySelectedFirstYearEndSlot.startsAtUtc).toLocaleString('pl-PL')}.`
-                                    : 'Termin spotkania końcowego został już wybrany.'
-                                  : 'Nie wybrano jeszcze terminu spotkania końcowego (1. rok).'}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              className="ghost"
-                              onClick={() => {
-                                setConfirmationPortalStandaloneTab('meetings');
-                                if (!confirmationDisplayPortalData.candidate.secondSelectedSlotId) {
-                                  setConfirmationPortalShowSecondSlotPicker(true);
-                                }
-                              }}
-                            >
-                              {confirmationDisplayPortalData.candidate.secondSelectedSlotId ? 'Sprawdź' : 'Wybierz'}
                             </button>
                           </li>
                         </ul>
@@ -7055,7 +7037,7 @@ export function ParishPage({
                             </li>
                           ))}
                         </ul>
-                        <h4>Cel bierzmowania (do października 2026 r.)</h4>
+                        <h4 id="confirmation-goal-section">Cel bierzmowania (do października 2026 r.)</h4>
                         {confirmationGoalError ? (
                           <p className="confirmation-info confirmation-info-error">{confirmationGoalError}</p>
                         ) : null}
@@ -7115,7 +7097,7 @@ export function ParishPage({
                             </div>
                           </>
                         )}
-                        <h4>Rodzaj indeksu</h4>
+                        <h4 id="confirmation-index-section">Rodzaj indeksu</h4>
                         {confirmationIndexError ? (
                           <p className="confirmation-info confirmation-info-error">{confirmationIndexError}</p>
                         ) : null}

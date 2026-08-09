@@ -187,11 +187,12 @@
   pointer-events: none;
 }
 
+/* Pinned to the viewport; the text inside it does the travelling. */
 .e2-layer--bigtext {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding-top: clamp(3rem, 12vh, 9rem);
+  overflow: hidden;
 }
 
 .e2-bigtext {
@@ -199,6 +200,7 @@
   padding: 0 clamp(1rem, 6vw, 5rem);
   display: grid;
   gap: 0.05rem;
+  will-change: transform;
 }
 
 .e2-bigtext span {

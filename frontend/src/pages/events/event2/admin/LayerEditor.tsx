@@ -20,7 +20,7 @@ function blankLayer(kind: Layer['kind']): Layer {
     return { kind: 'image', speed: 0.34, url: '', opacity: 0.45, blend: 'normal', position: 'center' };
   }
   if (kind === 'bigtext') {
-    return { kind: 'bigtext', speed: 0.62, lines: ['NAPIS'], opacity: 0.09, color: null };
+    return { kind: 'bigtext', speed: 0.95, lines: ['NAPIS'], opacity: 0.09, color: null };
   }
   return { kind: 'gradient', speed: 0.12, angle: 168, from: '#12203a', via: null, to: '#060a12' };
 }
@@ -57,10 +57,14 @@ export function LayerEditor({
               onChange={(kind) => update({ ...blankLayer(kind), speed: layer.speed })}
             />
             <NumberRow
-              label="Tempo (0–1)"
+              label={layer.kind === 'bigtext' ? 'Długość przejazdu (0–1)' : 'Tempo (0–1)'}
               step={0.01}
               value={layer.speed}
-              hint="0 = warstwa stoi w miejscu, 1 = przesuwa się razem z treścią."
+              hint={
+                layer.kind === 'bigtext'
+                  ? 'Napis wędruje z dołu do góry ekranu. 1 = pełna wysokość ekranu.'
+                  : '0 = warstwa stoi w miejscu, 1 = przesuwa się razem z treścią.'
+              }
               onChange={(speed) => update({ ...layer, speed: Math.max(0, Math.min(1, speed)) })}
             />
 
