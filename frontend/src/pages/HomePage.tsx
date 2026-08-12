@@ -107,6 +107,13 @@ export function HomePage({
         ctaAction: () => onNavigate('cg')
       },
       {
+        id: 'section-5c',
+        title: 'Biblioteka',
+        text: 'Prywatny księgozbiór: dzieła z tytułem oryginalnym, ich wydania i przekłady, oraz egzemplarze stojące na półkach.',
+        ctaLabel: 'Otwórz bibliotekę',
+        ctaAction: () => onNavigate('library')
+      },
+      {
         id: 'section-6',
         title: copy.chat.slideTitle,
         text: copy.chat.slideSubtitle,
@@ -266,6 +273,9 @@ export function HomePage({
           </a>
           <a href="/#/cg" onClick={() => setMenuOpen(false)}>
             Cogita Graph
+          </a>
+          <a href="/#/library" onClick={() => setMenuOpen(false)}>
+            Biblioteka
           </a>
           <a href="/#/chat" onClick={() => setMenuOpen(false)}>
             {copy.nav.chat}

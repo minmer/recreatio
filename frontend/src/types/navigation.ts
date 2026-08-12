@@ -5,6 +5,7 @@ export type RouteKey =
   | 'limanowa'
   | 'cogita'
   | 'cg'
+  | 'library'
   | 'chat'
   | 'calendar'
   | 'faq'

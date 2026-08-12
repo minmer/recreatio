@@ -73,6 +73,7 @@ const CogitaLibraryPage = lazy(() =>
   import('./pages/cogita/library/CogitaLibraryPage').then((module) => ({ default: module.CogitaLibraryPage }))
 );
 const CgApp = lazy(() => import('./pages/cg/CgApp').then((module) => ({ default: module.CgApp })));
+const LibraryApp = lazy(() => import('./pages/library/LibraryApp').then((module) => ({ default: module.LibraryApp })));
 const PublicFormPage = lazy(() =>
   import('./pages/form/PublicFormPage').then((module) => ({ default: module.PublicFormPage }))
 );
@@ -167,9 +168,9 @@ export default function App() {
   const lastHomePathRef = useRef('/section-1');
   const panelTouchRef = useRef<number | null>(null);
   const isAuthenticated = Boolean(session);
-  const protectedRoutes = useMemo(() => new Set<RouteKey>(['account', 'cg']), []);
+  const protectedRoutes = useMemo(() => new Set<RouteKey>(['account', 'cg', 'library']), []);
   const protectedPathMap = useMemo(
-    () => new Map<string, RouteKey>([['/account', 'account'], ['/cg', 'cg']]),
+    () => new Map<string, RouteKey>([['/account', 'account'], ['/cg', 'cg'], ['/library', 'library']]),
     []
   );
 
@@ -216,6 +217,7 @@ export default function App() {
     ? decodeRouteSegment(pathSegments[4] ?? 'new')
     : undefined;
 const isCgPath = pathname === '/cg' || pathname.startsWith('/cg/');
+const isLibraryPath = pathname === '/library' || pathname.startsWith('/library/');
 // /event is the composable events; /event_old keeps the hand-coded pages
 // reachable during the changeover.
 const isEventsPath =
@@ -332,6 +334,7 @@ const formViewToken = isFormViewPath ? pathSegments[1] : undefined;
       else if (next === 'events') navigate('/event');
       else if (next === 'limanowa') navigate('/event/limanowa/start');
       else if (next === 'cg') navigate('/cg')
+      else if (next === 'library') navigate('/library');
       else if (next === 'cogita') navigate('/cogita');
 else if (next === 'chat') navigate('/chat');
       else if (next === 'calendar') navigate('/calendar');
@@ -533,19 +536,23 @@ else if (next === 'chat') navigate('/chat');
     }
   }, [isHomePath, pathname]);
 
-  useEffect(() => {
-    const requiredRoute = protectedPathMap.get(pathname);
-    if (requiredRoute && !session) {
-      openLoginCard(requiredRoute);
-    }
-  }, [pathname, session, protectedPathMap]);
+  // The map holds section roots; the library also guards its deep links, so a
+  // bookmarked /library/works/12 asks for login instead of rendering nothing.
+  const requiredProtectedRoute: RouteKey | undefined = isLibraryPath
+    ? 'library'
+    : protectedPathMap.get(pathname);
 
   useEffect(() => {
-    const requiredRoute = protectedPathMap.get(pathname);
-    if (requiredRoute && session && loginCardOpen && loginCardContext === requiredRoute) {
+    if (requiredProtectedRoute && !session) {
+      openLoginCard(requiredProtectedRoute);
+    }
+  }, [requiredProtectedRoute, session]);
+
+  useEffect(() => {
+    if (requiredProtectedRoute && session && loginCardOpen && loginCardContext === requiredProtectedRoute) {
       setLoginCardOpen(false);
     }
-  }, [loginCardContext, loginCardOpen, pathname, protectedPathMap, session]);
+  }, [loginCardContext, loginCardOpen, requiredProtectedRoute, session]);
 
   const homeAuthLabel = isAuthenticated ? t.nav.account : t.nav.login;
   const homeHeroLabel = isAuthenticated ? t.nav.account : t.hero.ctaPrimary;
@@ -1340,6 +1347,15 @@ else if (next === 'chat') navigate('/chat');
       {isCgPath && session && (
         <Suspense fallback={lazyFallback}>
           <CgApp pathname={pathname} />
+        </Suspense>
+      )}
+      {isLibraryPath && session && (
+        <Suspense fallback={lazyFallback}>
+          <LibraryApp
+            language={language}
+            onLanguageChange={setLanguage}
+            onExit={() => navigateRoute('home')}
+          />
         </Suspense>
       )}
       {pathname === '/account' && session && (

@@ -203,6 +203,17 @@ public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefi
     public DbSet<Data.Cg.CgTemplateGraph> CgTemplateGraphs => Set<Data.Cg.CgTemplateGraph>();
     public DbSet<Data.Cg.CgTemplateNode> CgTemplateNodes => Set<Data.Cg.CgTemplateNode>();
     public DbSet<Data.Cg.CgTemplateEdge> CgTemplateEdges => Set<Data.Cg.CgTemplateEdge>();
+    public DbSet<Data.Library.LibraryPerson> LibraryPeople => Set<Data.Library.LibraryPerson>();
+    public DbSet<Data.Library.LibraryPublisher> LibraryPublishers => Set<Data.Library.LibraryPublisher>();
+    public DbSet<Data.Library.LibraryShelf> LibraryShelves => Set<Data.Library.LibraryShelf>();
+    public DbSet<Data.Library.LibraryTag> LibraryTags => Set<Data.Library.LibraryTag>();
+    public DbSet<Data.Library.LibraryWork> LibraryWorks => Set<Data.Library.LibraryWork>();
+    public DbSet<Data.Library.LibraryEdition> LibraryEditions => Set<Data.Library.LibraryEdition>();
+    public DbSet<Data.Library.LibraryContribution> LibraryContributions => Set<Data.Library.LibraryContribution>();
+    public DbSet<Data.Library.LibraryCopy> LibraryCopies => Set<Data.Library.LibraryCopy>();
+    public DbSet<Data.Library.LibraryLoan> LibraryLoans => Set<Data.Library.LibraryLoan>();
+    public DbSet<Data.Library.LibraryReading> LibraryReadings => Set<Data.Library.LibraryReading>();
+    public DbSet<Data.Library.LibraryWorkTag> LibraryWorkTags => Set<Data.Library.LibraryWorkTag>();
     public DbSet<Data.Forms.Form> Forms => Set<Data.Forms.Form>();
     public DbSet<Data.Forms.FormQuestion> FormQuestions => Set<Data.Forms.FormQuestion>();
     public DbSet<Data.Forms.FormResponse> FormResponses => Set<Data.Forms.FormResponse>();
@@ -1641,6 +1652,63 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
             .IsUnique();
         modelBuilder.Entity<Data.Cg.CgTemplateEdge>()
             .HasIndex(x => x.GraphId);
+
+        // Private library. Every table carries OwnerAccountId, so each index leads
+        // with it — every query in the module filters on ownership first.
+        modelBuilder.Entity<Data.Library.LibraryPerson>()
+            .HasIndex(x => new { x.OwnerAccountId, x.DisplayName });
+        modelBuilder.Entity<Data.Library.LibraryPublisher>()
+            .HasIndex(x => new { x.OwnerAccountId, x.Name });
+        modelBuilder.Entity<Data.Library.LibraryShelf>()
+            .HasIndex(x => new { x.OwnerAccountId, x.SortOrder });
+        modelBuilder.Entity<Data.Library.LibraryTag>()
+            .HasIndex(x => new { x.OwnerAccountId, x.Name })
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Library.LibraryWork>()
+            .HasIndex(x => new { x.OwnerAccountId, x.OriginalTitle });
+        modelBuilder.Entity<Data.Library.LibraryWork>()
+            .HasIndex(x => new { x.OwnerAccountId, x.OriginalLanguage });
+
+        modelBuilder.Entity<Data.Library.LibraryEdition>()
+            .HasIndex(x => new { x.OwnerAccountId, x.WorkId });
+        modelBuilder.Entity<Data.Library.LibraryEdition>()
+            .HasIndex(x => new { x.OwnerAccountId, x.Language });
+        modelBuilder.Entity<Data.Library.LibraryEdition>()
+            .HasIndex(x => new { x.OwnerAccountId, x.PublisherId });
+        modelBuilder.Entity<Data.Library.LibraryEdition>()
+            .HasOne<Data.Library.LibraryWork>()
+            .WithMany()
+            .HasForeignKey(x => x.WorkId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Library.LibraryContribution>()
+            .HasIndex(x => new { x.OwnerAccountId, x.TargetType, x.TargetId });
+        modelBuilder.Entity<Data.Library.LibraryContribution>()
+            .HasIndex(x => new { x.OwnerAccountId, x.PersonId });
+
+        modelBuilder.Entity<Data.Library.LibraryCopy>()
+            .HasIndex(x => new { x.OwnerAccountId, x.EditionId });
+        modelBuilder.Entity<Data.Library.LibraryCopy>()
+            .HasIndex(x => new { x.OwnerAccountId, x.ShelfId });
+        modelBuilder.Entity<Data.Library.LibraryCopy>()
+            .HasIndex(x => new { x.OwnerAccountId, x.ReadingStatus });
+        modelBuilder.Entity<Data.Library.LibraryCopy>()
+            .HasOne<Data.Library.LibraryEdition>()
+            .WithMany()
+            .HasForeignKey(x => x.EditionId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Library.LibraryLoan>()
+            .HasIndex(x => new { x.OwnerAccountId, x.CopyId, x.ReturnedOn });
+        modelBuilder.Entity<Data.Library.LibraryReading>()
+            .HasIndex(x => new { x.OwnerAccountId, x.CopyId });
+
+        modelBuilder.Entity<Data.Library.LibraryWorkTag>()
+            .HasIndex(x => new { x.OwnerAccountId, x.WorkId, x.TagId })
+            .IsUnique();
+        modelBuilder.Entity<Data.Library.LibraryWorkTag>()
+            .HasIndex(x => new { x.OwnerAccountId, x.TagId });
 
         modelBuilder.Entity<Data.Forms.Form>()
             .HasIndex(x => x.FillToken)
