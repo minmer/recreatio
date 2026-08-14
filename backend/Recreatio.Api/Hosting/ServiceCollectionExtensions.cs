@@ -11,6 +11,7 @@ using Recreatio.Api.Security;
 using Recreatio.Api.Services;
 using Recreatio.Api.Services.Chat;
 using Recreatio.Api.Services.Cogita;
+using Recreatio.Api.Services.Library;
 
 namespace Recreatio.Api.Hosting;
 
@@ -31,6 +32,7 @@ public static class ServiceCollectionExtensions
         services.Configure<BlobStorageOptions>(configuration.GetSection("BlobStorage"));
         services.Configure<CalendarOptions>(configuration.GetSection("Calendar"));
         services.Configure<PythonSandboxOptions>(configuration.GetSection("PythonSandbox"));
+        services.Configure<BookLookupOptions>(configuration.GetSection("BookLookup"));
 
         services.AddDbContext<RecreatioDbContext>(options =>
             options.UseSqlServer(
@@ -236,6 +238,7 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<GameRetentionCleanupHostedService>();
         services.AddSingleton<IEncryptedBlobStore, EncryptedBlobStore>();
         services.AddHttpClient<IPythonSandboxClient, PythonSandboxClient>();
+        services.AddHttpClient<IBookLookupService, BookLookupService>();
 
         return services;
     }

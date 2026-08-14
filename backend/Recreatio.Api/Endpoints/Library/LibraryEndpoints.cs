@@ -497,10 +497,12 @@ public static class LibraryEndpoints
             var search = Normalize(term, 400);
             if (search is not null)
             {
-                // Match on the work's own titles or on any edition title, so searching
-                // for a translated title finds the original work.
+                // Match on the work's own titles, on any edition title — so searching
+                // for a translated title finds the original work — and on the ISBN,
+                // so a scanned barcode pasted into the search box lands here too.
                 var editionMatchIds = db.LibraryEditions.AsNoTracking()
-                    .Where(e => e.OwnerAccountId == userId && e.Title.Contains(search))
+                    .Where(e => e.OwnerAccountId == userId &&
+                        (e.Title.Contains(search) || (e.Isbn != null && e.Isbn.Contains(search))))
                     .Select(e => e.WorkId);
 
                 query = query.Where(x =>
@@ -992,7 +994,8 @@ public static class LibraryEndpoints
             if (search is not null)
             {
                 var editionIds = db.LibraryEditions.AsNoTracking()
-                    .Where(e => e.OwnerAccountId == userId && e.Title.Contains(search))
+                    .Where(e => e.OwnerAccountId == userId &&
+                        (e.Title.Contains(search) || (e.Isbn != null && e.Isbn.Contains(search))))
                     .Select(e => e.Id);
                 query = query.Where(x =>
                     editionIds.Contains(x.EditionId) ||
