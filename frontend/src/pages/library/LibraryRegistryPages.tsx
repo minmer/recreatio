@@ -115,7 +115,7 @@ export function LibraryPublishersPage({ t }: { t: LibraryCopyStrings }) {
               </div>
               <div className="lib-registry-side">
                 <span className="lib-registry-count">
-                  {publisher.editionCount} {t.publishers.editionsCount}
+                  {publisher.manifestationCount} {t.publishers.manifestations}
                 </span>
                 <button
                   type="button"
@@ -190,7 +190,7 @@ export function LibraryPublishersPage({ t }: { t: LibraryCopyStrings }) {
 
 // ── Shelves ──────────────────────────────────────────────────────────────────
 
-const emptyShelf: LibraryShelfSave = { name: '', location: null, description: null, sortOrder: 0 };
+const emptyShelf: LibraryShelfSave = { name: '', location: null, description: null, sortOrder: 0, heightMm: null, depthMm: null, widthMm: null };
 
 export function LibraryShelvesPage({ t }: { t: LibraryCopyStrings }) {
   const navigate = useNavigate();
@@ -268,7 +268,7 @@ export function LibraryShelvesPage({ t }: { t: LibraryCopyStrings }) {
               </div>
               <div className="lib-registry-side">
                 <span className="lib-registry-count">
-                  {shelf.copyCount} {t.shelves.copiesCount}
+                  {shelf.itemCount} {t.shelves.items}
                 </span>
                 <button
                   type="button"
@@ -287,7 +287,10 @@ export function LibraryShelvesPage({ t }: { t: LibraryCopyStrings }) {
                         name: shelf.name,
                         location: shelf.location,
                         description: shelf.description,
-                        sortOrder: shelf.sortOrder
+                        sortOrder: shelf.sortOrder,
+                        heightMm: shelf.heightMm,
+                        depthMm: shelf.depthMm,
+                        widthMm: shelf.widthMm
                       }
                     })
                   }
@@ -342,6 +345,27 @@ export function LibraryShelvesPage({ t }: { t: LibraryCopyStrings }) {
               <NumberInput
                 value={draft.values.sortOrder}
                 onChange={(value) => setDraft({ ...draft, values: { ...draft.values, sortOrder: value ?? 0 } })}
+              />
+            </Field>
+            <Field label={t.shelves.heightMm} hint={t.shelves.dimensionsHint}>
+              <NumberInput
+                value={draft.values.heightMm}
+                onChange={(value) => setDraft({ ...draft, values: { ...draft.values, heightMm: value } })}
+                min={1}
+              />
+            </Field>
+            <Field label={t.shelves.depthMm}>
+              <NumberInput
+                value={draft.values.depthMm}
+                onChange={(value) => setDraft({ ...draft, values: { ...draft.values, depthMm: value } })}
+                min={1}
+              />
+            </Field>
+            <Field label={t.shelves.widthMm}>
+              <NumberInput
+                value={draft.values.widthMm}
+                onChange={(value) => setDraft({ ...draft, values: { ...draft.values, widthMm: value } })}
+                min={1}
               />
             </Field>
             <div className="lib-form-wide">
@@ -444,7 +468,7 @@ export function LibraryTagsPage({ t }: { t: LibraryCopyStrings }) {
               </div>
               <div className="lib-registry-side">
                 <span className="lib-registry-count">
-                  {tag.workCount} {t.tags.worksCount}
+                  {tag.workCount} {t.tags.works}
                 </span>
                 <button
                   type="button"

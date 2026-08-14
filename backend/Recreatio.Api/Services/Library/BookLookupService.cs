@@ -24,7 +24,14 @@ public sealed record BookLookupResult(
     string? Series,
     string? CoverUrl,
     IReadOnlyList<string> Sources
-);
+)
+{
+    /// <summary>
+    /// hardcover | paperback | leather | … Only e-isbn.pl reports this, so it is
+    /// an optional extra rather than a positional field every provider must fill.
+    /// </summary>
+    public string? Binding { get; init; }
+}
 
 public interface IBookLookupService
 {
@@ -112,7 +119,16 @@ public sealed class BookLookupService : IBookLookupService
         // whether the book in hand is a translation.
         var merged = Merge(normalizedIsbn, await nationalPlTask, await openLibraryTask);
         merged = Merge(normalizedIsbn, merged, await openLibraryEditionTask);
-        return Merge(normalizedIsbn, merged, await googleTask);
+        merged = Merge(normalizedIsbn, merged, await googleTask);
+
+        // Last resort only. e-isbn.pl needs a scraped session and is the most
+        // fragile source, so it never runs when something else already answered.
+        if (merged?.Title is null && _options.EIsbnPlEnabled)
+        {
+            merged = Merge(normalizedIsbn, merged, await TryEIsbnPlAsync(normalizedIsbn, ct));
+        }
+
+        return merged;
     }
 
     // ── Providers ───────────────────────────────────────────────────────────
@@ -224,6 +240,136 @@ public sealed class BookLookupService : IBookLookupService
                 CoverUrl: null,
                 Sources: ["bn.org.pl"]);
         }
+    }
+
+    /// <summary>
+    /// e-isbn.pl, scraped. The site refuses a bare request ("zapytanie należy
+    /// wykonać ze strony"), so a session cookie is fetched first and the search
+    /// is posted with a matching referer. Only the result row is read; the
+    /// detailed ONIX record sits behind an account.
+    ///
+    /// This is the most brittle provider in the service by a wide margin. Every
+    /// failure is swallowed so a layout change degrades to "no extra data".
+    /// </summary>
+    private async Task<BookLookupResult?> TryEIsbnPlAsync(string isbn, CancellationToken ct)
+    {
+        var baseUrl = _options.EIsbnPlBaseUrl.TrimEnd('/');
+
+        try
+        {
+            // The session cookie has to come from a real page view first.
+            using var priming = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/IsbnWeb/");
+            using var primingResponse = await _httpClient.SendAsync(priming, ct);
+            if (!primingResponse.IsSuccessStatusCode) return null;
+
+            var cookie = primingResponse.Headers.TryGetValues("Set-Cookie", out var values)
+                ? values.Select(value => value.Split(';')[0]).FirstOrDefault(value => value.StartsWith("JSESSIONID", StringComparison.OrdinalIgnoreCase))
+                : null;
+            if (cookie is null) return null;
+
+            using var search = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/IsbnWeb/start/search.html")
+            {
+                Content = new FormUrlEncodedContent([new KeyValuePair<string, string>("szukaj_fraza", isbn)])
+            };
+            search.Headers.TryAddWithoutValidation("Cookie", cookie);
+            search.Headers.Referrer = new Uri($"{baseUrl}/IsbnWeb/");
+
+            using var response = await _httpClient.SendAsync(search, ct);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var html = await response.Content.ReadAsStringAsync(ct);
+            if (html.Contains("Nie znaleziono publikacji", StringComparison.OrdinalIgnoreCase)) return null;
+
+            return ParseEIsbnResult(isbn, html);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
+        {
+            _logger.LogInformation(ex, "e-isbn.pl lookup failed.");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Reads the one result row. The row lists publisher, ISBN, then author,
+    /// title and form on separate lines inside a single cell.
+    /// </summary>
+    private static BookLookupResult? ParseEIsbnResult(string isbn, string html)
+    {
+        var start = html.IndexOf("table-history", StringComparison.OrdinalIgnoreCase);
+        if (start < 0) return null;
+
+        var end = html.IndexOf("</table>", start, StringComparison.OrdinalIgnoreCase);
+        var table = end > start ? html[start..end] : html[start..];
+
+        var lines = System.Text.RegularExpressions.Regex
+            .Replace(table, "<[^>]+>", "\n")
+            .Split('\n')
+            .Select(line => System.Net.WebUtility.HtmlDecode(line).Trim())
+            .Where(line => line.Length > 0)
+            .ToList();
+
+        // The publisher is the first line after the column headings.
+        var headingIndex = lines.FindIndex(line => line.Contains("autor/tytuł", StringComparison.OrdinalIgnoreCase));
+        var body = headingIndex >= 0 ? lines.Skip(headingIndex + 1).ToList() : lines;
+
+        var publisher = body.FirstOrDefault(line =>
+            line.Length > 3 &&
+            !line.StartsWith("tel", StringComparison.OrdinalIgnoreCase) &&
+            !line.Contains('@') &&
+            !line.StartsWith("http", StringComparison.OrdinalIgnoreCase) &&
+            !line.StartsWith("zazn", StringComparison.OrdinalIgnoreCase));
+
+        // Author, title and binding follow the hyphenated ISBN in the last cell.
+        var isbnIndex = body.FindIndex(line => line.Replace("-", string.Empty) == isbn);
+        string? author = null;
+        string? title = null;
+        string? binding = null;
+
+        if (isbnIndex >= 0)
+        {
+            var tail = body.Skip(isbnIndex + 1).Take(4).ToList();
+            author = tail.ElementAtOrDefault(0);
+            title = tail.ElementAtOrDefault(1);
+            binding = tail.FirstOrDefault(line => line.Contains("oprawie", StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (title is null) return null;
+
+        var authors = author is null ? new List<string>() : [FlipSurnameFirst(author) ?? author];
+
+        return new BookLookupResult(
+            isbn,
+            title,
+            Subtitle: null,
+            authors,
+            authors.Select(name => new BookContributor(name, "author")).ToList(),
+            publisher,
+            PublishedPlace: null,
+            PublishedYear: null,
+            PageCount: null,
+            Language: "pl", // the agency registers Polish publishers
+            OriginalLanguage: null,
+            Series: null,
+            CoverUrl: null,
+            Sources: ["e-isbn.pl"])
+        {
+            Binding = MapPolishBinding(binding)
+        };
+    }
+
+    /// <summary>"Książka w miękkiej oprawie" and friends.</summary>
+    private static string? MapPolishBinding(string? raw)
+    {
+        if (raw is null) return null;
+        var text = raw.ToLowerInvariant();
+        if (text.Contains("miękk")) return "paperback";
+        if (text.Contains("tward")) return "hardcover";
+        if (text.Contains("skórz")) return "leather";
+        return null;
     }
 
     /// <summary>
@@ -390,7 +536,10 @@ public sealed class BookLookupService : IBookLookupService
             primary.OriginalLanguage ?? secondary.OriginalLanguage,
             primary.Series ?? secondary.Series,
             primary.CoverUrl ?? secondary.CoverUrl,
-            primary.Sources.Concat(secondary.Sources).Distinct().ToList());
+            primary.Sources.Concat(secondary.Sources).Distinct().ToList())
+        {
+            Binding = primary.Binding ?? secondary.Binding
+        };
     }
 
     // ── MARC parsing (Biblioteka Narodowa) ──────────────────────────────────

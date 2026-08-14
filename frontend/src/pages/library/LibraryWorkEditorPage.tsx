@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  CITATION_SCHEMES,
   CONTRIBUTION_ROLES,
   WORK_KINDS,
   createWork,
   deleteWork,
+  getCitationSchemes,
   getPeople,
   getTags,
   getWork,
   saveWorkContributions,
   saveWorkTags,
   updateWork,
+  type LibraryCitationSchemeSpec,
   type LibraryContributionSave,
   type LibraryPerson,
   type LibraryTag,
@@ -35,15 +38,35 @@ import {
   vocabularyOptions
 } from './libraryComponents';
 
+type StructurePart = { key: string; abbr: string };
+
 const emptyForm: LibraryWorkSave = {
   originalTitle: '',
   originalSubtitle: null,
   originalLanguage: 'pl',
   uniformTitle: null,
   kind: 'book',
+  citationScheme: 'Page',
+  structureTemplateJson: null,
+  citationSigil: null,
   firstPublishedYear: null,
   notes: null
 };
+
+function parseTemplate(json: string | null): StructurePart[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    const list = Array.isArray(parsed) ? parsed : parsed?.parts;
+    if (!Array.isArray(list)) return [];
+    return list
+      .filter((part) => part && typeof part === 'object')
+      .map((part) => ({ key: String(part.key ?? ''), abbr: String(part.abbr ?? '') }))
+      .filter((part) => part.key.length > 0);
+  } catch {
+    return [];
+  }
+}
 
 export function LibraryWorkEditorPage({ t, workId }: { t: LibraryCopyStrings; workId: number | null }) {
   const navigate = useNavigate();
@@ -53,39 +76,48 @@ export function LibraryWorkEditorPage({ t, workId }: { t: LibraryCopyStrings; wo
   const [detail, setDetail] = useState<LibraryWorkDetail | null>(null);
   const [contributions, setContributions] = useState<LibraryContributionSave[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+  const [structure, setStructure] = useState<StructurePart[]>([]);
   const [people, setPeople] = useState<LibraryPerson[]>([]);
   const [tags, setTags] = useState<LibraryTag[]>([]);
+  const [schemes, setSchemes] = useState<LibraryCitationSchemeSpec[]>([]);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState(0);
 
-  const loadDetail = useCallback(
-    async (id: number) => {
-      const data = await getWork(id);
-      setDetail(data);
-      setForm({
-        originalTitle: data.originalTitle,
-        originalSubtitle: data.originalSubtitle,
-        originalLanguage: data.originalLanguage,
-        uniformTitle: data.uniformTitle,
-        kind: data.kind,
-        firstPublishedYear: data.firstPublishedYear,
-        notes: data.notes
-      });
-      setContributions(toContributionSaves(data.contributions));
-      setSelectedTagIds(data.tagIds);
-    },
-    []
+  const schemeSpec = useMemo(
+    () => schemes.find((item) => item.scheme === form.citationScheme),
+    [schemes, form.citationScheme]
   );
+
+  const loadDetail = useCallback(async (id: number) => {
+    const data = await getWork(id);
+    setDetail(data);
+    setForm({
+      originalTitle: data.originalTitle,
+      originalSubtitle: data.originalSubtitle,
+      originalLanguage: data.originalLanguage,
+      uniformTitle: data.uniformTitle,
+      kind: data.kind,
+      citationScheme: data.citationScheme,
+      structureTemplateJson: data.structureTemplateJson,
+      citationSigil: data.citationSigil,
+      firstPublishedYear: data.firstPublishedYear,
+      notes: data.notes
+    });
+    setContributions(toContributionSaves(data.contributions));
+    setSelectedTagIds(data.tagIds);
+    setStructure(parseTemplate(data.structureTemplateJson));
+  }, []);
 
   useEffect(() => {
     let active = true;
-    Promise.all([getPeople(), getTags()])
-      .then(([peopleResult, tagsResult]) => {
+    Promise.all([getPeople(), getTags(), getCitationSchemes()])
+      .then(([peopleResult, tagsResult, schemeResult]) => {
         if (!active) return;
         setPeople(peopleResult);
         setTags(tagsResult);
+        setSchemes(schemeResult);
       })
       .catch(() => {
         if (active) setError(t.common.loadFailed);
@@ -122,16 +154,24 @@ export function LibraryWorkEditorPage({ t, workId }: { t: LibraryCopyStrings; wo
     setSaving(true);
     setError(null);
     try {
+      // The template only means anything for the structured scheme.
+      const body: LibraryWorkSave = {
+        ...form,
+        structureTemplateJson:
+          form.citationScheme === 'StructuredWork' && structure.length > 0
+            ? JSON.stringify({ parts: structure })
+            : null
+      };
+
       if (workId === null) {
-        const created = await createWork(form);
-        // Contributions and tags need the work's id, so they go in right after.
+        const created = await createWork(body);
         if (contributions.length > 0) await saveWorkContributions(created.id, contributions);
         if (selectedTagIds.length > 0) await saveWorkTags(created.id, selectedTagIds);
         navigate(`/library/works/${created.id}`, { replace: true });
         return;
       }
 
-      await updateWork(workId, form);
+      await updateWork(workId, body);
       await saveWorkContributions(workId, contributions);
       await saveWorkTags(workId, selectedTagIds);
       await loadDetail(workId);
@@ -145,9 +185,10 @@ export function LibraryWorkEditorPage({ t, workId }: { t: LibraryCopyStrings; wo
 
   async function handleDelete() {
     if (workId === null) return;
-    if (!confirm(t.work.deleteWorkConfirm)) return;
+    const hasQuotes = (detail?.quoteCount ?? 0) > 0;
+    if (!confirm(hasQuotes ? t.work.deleteWorkHasQuotes : t.work.deleteWorkConfirm)) return;
     try {
-      await deleteWork(workId);
+      await deleteWork(workId, hasQuotes);
       navigate('/library/works');
     } catch {
       setError(t.common.deleteFailed);
@@ -169,12 +210,16 @@ export function LibraryWorkEditorPage({ t, workId }: { t: LibraryCopyStrings; wo
         </div>
         <div className="lib-head-actions">
           {savedAt > 0 ? <span className="lib-saved">{t.common.saved}</span> : null}
-          <button
-            type="button"
-            className="lib-btn"
-            disabled={saving || !form.originalTitle.trim()}
-            onClick={handleSave}
-          >
+          {!isNew && (detail?.quoteCount ?? 0) > 0 ? (
+            <button
+              type="button"
+              className="lib-btn lib-btn-ghost"
+              onClick={() => navigate(`/library/quotes?workId=${workId}`)}
+            >
+              {t.work.viewQuotes} ({detail?.quoteCount})
+            </button>
+          ) : null}
+          <button type="button" className="lib-btn" disabled={saving || !form.originalTitle.trim()} onClick={handleSave}>
             {saving ? t.common.saving : t.common.save}
           </button>
           {!isNew ? (
@@ -213,11 +258,7 @@ export function LibraryWorkEditorPage({ t, workId }: { t: LibraryCopyStrings; wo
             />
           </Field>
           <Field label={t.work.kind}>
-            <Select
-              value={form.kind}
-              onChange={(value) => update('kind', value)}
-              options={vocabularyOptions(WORK_KINDS, t.kinds)}
-            />
+            <Select value={form.kind} onChange={(value) => update('kind', value)} options={vocabularyOptions(WORK_KINDS, t.kinds)} />
           </Field>
           <Field label={t.work.firstPublishedYear}>
             <NumberInput
@@ -233,6 +274,69 @@ export function LibraryWorkEditorPage({ t, workId }: { t: LibraryCopyStrings; wo
             </Field>
           </div>
         </div>
+      </Section>
+
+      {/* The scheme decides which locator fields every quote from this work gets. */}
+      <Section title={t.work.citationSection} hint={t.work.citationHint}>
+        <div className="lib-form-grid">
+          <Field label={t.work.scheme} hint={t.work.schemeHint}>
+            <Select
+              value={form.citationScheme}
+              onChange={(value) => update('citationScheme', value)}
+              options={vocabularyOptions(CITATION_SCHEMES, t.schemes)}
+            />
+          </Field>
+          <Field label={t.work.sigil} hint={t.work.sigilHint}>
+            <TextInput
+              value={form.citationSigil ?? ''}
+              onChange={(value) => update('citationSigil', orNull(value))}
+              maxLength={40}
+            />
+          </Field>
+        </div>
+
+        <p className="lib-field-hint">
+          {t.schemeHints[form.citationScheme] ?? ''}
+          {schemeSpec ? ` — ${schemeSpec.example}` : ''}
+        </p>
+
+        {form.citationScheme === 'StructuredWork' ? (
+          <div className="lib-structure">
+            <p className="lib-field-hint">{t.work.structureTemplateHint}</p>
+            {structure.map((part, index) => (
+              <div key={index} className="lib-structure-row">
+                <TextInput
+                  value={part.key}
+                  onChange={(value) =>
+                    setStructure((current) => current.map((x, i) => (i === index ? { ...x, key: value } : x)))
+                  }
+                  placeholder={t.work.structureKey}
+                />
+                <TextInput
+                  value={part.abbr}
+                  onChange={(value) =>
+                    setStructure((current) => current.map((x, i) => (i === index ? { ...x, abbr: value } : x)))
+                  }
+                  placeholder={t.work.structureAbbr}
+                />
+                <button
+                  type="button"
+                  className="lib-btn lib-btn-danger lib-btn-sm"
+                  onClick={() => setStructure((current) => current.filter((_, i) => i !== index))}
+                >
+                  {t.common.remove}
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="lib-btn lib-btn-ghost lib-btn-sm"
+              onClick={() => setStructure((current) => [...current, { key: '', abbr: '' }])}
+            >
+              {t.work.structureAdd}
+            </button>
+          </div>
+        ) : null}
       </Section>
 
       <Section title={t.work.authorsSection} hint={t.work.authorsHint}>
@@ -272,60 +376,106 @@ export function LibraryWorkEditorPage({ t, workId }: { t: LibraryCopyStrings; wo
       </Section>
 
       <Section
-        title={t.work.editionsSection}
-        hint={t.work.editionsHint}
+        title={t.work.expressionsSection}
+        hint={t.work.expressionsHint}
         actions={
           isNew ? null : (
             <button
               type="button"
               className="lib-btn lib-btn-sm"
-              onClick={() => navigate(`/library/works/${workId}/editions/new`)}
+              onClick={() => navigate(`/library/works/${workId}/expressions/new`)}
             >
-              {t.work.addEdition}
+              {t.work.addExpression}
             </button>
           )
         }
       >
         {isNew ? (
           <p className="lib-muted">{t.work.createFirst}</p>
-        ) : !detail || detail.editions.length === 0 ? (
-          <p className="lib-muted">{t.work.noEditions}</p>
+        ) : !detail || detail.expressions.length === 0 ? (
+          <p className="lib-muted">{t.work.noExpressions}</p>
         ) : (
           <ul className="lib-edition-list">
-            {detail.editions.map((edition) => (
-              <li key={edition.id}>
+            {detail.expressions.map((expression) => (
+              <li key={expression.id}>
                 <button
                   type="button"
                   className="lib-edition-row"
-                  onClick={() => navigate(`/library/editions/${edition.id}`)}
+                  onClick={() => navigate(`/library/expressions/${expression.id}`)}
                 >
                   <span className="lib-edition-main">
-                    <span className="lib-edition-title">{edition.title}</span>
-                    <span className="lib-edition-meta">
-                      {[
-                        edition.publisherName,
-                        edition.publishedPlace,
-                        edition.publishedYear ? String(edition.publishedYear) : null,
-                        edition.editionStatement
-                      ]
-                        .filter(Boolean)
-                        .join(' · ') || t.common.none}
+                    <span className="lib-edition-title">
+                      {expression.name || languageLabel(t, expression.language)}
                     </span>
-                    {edition.translators.length > 0 ? (
+                    {expression.translators.length > 0 ? (
                       <span className="lib-edition-translators">
-                        {t.roles.translator}: {edition.translators.join(', ')}
+                        {t.roles.translator}: {expression.translators.join(', ')}
                       </span>
                     ) : null}
                   </span>
                   <span className="lib-edition-side">
-                    <Badge tone={edition.isTranslation ? 'translation' : 'original'}>
-                      {languageLabel(t, edition.language)}
-                    </Badge>
-                    <Badge tone="muted">
-                      {edition.isTranslation ? t.work.translation : t.work.originalEdition}
+                    <Badge tone={expression.isTranslation ? 'translation' : 'original'}>
+                      {languageLabel(t, expression.language)}
                     </Badge>
                     <span className="lib-edition-counts">
-                      {edition.copyCount} {t.works.copyCount}
+                      {expression.manifestationCount} {t.works.manifestationCount}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <Section
+        title={t.work.manifestationsSection}
+        hint={t.work.manifestationsHint}
+        actions={
+          isNew ? null : (
+            <button
+              type="button"
+              className="lib-btn lib-btn-sm"
+              onClick={() => navigate(`/library/works/${workId}/manifestations/new`)}
+            >
+              {t.work.addManifestation}
+            </button>
+          )
+        }
+      >
+        {isNew ? (
+          <p className="lib-muted">{t.work.createFirst}</p>
+        ) : !detail || detail.manifestations.length === 0 ? (
+          <p className="lib-muted">{t.work.noManifestations}</p>
+        ) : (
+          <ul className="lib-edition-list">
+            {detail.manifestations.map((manifestation) => (
+              <li key={manifestation.id}>
+                <button
+                  type="button"
+                  className="lib-edition-row"
+                  onClick={() => navigate(`/library/manifestations/${manifestation.id}`)}
+                >
+                  <span className="lib-edition-main">
+                    <span className="lib-edition-title">{manifestation.title}</span>
+                    <span className="lib-edition-meta">
+                      {[
+                        manifestation.publisherName,
+                        manifestation.publishedPlace,
+                        manifestation.publishedYear ? String(manifestation.publishedYear) : null,
+                        manifestation.editionStatement
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || t.common.none}
+                    </span>
+                  </span>
+                  <span className="lib-edition-side">
+                    <Badge tone="muted">{t.formats[manifestation.format] ?? manifestation.format}</Badge>
+                    {manifestation.expressionLanguage ? (
+                      <Badge tone="translation">{languageLabel(t, manifestation.expressionLanguage)}</Badge>
+                    ) : null}
+                    <span className="lib-edition-counts">
+                      {manifestation.itemCount} {t.works.itemCount}
                     </span>
                   </span>
                 </button>

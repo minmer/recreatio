@@ -111,9 +111,9 @@ export function LibraryLoansPage({ t }: { t: LibraryCopyStrings }) {
                 <button
                   type="button"
                   className="lib-registry-name lib-link"
-                  onClick={() => navigate(`/library/editions/${loan.editionId}`)}
+                  onClick={() => navigate(`/library/manifestations/${loan.manifestationId}`)}
                 >
-                  {loan.editionTitle || t.common.unknown}
+                  {loan.title || t.common.unknown}
                 </button>
                 <span className="lib-registry-meta">
                   {loan.authors.length > 0 ? `${loan.authors.join(', ')} · ` : ''}
@@ -231,9 +231,9 @@ export function LibraryReadingPage({ t }: { t: LibraryCopyStrings }) {
                 <button
                   type="button"
                   className="lib-registry-name lib-link"
-                  onClick={() => navigate(`/library/editions/${reading.editionId}`)}
+                  onClick={() => navigate(`/library/manifestations/${reading.manifestationId}`)}
                 >
-                  {reading.editionTitle || t.common.unknown}
+                  {reading.title || t.common.unknown}
                 </button>
                 <span className="lib-registry-meta">
                   {reading.authors.length > 0 ? `${reading.authors.join(', ')} · ` : ''}

@@ -26,6 +26,11 @@
     <Content Update="appsettings.json">
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </Content>
+    <!-- Read at runtime from the content root by the Bible reference formatter. -->
+    <Content Update="Data\Library\bibleBooks.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

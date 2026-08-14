@@ -140,7 +140,7 @@ export function LibraryPeoplePage({ t }: { t: LibraryCopyStrings }) {
               </div>
               <div className="lib-registry-side">
                 <span className="lib-registry-count">
-                  {person.workCount} {t.people.worksCount} · {person.editionCount} {t.people.editionsCount}
+                  {person.contributionCount} {t.people.contributions}
                 </span>
                 <button
                   type="button"

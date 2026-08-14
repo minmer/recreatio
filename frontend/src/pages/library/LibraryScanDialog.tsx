@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  CITATION_SCHEMES,
   WORK_KINDS,
   getShelves,
   importScan,
@@ -29,69 +30,69 @@ type Stage =
   | { kind: 'scanning' }
   | { kind: 'looking'; isbn: string }
   | { kind: 'result'; result: LibraryScanResult }
-  | { kind: 'added'; workId: number; editionId: number }
+  | { kind: 'added'; workId: number; manifestationId: number }
   | { kind: 'error'; message: string };
 
-/** Form the operator confirms before anything is written. */
 type ImportDraft = {
   isOriginal: boolean;
   originalTitle: string;
   originalLanguage: string;
-  editionTitle: string;
-  editionSubtitle: string;
-  editionLanguage: string;
+  manifestationTitle: string;
+  manifestationSubtitle: string;
+  expressionLanguage: string;
+  expressionName: string;
   kind: string;
+  citationScheme: string;
   publisherName: string;
   publishedPlace: string;
   publishedYear: number | null;
   pageCount: number | null;
   series: string;
-  coverUrl: string;
+  binding: string;
+  coverImageUrl: string;
   authors: string;
   translators: string;
   shelfId: string;
-  createCopy: boolean;
+  createItem: boolean;
 };
 
 function draftFrom(result: LibraryScanResult): ImportDraft {
   const lookup = result.lookup;
   const language = lookup?.language ?? 'pl';
   // Biblioteka Narodowa reports the original language, so a translation is
-  // recognised without asking. Other catalogues describe only the edition in
-  // hand, and there the original assumption holds until corrected.
+  // recognised without asking. Other catalogues describe only the edition.
   const original = lookup?.originalLanguage ?? null;
   return {
     isOriginal: original === null || original === language,
     originalTitle: lookup?.title ?? '',
     originalLanguage: original ?? language,
-    editionTitle: lookup?.title ?? '',
-    editionSubtitle: lookup?.subtitle ?? '',
-    editionLanguage: language,
+    manifestationTitle: lookup?.title ?? '',
+    manifestationSubtitle: lookup?.subtitle ?? '',
+    expressionLanguage: language,
+    expressionName: '',
     kind: 'book',
+    citationScheme: 'Page',
     publisherName: lookup?.publisher ?? '',
     publishedPlace: lookup?.publishedPlace ?? '',
     publishedYear: lookup?.publishedYear ?? null,
     pageCount: lookup?.pageCount ?? null,
     series: lookup?.series ?? '',
-    coverUrl: lookup?.coverUrl ?? '',
+    binding: lookup?.binding ?? '',
+    coverImageUrl: lookup?.coverUrl ?? '',
     authors: (lookup?.authors ?? []).join(', '),
     translators: (lookup?.translators ?? []).join(', '),
     shelfId: '',
-    createCopy: true
+    createItem: true
   };
 }
 
 function splitNames(value: string): string[] {
-  return value
-    .split(',')
-    .map((name) => name.trim())
-    .filter((name) => name.length > 0);
+  return value.split(',').map((name) => name.trim()).filter((name) => name.length > 0);
 }
 
 /**
- * The scan flow used both for adding and for checking the shelf: one lookup
- * reports what is already owned and what the public catalogues know, and the
- * operator decides which of the two matters.
+ * One scan answers both questions: is this already on a shelf, and — if not —
+ * what do the public catalogues know about it.
  */
 export function LibraryScanDialog({
   t,
@@ -100,7 +101,6 @@ export function LibraryScanDialog({
 }: {
   t: LibraryCopyStrings;
   onClose: () => void;
-  /** Offered when the code is worth pushing into the page's own search box. */
   onSearchCode?: (code: string) => void;
 }) {
   const navigate = useNavigate();
@@ -128,44 +128,51 @@ export function LibraryScanDialog({
       setDraft(draftFrom(result));
       setStage({ kind: 'result', result });
     } catch (caught) {
-      const message =
-        caught instanceof Error && caught.message.includes('valid ISBN')
-          ? t.scan.invalidCode
-          : t.common.loadFailed;
-      setStage({ kind: 'error', message });
+      setStage({
+        kind: 'error',
+        message:
+          caught instanceof Error && caught.message.includes('valid ISBN')
+            ? t.scan.invalidCode
+            : t.common.loadFailed
+      });
     }
   }
 
   async function handleImport() {
     if (stage.kind !== 'result' || !draft) return;
-    if (!draft.originalTitle.trim() && !draft.editionTitle.trim()) return;
+    const manifestationTitle = draft.manifestationTitle.trim() || draft.originalTitle.trim();
+    if (!manifestationTitle) return;
 
     setSaving(true);
     try {
-      const editionTitle = draft.editionTitle.trim() || draft.originalTitle.trim();
-      const originalTitle = draft.isOriginal ? editionTitle : draft.originalTitle.trim() || editionTitle;
       const body: LibraryScanImport = {
         isbn: stage.result.isbn,
-        originalTitle,
-        originalLanguage: draft.isOriginal ? draft.editionLanguage : draft.originalLanguage,
+        originalTitle: draft.isOriginal ? manifestationTitle : draft.originalTitle.trim() || manifestationTitle,
+        originalLanguage: draft.isOriginal ? draft.expressionLanguage : draft.originalLanguage,
         kind: draft.kind,
+        citationScheme: draft.citationScheme,
         firstPublishedYear: null,
-        editionTitle,
-        editionSubtitle: orNull(draft.editionSubtitle),
-        editionLanguage: draft.editionLanguage,
+        manifestationTitle,
+        manifestationSubtitle: orNull(draft.manifestationSubtitle),
+        expressionLanguage: draft.expressionLanguage,
+        expressionName: orNull(draft.expressionName),
         publisherName: orNull(draft.publisherName),
         publishedPlace: orNull(draft.publishedPlace),
         publishedYear: draft.publishedYear,
         pageCount: draft.pageCount,
         series: orNull(draft.series),
-        coverUrl: orNull(draft.coverUrl),
+        binding: orNull(draft.binding),
+        coverImageUrl: orNull(draft.coverImageUrl),
+        heightMm: null,
+        widthMm: null,
+        depthMm: null,
         authorNames: splitNames(draft.authors),
         translatorNames: splitNames(draft.translators),
         shelfId: draft.shelfId ? Number(draft.shelfId) : null,
-        createCopy: draft.createCopy
+        createItem: draft.createItem
       };
       const created = await importScan(body);
-      setStage({ kind: 'added', workId: created.workId, editionId: created.editionId });
+      setStage({ kind: 'added', workId: created.workId, manifestationId: created.manifestationId });
     } catch {
       setStage({ kind: 'error', message: t.common.saveFailed });
     } finally {
@@ -221,11 +228,19 @@ export function LibraryScanDialog({
             <button type="button" className="lib-btn lib-btn-ghost" onClick={() => setStage({ kind: 'scanning' })}>
               {t.scan.scanAgain}
             </button>
-            <button type="button" className="lib-btn lib-btn-ghost" onClick={() => navigate(`/library/works/${stage.workId}`)}>
+            <button
+              type="button"
+              className="lib-btn lib-btn-ghost"
+              onClick={() => navigate(`/library/works/${stage.workId}`)}
+            >
               {t.scan.openWork}
             </button>
-            <button type="button" className="lib-btn" onClick={() => navigate(`/library/editions/${stage.editionId}`)}>
-              {t.scan.openEdition}
+            <button
+              type="button"
+              className="lib-btn"
+              onClick={() => navigate(`/library/manifestations/${stage.manifestationId}`)}
+            >
+              {t.scan.openManifestation}
             </button>
           </>
         }
@@ -236,7 +251,7 @@ export function LibraryScanDialog({
   }
 
   const { result } = stage;
-  const owned = result.matchingEditions.length > 0 || result.ownedCopies.length > 0;
+  const owned = result.matchingManifestations.length > 0 || result.ownedItems.length > 0;
 
   return (
     <Modal
@@ -262,7 +277,7 @@ export function LibraryScanDialog({
           <button
             type="button"
             className="lib-btn"
-            disabled={saving || !draft || (!draft.editionTitle.trim() && !draft.originalTitle.trim())}
+            disabled={saving || !draft || (!draft.manifestationTitle.trim() && !draft.originalTitle.trim())}
             onClick={handleImport}
           >
             {saving ? t.scan.adding : t.scan.addToLibrary}
@@ -278,26 +293,28 @@ export function LibraryScanDialog({
             <strong>{t.scan.alreadyOwned}</strong>
             <p className="lib-muted">{t.scan.alreadyOwnedHint}</p>
             <ul className="lib-scan-owned-list">
-              {result.matchingEditions.map((edition) => (
-                <li key={edition.id}>
-                  <button type="button" className="lib-link" onClick={() => navigate(`/library/editions/${edition.id}`)}>
-                    {edition.title}
+              {result.matchingManifestations.map((manifestation) => (
+                <li key={manifestation.id}>
+                  <button
+                    type="button"
+                    className="lib-link"
+                    onClick={() => navigate(`/library/manifestations/${manifestation.id}`)}
+                  >
+                    {manifestation.title}
                   </button>
                   <span className="lib-muted">
-                    {[edition.publisherName, edition.publishedYear ? String(edition.publishedYear) : null]
-                      .filter(Boolean)
-                      .join(' · ')}
+                    {[manifestation.publisherName, manifestation.publishedYear].filter(Boolean).join(' · ')}
                   </span>
                 </li>
               ))}
-              {result.ownedCopies.map((copy) => (
-                <li key={`copy-${copy.id}`}>
+              {result.ownedItems.map((item) => (
+                <li key={`item-${item.id}`}>
                   <span>
-                    {copy.shelfName ?? t.shelfView.unshelved}
-                    {copy.signature ? ` · ${copy.signature}` : ''}
+                    {item.shelfName ?? t.dashboard.unshelved}
+                    {item.signature ? ` · ${item.signature}` : ''}
                   </span>
-                  <Badge tone="muted">{t.statuses[copy.status] ?? copy.status}</Badge>
-                  <Rating value={copy.rating} />
+                  <Badge tone="muted">{t.statuses[item.status] ?? item.status}</Badge>
+                  <Rating value={item.rating} />
                 </li>
               ))}
             </ul>
@@ -305,9 +322,7 @@ export function LibraryScanDialog({
         ) : null}
 
         {!result.lookup ? (
-          <p className="lib-muted">
-            {result.lookupAttempted ? t.scan.notFound : t.scan.lookupOff}
-          </p>
+          <p className="lib-muted">{result.lookupAttempted ? t.scan.notFound : t.scan.lookupOff}</p>
         ) : (
           <p className="lib-scan-source">
             {t.scan.foundVia}: {result.lookup.sources.join(', ')}
@@ -326,18 +341,26 @@ export function LibraryScanDialog({
             </div>
 
             <div className="lib-form-grid">
-              <Field label={t.edition.title} required>
-                <TextInput value={draft.editionTitle} onChange={(value) => update('editionTitle', value)} maxLength={400} />
-              </Field>
-              <Field label={t.edition.subtitle}>
+              <Field label={t.manifestation.title} required>
                 <TextInput
-                  value={draft.editionSubtitle}
-                  onChange={(value) => update('editionSubtitle', value)}
+                  value={draft.manifestationTitle}
+                  onChange={(value) => update('manifestationTitle', value)}
                   maxLength={400}
                 />
               </Field>
-              <Field label={t.edition.language} required>
-                <LanguageSelect t={t} value={draft.editionLanguage} onChange={(value) => update('editionLanguage', value)} />
+              <Field label={t.manifestation.subtitle}>
+                <TextInput
+                  value={draft.manifestationSubtitle}
+                  onChange={(value) => update('manifestationSubtitle', value)}
+                  maxLength={400}
+                />
+              </Field>
+              <Field label={t.expression.language} required>
+                <LanguageSelect
+                  t={t}
+                  value={draft.expressionLanguage}
+                  onChange={(value) => update('expressionLanguage', value)}
+                />
               </Field>
 
               {!draft.isOriginal ? (
@@ -356,6 +379,13 @@ export function LibraryScanDialog({
                       onChange={(value) => update('originalLanguage', value)}
                     />
                   </Field>
+                  <Field label={t.expression.name} hint={t.expression.nameHint}>
+                    <TextInput
+                      value={draft.expressionName}
+                      onChange={(value) => update('expressionName', value)}
+                      maxLength={240}
+                    />
+                  </Field>
                 </>
               ) : null}
 
@@ -372,23 +402,26 @@ export function LibraryScanDialog({
                   options={vocabularyOptions(WORK_KINDS, t.kinds)}
                 />
               </Field>
-              <Field label={t.edition.publisher}>
-                <TextInput value={draft.publisherName} onChange={(value) => update('publisherName', value)} maxLength={240} />
-              </Field>
-              <Field label={t.edition.publishedPlace}>
-                <TextInput
-                  value={draft.publishedPlace}
-                  onChange={(value) => update('publishedPlace', value)}
-                  maxLength={160}
+              <Field label={t.work.scheme} hint={t.work.schemeHint}>
+                <Select
+                  value={draft.citationScheme}
+                  onChange={(value) => update('citationScheme', value)}
+                  options={vocabularyOptions(CITATION_SCHEMES, t.schemes)}
                 />
               </Field>
-              <Field label={t.edition.publishedYear}>
+              <Field label={t.manifestation.publisher}>
+                <TextInput value={draft.publisherName} onChange={(value) => update('publisherName', value)} maxLength={240} />
+              </Field>
+              <Field label={t.manifestation.publishedPlace}>
+                <TextInput value={draft.publishedPlace} onChange={(value) => update('publishedPlace', value)} maxLength={160} />
+              </Field>
+              <Field label={t.manifestation.publishedYear}>
                 <NumberInput value={draft.publishedYear} onChange={(value) => update('publishedYear', value)} />
               </Field>
-              <Field label={t.edition.pageCount}>
+              <Field label={t.manifestation.pageCount}>
                 <NumberInput value={draft.pageCount} onChange={(value) => update('pageCount', value)} min={1} />
               </Field>
-              <Field label={t.edition.series}>
+              <Field label={t.manifestation.series}>
                 <TextInput value={draft.series} onChange={(value) => update('series', value)} maxLength={200} />
               </Field>
               <Field label={t.scan.shelf}>
@@ -396,25 +429,23 @@ export function LibraryScanDialog({
                   value={draft.shelfId}
                   onChange={(value) => update('shelfId', value)}
                   options={shelves.map((shelf) => ({ value: String(shelf.id), label: shelf.name }))}
-                  placeholder={t.shelfView.unshelved}
+                  placeholder={t.dashboard.unshelved}
                 />
               </Field>
               <div className="lib-form-wide">
                 <Toggle
-                  checked={draft.createCopy}
-                  onChange={(value) => update('createCopy', value)}
-                  label={t.scan.createCopy}
+                  checked={draft.createItem}
+                  onChange={(value) => update('createItem', value)}
+                  label={t.scan.createItem}
                 />
-                <p className="lib-field-hint">{t.scan.createCopyHint}</p>
+                <p className="lib-field-hint">{t.scan.createItemHint}</p>
               </div>
             </div>
 
-            {draft.coverUrl ? (
+            {draft.coverImageUrl ? (
               <div className="lib-scan-cover">
-                <img src={draft.coverUrl} alt="" loading="lazy" />
-                <span className="lib-muted">
-                  {draft.editionLanguage ? languageLabel(t, draft.editionLanguage) : ''}
-                </span>
+                <img src={draft.coverImageUrl} alt="" loading="lazy" />
+                <span className="lib-muted">{languageLabel(t, draft.expressionLanguage)}</span>
               </div>
             ) : null}
           </>

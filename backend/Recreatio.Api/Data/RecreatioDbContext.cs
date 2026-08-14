@@ -208,9 +208,13 @@ public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefi
     public DbSet<Data.Library.LibraryShelf> LibraryShelves => Set<Data.Library.LibraryShelf>();
     public DbSet<Data.Library.LibraryTag> LibraryTags => Set<Data.Library.LibraryTag>();
     public DbSet<Data.Library.LibraryWork> LibraryWorks => Set<Data.Library.LibraryWork>();
-    public DbSet<Data.Library.LibraryEdition> LibraryEditions => Set<Data.Library.LibraryEdition>();
+    public DbSet<Data.Library.LibraryExpression> LibraryExpressions => Set<Data.Library.LibraryExpression>();
+    public DbSet<Data.Library.LibraryManifestation> LibraryManifestations => Set<Data.Library.LibraryManifestation>();
     public DbSet<Data.Library.LibraryContribution> LibraryContributions => Set<Data.Library.LibraryContribution>();
-    public DbSet<Data.Library.LibraryCopy> LibraryCopies => Set<Data.Library.LibraryCopy>();
+    public DbSet<Data.Library.LibraryItem> LibraryItems => Set<Data.Library.LibraryItem>();
+    public DbSet<Data.Library.LibraryPlacementGroup> LibraryPlacementGroups => Set<Data.Library.LibraryPlacementGroup>();
+    public DbSet<Data.Library.LibraryQuote> LibraryQuotes => Set<Data.Library.LibraryQuote>();
+    public DbSet<Data.Library.LibraryQuoteTag> LibraryQuoteTags => Set<Data.Library.LibraryQuoteTag>();
     public DbSet<Data.Library.LibraryLoan> LibraryLoans => Set<Data.Library.LibraryLoan>();
     public DbSet<Data.Library.LibraryReading> LibraryReadings => Set<Data.Library.LibraryReading>();
     public DbSet<Data.Library.LibraryWorkTag> LibraryWorkTags => Set<Data.Library.LibraryWorkTag>();
@@ -1655,6 +1659,8 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
 
         // Private library. Every table carries OwnerAccountId, so each index leads
         // with it — every query in the module filters on ownership first.
+        // Relationships use NoAction: deletion order is handled explicitly in the
+        // endpoints, because the citation layer must never cascade into quotes.
         modelBuilder.Entity<Data.Library.LibraryPerson>()
             .HasIndex(x => new { x.OwnerAccountId, x.DisplayName });
         modelBuilder.Entity<Data.Library.LibraryPublisher>()
@@ -1668,18 +1674,33 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
         modelBuilder.Entity<Data.Library.LibraryWork>()
             .HasIndex(x => new { x.OwnerAccountId, x.OriginalTitle });
         modelBuilder.Entity<Data.Library.LibraryWork>()
-            .HasIndex(x => new { x.OwnerAccountId, x.OriginalLanguage });
+            .HasIndex(x => new { x.OwnerAccountId, x.CitationScheme });
 
-        modelBuilder.Entity<Data.Library.LibraryEdition>()
+        modelBuilder.Entity<Data.Library.LibraryExpression>()
             .HasIndex(x => new { x.OwnerAccountId, x.WorkId });
-        modelBuilder.Entity<Data.Library.LibraryEdition>()
-            .HasIndex(x => new { x.OwnerAccountId, x.Language });
-        modelBuilder.Entity<Data.Library.LibraryEdition>()
-            .HasIndex(x => new { x.OwnerAccountId, x.PublisherId });
-        modelBuilder.Entity<Data.Library.LibraryEdition>()
+        modelBuilder.Entity<Data.Library.LibraryExpression>()
             .HasOne<Data.Library.LibraryWork>()
             .WithMany()
             .HasForeignKey(x => x.WorkId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Library.LibraryManifestation>()
+            .HasIndex(x => new { x.OwnerAccountId, x.WorkId });
+        modelBuilder.Entity<Data.Library.LibraryManifestation>()
+            .HasIndex(x => new { x.OwnerAccountId, x.ExpressionId });
+        modelBuilder.Entity<Data.Library.LibraryManifestation>()
+            .HasIndex(x => new { x.OwnerAccountId, x.PublisherId });
+        modelBuilder.Entity<Data.Library.LibraryManifestation>()
+            .HasIndex(x => new { x.OwnerAccountId, x.Isbn });
+        modelBuilder.Entity<Data.Library.LibraryManifestation>()
+            .HasOne<Data.Library.LibraryWork>()
+            .WithMany()
+            .HasForeignKey(x => x.WorkId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Data.Library.LibraryManifestation>()
+            .HasOne<Data.Library.LibraryExpression>()
+            .WithMany()
+            .HasForeignKey(x => x.ExpressionId)
             .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<Data.Library.LibraryContribution>()
@@ -1687,22 +1708,43 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
         modelBuilder.Entity<Data.Library.LibraryContribution>()
             .HasIndex(x => new { x.OwnerAccountId, x.PersonId });
 
-        modelBuilder.Entity<Data.Library.LibraryCopy>()
-            .HasIndex(x => new { x.OwnerAccountId, x.EditionId });
-        modelBuilder.Entity<Data.Library.LibraryCopy>()
-            .HasIndex(x => new { x.OwnerAccountId, x.ShelfId });
-        modelBuilder.Entity<Data.Library.LibraryCopy>()
-            .HasIndex(x => new { x.OwnerAccountId, x.ReadingStatus });
-        modelBuilder.Entity<Data.Library.LibraryCopy>()
-            .HasOne<Data.Library.LibraryEdition>()
+        modelBuilder.Entity<Data.Library.LibraryQuote>()
+            .HasIndex(x => new { x.OwnerAccountId, x.WorkId });
+        modelBuilder.Entity<Data.Library.LibraryQuote>()
+            .HasIndex(x => new { x.OwnerAccountId, x.LocatorDisplay });
+        modelBuilder.Entity<Data.Library.LibraryQuote>()
+            .HasOne<Data.Library.LibraryWork>()
             .WithMany()
-            .HasForeignKey(x => x.EditionId)
+            .HasForeignKey(x => x.WorkId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Library.LibraryQuoteTag>()
+            .HasIndex(x => new { x.OwnerAccountId, x.QuoteId, x.TagId })
+            .IsUnique();
+        modelBuilder.Entity<Data.Library.LibraryQuoteTag>()
+            .HasIndex(x => new { x.OwnerAccountId, x.TagId });
+
+        modelBuilder.Entity<Data.Library.LibraryPlacementGroup>()
+            .HasIndex(x => new { x.OwnerAccountId, x.Name });
+
+        modelBuilder.Entity<Data.Library.LibraryItem>()
+            .HasIndex(x => new { x.OwnerAccountId, x.ManifestationId });
+        modelBuilder.Entity<Data.Library.LibraryItem>()
+            .HasIndex(x => new { x.OwnerAccountId, x.ShelfId, x.PositionInShelf });
+        modelBuilder.Entity<Data.Library.LibraryItem>()
+            .HasIndex(x => new { x.OwnerAccountId, x.PlacementGroupId });
+        modelBuilder.Entity<Data.Library.LibraryItem>()
+            .HasIndex(x => new { x.OwnerAccountId, x.ReadingStatus });
+        modelBuilder.Entity<Data.Library.LibraryItem>()
+            .HasOne<Data.Library.LibraryManifestation>()
+            .WithMany()
+            .HasForeignKey(x => x.ManifestationId)
             .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<Data.Library.LibraryLoan>()
-            .HasIndex(x => new { x.OwnerAccountId, x.CopyId, x.ReturnedOn });
+            .HasIndex(x => new { x.OwnerAccountId, x.ItemId, x.ReturnedOn });
         modelBuilder.Entity<Data.Library.LibraryReading>()
-            .HasIndex(x => new { x.OwnerAccountId, x.CopyId });
+            .HasIndex(x => new { x.OwnerAccountId, x.ItemId });
 
         modelBuilder.Entity<Data.Library.LibraryWorkTag>()
             .HasIndex(x => new { x.OwnerAccountId, x.WorkId, x.TagId })

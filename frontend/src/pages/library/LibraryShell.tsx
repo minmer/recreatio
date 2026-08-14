@@ -23,11 +23,14 @@ export function LibraryShell({
 
   const items: NavItem[] = [
     { path: '/library', label: t.nav.dashboard },
+    { path: '/library/quotes', label: t.nav.quotes },
     { path: '/library/works', label: t.nav.works },
     { path: '/library/shelf', label: t.nav.shelf },
+    { path: '/library/arrangement', label: t.nav.arrangement },
     { path: '/library/people', label: t.nav.people },
     { path: '/library/publishers', label: t.nav.publishers },
     { path: '/library/shelves', label: t.nav.shelves },
+    { path: '/library/groups', label: t.nav.groups },
     { path: '/library/tags', label: t.nav.tags },
     { path: '/library/loans', label: t.nav.loans },
     { path: '/library/reading', label: t.nav.reading },

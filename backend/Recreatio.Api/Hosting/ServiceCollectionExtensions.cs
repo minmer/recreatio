@@ -240,6 +240,27 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<IPythonSandboxClient, PythonSandboxClient>();
         services.AddHttpClient<IBookLookupService, BookLookupService>();
 
+        // Citation formatting: one strategy per scheme, resolved by name. A new
+        // scheme is a new registration here and nothing else.
+        services.AddSingleton<IBibleBookCatalog, BibleBookCatalog>();
+        services.AddSingleton<ICitationLocatorFormatter, PageLocatorFormatter>();
+        services.AddSingleton<ICitationLocatorFormatter, BibleReferenceLocatorFormatter>();
+        services.AddSingleton<ICitationLocatorFormatter, StructuredWorkLocatorFormatter>();
+        services.AddSingleton<ICitationLocatorFormatter, DocumentParagraphLocatorFormatter>();
+        services.AddSingleton<ICitationService, CitationService>();
+
+        // Citation styles are the second axis: the scheme says where in the work
+        // a quote sits, the style says how the reference around it is written.
+        services.AddSingleton<ICitationStyle, PolishCitationStyle>();
+        services.AddSingleton<ICitationStyle, GermanCitationStyle>();
+        services.AddSingleton<ICitationStyle, ChicagoNoteCitationStyle>();
+        services.AddSingleton<ICitationStyle, ApaCitationStyle>();
+        services.AddSingleton<ICitationStyle, HarvardCitationStyle>();
+        services.AddSingleton<ICitationStyle, CambridgeCitationStyle>();
+        services.AddSingleton<ICitationStyle, MlaCitationStyle>();
+        services.AddSingleton<ICitationStyleRegistry, CitationStyleRegistry>();
+        services.AddSingleton<IShelfArrangementService, ShelfArrangementService>();
+
         return services;
     }
 

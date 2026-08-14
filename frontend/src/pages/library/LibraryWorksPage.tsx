@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  CITATION_SCHEMES,
   WORK_KINDS,
   getPeople,
   getPublishers,
@@ -42,14 +43,15 @@ export function LibraryWorksPage({
   const [term, setTerm] = useState('');
   const [debouncedTerm, setDebouncedTerm] = useState('');
   const [kind, setKind] = useState('');
+  const [citationScheme, setCitationScheme] = useState('');
   const [originalLanguage, setOriginalLanguage] = useState('');
-  const [editionLanguage, setEditionLanguage] = useState('');
-  // Seeded from the query string so "show works" from a person or tag lands filtered.
+  const [expressionLanguage, setExpressionLanguage] = useState('');
   const [personId, setPersonId] = useState(initialPersonId === null ? '' : String(initialPersonId));
   const [tagId, setTagId] = useState(initialTagId === null ? '' : String(initialTagId));
   const [publisherId, setPublisherId] = useState('');
   const [onlyTranslated, setOnlyTranslated] = useState(false);
   const [onlyOwned, setOnlyOwned] = useState(false);
+  const [onlyQuoted, setOnlyQuoted] = useState(false);
   const [sort, setSort] = useState('title');
   const [skip, setSkip] = useState(0);
 
@@ -63,7 +65,6 @@ export function LibraryWorksPage({
   const [scanOpen, setScanOpen] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
 
-  // Typing shouldn't fire a request per keystroke.
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setDebouncedTerm(term);
@@ -93,18 +94,23 @@ export function LibraryWorksPage({
     () => ({
       term: debouncedTerm || undefined,
       kind: kind || undefined,
+      citationScheme: citationScheme || undefined,
       originalLanguage: originalLanguage || undefined,
-      editionLanguage: editionLanguage || undefined,
+      expressionLanguage: expressionLanguage || undefined,
       personId: personId ? Number(personId) : undefined,
       tagId: tagId ? Number(tagId) : undefined,
       publisherId: publisherId ? Number(publisherId) : undefined,
       onlyTranslated: onlyTranslated || undefined,
       onlyOwned: onlyOwned || undefined,
+      onlyQuoted: onlyQuoted || undefined,
       sort,
       skip,
       take: PAGE_SIZE
     }),
-    [debouncedTerm, kind, originalLanguage, editionLanguage, personId, tagId, publisherId, onlyTranslated, onlyOwned, sort, skip]
+    [
+      debouncedTerm, kind, citationScheme, originalLanguage, expressionLanguage,
+      personId, tagId, publisherId, onlyTranslated, onlyOwned, onlyQuoted, sort, skip
+    ]
   );
 
   useEffect(() => {
@@ -128,20 +134,21 @@ export function LibraryWorksPage({
   }, [filters, reloadToken, t.common.loadFailed]);
 
   const hasFilters =
-    Boolean(debouncedTerm || kind || originalLanguage || editionLanguage || personId || tagId || publisherId) ||
-    onlyTranslated ||
-    onlyOwned;
+    Boolean(debouncedTerm || kind || citationScheme || originalLanguage || expressionLanguage || personId || tagId || publisherId) ||
+    onlyTranslated || onlyOwned || onlyQuoted;
 
   const clearFilters = () => {
     setTerm('');
     setKind('');
+    setCitationScheme('');
     setOriginalLanguage('');
-    setEditionLanguage('');
+    setExpressionLanguage('');
     setPersonId('');
     setTagId('');
     setPublisherId('');
     setOnlyTranslated(false);
     setOnlyOwned(false);
+    setOnlyQuoted(false);
     setSkip(0);
   };
 
@@ -173,64 +180,49 @@ export function LibraryWorksPage({
         />
         <Select
           value={kind}
-          onChange={(value) => {
-            setKind(value);
-            setSkip(0);
-          }}
+          onChange={(value) => { setKind(value); setSkip(0); }}
           options={vocabularyOptions(WORK_KINDS, t.kinds)}
           placeholder={t.works.filterKind}
+        />
+        <Select
+          value={citationScheme}
+          onChange={(value) => { setCitationScheme(value); setSkip(0); }}
+          options={vocabularyOptions(CITATION_SCHEMES, t.schemes)}
+          placeholder={t.works.filterScheme}
         />
         <LanguageSelect
           t={t}
           value={originalLanguage}
-          onChange={(value) => {
-            setOriginalLanguage(value);
-            setSkip(0);
-          }}
+          onChange={(value) => { setOriginalLanguage(value); setSkip(0); }}
           placeholder={t.works.filterOriginalLanguage}
         />
         <LanguageSelect
           t={t}
-          value={editionLanguage}
-          onChange={(value) => {
-            setEditionLanguage(value);
-            setSkip(0);
-          }}
-          placeholder={t.works.filterEditionLanguage}
+          value={expressionLanguage}
+          onChange={(value) => { setExpressionLanguage(value); setSkip(0); }}
+          placeholder={t.works.filterExpressionLanguage}
         />
         <Select
           value={personId}
-          onChange={(value) => {
-            setPersonId(value);
-            setSkip(0);
-          }}
+          onChange={(value) => { setPersonId(value); setSkip(0); }}
           options={people.map((person) => ({ value: String(person.id), label: person.displayName }))}
           placeholder={t.works.filterAuthor}
         />
         <Select
           value={tagId}
-          onChange={(value) => {
-            setTagId(value);
-            setSkip(0);
-          }}
+          onChange={(value) => { setTagId(value); setSkip(0); }}
           options={tags.map((tag) => ({ value: String(tag.id), label: tag.name }))}
           placeholder={t.works.filterTag}
         />
         <Select
           value={publisherId}
-          onChange={(value) => {
-            setPublisherId(value);
-            setSkip(0);
-          }}
+          onChange={(value) => { setPublisherId(value); setSkip(0); }}
           options={publishers.map((publisher) => ({ value: String(publisher.id), label: publisher.name }))}
           placeholder={t.works.filterPublisher}
         />
         <Select
           value={sort}
-          onChange={(value) => {
-            setSort(value);
-            setSkip(0);
-          }}
+          onChange={(value) => { setSort(value); setSkip(0); }}
           options={[
             { value: 'title', label: t.works.sortTitle },
             { value: 'created', label: t.works.sortCreated },
@@ -239,22 +231,9 @@ export function LibraryWorksPage({
             { value: 'year_desc', label: t.works.sortYearDesc }
           ]}
         />
-        <Toggle
-          checked={onlyTranslated}
-          onChange={(value) => {
-            setOnlyTranslated(value);
-            setSkip(0);
-          }}
-          label={t.works.onlyTranslated}
-        />
-        <Toggle
-          checked={onlyOwned}
-          onChange={(value) => {
-            setOnlyOwned(value);
-            setSkip(0);
-          }}
-          label={t.works.onlyOwned}
-        />
+        <Toggle checked={onlyTranslated} onChange={(v) => { setOnlyTranslated(v); setSkip(0); }} label={t.works.onlyTranslated} />
+        <Toggle checked={onlyOwned} onChange={(v) => { setOnlyOwned(v); setSkip(0); }} label={t.works.onlyOwned} />
+        <Toggle checked={onlyQuoted} onChange={(v) => { setOnlyQuoted(v); setSkip(0); }} label={t.works.onlyQuoted} />
         {hasFilters ? (
           <button type="button" className="lib-btn lib-btn-ghost lib-btn-sm" onClick={clearFilters}>
             {t.common.clear}
@@ -297,8 +276,8 @@ export function LibraryWorksPage({
                   </span>
                   <span className="lib-work-side">
                     <Badge tone="original">{languageLabel(t, work.originalLanguage)}</Badge>
-                    <Badge tone="muted">{t.kinds[work.kind] ?? work.kind}</Badge>
-                    {work.editionLanguages
+                    <Badge tone="muted">{t.schemes[work.citationScheme] ?? work.citationScheme}</Badge>
+                    {work.expressionLanguages
                       .filter((code) => code !== work.originalLanguage)
                       .map((code) => (
                         <Badge key={code} tone="translation">
@@ -309,7 +288,8 @@ export function LibraryWorksPage({
                       <Badge key={tag.id}>{tag.name}</Badge>
                     ))}
                     <span className="lib-work-counts">
-                      {work.editionCount} {t.works.editionCount} · {work.copyCount} {t.works.copyCount}
+                      {work.manifestationCount} {t.works.manifestationCount} · {work.itemCount} {t.works.itemCount}
+                      {work.quoteCount > 0 ? ` · ${work.quoteCount} ${t.works.quoteCount}` : ''}
                     </span>
                   </span>
                 </button>
@@ -325,7 +305,6 @@ export function LibraryWorksPage({
           t={t}
           onClose={() => {
             setScanOpen(false);
-            // A scan may have added a work; pick it up without a manual refresh.
             setReloadToken((current) => current + 1);
           }}
           onSearchCode={(code) => setTerm(code)}

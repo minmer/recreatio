@@ -1,6 +1,10 @@
 namespace Recreatio.Api.Contracts.Library;
 
-// ── Registries: people, publishers, shelves, tags ───────────────────────────
+// Contracts follow the two layers of the model. Anything named Work, Expression,
+// Manifestation or Quote belongs to the citation layer; Item, Shelf and
+// PlacementGroup belong to the physical layer.
+
+// ── Registries ──────────────────────────────────────────────────────────────
 
 public sealed record LibraryPersonSaveRequest(
     string DisplayName,
@@ -19,29 +23,27 @@ public sealed record LibraryPersonResponse(
     int? DeathYear,
     string? Nationality,
     string? Notes,
-    int WorkCount,
-    int EditionCount
+    int ContributionCount
 );
 
-public sealed record LibraryPublisherSaveRequest(
-    string Name,
-    string? City,
-    string? Notes
-);
+public sealed record LibraryPublisherSaveRequest(string Name, string? City, string? Notes);
 
 public sealed record LibraryPublisherResponse(
     long Id,
     string Name,
     string? City,
     string? Notes,
-    int EditionCount
+    int ManifestationCount
 );
 
 public sealed record LibraryShelfSaveRequest(
     string Name,
     string? Location,
     string? Description,
-    int SortOrder
+    int SortOrder,
+    int? HeightMm,
+    int? DepthMm,
+    int? WidthMm
 );
 
 public sealed record LibraryShelfResponse(
@@ -50,31 +52,31 @@ public sealed record LibraryShelfResponse(
     string? Location,
     string? Description,
     int SortOrder,
-    int CopyCount
+    int? HeightMm,
+    int? DepthMm,
+    int? WidthMm,
+    int ItemCount
 );
 
-public sealed record LibraryTagSaveRequest(
-    string Name,
-    string? Color
-);
+public sealed record LibraryTagSaveRequest(string Name, string? Color);
 
-public sealed record LibraryTagResponse(
+public sealed record LibraryTagResponse(long Id, string Name, string? Color, int WorkCount, int QuoteCount);
+
+public sealed record LibraryPlacementGroupSaveRequest(string Name, string GroupKind, string? Notes);
+
+public sealed record LibraryPlacementGroupResponse(
     long Id,
     string Name,
-    string? Color,
-    int WorkCount
+    string GroupKind,
+    string? Notes,
+    int ItemCount
 );
 
 // ── Contributions ───────────────────────────────────────────────────────────
 
-public sealed record LibraryContributionSaveItem(
-    long PersonId,
-    string Role
-);
+public sealed record LibraryContributionSaveItem(long PersonId, string Role);
 
-public sealed record LibraryContributionsSaveRequest(
-    IReadOnlyList<LibraryContributionSaveItem> Contributions
-);
+public sealed record LibraryContributionsSaveRequest(IReadOnlyList<LibraryContributionSaveItem> Contributions);
 
 public sealed record LibraryContributionResponse(
     long Id,
@@ -84,7 +86,7 @@ public sealed record LibraryContributionResponse(
     int SortOrder
 );
 
-// ── Works ───────────────────────────────────────────────────────────────────
+// ── Work ────────────────────────────────────────────────────────────────────
 
 public sealed record LibraryWorkSaveRequest(
     string OriginalTitle,
@@ -92,11 +94,13 @@ public sealed record LibraryWorkSaveRequest(
     string OriginalLanguage,
     string? UniformTitle,
     string Kind,
+    string CitationScheme,
+    string? StructureTemplateJson,
+    string? CitationSigil,
     int? FirstPublishedYear,
     string? Notes
 );
 
-/// <summary>Row shown in the work browser: one line per work with rolled-up holdings.</summary>
 public sealed record LibraryWorkListItem(
     long Id,
     string OriginalTitle,
@@ -104,18 +108,18 @@ public sealed record LibraryWorkListItem(
     string OriginalLanguage,
     string? UniformTitle,
     string Kind,
+    string CitationScheme,
     int? FirstPublishedYear,
     IReadOnlyList<string> Authors,
-    IReadOnlyList<string> EditionLanguages,
+    IReadOnlyList<string> ExpressionLanguages,
     IReadOnlyList<LibraryTagResponse> Tags,
-    int EditionCount,
-    int CopyCount
+    int ExpressionCount,
+    int ManifestationCount,
+    int ItemCount,
+    int QuoteCount
 );
 
-public sealed record LibraryWorkListResponse(
-    IReadOnlyList<LibraryWorkListItem> Items,
-    int Total
-);
+public sealed record LibraryWorkListResponse(IReadOnlyList<LibraryWorkListItem> Items, int Total);
 
 public sealed record LibraryWorkDetailResponse(
     long Id,
@@ -124,112 +128,152 @@ public sealed record LibraryWorkDetailResponse(
     string OriginalLanguage,
     string? UniformTitle,
     string Kind,
+    string CitationScheme,
+    string? StructureTemplateJson,
+    string? CitationSigil,
     int? FirstPublishedYear,
     string? Notes,
     IReadOnlyList<LibraryContributionResponse> Contributions,
     IReadOnlyList<long> TagIds,
-    IReadOnlyList<LibraryEditionListItem> Editions,
+    IReadOnlyList<LibraryExpressionListItem> Expressions,
+    IReadOnlyList<LibraryManifestationListItem> Manifestations,
+    int QuoteCount,
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc
 );
 
-public sealed record LibraryWorkTagsSaveRequest(
-    IReadOnlyList<long> TagIds
-);
+public sealed record LibraryWorkTagsSaveRequest(IReadOnlyList<long> TagIds);
 
-// ── Editions ────────────────────────────────────────────────────────────────
+// ── Expression ──────────────────────────────────────────────────────────────
 
-public sealed record LibraryEditionSaveRequest(
-    string Title,
-    string? Subtitle,
+public sealed record LibraryExpressionSaveRequest(
     string Language,
-    long? PublisherId,
-    string? PublishedPlace,
-    int? PublishedYear,
-    string? EditionStatement,
-    string? Series,
-    string? SeriesNumber,
-    string? Isbn,
-    string? Issn,
-    int? PageCount,
-    string? Volume,
-    string? Binding,
-    string? CoverUrl,
+    string? Name,
     string? Notes
 );
 
-public sealed record LibraryEditionListItem(
+public sealed record LibraryExpressionListItem(
     long Id,
     long WorkId,
-    string Title,
-    string? Subtitle,
     string Language,
-    // IsTranslation: this edition's language differs from the work's original language.
+    string? Name,
+    // True when this language version differs from the work's original language.
     bool IsTranslation,
-    long? PublisherId,
-    string? PublisherName,
-    string? PublishedPlace,
-    int? PublishedYear,
-    string? EditionStatement,
-    string? Isbn,
-    int? PageCount,
-    string? Binding,
     IReadOnlyList<string> Translators,
-    int CopyCount
+    int ManifestationCount
 );
 
-public sealed record LibraryEditionDetailResponse(
+public sealed record LibraryExpressionDetailResponse(
     long Id,
     long WorkId,
-    string WorkOriginalTitle,
+    string WorkTitle,
     string WorkOriginalLanguage,
-    string Title,
-    string? Subtitle,
     string Language,
+    string? Name,
     bool IsTranslation,
-    long? PublisherId,
-    string? PublisherName,
-    string? PublishedPlace,
-    int? PublishedYear,
-    string? EditionStatement,
-    string? Series,
-    string? SeriesNumber,
-    string? Isbn,
-    string? Issn,
-    int? PageCount,
-    string? Volume,
-    string? Binding,
-    string? CoverUrl,
     string? Notes,
     IReadOnlyList<LibraryContributionResponse> Contributions,
-    IReadOnlyList<LibraryCopyResponse> Copies,
+    IReadOnlyList<LibraryManifestationListItem> Manifestations,
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc
 );
 
-// ── Copies ──────────────────────────────────────────────────────────────────
+// ── Manifestation ───────────────────────────────────────────────────────────
 
-public sealed record LibraryCopySaveRequest(
-    long? ShelfId,
-    string? Signature,
-    string Status,
-    string? Condition,
-    DateOnly? AcquiredDate,
-    string? AcquiredFrom,
-    decimal? Price,
-    string? Currency,
-    string? Barcode,
-    string ReadingStatus,
-    int? Rating,
-    bool IsFavourite,
+public sealed record LibraryManifestationSaveRequest(
+    long? ExpressionId,
+    string Format,
+    string Title,
+    string? Subtitle,
+    long? PublisherId,
+    string? PublishedPlace,
+    int? PublishedYear,
+    string? EditionStatement,
+    string? Series,
+    string? SeriesNumber,
+    string? Isbn,
+    string? Issn,
+    int? PageCount,
+    string? Volume,
+    string? Binding,
+    string? Url,
+    string? OriginalTextUrl,
+    string? CoverImageUrl,
+    int? HeightMm,
+    int? WidthMm,
+    int? DepthMm,
     string? Notes
 );
 
-public sealed record LibraryCopyResponse(
+public sealed record LibraryManifestationListItem(
     long Id,
-    long EditionId,
+    long? WorkId,
+    long? ExpressionId,
+    string? ExpressionName,
+    string? ExpressionLanguage,
+    string Format,
+    string Title,
+    string? Subtitle,
+    long? PublisherId,
+    string? PublisherName,
+    string? PublishedPlace,
+    int? PublishedYear,
+    string? EditionStatement,
+    string? Isbn,
+    int? PageCount,
+    string? Binding,
+    string? Url,
+    string? CoverImageUrl,
+    int? HeightMm,
+    int? WidthMm,
+    int? DepthMm,
+    int ItemCount
+);
+
+public sealed record LibraryManifestationDetailResponse(
+    long Id,
+    long WorkId,
+    string WorkTitle,
+    string WorkOriginalLanguage,
+    string WorkCitationScheme,
+    long? ExpressionId,
+    string? ExpressionName,
+    string? ExpressionLanguage,
+    string Format,
+    string Title,
+    string? Subtitle,
+    long? PublisherId,
+    string? PublisherName,
+    string? PublishedPlace,
+    int? PublishedYear,
+    string? EditionStatement,
+    string? Series,
+    string? SeriesNumber,
+    string? Isbn,
+    string? Issn,
+    int? PageCount,
+    string? Volume,
+    string? Binding,
+    string? Url,
+    string? OriginalTextUrl,
+    string? CoverImageUrl,
+    int? HeightMm,
+    int? WidthMm,
+    int? DepthMm,
+    string? Notes,
+    IReadOnlyList<LibraryContributionResponse> Contributions,
+    IReadOnlyList<LibraryItemResponse> Items,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc
+);
+
+// ── Item (physical) ─────────────────────────────────────────────────────────
+
+public sealed record LibraryItemSaveRequest(
     long? ShelfId,
-    string? ShelfName,
+    long? PlacementGroupId,
+    int? PositionInShelf,
+    int? SeriesPosition,
     string? Signature,
     string Status,
     string? Condition,
@@ -241,39 +285,173 @@ public sealed record LibraryCopyResponse(
     string ReadingStatus,
     int? Rating,
     bool IsFavourite,
+    string? ScanImageUrl,
+    string? Notes
+);
+
+public sealed record LibraryItemResponse(
+    long Id,
+    long ManifestationId,
+    long? ShelfId,
+    string? ShelfName,
+    long? PlacementGroupId,
+    string? PlacementGroupName,
+    int? PositionInShelf,
+    int? SeriesPosition,
+    string? Signature,
+    string Status,
+    string? Condition,
+    DateOnly? AcquiredDate,
+    string? AcquiredFrom,
+    decimal? Price,
+    string? Currency,
+    string? Barcode,
+    string ReadingStatus,
+    int? Rating,
+    bool IsFavourite,
+    string? ScanImageUrl,
     string? Notes,
     LibraryLoanResponse? OpenLoan
 );
 
-/// <summary>Row shown in the shelf browser: a copy carrying enough context to identify it.</summary>
-public sealed record LibraryCopyListItem(
+public sealed record LibraryItemListItem(
     long Id,
-    long EditionId,
+    long ManifestationId,
     long WorkId,
-    string EditionTitle,
-    string WorkOriginalTitle,
-    string Language,
+    string ManifestationTitle,
+    string WorkTitle,
+    string? Language,
     bool IsTranslation,
     IReadOnlyList<string> Authors,
     string? PublisherName,
     int? PublishedYear,
     long? ShelfId,
     string? ShelfName,
+    int? PositionInShelf,
     string? Signature,
     string Status,
     string? Condition,
     string ReadingStatus,
     int? Rating,
     bool IsFavourite,
+    // Cover from metadata, falling back to the user's own scan.
+    string? ImageUrl,
     LibraryLoanResponse? OpenLoan
 );
 
-public sealed record LibraryCopyListResponse(
-    IReadOnlyList<LibraryCopyListItem> Items,
-    int Total
+public sealed record LibraryItemListResponse(IReadOnlyList<LibraryItemListItem> Items, int Total);
+
+// ── Quote ───────────────────────────────────────────────────────────────────
+
+public sealed record LibraryQuoteSaveRequest(
+    long WorkId,
+    long? ExpressionId,
+    long? ManifestationId,
+    string QuoteText,
+    // Structured position; shape follows the work's citation scheme.
+    string? LocatorJson,
+    string? Description,
+    string? Context,
+    IReadOnlyList<long>? TagIds
 );
 
-// ── Loans ───────────────────────────────────────────────────────────────────
+public sealed record LibraryQuoteResponse(
+    long Id,
+    long WorkId,
+    string WorkTitle,
+    string WorkCitationScheme,
+    long? ExpressionId,
+    string? ExpressionName,
+    string? ExpressionLanguage,
+    long? ManifestationId,
+    string? ManifestationTitle,
+    string? PublisherName,
+    int? PublishedYear,
+    IReadOnlyList<string> Authors,
+    string QuoteText,
+    string? LocatorJson,
+    string? LocatorDisplay,
+    // Footnote-ready, written in the requested citation style.
+    string Reference,
+    // The same source as it would appear in a list of works.
+    string Bibliography,
+    string CitationStyle,
+    string? Description,
+    string? Context,
+    IReadOnlyList<LibraryTagResponse> Tags,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc
+);
+
+public sealed record LibraryQuoteListResponse(IReadOnlyList<LibraryQuoteResponse> Items, int Total);
+
+/// <summary>Describes one citation scheme so the form can build its own fields.</summary>
+public sealed record LibraryLocatorFieldSpec(
+    string Key,
+    string Kind,          // text | number
+    string LabelKey,      // resolved to a label by the frontend copy
+    bool Required
+);
+
+public sealed record LibraryCitationStyleSpec(
+    string Key,
+    string DisplayName,
+    // Worked example so the picker shows what each style actually produces.
+    string SampleNote,
+    string SampleBibliography
+);
+
+public sealed record LibraryCitationSchemeSpec(
+    string Scheme,
+    string AuthoritativeLevel,   // manifestation | expression | work
+    IReadOnlyList<LibraryLocatorFieldSpec> Fields,
+    bool UsesStructureTemplate,
+    string Example
+);
+
+// ── Quote import ────────────────────────────────────────────────────────────
+
+/// <summary>
+/// A quote as it arrives in an import file. The work may be given by id or by
+/// enough metadata to match an existing one or create it.
+/// </summary>
+public sealed record LibraryQuoteImportItem(
+    long? WorkId,
+    string? WorkTitle,
+    string? WorkOriginalLanguage,
+    string? WorkCitationScheme,
+    string? WorkKind,
+    string? AuthorName,
+    long? ExpressionId,
+    string? ExpressionLanguage,
+    string? ExpressionName,
+    long? ManifestationId,
+    string? ManifestationTitle,
+    string? Isbn,
+    string QuoteText,
+    // Either a structured object or a plain string already rendered.
+    System.Text.Json.JsonElement? Locator,
+    string? LocatorDisplay,
+    string? Description,
+    string? Context,
+    IReadOnlyList<string>? Tags
+);
+
+public sealed record LibraryQuoteImportRequest(IReadOnlyList<LibraryQuoteImportItem> Quotes);
+
+public sealed record LibraryQuoteImportError(int Index, string Message);
+
+public sealed record LibraryQuoteImportResponse(
+    int Imported,
+    int Failed,
+    int WorksCreated,
+    int ExpressionsCreated,
+    int ManifestationsCreated,
+    int TagsCreated,
+    IReadOnlyList<LibraryQuoteImportError> Errors
+);
+
+// ── Loans and readings ──────────────────────────────────────────────────────
 
 public sealed record LibraryLoanSaveRequest(
     string Direction,
@@ -287,7 +465,7 @@ public sealed record LibraryLoanSaveRequest(
 
 public sealed record LibraryLoanResponse(
     long Id,
-    long CopyId,
+    long ItemId,
     string Direction,
     string CounterpartName,
     string? CounterpartContact,
@@ -299,9 +477,9 @@ public sealed record LibraryLoanResponse(
 
 public sealed record LibraryLoanListItem(
     long Id,
-    long CopyId,
-    long EditionId,
-    string EditionTitle,
+    long ItemId,
+    long ManifestationId,
+    string Title,
     IReadOnlyList<string> Authors,
     string Direction,
     string CounterpartName,
@@ -313,8 +491,6 @@ public sealed record LibraryLoanListItem(
     string? Notes
 );
 
-// ── Readings ────────────────────────────────────────────────────────────────
-
 public sealed record LibraryReadingSaveRequest(
     DateOnly? StartedOn,
     DateOnly? FinishedOn,
@@ -324,9 +500,9 @@ public sealed record LibraryReadingSaveRequest(
 
 public sealed record LibraryReadingListItem(
     long Id,
-    long CopyId,
-    long EditionId,
-    string EditionTitle,
+    long ItemId,
+    long ManifestationId,
+    string Title,
     IReadOnlyList<string> Authors,
     DateOnly? StartedOn,
     DateOnly? FinishedOn,
@@ -334,14 +510,47 @@ public sealed record LibraryReadingListItem(
     string? Notes
 );
 
+// ── Shelf arrangement ───────────────────────────────────────────────────────
+
+public sealed record LibraryArrangementPlacement(
+    long ItemId,
+    string Title,
+    long ShelfId,
+    string ShelfName,
+    int Position,
+    long? PreviousItemId,
+    string? PreviousTitle,
+    long? NextItemId,
+    string? NextTitle,
+    string? GroupName,
+    string? ImageUrl,
+    // True when the item already stands where the proposal puts it.
+    bool MatchesCurrent
+);
+
+public sealed record LibraryArrangementUnplaced(long ItemId, string Title, string Reason);
+
+public sealed record LibraryArrangementResponse(
+    IReadOnlyList<LibraryArrangementPlacement> Placements,
+    IReadOnlyList<LibraryArrangementUnplaced> Unplaced,
+    IReadOnlyList<string> Notes
+);
+
+/// <summary>Applying a proposal is an explicit, separate act.</summary>
+public sealed record LibraryArrangementApplyItem(long ItemId, long ShelfId, int Position);
+
+public sealed record LibraryArrangementApplyRequest(IReadOnlyList<LibraryArrangementApplyItem> Placements);
+
 // ── Overview ────────────────────────────────────────────────────────────────
 
 public sealed record LibraryCountByKey(string Key, string Label, int Count);
 
 public sealed record LibraryOverviewResponse(
     int Works,
-    int Editions,
-    int Copies,
+    int Expressions,
+    int Manifestations,
+    int Items,
+    int Quotes,
     int People,
     int Publishers,
     int Shelves,
@@ -354,11 +563,13 @@ public sealed record LibraryOverviewResponse(
     int Reading,
     int Unread,
     IReadOnlyList<LibraryCountByKey> ByLanguage,
-    IReadOnlyList<LibraryCountByKey> ByOriginalLanguage,
+    IReadOnlyList<LibraryCountByKey> ByCitationScheme,
     IReadOnlyList<LibraryCountByKey> ByKind,
     IReadOnlyList<LibraryCountByKey> ByShelf,
     IReadOnlyList<LibraryCountByKey> TopAuthors,
-    IReadOnlyList<LibraryCopyListItem> RecentlyAdded
+    IReadOnlyList<LibraryCountByKey> TopTags,
+    IReadOnlyList<LibraryQuoteResponse> RecentQuotes,
+    IReadOnlyList<LibraryItemListItem> RecentlyAdded
 );
 
 // ── Barcode scanning ────────────────────────────────────────────────────────
@@ -379,144 +590,59 @@ public sealed record LibraryLookupResponse(
     string? Language,
     string? OriginalLanguage,
     string? Series,
+    string? Binding,
     string? CoverUrl,
     IReadOnlyList<string> Sources
 );
 
-/// <summary>
-/// One scan answers both questions at once: do I already own this, and — if not —
-/// what does the public catalogue know about it.
-/// </summary>
 public sealed record LibraryScanResponse(
     string Isbn,
-    IReadOnlyList<LibraryEditionListItem> MatchingEditions,
-    IReadOnlyList<LibraryCopyListItem> OwnedCopies,
+    IReadOnlyList<LibraryManifestationListItem> MatchingManifestations,
+    IReadOnlyList<LibraryItemListItem> OwnedItems,
     LibraryLookupResponse? Lookup,
     bool LookupAttempted
 );
 
-/// <summary>Creates work + edition + copy in one call from a confirmed scan.</summary>
+/// <summary>Creates work, expression, manifestation and item from one scan.</summary>
 public sealed record LibraryScanImportRequest(
     string Isbn,
     string OriginalTitle,
     string OriginalLanguage,
     string Kind,
+    string CitationScheme,
     int? FirstPublishedYear,
-    string EditionTitle,
-    string? EditionSubtitle,
-    string EditionLanguage,
+    string ManifestationTitle,
+    string? ManifestationSubtitle,
+    string ExpressionLanguage,
+    string? ExpressionName,
     string? PublisherName,
     string? PublishedPlace,
     int? PublishedYear,
     int? PageCount,
     string? Series,
-    string? CoverUrl,
+    string? Binding,
+    string? CoverImageUrl,
+    int? HeightMm,
+    int? WidthMm,
+    int? DepthMm,
     IReadOnlyList<string> AuthorNames,
     IReadOnlyList<string> TranslatorNames,
     long? ShelfId,
-    bool CreateCopy
+    bool CreateItem
 );
 
 public sealed record LibraryScanImportResponse(
     long WorkId,
-    long EditionId,
-    long? CopyId
+    long? ExpressionId,
+    long ManifestationId,
+    long? ItemId
 );
 
-// ── Import / export ─────────────────────────────────────────────────────────
-
-public sealed record LibraryExportPerson(
-    long Id,
-    string DisplayName,
-    string? SortName,
-    int? BirthYear,
-    int? DeathYear,
-    string? Nationality,
-    string? Notes
-);
-
-public sealed record LibraryExportPublisher(long Id, string Name, string? City, string? Notes);
-
-public sealed record LibraryExportShelf(long Id, string Name, string? Location, string? Description, int SortOrder);
-
-public sealed record LibraryExportTag(long Id, string Name, string? Color);
-
-public sealed record LibraryExportContribution(long PersonId, string Role, int SortOrder);
-
-public sealed record LibraryExportCopy(
-    long Id,
-    long? ShelfId,
-    string? Signature,
-    string Status,
-    string? Condition,
-    DateOnly? AcquiredDate,
-    string? AcquiredFrom,
-    decimal? Price,
-    string? Currency,
-    string? Barcode,
-    string ReadingStatus,
-    int? Rating,
-    bool IsFavourite,
-    string? Notes,
-    IReadOnlyList<LibraryLoanSaveRequest> Loans,
-    IReadOnlyList<LibraryReadingSaveRequest> Readings
-);
-
-public sealed record LibraryExportEdition(
-    long Id,
-    string Title,
-    string? Subtitle,
-    string Language,
-    long? PublisherId,
-    string? PublishedPlace,
-    int? PublishedYear,
-    string? EditionStatement,
-    string? Series,
-    string? SeriesNumber,
-    string? Isbn,
-    string? Issn,
-    int? PageCount,
-    string? Volume,
-    string? Binding,
-    string? CoverUrl,
-    string? Notes,
-    IReadOnlyList<LibraryExportContribution> Contributions,
-    IReadOnlyList<LibraryExportCopy> Copies
-);
-
-public sealed record LibraryExportWork(
-    long Id,
-    string OriginalTitle,
-    string? OriginalSubtitle,
-    string OriginalLanguage,
-    string? UniformTitle,
-    string Kind,
-    int? FirstPublishedYear,
-    string? Notes,
-    IReadOnlyList<LibraryExportContribution> Contributions,
-    IReadOnlyList<long> TagIds,
-    IReadOnlyList<LibraryExportEdition> Editions
-);
+// ── Catalogue export / import ───────────────────────────────────────────────
 
 public sealed record LibraryExportBundle(
     string Format,
     int Version,
     DateTimeOffset ExportedUtc,
-    IReadOnlyList<LibraryExportPerson> People,
-    IReadOnlyList<LibraryExportPublisher> Publishers,
-    IReadOnlyList<LibraryExportShelf> Shelves,
-    IReadOnlyList<LibraryExportTag> Tags,
-    IReadOnlyList<LibraryExportWork> Works
-);
-
-public sealed record LibraryImportResponse(
-    int People,
-    int Publishers,
-    int Shelves,
-    int Tags,
-    int Works,
-    int Editions,
-    int Copies,
-    int Loans,
-    int Readings
+    System.Text.Json.JsonElement Payload
 );

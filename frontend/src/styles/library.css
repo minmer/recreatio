@@ -1072,6 +1072,280 @@
   border-top: 1px solid var(--lib-line);
 }
 
+/* ── Quotes ─────────────────────────────────────────── */
+
+.lib-style-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+  padding: 0.7rem 1rem;
+  background: var(--lib-accent-soft);
+  border: 1px solid rgba(138, 75, 42, 0.22);
+  border-radius: 12px;
+}
+
+.lib-style-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--lib-muted);
+}
+
+.lib-style-pick .lib-input {
+  width: auto;
+  min-width: 190px;
+}
+
+/* The worked example is the point: it shows what the style produces. */
+.lib-style-sample {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 0.95rem;
+  color: var(--lib-accent);
+  font-style: italic;
+}
+
+.lib-quote-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.lib-quote-card {
+  background: var(--lib-surface);
+  border: 1px solid var(--lib-line);
+  border-left: 3px solid var(--lib-accent);
+  border-radius: 12px;
+  padding: 1rem 1.15rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.lib-quote-card.is-compact {
+  gap: 0.35rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.lib-quote-text {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.18rem;
+  line-height: 1.5;
+  quotes: '„' '”';
+}
+
+.lib-quote-text::before { content: open-quote; }
+.lib-quote-text::after { content: close-quote; }
+
+.lib-quote-reference {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--lib-accent);
+}
+
+.lib-quote-bibliography {
+  margin: 0;
+  font-size: 0.83rem;
+  color: var(--lib-muted);
+  padding-left: 1.5rem;
+  text-indent: -1.5rem;
+}
+
+.lib-quote-biblabel,
+.lib-quote-notelabel {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lib-muted);
+  margin-right: 0.5rem;
+}
+
+.lib-quote-notes {
+  display: grid;
+  gap: 0.3rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--lib-line);
+}
+
+.lib-quote-notes p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--lib-muted);
+}
+
+.lib-quote-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--lib-line);
+}
+
+.lib-quote-badges,
+.lib-quote-actions {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.lib-quote-source {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.lib-quote-workline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* ── Structured-work template editor ────────────────── */
+
+.lib-structure {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--lib-line);
+}
+
+.lib-structure-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(90px, 140px) auto;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+}
+
+/* ── Arrangement ────────────────────────────────────── */
+
+.lib-arrangement-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+  counter-reset: shelfpos;
+}
+
+.lib-arrangement-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+  background: var(--lib-surface-alt);
+  border: 1px solid var(--lib-line);
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+}
+
+/* A settled book is quiet; only what would move draws the eye. */
+.lib-arrangement-row.is-settled {
+  background: transparent;
+  border-style: dashed;
+}
+
+.lib-arrangement-pos {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  color: var(--lib-muted);
+  min-width: 1.6rem;
+}
+
+.lib-arrangement-cover {
+  width: 30px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid var(--lib-line);
+}
+
+.lib-arrangement-cover-blank {
+  background: var(--lib-surface-alt);
+  display: inline-block;
+}
+
+.lib-arrangement-main {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.lib-arrangement-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lib-arrangement-neighbours {
+  font-size: 0.74rem;
+  color: var(--lib-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lib-arrangement-side {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.lib-note-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.86rem;
+  color: var(--lib-muted);
+}
+
+/* ── Import ─────────────────────────────────────────── */
+
+.lib-import-errors {
+  margin-top: 1rem;
+  padding: 0.8rem 1rem;
+  background: var(--lib-warn-soft);
+  border: 1px solid rgba(163, 51, 31, 0.3);
+  border-radius: 10px;
+}
+
+.lib-sample {
+  margin: 0.6rem 0 0;
+  background: var(--lib-surface-alt);
+  border: 1px solid var(--lib-line);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.lib-copy-card-cover {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--lib-line);
+  margin-bottom: 0.25rem;
+}
+
 /* ── Barcode scanning ───────────────────────────────── */
 
 .lib-scan {

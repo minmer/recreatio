@@ -14,6 +14,16 @@ public sealed class BookLookupOptions
 
     public string NationalLibraryPlBaseUrl { get; set; } = "https://data.bn.org.pl";
 
+    /// <summary>
+    /// e-isbn.pl, the Polish ISBN agency. It has no API: the provider holds a
+    /// session cookie and scrapes the result table, so it is off by default and
+    /// only consulted when every other source misses. Its unique contribution is
+    /// binding and very new titles the national library has not catalogued yet.
+    /// </summary>
+    public bool EIsbnPlEnabled { get; set; }
+
+    public string EIsbnPlBaseUrl { get; set; } = "https://e-isbn.pl";
+
     public bool OpenLibraryEnabled { get; set; } = true;
 
     public bool GoogleBooksEnabled { get; set; } = true;

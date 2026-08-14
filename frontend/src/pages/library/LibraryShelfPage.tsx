@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  COPY_STATUSES,
+  ITEM_STATUSES,
   READING_STATUSES,
-  getCopies,
+  getItems,
   getShelves,
-  type LibraryCopyFilters,
-  type LibraryCopyListItem,
+  type LibraryItemFilters,
+  type LibraryItemListItem,
   type LibraryShelf
 } from './libraryApi';
 import { languageLabel, type LibraryCopyStrings } from './libraryCopy';
@@ -28,6 +28,7 @@ import { LibraryScanDialog } from './LibraryScanDialog';
 
 const PAGE_SIZE = 40;
 
+/** The physical view: what actually stands on the shelves. */
 export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings; initialShelfId: number | null }) {
   const navigate = useNavigate();
 
@@ -42,7 +43,7 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
   const [sort, setSort] = useState('added');
   const [skip, setSkip] = useState(0);
 
-  const [items, setItems] = useState<LibraryCopyListItem[]>([]);
+  const [items, setItems] = useState<LibraryItemListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [shelves, setShelves] = useState<LibraryShelf[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +73,7 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
     };
   }, [t.common.loadFailed]);
 
-  const filters = useMemo<LibraryCopyFilters>(
+  const filters = useMemo<LibraryItemFilters>(
     () => ({
       term: debouncedTerm || undefined,
       shelfId: shelfId ? Number(shelfId) : undefined,
@@ -91,7 +92,7 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
   useEffect(() => {
     let active = true;
     setLoading(true);
-    getCopies(filters)
+    getItems(filters)
       .then((result) => {
         if (!active) return;
         setItems(result.items);
@@ -128,13 +129,16 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
 
       <header className="lib-page-head">
         <div>
-          <h1 className="lib-page-title">{t.shelfView.title}</h1>
-          <p className="lib-page-subtitle">{t.shelfView.subtitle}</p>
+          <h1 className="lib-page-title">{t.nav.shelf}</h1>
+          <p className="lib-page-subtitle">{t.dashboard.items}</p>
         </div>
         <div className="lib-head-actions">
           <span className="lib-total">
             {total} {t.common.total}
           </span>
+          <button type="button" className="lib-btn lib-btn-ghost" onClick={() => navigate('/library/arrangement')}>
+            {t.nav.arrangement}
+          </button>
           <button type="button" className="lib-btn lib-btn-ghost" onClick={() => setScanOpen(true)}>
             {t.scan.button}
           </button>
@@ -145,7 +149,7 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
         <input
           className="lib-input lib-search"
           value={term}
-          placeholder={t.shelfView.searchPlaceholder}
+          placeholder={t.works.searchPlaceholder}
           onChange={(event) => setTerm(event.target.value)}
         />
         <Select
@@ -155,7 +159,7 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
             setSkip(0);
           }}
           options={shelves.map((shelf) => ({ value: String(shelf.id), label: shelf.name }))}
-          placeholder={t.shelfView.filterShelf}
+          placeholder={t.shelves.title}
         />
         <Select
           value={status}
@@ -163,8 +167,8 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
             setStatus(value);
             setSkip(0);
           }}
-          options={vocabularyOptions(COPY_STATUSES, t.statuses)}
-          placeholder={t.shelfView.filterStatus}
+          options={vocabularyOptions(ITEM_STATUSES, t.statuses)}
+          placeholder={t.item.status}
         />
         <Select
           value={readingStatus}
@@ -173,7 +177,7 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
             setSkip(0);
           }}
           options={vocabularyOptions(READING_STATUSES, t.readingStatuses)}
-          placeholder={t.shelfView.filterReading}
+          placeholder={t.item.readingStatus}
         />
         <LanguageSelect
           t={t}
@@ -182,7 +186,7 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
             setLanguage(value);
             setSkip(0);
           }}
-          placeholder={t.shelfView.filterLanguage}
+          placeholder={t.common.language}
         />
         <Select
           value={sort}
@@ -191,14 +195,15 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
             setSkip(0);
           }}
           options={[
-            { value: 'added', label: t.shelfView.sortAdded },
-            { value: 'rating', label: t.shelfView.sortRating },
-            { value: 'acquired', label: t.shelfView.sortAcquired },
-            { value: 'signature', label: t.shelfView.sortSignature }
+            { value: 'added', label: t.works.sortCreated },
+            { value: 'rating', label: t.item.rating },
+            { value: 'acquired', label: t.item.acquiredDate },
+            { value: 'signature', label: t.item.signature },
+            { value: 'shelf', label: t.item.shelf }
           ]}
         />
         <div className="lib-filter-inline">
-          <span>{t.shelfView.minRating}</span>
+          <span>{t.item.rating}</span>
           <NumberInput
             value={minRating}
             onChange={(value) => {
@@ -215,7 +220,7 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
             setFavourite(value);
             setSkip(0);
           }}
-          label={t.shelfView.onlyFavourites}
+          label={t.item.favourite}
         />
         {hasFilters ? (
           <button type="button" className="lib-btn lib-btn-ghost lib-btn-sm" onClick={clearFilters}>
@@ -228,7 +233,7 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
         <Loading text={t.common.loading} />
       ) : items.length === 0 ? (
         <EmptyState
-          text={t.shelfView.empty}
+          text={hasFilters ? t.works.emptyFiltered : t.common.nothingYet}
           action={
             hasFilters ? (
               <button type="button" className="lib-btn lib-btn-ghost" onClick={clearFilters}>
@@ -240,45 +245,48 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
       ) : (
         <>
           <ul className="lib-copy-grid">
-            {items.map((copy) => (
-              <li key={copy.id}>
+            {items.map((item) => (
+              <li key={item.id}>
                 <button
                   type="button"
                   className="lib-copy-card"
-                  onClick={() => navigate(`/library/editions/${copy.editionId}`)}
+                  onClick={() => navigate(`/library/manifestations/${item.manifestationId}`)}
                 >
-                  <span className="lib-copy-card-title">{copy.editionTitle}</span>
-                  {copy.isTranslation && copy.workOriginalTitle !== copy.editionTitle ? (
-                    <span className="lib-copy-card-original">{copy.workOriginalTitle}</span>
+                  {item.imageUrl ? (
+                    <img className="lib-copy-card-cover" src={item.imageUrl} alt="" loading="lazy" />
+                  ) : null}
+                  <span className="lib-copy-card-title">{item.manifestationTitle}</span>
+                  {item.isTranslation && item.workTitle !== item.manifestationTitle ? (
+                    <span className="lib-copy-card-original">{item.workTitle}</span>
                   ) : null}
                   <span className="lib-copy-card-authors">
-                    {copy.authors.length > 0 ? copy.authors.join(', ') : t.common.unknown}
+                    {item.authors.length > 0 ? item.authors.join(', ') : t.common.unknown}
                   </span>
                   <span className="lib-copy-card-meta">
-                    {[copy.publisherName, copy.publishedYear ? String(copy.publishedYear) : null]
+                    {[item.publisherName, item.publishedYear ? String(item.publishedYear) : null]
                       .filter(Boolean)
                       .join(' · ')}
                   </span>
                   <span className="lib-copy-card-badges">
-                    <Badge tone={copy.isTranslation ? 'translation' : 'original'}>
-                      {languageLabel(t, copy.language)}
+                    <Badge tone={item.isTranslation ? 'translation' : 'original'}>
+                      {languageLabel(t, item.language)}
                     </Badge>
-                    <Badge tone="muted">{t.readingStatuses[copy.readingStatus] ?? copy.readingStatus}</Badge>
-                    {copy.status !== 'shelf' ? (
-                      <Badge tone="warn">{t.statuses[copy.status] ?? copy.status}</Badge>
+                    <Badge tone="muted">{t.readingStatuses[item.readingStatus] ?? item.readingStatus}</Badge>
+                    {item.status !== 'shelf' ? (
+                      <Badge tone="warn">{t.statuses[item.status] ?? item.status}</Badge>
                     ) : null}
-                    {copy.isFavourite ? <Badge>★</Badge> : null}
-                    <Rating value={copy.rating} />
+                    {item.isFavourite ? <Badge>★</Badge> : null}
+                    <Rating value={item.rating} />
                   </span>
                   <span className="lib-copy-card-shelf">
-                    {copy.shelfName ?? t.shelfView.unshelved}
-                    {copy.signature ? ` · ${copy.signature}` : ''}
+                    {item.shelfName ?? t.dashboard.unshelved}
+                    {item.signature ? ` · ${item.signature}` : ''}
                   </span>
-                  {copy.openLoan ? (
+                  {item.openLoan ? (
                     <span className="lib-copy-card-loan">
-                      {copy.openLoan.direction === 'out' ? t.copy.onLoanTo : t.copy.borrowedFrom}{' '}
-                      {copy.openLoan.counterpartName}
-                      {copy.openLoan.dueOn ? ` · ${t.copy.due} ${formatDate(copy.openLoan.dueOn)}` : ''}
+                      {item.openLoan.direction === 'out' ? t.item.onLoanTo : t.item.borrowedFrom}{' '}
+                      {item.openLoan.counterpartName}
+                      {item.openLoan.dueOn ? ` · ${t.item.due} ${formatDate(item.openLoan.dueOn)}` : ''}
                     </span>
                   ) : null}
                 </button>
