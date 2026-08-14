@@ -318,6 +318,46 @@ export type LibraryCopyStrings = {
     importFailed: string;
     chooseFile: string;
   };
+  scan: {
+    button: string;
+    title: string;
+    addTitle: string;
+    prefillTitle: string;
+    manualLabel: string;
+    manualHint: string;
+    useCamera: string;
+    stopCamera: string;
+    aimHint: string;
+    cameraDenied: string;
+    cameraUnsupported: string;
+    cameraInsecure: string;
+    lookUp: string;
+    looking: string;
+    invalidCode: string;
+    notFound: string;
+    lookupOff: string;
+    alreadyOwned: string;
+    alreadyOwnedHint: string;
+    foundTitle: string;
+    foundVia: string;
+    noMetadata: string;
+    addToLibrary: string;
+    adding: string;
+    addedTitle: string;
+    openWork: string;
+    openEdition: string;
+    searchInstead: string;
+    createCopy: string;
+    createCopyHint: string;
+    shelf: string;
+    scanAgain: string;
+    prefillApplied: string;
+    prefillNothing: string;
+    treatAsOriginal: string;
+    treatAsOriginalHint: string;
+    originalTitleField: string;
+    translationHint: string;
+  };
   kinds: Record<string, string>;
   roles: Record<string, string>;
   statuses: Record<string, string>;
@@ -668,6 +708,47 @@ const pl: LibraryCopyStrings = {
     importFailed: 'Nie udało się zaimportować pliku.',
     chooseFile: 'Wybierz plik'
   },
+  scan: {
+    button: 'Skanuj',
+    title: 'Skanuj kod kreskowy',
+    addTitle: 'Dodaj przez skanowanie',
+    prefillTitle: 'Wczytaj dane z ISBN',
+    manualLabel: 'ISBN lub kod kreskowy',
+    manualHint: 'Wpisz numer i naciśnij Enter. Skaner ręczny wpisze go sam.',
+    useCamera: 'Użyj aparatu',
+    stopCamera: 'Zatrzymaj aparat',
+    aimHint: 'Skieruj aparat na kod kreskowy na okładce.',
+    cameraDenied: 'Brak dostępu do aparatu. Wpisz numer ręcznie.',
+    cameraUnsupported: 'Ta przeglądarka nie obsługuje skanowania aparatem. Wpisz numer ręcznie.',
+    cameraInsecure: 'Aparat wymaga połączenia HTTPS. Wpisz numer ręcznie.',
+    lookUp: 'Szukaj',
+    looking: 'Szukanie…',
+    invalidCode: 'To nie jest poprawny numer ISBN. Sprawdź kod i spróbuj ponownie.',
+    notFound: 'Nie znaleziono tej książki w katalogach publicznych.',
+    lookupOff: 'Wyszukiwanie zewnętrzne jest wyłączone.',
+    alreadyOwned: 'Masz już tę książkę',
+    alreadyOwnedHint: 'Ten numer ISBN jest już w Twojej bibliotece.',
+    foundTitle: 'Znalezione dane',
+    foundVia: 'źródło',
+    noMetadata: 'Brak danych do wczytania.',
+    addToLibrary: 'Dodaj do biblioteki',
+    adding: 'Dodawanie…',
+    addedTitle: 'Dodano do biblioteki',
+    openWork: 'Otwórz dzieło',
+    openEdition: 'Otwórz wydanie',
+    searchInstead: 'Szukaj w bibliotece',
+    createCopy: 'Dodaj egzemplarz na półkę',
+    createCopyHint: 'Odznacz, jeśli chcesz tylko skatalogować wydanie bez posiadania go.',
+    shelf: 'Regał',
+    scanAgain: 'Skanuj kolejną',
+    prefillApplied: 'Wczytano dane z ISBN.',
+    prefillNothing: 'Nie znaleziono danych dla tego numeru.',
+    treatAsOriginal: 'To jest wydanie oryginalne',
+    treatAsOriginalHint:
+      'Odznacz, jeśli skanujesz przekład — wtedy podaj tytuł i język oryginału osobno.',
+    originalTitleField: 'Tytuł oryginalny',
+    translationHint: 'Katalogi publiczne podają dane wydania, nie oryginału.'
+  },
   kinds: {
     book: 'książka', article: 'artykuł', essay: 'esej', poetry: 'poezja', drama: 'dramat',
     treatise: 'traktat', collection: 'zbiór', reference: 'wydawnictwo źródłowe', other: 'inne'
@@ -1009,6 +1090,47 @@ const en: LibraryCopyStrings = {
     importFailed: 'Could not import the file.',
     chooseFile: 'Choose file'
   },
+  scan: {
+    button: 'Scan',
+    title: 'Scan a barcode',
+    addTitle: 'Add by scanning',
+    prefillTitle: 'Load data from ISBN',
+    manualLabel: 'ISBN or barcode',
+    manualHint: 'Type the number and press Enter. A handheld scanner types it for you.',
+    useCamera: 'Use the camera',
+    stopCamera: 'Stop the camera',
+    aimHint: 'Point the camera at the barcode on the cover.',
+    cameraDenied: 'No access to the camera. Type the number instead.',
+    cameraUnsupported: 'This browser cannot scan with the camera. Type the number instead.',
+    cameraInsecure: 'The camera needs an HTTPS connection. Type the number instead.',
+    lookUp: 'Look up',
+    looking: 'Looking up…',
+    invalidCode: 'That is not a valid ISBN. Check the code and try again.',
+    notFound: 'This book was not found in the public catalogues.',
+    lookupOff: 'External lookup is switched off.',
+    alreadyOwned: 'You already have this',
+    alreadyOwnedHint: 'This ISBN is already in your library.',
+    foundTitle: 'What the catalogue knows',
+    foundVia: 'source',
+    noMetadata: 'Nothing to load.',
+    addToLibrary: 'Add to the library',
+    adding: 'Adding…',
+    addedTitle: 'Added to the library',
+    openWork: 'Open the work',
+    openEdition: 'Open the edition',
+    searchInstead: 'Search the library',
+    createCopy: 'Put a copy on the shelf',
+    createCopyHint: 'Clear this to catalogue the edition without owning it.',
+    shelf: 'Shelf',
+    scanAgain: 'Scan another',
+    prefillApplied: 'Loaded from the ISBN.',
+    prefillNothing: 'Nothing found for that number.',
+    treatAsOriginal: 'This is the original edition',
+    treatAsOriginalHint:
+      'Clear this when scanning a translation — then give the original title and language separately.',
+    originalTitleField: 'Original title',
+    translationHint: 'Public catalogues describe the edition, not the original.'
+  },
   kinds: {
     book: 'book', article: 'article', essay: 'essay', poetry: 'poetry', drama: 'drama',
     treatise: 'treatise', collection: 'collection', reference: 'reference work', other: 'other'
@@ -1349,6 +1471,47 @@ const de: LibraryCopyStrings = {
     importDone: 'Importiert:',
     importFailed: 'Die Datei konnte nicht importiert werden.',
     chooseFile: 'Datei wählen'
+  },
+  scan: {
+    button: 'Scannen',
+    title: 'Barcode scannen',
+    addTitle: 'Per Scan hinzufügen',
+    prefillTitle: 'Daten aus ISBN laden',
+    manualLabel: 'ISBN oder Barcode',
+    manualHint: 'Nummer eingeben und Enter drücken. Ein Handscanner tippt sie selbst.',
+    useCamera: 'Kamera verwenden',
+    stopCamera: 'Kamera stoppen',
+    aimHint: 'Richte die Kamera auf den Barcode auf dem Umschlag.',
+    cameraDenied: 'Kein Zugriff auf die Kamera. Bitte Nummer eintippen.',
+    cameraUnsupported: 'Dieser Browser kann nicht mit der Kamera scannen. Bitte Nummer eintippen.',
+    cameraInsecure: 'Die Kamera braucht eine HTTPS-Verbindung. Bitte Nummer eintippen.',
+    lookUp: 'Suchen',
+    looking: 'Wird gesucht…',
+    invalidCode: 'Das ist keine gültige ISBN. Prüfe den Code und versuche es erneut.',
+    notFound: 'Dieses Buch wurde in den öffentlichen Katalogen nicht gefunden.',
+    lookupOff: 'Die externe Suche ist abgeschaltet.',
+    alreadyOwned: 'Das hast du bereits',
+    alreadyOwnedHint: 'Diese ISBN steht schon in deiner Bibliothek.',
+    foundTitle: 'Was der Katalog weiß',
+    foundVia: 'Quelle',
+    noMetadata: 'Nichts zu laden.',
+    addToLibrary: 'Zur Bibliothek hinzufügen',
+    adding: 'Wird hinzugefügt…',
+    addedTitle: 'Zur Bibliothek hinzugefügt',
+    openWork: 'Werk öffnen',
+    openEdition: 'Ausgabe öffnen',
+    searchInstead: 'Bibliothek durchsuchen',
+    createCopy: 'Exemplar ins Regal stellen',
+    createCopyHint: 'Abwählen, um die Ausgabe zu katalogisieren, ohne sie zu besitzen.',
+    shelf: 'Regal',
+    scanAgain: 'Nächstes scannen',
+    prefillApplied: 'Aus der ISBN geladen.',
+    prefillNothing: 'Zu dieser Nummer wurde nichts gefunden.',
+    treatAsOriginal: 'Das ist die Originalausgabe',
+    treatAsOriginalHint:
+      'Abwählen, wenn du eine Übersetzung scannst — dann Originaltitel und -sprache separat angeben.',
+    originalTitleField: 'Originaltitel',
+    translationHint: 'Öffentliche Kataloge beschreiben die Ausgabe, nicht das Original.'
   },
   kinds: {
     book: 'Buch', article: 'Aufsatz', essay: 'Essay', poetry: 'Lyrik', drama: 'Drama',

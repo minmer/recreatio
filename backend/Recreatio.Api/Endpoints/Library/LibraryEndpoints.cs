@@ -1474,7 +1474,7 @@ public static class LibraryEndpoints
                     lookupResponse = new LibraryLookupResponse(
                         result.Isbn, result.Title, result.Subtitle, result.Authors, result.Publisher,
                         result.PublishedPlace, result.PublishedYear, result.PageCount, result.Language,
-                        result.CoverUrl, result.Sources);
+                        result.Series, result.CoverUrl, result.Sources);
                 }
             }
 
@@ -1538,6 +1538,7 @@ public static class LibraryEndpoints
                 PublishedPlace = Normalize(req.PublishedPlace, 160),
                 PublishedYear = NormalizeYear(req.PublishedYear),
                 Isbn = isbn,
+                Series = Normalize(req.Series, 200),
                 PageCount = NormalizePositive(req.PageCount, 100000),
                 CoverUrl = NormalizeUrl(req.CoverUrl),
                 CreatedUtc = now,

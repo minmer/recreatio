@@ -373,6 +373,7 @@ public sealed record LibraryLookupResponse(
     int? PublishedYear,
     int? PageCount,
     string? Language,
+    string? Series,
     string? CoverUrl,
     IReadOnlyList<string> Sources
 );
@@ -403,6 +404,7 @@ public sealed record LibraryScanImportRequest(
     string? PublishedPlace,
     int? PublishedYear,
     int? PageCount,
+    string? Series,
     string? CoverUrl,
     IReadOnlyList<string> AuthorNames,
     IReadOnlyList<string> TranslatorNames,

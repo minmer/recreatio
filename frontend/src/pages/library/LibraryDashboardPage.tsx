@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getOverview, type LibraryCountByKey, type LibraryOverview } from './libraryApi';
 import { languageLabel, type LibraryCopyStrings } from './libraryCopy';
 import { Badge, EmptyState, ErrorBanner, Loading, Rating, Section } from './libraryComponents';
+import { LibraryScanDialog } from './LibraryScanDialog';
 
 function StatTile({ label, value, tone }: { label: string; value: number; tone?: 'warn' }) {
   return (
@@ -43,6 +44,8 @@ export function LibraryDashboardPage({ t }: { t: LibraryCopyStrings }) {
   const [overview, setOverview] = useState<LibraryOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -60,7 +63,7 @@ export function LibraryDashboardPage({ t }: { t: LibraryCopyStrings }) {
     return () => {
       active = false;
     };
-  }, [t.common.loadFailed]);
+  }, [reloadToken, t.common.loadFailed]);
 
   if (loading) return <Loading text={t.common.loading} />;
 
@@ -73,9 +76,14 @@ export function LibraryDashboardPage({ t }: { t: LibraryCopyStrings }) {
           <h1 className="lib-page-title">{t.dashboard.title}</h1>
           <p className="lib-page-subtitle">{t.dashboard.subtitle}</p>
         </div>
-        <button type="button" className="lib-btn" onClick={() => navigate('/library/works/new')}>
-          {t.works.newWork}
-        </button>
+        <div className="lib-head-actions">
+          <button type="button" className="lib-btn lib-btn-ghost" onClick={() => setScanOpen(true)}>
+            {t.scan.addTitle}
+          </button>
+          <button type="button" className="lib-btn" onClick={() => navigate('/library/works/new')}>
+            {t.works.newWork}
+          </button>
+        </div>
       </header>
 
       {overview && overview.works === 0 ? (
@@ -171,6 +179,16 @@ export function LibraryDashboardPage({ t }: { t: LibraryCopyStrings }) {
             )}
           </Section>
         </>
+      ) : null}
+
+      {scanOpen ? (
+        <LibraryScanDialog
+          t={t}
+          onClose={() => {
+            setScanOpen(false);
+            setReloadToken((current) => current + 1);
+          }}
+        />
       ) : null}
     </div>
   );

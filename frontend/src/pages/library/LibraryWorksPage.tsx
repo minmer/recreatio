@@ -24,6 +24,7 @@ import {
   Toggle,
   vocabularyOptions
 } from './libraryComponents';
+import { LibraryScanDialog } from './LibraryScanDialog';
 
 const PAGE_SIZE = 25;
 
@@ -59,6 +60,8 @@ export function LibraryWorksPage({
   const [publishers, setPublishers] = useState<LibraryPublisher[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   // Typing shouldn't fire a request per keystroke.
   useEffect(() => {
@@ -122,7 +125,7 @@ export function LibraryWorksPage({
     return () => {
       active = false;
     };
-  }, [filters, t.common.loadFailed]);
+  }, [filters, reloadToken, t.common.loadFailed]);
 
   const hasFilters =
     Boolean(debouncedTerm || kind || originalLanguage || editionLanguage || personId || tagId || publisherId) ||
@@ -151,9 +154,14 @@ export function LibraryWorksPage({
           <h1 className="lib-page-title">{t.works.title}</h1>
           <p className="lib-page-subtitle">{t.works.subtitle}</p>
         </div>
-        <button type="button" className="lib-btn" onClick={() => navigate('/library/works/new')}>
-          {t.works.newWork}
-        </button>
+        <div className="lib-head-actions">
+          <button type="button" className="lib-btn lib-btn-ghost" onClick={() => setScanOpen(true)}>
+            {t.scan.button}
+          </button>
+          <button type="button" className="lib-btn" onClick={() => navigate('/library/works/new')}>
+            {t.works.newWork}
+          </button>
+        </div>
       </header>
 
       <div className="lib-filters">
@@ -311,6 +319,18 @@ export function LibraryWorksPage({
           <Pagination t={t} skip={skip} take={PAGE_SIZE} total={total} onSkip={setSkip} />
         </>
       )}
+
+      {scanOpen ? (
+        <LibraryScanDialog
+          t={t}
+          onClose={() => {
+            setScanOpen(false);
+            // A scan may have added a work; pick it up without a manual refresh.
+            setReloadToken((current) => current + 1);
+          }}
+          onSearchCode={(code) => setTerm(code)}
+        />
+      ) : null}
     </div>
   );
 }

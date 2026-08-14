@@ -604,6 +604,65 @@ export const updateReading = (id: number, body: LibraryReadingSave) =>
 export const deleteReading = (id: number) =>
   req<void>(`/library/readings/${id}`, { method: 'DELETE' });
 
+// ── Barcode scanning ─────────────────────────────────────────────────────────
+
+export type LibraryLookup = {
+  isbn: string;
+  title: string | null;
+  subtitle: string | null;
+  authors: string[];
+  publisher: string | null;
+  publishedPlace: string | null;
+  publishedYear: number | null;
+  pageCount: number | null;
+  language: string | null;
+  series: string | null;
+  coverUrl: string | null;
+  sources: string[];
+};
+
+export type LibraryScanResult = {
+  isbn: string;
+  matchingEditions: LibraryEditionListItem[];
+  ownedCopies: LibraryCopyListItem[];
+  lookup: LibraryLookup | null;
+  lookupAttempted: boolean;
+};
+
+export type LibraryScanImport = {
+  isbn: string;
+  originalTitle: string;
+  originalLanguage: string;
+  kind: string;
+  firstPublishedYear: number | null;
+  editionTitle: string;
+  editionSubtitle: string | null;
+  editionLanguage: string;
+  publisherName: string | null;
+  publishedPlace: string | null;
+  publishedYear: number | null;
+  pageCount: number | null;
+  series: string | null;
+  coverUrl: string | null;
+  authorNames: string[];
+  translatorNames: string[];
+  shelfId: number | null;
+  createCopy: boolean;
+};
+
+export type LibraryScanImportResult = {
+  workId: number;
+  editionId: number;
+  copyId: number | null;
+};
+
+/** `lookup` forces the external catalogue call even when the shelf already matches. */
+export const scanIsbn = (code: string, lookup?: boolean) =>
+  req<LibraryScanResult>(`/library/scan${query({ code, lookup })}`, { method: 'GET' });
+
+export const importScan = (body: LibraryScanImport) =>
+  req<LibraryScanImportResult>('/library/scan/import', { method: 'POST', body: JSON.stringify(body) });
+
 // ── Overview and transfer ────────────────────────────────────────────────────
 
 export const getOverview = () =>

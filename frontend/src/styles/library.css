@@ -1072,6 +1072,120 @@
   border-top: 1px solid var(--lib-line);
 }
 
+/* ── Barcode scanning ───────────────────────────────── */
+
+.lib-scan {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.lib-scan-input {
+  font-size: 1.1rem;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lib-scan-camera {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--lib-line);
+}
+
+.lib-scan-video {
+  width: 100%;
+  max-height: 320px;
+  border-radius: 12px;
+  background: #17150f;
+  object-fit: cover;
+}
+
+.lib-scan-result {
+  display: grid;
+  gap: 1rem;
+}
+
+.lib-scan-isbn {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
+  color: var(--lib-muted);
+  font-size: 0.86rem;
+}
+
+.lib-scan-source {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--lib-muted);
+}
+
+.lib-scan-owned {
+  background: var(--lib-accent-soft);
+  border: 1px solid rgba(138, 75, 42, 0.3);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+}
+
+.lib-scan-owned strong {
+  color: var(--lib-accent);
+}
+
+.lib-scan-owned p {
+  margin: 0.25rem 0 0.6rem;
+  font-size: 0.82rem;
+}
+
+.lib-scan-owned-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.lib-scan-owned-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+
+.lib-scan-toggle {
+  background: var(--lib-surface-alt);
+  border: 1px solid var(--lib-line);
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+}
+
+.lib-scan-toggle .lib-field-hint {
+  margin-top: 0.25rem;
+  display: block;
+}
+
+.lib-scan-cover {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.lib-scan-cover img {
+  width: 84px;
+  border-radius: 8px;
+  border: 1px solid var(--lib-line);
+}
+
+.lib-input-with-action {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.lib-input-with-action .lib-input {
+  flex: 1;
+}
+
 /* ── Narrow screens ─────────────────────────────────── */
 
 @media (max-width: 720px) {

@@ -15,6 +15,7 @@ public sealed record BookLookupResult(
     int? PublishedYear,
     int? PageCount,
     string? Language,
+    string? Series,
     string? CoverUrl,
     IReadOnlyList<string> Sources
 );
@@ -56,7 +57,14 @@ public sealed class BookLookupService : IBookLookupService
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
 
-    public bool Enabled => _options.Enabled && (_options.OpenLibraryEnabled || _options.GoogleBooksEnabled);
+    /// <summary>
+    /// Google Books now serves keyless callers a per-day quota of zero, so it only
+    /// counts as available once a key is configured. Open Library needs no key.
+    /// </summary>
+    private bool GoogleAvailable =>
+        _options.GoogleBooksEnabled && !string.IsNullOrWhiteSpace(_options.GoogleBooksApiKey);
+
+    public bool Enabled => _options.Enabled && (_options.OpenLibraryEnabled || GoogleAvailable);
 
     public string? NormalizeIsbn(string? raw)
     {
@@ -75,16 +83,23 @@ public sealed class BookLookupService : IBookLookupService
     {
         if (!Enabled) return null;
 
-        // One round trip: both catalogues are queried at once and merged below.
+        // Every source is queried at once, so a scan costs one round trip.
+        // Open Library is split in two: the bibkeys endpoint has the best author
+        // and publisher data, the edition record is the one carrying the language.
         var openLibraryTask = _options.OpenLibraryEnabled
             ? TryOpenLibraryAsync(normalizedIsbn, ct)
             : Task.FromResult<BookLookupResult?>(null);
-        var googleTask = _options.GoogleBooksEnabled
+        var openLibraryEditionTask = _options.OpenLibraryEnabled
+            ? TryOpenLibraryEditionAsync(normalizedIsbn, ct)
+            : Task.FromResult<BookLookupResult?>(null);
+        var googleTask = GoogleAvailable
             ? TryGoogleBooksAsync(normalizedIsbn, ct)
             : Task.FromResult<BookLookupResult?>(null);
 
-        await Task.WhenAll(openLibraryTask, googleTask);
-        return Merge(normalizedIsbn, await openLibraryTask, await googleTask);
+        await Task.WhenAll(openLibraryTask, openLibraryEditionTask, googleTask);
+
+        var merged = Merge(normalizedIsbn, await openLibraryTask, await openLibraryEditionTask);
+        return Merge(normalizedIsbn, merged, await googleTask);
     }
 
     // ── Providers ───────────────────────────────────────────────────────────
@@ -119,8 +134,61 @@ public sealed class BookLookupService : IBookLookupService
                 ExtractYear(ReadString(book, "publish_date")),
                 ReadInt(book, "number_of_pages"),
                 Language: null, // jscmd=data does not carry a language code
+                Series: null,
                 CoverUrl: ReadCover(book),
                 Sources: ["openlibrary"]);
+        }
+    }
+
+    /// <summary>
+    /// The edition record behind an ISBN. Consulted purely for the fields the
+    /// bibkeys endpoint omits — the language code and the series.
+    /// </summary>
+    private async Task<BookLookupResult?> TryOpenLibraryEditionAsync(string isbn, CancellationToken ct)
+    {
+        var url = $"{_options.OpenLibraryBaseUrl.TrimEnd('/')}/isbn/{isbn}.json";
+        var document = await TryGetJsonAsync(url, "Open Library edition", ct);
+        if (document is null) return null;
+
+        using (document)
+        {
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+
+            string? language = null;
+            if (root.TryGetProperty("languages", out var languages) && languages.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var entry in languages.EnumerateArray())
+                {
+                    // Recorded as { "key": "/languages/eng" }.
+                    var key = ReadString(entry, "key");
+                    var code = key?.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+                    language = MapMarcLanguage(code);
+                    if (language is not null) break;
+                }
+            }
+
+            string? series = null;
+            if (root.TryGetProperty("series", out var seriesArray) && seriesArray.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var entry in seriesArray.EnumerateArray())
+                {
+                    if (entry.ValueKind == JsonValueKind.String)
+                    {
+                        var text = entry.GetString();
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            series = text.Trim();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (language is null && series is null) return null;
+
+            return new BookLookupResult(
+                isbn, null, null, [], null, null, null, null, language, series, null, ["openlibrary"]);
         }
     }
 
@@ -179,6 +247,7 @@ public sealed class BookLookupService : IBookLookupService
                 ExtractYear(ReadString(info, "publishedDate")),
                 ReadInt(info, "pageCount"),
                 ReadString(info, "language")?.ToLowerInvariant(),
+                Series: null,
                 cover,
                 Sources: ["googlebooks"]);
         }
@@ -229,9 +298,46 @@ public sealed class BookLookupService : IBookLookupService
             primary.PublishedYear ?? secondary.PublishedYear,
             primary.PageCount ?? secondary.PageCount,
             primary.Language ?? secondary.Language,
+            primary.Series ?? secondary.Series,
             primary.CoverUrl ?? secondary.CoverUrl,
-            [.. primary.Sources, .. secondary.Sources]);
+            primary.Sources.Concat(secondary.Sources).Distinct().ToList());
     }
+
+    /// <summary>
+    /// Open Library records languages as MARC three-letter codes; the library
+    /// stores the shorter ISO forms used across the module.
+    /// </summary>
+    private static string? MapMarcLanguage(string? code) => code?.ToLowerInvariant() switch
+    {
+        "eng" => "en",
+        "pol" => "pl",
+        "ger" or "deu" => "de",
+        "fre" or "fra" => "fr",
+        "ita" => "it",
+        "spa" => "es",
+        "por" => "pt",
+        "dut" or "nld" => "nl",
+        "lat" => "la",
+        "grc" => "grc",
+        "heb" => "he",
+        "rus" => "ru",
+        "ukr" => "uk",
+        "cze" or "ces" => "cs",
+        "slo" or "slk" => "sk",
+        "hun" => "hu",
+        "lit" => "lt",
+        "swe" => "sv",
+        "nor" => "no",
+        "dan" => "da",
+        "fin" => "fi",
+        "rum" or "ron" => "ro",
+        "gre" or "ell" => "el",
+        "tur" => "tr",
+        "ara" => "ar",
+        "chi" or "zho" => "zh",
+        "jpn" => "ja",
+        _ => null
+    };
 
     private static string? ReadString(JsonElement element, string property)
     {

@@ -13,6 +13,7 @@ import {
   createReading,
   deleteCopy,
   deleteEdition,
+  scanIsbn,
   getEdition,
   getPeople,
   getPublishers,
@@ -54,6 +55,7 @@ import {
   todayIso,
   vocabularyOptions
 } from './libraryComponents';
+import { BarcodeScannerDialog } from './libraryScanner';
 
 function emptyEdition(language: string): LibraryEditionSave {
   return {
@@ -120,6 +122,9 @@ export function LibraryEditionEditorPage({
   const [copyDraft, setCopyDraft] = useState<{ id: number | null; values: LibraryCopySave } | null>(null);
   const [loanForCopy, setLoanForCopy] = useState<LibraryCopy | null>(null);
   const [readingForCopy, setReadingForCopy] = useState<LibraryCopy | null>(null);
+  // 'edition' fills the bibliographic fields; 'copy' just captures the barcode.
+  const [scanTarget, setScanTarget] = useState<'edition' | 'copy' | null>(null);
+  const [scanNote, setScanNote] = useState<string | null>(null);
 
   const workId = detail?.workId ?? newForWorkId;
   const isTranslation = Boolean(workLanguage) && form.language !== workLanguage;
@@ -237,6 +242,42 @@ export function LibraryEditionEditorPage({
     }
   }
 
+  /**
+   * Fills the edition fields from a public catalogue. Only empty fields are
+   * overwritten, so a scan never clobbers something already typed by hand — the
+   * ISBN is the exception, since that is the thing just scanned.
+   */
+  async function handleScannedForEdition(code: string) {
+    setScanTarget(null);
+    setScanNote(null);
+    try {
+      const result = await scanIsbn(code, true);
+      const lookup = result.lookup;
+      if (!lookup) {
+        setScanNote(t.scan.prefillNothing);
+        return;
+      }
+
+      setForm((current) => ({
+        ...current,
+        title: current.title.trim() ? current.title : lookup.title ?? current.title,
+        subtitle: current.subtitle ?? lookup.subtitle,
+        language: current.language || lookup.language || '',
+        publishedPlace: current.publishedPlace ?? lookup.publishedPlace,
+        publishedYear: current.publishedYear ?? lookup.publishedYear,
+        pageCount: current.pageCount ?? lookup.pageCount,
+        series: current.series ?? lookup.series,
+        coverUrl: current.coverUrl ?? lookup.coverUrl,
+        isbn: result.isbn
+      }));
+      setScanNote(t.scan.prefillApplied);
+    } catch (caught) {
+      setScanNote(
+        caught instanceof Error && caught.message.includes('valid ISBN') ? t.scan.invalidCode : t.common.loadFailed
+      );
+    }
+  }
+
   async function handleSaveCopy() {
     if (!copyDraft || editionId === null) return;
     try {
@@ -315,7 +356,17 @@ export function LibraryEditionEditorPage({
         </div>
       </header>
 
-      <Section title={t.edition.editTitle}>
+      <Section
+        title={t.edition.editTitle}
+        actions={
+          <>
+            {scanNote ? <span className="lib-saved">{scanNote}</span> : null}
+            <button type="button" className="lib-btn lib-btn-ghost lib-btn-sm" onClick={() => setScanTarget('edition')}>
+              {t.scan.prefillTitle}
+            </button>
+          </>
+        }
+      >
         <div className="lib-form-grid">
           <Field label={t.edition.title} hint={t.edition.titleHint} required>
             <TextInput value={form.title} onChange={(value) => update('title', value)} maxLength={400} autoFocus={isNew} />
@@ -629,13 +680,22 @@ export function LibraryEditionEditorPage({
               />
             </Field>
             <Field label={t.copy.barcode}>
-              <TextInput
-                value={copyDraft.values.barcode ?? ''}
-                onChange={(value) =>
-                  setCopyDraft({ ...copyDraft, values: { ...copyDraft.values, barcode: orNull(value) } })
-                }
-                maxLength={64}
-              />
+              <div className="lib-input-with-action">
+                <TextInput
+                  value={copyDraft.values.barcode ?? ''}
+                  onChange={(value) =>
+                    setCopyDraft({ ...copyDraft, values: { ...copyDraft.values, barcode: orNull(value) } })
+                  }
+                  maxLength={64}
+                />
+                <button
+                  type="button"
+                  className="lib-btn lib-btn-ghost lib-btn-sm"
+                  onClick={() => setScanTarget('copy')}
+                >
+                  {t.scan.button}
+                </button>
+              </div>
             </Field>
             <Field label={t.copy.favourite}>
               <Toggle
@@ -658,6 +718,24 @@ export function LibraryEditionEditorPage({
             </div>
           </div>
         </Modal>
+      ) : null}
+
+      {scanTarget ? (
+        <BarcodeScannerDialog
+          t={t}
+          title={scanTarget === 'edition' ? t.scan.prefillTitle : t.scan.title}
+          onClose={() => setScanTarget(null)}
+          onDetected={(code) => {
+            if (scanTarget === 'edition') {
+              handleScannedForEdition(code);
+              return;
+            }
+            setScanTarget(null);
+            setCopyDraft((current) =>
+              current ? { ...current, values: { ...current.values, barcode: code } } : current
+            );
+          }}
+        />
       ) : null}
 
       {loanForCopy ? (

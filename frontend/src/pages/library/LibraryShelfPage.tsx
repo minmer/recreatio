@@ -24,6 +24,7 @@ import {
   formatDate,
   vocabularyOptions
 } from './libraryComponents';
+import { LibraryScanDialog } from './LibraryScanDialog';
 
 const PAGE_SIZE = 40;
 
@@ -46,6 +47,8 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
   const [shelves, setShelves] = useState<LibraryShelf[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -103,7 +106,7 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
     return () => {
       active = false;
     };
-  }, [filters, t.common.loadFailed]);
+  }, [filters, reloadToken, t.common.loadFailed]);
 
   const hasFilters =
     Boolean(debouncedTerm || shelfId || status || readingStatus || language) || favourite || minRating !== null;
@@ -128,9 +131,14 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
           <h1 className="lib-page-title">{t.shelfView.title}</h1>
           <p className="lib-page-subtitle">{t.shelfView.subtitle}</p>
         </div>
-        <span className="lib-total">
-          {total} {t.common.total}
-        </span>
+        <div className="lib-head-actions">
+          <span className="lib-total">
+            {total} {t.common.total}
+          </span>
+          <button type="button" className="lib-btn lib-btn-ghost" onClick={() => setScanOpen(true)}>
+            {t.scan.button}
+          </button>
+        </div>
       </header>
 
       <div className="lib-filters">
@@ -280,6 +288,17 @@ export function LibraryShelfPage({ t, initialShelfId }: { t: LibraryCopyStrings;
           <Pagination t={t} skip={skip} take={PAGE_SIZE} total={total} onSkip={setSkip} />
         </>
       )}
+
+      {scanOpen ? (
+        <LibraryScanDialog
+          t={t}
+          onClose={() => {
+            setScanOpen(false);
+            setReloadToken((current) => current + 1);
+          }}
+          onSearchCode={(code) => setTerm(code)}
+        />
+      ) : null}
     </div>
   );
 }
