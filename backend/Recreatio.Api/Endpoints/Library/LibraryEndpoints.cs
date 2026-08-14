@@ -3,6 +3,7 @@ using Recreatio.Api.Contracts.Library;
 using Recreatio.Api.Data;
 using Recreatio.Api.Data.Library;
 using Recreatio.Api.Services;
+using Recreatio.Api.Services.Library;
 
 namespace Recreatio.Api.Endpoints.Library;
 
@@ -87,6 +88,7 @@ public static class LibraryEndpoints
         MapLoanEndpoints(group);
         MapReadingEndpoints(group);
         MapOverviewEndpoints(group);
+        MapScanEndpoints(group);
         MapTransferEndpoints(group);
     }
 

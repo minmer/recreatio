@@ -361,6 +361,61 @@ public sealed record LibraryOverviewResponse(
     IReadOnlyList<LibraryCopyListItem> RecentlyAdded
 );
 
+// ── Barcode scanning ────────────────────────────────────────────────────────
+
+public sealed record LibraryLookupResponse(
+    string Isbn,
+    string? Title,
+    string? Subtitle,
+    IReadOnlyList<string> Authors,
+    string? Publisher,
+    string? PublishedPlace,
+    int? PublishedYear,
+    int? PageCount,
+    string? Language,
+    string? CoverUrl,
+    IReadOnlyList<string> Sources
+);
+
+/// <summary>
+/// One scan answers both questions at once: do I already own this, and — if not —
+/// what does the public catalogue know about it.
+/// </summary>
+public sealed record LibraryScanResponse(
+    string Isbn,
+    IReadOnlyList<LibraryEditionListItem> MatchingEditions,
+    IReadOnlyList<LibraryCopyListItem> OwnedCopies,
+    LibraryLookupResponse? Lookup,
+    bool LookupAttempted
+);
+
+/// <summary>Creates work + edition + copy in one call from a confirmed scan.</summary>
+public sealed record LibraryScanImportRequest(
+    string Isbn,
+    string OriginalTitle,
+    string OriginalLanguage,
+    string Kind,
+    int? FirstPublishedYear,
+    string EditionTitle,
+    string? EditionSubtitle,
+    string EditionLanguage,
+    string? PublisherName,
+    string? PublishedPlace,
+    int? PublishedYear,
+    int? PageCount,
+    string? CoverUrl,
+    IReadOnlyList<string> AuthorNames,
+    IReadOnlyList<string> TranslatorNames,
+    long? ShelfId,
+    bool CreateCopy
+);
+
+public sealed record LibraryScanImportResponse(
+    long WorkId,
+    long EditionId,
+    long? CopyId
+);
+
 // ── Import / export ─────────────────────────────────────────────────────────
 
 public sealed record LibraryExportPerson(
