@@ -48,6 +48,7 @@ type ImportDraft = {
   series: string;
   coverUrl: string;
   authors: string;
+  translators: string;
   shelfId: string;
   createCopy: boolean;
 };
@@ -55,12 +56,14 @@ type ImportDraft = {
 function draftFrom(result: LibraryScanResult): ImportDraft {
   const lookup = result.lookup;
   const language = lookup?.language ?? 'pl';
+  // Biblioteka Narodowa reports the original language, so a translation is
+  // recognised without asking. Other catalogues describe only the edition in
+  // hand, and there the original assumption holds until corrected.
+  const original = lookup?.originalLanguage ?? null;
   return {
-    // Catalogues describe the edition in hand. Assuming it is the original is
-    // right most of the time and one click away from being corrected.
-    isOriginal: true,
+    isOriginal: original === null || original === language,
     originalTitle: lookup?.title ?? '',
-    originalLanguage: language,
+    originalLanguage: original ?? language,
     editionTitle: lookup?.title ?? '',
     editionSubtitle: lookup?.subtitle ?? '',
     editionLanguage: language,
@@ -72,9 +75,17 @@ function draftFrom(result: LibraryScanResult): ImportDraft {
     series: lookup?.series ?? '',
     coverUrl: lookup?.coverUrl ?? '',
     authors: (lookup?.authors ?? []).join(', '),
+    translators: (lookup?.translators ?? []).join(', '),
     shelfId: '',
     createCopy: true
   };
+}
+
+function splitNames(value: string): string[] {
+  return value
+    .split(',')
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
 }
 
 /**
@@ -148,11 +159,8 @@ export function LibraryScanDialog({
         pageCount: draft.pageCount,
         series: orNull(draft.series),
         coverUrl: orNull(draft.coverUrl),
-        authorNames: draft.authors
-          .split(',')
-          .map((name) => name.trim())
-          .filter((name) => name.length > 0),
-        translatorNames: [],
+        authorNames: splitNames(draft.authors),
+        translatorNames: splitNames(draft.translators),
         shelfId: draft.shelfId ? Number(draft.shelfId) : null,
         createCopy: draft.createCopy
       };
@@ -353,6 +361,9 @@ export function LibraryScanDialog({
 
               <Field label={t.work.authorsSection}>
                 <TextInput value={draft.authors} onChange={(value) => update('authors', value)} />
+              </Field>
+              <Field label={t.roles.translator}>
+                <TextInput value={draft.translators} onChange={(value) => update('translators', value)} />
               </Field>
               <Field label={t.work.kind}>
                 <Select

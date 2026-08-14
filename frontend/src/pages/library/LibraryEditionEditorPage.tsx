@@ -270,6 +270,18 @@ export function LibraryEditionEditorPage({
         coverUrl: current.coverUrl ?? lookup.coverUrl,
         isbn: result.isbn
       }));
+      // Biblioteka Narodowa names the translator, which belongs on the edition.
+      // Existing contributions are kept; only genuinely new people are appended.
+      if (lookup.translators.length > 0 && people.length > 0) {
+        const byName = new Map(people.map((person) => [person.displayName.toLowerCase(), person.id]));
+        const additions = lookup.translators
+          .map((name) => byName.get(name.toLowerCase()))
+          .filter((id): id is number => id !== undefined)
+          .filter((id) => !contributions.some((item) => item.personId === id))
+          .map((personId) => ({ personId, role: 'translator' }));
+        if (additions.length > 0) setContributions((current) => [...current, ...additions]);
+      }
+
       setScanNote(t.scan.prefillApplied);
     } catch (caught) {
       setScanNote(

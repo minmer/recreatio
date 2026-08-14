@@ -5,6 +5,15 @@ public sealed class BookLookupOptions
     /// <summary>When false, /library/scan reports owned copies only and never calls out.</summary>
     public bool Enabled { get; set; } = true;
 
+    /// <summary>
+    /// Biblioteka Narodowa — the Polish national bibliography. Best source by far
+    /// for Polish publications, and the only one that reports the original
+    /// language, so it is consulted first and wins on conflicts.
+    /// </summary>
+    public bool NationalLibraryPlEnabled { get; set; } = true;
+
+    public string NationalLibraryPlBaseUrl { get; set; } = "https://data.bn.org.pl";
+
     public bool OpenLibraryEnabled { get; set; } = true;
 
     public bool GoogleBooksEnabled { get; set; } = true;

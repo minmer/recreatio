@@ -363,16 +363,21 @@ public sealed record LibraryOverviewResponse(
 
 // ── Barcode scanning ────────────────────────────────────────────────────────
 
+public sealed record LibraryLookupContributor(string Name, string Role);
+
 public sealed record LibraryLookupResponse(
     string Isbn,
     string? Title,
     string? Subtitle,
     IReadOnlyList<string> Authors,
+    IReadOnlyList<string> Translators,
+    IReadOnlyList<LibraryLookupContributor> Contributors,
     string? Publisher,
     string? PublishedPlace,
     int? PublishedYear,
     int? PageCount,
     string? Language,
+    string? OriginalLanguage,
     string? Series,
     string? CoverUrl,
     IReadOnlyList<string> Sources

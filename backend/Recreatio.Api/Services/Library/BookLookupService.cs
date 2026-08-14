@@ -5,16 +5,22 @@ using Recreatio.Api.Options;
 
 namespace Recreatio.Api.Services.Library;
 
+/// <summary>A named contributor with the role the catalogue recorded for them.</summary>
+public sealed record BookContributor(string Name, string Role);
+
 public sealed record BookLookupResult(
     string Isbn,
     string? Title,
     string? Subtitle,
     IReadOnlyList<string> Authors,
+    IReadOnlyList<BookContributor> Contributors,
     string? Publisher,
     string? PublishedPlace,
     int? PublishedYear,
     int? PageCount,
     string? Language,
+    // OriginalLanguage: the language the work was written in, when the catalogue records it.
+    string? OriginalLanguage,
     string? Series,
     string? CoverUrl,
     IReadOnlyList<string> Sources
@@ -86,6 +92,9 @@ public sealed class BookLookupService : IBookLookupService
         // Every source is queried at once, so a scan costs one round trip.
         // Open Library is split in two: the bibkeys endpoint has the best author
         // and publisher data, the edition record is the one carrying the language.
+        var nationalPlTask = _options.NationalLibraryPlEnabled
+            ? TryNationalLibraryPlAsync(normalizedIsbn, ct)
+            : Task.FromResult<BookLookupResult?>(null);
         var openLibraryTask = _options.OpenLibraryEnabled
             ? TryOpenLibraryAsync(normalizedIsbn, ct)
             : Task.FromResult<BookLookupResult?>(null);
@@ -96,9 +105,13 @@ public sealed class BookLookupService : IBookLookupService
             ? TryGoogleBooksAsync(normalizedIsbn, ct)
             : Task.FromResult<BookLookupResult?>(null);
 
-        await Task.WhenAll(openLibraryTask, openLibraryEditionTask, googleTask);
+        await Task.WhenAll(nationalPlTask, openLibraryTask, openLibraryEditionTask, googleTask);
 
-        var merged = Merge(normalizedIsbn, await openLibraryTask, await openLibraryEditionTask);
+        // Merge order is priority order: Biblioteka Narodowa first, because for a
+        // Polish shelf it is both the most accurate and the only one that knows
+        // whether the book in hand is a translation.
+        var merged = Merge(normalizedIsbn, await nationalPlTask, await openLibraryTask);
+        merged = Merge(normalizedIsbn, merged, await openLibraryEditionTask);
         return Merge(normalizedIsbn, merged, await googleTask);
     }
 
@@ -129,14 +142,87 @@ public sealed class BookLookupService : IBookLookupService
                 ReadString(book, "title"),
                 ReadString(book, "subtitle"),
                 authors,
+                authors.Select(name => new BookContributor(name, "author")).ToList(),
                 ReadFirstNamed(book, "publishers"),
                 ReadFirstNamed(book, "publish_places"),
                 ExtractYear(ReadString(book, "publish_date")),
                 ReadInt(book, "number_of_pages"),
                 Language: null, // jscmd=data does not carry a language code
+                OriginalLanguage: null,
                 Series: null,
                 CoverUrl: ReadCover(book),
                 Sources: ["openlibrary"]);
+        }
+    }
+
+    /// <summary>
+    /// Biblioteka Narodowa. Its isbnIssn filter is an exact match on the ISBN as
+    /// catalogued, and Polish records are split between the two forms: modern
+    /// books under ISBN-13, older ones under ISBN-10. Both are tried at once.
+    /// </summary>
+    private async Task<BookLookupResult?> TryNationalLibraryPlAsync(string isbn, CancellationToken ct)
+    {
+        var candidates = new List<string> { isbn };
+        var alternate = isbn.Length == 13 ? ConvertIsbn13To10(isbn) : ConvertIsbn10To13(isbn);
+        if (alternate is not null) candidates.Add(alternate);
+
+        var attempts = candidates
+            .Select(candidate => TryNationalLibraryPlForCodeAsync(isbn, candidate, ct))
+            .ToList();
+        var results = await Task.WhenAll(attempts);
+
+        return results.FirstOrDefault(result => result is not null);
+    }
+
+    private async Task<BookLookupResult?> TryNationalLibraryPlForCodeAsync(string isbn, string code, CancellationToken ct)
+    {
+        var url = $"{_options.NationalLibraryPlBaseUrl.TrimEnd('/')}/api/institutions/bibs.json?isbnIssn={code}&limit=1";
+        var document = await TryGetJsonAsync(url, "Biblioteka Narodowa", ct);
+        if (document is null) return null;
+
+        using (document)
+        {
+            if (!document.RootElement.TryGetProperty("bibs", out var bibs) ||
+                bibs.ValueKind != JsonValueKind.Array ||
+                bibs.GetArrayLength() == 0)
+            {
+                return null;
+            }
+
+            var bib = bibs[0];
+
+            // The MARC record is far cleaner than the flattened fields: one entry
+            // per person with their role, and a title free of appended series.
+            var marc = ReadMarcFields(bib);
+
+            var (marcTitle, marcSubtitle) = ReadMarcTitle(marc);
+            var (flatTitle, flatSubtitle) = SplitTitle(ReadString(bib, "title"));
+            var title = marcTitle ?? flatTitle;
+            if (title is null) return null;
+
+            var contributors = ReadMarcContributors(marc);
+            if (contributors.Count == 0)
+            {
+                contributors = ParsePolishAuthors(ReadString(bib, "author"))
+                    .Select(name => new BookContributor(name, "author"))
+                    .ToList();
+            }
+
+            return new BookLookupResult(
+                isbn,
+                title,
+                marcSubtitle ?? flatSubtitle,
+                contributors.Where(x => x.Role == "author").Select(x => x.Name).ToList(),
+                contributors,
+                ReadMarcPublisher(marc) ?? TrimTrailingPunctuation(ReadString(bib, "publisher")),
+                ReadMarcPlace(marc) ?? SplitPlace(ReadString(bib, "placeOfPublication")),
+                ExtractYear(ReadString(bib, "publicationYear")),
+                ReadMarcPageCount(marc),
+                MapPolishLanguage(ReadString(bib, "language")),
+                MapPolishLanguage(ReadString(bib, "languageOfOriginal")),
+                ReadMarcSeries(marc),
+                CoverUrl: null,
+                Sources: ["bn.org.pl"]);
         }
     }
 
@@ -188,7 +274,7 @@ public sealed class BookLookupService : IBookLookupService
             if (language is null && series is null) return null;
 
             return new BookLookupResult(
-                isbn, null, null, [], null, null, null, null, language, series, null, ["openlibrary"]);
+                isbn, null, null, [], [], null, null, null, null, language, null, series, null, ["openlibrary"]);
         }
     }
 
@@ -242,13 +328,15 @@ public sealed class BookLookupService : IBookLookupService
                 ReadString(info, "title"),
                 ReadString(info, "subtitle"),
                 authors,
+                authors.Select(name => new BookContributor(name, "author")).ToList(),
                 ReadString(info, "publisher"),
-                PublishedPlace: null,
+                null, // Google Books does not report a place of publication
                 ExtractYear(ReadString(info, "publishedDate")),
                 ReadInt(info, "pageCount"),
                 ReadString(info, "language")?.ToLowerInvariant(),
+                OriginalLanguage: null,
                 Series: null,
-                cover,
+                CoverUrl: cover,
                 Sources: ["googlebooks"]);
         }
     }
@@ -293,14 +381,321 @@ public sealed class BookLookupService : IBookLookupService
             primary.Title ?? secondary.Title,
             primary.Subtitle ?? secondary.Subtitle,
             primary.Authors.Count > 0 ? primary.Authors : secondary.Authors,
+            primary.Contributors.Count > 0 ? primary.Contributors : secondary.Contributors,
             primary.Publisher ?? secondary.Publisher,
             primary.PublishedPlace ?? secondary.PublishedPlace,
             primary.PublishedYear ?? secondary.PublishedYear,
             primary.PageCount ?? secondary.PageCount,
             primary.Language ?? secondary.Language,
+            primary.OriginalLanguage ?? secondary.OriginalLanguage,
             primary.Series ?? secondary.Series,
             primary.CoverUrl ?? secondary.CoverUrl,
             primary.Sources.Concat(secondary.Sources).Distinct().ToList());
+    }
+
+    // ── MARC parsing (Biblioteka Narodowa) ──────────────────────────────────
+
+    /// <summary>
+    /// One MARC field flattened to (tag, subfield code → values). BN serialises
+    /// fields as [{ "700": { "subfields": [ { "a": "…" }, { "e": "…" } ] } }].
+    /// </summary>
+    private sealed record MarcField(string Tag, List<KeyValuePair<string, string>> Subfields)
+    {
+        public string? First(string code) =>
+            Subfields.FirstOrDefault(x => x.Key == code) is { Value: { Length: > 0 } value } ? value : null;
+    }
+
+    private static List<MarcField> ReadMarcFields(JsonElement bib)
+    {
+        var fields = new List<MarcField>();
+        if (!bib.TryGetProperty("marc", out var marc) ||
+            !marc.TryGetProperty("fields", out var array) ||
+            array.ValueKind != JsonValueKind.Array)
+        {
+            return fields;
+        }
+
+        foreach (var entry in array.EnumerateArray())
+        {
+            if (entry.ValueKind != JsonValueKind.Object) continue;
+            foreach (var property in entry.EnumerateObject())
+            {
+                if (property.Value.ValueKind != JsonValueKind.Object) continue;
+                if (!property.Value.TryGetProperty("subfields", out var subfields) ||
+                    subfields.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                var values = new List<KeyValuePair<string, string>>();
+                foreach (var subfield in subfields.EnumerateArray())
+                {
+                    if (subfield.ValueKind != JsonValueKind.Object) continue;
+                    foreach (var pair in subfield.EnumerateObject())
+                    {
+                        if (pair.Value.ValueKind == JsonValueKind.String)
+                        {
+                            var text = pair.Value.GetString();
+                            if (!string.IsNullOrWhiteSpace(text))
+                            {
+                                values.Add(new KeyValuePair<string, string>(pair.Name, text.Trim()));
+                            }
+                        }
+                    }
+                }
+
+                fields.Add(new MarcField(property.Name, values));
+            }
+        }
+
+        return fields;
+    }
+
+    /// <summary>245 $a is the title proper, $b the remainder of the title.</summary>
+    private static (string? Title, string? Subtitle) ReadMarcTitle(List<MarcField> fields)
+    {
+        var field = fields.FirstOrDefault(x => x.Tag == "245");
+        if (field is null) return (null, null);
+        return (TrimTrailingPunctuation(field.First("a")), TrimTrailingPunctuation(field.First("b")));
+    }
+
+    /// <summary>100 is the main entry, 700 the added entries; $e names the role.</summary>
+    private static List<BookContributor> ReadMarcContributors(List<MarcField> fields)
+    {
+        var contributors = new List<BookContributor>();
+
+        foreach (var field in fields.Where(x => x.Tag is "100" or "700"))
+        {
+            var raw = field.First("a");
+            if (raw is null) continue;
+
+            var name = FlipSurnameFirst(TrimTrailingPunctuation(raw) ?? raw);
+            if (name is null) continue;
+
+            // A 100 without a relator is the author; an unlabelled 700 is a co-author.
+            var role = MapPolishRelator(field.First("e") ?? field.First("4"))
+                       ?? (field.Tag == "100" ? "author" : "coauthor");
+
+            if (!contributors.Any(x => x.Name == name && x.Role == role))
+            {
+                contributors.Add(new BookContributor(name, role));
+            }
+        }
+
+        return contributors;
+    }
+
+    private static string? ReadMarcPublisher(List<MarcField> fields)
+    {
+        var field = fields.FirstOrDefault(x => x.Tag is "260" or "264");
+        return TrimTrailingPunctuation(field?.First("b"));
+    }
+
+    private static string? ReadMarcPlace(List<MarcField> fields)
+    {
+        var field = fields.FirstOrDefault(x => x.Tag is "260" or "264");
+        return SplitPlace(field?.First("a"));
+    }
+
+    /// <summary>490/440 $a carries the series statement.</summary>
+    private static string? ReadMarcSeries(List<MarcField> fields)
+    {
+        var field = fields.FirstOrDefault(x => x.Tag is "490" or "440");
+        return TrimTrailingPunctuation(field?.First("a"));
+    }
+
+    /// <summary>300 $a reads like "xxxiv, 671 s." — the largest number is the extent.</summary>
+    private static int? ReadMarcPageCount(List<MarcField> fields)
+    {
+        var extent = fields.FirstOrDefault(x => x.Tag == "300")?.First("a");
+        if (extent is null) return null;
+
+        var best = 0;
+        foreach (System.Text.RegularExpressions.Match match in
+                 System.Text.RegularExpressions.Regex.Matches(extent, @"\d+"))
+        {
+            if (int.TryParse(match.Value, out var value) && value > best) best = value;
+        }
+
+        return best is > 0 and <= 100000 ? best : null;
+    }
+
+    /// <summary>BN writes relators as Polish words rather than MARC codes.</summary>
+    private static string? MapPolishRelator(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var text = raw.Trim().TrimEnd('.', ',').ToLowerInvariant();
+
+        return text switch
+        {
+            "autor" or "aut" => "author",
+            "współautor" => "coauthor",
+            "tłumaczenie" or "tł" or "tłum" or "przekład" or "trl" => "translator",
+            "redakcja" or "red" or "edt" => "editor",
+            "opracowanie" or "oprac" => "compiler",
+            "ilustracje" or "il" or "ill" or "fot" or "fotografie" or "zdjęcia" => "illustrator",
+            "wstęp" or "przedmowa" => "foreword",
+            "posłowie" => "afterword",
+            "komentarz" => "commentary",
+            _ => null
+        };
+    }
+
+    // ── Biblioteka Narodowa parsing ─────────────────────────────────────────
+
+    /// <summary>
+    /// BN titles carry MARC punctuation: "Matka Teresa : miłość w czynach /" and
+    /// often a series after the slash. Everything after " / " is dropped, and
+    /// " : " separates title from subtitle.
+    /// </summary>
+    private static (string? Title, string? Subtitle) SplitTitle(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return (null, null);
+
+        var text = raw.Trim();
+        var slash = text.IndexOf(" / ", StringComparison.Ordinal);
+        if (slash >= 0) text = text[..slash];
+        text = TrimTrailingPunctuation(text) ?? string.Empty;
+        if (text.Length == 0) return (null, null);
+
+        var colon = text.IndexOf(" : ", StringComparison.Ordinal);
+        if (colon < 0) return (text, null);
+
+        var title = TrimTrailingPunctuation(text[..colon]);
+        var subtitle = TrimTrailingPunctuation(text[(colon + 3)..]);
+        return (title, subtitle);
+    }
+
+    /// <summary>"Gorle : Włochy" records the town and the country; keep the town.</summary>
+    private static string? SplitPlace(string? raw)
+    {
+        var text = TrimTrailingPunctuation(raw);
+        if (text is null) return null;
+        var colon = text.IndexOf(" : ", StringComparison.Ordinal);
+        return colon < 0 ? text : TrimTrailingPunctuation(text[..colon]);
+    }
+
+    private static string? TrimTrailingPunctuation(string? raw)
+    {
+        if (raw is null) return null;
+        var text = raw.Trim().TrimEnd('/', ',', ':', ';', '.', ' ').Trim();
+        return text.Length == 0 ? null : text;
+    }
+
+    /// <summary>
+    /// BN packs contributors into one string as "Surname, Given (dates)" repeated,
+    /// sometimes followed by a corporate body. Personal-name entries are extracted
+    /// and flipped into the display order this library stores.
+    /// </summary>
+    private static IReadOnlyList<string> ParsePolishAuthors(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return [];
+
+        var names = new List<string>();
+        var remainder = raw;
+
+        // Each authority record ends with its life dates in brackets.
+        var matches = System.Text.RegularExpressions.Regex.Matches(raw, @"([^()]+?)\s*\([^)]*\)");
+        foreach (System.Text.RegularExpressions.Match match in matches)
+        {
+            var name = FlipSurnameFirst(match.Groups[1].Value.Trim());
+            if (name is not null) names.Add(name);
+            remainder = remainder.Replace(match.Value, " ", StringComparison.Ordinal);
+        }
+
+        // Modern records may list people without dates; those still read as
+        // "Surname, Given", while a leftover corporate body has no comma.
+        foreach (var chunk in remainder.Split(new[] { "  " }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var trimmed = chunk.Trim();
+            if (trimmed.Length == 0 || !trimmed.Contains(',')) continue;
+            var name = FlipSurnameFirst(trimmed);
+            if (name is not null && !names.Contains(name)) names.Add(name);
+        }
+
+        return names;
+    }
+
+    /// <summary>"Prus, Bolesław" reads as "Bolesław Prus" on a title page.</summary>
+    private static string? FlipSurnameFirst(string raw)
+    {
+        var text = raw.Trim().TrimEnd(',', ';').Trim();
+        if (text.Length == 0) return null;
+
+        var comma = text.IndexOf(',');
+        if (comma < 0) return text;
+
+        var surname = text[..comma].Trim();
+        var given = text[(comma + 1)..].Trim();
+        if (surname.Length == 0) return given.Length == 0 ? null : given;
+        return given.Length == 0 ? surname : $"{given} {surname}";
+    }
+
+    /// <summary>BN names languages in Polish rather than by code.</summary>
+    private static string? MapPolishLanguage(string? name) => name?.Trim().ToLowerInvariant() switch
+    {
+        "polski" => "pl",
+        "angielski" => "en",
+        "niemiecki" => "de",
+        "francuski" => "fr",
+        "włoski" => "it",
+        "hiszpański" => "es",
+        "portugalski" => "pt",
+        "niderlandzki" or "holenderski" => "nl",
+        "łaciński" or "łacina" => "la",
+        "starogrecki" or "grecki klasyczny" => "grc",
+        "grecki" or "nowogrecki" => "el",
+        "hebrajski" => "he",
+        "rosyjski" => "ru",
+        "ukraiński" => "uk",
+        "czeski" => "cs",
+        "słowacki" => "sk",
+        "węgierski" => "hu",
+        "litewski" => "lt",
+        "szwedzki" => "sv",
+        "norweski" => "no",
+        "duński" => "da",
+        "fiński" => "fi",
+        "rumuński" => "ro",
+        "turecki" => "tr",
+        "arabski" => "ar",
+        "chiński" => "zh",
+        "japoński" => "ja",
+        _ => null
+    };
+
+    // ── ISBN conversion ─────────────────────────────────────────────────────
+
+    /// <summary>978-prefixed ISBN-13 values have an ISBN-10 equivalent.</summary>
+    private static string? ConvertIsbn13To10(string isbn13)
+    {
+        if (isbn13.Length != 13 || !isbn13.StartsWith("978", StringComparison.Ordinal)) return null;
+
+        var body = isbn13.Substring(3, 9);
+        var sum = 0;
+        for (var i = 0; i < 9; i++)
+        {
+            sum += (body[i] - '0') * (10 - i);
+        }
+
+        var remainder = (11 - sum % 11) % 11;
+        var check = remainder == 10 ? "X" : remainder.ToString();
+        return body + check;
+    }
+
+    private static string? ConvertIsbn10To13(string isbn10)
+    {
+        if (isbn10.Length != 10) return null;
+
+        var body = "978" + isbn10[..9];
+        var sum = 0;
+        for (var i = 0; i < 12; i++)
+        {
+            sum += (body[i] - '0') * (i % 2 == 0 ? 1 : 3);
+        }
+
+        var check = (10 - sum % 10) % 10;
+        return body + check;
     }
 
     /// <summary>

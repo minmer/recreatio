@@ -606,16 +606,26 @@ export const deleteReading = (id: number) =>
 
 // ── Barcode scanning ─────────────────────────────────────────────────────────
 
+export type LibraryLookupContributor = {
+  name: string;
+  role: string;
+};
+
 export type LibraryLookup = {
   isbn: string;
   title: string | null;
   subtitle: string | null;
   authors: string[];
+  translators: string[];
+  /** Everyone the catalogue lists, with their role — richest from Biblioteka Narodowa. */
+  contributors: LibraryLookupContributor[];
   publisher: string | null;
   publishedPlace: string | null;
   publishedYear: number | null;
   pageCount: number | null;
   language: string | null;
+  /** Set when the catalogue records it — Biblioteka Narodowa does, the others do not. */
+  originalLanguage: string | null;
   series: string | null;
   coverUrl: string | null;
   sources: string[];

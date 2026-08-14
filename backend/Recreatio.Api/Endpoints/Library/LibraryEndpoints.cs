@@ -1472,9 +1472,12 @@ public static class LibraryEndpoints
                 if (result is not null)
                 {
                     lookupResponse = new LibraryLookupResponse(
-                        result.Isbn, result.Title, result.Subtitle, result.Authors, result.Publisher,
+                        result.Isbn, result.Title, result.Subtitle, result.Authors,
+                        result.Contributors.Where(x => x.Role == "translator").Select(x => x.Name).ToList(),
+                        result.Contributors.Select(x => new LibraryLookupContributor(x.Name, x.Role)).ToList(),
+                        result.Publisher,
                         result.PublishedPlace, result.PublishedYear, result.PageCount, result.Language,
-                        result.Series, result.CoverUrl, result.Sources);
+                        result.OriginalLanguage, result.Series, result.CoverUrl, result.Sources);
                 }
             }
 
