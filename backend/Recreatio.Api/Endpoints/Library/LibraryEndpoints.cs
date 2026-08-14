@@ -1406,6 +1406,252 @@ public static class LibraryEndpoints
         });
     }
 
+    // ── Barcode scanning ────────────────────────────────────────────────────
+
+    private static void MapScanEndpoints(RouteGroupBuilder group)
+    {
+        group.MapGet("/scan", async (
+            string? code,
+            bool? lookup,
+            HttpContext ctx,
+            RecreatioDbContext db,
+            IBookLookupService lookupService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(ctx, out var userId)) return Results.Unauthorized();
+
+            var isbn = lookupService.NormalizeIsbn(code);
+            if (isbn is null) return Bad("The scanned code is not a valid ISBN.");
+
+            // Match on the ISBN as stored and on its bare digits, so a catalogued
+            // "978-83-06-01234-5" is still found by a scanner that reports digits only.
+            var editions = await db.LibraryEditions.AsNoTracking()
+                .Where(x => x.OwnerAccountId == userId && x.Isbn != null)
+                .ToListAsync(ct);
+            var matched = editions
+                .Where(x => string.Equals(CompactIsbn(x.Isbn), isbn, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var matchingEditions = new List<LibraryEditionListItem>();
+            var ownedCopies = new List<LibraryCopyListItem>();
+
+            if (matched.Count > 0)
+            {
+                var workIds = matched.Select(x => x.WorkId).Distinct().ToList();
+                var originalLanguages = await db.LibraryWorks.AsNoTracking()
+                    .Where(x => x.OwnerAccountId == userId && workIds.Contains(x.Id))
+                    .Select(x => new { x.Id, x.OriginalLanguage })
+                    .ToListAsync(ct);
+                var originalLanguageByWork = originalLanguages.ToDictionary(x => x.Id, x => x.OriginalLanguage);
+
+                foreach (var workId in workIds)
+                {
+                    var forWork = await LoadEditionListAsync(
+                        db, userId, workId, originalLanguageByWork.GetValueOrDefault(workId, string.Empty), ct);
+                    matchingEditions.AddRange(forWork.Where(edition => matched.Any(x => x.Id == edition.Id)));
+                }
+
+                var editionIds = matched.Select(x => x.Id).ToList();
+                var copies = await db.LibraryCopies.AsNoTracking()
+                    .Where(x => x.OwnerAccountId == userId && editionIds.Contains(x.EditionId))
+                    .OrderBy(x => x.CreatedUtc)
+                    .ToListAsync(ct);
+                ownedCopies = await BuildCopyListAsync(db, userId, copies, ct);
+            }
+
+            // Skip the outbound call when the shelf already answers the question,
+            // unless the caller explicitly asks for metadata anyway.
+            var shouldLookup = lookupService.Enabled && (lookup ?? matched.Count == 0);
+            LibraryLookupResponse? lookupResponse = null;
+            if (shouldLookup)
+            {
+                var result = await lookupService.LookupAsync(isbn, ct);
+                if (result is not null)
+                {
+                    lookupResponse = new LibraryLookupResponse(
+                        result.Isbn, result.Title, result.Subtitle, result.Authors, result.Publisher,
+                        result.PublishedPlace, result.PublishedYear, result.PageCount, result.Language,
+                        result.CoverUrl, result.Sources);
+                }
+            }
+
+            return Results.Ok(new LibraryScanResponse(isbn, matchingEditions, ownedCopies, lookupResponse, shouldLookup));
+        });
+
+        group.MapPost("/scan/import", async (
+            LibraryScanImportRequest req,
+            HttpContext ctx,
+            RecreatioDbContext db,
+            IBookLookupService lookupService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(ctx, out var userId)) return Results.Unauthorized();
+
+            var isbn = lookupService.NormalizeIsbn(req.Isbn);
+            if (isbn is null) return Bad("The scanned code is not a valid ISBN.");
+
+            var originalTitle = Normalize(req.OriginalTitle, 400);
+            if (originalTitle is null) return Bad("Original title is required.");
+
+            var originalLanguage = NormalizeLanguage(req.OriginalLanguage);
+            if (originalLanguage is null) return Bad("Original language is required.");
+
+            var editionTitle = Normalize(req.EditionTitle, 400) ?? originalTitle;
+            var editionLanguage = NormalizeLanguage(req.EditionLanguage) ?? originalLanguage;
+
+            if (req.ShelfId is { } shelfId)
+            {
+                var shelfExists = await db.LibraryShelves.AnyAsync(x => x.Id == shelfId && x.OwnerAccountId == userId, ct);
+                if (!shelfExists) return Bad("Shelf does not exist.");
+            }
+
+            var now = DateTimeOffset.UtcNow;
+
+            var work = new LibraryWork
+            {
+                OwnerAccountId = userId,
+                OriginalTitle = originalTitle,
+                OriginalLanguage = originalLanguage,
+                Kind = NormalizeFrom(req.Kind, WorkKinds) ?? "book",
+                FirstPublishedYear = NormalizeYear(req.FirstPublishedYear),
+                CreatedUtc = now,
+                UpdatedUtc = now
+            };
+            db.LibraryWorks.Add(work);
+            await db.SaveChangesAsync(ct);
+
+            await AttachContributorsAsync(db, userId, "work", work.Id, req.AuthorNames, "author", 0, now, ct);
+
+            var publisherId = await ResolvePublisherIdAsync(db, userId, req.PublisherName, now, ct);
+
+            var edition = new LibraryEdition
+            {
+                OwnerAccountId = userId,
+                WorkId = work.Id,
+                Title = editionTitle,
+                Subtitle = Normalize(req.EditionSubtitle, 400),
+                Language = editionLanguage,
+                PublisherId = publisherId,
+                PublishedPlace = Normalize(req.PublishedPlace, 160),
+                PublishedYear = NormalizeYear(req.PublishedYear),
+                Isbn = isbn,
+                PageCount = NormalizePositive(req.PageCount, 100000),
+                CoverUrl = NormalizeUrl(req.CoverUrl),
+                CreatedUtc = now,
+                UpdatedUtc = now
+            };
+            db.LibraryEditions.Add(edition);
+            await db.SaveChangesAsync(ct);
+
+            await AttachContributorsAsync(db, userId, "edition", edition.Id, req.TranslatorNames, "translator", 0, now, ct);
+
+            long? copyId = null;
+            if (req.CreateCopy)
+            {
+                var copy = new LibraryCopy
+                {
+                    OwnerAccountId = userId,
+                    EditionId = edition.Id,
+                    ShelfId = req.ShelfId,
+                    Status = "shelf",
+                    ReadingStatus = "unread",
+                    Barcode = isbn,
+                    AcquiredDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                };
+                db.LibraryCopies.Add(copy);
+                await db.SaveChangesAsync(ct);
+                copyId = copy.Id;
+            }
+
+            await db.SaveChangesAsync(ct);
+
+            return Results.Ok(new LibraryScanImportResponse(work.Id, edition.Id, copyId));
+        });
+    }
+
+    /// <summary>
+    /// Resolves contributor names to people, reusing an existing person when the
+    /// display name already matches so a scan does not create duplicate authors.
+    /// </summary>
+    private static async Task AttachContributorsAsync(
+        RecreatioDbContext db,
+        Guid userId,
+        string targetType,
+        long targetId,
+        IReadOnlyList<string> names,
+        string role,
+        int startOrder,
+        DateTimeOffset now,
+        CancellationToken ct)
+    {
+        var sortOrder = startOrder;
+        foreach (var rawName in names)
+        {
+            var name = Normalize(rawName, 240);
+            if (name is null) continue;
+
+            var person = await db.LibraryPeople
+                .FirstOrDefaultAsync(x => x.OwnerAccountId == userId && x.DisplayName == name, ct);
+            if (person is null)
+            {
+                person = new LibraryPerson
+                {
+                    OwnerAccountId = userId,
+                    DisplayName = name,
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                };
+                db.LibraryPeople.Add(person);
+                await db.SaveChangesAsync(ct);
+            }
+
+            db.LibraryContributions.Add(new LibraryContribution
+            {
+                OwnerAccountId = userId,
+                PersonId = person.Id,
+                TargetType = targetType,
+                TargetId = targetId,
+                Role = role,
+                SortOrder = sortOrder++,
+                CreatedUtc = now
+            });
+        }
+
+        if (sortOrder > startOrder) await db.SaveChangesAsync(ct);
+    }
+
+    private static async Task<long?> ResolvePublisherIdAsync(
+        RecreatioDbContext db,
+        Guid userId,
+        string? rawName,
+        DateTimeOffset now,
+        CancellationToken ct)
+    {
+        var name = Normalize(rawName, 240);
+        if (name is null) return null;
+
+        var existing = await db.LibraryPublishers
+            .FirstOrDefaultAsync(x => x.OwnerAccountId == userId && x.Name == name, ct);
+        if (existing is not null) return existing.Id;
+
+        var publisher = new LibraryPublisher
+        {
+            OwnerAccountId = userId,
+            Name = name,
+            CreatedUtc = now,
+            UpdatedUtc = now
+        };
+        db.LibraryPublishers.Add(publisher);
+        await db.SaveChangesAsync(ct);
+        return publisher.Id;
+    }
+
+    /// <summary>Strips separators so stored and scanned ISBNs compare equal.</summary>
+    private static string CompactIsbn(string? value) =>
+        value is null ? string.Empty : new string(value.Where(char.IsAsciiLetterOrDigit).ToArray()).ToUpperInvariant();
+
     // ── Import / export ─────────────────────────────────────────────────────
 
     private static void MapTransferEndpoints(RouteGroupBuilder group)
