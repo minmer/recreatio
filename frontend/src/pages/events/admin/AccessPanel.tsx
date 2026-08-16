@@ -29,14 +29,17 @@ function dialable(phone: string): string {
 }
 
 /**
- * Fills the event's saved message in for one recipient. `{imie}` is kept as an
- * alias of `{osoba}` so templates written before the rename keep working — both
- * put in the whole name.
+ * Fills the event's saved message in for one recipient. Two names, because they
+ * are not the same message: `{osoba}` is who this is, in full, and `{imie}` is
+ * how you greet them.
  */
-function renderSms(template: string, values: { osoba: string; wydarzenie: string; link: string }): string {
+function renderSms(
+  template: string,
+  values: { osoba: string; imie: string; wydarzenie: string; link: string }
+): string {
   return template
     .replace(/\{osoba\}/g, values.osoba)
-    .replace(/\{imie\}/g, values.osoba)
+    .replace(/\{imie\}/g, values.imie)
     .replace(/\{wydarzenie\}/g, values.wydarzenie)
     .replace(/\{link\}/g, values.link);
 }
@@ -92,8 +95,12 @@ export function AccessPanel({
   const [showHidden, setShowHidden] = useState(false);
 
   const smsHref = (link: EventAdminAccessLink) => {
+    const name = link.recipientName.trim();
     const text = renderSms(smsTemplate ?? '{wydarzenie}: {link}', {
-      osoba: link.recipientName.trim(),
+      osoba: name,
+      // Everything up to the first space. A name with no space is its own first
+      // name, which is also the right answer for a one-word nickname.
+      imie: name.split(/\s+/)[0] || name,
       wydarzenie: eventTitle,
       link: linkUrl(link.token)
     });

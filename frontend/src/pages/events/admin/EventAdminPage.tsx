@@ -741,7 +741,7 @@ function SiteSettings({
           label="Treść wiadomości"
           rows={3}
           value={smsTemplate}
-          hint="Zmienne: {osoba} — imię i nazwisko odbiorcy, {wydarzenie}, {link}. Zapisuje się raz — wysyłasz jednym kliknięciem przy każdej osobie w zakładce Dostęp."
+          hint="Zmienne: {osoba} — imię i nazwisko, {imie} — samo imię, {wydarzenie}, {link}. Zapisuje się raz — wysyłasz jednym kliknięciem przy każdej osobie w zakładce Dostęp."
           onChange={setSmsTemplate}
         />
         <p className="eve-hint">
