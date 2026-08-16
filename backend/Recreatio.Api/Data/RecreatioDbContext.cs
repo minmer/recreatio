@@ -252,12 +252,25 @@ public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefi
             .HasForeignKey(x => x.TopicId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Same shape, same hazard: values are saved together with the
-        // registration they belong to.
+        // Same shape, same hazard, wherever a parent and its children are saved
+        // in one call: registration values, and the grants and assignments
+        // created together with an access link.
         modelBuilder.Entity<Data.Events.EventRegistrationValue>()
             .HasOne<Data.Events.EventRegistration>()
             .WithMany()
             .HasForeignKey(x => x.RegistrationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Data.Events.EventAccessLinkPage>()
+            .HasOne<Data.Events.EventAccessLink>()
+            .WithMany()
+            .HasForeignKey(x => x.AccessLinkId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Data.Events.EventAccessLinkAssignment>()
+            .HasOne<Data.Events.EventAccessLink>()
+            .WithMany()
+            .HasForeignKey(x => x.AccessLinkId)
             .OnDelete(DeleteBehavior.Restrict);
 
         // These Core entities map to the same tables as active runtime entities.
