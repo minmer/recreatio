@@ -24,7 +24,7 @@ public static partial class EventEndpoints
         "faq", "form", "costs", "contact", "gallery", "files", "people",
         // Behind an individual link only: correcting one's own submission, and
         // the participant card with its consents.
-        "registration", "card"
+        "registration", "card", "topics"
     ];
 
     private static readonly string[] AllowedFieldKinds =
@@ -52,6 +52,8 @@ public static partial class EventEndpoints
         MapAdminAccessEndpoints(group);
         MapParticipantEndpoints(group);
         MapParticipantAdminEndpoints(group);
+        MapTopicEndpoints(group);
+        MapTopicAdminEndpoints(group);
         MapImportEndpoints(group);
         MapImageEndpoints(group);
     }
@@ -650,6 +652,11 @@ public static partial class EventEndpoints
             // Depth-first, so no FK is left dangling mid-delete. Cards point at
             // the site, its parts, its links and its registrations, so they go
             // before any of them.
+            var siteTopicIds = await dbContext.EventTopics
+                .Where(x => x.SiteId == siteId).Select(x => x.Id).ToListAsync(ct);
+            dbContext.EventTopicMessages.RemoveRange(
+                dbContext.EventTopicMessages.Where(x => siteTopicIds.Contains(x.TopicId)));
+            dbContext.EventTopics.RemoveRange(dbContext.EventTopics.Where(x => x.SiteId == siteId));
             dbContext.EventParticipantCards.RemoveRange(
                 dbContext.EventParticipantCards.Where(x => x.SiteId == siteId));
             dbContext.EventRegistrationValues.RemoveRange(
@@ -782,6 +789,11 @@ public static partial class EventEndpoints
             var registrationIds = await dbContext.EventRegistrations
                 .Where(x => partIds.Contains(x.PartId)).Select(x => x.Id).ToListAsync(ct);
 
+            var pageTopicIds = await dbContext.EventTopics
+                .Where(x => partIds.Contains(x.PartId)).Select(x => x.Id).ToListAsync(ct);
+            dbContext.EventTopicMessages.RemoveRange(
+                dbContext.EventTopicMessages.Where(x => pageTopicIds.Contains(x.TopicId)));
+            dbContext.EventTopics.RemoveRange(dbContext.EventTopics.Where(x => partIds.Contains(x.PartId)));
             dbContext.EventParticipantCards.RemoveRange(
                 dbContext.EventParticipantCards.Where(x => partIds.Contains(x.PartId)));
             dbContext.EventRegistrationValues.RemoveRange(
@@ -916,7 +928,12 @@ public static partial class EventEndpoints
             var registrationIds = await dbContext.EventRegistrations
                 .Where(x => x.PartId == partId).Select(x => x.Id).ToListAsync(ct);
 
-            // Cards were filled in on this part, so they go with it.
+            // Cards and topics were filled in on this part, so they go with it.
+            var partTopicIds = await dbContext.EventTopics
+                .Where(x => x.PartId == partId).Select(x => x.Id).ToListAsync(ct);
+            dbContext.EventTopicMessages.RemoveRange(
+                dbContext.EventTopicMessages.Where(x => partTopicIds.Contains(x.TopicId)));
+            dbContext.EventTopics.RemoveRange(dbContext.EventTopics.Where(x => x.PartId == partId));
             dbContext.EventParticipantCards.RemoveRange(
                 dbContext.EventParticipantCards.Where(x => x.PartId == partId));
             dbContext.EventRegistrationValues.RemoveRange(
@@ -1405,7 +1422,16 @@ public static partial class EventEndpoints
                 registration.AccessLinkId = null;
             }
 
-            // The participant card does not: it is this link's document, and a
+            // Topics and their messages go too: every one of them is signed with
+            // this link.s name, and a thread nobody can answer is dead weight.
+            var linkTopicIds = await dbContext.EventTopics
+                .Where(x => x.AccessLinkId == linkId).Select(x => x.Id).ToListAsync(ct);
+            dbContext.EventTopicMessages.RemoveRange(
+                dbContext.EventTopicMessages.Where(x => x.AccessLinkId == linkId || linkTopicIds.Contains(x.TopicId)));
+            dbContext.EventTopics.RemoveRange(
+                dbContext.EventTopics.Where(x => x.AccessLinkId == linkId));
+
+            // The participant card does not: it is this link.s document, and a
             // card nobody can open, correct or withdraw is worse to keep than to
             // delete. Revoking the link is the option that keeps it.
             dbContext.EventParticipantCards.RemoveRange(

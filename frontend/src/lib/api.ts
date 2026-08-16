@@ -7761,7 +7761,7 @@ export type EventPartKind =
   | 'form' | 'costs' | 'contact' | 'gallery' | 'files' | 'people'
   // Only meaningful behind an individual link: the two parts that act on the
   // reader's own data rather than on the event's content.
-  | 'registration' | 'card';
+  | 'registration' | 'card' | 'topics';
 
 export type EventPartField = {
   id: string;
@@ -8109,6 +8109,78 @@ export function saveParticipantCard(
   return request<EventParticipantCard>(`/events/link/${encodeURIComponent(token)}/card/${partId}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
+  });
+}
+
+// ── Topics: questions and answers between participants ──────────────────────
+
+export type EventTopic = {
+  id: string;
+  title: string;
+  authorName: string;
+  /** open — writable; closed — readable only; disabled — not shown at all. */
+  status: 'open' | 'closed' | 'disabled';
+  createdUtc: string;
+  lastMessageUtc: string;
+  messageCount: number;
+  /** True when the reader's own link opened this topic. */
+  isMine: boolean;
+};
+
+export type EventTopicMessage = {
+  id: string;
+  authorName: string;
+  body: string;
+  createdUtc: string;
+  isMine: boolean;
+};
+
+export function getEventTopics(token: string, partId: string) {
+  return request<EventTopic[]>(`/events/link/${encodeURIComponent(token)}/topics/${partId}`, { method: 'GET' });
+}
+
+export function createEventTopic(token: string, partId: string, title: string, body: string) {
+  return request<EventTopic>(`/events/link/${encodeURIComponent(token)}/topics/${partId}`, {
+    method: 'POST',
+    body: JSON.stringify({ title, body })
+  });
+}
+
+export function getEventTopic(token: string, partId: string, topicId: string) {
+  return request<{ topic: EventTopic; messages: EventTopicMessage[] }>(
+    `/events/link/${encodeURIComponent(token)}/topics/${partId}/${topicId}`,
+    { method: 'GET' }
+  );
+}
+
+export function postEventTopicMessage(token: string, partId: string, topicId: string, body: string) {
+  return request<EventTopicMessage>(`/events/link/${encodeURIComponent(token)}/topics/${partId}/${topicId}`, {
+    method: 'POST',
+    body: JSON.stringify({ body })
+  });
+}
+
+/** The author's own controls: retitle, close, reopen. There is no delete. */
+export function updateEventTopic(
+  token: string,
+  partId: string,
+  topicId: string,
+  patch: { title?: string; status?: 'open' | 'closed' }
+) {
+  return request<EventTopic>(`/events/link/${encodeURIComponent(token)}/topics/${partId}/${topicId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ title: patch.title ?? null, status: patch.status ?? null })
+  });
+}
+
+/** Moderation: the admin may also take a topic out of circulation. */
+export function moderateEventTopic(
+  topicId: string,
+  patch: { title?: string; status?: 'open' | 'closed' | 'disabled' }
+) {
+  return request<EventTopic>(`/events/admin/topics/${topicId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ title: patch.title ?? null, status: patch.status ?? null })
   });
 }
 

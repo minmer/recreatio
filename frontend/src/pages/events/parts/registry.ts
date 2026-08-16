@@ -14,6 +14,7 @@ import { registrationPart } from './RegistrationPart';
 import { shortInfosPart } from './ShortInfosPart';
 import { textPart } from './TextPart';
 import { titlePart } from './TitlePart';
+import { topicsPart } from './TopicsPart';
 
 /**
  * Every part an event can be built from. Order is the order they appear in the
@@ -37,7 +38,8 @@ export const PART_MODULES: PartModule[] = [
   contactPart,
   // Only useful behind an individual link: these act on the reader's own data.
   registrationPart,
-  participantCardPart
+  participantCardPart,
+  topicsPart
 ];
 
 const BY_KIND = new Map<EventPartKind, PartModule>(PART_MODULES.map((module) => [module.kind, module]));

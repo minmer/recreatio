@@ -464,3 +464,77 @@ BEGIN
     ALTER TABLE events.EventAccessLinks ADD ContactVerifiedUtc DATETIMEOFFSET NULL;
 END
 GO
+
+-- ---------------------------------------------------------------------------
+-- Topics: questions participants ask each other.
+-- ---------------------------------------------------------------------------
+
+IF OBJECT_ID(N'events.EventTopics', N'U') IS NULL
+BEGIN
+    CREATE TABLE events.EventTopics
+    (
+        Id              UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventTopics PRIMARY KEY,
+        SiteId          UNIQUEIDENTIFIER NOT NULL,
+        PartId          UNIQUEIDENTIFIER NOT NULL,
+        AccessLinkId    UNIQUEIDENTIFIER NOT NULL,
+        AuthorName      NVARCHAR(200)    NOT NULL,
+        Title           NVARCHAR(200)    NOT NULL,
+        CreatedUtc      DATETIMEOFFSET   NOT NULL,
+        -- Denormalized: the list orders by conversation, not by creation, and
+        -- reading every message of every topic to find that out does not scale.
+        LastMessageUtc  DATETIMEOFFSET   NOT NULL,
+        MessageCount    INT              NOT NULL CONSTRAINT DF_EventTopics_Count DEFAULT(0),
+        CONSTRAINT FK_EventTopics_Site FOREIGN KEY (SiteId) REFERENCES events.EventSites(Id),
+        CONSTRAINT FK_EventTopics_Part FOREIGN KEY (PartId) REFERENCES events.EventParts(Id),
+        CONSTRAINT FK_EventTopics_Link FOREIGN KEY (AccessLinkId) REFERENCES events.EventAccessLinks(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_EventTopics_PartId_LastMessageUtc'
+      AND object_id = OBJECT_ID('events.EventTopics')
+)
+BEGIN
+    CREATE INDEX IX_EventTopics_PartId_LastMessageUtc
+        ON events.EventTopics(PartId, LastMessageUtc DESC);
+END
+GO
+
+IF OBJECT_ID(N'events.EventTopicMessages', N'U') IS NULL
+BEGIN
+    CREATE TABLE events.EventTopicMessages
+    (
+        Id           UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventTopicMessages PRIMARY KEY,
+        TopicId      UNIQUEIDENTIFIER NOT NULL,
+        AccessLinkId UNIQUEIDENTIFIER NOT NULL,
+        AuthorName   NVARCHAR(200)    NOT NULL,
+        Body         NVARCHAR(2000)   NOT NULL,
+        CreatedUtc   DATETIMEOFFSET   NOT NULL,
+        CONSTRAINT FK_EventTopicMessages_Topic FOREIGN KEY (TopicId) REFERENCES events.EventTopics(Id),
+        CONSTRAINT FK_EventTopicMessages_Link FOREIGN KEY (AccessLinkId) REFERENCES events.EventAccessLinks(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_EventTopicMessages_TopicId_CreatedUtc'
+      AND object_id = OBJECT_ID('events.EventTopicMessages')
+)
+BEGIN
+    CREATE INDEX IX_EventTopicMessages_TopicId_CreatedUtc
+        ON events.EventTopicMessages(TopicId, CreatedUtc);
+END
+GO
+
+-- A topic is closed or taken out of circulation, never deleted: the answers
+-- under a question belong to the people who wrote them.
+IF OBJECT_ID(N'events.EventTopics', N'U') IS NOT NULL
+   AND COL_LENGTH('events.EventTopics', 'Status') IS NULL
+BEGIN
+    ALTER TABLE events.EventTopics
+        ADD Status NVARCHAR(16) NOT NULL CONSTRAINT DF_EventTopics_Status DEFAULT(N'open');
+END
+GO

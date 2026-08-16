@@ -307,3 +307,33 @@ public sealed record EventImportResult(
     int PartsCreated,
     int FieldsCreated,
     IReadOnlyList<string> Warnings);
+
+// ── Topics: questions and answers between participants ───────────────────────
+
+public sealed record EventTopicRow(
+    Guid Id,
+    string Title,
+    string AuthorName,
+    /// <summary>open | closed | disabled — see the entity.</summary>
+    string Status,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset LastMessageUtc,
+    int MessageCount,
+    /// <summary>True when the reader's own link opened this topic.</summary>
+    bool IsMine);
+
+public sealed record EventTopicMessageRow(
+    Guid Id,
+    string AuthorName,
+    string Body,
+    DateTimeOffset CreatedUtc,
+    bool IsMine);
+
+public sealed record EventTopicThread(EventTopicRow Topic, IReadOnlyList<EventTopicMessageRow> Messages);
+
+public sealed record EventTopicCreateRequest(string Title, string Body);
+
+public sealed record EventTopicMessageRequest(string Body);
+
+/// <summary>Retitle, close or reopen. Status is ignored when it is not one of the three.</summary>
+public sealed record EventTopicUpdateRequest(string? Title, string? Status);

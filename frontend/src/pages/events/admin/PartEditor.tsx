@@ -166,16 +166,24 @@ export function PartEditor({
             <p className="eva-error">Nieznany typ części: {part.kind}.</p>
           )}
 
-          <LayerEditor
-            siteId={siteId}
-            mode={mode}
-            layersJson={layersJson}
-            menuLabel={menuLabel}
-            onChange={(next) => {
-              setLayersJson(next);
-              setDirty(true);
-            }}
-          />
+          {/* Folded away by default. The backgrounds are set once and then left
+              alone, while the content above is edited constantly — leaving the
+              whole layer stack open pushed the save button off the screen. */}
+          <details className="eva-fold">
+            <summary>Grafika i tło</summary>
+            <div className="eva-fold-body">
+              <LayerEditor
+                siteId={siteId}
+                mode={mode}
+                layersJson={layersJson}
+                menuLabel={menuLabel}
+                onChange={(next) => {
+                  setLayersJson(next);
+                  setDirty(true);
+                }}
+              />
+            </div>
+          </details>
 
           {error ? <p className="eva-error">{error}</p> : null}
 

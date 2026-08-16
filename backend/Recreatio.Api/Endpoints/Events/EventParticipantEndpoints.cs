@@ -372,18 +372,25 @@ public static partial class EventEndpoints
             .FirstOrDefaultAsync(ct);
     }
 
-    /// <summary>
-    /// A card may only be filled in on a card part that sits on a page this link
-    /// has actually been granted — the same rule the reader's page load obeys.
-    /// </summary>
-    private static async Task<bool> CanReachCardPartAsync(
+    private static Task<bool> CanReachCardPartAsync(
         RecreatioDbContext dbContext,
         EventAccessLink link,
         Guid partId,
+        CancellationToken ct) => CanReachPartAsync(dbContext, link, partId, "card", ct);
+
+    /// <summary>
+    /// A link may only act on a part of the expected kind sitting on a page it
+    /// has actually been granted — the same rule the reader's page load obeys.
+    /// </summary>
+    private static async Task<bool> CanReachPartAsync(
+        RecreatioDbContext dbContext,
+        EventAccessLink link,
+        Guid partId,
+        string kind,
         CancellationToken ct)
     {
         var part = await dbContext.EventParts.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == partId && x.IsVisible && x.Kind == "card", ct);
+            .FirstOrDefaultAsync(x => x.Id == partId && x.IsVisible && x.Kind == kind, ct);
         if (part is null)
         {
             return false;

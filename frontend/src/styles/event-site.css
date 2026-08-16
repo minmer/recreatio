@@ -3238,3 +3238,362 @@
 .eva-sms:hover {
   border-color: var(--a-accent, #4c7dd6);
 }
+
+/* ============================================================
+   Builder: folded sections
+   ============================================================ */
+
+.eva-fold {
+  border: 1px solid var(--a-line, rgba(150, 170, 200, 0.2));
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.eva-fold > summary {
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--a-muted, #9fb0c8);
+  list-style: none;
+}
+
+.eva-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.eva-fold > summary::before {
+  content: '▸ ';
+  display: inline-block;
+  transition: transform 160ms ease;
+}
+
+.eva-fold[open] > summary::before {
+  content: '▾ ';
+}
+
+.eva-fold-body {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.2rem 0.7rem 0.7rem;
+  min-width: 0;
+}
+
+/* ============================================================
+   Topics: questions between participants
+   ============================================================ */
+
+.ev-topics {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.ev-topic-new {
+  display: grid;
+  gap: 0.6rem;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 12px;
+  padding: 0.85rem;
+  background: var(--ev-surface);
+}
+
+.ev-topic-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.ev-topic-list button {
+  width: 100%;
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  padding: 0.65rem 0.8rem;
+  background: var(--ev-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.ev-topic-list button:hover {
+  border-color: var(--ev-accent);
+  transform: translateX(2px);
+}
+
+.ev-topic-title {
+  font-weight: 650;
+}
+
+.ev-topic-meta {
+  color: var(--ev-muted);
+  font-size: 0.8rem;
+}
+
+/* ============================================================
+   The full-screen layer, and how it arrives
+   ============================================================ */
+
+.ev-layer-full {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: var(--ev-ground, #080d15);
+  color: var(--ev-ink, #eef2f8);
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+
+  /* Two states, so there is something to transition between: it arrives from
+     slightly below and slightly small, which reads as the panel coming forward
+     rather than the page being replaced. */
+  opacity: 0;
+  transform: translateY(1.2rem) scale(0.985);
+  transition: opacity 220ms ease, transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.ev-layer-full.is-open {
+  opacity: 1;
+  transform: none;
+}
+
+.ev-layer-close {
+  position: absolute;
+  top: max(0.7rem, env(safe-area-inset-top, 0px));
+  right: 0.7rem;
+  z-index: 4;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 50%;
+  background: var(--ev-chrome-2);
+  color: var(--ev-ink);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ev-layer-close:hover {
+  background: var(--ev-accent);
+  border-color: transparent;
+  color: var(--ev-on-accent);
+}
+
+/* The map's own overlay predates this layer and keeps its markup; the arrival
+   is the same, so it plays the same animation. */
+.ev-map-overlay {
+  animation: ev-layer-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes ev-layer-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.2rem) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ev-thread {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: clamp(1rem, 4vw, 2rem) clamp(0.8rem, 4vw, 1.6rem) max(0.9rem, env(safe-area-inset-bottom, 0px));
+}
+
+.ev-thread > header {
+  padding-right: 3.2rem;
+  border-bottom: 1px solid var(--ev-line);
+  padding-bottom: 0.6rem;
+}
+
+.ev-thread h2 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(1.3rem, 3.4vw, 1.9rem);
+  font-weight: 600;
+}
+
+.ev-thread > header p {
+  margin: 0.2rem 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: var(--ev-muted);
+  font-size: 0.84rem;
+}
+
+.ev-thread-remove {
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  background: transparent;
+  color: var(--ev-muted);
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.ev-thread-messages {
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  padding-right: 0.2rem;
+}
+
+.ev-message {
+  border: 1px solid var(--ev-line);
+  border-radius: 12px;
+  padding: 0.6rem 0.8rem;
+  background: var(--ev-surface);
+  max-width: 88%;
+}
+
+/* Your own messages lean to the other side, the way every messaging app does —
+   it is the fastest way to see who said what without reading the names. */
+.ev-message.is-mine {
+  margin-left: auto;
+  border-color: var(--ev-accent);
+  background: color-mix(in srgb, var(--ev-accent) 14%, transparent);
+}
+
+.ev-message > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-bottom: 0.15rem;
+}
+
+.ev-message strong {
+  font-size: 0.86rem;
+}
+
+.ev-message time {
+  color: var(--ev-muted);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-message p {
+  margin: 0;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.ev-thread-compose {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.ev-thread-compose textarea {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  background: var(--ev-field);
+  color: var(--ev-ink);
+  font: inherit;
+  resize: none;
+  outline: none;
+}
+
+.ev-thread-compose textarea:focus {
+  border-color: var(--ev-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ev-layer-full,
+  .ev-map-overlay {
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+  }
+}
+
+/* Topic status: closed still reads, it just cannot be written in. */
+.ev-topic-badge {
+  margin-left: 0.45rem;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.02rem 0.5rem;
+  color: var(--ev-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.ev-topic-list button.is-closed .ev-topic-title {
+  color: var(--ev-muted);
+}
+
+.ev-thread-tool {
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  background: transparent;
+  color: var(--ev-muted);
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ev-thread-tool:hover {
+  border-color: var(--ev-accent);
+  color: var(--ev-ink);
+}
+
+.ev-thread-tool.is-danger:hover {
+  border-color: var(--ev-bad);
+  color: var(--ev-bad);
+}
+
+.ev-thread > header p {
+  flex-wrap: wrap;
+}
+
+.ev-thread-rename {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ev-thread-rename input {
+  flex: 1;
+  min-width: 12rem;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  background: var(--ev-field);
+  color: var(--ev-ink);
+  font: inherit;
+  outline: none;
+}
+
+.ev-thread-closed {
+  margin: 0;
+  border: 1px dashed var(--ev-line-2);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  color: var(--ev-muted);
+  text-align: center;
+  font-size: 0.88rem;
+}
