@@ -4,6 +4,9 @@ import type { EventPart, EventPartKind } from '../../../lib/api';
 /** What a part renderer is allowed to know about its surroundings. */
 export type PartContext = {
   siteSlug: string;
+  /** For anything that has to name the event — a printed consent, say. */
+  siteTitle: string;
+  siteDateLabel: string | null;
   /** Present when the reader arrived through an individual link. */
   accessToken: string | null;
   part: EventPart;

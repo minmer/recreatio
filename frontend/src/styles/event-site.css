@@ -1788,6 +1788,48 @@
   margin-bottom: 0;
 }
 
+/* A yes/no question, with the explanation appearing only after "tak". */
+.ev-question {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--ev-line);
+}
+
+.ev-question:last-of-type {
+  border-bottom: 0;
+}
+
+.ev-question > p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.ev-question-choice {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ev-question-choice label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.22rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.ev-question-choice input {
+  accent-color: var(--ev-accent);
+}
+
+.ev-question-choice label:has(input:checked) {
+  border-color: var(--ev-accent);
+  background: color-mix(in srgb, var(--ev-accent) 14%, transparent);
+}
+
 /* A consent is a heading plus the wording being agreed to. */
 .ev-check-row strong {
   font-size: 0.92rem;
@@ -2980,4 +3022,113 @@
 .ev-pages a,
 .ev-parts a {
   text-decoration: none;
+}
+
+/* ============================================================
+   The printable consent
+   ============================================================ */
+
+/*
+ * Hidden on screen: it exists so that a guardian who has to hand in paper can
+ * print exactly what they signed. On paper it is the only thing on the sheet —
+ * the reader's page is a transformed, fixed-position track, so printing that
+ * would produce one clipped screenshot of whatever was on screen.
+ */
+.ev-print-doc {
+  display: none;
+}
+
+@media print {
+  body > * {
+    display: none !important;
+  }
+
+  body > .ev-print-doc {
+    display: block !important;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #000;
+    font-family: 'Source Sans 3', system-ui, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.45;
+  }
+
+  .ev-print-doc h1 {
+    margin: 0 0 0.2rem;
+    font-size: 15pt;
+  }
+
+  .ev-print-doc h2 {
+    margin: 1.1em 0 0.3em;
+    font-size: 10pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid #000;
+    padding-bottom: 0.15em;
+  }
+
+  .ev-print-doc header p {
+    margin: 0 0 0.8em;
+  }
+
+  .ev-print-doc dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: 42% 1fr;
+    gap: 0.15em 0.8em;
+  }
+
+  .ev-print-doc dl > div {
+    display: contents;
+  }
+
+  .ev-print-doc dt {
+    color: #333;
+  }
+
+  .ev-print-doc dd {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .ev-print-doc ul {
+    margin: 0;
+    padding-left: 1.1em;
+  }
+
+  .ev-print-doc li {
+    margin-bottom: 0.35em;
+  }
+
+  /* Small print, and never worth its own page. */
+  .ev-print-clause {
+    font-size: 8pt;
+    line-height: 1.35;
+    color: #222;
+    break-inside: avoid;
+  }
+
+  .ev-print-clause p {
+    margin: 0 0 0.3em;
+  }
+
+  .ev-print-doc footer {
+    margin-top: 1.4em;
+    break-inside: avoid;
+  }
+
+  .ev-print-sign {
+    margin-top: 2.6em;
+    border-top: 1px solid #000;
+    width: 60%;
+    padding-top: 0.25em;
+    font-size: 8.5pt;
+    color: #333;
+  }
+
+  @page {
+    margin: 16mm 15mm;
+  }
 }

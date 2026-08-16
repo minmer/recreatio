@@ -1,55 +1,87 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { getParticipantCard, saveParticipantCard, type EventParticipantCard } from '../../../lib/api';
 import { asBool, asOptionalText, asRecord, asText, definePart, mapEntries } from './contracts';
-import { AreaRow, CheckRow, ListEditor, NumberRow, TextRow } from './editorKit';
+import { AreaRow, CheckRow, ListEditor, NumberRow, SelectRow, TextRow } from './editorKit';
 
 /**
- * The participant card: the data an event needs about a named person once they
- * are actually taking part, and the statements someone has to sign.
+ * The participant card: what an event still has to ask a named person once they
+ * are taking part, and the statements someone has to sign.
  *
- * Why this is a part of its own rather than another form:
+ * Two rules shape the whole thing.
  *
- *  - It is only reachable behind an individual link, so the sensitive half of a
- *    participant's data never sits on the open web.
- *  - Its shape is fixed by law, not by the organizer. It follows the karta
- *    kwalifikacyjna uczestnika wypoczynku (rozporządzenie MEN o wypoczynku
- *    dzieci i młodzieży; wzór obowiązujący od 6 czerwca 2026 r., Dz.U. 2026
- *    poz. 704) — participant and parents, year of birth, PESEL, addresses, a
- *    contact reachable during the event, special educational needs, health,
- *    diet and vaccinations. Letting an organizer retype that by hand is how
- *    required entries go missing.
- *  - It carries health data, which RODO art. 9 treats as a special category:
- *    it needs its own explicit consent, separate from everything else.
- *  - It has to record what was agreed to, not merely that something was. RODO
- *    art. 7(1) puts the burden of proof on the organizer, so the accepted
- *    wording and the information clause are stored with the answers.
+ * **Ask for as little as possible.** RODO art. 5(1)(c) is not a formality: every
+ * field has to earn its place. An adult taking part needs to be identified and
+ * shown to be an adult — name and date of birth, and nothing else. Their contact
+ * details are already in the registration; asking again would be collecting the
+ * same data twice. Everything beyond that is either conditional on an answer or
+ * turned on deliberately by the organizer.
  *
- * What the organizer must fill in is the identity of the administrator, the
- * retention period and the wording of the statements — the things only they
- * know. The defaults below are a starting point, not legal advice.
+ * **What is needed depends on what the event legally is.** A day out, a trip
+ * away, and "wypoczynek dzieci i młodzieży" are three different obligations, and
+ * only the last one is governed by a prescribed form (karta kwalifikacyjna,
+ * rozporządzenie MEN; wzór z 6 czerwca 2026 r., Dz.U. 2026 poz. 704). Applying
+ * that form to an ordinary trip would collect PESEL numbers and vaccination
+ * records nobody is entitled to. So the organizer picks the regime, and the
+ * fields follow from it.
+ *
+ * A minor is a separate case in every regime: someone else has to consent, so
+ * the guardian must be named and reachable, and they get a printable copy to
+ * sign on paper where that is wanted.
  */
+
+/** What the event legally is — this decides what may be asked at all. */
+type Regime = 'minimal' | 'trip' | 'wypoczynek';
+
+const REGIMES: Array<{ value: Regime; label: string }> = [
+  { value: 'minimal', label: 'Spotkanie / wydarzenie jednodniowe' },
+  { value: 'trip', label: 'Wyjazd, wycieczka, pielgrzymka' },
+  { value: 'wypoczynek', label: 'Wypoczynek dzieci i młodzieży (karta kwalifikacyjna)' }
+];
+
+const REGIME_NOTES: Record<Regime, string> = {
+  minimal:
+    'Najmniejszy możliwy zakres: imię i nazwisko oraz data urodzenia. Dla osoby niepełnoletniej dochodzi rodzic lub opiekun i jego telefon.',
+  trip:
+    'Jak wyżej, a do tego kontakt na czas wyjazdu i pytania, na które odpowiada się „tak/nie” — opis tylko wtedy, gdy odpowiedź brzmi „tak”.',
+  wypoczynek:
+    'Pełny zakres karty kwalifikacyjnej: PESEL, adresy, szczepienia i szczególne potrzeby. Wybieraj tylko wtedy, gdy wydarzenie naprawdę jest wypoczynkiem w rozumieniu ustawy o systemie oświaty — w innym przypadku zbierasz dane, do których nie masz podstawy.'
+};
+
+/**
+ * A yes/no question with an optional explanation. This replaced a page of open
+ * textareas: most people have nothing to declare, and a blank box invites them
+ * to write things nobody asked for and the organizer then has to hold.
+ */
+type Question = {
+  code: string;
+  text: string;
+  detailLabel: string;
+  /** Who is asked: everyone, or only where the participant is a minor. */
+  scope: 'all' | 'minor';
+  /** Whether answering "tak" without explaining is enough. */
+  requireDetail: boolean;
+};
 
 type ConsentSpec = {
   code: string;
   label: string;
   text: string;
   required: boolean;
-  /** Shown only when the participant is under age. */
   minorOnly: boolean;
 };
 
 type CardConfig = {
+  regime: Regime;
   intro: string | null;
   saveLabel: string | null;
   savedMessage: string | null;
-  /** Age at which the participant signs for themselves. */
   adultAge: number;
-  collectPesel: boolean;
-  collectSpecialNeeds: boolean;
-  collectHealth: boolean;
-  collectVaccinations: boolean;
-  collectEmergency: boolean;
-  /** RODO art. 13: who processes the data and on what terms. */
+  /** A contact for the event itself, beyond the guardian's own number. */
+  askEmergency: boolean;
+  /** Offer a printable consent for a minor to hand in signed. */
+  allowPrint: boolean;
+  questions: Question[];
   controllerName: string | null;
   controllerAddress: string | null;
   controllerContact: string | null;
@@ -61,141 +93,141 @@ type CardConfig = {
   consents: ConsentSpec[];
 };
 
+const DEFAULT_QUESTIONS: Question[] = [
+  {
+    code: 'health',
+    text: 'Czy jest coś w stanie zdrowia, o czym powinniśmy wiedzieć — alergie, choroby przewlekłe, leki przyjmowane na stałe?',
+    detailLabel: 'Napisz krótko, co powinniśmy wiedzieć',
+    scope: 'all',
+    requireDetail: true
+  },
+  {
+    code: 'diet',
+    text: 'Czy stosujesz dietę, której nie możemy pominąć?',
+    detailLabel: 'Jaka dieta',
+    scope: 'all',
+    requireDetail: true
+  }
+];
+
 const DEFAULT_CONSENTS: ConsentSpec[] = [
   {
     code: 'participation',
     label: 'Zgoda na udział',
     text:
-      'Jako rodzic/opiekun prawny wyrażam zgodę na udział mojego dziecka w tym wydarzeniu, ' +
-      'na warunkach opisanych na stronie wydarzenia i w regulaminie. Oświadczam, że znam stan ' +
-      'zdrowia dziecka i nie ma przeciwwskazań do jego udziału.',
+      'Jako rodzic albo opiekun prawny wyrażam zgodę na udział mojego dziecka w tym wydarzeniu na warunkach ' +
+      'opisanych na jego stronie. Oświadczam, że znam jego stan zdrowia i nie widzę przeciwwskazań do udziału.',
     required: true,
     minorOnly: true
   },
   {
-    code: 'health',
-    label: 'Zgoda na przetwarzanie danych o zdrowiu',
-    text:
-      'Wyrażam wyraźną zgodę na przetwarzanie podanych wyżej danych o stanie zdrowia, diecie i ' +
-      'szczepieniach (art. 9 ust. 2 lit. a RODO) wyłącznie w celu zapewnienia bezpieczeństwa i ' +
-      'opieki podczas wydarzenia. Zgodę mogę wycofać w każdej chwili; wycofanie nie wpływa na ' +
-      'zgodność z prawem przetwarzania sprzed jej wycofania.',
-    required: true,
-    minorOnly: false
-  },
-  {
     code: 'medical',
-    label: 'Pomoc medyczna',
+    label: 'Pomoc w nagłym wypadku',
     text:
-      'W razie zagrożenia zdrowia lub życia wyrażam zgodę na wezwanie pomocy medycznej, ' +
-      'przewóz do placówki ochrony zdrowia i udzielenie niezbędnej pomocy, a organizatora ' +
-      'proszę o niezwłoczne poinformowanie mnie o takim zdarzeniu.',
+      'W razie zagrożenia zdrowia lub życia zgadzam się na wezwanie pomocy medycznej i udzielenie niezbędnej ' +
+      'pomocy, a organizatora proszę o niezwłoczne powiadomienie mnie.',
     required: true,
     minorOnly: false
   },
   {
-    code: 'rules',
-    label: 'Regulamin',
-    text: 'Zapoznałam/em się z regulaminem wydarzenia i zobowiązuję się go przestrzegać.',
-    required: true,
+    code: 'health',
+    label: 'Zgoda na dane o zdrowiu',
+    text:
+      'Jeżeli podaję wyżej informacje o zdrowiu lub diecie, wyrażam wyraźną zgodę na ich przetwarzanie ' +
+      '(art. 9 ust. 2 lit. a RODO) wyłącznie po to, żeby bezpiecznie zaopiekować się uczestnikiem. Zgodę mogę ' +
+      'wycofać w każdej chwili; wycofanie nie wpływa na zgodność z prawem wcześniejszego przetwarzania.',
+    required: false,
     minorOnly: false
   },
   {
     code: 'image',
     label: 'Wizerunek (dobrowolne)',
     text:
-      'Wyrażam zgodę na nieodpłatne utrwalenie i publikację wizerunku w relacjach z wydarzenia ' +
-      '(strona internetowa i profile organizatora), zgodnie z art. 81 ustawy o prawie autorskim ' +
-      'i prawach pokrewnych. Zgoda jest dobrowolna i nie warunkuje udziału; mogę ją wycofać.',
-    required: false,
-    minorOnly: false
-  },
-  {
-    code: 'contact',
-    label: 'Informacje o kolejnych wydarzeniach (dobrowolne)',
-    text:
-      'Chcę otrzymywać od organizatora informacje o kolejnych wydarzeniach. Zgoda jest ' +
-      'dobrowolna i mogę ją wycofać w każdej chwili.',
+      'Zgadzam się na nieodpłatne utrwalenie i publikację wizerunku w relacjach z wydarzenia, zgodnie z art. 81 ' +
+      'ustawy o prawie autorskim i prawach pokrewnych. Zgoda jest dobrowolna, nie warunkuje udziału i mogę ją wycofać.',
     required: false,
     minorOnly: false
   }
 ];
 
 const DEFAULT_PURPOSES = [
-  'organizacja udziału w wydarzeniu i kontakt w sprawach organizacyjnych — art. 6 ust. 1 lit. b RODO (umowa) oraz art. 6 ust. 1 lit. a RODO (zgoda) w przypadku osoby niepełnoletniej,',
-  'zapewnienie bezpieczeństwa i opieki, w tym reagowanie w sytuacjach nagłych — art. 6 ust. 1 lit. d oraz art. 9 ust. 2 lit. a RODO (wyraźna zgoda) w zakresie danych o zdrowiu,',
-  'wypełnienie obowiązków organizatora wynikających z przepisów o wypoczynku dzieci i młodzieży — art. 6 ust. 1 lit. c RODO,',
+  'udział w wydarzeniu i kontakt w sprawach organizacyjnych — art. 6 ust. 1 lit. b RODO, a w przypadku osoby niepełnoletniej art. 6 ust. 1 lit. a RODO (zgoda opiekuna),',
+  'bezpieczeństwo uczestników i reagowanie w sytuacjach nagłych — art. 6 ust. 1 lit. d RODO, a w zakresie zdrowia i diety art. 9 ust. 2 lit. a RODO (wyraźna zgoda),',
   'ustalenie, dochodzenie lub obrona roszczeń — art. 6 ust. 1 lit. f RODO.'
 ];
 
 type CardField = {
   code: string;
   label: string;
-  kind: 'text' | 'textarea' | 'date' | 'tel' | 'email';
+  kind: 'text' | 'date' | 'tel';
   hint?: string;
   half?: boolean;
   required?: boolean;
 };
 
-type CardSection = {
-  key: string;
-  title: string;
-  note?: string;
-  fields: CardField[];
-};
+type CardSection = { key: string; title: string; note?: string; fields: CardField[] };
 
-/** The sections the reader fills in, given the event's settings and their age. */
+/**
+ * The structured fields, given the regime and the participant's age. Everything
+ * here is present because something requires it, not because it might be handy.
+ */
 function buildSections(config: CardConfig, isMinor: boolean): CardSection[] {
-  const sections: CardSection[] = [
-    {
-      key: 'participant',
-      title: 'Uczestnik',
-      fields: [
-        { code: 'participantName', label: 'Imię i nazwisko', kind: 'text', required: true },
-        { code: 'birthDate', label: 'Data urodzenia', kind: 'date', half: true, required: true },
-        ...(config.collectPesel
-          ? [
-              {
-                code: 'pesel',
-                label: 'PESEL',
-                kind: 'text' as const,
-                half: true,
-                hint: 'Potrzebny do potwierdzenia prawa do świadczeń zdrowotnych.'
-              }
-            ]
-          : []),
-        { code: 'address', label: 'Adres zamieszkania', kind: 'text', required: true },
-        { code: 'phone', label: 'Telefon uczestnika', kind: 'tel', half: true },
-        { code: 'email', label: 'E-mail', kind: 'email', half: true }
-      ]
-    }
+  const sections: CardSection[] = [];
+  const participant: CardField[] = [
+    { code: 'participantName', label: 'Imię i nazwisko', kind: 'text', required: true },
+    { code: 'birthDate', label: 'Data urodzenia', kind: 'date', half: true, required: true }
   ];
 
+  // Only the prescribed form justifies these. On an ordinary trip there is no
+  // basis for a PESEL number or a home address.
+  if (config.regime === 'wypoczynek') {
+    participant.push({
+      code: 'pesel',
+      label: 'PESEL',
+      kind: 'text',
+      half: true,
+      hint: 'Wymagany w karcie kwalifikacyjnej — potwierdza prawo do świadczeń zdrowotnych.'
+    });
+    participant.push({ code: 'address', label: 'Adres zamieszkania', kind: 'text', required: true });
+  }
+
+  sections.push({ key: 'participant', title: 'Uczestnik', fields: participant });
+
   if (isMinor) {
+    const guardian: CardField[] = [
+      { code: 'guardian1Name', label: 'Imię i nazwisko', kind: 'text', required: true },
+      {
+        code: 'guardian1Phone',
+        label: 'Telefon',
+        kind: 'tel',
+        half: true,
+        required: true,
+        hint: 'Numer, pod którym będziesz dostępna/y w czasie wydarzenia.'
+      }
+    ];
+    if (config.regime === 'wypoczynek') {
+      guardian.push({
+        code: 'guardianAddress',
+        label: 'Adres zamieszkania rodziców',
+        kind: 'text',
+        hint: 'Wypełnij, jeśli inny niż adres uczestnika.'
+      });
+    }
+
     sections.push({
       key: 'guardians',
-      title: 'Rodzice / opiekunowie prawni',
+      title: 'Rodzic / opiekun prawny',
       note: 'Uczestnik jest niepełnoletni, więc kartę wypełnia i podpisuje rodzic albo opiekun prawny.',
-      fields: [
-        { code: 'guardian1Name', label: 'Imię i nazwisko', kind: 'text', required: true },
-        { code: 'guardian1Phone', label: 'Telefon', kind: 'tel', half: true, required: true },
-        { code: 'guardian1Email', label: 'E-mail', kind: 'email', half: true },
-        {
-          code: 'guardianAddress',
-          label: 'Adres zamieszkania rodziców',
-          kind: 'text',
-          hint: 'Wypełnij, jeśli inny niż adres uczestnika.'
-        },
-        { code: 'guardian2Name', label: 'Drugi rodzic / opiekun', kind: 'text', half: true },
-        { code: 'guardian2Phone', label: 'Telefon', kind: 'tel', half: true }
-      ]
+      fields: guardian
     });
   }
 
-  if (config.collectEmergency) {
+  // A second number only where the organizer has said they need one — for a
+  // minor the guardian's phone already is the contact.
+  if (config.askEmergency && config.regime !== 'minimal') {
     sections.push({
       key: 'emergency',
-      title: 'Kontakt w czasie wydarzenia',
+      title: 'Kontakt na czas wydarzenia',
       note: 'Numer, pod którym na pewno ktoś odbierze przez cały czas trwania wydarzenia.',
       fields: [
         { code: 'emergencyName', label: 'Kto', kind: 'text', half: true, required: true },
@@ -204,78 +236,25 @@ function buildSections(config: CardConfig, isMinor: boolean): CardSection[] {
     });
   }
 
-  if (config.collectSpecialNeeds) {
+  if (config.regime === 'wypoczynek') {
     sections.push({
-      key: 'needs',
-      title: 'Szczególne potrzeby',
+      key: 'wypoczynek',
+      title: 'Karta kwalifikacyjna — pozostałe pola',
+      note: 'Te pola wynikają wprost ze wzoru karty.',
       fields: [
-        {
-          code: 'specialNeeds',
-          label: 'Potrzeby wynikające z niepełnosprawności, stanu zdrowia lub sytuacji uczestnika',
-          kind: 'textarea',
-          hint: 'Zostaw puste, jeśli nie dotyczy.'
-        }
+        { code: 'specialNeeds', label: 'Szczególne potrzeby edukacyjne', kind: 'text' },
+        { code: 'vaccTetanus', label: 'Szczepienie: tężec (rok)', kind: 'text', half: true },
+        { code: 'vaccDiphtheria', label: 'Szczepienie: błonica (rok)', kind: 'text', half: true }
       ]
     });
   }
-
-  if (config.collectHealth) {
-    sections.push({
-      key: 'health',
-      title: 'Stan zdrowia i dieta',
-      note:
-        'To dane szczególnej kategorii (art. 9 RODO). Zbieramy je wyłącznie po to, żeby bezpiecznie ' +
-        'zaopiekować się uczestnikiem, i tylko za wyraźną zgodą poniżej.',
-      fields: [
-        {
-          code: 'healthAllergies',
-          label: 'Uczulenia',
-          kind: 'textarea',
-          hint: 'Leki, pokarmy, pyłki, jad owadów.'
-        },
-        { code: 'healthChronic', label: 'Choroby przewlekłe', kind: 'textarea' },
-        {
-          code: 'healthMedication',
-          label: 'Leki przyjmowane na stałe i dawki',
-          kind: 'textarea'
-        },
-        { code: 'healthDiet', label: 'Dieta', kind: 'text' },
-        {
-          code: 'healthAids',
-          label: 'Okulary, soczewki, aparat ortodontyczny, inne',
-          kind: 'text'
-        },
-        { code: 'healthTravel', label: 'Jak znosi jazdę i wysiłek', kind: 'text' },
-        {
-          code: 'healthPsych',
-          label: 'Trudności emocjonalne, funkcjonowanie w grupie, lęki',
-          kind: 'textarea',
-          hint: 'Np. lęk wysokości lub wody. Zostaw puste, jeśli nie dotyczy.'
-        }
-      ]
-    });
-  }
-
-  if (config.collectVaccinations) {
-    sections.push({
-      key: 'vaccinations',
-      title: 'Szczepienia ochronne',
-      note: 'Podaj rok ostatniego szczepienia.',
-      fields: [
-        { code: 'vaccTetanus', label: 'Tężec', kind: 'text', half: true },
-        { code: 'vaccDiphtheria', label: 'Błonica', kind: 'text', half: true },
-        { code: 'vaccOther', label: 'Inne', kind: 'text' }
-      ]
-    });
-  }
-
-  sections.push({
-    key: 'notes',
-    title: 'Uwagi',
-    fields: [{ code: 'notes', label: 'Cokolwiek jeszcze organizator powinien wiedzieć', kind: 'textarea' }]
-  });
 
   return sections;
+}
+
+function questionsFor(config: CardConfig, isMinor: boolean): Question[] {
+  if (config.regime === 'minimal') return [];
+  return config.questions.filter((entry) => entry.scope === 'all' || isMinor);
 }
 
 /** The art. 13 information clause, assembled so it always matches the settings. */
@@ -289,9 +268,7 @@ function buildClause(config: CardConfig): string {
       '.'
   );
 
-  if (config.dpoContact) {
-    lines.push(`Kontakt do inspektora ochrony danych: ${config.dpoContact}.`);
-  }
+  if (config.dpoContact) lines.push(`Kontakt do inspektora ochrony danych: ${config.dpoContact}.`);
 
   if (config.purposes.length > 0) {
     lines.push('Dane przetwarzamy w celach:');
@@ -299,26 +276,24 @@ function buildClause(config: CardConfig): string {
   }
 
   lines.push(
-    `Odbiorcy danych: ${config.recipients ?? 'osoby prowadzące wydarzenie oraz podmioty, którym powierzamy usługi (np. hosting), a w razie potrzeby służby ratunkowe i placówki ochrony zdrowia.'}`
+    `Odbiorcy danych: ${
+      config.recipients ??
+      'osoby prowadzące wydarzenie oraz dostawcy usług, z których korzystamy (np. hosting), a w razie potrzeby służby ratunkowe.'
+    }`
+  );
+  lines.push(`Okres przechowywania: ${config.retention ?? '[uzupełnij: jak długo przechowujecie te dane]'}`);
+  lines.push(
+    'Masz prawo dostępu do danych, ich sprostowania, usunięcia lub ograniczenia przetwarzania, prawo do ' +
+      'przenoszenia danych oraz prawo sprzeciwu wobec przetwarzania opartego na prawnie uzasadnionym interesie. ' +
+      'Zgody możesz wycofać w każdej chwili — bez wpływu na zgodność z prawem przetwarzania sprzed wycofania. ' +
+      'Przysługuje Ci skarga do Prezesa Urzędu Ochrony Danych Osobowych, ul. Stawki 2, 00-193 Warszawa.'
   );
   lines.push(
-    `Okres przechowywania: ${config.retention ?? '[uzupełnij: jak długo przechowujecie karty]'}`
-  );
-  lines.push(
-    'Masz prawo dostępu do danych, ich sprostowania, usunięcia lub ograniczenia przetwarzania, prawo ' +
-      'do przenoszenia danych oraz prawo sprzeciwu wobec przetwarzania opartego na prawnie uzasadnionym ' +
-      'interesie. Zgody, na których opiera się przetwarzanie, możesz wycofać w każdej chwili — bez wpływu ' +
-      'na zgodność z prawem przetwarzania sprzed wycofania. Przysługuje Ci skarga do Prezesa Urzędu ' +
-      'Ochrony Danych Osobowych, ul. Stawki 2, 00-193 Warszawa.'
-  );
-  lines.push(
-    'Podanie danych jest dobrowolne, ale bez części z nich nie możemy przyjąć zgłoszenia ani zapewnić ' +
-      'bezpieczeństwa podczas wydarzenia. Dane nie służą do zautomatyzowanego podejmowania decyzji ani ' +
-      'do profilowania.'
+    'Podanie danych jest dobrowolne, ale bez nich nie możemy przyjąć zgłoszenia. Dane nie służą do ' +
+      'zautomatyzowanego podejmowania decyzji ani do profilowania.'
   );
 
   if (config.extraClause) lines.push(config.extraClause);
-
   return lines.join('\n');
 }
 
@@ -335,24 +310,31 @@ function ageAt(birthDate: string): number | null {
   return age;
 }
 
+function formatMoment(value: string | null | undefined): string {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ''
+    : date.toLocaleString('pl-PL', { dateStyle: 'long', timeStyle: 'short' });
+}
+
 export const participantCardPart = definePart<CardConfig>({
   kind: 'card',
   label: 'Karta uczestnika i zgody',
   description:
-    'Dane uzupełniające za linkiem osobistym: karta uczestnika, zgoda rodzica dla niepełnoletnich i klauzula RODO.',
+    'Dane uzupełniające za linkiem osobistym. Zakres zależy od tego, czym wydarzenie jest w świetle prawa, i od wieku uczestnika.',
 
   defaultConfig: () => ({
+    regime: 'trip',
     intro:
-      'Uzupełnij kartę uczestnika. Dane są widoczne tylko dla organizatora i służą wyłącznie do ' +
-      'przeprowadzenia wydarzenia. Możesz je poprawić w każdej chwili z tego samego linku.',
+      'Uzupełnij kartę uczestnika. Pytamy o tyle, ile naprawdę potrzebujemy. Dane widzi tylko organizator, ' +
+      'a Ty możesz je poprawić w każdej chwili z tego samego linku.',
     saveLabel: 'Zapisz i podpisz',
     savedMessage: 'Karta została zapisana.',
     adultAge: 18,
-    collectPesel: true,
-    collectSpecialNeeds: true,
-    collectHealth: true,
-    collectVaccinations: true,
-    collectEmergency: true,
+    askEmergency: false,
+    allowPrint: true,
+    questions: DEFAULT_QUESTIONS,
     controllerName: null,
     controllerAddress: null,
     controllerContact: null,
@@ -366,6 +348,23 @@ export const participantCardPart = definePart<CardConfig>({
 
   parse: (raw) => {
     const record = asRecord(raw);
+    const regimeText = asText(record.regime, 'trip');
+    const regime: Regime =
+      regimeText === 'minimal' || regimeText === 'wypoczynek' || regimeText === 'trip' ? regimeText : 'trip';
+
+    const questions = mapEntries<Question>(record.questions, (item) => {
+      const code = asText(item.code).trim();
+      const text = asText(item.text).trim();
+      if (code.length === 0 || text.length === 0) return null;
+      return {
+        code,
+        text,
+        detailLabel: asText(item.detailLabel, 'Napisz krótko').trim() || 'Napisz krótko',
+        scope: asText(item.scope) === 'minor' ? 'minor' : 'all',
+        requireDetail: asBool(item.requireDetail, true)
+      };
+    });
+
     const consents = mapEntries<ConsentSpec>(record.consents, (item) => {
       const code = asText(item.code).trim();
       const text = asText(item.text).trim();
@@ -384,6 +383,7 @@ export const participantCardPart = definePart<CardConfig>({
       : [];
 
     return {
+      regime,
       intro: asOptionalText(record.intro),
       saveLabel: asOptionalText(record.saveLabel),
       savedMessage: asOptionalText(record.savedMessage),
@@ -391,11 +391,9 @@ export const participantCardPart = definePart<CardConfig>({
         const value = Number(record.adultAge);
         return Number.isFinite(value) && value >= 1 && value <= 26 ? Math.round(value) : 18;
       })(),
-      collectPesel: asBool(record.collectPesel, true),
-      collectSpecialNeeds: asBool(record.collectSpecialNeeds, true),
-      collectHealth: asBool(record.collectHealth, true),
-      collectVaccinations: asBool(record.collectVaccinations, true),
-      collectEmergency: asBool(record.collectEmergency, true),
+      askEmergency: asBool(record.askEmergency),
+      allowPrint: asBool(record.allowPrint, true),
+      questions: questions.length > 0 ? questions : DEFAULT_QUESTIONS,
       controllerName: asOptionalText(record.controllerName),
       controllerAddress: asOptionalText(record.controllerAddress),
       controllerContact: asOptionalText(record.controllerContact),
@@ -449,6 +447,7 @@ export const participantCardPart = definePart<CardConfig>({
     const age = ageAt(data.birthDate ?? '');
     const isMinor = age !== null && age < config.adultAge;
     const sections = useMemo(() => buildSections(config, isMinor), [config, isMinor]);
+    const questions = useMemo(() => questionsFor(config, isMinor), [config, isMinor]);
     const clause = useMemo(() => buildClause(config), [config]);
     const visibleConsents = config.consents.filter((entry) => !entry.minorOnly || isMinor);
 
@@ -459,13 +458,16 @@ export const participantCardPart = definePart<CardConfig>({
       return <p className="ev-note">Wczytywanie karty…</p>;
     }
 
+    const setField = (code: string, value: string) =>
+      setData((previous) => ({ ...previous, [code]: value }));
+
     const save = async (event: FormEvent) => {
       event.preventDefault();
       setError(null);
       setSaved(null);
 
       if (age === null) {
-        setError('Podaj datę urodzenia uczestnika — od niej zależy, kto podpisuje kartę.');
+        setError('Podaj datę urodzenia — od niej zależy, kto podpisuje kartę.');
         return;
       }
 
@@ -474,6 +476,17 @@ export const participantCardPart = definePart<CardConfig>({
         .find((field) => field.required && (data[field.code] ?? '').trim().length === 0);
       if (missing) {
         setError(`Uzupełnij pole „${missing.label}”.`);
+        return;
+      }
+
+      const unexplained = questions.find(
+        (question) =>
+          question.requireDetail &&
+          data[question.code] === 'tak' &&
+          (data[`${question.code}Detail`] ?? '').trim().length === 0
+      );
+      if (unexplained) {
+        setError(`Napisz krótko: ${unexplained.detailLabel.toLowerCase()}.`);
         return;
       }
 
@@ -488,18 +501,30 @@ export const participantCardPart = definePart<CardConfig>({
         return;
       }
 
+      // "Nie" carries no information worth storing, and an explanation to a
+      // question answered "nie" is stale. Neither is sent.
+      const payload: Record<string, string | null> = {};
+      for (const field of sections.flatMap((section) => section.fields)) {
+        const value = (data[field.code] ?? '').trim();
+        if (value.length > 0) payload[field.code] = value;
+      }
+      for (const question of questions) {
+        if (data[question.code] !== 'tak') continue;
+        payload[question.code] = 'tak';
+        const detail = (data[`${question.code}Detail`] ?? '').trim();
+        if (detail.length > 0) payload[`${question.code}Detail`] = detail;
+      }
+
       setPending(true);
       try {
         const response = await saveParticipantCard(token, partId, {
-          data,
+          data: payload,
           consents: visibleConsents.map((entry) => ({
             code: entry.code,
             label: entry.label,
             text: entry.text,
             accepted: accepted[entry.code] === true
           })),
-          // Stored with the answers: proving art. 13 was met means keeping the
-          // text the person was actually shown, not today's version of it.
           clauseText: clause,
           isMinor,
           signerRole: isMinor ? 'guardian' : 'participant',
@@ -515,8 +540,7 @@ export const participantCardPart = definePart<CardConfig>({
       }
     };
 
-    const setField = (code: string, value: string) =>
-      setData((previous) => ({ ...previous, [code]: value }));
+    const showPrint = config.allowPrint && isMinor && card?.submittedUtc;
 
     return (
       <div className="ev-card-form">
@@ -524,12 +548,8 @@ export const participantCardPart = definePart<CardConfig>({
 
         {card?.submittedUtc ? (
           <p className="ev-own-meta">
-            Karta podpisana przez: {card.signerName}
-            {card.isMinor ? ' (rodzic / opiekun prawny)' : ''} ·{' '}
-            {new Date(card.updatedUtc ?? card.submittedUtc).toLocaleString('pl-PL', {
-              dateStyle: 'long',
-              timeStyle: 'short'
-            })}
+            Podpisano: {card.signerName}
+            {card.isMinor ? ' (rodzic / opiekun prawny)' : ''} · {formatMoment(card.updatedUtc ?? card.submittedUtc)}
           </p>
         ) : null}
 
@@ -546,19 +566,11 @@ export const participantCardPart = definePart<CardConfig>({
                       {field.label}
                       {field.required ? <em aria-hidden="true"> *</em> : null}
                     </span>
-                    {field.kind === 'textarea' ? (
-                      <textarea
-                        rows={2}
-                        value={data[field.code] ?? ''}
-                        onChange={(event) => setField(field.code, event.target.value)}
-                      />
-                    ) : (
-                      <input
-                        type={field.kind === 'date' ? 'date' : field.kind === 'tel' ? 'tel' : field.kind}
-                        value={data[field.code] ?? ''}
-                        onChange={(event) => setField(field.code, event.target.value)}
-                      />
-                    )}
+                    <input
+                      type={field.kind === 'date' ? 'date' : field.kind === 'tel' ? 'tel' : 'text'}
+                      value={data[field.code] ?? ''}
+                      onChange={(event) => setField(field.code, event.target.value)}
+                    />
                     {field.hint ? <small>{field.hint}</small> : null}
                   </label>
                 ))}
@@ -570,12 +582,55 @@ export const participantCardPart = definePart<CardConfig>({
             <p className={`ev-card-age ${isMinor ? 'is-minor' : ''}`}>
               {isMinor
                 ? `Uczestnik ma ${age} lat — kartę wypełnia i podpisuje rodzic albo opiekun prawny.`
-                : `Uczestnik ma ${age} lat — podpisuje kartę samodzielnie.`}
+                : `Uczestnik jest pełnoletni (${age} lat) — podpisuje samodzielnie i o nic więcej nie pytamy.`}
             </p>
           ) : null}
 
-          {/* The information obligation is met by showing this, not by linking
-              it: it stays on the page above the consents. */}
+          {questions.length > 0 ? (
+            <fieldset className="ev-fieldset">
+              <legend>Pytania</legend>
+              <small>Odpowiedz „nie”, jeśli nie dotyczy — wtedy nic więcej nie zapisujemy.</small>
+
+              {questions.map((question) => {
+                const answer = data[question.code] ?? '';
+                return (
+                  <div className="ev-question" key={question.code}>
+                    <p>{question.text}</p>
+                    <div className="ev-question-choice">
+                      {(['nie', 'tak'] as const).map((option) => (
+                        <label key={option}>
+                          <input
+                            type="radio"
+                            name={`${partId}-${question.code}`}
+                            checked={answer === option}
+                            onChange={() => setField(question.code, option)}
+                          />
+                          <span>{option === 'tak' ? 'Tak' : 'Nie'}</span>
+                        </label>
+                      ))}
+                    </div>
+
+                    {answer === 'tak' ? (
+                      <label className="ev-field">
+                        <span className="ev-field-label">
+                          {question.detailLabel}
+                          {question.requireDetail ? <em aria-hidden="true"> *</em> : null}
+                        </span>
+                        <textarea
+                          rows={2}
+                          value={data[`${question.code}Detail`] ?? ''}
+                          onChange={(event) => setField(`${question.code}Detail`, event.target.value)}
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </fieldset>
+          ) : null}
+
+          {/* Shown, not linked: the obligation is to inform, and it has to be in
+              front of the person before they tick anything. */}
           <section className="ev-clause" aria-label="Informacja o przetwarzaniu danych">
             {clause.split('\n').map((line, index) => (
               <p key={index}>{line}</p>
@@ -610,29 +665,52 @@ export const participantCardPart = definePart<CardConfig>({
               <em aria-hidden="true"> *</em>
             </span>
             <input type="text" value={signerName} onChange={(event) => setSignerName(event.target.value)} />
-            <small>
-              Wpisanie imienia i nazwiska jest równoznaczne z podpisaniem karty. Data i godzina podpisu
-              zapisują się same.
-            </small>
+            <small>Wpisanie imienia i nazwiska podpisuje kartę. Data i godzina zapisują się same.</small>
           </label>
 
-          <button className="ev-cta" type="submit" disabled={pending}>
-            {pending ? 'Zapisywanie…' : (config.saveLabel ?? 'Zapisz i podpisz')}
-          </button>
+          <div className="ev-actions">
+            <button className="ev-cta" type="submit" disabled={pending}>
+              {pending ? 'Zapisywanie…' : (config.saveLabel ?? 'Zapisz i podpisz')}
+            </button>
+            {showPrint ? (
+              <button className="ev-ghost" type="button" onClick={() => window.print()}>
+                Drukuj zgodę
+              </button>
+            ) : null}
+          </div>
 
           {error ? <p className="ev-error">{error}</p> : null}
           {saved ? <p className="ev-success">{saved}</p> : null}
         </form>
+
+        {showPrint ? (
+          <PrintableConsent
+            eventTitle={ctx.siteTitle}
+            eventDate={ctx.siteDateLabel}
+            card={card}
+            sections={sections}
+            questions={questions}
+            clause={clause}
+          />
+        ) : null}
       </div>
     );
   },
 
   Editor: ({ config, onChange }) => (
     <>
+      <SelectRow<Regime>
+        label="Czym jest to wydarzenie"
+        value={config.regime}
+        options={REGIMES}
+        onChange={(regime) => onChange({ ...config, regime })}
+      />
+      <p className="eve-hint">{REGIME_NOTES[config.regime]}</p>
+
       <p className="eve-warn">
-        Ta sekcja zbiera dane wrażliwe i zgody. Uzupełnij administratora danych i okres przechowywania — bez tego
-        klauzula informacyjna jest niekompletna. Treść zgód zapisuje się razem z odpowiedzią, więc późniejsza zmiana
-        nie podmienia tego, na co ktoś się już zgodził.
+        Uzupełnij administratora danych i okres przechowywania — bez nich klauzula informacyjna jest niekompletna.
+        Treść zgód zapisuje się razem z odpowiedzią, więc późniejsza zmiana nie podmienia tego, na co ktoś już się
+        zgodził.
       </p>
 
       <AreaRow
@@ -654,7 +732,7 @@ export const participantCardPart = definePart<CardConfig>({
       />
 
       <fieldset className="eve-group">
-        <legend>Co zbieramy</legend>
+        <legend>Zakres</legend>
         <NumberRow
           label="Pełnoletność od (lat)"
           value={config.adultAge}
@@ -662,31 +740,66 @@ export const participantCardPart = definePart<CardConfig>({
           onChange={(adultAge) => onChange({ ...config, adultAge })}
         />
         <CheckRow
-          label="PESEL uczestnika"
-          checked={config.collectPesel}
-          onChange={(collectPesel) => onChange({ ...config, collectPesel })}
+          label="Pytaj o osobny kontakt na czas wydarzenia"
+          checked={config.askEmergency}
+          onChange={(askEmergency) => onChange({ ...config, askEmergency })}
         />
+        <p className="eve-hint">
+          Dla osoby niepełnoletniej telefon rodzica i tak jest kontaktem na czas wydarzenia — włączaj to tylko, gdy
+          potrzebujesz drugiego numeru.
+        </p>
         <CheckRow
-          label="Szczególne potrzeby"
-          checked={config.collectSpecialNeeds}
-          onChange={(collectSpecialNeeds) => onChange({ ...config, collectSpecialNeeds })}
-        />
-        <CheckRow
-          label="Stan zdrowia i dieta"
-          checked={config.collectHealth}
-          onChange={(collectHealth) => onChange({ ...config, collectHealth })}
-        />
-        <CheckRow
-          label="Szczepienia"
-          checked={config.collectVaccinations}
-          onChange={(collectVaccinations) => onChange({ ...config, collectVaccinations })}
-        />
-        <CheckRow
-          label="Kontakt w czasie wydarzenia"
-          checked={config.collectEmergency}
-          onChange={(collectEmergency) => onChange({ ...config, collectEmergency })}
+          label="Pozwól wydrukować podpisaną zgodę (osoby niepełnoletnie)"
+          checked={config.allowPrint}
+          onChange={(allowPrint) => onChange({ ...config, allowPrint })}
         />
       </fieldset>
+
+      <ListEditor<Question>
+        legend="Pytania „tak / nie”"
+        items={config.questions}
+        addLabel="Dodaj pytanie"
+        blank={() => ({
+          code: `pytanie${config.questions.length + 1}`,
+          text: '',
+          detailLabel: 'Napisz krótko',
+          scope: 'all',
+          requireDetail: true
+        })}
+        titleOf={(item) => item.text || item.code}
+        onChange={(questions) => onChange({ ...config, questions })}
+        renderItem={(item, update) => (
+          <>
+            <TextRow
+              label="Kod"
+              value={item.code}
+              hint="Krótki, stały identyfikator — pod nim odpowiedź trafia do wykazu."
+              onChange={(code) => update({ ...item, code })}
+            />
+            <AreaRow label="Pytanie" rows={2} value={item.text} onChange={(text) => update({ ...item, text })} />
+            <TextRow
+              label="Etykieta pola opisu"
+              value={item.detailLabel}
+              hint="Widoczna dopiero po odpowiedzi „tak”."
+              onChange={(detailLabel) => update({ ...item, detailLabel })}
+            />
+            <SelectRow<Question['scope']>
+              label="Kogo pytamy"
+              value={item.scope}
+              options={[
+                { value: 'all', label: 'Wszystkich' },
+                { value: 'minor', label: 'Tylko niepełnoletnich' }
+              ]}
+              onChange={(scope) => update({ ...item, scope })}
+            />
+            <CheckRow
+              label="Po „tak” opis jest wymagany"
+              checked={item.requireDetail}
+              onChange={(requireDetail) => update({ ...item, requireDetail })}
+            />
+          </>
+        )}
+      />
 
       <fieldset className="eve-group">
         <legend>Klauzula informacyjna (RODO art. 13)</legend>
@@ -715,7 +828,7 @@ export const participantCardPart = definePart<CardConfig>({
         />
         <AreaRow
           label="Cele i podstawy prawne"
-          rows={6}
+          rows={5}
           value={config.purposes.join('\n')}
           hint="Jeden cel na linię."
           onChange={(value) =>
@@ -737,7 +850,7 @@ export const participantCardPart = definePart<CardConfig>({
         <TextRow
           label="Okres przechowywania"
           value={config.retention ?? ''}
-          hint="Np. do końca roku kalendarzowego po wydarzeniu, a rozliczenia — 5 lat."
+          hint="Np. do końca roku kalendarzowego po wydarzeniu."
           onChange={(retention) => onChange({ ...config, retention: retention || null })}
         />
         <AreaRow
@@ -752,17 +865,18 @@ export const participantCardPart = definePart<CardConfig>({
         legend="Zgody i oświadczenia"
         items={config.consents}
         addLabel="Dodaj zgodę"
-        blank={() => ({ code: `zgoda${config.consents.length + 1}`, label: 'Nowa zgoda', text: '', required: false, minorOnly: false })}
+        blank={() => ({
+          code: `zgoda${config.consents.length + 1}`,
+          label: 'Nowa zgoda',
+          text: '',
+          required: false,
+          minorOnly: false
+        })}
         titleOf={(item) => item.label || item.code}
         onChange={(consents) => onChange({ ...config, consents })}
         renderItem={(item, update) => (
           <>
-            <TextRow
-              label="Kod"
-              value={item.code}
-              hint="Krótki, stały identyfikator — po nim rozpoznajesz zgodę w wykazie."
-              onChange={(code) => update({ ...item, code })}
-            />
+            <TextRow label="Kod" value={item.code} onChange={(code) => update({ ...item, code })} />
             <TextRow label="Nazwa" value={item.label} onChange={(label) => update({ ...item, label })} />
             <AreaRow label="Treść" rows={4} value={item.text} onChange={(text) => update({ ...item, text })} />
             <CheckRow
@@ -781,3 +895,110 @@ export const participantCardPart = definePart<CardConfig>({
     </>
   )
 });
+
+/**
+ * The paper version of a minor's consent.
+ *
+ * Portalled to document.body because the reader's page is a transformed,
+ * fixed-position track — printing it directly gives one clipped screenshot of
+ * whatever happened to be on screen. The print stylesheet hides the page and
+ * shows only this, so the sheet that comes out is the document and nothing else.
+ *
+ * It prints what was actually agreed to, read back from the saved card rather
+ * than from the form on screen: a printout that disagrees with the record would
+ * be worse than no printout.
+ */
+function PrintableConsent({
+  eventTitle,
+  eventDate,
+  card,
+  sections,
+  questions,
+  clause
+}: {
+  eventTitle: string;
+  eventDate: string | null;
+  card: EventParticipantCard;
+  sections: CardSection[];
+  questions: Question[];
+  clause: string;
+}) {
+  if (typeof document === 'undefined') return null;
+
+  const value = (code: string) => card.data[code] ?? '';
+
+  return createPortal(
+    <div className="ev-print-doc">
+      <header>
+        <h1>Zgoda rodzica / opiekuna prawnego na udział w wydarzeniu</h1>
+        <p>
+          <strong>{eventTitle}</strong>
+          {eventDate ? ` · ${eventDate}` : ''}
+        </p>
+      </header>
+
+      {sections.map((section) => {
+        const filled = section.fields.filter((field) => value(field.code).trim().length > 0);
+        if (filled.length === 0) return null;
+        return (
+          <section key={section.key}>
+            <h2>{section.title}</h2>
+            <dl>
+              {filled.map((field) => (
+                <div key={field.code}>
+                  <dt>{field.label}</dt>
+                  <dd>{value(field.code)}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        );
+      })}
+
+      {questions.length > 0 ? (
+        <section>
+          <h2>Pytania</h2>
+          <dl>
+            {questions.map((question) => (
+              <div key={question.code}>
+                <dt>{question.text}</dt>
+                <dd>
+                  {value(question.code) === 'tak' ? 'Tak' : 'Nie'}
+                  {value(`${question.code}Detail`) ? ` — ${value(`${question.code}Detail`)}` : ''}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ) : null}
+
+      <section>
+        <h2>Oświadczenia</h2>
+        <ul>
+          {card.consents.map((consent) => (
+            <li key={consent.code}>
+              <strong>{consent.accepted ? 'TAK' : 'NIE'}</strong> — {consent.label}: {consent.text}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="ev-print-clause">
+        {clause.split('\n').map((line, index) => (
+          <p key={index}>{line}</p>
+        ))}
+      </section>
+
+      <footer>
+        <p>
+          Podpisano elektronicznie: <strong>{card.signerName}</strong>,{' '}
+          {formatMoment(card.updatedUtc ?? card.submittedUtc)}.
+        </p>
+        <div className="ev-print-sign">
+          <span>data i podpis rodzica / opiekuna prawnego</span>
+        </div>
+      </footer>
+    </div>,
+    document.body
+  );
+}

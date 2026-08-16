@@ -357,7 +357,13 @@ export function EventShell({
                     {module ? (
                       <module.Renderer
                         configJson={part.configJson}
-                        ctx={{ siteSlug: site.slug, accessToken, part }}
+                        ctx={{
+                          siteSlug: site.slug,
+                          siteTitle: site.title,
+                          siteDateLabel: site.dateLabel,
+                          accessToken,
+                          part
+                        }}
                       />
                     ) : (
                       <p className="ev-note">Nieznany typ sekcji: {part.kind}.</p>

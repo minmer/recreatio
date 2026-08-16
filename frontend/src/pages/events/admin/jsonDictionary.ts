@@ -130,15 +130,29 @@ stronie wewnętrznej, do której ktoś dostał link osobisty:
 
   - "registration" — pokazuje osobie jej własne zgłoszenie z formularza
     zapisów i pozwala je poprawić. Nie ma własnych pól; bierze je z formularza.
-  - "card" — karta uczestnika: dane uzupełniające (adres, PESEL, rodzice,
-    zdrowie, szczepienia), zgoda rodzica dla osób niepełnoletnich i zgody
-    RODO. Zakres pól jest stały, bo wynika z przepisów o wypoczynku dzieci
-    i młodzieży; w "config" ustawia się administratora danych, okres
-    przechowywania i treść zgód.
+  - "card" — karta uczestnika: dane uzupełniające, zgoda rodzica dla osób
+    niepełnoletnich i klauzula RODO.
 
-Na stronie publicznej obie nie pokażą nic poza informacją, że wymagają linku.
-W "card" zawsze uzupełnij "controllerName" i "retention" — bez nich klauzula
-informacyjna jest niekompletna.
+W "card" o zakres pól decyduje "regime" — czym wydarzenie jest w świetle prawa:
+
+  - "minimal"    — spotkanie, wydarzenie jednodniowe. Pytamy wyłącznie o imię,
+                   nazwisko i datę urodzenia. Dla niepełnoletniego dochodzi
+                   rodzic lub opiekun i jego telefon.
+  - "trip"       — wyjazd, wycieczka, pielgrzymka (domyślne). Jak wyżej, plus
+                   pytania „tak/nie” z opisem dopiero po odpowiedzi „tak”.
+  - "wypoczynek" — dopiero to uruchamia PESEL, adresy i szczepienia, bo wynikają
+                   ze wzoru karty kwalifikacyjnej. Nie wybieraj tego dla zwykłego
+                   wyjazdu — zbierałbyś dane bez podstawy prawnej.
+
+Osoba pełnoletnia podaje tylko imię, nazwisko i datę urodzenia — kontakt jest
+już w zgłoszeniu z formularza i nie pytamy o niego drugi raz.
+
+Zamiast otwartych pól o zdrowiu używa się listy "questions": pytanie, na które
+odpowiada się „tak” albo „nie”, a pole opisu pojawia się dopiero po „tak”.
+
+Na stronie publicznej obie części nie pokażą nic poza informacją, że wymagają
+linku. W "card" zawsze uzupełnij "controllerName" i "retention" — bez nich
+klauzula informacyjna jest niekompletna.
 
 ## Typy części i ich "config"`;
 
