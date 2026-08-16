@@ -133,19 +133,25 @@ stronie wewnętrznej, do której ktoś dostał link osobisty:
   - "card" — karta uczestnika: dane uzupełniające, zgoda rodzica dla osób
     niepełnoletnich i klauzula RODO.
 
-W "card" o zakres pól decyduje "regime" — czym wydarzenie jest w świetle prawa:
+W "card" wszystko wynika z pola "level" — jednej z czterech wersji dokumentu:
 
-  - "minimal"    — spotkanie, wydarzenie jednodniowe. Pytamy wyłącznie o imię,
-                   nazwisko i datę urodzenia. Dla niepełnoletniego dochodzi
-                   rodzic lub opiekun i jego telefon.
-  - "trip"       — wyjazd, wycieczka, pielgrzymka (domyślne). Jak wyżej, plus
-                   pytania „tak/nie” z opisem dopiero po odpowiedzi „tak”.
-  - "wypoczynek" — dopiero to uruchamia PESEL, adresy i szczepienia, bo wynikają
+  - "rodo"       — sama klauzula i zgody RODO. Pytamy tylko o imię i nazwisko.
+                   Dla wydarzeń wyłącznie dla osób pełnoletnich.
+  - "rodo-minor" — jak wyżej, a dla osoby niepełnoletniej dochodzi rodzic lub
+                   opiekun z telefonem i krótka zgoda na udział.
+  - "trip"       — pełna zgoda na wyjazd, wycieczkę, pielgrzymkę (domyślna).
+                   Dochodzą pytania „tak/nie” i zgoda na pomoc w nagłym wypadku.
+  - "full"       — dopiero to uruchamia PESEL, adresy i szczepienia, bo wynikają
                    ze wzoru karty kwalifikacyjnej. Nie wybieraj tego dla zwykłego
                    wyjazdu — zbierałbyś dane bez podstawy prawnej.
 
-Osoba pełnoletnia podaje tylko imię, nazwisko i datę urodzenia — kontakt jest
-już w zgłoszeniu z formularza i nie pytamy o niego drugi raz.
+Osoba pełnoletnia akceptuje wszystko na stronie i nic nie drukuje. Za osobę
+niepełnoletnią podpisuje rodzic albo opiekun prawny, a taki podpis musi być
+odręczny: kartę wypełnia się na stronie, drukuje, podpisuje i oddaje
+organizatorowi. Klikniecie w checkbox tego nie zastępuje.
+
+Kontakt do uczestnika jest już w zgłoszeniu z formularza i nie pytamy o niego
+drugi raz.
 
 Zamiast otwartych pól o zdrowiu używa się listy "questions": pytanie, na które
 odpowiada się „tak” albo „nie”, a pole opisu pojawia się dopiero po „tak”.

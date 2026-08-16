@@ -1,86 +1,45 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { getParticipantCard, saveParticipantCard, type EventParticipantCard } from '../../../lib/api';
+import {
+  CARD_LEVELS,
+  LEVEL_OPTIONS,
+  readLevel,
+  type CardLevel,
+  type ConsentSpec,
+  type Question
+} from './cardLevels';
 import { asBool, asOptionalText, asRecord, asText, definePart, mapEntries } from './contracts';
 import { AreaRow, CheckRow, ListEditor, NumberRow, SelectRow, TextRow } from './editorKit';
 
 /**
- * The participant card: what an event still has to ask a named person once they
+ * The participant card: what still has to be asked of a named person once they
  * are taking part, and the statements someone has to sign.
  *
- * Two rules shape the whole thing.
+ * The organizer chooses one of four documents (see cardLevels.ts) and everything
+ * else follows from it — which blocks appear, who signs, and whether clicking
+ * finishes the matter. Two rules run underneath:
  *
- * **Ask for as little as possible.** RODO art. 5(1)(c) is not a formality: every
- * field has to earn its place. An adult taking part needs to be identified and
- * shown to be an adult — name and date of birth, and nothing else. Their contact
- * details are already in the registration; asking again would be collecting the
- * same data twice. Everything beyond that is either conditional on an answer or
- * turned on deliberately by the organizer.
+ * **Ask for as little as the level needs.** An adult is identified by name, and
+ * by a date of birth where the level has to tell an adult from a minor. Contact
+ * details are already in the registration; asking twice would be collecting the
+ * same data twice.
  *
- * **What is needed depends on what the event legally is.** A day out, a trip
- * away, and "wypoczynek dzieci i młodzieży" are three different obligations, and
- * only the last one is governed by a prescribed form (karta kwalifikacyjna,
- * rozporządzenie MEN; wzór z 6 czerwca 2026 r., Dz.U. 2026 poz. 704). Applying
- * that form to an ordinary trip would collect PESEL numbers and vaccination
- * records nobody is entitled to. So the organizer picks the regime, and the
- * fields follow from it.
- *
- * A minor is a separate case in every regime: someone else has to consent, so
- * the guardian must be named and reachable, and they get a printable copy to
- * sign on paper where that is wanted.
+ * **A minor's card ends on paper.** Ticking a box on a website is not the
+ * guardian's signature — nobody can show who sat at the keyboard, and no school,
+ * parish or insurer will accept it as one. So a minor fills the card in online,
+ * prints it, signs it by hand, and hands it over at the start. The screen says
+ * so before and after saving, and the sheet says so too.
  */
-
-/** What the event legally is — this decides what may be asked at all. */
-type Regime = 'minimal' | 'trip' | 'wypoczynek';
-
-const REGIMES: Array<{ value: Regime; label: string }> = [
-  { value: 'minimal', label: 'Spotkanie / wydarzenie jednodniowe' },
-  { value: 'trip', label: 'Wyjazd, wycieczka, pielgrzymka' },
-  { value: 'wypoczynek', label: 'Wypoczynek dzieci i młodzieży (karta kwalifikacyjna)' }
-];
-
-const REGIME_NOTES: Record<Regime, string> = {
-  minimal:
-    'Najmniejszy możliwy zakres: imię i nazwisko oraz data urodzenia. Dla osoby niepełnoletniej dochodzi rodzic lub opiekun i jego telefon.',
-  trip:
-    'Jak wyżej, a do tego kontakt na czas wyjazdu i pytania, na które odpowiada się „tak/nie” — opis tylko wtedy, gdy odpowiedź brzmi „tak”.',
-  wypoczynek:
-    'Pełny zakres karty kwalifikacyjnej: PESEL, adresy, szczepienia i szczególne potrzeby. Wybieraj tylko wtedy, gdy wydarzenie naprawdę jest wypoczynkiem w rozumieniu ustawy o systemie oświaty — w innym przypadku zbierasz dane, do których nie masz podstawy.'
-};
-
-/**
- * A yes/no question with an optional explanation. This replaced a page of open
- * textareas: most people have nothing to declare, and a blank box invites them
- * to write things nobody asked for and the organizer then has to hold.
- */
-type Question = {
-  code: string;
-  text: string;
-  detailLabel: string;
-  /** Who is asked: everyone, or only where the participant is a minor. */
-  scope: 'all' | 'minor';
-  /** Whether answering "tak" without explaining is enough. */
-  requireDetail: boolean;
-};
-
-type ConsentSpec = {
-  code: string;
-  label: string;
-  text: string;
-  required: boolean;
-  minorOnly: boolean;
-};
 
 type CardConfig = {
-  regime: Regime;
+  level: CardLevel;
   intro: string | null;
   saveLabel: string | null;
   savedMessage: string | null;
   adultAge: number;
   /** A contact for the event itself, beyond the guardian's own number. */
   askEmergency: boolean;
-  /** Offer a printable consent for a minor to hand in signed. */
-  allowPrint: boolean;
   questions: Question[];
   controllerName: string | null;
   controllerAddress: string | null;
@@ -92,63 +51,6 @@ type CardConfig = {
   extraClause: string | null;
   consents: ConsentSpec[];
 };
-
-const DEFAULT_QUESTIONS: Question[] = [
-  {
-    code: 'health',
-    text: 'Czy jest coś w stanie zdrowia, o czym powinniśmy wiedzieć — alergie, choroby przewlekłe, leki przyjmowane na stałe?',
-    detailLabel: 'Napisz krótko, co powinniśmy wiedzieć',
-    scope: 'all',
-    requireDetail: true
-  },
-  {
-    code: 'diet',
-    text: 'Czy stosujesz dietę, której nie możemy pominąć?',
-    detailLabel: 'Jaka dieta',
-    scope: 'all',
-    requireDetail: true
-  }
-];
-
-const DEFAULT_CONSENTS: ConsentSpec[] = [
-  {
-    code: 'participation',
-    label: 'Zgoda na udział',
-    text:
-      'Jako rodzic albo opiekun prawny wyrażam zgodę na udział mojego dziecka w tym wydarzeniu na warunkach ' +
-      'opisanych na jego stronie. Oświadczam, że znam jego stan zdrowia i nie widzę przeciwwskazań do udziału.',
-    required: true,
-    minorOnly: true
-  },
-  {
-    code: 'medical',
-    label: 'Pomoc w nagłym wypadku',
-    text:
-      'W razie zagrożenia zdrowia lub życia zgadzam się na wezwanie pomocy medycznej i udzielenie niezbędnej ' +
-      'pomocy, a organizatora proszę o niezwłoczne powiadomienie mnie.',
-    required: true,
-    minorOnly: false
-  },
-  {
-    code: 'health',
-    label: 'Zgoda na dane o zdrowiu',
-    text:
-      'Jeżeli podaję wyżej informacje o zdrowiu lub diecie, wyrażam wyraźną zgodę na ich przetwarzanie ' +
-      '(art. 9 ust. 2 lit. a RODO) wyłącznie po to, żeby bezpiecznie zaopiekować się uczestnikiem. Zgodę mogę ' +
-      'wycofać w każdej chwili; wycofanie nie wpływa na zgodność z prawem wcześniejszego przetwarzania.',
-    required: false,
-    minorOnly: false
-  },
-  {
-    code: 'image',
-    label: 'Wizerunek (dobrowolne)',
-    text:
-      'Zgadzam się na nieodpłatne utrwalenie i publikację wizerunku w relacjach z wydarzenia, zgodnie z art. 81 ' +
-      'ustawy o prawie autorskim i prawach pokrewnych. Zgoda jest dobrowolna, nie warunkuje udziału i mogę ją wycofać.',
-    required: false,
-    minorOnly: false
-  }
-];
 
 const DEFAULT_PURPOSES = [
   'udział w wydarzeniu i kontakt w sprawach organizacyjnych — art. 6 ust. 1 lit. b RODO, a w przypadku osoby niepełnoletniej art. 6 ust. 1 lit. a RODO (zgoda opiekuna),',
@@ -167,33 +69,30 @@ type CardField = {
 
 type CardSection = { key: string; title: string; note?: string; fields: CardField[] };
 
-/**
- * The structured fields, given the regime and the participant's age. Everything
- * here is present because something requires it, not because it might be handy.
- */
+/** The structured fields for a level and an age. Nothing here is optional decoration. */
 function buildSections(config: CardConfig, isMinor: boolean): CardSection[] {
+  const spec = CARD_LEVELS[config.level];
   const sections: CardSection[] = [];
-  const participant: CardField[] = [
-    { code: 'participantName', label: 'Imię i nazwisko', kind: 'text', required: true },
-    { code: 'birthDate', label: 'Data urodzenia', kind: 'date', half: true, required: true }
-  ];
 
-  // Only the prescribed form justifies these. On an ordinary trip there is no
-  // basis for a PESEL number or a home address.
-  if (config.regime === 'wypoczynek') {
+  const participant: CardField[] = [
+    { code: 'participantName', label: 'Imię i nazwisko', kind: 'text', required: true }
+  ];
+  if (spec.askBirthDate) {
+    participant.push({ code: 'birthDate', label: 'Data urodzenia', kind: 'date', half: true, required: true });
+  }
+  if (spec.askKarta) {
     participant.push({
       code: 'pesel',
       label: 'PESEL',
       kind: 'text',
       half: true,
-      hint: 'Wymagany w karcie kwalifikacyjnej — potwierdza prawo do świadczeń zdrowotnych.'
+      hint: 'Wymagany we wzorze karty kwalifikacyjnej.'
     });
     participant.push({ code: 'address', label: 'Adres zamieszkania', kind: 'text', required: true });
   }
-
   sections.push({ key: 'participant', title: 'Uczestnik', fields: participant });
 
-  if (isMinor) {
+  if (isMinor && spec.guardianForMinors) {
     const guardian: CardField[] = [
       { code: 'guardian1Name', label: 'Imię i nazwisko', kind: 'text', required: true },
       {
@@ -202,10 +101,10 @@ function buildSections(config: CardConfig, isMinor: boolean): CardSection[] {
         kind: 'tel',
         half: true,
         required: true,
-        hint: 'Numer, pod którym będziesz dostępna/y w czasie wydarzenia.'
+        hint: 'Numer czynny przez cały czas trwania wydarzenia.'
       }
     ];
-    if (config.regime === 'wypoczynek') {
+    if (spec.askKarta) {
       guardian.push({
         code: 'guardianAddress',
         label: 'Adres zamieszkania rodziców',
@@ -213,7 +112,6 @@ function buildSections(config: CardConfig, isMinor: boolean): CardSection[] {
         hint: 'Wypełnij, jeśli inny niż adres uczestnika.'
       });
     }
-
     sections.push({
       key: 'guardians',
       title: 'Rodzic / opiekun prawny',
@@ -222,13 +120,12 @@ function buildSections(config: CardConfig, isMinor: boolean): CardSection[] {
     });
   }
 
-  // A second number only where the organizer has said they need one — for a
-  // minor the guardian's phone already is the contact.
-  if (config.askEmergency && config.regime !== 'minimal') {
+  // A second number only where the organizer asked for one — a minor's guardian
+  // phone already is the contact for the event.
+  if (config.askEmergency && config.level !== 'rodo') {
     sections.push({
       key: 'emergency',
       title: 'Kontakt na czas wydarzenia',
-      note: 'Numer, pod którym na pewno ktoś odbierze przez cały czas trwania wydarzenia.',
       fields: [
         { code: 'emergencyName', label: 'Kto', kind: 'text', half: true, required: true },
         { code: 'emergencyPhone', label: 'Telefon', kind: 'tel', half: true, required: true }
@@ -236,9 +133,9 @@ function buildSections(config: CardConfig, isMinor: boolean): CardSection[] {
     });
   }
 
-  if (config.regime === 'wypoczynek') {
+  if (spec.askKarta) {
     sections.push({
-      key: 'wypoczynek',
+      key: 'karta',
       title: 'Karta kwalifikacyjna — pozostałe pola',
       note: 'Te pola wynikają wprost ze wzoru karty.',
       fields: [
@@ -253,7 +150,7 @@ function buildSections(config: CardConfig, isMinor: boolean): CardSection[] {
 }
 
 function questionsFor(config: CardConfig, isMinor: boolean): Question[] {
-  if (config.regime === 'minimal') return [];
+  if (!CARD_LEVELS[config.level].askQuestions) return [];
   return config.questions.filter((entry) => entry.scope === 'all' || isMinor);
 }
 
@@ -271,8 +168,7 @@ function buildClause(config: CardConfig): string {
   if (config.dpoContact) lines.push(`Kontakt do inspektora ochrony danych: ${config.dpoContact}.`);
 
   if (config.purposes.length > 0) {
-    lines.push('Dane przetwarzamy w celach:');
-    for (const purpose of config.purposes) lines.push(`— ${purpose}`);
+    lines.push('Cele i podstawy prawne: ' + config.purposes.join(' '));
   }
 
   lines.push(
@@ -283,10 +179,10 @@ function buildClause(config: CardConfig): string {
   );
   lines.push(`Okres przechowywania: ${config.retention ?? '[uzupełnij: jak długo przechowujecie te dane]'}`);
   lines.push(
-    'Masz prawo dostępu do danych, ich sprostowania, usunięcia lub ograniczenia przetwarzania, prawo do ' +
-      'przenoszenia danych oraz prawo sprzeciwu wobec przetwarzania opartego na prawnie uzasadnionym interesie. ' +
-      'Zgody możesz wycofać w każdej chwili — bez wpływu na zgodność z prawem przetwarzania sprzed wycofania. ' +
-      'Przysługuje Ci skarga do Prezesa Urzędu Ochrony Danych Osobowych, ul. Stawki 2, 00-193 Warszawa.'
+    'Prawa: dostęp do danych, sprostowanie, usunięcie, ograniczenie przetwarzania, przenoszenie danych oraz ' +
+      'sprzeciw wobec przetwarzania opartego na prawnie uzasadnionym interesie. Zgody można wycofać w każdej ' +
+      'chwili — bez wpływu na zgodność z prawem przetwarzania sprzed wycofania. Przysługuje skarga do Prezesa ' +
+      'Urzędu Ochrony Danych Osobowych, ul. Stawki 2, 00-193 Warszawa.'
   );
   lines.push(
     'Podanie danych jest dobrowolne, ale bez nich nie możemy przyjąć zgłoszenia. Dane nie służą do ' +
@@ -315,17 +211,17 @@ function formatMoment(value: string | null | undefined): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? ''
-    : date.toLocaleString('pl-PL', { dateStyle: 'long', timeStyle: 'short' });
+    : date.toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 export const participantCardPart = definePart<CardConfig>({
   kind: 'card',
   label: 'Karta uczestnika i zgody',
   description:
-    'Dane uzupełniające za linkiem osobistym. Zakres zależy od tego, czym wydarzenie jest w świetle prawa, i od wieku uczestnika.',
+    'Zgody za linkiem osobistym. Wybierasz jeden z czterech dokumentów; zakres pól i sposób podpisu wynikają z niego.',
 
   defaultConfig: () => ({
-    regime: 'trip',
+    level: 'trip',
     intro:
       'Uzupełnij kartę uczestnika. Pytamy o tyle, ile naprawdę potrzebujemy. Dane widzi tylko organizator, ' +
       'a Ty możesz je poprawić w każdej chwili z tego samego linku.',
@@ -333,8 +229,7 @@ export const participantCardPart = definePart<CardConfig>({
     savedMessage: 'Karta została zapisana.',
     adultAge: 18,
     askEmergency: false,
-    allowPrint: true,
-    questions: DEFAULT_QUESTIONS,
+    questions: CARD_LEVELS.trip.questions,
     controllerName: null,
     controllerAddress: null,
     controllerContact: null,
@@ -343,14 +238,12 @@ export const participantCardPart = definePart<CardConfig>({
     recipients: null,
     retention: null,
     extraClause: null,
-    consents: DEFAULT_CONSENTS
+    consents: CARD_LEVELS.trip.consents
   }),
 
   parse: (raw) => {
     const record = asRecord(raw);
-    const regimeText = asText(record.regime, 'trip');
-    const regime: Regime =
-      regimeText === 'minimal' || regimeText === 'wypoczynek' || regimeText === 'trip' ? regimeText : 'trip';
+    const level = readLevel(record.level);
 
     const questions = mapEntries<Question>(record.questions, (item) => {
       const code = asText(item.code).trim();
@@ -383,7 +276,7 @@ export const participantCardPart = definePart<CardConfig>({
       : [];
 
     return {
-      regime,
+      level,
       intro: asOptionalText(record.intro),
       saveLabel: asOptionalText(record.saveLabel),
       savedMessage: asOptionalText(record.savedMessage),
@@ -392,8 +285,7 @@ export const participantCardPart = definePart<CardConfig>({
         return Number.isFinite(value) && value >= 1 && value <= 26 ? Math.round(value) : 18;
       })(),
       askEmergency: asBool(record.askEmergency),
-      allowPrint: asBool(record.allowPrint, true),
-      questions: questions.length > 0 ? questions : DEFAULT_QUESTIONS,
+      questions: questions.length > 0 ? questions : CARD_LEVELS[level].questions,
       controllerName: asOptionalText(record.controllerName),
       controllerAddress: asOptionalText(record.controllerAddress),
       controllerContact: asOptionalText(record.controllerContact),
@@ -402,13 +294,14 @@ export const participantCardPart = definePart<CardConfig>({
       recipients: asOptionalText(record.recipients),
       retention: asOptionalText(record.retention),
       extraClause: asOptionalText(record.extraClause),
-      consents: consents.length > 0 ? consents : DEFAULT_CONSENTS
+      consents: consents.length > 0 ? consents : CARD_LEVELS[level].consents
     };
   },
 
   Renderer: ({ config, ctx }) => {
     const token = ctx.accessToken;
     const partId = ctx.part.id;
+    const spec = CARD_LEVELS[config.level];
 
     const [card, setCard] = useState<EventParticipantCard | null>(null);
     const [data, setData] = useState<Record<string, string>>({});
@@ -417,7 +310,7 @@ export const participantCardPart = definePart<CardConfig>({
     const [loading, setLoading] = useState(true);
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [saved, setSaved] = useState<string | null>(null);
+    const [saved, setSaved] = useState(false);
 
     const load = useCallback(async () => {
       if (!token) {
@@ -444,12 +337,14 @@ export const participantCardPart = definePart<CardConfig>({
       void load();
     }, [load]);
 
-    const age = ageAt(data.birthDate ?? '');
+    // Without a date of birth the level has decided nobody is a minor.
+    const age = spec.askBirthDate ? ageAt(data.birthDate ?? '') : null;
     const isMinor = age !== null && age < config.adultAge;
     const sections = useMemo(() => buildSections(config, isMinor), [config, isMinor]);
     const questions = useMemo(() => questionsFor(config, isMinor), [config, isMinor]);
     const clause = useMemo(() => buildClause(config), [config]);
     const visibleConsents = config.consents.filter((entry) => !entry.minorOnly || isMinor);
+    const needsPaper = isMinor && spec.paperForMinors;
 
     if (!token) {
       return <p className="ev-note">Ta sekcja działa tylko z linku osobistego.</p>;
@@ -464,9 +359,9 @@ export const participantCardPart = definePart<CardConfig>({
     const save = async (event: FormEvent) => {
       event.preventDefault();
       setError(null);
-      setSaved(null);
+      setSaved(false);
 
-      if (age === null) {
+      if (spec.askBirthDate && age === null) {
         setError('Podaj datę urodzenia — od niej zależy, kto podpisuje kartę.');
         return;
       }
@@ -501,8 +396,8 @@ export const participantCardPart = definePart<CardConfig>({
         return;
       }
 
-      // "Nie" carries no information worth storing, and an explanation to a
-      // question answered "nie" is stale. Neither is sent.
+      // "Nie" carries nothing worth storing, and an explanation under a "nie" is
+      // stale. Neither is sent.
       const payload: Record<string, string | null> = {};
       for (const field of sections.flatMap((section) => section.fields)) {
         const value = (data[field.code] ?? '').trim();
@@ -532,7 +427,7 @@ export const participantCardPart = definePart<CardConfig>({
           participantName: data.participantName ?? null
         });
         setCard(response);
-        setSaved(config.savedMessage ?? 'Karta została zapisana.');
+        setSaved(true);
       } catch (saveError: unknown) {
         setError(saveError instanceof Error ? saveError.message : 'Nie udało się zapisać karty.');
       } finally {
@@ -540,15 +435,21 @@ export const participantCardPart = definePart<CardConfig>({
       }
     };
 
-    const showPrint = config.allowPrint && isMinor && card?.submittedUtc;
-
     return (
       <div className="ev-card-form">
         {config.intro ? <p className="ev-note">{config.intro}</p> : null}
 
+        {needsPaper ? (
+          <p className="ev-paper-note">
+            <strong>Sama strona nie wystarczy.</strong> Za osobę niepełnoletnią podpisuje rodzic albo opiekun
+            prawny, a taki podpis musi być odręczny. Uzupełnij kartę, zapisz ją, wydrukuj, podpisz i oddaj
+            organizatorowi na starcie.
+          </p>
+        ) : null}
+
         {card?.submittedUtc ? (
           <p className="ev-own-meta">
-            Podpisano: {card.signerName}
+            Zapisano: {card.signerName}
             {card.isMinor ? ' (rodzic / opiekun prawny)' : ''} · {formatMoment(card.updatedUtc ?? card.submittedUtc)}
           </p>
         ) : null}
@@ -581,8 +482,8 @@ export const participantCardPart = definePart<CardConfig>({
           {age !== null ? (
             <p className={`ev-card-age ${isMinor ? 'is-minor' : ''}`}>
               {isMinor
-                ? `Uczestnik ma ${age} lat — kartę wypełnia i podpisuje rodzic albo opiekun prawny.`
-                : `Uczestnik jest pełnoletni (${age} lat) — podpisuje samodzielnie i o nic więcej nie pytamy.`}
+                ? `Uczestnik ma ${age} lat — podpisuje rodzic albo opiekun prawny, odręcznie na wydruku.`
+                : `Uczestnik jest pełnoletni (${age} lat) — podpisuje tutaj i nic nie trzeba drukować.`}
             </p>
           ) : null}
 
@@ -661,32 +562,47 @@ export const participantCardPart = definePart<CardConfig>({
 
           <label className="ev-field">
             <span className="ev-field-label">
-              Podpis — imię i nazwisko {isMinor ? 'rodzica / opiekuna prawnego' : 'uczestnika'}
+              {isMinor ? 'Imię i nazwisko rodzica / opiekuna prawnego' : 'Podpis — imię i nazwisko'}
               <em aria-hidden="true"> *</em>
             </span>
             <input type="text" value={signerName} onChange={(event) => setSignerName(event.target.value)} />
-            <small>Wpisanie imienia i nazwiska podpisuje kartę. Data i godzina zapisują się same.</small>
+            <small>
+              {isMinor
+                ? 'Ta osoba podpisze wydruk odręcznie.'
+                : 'Wpisanie imienia i nazwiska podpisuje kartę. Data i godzina zapisują się same.'}
+            </small>
           </label>
 
           <div className="ev-actions">
             <button className="ev-cta" type="submit" disabled={pending}>
-              {pending ? 'Zapisywanie…' : (config.saveLabel ?? 'Zapisz i podpisz')}
+              {pending ? 'Zapisywanie…' : (config.saveLabel ?? 'Zapisz')}
             </button>
-            {showPrint ? (
-              <button className="ev-ghost" type="button" onClick={() => window.print()}>
+            {needsPaper && card?.submittedUtc ? (
+              <button className="ev-cta" type="button" onClick={() => window.print()}>
                 Drukuj zgodę
               </button>
             ) : null}
           </div>
 
           {error ? <p className="ev-error">{error}</p> : null}
-          {saved ? <p className="ev-success">{saved}</p> : null}
+          {saved ? (
+            <p className="ev-success">
+              {needsPaper
+                ? 'Zapisane. Teraz wydrukuj zgodę, podpisz ją odręcznie i oddaj organizatorowi na starcie — bez tego zgłoszenie nie jest kompletne.'
+                : (config.savedMessage ?? 'Karta została zapisana.')}
+            </p>
+          ) : null}
         </form>
 
-        {showPrint ? (
+        {needsPaper && card?.submittedUtc ? (
           <PrintableConsent
+            title={CARD_LEVELS[config.level].label}
             eventTitle={ctx.siteTitle}
             eventDate={ctx.siteDateLabel}
+            eventPlaces={ctx.sitePlaces}
+            organizer={[config.controllerName, config.controllerAddress, config.controllerContact]
+              .filter((entry): entry is string => !!entry)
+              .join(', ')}
             card={card}
             sections={sections}
             questions={questions}
@@ -697,227 +613,246 @@ export const participantCardPart = definePart<CardConfig>({
     );
   },
 
-  Editor: ({ config, onChange }) => (
-    <>
-      <SelectRow<Regime>
-        label="Czym jest to wydarzenie"
-        value={config.regime}
-        options={REGIMES}
-        onChange={(regime) => onChange({ ...config, regime })}
-      />
-      <p className="eve-hint">{REGIME_NOTES[config.regime]}</p>
+  Editor: ({ config, onChange }) => {
+    /**
+     * Switching the level replaces the statements and questions with that
+     * level's own. Carrying a parental consent into the RODO-only level, or
+     * leaving a trip without its medical statement, is how a document ends up
+     * legally wrong while looking complete.
+     */
+    const switchLevel = (level: CardLevel) =>
+      onChange({
+        ...config,
+        level,
+        questions: CARD_LEVELS[level].questions,
+        consents: CARD_LEVELS[level].consents
+      });
 
-      <p className="eve-warn">
-        Uzupełnij administratora danych i okres przechowywania — bez nich klauzula informacyjna jest niekompletna.
-        Treść zgód zapisuje się razem z odpowiedzią, więc późniejsza zmiana nie podmienia tego, na co ktoś już się
-        zgodził.
-      </p>
-
-      <AreaRow
-        label="Wstęp"
-        rows={3}
-        value={config.intro ?? ''}
-        onChange={(intro) => onChange({ ...config, intro: intro || null })}
-      />
-      <TextRow
-        label="Napis na przycisku"
-        value={config.saveLabel ?? ''}
-        onChange={(saveLabel) => onChange({ ...config, saveLabel: saveLabel || null })}
-      />
-      <AreaRow
-        label="Komunikat po zapisaniu"
-        rows={2}
-        value={config.savedMessage ?? ''}
-        onChange={(savedMessage) => onChange({ ...config, savedMessage: savedMessage || null })}
-      />
-
-      <fieldset className="eve-group">
-        <legend>Zakres</legend>
-        <NumberRow
-          label="Pełnoletność od (lat)"
-          value={config.adultAge}
-          hint="Poniżej tego wieku kartę podpisuje rodzic albo opiekun prawny."
-          onChange={(adultAge) => onChange({ ...config, adultAge })}
+    return (
+      <>
+        <SelectRow<CardLevel>
+          label="Wersja dokumentu"
+          value={config.level}
+          options={LEVEL_OPTIONS}
+          onChange={switchLevel}
         />
-        <CheckRow
-          label="Pytaj o osobny kontakt na czas wydarzenia"
-          checked={config.askEmergency}
-          onChange={(askEmergency) => onChange({ ...config, askEmergency })}
-        />
+        <p className="eve-hint">{CARD_LEVELS[config.level].note}</p>
         <p className="eve-hint">
-          Dla osoby niepełnoletniej telefon rodzica i tak jest kontaktem na czas wydarzenia — włączaj to tylko, gdy
-          potrzebujesz drugiego numeru.
+          Zmiana wersji przywraca pytania i zgody właściwe dla niej — Twoje zmiany w ich treści zostaną nadpisane.
         </p>
-        <CheckRow
-          label="Pozwól wydrukować podpisaną zgodę (osoby niepełnoletnie)"
-          checked={config.allowPrint}
-          onChange={(allowPrint) => onChange({ ...config, allowPrint })}
-        />
-      </fieldset>
 
-      <ListEditor<Question>
-        legend="Pytania „tak / nie”"
-        items={config.questions}
-        addLabel="Dodaj pytanie"
-        blank={() => ({
-          code: `pytanie${config.questions.length + 1}`,
-          text: '',
-          detailLabel: 'Napisz krótko',
-          scope: 'all',
-          requireDetail: true
-        })}
-        titleOf={(item) => item.text || item.code}
-        onChange={(questions) => onChange({ ...config, questions })}
-        renderItem={(item, update) => (
-          <>
-            <TextRow
-              label="Kod"
-              value={item.code}
-              hint="Krótki, stały identyfikator — pod nim odpowiedź trafia do wykazu."
-              onChange={(code) => update({ ...item, code })}
-            />
-            <AreaRow label="Pytanie" rows={2} value={item.text} onChange={(text) => update({ ...item, text })} />
-            <TextRow
-              label="Etykieta pola opisu"
-              value={item.detailLabel}
-              hint="Widoczna dopiero po odpowiedzi „tak”."
-              onChange={(detailLabel) => update({ ...item, detailLabel })}
-            />
-            <SelectRow<Question['scope']>
-              label="Kogo pytamy"
-              value={item.scope}
-              options={[
-                { value: 'all', label: 'Wszystkich' },
-                { value: 'minor', label: 'Tylko niepełnoletnich' }
-              ]}
-              onChange={(scope) => update({ ...item, scope })}
-            />
-            <CheckRow
-              label="Po „tak” opis jest wymagany"
-              checked={item.requireDetail}
-              onChange={(requireDetail) => update({ ...item, requireDetail })}
-            />
-          </>
-        )}
-      />
+        <p className="eve-warn">
+          Uzupełnij administratora danych i okres przechowywania — bez nich klauzula informacyjna jest niekompletna,
+          a wydruk nie zostanie przyjęty. Treść zgód zapisuje się razem z odpowiedzią, więc późniejsza zmiana nie
+          podmienia tego, na co ktoś już się zgodził.
+        </p>
 
-      <fieldset className="eve-group">
-        <legend>Klauzula informacyjna (RODO art. 13)</legend>
-        <TextRow
-          label="Administrator danych"
-          value={config.controllerName ?? ''}
-          hint="Np. Parafia św. … w …"
-          onChange={(controllerName) => onChange({ ...config, controllerName: controllerName || null })}
-        />
-        <TextRow
-          label="Adres administratora"
-          value={config.controllerAddress ?? ''}
-          onChange={(controllerAddress) => onChange({ ...config, controllerAddress: controllerAddress || null })}
-        />
-        <TextRow
-          label="Kontakt"
-          value={config.controllerContact ?? ''}
-          hint="E-mail albo telefon, pod którym można realizować swoje prawa."
-          onChange={(controllerContact) => onChange({ ...config, controllerContact: controllerContact || null })}
-        />
-        <TextRow
-          label="Inspektor ochrony danych"
-          value={config.dpoContact ?? ''}
-          hint="Zostaw puste, jeśli nie został wyznaczony."
-          onChange={(dpoContact) => onChange({ ...config, dpoContact: dpoContact || null })}
-        />
         <AreaRow
-          label="Cele i podstawy prawne"
-          rows={5}
-          value={config.purposes.join('\n')}
-          hint="Jeden cel na linię."
-          onChange={(value) =>
-            onChange({
-              ...config,
-              purposes: value
-                .split('\n')
-                .map((line) => line.trim())
-                .filter((line) => line.length > 0)
-            })
-          }
-        />
-        <AreaRow
-          label="Odbiorcy danych"
-          rows={2}
-          value={config.recipients ?? ''}
-          onChange={(recipients) => onChange({ ...config, recipients: recipients || null })}
-        />
-        <TextRow
-          label="Okres przechowywania"
-          value={config.retention ?? ''}
-          hint="Np. do końca roku kalendarzowego po wydarzeniu."
-          onChange={(retention) => onChange({ ...config, retention: retention || null })}
-        />
-        <AreaRow
-          label="Dodatkowy akapit"
+          label="Wstęp"
           rows={3}
-          value={config.extraClause ?? ''}
-          onChange={(extraClause) => onChange({ ...config, extraClause: extraClause || null })}
+          value={config.intro ?? ''}
+          onChange={(intro) => onChange({ ...config, intro: intro || null })}
         />
-      </fieldset>
+        <TextRow
+          label="Napis na przycisku"
+          value={config.saveLabel ?? ''}
+          onChange={(saveLabel) => onChange({ ...config, saveLabel: saveLabel || null })}
+        />
+        <AreaRow
+          label="Komunikat po zapisaniu (osoby pełnoletnie)"
+          rows={2}
+          value={config.savedMessage ?? ''}
+          onChange={(savedMessage) => onChange({ ...config, savedMessage: savedMessage || null })}
+        />
 
-      <ListEditor<ConsentSpec>
-        legend="Zgody i oświadczenia"
-        items={config.consents}
-        addLabel="Dodaj zgodę"
-        blank={() => ({
-          code: `zgoda${config.consents.length + 1}`,
-          label: 'Nowa zgoda',
-          text: '',
-          required: false,
-          minorOnly: false
-        })}
-        titleOf={(item) => item.label || item.code}
-        onChange={(consents) => onChange({ ...config, consents })}
-        renderItem={(item, update) => (
-          <>
-            <TextRow label="Kod" value={item.code} onChange={(code) => update({ ...item, code })} />
-            <TextRow label="Nazwa" value={item.label} onChange={(label) => update({ ...item, label })} />
-            <AreaRow label="Treść" rows={4} value={item.text} onChange={(text) => update({ ...item, text })} />
-            <CheckRow
-              label="Wymagana (bez niej nie da się zapisać karty)"
-              checked={item.required}
-              onChange={(required) => update({ ...item, required })}
-            />
-            <CheckRow
-              label="Tylko dla niepełnoletnich"
-              checked={item.minorOnly}
-              onChange={(minorOnly) => update({ ...item, minorOnly })}
-            />
-          </>
-        )}
-      />
-    </>
-  )
+        <fieldset className="eve-group">
+          <legend>Zakres</legend>
+          <NumberRow
+            label="Pełnoletność od (lat)"
+            value={config.adultAge}
+            hint="Poniżej tego wieku podpisuje rodzic albo opiekun prawny, odręcznie na wydruku."
+            onChange={(adultAge) => onChange({ ...config, adultAge })}
+          />
+          <CheckRow
+            label="Pytaj o osobny kontakt na czas wydarzenia"
+            checked={config.askEmergency}
+            onChange={(askEmergency) => onChange({ ...config, askEmergency })}
+          />
+          <p className="eve-hint">
+            Dla osoby niepełnoletniej telefon rodzica i tak jest kontaktem na czas wydarzenia — włączaj to tylko,
+            gdy potrzebujesz drugiego numeru.
+          </p>
+        </fieldset>
+
+        {CARD_LEVELS[config.level].askQuestions ? (
+          <ListEditor<Question>
+            legend="Pytania „tak / nie”"
+            items={config.questions}
+            addLabel="Dodaj pytanie"
+            blank={() => ({
+              code: `pytanie${config.questions.length + 1}`,
+              text: '',
+              detailLabel: 'Napisz krótko',
+              scope: 'all',
+              requireDetail: true
+            })}
+            titleOf={(item) => item.text || item.code}
+            onChange={(questions) => onChange({ ...config, questions })}
+            renderItem={(item, update) => (
+              <>
+                <TextRow label="Kod" value={item.code} onChange={(code) => update({ ...item, code })} />
+                <AreaRow label="Pytanie" rows={2} value={item.text} onChange={(text) => update({ ...item, text })} />
+                <TextRow
+                  label="Etykieta pola opisu"
+                  value={item.detailLabel}
+                  hint="Widoczna dopiero po odpowiedzi „tak”."
+                  onChange={(detailLabel) => update({ ...item, detailLabel })}
+                />
+                <SelectRow<Question['scope']>
+                  label="Kogo pytamy"
+                  value={item.scope}
+                  options={[
+                    { value: 'all', label: 'Wszystkich' },
+                    { value: 'minor', label: 'Tylko niepełnoletnich' }
+                  ]}
+                  onChange={(scope) => update({ ...item, scope })}
+                />
+                <CheckRow
+                  label="Po „tak” opis jest wymagany"
+                  checked={item.requireDetail}
+                  onChange={(requireDetail) => update({ ...item, requireDetail })}
+                />
+              </>
+            )}
+          />
+        ) : null}
+
+        <fieldset className="eve-group">
+          <legend>Klauzula informacyjna (RODO art. 13)</legend>
+          <TextRow
+            label="Administrator danych"
+            value={config.controllerName ?? ''}
+            hint="Pełna nazwa — trafia na wydruk jako organizator."
+            onChange={(controllerName) => onChange({ ...config, controllerName: controllerName || null })}
+          />
+          <TextRow
+            label="Adres administratora"
+            value={config.controllerAddress ?? ''}
+            onChange={(controllerAddress) => onChange({ ...config, controllerAddress: controllerAddress || null })}
+          />
+          <TextRow
+            label="Kontakt"
+            value={config.controllerContact ?? ''}
+            hint="E-mail albo telefon, pod którym można realizować swoje prawa."
+            onChange={(controllerContact) => onChange({ ...config, controllerContact: controllerContact || null })}
+          />
+          <TextRow
+            label="Inspektor ochrony danych"
+            value={config.dpoContact ?? ''}
+            hint="Zostaw puste, jeśli nie został wyznaczony."
+            onChange={(dpoContact) => onChange({ ...config, dpoContact: dpoContact || null })}
+          />
+          <AreaRow
+            label="Cele i podstawy prawne"
+            rows={5}
+            value={config.purposes.join('\n')}
+            hint="Jeden cel na linię."
+            onChange={(value) =>
+              onChange({
+                ...config,
+                purposes: value
+                  .split('\n')
+                  .map((line) => line.trim())
+                  .filter((line) => line.length > 0)
+              })
+            }
+          />
+          <AreaRow
+            label="Odbiorcy danych"
+            rows={2}
+            value={config.recipients ?? ''}
+            onChange={(recipients) => onChange({ ...config, recipients: recipients || null })}
+          />
+          <TextRow
+            label="Okres przechowywania"
+            value={config.retention ?? ''}
+            hint="Np. do końca roku kalendarzowego po wydarzeniu."
+            onChange={(retention) => onChange({ ...config, retention: retention || null })}
+          />
+          <AreaRow
+            label="Dodatkowy akapit"
+            rows={3}
+            value={config.extraClause ?? ''}
+            onChange={(extraClause) => onChange({ ...config, extraClause: extraClause || null })}
+          />
+        </fieldset>
+
+        <ListEditor<ConsentSpec>
+          legend="Zgody i oświadczenia"
+          items={config.consents}
+          addLabel="Dodaj zgodę"
+          blank={() => ({
+            code: `zgoda${config.consents.length + 1}`,
+            label: 'Nowa zgoda',
+            text: '',
+            required: false,
+            minorOnly: false
+          })}
+          titleOf={(item) => item.label || item.code}
+          onChange={(consents) => onChange({ ...config, consents })}
+          renderItem={(item, update) => (
+            <>
+              <TextRow label="Kod" value={item.code} onChange={(code) => update({ ...item, code })} />
+              <TextRow label="Nazwa" value={item.label} onChange={(label) => update({ ...item, label })} />
+              <AreaRow label="Treść" rows={4} value={item.text} onChange={(text) => update({ ...item, text })} />
+              <CheckRow
+                label="Wymagana (bez niej nie da się zapisać karty)"
+                checked={item.required}
+                onChange={(required) => update({ ...item, required })}
+              />
+              <CheckRow
+                label="Tylko dla niepełnoletnich"
+                checked={item.minorOnly}
+                onChange={(minorOnly) => update({ ...item, minorOnly })}
+              />
+            </>
+          )}
+        />
+      </>
+    );
+  }
 });
 
 /**
- * The paper version of a minor's consent.
+ * The sheet a guardian signs by hand.
  *
- * Portalled to document.body because the reader's page is a transformed,
- * fixed-position track — printing it directly gives one clipped screenshot of
- * whatever happened to be on screen. The print stylesheet hides the page and
- * shows only this, so the sheet that comes out is the document and nothing else.
+ * Portalled to document.body: the reader's page is a transformed, fixed-position
+ * track, so printing it directly yields one clipped screenshot. The print
+ * stylesheet hides everything else, and this is laid out to hold a whole consent
+ * on one side of A4 — the data in two columns, the statements as one line each,
+ * the clause as a dense block of small print at the foot. Nobody is going to
+ * print three pages per participant, and a form that runs over is a form that
+ * arrives incomplete.
  *
- * It prints what was actually agreed to, read back from the saved card rather
- * than from the form on screen: a printout that disagrees with the record would
- * be worse than no printout.
+ * It prints from the saved card rather than from the form on screen: a sheet
+ * that disagreed with the record would be worse than no sheet.
  */
 function PrintableConsent({
+  title,
   eventTitle,
   eventDate,
+  eventPlaces,
+  organizer,
   card,
   sections,
   questions,
   clause
 }: {
+  title: string;
   eventTitle: string;
   eventDate: string | null;
+  eventPlaces: string[];
+  organizer: string;
   card: EventParticipantCard;
   sections: CardSection[];
   questions: Question[];
@@ -926,62 +861,68 @@ function PrintableConsent({
   if (typeof document === 'undefined') return null;
 
   const value = (code: string) => card.data[code] ?? '';
+  const subtitle = [eventDate, eventPlaces.join(' – ')].filter((entry) => entry && entry.length > 0).join(' · ');
 
   return createPortal(
     <div className="ev-print-doc">
       <header>
-        <h1>Zgoda rodzica / opiekuna prawnego na udział w wydarzeniu</h1>
-        <p>
+        <h1>Zgoda rodzica / opiekuna prawnego</h1>
+        <p className="ev-print-event">
           <strong>{eventTitle}</strong>
-          {eventDate ? ` · ${eventDate}` : ''}
+          {subtitle ? ` · ${subtitle}` : ''}
         </p>
+        {organizer ? <p className="ev-print-org">Organizator: {organizer}</p> : null}
+        <p className="ev-print-kind">{title}</p>
       </header>
 
-      {sections.map((section) => {
-        const filled = section.fields.filter((field) => value(field.code).trim().length > 0);
-        if (filled.length === 0) return null;
-        return (
-          <section key={section.key}>
-            <h2>{section.title}</h2>
+      <div className="ev-print-body">
+        {sections.map((section) => {
+          const filled = section.fields.filter((field) => value(field.code).trim().length > 0);
+          if (filled.length === 0) return null;
+          return (
+            <section key={section.key}>
+              <h2>{section.title}</h2>
+              <dl>
+                {filled.map((field) => (
+                  <div key={field.code}>
+                    <dt>{field.label}</dt>
+                    <dd>{value(field.code)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          );
+        })}
+
+        {questions.length > 0 ? (
+          <section>
+            <h2>Pytania</h2>
             <dl>
-              {filled.map((field) => (
-                <div key={field.code}>
-                  <dt>{field.label}</dt>
-                  <dd>{value(field.code)}</dd>
+              {questions.map((question) => (
+                <div key={question.code}>
+                  <dt>{question.text}</dt>
+                  <dd>
+                    {value(question.code) === 'tak'
+                      ? `TAK${value(`${question.code}Detail`) ? ` — ${value(`${question.code}Detail`)}` : ''}`
+                      : 'NIE'}
+                  </dd>
                 </div>
               ))}
             </dl>
           </section>
-        );
-      })}
+        ) : null}
 
-      {questions.length > 0 ? (
         <section>
-          <h2>Pytania</h2>
-          <dl>
-            {questions.map((question) => (
-              <div key={question.code}>
-                <dt>{question.text}</dt>
-                <dd>
-                  {value(question.code) === 'tak' ? 'Tak' : 'Nie'}
-                  {value(`${question.code}Detail`) ? ` — ${value(`${question.code}Detail`)}` : ''}
-                </dd>
-              </div>
+          <h2>Oświadczenia</h2>
+          <ul>
+            {card.consents.map((consent) => (
+              <li key={consent.code}>
+                <b>{consent.accepted ? 'TAK' : 'NIE'}</b> {consent.text}
+              </li>
             ))}
-          </dl>
+          </ul>
         </section>
-      ) : null}
-
-      <section>
-        <h2>Oświadczenia</h2>
-        <ul>
-          {card.consents.map((consent) => (
-            <li key={consent.code}>
-              <strong>{consent.accepted ? 'TAK' : 'NIE'}</strong> — {consent.label}: {consent.text}
-            </li>
-          ))}
-        </ul>
-      </section>
+      </div>
 
       <section className="ev-print-clause">
         {clause.split('\n').map((line, index) => (
@@ -990,12 +931,13 @@ function PrintableConsent({
       </section>
 
       <footer>
-        <p>
-          Podpisano elektronicznie: <strong>{card.signerName}</strong>,{' '}
-          {formatMoment(card.updatedUtc ?? card.submittedUtc)}.
+        <p className="ev-print-trace">
+          Kartę wypełniono elektronicznie {formatMoment(card.updatedUtc ?? card.submittedUtc)} przez:{' '}
+          {card.signerName}. Podpis odręczny poniżej jest wymagany — wydruk oddaje się organizatorowi na starcie.
         </p>
-        <div className="ev-print-sign">
-          <span>data i podpis rodzica / opiekuna prawnego</span>
+        <div className="ev-print-signatures">
+          <span>miejscowość i data</span>
+          <span>czytelny podpis rodzica / opiekuna prawnego</span>
         </div>
       </footer>
     </div>,

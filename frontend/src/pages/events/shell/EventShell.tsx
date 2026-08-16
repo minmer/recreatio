@@ -361,6 +361,7 @@ export function EventShell({
                           siteSlug: site.slug,
                           siteTitle: site.title,
                           siteDateLabel: site.dateLabel,
+                          sitePlaces: site.places,
                           accessToken,
                           part
                         }}

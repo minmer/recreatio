@@ -7,6 +7,7 @@ export type PartContext = {
   /** For anything that has to name the event — a printed consent, say. */
   siteTitle: string;
   siteDateLabel: string | null;
+  sitePlaces: string[];
   /** Present when the reader arrived through an individual link. */
   accessToken: string | null;
   part: EventPart;
