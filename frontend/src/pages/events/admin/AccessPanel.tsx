@@ -499,7 +499,14 @@ function LinkDetails({
   };
 
   const remove = async () => {
-    if (!window.confirm('Usunąć ten link osobisty?')) return;
+    if (
+      !window.confirm(
+        'Usunąć ten link osobisty? Razem z nim znika karta uczestnika wypełniona z tego linku — zgłoszenie zostaje. ' +
+          'Żeby tylko odciąć dostęp, użyj „Unieważnij”.'
+      )
+    ) {
+      return;
+    }
     await deleteEventAccessLink(link.id);
     onSaved();
   };

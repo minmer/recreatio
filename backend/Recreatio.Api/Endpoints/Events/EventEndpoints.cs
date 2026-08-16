@@ -644,7 +644,11 @@ public static partial class EventEndpoints
             var linkIds = await dbContext.EventAccessLinks
                 .Where(x => x.SiteId == siteId).Select(x => x.Id).ToListAsync(ct);
 
-            // Depth-first, so no FK is left dangling mid-delete.
+            // Depth-first, so no FK is left dangling mid-delete. Cards point at
+            // the site, its parts, its links and its registrations, so they go
+            // before any of them.
+            dbContext.EventParticipantCards.RemoveRange(
+                dbContext.EventParticipantCards.Where(x => x.SiteId == siteId));
             dbContext.EventRegistrationValues.RemoveRange(
                 dbContext.EventRegistrationValues.Where(x => registrationIds.Contains(x.RegistrationId)));
             dbContext.EventRegistrations.RemoveRange(
@@ -775,6 +779,8 @@ public static partial class EventEndpoints
             var registrationIds = await dbContext.EventRegistrations
                 .Where(x => partIds.Contains(x.PartId)).Select(x => x.Id).ToListAsync(ct);
 
+            dbContext.EventParticipantCards.RemoveRange(
+                dbContext.EventParticipantCards.Where(x => partIds.Contains(x.PartId)));
             dbContext.EventRegistrationValues.RemoveRange(
                 dbContext.EventRegistrationValues.Where(x => registrationIds.Contains(x.RegistrationId)));
             dbContext.EventRegistrations.RemoveRange(
@@ -907,6 +913,9 @@ public static partial class EventEndpoints
             var registrationIds = await dbContext.EventRegistrations
                 .Where(x => x.PartId == partId).Select(x => x.Id).ToListAsync(ct);
 
+            // Cards were filled in on this part, so they go with it.
+            dbContext.EventParticipantCards.RemoveRange(
+                dbContext.EventParticipantCards.Where(x => x.PartId == partId));
             dbContext.EventRegistrationValues.RemoveRange(
                 dbContext.EventRegistrationValues.Where(x => registrationIds.Contains(x.RegistrationId)));
             dbContext.EventRegistrations.RemoveRange(
@@ -1186,6 +1195,16 @@ public static partial class EventEndpoints
                 link.RegistrationId = null;
             }
 
+            // Same for a participant card: it belongs to the link, not to the
+            // submission, and stays signed and correctable.
+            var cards = await dbContext.EventParticipantCards
+                .Where(x => x.RegistrationId == registrationId)
+                .ToListAsync(ct);
+            foreach (var card in cards)
+            {
+                card.RegistrationId = null;
+            }
+
             dbContext.EventRegistrationValues.RemoveRange(
                 dbContext.EventRegistrationValues.Where(x => x.RegistrationId == registrationId));
             dbContext.EventRegistrations.Remove(registration);
@@ -1383,6 +1402,11 @@ public static partial class EventEndpoints
                 registration.AccessLinkId = null;
             }
 
+            // The participant card does not: it is this link's document, and a
+            // card nobody can open, correct or withdraw is worse to keep than to
+            // delete. Revoking the link is the option that keeps it.
+            dbContext.EventParticipantCards.RemoveRange(
+                dbContext.EventParticipantCards.Where(x => x.AccessLinkId == linkId));
             dbContext.EventAccessLinkAssignments.RemoveRange(
                 dbContext.EventAccessLinkAssignments.Where(x => x.AccessLinkId == linkId));
             dbContext.EventAccessLinkPages.RemoveRange(
