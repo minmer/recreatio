@@ -7758,7 +7758,10 @@ export type EventFieldKind =
 
 export type EventPartKind =
   | 'title' | 'shortinfos' | 'text' | 'plan' | 'map' | 'faq'
-  | 'form' | 'costs' | 'contact' | 'gallery' | 'files' | 'people';
+  | 'form' | 'costs' | 'contact' | 'gallery' | 'files' | 'people'
+  // Only meaningful behind an individual link: the two parts that act on the
+  // reader's own data rather than on the event's content.
+  | 'registration' | 'card';
 
 export type EventPartField = {
   id: string;
@@ -8016,6 +8019,101 @@ export function submitEventForm(
     `/events/site/${encodeURIComponent(slug)}/parts/${partId}/submit`,
     { method: 'POST', body: JSON.stringify({ values, accessToken }) }
   );
+}
+
+// ── Behind an individual link: the reader's own data ────────────────────────
+
+export type EventOwnRegistration = {
+  registrationId: string;
+  partId: string;
+  partLabel: string;
+  submittedUtc: string;
+  updatedUtc: string | null;
+  fields: EventPartField[];
+  values: Array<{ fieldId: string; value: string | null }>;
+};
+
+export type EventConsentRecord = {
+  code: string;
+  label: string;
+  text: string;
+  accepted: boolean;
+  atUtc: string | null;
+};
+
+export type EventParticipantCard = {
+  id: string | null;
+  data: Record<string, string | null>;
+  consents: EventConsentRecord[];
+  isMinor: boolean;
+  signerRole: string;
+  signerName: string;
+  participantName: string | null;
+  submittedUtc: string | null;
+  updatedUtc: string | null;
+};
+
+export type EventAdminCardRow = {
+  id: string;
+  accessLinkId: string;
+  recipientName: string;
+  participantName: string | null;
+  isMinor: boolean;
+  signerRole: string;
+  signerName: string;
+  submittedUtc: string;
+  updatedUtc: string;
+  data: Record<string, string | null>;
+  consents: EventConsentRecord[];
+};
+
+/** Null when the link has no submission behind it — not an error. */
+export async function getOwnRegistration(token: string): Promise<EventOwnRegistration | null> {
+  const response = await request<EventOwnRegistration | null>(
+    `/events/link/${encodeURIComponent(token)}/registration`,
+    { method: 'GET' }
+  );
+  return response ?? null;
+}
+
+export function updateOwnRegistration(token: string, values: Array<{ fieldId: string; value: string | null }>) {
+  return request<{ registrationId: string; submittedUtc: string }>(
+    `/events/link/${encodeURIComponent(token)}/registration`,
+    { method: 'PUT', body: JSON.stringify({ values }) }
+  );
+}
+
+export function getParticipantCard(token: string, partId: string) {
+  return request<EventParticipantCard>(`/events/link/${encodeURIComponent(token)}/card/${partId}`, {
+    method: 'GET'
+  });
+}
+
+export function saveParticipantCard(
+  token: string,
+  partId: string,
+  payload: {
+    data: Record<string, string | null>;
+    consents: Array<{ code: string; label: string; text: string; accepted: boolean }>;
+    clauseText: string | null;
+    isMinor: boolean;
+    signerRole: string;
+    signerName: string;
+    participantName: string | null;
+  }
+) {
+  return request<EventParticipantCard>(`/events/link/${encodeURIComponent(token)}/card/${partId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function getEventCards(siteId: string) {
+  return request<EventAdminCardRow[]>(`/events/admin/sites/${siteId}/cards`, { method: 'GET' });
+}
+
+export function deleteEventCard(cardId: string) {
+  return request<void>(`/events/admin/cards/${cardId}`, { method: 'DELETE' });
 }
 
 export function getEventLink(token: string, pageSlug?: string | null) {

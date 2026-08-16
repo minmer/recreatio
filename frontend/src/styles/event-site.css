@@ -1598,6 +1598,98 @@
   min-width: 0;
 }
 
+/* ── Own submission and participant card ─────────────────── */
+
+.ev-own,
+.ev-card-form {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.ev-own-meta {
+  margin: 0;
+  color: var(--ev-muted);
+  font-size: 0.82rem;
+}
+
+/* The card's sections lay their own fields out, so the outer form's two-column
+   grid must not also apply to them. */
+.ev-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.ev-card-grid > .ev-field {
+  grid-column: 1 / -1;
+}
+
+.ev-card-grid > .ev-field.is-half {
+  grid-column: span 1;
+}
+
+.ev-card-age {
+  margin: 0;
+  border-left: 3px solid var(--ev-line-2);
+  padding-left: 0.8rem;
+  color: var(--ev-muted);
+  font-size: 0.9rem;
+}
+
+.ev-card-age.is-minor {
+  border-left-color: var(--ev-accent);
+  color: var(--ev-ink);
+}
+
+/* The information clause is shown, not linked: it has to be in front of the
+   person before they tick anything. Scrolls rather than swallowing the page. */
+.ev-clause {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  padding: 0.8rem 0.95rem;
+  background: var(--ev-surface);
+  color: var(--ev-muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.ev-clause p {
+  margin: 0 0 0.5rem;
+}
+
+.ev-clause p:first-child {
+  color: var(--ev-ink);
+  font-weight: 700;
+}
+
+.ev-clause p:last-child {
+  margin-bottom: 0;
+}
+
+/* A consent is a heading plus the wording being agreed to. */
+.ev-check-row strong {
+  font-size: 0.92rem;
+}
+
+.ev-check-row small {
+  color: var(--ev-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .ev-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ev-card-grid > .ev-field.is-half {
+    grid-column: 1 / -1;
+  }
+}
+
 .ev-consent {
   margin: 0;
   color: var(--ev-muted);

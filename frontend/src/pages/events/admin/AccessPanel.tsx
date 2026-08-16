@@ -2,14 +2,17 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   createEventAccessLink,
   deleteEventAccessLink,
+  deleteEventCard,
   deleteEventRegistration,
   getEventAccessLinks,
+  getEventCards,
   getEventRegistrations,
   rotateEventAccessLink,
   setEventAccessLinkStatus,
   setEventRegistrationHidden,
   updateEventAccessLink,
   type EventAdminAccessLink,
+  type EventAdminCardRow,
   type EventAdminPage,
   type EventAdminRegistrationRow
 } from '../../../lib/api';
@@ -295,7 +298,126 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: EventAdm
           </div>
         )}
       </section>
+
+      <CardsPanel siteId={siteId} />
     </div>
+  );
+}
+
+/**
+ * The signed participant cards. Separate from the registration list because
+ * these are a different thing under a different legal basis: sensitive data
+ * held on consent, which is why deleting one here does not touch the person's
+ * registration and why the accepted wording is shown rather than a tick.
+ */
+function CardsPanel({ siteId }: { siteId: string }) {
+  const [cards, setCards] = useState<EventAdminCardRow[]>([]);
+  const [open, setOpen] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setCards(await getEventCards(siteId));
+      setError(null);
+    } catch (loadError: unknown) {
+      setError(loadError instanceof Error ? loadError.message : 'Nie udało się pobrać kart uczestników.');
+    }
+  }, [siteId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const remove = async (card: EventAdminCardRow) => {
+    if (
+      !window.confirm(
+        `Usunąć kartę „${card.participantName ?? card.recipientName}”? Zgłoszenie i link zostają — znika sama karta ze zgodami.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteEventCard(card.id);
+      await load();
+    } catch (deleteError: unknown) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Nie udało się usunąć karty.');
+    }
+  };
+
+  return (
+    <section className="eva-panel">
+      <header>
+        <h3>Karty uczestników ({cards.length})</h3>
+        <p>
+          Dane uzupełniające i zgody wypełnione z linków osobistych. Karta osoby niepełnoletniej jest podpisana przez
+          rodzica albo opiekuna prawnego.
+        </p>
+      </header>
+
+      {error ? <p className="eva-error">{error}</p> : null}
+
+      {cards.length === 0 ? (
+        <p className="eva-hint">Nikt nie wypełnił jeszcze karty uczestnika.</p>
+      ) : (
+        <div className="eva-link-list">
+          {cards.map((card) => (
+            <article className="eva-link" key={card.id}>
+              <header>
+                <div>
+                  <strong>{card.participantName ?? card.recipientName}</strong>{' '}
+                  {card.isMinor ? <span className="eva-pill">niepełnoletni</span> : null}
+                  <span className="eva-sub">
+                    {' '}
+                    podpis: {card.signerName}
+                    {card.signerRole === 'guardian' ? ' (rodzic / opiekun)' : ''} ·{' '}
+                    {new Date(card.updatedUtc).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })}
+                  </span>
+                </div>
+                <div className="eva-link-stats">
+                  <button type="button" onClick={() => setOpen(open === card.id ? null : card.id)}>
+                    {open === card.id ? 'Zwiń' : 'Pokaż'}
+                  </button>
+                  <button type="button" className="eva-danger" onClick={() => void remove(card)}>
+                    Usuń
+                  </button>
+                </div>
+              </header>
+
+              {open === card.id ? (
+                <div className="eva-link-details">
+                  <dl className="eva-answers">
+                    {Object.entries(card.data)
+                      .filter(([, value]) => (value ?? '').trim().length > 0)
+                      .map(([code, value]) => (
+                        <div key={code}>
+                          <dt>{code}</dt>
+                          <dd>{value}</dd>
+                        </div>
+                      ))}
+                  </dl>
+
+                  <ul className="eva-warnings">
+                    {card.consents.map((consent) => (
+                      <li key={consent.code}>
+                        {consent.accepted ? '✓' : '✗'} {consent.label}
+                        {consent.atUtc
+                          ? ` — ${new Date(consent.atUtc).toLocaleString('pl-PL', {
+                              dateStyle: 'short',
+                              timeStyle: 'short'
+                            })}`
+                          : ''}
+                        <br />
+                        <span className="eva-sub">{consent.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

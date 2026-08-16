@@ -123,6 +123,23 @@ a najwyżej jedno "contact". To z nich bierze się imię i kontakt uczestnika, i
 dzięki temu organizator może jednym kliknięciem nadać tej osobie link osobisty.
 Bez pola "name" zgłoszenia są anonimowe.
 
+## Części tylko za linkiem osobistym
+
+Dwie części działają na danych samego czytelnika i mają sens wyłącznie na
+stronie wewnętrznej, do której ktoś dostał link osobisty:
+
+  - "registration" — pokazuje osobie jej własne zgłoszenie z formularza
+    zapisów i pozwala je poprawić. Nie ma własnych pól; bierze je z formularza.
+  - "card" — karta uczestnika: dane uzupełniające (adres, PESEL, rodzice,
+    zdrowie, szczepienia), zgoda rodzica dla osób niepełnoletnich i zgody
+    RODO. Zakres pól jest stały, bo wynika z przepisów o wypoczynku dzieci
+    i młodzieży; w "config" ustawia się administratora danych, okres
+    przechowywania i treść zgód.
+
+Na stronie publicznej obie nie pokażą nic poza informacją, że wymagają linku.
+W "card" zawsze uzupełnij "controllerName" i "retention" — bez nich klauzula
+informacyjna jest niekompletna.
+
 ## Typy części i ich "config"`;
 
 const CLOSING = `## Zasady

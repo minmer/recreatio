@@ -11,6 +11,7 @@ import {
 } from '../../../lib/api';
 import { asOptionalText, asRecord, definePart } from './contracts';
 import { AreaRow, CheckRow, LinesRow, SelectRow, TextRow } from './editorKit';
+import { blankValues, FormFields, serializeValue, type FieldValues } from './formFields';
 
 type FormConfig = {
   submitLabel: string | null;
@@ -35,38 +36,6 @@ const IDENTITY_ROLES: Array<{ value: string; label: string }> = [
   { value: 'name', label: 'To jest imię i nazwisko uczestnika' },
   { value: 'contact', label: 'To jest kontakt do uczestnika' }
 ];
-
-type Values = Record<string, string | string[] | boolean>;
-
-function blankValues(fields: EventPartField[]): Values {
-  const values: Values = {};
-  for (const field of fields) {
-    if (field.kind === 'multiselect') values[field.id] = [];
-    else if (field.kind === 'checkbox') values[field.id] = false;
-    else if (field.kind === 'select') values[field.id] = field.options[0] ?? '';
-    else values[field.id] = '';
-  }
-  return values;
-}
-
-/** Turns one field's UI state into the scalar the API stores. */
-function serialize(field: EventPartField, value: string | string[] | boolean): string | null {
-  if (field.kind === 'multiselect') {
-    const picked = Array.isArray(value) ? value : [];
-    return picked.length > 0 ? JSON.stringify(picked) : null;
-  }
-  if (field.kind === 'checkbox') return value === true ? 'true' : null;
-  const text = typeof value === 'string' ? value.trim() : '';
-  return text.length > 0 ? text : null;
-}
-
-function inputType(kind: EventFieldKind): string {
-  if (kind === 'email') return 'email';
-  if (kind === 'number') return 'number';
-  if (kind === 'date') return 'date';
-  if (kind === 'phone') return 'tel';
-  return 'text';
-}
 
 /** Registration. Fields live in the database, not in ConfigJson. */
 export const formPart = definePart<FormConfig>({
@@ -94,7 +63,7 @@ export const formPart = definePart<FormConfig>({
       () => [...ctx.part.fields].sort((a, b) => a.sortOrder - b.sortOrder),
       [ctx.part.fields]
     );
-    const [values, setValues] = useState<Values>(() => blankValues(fields));
+    const [values, setValues] = useState<FieldValues>(() => blankValues(fields));
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
@@ -106,21 +75,12 @@ export const formPart = definePart<FormConfig>({
     const setValue = (id: string, value: string | string[] | boolean) =>
       setValues((previous) => ({ ...previous, [id]: value }));
 
-    const toggleMulti = (id: string, option: string) =>
-      setValues((previous) => {
-        const current = Array.isArray(previous[id]) ? (previous[id] as string[]) : [];
-        return {
-          ...previous,
-          [id]: current.includes(option) ? current.filter((entry) => entry !== option) : [...current, option]
-        };
-      });
-
     const submit = async (event: FormEvent) => {
       event.preventDefault();
       setError(null);
       setSuccess(null);
 
-      const payload = fields.map((field) => ({ fieldId: field.id, value: serialize(field, values[field.id]) }));
+      const payload = fields.map((field) => ({ fieldId: field.id, value: serializeValue(field, values[field.id]) }));
       const missing = fields.find(
         (field) => field.isRequired && payload.find((entry) => entry.fieldId === field.id)?.value === null
       );
@@ -143,87 +103,7 @@ export const formPart = definePart<FormConfig>({
 
     return (
       <form className="ev-form" onSubmit={(event) => void submit(event)}>
-        {fields.map((field) => {
-          const value = values[field.id];
-
-          if (field.kind === 'checkbox') {
-            return (
-              <label className="ev-check-row" key={field.id}>
-                <input
-                  type="checkbox"
-                  checked={value === true}
-                  onChange={(event) => setValue(field.id, event.target.checked)}
-                  required={field.isRequired}
-                />
-                <span>
-                  {field.label}
-                  {field.helpText ? <small>{field.helpText}</small> : null}
-                </span>
-              </label>
-            );
-          }
-
-          if (field.kind === 'multiselect') {
-            const picked = Array.isArray(value) ? value : [];
-            return (
-              <fieldset className="ev-fieldset" key={field.id}>
-                <legend>{field.label}</legend>
-                {field.helpText ? <small>{field.helpText}</small> : null}
-                <div className="ev-check-grid">
-                  {field.options.map((option) => (
-                    <label className="ev-check-row" key={option}>
-                      <input
-                        type="checkbox"
-                        checked={picked.includes(option)}
-                        onChange={() => toggleMulti(field.id, option)}
-                      />
-                      <span>{option}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            );
-          }
-
-          return (
-            <label className={`ev-field ${field.isHalfWidth ? 'is-half' : ''}`} key={field.id}>
-              <span className="ev-field-label">
-                {field.label}
-                {field.isRequired ? <em aria-hidden="true"> *</em> : null}
-              </span>
-
-              {field.kind === 'select' ? (
-                <select
-                  value={typeof value === 'string' ? value : ''}
-                  onChange={(event) => setValue(field.id, event.target.value)}
-                  required={field.isRequired}
-                >
-                  {field.options.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              ) : field.kind === 'textarea' ? (
-                <textarea
-                  rows={4}
-                  value={typeof value === 'string' ? value : ''}
-                  onChange={(event) => setValue(field.id, event.target.value)}
-                  required={field.isRequired}
-                />
-              ) : (
-                <input
-                  type={inputType(field.kind)}
-                  value={typeof value === 'string' ? value : ''}
-                  onChange={(event) => setValue(field.id, event.target.value)}
-                  required={field.isRequired}
-                />
-              )}
-
-              {field.helpText ? <small>{field.helpText}</small> : null}
-            </label>
-          );
-        })}
+        <FormFields fields={fields} values={values} onChange={setValue} />
 
         {config.consentNote ? <p className="ev-consent">{config.consentNote}</p> : null}
 

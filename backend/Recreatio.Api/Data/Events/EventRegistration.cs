@@ -35,4 +35,10 @@ public sealed class EventRegistration
     public bool IsHidden { get; set; }
 
     public DateTimeOffset SubmittedUtc { get; set; }
+
+    /// <summary>
+    /// Set when the person corrected their own answers through their individual
+    /// link. Null means the submission is still as it was sent.
+    /// </summary>
+    public DateTimeOffset? UpdatedUtc { get; set; }
 }

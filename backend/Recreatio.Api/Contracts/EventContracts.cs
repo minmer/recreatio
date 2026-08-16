@@ -88,6 +88,69 @@ public sealed record EventSubmitRequest(IReadOnlyList<EventSubmitValue> Values, 
 
 public sealed record EventSubmitResponse(Guid RegistrationId, DateTimeOffset SubmittedUtc);
 
+// ── Behind an individual link: own submission and participant card ───────────
+
+/// <summary>One answer as it comes back to the person who gave it.</summary>
+public sealed record EventOwnValue(Guid FieldId, string? Value);
+
+/// <summary>
+/// The person's own registration, returned for correction. The form's field
+/// definitions come with it so the page can render exactly the form that was
+/// submitted, even if it lives on a page this link cannot otherwise open.
+/// </summary>
+public sealed record EventOwnRegistrationResponse(
+    Guid RegistrationId,
+    Guid PartId,
+    string PartLabel,
+    DateTimeOffset SubmittedUtc,
+    DateTimeOffset? UpdatedUtc,
+    IReadOnlyList<EventPartFieldResponse> Fields,
+    IReadOnlyList<EventOwnValue> Values);
+
+public sealed record EventOwnRegistrationRequest(IReadOnlyList<EventSubmitValue> Values);
+
+public sealed record EventConsentRecord(
+    string Code,
+    string Label,
+    string Text,
+    bool Accepted,
+    DateTimeOffset? AtUtc);
+
+/// <summary>What the reader sends when signing or correcting their card.</summary>
+public sealed record EventParticipantCardRequest(
+    IReadOnlyDictionary<string, string?> Data,
+    IReadOnlyList<EventConsentRecord> Consents,
+    string? ClauseText,
+    bool IsMinor,
+    string SignerRole,
+    string SignerName,
+    string? ParticipantName);
+
+public sealed record EventParticipantCardResponse(
+    Guid? Id,
+    IReadOnlyDictionary<string, string?> Data,
+    IReadOnlyList<EventConsentRecord> Consents,
+    bool IsMinor,
+    string SignerRole,
+    string SignerName,
+    string? ParticipantName,
+    DateTimeOffset? SubmittedUtc,
+    DateTimeOffset? UpdatedUtc);
+
+/// <summary>A signed card as the organizer sees it, for the participant list.</summary>
+public sealed record EventAdminCardRow(
+    Guid Id,
+    Guid AccessLinkId,
+    string RecipientName,
+    string? ParticipantName,
+    bool IsMinor,
+    string SignerRole,
+    string SignerName,
+    DateTimeOffset SubmittedUtc,
+    DateTimeOffset UpdatedUtc,
+    IReadOnlyDictionary<string, string?> Data,
+    IReadOnlyList<EventConsentRecord> Consents);
+
 // ── Admin ────────────────────────────────────────────────────────────────────
 
 public sealed record EventAdminStatusResponse(bool HasAdmin, bool IsCurrentUserAdmin, string? AdminDisplayName);

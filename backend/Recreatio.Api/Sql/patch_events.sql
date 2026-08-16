@@ -368,3 +368,78 @@ GO
 -- DROP TABLE IF EXISTS event2.Event2Sites;
 -- DROP SCHEMA IF EXISTS event2;
 -- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- Participant cards: the data collected behind an individual link.
+-- ---------------------------------------------------------------------------
+
+-- Set when a person corrects their own submission through their link.
+IF OBJECT_ID(N'events.EventRegistrations', N'U') IS NOT NULL
+   AND COL_LENGTH('events.EventRegistrations', 'UpdatedUtc') IS NULL
+BEGIN
+    ALTER TABLE events.EventRegistrations ADD UpdatedUtc DATETIMEOFFSET NULL;
+END
+GO
+
+-- Deliberately a separate table from the registration. A registration is an
+-- open-web submission; a card is a signed document about a named person, often
+-- a minor, and it carries health data (RODO art. 9). Keeping it apart lets it be
+-- deleted, corrected and exported on its own, and keeps the sensitive part out
+-- of everything that reads registrations.
+IF OBJECT_ID(N'events.EventParticipantCards', N'U') IS NULL
+BEGIN
+    CREATE TABLE events.EventParticipantCards
+    (
+        Id              UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventParticipantCards PRIMARY KEY,
+        SiteId          UNIQUEIDENTIFIER NOT NULL,
+        PartId          UNIQUEIDENTIFIER NOT NULL,
+        AccessLinkId    UNIQUEIDENTIFIER NOT NULL,
+        RegistrationId  UNIQUEIDENTIFIER NULL,
+        -- Answers by field code. The shape follows the karta kwalifikacyjna,
+        -- which is fixed by regulation, not by this application.
+        DataJson        NVARCHAR(MAX)    NOT NULL CONSTRAINT DF_EventParticipantCards_Data DEFAULT(N'{}'),
+        -- What was accepted, including the wording accepted: RODO art. 7(1)
+        -- means being able to show what the person actually agreed to.
+        ConsentsJson    NVARCHAR(MAX)    NOT NULL CONSTRAINT DF_EventParticipantCards_Consents DEFAULT(N'[]'),
+        -- The art. 13 information clause as it was shown at signing.
+        ClauseText      NVARCHAR(MAX)    NULL,
+        IsMinor         BIT              NOT NULL CONSTRAINT DF_EventParticipantCards_Minor DEFAULT(0),
+        SignerRole      NVARCHAR(16)     NOT NULL CONSTRAINT DF_EventParticipantCards_Role DEFAULT(N'participant'),
+        SignerName      NVARCHAR(200)    NOT NULL,
+        ParticipantName NVARCHAR(200)    NULL,
+        SubmittedUtc    DATETIMEOFFSET   NOT NULL,
+        UpdatedUtc      DATETIMEOFFSET   NOT NULL,
+        CONSTRAINT FK_EventParticipantCards_Site
+            FOREIGN KEY (SiteId) REFERENCES events.EventSites(Id),
+        CONSTRAINT FK_EventParticipantCards_Part
+            FOREIGN KEY (PartId) REFERENCES events.EventParts(Id),
+        CONSTRAINT FK_EventParticipantCards_Link
+            FOREIGN KEY (AccessLinkId) REFERENCES events.EventAccessLinks(Id),
+        CONSTRAINT FK_EventParticipantCards_Registration
+            FOREIGN KEY (RegistrationId) REFERENCES events.EventRegistrations(Id)
+    );
+END
+GO
+
+-- One card per person per card part; the reader edits theirs rather than
+-- filing a second one.
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'UX_EventParticipantCards_Link_Part'
+      AND object_id = OBJECT_ID('events.EventParticipantCards')
+)
+BEGIN
+    CREATE UNIQUE INDEX UX_EventParticipantCards_Link_Part
+        ON events.EventParticipantCards(AccessLinkId, PartId);
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_EventParticipantCards_SiteId'
+      AND object_id = OBJECT_ID('events.EventParticipantCards')
+)
+BEGIN
+    CREATE INDEX IX_EventParticipantCards_SiteId ON events.EventParticipantCards(SiteId);
+END
+GO

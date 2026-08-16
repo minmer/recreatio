@@ -21,7 +21,10 @@ public static partial class EventEndpoints
     private static readonly string[] AllowedPartKinds =
     [
         "title", "shortinfos", "text", "plan", "map",
-        "faq", "form", "costs", "contact", "gallery", "files", "people"
+        "faq", "form", "costs", "contact", "gallery", "files", "people",
+        // Behind an individual link only: correcting one's own submission, and
+        // the participant card with its consents.
+        "registration", "card"
     ];
 
     private static readonly string[] AllowedFieldKinds =
@@ -47,6 +50,8 @@ public static partial class EventEndpoints
         MapAdminPartEndpoints(group);
         MapAdminFieldEndpoints(group);
         MapAdminAccessEndpoints(group);
+        MapParticipantEndpoints(group);
+        MapParticipantAdminEndpoints(group);
         MapImportEndpoints(group);
         MapImageEndpoints(group);
     }
