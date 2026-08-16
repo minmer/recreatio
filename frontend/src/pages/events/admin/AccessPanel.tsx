@@ -28,10 +28,15 @@ function dialable(phone: string): string {
   return digits.startsWith('+') || digits.length !== 9 ? digits : `+48${digits}`;
 }
 
-/** Fills the event's saved message in for one recipient. */
-function renderSms(template: string, values: { imie: string; wydarzenie: string; link: string }): string {
+/**
+ * Fills the event's saved message in for one recipient. `{imie}` is kept as an
+ * alias of `{osoba}` so templates written before the rename keep working — both
+ * put in the whole name.
+ */
+function renderSms(template: string, values: { osoba: string; wydarzenie: string; link: string }): string {
   return template
-    .replace(/\{imie\}/g, values.imie)
+    .replace(/\{osoba\}/g, values.osoba)
+    .replace(/\{imie\}/g, values.osoba)
     .replace(/\{wydarzenie\}/g, values.wydarzenie)
     .replace(/\{link\}/g, values.link);
 }
@@ -88,7 +93,7 @@ export function AccessPanel({
 
   const smsHref = (link: EventAdminAccessLink) => {
     const text = renderSms(smsTemplate ?? '{wydarzenie}: {link}', {
-      imie: link.recipientName.split(' ')[0] ?? link.recipientName,
+      osoba: link.recipientName.trim(),
       wydarzenie: eventTitle,
       link: linkUrl(link.token)
     });

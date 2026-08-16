@@ -37,7 +37,7 @@ function publicUrl(slug: string): string {
  * and the link is long enough that retyping it around is how it gets mangled.
  */
 const DEFAULT_SMS_TEMPLATE =
-  'Cześć {imie}! Tu Twoja strona wydarzenia {wydarzenie}: {link} — są tam informacje i zgody do uzupełnienia.';
+  'Cześć {osoba}! Tu Twoja strona wydarzenia {wydarzenie}: {link} — są tam informacje i zgody do uzupełnienia.';
 
 function errorText(error: unknown, fallback: string): string {
   if (error instanceof ApiError && error.message) return error.message;
@@ -741,7 +741,7 @@ function SiteSettings({
           label="Treść wiadomości"
           rows={3}
           value={smsTemplate}
-          hint="Zmienne: {imie}, {wydarzenie}, {link}. Zapisuje się raz — wysyłasz jednym kliknięciem przy każdej osobie w zakładce Dostęp."
+          hint="Zmienne: {osoba} — imię i nazwisko odbiorcy, {wydarzenie}, {link}. Zapisuje się raz — wysyłasz jednym kliknięciem przy każdej osobie w zakładce Dostęp."
           onChange={setSmsTemplate}
         />
         <p className="eve-hint">
