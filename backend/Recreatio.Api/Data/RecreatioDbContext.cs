@@ -238,6 +238,28 @@ public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefi
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // The events entities carry no navigation properties — a foreign key is
+        // a plain Guid — so nothing tells EF which of two rows saved together
+        // has to be inserted first. Without this it picks an order of its own,
+        // and a child can go in ahead of its parent: inserting a topic and its
+        // opening message in one SaveChanges failed on the foreign key because
+        // the message went first. Declaring the relationship gives EF the
+        // dependency graph it orders by. Restrict rather than Cascade, because
+        // deletes here are written out by hand, in order, in the endpoints.
+        modelBuilder.Entity<Data.Events.EventTopicMessage>()
+            .HasOne<Data.Events.EventTopic>()
+            .WithMany()
+            .HasForeignKey(x => x.TopicId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Same shape, same hazard: values are saved together with the
+        // registration they belong to.
+        modelBuilder.Entity<Data.Events.EventRegistrationValue>()
+            .HasOne<Data.Events.EventRegistration>()
+            .WithMany()
+            .HasForeignKey(x => x.RegistrationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // These Core entities map to the same tables as active runtime entities.
         // Keep them out of the EF runtime model to avoid shared-table conflicts.
         modelBuilder.Ignore<Data.Cogita.Core.CogitaKnowledgeTypeSpecCore>();
