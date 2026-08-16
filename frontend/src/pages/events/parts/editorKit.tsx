@@ -1,9 +1,50 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 /**
  * Shared editor primitives. Every part builds its editor from these, so the
  * builder looks and behaves the same no matter which part you are editing.
  */
+
+/**
+ * Holds what is actually being typed.
+ *
+ * Every field here is controlled by the part's parsed config, and parsing
+ * normalizes: text is trimmed, blank lines are dropped. Fed straight back into
+ * the input, that normalization happens between two keystrokes — so a space
+ * typed at the end of a word vanished as it was typed, and pressing Enter to
+ * start a new line did nothing at all, because the empty line was removed
+ * before the next character could reach it.
+ *
+ * So while a field has focus, nothing rewrites it: the draft is the truth.
+ * On blur it adopts whatever was actually stored, which is also where the
+ * reader will see the normalized version.
+ */
+function useDraft(external: string): {
+  draft: string;
+  setDraft: (next: string) => void;
+  focusProps: { onFocus: () => void; onBlur: () => void };
+} {
+  const [draft, setDraft] = useState(external);
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(external);
+  }, [external]);
+
+  return {
+    draft,
+    setDraft,
+    focusProps: {
+      onFocus: () => {
+        focused.current = true;
+      },
+      onBlur: () => {
+        focused.current = false;
+        setDraft(external);
+      }
+    }
+  };
+}
 
 export function TextRow({
   label,
@@ -18,10 +59,20 @@ export function TextRow({
   hint?: string;
   placeholder?: string;
 }) {
+  const { draft, setDraft, focusProps } = useDraft(value);
+
   return (
     <label className="eve-row">
       <span>{label}</span>
-      <input value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+      <input
+        value={draft}
+        placeholder={placeholder}
+        {...focusProps}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          onChange(event.target.value);
+        }}
+      />
       {hint ? <small>{hint}</small> : null}
     </label>
   );
@@ -40,10 +91,20 @@ export function AreaRow({
   rows?: number;
   hint?: string;
 }) {
+  const { draft, setDraft, focusProps } = useDraft(value);
+
   return (
     <label className="eve-row">
       <span>{label}</span>
-      <textarea rows={rows} value={value} onChange={(event) => onChange(event.target.value)} />
+      <textarea
+        rows={rows}
+        value={draft}
+        {...focusProps}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          onChange(event.target.value);
+        }}
+      />
       {hint ? <small>{hint}</small> : null}
     </label>
   );
@@ -133,6 +194,8 @@ export function LinesRow({
   hint?: string;
 }) {
   return (
+    // AreaRow holds the draft, so the blank line you have just opened with
+    // Enter survives even though the stored list drops it.
     <AreaRow
       label={label}
       rows={rows}

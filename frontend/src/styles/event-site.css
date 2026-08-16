@@ -3620,3 +3620,109 @@
     transform: translateY(1.2rem) scale(0.985);
   }
 }
+
+/* ============================================================
+   Admin: one row per person
+   ============================================================ */
+
+.eva-people {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.eva-people > li {
+  border: 1px solid var(--a-line, rgba(150, 170, 200, 0.2));
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  min-width: 0;
+}
+
+/* Set aside, not gone: still readable, plainly out of the running. */
+.eva-people > li.is-hidden {
+  opacity: 0.55;
+}
+
+.eva-people > li.is-hidden strong {
+  text-decoration: line-through;
+}
+
+.eva-person-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.75rem;
+  min-width: 0;
+}
+
+.eva-person-head > strong {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The number an organizer reaches for on the day, one tap from a call. */
+.eva-phone {
+  color: #e8eef7;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 1px dashed var(--a-line-2, rgba(150, 170, 200, 0.4));
+}
+
+.eva-phone:hover {
+  border-bottom-color: var(--a-accent, #4c7dd6);
+}
+
+.eva-person-tags {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.eva-more {
+  flex-shrink: 0;
+  border: 1px solid var(--a-line-2, rgba(150, 170, 200, 0.4));
+  border-radius: 999px;
+  padding: 0.26rem 0.9rem;
+  background: transparent;
+  color: #e8eef7;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.eva-more:hover {
+  border-color: var(--a-accent, #4c7dd6);
+}
+
+.eva-person-body {
+  display: grid;
+  gap: 0.9rem;
+  padding: 0.2rem 0.75rem 0.85rem;
+  border-top: 1px solid var(--a-line, rgba(150, 170, 200, 0.2));
+  min-width: 0;
+}
+
+.eva-person-body > section {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.eva-person-body h4 {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--a-muted, #9fb0c8);
+}
+
+.eva-person-body h4 .eva-sub {
+  letter-spacing: 0;
+  text-transform: none;
+}

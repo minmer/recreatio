@@ -16,6 +16,7 @@ import {
   type EventAdminPage,
   type EventAdminRegistrationRow
 } from '../../../lib/api';
+import { buildPeople, internalPagesOf, type Person } from './peopleList';
 
 function linkUrl(token: string): string {
   return `${window.location.origin}/#/event/link/${token}`;
@@ -54,8 +55,13 @@ function formatAssignments(entries: Array<{ label: string; value: string }>): st
 }
 
 /**
- * Registrations on the left, links on the right. Granting access to someone who
- * registered is one button — that is the whole point of the identity fields.
+ * One list of people, not three lists of records.
+ *
+ * A row is a name and a phone number — the two things an organizer reaches for
+ * on the day — and everything else waits behind "Więcej": the submitted answers,
+ * the individual link with its grants, and the signed card. Before this the same
+ * person appeared in a registrations table, again in a links list and again in a
+ * cards list, with their name and contact repeated in all three.
  */
 export function AccessPanel({
   siteId,
@@ -69,7 +75,16 @@ export function AccessPanel({
   /** The event's saved SMS, or null when none has been written yet. */
   smsTemplate: string | null;
 }) {
-  const internalPages = pages.filter((page) => page.kind === 'internal');
+  const internalPages = internalPagesOf(pages);
+
+  const [registrations, setRegistrations] = useState<EventAdminRegistrationRow[]>([]);
+  const [links, setLinks] = useState<EventAdminAccessLink[]>([]);
+  const [cards, setCards] = useState<EventAdminCardRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
 
   const smsHref = (link: EventAdminAccessLink) => {
     const text = renderSms(smsTemplate ?? '{wydarzenie}: {link}', {
@@ -80,23 +95,19 @@ export function AccessPanel({
     return `sms:${dialable(link.recipientContact ?? '')}?body=${encodeURIComponent(text)}`;
   };
 
-  const [registrations, setRegistrations] = useState<EventAdminRegistrationRow[]>([]);
-  const [links, setLinks] = useState<EventAdminAccessLink[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [showHidden, setShowHidden] = useState(false);
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [registrationRows, linkRows] = await Promise.all([
+      const [registrationRows, linkRows, cardRows] = await Promise.all([
         getEventRegistrations(siteId),
-        getEventAccessLinks(siteId)
+        getEventAccessLinks(siteId),
+        // Cards are the newest table; an un-patched database should cost the
+        // list its card column, not the whole panel.
+        getEventCards(siteId).catch(() => [] as EventAdminCardRow[])
       ]);
       setRegistrations(registrationRows);
       setLinks(linkRows);
+      setCards(cardRows);
       setError(null);
     } catch (loadError: unknown) {
       setError(loadError instanceof Error ? loadError.message : 'Nie udało się pobrać danych.');
@@ -109,8 +120,11 @@ export function AccessPanel({
     void load();
   }, [load]);
 
-  const grantFromRegistration = async (row: EventAdminRegistrationRow) => {
-    const name = row.participantName?.trim();
+  const grant = async (person: Person) => {
+    const registration = person.registration;
+    if (!registration) return;
+
+    const name = registration.participantName?.trim();
     if (!name) {
       setError(
         'To zgłoszenie nie ma imienia i nazwiska. Oznacz w formularzu pole jako „imię i nazwisko uczestnika”, albo utwórz link ręcznie.'
@@ -120,12 +134,12 @@ export function AccessPanel({
     try {
       await createEventAccessLink(siteId, {
         recipientName: name,
-        recipientContact: row.participantContact,
+        recipientContact: registration.participantContact,
         personalNote: null,
         internalNote: null,
         pageIds: [],
         assignments: null,
-        registrationId: row.id
+        registrationId: registration.id
       });
       await load();
     } catch (grantError: unknown) {
@@ -133,25 +147,35 @@ export function AccessPanel({
     }
   };
 
-  const toggleHidden = async (row: EventAdminRegistrationRow) => {
+  const toggleHidden = async (registration: EventAdminRegistrationRow) => {
     try {
-      await setEventRegistrationHidden(row.id, !row.isHidden);
+      await setEventRegistrationHidden(registration.id, !registration.isHidden);
       await load();
     } catch (hideError: unknown) {
       setError(hideError instanceof Error ? hideError.message : 'Nie udało się zmienić widoczności.');
     }
   };
 
-  const removeRegistration = async (row: EventAdminRegistrationRow) => {
-    const who = row.participantName ?? 'to zgłoszenie';
+  const removeRegistration = async (registration: EventAdminRegistrationRow) => {
+    const who = registration.participantName ?? 'to zgłoszenie';
     if (!window.confirm(`Usunąć ${who} na stałe? Odpowiedzi z formularza zostaną skasowane bez możliwości cofnięcia.`)) {
       return;
     }
     try {
-      await deleteEventRegistration(row.id);
+      await deleteEventRegistration(registration.id);
       await load();
     } catch (deleteError: unknown) {
       setError(deleteError instanceof Error ? deleteError.message : 'Nie udało się usunąć zgłoszenia.');
+    }
+  };
+
+  const removeCard = async (card: EventAdminCardRow) => {
+    if (!window.confirm('Usunąć kartę uczestnika ze zgodami? Zgłoszenie i link zostają.')) return;
+    try {
+      await deleteEventCard(card.id);
+      await load();
+    } catch (deleteError: unknown) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Nie udało się usunąć karty.');
     }
   };
 
@@ -183,7 +207,11 @@ export function AccessPanel({
   };
 
   const hiddenCount = registrations.filter((row) => row.isHidden).length;
-  const visibleRegistrations = showHidden ? registrations : registrations.filter((row) => !row.isHidden);
+  const people = buildPeople(
+    showHidden ? registrations : registrations.filter((row) => !row.isHidden),
+    links,
+    cards
+  );
 
   return (
     <div className="eva-access">
@@ -192,11 +220,8 @@ export function AccessPanel({
 
       <section className="eva-panel">
         <header>
-          <h3>Zgłoszenia ({visibleRegistrations.length})</h3>
-          <p>
-            Osoby, które wypełniły formularz. Nadaj dostęp, żeby wygenerować dla nich link osobisty. Ukryte
-            zgłoszenia nie liczą się do statystyk, ale zachowują odpowiedzi.
-          </p>
+          <h3>Uczestnicy ({people.length})</h3>
+          <p>Zgłoszenie, link osobisty i karta jednej osoby w jednym wierszu. Szczegóły pod „Więcej”.</p>
           {hiddenCount > 0 ? (
             <label className="eve-check">
               <input type="checkbox" checked={showHidden} onChange={(event) => setShowHidden(event.target.checked)} />
@@ -205,270 +230,222 @@ export function AccessPanel({
           ) : null}
         </header>
 
-        {visibleRegistrations.length === 0 ? (
-          <p className="eva-hint">{hiddenCount > 0 ? 'Wszystkie zgłoszenia są ukryte.' : 'Brak zgłoszeń.'}</p>
+        {people.length === 0 ? (
+          <p className="eva-hint">Nikt się jeszcze nie zgłosił.</p>
         ) : (
-          <div className="eva-table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Osoba</th>
-                  <th>Formularz</th>
-                  <th>Data</th>
-                  <th>Odpowiedzi</th>
-                  <th>Dostęp</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRegistrations.map((row) => (
-                  <tr key={row.id} className={row.isHidden ? 'is-hidden' : undefined}>
-                    <td>
-                      <strong>{row.participantName ?? '— bez nazwiska —'}</strong>
-                      {row.isHidden ? <span className="eva-pill">ukryte</span> : null}
-                      {row.participantContact ? <div className="eva-sub">{row.participantContact}</div> : null}
-                    </td>
-                    <td>
-                      {row.partLabel}
-                      <div className="eva-sub">{row.pageLabel}</div>
-                    </td>
-                    <td>{new Date(row.submittedUtc).toLocaleString('pl-PL')}</td>
-                    <td>
-                      <dl className="eva-answers">
-                        {row.values.map((value, index) => (
-                          <div key={index}>
-                            <dt>{value.fieldLabel}</dt>
-                            <dd>{value.value ?? '—'}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </td>
-                    <td className="eva-actions-cell">
-                      {row.accessLinkId ? (
-                        <span className="eva-pill is-live">nadany</span>
-                      ) : row.isHidden ? null : (
-                        <button type="button" className="eva-cta" onClick={() => void grantFromRegistration(row)}>
-                          Nadaj dostęp
-                        </button>
-                      )}
-                      <button type="button" onClick={() => void toggleHidden(row)}>
-                        {row.isHidden ? 'Przywróć' : 'Ukryj'}
-                      </button>
-                      <button type="button" className="eva-danger" onClick={() => void removeRegistration(row)}>
-                        Usuń
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+          <ul className="eva-people">
+            {people.map((person) => (
+              <li key={person.key} className={person.registration?.isHidden ? 'is-hidden' : undefined}>
+                <div className="eva-person-head">
+                  <strong>{person.name}</strong>
 
-      <section className="eva-panel">
-        <header>
-          <h3>Linki osobiste ({links.length})</h3>
-          <p>
-            {internalPages.length === 0
-              ? 'Najpierw dodaj stronę wewnętrzną — bez niej link pokazuje tylko stronę publiczną.'
-              : 'Zaznacz, które strony wewnętrzne otwiera każdy link.'}
-          </p>
-        </header>
-
-        <ManualLinkForm siteId={siteId} onCreated={() => void load()} />
-
-        {links.length === 0 ? (
-          <p className="eva-hint">Brak linków.</p>
-        ) : (
-          <div className="eva-link-list">
-            {links.map((link) => (
-              <article className="eva-link" key={link.id}>
-                <header>
-                  <div>
-                    <strong>{link.recipientName}</strong>
-                    {link.recipientContact ? <span className="eva-sub"> · {link.recipientContact}</span> : null}
-                  </div>
-                  <div className="eva-link-stats">
-                    <span className={`eva-pill ${link.status === 'active' ? 'is-live' : ''}`}>{link.status}</span>
-                    {/* The token went to one number and nowhere else, so the
-                        first open is what shows the number reaches the person. */}
-                    {link.contactVerifiedUtc ? (
-                      <span className="eva-pill is-live" title={new Date(link.contactVerifiedUtc).toLocaleString('pl-PL')}>
-                        numer potwierdzony
-                      </span>
-                    ) : link.recipientContact ? (
-                      <span className="eva-pill">numer niepotwierdzony</span>
-                    ) : null}
-                    <span className="eva-sub">
-                      {link.viewCount} otwarć
-                      {link.lastViewedUtc ? ` · ${new Date(link.lastViewedUtc).toLocaleString('pl-PL')}` : ''}
-                    </span>
-                  </div>
-                </header>
-
-                {internalPages.length > 0 ? (
-                  <div className="eva-grants">
-                    {internalPages.map((page) => (
-                      <label key={page.id} className="eve-check">
-                        <input
-                          type="checkbox"
-                          checked={link.pageIds.includes(page.id)}
-                          onChange={() => void togglePage(link, page.id)}
-                        />
-                        <span>{page.menuLabel}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : null}
-
-                {link.internalNote ? <p className="eva-internal">{link.internalNote}</p> : null}
-
-                <div className="eva-link-row">
-                  <input className="eva-linkbox" readOnly value={linkUrl(link.token)} />
-                  <button type="button" onClick={() => void copy(link.token)}>
-                    {copied === link.token ? 'Skopiowano' : 'Kopiuj'}
-                  </button>
-                  {/* Opens the phone's own messaging app with the number and the
-                      event's saved text already filled in — one tap to send, and
-                      the link is never retyped by hand. */}
-                  {link.recipientContact ? (
-                    <a className="eva-sms" href={smsHref(link)}>
-                      SMS
+                  {/* One tap to call: the number is what an organizer actually
+                      reaches for on the day. */}
+                  {person.phone ? (
+                    <a className="eva-phone" href={`tel:${dialable(person.phone)}`}>
+                      {person.phone}
                     </a>
-                  ) : null}
-                  <button type="button" onClick={() => setEditing(editing === link.id ? null : link.id)}>
-                    {editing === link.id ? 'Zwiń' : 'Szczegóły'}
+                  ) : (
+                    <span className="eva-sub">brak telefonu</span>
+                  )}
+
+                  <span className="eva-person-tags">
+                    {person.registration?.isHidden ? <span className="eva-pill">ukryte</span> : null}
+                    {person.link ? (
+                      person.link.status === 'active' ? (
+                        <span className="eva-pill is-live">link</span>
+                      ) : (
+                        <span className="eva-pill">unieważniony</span>
+                      )
+                    ) : (
+                      <span className="eva-pill">bez linku</span>
+                    )}
+                    {person.card ? <span className="eva-pill is-live">karta</span> : null}
+                  </span>
+
+                  <button
+                    type="button"
+                    className="eva-more"
+                    onClick={() => setOpenKey(openKey === person.key ? null : person.key)}
+                  >
+                    {openKey === person.key ? 'Mniej' : 'Więcej'}
                   </button>
                 </div>
 
-                {editing === link.id ? (
-                  <LinkDetails link={link} onSaved={() => void load()} onCopyError={setError} />
+                {openKey === person.key ? (
+                  <PersonDetails
+                    person={person}
+                    internalPages={internalPages}
+                    copied={copied}
+                    smsHref={smsHref}
+                    onCopy={copy}
+                    onGrant={() => void grant(person)}
+                    onTogglePage={togglePage}
+                    onToggleHidden={toggleHidden}
+                    onRemoveRegistration={removeRegistration}
+                    onRemoveCard={removeCard}
+                    onSaved={() => void load()}
+                    onError={setError}
+                  />
                 ) : null}
-              </article>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-      </section>
 
-      <CardsPanel siteId={siteId} />
+        <ManualLinkForm siteId={siteId} onCreated={() => void load()} />
+      </section>
     </div>
   );
 }
 
-/**
- * The signed participant cards. Separate from the registration list because
- * these are a different thing under a different legal basis: sensitive data
- * held on consent, which is why deleting one here does not touch the person's
- * registration and why the accepted wording is shown rather than a tick.
- */
-function CardsPanel({ siteId }: { siteId: string }) {
-  const [cards, setCards] = useState<EventAdminCardRow[]>([]);
-  const [open, setOpen] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setCards(await getEventCards(siteId));
-      setError(null);
-    } catch (loadError: unknown) {
-      setError(loadError instanceof Error ? loadError.message : 'Nie udało się pobrać kart uczestników.');
-    }
-  }, [siteId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const remove = async (card: EventAdminCardRow) => {
-    if (
-      !window.confirm(
-        `Usunąć kartę „${card.participantName ?? card.recipientName}”? Zgłoszenie i link zostają — znika sama karta ze zgodami.`
-      )
-    ) {
-      return;
-    }
-    try {
-      await deleteEventCard(card.id);
-      await load();
-    } catch (deleteError: unknown) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Nie udało się usunąć karty.');
-    }
-  };
+/** Everything about one person, opened on demand. */
+function PersonDetails({
+  person,
+  internalPages,
+  copied,
+  smsHref,
+  onCopy,
+  onGrant,
+  onTogglePage,
+  onToggleHidden,
+  onRemoveRegistration,
+  onRemoveCard,
+  onSaved,
+  onError
+}: {
+  person: Person;
+  internalPages: EventAdminPage[];
+  copied: string | null;
+  smsHref: (link: EventAdminAccessLink) => string;
+  onCopy: (token: string) => void;
+  onGrant: () => void;
+  onTogglePage: (link: EventAdminAccessLink, pageId: string) => Promise<void>;
+  onToggleHidden: (registration: EventAdminRegistrationRow) => Promise<void>;
+  onRemoveRegistration: (registration: EventAdminRegistrationRow) => Promise<void>;
+  onRemoveCard: (card: EventAdminCardRow) => Promise<void>;
+  onSaved: () => void;
+  onError: (message: string) => void;
+}) {
+  const { registration, link, card } = person;
 
   return (
-    <section className="eva-panel">
-      <header>
-        <h3>Karty uczestników ({cards.length})</h3>
-        <p>
-          Dane uzupełniające i zgody wypełnione z linków osobistych. Karta osoby niepełnoletniej jest podpisana przez
-          rodzica albo opiekuna prawnego.
-        </p>
-      </header>
+    <div className="eva-person-body">
+      {registration ? (
+        <section>
+          <h4>
+            Zgłoszenie · {registration.partLabel}
+            <span className="eva-sub"> {new Date(registration.submittedUtc).toLocaleString('pl-PL')}</span>
+          </h4>
+          <dl className="eva-answers">
+            {registration.values.map((value, index) => (
+              <div key={index}>
+                <dt>{value.fieldLabel}</dt>
+                <dd>{value.value ?? '—'}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="eva-actions">
+            <button type="button" onClick={() => void onToggleHidden(registration)}>
+              {registration.isHidden ? 'Przywróć' : 'Ukryj'}
+            </button>
+            <button type="button" className="eva-danger" onClick={() => void onRemoveRegistration(registration)}>
+              Usuń zgłoszenie
+            </button>
+          </div>
+        </section>
+      ) : null}
 
-      {error ? <p className="eva-error">{error}</p> : null}
+      <section>
+        <h4>Dostęp</h4>
+        {link ? (
+          <>
+            {internalPages.length > 0 ? (
+              <div className="eva-grants">
+                {internalPages.map((page) => (
+                  <label key={page.id} className="eve-check">
+                    <input
+                      type="checkbox"
+                      checked={link.pageIds.includes(page.id)}
+                      onChange={() => void onTogglePage(link, page.id)}
+                    />
+                    <span>{page.menuLabel}</span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="eva-hint">Wydarzenie nie ma jeszcze stron wewnętrznych.</p>
+            )}
 
-      {cards.length === 0 ? (
-        <p className="eva-hint">Nikt nie wypełnił jeszcze karty uczestnika.</p>
-      ) : (
-        <div className="eva-link-list">
-          {cards.map((card) => (
-            <article className="eva-link" key={card.id}>
-              <header>
-                <div>
-                  <strong>{card.participantName ?? card.recipientName}</strong>{' '}
-                  {card.isMinor ? <span className="eva-pill">niepełnoletni</span> : null}
-                  <span className="eva-sub">
-                    {' '}
-                    podpis: {card.signerName}
-                    {card.signerRole === 'guardian' ? ' (rodzic / opiekun)' : ''} ·{' '}
-                    {new Date(card.updatedUtc).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })}
-                  </span>
-                </div>
-                <div className="eva-link-stats">
-                  <button type="button" onClick={() => setOpen(open === card.id ? null : card.id)}>
-                    {open === card.id ? 'Zwiń' : 'Pokaż'}
-                  </button>
-                  <button type="button" className="eva-danger" onClick={() => void remove(card)}>
-                    Usuń
-                  </button>
-                </div>
-              </header>
-
-              {open === card.id ? (
-                <div className="eva-link-details">
-                  <dl className="eva-answers">
-                    {Object.entries(card.data)
-                      .filter(([, value]) => (value ?? '').trim().length > 0)
-                      .map(([code, value]) => (
-                        <div key={code}>
-                          <dt>{code}</dt>
-                          <dd>{value}</dd>
-                        </div>
-                      ))}
-                  </dl>
-
-                  <ul className="eva-warnings">
-                    {card.consents.map((consent) => (
-                      <li key={consent.code}>
-                        {consent.accepted ? '✓' : '✗'} {consent.label}
-                        {consent.atUtc
-                          ? ` — ${new Date(consent.atUtc).toLocaleString('pl-PL', {
-                              dateStyle: 'short',
-                              timeStyle: 'short'
-                            })}`
-                          : ''}
-                        <br />
-                        <span className="eva-sub">{consent.text}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+            <div className="eva-link-row">
+              <input className="eva-linkbox" readOnly value={linkUrl(link.token)} />
+              <button type="button" onClick={() => onCopy(link.token)}>
+                {copied === link.token ? 'Skopiowano' : 'Kopiuj'}
+              </button>
+              {link.recipientContact ? (
+                <a className="eva-sms" href={smsHref(link)}>
+                  SMS
+                </a>
               ) : null}
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
+            </div>
+
+            <p className="eva-sub">
+              {link.viewCount} otwarć
+              {link.lastViewedUtc ? ` · ostatnio ${new Date(link.lastViewedUtc).toLocaleString('pl-PL')}` : ''}
+              {link.contactVerifiedUtc
+                ? ` · numer potwierdzony ${new Date(link.contactVerifiedUtc).toLocaleDateString('pl-PL')}`
+                : ' · numer niepotwierdzony'}
+            </p>
+
+            <LinkDetails link={link} onSaved={onSaved} onCopyError={onError} />
+          </>
+        ) : (
+          <div className="eva-actions">
+            <p className="eva-hint">Ta osoba nie ma jeszcze linku osobistego.</p>
+            <button type="button" className="eva-cta" onClick={onGrant}>
+              Nadaj dostęp
+            </button>
+          </div>
+        )}
+      </section>
+
+      {card ? (
+        <section>
+          <h4>
+            Karta uczestnika
+            <span className="eva-sub">
+              {' '}
+              podpis: {card.signerName}
+              {card.signerRole === 'guardian' ? ' (rodzic / opiekun)' : ''} ·{' '}
+              {new Date(card.updatedUtc).toLocaleString('pl-PL')}
+              {card.isMinor ? ' · niepełnoletni' : ''}
+            </span>
+          </h4>
+          <dl className="eva-answers">
+            {Object.entries(card.data)
+              .filter(([, value]) => (value ?? '').trim().length > 0)
+              .map(([code, value]) => (
+                <div key={code}>
+                  <dt>{code}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+          </dl>
+          <ul className="eva-warnings">
+            {card.consents.map((consent) => (
+              <li key={consent.code}>
+                {consent.accepted ? '✓' : '✗'} {consent.label}
+              </li>
+            ))}
+          </ul>
+          <div className="eva-actions">
+            <button type="button" className="eva-danger" onClick={() => void onRemoveCard(card)}>
+              Usuń kartę
+            </button>
+          </div>
+        </section>
+      ) : null}
+    </div>
   );
 }
 
