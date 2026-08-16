@@ -181,6 +181,7 @@ public sealed record EventSiteUpsertRequest(
     DateOnly? EndDate,
     string? DateLabel,
     string? ThemeJson,
+    string? SmsTemplate,
     bool IsPublished);
 
 /// <summary>The whole event as the editor sees it: every page, every part.</summary>
@@ -188,6 +189,7 @@ public sealed record EventAdminSiteResponse(
     EventSiteHeader Site,
     EventCatalogueEntry Catalogue,
     bool IsPublished,
+    string? SmsTemplate,
     IReadOnlyList<EventAdminPageResponse> Pages);
 
 public sealed record EventAdminPageResponse(
@@ -277,6 +279,8 @@ public sealed record EventAdminAccessLinkRow(
     Guid? RegistrationId,
     int ViewCount,
     DateTimeOffset? LastViewedUtc,
+    /// <summary>Set the first time the link was opened — see the entity.</summary>
+    DateTimeOffset? ContactVerifiedUtc,
     DateTimeOffset CreatedUtc,
     IReadOnlyList<Guid> PageIds,
     IReadOnlyList<EventAssignmentResponse> Assignments);

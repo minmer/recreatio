@@ -3049,14 +3049,32 @@
 }
 
 @media print {
+  /* The app paints a full-viewport gradient and pins the reader's page with
+     position: fixed. Left alone, that background is a full-page element the
+     printer honours — it spills onto a second sheet even with everything else
+     hidden. Strip the page back to plain paper first. */
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    background-image: none !important;
+    overflow: visible !important;
+  }
+
   body > * {
     display: none !important;
   }
 
   body > .ev-print-doc {
-    display: flex !important;
-    flex-direction: column;
-    min-height: 0;
+    display: block !important;
+    /* Never taller than the sheet: a stray millimetre of overflow is a whole
+       extra page, and that page is always blank. */
+    max-height: 100%;
+    overflow: hidden;
     margin: 0;
     padding: 0;
     background: #fff;
@@ -3172,9 +3190,15 @@
   }
 
   .ev-print-doc footer {
-    margin-top: auto;
     padding-top: 0.5em;
     break-inside: avoid;
+    break-after: avoid;
+  }
+
+  /* Trailing margins on the last element are enough to tip the sheet over. */
+  .ev-print-doc > :last-child,
+  .ev-print-signatures span {
+    margin-bottom: 0 !important;
   }
 
   .ev-print-trace {
@@ -3196,4 +3220,21 @@
     border-top: 0.5pt solid #000;
     padding-top: 0.2em;
   }
+}
+
+/* The one-tap SMS beside a link, styled as the row's other buttons. */
+.eva-sms {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--a-line-2);
+  border-radius: 8px;
+  padding: 0.36rem 0.75rem;
+  color: #e8eef7;
+  font-size: 0.82rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.eva-sms:hover {
+  border-color: var(--a-accent, #4c7dd6);
 }

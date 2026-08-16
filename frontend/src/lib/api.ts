@@ -7891,6 +7891,7 @@ export type EventAdminSite = {
   site: EventSiteHeader;
   catalogue: EventCatalogueEntry;
   isPublished: boolean;
+  smsTemplate: string | null;
   pages: EventAdminPage[];
 };
 
@@ -7907,6 +7908,7 @@ export type EventSiteUpsert = {
   endDate: string | null;
   dateLabel: string | null;
   themeJson: string | null;
+  smsTemplate: string | null;
   isPublished: boolean;
 };
 
@@ -7972,6 +7974,8 @@ export type EventAdminAccessLink = {
   registrationId: string | null;
   viewCount: number;
   lastViewedUtc: string | null;
+  /** Set the first time the link was opened — see the backend entity. */
+  contactVerifiedUtc: string | null;
   createdUtc: string;
   pageIds: string[];
   assignments: EventAssignment[];

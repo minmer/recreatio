@@ -21,6 +21,20 @@ function linkUrl(token: string): string {
   return `${window.location.origin}/#/event/link/${token}`;
 }
 
+/** Strips a Polish number down to something a phone will dial. */
+function dialable(phone: string): string {
+  const digits = phone.replace(/[^\d+]/g, '');
+  return digits.startsWith('+') || digits.length !== 9 ? digits : `+48${digits}`;
+}
+
+/** Fills the event's saved message in for one recipient. */
+function renderSms(template: string, values: { imie: string; wydarzenie: string; link: string }): string {
+  return template
+    .replace(/\{imie\}/g, values.imie)
+    .replace(/\{wydarzenie\}/g, values.wydarzenie)
+    .replace(/\{link\}/g, values.link);
+}
+
 /** "Grupa: 3" per line ⇄ structured assignments. */
 function parseAssignments(raw: string) {
   return raw
@@ -43,8 +57,28 @@ function formatAssignments(entries: Array<{ label: string; value: string }>): st
  * Registrations on the left, links on the right. Granting access to someone who
  * registered is one button — that is the whole point of the identity fields.
  */
-export function AccessPanel({ siteId, pages }: { siteId: string; pages: EventAdminPage[] }) {
+export function AccessPanel({
+  siteId,
+  pages,
+  eventTitle,
+  smsTemplate
+}: {
+  siteId: string;
+  pages: EventAdminPage[];
+  eventTitle: string;
+  /** The event's saved SMS, or null when none has been written yet. */
+  smsTemplate: string | null;
+}) {
   const internalPages = pages.filter((page) => page.kind === 'internal');
+
+  const smsHref = (link: EventAdminAccessLink) => {
+    const text = renderSms(smsTemplate ?? '{wydarzenie}: {link}', {
+      imie: link.recipientName.split(' ')[0] ?? link.recipientName,
+      wydarzenie: eventTitle,
+      link: linkUrl(link.token)
+    });
+    return `sms:${dialable(link.recipientContact ?? '')}?body=${encodeURIComponent(text)}`;
+  };
 
   const [registrations, setRegistrations] = useState<EventAdminRegistrationRow[]>([]);
   const [links, setLinks] = useState<EventAdminAccessLink[]>([]);
@@ -256,6 +290,15 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: EventAdm
                   </div>
                   <div className="eva-link-stats">
                     <span className={`eva-pill ${link.status === 'active' ? 'is-live' : ''}`}>{link.status}</span>
+                    {/* The token went to one number and nowhere else, so the
+                        first open is what shows the number reaches the person. */}
+                    {link.contactVerifiedUtc ? (
+                      <span className="eva-pill is-live" title={new Date(link.contactVerifiedUtc).toLocaleString('pl-PL')}>
+                        numer potwierdzony
+                      </span>
+                    ) : link.recipientContact ? (
+                      <span className="eva-pill">numer niepotwierdzony</span>
+                    ) : null}
                     <span className="eva-sub">
                       {link.viewCount} otwarć
                       {link.lastViewedUtc ? ` · ${new Date(link.lastViewedUtc).toLocaleString('pl-PL')}` : ''}
@@ -285,6 +328,14 @@ export function AccessPanel({ siteId, pages }: { siteId: string; pages: EventAdm
                   <button type="button" onClick={() => void copy(link.token)}>
                     {copied === link.token ? 'Skopiowano' : 'Kopiuj'}
                   </button>
+                  {/* Opens the phone's own messaging app with the number and the
+                      event's saved text already filled in — one tap to send, and
+                      the link is never retyped by hand. */}
+                  {link.recipientContact ? (
+                    <a className="eva-sms" href={smsHref(link)}>
+                      SMS
+                    </a>
+                  ) : null}
                   <button type="button" onClick={() => setEditing(editing === link.id ? null : link.id)}>
                     {editing === link.id ? 'Zwiń' : 'Szczegóły'}
                   </button>

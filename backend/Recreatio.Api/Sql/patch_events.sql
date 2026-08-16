@@ -443,3 +443,24 @@ BEGIN
     CREATE INDEX IX_EventParticipantCards_SiteId ON events.EventParticipantCards(SiteId);
 END
 GO
+
+-- ---------------------------------------------------------------------------
+-- Handing a link over by SMS, and what opening it proves.
+-- ---------------------------------------------------------------------------
+
+-- One SMS per event, so twenty invitations say the same thing.
+IF OBJECT_ID(N'events.EventSites', N'U') IS NOT NULL
+   AND COL_LENGTH('events.EventSites', 'SmsTemplate') IS NULL
+BEGIN
+    ALTER TABLE events.EventSites ADD SmsTemplate NVARCHAR(600) NULL;
+END
+GO
+
+-- Stamped the first time a link is opened. The token travels to exactly one
+-- number, so the first open is what shows that number reaches the person.
+IF OBJECT_ID(N'events.EventAccessLinks', N'U') IS NOT NULL
+   AND COL_LENGTH('events.EventAccessLinks', 'ContactVerifiedUtc') IS NULL
+BEGIN
+    ALTER TABLE events.EventAccessLinks ADD ContactVerifiedUtc DATETIMEOFFSET NULL;
+END
+GO

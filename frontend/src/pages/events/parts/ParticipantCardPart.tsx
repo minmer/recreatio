@@ -9,8 +9,8 @@ import {
   type ConsentSpec,
   type Question
 } from './cardLevels';
-import { asBool, asOptionalText, asRecord, asText, definePart, mapEntries } from './contracts';
-import { AreaRow, CheckRow, ListEditor, NumberRow, SelectRow, TextRow } from './editorKit';
+import { asBool, asOptionalText, asRecord, asText, definePart } from './contracts';
+import { AreaRow, CheckRow, NumberRow, SelectRow, TextRow } from './editorKit';
 
 /**
  * The participant card: what still has to be asked of a named person once they
@@ -245,32 +245,6 @@ export const participantCardPart = definePart<CardConfig>({
     const record = asRecord(raw);
     const level = readLevel(record.level);
 
-    const questions = mapEntries<Question>(record.questions, (item) => {
-      const code = asText(item.code).trim();
-      const text = asText(item.text).trim();
-      if (code.length === 0 || text.length === 0) return null;
-      return {
-        code,
-        text,
-        detailLabel: asText(item.detailLabel, 'Napisz krótko').trim() || 'Napisz krótko',
-        scope: asText(item.scope) === 'minor' ? 'minor' : 'all',
-        requireDetail: asBool(item.requireDetail, true)
-      };
-    });
-
-    const consents = mapEntries<ConsentSpec>(record.consents, (item) => {
-      const code = asText(item.code).trim();
-      const text = asText(item.text).trim();
-      if (code.length === 0 || text.length === 0) return null;
-      return {
-        code,
-        label: asText(item.label, code).trim(),
-        text,
-        required: asBool(item.required),
-        minorOnly: asBool(item.minorOnly)
-      };
-    });
-
     const purposes = Array.isArray(record.purposes)
       ? record.purposes.map((entry) => asText(entry).trim()).filter((entry) => entry.length > 0)
       : [];
@@ -285,7 +259,11 @@ export const participantCardPart = definePart<CardConfig>({
         return Number.isFinite(value) && value >= 1 && value <= 26 ? Math.round(value) : 18;
       })(),
       askEmergency: asBool(record.askEmergency),
-      questions: questions.length > 0 ? questions : CARD_LEVELS[level].questions,
+      // Questions and statements are never read from the stored config. They
+      // are the document, and the document is what the level says it is — an
+      // organizer editing "wyrażam zgodę" into something else, or a stale copy
+      // surviving a change of level, is how a consent stops being one.
+      questions: CARD_LEVELS[level].questions,
       controllerName: asOptionalText(record.controllerName),
       controllerAddress: asOptionalText(record.controllerAddress),
       controllerContact: asOptionalText(record.controllerContact),
@@ -294,7 +272,7 @@ export const participantCardPart = definePart<CardConfig>({
       recipients: asOptionalText(record.recipients),
       retention: asOptionalText(record.retention),
       extraClause: asOptionalText(record.extraClause),
-      consents: consents.length > 0 ? consents : CARD_LEVELS[level].consents
+      consents: CARD_LEVELS[level].consents
     };
   },
 
@@ -574,8 +552,10 @@ export const participantCardPart = definePart<CardConfig>({
           </label>
 
           <div className="ev-actions">
+            {/* Nothing is being signed here when the participant is a minor —
+                the signature happens by hand on the printout. */}
             <button className="ev-cta" type="submit" disabled={pending}>
-              {pending ? 'Zapisywanie…' : (config.saveLabel ?? 'Zapisz')}
+              {pending ? 'Zapisywanie…' : needsPaper ? 'Zapisz kartę' : (config.saveLabel ?? 'Zapisz i podpisz')}
             </button>
             {needsPaper && card?.submittedUtc ? (
               <button className="ev-cta" type="button" onClick={() => window.print()}>
@@ -684,48 +664,37 @@ export const participantCardPart = definePart<CardConfig>({
           </p>
         </fieldset>
 
-        {CARD_LEVELS[config.level].askQuestions ? (
-          <ListEditor<Question>
-            legend="Pytania „tak / nie”"
-            items={config.questions}
-            addLabel="Dodaj pytanie"
-            blank={() => ({
-              code: `pytanie${config.questions.length + 1}`,
-              text: '',
-              detailLabel: 'Napisz krótko',
-              scope: 'all',
-              requireDetail: true
-            })}
-            titleOf={(item) => item.text || item.code}
-            onChange={(questions) => onChange({ ...config, questions })}
-            renderItem={(item, update) => (
-              <>
-                <TextRow label="Kod" value={item.code} onChange={(code) => update({ ...item, code })} />
-                <AreaRow label="Pytanie" rows={2} value={item.text} onChange={(text) => update({ ...item, text })} />
-                <TextRow
-                  label="Etykieta pola opisu"
-                  value={item.detailLabel}
-                  hint="Widoczna dopiero po odpowiedzi „tak”."
-                  onChange={(detailLabel) => update({ ...item, detailLabel })}
-                />
-                <SelectRow<Question['scope']>
-                  label="Kogo pytamy"
-                  value={item.scope}
-                  options={[
-                    { value: 'all', label: 'Wszystkich' },
-                    { value: 'minor', label: 'Tylko niepełnoletnich' }
-                  ]}
-                  onChange={(scope) => update({ ...item, scope })}
-                />
-                <CheckRow
-                  label="Po „tak” opis jest wymagany"
-                  checked={item.requireDetail}
-                  onChange={(requireDetail) => update({ ...item, requireDetail })}
-                />
-              </>
-            )}
-          />
-        ) : null}
+        {/* The questions and the statements are not editable. They are the
+            document, and which document it is was already chosen above; letting
+            them be retyped is how "wyrażam zgodę" quietly becomes something
+            that is not a consent. What is left below is only what the organizer
+            alone can know: who they are and how long they keep the data. */}
+        <fieldset className="eve-group">
+          <legend>Co ta wersja zawiera</legend>
+          {CARD_LEVELS[config.level].questions.length > 0 ? (
+            <>
+              <p className="eve-hint">Pytania „tak / nie”:</p>
+              <ul className="eva-warnings">
+                {CARD_LEVELS[config.level].questions.map((question) => (
+                  <li key={question.code}>{question.text}</li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="eve-hint">Ta wersja nie zadaje żadnych pytań.</p>
+          )}
+
+          <p className="eve-hint">Oświadczenia i zgody:</p>
+          <ul className="eva-warnings">
+            {CARD_LEVELS[config.level].consents.map((consent) => (
+              <li key={consent.code}>
+                {consent.label}
+                {consent.required ? ' (wymagana)' : ' (dobrowolna)'}
+                {consent.minorOnly ? ' — tylko dla niepełnoletnich' : ''}
+              </li>
+            ))}
+          </ul>
+        </fieldset>
 
         <fieldset className="eve-group">
           <legend>Klauzula informacyjna (RODO art. 13)</legend>
@@ -786,43 +755,10 @@ export const participantCardPart = definePart<CardConfig>({
             onChange={(extraClause) => onChange({ ...config, extraClause: extraClause || null })}
           />
         </fieldset>
-
-        <ListEditor<ConsentSpec>
-          legend="Zgody i oświadczenia"
-          items={config.consents}
-          addLabel="Dodaj zgodę"
-          blank={() => ({
-            code: `zgoda${config.consents.length + 1}`,
-            label: 'Nowa zgoda',
-            text: '',
-            required: false,
-            minorOnly: false
-          })}
-          titleOf={(item) => item.label || item.code}
-          onChange={(consents) => onChange({ ...config, consents })}
-          renderItem={(item, update) => (
-            <>
-              <TextRow label="Kod" value={item.code} onChange={(code) => update({ ...item, code })} />
-              <TextRow label="Nazwa" value={item.label} onChange={(label) => update({ ...item, label })} />
-              <AreaRow label="Treść" rows={4} value={item.text} onChange={(text) => update({ ...item, text })} />
-              <CheckRow
-                label="Wymagana (bez niej nie da się zapisać karty)"
-                checked={item.required}
-                onChange={(required) => update({ ...item, required })}
-              />
-              <CheckRow
-                label="Tylko dla niepełnoletnich"
-                checked={item.minorOnly}
-                onChange={(minorOnly) => update({ ...item, minorOnly })}
-              />
-            </>
-          )}
-        />
       </>
     );
   }
 });
-
 /**
  * The sheet a guardian signs by hand.
  *

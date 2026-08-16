@@ -31,6 +31,14 @@ function publicUrl(slug: string): string {
   return `${window.location.origin}/#/event/${slug}`;
 }
 
+/**
+ * The SMS an organizer sends with somebody's individual link. One per event,
+ * written once — twenty invitations typed by hand are twenty different messages,
+ * and the link is long enough that retyping it around is how it gets mangled.
+ */
+const DEFAULT_SMS_TEMPLATE =
+  'Cześć {imie}! Tu Twoja strona wydarzenia {wydarzenie}: {link} — są tam informacje i zgody do uzupełnienia.';
+
 function errorText(error: unknown, fallback: string): string {
   if (error instanceof ApiError && error.message) return error.message;
   if (error instanceof Error) return error.message;
@@ -107,6 +115,7 @@ export function EventAdminPage({ initialSiteId }: { initialSiteId?: string | nul
         endDate: null,
         dateLabel: null,
         themeJson: null,
+        smsTemplate: null,
         isPublished: false
       });
       setNewSlug('');
@@ -440,7 +449,14 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
         </>
       ) : null}
 
-      {tab === 'access' ? <AccessPanel siteId={siteId} pages={data.pages} /> : null}
+      {tab === 'access' ? (
+        <AccessPanel
+          siteId={siteId}
+          pages={data.pages}
+          eventTitle={data.site.title}
+          smsTemplate={data.smsTemplate}
+        />
+      ) : null}
 
       {tab === 'settings' ? <SiteSettings data={data} siteId={siteId} onSaved={() => void load()} onBack={onBack} /> : null}
     </div>
@@ -533,6 +549,7 @@ function SiteSettings({
   const [endDate, setEndDate] = useState(data.catalogue.endDate ?? '');
   const [dateLabel, setDateLabel] = useState(data.site.dateLabel ?? '');
   const [published, setPublished] = useState(data.isPublished);
+  const [smsTemplate, setSmsTemplate] = useState(data.smsTemplate ?? DEFAULT_SMS_TEMPLATE);
   const [mode, setMode] = useState<ThemeMode>('dark');
   const [accent, setAccent] = useState(DEFAULT_THEMES.dark.accent);
   const [ground, setGround] = useState(DEFAULT_THEMES.dark.ground);
@@ -582,6 +599,7 @@ function SiteSettings({
         endDate: endDate || null,
         dateLabel: dateLabel.trim() || null,
         themeJson: JSON.stringify({ mode, accent, ground, ink, muted }),
+        smsTemplate: smsTemplate.trim() || null,
         isPublished: published
       });
       onSaved();
@@ -715,6 +733,21 @@ function SiteSettings({
             <input type="color" value={muted} onChange={(event) => setMuted(event.target.value)} />
           </label>
         </div>
+      </fieldset>
+
+      <fieldset className="eve-group">
+        <legend>SMS z linkiem osobistym</legend>
+        <AreaRow
+          label="Treść wiadomości"
+          rows={3}
+          value={smsTemplate}
+          hint="Zmienne: {imie}, {wydarzenie}, {link}. Zapisuje się raz — wysyłasz jednym kliknięciem przy każdej osobie w zakładce Dostęp."
+          onChange={setSmsTemplate}
+        />
+        <p className="eve-hint">
+          Otwarcie linku przez odbiorcę potwierdza numer telefonu: token trafia wyłącznie pod ten numer, więc kto go
+          otworzył, ten go dostał.
+        </p>
       </fieldset>
 
       <CheckRow label="Opublikowane (widoczne pod adresem publicznym)" checked={published} onChange={setPublished} />

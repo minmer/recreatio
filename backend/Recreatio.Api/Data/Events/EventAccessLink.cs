@@ -40,6 +40,14 @@ public sealed class EventAccessLink
     [MaxLength(1000)]
     public string? InternalNote { get; set; }
 
+    /**
+     * When the link was first opened. Because the token only ever travels to
+     * one place — the number the organizer sent it to — the first open is what
+     * shows that number reaches the person: nobody else has the address.
+     * Kept apart from ViewCount, which counts visits and says nothing.
+     */
+    public DateTimeOffset? ContactVerifiedUtc { get; set; }
+
     public int ViewCount { get; set; }
 
     public DateTimeOffset? LastViewedUtc { get; set; }

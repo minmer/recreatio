@@ -62,6 +62,15 @@ public sealed class EventSite
 
     public string? ThemeJson { get; set; }
 
+    /**
+     * One SMS for the whole event: the text an organizer sends when handing
+     * someone their individual link. Stored once rather than retyped per
+     * person, which is what keeps twenty invitations saying the same thing.
+     * Placeholders: {imie}, {wydarzenie}, {link}.
+     */
+    [MaxLength(600)]
+    public string? SmsTemplate { get; set; }
+
     public bool IsPublished { get; set; }
 
     public DateTimeOffset CreatedUtc { get; set; }

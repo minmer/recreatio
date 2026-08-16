@@ -303,6 +303,7 @@ public static partial class EventEndpoints
             endDate,
             NormalizeShort(ReadString(body, "dateLabel"), 120),
             themeJson,
+            NormalizeShort(ReadString(body, "smsTemplate"), 600),
             // An imported event stays a draft: the organizer publishes it after
             // looking at it, never the document.
             false);

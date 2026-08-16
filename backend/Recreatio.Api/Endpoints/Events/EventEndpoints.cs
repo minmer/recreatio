@@ -293,6 +293,9 @@ public static partial class EventEndpoints
 
         var pageResponse = await BuildPageResponseAsync(dbContext, selected, ct);
 
+        // The first open is the verification: this token went to one number and
+        // nowhere else, so somebody reading it read it from there.
+        link.ContactVerifiedUtc ??= DateTimeOffset.UtcNow;
         link.ViewCount += 1;
         link.LastViewedUtc = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(ct);
@@ -537,7 +540,7 @@ public static partial class EventEndpoints
                 partsByPage.GetValueOrDefault(x.Id) ?? [])).ToList();
 
             return Results.Ok(new EventAdminSiteResponse(
-                ToHeader(site), ToCatalogueEntry(site), site.IsPublished, pageResponses));
+                ToHeader(site), ToCatalogueEntry(site), site.IsPublished, site.SmsTemplate, pageResponses));
         }).RequireAuthorization();
 
         group.MapPost("/admin/sites", async (
@@ -1255,7 +1258,7 @@ public static partial class EventEndpoints
             var rows = links.Select(x => new EventAdminAccessLinkRow(
                 x.Id, x.Token, x.RecipientName, x.RecipientContact, x.Status,
                 x.PersonalNote, x.InternalNote, x.RegistrationId,
-                x.ViewCount, x.LastViewedUtc, x.CreatedUtc,
+                x.ViewCount, x.LastViewedUtc, x.ContactVerifiedUtc, x.CreatedUtc,
                 grantsByLink.GetValueOrDefault(x.Id) ?? [],
                 assignmentsByLink.GetValueOrDefault(x.Id) ?? [])).ToList();
 
@@ -1497,6 +1500,7 @@ public static partial class EventEndpoints
                 : request.EndDate;
         site.DateLabel = NormalizeShort(request.DateLabel, 120);
         site.ThemeJson = NormalizeJson(request.ThemeJson);
+        site.SmsTemplate = NormalizeShort(request.SmsTemplate, 600);
         site.IsPublished = request.IsPublished;
     }
 
