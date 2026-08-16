@@ -67,6 +67,35 @@ function perPerson(total: number | null, count: number | null): number | null {
   return total !== null && count !== null && count > 0 ? total / count : null;
 }
 
+/**
+ * One amount, shown per person first. What a reader wants from a budget is what
+ * it costs *them*; the pot is context. When there is no participant count there
+ * is no per-person figure, so the total takes the headline back rather than
+ * leaving a gap.
+ */
+function Amount({
+  total,
+  count,
+  currency
+}: {
+  total: number | null;
+  count: number | null;
+  currency: string;
+}) {
+  const each = perPerson(total, count);
+
+  if (each === null) {
+    return <span className="ev-costs-lead">{formatMoney(total, currency)}</span>;
+  }
+
+  return (
+    <>
+      <span className="ev-costs-lead is-person">{formatMoney(each, currency)}</span>
+      <span className="ev-costs-sub">na osobę · {formatMoney(total, currency)} łącznie</span>
+    </>
+  );
+}
+
 function OptionalNumberRow({
   label,
   value,
@@ -165,23 +194,24 @@ export const costsPart = definePart<CostsConfig>({
       ? 'Podaj liczbę uczestników, aby zobaczyć przeliczenie.'
       : `Przeliczenie dla ${config.participantCount} ${config.participantCount === 1 ? 'osoby' : 'osób'}.`;
 
+    const count = config.participantCount;
+    const hasPerPerson = count !== null && count > 0;
+
     return (
       <div className="ev-costs">
         <div className="ev-costs-summary">
-          <article>
-            <span>Koszty sugerowane</span>
-            <strong>{formatMoney(suggested.total, config.currency)}</strong>
-            <small>{formatMoney(perPerson(suggested.total, config.participantCount), config.currency)} / os.</small>
+          <article className={hasPerPerson ? 'is-person' : ''}>
+            <span>{hasPerPerson ? 'Koszt sugerowany na osobę' : 'Koszty sugerowane'}</span>
+            <Amount total={suggested.total} count={count} currency={config.currency} />
           </article>
-          <article>
-            <span>Koszty rzeczywiste</span>
-            <strong>{formatMoney(actual.total, config.currency)}</strong>
-            <small>{formatMoney(perPerson(actual.total, config.participantCount), config.currency)} / os.</small>
+          <article className={hasPerPerson ? 'is-person' : ''}>
+            <span>{hasPerPerson ? 'Koszt rzeczywisty na osobę' : 'Koszty rzeczywiste'}</span>
+            <Amount total={actual.total} count={count} currency={config.currency} />
           </article>
           <article className="is-donations">
             <span>Suma wszystkich darowizn</span>
-            <strong>{formatMoney(donations.total, config.currency)}</strong>
-            <small>{donations.count} uzupełnionych wpłat</small>
+            <span className="ev-costs-lead">{formatMoney(donations.total, config.currency)}</span>
+            <span className="ev-costs-sub">{donations.count} uzupełnionych wpłat</span>
           </article>
         </div>
 
@@ -193,19 +223,36 @@ export const costsPart = definePart<CostsConfig>({
               <thead>
                 <tr>
                   <th>Pozycja</th>
-                  <th>Sugerowane</th>
-                  <th>Rzeczywiste</th>
+                  <th>Sugerowane{hasPerPerson ? ' na osobę' : ''}</th>
+                  <th>Rzeczywiste{hasPerPerson ? ' na osobę' : ''}</th>
                 </tr>
               </thead>
               <tbody>
                 {config.costItems.map((item, index) => (
                   <tr key={`${item.label}-${index}`}>
                     <th scope="row">{item.label}</th>
-                    <td>{formatMoney(item.suggested, config.currency)}</td>
-                    <td>{formatMoney(item.actual, config.currency)}</td>
+                    <td>
+                      <Amount total={item.suggested} count={count} currency={config.currency} />
+                    </td>
+                    <td>
+                      <Amount total={item.actual} count={count} currency={config.currency} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
+              {/* Repeats the summary at the point the reader has just finished
+                  adding it up in their head. */}
+              <tfoot>
+                <tr>
+                  <th scope="row">Razem</th>
+                  <td>
+                    <Amount total={suggested.total} count={count} currency={config.currency} />
+                  </td>
+                  <td>
+                    <Amount total={actual.total} count={count} currency={config.currency} />
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         ) : (

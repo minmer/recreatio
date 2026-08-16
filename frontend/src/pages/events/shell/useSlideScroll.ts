@@ -46,10 +46,14 @@ const FLICK_COMMIT_VELOCITY = 0.5;
 const BOUNCE_MS = 300;
 /** Carry through to the next slide. */
 const SLIDE_TRANSITION_MS = 520;
-/** Wheel and keys have no release event; resolve once the burst goes quiet. */
+/**
+ * Wheel and keys have no release event. A pull that has already passed the
+ * commit threshold goes at once; this is only the fallback for one that stopped
+ * short and has to be sprung back.
+ */
 const RESOLVE_IDLE_MS = 120;
 /** Breathing room after a committed move, so one burst cannot chain. */
-const BOUNDARY_HOLD_MS = 140;
+const BOUNDARY_HOLD_MS = 90;
 /**
  * How long a pull against an edge is remembered after it springs back. A mouse
  * wheel arrives as separate notches, so without this each one would peek, bounce
@@ -330,7 +334,12 @@ export function useSlideScroll(slideCount: number) {
   }, []);
 
   const advance = useCallback(
-    (delta: number): 'moved' | 'edge' | 'peek' => {
+    /**
+     * `coasting` marks the call as a touch throw carrying on after release
+     * rather than a hand actually driving. Momentum built up while reading is
+     * not an intention to leave, so a coast never contributes to the pull.
+     */
+    (delta: number, coasting = false): 'moved' | 'edge' | 'peek' => {
       const slides = slidesRef.current;
       if (slides.length === 0) {
         setTarget(targetRef.current + delta);
@@ -379,6 +388,12 @@ export function useSlideScroll(slideCount: number) {
       if (to > upperBound && slides[index + 1]) {
         if (from < upperBound - 0.5) {
           setTarget(upperBound);
+          // The part of the scroll that went past the edge is not thrown away:
+          // it opens the pull. Discarding it meant that during a fast scroll —
+          // where the track needs several frames to settle onto the edge — every
+          // notch arriving in the meantime counted for nothing, and the page sat
+          // still while the wheel kept turning.
+          if (!coasting) rememberPull(index, 1, to - upperBound);
           return 'edge';
         }
         const raw = rememberPull(index, 1, delta);
@@ -389,6 +404,7 @@ export function useSlideScroll(slideCount: number) {
       if (to < lowerBound && slides[index - 1]) {
         if (from > lowerBound + 0.5) {
           setTarget(lowerBound);
+          if (!coasting) rememberPull(index, -1, lowerBound - to);
           return 'edge';
         }
         const raw = rememberPull(index, -1, -delta);
@@ -454,14 +470,38 @@ export function useSlideScroll(slideCount: number) {
     [advance]
   );
 
-  /** Wheel and keys never release, so resolve once they go quiet. */
-  const scheduleResolve = useCallback(() => {
+  /** True once the pull held against the edge is already enough to leave. */
+  const peekWouldCommit = useCallback((): boolean => {
+    const peek = peekRef.current;
+    if (!peek) return false;
+    const maxPeek = viewportRefValue.current * PEEK_MAX_FACTOR;
+    return damp(peek.raw, maxPeek) >= maxPeek * PEEK_COMMIT_RATIO;
+  }, []);
+
+  /**
+   * What a wheel or a key does after moving the track.
+   *
+   * A finger reports its release, so a touch peek can wait for it — that is what
+   * makes looking at the next slide and pulling back possible. A wheel never
+   * releases, so it used to wait for the burst to go quiet instead, and the
+   * timer restarted on every notch. Scrolling continuously therefore never
+   * resolved anything: the track stalled against the edge for as long as you
+   * kept scrolling, and only moved on once you stopped. Once the pull is past
+   * the threshold the answer is already known, so take it now and leave the
+   * idle timer for the case it was meant for — a pull that stopped short.
+   */
+  const resolveDriven = useCallback(() => {
+    if (peekWouldCommit()) {
+      cancelResolveTimer();
+      resolvePeek(0);
+      return;
+    }
     cancelResolveTimer();
     resolveTimerRef.current = window.setTimeout(() => {
       resolveTimerRef.current = null;
       resolvePeek(0);
     }, RESOLVE_IDLE_MS);
-  }, [cancelResolveTimer, resolvePeek]);
+  }, [cancelResolveTimer, peekWouldCommit, resolvePeek]);
 
   /**
    * Carries a throw on after the finger lifts, but only within the slide. The
@@ -489,8 +529,13 @@ export function useSlideScroll(slideCount: number) {
           return;
         }
 
-        if (advance(velocity * frameMs) !== 'moved') {
+        const outcome = advance(velocity * frameMs, true);
+        if (outcome !== 'moved') {
           settleRafRef.current = null;
+          // A coast that ran onto an edge it was already resting on opens a
+          // peek that nothing would ever resolve — the finger is long gone and
+          // there is no idle timer on the touch path. Spring it back now.
+          if (outcome === 'peek') resolvePeek(0);
           return;
         }
 
@@ -499,7 +544,7 @@ export function useSlideScroll(slideCount: number) {
 
       settleRafRef.current = requestAnimationFrame(step);
     },
-    [advance, stopSettle]
+    [advance, resolvePeek, stopSettle]
   );
 
   const scrollToSlide = useCallback(
@@ -543,7 +588,7 @@ export function useSlideScroll(slideCount: number) {
       event.preventDefault();
       stopSettle();
       applyDelta(delta);
-      scheduleResolve();
+      resolveDriven();
     };
 
     const onTouchStart = (event: TouchEvent) => {
@@ -601,7 +646,7 @@ export function useSlideScroll(slideCount: number) {
       viewport.removeEventListener('touchend', onTouchEnd);
       viewport.removeEventListener('touchcancel', onTouchEnd);
     };
-  }, [applyDelta, cancelResolveTimer, resolvePeek, scheduleResolve, startSettle, stopSettle]);
+  }, [applyDelta, cancelResolveTimer, resolvePeek, resolveDriven, startSettle, stopSettle]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -614,12 +659,12 @@ export function useSlideScroll(slideCount: number) {
         event.preventDefault();
         stopSettle();
         applyDelta(page);
-        scheduleResolve();
+        resolveDriven();
       } else if (event.key === 'ArrowUp' || event.key === 'PageUp') {
         event.preventDefault();
         stopSettle();
         applyDelta(-page);
-        scheduleResolve();
+        resolveDriven();
       } else if (event.key === 'Home') {
         event.preventDefault();
         stopSettle();
@@ -641,7 +686,7 @@ export function useSlideScroll(slideCount: number) {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [applyDelta, cancelResolveTimer, maxScroll, scheduleResolve, stopSettle, tweenTo, viewportHeight]);
+  }, [applyDelta, cancelResolveTimer, maxScroll, resolveDriven, stopSettle, tweenTo, viewportHeight]);
 
   useEffect(
     () => () => {

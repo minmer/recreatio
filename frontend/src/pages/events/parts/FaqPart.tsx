@@ -1,3 +1,4 @@
+import { useId, useState } from 'react';
 import { asRecord, asText, definePart, mapEntries } from './contracts';
 import { AreaRow, ListEditor, TextRow } from './editorKit';
 
@@ -21,19 +22,7 @@ export const faqPart = definePart<FaqConfig>({
     })
   }),
 
-  Renderer: ({ config }) =>
-    config.items.length === 0 ? (
-      <p className="ev-note">Brak pytań w tej sekcji.</p>
-    ) : (
-      <div className="ev-faq">
-        {config.items.map((item, index) => (
-          <details key={index}>
-            <summary>{item.question}</summary>
-            <p>{item.answer}</p>
-          </details>
-        ))}
-      </div>
-    ),
+  Renderer: ({ config }) => <FaqList items={config.items} />,
 
   Editor: ({ config, onChange }) => (
     <ListEditor<FaqItem>
@@ -52,3 +41,56 @@ export const faqPart = definePart<FaqConfig>({
     />
   )
 });
+
+/**
+ * A button and a panel rather than <details>, because <details> cannot be
+ * animated: the browser hides its children outright when closed, so there is no
+ * height to transition from. The panel is a grid row instead — 0fr to 1fr —
+ * which eases between "nothing" and "however tall the answer happens to be"
+ * without anyone having to measure it.
+ */
+function FaqList({ items }: { items: FaqItem[] }) {
+  const domId = useId();
+  const [open, setOpen] = useState<ReadonlySet<number>>(() => new Set());
+
+  if (items.length === 0) {
+    return <p className="ev-note">Brak pytań w tej sekcji.</p>;
+  }
+
+  const toggle = (index: number) =>
+    setOpen((previous) => {
+      const next = new Set(previous);
+      if (!next.delete(index)) next.add(index);
+      return next;
+    });
+
+  return (
+    <div className="ev-faq">
+      {items.map((item, index) => {
+        const isOpen = open.has(index);
+        const panelId = `${domId}-faq-${index}`;
+
+        return (
+          <div className={`ev-faq-item ${isOpen ? 'is-open' : ''}`} key={index}>
+            <button
+              type="button"
+              className="ev-faq-question"
+              aria-expanded={isOpen}
+              aria-controls={panelId}
+              onClick={() => toggle(index)}
+            >
+              <span>{item.question}</span>
+              <span className="ev-faq-mark" aria-hidden="true" />
+            </button>
+
+            <div className="ev-faq-panel" id={panelId} role="region">
+              <div className="ev-faq-panel-inner">
+                <p>{item.answer}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
