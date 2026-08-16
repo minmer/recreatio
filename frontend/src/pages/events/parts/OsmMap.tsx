@@ -200,9 +200,29 @@ type SurfaceProps = {
   onActiveChange: (index: number | null) => void;
 };
 
+/** Matches the closing animation on `.ev-map-overlay.is-closing`. */
+const OVERLAY_EXIT_MS = 180;
+
 export function OsmMap(props: SurfaceProps) {
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [theme, setTheme] = useState<CSSProperties>({});
+
+  /**
+   * Tearing the portal down on the spot would cut the closing animation off
+   * before its first frame, so the overlay is marked as leaving, plays out, and
+   * only then unmounts.
+   */
+  const requestClose = useCallback(() => {
+    setClosing((already) => {
+      if (already) return already;
+      window.setTimeout(() => {
+        setOpen(false);
+        setClosing(false);
+      }, OVERLAY_EXIT_MS);
+      return true;
+    });
+  }, []);
 
   // Escape, and the browser/Android back button, both close the map. Pushing a
   // history entry is what makes back close the overlay instead of leaving the
@@ -211,9 +231,9 @@ export function OsmMap(props: SurfaceProps) {
     if (!open) return;
 
     window.history.pushState({ evmap: true }, '');
-    const onPopState = () => setOpen(false);
+    const onPopState = () => requestClose();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') requestClose();
     };
 
     const previousOverflow = document.body.style.overflow;
@@ -229,7 +249,7 @@ export function OsmMap(props: SurfaceProps) {
       // entry we pushed so back does not have to be pressed twice.
       if (window.history.state?.evmap) window.history.back();
     };
-  }, [open]);
+  }, [open, requestClose]);
 
   /**
    * The overlay is portalled to document.body, outside the `.ev` element that
@@ -257,13 +277,13 @@ export function OsmMap(props: SurfaceProps) {
       {open
         ? createPortal(
             <div
-              className="ev-map-overlay"
+              className={`ev-map-overlay ${closing ? 'is-closing' : ''}`}
               style={theme}
               role="dialog"
               aria-modal="true"
               aria-label="Mapa na pełnym ekranie"
             >
-              <MapSurface {...props} interactive onClose={() => setOpen(false)} />
+              <MapSurface {...props} interactive onClose={requestClose} />
             </div>,
             document.body
           )

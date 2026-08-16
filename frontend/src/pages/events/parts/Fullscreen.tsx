@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 /**
@@ -45,6 +45,13 @@ export function readThemeTokens(): CSSProperties {
   return carried as CSSProperties;
 }
 
+/**
+ * How long the layer takes to leave. Shorter than the way in: an arrival is
+ * worth watching, a departure is in the way of whatever comes next. Must match
+ * the transition on `.ev-layer-full` in the stylesheet.
+ */
+const EXIT_MS = 180;
+
 export function Fullscreen({
   label,
   onClose,
@@ -58,17 +65,31 @@ export function Fullscreen({
   // Mounted closed for one frame, then opened: a transition needs two states,
   // and an element that appears already at its end state simply pops.
   const [entered, setEntered] = useState(false);
+  const leavingRef = useRef(false);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setEntered(true));
     return () => cancelAnimationFrame(frame);
   }, []);
 
+  /**
+   * Unmounting straight away would cut the closing animation off before its
+   * first frame, so the layer is put back into its closed state and only handed
+   * over to the caller once it has finished travelling. Guarded, because Escape
+   * and the close button can both land inside that window.
+   */
+  const requestClose = useCallback(() => {
+    if (leavingRef.current) return;
+    leavingRef.current = true;
+    setEntered(false);
+    window.setTimeout(onClose, EXIT_MS);
+  }, [onClose]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') requestClose();
     };
-    const onPopState = () => onClose();
+    const onPopState = () => requestClose();
 
     window.history.pushState({ evLayer: true }, '');
     const previousOverflow = document.body.style.overflow;
@@ -84,7 +105,7 @@ export function Fullscreen({
       // entry we pushed, so back does not have to be pressed twice.
       if (window.history.state?.evLayer) window.history.back();
     };
-  }, [onClose]);
+  }, [requestClose]);
 
   return createPortal(
     <div
@@ -94,7 +115,7 @@ export function Fullscreen({
       aria-modal="true"
       aria-label={label}
     >
-      <button type="button" className="ev-layer-close" onClick={onClose} aria-label="Zamknij">
+      <button type="button" className="ev-layer-close" onClick={requestClose} aria-label="Zamknij">
         ✕
       </button>
       {children}
