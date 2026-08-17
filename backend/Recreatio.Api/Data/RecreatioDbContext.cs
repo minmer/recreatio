@@ -87,6 +87,11 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Limanowa.LimanowaRegistrationStatusLog> LimanowaRegistrationStatusLogs => Set<Data.Limanowa.LimanowaRegistrationStatusLog>();
     public DbSet<Data.Limanowa.LimanowaConsentRecord> LimanowaConsentRecords => Set<Data.Limanowa.LimanowaConsentRecord>();
     public DbSet<Data.Limanowa.LimanowaPolicyLinkConfig> LimanowaPolicyLinkConfigs => Set<Data.Limanowa.LimanowaPolicyLinkConfig>();
+    public DbSet<Data.Hortus.HortusPlace> HortusPlaces => Set<Data.Hortus.HortusPlace>();
+    public DbSet<Data.Hortus.HortusResource> HortusResources => Set<Data.Hortus.HortusResource>();
+    public DbSet<Data.Hortus.HortusReservation> HortusReservations => Set<Data.Hortus.HortusReservation>();
+    public DbSet<Data.Hortus.HortusReservationItem> HortusReservationItems => Set<Data.Hortus.HortusReservationItem>();
+    public DbSet<Data.Hortus.HortusReservationStatusLog> HortusReservationStatusLogs => Set<Data.Hortus.HortusReservationStatusLog>();
     public DbSet<Data.Cogita.CogitaLibrary> CogitaLibraries => Set<Data.Cogita.CogitaLibrary>();
     public DbSet<Data.Cogita.CogitaInfo> CogitaInfos => Set<Data.Cogita.CogitaInfo>();
     public DbSet<Data.Cogita.CogitaLanguage> CogitaLanguages => Set<Data.Cogita.CogitaLanguage>();
@@ -529,6 +534,71 @@ modelBuilder.Entity<Data.Edk.EdkEvent>()
         modelBuilder.Entity<Data.Limanowa.LimanowaPolicyLinkConfig>()
             .HasIndex(x => x.EventId)
             .IsUnique();
+
+        modelBuilder.Entity<Data.Hortus.HortusPlace>()
+            .HasIndex(x => x.Slug)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Hortus.HortusResource>()
+            .HasIndex(x => new { x.PlaceId, x.Slug })
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Hortus.HortusResource>()
+            .HasIndex(x => x.ParentId);
+
+        modelBuilder.Entity<Data.Hortus.HortusReservation>()
+            .HasIndex(x => x.Code)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Hortus.HortusReservation>()
+            .HasIndex(x => new { x.PlaceId, x.Status, x.CreatedUtc });
+
+        // Availability is always read as "what touches this window", so the range leads the index.
+        modelBuilder.Entity<Data.Hortus.HortusReservationItem>()
+            .HasIndex(x => new { x.ResourceId, x.StartUtc, x.EndUtc });
+
+        modelBuilder.Entity<Data.Hortus.HortusReservationItem>()
+            .HasIndex(x => x.ReservationId);
+
+        modelBuilder.Entity<Data.Hortus.HortusReservationStatusLog>()
+            .HasIndex(x => new { x.ReservationId, x.CreatedUtc });
+
+        // Declared so EF writes parents before children; the database itself cascades nothing.
+        modelBuilder.Entity<Data.Hortus.HortusResource>()
+            .HasOne<Data.Hortus.HortusPlace>()
+            .WithMany()
+            .HasForeignKey(x => x.PlaceId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Hortus.HortusResource>()
+            .HasOne<Data.Hortus.HortusResource>()
+            .WithMany()
+            .HasForeignKey(x => x.ParentId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Hortus.HortusReservation>()
+            .HasOne<Data.Hortus.HortusPlace>()
+            .WithMany()
+            .HasForeignKey(x => x.PlaceId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Hortus.HortusReservationItem>()
+            .HasOne<Data.Hortus.HortusReservation>()
+            .WithMany()
+            .HasForeignKey(x => x.ReservationId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Hortus.HortusReservationItem>()
+            .HasOne<Data.Hortus.HortusResource>()
+            .WithMany()
+            .HasForeignKey(x => x.ResourceId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Hortus.HortusReservationStatusLog>()
+            .HasOne<Data.Hortus.HortusReservation>()
+            .WithMany()
+            .HasForeignKey(x => x.ReservationId)
+            .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<Data.Limanowa.LimanowaGroup>()
             .HasOne<Data.Limanowa.LimanowaEvent>()

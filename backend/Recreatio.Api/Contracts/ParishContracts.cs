@@ -35,7 +35,9 @@ public sealed record ParishSacramentParishPage(
 public sealed record ParishConfirmationSmsTemplates(
     string VerificationInvite,
     string VerificationWarning,
-    string PortalInvite);
+    string PortalInvite,
+    string YearSummaryComplete = "",
+    string YearSummaryIncomplete = "");
 
 public sealed record ParishConfirmationSmsTemplatesResponse(
     ParishConfirmationSmsTemplates? Templates,

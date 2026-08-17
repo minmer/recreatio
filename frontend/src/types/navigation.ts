@@ -3,6 +3,7 @@ export type RouteKey =
   | 'parish'
   | 'events'
   | 'limanowa'
+  | 'hortus'
   | 'cogita'
   | 'cg'
   | 'library'

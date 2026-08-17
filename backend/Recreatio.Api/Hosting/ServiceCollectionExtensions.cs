@@ -23,6 +23,7 @@ public static class ServiceCollectionExtensions
         services.ConfigureHttpJsonOptions(options =>
         {
             options.SerializerOptions.Converters.Add(new GuidJsonConverterFactory());
+            options.SerializerOptions.Converters.Add(new TimeOnlyJsonConverterFactory());
         });
         services.AddSwaggerGen();
 

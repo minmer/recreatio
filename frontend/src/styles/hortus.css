@@ -1,0 +1,761 @@
+.portal-page.hortus-page {
+  min-height: 100vh;
+  background: linear-gradient(165deg, #f7f4ec 0%, #eaf0e2 48%, #dde7ef 100%);
+  display: flex;
+  flex-direction: column;
+  --hortus-line: rgba(60, 74, 56, 0.16);
+  --hortus-ink: #2c3a2c;
+  --hortus-muted: #62705f;
+}
+
+.hortus-main {
+  flex: 1;
+  min-height: 0;
+  padding: 2.6rem 5vw 2rem;
+  display: grid;
+  gap: 1.3rem;
+  align-content: start;
+  max-width: 1240px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.hortus-hero {
+  max-width: 860px;
+}
+
+.hortus-hero h1 {
+  margin: 0.35rem 0 0.5rem;
+  font-size: clamp(2rem, 4vw, 3rem);
+  color: var(--hortus-ink);
+}
+
+.hortus-motto {
+  margin: 0 0 0.7rem;
+  font-size: 1.08rem;
+  color: var(--hortus-muted);
+}
+
+.hortus-lead {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--hortus-muted);
+}
+
+.hortus-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.4rem;
+  margin: 1.1rem 0 0;
+}
+
+.hortus-facts dt {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--hortus-muted);
+}
+
+.hortus-facts dd {
+  margin: 0.15rem 0 0;
+  color: var(--hortus-ink);
+}
+
+.hortus-card {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--hortus-line);
+  border-radius: 20px;
+  padding: 1.2rem 1.3rem 1.4rem;
+  box-shadow: 0 18px 48px rgba(35, 50, 30, 0.08);
+  display: grid;
+  gap: 0.9rem;
+}
+
+.hortus-card h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--hortus-ink);
+}
+
+.hortus-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.hortus-tabs,
+.hortus-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.hortus-tabs button,
+.hortus-subtabs button {
+  border: 1px solid var(--hortus-line);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--hortus-muted);
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.hortus-tabs button.is-active,
+.hortus-subtabs button.is-active {
+  background: var(--hortus-ink);
+  border-color: var(--hortus-ink);
+  color: #f4f7f0;
+}
+
+/* ---- timeline ------------------------------------------------------------------------------ */
+
+.hortus-timeline {
+  display: grid;
+  gap: 0.4rem;
+  overflow-x: auto;
+}
+
+.hortus-timeline-head,
+.hortus-timeline-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 210px) minmax(420px, 1fr);
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.hortus-timeline-days {
+  display: flex;
+}
+
+.hortus-timeline-day {
+  flex: 1 1 0;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--hortus-muted);
+  padding-bottom: 0.3rem;
+  border-left: 1px solid rgba(60, 74, 56, 0.08);
+  display: grid;
+  gap: 0.05rem;
+}
+
+.hortus-timeline-day.is-weekend {
+  color: #a4553f;
+  background: rgba(164, 85, 63, 0.05);
+}
+
+.hortus-timeline-daynum {
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.hortus-timeline-body {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.hortus-timeline-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.86rem;
+  color: var(--hortus-ink);
+  overflow: hidden;
+}
+
+.hortus-timeline-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hortus-timeline-track {
+  position: relative;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(60, 74, 56, 0.1);
+  overflow: hidden;
+}
+
+.hortus-timeline-gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid rgba(60, 74, 56, 0.07);
+}
+
+.hortus-bar {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border: none;
+  border-radius: 6px;
+  padding: 0;
+  font: inherit;
+  font-size: 0.7rem;
+  color: #ffffff;
+  cursor: default;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  /* The bar as a whole is the blocked span; the lighter tint is the technical time. */
+  background: rgba(90, 116, 86, 0.34);
+}
+
+.hortus-bar[disabled] {
+  cursor: default;
+}
+
+.hortus-bar:not([disabled]) {
+  cursor: pointer;
+}
+
+.hortus-bar-core {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 5px;
+  background: #5a7456;
+}
+
+.hortus-bar-label {
+  position: relative;
+  padding: 0 0.35rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.hortus-bar-pending {
+  background: rgba(200, 150, 60, 0.28);
+}
+
+.hortus-bar-pending .hortus-bar-core {
+  background: repeating-linear-gradient(
+    135deg,
+    #c8963c,
+    #c8963c 6px,
+    #d8ac5c 6px,
+    #d8ac5c 12px
+  );
+}
+
+.hortus-bar.is-block {
+  background: rgba(90, 90, 96, 0.25);
+}
+
+.hortus-bar.is-block .hortus-bar-core {
+  background: #6c6c73;
+}
+
+.hortus-bar-draft {
+  background: rgba(52, 116, 168, 0.25);
+  outline: 2px dashed #3474a8;
+  outline-offset: -2px;
+  color: #17384f;
+}
+
+.hortus-bar-draft .hortus-bar-label {
+  text-shadow: none;
+}
+
+.hortus-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  font-size: 0.76rem;
+  color: var(--hortus-muted);
+  padding-top: 0.2rem;
+}
+
+.hortus-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.hortus-swatch {
+  width: 14px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.hortus-swatch-confirmed { background: #5a7456; }
+.hortus-swatch-pending { background: #c8963c; }
+.hortus-swatch-block { background: #6c6c73; }
+.hortus-swatch-draft { background: rgba(52, 116, 168, 0.3); outline: 2px dashed #3474a8; outline-offset: -2px; }
+
+.hortus-window-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.hortus-window-controls button,
+.hortus-window-controls select,
+.hortus-window-controls input {
+  border: 1px solid var(--hortus-line);
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  padding: 0.3rem 0.6rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+/* ---- resource cards ------------------------------------------------------------------------ */
+
+.hortus-resource-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.8rem;
+}
+
+.hortus-resource-card {
+  border: 1px solid var(--hortus-line);
+  border-left: 4px solid #5a7456;
+  border-radius: 14px;
+  padding: 0.8rem 0.9rem;
+  background: rgba(255, 255, 255, 0.72);
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+}
+
+.hortus-resource-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.hortus-resource-card h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--hortus-ink);
+}
+
+.hortus-resource-card p {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--hortus-muted);
+}
+
+.hortus-resource-facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.8rem;
+  color: var(--hortus-muted);
+}
+
+.hortus-chip {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(90, 116, 86, 0.14);
+  color: #45603f;
+  white-space: nowrap;
+}
+
+.hortus-chip-alert {
+  background: rgba(200, 150, 60, 0.2);
+  color: #8a5f14;
+}
+
+/* ---- forms --------------------------------------------------------------------------------- */
+
+.hortus-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.hortus-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.hortus-field-row > label,
+.hortus-form > label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--hortus-muted);
+  flex: 1 1 170px;
+}
+
+.hortus-field-wide {
+  flex: 3 1 320px;
+}
+
+.hortus-form input,
+.hortus-form select,
+.hortus-form textarea,
+.hortus-basket input,
+.hortus-basket select {
+  border: 1px solid var(--hortus-line);
+  border-radius: 9px;
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  background: #ffffff;
+  color: var(--hortus-ink);
+  width: 100%;
+}
+
+.hortus-checkbox {
+  display: flex !important;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+}
+
+.hortus-checkbox input {
+  width: auto;
+}
+
+.hortus-form-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.hortus-basket {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.hortus-basket-add {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--hortus-muted);
+  max-width: 420px;
+}
+
+.hortus-basket-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.hortus-basket-item {
+  border: 1px solid var(--hortus-line);
+  border-radius: 13px;
+  padding: 0.7rem 0.8rem;
+  background: rgba(255, 255, 255, 0.68);
+  display: grid;
+  gap: 0.5rem;
+}
+
+.hortus-basket-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  color: var(--hortus-ink);
+}
+
+.hortus-unit-switch {
+  display: inline-flex;
+  border: 1px solid var(--hortus-line);
+  border-radius: 999px;
+  overflow: hidden;
+  width: fit-content;
+}
+
+.hortus-unit-switch button {
+  border: none;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--hortus-muted);
+  padding: 0.35rem 0.9rem;
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.hortus-unit-switch button.is-active {
+  background: #5a7456;
+  color: #ffffff;
+}
+
+/* ---- states -------------------------------------------------------------------------------- */
+
+.hortus-hint {
+  margin: 0;
+  font-size: 0.79rem;
+  color: var(--hortus-muted);
+  line-height: 1.5;
+}
+
+.hortus-empty {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--hortus-muted);
+}
+
+.hortus-error {
+  margin: 0;
+  color: #9c3a2c;
+  font-size: 0.88rem;
+}
+
+.hortus-success {
+  margin: 0;
+  color: #3c6b3a;
+  font-size: 0.88rem;
+}
+
+.hortus-warning {
+  color: #8a5f14;
+}
+
+.hortus-check {
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.87rem;
+  border: 1px solid var(--hortus-line);
+}
+
+.hortus-check.is-free {
+  background: rgba(90, 116, 86, 0.12);
+  color: #35512f;
+}
+
+.hortus-check.is-busy {
+  background: rgba(156, 58, 44, 0.1);
+  color: #7c2f24;
+}
+
+.hortus-check ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.hortus-receipt {
+  border: 1px dashed #5a7456;
+  border-radius: 13px;
+  padding: 0.8rem 0.9rem;
+  background: rgba(90, 116, 86, 0.08);
+  display: grid;
+  gap: 0.3rem;
+}
+
+.hortus-receipt h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.hortus-receipt code {
+  word-break: break-all;
+  font-size: 0.82rem;
+}
+
+.hortus-status {
+  font-size: 0.78rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.hortus-status-pending { background: rgba(200, 150, 60, 0.2); color: #8a5f14; }
+.hortus-status-confirmed { background: rgba(90, 116, 86, 0.18); color: #35512f; }
+.hortus-status-rejected { background: rgba(156, 58, 44, 0.14); color: #7c2f24; }
+.hortus-status-cancelled { background: rgba(80, 80, 88, 0.14); color: #4c4c53; }
+
+/* ---- admin --------------------------------------------------------------------------------- */
+
+.hortus-reservation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.hortus-reservation {
+  border: 1px solid var(--hortus-line);
+  border-left: 4px solid #9aa79a;
+  border-radius: 13px;
+  padding: 0.75rem 0.9rem;
+  background: rgba(255, 255, 255, 0.72);
+  display: grid;
+  gap: 0.5rem;
+}
+
+.hortus-status-border-pending { border-left-color: #c8963c; }
+.hortus-status-border-confirmed { border-left-color: #5a7456; }
+.hortus-status-border-rejected { border-left-color: #9c3a2c; }
+.hortus-status-border-cancelled { border-left-color: #8a8a92; }
+
+.hortus-reservation-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.hortus-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  color: var(--hortus-muted);
+}
+
+.hortus-item-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.86rem;
+  color: var(--hortus-ink);
+}
+
+.hortus-contact,
+.hortus-note {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--hortus-muted);
+}
+
+.hortus-note-admin {
+  padding: 0.35rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(200, 150, 60, 0.1);
+}
+
+.hortus-reservation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.hortus-ghost,
+.hortus-danger {
+  border: 1px solid var(--hortus-line);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--hortus-muted);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.hortus-danger {
+  border-color: rgba(156, 58, 44, 0.4);
+  color: #9c3a2c;
+}
+
+.hortus-link-button {
+  border: none;
+  background: none;
+  color: #5a7456;
+  font: inherit;
+  font-size: 0.82rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.hortus-table-wrap {
+  overflow-x: auto;
+}
+
+.hortus-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.hortus-table th,
+.hortus-table td {
+  text-align: left;
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--hortus-line);
+  white-space: nowrap;
+}
+
+.hortus-table th {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--hortus-muted);
+}
+
+.hortus-table tr.is-inactive {
+  opacity: 0.55;
+}
+
+.hortus-table-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.hortus-resource-form {
+  border: 1px solid var(--hortus-line);
+  border-radius: 14px;
+  padding: 0.9rem;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.hortus-resource-form h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.hortus-setup .cta {
+  justify-self: start;
+}
+
+.hortus-footer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Accent per part, used by the resource cards and the timeline tracks. */
+.hortus-color-olive { border-left-color: #6b7a3a; }
+.hortus-color-amber { border-left-color: #b98330; }
+.hortus-color-indigo { border-left-color: #4a5691; }
+.hortus-color-rose { border-left-color: #a8556b; }
+.hortus-color-teal { border-left-color: #3a7f78; }
+.hortus-color-sky { border-left-color: #3f7ba6; }
+.hortus-color-sage { border-left-color: #5a7456; }
+.hortus-color-clay { border-left-color: #a4553f; }
+.hortus-color-moss { border-left-color: #4d6b3f; }
+
+@media (max-width: 780px) {
+  .hortus-main {
+    padding: 1.8rem 1.1rem 1.4rem;
+  }
+
+  .hortus-timeline-head,
+  .hortus-timeline-row {
+    grid-template-columns: 118px minmax(320px, 1fr);
+  }
+
+  .hortus-timeline {
+    padding-bottom: 0.4rem;
+  }
+}

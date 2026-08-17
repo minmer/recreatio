@@ -15,6 +15,10 @@ public sealed class ParishConfirmationSmsTemplate
 
     public string PortalInviteTemplate { get; set; } = string.Empty;
 
+    public string YearSummaryCompleteTemplate { get; set; } = string.Empty;
+
+    public string YearSummaryIncompleteTemplate { get; set; } = string.Empty;
+
     public DateTimeOffset CreatedUtc { get; set; }
 
     public DateTimeOffset UpdatedUtc { get; set; }

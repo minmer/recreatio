@@ -4,6 +4,7 @@ using Recreatio.Api.Endpoints.Cogita;
 using Recreatio.Api.Endpoints.Edk;
 using Recreatio.Api.Endpoints.Events;
 using Recreatio.Api.Endpoints.Forms;
+using Recreatio.Api.Endpoints.Hortus;
 using Recreatio.Api.Endpoints.Library;
 using Recreatio.Api.Endpoints.Limanowa;
 using Recreatio.Api.Endpoints.Pilgrimage;
@@ -42,6 +43,7 @@ public static class ApplicationBuilderExtensions
         app.MapEdkEndpoints();
         app.MapRowerowaEndpoints();
         app.MapLimanowaEndpoints();
+        app.MapHortusEndpoints();
         app.MapFormsEndpoints();
         app.MapEventEndpoints();
 

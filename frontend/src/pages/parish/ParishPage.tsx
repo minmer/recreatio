@@ -1210,7 +1210,9 @@ const confirmationCelebrationCommentTemplates = {
 
 const confirmationCelebrationCommentEditGraceDays = 7;
 
-const defaultConfirmationSmsTemplates: ParishConfirmationSmsTemplates = {
+type ResolvedConfirmationSmsTemplates = Required<ParishConfirmationSmsTemplates>;
+
+const defaultConfirmationSmsTemplates: ResolvedConfirmationSmsTemplates = {
   verificationInvite:
     'Szczęść Boże!\n' +
     'Ten numer telefonu został podany przy zgłoszeniu {fullName} do przygotowania do bierzmowania w parafii {parishName}.\n' +
@@ -1227,7 +1229,24 @@ const defaultConfirmationSmsTemplates: ParishConfirmationSmsTemplates = {
     'Numer telefonu ({phoneNumber}) został potwierdzony.\n' +
     'Zapraszamy {fullName} do portalu kandydata przygotowania do bierzmowania w parafii {parishName}.\n' +
     'Indywidualny link do portalu:\n' +
-    '{portalLink}'
+    '{portalLink}',
+  yearSummaryComplete:
+    'Szczęść Boże!\n' +
+    'Podsumowanie roku przygotowania do bierzmowania - {fullName} ({parishName}).\n' +
+    'Zaliczone:\n' +
+    '{doneList}\n' +
+    'Wszystko jest w porządku - rok został zakończony.\n' +
+    'Całość danych{paperIndexInfo} zostaje przekazana ks. Pawłowi, który poprowadzi przygotowanie w kolejnym roku.\n' +
+    'Jeśli coś w tym podsumowaniu się nie zgadza, proszę o informację.',
+  yearSummaryIncomplete:
+    'Szczęść Boże!\n' +
+    'Podsumowanie roku przygotowania do bierzmowania - {fullName} ({parishName}).\n' +
+    'Zaliczone:\n' +
+    '{doneList}\n' +
+    'Brakuje:\n' +
+    '{missingList}\n' +
+    'Proszę o kontakt w sprawie uzupełnienia braków.\n' +
+    'Jeśli coś w tym podsumowaniu się nie zgadza, również proszę o informację.'
 };
 
 const confirmationSmsTemplatesLegacyPageKey = '__confirmation_sms_templates';
@@ -1242,6 +1261,54 @@ const confirmationSmsTemplateVariables = [
   '{portalLink}'
 ] as const;
 
+const confirmationSummarySmsTemplateVariables = [
+  '{name}',
+  '{surname}',
+  '{fullName}',
+  '{parishName}',
+  '{doneList}',
+  '{missingList}',
+  '{paperIndexInfo}'
+] as const;
+
+type ConfirmationSummaryItemKey = 'meeting' | 'phone' | 'paperConsent' | 'quiz' | 'paperIndex';
+
+type ConfirmationSummaryItemState = 'done' | 'missing' | 'skip';
+
+type ConfirmationSummaryStates = Record<ConfirmationSummaryItemKey, ConfirmationSummaryItemState>;
+
+const confirmationSummaryItems: ReadonlyArray<{
+  key: ConfirmationSummaryItemKey;
+  label: string;
+  smsLabel: string;
+}> = [
+  { key: 'meeting', label: 'Termin spotkania', smsLabel: 'termin spotkania' },
+  { key: 'phone', label: 'Weryfikacja numeru telefonu', smsLabel: 'weryfikacja numeru telefonu' },
+  { key: 'paperConsent', label: 'Papierowa zgoda rodzica', smsLabel: 'papierowa zgoda rodzica' },
+  { key: 'quiz', label: 'Quiz bierzmowania', smsLabel: 'quiz bierzmowania' },
+  { key: 'paperIndex', label: 'Indeks papierowy', smsLabel: 'indeks papierowy' }
+];
+
+const confirmationSummaryPaperIndexInfo = ' wraz z indeksem papierowym';
+
+const buildConfirmationSummaryStates = (candidate: ParishConfirmationCandidate): ConfirmationSummaryStates => ({
+  meeting: candidate.meetingSlotId ? 'done' : 'missing',
+  phone: candidate.phoneNumbers.some((phone) => phone.isVerified) ? 'done' : 'missing',
+  paperConsent: candidate.paperConsentReceived ? 'done' : 'missing',
+  quiz: candidate.quizCompleted ? 'done' : 'missing',
+  // Indeks papierowy jest opcjonalny - bez potwierdzenia traktujemy go jako "nie dotyczy".
+  paperIndex: candidate.paperIndexChecked ? 'done' : 'skip'
+});
+
+const countSmsSegments = (text: string) => {
+  const length = text.length;
+  if (length === 0) return 0;
+  const isUnicode = /[^\u0000-\u007F]/.test(text);
+  const singleLimit = isUnicode ? 70 : 160;
+  const multiLimit = isUnicode ? 67 : 153;
+  return length <= singleLimit ? 1 : Math.ceil(length / multiLimit);
+};
+
 const tryReadLegacyConfirmationSmsTemplates = (
   config: ParishHomepageConfig | null | undefined
 ): ParishConfirmationSmsTemplates | null => {
@@ -1253,13 +1320,17 @@ const tryReadLegacyConfirmationSmsTemplates = (
     const verificationInvite = typeof parsed.verificationInvite === 'string' ? parsed.verificationInvite : '';
     const verificationWarning = typeof parsed.verificationWarning === 'string' ? parsed.verificationWarning : '';
     const portalInvite = typeof parsed.portalInvite === 'string' ? parsed.portalInvite : '';
-    if (!verificationInvite && !verificationWarning && !portalInvite) {
+    const yearSummaryComplete = typeof parsed.yearSummaryComplete === 'string' ? parsed.yearSummaryComplete : '';
+    const yearSummaryIncomplete = typeof parsed.yearSummaryIncomplete === 'string' ? parsed.yearSummaryIncomplete : '';
+    if (!verificationInvite && !verificationWarning && !portalInvite && !yearSummaryComplete && !yearSummaryIncomplete) {
       return null;
     }
     return {
       verificationInvite,
       verificationWarning,
-      portalInvite
+      portalInvite,
+      yearSummaryComplete,
+      yearSummaryIncomplete
     };
   } catch {
     return null;
@@ -1991,6 +2062,16 @@ export function ParishPage({
   const [confirmationSmsTemplatePortalInvite, setConfirmationSmsTemplatePortalInvite] = useState(
     defaultConfirmationSmsTemplates.portalInvite
   );
+  const [confirmationSmsTemplateYearSummaryComplete, setConfirmationSmsTemplateYearSummaryComplete] = useState(
+    defaultConfirmationSmsTemplates.yearSummaryComplete
+  );
+  const [confirmationSmsTemplateYearSummaryIncomplete, setConfirmationSmsTemplateYearSummaryIncomplete] = useState(
+    defaultConfirmationSmsTemplates.yearSummaryIncomplete
+  );
+  const [confirmationSummarySmsCandidateId, setConfirmationSummarySmsCandidateId] = useState<string | null>(null);
+  const [confirmationSummarySmsStates, setConfirmationSummarySmsStates] = useState<ConfirmationSummaryStates | null>(null);
+  const [confirmationSummarySmsText, setConfirmationSummarySmsText] = useState('');
+  const [confirmationSummarySmsCopied, setConfirmationSummarySmsCopied] = useState(false);
   const [confirmationSmsTemplateSaving, setConfirmationSmsTemplateSaving] = useState(false);
   const [confirmationSmsTemplateInfo, setConfirmationSmsTemplateInfo] = useState<string | null>(null);
   const [confirmationSmsTemplateError, setConfirmationSmsTemplateError] = useState<string | null>(null);
@@ -4656,7 +4737,7 @@ export function ParishPage({
     scrollToConfirmationPortalSection('confirmation-candidate-tabs');
   };
 
-  const resolvedConfirmationSmsTemplates = useMemo<ParishConfirmationSmsTemplates>(() => {
+  const resolvedConfirmationSmsTemplates = useMemo<ResolvedConfirmationSmsTemplates>(() => {
     const custom =
       confirmationSmsTemplatesStored ??
       siteConfig?.confirmationSmsTemplates ??
@@ -4673,7 +4754,15 @@ export function ParishPage({
       portalInvite:
         custom?.portalInvite?.trim().length
           ? custom.portalInvite
-          : defaultConfirmationSmsTemplates.portalInvite
+          : defaultConfirmationSmsTemplates.portalInvite,
+      yearSummaryComplete:
+        custom?.yearSummaryComplete?.trim().length
+          ? custom.yearSummaryComplete
+          : defaultConfirmationSmsTemplates.yearSummaryComplete,
+      yearSummaryIncomplete:
+        custom?.yearSummaryIncomplete?.trim().length
+          ? custom.yearSummaryIncomplete
+          : defaultConfirmationSmsTemplates.yearSummaryIncomplete
     };
   }, [confirmationSmsTemplatesStored, siteConfig?.confirmationSmsTemplates, siteConfig?.sacramentParishPages]);
 
@@ -4687,6 +4776,9 @@ export function ParishPage({
       phoneNumber: string;
       verificationLink: string;
       portalLink: string;
+      doneList?: string;
+      missingList?: string;
+      paperIndexInfo?: string;
     }
   ) => {
     const map: Record<string, string> = {
@@ -4696,7 +4788,10 @@ export function ParishPage({
       parishname: variables.parishName,
       phonenumber: variables.phoneNumber,
       verificationlink: variables.verificationLink,
-      portallink: variables.portalLink
+      portallink: variables.portalLink,
+      donelist: variables.doneList ?? '',
+      missinglist: variables.missingList ?? '',
+      paperindexinfo: variables.paperIndexInfo ?? ''
     };
 
     return template.replace(/\{([a-zA-Z]+)\}/g, (_, rawKey: string) => {
@@ -4710,6 +4805,8 @@ export function ParishPage({
     setConfirmationSmsTemplateVerificationInvite(resolvedConfirmationSmsTemplates.verificationInvite);
     setConfirmationSmsTemplateVerificationWarning(resolvedConfirmationSmsTemplates.verificationWarning);
     setConfirmationSmsTemplatePortalInvite(resolvedConfirmationSmsTemplates.portalInvite);
+    setConfirmationSmsTemplateYearSummaryComplete(resolvedConfirmationSmsTemplates.yearSummaryComplete);
+    setConfirmationSmsTemplateYearSummaryIncomplete(resolvedConfirmationSmsTemplates.yearSummaryIncomplete);
   }, [resolvedConfirmationSmsTemplates]);
 
   useEffect(() => {
@@ -5924,13 +6021,17 @@ export function ParishPage({
     const verificationInvite = confirmationSmsTemplateVerificationInvite.trim();
     const verificationWarning = confirmationSmsTemplateVerificationWarning.trim();
     const portalInvite = confirmationSmsTemplatePortalInvite.trim();
+    const yearSummaryComplete = confirmationSmsTemplateYearSummaryComplete.trim();
+    const yearSummaryIncomplete = confirmationSmsTemplateYearSummaryIncomplete.trim();
 
     const normalizedTemplates =
-      verificationInvite || verificationWarning || portalInvite
+      verificationInvite || verificationWarning || portalInvite || yearSummaryComplete || yearSummaryIncomplete
         ? {
             verificationInvite,
             verificationWarning,
-            portalInvite
+            portalInvite,
+            yearSummaryComplete,
+            yearSummaryIncomplete
           }
         : null;
 
@@ -5947,13 +6048,19 @@ export function ParishPage({
       const persistedInvite = persisted?.verificationInvite?.trim() ?? '';
       const persistedWarning = persisted?.verificationWarning?.trim() ?? '';
       const persistedPortal = persisted?.portalInvite?.trim() ?? '';
+      const persistedSummaryComplete = persisted?.yearSummaryComplete?.trim() ?? '';
+      const persistedSummaryIncomplete = persisted?.yearSummaryIncomplete?.trim() ?? '';
       const expectedInvite = normalizedTemplates?.verificationInvite?.trim() ?? '';
       const expectedWarning = normalizedTemplates?.verificationWarning?.trim() ?? '';
       const expectedPortal = normalizedTemplates?.portalInvite?.trim() ?? '';
+      const expectedSummaryComplete = normalizedTemplates?.yearSummaryComplete?.trim() ?? '';
+      const expectedSummaryIncomplete = normalizedTemplates?.yearSummaryIncomplete?.trim() ?? '';
       if (
         persistedInvite !== expectedInvite ||
         persistedWarning !== expectedWarning ||
-        persistedPortal !== expectedPortal
+        persistedPortal !== expectedPortal ||
+        persistedSummaryComplete !== expectedSummaryComplete ||
+        persistedSummaryIncomplete !== expectedSummaryIncomplete
       ) {
         setConfirmationSmsTemplateError('Serwer nie potwierdził zapisu szablonów SMS.');
         setConfirmationSmsTemplateInfo(null);
@@ -6107,6 +6214,88 @@ export function ParishPage({
       portalLink
     });
     return buildConfirmationSmsHref(phoneNumber, message);
+  };
+
+  const buildConfirmationSummarySmsText = (
+    candidate: Pick<ParishConfirmationCandidate, 'name' | 'surname'>,
+    states: ConfirmationSummaryStates
+  ) => {
+    const parishLabel = parish?.name?.trim() || 'parafia św. Jana Chrzciciela';
+    const doneItems = confirmationSummaryItems.filter((item) => states[item.key] === 'done');
+    const missingItems = confirmationSummaryItems.filter((item) => states[item.key] === 'missing');
+    const template =
+      missingItems.length > 0
+        ? resolvedConfirmationSmsTemplates.yearSummaryIncomplete
+        : resolvedConfirmationSmsTemplates.yearSummaryComplete;
+
+    const message = renderConfirmationSmsTemplate(template, {
+      name: candidate.name,
+      surname: candidate.surname,
+      fullName: `${candidate.name} ${candidate.surname}`.trim(),
+      parishName: parishLabel,
+      phoneNumber: '',
+      verificationLink: '',
+      portalLink: '',
+      doneList:
+        doneItems.length > 0
+          ? doneItems.map((item) => `- ${item.smsLabel}`).join('\n')
+          : '- (nic nie zostało jeszcze zaliczone)',
+      missingList:
+        missingItems.length > 0
+          ? missingItems.map((item) => `- ${item.smsLabel}`).join('\n')
+          : '- (brak)',
+      paperIndexInfo: states.paperIndex === 'done' ? confirmationSummaryPaperIndexInfo : ''
+    });
+
+    return message
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
+
+  const handleToggleConfirmationSummarySms = (candidate: ParishConfirmationCandidate) => {
+    setConfirmationSummarySmsCopied(false);
+    if (confirmationSummarySmsCandidateId === candidate.id) {
+      setConfirmationSummarySmsCandidateId(null);
+      setConfirmationSummarySmsStates(null);
+      setConfirmationSummarySmsText('');
+      return;
+    }
+    const states = buildConfirmationSummaryStates(candidate);
+    setConfirmationSummarySmsCandidateId(candidate.id);
+    setConfirmationSummarySmsStates(states);
+    setConfirmationSummarySmsText(buildConfirmationSummarySmsText(candidate, states));
+  };
+
+  const handleChangeConfirmationSummarySmsState = (
+    candidate: ParishConfirmationCandidate,
+    key: ConfirmationSummaryItemKey,
+    value: ConfirmationSummaryItemState
+  ) => {
+    const current = confirmationSummarySmsStates ?? buildConfirmationSummaryStates(candidate);
+    const next: ConfirmationSummaryStates = { ...current, [key]: value };
+    setConfirmationSummarySmsCopied(false);
+    setConfirmationSummarySmsStates(next);
+    setConfirmationSummarySmsText(buildConfirmationSummarySmsText(candidate, next));
+  };
+
+  const handleRegenerateConfirmationSummarySms = (candidate: ParishConfirmationCandidate) => {
+    const states = buildConfirmationSummaryStates(candidate);
+    setConfirmationSummarySmsCopied(false);
+    setConfirmationSummarySmsStates(states);
+    setConfirmationSummarySmsText(buildConfirmationSummarySmsText(candidate, states));
+  };
+
+  const handleCopyConfirmationSummarySms = async () => {
+    const text = confirmationSummarySmsText.trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setConfirmationSummarySmsCopied(true);
+      window.setTimeout(() => setConfirmationSummarySmsCopied(false), 2200);
+    } catch {
+      setConfirmationCandidatesError('Nie udało się skopiować treści SMS.');
+    }
   };
 
   const handleCopyConfirmationVerificationLink = async (token: string) => {
@@ -12159,7 +12348,105 @@ export function ParishPage({
                                       >
                                         {candidate.quizCompleted ? 'Oznacz quiz jako niesprawdzony' : 'Potwierdź quiz'}
                                       </button>
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        onClick={() => handleToggleConfirmationSummarySms(candidate)}
+                                      >
+                                        {confirmationSummarySmsCandidateId === candidate.id
+                                          ? 'Zamknij SMS podsumowujący'
+                                          : 'SMS: podsumowanie roku'}
+                                      </button>
                                     </div>
+                                    {confirmationSummarySmsCandidateId === candidate.id ? (() => {
+                                      const summaryStates =
+                                        confirmationSummarySmsStates ?? buildConfirmationSummaryStates(candidate);
+                                      const missingCount = confirmationSummaryItems.filter(
+                                        (item) => summaryStates[item.key] === 'missing'
+                                      ).length;
+                                      const summaryText = confirmationSummarySmsText.trim();
+                                      return (
+                                        <div className="confirmation-summary-sms">
+                                          <p className="note">
+                                            <strong>SMS: podsumowanie roku</strong> — ustaw, co zostało zaliczone, a czego brakuje.
+                                            Treść możesz jeszcze poprawić przed wysłaniem.
+                                          </p>
+                                          <div className="confirmation-summary-sms-items">
+                                            {confirmationSummaryItems.map((item) => (
+                                              <label key={`${candidate.id}-summary-${item.key}`}>
+                                                <span>{item.label}</span>
+                                                <select
+                                                  value={summaryStates[item.key]}
+                                                  onChange={(event) =>
+                                                    handleChangeConfirmationSummarySmsState(
+                                                      candidate,
+                                                      item.key,
+                                                      event.target.value === 'done'
+                                                        ? 'done'
+                                                        : event.target.value === 'missing'
+                                                        ? 'missing'
+                                                        : 'skip'
+                                                    )
+                                                  }
+                                                >
+                                                  <option value="done">Zaliczone</option>
+                                                  <option value="missing">Brakuje</option>
+                                                  <option value="skip">Nie dotyczy</option>
+                                                </select>
+                                              </label>
+                                            ))}
+                                          </div>
+                                          <label className="admin-form-full">
+                                            <span>Treść wiadomości</span>
+                                            <textarea
+                                              rows={10}
+                                              value={confirmationSummarySmsText}
+                                              onChange={(event) => {
+                                                setConfirmationSummarySmsCopied(false);
+                                                setConfirmationSummarySmsText(event.target.value);
+                                              }}
+                                            />
+                                          </label>
+                                          <p className="note">
+                                            {missingCount > 0
+                                              ? 'Wariant: są braki — prośba o kontakt.'
+                                              : 'Wariant: rok zakończony — dokumentacja trafia do ks. Pawła.'}{' '}
+                                            Znaki: {confirmationSummarySmsText.length} • Wiadomości SMS:{' '}
+                                            {countSmsSegments(confirmationSummarySmsText)}
+                                          </p>
+                                          <div className="confirmation-candidate-links">
+                                            <button
+                                              type="button"
+                                              className="ghost"
+                                              disabled={!summaryText}
+                                              onClick={() => void handleCopyConfirmationSummarySms()}
+                                            >
+                                              {confirmationSummarySmsCopied ? 'Skopiowano treść' : 'Kopiuj treść'}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="ghost"
+                                              onClick={() => handleRegenerateConfirmationSummarySms(candidate)}
+                                            >
+                                              Przywróć treść z danych systemu
+                                            </button>
+                                            {candidate.phoneNumbers.map((phone) => {
+                                              const summaryHref = buildConfirmationSmsHref(phone.number, summaryText);
+                                              return summaryHref ? (
+                                                <a
+                                                  key={`${candidate.id}-summary-sms-${phone.index}`}
+                                                  className="ghost"
+                                                  href={summaryHref}
+                                                >
+                                                  Wyślij na {phone.number}
+                                                  {phone.isVerified ? '' : ' (niezweryfikowany)'}
+                                                </a>
+                                              ) : null;
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    })() : null}
                                     <ul className="confirmation-phone-list">
                                       {candidate.phoneNumbers.map((phone) => {
                                         const verificationSmsHref = buildConfirmationVerificationSmsHref(
@@ -12237,6 +12524,9 @@ export function ParishPage({
                             <p className="note">
                               Zmienne: {confirmationSmsTemplateVariables.join(', ')}
                             </p>
+                            <p className="note">
+                              Zmienne w podsumowaniu roku: {confirmationSummarySmsTemplateVariables.join(', ')}
+                            </p>
                             {confirmationSmsTemplateError ? (
                               <p className="confirmation-info confirmation-info-error">{confirmationSmsTemplateError}</p>
                             ) : null}
@@ -12268,6 +12558,22 @@ export function ParishPage({
                                   onChange={(event) => setConfirmationSmsTemplatePortalInvite(event.target.value)}
                                 />
                               </label>
+                              <label className="admin-form-full">
+                                <span>SMS: podsumowanie roku — wszystko zaliczone</span>
+                                <textarea
+                                  rows={8}
+                                  value={confirmationSmsTemplateYearSummaryComplete}
+                                  onChange={(event) => setConfirmationSmsTemplateYearSummaryComplete(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>SMS: podsumowanie roku — są braki</span>
+                                <textarea
+                                  rows={8}
+                                  value={confirmationSmsTemplateYearSummaryIncomplete}
+                                  onChange={(event) => setConfirmationSmsTemplateYearSummaryIncomplete(event.target.value)}
+                                />
+                              </label>
                             </div>
                             <div className="builder-actions">
                               <button
@@ -12286,6 +12592,12 @@ export function ParishPage({
                                   setConfirmationSmsTemplateVerificationInvite(defaultConfirmationSmsTemplates.verificationInvite);
                                   setConfirmationSmsTemplateVerificationWarning(defaultConfirmationSmsTemplates.verificationWarning);
                                   setConfirmationSmsTemplatePortalInvite(defaultConfirmationSmsTemplates.portalInvite);
+                                  setConfirmationSmsTemplateYearSummaryComplete(
+                                    defaultConfirmationSmsTemplates.yearSummaryComplete
+                                  );
+                                  setConfirmationSmsTemplateYearSummaryIncomplete(
+                                    defaultConfirmationSmsTemplates.yearSummaryIncomplete
+                                  );
                                 }}
                               >
                                 Przywróć domyślne

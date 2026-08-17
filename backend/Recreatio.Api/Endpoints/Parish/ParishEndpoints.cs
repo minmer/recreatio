@@ -128,8 +128,14 @@ public static class ParishEndpoints
         var verificationInvite = NormalizeTemplate(templates.VerificationInvite);
         var verificationWarning = NormalizeTemplate(templates.VerificationWarning);
         var portalInvite = NormalizeTemplate(templates.PortalInvite);
+        var yearSummaryComplete = NormalizeTemplate(templates.YearSummaryComplete);
+        var yearSummaryIncomplete = NormalizeTemplate(templates.YearSummaryIncomplete);
 
-        if (verificationInvite.Length == 0 && verificationWarning.Length == 0 && portalInvite.Length == 0)
+        if (verificationInvite.Length == 0 &&
+            verificationWarning.Length == 0 &&
+            portalInvite.Length == 0 &&
+            yearSummaryComplete.Length == 0 &&
+            yearSummaryIncomplete.Length == 0)
         {
             return null;
         }
@@ -137,7 +143,9 @@ public static class ParishEndpoints
         return new ParishConfirmationSmsTemplates(
             verificationInvite,
             verificationWarning,
-            portalInvite);
+            portalInvite,
+            yearSummaryComplete,
+            yearSummaryIncomplete);
     }
 
     private static ParishHomepageConfig NormalizeHomepage(ParishHomepageConfig homepage)
@@ -208,7 +216,9 @@ public static class ParishEndpoints
         return NormalizeConfirmationSmsTemplates(new ParishConfirmationSmsTemplates(
             entity.VerificationInviteTemplate,
             entity.VerificationWarningTemplate,
-            entity.PortalInviteTemplate));
+            entity.PortalInviteTemplate,
+            entity.YearSummaryCompleteTemplate,
+            entity.YearSummaryIncompleteTemplate));
     }
 
     private static ParishConfirmationSmsTemplates? TryReadLegacyConfirmationSmsTemplates(string? homepageConfigJson)
@@ -2454,6 +2464,8 @@ public static class ParishEndpoints
             entity.VerificationInviteTemplate = normalizedTemplates?.VerificationInvite ?? string.Empty;
             entity.VerificationWarningTemplate = normalizedTemplates?.VerificationWarning ?? string.Empty;
             entity.PortalInviteTemplate = normalizedTemplates?.PortalInvite ?? string.Empty;
+            entity.YearSummaryCompleteTemplate = normalizedTemplates?.YearSummaryComplete ?? string.Empty;
+            entity.YearSummaryIncompleteTemplate = normalizedTemplates?.YearSummaryIncomplete ?? string.Empty;
             entity.UpdatedUtc = now;
 
             await dbContext.SaveChangesAsync(ct);

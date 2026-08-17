@@ -14,6 +14,7 @@ import { LegalPage } from './pages/LegalPage';
 import { HomePage } from './pages/HomePage';
 const ParishPage = lazy(() => import('./pages/parish/ParishPage').then((module) => ({ default: module.ParishPage })));
 const EventsPage = lazy(() => import('./pages/events/EventsPage').then((module) => ({ default: module.EventsPage })));
+const HortusPage = lazy(() => import('./pages/hortus/HortusPage').then((module) => ({ default: module.HortusPage })));
 const CogitaPage = lazy(() => import('./pages/cogita/CogitaPage').then((module) => ({ default: module.CogitaPage })));
 const CogitaDashboardPage = lazy(() =>
   import('./pages/cogita/CogitaDashboardPage').then((module) => ({ default: module.CogitaDashboardPage }))
@@ -230,6 +231,7 @@ const formFillToken = isFormFillPath ? pathSegments[1] : undefined;
 const isFormViewPath = pathname.startsWith('/form-results/') && pathSegments.length >= 2;
 const formViewToken = isFormViewPath ? pathSegments[1] : undefined;
   const isLegacyLimanowaPath = pathname === '/limanowa' || pathname.startsWith('/limanowa/');
+  const isHortusPath = pathname === '/hortus' || pathname.startsWith('/hortus/');
   const isChatPath = pathname === '/chat' || pathname.startsWith('/chat/');
   const isCalendarPath = pathname === '/calendar' || pathname.startsWith('/calendar/');
   const isChatPublicPath = pathname.startsWith('/chat/public/');
@@ -333,6 +335,7 @@ const formViewToken = isFormViewPath ? pathSegments[1] : undefined;
       if (next === 'parish') navigate('/parish');
       else if (next === 'events') navigate('/event');
       else if (next === 'limanowa') navigate('/event/limanowa/start');
+      else if (next === 'hortus') navigate('/hortus');
       else if (next === 'cg') navigate('/cg')
       else if (next === 'library') navigate('/library');
       else if (next === 'cogita') navigate('/cogita');
@@ -677,6 +680,11 @@ else if (next === 'chat') navigate('/chat');
             language={language}
             onLanguageChange={setLanguage}
           />
+        </Suspense>
+      )}
+      {isHortusPath && (
+        <Suspense fallback={lazyFallback}>
+          <HortusPage copy={t} onNavigate={navigateRoute} showProfileMenu={isAuthenticated} />
         </Suspense>
       )}
       {isFormFillPath && formFillToken && (

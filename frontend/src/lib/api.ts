@@ -3854,6 +3854,8 @@ export type ParishConfirmationSmsTemplates = {
   verificationInvite: string;
   verificationWarning: string;
   portalInvite: string;
+  yearSummaryComplete?: string;
+  yearSummaryIncomplete?: string;
 };
 
 export type ParishConfirmationSmsTemplatesResponse = {
@@ -8393,3 +8395,375 @@ export function deleteEventAccessLink(linkId: string) {
   return request<{ deleted: boolean }>(`/events/admin/links/${linkId}`, { method: 'DELETE' });
 }
 
+
+// ---- Hortus Dei reservations -----------------------------------------------------------------
+
+export type HortusBookingUnit = 'night' | 'slot' | 'both';
+export type HortusItemUnit = 'night' | 'slot';
+export type HortusReservationStatus = 'pending' | 'confirmed' | 'rejected' | 'cancelled';
+export type HortusReservationKind = 'reservation' | 'block';
+
+export interface HortusPlaceView {
+  id: string | null;
+  slug: string;
+  name: string;
+  motto: string;
+  description: string;
+  addressLine: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  timeZoneId: string;
+  timeZoneIana: string;
+  checkInTime: string;
+  checkOutTime: string;
+  defaultTechnicalMinutes: number;
+  minLeadDays: number;
+  publicRequestsEnabled: boolean;
+}
+
+export interface HortusResourceView {
+  id: string;
+  parentId: string | null;
+  slug: string;
+  name: string;
+  description: string;
+  kind: string;
+  bookingUnit: HortusBookingUnit;
+  capacity: number;
+  guestCapacity: number | null;
+  technicalMinutesBefore: number;
+  technicalMinutesAfter: number;
+  isPubliclyBookable: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  colorToken: string;
+}
+
+export interface HortusSiteResponse {
+  place: HortusPlaceView;
+  resources: HortusResourceView[];
+  isProvisioned: boolean;
+}
+
+export interface HortusOccupancyView {
+  resourceId: string;
+  resourceSlug: string;
+  reservationId: string | null;
+  code: string | null;
+  status: HortusReservationStatus;
+  kind: HortusReservationKind;
+  label: string | null;
+  startUtc: string;
+  endUtc: string;
+  blockedFromUtc: string;
+  blockedUntilUtc: string;
+  isExclusive: boolean;
+}
+
+export interface HortusAvailabilityResponse {
+  fromUtc: string;
+  toUtc: string;
+  occupancies: HortusOccupancyView[];
+}
+
+export interface HortusReservationItemRequest {
+  resourceId: string;
+  unit: HortusItemUnit;
+  startDate: string;
+  endDate?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  technicalMinutesBefore?: number | null;
+  technicalMinutesAfter?: number | null;
+  note?: string | null;
+}
+
+export interface HortusReservationItemView {
+  id: string;
+  resourceId: string;
+  resourceSlug: string;
+  resourceName: string;
+  unit: HortusItemUnit;
+  startDate: string;
+  endDate: string;
+  startUtc: string;
+  endUtc: string;
+  technicalMinutesBefore: number;
+  technicalMinutesAfter: number;
+  isExclusive: boolean;
+  note: string | null;
+}
+
+export interface HortusConflictView {
+  resourceId: string;
+  resourceName: string;
+  reason: 'exclusive' | 'capacity' | 'subtree';
+  message: string;
+  blockingCode: string | null;
+  blockingStatus: string | null;
+  fromUtc: string;
+  untilUtc: string;
+}
+
+export interface HortusCheckResponse {
+  isAvailable: boolean;
+  items: HortusReservationItemView[];
+  conflicts: HortusConflictView[];
+  warnings: HortusConflictView[];
+}
+
+export interface HortusReservationPublicView {
+  code: string;
+  status: HortusReservationStatus;
+  groupName: string;
+  contactName: string;
+  guestCount: number | null;
+  purposeNote: string | null;
+  createdUtc: string;
+  decidedUtc: string | null;
+  items: HortusReservationItemView[];
+}
+
+export interface HortusRequestSubmissionResponse {
+  code: string;
+  token: string;
+  reservation: HortusReservationPublicView;
+}
+
+export interface HortusReservationView {
+  id: string;
+  code: string;
+  kind: HortusReservationKind;
+  status: HortusReservationStatus;
+  groupName: string;
+  organization: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  guestCount: number | null;
+  purposeNote: string | null;
+  adminNote: string | null;
+  createdUtc: string;
+  updatedUtc: string;
+  decidedUtc: string | null;
+  items: HortusReservationItemView[];
+}
+
+export interface HortusReservationListResponse {
+  reservations: HortusReservationView[];
+  pendingCount: number;
+}
+
+export interface HortusAdminStatusResponse {
+  hasAdmin: boolean;
+  isCurrentUserAdmin: boolean;
+  adminDisplayName: string | null;
+  isProvisioned: boolean;
+}
+
+export interface HortusRequestSubmission {
+  groupName: string;
+  organization?: string | null;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  guestCount?: number | null;
+  purposeNote?: string | null;
+  items: HortusReservationItemRequest[];
+}
+
+export interface HortusReservationUpsert {
+  kind: HortusReservationKind;
+  status?: HortusReservationStatus | null;
+  groupName: string;
+  organization?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  guestCount?: number | null;
+  purposeNote?: string | null;
+  adminNote?: string | null;
+  items: HortusReservationItemRequest[];
+  force: boolean;
+}
+
+export interface HortusResourceUpsert {
+  parentId: string | null;
+  slug: string;
+  name: string;
+  description?: string | null;
+  kind: string;
+  bookingUnit: HortusBookingUnit;
+  capacity: number;
+  guestCapacity?: number | null;
+  technicalMinutesBefore: number;
+  technicalMinutesAfter: number;
+  isPubliclyBookable: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  colorToken?: string | null;
+}
+
+export interface HortusPlaceUpdate {
+  name: string;
+  motto?: string | null;
+  description?: string | null;
+  addressLine?: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  timeZoneId?: string | null;
+  checkInTime: string;
+  checkOutTime: string;
+  defaultTechnicalMinutes: number;
+  minLeadDays: number;
+  publicRequestsEnabled: boolean;
+}
+
+export function getHortusSite(slug = 'hortus-dei') {
+  return request<HortusSiteResponse>(`/hortus/${encodeURIComponent(slug)}`, { method: 'GET' });
+}
+
+export function getHortusAvailability(slug: string, from: string, to: string) {
+  return request<HortusAvailabilityResponse>(
+    `/hortus/${encodeURIComponent(slug)}/availability?from=${from}&to=${to}`,
+    { method: 'GET' }
+  );
+}
+
+export function checkHortusAvailability(slug: string, items: HortusReservationItemRequest[]) {
+  return request<HortusCheckResponse>(`/hortus/${encodeURIComponent(slug)}/check`, {
+    method: 'POST',
+    body: JSON.stringify({ items, ignoreReservationId: null })
+  });
+}
+
+export function submitHortusRequest(slug: string, payload: HortusRequestSubmission) {
+  return request<HortusRequestSubmissionResponse>(`/hortus/${encodeURIComponent(slug)}/requests`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function getHortusRequest(slug: string, code: string, token: string) {
+  return request<HortusReservationPublicView>(
+    `/hortus/${encodeURIComponent(slug)}/requests/${encodeURIComponent(code)}?token=${encodeURIComponent(token)}`,
+    { method: 'GET' }
+  );
+}
+
+export function cancelHortusRequest(slug: string, code: string, token: string) {
+  return request<HortusReservationPublicView>(
+    `/hortus/${encodeURIComponent(slug)}/requests/${encodeURIComponent(code)}/cancel?token=${encodeURIComponent(token)}`,
+    { method: 'POST', body: JSON.stringify({}) }
+  );
+}
+
+export function getHortusAdminStatus() {
+  return request<HortusAdminStatusResponse>('/hortus/admin/status', { method: 'GET' });
+}
+
+export function claimHortusAdmin() {
+  return request<{ claimed: boolean; alreadyOwned: boolean }>('/hortus/admin/claim', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function bootstrapHortus() {
+  return request<HortusSiteResponse>('/hortus/admin/bootstrap', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function getHortusReservations(slug: string, status?: string, from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const query = params.toString();
+  return request<HortusReservationListResponse>(
+    `/hortus/${encodeURIComponent(slug)}/admin/reservations${query ? `?${query}` : ''}`,
+    { method: 'GET' }
+  );
+}
+
+export function getHortusTimeline(slug: string, from: string, to: string) {
+  return request<HortusAvailabilityResponse>(
+    `/hortus/${encodeURIComponent(slug)}/admin/timeline?from=${from}&to=${to}`,
+    { method: 'GET' }
+  );
+}
+
+export function checkHortusAdminAvailability(
+  slug: string,
+  items: HortusReservationItemRequest[],
+  ignoreReservationId?: string | null
+) {
+  return request<HortusCheckResponse>(`/hortus/${encodeURIComponent(slug)}/admin/check`, {
+    method: 'POST',
+    body: JSON.stringify({ items, ignoreReservationId: ignoreReservationId ?? null })
+  });
+}
+
+export function createHortusReservation(slug: string, payload: HortusReservationUpsert) {
+  return request<HortusReservationView>(`/hortus/${encodeURIComponent(slug)}/admin/reservations`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateHortusReservation(slug: string, id: string, payload: HortusReservationUpsert) {
+  return request<HortusReservationView>(`/hortus/${encodeURIComponent(slug)}/admin/reservations/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function decideHortusReservation(
+  slug: string,
+  id: string,
+  payload: { status: HortusReservationStatus; note?: string | null; force: boolean }
+) {
+  return request<HortusReservationView>(
+    `/hortus/${encodeURIComponent(slug)}/admin/reservations/${id}/decision`,
+    { method: 'POST', body: JSON.stringify(payload) }
+  );
+}
+
+export function deleteHortusReservation(slug: string, id: string) {
+  return request<void>(`/hortus/${encodeURIComponent(slug)}/admin/reservations/${id}`, { method: 'DELETE' });
+}
+
+export function getHortusAdminResources(slug: string) {
+  return request<HortusSiteResponse>(`/hortus/${encodeURIComponent(slug)}/admin/resources`, { method: 'GET' });
+}
+
+export function createHortusResource(slug: string, payload: HortusResourceUpsert) {
+  return request<HortusResourceView>(`/hortus/${encodeURIComponent(slug)}/admin/resources`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateHortusResource(slug: string, id: string, payload: HortusResourceUpsert) {
+  return request<HortusResourceView>(`/hortus/${encodeURIComponent(slug)}/admin/resources/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteHortusResource(slug: string, id: string) {
+  return request<HortusResourceView | void>(`/hortus/${encodeURIComponent(slug)}/admin/resources/${id}`, {
+    method: 'DELETE'
+  });
+}
+
+export function updateHortusSettings(slug: string, payload: HortusPlaceUpdate) {
+  return request<HortusPlaceView>(`/hortus/${encodeURIComponent(slug)}/admin/settings`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
