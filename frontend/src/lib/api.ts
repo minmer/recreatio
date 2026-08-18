@@ -3927,6 +3927,10 @@ export type ParishConfirmationCandidate = {
   createdUtc: string;
   meetingToken: string;
   meetingSlotId?: string | null;
+  useInternetIndex?: boolean;
+  usePaperIndex?: boolean;
+  internetIndexCelebrationTotal?: number;
+  internetIndexCelebrationFilled?: number;
 };
 
 export type ParishConfirmationMeetingSlotCandidate = {
@@ -4773,6 +4777,15 @@ export function updateParishConfirmationCandidateIndexProof(
     method: 'PUT',
     body: JSON.stringify({ paperIndexChecked, quizCompleted })
   });
+}
+
+export function assignParishConfirmationCandidateAutoMeeting(parishId: string, candidateId: string) {
+  return request<{ status: string; slotId?: string | null; bookedUtc?: string | null }>(
+    `/parish/${parishId}/confirmation-candidates/${candidateId}/auto-meeting`,
+    {
+      method: 'POST'
+    }
+  );
 }
 
 export function mergeParishConfirmationCandidates(

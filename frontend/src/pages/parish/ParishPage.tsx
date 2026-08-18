@@ -45,6 +45,7 @@ import {
   listParishMassRules,
   listParishes,
   applyParishMassRule,
+  assignParishConfirmationCandidateAutoMeeting,
   createParishConfirmationCandidate,
   createParishConfirmationCelebration,
   createParishConfirmationEvent,
@@ -1210,6 +1211,13 @@ const confirmationCelebrationCommentTemplates = {
 
 const confirmationCelebrationCommentEditGraceDays = 7;
 
+// Zapisy kandydatów na terminy spotkań są zamknięte - termin wstawia ksiądz przyciskiem
+// "Wstaw automatyczny termin" w panelu zgłoszeń. Ustaw na false, aby ponownie otworzyć zapisy.
+const confirmationMeetingBookingClosed = true;
+
+const confirmationMeetingBookingClosedNotice =
+  'Zapisy na terminy spotkań są zamknięte. W sprawie terminu spotkania proszę o kontakt z księdzem.';
+
 type ResolvedConfirmationSmsTemplates = Required<ParishConfirmationSmsTemplates>;
 
 const defaultConfirmationSmsTemplates: ResolvedConfirmationSmsTemplates = {
@@ -1232,21 +1240,26 @@ const defaultConfirmationSmsTemplates: ResolvedConfirmationSmsTemplates = {
     '{portalLink}',
   yearSummaryComplete:
     'Szczęść Boże!\n' +
-    'Podsumowanie roku przygotowania do bierzmowania - {fullName} ({parishName}).\n' +
+    'Podsumowanie roku przygotowania do bierzmowania - {fullName}.\n' +
     'Zaliczone:\n' +
     '{doneList}\n' +
     'Wszystko jest w porządku - rok został zakończony.\n' +
     'Całość danych{paperIndexInfo} zostaje przekazana ks. Pawłowi, który poprowadzi przygotowanie w kolejnym roku.\n' +
-    'Jeśli coś w tym podsumowaniu się nie zgadza, proszę o informację.',
+    'Jeśli coś w tym podsumowaniu się nie zgadza, proszę o informację.\n' +
+    'Z Bogiem\n' +
+    'ks. Michał Mleczek',
   yearSummaryIncomplete:
     'Szczęść Boże!\n' +
-    'Podsumowanie roku przygotowania do bierzmowania - {fullName} ({parishName}).\n' +
+    'Podsumowanie roku przygotowania do bierzmowania - {fullName}.\n' +
     'Zaliczone:\n' +
     '{doneList}\n' +
     'Brakuje:\n' +
     '{missingList}\n' +
-    'Proszę o kontakt w sprawie uzupełnienia braków.\n' +
-    'Jeśli coś w tym podsumowaniu się nie zgadza, również proszę o informację.'
+    '{internetIndexInfo}Proszę o kontakt w sprawie uzupełnienia braków do 25.08.2026 r.\n' +
+    'Brak uzupełnienia oznacza, że rok nie zostanie zaliczony i może być konieczne jego powtórzenie.\n' +
+    'Jeśli coś w tym podsumowaniu się nie zgadza, również proszę o informację.\n' +
+    'Z Bogiem\n' +
+    'ks. Michał Mleczek'
 };
 
 const confirmationSmsTemplatesLegacyPageKey = '__confirmation_sms_templates';
@@ -1265,13 +1278,13 @@ const confirmationSummarySmsTemplateVariables = [
   '{name}',
   '{surname}',
   '{fullName}',
-  '{parishName}',
   '{doneList}',
   '{missingList}',
-  '{paperIndexInfo}'
+  '{paperIndexInfo}',
+  '{internetIndexInfo}'
 ] as const;
 
-type ConfirmationSummaryItemKey = 'meeting' | 'phone' | 'paperConsent' | 'quiz' | 'paperIndex';
+type ConfirmationSummaryItemKey = 'meeting' | 'paperConsent' | 'quiz' | 'indexChoice' | 'internetIndex' | 'paperIndex';
 
 type ConfirmationSummaryItemState = 'done' | 'missing' | 'skip';
 
@@ -1283,22 +1296,39 @@ const confirmationSummaryItems: ReadonlyArray<{
   smsLabel: string;
 }> = [
   { key: 'meeting', label: 'Termin spotkania', smsLabel: 'termin spotkania' },
-  { key: 'phone', label: 'Weryfikacja numeru telefonu', smsLabel: 'weryfikacja numeru telefonu' },
   { key: 'paperConsent', label: 'Papierowa zgoda rodzica', smsLabel: 'papierowa zgoda rodzica' },
   { key: 'quiz', label: 'Quiz bierzmowania', smsLabel: 'quiz bierzmowania' },
+  { key: 'indexChoice', label: 'Wybrany rodzaj indeksu', smsLabel: 'wybór rodzaju indeksu' },
+  { key: 'internetIndex', label: 'Indeks internetowy (celebracje)', smsLabel: 'indeks internetowy (wpisy przy celebracjach)' },
   { key: 'paperIndex', label: 'Indeks papierowy', smsLabel: 'indeks papierowy' }
 ];
 
 const confirmationSummaryPaperIndexInfo = ' wraz z indeksem papierowym';
 
-const buildConfirmationSummaryStates = (candidate: ParishConfirmationCandidate): ConfirmationSummaryStates => ({
-  meeting: candidate.meetingSlotId ? 'done' : 'missing',
-  phone: candidate.phoneNumbers.some((phone) => phone.isVerified) ? 'done' : 'missing',
-  paperConsent: candidate.paperConsentReceived ? 'done' : 'missing',
-  quiz: candidate.quizCompleted ? 'done' : 'missing',
-  // Indeks papierowy jest opcjonalny - bez potwierdzenia traktujemy go jako "nie dotyczy".
-  paperIndex: candidate.paperIndexChecked ? 'done' : 'skip'
-});
+const confirmationSummaryInternetIndexInfo =
+  'Jeśli na którejś celebracji nie było kandydata, wystarczy wpisać w indeksie internetowym powód nieobecności.\n';
+
+const confirmationSummaryInternetIndexProgress = (candidate: ParishConfirmationCandidate) => {
+  const total = candidate.internetIndexCelebrationTotal ?? 0;
+  const filled = Math.min(candidate.internetIndexCelebrationFilled ?? 0, total);
+  return { total, filled, isComplete: total > 0 && filled >= total };
+};
+
+const buildConfirmationSummaryStates = (candidate: ParishConfirmationCandidate): ConfirmationSummaryStates => {
+  const usesInternetIndex = candidate.useInternetIndex === true;
+  const usesPaperIndex = candidate.usePaperIndex === true;
+  const internetIndexProgress = confirmationSummaryInternetIndexProgress(candidate);
+
+  return {
+    meeting: candidate.meetingSlotId ? 'done' : 'missing',
+    paperConsent: candidate.paperConsentReceived ? 'done' : 'missing',
+    quiz: candidate.quizCompleted ? 'done' : 'missing',
+    // Brak wybranego rodzaju indeksu jest brakiem, a nie sytuacją "nie dotyczy".
+    indexChoice: usesInternetIndex || usesPaperIndex ? 'done' : 'missing',
+    internetIndex: !usesInternetIndex ? 'skip' : internetIndexProgress.isComplete ? 'done' : 'missing',
+    paperIndex: candidate.paperIndexChecked ? 'done' : usesPaperIndex ? 'missing' : 'skip'
+  };
+};
 
 const countSmsSegments = (text: string) => {
   const length = text.length;
@@ -2772,6 +2802,8 @@ export function ParishPage({
     () => confirmationPortalData ?? (isAuthenticated ? confirmationAdminPortalData : null),
     [confirmationPortalData, isAuthenticated, confirmationAdminPortalData]
   );
+  // Zapisy zamykamy tylko dla kandydata - podgląd portalu w panelu księdza zachowuje pełne możliwości.
+  const confirmationDisplayBookingClosed = confirmationMeetingBookingClosed && confirmationPortalData !== null;
   const confirmationDisplaySelectedFirstYearSlot = useMemo(() => {
     if (!confirmationDisplayPortalData?.candidate.selectedSlotId) return null;
     return (
@@ -3726,6 +3758,24 @@ export function ParishPage({
       }
     } catch {
       setConfirmationCandidatesError('Nie udało się zaktualizować statusu indeksu/quizu.');
+    } finally {
+      setConfirmationAdminSendingAction(false);
+    }
+  };
+
+  const handleAdminAssignCandidateAutoMeeting = async (candidateId: string) => {
+    if (!parish) return;
+    setConfirmationAdminSendingAction(true);
+    setConfirmationCandidatesError(null);
+    try {
+      await assignParishConfirmationCandidateAutoMeeting(parish.id, candidateId);
+      await loadConfirmationCandidates();
+      await loadConfirmationMeetingSummary();
+      if (confirmationAdminSelectedCandidateId === candidateId) {
+        await loadConfirmationAdminCandidatePortal(candidateId);
+      }
+    } catch {
+      setConfirmationCandidatesError('Nie udało się wstawić automatycznego terminu spotkania.');
     } finally {
       setConfirmationAdminSendingAction(false);
     }
@@ -4779,6 +4829,7 @@ export function ParishPage({
       doneList?: string;
       missingList?: string;
       paperIndexInfo?: string;
+      internetIndexInfo?: string;
     }
   ) => {
     const map: Record<string, string> = {
@@ -4791,7 +4842,8 @@ export function ParishPage({
       portallink: variables.portalLink,
       donelist: variables.doneList ?? '',
       missinglist: variables.missingList ?? '',
-      paperindexinfo: variables.paperIndexInfo ?? ''
+      paperindexinfo: variables.paperIndexInfo ?? '',
+      internetindexinfo: variables.internetIndexInfo ?? ''
     };
 
     return template.replace(/\{([a-zA-Z]+)\}/g, (_, rawKey: string) => {
@@ -6217,34 +6269,40 @@ export function ParishPage({
   };
 
   const buildConfirmationSummarySmsText = (
-    candidate: Pick<ParishConfirmationCandidate, 'name' | 'surname'>,
+    candidate: ParishConfirmationCandidate,
     states: ConfirmationSummaryStates
   ) => {
-    const parishLabel = parish?.name?.trim() || 'parafia św. Jana Chrzciciela';
     const doneItems = confirmationSummaryItems.filter((item) => states[item.key] === 'done');
     const missingItems = confirmationSummaryItems.filter((item) => states[item.key] === 'missing');
+    const internetIndexProgress = confirmationSummaryInternetIndexProgress(candidate);
     const template =
       missingItems.length > 0
         ? resolvedConfirmationSmsTemplates.yearSummaryIncomplete
         : resolvedConfirmationSmsTemplates.yearSummaryComplete;
 
+    const describeItem = (item: (typeof confirmationSummaryItems)[number]) =>
+      item.key === 'internetIndex' && internetIndexProgress.total > 0
+        ? `- ${item.smsLabel} - uzupełnione ${internetIndexProgress.filled} z ${internetIndexProgress.total}`
+        : `- ${item.smsLabel}`;
+
     const message = renderConfirmationSmsTemplate(template, {
       name: candidate.name,
       surname: candidate.surname,
       fullName: `${candidate.name} ${candidate.surname}`.trim(),
-      parishName: parishLabel,
+      parishName: '',
       phoneNumber: '',
       verificationLink: '',
       portalLink: '',
       doneList:
         doneItems.length > 0
-          ? doneItems.map((item) => `- ${item.smsLabel}`).join('\n')
+          ? doneItems.map(describeItem).join('\n')
           : '- (nic nie zostało jeszcze zaliczone)',
       missingList:
         missingItems.length > 0
-          ? missingItems.map((item) => `- ${item.smsLabel}`).join('\n')
+          ? missingItems.map(describeItem).join('\n')
           : '- (brak)',
-      paperIndexInfo: states.paperIndex === 'done' ? confirmationSummaryPaperIndexInfo : ''
+      paperIndexInfo: states.paperIndex === 'done' ? confirmationSummaryPaperIndexInfo : '',
+      internetIndexInfo: states.internetIndex === 'missing' ? confirmationSummaryInternetIndexInfo : ''
     });
 
     return message
@@ -7677,27 +7735,31 @@ export function ParishPage({
                                     : 'Termin zapisany'}
                                 </p>
                               </div>
-                              <div className="confirmation-candidate-links">
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  disabled={!confirmationDisplayHasFreeSlot}
-                                  onClick={() => {
-                                    setConfirmationMeetingJoinTargetSlotId(null);
-                                    setConfirmationPortalShowSlotPicker(true);
-                                  }}
-                                >
-                                  {confirmationDisplayHasFreeSlot ? 'Wybierz nowy termin' : 'Brak wolnych terminów'}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  disabled={confirmationMeetingPublicSaving || !activeConfirmationPortalToken}
-                                  onClick={() => void handleResignConfirmationMeetingSlot()}
-                                >
-                                  {confirmationMeetingPublicSaving ? 'Rezygnowanie...' : 'Zrezygnuj z terminu'}
-                                </button>
-                              </div>
+                              {confirmationDisplayBookingClosed ? (
+                                <p className="note">{confirmationMeetingBookingClosedNotice}</p>
+                              ) : (
+                                <div className="confirmation-candidate-links">
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    disabled={!confirmationDisplayHasFreeSlot}
+                                    onClick={() => {
+                                      setConfirmationMeetingJoinTargetSlotId(null);
+                                      setConfirmationPortalShowSlotPicker(true);
+                                    }}
+                                  >
+                                    {confirmationDisplayHasFreeSlot ? 'Wybierz nowy termin' : 'Brak wolnych terminów'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    disabled={confirmationMeetingPublicSaving || !activeConfirmationPortalToken}
+                                    onClick={() => void handleResignConfirmationMeetingSlot()}
+                                  >
+                                    {confirmationMeetingPublicSaving ? 'Rezygnowanie...' : 'Zrezygnuj z terminu'}
+                                  </button>
+                                </div>
+                              )}
                               {confirmationDisplayPortalData.candidate.canInviteToSelectedSlot &&
                               confirmationDisplayPortalData.candidate.selectedSlotInviteCode ? (
                                 <div className="confirmation-candidate-links">
@@ -7764,7 +7826,9 @@ export function ParishPage({
                             </>
                           ) : (
                             <>
-                              {confirmationDisplayPortalData.firstYearStartSlots.length === 0 ? (
+                              {confirmationDisplayBookingClosed ? (
+                                <p className="note">{confirmationMeetingBookingClosedNotice}</p>
+                              ) : confirmationDisplayPortalData.firstYearStartSlots.length === 0 ? (
                                 <p className="muted">Brak aktywnych terminów spotkań.</p>
                               ) : (
                                 <div className="confirmation-meeting-slot-list">
@@ -7905,27 +7969,31 @@ export function ParishPage({
                                     </p>
                                   ) : null}
                                 </div>
-                                <div className="confirmation-candidate-links">
-                                  <button
-                                    type="button"
-                                    className="ghost"
-                                    disabled={!confirmationDisplayHasFreeSecondSlot}
-                                    onClick={() => {
-                                      setConfirmationMeetingJoinTargetSlotId(null);
-                                      setConfirmationPortalShowSecondSlotPicker(true);
-                                    }}
-                                  >
-                                    {confirmationDisplayHasFreeSecondSlot ? 'Wybierz nowy termin' : 'Brak wolnych terminów'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="ghost"
-                                    disabled={confirmationMeetingPublicSaving || !activeConfirmationPortalToken}
-                                    onClick={() => void handleResignConfirmationMeetingSlot('year1-end')}
-                                  >
-                                    {confirmationMeetingPublicSaving ? 'Rezygnowanie...' : 'Zrezygnuj z terminu'}
-                                  </button>
-                                </div>
+                                {confirmationDisplayBookingClosed ? (
+                                  <p className="note">{confirmationMeetingBookingClosedNotice}</p>
+                                ) : (
+                                  <div className="confirmation-candidate-links">
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      disabled={!confirmationDisplayHasFreeSecondSlot}
+                                      onClick={() => {
+                                        setConfirmationMeetingJoinTargetSlotId(null);
+                                        setConfirmationPortalShowSecondSlotPicker(true);
+                                      }}
+                                    >
+                                      {confirmationDisplayHasFreeSecondSlot ? 'Wybierz nowy termin' : 'Brak wolnych terminów'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      disabled={confirmationMeetingPublicSaving || !activeConfirmationPortalToken}
+                                      onClick={() => void handleResignConfirmationMeetingSlot('year1-end')}
+                                    >
+                                      {confirmationMeetingPublicSaving ? 'Rezygnowanie...' : 'Zrezygnuj z terminu'}
+                                    </button>
+                                  </div>
+                                )}
                                 {confirmationDisplayPortalData.candidate.secondCanInviteToSelectedSlot &&
                                 confirmationDisplayPortalData.candidate.secondSelectedSlotInviteCode ? (
                                   <div className="confirmation-candidate-links">
@@ -8002,12 +8070,20 @@ export function ParishPage({
                             ) : (
                               <>
                                 <div className="confirmation-candidate-instruction">
-                                  <p className="note">
-                                    <strong>Wybierz termin spotkania końcowego pierwszego roku.</strong>
-                                  </p>
-                                  {!confirmationDisplayHasFreeSecondSlot ? (
-                                    <p className="note">Brak wolnych terminów bez administratora. Skorzystaj z kodu zaproszenia.</p>
-                                  ) : null}
+                                  {confirmationDisplayBookingClosed ? (
+                                    <p className="note">
+                                      <strong>{confirmationMeetingBookingClosedNotice}</strong>
+                                    </p>
+                                  ) : (
+                                    <>
+                                      <p className="note">
+                                        <strong>Wybierz termin spotkania końcowego pierwszego roku.</strong>
+                                      </p>
+                                      {!confirmationDisplayHasFreeSecondSlot ? (
+                                        <p className="note">Brak wolnych terminów bez administratora. Skorzystaj z kodu zaproszenia.</p>
+                                      ) : null}
+                                    </>
+                                  )}
                                 </div>
                                 <div className="confirmation-candidate-links">
                                   {confirmationDisplayPortalData.candidate.secondSelectedSlotId ? (
@@ -8023,7 +8099,7 @@ export function ParishPage({
                                     </button>
                                   ) : null}
                                 </div>
-                                {confirmationDisplayPortalData.firstYearEndSlots.length === 0 ? (
+                                {confirmationDisplayBookingClosed ? null : confirmationDisplayPortalData.firstYearEndSlots.length === 0 ? (
                                   <p className="muted">{confirmationDisplayPortalData.secondMeetingAnnouncement}</p>
                                 ) : (
                                   <div className="confirmation-meeting-slot-list">
@@ -10918,37 +10994,47 @@ export function ParishPage({
                                     ) : null}
                                   </div>
                                   <div className="confirmation-candidate-instruction">
-                                    <p className="note">
-                                      <strong>Krok 2: po wyborze terminu.</strong>
-                                    </p>
-                                    <ol className="confirmation-meeting-candidate-list">
-                                      <li>Przyjdź na spotkanie punktualnie, z przygotowanymi pytaniami.</li>
-                                      <li>Możesz zmienić termin przyciskiem „Wybierz nowy termin”.</li>
-                                      <li>W każdej chwili możesz zrezygnować z terminu tylko dla swojego zgłoszenia.</li>
-                                      <li>Jeśli jesteś administratorem terminu, możesz zaprosić inne osoby kodem.</li>
-                                    </ol>
+                                    {confirmationMeetingBookingClosed ? (
+                                      <p className="note">
+                                        <strong>{confirmationMeetingBookingClosedNotice}</strong>
+                                      </p>
+                                    ) : (
+                                      <>
+                                        <p className="note">
+                                          <strong>Krok 2: po wyborze terminu.</strong>
+                                        </p>
+                                        <ol className="confirmation-meeting-candidate-list">
+                                          <li>Przyjdź na spotkanie punktualnie, z przygotowanymi pytaniami.</li>
+                                          <li>Możesz zmienić termin przyciskiem „Wybierz nowy termin”.</li>
+                                          <li>W każdej chwili możesz zrezygnować z terminu tylko dla swojego zgłoszenia.</li>
+                                          <li>Jeśli jesteś administratorem terminu, możesz zaprosić inne osoby kodem.</li>
+                                        </ol>
+                                      </>
+                                    )}
                                   </div>
-                                  <div className="confirmation-candidate-links">
-                                    <button
-                                      type="button"
-                                      className="ghost"
-                                      disabled={!confirmationPortalHasFreeSlot}
-                                      onClick={() => {
-                                        setConfirmationMeetingJoinTargetSlotId(null);
-                                        setConfirmationPortalShowSlotPicker(true);
-                                      }}
-                                    >
-                                      {confirmationPortalHasFreeSlot ? 'Wybierz nowy termin' : 'Brak wolnych terminów'}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="ghost"
-                                      disabled={confirmationMeetingPublicSaving}
-                                      onClick={() => void handleResignConfirmationMeetingSlot()}
-                                    >
-                                      {confirmationMeetingPublicSaving ? 'Rezygnowanie...' : 'Zrezygnuj z terminu'}
-                                    </button>
-                                  </div>
+                                  {confirmationMeetingBookingClosed ? null : (
+                                    <div className="confirmation-candidate-links">
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        disabled={!confirmationPortalHasFreeSlot}
+                                        onClick={() => {
+                                          setConfirmationMeetingJoinTargetSlotId(null);
+                                          setConfirmationPortalShowSlotPicker(true);
+                                        }}
+                                      >
+                                        {confirmationPortalHasFreeSlot ? 'Wybierz nowy termin' : 'Brak wolnych terminów'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        disabled={confirmationMeetingPublicSaving}
+                                        onClick={() => void handleResignConfirmationMeetingSlot()}
+                                      >
+                                        {confirmationMeetingPublicSaving ? 'Rezygnowanie...' : 'Zrezygnuj z terminu'}
+                                      </button>
+                                    </div>
+                                  )}
                                   {confirmationPortalData.candidate.canInviteToSelectedSlot &&
                                   confirmationPortalData.candidate.selectedSlotInviteCode ? (
                                     <div className="confirmation-candidate-links">
@@ -11028,21 +11114,29 @@ export function ParishPage({
                               ) : (
                                 <>
                                   <div className="confirmation-candidate-instruction">
-                                    <p className="note">
-                                      <strong>Krok 1: wybierz termin spotkania.</strong>
-                                    </p>
-                                    <ol className="confirmation-meeting-candidate-list">
-                                      <li>Sprawdź status: zielony (wolny), żółty (z administratorem), czerwony (zamknięty).</li>
-                                      <li>
-                                        Dla żółtego terminu kliknij „Wybierz ten termin i pokaż opcje dołączenia”, a potem wpisz kod.
-                                      </li>
-                                      <li>Jeśli nie masz kodu, użyj w karcie przycisku „Poproś o dołączenie”.</li>
-                                      <li>Po zapisie lista zostanie ukryta i zobaczysz wybrany termin.</li>
-                                      <li>W razie problemów napisz wiadomość do parafii poniżej.</li>
-                                    </ol>
-                                    {!confirmationPortalHasFreeSlot ? (
-                                      <p className="note">Brak wolnych terminów bez administratora. Skorzystaj z kodu zaproszenia.</p>
-                                    ) : null}
+                                    {confirmationMeetingBookingClosed ? (
+                                      <p className="note">
+                                        <strong>{confirmationMeetingBookingClosedNotice}</strong>
+                                      </p>
+                                    ) : (
+                                      <>
+                                        <p className="note">
+                                          <strong>Krok 1: wybierz termin spotkania.</strong>
+                                        </p>
+                                        <ol className="confirmation-meeting-candidate-list">
+                                          <li>Sprawdź status: zielony (wolny), żółty (z administratorem), czerwony (zamknięty).</li>
+                                          <li>
+                                            Dla żółtego terminu kliknij „Wybierz ten termin i pokaż opcje dołączenia”, a potem wpisz kod.
+                                          </li>
+                                          <li>Jeśli nie masz kodu, użyj w karcie przycisku „Poproś o dołączenie”.</li>
+                                          <li>Po zapisie lista zostanie ukryta i zobaczysz wybrany termin.</li>
+                                          <li>W razie problemów napisz wiadomość do parafii poniżej.</li>
+                                        </ol>
+                                        {!confirmationPortalHasFreeSlot ? (
+                                          <p className="note">Brak wolnych terminów bez administratora. Skorzystaj z kodu zaproszenia.</p>
+                                        ) : null}
+                                      </>
+                                    )}
                                   </div>
                                   <div className="confirmation-candidate-links">
                                     {confirmationPortalData.candidate.selectedSlotId ? (
@@ -11058,7 +11152,7 @@ export function ParishPage({
                                       </button>
                                     ) : null}
                                   </div>
-                                  {confirmationPortalData.firstYearStartSlots.length === 0 ? (
+                                  {confirmationMeetingBookingClosed ? null : confirmationPortalData.firstYearStartSlots.length === 0 ? (
                                     <p className="muted">Brak aktywnych terminów spotkań.</p>
                                   ) : (
                                     <div className="confirmation-meeting-slot-list">
@@ -11197,27 +11291,31 @@ export function ParishPage({
                                     </p>
                                   ) : null}
                                 </div>
-                                <div className="confirmation-candidate-links">
-                                  <button
-                                    type="button"
-                                    className="ghost"
-                                    disabled={!confirmationPortalHasFreeSecondSlot}
-                                    onClick={() => {
-                                      setConfirmationMeetingJoinTargetSlotId(null);
-                                      setConfirmationPortalShowSecondSlotPicker(true);
-                                    }}
-                                  >
-                                    {confirmationPortalHasFreeSecondSlot ? 'Wybierz nowy termin' : 'Brak wolnych terminów'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="ghost"
-                                    disabled={confirmationMeetingPublicSaving}
-                                    onClick={() => void handleResignConfirmationMeetingSlot('year1-end')}
-                                  >
-                                    {confirmationMeetingPublicSaving ? 'Rezygnowanie...' : 'Zrezygnuj z terminu'}
-                                  </button>
-                                </div>
+                                {confirmationMeetingBookingClosed ? (
+                                  <p className="note">{confirmationMeetingBookingClosedNotice}</p>
+                                ) : (
+                                  <div className="confirmation-candidate-links">
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      disabled={!confirmationPortalHasFreeSecondSlot}
+                                      onClick={() => {
+                                        setConfirmationMeetingJoinTargetSlotId(null);
+                                        setConfirmationPortalShowSecondSlotPicker(true);
+                                      }}
+                                    >
+                                      {confirmationPortalHasFreeSecondSlot ? 'Wybierz nowy termin' : 'Brak wolnych terminów'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      disabled={confirmationMeetingPublicSaving}
+                                      onClick={() => void handleResignConfirmationMeetingSlot('year1-end')}
+                                    >
+                                      {confirmationMeetingPublicSaving ? 'Rezygnowanie...' : 'Zrezygnuj z terminu'}
+                                    </button>
+                                  </div>
+                                )}
                                 {confirmationPortalData.candidate.secondCanInviteToSelectedSlot &&
                                 confirmationPortalData.candidate.secondSelectedSlotInviteCode ? (
                                   <div className="confirmation-candidate-links">
@@ -11297,17 +11395,25 @@ export function ParishPage({
                             ) : (
                               <>
                                 <div className="confirmation-candidate-instruction">
-                                  <p className="note">
-                                    <strong>Krok 1: wybierz termin spotkania.</strong>
-                                  </p>
-                                  <ol className="confirmation-meeting-candidate-list">
-                                    <li>Sprawdź status: zielony (wolny), żółty (z administratorem), czerwony (zamknięty).</li>
-                                    <li>Dla żółtego terminu wpisz kod albo poproś o dołączenie.</li>
-                                    <li>Po zapisie lista zostanie ukryta i zobaczysz wybrany termin.</li>
-                                  </ol>
-                                  {!confirmationPortalHasFreeSecondSlot ? (
-                                    <p className="note">Brak wolnych terminów bez administratora. Skorzystaj z kodu zaproszenia.</p>
-                                  ) : null}
+                                  {confirmationMeetingBookingClosed ? (
+                                    <p className="note">
+                                      <strong>{confirmationMeetingBookingClosedNotice}</strong>
+                                    </p>
+                                  ) : (
+                                    <>
+                                      <p className="note">
+                                        <strong>Krok 1: wybierz termin spotkania.</strong>
+                                      </p>
+                                      <ol className="confirmation-meeting-candidate-list">
+                                        <li>Sprawdź status: zielony (wolny), żółty (z administratorem), czerwony (zamknięty).</li>
+                                        <li>Dla żółtego terminu wpisz kod albo poproś o dołączenie.</li>
+                                        <li>Po zapisie lista zostanie ukryta i zobaczysz wybrany termin.</li>
+                                      </ol>
+                                      {!confirmationPortalHasFreeSecondSlot ? (
+                                        <p className="note">Brak wolnych terminów bez administratora. Skorzystaj z kodu zaproszenia.</p>
+                                      ) : null}
+                                    </>
+                                  )}
                                 </div>
                                 <div className="confirmation-candidate-links">
                                   {confirmationPortalData.candidate.secondSelectedSlotId ? (
@@ -11323,7 +11429,7 @@ export function ParishPage({
                                     </button>
                                   ) : null}
                                 </div>
-                                {confirmationPortalData.firstYearEndSlots.length === 0 ? (
+                                {confirmationMeetingBookingClosed ? null : confirmationPortalData.firstYearEndSlots.length === 0 ? (
                                   <p className="muted">{confirmationPortalData.secondMeetingAnnouncement}</p>
                                 ) : (
                                   <div className="confirmation-meeting-slot-list">
@@ -11550,36 +11656,46 @@ export function ParishPage({
                                 ) : null}
                               </div>
                               <div className="confirmation-candidate-instruction">
-                                <p className="note">
-                                  <strong>Krok 2: po wyborze terminu.</strong>
-                                </p>
-                                <ol className="confirmation-meeting-candidate-list">
-                                  <li>Możesz zmienić termin przyciskiem „Wybierz nowy termin”.</li>
-                                  <li>W każdej chwili możesz zrezygnować z terminu tylko dla swojego zgłoszenia.</li>
-                                  <li>Jeśli jesteś administratorem terminu, możesz zaprosić inne osoby kodem.</li>
-                                </ol>
+                                {confirmationMeetingBookingClosed ? (
+                                  <p className="note">
+                                    <strong>{confirmationMeetingBookingClosedNotice}</strong>
+                                  </p>
+                                ) : (
+                                  <>
+                                    <p className="note">
+                                      <strong>Krok 2: po wyborze terminu.</strong>
+                                    </p>
+                                    <ol className="confirmation-meeting-candidate-list">
+                                      <li>Możesz zmienić termin przyciskiem „Wybierz nowy termin”.</li>
+                                      <li>W każdej chwili możesz zrezygnować z terminu tylko dla swojego zgłoszenia.</li>
+                                      <li>Jeśli jesteś administratorem terminu, możesz zaprosić inne osoby kodem.</li>
+                                    </ol>
+                                  </>
+                                )}
                               </div>
-                              <div className="confirmation-candidate-links">
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  disabled={!confirmationPublicHasFreeSlot}
-                                  onClick={() => {
-                                    setConfirmationMeetingJoinTargetSlotId(null);
-                                    setConfirmationMeetingPublicShowSlotPicker(true);
-                                  }}
-                                >
-                                  {confirmationPublicHasFreeSlot ? 'Wybierz nowy termin' : 'Brak wolnych terminów'}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  disabled={confirmationMeetingPublicSaving}
-                                  onClick={() => void handleResignConfirmationMeetingSlot()}
-                                >
-                                  {confirmationMeetingPublicSaving ? 'Rezygnowanie...' : 'Zrezygnuj z terminu'}
-                                </button>
-                              </div>
+                              {confirmationMeetingBookingClosed ? null : (
+                                <div className="confirmation-candidate-links">
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    disabled={!confirmationPublicHasFreeSlot}
+                                    onClick={() => {
+                                      setConfirmationMeetingJoinTargetSlotId(null);
+                                      setConfirmationMeetingPublicShowSlotPicker(true);
+                                    }}
+                                  >
+                                    {confirmationPublicHasFreeSlot ? 'Wybierz nowy termin' : 'Brak wolnych terminów'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    disabled={confirmationMeetingPublicSaving}
+                                    onClick={() => void handleResignConfirmationMeetingSlot()}
+                                  >
+                                    {confirmationMeetingPublicSaving ? 'Rezygnowanie...' : 'Zrezygnuj z terminu'}
+                                  </button>
+                                </div>
+                              )}
                               {confirmationMeetingPublicData.canInviteToSelectedSlot &&
                               confirmationMeetingPublicData.selectedSlotInviteCode ? (
                                 <div className="confirmation-candidate-links">
@@ -11659,20 +11775,28 @@ export function ParishPage({
                           ) : (
                             <>
                               <div className="confirmation-candidate-instruction">
-                                <p className="note">
-                                  <strong>Krok 1: wybierz termin spotkania.</strong>
-                                </p>
-                                <ol className="confirmation-meeting-candidate-list">
-                                  <li>Sprawdź status: zielony (wolny), żółty (z administratorem), czerwony (zamknięty).</li>
-                                  <li>
-                                    Dla żółtego terminu kliknij „Wybierz ten termin i pokaż opcje dołączenia”, a potem wpisz kod.
-                                  </li>
-                                  <li>Jeśli nie masz kodu, użyj w karcie przycisku „Poproś o dołączenie”.</li>
-                                  <li>Po zapisie lista zostanie ukryta i zobaczysz wybrany termin.</li>
-                                </ol>
-                                {!confirmationPublicHasFreeSlot ? (
-                                  <p className="note">Brak wolnych terminów bez administratora. Skorzystaj z kodu zaproszenia.</p>
-                                ) : null}
+                                {confirmationMeetingBookingClosed ? (
+                                  <p className="note">
+                                    <strong>{confirmationMeetingBookingClosedNotice}</strong>
+                                  </p>
+                                ) : (
+                                  <>
+                                    <p className="note">
+                                      <strong>Krok 1: wybierz termin spotkania.</strong>
+                                    </p>
+                                    <ol className="confirmation-meeting-candidate-list">
+                                      <li>Sprawdź status: zielony (wolny), żółty (z administratorem), czerwony (zamknięty).</li>
+                                      <li>
+                                        Dla żółtego terminu kliknij „Wybierz ten termin i pokaż opcje dołączenia”, a potem wpisz kod.
+                                      </li>
+                                      <li>Jeśli nie masz kodu, użyj w karcie przycisku „Poproś o dołączenie”.</li>
+                                      <li>Po zapisie lista zostanie ukryta i zobaczysz wybrany termin.</li>
+                                    </ol>
+                                    {!confirmationPublicHasFreeSlot ? (
+                                      <p className="note">Brak wolnych terminów bez administratora. Skorzystaj z kodu zaproszenia.</p>
+                                    ) : null}
+                                  </>
+                                )}
                               </div>
                               <div className="confirmation-candidate-links">
                                 {confirmationMeetingPublicData.selectedSlotId ? (
@@ -11688,7 +11812,7 @@ export function ParishPage({
                                   </button>
                                 ) : null}
                               </div>
-                              {confirmationMeetingPublicData.slots.length === 0 ? (
+                              {confirmationMeetingBookingClosed ? null : confirmationMeetingPublicData.slots.length === 0 ? (
                                 <p className="muted">Brak dostępnych terminów. Skontaktuj się z parafią.</p>
                               ) : (
                                 <div className="confirmation-meeting-slot-list">
@@ -12290,6 +12414,30 @@ export function ParishPage({
                                       {candidate.paperConsentReceived ? 'Dostarczone do księdza' : 'Niepotwierdzone'}
                                     </p>
                                     <p className="note">
+                                      <strong>Rodzaj indeksu:</strong>{' '}
+                                      {candidate.useInternetIndex || candidate.usePaperIndex
+                                        ? [
+                                            candidate.useInternetIndex ? 'internetowy' : null,
+                                            candidate.usePaperIndex ? 'papierowy' : null
+                                          ]
+                                            .filter(Boolean)
+                                            .join(' i ')
+                                        : 'Nie wybrano — brak do uzupełnienia'}
+                                    </p>
+                                    {candidate.useInternetIndex ? (() => {
+                                      const progress = confirmationSummaryInternetIndexProgress(candidate);
+                                      return (
+                                        <p className="note">
+                                          <strong>Indeks internetowy (celebracje):</strong>{' '}
+                                          {progress.total === 0
+                                            ? 'Brak celebracji do uzupełnienia'
+                                            : `Uzupełnione ${progress.filled} z ${progress.total}${
+                                                progress.isComplete ? '' : ' — brak wpisów'
+                                              }`}
+                                        </p>
+                                      );
+                                    })() : null}
+                                    <p className="note">
                                       <strong>Indeks papierowy:</strong>{' '}
                                       {candidate.paperIndexChecked ? 'Sprawdzony przez księdza' : 'Niesprawdzony'}
                                     </p>
@@ -12348,6 +12496,16 @@ export function ParishPage({
                                       >
                                         {candidate.quizCompleted ? 'Oznacz quiz jako niesprawdzony' : 'Potwierdź quiz'}
                                       </button>
+                                      {!candidate.meetingSlotId ? (
+                                        <button
+                                          type="button"
+                                          className="ghost"
+                                          disabled={confirmationAdminSendingAction}
+                                          onClick={() => void handleAdminAssignCandidateAutoMeeting(candidate.id)}
+                                        >
+                                          Wstaw automatyczny termin
+                                        </button>
+                                      ) : null}
                                       <button
                                         type="button"
                                         className="ghost"

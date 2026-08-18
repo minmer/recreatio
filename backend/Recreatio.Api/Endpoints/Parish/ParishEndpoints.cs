@@ -50,6 +50,8 @@ public static class ParishEndpoints
     private const string ConfirmationEventJoinRemoved = "removed";
     private const string ConfirmationEventJoinRejected = "rejected";
     private const string ConfirmationSmsTemplatesLegacyPageKey = "__confirmation_sms_templates";
+    private const string ConfirmationAutoMeetingSlotLabel = "Termin automatyczny";
+    private const int ConfirmationAutoMeetingSlotCapacity = 500;
     private static readonly string[] Breakpoints = { "desktop", "tablet", "mobile" };
 
     private static ParishSacramentSection NormalizeSacramentSection(ParishSacramentSection? section)
@@ -2526,7 +2528,11 @@ public static class ParishEndpoints
                     candidate.QuizCompleted,
                     candidate.CreatedUtc,
                     candidate.MeetingToken,
-                    candidate.MeetingSlotId))
+                    candidate.MeetingSlotId,
+                    candidate.UseInternetIndex,
+                    candidate.UsePaperIndex,
+                    candidate.InternetIndexCelebrationTotal,
+                    candidate.InternetIndexCelebrationFilled))
                 .ToList();
 
             return Results.Ok(responses);
@@ -4205,6 +4211,99 @@ public static class ParishEndpoints
                 ct);
 
             return Results.Ok();
+        }).RequireAuthorization();
+
+        group.MapPost("/{parishId:guid}/confirmation-candidates/{candidateId:guid}/auto-meeting", async (
+            Guid parishId,
+            Guid candidateId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var candidate = await dbContext.ParishConfirmationCandidates.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == candidateId && x.ParishId == parishId, ct);
+            if (candidate is null)
+            {
+                return Results.NotFound();
+            }
+
+            var link = await EnsureConfirmationMeetingLinkAsync(
+                parishId,
+                candidateId,
+                ConfirmationMeetingStageYear1Start,
+                dbContext,
+                ct);
+            if (link.SlotId is not null)
+            {
+                return Results.Ok(new ParishConfirmationCandidateAutoMeetingResponse(
+                    "already-selected",
+                    link.SlotId,
+                    link.BookedUtc));
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var autoSlot = await dbContext.ParishConfirmationMeetingSlots
+                .Where(x =>
+                    x.ParishId == parishId &&
+                    x.Stage == ConfirmationMeetingStageYear1Start &&
+                    x.Label == ConfirmationAutoMeetingSlotLabel)
+                .OrderBy(x => x.CreatedUtc)
+                .FirstOrDefaultAsync(ct);
+            if (autoSlot is null)
+            {
+                autoSlot = new ParishConfirmationMeetingSlot
+                {
+                    Id = Guid.NewGuid(),
+                    ParishId = parishId,
+                    StartsAtUtc = now,
+                    DurationMinutes = 30,
+                    Capacity = ConfirmationAutoMeetingSlotCapacity,
+                    Label = ConfirmationAutoMeetingSlotLabel,
+                    Stage = ConfirmationMeetingStageYear1Start,
+                    IsActive = true,
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                };
+                dbContext.ParishConfirmationMeetingSlots.Add(autoSlot);
+            }
+
+            link.SlotId = autoSlot.Id;
+            link.BookedUtc = now;
+            link.UpdatedUtc = now;
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationCandidateAutoMeetingAssigned",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { candidateId, SlotId = autoSlot.Id }),
+                ct);
+
+            return Results.Ok(new ParishConfirmationCandidateAutoMeetingResponse(
+                "assigned",
+                link.SlotId,
+                link.BookedUtc));
         }).RequireAuthorization();
 
         group.MapPut("/{parishId:guid}/confirmation-candidates/{candidateId:guid}/index-proof", async (
@@ -6970,6 +7069,26 @@ public static class ParishEndpoints
                 group =>
                     group.FirstOrDefault(x => x.Stage == ConfirmationMeetingStageYear1Start) ??
                     group.First());
+
+        // Indeks internetowy uznajemy za uzupełniony, gdy kandydat ma komentarz przy każdej aktywnej celebracji.
+        var activeCelebrationIds = await dbContext.ParishConfirmationCelebrations.AsNoTracking()
+            .Where(x => x.ParishId == parishId && x.IsActive)
+            .Select(x => x.Id)
+            .ToListAsync(ct);
+        var celebrationCommentCountByCandidate = activeCelebrationIds.Count == 0
+            ? new Dictionary<Guid, int>()
+            : (await dbContext.ParishConfirmationCelebrationParticipations.AsNoTracking()
+                .Where(x =>
+                    x.ParishId == parishId &&
+                    candidateIds.Contains(x.CandidateId) &&
+                    activeCelebrationIds.Contains(x.CelebrationId) &&
+                    x.CommentText != string.Empty)
+                .Select(x => new { x.CandidateId, x.CelebrationId })
+                .Distinct()
+                .ToListAsync(ct))
+                .GroupBy(x => x.CandidateId)
+                .ToDictionary(group => group.Key, group => group.Count());
+
         var protector = CreateParishConfirmationProtector(dataProtectionProvider, parishId);
         var results = new List<ParishConfirmationCandidateView>();
 
@@ -7015,7 +7134,11 @@ public static class ParishEndpoints
                 candidate.UpdatedUtc,
                 meetingLink?.BookingToken ?? string.Empty,
                 meetingLink?.SlotId,
-                meetingLink?.BookedUtc));
+                meetingLink?.BookedUtc,
+                payload.UseInternetIndex,
+                payload.UsePaperIndex,
+                activeCelebrationIds.Count,
+                celebrationCommentCountByCandidate.GetValueOrDefault(candidate.Id)));
         }
 
         return results;
@@ -7582,7 +7705,11 @@ public static class ParishEndpoints
         DateTimeOffset UpdatedUtc,
         string MeetingToken,
         Guid? MeetingSlotId,
-        DateTimeOffset? MeetingBookedUtc);
+        DateTimeOffset? MeetingBookedUtc,
+        bool UseInternetIndex = false,
+        bool UsePaperIndex = false,
+        int InternetIndexCelebrationTotal = 0,
+        int InternetIndexCelebrationFilled = 0);
 
     private sealed record ParishConfirmationImportPhone(
         string Number,

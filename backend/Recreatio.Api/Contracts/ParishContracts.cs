@@ -219,7 +219,16 @@ public sealed record ParishConfirmationCandidateResponse(
     bool QuizCompleted,
     DateTimeOffset CreatedUtc,
     string MeetingToken,
-    Guid? MeetingSlotId);
+    Guid? MeetingSlotId,
+    bool UseInternetIndex = false,
+    bool UsePaperIndex = false,
+    int InternetIndexCelebrationTotal = 0,
+    int InternetIndexCelebrationFilled = 0);
+
+public sealed record ParishConfirmationCandidateAutoMeetingResponse(
+    string Status,
+    Guid? SlotId,
+    DateTimeOffset? BookedUtc);
 
 public sealed record ParishConfirmationExportPhoneResponse(
     int Index,
