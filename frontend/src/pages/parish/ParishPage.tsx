@@ -1240,12 +1240,8 @@ const defaultConfirmationSmsTemplates: ResolvedConfirmationSmsTemplates = {
     '{portalLink}',
   yearSummaryComplete:
     'Szczęść Boże!\n' +
-    'Podsumowanie roku przygotowania do bierzmowania - {fullName}.\n' +
-    'Zaliczone:\n' +
-    '{doneList}\n' +
-    'Wszystko jest w porządku - rok został zakończony.\n' +
-    'Całość danych{paperIndexInfo} zostaje przekazana ks. Pawłowi, który poprowadzi przygotowanie w kolejnym roku.\n' +
-    'Jeśli coś w tym podsumowaniu się nie zgadza, proszę o informację.\n' +
+    '{fullName} ma wszystko zaliczone.\n' +
+    'Dziękuję za możliwość wspólnego przygotowania do bierzmowania.\n' +
     'Z Bogiem\n' +
     'ks. Michał Mleczek',
   yearSummaryIncomplete:
@@ -1284,7 +1280,14 @@ const confirmationSummarySmsTemplateVariables = [
   '{internetIndexInfo}'
 ] as const;
 
-type ConfirmationSummaryItemKey = 'meeting' | 'paperConsent' | 'quiz' | 'indexChoice' | 'internetIndex' | 'paperIndex';
+type ConfirmationSummaryItemKey =
+  | 'meeting'
+  | 'goal'
+  | 'paperConsent'
+  | 'quiz'
+  | 'indexChoice'
+  | 'internetIndex'
+  | 'paperIndex';
 
 type ConfirmationSummaryItemState = 'done' | 'missing' | 'skip';
 
@@ -1296,6 +1299,7 @@ const confirmationSummaryItems: ReadonlyArray<{
   smsLabel: string;
 }> = [
   { key: 'meeting', label: 'Termin spotkania', smsLabel: 'termin spotkania' },
+  { key: 'goal', label: 'Cel bierzmowania', smsLabel: 'cel bierzmowania' },
   { key: 'paperConsent', label: 'Papierowa zgoda rodzica', smsLabel: 'papierowa zgoda rodzica' },
   { key: 'quiz', label: 'Quiz bierzmowania', smsLabel: 'quiz bierzmowania' },
   { key: 'indexChoice', label: 'Wybrany rodzaj indeksu', smsLabel: 'wybór rodzaju indeksu' },
@@ -1321,6 +1325,7 @@ const buildConfirmationSummaryStates = (candidate: ParishConfirmationCandidate):
 
   return {
     meeting: candidate.meetingSlotId ? 'done' : 'missing',
+    goal: candidate.goal?.trim() ? 'done' : 'missing',
     paperConsent: candidate.paperConsentReceived ? 'done' : 'missing',
     quiz: candidate.quizCompleted ? 'done' : 'missing',
     // Brak wybranego rodzaju indeksu jest brakiem, a nie sytuacją "nie dotyczy".
