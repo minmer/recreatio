@@ -332,11 +332,54 @@ internal static class HortusShared
         place.PublicRequestsEnabled);
 
     /// <summary>
-    /// Windows zone ids are what the server stores; browsers only understand IANA ones. An id that
-    /// is already IANA fails the conversion and is passed through unchanged.
+    /// Fallback for hosts whose <see cref="TimeZoneInfo.TryConvertWindowsIdToIanaId(string, out string?)"/>
+    /// has no ICU data to work with. Without it the Windows id travels to the browser, where
+    /// <c>Intl</c> refuses it outright.
     /// </summary>
-    private static string ToIanaTimeZone(string timeZoneId) =>
-        TimeZoneInfo.TryConvertWindowsIdToIanaId(timeZoneId, out var iana) ? iana : timeZoneId;
+    private static readonly Dictionary<string, string> WindowsToIana = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Central European Standard Time"] = "Europe/Warsaw",
+        ["Central Europe Standard Time"] = "Europe/Budapest",
+        ["W. Europe Standard Time"] = "Europe/Berlin",
+        ["Romance Standard Time"] = "Europe/Paris",
+        ["GMT Standard Time"] = "Europe/London",
+        ["E. Europe Standard Time"] = "Europe/Chisinau",
+        ["FLE Standard Time"] = "Europe/Kiev",
+        ["UTC"] = "UTC"
+    };
+
+    /// <summary>
+    /// Windows zone ids are what the server stores; browsers only understand IANA ones. An id that
+    /// is already IANA fails the conversion and is passed through unchanged — but anything still
+    /// shaped like a Windows id after both attempts is replaced, because sending it on would take
+    /// the reservation page down rather than merely show the wrong hour.
+    /// </summary>
+    private static string ToIanaTimeZone(string timeZoneId)
+    {
+        if (string.IsNullOrWhiteSpace(timeZoneId))
+        {
+            return DefaultIanaTimeZone;
+        }
+
+        if (TimeZoneInfo.TryConvertWindowsIdToIanaId(timeZoneId, out var converted) && LooksIana(converted))
+        {
+            return converted;
+        }
+
+        if (WindowsToIana.TryGetValue(timeZoneId.Trim(), out var mapped))
+        {
+            return mapped;
+        }
+
+        return LooksIana(timeZoneId) ? timeZoneId : DefaultIanaTimeZone;
+    }
+
+    private const string DefaultIanaTimeZone = "Europe/Warsaw";
+
+    /// <summary>IANA ids are either "Region/City" or the bare "UTC"; Windows ids are neither.</summary>
+    private static bool LooksIana(string? value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && (value.Contains('/', StringComparison.Ordinal) || string.Equals(value, "UTC", StringComparison.Ordinal));
 
     public static HortusResourceView ToResourceView(HortusResource resource) => new(
         resource.Id,

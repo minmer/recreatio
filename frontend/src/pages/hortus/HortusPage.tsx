@@ -26,6 +26,7 @@ import {
   formatDateTime,
   formatMinutes,
   RESOURCE_KIND_LABELS,
+  resolveTimeZone,
   shortTime,
   STATUS_LABELS,
   today
@@ -83,7 +84,7 @@ export function HortusPage({
   const [lookupPending, setLookupPending] = useState(false);
 
   const place = site?.place ?? null;
-  const timeZone = place?.timeZoneIana || 'Europe/Warsaw';
+  const timeZone = resolveTimeZone(place?.timeZoneIana ?? place?.timeZoneId);
   const resourceNodes = useMemo(() => flattenResources(site?.resources ?? []), [site]);
   const publicNodes = useMemo(
     () => resourceNodes.filter((resource) => resource.isActive && resource.isPubliclyBookable),

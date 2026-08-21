@@ -28,15 +28,70 @@ export function today(): string {
 }
 
 /**
+ * Windows time-zone ids for the zones this place is plausibly in. The server converts its stored
+ * id before sending it, but that conversion needs ICU and quietly passes the Windows id through
+ * when the host has not got it — and `Intl` throws on those, taking the page down with it.
+ */
+const WINDOWS_TIME_ZONES: Record<string, string> = {
+  'central european standard time': 'Europe/Warsaw',
+  'central europe standard time': 'Europe/Budapest',
+  'w. europe standard time': 'Europe/Berlin',
+  'romance standard time': 'Europe/Paris',
+  'gmt standard time': 'Europe/London',
+  'e. europe standard time': 'Europe/Chisinau',
+  'fle standard time': 'Europe/Kiev',
+  'utc': 'UTC'
+};
+
+const DEFAULT_TIME_ZONE = 'Europe/Warsaw';
+const resolvedTimeZones = new Map<string, string>();
+
+/**
+ * Turns whatever the server sent into something `Intl` accepts. Anything unrecognised falls back
+ * to the house clock rather than throwing: a wrong-looking hour is a nuisance, a blank page is not.
+ */
+export function resolveTimeZone(candidate: string | null | undefined): string {
+  const raw = candidate?.trim();
+  if (!raw) {
+    return DEFAULT_TIME_ZONE;
+  }
+
+  const cached = resolvedTimeZones.get(raw);
+  if (cached) {
+    return cached;
+  }
+
+  const mapped = WINDOWS_TIME_ZONES[raw.toLowerCase()] ?? raw;
+  let resolved = DEFAULT_TIME_ZONE;
+  try {
+    new Intl.DateTimeFormat('pl-PL', { timeZone: mapped });
+    resolved = mapped;
+  } catch {
+    resolved = DEFAULT_TIME_ZONE;
+  }
+
+  resolvedTimeZones.set(raw, resolved);
+  return resolved;
+}
+
+/**
  * Times are always shown in the clock of the place itself, not of whoever is looking, so a group
  * abroad reads the same hours the coordinator does.
  */
 export function formatTime(iso: string, timeZone: string): string {
-  return new Intl.DateTimeFormat('pl-PL', { hour: '2-digit', minute: '2-digit', timeZone }).format(new Date(iso));
+  return new Intl.DateTimeFormat('pl-PL', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: resolveTimeZone(timeZone)
+  }).format(new Date(iso));
 }
 
 export function formatDate(iso: string, timeZone: string): string {
-  return new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'short', timeZone }).format(new Date(iso));
+  return new Intl.DateTimeFormat('pl-PL', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: resolveTimeZone(timeZone)
+  }).format(new Date(iso));
 }
 
 export function formatDateTime(iso: string, timeZone: string): string {
@@ -45,7 +100,7 @@ export function formatDateTime(iso: string, timeZone: string): string {
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
-    timeZone
+    timeZone: resolveTimeZone(timeZone)
   }).format(new Date(iso));
 }
 

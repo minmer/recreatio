@@ -29,6 +29,7 @@ import {
   flattenResources,
   formatDateTime,
   formatMinutes,
+  resolveTimeZone,
   shortTime,
   STATUS_LABELS,
   today
@@ -76,7 +77,7 @@ export function HortusAdminPanel({ slug, onSiteChanged }: { slug: string; onSite
   const [occupancies, setOccupancies] = useState<HortusOccupancyView[]>([]);
 
   const place = site?.place ?? null;
-  const timeZone = place?.timeZoneIana || 'Europe/Warsaw';
+  const timeZone = resolveTimeZone(place?.timeZoneIana ?? place?.timeZoneId);
   const resourceNodes = useMemo(() => flattenResources(site?.resources ?? []), [site]);
 
   const loadResources = useCallback(async () => {
