@@ -2495,6 +2495,57 @@
   gap: 14px;
 }
 
+.confirmation-handover-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.confirmation-handover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.confirmation-handover-annotations {
+  display: grid;
+  gap: 10px;
+}
+
+.confirmation-handover-annotation-card {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--parish-line);
+  border-radius: 12px;
+  background: var(--parish-surface);
+}
+
+.confirmation-handover-annotation-card label {
+  display: grid;
+  gap: 6px;
+}
+
+.confirmation-handover-annotation-card textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.confirmation-handover-annotation-head,
+.confirmation-handover-annotation-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.confirmation-handover-annotation-head p {
+  margin: 3px 0 0;
+}
+
+.confirmation-handover-annotation-footer {
+  align-items: center;
+}
+
 .confirmation-print-toolbar {
   display: flex;
   flex-wrap: wrap;

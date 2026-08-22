@@ -77,6 +77,7 @@ import {
   addParishConfirmationNote,
   updateParishConfirmationNote,
   updateParishConfirmationCandidate,
+  updateParishConfirmationCandidateHandoverAnnotation,
   updateParishConfirmationCandidatePaperConsent,
   updateParishConfirmationCandidateIndexProof,
   updateParishConfirmationCandidateGoal,
@@ -112,6 +113,11 @@ import {
   type ParishSummary
 } from '../../lib/api';
 import { normalizePolishPhone } from '../../lib/phone';
+import {
+  buildConfirmationHandoverCandidatesHtml,
+  buildConfirmationHandoverOverviewHtml,
+  getConfirmationHandoverRequirements
+} from './confirmationHandoverReport';
 
 type ThemePreset = 'classic' | 'minimal' | 'warm';
 type ModuleWidth = 'one-third' | 'one-half' | 'two-thirds' | 'full';
@@ -1242,6 +1248,7 @@ const defaultConfirmationSmsTemplates: ResolvedConfirmationSmsTemplates = {
     'Szczęść Boże!\n' +
     '{fullName} ma wszystko zaliczone.\n' +
     'Dziękuję za możliwość wspólnego przygotowania do bierzmowania.\n' +
+    'Z dniem 25.08.2026 r. zakończyłem posługę w parafii i nie jestem już w niej dostępny.\n' +
     'Z Bogiem\n' +
     'ks. Michał Mleczek',
   yearSummaryIncomplete:
@@ -1249,11 +1256,11 @@ const defaultConfirmationSmsTemplates: ResolvedConfirmationSmsTemplates = {
     'Podsumowanie roku przygotowania do bierzmowania - {fullName}.\n' +
     'Zaliczone:\n' +
     '{doneList}\n' +
-    'Brakuje:\n' +
+    'Nie zostało uzupełnione:\n' +
     '{missingList}\n' +
-    '{internetIndexInfo}Proszę o kontakt w sprawie uzupełnienia braków do 25.08.2026 r.\n' +
-    'Brak uzupełnienia oznacza, że rok nie zostanie zaliczony i może być konieczne jego powtórzenie.\n' +
-    'Jeśli coś w tym podsumowaniu się nie zgadza, również proszę o informację.\n' +
+    'Braki nie zostały uzupełnione do 25.08.2026 r., dlatego rok przygotowania nie został zaliczony i może być konieczne jego powtórzenie.\n' +
+    'W sprawie dalszego przygotowania proszę o kontakt z parafią.\n' +
+    'Z dniem 25.08.2026 r. zakończyłem posługę w parafii i nie jestem już w niej dostępny.\n' +
     'Z Bogiem\n' +
     'ks. Michał Mleczek'
 };
@@ -1319,19 +1326,23 @@ const confirmationSummaryInternetIndexProgress = (candidate: ParishConfirmationC
 };
 
 const buildConfirmationSummaryStates = (candidate: ParishConfirmationCandidate): ConfirmationSummaryStates => {
-  const usesInternetIndex = candidate.useInternetIndex === true;
-  const usesPaperIndex = candidate.usePaperIndex === true;
-  const internetIndexProgress = confirmationSummaryInternetIndexProgress(candidate);
+  const requirements = new Map(
+    getConfirmationHandoverRequirements(candidate).map((requirement) => [requirement.key, requirement])
+  );
+  const stateFor = (key: string): ConfirmationSummaryItemState => {
+    const requirement = requirements.get(key);
+    if (!requirement?.applicable) return 'skip';
+    return requirement.fulfilled ? 'done' : 'missing';
+  };
 
   return {
-    meeting: candidate.meetingSlotId ? 'done' : 'missing',
-    goal: candidate.goal?.trim() ? 'done' : 'missing',
-    paperConsent: candidate.paperConsentReceived ? 'done' : 'missing',
-    quiz: candidate.quizCompleted ? 'done' : 'missing',
-    // Brak wybranego rodzaju indeksu jest brakiem, a nie sytuacją "nie dotyczy".
-    indexChoice: usesInternetIndex || usesPaperIndex ? 'done' : 'missing',
-    internetIndex: !usesInternetIndex ? 'skip' : internetIndexProgress.isComplete ? 'done' : 'missing',
-    paperIndex: candidate.paperIndexChecked ? 'done' : usesPaperIndex ? 'missing' : 'skip'
+    meeting: stateFor('meeting'),
+    goal: stateFor('goal'),
+    paperConsent: stateFor('paper-consent'),
+    quiz: stateFor('quiz'),
+    indexChoice: stateFor('index-choice'),
+    internetIndex: stateFor('internet-index'),
+    paperIndex: stateFor('paper-index')
   };
 };
 
@@ -2077,7 +2088,9 @@ export function ParishPage({
   const [confirmationMeetingInviteCodeApplied, setConfirmationMeetingInviteCodeApplied] = useState<string | null>(null);
   const [confirmationMeetingSlotInviteInputs, setConfirmationMeetingSlotInviteInputs] = useState<Record<string, string>>({});
   const [confirmationMeetingJoinTargetSlotId, setConfirmationMeetingJoinTargetSlotId] = useState<string | null>(null);
-  const [confirmationAdminTab, setConfirmationAdminTab] = useState<'submissions' | 'sms' | 'messages' | 'notes' | 'print'>('submissions');
+  const [confirmationAdminTab, setConfirmationAdminTab] = useState<
+    'submissions' | 'sms' | 'messages' | 'notes' | 'handover' | 'print'
+  >('submissions');
   const [confirmationSubmissionsFilter, setConfirmationSubmissionsFilter] = useState<
     'all' | 'no-meeting' | 'no-paper-consent' | 'unverified-phone' | 'needs-follow-up'
   >('all');
@@ -2085,6 +2098,10 @@ export function ParishPage({
   const [confirmationTransferBusy, setConfirmationTransferBusy] = useState(false);
   const [confirmationTransferInfo, setConfirmationTransferInfo] = useState<string | null>(null);
   const [confirmationTransferError, setConfirmationTransferError] = useState<string | null>(null);
+  const [confirmationHandoverAnnotationDrafts, setConfirmationHandoverAnnotationDrafts] = useState<Record<string, string>>({});
+  const [confirmationHandoverAnnotationSavingId, setConfirmationHandoverAnnotationSavingId] = useState<string | null>(null);
+  const [confirmationHandoverAnnotationInfo, setConfirmationHandoverAnnotationInfo] = useState<string | null>(null);
+  const [confirmationHandoverAnnotationError, setConfirmationHandoverAnnotationError] = useState<string | null>(null);
   const [confirmationSmsTemplatesStored, setConfirmationSmsTemplatesStored] = useState<ParishConfirmationSmsTemplates | null>(
     null
   );
@@ -3282,6 +3299,9 @@ export function ParishPage({
       setConfirmationGoalInfo('Cel bierzmowania zapisany.');
       setConfirmationGoalEditing(false);
       await loadConfirmationCandidatePortal(activeConfirmationPortalToken, confirmationMeetingInviteCodeApplied);
+      if (isAuthenticated) {
+        await loadConfirmationCandidates();
+      }
     } catch {
       setConfirmationGoalError('Nie udało się zapisać celu bierzmowania.');
     } finally {
@@ -4043,6 +4063,81 @@ export function ParishPage({
       setConfirmationTransferError('Nie udało się wyeksportować zgłoszeń.');
     } finally {
       setConfirmationTransferBusy(false);
+    }
+  };
+
+  const handleOpenConfirmationHandoverReport = async (kind: 'overview' | 'candidates') => {
+    if (!parish) return;
+    const reportWindow = window.open('about:blank', '_blank');
+    if (!reportWindow) {
+      setConfirmationTransferError('Przeglądarka zablokowała okno raportu. Zezwól na wyskakujące okna i spróbuj ponownie.');
+      return;
+    }
+
+    reportWindow.document.open();
+    reportWindow.document.write(
+      '<!doctype html><html lang="pl"><head><meta charset="utf-8"><title>Przygotowywanie raportu…</title></head>' +
+        '<body style="font-family:Segoe UI,Arial,sans-serif;padding:32px"><p>Przygotowywanie raportu przekazania…</p></body></html>'
+    );
+    reportWindow.document.close();
+
+    setConfirmationTransferBusy(true);
+    setConfirmationTransferError(null);
+    setConfirmationTransferInfo(null);
+    try {
+      const [freshCandidates, exportPayload, events] = await Promise.all([
+        listParishConfirmationCandidates(parish.id),
+        exportParishConfirmationCandidates(parish.id),
+        listParishConfirmationEvents(parish.id)
+      ]);
+      const generatedAt = new Date();
+      const reportInput = {
+        parishName: parish.name,
+        candidates: freshCandidates,
+        exportPayload,
+        events,
+        generatedAt
+      };
+      const html =
+        kind === 'overview'
+          ? buildConfirmationHandoverOverviewHtml(reportInput)
+          : buildConfirmationHandoverCandidatesHtml(reportInput);
+
+      reportWindow.document.open();
+      reportWindow.document.write(html);
+      reportWindow.document.close();
+      setConfirmationCandidates(freshCandidates);
+
+      const missingAnnotations = freshCandidates.filter((candidate) => !candidate.handoverAnnotation?.trim()).length;
+      setConfirmationTransferInfo(
+        `${kind === 'overview' ? 'Przegląd zbiorczy' : 'Karty kandydatów'} przygotowane w nowym oknie. ` +
+          `Kandydaci bez krótkiej adnotacji: ${missingAnnotations}.`
+      );
+    } catch {
+      reportWindow.close();
+      setConfirmationTransferError('Nie udało się przygotować raportu przekazania.');
+    } finally {
+      setConfirmationTransferBusy(false);
+    }
+  };
+
+  const handleSaveConfirmationHandoverAnnotation = async (candidate: ParishConfirmationCandidate) => {
+    if (!parish) return;
+    const annotation = (confirmationHandoverAnnotationDrafts[candidate.id] ?? candidate.handoverAnnotation ?? '').trim();
+    setConfirmationHandoverAnnotationSavingId(candidate.id);
+    setConfirmationHandoverAnnotationInfo(null);
+    setConfirmationHandoverAnnotationError(null);
+    try {
+      await updateParishConfirmationCandidateHandoverAnnotation(parish.id, candidate.id, annotation || null);
+      setConfirmationCandidates((current) =>
+        current.map((item) => (item.id === candidate.id ? { ...item, handoverAnnotation: annotation || null } : item))
+      );
+      setConfirmationHandoverAnnotationDrafts((current) => ({ ...current, [candidate.id]: annotation }));
+      setConfirmationHandoverAnnotationInfo(`Zapisano adnotację dla: ${candidate.name} ${candidate.surname}.`);
+    } catch {
+      setConfirmationHandoverAnnotationError(`Nie udało się zapisać adnotacji dla: ${candidate.name} ${candidate.surname}.`);
+    } finally {
+      setConfirmationHandoverAnnotationSavingId(null);
     }
   };
 
@@ -12095,6 +12190,13 @@ export function ParishPage({
                           </button>
                           <button
                             type="button"
+                            className={confirmationAdminTab === 'handover' ? 'is-active' : undefined}
+                            onClick={() => setConfirmationAdminTab('handover')}
+                          >
+                            Przekazanie dla księdza
+                          </button>
+                          <button
+                            type="button"
                             className={confirmationAdminTab === 'print' ? 'is-active' : undefined}
                             onClick={() => setConfirmationAdminTab('print')}
                           >
@@ -12855,6 +12957,111 @@ export function ParishPage({
                                 ))}
                               </ul>
                             ) : null}
+                          </div>
+                        ) : confirmationAdminTab === 'handover' ? (
+                          <div className="confirmation-handover-panel">
+                            <div className="section-header">
+                              <div>
+                                <p className="tag">Przekazanie duszpasterskie</p>
+                                <h4>Raport dla następnego księdza</h4>
+                                <p className="note">
+                                  Dwa osobne widoki: szybki przegląd wszystkich kandydatów oraz pełne karty indywidualne.
+                                  Raport pomija tokeny, kody zaproszeń i identyfikatory techniczne.
+                                </p>
+                              </div>
+                            </div>
+                            <div className="confirmation-handover-actions">
+                              <button
+                                type="button"
+                                className="parish-login"
+                                disabled={confirmationTransferBusy || confirmationCandidates.length === 0}
+                                onClick={() => void handleOpenConfirmationHandoverReport('overview')}
+                              >
+                                Przegląd zbiorczy (A4 poziomo)
+                              </button>
+                              <button
+                                type="button"
+                                className="parish-login"
+                                disabled={confirmationTransferBusy || confirmationCandidates.length === 0}
+                                onClick={() => void handleOpenConfirmationHandoverReport('candidates')}
+                              >
+                                Karty kandydatów (A4 pionowo)
+                              </button>
+                            </div>
+                            <p className="note">
+                              Adnotacje przekazania uzupełniono dla{' '}
+                              <strong>{confirmationCandidates.filter((candidate) => candidate.handoverAnnotation?.trim()).length}</strong> z{' '}
+                              <strong>{confirmationCandidates.length}</strong> kandydatów. Krótko opisz osobę i ważny kontekst
+                              duszpasterski; nie powtarzaj checklisty, którą raport tworzy automatycznie.
+                            </p>
+                            {confirmationHandoverAnnotationError ? (
+                              <p className="confirmation-info confirmation-info-error">{confirmationHandoverAnnotationError}</p>
+                            ) : null}
+                            {confirmationHandoverAnnotationInfo ? (
+                              <p className="confirmation-info confirmation-info-success">{confirmationHandoverAnnotationInfo}</p>
+                            ) : null}
+                            <div className="confirmation-handover-annotations">
+                              {[...confirmationCandidates]
+                                .sort((left, right) =>
+                                  `${left.surname} ${left.name}`.localeCompare(`${right.surname} ${right.name}`, 'pl', {
+                                    sensitivity: 'base'
+                                  })
+                                )
+                                .map((candidate) => {
+                                  const missingRequirements = getConfirmationHandoverRequirements(candidate).filter(
+                                    (requirement) => requirement.applicable && !requirement.fulfilled
+                                  );
+                                  return (
+                                    <article key={`handover-annotation-${candidate.id}`} className="confirmation-handover-annotation-card">
+                                      <div className="confirmation-handover-annotation-head">
+                                        <div>
+                                          <strong>{candidate.name} {candidate.surname}</strong>
+                                          <p className="muted">
+                                            {missingRequirements.length === 0
+                                              ? 'Rok zakończony'
+                                              : `Rok niezakończony • braki: ${missingRequirements.map((item) => item.label).join(', ')}`}
+                                          </p>
+                                        </div>
+                                        <span className={`pill ${candidate.handoverAnnotation?.trim() ? 'is-public' : 'is-private'}`}>
+                                          {candidate.handoverAnnotation?.trim() ? 'Adnotacja gotowa' : 'Do uzupełnienia'}
+                                        </span>
+                                      </div>
+                                      <label>
+                                        <span>Krótka adnotacja dla następnego duszpasterza</span>
+                                        <textarea
+                                          rows={2}
+                                          maxLength={600}
+                                          value={
+                                            confirmationHandoverAnnotationDrafts[candidate.id] ??
+                                            candidate.handoverAnnotation ??
+                                            ''
+                                          }
+                                          onChange={(event) =>
+                                            setConfirmationHandoverAnnotationDrafts((current) => ({
+                                              ...current,
+                                              [candidate.id]: event.target.value
+                                            }))
+                                          }
+                                          placeholder="Np. kontaktowy i zaangażowany; warto przypomnieć o…"
+                                        />
+                                      </label>
+                                      <div className="confirmation-handover-annotation-footer">
+                                        <span className="muted">
+                                          {(confirmationHandoverAnnotationDrafts[candidate.id] ?? candidate.handoverAnnotation ?? '').length}/600
+                                        </span>
+                                        <button
+                                          type="button"
+                                          className="ghost"
+                                          disabled={confirmationHandoverAnnotationSavingId !== null}
+                                          onClick={() => void handleSaveConfirmationHandoverAnnotation(candidate)}
+                                        >
+                                          {confirmationHandoverAnnotationSavingId === candidate.id ? 'Zapisywanie…' : 'Zapisz adnotację'}
+                                        </button>
+                                      </div>
+                                    </article>
+                                  );
+                                })}
+                            </div>
                           </div>
                         ) : (
                           <div className="confirmation-print-panel">

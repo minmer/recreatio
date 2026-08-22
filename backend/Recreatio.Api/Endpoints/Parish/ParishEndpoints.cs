@@ -2532,7 +2532,9 @@ public static class ParishEndpoints
                     candidate.UseInternetIndex,
                     candidate.UsePaperIndex,
                     candidate.InternetIndexCelebrationTotal,
-                    candidate.InternetIndexCelebrationFilled))
+                    candidate.InternetIndexCelebrationFilled,
+                    candidate.Goal,
+                    candidate.HandoverAnnotation))
                 .ToList();
 
             return Results.Ok(responses);
@@ -2688,10 +2690,11 @@ public static class ParishEndpoints
                     x.UpdatedUtc))
                 .ToListAsync(ct);
             var response = new ParishConfirmationExportResponse(
-                6,
+                7,
                 parishId,
                 DateTimeOffset.UtcNow,
                 candidates.Select(candidate => new ParishConfirmationExportCandidateResponse(
+                        candidate.CandidateId,
                         candidate.Name,
                         candidate.Surname,
                         candidate.PhoneNumbers.Select(phone => new ParishConfirmationExportPhoneResponse(
@@ -2710,7 +2713,13 @@ public static class ParishEndpoints
                         candidate.CreatedUtc,
                         candidate.UpdatedUtc,
                         candidate.MeetingToken,
-                        candidate.MeetingSlotId))
+                        candidate.MeetingSlotId,
+                        candidate.Goal,
+                        candidate.UseInternetIndex,
+                        candidate.UsePaperIndex,
+                        candidate.InternetIndexCelebrationTotal,
+                        candidate.InternetIndexCelebrationFilled,
+                        candidate.HandoverAnnotation))
                     .ToList(),
                 phoneVerifications,
                 meetingSlots,
@@ -2934,13 +2943,19 @@ public static class ParishEndpoints
                     ? updated
                     : createdUtc;
                 var phoneNumbers = phones.Select(x => x.Number).ToList();
+                var goal = NormalizeConfirmationText(sourceCandidate.Goal, 1000);
+                var handoverAnnotation = NormalizeConfirmationText(sourceCandidate.HandoverAnnotation, 600);
                 var payload = new ParishConfirmationPayload(
                     name,
                     surname,
                     phoneNumbers,
                     address,
                     schoolShort,
-                    true);
+                    sourceCandidate.AcceptedRodo,
+                    goal,
+                    sourceCandidate.UseInternetIndex,
+                    sourceCandidate.UsePaperIndex,
+                    handoverAnnotation);
                 var payloadJson = JsonSerializer.SerializeToUtf8Bytes(payload);
                 var payloadEnc = protector.Protect(payloadJson);
                 var candidateId = Guid.NewGuid();
@@ -2950,7 +2965,7 @@ public static class ParishEndpoints
                     Id = candidateId,
                     ParishId = parishId,
                     PayloadEnc = payloadEnc,
-                    AcceptedRodo = true,
+                    AcceptedRodo = sourceCandidate.AcceptedRodo,
                     PaperConsentReceived = sourceCandidate.PaperConsentReceived,
                     PaperIndexChecked = sourceCandidate.PaperIndexChecked,
                     QuizCompleted = sourceCandidate.QuizCompleted,
@@ -3399,7 +3414,11 @@ public static class ParishEndpoints
                 phoneNumbers,
                 address,
                 schoolShort,
-                true);
+                targetPayload.AcceptedRodo || sourcePayload.AcceptedRodo,
+                MergeDistinctConfirmationText(targetPayload.Goal, sourcePayload.Goal, 1000),
+                targetPayload.UseInternetIndex || sourcePayload.UseInternetIndex,
+                targetPayload.UsePaperIndex || sourcePayload.UsePaperIndex,
+                MergeDistinctConfirmationText(targetPayload.HandoverAnnotation, sourcePayload.HandoverAnnotation, 600));
             targetCandidate.PayloadEnc = protector.Protect(JsonSerializer.SerializeToUtf8Bytes(mergedPayload));
             targetCandidate.AcceptedRodo = true;
             targetCandidate.PaperConsentReceived = targetCandidate.PaperConsentReceived || sourceCandidate.PaperConsentReceived;
@@ -4357,6 +4376,66 @@ public static class ParishEndpoints
             return Results.Ok();
         }).RequireAuthorization();
 
+        group.MapPut("/{parishId:guid}/confirmation-candidates/{candidateId:guid}/handover-annotation", async (
+            Guid parishId,
+            Guid candidateId,
+            ParishConfirmationCandidateHandoverAnnotationUpdateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var candidate = await dbContext.ParishConfirmationCandidates
+                .FirstOrDefaultAsync(x => x.Id == candidateId && x.ParishId == parishId, ct);
+            if (candidate is null)
+            {
+                return Results.NotFound();
+            }
+
+            var protector = CreateParishConfirmationProtector(dataProtectionProvider, parishId);
+            var payload = TryUnprotectConfirmationPayload(candidate.PayloadEnc, protector);
+            if (payload is null)
+            {
+                return Results.BadRequest(new { error = "Cannot read candidate payload." });
+            }
+
+            var annotation = NormalizeConfirmationText(request.Annotation, 600);
+            var updatedPayload = payload with { HandoverAnnotation = annotation };
+            candidate.PayloadEnc = protector.Protect(JsonSerializer.SerializeToUtf8Bytes(updatedPayload));
+            candidate.UpdatedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationCandidateHandoverAnnotationUpdated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { candidateId, HasAnnotation = annotation is not null }),
+                ct);
+
+            return Results.Ok();
+        }).RequireAuthorization();
+
         group.MapPut("/{parishId:guid}/confirmation-candidates/{candidateId:guid}", async (
             Guid parishId,
             Guid candidateId,
@@ -4406,20 +4485,35 @@ public static class ParishEndpoints
                 return Results.BadRequest(new { error = "Invalid candidate personal data." });
             }
 
-            var payload = new ParishConfirmationPayload(
-                name,
-                surname,
-                phoneNumbers,
-                address,
-                schoolShort,
-                true);
             var protector = CreateParishConfirmationProtector(dataProtectionProvider, parishId);
-            candidate.PayloadEnc = protector.Protect(JsonSerializer.SerializeToUtf8Bytes(payload));
+            var currentPayload = TryUnprotectConfirmationPayload(candidate.PayloadEnc, protector);
+            if (currentPayload is null)
+            {
+                return Results.BadRequest(new { error = "Cannot read candidate payload." });
+            }
+
+            var updatedPayload = currentPayload with
+            {
+                Name = name,
+                Surname = surname,
+                PhoneNumbers = phoneNumbers,
+                Address = address,
+                SchoolShort = schoolShort
+            };
+            candidate.PayloadEnc = protector.Protect(JsonSerializer.SerializeToUtf8Bytes(updatedPayload));
             candidate.UpdatedUtc = DateTimeOffset.UtcNow;
 
             var verifications = await dbContext.ParishConfirmationPhoneVerifications
                 .Where(x => x.ParishId == parishId && x.CandidateId == candidateId)
                 .ToListAsync(ct);
+            var verificationByOldIndex = verifications
+                .GroupBy(x => x.PhoneIndex)
+                .ToDictionary(group => group.Key, group => group.OrderByDescending(x => x.CreatedUtc).First());
+            var oldPhoneIndexByNumber = currentPayload.PhoneNumbers
+                .Select((number, index) => new { Number = NormalizePolishPhone(number), Index = index })
+                .Where(item => item.Number is not null)
+                .GroupBy(item => item.Number!, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First().Index, StringComparer.OrdinalIgnoreCase);
             if (verifications.Count > 0)
             {
                 dbContext.ParishConfirmationPhoneVerifications.RemoveRange(verifications);
@@ -4428,15 +4522,23 @@ public static class ParishEndpoints
             var now = DateTimeOffset.UtcNow;
             for (var index = 0; index < phoneNumbers.Count; index += 1)
             {
+                ParishConfirmationPhoneVerification? previousVerification = null;
+                if (oldPhoneIndexByNumber.TryGetValue(phoneNumbers[index], out var oldIndex))
+                {
+                    previousVerification = verificationByOldIndex.GetValueOrDefault(oldIndex);
+                }
+
                 dbContext.ParishConfirmationPhoneVerifications.Add(new ParishConfirmationPhoneVerification
                 {
                     Id = Guid.NewGuid(),
                     ParishId = parishId,
                     CandidateId = candidateId,
                     PhoneIndex = index,
-                    VerificationToken = CreatePhoneVerificationToken(),
-                    VerifiedUtc = null,
-                    CreatedUtc = now
+                    VerificationToken = string.IsNullOrWhiteSpace(previousVerification?.VerificationToken)
+                        ? CreatePhoneVerificationToken()
+                        : previousVerification.VerificationToken,
+                    VerifiedUtc = previousVerification?.VerifiedUtc,
+                    CreatedUtc = previousVerification?.CreatedUtc ?? now
                 });
             }
 
@@ -6414,6 +6516,24 @@ public static class ParishEndpoints
         return normalized;
     }
 
+    private static string? MergeDistinctConfirmationText(string? primary, string? secondary, int maxLength)
+    {
+        var normalizedPrimary = NormalizeConfirmationText(primary, maxLength);
+        var normalizedSecondary = NormalizeConfirmationText(secondary, maxLength);
+        if (normalizedPrimary is null)
+        {
+            return normalizedSecondary;
+        }
+
+        if (normalizedSecondary is null ||
+            string.Equals(normalizedPrimary, normalizedSecondary, StringComparison.OrdinalIgnoreCase))
+        {
+            return normalizedPrimary;
+        }
+
+        return NormalizeConfirmationText($"{normalizedPrimary}\n{normalizedSecondary}", maxLength);
+    }
+
     private static List<string> NormalizeConfirmationPhones(IReadOnlyList<string>? phoneNumbers)
     {
         if (phoneNumbers is null || phoneNumbers.Count == 0)
@@ -6681,6 +6801,10 @@ public static class ParishEndpoints
             var updatedUtc = GetJsonDateTimeOffset(candidateElement, "updatedUtc");
             var meetingToken = GetJsonString(candidateElement, "meetingToken")
                 ?? GetJsonString(candidateElement, "bookingToken");
+            var goal = GetJsonString(candidateElement, "goal");
+            var useInternetIndex = GetJsonBoolean(candidateElement, "useInternetIndex") ?? false;
+            var usePaperIndex = GetJsonBoolean(candidateElement, "usePaperIndex") ?? false;
+            var handoverAnnotation = GetJsonString(candidateElement, "handoverAnnotation");
             var phones = ParseConfirmationImportPhoneRequests(candidateElement);
 
             candidates.Add(new ParishConfirmationImportCandidateRequest(
@@ -6695,7 +6819,11 @@ public static class ParishEndpoints
                 quizCompleted,
                 createdUtc,
                 updatedUtc,
-                meetingToken));
+                meetingToken,
+                goal,
+                useInternetIndex,
+                usePaperIndex,
+                handoverAnnotation));
         }
 
         var celebrations = hasCelebrationsElement
@@ -7138,7 +7266,9 @@ public static class ParishEndpoints
                 payload.UseInternetIndex,
                 payload.UsePaperIndex,
                 activeCelebrationIds.Count,
-                celebrationCommentCountByCandidate.GetValueOrDefault(candidate.Id)));
+                celebrationCommentCountByCandidate.GetValueOrDefault(candidate.Id),
+                payload.Goal,
+                payload.HandoverAnnotation));
         }
 
         return results;
@@ -7709,7 +7839,9 @@ public static class ParishEndpoints
         bool UseInternetIndex = false,
         bool UsePaperIndex = false,
         int InternetIndexCelebrationTotal = 0,
-        int InternetIndexCelebrationFilled = 0);
+        int InternetIndexCelebrationFilled = 0,
+        string? Goal = null,
+        string? HandoverAnnotation = null);
 
     private sealed record ParishConfirmationImportPhone(
         string Number,
@@ -7726,5 +7858,6 @@ public static class ParishEndpoints
         bool AcceptedRodo,
         string? Goal = null,
         bool UseInternetIndex = false,
-        bool UsePaperIndex = false);
+        bool UsePaperIndex = false,
+        string? HandoverAnnotation = null);
 }

@@ -223,7 +223,9 @@ public sealed record ParishConfirmationCandidateResponse(
     bool UseInternetIndex = false,
     bool UsePaperIndex = false,
     int InternetIndexCelebrationTotal = 0,
-    int InternetIndexCelebrationFilled = 0);
+    int InternetIndexCelebrationFilled = 0,
+    string? Goal = null,
+    string? HandoverAnnotation = null);
 
 public sealed record ParishConfirmationCandidateAutoMeetingResponse(
     string Status,
@@ -239,6 +241,7 @@ public sealed record ParishConfirmationExportPhoneResponse(
     DateTimeOffset? CreatedUtc);
 
 public sealed record ParishConfirmationExportCandidateResponse(
+    Guid CandidateId,
     string Name,
     string Surname,
     IReadOnlyList<ParishConfirmationExportPhoneResponse> PhoneNumbers,
@@ -251,7 +254,13 @@ public sealed record ParishConfirmationExportCandidateResponse(
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc,
     string? MeetingToken,
-    Guid? MeetingSlotId);
+    Guid? MeetingSlotId,
+    string? Goal,
+    bool UseInternetIndex,
+    bool UsePaperIndex,
+    int InternetIndexCelebrationTotal,
+    int InternetIndexCelebrationFilled,
+    string? HandoverAnnotation);
 
 public sealed record ParishConfirmationExportPhoneVerificationResponse(
     Guid Id,
@@ -364,7 +373,11 @@ public sealed record ParishConfirmationImportCandidateRequest(
     bool QuizCompleted,
     DateTimeOffset? CreatedUtc,
     DateTimeOffset? UpdatedUtc,
-    string? MeetingToken);
+    string? MeetingToken,
+    string? Goal = null,
+    bool UseInternetIndex = false,
+    bool UsePaperIndex = false,
+    string? HandoverAnnotation = null);
 
 public sealed record ParishConfirmationImportCelebrationRequest(
     Guid? ExternalId,
@@ -501,6 +514,9 @@ public sealed record ParishConfirmationCandidatePaperConsentUpdateRequest(
 public sealed record ParishConfirmationCandidateIndexProofUpdateRequest(
     bool PaperIndexChecked,
     bool QuizCompleted);
+
+public sealed record ParishConfirmationCandidateHandoverAnnotationUpdateRequest(
+    string? Annotation);
 
 public sealed record ParishConfirmationCandidateMergeRequest(
     Guid TargetCandidateId,

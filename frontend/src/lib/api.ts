@@ -3931,6 +3931,8 @@ export type ParishConfirmationCandidate = {
   usePaperIndex?: boolean;
   internetIndexCelebrationTotal?: number;
   internetIndexCelebrationFilled?: number;
+  goal?: string | null;
+  handoverAnnotation?: string | null;
 };
 
 export type ParishConfirmationMeetingSlotCandidate = {
@@ -4124,6 +4126,7 @@ export type ParishConfirmationExportPhone = {
 };
 
 export type ParishConfirmationExportCandidate = {
+  candidateId?: string | null;
   name: string;
   surname: string;
   phoneNumbers: ParishConfirmationExportPhone[];
@@ -4137,6 +4140,12 @@ export type ParishConfirmationExportCandidate = {
   updatedUtc: string;
   meetingToken?: string | null;
   meetingSlotId?: string | null;
+  goal?: string | null;
+  useInternetIndex?: boolean;
+  usePaperIndex?: boolean;
+  internetIndexCelebrationTotal?: number;
+  internetIndexCelebrationFilled?: number;
+  handoverAnnotation?: string | null;
 };
 
 export type ParishConfirmationExportPhoneVerification = {
@@ -4167,6 +4176,7 @@ export type ParishConfirmationExportMeetingLink = {
   id: string;
   candidateId: string;
   bookingToken: string;
+  stage?: string | null;
   slotId?: string | null;
   bookedUtc?: string | null;
   createdUtc: string;
@@ -4776,6 +4786,17 @@ export function updateParishConfirmationCandidateIndexProof(
   return request<void>(`/parish/${parishId}/confirmation-candidates/${candidateId}/index-proof`, {
     method: 'PUT',
     body: JSON.stringify({ paperIndexChecked, quizCompleted })
+  });
+}
+
+export function updateParishConfirmationCandidateHandoverAnnotation(
+  parishId: string,
+  candidateId: string,
+  annotation: string | null
+) {
+  return request<void>(`/parish/${parishId}/confirmation-candidates/${candidateId}/handover-annotation`, {
+    method: 'PUT',
+    body: JSON.stringify({ annotation })
   });
 }
 
