@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- 15.3: Der Build bricht bei Warnungen ab. Der Kernel ist die Stelle,
+         an der eine uebersehene Warnung am teuersten ist. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Damit die Pruefreihe die Testvektoren mit festem Nonce nachrechnen kann,
+         ohne dass Produktivcode einen Nonce von aussen annehmen darf (21.2). -->
+    <InternalsVisibleTo Include="Rc.Kernel.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" Version="1.3.1" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,335 @@
+/* ===========================================================================
+   Gestaltungsmarken der neuen Plattform.
+
+   Der Altbestand hat 24 Stylesheets ohne gemeinsame Marken und ohne dunkle
+   Fassung. Hier gibt es genau eine Quelle: alles Sichtbare nimmt seine Farbe
+   aus einer Marke, nie aus einem Literal. Das ist die Voraussetzung dafür,
+   dass ein eingebetteter Chat (9.15) sich später in eine fremde Seite fügt,
+   ohne mit ihr zu streiten.
+
+   Alle Marken sind mit rc- benannt, damit sie sich mit dem Altbestand nicht
+   ins Gehege kommen, solange beide nebeneinander laufen (2.1).
+   =========================================================================== */
+
+.rc-root {
+  /* Papier und Tinte. Ein Grau mit leichter Neigung zum Akzent liest sich als
+     gewählt; ein reines Mittelgrau liest sich als vergessen. */
+  --rc-paper: #f7f7f5;
+  --rc-surface: #ffffff;
+  --rc-surface-2: #eef0ee;
+  --rc-ink: #161a18;
+  --rc-ink-2: #3c433f;
+  --rc-muted: #6c7370;
+  --rc-line: #dcdfdb;
+  --rc-line-2: #c3c8c3;
+
+  --rc-accent: #1e5a47;
+  --rc-accent-ink: #ffffff;
+  --rc-ok: #2f6b4f;
+  --rc-warn: #9a6410;
+  --rc-alarm: #9e2b25;
+
+  --rc-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --rc-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --rc-mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+
+  --rc-radius: 2px;
+  --rc-gap: 1rem;
+
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  font-family: var(--rc-sans);
+  min-height: 100dvh;
+}
+
+@media (prefers-color-scheme: dark) {
+  .rc-root:not([data-rc-theme="light"]) {
+    --rc-paper: #121412;
+    --rc-surface: #191c19;
+    --rc-surface-2: #1f231f;
+    --rc-ink: #e7e5de;
+    --rc-ink-2: #c0c4bd;
+    --rc-muted: #949a94;
+    --rc-line: #2b2f2b;
+    --rc-line-2: #3a3f3a;
+    --rc-accent: #67be9b;
+    --rc-accent-ink: #101210;
+    --rc-ok: #6fbf95;
+    --rc-warn: #d6a24e;
+    --rc-alarm: #e2786f;
+  }
+}
+
+.rc-root[data-rc-theme="dark"] {
+  --rc-paper: #121412;
+  --rc-surface: #191c19;
+  --rc-surface-2: #1f231f;
+  --rc-ink: #e7e5de;
+  --rc-ink-2: #c0c4bd;
+  --rc-muted: #949a94;
+  --rc-line: #2b2f2b;
+  --rc-line-2: #3a3f3a;
+  --rc-accent: #67be9b;
+  --rc-accent-ink: #101210;
+  --rc-ok: #6fbf95;
+  --rc-warn: #d6a24e;
+  --rc-alarm: #e2786f;
+}
+
+.rc-root *,
+.rc-root *::before,
+.rc-root *::after { box-sizing: border-box; }
+
+/* --- Gerüst --------------------------------------------------------------- */
+
+.rc-shell {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 0 1.25rem 5rem;
+}
+
+.rc-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem 1.25rem;
+  padding: 1.5rem 0 1rem;
+  border-bottom: 1px solid var(--rc-line);
+}
+
+.rc-brand {
+  font-family: var(--rc-serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.rc-stage {
+  font-family: var(--rc-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--rc-accent);
+  font-weight: 600;
+}
+
+.rc-top-right { margin-left: auto; display: flex; gap: 0.4rem; align-items: center; }
+
+.rc-lead {
+  font-family: var(--rc-serif);
+  font-size: 1.1rem;
+  line-height: 1.5;
+  color: var(--rc-ink-2);
+  max-width: 46rem;
+  margin: 1.5rem 0 0;
+  text-wrap: pretty;
+}
+
+.rc-section { margin-top: 2.75rem; }
+
+.rc-h2 {
+  font-family: var(--rc-serif);
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rc-line);
+}
+
+.rc-note {
+  font-size: 0.9rem;
+  color: var(--rc-muted);
+  max-width: 46rem;
+  margin: 0 0 1rem;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+/* --- Bedienelemente ------------------------------------------------------- */
+
+.rc-btn {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--rc-accent);
+  border-radius: var(--rc-radius);
+  background: var(--rc-accent);
+  color: var(--rc-accent-ink);
+  cursor: pointer;
+}
+.rc-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.rc-btn:disabled { opacity: 0.55; cursor: default; }
+
+.rc-btn-quiet {
+  background: transparent;
+  color: var(--rc-ink-2);
+  border-color: var(--rc-line-2);
+}
+.rc-btn-quiet[aria-pressed="true"] {
+  border-color: var(--rc-accent);
+  color: var(--rc-accent);
+}
+
+.rc-root :focus-visible {
+  outline: 2px solid var(--rc-accent);
+  outline-offset: 2px;
+}
+
+/* --- Prüfreihe ------------------------------------------------------------ */
+
+.rc-test-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  align-items: baseline;
+  font-family: var(--rc-mono);
+  font-size: 0.78rem;
+  margin: 0.9rem 0 0.5rem;
+}
+.rc-test-ok { color: var(--rc-ok); font-weight: 600; }
+.rc-test-bad { color: var(--rc-alarm); font-weight: 600; }
+.rc-test-time { color: var(--rc-muted); }
+
+.rc-test-list { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+
+.rc-test-item {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  gap: 0 0.5rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--rc-line);
+  font-size: 0.85rem;
+  align-items: baseline;
+}
+.rc-test-mark { font-family: var(--rc-mono); font-size: 0.7rem; font-weight: 700; }
+.rc-test-item[data-passed="true"] .rc-test-mark { color: var(--rc-ok); }
+.rc-test-item[data-passed="false"] .rc-test-mark { color: var(--rc-alarm); }
+.rc-test-name { font-family: var(--rc-mono); font-size: 0.78rem; }
+
+.rc-test-detail {
+  grid-column: 2;
+  font-family: var(--rc-mono);
+  font-size: 0.7rem;
+  color: var(--rc-muted);
+  word-break: break-all;
+  margin-top: 0.2rem;
+}
+
+/* --- Statusliste ---------------------------------------------------------- */
+
+.rc-status { list-style: none; margin: 0; padding: 0; }
+
+.rc-status li {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 0 0.9rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--rc-line);
+  align-items: baseline;
+  font-size: 0.9rem;
+}
+
+.rc-status-mark {
+  font-family: var(--rc-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.rc-status-mark[data-state="done"] { color: var(--rc-ok); }
+.rc-status-mark[data-state="building"] { color: var(--rc-warn); }
+.rc-status-mark[data-state="planned"] { color: var(--rc-muted); }
+
+.rc-status code {
+  font-family: var(--rc-mono);
+  font-size: 0.8em;
+  background: var(--rc-surface-2);
+  padding: 0.05em 0.3em;
+}
+
+/* --- Entsperr-Baustein (9.16) --------------------------------------------- */
+/* Ein Baustein, überall verwendet: im Embed, nach dem Abmelden, bei gesperrter
+   Sitzung, nach Ablauf des Schlüsselgedächtnisses, im sicheren Modus bei jeder
+   Handlung. Deshalb liegt er hier und nicht im Chat-Paket. */
+
+.rc-unlock {
+  border: 1px solid var(--rc-line-2);
+  background: var(--rc-surface);
+  padding: 1.1rem 1.25rem;
+  max-width: 34rem;
+}
+.rc-unlock h3 {
+  font-family: var(--rc-sans);
+  font-size: 1rem;
+  font-weight: 650;
+  margin: 0 0 0.4rem;
+}
+.rc-unlock p { font-size: 0.88rem; color: var(--rc-ink-2); margin: 0 0 0.8rem; line-height: 1.55; }
+.rc-unlock details { margin-top: 0.75rem; }
+.rc-unlock summary {
+  font-size: 0.8rem;
+  color: var(--rc-muted);
+  cursor: pointer;
+}
+.rc-unlock details p { font-size: 0.82rem; margin-top: 0.5rem; }
+
+/* Anmeldung (3.9 / 21.8). Ein Formular, das schmal bleibt: eine Eingabezeile,
+   die über die halbe Seite läuft, sieht aus, als erwarte sie einen Aufsatz. */
+.rc-auth {
+  border: 1px solid var(--rc-line);
+  background: var(--rc-surface);
+  padding: 1.1rem 1.25rem;
+  max-width: 26rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.rc-field { display: flex; flex-direction: column; gap: 0.3rem; }
+.rc-field > span {
+  font-size: 0.78rem;
+  color: var(--rc-muted);
+  letter-spacing: 0.02em;
+}
+.rc-field input {
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  border: 1px solid var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  padding: 0.5rem 0.6rem;
+}
+.rc-field input:focus-visible {
+  outline: 2px solid var(--rc-accent);
+  outline-offset: 1px;
+}
+.rc-field input:disabled { opacity: 0.6; }
+
+.rc-auth-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.rc-auth-who { font-family: var(--rc-mono); font-size: 0.78rem; color: var(--rc-muted); margin: 0; }
+.rc-auth-ready { margin: 0; font-size: 0.9rem; color: var(--rc-ok); }
+.rc-auth-locked { margin: 0; font-size: 0.9rem; color: var(--rc-warn); }
+.rc-auth-error { margin: 0; font-size: 0.88rem; color: var(--rc-alarm); }
+
+.rc-foot {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rc-line);
+  font-family: var(--rc-mono);
+  font-size: 0.7rem;
+  color: var(--rc-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+}
+.rc-foot a { color: var(--rc-accent); }
+
+@media (max-width: 34rem) {
+  .rc-status li { grid-template-columns: 1fr; gap: 0.15rem 0; }
+  .rc-test-item { grid-template-columns: 1.3rem 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rc-root * { animation: none !important; transition: none !important; }
+}

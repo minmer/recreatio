@@ -1,0 +1,25 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace Recreatio.Api.Data.Parish;
+
+public sealed class ParishConfirmationCandidate
+{
+    [Key]
+    public Guid Id { get; set; }
+
+    public Guid ParishId { get; set; }
+
+    public byte[] PayloadEnc { get; set; } = Array.Empty<byte>();
+
+    public bool AcceptedRodo { get; set; }
+
+    public bool PaperConsentReceived { get; set; }
+
+    public bool PaperIndexChecked { get; set; }
+
+    public bool QuizCompleted { get; set; }
+
+    public DateTimeOffset CreatedUtc { get; set; }
+
+    public DateTimeOffset UpdatedUtc { get; set; }
+}

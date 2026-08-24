@@ -2636,6 +2636,65 @@
   align-items: baseline;
 }
 
+.confirmation-candidate-quick-annotation {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid var(--parish-line);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.confirmation-candidate-quick-annotation.is-missing {
+  border-style: dashed;
+  background: #fffbeb;
+}
+
+.confirmation-candidate-quick-annotation-head,
+.confirmation-candidate-quick-annotation-footer,
+.confirmation-candidate-quick-annotation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.confirmation-candidate-quick-annotation-head {
+  align-items: flex-start;
+}
+
+.confirmation-candidate-quick-annotation-head p,
+.confirmation-candidate-quick-annotation-preview {
+  margin: 3px 0 0;
+}
+
+.confirmation-candidate-quick-annotation-preview {
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.confirmation-candidate-quick-annotation textarea {
+  width: 100%;
+  min-height: 68px;
+  resize: vertical;
+  border: 1px solid var(--parish-line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: #fff;
+  font: inherit;
+}
+
+.confirmation-candidate-quick-annotation textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--parish-accent), transparent 70%);
+  border-color: var(--parish-accent);
+}
+
+.confirmation-candidate-quick-annotation-actions {
+  justify-content: flex-end;
+}
+
 .confirmation-candidate-links {
   margin: 8px 0 0;
   display: flex;
@@ -2679,6 +2738,25 @@
   gap: 8px;
   padding-top: 8px;
   border-top: 1px dashed var(--parish-line);
+}
+
+.confirmation-candidate-delete-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--parish-line);
+}
+
+.confirmation-candidate-delete-row .confirmation-candidate-delete {
+  border-color: #fecaca;
+  background: #fff7f7;
+  color: #b91c1c;
+}
+
+.confirmation-candidate-delete-row .confirmation-candidate-delete:hover:not(:disabled) {
+  border-color: #ef4444;
+  background: #fee2e2;
 }
 
 .confirmation-phone-actions {

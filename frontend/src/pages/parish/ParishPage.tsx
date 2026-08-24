@@ -50,6 +50,7 @@ import {
   createParishConfirmationCelebration,
   createParishConfirmationEvent,
   createParishConfirmationMeetingSlot,
+  deleteParishConfirmationCandidate,
   updateParishConfirmationMeetingSlotStage,
   getParishConfirmationSmsTemplates,
   deleteParishConfirmationMeetingSlot,
@@ -2074,6 +2075,8 @@ export function ParishPage({
   const [confirmationSubmitting, setConfirmationSubmitting] = useState(false);
   const [confirmationCandidates, setConfirmationCandidates] = useState<ParishConfirmationCandidate[]>([]);
   const [confirmationCandidatesError, setConfirmationCandidatesError] = useState<string | null>(null);
+  const [confirmationCandidatesInfo, setConfirmationCandidatesInfo] = useState<string | null>(null);
+  const [confirmationCandidateDeletingId, setConfirmationCandidateDeletingId] = useState<string | null>(null);
   const [confirmationNotesFeed, setConfirmationNotesFeed] = useState<ParishConfirmationAggregatedNote[]>([]);
   const [confirmationNotesFeedLoading, setConfirmationNotesFeedLoading] = useState(false);
   const [confirmationNotesFeedError, setConfirmationNotesFeedError] = useState<string | null>(null);
@@ -2092,13 +2095,14 @@ export function ParishPage({
     'submissions' | 'sms' | 'messages' | 'notes' | 'handover' | 'print'
   >('submissions');
   const [confirmationSubmissionsFilter, setConfirmationSubmissionsFilter] = useState<
-    'all' | 'no-meeting' | 'no-paper-consent' | 'unverified-phone' | 'needs-follow-up'
+    'all' | 'no-meeting' | 'no-paper-consent' | 'unverified-phone' | 'no-handover-annotation' | 'needs-follow-up'
   >('all');
   const [confirmationSubmissionsSearch, setConfirmationSubmissionsSearch] = useState('');
   const [confirmationTransferBusy, setConfirmationTransferBusy] = useState(false);
   const [confirmationTransferInfo, setConfirmationTransferInfo] = useState<string | null>(null);
   const [confirmationTransferError, setConfirmationTransferError] = useState<string | null>(null);
   const [confirmationHandoverAnnotationDrafts, setConfirmationHandoverAnnotationDrafts] = useState<Record<string, string>>({});
+  const [confirmationHandoverAnnotationEditingId, setConfirmationHandoverAnnotationEditingId] = useState<string | null>(null);
   const [confirmationHandoverAnnotationSavingId, setConfirmationHandoverAnnotationSavingId] = useState<string | null>(null);
   const [confirmationHandoverAnnotationInfo, setConfirmationHandoverAnnotationInfo] = useState<string | null>(null);
   const [confirmationHandoverAnnotationError, setConfirmationHandoverAnnotationError] = useState<string | null>(null);
@@ -2673,6 +2677,9 @@ export function ParishPage({
     const unverifiedPhoneCount = confirmationCandidates.filter((candidate) =>
       candidate.phoneNumbers.some((phone) => !phone.isVerified)
     ).length;
+    const noHandoverAnnotationCount = confirmationCandidates.filter(
+      (candidate) => !candidate.handoverAnnotation?.trim()
+    ).length;
     const needsFollowUpCount = confirmationCandidates.filter((candidate) =>
       !candidate.meetingSlotId ||
       !candidate.paperConsentReceived ||
@@ -2684,6 +2691,7 @@ export function ParishPage({
       noMeetingCount,
       noPaperConsentCount,
       unverifiedPhoneCount,
+      noHandoverAnnotationCount,
       needsFollowUpCount
     };
   }, [confirmationCandidates]);
@@ -2694,6 +2702,7 @@ export function ParishPage({
       const noMeeting = !candidate.meetingSlotId;
       const noPaperConsent = !candidate.paperConsentReceived;
       const unverifiedPhone = candidate.phoneNumbers.some((phone) => !phone.isVerified);
+      const noHandoverAnnotation = !candidate.handoverAnnotation?.trim();
 
       if (confirmationSubmissionsFilter === 'no-meeting') {
         return noMeeting;
@@ -2703,6 +2712,9 @@ export function ParishPage({
       }
       if (confirmationSubmissionsFilter === 'unverified-phone') {
         return unverifiedPhone;
+      }
+      if (confirmationSubmissionsFilter === 'no-handover-annotation') {
+        return noHandoverAnnotation;
       }
       if (confirmationSubmissionsFilter === 'needs-follow-up') {
         return noMeeting || noPaperConsent || unverifiedPhone;
@@ -2714,7 +2726,7 @@ export function ParishPage({
     const bySearch = search.length === 0
       ? byFilter
       : byFilter.filter((candidate) =>
-          `${candidate.name} ${candidate.surname} ${candidate.address} ${candidate.schoolShort}`
+          `${candidate.name} ${candidate.surname} ${candidate.address} ${candidate.schoolShort} ${candidate.handoverAnnotation ?? ''}`
             .toLowerCase()
             .includes(search)
         );
@@ -3806,6 +3818,103 @@ export function ParishPage({
     }
   };
 
+  const handleDeleteConfirmationCandidate = async (candidate: ParishConfirmationCandidate) => {
+    if (
+      !parish ||
+      !isAuthenticated ||
+      confirmationCandidateDeletingId ||
+      confirmationMergeBusy ||
+      confirmationAdminSendingAction
+    ) return;
+
+    const candidateName = `${candidate.name} ${candidate.surname}`.trim();
+    const confirmed = window.confirm(
+      `Czy na pewno trwale usunąć kandydata „${candidateName}”?\n\n` +
+        'Zostaną usunięte także jego dane przygotowania, terminy, wpisy indeksu, wiadomości i adnotacje. ' +
+        'Tej operacji nie można cofnąć.'
+    );
+    if (!confirmed) return;
+
+    setConfirmationCandidateDeletingId(candidate.id);
+    setConfirmationAdminSendingAction(true);
+    setConfirmationCandidatesError(null);
+    setConfirmationCandidatesInfo(null);
+    try {
+      await deleteParishConfirmationCandidate(parish.id, candidate.id);
+
+      setConfirmationCandidates((current) => current.filter((item) => item.id !== candidate.id));
+      setConfirmationNotesFeed((current) => current.filter((note) => note.candidateId !== candidate.id));
+      setConfirmationMessagesFeed((current) => current.filter((message) => message.candidateId !== candidate.id));
+      setConfirmationHandoverAnnotationDrafts((current) => {
+        if (!(candidate.id in current)) return current;
+        const next = { ...current };
+        delete next[candidate.id];
+        return next;
+      });
+      setConfirmationHandoverAnnotationEditingId((current) => (current === candidate.id ? null : current));
+      setConfirmationMessagesReplyDrafts((current) => {
+        if (!(candidate.id in current)) return current;
+        const next = { ...current };
+        delete next[candidate.id];
+        return next;
+      });
+
+      if (confirmationSummarySmsCandidateId === candidate.id) {
+        setConfirmationSummarySmsCandidateId(null);
+        setConfirmationSummarySmsStates(null);
+        setConfirmationSummarySmsText('');
+        setConfirmationSummarySmsCopied(false);
+      }
+
+      const selectedAdminCandidateWasDeleted =
+        confirmationAdminSelectedCandidateId === candidate.id ||
+        confirmationAdminPortalData?.candidate.candidateId === candidate.id;
+      if (selectedAdminCandidateWasDeleted) {
+        setConfirmationAdminSelectedCandidateId(null);
+        setConfirmationAdminPortalData(null);
+        setConfirmationAdminCandidateSearch('');
+        setConfirmationAdminPortalError(null);
+        setConfirmationAdminPortalInfo(null);
+      }
+
+      const publicPortalCandidateWasDeleted = confirmationPortalData?.candidate.candidateId === candidate.id;
+      if (publicPortalCandidateWasDeleted) {
+        setConfirmationPortalData(null);
+        setConfirmationPortalError(null);
+        setConfirmationPortalInfo(null);
+      }
+
+      const queryTargetsCandidate =
+        confirmationAdminCandidateIdQuery === candidate.id ||
+        (selectedAdminCandidateWasDeleted && Boolean(confirmationAdminNameQuery));
+      if (queryTargetsCandidate || publicPortalCandidateWasDeleted) {
+        const params = new URLSearchParams(location.search);
+        if (queryTargetsCandidate) {
+          params.delete('candidateId');
+          params.delete('name');
+        }
+        if (publicPortalCandidateWasDeleted) {
+          params.delete('portal');
+          params.delete('meeting');
+          params.delete('code');
+          params.delete('invite');
+        }
+        const nextSearch = params.toString();
+        navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
+      }
+
+      setConfirmationMergeInfo(null);
+      setConfirmationMergeError(null);
+      setConfirmationCandidatesInfo(`Usunięto kandydata ${candidateName} wraz z jego danymi przygotowania.`);
+      await Promise.all([loadConfirmationMeetingSummary(), loadConfirmationCelebrationsAdmin()]);
+    } catch {
+      setConfirmationCandidatesError(`Nie udało się usunąć kandydata ${candidateName}. Odśwież listę i spróbuj ponownie.`);
+    } finally {
+      setConfirmationCandidateDeletingId(null);
+      setConfirmationAdminSendingAction(false);
+    }
+  };
+
   const handleAdminSendMessageToCandidate = async () => {
     if (!parish || !confirmationAdminSelectedCandidateId) return;
     const messageText = confirmationAdminMessageDraft.trim();
@@ -3980,6 +4089,18 @@ export function ParishPage({
       setConfirmationMergeInfo(
         `Scalono zgłoszenia. Zachowano rekord ${result.candidateId}, usunięto ${result.removedCandidateId}.`
       );
+      const mergedAnnotationCandidateIds = new Set([
+        confirmationMergeTargetCandidate.id,
+        confirmationMergeSourceCandidate.id
+      ]);
+      setConfirmationHandoverAnnotationDrafts((current) => {
+        const next = { ...current };
+        mergedAnnotationCandidateIds.forEach((candidateId) => delete next[candidateId]);
+        return next;
+      });
+      setConfirmationHandoverAnnotationEditingId((current) =>
+        current && mergedAnnotationCandidateIds.has(current) ? null : current
+      );
       await loadConfirmationCandidates();
       await loadConfirmationMeetingSummary();
       if (confirmationAdminSelectedCandidateId === confirmationMergeSourceCandidate.id) {
@@ -4122,9 +4243,12 @@ export function ParishPage({
   };
 
   const handleSaveConfirmationHandoverAnnotation = async (candidate: ParishConfirmationCandidate) => {
-    if (!parish) return;
+    if (!parish || confirmationHandoverAnnotationSavingId !== null || confirmationAdminSendingAction) {
+      return false;
+    }
     const annotation = (confirmationHandoverAnnotationDrafts[candidate.id] ?? candidate.handoverAnnotation ?? '').trim();
     setConfirmationHandoverAnnotationSavingId(candidate.id);
+    setConfirmationAdminSendingAction(true);
     setConfirmationHandoverAnnotationInfo(null);
     setConfirmationHandoverAnnotationError(null);
     try {
@@ -4132,12 +4256,50 @@ export function ParishPage({
       setConfirmationCandidates((current) =>
         current.map((item) => (item.id === candidate.id ? { ...item, handoverAnnotation: annotation || null } : item))
       );
-      setConfirmationHandoverAnnotationDrafts((current) => ({ ...current, [candidate.id]: annotation }));
-      setConfirmationHandoverAnnotationInfo(`Zapisano adnotację dla: ${candidate.name} ${candidate.surname}.`);
+      setConfirmationHandoverAnnotationDrafts((current) => {
+        if (!(candidate.id in current)) return current;
+        const next = { ...current };
+        delete next[candidate.id];
+        return next;
+      });
+      setConfirmationHandoverAnnotationInfo(
+        annotation
+          ? `Zapisano adnotację dla: ${candidate.name} ${candidate.surname}.`
+          : `Usunięto adnotację dla: ${candidate.name} ${candidate.surname}.`
+      );
+      return true;
     } catch {
       setConfirmationHandoverAnnotationError(`Nie udało się zapisać adnotacji dla: ${candidate.name} ${candidate.surname}.`);
+      return false;
     } finally {
       setConfirmationHandoverAnnotationSavingId(null);
+      setConfirmationAdminSendingAction(false);
+    }
+  };
+
+  const handleStartConfirmationHandoverAnnotation = (candidate: ParishConfirmationCandidate) => {
+    if (confirmationHandoverAnnotationSavingId !== null || confirmationAdminSendingAction) return;
+    setConfirmationHandoverAnnotationEditingId(candidate.id);
+    setConfirmationHandoverAnnotationInfo(null);
+    setConfirmationHandoverAnnotationError(null);
+  };
+
+  const handleCancelConfirmationHandoverAnnotation = (candidateId: string) => {
+    setConfirmationHandoverAnnotationDrafts((current) => {
+      if (!(candidateId in current)) return current;
+      const next = { ...current };
+      delete next[candidateId];
+      return next;
+    });
+    setConfirmationHandoverAnnotationEditingId((current) => (current === candidateId ? null : current));
+    setConfirmationHandoverAnnotationInfo(null);
+    setConfirmationHandoverAnnotationError(null);
+  };
+
+  const handleSaveQuickConfirmationHandoverAnnotation = async (candidate: ParishConfirmationCandidate) => {
+    const saved = await handleSaveConfirmationHandoverAnnotation(candidate);
+    if (saved) {
+      setConfirmationHandoverAnnotationEditingId((current) => (current === candidate.id ? null : current));
     }
   };
 
@@ -12239,6 +12401,9 @@ export function ParishPage({
                         {confirmationTransferInfo ? (
                           <p className="confirmation-info confirmation-info-success">{confirmationTransferInfo}</p>
                         ) : null}
+                        {confirmationCandidatesInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{confirmationCandidatesInfo}</p>
+                        ) : null}
                         {confirmationCandidatesError ? (
                           <p className="confirmation-info confirmation-info-error">{confirmationCandidatesError}</p>
                         ) : null}
@@ -12460,6 +12625,8 @@ export function ParishPage({
                                         ? 'no-paper-consent'
                                         : event.target.value === 'unverified-phone'
                                         ? 'unverified-phone'
+                                        : event.target.value === 'no-handover-annotation'
+                                        ? 'no-handover-annotation'
                                         : event.target.value === 'needs-follow-up'
                                         ? 'needs-follow-up'
                                         : 'all'
@@ -12470,6 +12637,7 @@ export function ParishPage({
                                   <option value="no-meeting">Brak wybranego terminu</option>
                                   <option value="no-paper-consent">Brak oświadczenia papierowego</option>
                                   <option value="unverified-phone">Niezweryfikowany numer telefonu</option>
+                                  <option value="no-handover-annotation">Brak adnotacji do przekazania</option>
                                   <option value="needs-follow-up">Wymaga działania admina</option>
                                 </select>
                               </label>
@@ -12479,7 +12647,7 @@ export function ParishPage({
                                   type="text"
                                   value={confirmationSubmissionsSearch}
                                   onChange={(event) => setConfirmationSubmissionsSearch(event.target.value)}
-                                  placeholder="Imię, nazwisko, adres, szkoła"
+                                  placeholder="Imię, nazwisko, adres, szkoła lub adnotacja"
                                 />
                               </label>
                             </div>
@@ -12488,8 +12656,15 @@ export function ParishPage({
                               Bez terminu: {confirmationSubmissionStats.noMeetingCount} •
                               Bez oświadczenia papierowego: {confirmationSubmissionStats.noPaperConsentCount} •
                               Z niezweryfikowanym numerem: {confirmationSubmissionStats.unverifiedPhoneCount} •
+                              Bez adnotacji do przekazania: {confirmationSubmissionStats.noHandoverAnnotationCount} •
                               Wymaga działania: {confirmationSubmissionStats.needsFollowUpCount}
                             </p>
+                            {confirmationHandoverAnnotationError ? (
+                              <p className="confirmation-info confirmation-info-error">{confirmationHandoverAnnotationError}</p>
+                            ) : null}
+                            {confirmationHandoverAnnotationInfo ? (
+                              <p className="confirmation-info confirmation-info-success">{confirmationHandoverAnnotationInfo}</p>
+                            ) : null}
                             {confirmationCandidates.length === 0 ? (
                               <p className="muted">Brak zgłoszeń.</p>
                             ) : filteredConfirmationSubmissionCandidates.length === 0 ? (
@@ -12505,6 +12680,114 @@ export function ParishPage({
                                       <span className="muted">
                                         {new Date(candidate.createdUtc).toLocaleString('pl-PL')}
                                       </span>
+                                    </div>
+                                    <div
+                                      className={`confirmation-candidate-quick-annotation ${
+                                        candidate.handoverAnnotation?.trim() ? 'has-annotation' : 'is-missing'
+                                      }`}
+                                    >
+                                      <div className="confirmation-candidate-quick-annotation-head">
+                                        <div>
+                                          <strong>Krótka adnotacja do przekazania</strong>
+                                          <p className="note">
+                                            Wewnętrzna informacja widoczna w raporcie dla następnego księdza.
+                                          </p>
+                                        </div>
+                                        {confirmationHandoverAnnotationEditingId === candidate.id ? (
+                                          <span className="pill">Edycja</span>
+                                        ) : (
+                                          <div className="confirmation-candidate-quick-annotation-actions">
+                                            <span
+                                              className={`pill ${
+                                                candidate.id in confirmationHandoverAnnotationDrafts
+                                                  ? 'is-private'
+                                                  : candidate.handoverAnnotation?.trim()
+                                                  ? 'is-public'
+                                                  : 'is-private'
+                                              }`}
+                                            >
+                                              {candidate.id in confirmationHandoverAnnotationDrafts
+                                                ? 'Szkic niezapisany'
+                                                : candidate.handoverAnnotation?.trim()
+                                                ? 'Zapisana'
+                                                : 'Brak adnotacji'}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              className="ghost"
+                                              disabled={
+                                                confirmationHandoverAnnotationSavingId !== null ||
+                                                confirmationAdminSendingAction
+                                              }
+                                              onClick={() => handleStartConfirmationHandoverAnnotation(candidate)}
+                                            >
+                                              {candidate.id in confirmationHandoverAnnotationDrafts
+                                                ? 'Kontynuuj'
+                                                : candidate.handoverAnnotation?.trim()
+                                                ? 'Edytuj'
+                                                : 'Dodaj adnotację'}
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                      {confirmationHandoverAnnotationEditingId === candidate.id ? (
+                                        <>
+                                          <textarea
+                                            rows={2}
+                                            maxLength={600}
+                                            autoFocus
+                                            aria-label={`Krótka adnotacja do przekazania dla ${candidate.name} ${candidate.surname}`}
+                                            value={
+                                              confirmationHandoverAnnotationDrafts[candidate.id] ??
+                                              candidate.handoverAnnotation ??
+                                              ''
+                                            }
+                                            onChange={(event) =>
+                                              setConfirmationHandoverAnnotationDrafts((current) => ({
+                                                ...current,
+                                                [candidate.id]: event.target.value
+                                              }))
+                                            }
+                                            placeholder="Np. kontaktowy i zaangażowany; warto przypomnieć o…"
+                                          />
+                                          <div className="confirmation-candidate-quick-annotation-footer">
+                                            <span className="muted">
+                                              {(confirmationHandoverAnnotationDrafts[candidate.id] ?? candidate.handoverAnnotation ?? '').length}/600
+                                            </span>
+                                            <div className="confirmation-candidate-quick-annotation-actions">
+                                              <button
+                                                type="button"
+                                                className="ghost"
+                                                disabled={confirmationHandoverAnnotationSavingId !== null}
+                                                onClick={() => handleCancelConfirmationHandoverAnnotation(candidate.id)}
+                                              >
+                                                Anuluj
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="parish-login"
+                                                disabled={
+                                                  confirmationHandoverAnnotationSavingId !== null ||
+                                                  confirmationAdminSendingAction
+                                                }
+                                                onClick={() => void handleSaveQuickConfirmationHandoverAnnotation(candidate)}
+                                              >
+                                                {confirmationHandoverAnnotationSavingId === candidate.id
+                                                  ? 'Zapisywanie…'
+                                                  : 'Zapisz'}
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <p className="confirmation-candidate-quick-annotation-preview">
+                                          {candidate.handoverAnnotation?.trim() || 'Brak krótkiej adnotacji dla następnego księdza.'}
+                                        </p>
+                                      )}
+                                      {confirmationHandoverAnnotationEditingId !== candidate.id &&
+                                      candidate.id in confirmationHandoverAnnotationDrafts ? (
+                                        <p className="note">Masz niezapisany szkic tej adnotacji.</p>
+                                      ) : null}
                                     </div>
                                     <p className="note">
                                       <strong>Adres:</strong> {candidate.address}
@@ -12773,6 +13056,22 @@ export function ParishPage({
                                         );
                                       })}
                                     </ul>
+                                    <div className="confirmation-candidate-delete-row">
+                                      <button
+                                        type="button"
+                                        className="ghost confirmation-candidate-delete"
+                                        disabled={
+                                          confirmationCandidateDeletingId !== null ||
+                                          confirmationMergeBusy ||
+                                          confirmationAdminSendingAction
+                                        }
+                                        onClick={() => void handleDeleteConfirmationCandidate(candidate)}
+                                      >
+                                        {confirmationCandidateDeletingId === candidate.id
+                                          ? 'Usuwanie…'
+                                          : 'Usuń kandydata'}
+                                      </button>
+                                    </div>
                                   </article>
                                 ))}
                               </div>
@@ -13052,7 +13351,9 @@ export function ParishPage({
                                         <button
                                           type="button"
                                           className="ghost"
-                                          disabled={confirmationHandoverAnnotationSavingId !== null}
+                                          disabled={
+                                            confirmationHandoverAnnotationSavingId !== null || confirmationAdminSendingAction
+                                          }
                                           onClick={() => void handleSaveConfirmationHandoverAnnotation(candidate)}
                                         >
                                           {confirmationHandoverAnnotationSavingId === candidate.id ? 'Zapisywanie…' : 'Zapisz adnotację'}

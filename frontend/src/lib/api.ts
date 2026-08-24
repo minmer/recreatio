@@ -4766,6 +4766,12 @@ export function updateParishConfirmationCandidate(
   });
 }
 
+export function deleteParishConfirmationCandidate(parishId: string, candidateId: string) {
+  return request<void>(`/parish/${parishId}/confirmation-candidates/${candidateId}`, {
+    method: 'DELETE'
+  });
+}
+
 export function updateParishConfirmationCandidatePaperConsent(
   parishId: string,
   candidateId: string,

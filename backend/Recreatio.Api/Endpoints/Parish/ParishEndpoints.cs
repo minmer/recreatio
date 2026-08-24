@@ -4554,6 +4554,148 @@ public static class ParishEndpoints
             return Results.Ok();
         }).RequireAuthorization();
 
+        group.MapDelete("/{parishId:guid}/confirmation-candidates/{candidateId:guid}", async (
+            Guid parishId,
+            Guid candidateId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.WriteKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+            try
+            {
+                var candidate = await dbContext.ParishConfirmationCandidates
+                    .FirstOrDefaultAsync(x => x.Id == candidateId && x.ParishId == parishId, ct);
+                if (candidate is null)
+                {
+                    return Results.NotFound();
+                }
+
+                var phoneVerifications = await dbContext.ParishConfirmationPhoneVerifications
+                    .Where(x => x.ParishId == parishId && x.CandidateId == candidateId)
+                    .ToListAsync(ct);
+                var meetingLinks = await dbContext.ParishConfirmationMeetingLinks
+                    .Where(x => x.ParishId == parishId && x.CandidateId == candidateId)
+                    .ToListAsync(ct);
+                var meetingJoinRequests = await dbContext.ParishConfirmationMeetingJoinRequests
+                    .Where(x =>
+                        x.ParishId == parishId &&
+                        (x.RequestedByCandidateId == candidateId || x.HostCandidateId == candidateId))
+                    .ToListAsync(ct);
+                var messages = await dbContext.ParishConfirmationMessages
+                    .Where(x => x.ParishId == parishId && x.CandidateId == candidateId)
+                    .ToListAsync(ct);
+                var notes = await dbContext.ParishConfirmationNotes
+                    .Where(x => x.ParishId == parishId && x.CandidateId == candidateId)
+                    .ToListAsync(ct);
+                var celebrationParticipations = await dbContext.ParishConfirmationCelebrationParticipations
+                    .Where(x => x.ParishId == parishId && x.CandidateId == candidateId)
+                    .ToListAsync(ct);
+                var celebrationJoins = await dbContext.ParishConfirmationCelebrationJoins
+                    .Where(x => x.ParishId == parishId && x.CandidateId == candidateId)
+                    .ToListAsync(ct);
+                var eventJoins = await dbContext.ParishConfirmationEventJoins
+                    .Where(x => x.ParishId == parishId && x.CandidateId == candidateId)
+                    .ToListAsync(ct);
+                var hostedSlots = await dbContext.ParishConfirmationMeetingSlots
+                    .Where(x => x.ParishId == parishId && x.HostCandidateId == candidateId)
+                    .ToListAsync(ct);
+
+                var affectedSlotIds = meetingLinks
+                    .Where(x => x.SlotId is not null)
+                    .Select(x => x.SlotId!.Value)
+                    .Concat(meetingJoinRequests.Select(x => x.SlotId))
+                    .Concat(hostedSlots.Select(x => x.Id))
+                    .Distinct()
+                    .ToList();
+                var now = DateTimeOffset.UtcNow;
+                foreach (var slot in hostedSlots)
+                {
+                    slot.HostCandidateId = null;
+                    slot.HostInviteToken = null;
+                    slot.HostInviteExpiresUtc = null;
+                    slot.UpdatedUtc = now;
+                }
+
+                dbContext.ParishConfirmationPhoneVerifications.RemoveRange(phoneVerifications);
+                dbContext.ParishConfirmationMeetingJoinRequests.RemoveRange(meetingJoinRequests);
+                dbContext.ParishConfirmationMessages.RemoveRange(messages);
+                dbContext.ParishConfirmationNotes.RemoveRange(notes);
+                dbContext.ParishConfirmationCelebrationParticipations.RemoveRange(celebrationParticipations);
+                dbContext.ParishConfirmationCelebrationJoins.RemoveRange(celebrationJoins);
+                dbContext.ParishConfirmationEventJoins.RemoveRange(eventJoins);
+                dbContext.ParishConfirmationMeetingLinks.RemoveRange(meetingLinks);
+                await dbContext.SaveChangesAsync(ct);
+
+                dbContext.ParishConfirmationCandidates.Remove(candidate);
+                await dbContext.SaveChangesAsync(ct);
+
+                foreach (var slotId in affectedSlotIds)
+                {
+                    await RefreshConfirmationMeetingSlotHostAsync(parishId, slotId, dbContext, now, ct);
+                }
+
+                if (affectedSlotIds.Count > 0)
+                {
+                    await dbContext.SaveChangesAsync(ct);
+                }
+
+                var relatedRecordsDeleted =
+                    phoneVerifications.Count +
+                    meetingLinks.Count +
+                    meetingJoinRequests.Count +
+                    messages.Count +
+                    notes.Count +
+                    celebrationParticipations.Count +
+                    celebrationJoins.Count +
+                    eventJoins.Count;
+                await ledgerService.AppendParishAsync(
+                    parishId,
+                    "ConfirmationCandidateDeleted",
+                    userId.ToString(),
+                    JsonSerializer.Serialize(new
+                    {
+                        candidateId,
+                        RelatedRecordsDeleted = relatedRecordsDeleted,
+                        AffectedMeetingSlots = affectedSlotIds.Count
+                    }),
+                    ct);
+
+                await transaction.CommitAsync(ct);
+
+                return Results.Ok();
+            }
+            catch (DbUpdateException)
+            {
+                await transaction.RollbackAsync(ct);
+                return Results.Conflict(new
+                {
+                    error = "Candidate could not be deleted because related confirmation data changed. Refresh and try again."
+                });
+            }
+        }).RequireAuthorization();
+
         group.MapPost("/{parishId:guid}/confirmation-candidates/{candidateId:guid}/messages", async (
             Guid parishId,
             Guid candidateId,

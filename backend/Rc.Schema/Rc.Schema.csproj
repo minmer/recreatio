@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Rc.Schema</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Die Skripte reisen IM Programm mit. Ein Migrationslauf, der seine
+         Dateien erst im Dateisystem suchen muss, wendet auf dem Zielrechner
+         etwas anderes an als auf dem Entwicklungsrechner. -->
+    <EmbeddedResource Include="Sql\*.sql" />
+  </ItemGroup>
+
+</Project>
