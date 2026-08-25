@@ -533,7 +533,12 @@ public sealed record ParishConfirmationCandidateMergeRequest(
     string Address,
     string SchoolShort,
     Guid? SelectedMeetingSlotId,
-    Guid? PortalTokenFromCandidateId);
+    Guid? PortalTokenFromCandidateId,
+    IReadOnlyList<ParishConfirmationCandidateMeetingMergeSelectionRequest>? SelectedMeetings = null);
+
+public sealed record ParishConfirmationCandidateMeetingMergeSelectionRequest(
+    string Stage,
+    Guid? SlotId);
 
 public sealed record ParishConfirmationCandidateMergeResponse(
     Guid CandidateId,

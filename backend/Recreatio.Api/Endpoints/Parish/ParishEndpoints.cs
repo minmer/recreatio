@@ -3246,13 +3246,52 @@ public static class ParishEndpoints
                 return Results.BadRequest(new { error = "Invalid merged candidate data." });
             }
 
-            if (request.SelectedMeetingSlotId is not null)
+            var meetingStages = new[]
             {
-                var slotExists = await dbContext.ParishConfirmationMeetingSlots.AsNoTracking()
-                    .AnyAsync(x => x.ParishId == parishId && x.Id == request.SelectedMeetingSlotId.Value, ct);
-                if (!slotExists)
+                ConfirmationMeetingStageYear1Start,
+                ConfirmationMeetingStageYear1End
+            };
+            var requestedMeetingSlotsByStage = new Dictionary<string, Guid?>(StringComparer.Ordinal);
+            if (request.SelectedMeetings is not null)
+            {
+                foreach (var selection in request.SelectedMeetings)
                 {
-                    return Results.BadRequest(new { error = "Selected meeting slot does not exist." });
+                    var rawStage = (selection.Stage ?? string.Empty).Trim().ToLowerInvariant();
+                    if (!meetingStages.Contains(rawStage, StringComparer.Ordinal) ||
+                        !requestedMeetingSlotsByStage.TryAdd(rawStage, selection.SlotId))
+                    {
+                        return Results.BadRequest(new { error = "Meeting selections must contain each supported stage at most once." });
+                    }
+                }
+            }
+            else
+            {
+                // Backward compatibility for clients that only knew the first meeting.
+                requestedMeetingSlotsByStage[ConfirmationMeetingStageYear1Start] = request.SelectedMeetingSlotId;
+            }
+
+            var requestedSlotIds = requestedMeetingSlotsByStage.Values
+                .Where(slotId => slotId is not null)
+                .Select(slotId => slotId!.Value)
+                .Distinct()
+                .ToList();
+            var requestedSlots = requestedSlotIds.Count == 0
+                ? new List<ParishConfirmationMeetingSlot>()
+                : await dbContext.ParishConfirmationMeetingSlots.AsNoTracking()
+                    .Where(slot => slot.ParishId == parishId && requestedSlotIds.Contains(slot.Id))
+                    .ToListAsync(ct);
+            if (requestedSlots.Count != requestedSlotIds.Count)
+            {
+                return Results.BadRequest(new { error = "Selected meeting slot does not exist." });
+            }
+
+            var requestedSlotsById = requestedSlots.ToDictionary(slot => slot.Id);
+            foreach (var (stage, slotId) in requestedMeetingSlotsByStage)
+            {
+                if (slotId is not null &&
+                    !string.Equals(NormalizeConfirmationMeetingStage(requestedSlotsById[slotId.Value].Stage), stage, StringComparison.Ordinal))
+                {
+                    return Results.BadRequest(new { error = "Selected meeting slot does not belong to the selected stage." });
                 }
             }
 
@@ -3300,60 +3339,69 @@ public static class ParishEndpoints
                 .ThenByDescending(x => x.CreatedUtc)
                 .ToList();
 
-            var targetLink = targetLinks.FirstOrDefault();
-            if (targetLink is null)
+            var targetLinksByStage = targetLinks
+                .GroupBy(link => NormalizeConfirmationMeetingStage(link.Stage), StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+            var sourceLinksByStage = sourceLinks
+                .GroupBy(link => NormalizeConfirmationMeetingStage(link.Stage), StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+            foreach (var stage in meetingStages)
             {
-                targetLink = new ParishConfirmationMeetingLink
+                if (!targetLinksByStage.ContainsKey(stage))
                 {
-                    Id = Guid.NewGuid(),
-                    ParishId = parishId,
-                    CandidateId = targetCandidate.Id,
-                    BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct),
-                    Stage = ConfirmationMeetingStageYear1Start,
-                    SlotId = null,
-                    BookedUtc = null,
-                    CreatedUtc = now,
-                    UpdatedUtc = now
-                };
-                dbContext.ParishConfirmationMeetingLinks.Add(targetLink);
-                targetLinks.Add(targetLink);
-            }
+                    var targetLink = new ParishConfirmationMeetingLink
+                    {
+                        Id = Guid.NewGuid(),
+                        ParishId = parishId,
+                        CandidateId = targetCandidate.Id,
+                        BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct),
+                        Stage = stage,
+                        SlotId = null,
+                        BookedUtc = null,
+                        CreatedUtc = now,
+                        UpdatedUtc = now
+                    };
+                    dbContext.ParishConfirmationMeetingLinks.Add(targetLink);
+                    targetLinks.Add(targetLink);
+                    targetLinksByStage[stage] = targetLink;
+                }
 
-            var sourceLink = sourceLinks.FirstOrDefault();
-            if (sourceLink is null)
-            {
-                sourceLink = new ParishConfirmationMeetingLink
+                if (!sourceLinksByStage.ContainsKey(stage))
                 {
-                    Id = Guid.NewGuid(),
-                    ParishId = parishId,
-                    CandidateId = sourceCandidate.Id,
-                    BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct),
-                    Stage = ConfirmationMeetingStageYear1Start,
-                    SlotId = null,
-                    BookedUtc = null,
-                    CreatedUtc = now,
-                    UpdatedUtc = now
-                };
-                dbContext.ParishConfirmationMeetingLinks.Add(sourceLink);
-                sourceLinks.Add(sourceLink);
+                    var sourceLink = new ParishConfirmationMeetingLink
+                    {
+                        Id = Guid.NewGuid(),
+                        ParishId = parishId,
+                        CandidateId = sourceCandidate.Id,
+                        BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct),
+                        Stage = stage,
+                        SlotId = null,
+                        BookedUtc = null,
+                        CreatedUtc = now,
+                        UpdatedUtc = now
+                    };
+                    dbContext.ParishConfirmationMeetingLinks.Add(sourceLink);
+                    sourceLinks.Add(sourceLink);
+                    sourceLinksByStage[stage] = sourceLink;
+                }
             }
 
-            if (string.IsNullOrWhiteSpace(targetLink.BookingToken))
+            foreach (var link in targetLinksByStage.Values.Concat(sourceLinksByStage.Values))
             {
-                targetLink.BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct);
-                targetLink.UpdatedUtc = now;
-            }
-
-            if (string.IsNullOrWhiteSpace(sourceLink.BookingToken))
-            {
-                sourceLink.BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct);
-                sourceLink.UpdatedUtc = now;
+                link.Stage = NormalizeConfirmationMeetingStage(link.Stage);
+                if (string.IsNullOrWhiteSpace(link.BookingToken))
+                {
+                    link.BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct);
+                    link.UpdatedUtc = now;
+                }
             }
 
             var linksToRemoveById = new Dictionary<Guid, ParishConfirmationMeetingLink>();
+            var retainedTargetLinkIds = targetLinksByStage.Values.Select(link => link.Id).ToHashSet();
             void QueueLinkRemoval(ParishConfirmationMeetingLink link)
             {
-                if (link.Id == targetLink.Id)
+                if (retainedTargetLinkIds.Contains(link.Id))
                 {
                     return;
                 }
@@ -3361,7 +3409,7 @@ public static class ParishEndpoints
                 linksToRemoveById.TryAdd(link.Id, link);
             }
 
-            foreach (var extraTargetLink in targetLinks.Skip(1))
+            foreach (var extraTargetLink in targetLinks.Where(link => !retainedTargetLinkIds.Contains(link.Id)))
             {
                 QueueLinkRemoval(extraTargetLink);
             }
@@ -3371,20 +3419,17 @@ public static class ParishEndpoints
                 QueueLinkRemoval(existingSourceLink);
             }
 
-            if (sourceLink.Id != targetLink.Id)
-            {
-                QueueLinkRemoval(sourceLink);
-            }
-
             var linksToRemove = linksToRemoveById.Values.ToList();
             var allCandidateLinks = targetLinks.Concat(sourceLinks).ToList();
 
             var portalTokenSourceId = request.PortalTokenFromCandidateId == sourceCandidate.Id
                 ? sourceCandidate.Id
                 : targetCandidate.Id;
+            var targetPortalLink = targetLinksByStage[ConfirmationMeetingStageYear1Start];
+            var sourcePortalLink = sourceLinksByStage[ConfirmationMeetingStageYear1Start];
             var selectedToken = portalTokenSourceId == sourceCandidate.Id
-                ? sourceLink.BookingToken
-                : targetLink.BookingToken;
+                ? sourcePortalLink.BookingToken
+                : targetPortalLink.BookingToken;
             if (string.IsNullOrWhiteSpace(selectedToken))
             {
                 selectedToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct);
@@ -3395,21 +3440,32 @@ public static class ParishEndpoints
                 .Select(x => x.SlotId!.Value)
                 .Distinct()
                 .ToList();
-            var selectedSlotId = request.SelectedMeetingSlotId;
-            DateTimeOffset? selectedBookedUtc = null;
-            if (selectedSlotId is not null)
+            var selectedSlotsByStage = new Dictionary<string, Guid?>(StringComparer.Ordinal);
+            var selectedBookedUtcByStage = new Dictionary<string, DateTimeOffset?>(StringComparer.Ordinal);
+            foreach (var stage in meetingStages)
             {
-                var historicalBookedUtc = allCandidateLinks
-                    .Where(x => x.SlotId == selectedSlotId && x.BookedUtc is not null)
-                    .Select(x => x.BookedUtc!.Value)
-                    .OrderByDescending(x => x)
-                    .ToList();
-                if (historicalBookedUtc.Count > 0)
-                {
-                    selectedBookedUtc = historicalBookedUtc[0];
-                }
+                var selectedSlotId = requestedMeetingSlotsByStage.TryGetValue(stage, out var requestedSlotId)
+                    ? requestedSlotId
+                    : targetLinksByStage[stage].SlotId ?? sourceLinksByStage[stage].SlotId;
+                selectedSlotsByStage[stage] = selectedSlotId;
 
-                selectedBookedUtc ??= now;
+                DateTimeOffset? selectedBookedUtc = null;
+                if (selectedSlotId is not null)
+                {
+                    selectedBookedUtc = allCandidateLinks
+                        .Where(link =>
+                            string.Equals(NormalizeConfirmationMeetingStage(link.Stage), stage, StringComparison.Ordinal) &&
+                            link.SlotId == selectedSlotId &&
+                            link.BookedUtc is not null)
+                        .Select(link => link.BookedUtc!.Value)
+                        .OrderByDescending(bookedUtc => bookedUtc)
+                        .FirstOrDefault();
+                    if (selectedBookedUtc == default)
+                    {
+                        selectedBookedUtc = now;
+                    }
+                }
+                selectedBookedUtcByStage[stage] = selectedBookedUtc;
             }
 
             var mergedPayload = new ParishConfirmationPayload(
@@ -3542,9 +3598,9 @@ public static class ParishEndpoints
 
             var affectedSlotIds = new HashSet<Guid>(oldSlotIds);
 
-            if (selectedSlotId is not null)
+            foreach (var selectedSlotId in selectedSlotsByStage.Values.Where(slotId => slotId is not null))
             {
-                affectedSlotIds.Add(selectedSlotId.Value);
+                affectedSlotIds.Add(selectedSlotId!.Value);
             }
 
             var hostedBySource = await dbContext.ParishConfirmationMeetingSlots
@@ -3570,10 +3626,16 @@ public static class ParishEndpoints
                 removableLink.UpdatedUtc = now;
             }
 
-            targetLink.BookingToken = selectedToken;
-            targetLink.SlotId = selectedSlotId;
-            targetLink.BookedUtc = selectedSlotId is null ? null : selectedBookedUtc;
-            targetLink.UpdatedUtc = now;
+            targetPortalLink.BookingToken = selectedToken;
+            foreach (var stage in meetingStages)
+            {
+                var targetLink = targetLinksByStage[stage];
+                var selectedSlotId = selectedSlotsByStage[stage];
+                targetLink.Stage = stage;
+                targetLink.SlotId = selectedSlotId;
+                targetLink.BookedUtc = selectedSlotId is null ? null : selectedBookedUtcByStage[stage];
+                targetLink.UpdatedUtc = now;
+            }
 
             if (linksToRemove.Count > 0)
             {

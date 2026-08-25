@@ -106,6 +106,10 @@ import {
   rcAttachments, rcUpload, rcAttachmentUrl, rcDeleteAttachment,
   rcReact, RC_REACTION_AGREE, RC_REACTION_OBJECT
 } from ${JSON.stringify(LIB + 'rcThreads')};
+import {
+  rcLedgerEntries, rcLedgerHead, rcLedgerVerdict, rcRecompute, rcAgrees,
+  rcDecisions, rcCreateDecision, rcTransition
+} from ${JSON.stringify(LIB + 'rcLedger')};
 
 let passed = 0;
 const failures = [];
@@ -346,6 +350,119 @@ ok('9.10  rcUpload() nimmt eine Datei an', typeof uploaded.attachmentId === 'str
 await rcDeleteAttachment(uploaded.attachmentId);
 ok('9.10  Und laesst sich wieder entfernen',
   (await rcAttachments(second.messageId)).attachments.length === 0);
+
+// -- Kapitel 11: Beschluesse ------------------------------------------------
+
+const proposal = await rcCreateDecision(areaId, person.roleId,
+  'Der Rat beschliesst, das Protokoll oeffentlich nachrechenbar zu machen.');
+
+ok('11.x  rcCreateDecision() schlaegt vor', typeof proposal.decisionId === 'string',
+  JSON.stringify(proposal));
+
+{
+  const one = (await rcDecisions(areaId)).decisions.find((d) => d.decisionId === proposal.decisionId);
+  ok('11.x  Der Beschluss steht in der Liste', one !== undefined);
+  ok('11.x  Er beginnt bei „vorgeschlagen"', one?.state === 'proposed', JSON.stringify(one?.state));
+  ok('11.x  Der Text geht wieder auf',
+    one?.body?.startsWith('Der Rat beschliesst') === true, JSON.stringify(one?.body));
+
+  // Die Tafel kommt vom Dienst, nicht aus der Oberflaeche. Schriebe die
+  // Oberflaeche sie ab, boete sie irgendwann Wege an, die abgewiesen werden.
+  ok('11.x  Die Sicht nennt die offenen Wege',
+    one?.allowedNext?.slice().sort().join(',') === 'open,rejected',
+    JSON.stringify(one?.allowedNext));
+}
+
+await rcTransition(proposal.decisionId, person.roleId, 'open', 'Zur Beratung freigegeben.');
+await rcTransition(proposal.decisionId, person.roleId, 'accepted', 'Einstimmig angenommen.');
+
+{
+  const one = (await rcDecisions(areaId)).decisions.find((d) => d.decisionId === proposal.decisionId);
+  ok('11.x  Der vorgesehene Weg wird gegangen', one?.state === 'accepted');
+  ok('11.x  Der Weg dahin steht mit Begruendungen da',
+    one?.history?.length === 2 && one.history[1].reason === 'Einstimmig angenommen.',
+    JSON.stringify(one?.history));
+  ok('11.x  Von „angenommen" fuehrt nur ein Weg weiter',
+    one?.allowedNext?.join(',') === 'reopened', JSON.stringify(one?.allowedNext));
+}
+
+// Ein uebersprungener Zustand wird abgewiesen — und die Oberflaeche haette ihn
+// gar nicht erst angeboten, weil er nicht in allowedNext stand.
+try {
+  await rcTransition(proposal.decisionId, person.roleId, 'open', 'Abgekuerzt.');
+  ok('11.x  Ein uebersprungener Zustand wird abgewiesen', false, 'Der Aufruf ging durch.');
+} catch (e) {
+  ok('11.x  Ein uebersprungener Zustand wird abgewiesen', e instanceof RcRequestError,
+    String(e));
+}
+
+// -- Kapitel 7: die Kette, im Browser nachgerechnet -------------------------
+
+const ledgerId = mine.ledgerId;
+ok('7.4   Der Bereich nennt seine Kette', typeof ledgerId === 'string' && ledgerId.length > 0,
+  String(ledgerId));
+
+const chain = (await rcLedgerEntries(ledgerId)).entries;
+
+ok('7.4   Die Kette hat Eintraege', chain.length >= 3, String(chain.length));
+ok('22.6  Der erste Eintrag zeigt auf 32 Nullen',
+  chain[0]?.previousHash === '0'.repeat(64), String(chain[0]?.previousHash));
+// Der erste Eintrag dieser Kette ist die zu Protokoll gegebene NACHRICHT, denn
+// sie kam vor dem Beschluss. Welche Sorte wo steht, haengt an der Reihenfolge
+// der Handlungen — die Pruefung sucht deshalb den Eintrag, statt eine Stelle
+// zu raten. Eine Pruefung, die an einer Position haengt, prueft die
+// Reihenfolge der Pruefung und nicht die Sache.
+ok('7.8   Der zu Protokoll gegebene Beitrag steht in der Kette',
+  chain.some((e) => e.payloadCanonical.includes('"kind":"message.posted"')),
+  chain.map((e) => e.payloadCanonical.slice(0, 60)).join(" | "));
+
+ok('24.3  Ausgeliefert werden die gespeicherten kanonischen Bytes',
+  chain.some((e) => e.payloadCanonical.includes('"kind":"decision.created"'))
+  && chain.some((e) => e.payloadCanonical.includes('"kind":"decision.transition"')),
+  chain.map((e) => e.payloadCanonical.slice(0, 60)).join(" | "));
+
+// RFC 8785: die Schluessel stehen sortiert. Das ist keine Kosmetik — genau
+// darauf beruht, dass zwei Seiten denselben Hash errechnen.
+ok('24.3  Die kanonische Form hat sortierte Schluessel',
+  chain.every((e) => {
+    const keys = Object.keys(JSON.parse(e.payloadCanonical));
+    return keys.join(",") === [...keys].sort().join(",");
+  }));
+
+// DER Punkt: der Browser rechnet selbst nach, statt dem Dienst zu glauben.
+const own = rcRecompute(chain);
+ok('7.5   Der Browser rechnet die Kette selbst nach — und sie geht auf',
+  own.intact === true && own.checked === chain.length, JSON.stringify(own));
+
+const theirs = await rcLedgerVerdict(ledgerId);
+ok('7.5   Der Dienst sagt dasselbe ueber seine Kette',
+  theirs.intact === true, JSON.stringify(theirs));
+ok('7.5   Beide Antworten stimmen ueberein', rcAgrees(own, theirs) === true,
+  JSON.stringify({ own, theirs }));
+
+// Und die eigene Rechnung ist nicht blind: kippt man ein Glied, faellt es auf.
+{
+  const tampered = chain.map((e, i) => (i === 1 ? { ...e, entryHash: 'gefaelscht' } : e));
+  const check = rcRecompute(tampered);
+  ok('7.5   Ein gekipptes Glied faellt der eigenen Rechnung auf',
+    check.intact === false && check.reason === 'chain.broken_link', JSON.stringify(check));
+
+  // Und dann sind sich beide UNEINIG — genau der Fall, fuer den die Ansicht da ist.
+  ok('7.5   Bei Abweichung sind sich beide uneinig', rcAgrees(check, theirs) === false);
+}
+
+// 7.4.1 — Der Kopf ist ohne Konto abrufbar. Ein Zeuge, den der Betreiber erst
+// zulassen muss, ist kein Zeuge.
+{
+  const head = await rcLedgerHead(ledgerId);
+  ok('7.4.1 Der Kettenkopf nennt Nummer und Hash',
+    typeof head.sequence === 'number' && typeof head.hash === 'string' && head.hash.length === 64,
+    JSON.stringify(head));
+  ok('7.4   Der Kopf stimmt mit dem letzten Eintrag ueberein',
+    head.hash === chain[chain.length - 1]?.entryHash
+    && head.sequence === chain[chain.length - 1]?.sequence,
+    JSON.stringify({ head, last: chain[chain.length - 1]?.sequence }));
+}
 
 // -- Ohne Schluessel geht nichts ---------------------------------------------
 

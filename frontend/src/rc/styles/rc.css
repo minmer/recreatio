@@ -795,6 +795,208 @@
 .rc-attach:hover span { color: var(--rc-ink-2); border-color: var(--rc-muted); }
 .rc-attach input:focus-visible + span { outline: 2px solid var(--rc-accent); outline-offset: 1px; }
 
+/* --- Das Protokoll ---------------------------------------------------------- */
+/* Hashes sind das Einzige hier, was wirklich zählt, also stehen sie in
+   Schreibmaschinenschrift und ungekürzt. Ein abgeschnittener Hash ist als
+   Beweis wertlos — man kann ihn nicht vergleichen. */
+
+.rc-verdict {
+  border-left: 3px solid var(--rc-line-2);
+  padding: 0.7rem 0 0.7rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.rc-verdict strong { font-size: 0.98rem; }
+.rc-verdict p { margin: 0; font-size: 0.85rem; line-height: 1.5; }
+
+.rc-verdict[data-state="ok"] { border-left-color: var(--rc-ok); }
+.rc-verdict[data-state="ok"] strong { color: var(--rc-ok); }
+
+.rc-verdict[data-state="broken"] { border-left-color: var(--rc-alarm); }
+.rc-verdict[data-state="broken"] strong { color: var(--rc-alarm); }
+
+/* Uneinigkeit ist der schwerste Fall und sieht auch so aus: der Dienst sagt
+   etwas über sich, das aus seinen eigenen Daten nicht folgt. */
+.rc-verdict[data-state="disagree"] {
+  border-left-color: var(--rc-alarm);
+  background: color-mix(in srgb, var(--rc-alarm) 8%, transparent);
+  padding-right: 0.9rem;
+}
+.rc-verdict[data-state="disagree"] strong { color: var(--rc-alarm); }
+
+.rc-verdict-count { font-family: var(--rc-mono); font-size: 0.75rem !important; color: var(--rc-muted); }
+.rc-verdict-limits {
+  font-size: 0.78rem !important;
+  color: var(--rc-muted);
+  font-style: italic;
+  border-top: 1px solid var(--rc-line);
+  padding-top: 0.45rem;
+}
+
+.rc-chain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+
+.rc-link-row {
+  border-top: 1px solid var(--rc-line);
+  padding: 0.7rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.rc-link-row:last-child { border-bottom: 1px solid var(--rc-line); }
+.rc-link-row[data-broken="true"] {
+  background: color-mix(in srgb, var(--rc-alarm) 8%, transparent);
+  box-shadow: -0.6rem 0 0 color-mix(in srgb, var(--rc-alarm) 8%, transparent);
+  border-top-color: var(--rc-alarm);
+}
+
+.rc-link-head { display: flex; gap: 0.8rem; align-items: baseline; font-size: 0.75rem; color: var(--rc-muted); }
+.rc-link-seq { font-family: var(--rc-mono); font-weight: 600; color: var(--rc-ink-2); font-variant-numeric: tabular-nums; }
+.rc-link-mod { font-family: var(--rc-mono); color: var(--rc-accent); }
+.rc-link-head time { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+/* Vorgänger-Hash über eigenem Hash: so sieht man mit dem Auge, dass der obere
+   einer Zeile der untere der vorigen ist. Darauf beruht die ganze Sache. */
+.rc-link-hashes {
+  display: grid;
+  grid-template-columns: 5rem 1fr;
+  gap: 0.15rem 0.7rem;
+  margin: 0;
+  align-items: baseline;
+}
+.rc-link-hashes dt { font-size: 0.7rem; color: var(--rc-muted); }
+.rc-link-hashes dd { margin: 0; min-width: 0; }
+.rc-link-hashes code {
+  font-family: var(--rc-mono);
+  font-size: 0.7rem;
+  color: var(--rc-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.rc-link-payload summary {
+  font-size: 0.72rem;
+  color: var(--rc-muted);
+  cursor: pointer;
+}
+.rc-link-payload pre {
+  font-family: var(--rc-mono);
+  font-size: 0.7rem;
+  color: var(--rc-ink-2);
+  background: var(--rc-surface-2);
+  padding: 0.5rem 0.6rem;
+  margin: 0.35rem 0 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* --- Beschlüsse ------------------------------------------------------------- */
+
+.rc-decision {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-items: flex-start;
+  border: 1px solid var(--rc-line);
+  background: var(--rc-surface);
+  padding: 0.85rem 1rem;
+  border-left-width: 3px;
+  border-left-color: var(--rc-line-2);
+}
+.rc-decision[data-state="accepted"] { border-left-color: var(--rc-ok); }
+.rc-decision[data-state="rejected"] { border-left-color: var(--rc-alarm); }
+.rc-decision[data-state="open"]     { border-left-color: var(--rc-accent); }
+.rc-decision[data-state="reopened"] { border-left-color: var(--rc-warn); }
+
+.rc-decision-head { display: flex; gap: 0.75rem; align-items: baseline; width: 100%; }
+.rc-decision-state {
+  font-family: var(--rc-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--rc-muted);
+}
+.rc-decision[data-state="accepted"] .rc-decision-state { color: var(--rc-ok); }
+.rc-decision[data-state="rejected"] .rc-decision-state { color: var(--rc-alarm); }
+.rc-decision[data-state="open"]     .rc-decision-state { color: var(--rc-accent); }
+.rc-decision[data-state="reopened"] .rc-decision-state { color: var(--rc-warn); }
+.rc-decision-head time { margin-left: auto; font-size: 0.72rem; color: var(--rc-muted); }
+
+.rc-decision-body {
+  margin: 0;
+  font-family: var(--rc-serif);
+  font-size: 1rem;
+  line-height: 1.5;
+  max-width: 60ch;
+  white-space: pre-wrap;
+}
+
+.rc-decision-history summary { font-size: 0.75rem; color: var(--rc-muted); cursor: pointer; }
+.rc-decision-history ol {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0 0 0 0.7rem;
+  border-left: 1px solid var(--rc-line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.rc-decision-history li { display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.8rem; }
+.rc-step { font-family: var(--rc-mono); font-size: 0.72rem; color: var(--rc-ink-2); }
+/* Die Begründung ist der Grund, warum es diese Liste gibt — also nicht klein
+   und grau, sondern lesbar. */
+.rc-step-why { color: var(--rc-ink-2); line-height: 1.45; max-width: 56ch; }
+.rc-decision-history time { font-size: 0.68rem; color: var(--rc-muted); font-variant-numeric: tabular-nums; }
+
+.rc-decision-move { display: flex; flex-direction: column; gap: 0.6rem; width: 100%; }
+.rc-decision-targets { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+.rc-decision-targets .rc-btn[aria-pressed="true"] {
+  border-color: var(--rc-accent);
+  color: var(--rc-accent);
+  font-weight: 600;
+}
+
+.rc-decision-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+  border-top: 1px solid var(--rc-line);
+  padding-top: 0.7rem;
+  width: 100%;
+}
+.rc-decision-reason textarea,
+.rc-new-decision textarea {
+  font: inherit;
+  font-size: 0.93rem;
+  line-height: 1.5;
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  border: 1px solid var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  padding: 0.5rem 0.6rem;
+  resize: vertical;
+  width: 100%;
+  max-width: 42rem;
+}
+.rc-decision-reason textarea:focus-visible,
+.rc-new-decision textarea:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: 1px; }
+
+.rc-reason-why { border-left: 2px solid var(--rc-accent); padding-left: 0.6rem; }
+.rc-decision-final { font-style: italic; }
+
+.rc-new-decision {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-items: flex-start;
+  border-top: 1px solid var(--rc-line);
+  padding-top: 0.9rem;
+  width: 100%;
+}
+.rc-new-decision .rc-field { width: 100%; }
+
 @media (max-width: 34rem) {
   .rc-status li { grid-template-columns: 1fr; gap: 0.15rem 0; }
   .rc-test-item { grid-template-columns: 1.3rem 1fr; }

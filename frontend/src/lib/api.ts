@@ -4833,6 +4833,10 @@ export function mergeParishConfirmationCandidates(
     address: string;
     schoolShort: string;
     selectedMeetingSlotId?: string | null;
+    selectedMeetings?: Array<{
+      stage: 'year1-start' | 'year1-end';
+      slotId?: string | null;
+    }>;
     portalTokenFromCandidateId?: string | null;
   }
 ) {
@@ -4847,6 +4851,7 @@ export function mergeParishConfirmationCandidates(
       address: payload.address,
       schoolShort: payload.schoolShort,
       selectedMeetingSlotId: payload.selectedMeetingSlotId ?? null,
+      selectedMeetings: payload.selectedMeetings ?? null,
       portalTokenFromCandidateId: payload.portalTokenFromCandidateId ?? null
     })
   });

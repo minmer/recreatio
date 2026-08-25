@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { rcCopy, rcPlural, type RcLang } from './i18n';
 import { RcRequestError } from './lib/rcApi';
 import { RcAttachments, RcPolls, RcReactions, RcTopics } from './RcThreads';
+import { RcDecisions, RcLedger } from './RcLedger';
 import type { RcReaction } from './lib/rcThreads';
 import {
   rcAreas, rcCreateArea, rcEpochBreaks, rcFeed, rcHide, rcMarkRead, rcMembers, rcMessageState,
@@ -154,7 +155,7 @@ function RcAreaView({
   const [messages, setMessages] = useState<readonly RcMessage[]>([]);
   const [memberCount, setMemberCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'chat' | 'topics' | 'polls'>('chat');
+  const [tab, setTab] = useState<'chat' | 'topics' | 'polls' | 'decisions' | 'ledger'>('chat');
 
   // Was markiert ist, wird zu einem Thema. Die Markierung lebt HIER und nicht
   // im Themen-Reiter: sie entsteht im Gespräch, und sie muss den Wechsel
@@ -199,6 +200,7 @@ function RcAreaView({
   if (loading) return <p className="rc-note">{t.loading}</p>;
 
   const th = rcCopy[lang].threads;
+  const tl = rcCopy[lang].ledger;
 
   const toggle = (id: string) =>
     setSelection((now) => (now.includes(id) ? now.filter((x) => x !== id) : [...now, id]));
@@ -210,7 +212,9 @@ function RcAreaView({
           {([
             ['chat', th.tabChat],
             ['topics', th.tabTopics],
-            ['polls', th.tabPolls]
+            ['polls', th.tabPolls],
+            ['decisions', tl.tabDecisions],
+            ['ledger', tl.tabLedger]
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -238,6 +242,16 @@ function RcAreaView({
 
       {tab === 'polls' && (
         <RcPolls lang={lang} areaId={areaId} role={writable} onError={onError} />
+      )}
+
+      {tab === 'decisions' && (
+        <RcDecisions lang={lang} areaId={areaId} role={writable} onError={onError} />
+      )}
+
+      {/* Die Kette gehört zum Bereich, und der Bereich nennt sie selbst —
+          sonst käme die Oberfläche gar nicht an sein Protokoll heran. */}
+      {tab === 'ledger' && (
+        <RcLedger lang={lang} ledgerId={area.ledgerId} onError={onError} />
       )}
 
       {tab === 'chat' && (
