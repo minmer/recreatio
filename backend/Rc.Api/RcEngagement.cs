@@ -18,11 +18,11 @@ public static class RcEngagement
 {
     public static void MapRcEngagement(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/rc/messages/{id:guid}/reaction", ReactAsync);
-        app.MapGet("/rc/areas/{id:guid}/read-state", ReadStateAsync);
-        app.MapPost("/rc/areas/{id:guid}/read-state", MarkReadAsync);
-        app.MapGet("/rc/areas/{id:guid}/draft", GetDraftAsync);
-        app.MapPost("/rc/areas/{id:guid}/draft", SaveDraftAsync);
+        app.MapPost("/rc/messages/{id:guid}/reaction", ReactAsync).Produces<RcReactionResponse>();
+        app.MapGet("/rc/areas/{id:guid}/read-state", ReadStateAsync).Produces<RcReadStateResponse>();
+        app.MapPost("/rc/areas/{id:guid}/read-state", MarkReadAsync).Produces<RcReadMarkedResponse>();
+        app.MapGet("/rc/areas/{id:guid}/draft", GetDraftAsync).Produces<RcDraftResponse>();
+        app.MapPost("/rc/areas/{id:guid}/draft", SaveDraftAsync).Produces<RcDraftSavedResponse>();
     }
 
     // -- Reaktionen -----------------------------------------------------------
@@ -92,7 +92,7 @@ public static class RcEngagement
             clear.Parameters.AddWithValue("@m", id);
             clear.Parameters.AddWithValue("@r", roleId);
             await clear.ExecuteNonQueryAsync(ctx.RequestAborted);
-            await RcResults.WriteJsonAsync(ctx, new { messageId = RcId.ToText(id), kind = (int?)null });
+            await RcResults.WriteJsonAsync(ctx, new RcReactionResponse(RcId.ToText(id), null));
             return;
         }
 
@@ -112,7 +112,7 @@ public static class RcEngagement
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
 
-        await RcResults.WriteJsonAsync(ctx, new { messageId = RcId.ToText(id), kind = body.Kind });
+        await RcResults.WriteJsonAsync(ctx, new RcReactionResponse(RcId.ToText(id), body.Kind));
     }
 
     // -- Lesestand ------------------------------------------------------------
@@ -200,7 +200,7 @@ public static class RcEngagement
             return;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { areaId = RcId.ToText(id), lastReadSeq = seq });
+        await RcResults.WriteJsonAsync(ctx, new RcReadMarkedResponse(RcId.ToText(id), seq));
     }
 
     public sealed record ReadStateView(string RoleId, long LastReadSeq, DateTimeOffset LastReadAt);
@@ -228,11 +228,7 @@ public static class RcEngagement
             areaSwitch.Parameters.AddWithValue("@id", id);
             if (await areaSwitch.ExecuteScalarAsync(ctx.RequestAborted) is not true)
             {
-                await RcResults.WriteJsonAsync(ctx, new
-                {
-                    enabledHere = false,
-                    readers = Array.Empty<ReadStateView>()
-                });
+                await RcResults.WriteJsonAsync(ctx, new RcReadStateResponse(false, false, []));
                 return;
             }
         }
@@ -243,12 +239,7 @@ public static class RcEngagement
         var iShow = await ShowsReceiptsAsync(connection, id, mine.Keys.ToList(), ctx.RequestAborted);
         if (!iShow)
         {
-            await RcResults.WriteJsonAsync(ctx, new
-            {
-                enabledHere = true,
-                youAreHidden = true,
-                readers = Array.Empty<ReadStateView>()
-            });
+            await RcResults.WriteJsonAsync(ctx, new RcReadStateResponse(true, true, []));
             return;
         }
 
@@ -265,7 +256,7 @@ public static class RcEngagement
         while (await reader.ReadAsync(ctx.RequestAborted))
             readers.Add(new ReadStateView(RcId.ToText(reader.GetGuid(0)), reader.GetInt64(1), reader.GetDateTimeOffset(2)));
 
-        await RcResults.WriteJsonAsync(ctx, new { enabledHere = true, youAreHidden = false, readers });
+        await RcResults.WriteJsonAsync(ctx, new RcReadStateResponse(true, false, readers));
     }
 
     // -- Entwuerfe ------------------------------------------------------------
@@ -315,7 +306,7 @@ public static class RcEngagement
             clear.Parameters.AddWithValue("@area", id);
             clear.Parameters.AddWithValue("@role", roleId);
             await clear.ExecuteNonQueryAsync(ctx.RequestAborted);
-            await RcResults.WriteJsonAsync(ctx, new { areaId = RcId.ToText(id), saved = false });
+            await RcResults.WriteJsonAsync(ctx, new RcDraftSavedResponse(RcId.ToText(id), false));
             return;
         }
 
@@ -347,7 +338,7 @@ public static class RcEngagement
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
 
-        await RcResults.WriteJsonAsync(ctx, new { areaId = RcId.ToText(id), saved = true });
+        await RcResults.WriteJsonAsync(ctx, new RcDraftSavedResponse(RcId.ToText(id), true));
     }
 
     private static async Task GetDraftAsync(
@@ -377,7 +368,7 @@ public static class RcEngagement
         await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
         if (!await reader.ReadAsync(ctx.RequestAborted))
         {
-            await RcResults.WriteJsonAsync(ctx, new { areaId = RcId.ToText(id), body = (string?)null });
+            await RcResults.WriteJsonAsync(ctx, new RcDraftResponse(RcId.ToText(id), null));
             return;
         }
 
@@ -387,12 +378,8 @@ public static class RcEngagement
 
         var keys = await RcAreaKeys.EpochKeysAsync(connection, session.AccountId, held.MasterKey, id, ctx.RequestAborted);
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            areaId = RcId.ToText(id),
-            body = RcAreaKeys.TryOpenText(keys, DraftAad(id, roleId), sealedBody),
-            updatedAt
-        });
+        await RcResults.WriteJsonAsync(ctx, new RcDraftResponse(
+            RcId.ToText(id), RcAreaKeys.TryOpenText(keys, DraftAad(id, roleId), sealedBody), updatedAt));
     }
 
     // -- Gemeinsames ----------------------------------------------------------

@@ -27,11 +27,11 @@ public static class RcTopics
 {
     public static void MapRcTopics(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/rc/areas/{id:guid}/topics", ListAsync);
-        app.MapPost("/rc/areas/{id:guid}/topics", CreateAsync);
-        app.MapPost("/rc/topics/{id:guid}/messages", AssignAsync);
-        app.MapPost("/rc/topics/{id:guid}/close", CloseAsync);
-        app.MapPost("/rc/topics/{id:guid}/labels", LabelAsync);
+        app.MapGet("/rc/areas/{id:guid}/topics", ListAsync).Produces<RcTopicsResponse>();
+        app.MapPost("/rc/areas/{id:guid}/topics", CreateAsync).Produces<RcTopicCreatedResponse>();
+        app.MapPost("/rc/topics/{id:guid}/messages", AssignAsync).Produces<RcTopicAssignedResponse>();
+        app.MapPost("/rc/topics/{id:guid}/close", CloseAsync).Produces<RcTopicClosedResponse>();
+        app.MapPost("/rc/topics/{id:guid}/labels", LabelAsync).Produces<RcTopicLabelsResponse>();
     }
 
     // -- Anlegen --------------------------------------------------------------
@@ -110,12 +110,8 @@ public static class RcTopics
             throw;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            topicId = RcId.ToText(topicId),
-            title,
-            assigned = ParseIds(body.MessageIds).Count
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcTopicCreatedResponse(
+            RcId.ToText(topicId), title, ParseIds(body.MessageIds).Count), StatusCodes.Status201Created);
     }
 
     // -- Anzeigen -------------------------------------------------------------
@@ -166,7 +162,7 @@ public static class RcTopics
                 labels));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { topics = views });
+        await RcResults.WriteJsonAsync(ctx, new RcTopicsResponse(views));
     }
 
     // -- Zuordnen -------------------------------------------------------------
@@ -208,7 +204,7 @@ public static class RcTopics
             throw;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { topicId = RcId.ToText(id), assigned });
+        await RcResults.WriteJsonAsync(ctx, new RcTopicAssignedResponse(RcId.ToText(id), assigned));
     }
 
     /// <summary>
@@ -279,7 +275,7 @@ public static class RcTopics
         cmd.Parameters.AddWithValue("@id", id);
 
         var rows = await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
-        await RcResults.WriteJsonAsync(ctx, new { topicId = RcId.ToText(id), closed = !reopen && rows == 1 });
+        await RcResults.WriteJsonAsync(ctx, new RcTopicClosedResponse(RcId.ToText(id), !reopen && rows == 1));
     }
 
     public sealed record LabelRequest(int[] Labels);
@@ -332,7 +328,7 @@ public static class RcTopics
             throw;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { topicId = RcId.ToText(id), labels });
+        await RcResults.WriteJsonAsync(ctx, new RcTopicLabelsResponse(RcId.ToText(id), labels));
     }
 
     // -- Gemeinsames ----------------------------------------------------------

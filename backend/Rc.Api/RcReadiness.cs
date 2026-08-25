@@ -193,10 +193,8 @@ public static class RcReadiness
             ctx.Response.StatusCode = report.Healthy
                 ? StatusCodes.Status200OK
                 : StatusCodes.Status503ServiceUnavailable;
-            return Results.Json(new
-            {
-                healthy = report.Healthy,
-                checks = report.Checks.Select(c => new { name = c.Name, passed = c.Passed, detail = c.Detail })
-            });
-        }).AllowAnonymousWrite("Zustandsabfrage, nur GET");
+            return Results.Json(new RcHealthResponse(
+                report.Healthy,
+                report.Checks.Select(c => new RcHealthCheck(c.Name, c.Passed, c.Detail)).ToList()));
+        }).AllowAnonymousWrite("Zustandsabfrage, nur GET").Produces<RcHealthResponse>();
 }

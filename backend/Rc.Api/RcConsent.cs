@@ -36,9 +36,9 @@ public static class RcConsent
     {
         // Ohne Konto lesbar — ein Einwilligungstext, den man erst nach der
         // Anmeldung lesen kann, kommt zu spaet.
-        app.MapGet("/rc/consent/{key}", CurrentAsync);
-        app.MapGet("/rc/consent/{key}/versions", VersionsAsync);
-        app.MapPost("/rc/consent", PublishAsync);
+        app.MapGet("/rc/consent/{key}", CurrentAsync).Produces<RcConsent.ConsentView>();
+        app.MapGet("/rc/consent/{key}/versions", VersionsAsync).Produces<RcConsentVersionsResponse>();
+        app.MapPost("/rc/consent", PublishAsync).Produces<RcConsentPublishedResponse>();
     }
 
     // -- Veroeffentlichen -----------------------------------------------------
@@ -141,10 +141,8 @@ public static class RcConsent
             return;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            consentKey = key, language, version, bodyHash = RcCrypto.ToHex(hash)
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcConsentPublishedResponse(
+            key, language, version, RcCrypto.ToHex(hash)), StatusCodes.Status201Created);
     }
 
     // -- Lesen ----------------------------------------------------------------
@@ -219,20 +217,16 @@ public static class RcConsent
             """, connection);
         cmd.Parameters.AddWithValue("@key", consentKey);
 
-        var versions = new List<object>();
+        var versions = new List<RcConsentVersion>();
         await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
         while (await reader.ReadAsync(ctx.RequestAborted))
         {
-            versions.Add(new
-            {
-                language = reader.GetString(0),
-                version = reader.GetInt32(1),
-                bodyHash = RcCrypto.ToHex((byte[])reader[2]),
-                publishedAt = reader.GetDateTimeOffset(3)
-            });
+            versions.Add(new RcConsentVersion(
+                reader.GetString(0), reader.GetInt32(1),
+                RcCrypto.ToHex((byte[])reader[2]), reader.GetDateTimeOffset(3)));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { consentKey, versions });
+        await RcResults.WriteJsonAsync(ctx, new RcConsentVersionsResponse(consentKey, versions));
     }
 
     // -- Gemeinsames ----------------------------------------------------------

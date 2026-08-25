@@ -26,9 +26,9 @@ public static class RcLedgerEndpoints
 {
     public static void MapRcLedger(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/rc/ledgers/{id:guid}/head", HeadAsync);
-        app.MapGet("/rc/ledgers/{id:guid}/verify", VerifyAsync);
-        app.MapGet("/rc/ledgers/{id:guid}/entries", EntriesAsync);
+        app.MapGet("/rc/ledgers/{id:guid}/head", HeadAsync).Produces<RcLedgerHeadResponse>();
+        app.MapGet("/rc/ledgers/{id:guid}/verify", VerifyAsync).Produces<RcLedgerEndpoints.VerifyResponse>();
+        app.MapGet("/rc/ledgers/{id:guid}/entries", EntriesAsync).Produces<RcLedgerEntriesResponse>();
     }
 
     /// <summary>
@@ -41,17 +41,13 @@ public static class RcLedgerEndpoints
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var (sequence, hash) = await RcLedger.HeadAsync(connection, id, ctx.RequestAborted);
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            ledgerId = RcId.ToText(id),
-            sequence,
-            hash = RcCrypto.ToHex(hash),
+        await RcResults.WriteJsonAsync(ctx, new RcLedgerHeadResponse(
+            RcId.ToText(id), sequence, RcCrypto.ToHex(hash),
 
             // Ohne diesen Satz wird der Kopf frueher oder spaeter als
             // Zeitnachweis gelesen, der er nicht ist.
-            note = "Die Kette beweist Reihenfolge und Urheberschaft. Den Zeitpunkt "
-                 + "beweist erst ein unabhaengig mitgeschriebener Kopf."
-        });
+            "Die Kette beweist Reihenfolge und Urheberschaft. Den Zeitpunkt "
+            + "beweist erst ein unabhaengig mitgeschriebener Kopf."));
     }
 
     public sealed record VerifyResponse(
@@ -135,7 +131,7 @@ public static class RcLedgerEndpoints
                 System.Text.Encoding.UTF8.GetString((byte[])reader[8])));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { entries });
+        await RcResults.WriteJsonAsync(ctx, new RcLedgerEntriesResponse(entries));
     }
 
     /// <summary>

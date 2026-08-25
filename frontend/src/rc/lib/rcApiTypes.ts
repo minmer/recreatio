@@ -25,7 +25,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcHealthResponse"];
+                    };
                 };
             };
         };
@@ -60,7 +62,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcCsrfResponse"];
+                    };
                 };
             };
         };
@@ -91,7 +95,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcAreasResponse"];
+                    };
                 };
             };
         };
@@ -114,7 +120,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcAreaCreatedResponse"];
+                    };
                 };
             };
         };
@@ -147,7 +155,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcMembersResponse"];
+                    };
                 };
             };
         };
@@ -172,7 +182,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcMemberAddedResponse"];
+                    };
                 };
             };
         };
@@ -208,7 +220,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcMemberRemovedResponse"];
+                    };
                 };
             };
         };
@@ -241,7 +255,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcAttachmentsResponse"];
+                    };
                 };
             };
         };
@@ -269,7 +285,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcAttachmentUploadedResponse"];
+                    };
                 };
             };
         };
@@ -339,7 +357,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcAttachmentDeletedResponse"];
+                    };
                 };
             };
         };
@@ -635,7 +655,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["ConsentConsentView"];
+                    };
                 };
             };
         };
@@ -670,7 +692,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcConsentVersionsResponse"];
+                    };
                 };
             };
         };
@@ -709,7 +733,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcConsentPublishedResponse"];
+                    };
                 };
             };
         };
@@ -742,7 +768,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcDataItemsResponse"];
+                    };
                 };
             };
         };
@@ -765,7 +793,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcDataItemCreatedResponse"];
+                    };
                 };
             };
         };
@@ -800,7 +830,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcDataItemResponse"];
+                    };
                 };
             };
         };
@@ -841,7 +873,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcDataSharedResponse"];
+                    };
                 };
             };
         };
@@ -880,7 +914,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcDataDestroyedResponse"];
+                    };
                 };
             };
         };
@@ -913,7 +949,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcAccessLogResponse"];
+                    };
                 };
             };
         };
@@ -948,7 +986,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcDecisionsResponse"];
+                    };
                 };
             };
         };
@@ -973,7 +1013,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcDecisionCreatedResponse"];
+                    };
                 };
             };
         };
@@ -1012,7 +1054,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcDecisionTransitionedResponse"];
+                    };
                 };
             };
         };
@@ -1051,7 +1095,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcReactionResponse"];
+                    };
                 };
             };
         };
@@ -1084,7 +1130,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcReadStateResponse"];
+                    };
                 };
             };
         };
@@ -1109,7 +1157,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcReadMarkedResponse"];
+                    };
                 };
             };
         };
@@ -1144,7 +1194,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcDraftResponse"];
+                    };
                 };
             };
         };
@@ -1169,7 +1221,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcDraftSavedResponse"];
+                    };
                 };
             };
         };
@@ -1200,7 +1254,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcInvitationsResponse"];
+                    };
                 };
             };
         };
@@ -1223,7 +1279,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcInvitationCreatedResponse"];
+                    };
                 };
             };
         };
@@ -1258,7 +1316,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcRevokedResponse"];
+                    };
                 };
             };
         };
@@ -1295,7 +1355,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcInvitationPeekResponse"];
+                    };
                 };
             };
         };
@@ -1332,7 +1394,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcInvitationRedeemedResponse"];
+                    };
                 };
             };
         };
@@ -1365,7 +1429,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcLedgerHeadResponse"];
+                    };
                 };
             };
         };
@@ -1400,7 +1466,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["LedgerEndpointsVerifyResponse"];
+                    };
                 };
             };
         };
@@ -1438,7 +1506,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcLedgerEntriesResponse"];
+                    };
                 };
             };
         };
@@ -1475,7 +1545,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcFeedResponse"];
+                    };
                 };
             };
         };
@@ -1500,7 +1572,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcMessagePostedResponse"];
+                    };
                 };
             };
         };
@@ -1539,7 +1613,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcMessageEditedResponse"];
+                    };
                 };
             };
         };
@@ -1578,7 +1654,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcMessageHiddenResponse"];
+                    };
                 };
             };
         };
@@ -1611,7 +1689,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcPollsResponse"];
+                    };
                 };
             };
         };
@@ -1636,7 +1716,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcPollCreatedResponse"];
+                    };
                 };
             };
         };
@@ -1675,7 +1757,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcPollVotedResponse"];
+                    };
                 };
             };
         };
@@ -1710,7 +1794,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcPollClosedResponse"];
+                    };
                 };
             };
         };
@@ -1741,7 +1827,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcSharesResponse"];
+                    };
                 };
             };
         };
@@ -1764,7 +1852,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcSharesDepositedResponse"];
+                    };
                 };
             };
         };
@@ -1795,7 +1885,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcRecoveryRequestsResponse"];
+                    };
                 };
             };
         };
@@ -1818,7 +1910,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcRecoveryRequestedResponse"];
+                    };
                 };
             };
         };
@@ -1853,7 +1947,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcObjectionResponse"];
+                    };
                 };
             };
         };
@@ -1892,7 +1988,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcContributionResponse"];
+                    };
                 };
             };
         };
@@ -1931,7 +2029,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcRecoveryCompletedResponse"];
+                    };
                 };
             };
         };
@@ -1962,7 +2062,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcRolesResponse"];
+                    };
                 };
             };
         };
@@ -1985,7 +2087,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcRoleCreatedResponse"];
+                    };
                 };
             };
         };
@@ -2024,7 +2128,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcHolderAddedResponse"];
+                    };
                 };
             };
         };
@@ -2055,7 +2161,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcCertificatesResponse"];
+                    };
                 };
             };
         };
@@ -2078,7 +2186,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcCertificateIssuedResponse"];
+                    };
                 };
             };
         };
@@ -2113,7 +2223,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcRevokedResponse"];
+                    };
                 };
             };
         };
@@ -2148,7 +2260,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcPermissionCheckResponse"];
+                    };
                 };
             };
         };
@@ -2183,7 +2297,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcTopicsResponse"];
+                    };
                 };
             };
         };
@@ -2208,7 +2324,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcTopicCreatedResponse"];
+                    };
                 };
             };
         };
@@ -2247,7 +2365,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcTopicAssignedResponse"];
+                    };
                 };
             };
         };
@@ -2286,7 +2406,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcTopicClosedResponse"];
+                    };
                 };
             };
         };
@@ -2325,7 +2447,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RcTopicLabelsResponse"];
+                    };
                 };
             };
         };
@@ -2344,10 +2468,37 @@ export interface components {
             capability?: string | null;
             grantHistory?: boolean | null;
         };
+        AreasAreaView: {
+            areaId: string;
+            title?: string | null;
+            /** Format: int32 */
+            currentEpoch: number;
+            lifecycle: string;
+            isPublic: boolean;
+            /** Format: int32 */
+            readableEpochs: number;
+            canWrite: boolean;
+        };
         AreasCreateAreaRequest: {
             ownerRoleId: string;
             title: string;
             isPublic?: boolean | null;
+        };
+        AreasMemberView: {
+            roleId: string;
+            capability: string;
+            /** Format: date-time */
+            expiresUtc: string;
+            /** Format: int32 */
+            epochGrants: number;
+        };
+        AttachmentsAttachmentView: {
+            attachmentId: string;
+            fileName?: string | null;
+            /** Format: int64 */
+            sizeBytes: number;
+            /** Format: date-time */
+            createdAt: string;
         };
         AuthCacheModeRequest: {
             /** Format: int32 */
@@ -2367,11 +2518,27 @@ export interface components {
             passwordKey: string;
             deviceNote?: string | null;
         };
+        ConsentConsentView: {
+            consentKey: string;
+            language: string;
+            /** Format: int32 */
+            version: number;
+            body: string;
+            bodyHash: string;
+            /** Format: date-time */
+            publishedAt: string;
+        };
         ConsentPublishRequest: {
             consentKey: string;
             language: string;
             body: string;
             tenantRoleId: string;
+        };
+        DataItemsAccessEntry: {
+            readerRoleId: string;
+            /** Format: date-time */
+            accessedAt: string;
+            purpose?: string | null;
         };
         DataItemsCreateRequest: {
             ownerRoleId: string;
@@ -2380,6 +2547,15 @@ export interface components {
             value: string;
             module?: string | null;
             objectType?: string | null;
+        };
+        DataItemsDataItemView: {
+            dataItemId: string;
+            ownerRoleId: string;
+            dataClass: string;
+            field: string;
+            destroyed: boolean;
+            /** Format: date-time */
+            updatedAt: string;
         };
         DataItemsDestroyRequest: {
             reason?: string | null;
@@ -2392,10 +2568,26 @@ export interface components {
             body: string;
             topicId?: string | null;
         };
+        DecisionsDecisionView: {
+            decisionId: string;
+            state: string;
+            body?: string | null;
+            topicId?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            history: components["schemas"]["DecisionsTransitionView"][];
+        };
         DecisionsTransitionRequest: {
             roleId: string;
             toState: string;
             reason: string;
+        };
+        DecisionsTransitionView: {
+            fromState: string;
+            toState: string;
+            reason?: string | null;
+            /** Format: date-time */
+            at: string;
         };
         EngagementDraftRequest: {
             roleId: string;
@@ -2412,6 +2604,13 @@ export interface components {
             /** Format: int32 */
             kind?: number | null;
         };
+        EngagementReadStateView: {
+            roleId: string;
+            /** Format: int64 */
+            lastReadSeq: number;
+            /** Format: date-time */
+            lastReadAt: string;
+        };
         InvitationsCreateRequest: {
             roleId: string;
             label?: string | null;
@@ -2421,14 +2620,69 @@ export interface components {
             maxUses?: number | null;
             forSms?: boolean | null;
         };
+        InvitationsInvitationView: {
+            invitationId: string;
+            roleId: string;
+            label?: string | null;
+            purpose: string;
+            /** Format: date-time */
+            expiresUtc: string;
+            /** Format: int32 */
+            useCount: number;
+            /** Format: int32 */
+            maxUses?: number | null;
+            /** Format: date-time */
+            firstOpenedUtc?: string | null;
+        };
         InvitationsSecretRequest: {
             secret: string;
+        };
+        LedgerEndpointsEntryView: {
+            /** Format: int64 */
+            sequence: number;
+            entryId: string;
+            previousHash: string;
+            entryHash: string;
+            moduleId: string;
+            signerKeyFingerprint: string;
+            accountCommitment: string;
+            /** Format: date-time */
+            serverTimestamp: string;
+            payloadCanonical: string;
+        };
+        LedgerEndpointsVerifyResponse: {
+            ledgerId: string;
+            /** Format: int64 */
+            entries: number;
+            intact: boolean;
+            /** Format: int64 */
+            firstBrokenSequence?: number | null;
+            reason?: string | null;
+            /** Format: int64 */
+            headSequence: number;
+            headHash: string;
         };
         MessagesEditRequest: {
             body: string;
         };
         MessagesHideRequest: {
             byAuthor?: boolean | null;
+        };
+        MessagesMessageView: {
+            messageId: string;
+            /** Format: int32 */
+            epoch: number;
+            authorRoleId?: string | null;
+            body?: string | null;
+            /** Format: int32 */
+            version: number;
+            /** Format: date-time */
+            postedUtc: string;
+            /** Format: date-time */
+            editedUtc?: string | null;
+            hiddenKind?: string | null;
+            quoteMessageId?: string | null;
+            unreadable?: string | null;
         };
         MessagesPostRequest: {
             authorRoleId: string;
@@ -2441,9 +2695,35 @@ export interface components {
             mode?: string | null;
             reveal?: string | null;
         };
+        PollsPollView: {
+            pollId: string;
+            question?: string | null;
+            mode: string;
+            reveal: string;
+            closed: boolean;
+            /** Format: int32 */
+            voteCount: number;
+            tally?: {
+                [key: string]: number;
+            } | null;
+            yourChoice?: string | null;
+        };
         PollsVoteRequest: {
             roleId: string;
             choice: string;
+        };
+        RcAccessLogResponse: {
+            accesses: components["schemas"]["DataItemsAccessEntry"][];
+        };
+        RcAreaCreatedResponse: {
+            areaId: string;
+            tenantId: string;
+            /** Format: int32 */
+            epoch: number;
+            title: string;
+        };
+        RcAreasResponse: {
+            areas: components["schemas"]["AreasAreaView"][];
         };
         RcArgon2Parameters: {
             /** Format: int32 */
@@ -2455,11 +2735,175 @@ export interface components {
             /** Format: int32 */
             outputBytes: number;
         };
+        RcAttachmentDeletedResponse: {
+            attachmentId: string;
+            deleted: boolean;
+        };
+        RcAttachmentUploadedResponse: {
+            attachmentId: string;
+            fileName: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            /** Format: int64 */
+            quotaUsedBytes: number;
+            /** Format: int64 */
+            quotaBytes: number;
+        };
+        RcAttachmentsResponse: {
+            attachments: components["schemas"]["AttachmentsAttachmentView"][];
+        };
         RcCacheModeResponse: {
             /** Format: int32 */
             cacheMode: number;
             /** Format: int32 */
             forgottenBundles: number;
+        };
+        RcCertificateIssuedResponse: {
+            certificateId: string;
+            /** Format: date-time */
+            expiresUtc: string;
+            capability: string;
+        };
+        RcCertificatesResponse: {
+            certificates: components["schemas"]["RolesCertificateView"][];
+        };
+        RcConsentPublishedResponse: {
+            consentKey: string;
+            language: string;
+            /** Format: int32 */
+            version: number;
+            bodyHash: string;
+        };
+        RcConsentVersion: {
+            language: string;
+            /** Format: int32 */
+            version: number;
+            bodyHash: string;
+            /** Format: date-time */
+            publishedAt: string;
+        };
+        RcConsentVersionsResponse: {
+            consentKey: string;
+            versions: components["schemas"]["RcConsentVersion"][];
+        };
+        RcContributionResponse: {
+            requestId: string;
+            /** Format: int32 */
+            contributions: number;
+            /** Format: int32 */
+            threshold: number;
+            enough: boolean;
+            alreadyContributed: boolean;
+        };
+        RcCsrfResponse: {
+            token: string;
+        };
+        RcDataDestroyedResponse: {
+            dataItemId: string;
+            /** Format: date-time */
+            destroyedAt: string;
+            /** Format: int32 */
+            keysDestroyed: number;
+            reason?: string | null;
+            ciphertextRemains: boolean;
+            alreadyDestroyed: boolean;
+        };
+        RcDataItemCreatedResponse: {
+            dataItemId: string;
+            dataClass: string;
+            logged: boolean;
+            shareable: boolean;
+        };
+        RcDataItemResponse: {
+            dataItemId: string;
+            dataClass: string;
+            field: string;
+            value: string;
+            logged: boolean;
+        };
+        RcDataItemsResponse: {
+            items: components["schemas"]["DataItemsDataItemView"][];
+        };
+        RcDataSharedResponse: {
+            dataItemId: string;
+            toRoleId?: string | null;
+            alreadyShared: boolean;
+        };
+        RcDecisionCreatedResponse: {
+            decisionId: string;
+            state: string;
+        };
+        RcDecisionTransitionedResponse: {
+            decisionId: string;
+            fromState: string;
+            toState: string;
+        };
+        RcDecisionsResponse: {
+            decisions: components["schemas"]["DecisionsDecisionView"][];
+        };
+        RcDraftResponse: {
+            areaId: string;
+            body?: string | null;
+            /** Format: date-time */
+            updatedAt?: string | null;
+        };
+        RcDraftSavedResponse: {
+            areaId: string;
+            saved: boolean;
+        };
+        RcFeedResponse: {
+            messages: components["schemas"]["MessagesMessageView"][];
+            readableEpochs: number[];
+        };
+        RcHealthCheck: {
+            name: string;
+            passed: boolean;
+            detail: string;
+        };
+        RcHealthResponse: {
+            healthy: boolean;
+            checks: components["schemas"]["RcHealthCheck"][];
+        };
+        RcHolderAddedResponse: {
+            edgeId?: string | null;
+            edgeKind?: string | null;
+            /** Format: date-time */
+            expiresUtc?: string | null;
+            alreadyHeld: boolean;
+        };
+        RcInvitationCreatedResponse: {
+            invitationId: string;
+            secret: string;
+            /** Format: date-time */
+            expiresUtc: string;
+            purpose: string;
+            /** Format: int32 */
+            maxUses?: number | null;
+        };
+        RcInvitationPeekResponse: {
+            label?: string | null;
+            purpose: string;
+            /** Format: date-time */
+            expiresUtc: string;
+            requiresAccount: boolean;
+        };
+        RcInvitationRedeemedResponse: {
+            roleId: string;
+            edgeId?: string | null;
+            alreadyRedeemed: boolean;
+        };
+        RcInvitationsResponse: {
+            invitations: components["schemas"]["InvitationsInvitationView"][];
+        };
+        RcLedgerEntriesResponse: {
+            entries: components["schemas"]["LedgerEndpointsEntryView"][];
+        };
+        RcLedgerHeadResponse: {
+            ledgerId: string;
+            /** Format: int64 */
+            sequence: number;
+            hash: string;
+            note: string;
         };
         RcLockedResponse: {
             locked: boolean;
@@ -2474,6 +2918,107 @@ export interface components {
             sessionId?: string | null;
             keysHeld?: boolean | null;
         };
+        RcMemberAddedResponse: {
+            roleId: string;
+            capability?: string | null;
+            /** Format: int32 */
+            epoch: number;
+            readsHistory: boolean;
+            alreadyMember: boolean;
+        };
+        RcMemberRemovedResponse: {
+            roleId: string;
+            /** Format: int32 */
+            newEpoch: number;
+            keptWhatTheyRead: boolean;
+        };
+        RcMembersResponse: {
+            members: components["schemas"]["AreasMemberView"][];
+        };
+        RcMessageEditedResponse: {
+            messageId: string;
+            /** Format: int32 */
+            version: number;
+            /** Format: date-time */
+            editedUtc: string;
+        };
+        RcMessageHiddenResponse: {
+            messageId: string;
+            hidden: boolean;
+            kind: string;
+            reversible: boolean;
+        };
+        RcMessagePostedResponse: {
+            messageId: string;
+            /** Format: int32 */
+            epoch: number;
+            /** Format: int32 */
+            version: number;
+            /** Format: date-time */
+            postedUtc: string;
+            /** Format: date-time */
+            appendWindowUntil: string;
+            chainBound: boolean;
+        };
+        RcObjectionResponse: {
+            requestId: string;
+            objected: boolean;
+        };
+        RcPermissionCheckResponse: {
+            allowed: boolean;
+            via?: string | null;
+            certificateId?: string | null;
+        };
+        RcPollClosedResponse: {
+            pollId: string;
+            closed: boolean;
+        };
+        RcPollCreatedResponse: {
+            pollId: string;
+            question: string;
+            mode: string;
+            reveal: string;
+        };
+        RcPollVotedResponse: {
+            pollId: string;
+            voteId: string;
+        };
+        RcPollsResponse: {
+            polls: components["schemas"]["PollsPollView"][];
+        };
+        RcReactionResponse: {
+            messageId: string;
+            /** Format: int32 */
+            kind?: number | null;
+        };
+        RcReadMarkedResponse: {
+            areaId: string;
+            /** Format: int64 */
+            lastReadSeq: number;
+        };
+        RcReadStateResponse: {
+            enabledHere: boolean;
+            youAreHidden: boolean;
+            readers: components["schemas"]["EngagementReadStateView"][];
+        };
+        RcRecoveryCompletedResponse: {
+            requestId: string;
+            /** Format: date-time */
+            completedAt: string;
+            oneTimeSecret: string;
+            notice: string;
+        };
+        RcRecoveryRequestedResponse: {
+            requestId: string;
+            /** Format: date-time */
+            effectiveAt: string;
+            /** Format: int32 */
+            graceDays: number;
+            notice: string;
+        };
+        RcRecoveryRequestsResponse: {
+            requests: components["schemas"]["RecoveryRequestView"][];
+        };
         RcRegisteredResponse: {
             accountId: string;
             sessionId: string;
@@ -2485,6 +3030,18 @@ export interface components {
             idleMinutes: number;
             tenantId: string;
             personalRoleId: string;
+        };
+        RcRevokedResponse: {
+            revoked: boolean;
+        };
+        RcRoleCreatedResponse: {
+            roleId: string;
+            tenantId: string;
+            kind: string;
+            fingerprint: string;
+        };
+        RcRolesResponse: {
+            roles: components["schemas"]["RolesRoleView"][];
         };
         RcSaltResponse: {
             passwordSalt: string;
@@ -2499,6 +3056,40 @@ export interface components {
             cacheMode: number;
             /** Format: int32 */
             idleMinutes: number;
+        };
+        RcSharesDepositedResponse: {
+            /** Format: int32 */
+            guarantors: number;
+            /** Format: int32 */
+            threshold: number;
+            /** Format: int32 */
+            graceDays: number;
+            notice: string;
+        };
+        RcSharesResponse: {
+            shares: components["schemas"]["RecoveryShareView"][];
+        };
+        RcTopicAssignedResponse: {
+            topicId: string;
+            /** Format: int32 */
+            assigned: number;
+        };
+        RcTopicClosedResponse: {
+            topicId: string;
+            closed: boolean;
+        };
+        RcTopicCreatedResponse: {
+            topicId: string;
+            title: string;
+            /** Format: int32 */
+            assigned: number;
+        };
+        RcTopicLabelsResponse: {
+            topicId: string;
+            labels: number[];
+        };
+        RcTopicsResponse: {
+            topics: components["schemas"]["TopicsTopicView"][];
         };
         RecoveryCompleteRequest: {
             requesterRoleId: string;
@@ -2515,11 +3106,42 @@ export interface components {
             targetRoleId: string;
             byRoleId: string;
         };
+        RecoveryRequestView: {
+            requestId: string;
+            targetRoleId: string;
+            requestedByRoleId: string;
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            effectiveAt: string;
+            objected: boolean;
+            completed: boolean;
+            effective: boolean;
+        };
+        RecoveryShareView: {
+            guarantorRoleId: string;
+            /** Format: int32 */
+            threshold: number;
+            /** Format: int32 */
+            totalShares: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
         RolesAddHolderRequest: {
             holderRoleId: string;
             edgeKind?: string | null;
             /** Format: int32 */
             daysValid?: number | null;
+        };
+        RolesCertificateView: {
+            certificateId: string;
+            subjectRoleId: string;
+            scopeKind: string;
+            scopeId: string;
+            capability: string;
+            issuedByRoleId: string;
+            /** Format: date-time */
+            expiresUtc: string;
         };
         RolesCreateRoleRequest: {
             holderRoleId: string;
@@ -2535,6 +3157,15 @@ export interface components {
             /** Format: int32 */
             daysValid?: number | null;
         };
+        RolesRoleView: {
+            roleId: string;
+            kind: string;
+            tenantId: string;
+            /** Format: int32 */
+            depth: number;
+            displayName?: string | null;
+            hasKey: boolean;
+        };
         TopicsAssignRequest: {
             messageIds: string[];
         };
@@ -2548,6 +3179,15 @@ export interface components {
             messageIds?: string[] | null;
         };
         TopicsLabelRequest: {
+            labels: number[];
+        };
+        TopicsTopicView: {
+            topicId: string;
+            title?: string | null;
+            parentTopicId?: string | null;
+            closed: boolean;
+            /** Format: int32 */
+            messageCount: number;
             labels: number[];
         };
     };

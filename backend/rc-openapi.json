@@ -13,7 +13,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcHealthResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -25,7 +32,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCsrfResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -37,7 +51,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcAreasResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -57,7 +78,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcAreaCreatedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -80,7 +108,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcMembersResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -111,7 +146,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcMemberAddedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -143,7 +185,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcMemberRemovedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -189,7 +238,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcAttachmentUploadedResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -210,7 +266,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcAttachmentsResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -256,7 +319,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcAttachmentDeletedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -458,7 +528,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentConsentView"
+                }
+              }
+            }
           }
         }
       }
@@ -480,7 +557,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcConsentVersionsResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -502,7 +586,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcConsentPublishedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -524,7 +615,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcDataItemCreatedResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -545,7 +643,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcDataItemsResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -575,7 +680,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcDataItemResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -608,7 +720,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcDataSharedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -641,7 +760,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcDataDestroyedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -664,7 +790,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcAccessLogResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -687,7 +820,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcDecisionsResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -718,7 +858,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcDecisionCreatedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -751,7 +898,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcDecisionTransitionedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -784,7 +938,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcReactionResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -807,7 +968,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcReadStateResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -838,7 +1006,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcReadMarkedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -870,7 +1045,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcDraftResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -901,7 +1083,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcDraftSavedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -923,7 +1112,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcInvitationCreatedResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -933,7 +1129,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcInvitationsResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -956,7 +1159,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcRevokedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -978,7 +1188,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcInvitationPeekResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1000,7 +1217,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcInvitationRedeemedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1023,7 +1247,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcLedgerHeadResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1046,7 +1277,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerEndpointsVerifyResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1085,7 +1323,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcLedgerEntriesResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1116,7 +1361,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcFeedResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -1147,7 +1399,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcMessagePostedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1180,7 +1439,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcMessageEditedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1213,7 +1479,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcMessageHiddenResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1236,7 +1509,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcPollsResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -1267,7 +1547,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcPollCreatedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1300,7 +1587,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcPollVotedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1323,7 +1617,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcPollClosedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1345,7 +1646,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcSharesDepositedResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -1355,7 +1663,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcSharesResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1377,7 +1692,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcRecoveryRequestedResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -1387,7 +1709,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcRecoveryRequestsResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1410,7 +1739,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcObjectionResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1443,7 +1779,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcContributionResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1476,7 +1819,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcRecoveryCompletedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1488,7 +1838,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcRolesResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -1508,7 +1865,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcRoleCreatedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1541,7 +1905,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcHolderAddedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1553,7 +1924,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCertificatesResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -1573,7 +1951,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCertificateIssuedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1596,7 +1981,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcRevokedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1635,7 +2027,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcPermissionCheckResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1658,7 +2057,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcTopicsResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -1689,7 +2095,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcTopicCreatedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1722,7 +2135,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcTopicAssignedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1755,7 +2175,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcTopicClosedResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1788,7 +2215,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcTopicLabelsResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1816,6 +2250,44 @@
         },
         "additionalProperties": false
       },
+      "AreasAreaView": {
+        "required": [
+          "areaId",
+          "canWrite",
+          "currentEpoch",
+          "isPublic",
+          "lifecycle",
+          "readableEpochs"
+        ],
+        "type": "object",
+        "properties": {
+          "areaId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "currentEpoch": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "isPublic": {
+            "type": "boolean"
+          },
+          "readableEpochs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "canWrite": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "AreasCreateAreaRequest": {
         "required": [
           "ownerRoleId",
@@ -1832,6 +2304,58 @@
           "isPublic": {
             "type": "boolean",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AreasMemberView": {
+        "required": [
+          "capability",
+          "epochGrants",
+          "expiresUtc",
+          "roleId"
+        ],
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string"
+          },
+          "capability": {
+            "type": "string"
+          },
+          "expiresUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "epochGrants": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AttachmentsAttachmentView": {
+        "required": [
+          "attachmentId",
+          "createdAt",
+          "sizeBytes"
+        ],
+        "type": "object",
+        "properties": {
+          "attachmentId": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "additionalProperties": false
@@ -1905,6 +2429,40 @@
         },
         "additionalProperties": false
       },
+      "ConsentConsentView": {
+        "required": [
+          "body",
+          "bodyHash",
+          "consentKey",
+          "language",
+          "publishedAt",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "consentKey": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "body": {
+            "type": "string"
+          },
+          "bodyHash": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
       "ConsentPublishRequest": {
         "required": [
           "body",
@@ -1925,6 +2483,27 @@
           },
           "tenantRoleId": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataItemsAccessEntry": {
+        "required": [
+          "accessedAt",
+          "readerRoleId"
+        ],
+        "type": "object",
+        "properties": {
+          "readerRoleId": {
+            "type": "string"
+          },
+          "accessedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "purpose": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -1957,6 +2536,39 @@
           "objectType": {
             "type": "string",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataItemsDataItemView": {
+        "required": [
+          "dataClass",
+          "dataItemId",
+          "destroyed",
+          "field",
+          "ownerRoleId",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "dataItemId": {
+            "type": "string"
+          },
+          "ownerRoleId": {
+            "type": "string"
+          },
+          "dataClass": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "destroyed": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "additionalProperties": false
@@ -2003,6 +2615,42 @@
         },
         "additionalProperties": false
       },
+      "DecisionsDecisionView": {
+        "required": [
+          "createdAt",
+          "decisionId",
+          "history",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "decisionId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string",
+            "nullable": true
+          },
+          "topicId": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DecisionsTransitionView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "DecisionsTransitionRequest": {
         "required": [
           "reason",
@@ -2019,6 +2667,31 @@
           },
           "reason": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DecisionsTransitionView": {
+        "required": [
+          "at",
+          "fromState",
+          "toState"
+        ],
+        "type": "object",
+        "properties": {
+          "fromState": {
+            "type": "string"
+          },
+          "toState": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "additionalProperties": false
@@ -2077,6 +2750,28 @@
         },
         "additionalProperties": false
       },
+      "EngagementReadStateView": {
+        "required": [
+          "lastReadAt",
+          "lastReadSeq",
+          "roleId"
+        ],
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string"
+          },
+          "lastReadSeq": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastReadAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
       "InvitationsCreateRequest": {
         "required": [
           "roleId"
@@ -2107,6 +2802,50 @@
         },
         "additionalProperties": false
       },
+      "InvitationsInvitationView": {
+        "required": [
+          "expiresUtc",
+          "invitationId",
+          "purpose",
+          "roleId",
+          "useCount"
+        ],
+        "type": "object",
+        "properties": {
+          "invitationId": {
+            "type": "string"
+          },
+          "roleId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "expiresUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "useCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxUses": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "firstOpenedUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "InvitationsSecretRequest": {
         "required": [
           "secret"
@@ -2114,6 +2853,91 @@
         "type": "object",
         "properties": {
           "secret": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LedgerEndpointsEntryView": {
+        "required": [
+          "accountCommitment",
+          "entryHash",
+          "entryId",
+          "moduleId",
+          "payloadCanonical",
+          "previousHash",
+          "sequence",
+          "serverTimestamp",
+          "signerKeyFingerprint"
+        ],
+        "type": "object",
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "entryId": {
+            "type": "string"
+          },
+          "previousHash": {
+            "type": "string"
+          },
+          "entryHash": {
+            "type": "string"
+          },
+          "moduleId": {
+            "type": "string"
+          },
+          "signerKeyFingerprint": {
+            "type": "string"
+          },
+          "accountCommitment": {
+            "type": "string"
+          },
+          "serverTimestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "payloadCanonical": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LedgerEndpointsVerifyResponse": {
+        "required": [
+          "entries",
+          "headHash",
+          "headSequence",
+          "intact",
+          "ledgerId"
+        ],
+        "type": "object",
+        "properties": {
+          "ledgerId": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "intact": {
+            "type": "boolean"
+          },
+          "firstBrokenSequence": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "headSequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "headHash": {
             "type": "string"
           }
         },
@@ -2136,6 +2960,58 @@
         "properties": {
           "byAuthor": {
             "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MessagesMessageView": {
+        "required": [
+          "epoch",
+          "messageId",
+          "postedUtc",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string"
+          },
+          "epoch": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "authorRoleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "body": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "postedUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "editedUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "hiddenKind": {
+            "type": "string",
+            "nullable": true
+          },
+          "quoteMessageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "unreadable": {
+            "type": "string",
             "nullable": true
           }
         },
@@ -2185,6 +3061,51 @@
         },
         "additionalProperties": false
       },
+      "PollsPollView": {
+        "required": [
+          "closed",
+          "mode",
+          "pollId",
+          "reveal",
+          "voteCount"
+        ],
+        "type": "object",
+        "properties": {
+          "pollId": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string",
+            "nullable": true
+          },
+          "mode": {
+            "type": "string"
+          },
+          "reveal": {
+            "type": "string"
+          },
+          "closed": {
+            "type": "boolean"
+          },
+          "voteCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tally": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "nullable": true
+          },
+          "yourChoice": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "PollsVoteRequest": {
         "required": [
           "choice",
@@ -2197,6 +3118,61 @@
           },
           "choice": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcAccessLogResponse": {
+        "required": [
+          "accesses"
+        ],
+        "type": "object",
+        "properties": {
+          "accesses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataItemsAccessEntry"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcAreaCreatedResponse": {
+        "required": [
+          "areaId",
+          "epoch",
+          "tenantId",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "areaId": {
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "epoch": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcAreasResponse": {
+        "required": [
+          "areas"
+        ],
+        "type": "object",
+        "properties": {
+          "areas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AreasAreaView"
+            }
           }
         },
         "additionalProperties": false
@@ -2229,6 +3205,68 @@
         },
         "additionalProperties": false
       },
+      "RcAttachmentDeletedResponse": {
+        "required": [
+          "attachmentId",
+          "deleted"
+        ],
+        "type": "object",
+        "properties": {
+          "attachmentId": {
+            "type": "string"
+          },
+          "deleted": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcAttachmentUploadedResponse": {
+        "required": [
+          "attachmentId",
+          "fileName",
+          "quotaBytes",
+          "quotaUsedBytes",
+          "sizeBytes"
+        ],
+        "type": "object",
+        "properties": {
+          "attachmentId": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quotaUsedBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quotaBytes": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcAttachmentsResponse": {
+        "required": [
+          "attachments"
+        ],
+        "type": "object",
+        "properties": {
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentsAttachmentView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "RcCacheModeResponse": {
         "required": [
           "cacheMode",
@@ -2243,6 +3281,580 @@
           "forgottenBundles": {
             "type": "integer",
             "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCertificateIssuedResponse": {
+        "required": [
+          "capability",
+          "certificateId",
+          "expiresUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "certificateId": {
+            "type": "string"
+          },
+          "expiresUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "capability": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCertificatesResponse": {
+        "required": [
+          "certificates"
+        ],
+        "type": "object",
+        "properties": {
+          "certificates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RolesCertificateView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcConsentPublishedResponse": {
+        "required": [
+          "bodyHash",
+          "consentKey",
+          "language",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "consentKey": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "bodyHash": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcConsentVersion": {
+        "required": [
+          "bodyHash",
+          "language",
+          "publishedAt",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "bodyHash": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcConsentVersionsResponse": {
+        "required": [
+          "consentKey",
+          "versions"
+        ],
+        "type": "object",
+        "properties": {
+          "consentKey": {
+            "type": "string"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RcConsentVersion"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcContributionResponse": {
+        "required": [
+          "alreadyContributed",
+          "contributions",
+          "enough",
+          "requestId",
+          "threshold"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "contributions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "threshold": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "enough": {
+            "type": "boolean"
+          },
+          "alreadyContributed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCsrfResponse": {
+        "required": [
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcDataDestroyedResponse": {
+        "required": [
+          "alreadyDestroyed",
+          "ciphertextRemains",
+          "dataItemId",
+          "destroyedAt",
+          "keysDestroyed"
+        ],
+        "type": "object",
+        "properties": {
+          "dataItemId": {
+            "type": "string"
+          },
+          "destroyedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "keysDestroyed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "ciphertextRemains": {
+            "type": "boolean"
+          },
+          "alreadyDestroyed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcDataItemCreatedResponse": {
+        "required": [
+          "dataClass",
+          "dataItemId",
+          "logged",
+          "shareable"
+        ],
+        "type": "object",
+        "properties": {
+          "dataItemId": {
+            "type": "string"
+          },
+          "dataClass": {
+            "type": "string"
+          },
+          "logged": {
+            "type": "boolean"
+          },
+          "shareable": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcDataItemResponse": {
+        "required": [
+          "dataClass",
+          "dataItemId",
+          "field",
+          "logged",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "dataItemId": {
+            "type": "string"
+          },
+          "dataClass": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "logged": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcDataItemsResponse": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataItemsDataItemView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcDataSharedResponse": {
+        "required": [
+          "alreadyShared",
+          "dataItemId"
+        ],
+        "type": "object",
+        "properties": {
+          "dataItemId": {
+            "type": "string"
+          },
+          "toRoleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "alreadyShared": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcDecisionCreatedResponse": {
+        "required": [
+          "decisionId",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "decisionId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcDecisionTransitionedResponse": {
+        "required": [
+          "decisionId",
+          "fromState",
+          "toState"
+        ],
+        "type": "object",
+        "properties": {
+          "decisionId": {
+            "type": "string"
+          },
+          "fromState": {
+            "type": "string"
+          },
+          "toState": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcDecisionsResponse": {
+        "required": [
+          "decisions"
+        ],
+        "type": "object",
+        "properties": {
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DecisionsDecisionView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcDraftResponse": {
+        "required": [
+          "areaId"
+        ],
+        "type": "object",
+        "properties": {
+          "areaId": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcDraftSavedResponse": {
+        "required": [
+          "areaId",
+          "saved"
+        ],
+        "type": "object",
+        "properties": {
+          "areaId": {
+            "type": "string"
+          },
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcFeedResponse": {
+        "required": [
+          "messages",
+          "readableEpochs"
+        ],
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessagesMessageView"
+            }
+          },
+          "readableEpochs": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcHealthCheck": {
+        "required": [
+          "detail",
+          "name",
+          "passed"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcHealthResponse": {
+        "required": [
+          "checks",
+          "healthy"
+        ],
+        "type": "object",
+        "properties": {
+          "healthy": {
+            "type": "boolean"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RcHealthCheck"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcHolderAddedResponse": {
+        "required": [
+          "alreadyHeld"
+        ],
+        "type": "object",
+        "properties": {
+          "edgeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "edgeKind": {
+            "type": "string",
+            "nullable": true
+          },
+          "expiresUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "alreadyHeld": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcInvitationCreatedResponse": {
+        "required": [
+          "expiresUtc",
+          "invitationId",
+          "purpose",
+          "secret"
+        ],
+        "type": "object",
+        "properties": {
+          "invitationId": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string"
+          },
+          "expiresUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "maxUses": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcInvitationPeekResponse": {
+        "required": [
+          "expiresUtc",
+          "purpose",
+          "requiresAccount"
+        ],
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "expiresUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requiresAccount": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcInvitationRedeemedResponse": {
+        "required": [
+          "alreadyRedeemed",
+          "roleId"
+        ],
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string"
+          },
+          "edgeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "alreadyRedeemed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcInvitationsResponse": {
+        "required": [
+          "invitations"
+        ],
+        "type": "object",
+        "properties": {
+          "invitations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvitationsInvitationView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcLedgerEntriesResponse": {
+        "required": [
+          "entries"
+        ],
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LedgerEndpointsEntryView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcLedgerHeadResponse": {
+        "required": [
+          "hash",
+          "ledgerId",
+          "note",
+          "sequence"
+        ],
+        "type": "object",
+        "properties": {
+          "ledgerId": {
+            "type": "string"
+          },
+          "sequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -2299,6 +3911,383 @@
         },
         "additionalProperties": false
       },
+      "RcMemberAddedResponse": {
+        "required": [
+          "alreadyMember",
+          "epoch",
+          "readsHistory",
+          "roleId"
+        ],
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string"
+          },
+          "capability": {
+            "type": "string",
+            "nullable": true
+          },
+          "epoch": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "readsHistory": {
+            "type": "boolean"
+          },
+          "alreadyMember": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcMemberRemovedResponse": {
+        "required": [
+          "keptWhatTheyRead",
+          "newEpoch",
+          "roleId"
+        ],
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string"
+          },
+          "newEpoch": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "keptWhatTheyRead": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcMembersResponse": {
+        "required": [
+          "members"
+        ],
+        "type": "object",
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AreasMemberView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcMessageEditedResponse": {
+        "required": [
+          "editedUtc",
+          "messageId",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "editedUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcMessageHiddenResponse": {
+        "required": [
+          "hidden",
+          "kind",
+          "messageId",
+          "reversible"
+        ],
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "reversible": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcMessagePostedResponse": {
+        "required": [
+          "appendWindowUntil",
+          "chainBound",
+          "epoch",
+          "messageId",
+          "postedUtc",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string"
+          },
+          "epoch": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "postedUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "appendWindowUntil": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "chainBound": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcObjectionResponse": {
+        "required": [
+          "objected",
+          "requestId"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "objected": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcPermissionCheckResponse": {
+        "required": [
+          "allowed"
+        ],
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "via": {
+            "type": "string",
+            "nullable": true
+          },
+          "certificateId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcPollClosedResponse": {
+        "required": [
+          "closed",
+          "pollId"
+        ],
+        "type": "object",
+        "properties": {
+          "pollId": {
+            "type": "string"
+          },
+          "closed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcPollCreatedResponse": {
+        "required": [
+          "mode",
+          "pollId",
+          "question",
+          "reveal"
+        ],
+        "type": "object",
+        "properties": {
+          "pollId": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "reveal": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcPollVotedResponse": {
+        "required": [
+          "pollId",
+          "voteId"
+        ],
+        "type": "object",
+        "properties": {
+          "pollId": {
+            "type": "string"
+          },
+          "voteId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcPollsResponse": {
+        "required": [
+          "polls"
+        ],
+        "type": "object",
+        "properties": {
+          "polls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PollsPollView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcReactionResponse": {
+        "required": [
+          "messageId"
+        ],
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcReadMarkedResponse": {
+        "required": [
+          "areaId",
+          "lastReadSeq"
+        ],
+        "type": "object",
+        "properties": {
+          "areaId": {
+            "type": "string"
+          },
+          "lastReadSeq": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcReadStateResponse": {
+        "required": [
+          "enabledHere",
+          "readers",
+          "youAreHidden"
+        ],
+        "type": "object",
+        "properties": {
+          "enabledHere": {
+            "type": "boolean"
+          },
+          "youAreHidden": {
+            "type": "boolean"
+          },
+          "readers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EngagementReadStateView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcRecoveryCompletedResponse": {
+        "required": [
+          "completedAt",
+          "notice",
+          "oneTimeSecret",
+          "requestId"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "oneTimeSecret": {
+            "type": "string"
+          },
+          "notice": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcRecoveryRequestedResponse": {
+        "required": [
+          "effectiveAt",
+          "graceDays",
+          "notice",
+          "requestId"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "effectiveAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "graceDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "notice": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcRecoveryRequestsResponse": {
+        "required": [
+          "requests"
+        ],
+        "type": "object",
+        "properties": {
+          "requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecoveryRequestView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "RcRegisteredResponse": {
         "required": [
           "accountId",
@@ -2334,6 +4323,57 @@
           },
           "personalRoleId": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcRevokedResponse": {
+        "required": [
+          "revoked"
+        ],
+        "type": "object",
+        "properties": {
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcRoleCreatedResponse": {
+        "required": [
+          "fingerprint",
+          "kind",
+          "roleId",
+          "tenantId"
+        ],
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcRolesResponse": {
+        "required": [
+          "roles"
+        ],
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RolesRoleView"
+            }
           }
         },
         "additionalProperties": false
@@ -2381,6 +4421,137 @@
           "idleMinutes": {
             "type": "integer",
             "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcSharesDepositedResponse": {
+        "required": [
+          "graceDays",
+          "guarantors",
+          "notice",
+          "threshold"
+        ],
+        "type": "object",
+        "properties": {
+          "guarantors": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "threshold": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "graceDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "notice": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcSharesResponse": {
+        "required": [
+          "shares"
+        ],
+        "type": "object",
+        "properties": {
+          "shares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecoveryShareView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcTopicAssignedResponse": {
+        "required": [
+          "assigned",
+          "topicId"
+        ],
+        "type": "object",
+        "properties": {
+          "topicId": {
+            "type": "string"
+          },
+          "assigned": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcTopicClosedResponse": {
+        "required": [
+          "closed",
+          "topicId"
+        ],
+        "type": "object",
+        "properties": {
+          "topicId": {
+            "type": "string"
+          },
+          "closed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcTopicCreatedResponse": {
+        "required": [
+          "assigned",
+          "title",
+          "topicId"
+        ],
+        "type": "object",
+        "properties": {
+          "topicId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "assigned": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcTopicLabelsResponse": {
+        "required": [
+          "labels",
+          "topicId"
+        ],
+        "type": "object",
+        "properties": {
+          "topicId": {
+            "type": "string"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcTopicsResponse": {
+        "required": [
+          "topics"
+        ],
+        "type": "object",
+        "properties": {
+          "topics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TopicsTopicView"
+            }
           }
         },
         "additionalProperties": false
@@ -2445,6 +4616,75 @@
         },
         "additionalProperties": false
       },
+      "RecoveryRequestView": {
+        "required": [
+          "completed",
+          "effective",
+          "effectiveAt",
+          "objected",
+          "requestedAt",
+          "requestedByRoleId",
+          "requestId",
+          "targetRoleId"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "targetRoleId": {
+            "type": "string"
+          },
+          "requestedByRoleId": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effectiveAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "objected": {
+            "type": "boolean"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "effective": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecoveryShareView": {
+        "required": [
+          "createdAt",
+          "guarantorRoleId",
+          "threshold",
+          "totalShares"
+        ],
+        "type": "object",
+        "properties": {
+          "guarantorRoleId": {
+            "type": "string"
+          },
+          "threshold": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalShares": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
       "RolesAddHolderRequest": {
         "required": [
           "holderRoleId"
@@ -2462,6 +4702,43 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RolesCertificateView": {
+        "required": [
+          "capability",
+          "certificateId",
+          "expiresUtc",
+          "issuedByRoleId",
+          "scopeId",
+          "scopeKind",
+          "subjectRoleId"
+        ],
+        "type": "object",
+        "properties": {
+          "certificateId": {
+            "type": "string"
+          },
+          "subjectRoleId": {
+            "type": "string"
+          },
+          "scopeKind": {
+            "type": "string"
+          },
+          "scopeId": {
+            "type": "string"
+          },
+          "capability": {
+            "type": "string"
+          },
+          "issuedByRoleId": {
+            "type": "string"
+          },
+          "expiresUtc": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "additionalProperties": false
@@ -2515,6 +4792,39 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RolesRoleView": {
+        "required": [
+          "depth",
+          "hasKey",
+          "kind",
+          "roleId",
+          "tenantId"
+        ],
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "depth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasKey": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -2577,6 +4887,43 @@
         ],
         "type": "object",
         "properties": {
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "TopicsTopicView": {
+        "required": [
+          "closed",
+          "labels",
+          "messageCount",
+          "topicId"
+        ],
+        "type": "object",
+        "properties": {
+          "topicId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentTopicId": {
+            "type": "string",
+            "nullable": true
+          },
+          "closed": {
+            "type": "boolean"
+          },
+          "messageCount": {
+            "type": "integer",
+            "format": "int32"
+          },
           "labels": {
             "type": "array",
             "items": {

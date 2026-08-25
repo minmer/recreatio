@@ -52,17 +52,18 @@ public static class RcInvitations
 
     public static void MapRcInvitations(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/rc/invitations", CreateAsync);
-        app.MapGet("/rc/invitations", ListAsync);
-        app.MapPost("/rc/invitations/{id:guid}/revoke", RevokeAsync);
+        app.MapPost("/rc/invitations", CreateAsync).Produces<RcInvitationCreatedResponse>();
+        app.MapGet("/rc/invitations", ListAsync).Produces<RcInvitationsResponse>();
+        app.MapPost("/rc/invitations/{id:guid}/revoke", RevokeAsync).Produces<RcRevokedResponse>();
 
         // Ansehen, ohne einzuloesen — damit der Klient sagen kann, WOHINEIN
         // eingeladen wird, bevor jemand zusagt. Kein Konto noetig: der Link ist
         // der Nachweis.
         app.MapPost("/rc/invitations/peek", PeekAsync)
-           .AllowAnonymousWrite("Zeigt, wohin ein Link fuehrt — vor der Anmeldung.");
+           .AllowAnonymousWrite("Zeigt, wohin ein Link fuehrt — vor der Anmeldung.")
+           .Produces<RcInvitationPeekResponse>();
 
-        app.MapPost("/rc/invitations/redeem", RedeemAsync);
+        app.MapPost("/rc/invitations/redeem", RedeemAsync).Produces<RcInvitationRedeemedResponse>();
     }
 
     // -- Ausstellen -----------------------------------------------------------
@@ -147,15 +148,11 @@ public static class RcInvitations
 
         await InsertAsync(connection, record, sealedRoleKey, may.Via!.Value, body.MaxUses, ctx.RequestAborted);
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            invitationId = RcId.ToText(record.Id),
+        await RcResults.WriteJsonAsync(ctx, new RcInvitationCreatedResponse(
+            RcId.ToText(record.Id),
             // Genau einmal. Danach steht er nirgends mehr — auch nicht hier.
             secret,
-            expiresUtc = record.ExpiresUtc,
-            purpose = purpose.ToString(),
-            maxUses = body.MaxUses
-        }, StatusCodes.Status201Created);
+            record.ExpiresUtc, purpose.ToString(), body.MaxUses), StatusCodes.Status201Created);
     }
 
     // -- Ansehen --------------------------------------------------------------
@@ -186,15 +183,11 @@ public static class RcInvitations
 
         await MarkOpenedAsync(connection, token.Record.Id, ctx.RequestAborted);
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            label = token.Record.Label,
-            purpose = token.Record.Purpose.ToString(),
-            expiresUtc = token.Record.ExpiresUtc,
+        await RcResults.WriteJsonAsync(ctx, new RcInvitationPeekResponse(
+            token.Record.Label, token.Record.Purpose.ToString(), token.Record.ExpiresUtc,
             // Ob man schon angemeldet ist, weiss der Klient selbst; hier steht
             // nur, dass man es sein MUSS.
-            requiresAccount = true
-        });
+            RequiresAccount: true));
     }
 
     // -- Einloesen ------------------------------------------------------------
@@ -303,20 +296,14 @@ public static class RcInvitations
             // Ergebnis ist bereits da, und der Mensch davor soll das erfahren
             // und nicht ratlos vor einem Konflikt stehen.
             await tx.RollbackAsync(ctx.RequestAborted);
-            await RcResults.WriteJsonAsync(ctx, new
-            {
-                roleId = RcId.ToText(invitedRoleId),
-                alreadyRedeemed = true
-            });
+            await RcResults.WriteJsonAsync(ctx, new RcInvitationRedeemedResponse(
+                RcId.ToText(invitedRoleId), null, AlreadyRedeemed: true));
             return;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            roleId = RcId.ToText(invitedRoleId),
-            edgeId = RcId.ToText(edge.Id),
-            alreadyRedeemed = false
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcInvitationRedeemedResponse(
+            RcId.ToText(invitedRoleId), RcId.ToText(edge.Id), AlreadyRedeemed: false),
+            StatusCodes.Status201Created);
     }
 
     // -- Verwalten ------------------------------------------------------------
@@ -334,7 +321,7 @@ public static class RcInvitations
         var reachable = await RcPermissions.ReachableRolesAsync(connection, session.AccountId, ctx.RequestAborted);
         if (reachable.Count == 0)
         {
-            await RcResults.WriteJsonAsync(ctx, new { invitations = Array.Empty<InvitationView>() });
+            await RcResults.WriteJsonAsync(ctx, new RcInvitationsResponse([]));
             return;
         }
 
@@ -361,7 +348,7 @@ public static class RcInvitations
                 reader.IsDBNull(7) ? null : reader.GetDateTimeOffset(7)));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { invitations = list });
+        await RcResults.WriteJsonAsync(ctx, new RcInvitationsResponse(list));
     }
 
     private static async Task RevokeAsync(HttpContext ctx, RcDb db, RcPermissions permissions, Guid id)
@@ -406,7 +393,8 @@ public static class RcInvitations
         // ihn wieder hinauszubefoerdern ist ein eigener Vorgang mit eigener
         // Entscheidung, und ihn hier stillschweigend mitzuerledigen waere eine
         // Ueberraschung.
-        await RcResults.WriteJsonAsync(ctx, new { revoked = await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 1 });
+        await RcResults.WriteJsonAsync(ctx, new RcRevokedResponse(
+            await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 1));
     }
 
     // -- Datenzugriff ---------------------------------------------------------

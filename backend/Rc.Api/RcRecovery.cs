@@ -46,13 +46,13 @@ public static class RcRecovery
 {
     public static void MapRcRecovery(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/rc/recovery/shares", CreateSharesAsync);
-        app.MapGet("/rc/recovery/shares", ListSharesAsync);
-        app.MapPost("/rc/recovery/requests", RequestAsync);
-        app.MapGet("/rc/recovery/requests", ListRequestsAsync);
-        app.MapPost("/rc/recovery/requests/{id:guid}/object", ObjectAsync);
-        app.MapPost("/rc/recovery/requests/{id:guid}/contribute", ContributeAsync);
-        app.MapPost("/rc/recovery/requests/{id:guid}/complete", CompleteAsync);
+        app.MapPost("/rc/recovery/shares", CreateSharesAsync).Produces<RcSharesDepositedResponse>();
+        app.MapGet("/rc/recovery/shares", ListSharesAsync).Produces<RcSharesResponse>();
+        app.MapPost("/rc/recovery/requests", RequestAsync).Produces<RcRecoveryRequestedResponse>();
+        app.MapGet("/rc/recovery/requests", ListRequestsAsync).Produces<RcRecoveryRequestsResponse>();
+        app.MapPost("/rc/recovery/requests/{id:guid}/object", ObjectAsync).Produces<RcObjectionResponse>();
+        app.MapPost("/rc/recovery/requests/{id:guid}/contribute", ContributeAsync).Produces<RcContributionResponse>();
+        app.MapPost("/rc/recovery/requests/{id:guid}/complete", CompleteAsync).Produces<RcRecoveryCompletedResponse>();
     }
 
     // -- Beitragen ------------------------------------------------------------
@@ -156,10 +156,8 @@ public static class RcRecovery
         {
             // Ein Buerge zaehlt einmal. Sonst erreichte einer allein den
             // Schwellwert, indem er denselben Anteil mehrfach einreicht.
-            await RcResults.WriteJsonAsync(ctx, new
-            {
-                requestId = RcId.ToText(id), alreadyContributed = true
-            });
+            await RcResults.WriteJsonAsync(ctx, new RcContributionResponse(
+                RcId.ToText(id), AlreadyContributed: true));
             return;
         }
         finally
@@ -170,13 +168,8 @@ public static class RcRecovery
 
         var (have, need) = await ContributionCountAsync(connection, id, targetAccountId, ctx.RequestAborted);
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            requestId = RcId.ToText(id),
-            contributions = have,
-            threshold = need,
-            enough = have >= need
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcContributionResponse(
+            RcId.ToText(id), have, need, have >= need), StatusCodes.Status201Created);
     }
 
     // -- Anteile hinterlegen --------------------------------------------------
@@ -298,20 +291,17 @@ public static class RcRecovery
 
         var graceDays = await GraceDaysAsync(connection, session.AccountId, ctx.RequestAborted);
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            guarantors = guarantorIds.Count,
-            threshold,
-            graceDays,
+        await RcResults.WriteJsonAsync(ctx, new RcSharesDepositedResponse(
+            guarantorIds.Count, threshold, graceDays,
 
             // 8.3 — Der Hinweis nennt BEIDE Enden. Ein Text, der nur den Schutz
             // erwaehnt, verkauft eine Falle als Vorzug.
-            notice = graceDays == 0
+            graceDays == 0
                 ? "Ohne Karenzzeit wirkt eine Wiederherstellung sofort — auch eine, der du "
                 + "widersprochen haettest."
                 : $"Zwischen Antrag und Wirksamkeit liegen {graceDays} Tage. So lange kannst du "
-                + $"widersprechen — und so lange musst du warten, wenn du selbst es bist."
-        }, StatusCodes.Status201Created);
+                + $"widersprechen — und so lange musst du warten, wenn du selbst es bist."),
+            StatusCodes.Status201Created);
     }
 
     public sealed record ShareView(string GuarantorRoleId, int Threshold, int TotalShares, DateTimeOffset CreatedAt);
@@ -337,7 +327,7 @@ public static class RcRecovery
                 reader.GetInt16(1), reader.GetInt16(2), reader.GetDateTimeOffset(3)));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { shares = views });
+        await RcResults.WriteJsonAsync(ctx, new RcSharesResponse(views));
     }
 
     // -- Beantragen -----------------------------------------------------------
@@ -447,13 +437,9 @@ public static class RcRecovery
             throw;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            requestId = RcId.ToText(requestId),
-            effectiveAt,
-            graceDays,
-            notice = "Der Besitzer kann bis zur Wirksamkeit widersprechen."
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcRecoveryRequestedResponse(
+            RcId.ToText(requestId), effectiveAt, graceDays,
+            "Der Besitzer kann bis zur Wirksamkeit widersprechen."), StatusCodes.Status201Created);
     }
 
     public sealed record RequestView(
@@ -477,7 +463,7 @@ public static class RcRecovery
 
         if (mine.Count == 0)
         {
-            await RcResults.WriteJsonAsync(ctx, new { requests = Array.Empty<RequestView>() });
+            await RcResults.WriteJsonAsync(ctx, new RcRecoveryRequestsResponse([]));
             return;
         }
 
@@ -506,7 +492,7 @@ public static class RcRecovery
                 !objected && effectiveAt <= now));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { requests = views });
+        await RcResults.WriteJsonAsync(ctx, new RcRecoveryRequestsResponse(views));
     }
 
     // -- Widersprechen --------------------------------------------------------
@@ -557,7 +543,7 @@ public static class RcRecovery
         cmd.Parameters.AddWithValue("@id", id);
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
 
-        await RcResults.WriteJsonAsync(ctx, new { requestId = RcId.ToText(id), objected = true });
+        await RcResults.WriteJsonAsync(ctx, new RcObjectionResponse(RcId.ToText(id), true));
     }
 
     // -- Vollziehen -----------------------------------------------------------
@@ -729,16 +715,13 @@ public static class RcRecovery
 
             CryptographicOperations.ZeroMemory(newPasswordKey);
 
-            await RcResults.WriteJsonAsync(ctx, new
-            {
-                requestId = RcId.ToText(id),
-                completedAt = now,
+            await RcResults.WriteJsonAsync(ctx, new RcRecoveryCompletedResponse(
+                RcId.ToText(id), now,
 
                 // Genau einmal. Danach steht es nirgends mehr.
-                oneTimeSecret = newSecret.Secret,
-                notice = "Dieses Geheimnis wird nur einmal angezeigt. Damit anmelden und sofort "
-                       + "ein eigenes Passwort setzen. Alle bisherigen Sitzungen wurden beendet."
-            });
+                newSecret.Secret,
+                "Dieses Geheimnis wird nur einmal angezeigt. Damit anmelden und sofort "
+                + "ein eigenes Passwort setzen. Alle bisherigen Sitzungen wurden beendet."));
         }
         finally
         {

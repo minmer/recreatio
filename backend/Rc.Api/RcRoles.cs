@@ -42,13 +42,13 @@ public static class RcRoles
 
     public static void MapRcRoles(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/rc/roles", ListAsync);
-        app.MapPost("/rc/roles", CreateAsync);
-        app.MapPost("/rc/roles/{id:guid}/holders", AddHolderAsync);
-        app.MapGet("/rc/certificates", ListCertificatesAsync);
-        app.MapPost("/rc/certificates", IssueAsync);
-        app.MapPost("/rc/certificates/{id:guid}/revoke", RevokeAsync);
-        app.MapGet("/rc/permissions/check", CheckAsync);
+        app.MapGet("/rc/roles", ListAsync).Produces<RcRolesResponse>();
+        app.MapPost("/rc/roles", CreateAsync).Produces<RcRoleCreatedResponse>();
+        app.MapPost("/rc/roles/{id:guid}/holders", AddHolderAsync).Produces<RcHolderAddedResponse>();
+        app.MapGet("/rc/certificates", ListCertificatesAsync).Produces<RcCertificatesResponse>();
+        app.MapPost("/rc/certificates", IssueAsync).Produces<RcCertificateIssuedResponse>();
+        app.MapPost("/rc/certificates/{id:guid}/revoke", RevokeAsync).Produces<RcRevokedResponse>();
+        app.MapGet("/rc/permissions/check", CheckAsync).Produces<RcPermissionCheckResponse>();
     }
 
     // -- Anzeigen -------------------------------------------------------------
@@ -523,12 +523,10 @@ public static class RcRoles
         }
 
         var result = await permissions.CheckAsync(session.AccountId, kind, scopeId, needed, ctx.RequestAborted);
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            allowed = result.Allowed,
-            via = result.Via is null ? null : RcId.ToText(result.Via.Value),
-            certificateId = result.CertificateId is null ? null : RcId.ToText(result.CertificateId.Value)
-        });
+        await RcResults.WriteJsonAsync(ctx, new RcPermissionCheckResponse(
+            result.Allowed,
+            result.Via is null ? null : RcId.ToText(result.Via.Value),
+            result.CertificateId is null ? null : RcId.ToText(result.CertificateId.Value)));
     }
 
     // -- Die Gruendung ---------------------------------------------------------

@@ -39,10 +39,10 @@ public static class RcMessages
 
     public static void MapRcMessages(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/rc/areas/{id:guid}/messages", FeedAsync);
-        app.MapPost("/rc/areas/{id:guid}/messages", PostAsync);
-        app.MapPost("/rc/messages/{id:guid}/edit", EditAsync);
-        app.MapPost("/rc/messages/{id:guid}/hide", HideAsync);
+        app.MapGet("/rc/areas/{id:guid}/messages", FeedAsync).Produces<RcFeedResponse>();
+        app.MapPost("/rc/areas/{id:guid}/messages", PostAsync).Produces<RcMessagePostedResponse>();
+        app.MapPost("/rc/messages/{id:guid}/edit", EditAsync).Produces<RcMessageEditedResponse>();
+        app.MapPost("/rc/messages/{id:guid}/hide", HideAsync).Produces<RcMessageHiddenResponse>();
     }
 
     // -- Schreiben ------------------------------------------------------------
@@ -218,15 +218,9 @@ public static class RcMessages
             throw;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            messageId = RcId.ToText(messageId),
-            epoch,
-            version = 1,
-            postedUtc = now,
-            appendWindowUntil = now + AppendWindow,
-            chainBound
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcMessagePostedResponse(
+            RcId.ToText(messageId), epoch, 1, now, now + AppendWindow, chainBound),
+            StatusCodes.Status201Created);
     }
 
     // -- Lesen ----------------------------------------------------------------
@@ -314,11 +308,8 @@ public static class RcMessages
         }
 
         views.Reverse();
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            messages = views,
-            readableEpochs = keys.Keys.OrderBy(k => k).ToList()
-        });
+        await RcResults.WriteJsonAsync(ctx, new RcFeedResponse(
+            views, keys.Keys.OrderBy(k => k).ToList()));
     }
 
     // -- Bearbeiten -----------------------------------------------------------
@@ -457,7 +448,7 @@ public static class RcMessages
             throw;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { messageId = RcId.ToText(id), version = newVersion, editedUtc = now });
+        await RcResults.WriteJsonAsync(ctx, new RcMessageEditedResponse(RcId.ToText(id), newVersion, now));
     }
 
     // -- Ausblenden -----------------------------------------------------------
@@ -534,13 +525,8 @@ public static class RcMessages
         cmd.Parameters.AddWithValue("@id", id);
 
         var rows = await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            messageId = RcId.ToText(id),
-            hidden = rows == 1,
-            kind = byAuthor ? "author" : "moderation",
-            reversible = !byAuthor
-        });
+        await RcResults.WriteJsonAsync(ctx, new RcMessageHiddenResponse(
+            RcId.ToText(id), rows == 1, byAuthor ? "author" : "moderation", !byAuthor));
     }
 
     // -- Datenzugriff ---------------------------------------------------------

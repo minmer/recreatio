@@ -60,9 +60,9 @@ public static class RcDecisions
 
     public static void MapRcDecisions(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/rc/areas/{id:guid}/decisions", ListAsync);
-        app.MapPost("/rc/areas/{id:guid}/decisions", CreateAsync);
-        app.MapPost("/rc/decisions/{id:guid}/transition", TransitionAsync);
+        app.MapGet("/rc/areas/{id:guid}/decisions", ListAsync).Produces<RcDecisionsResponse>();
+        app.MapPost("/rc/areas/{id:guid}/decisions", CreateAsync).Produces<RcDecisionCreatedResponse>();
+        app.MapPost("/rc/decisions/{id:guid}/transition", TransitionAsync).Produces<RcDecisionTransitionedResponse>();
     }
 
     // -- Anlegen --------------------------------------------------------------
@@ -148,11 +148,8 @@ public static class RcDecisions
             throw;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            decisionId = RcId.ToText(decisionId),
-            state = StateProposed
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcDecisionCreatedResponse(
+            RcId.ToText(decisionId), StateProposed), StatusCodes.Status201Created);
     }
 
     // -- Uebergaenge ----------------------------------------------------------
@@ -289,12 +286,8 @@ public static class RcDecisions
             throw;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            decisionId = RcId.ToText(id),
-            fromState,
-            toState = body.ToState
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcDecisionTransitionedResponse(
+            RcId.ToText(id), fromState, body.ToState), StatusCodes.Status201Created);
     }
 
     // -- Anzeigen -------------------------------------------------------------
@@ -359,7 +352,7 @@ public static class RcDecisions
                 row.CreatedAt, history));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { decisions = views });
+        await RcResults.WriteJsonAsync(ctx, new RcDecisionsResponse(views));
     }
 
     // -- Gemeinsames ----------------------------------------------------------

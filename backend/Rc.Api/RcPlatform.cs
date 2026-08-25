@@ -114,7 +114,8 @@ public static class RcPlatform
             var token = RcCsrfMiddleware.NewToken();
             RcCsrfMiddleware.Issue(ctx, token, policy);
             return Results.Json(new RcCsrfResponse(token));
-        }).AllowAnonymousWrite("Holt den Schutzwert selbst — kann ihn nicht voraussetzen.");
+        }).AllowAnonymousWrite("Holt den Schutzwert selbst — kann ihn nicht voraussetzen.")
+          .Produces<RcCsrfResponse>();
 
     /// <summary>
     /// Beim Start aufrufen. Bricht ausserhalb der Entwicklung ab, wenn ein

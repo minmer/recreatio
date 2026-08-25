@@ -46,10 +46,11 @@ public static class RcAttachments
         // laeuft vor jedem Endpunkt und verlangt hier denselben Schutzwert wie
         // ueberall. Ohne diesen Satz liest die Zeile sich wie ein Loch, und
         // irgendwann macht jemand daraus eines.
-        app.MapPost("/rc/messages/{id:guid}/attachments", UploadAsync).DisableAntiforgery();
-        app.MapGet("/rc/messages/{id:guid}/attachments", ListAsync);
+        app.MapPost("/rc/messages/{id:guid}/attachments", UploadAsync)
+           .DisableAntiforgery().Produces<RcAttachmentUploadedResponse>();
+        app.MapGet("/rc/messages/{id:guid}/attachments", ListAsync).Produces<RcAttachmentsResponse>();
         app.MapGet("/rc/attachments/{id:guid}/content", DownloadAsync);
-        app.MapPost("/rc/attachments/{id:guid}/delete", DeleteAsync);
+        app.MapPost("/rc/attachments/{id:guid}/delete", DeleteAsync).Produces<RcAttachmentDeletedResponse>();
     }
 
     // -- Hochladen ------------------------------------------------------------
@@ -169,14 +170,9 @@ public static class RcAttachments
             throw;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            attachmentId = RcId.ToText(attachmentId),
-            fileName,
-            sizeBytes = file.Length,
-            quotaUsedBytes = used + file.Length,
-            quotaBytes = quota
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcAttachmentUploadedResponse(
+            RcId.ToText(attachmentId), fileName, file.Length, used + file.Length, quota),
+            StatusCodes.Status201Created);
     }
 
     // -- Anzeigen und Holen ---------------------------------------------------
@@ -215,7 +211,7 @@ public static class RcAttachments
                 reader.GetInt64(2), reader.GetDateTimeOffset(3)));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { attachments = views });
+        await RcResults.WriteJsonAsync(ctx, new RcAttachmentsResponse(views));
     }
 
     private static async Task DownloadAsync(
@@ -323,7 +319,7 @@ public static class RcAttachments
         // Datenverlust, waehrend eine Datei ohne Zeile nur Platz kostet.
         TryDelete(Path.Combine(StoreRoot(config), row.RelativePath));
 
-        await RcResults.WriteJsonAsync(ctx, new { attachmentId = RcId.ToText(id), deleted = true });
+        await RcResults.WriteJsonAsync(ctx, new RcAttachmentDeletedResponse(RcId.ToText(id), true));
     }
 
     // -- Datenzugriff ---------------------------------------------------------

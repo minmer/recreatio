@@ -28,11 +28,11 @@ public static class RcAreas
 
     public static void MapRcAreas(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/rc/areas", ListAsync);
-        app.MapPost("/rc/areas", CreateAsync);
-        app.MapGet("/rc/areas/{id:guid}/members", MembersAsync);
-        app.MapPost("/rc/areas/{id:guid}/members", AddMemberAsync);
-        app.MapPost("/rc/areas/{id:guid}/members/{roleId:guid}/remove", RemoveMemberAsync);
+        app.MapGet("/rc/areas", ListAsync).Produces<RcAreasResponse>();
+        app.MapPost("/rc/areas", CreateAsync).Produces<RcAreaCreatedResponse>();
+        app.MapGet("/rc/areas/{id:guid}/members", MembersAsync).Produces<RcMembersResponse>();
+        app.MapPost("/rc/areas/{id:guid}/members", AddMemberAsync).Produces<RcMemberAddedResponse>();
+        app.MapPost("/rc/areas/{id:guid}/members/{roleId:guid}/remove", RemoveMemberAsync).Produces<RcMemberRemovedResponse>();
     }
 
     // -- Anlegen --------------------------------------------------------------
@@ -178,13 +178,8 @@ public static class RcAreas
             throw;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            areaId = RcId.ToText(areaId),
-            tenantId = RcId.ToText(tenantId),
-            epoch = 1,
-            title
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcAreaCreatedResponse(
+            RcId.ToText(areaId), RcId.ToText(tenantId), 1, title), StatusCodes.Status201Created);
     }
 
     // -- Anzeigen -------------------------------------------------------------
@@ -204,7 +199,7 @@ public static class RcAreas
         var reachable = await RcPermissions.ReachableRolesAsync(connection, session.AccountId, ctx.RequestAborted);
         if (reachable.Count == 0)
         {
-            await RcResults.WriteJsonAsync(ctx, new { areas = Array.Empty<AreaView>() });
+            await RcResults.WriteJsonAsync(ctx, new RcAreasResponse([]));
             return;
         }
 
@@ -252,7 +247,7 @@ public static class RcAreas
                 keys.Count, mayWrite.Allowed));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { areas = views });
+        await RcResults.WriteJsonAsync(ctx, new RcAreasResponse(views));
     }
 
     public sealed record MemberView(string RoleId, string Capability, DateTimeOffset ExpiresUtc, int EpochGrants);
@@ -288,7 +283,7 @@ public static class RcAreas
                 reader.GetDateTimeOffset(2), reader.GetInt32(3)));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { members = list });
+        await RcResults.WriteJsonAsync(ctx, new RcMembersResponse(list));
     }
 
     // -- Aufnehmen ------------------------------------------------------------
@@ -407,7 +402,8 @@ public static class RcAreas
         catch (SqlException e) when (e.Number is 2601 or 2627)
         {
             await tx.RollbackAsync(ctx.RequestAborted);
-            await RcResults.WriteJsonAsync(ctx, new { roleId = RcId.ToText(newRoleId), alreadyMember = true });
+            await RcResults.WriteJsonAsync(ctx, new RcMemberAddedResponse(
+                RcId.ToText(newRoleId), AlreadyMember: true));
             return;
         }
         catch
@@ -416,13 +412,9 @@ public static class RcAreas
             throw;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            roleId = RcId.ToText(newRoleId),
-            capability = RcCapabilities.ToText(capability),
-            epoch,
-            readsHistory = grantHistory
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcMemberAddedResponse(
+            RcId.ToText(newRoleId), RcCapabilities.ToText(capability), epoch, grantHistory),
+            StatusCodes.Status201Created);
     }
 
     // -- Entfernen ------------------------------------------------------------
@@ -496,12 +488,8 @@ public static class RcAreas
             throw;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            roleId = RcId.ToText(roleId),
-            newEpoch = epoch,
-            keptWhatTheyRead = true
-        });
+        await RcResults.WriteJsonAsync(ctx, new RcMemberRemovedResponse(
+            RcId.ToText(roleId), epoch, KeptWhatTheyRead: true));
     }
 
     // -- Gemeinsames ----------------------------------------------------------

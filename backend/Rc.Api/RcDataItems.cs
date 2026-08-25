@@ -67,12 +67,12 @@ public static class RcDataItems
 
     public static void MapRcDataItems(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/rc/data", CreateAsync);
-        app.MapGet("/rc/data", ListAsync);
-        app.MapGet("/rc/data/{id:guid}", ReadAsync);
-        app.MapPost("/rc/data/{id:guid}/share", ShareAsync);
-        app.MapPost("/rc/data/{id:guid}/destroy", DestroyAsync);
-        app.MapGet("/rc/data/{id:guid}/access-log", AccessLogAsync);
+        app.MapPost("/rc/data", CreateAsync).Produces<RcDataItemCreatedResponse>();
+        app.MapGet("/rc/data", ListAsync).Produces<RcDataItemsResponse>();
+        app.MapGet("/rc/data/{id:guid}", ReadAsync).Produces<RcDataItemResponse>();
+        app.MapPost("/rc/data/{id:guid}/share", ShareAsync).Produces<RcDataSharedResponse>();
+        app.MapPost("/rc/data/{id:guid}/destroy", DestroyAsync).Produces<RcDataDestroyedResponse>();
+        app.MapGet("/rc/data/{id:guid}/access-log", AccessLogAsync).Produces<RcAccessLogResponse>();
     }
 
     // -- Anlegen --------------------------------------------------------------
@@ -194,13 +194,9 @@ public static class RcDataItems
             CryptographicOperations.ZeroMemory(itemKey);
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            dataItemId = RcId.ToText(itemId),
-            dataClass,
-            logged = RequiresLog(dataClass),
-            shareable = AllowsSharing(dataClass)
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcDataItemCreatedResponse(
+            RcId.ToText(itemId), dataClass, RequiresLog(dataClass), AllowsSharing(dataClass)),
+            StatusCodes.Status201Created);
     }
 
     // -- Lesen ----------------------------------------------------------------
@@ -265,14 +261,10 @@ public static class RcDataItems
 
         try
         {
-            await RcResults.WriteJsonAsync(ctx, new
-            {
-                dataItemId = RcId.ToText(id),
-                dataClass = item.DataClass,
-                field = item.Field.ToString(),
-                value = Encoding.UTF8.GetString(RcCrypto.Open(itemKey, aad, item.SealedValue)),
-                logged = RequiresLog(item.DataClass)
-            });
+            await RcResults.WriteJsonAsync(ctx, new RcDataItemResponse(
+                RcId.ToText(id), item.DataClass, item.Field.ToString(),
+                Encoding.UTF8.GetString(RcCrypto.Open(itemKey, aad, item.SealedValue)),
+                RequiresLog(item.DataClass)));
         }
         catch (RcDecryptException e)
         {
@@ -315,7 +307,7 @@ public static class RcDataItems
                 !reader.IsDBNull(4), reader.GetDateTimeOffset(5)));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { items = views });
+        await RcResults.WriteJsonAsync(ctx, new RcDataItemsResponse(views));
     }
 
     // -- Freigeben ------------------------------------------------------------
@@ -386,15 +378,12 @@ public static class RcDataItems
         }
         catch (SqlException e) when (e.Number is 2601 or 2627)
         {
-            await RcResults.WriteJsonAsync(ctx, new { dataItemId = RcId.ToText(id), alreadyShared = true });
+            await RcResults.WriteJsonAsync(ctx, new RcDataSharedResponse(RcId.ToText(id), null, AlreadyShared: true));
             return;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            dataItemId = RcId.ToText(id),
-            toRoleId = RcId.ToText(toRoleId)
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcDataSharedResponse(
+            RcId.ToText(id), RcId.ToText(toRoleId)), StatusCodes.Status201Created);
     }
 
     // -- Loeschen durch Schluesselvernichtung ---------------------------------
@@ -423,10 +412,8 @@ public static class RcDataItems
 
         if (item.DestroyedUtc is not null)
         {
-            await RcResults.WriteJsonAsync(ctx, new
-            {
-                dataItemId = RcId.ToText(id), alreadyDestroyed = true, destroyedAt = item.DestroyedUtc
-            });
+            await RcResults.WriteJsonAsync(ctx, new RcDataDestroyedResponse(
+                RcId.ToText(id), item.DestroyedUtc!.Value, AlreadyDestroyed: true));
             return;
         }
 
@@ -470,18 +457,13 @@ public static class RcDataItems
             throw;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            dataItemId = RcId.ToText(id),
-            destroyedAt = now,
-            keysDestroyed = destroyed,
-            reason,
+        await RcResults.WriteJsonAsync(ctx, new RcDataDestroyedResponse(
+            RcId.ToText(id), now, destroyed, reason,
 
             // Der Geheimtext bleibt liegen. Das ist kein Versehen: er ist ohne
             // Schluessel nichts, und seine Zeile belegt, DASS hier etwas war
             // und wann es vernichtet wurde.
-            ciphertextRemains = true
-        });
+            CiphertextRemains: true));
     }
 
     // -- Zugriffsprotokoll ----------------------------------------------------
@@ -521,7 +503,7 @@ public static class RcDataItems
                 reader.IsDBNull(2) ? null : reader.GetString(2)));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { accesses = entries });
+        await RcResults.WriteJsonAsync(ctx, new RcAccessLogResponse(entries));
     }
 
     // -- Datenzugriff ---------------------------------------------------------

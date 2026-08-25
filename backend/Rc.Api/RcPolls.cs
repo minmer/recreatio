@@ -39,10 +39,10 @@ public static class RcPolls
 
     public static void MapRcPolls(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/rc/areas/{id:guid}/polls", ListAsync);
-        app.MapPost("/rc/areas/{id:guid}/polls", CreateAsync);
-        app.MapPost("/rc/polls/{id:guid}/vote", VoteAsync);
-        app.MapPost("/rc/polls/{id:guid}/close", CloseAsync);
+        app.MapGet("/rc/areas/{id:guid}/polls", ListAsync).Produces<RcPollsResponse>();
+        app.MapPost("/rc/areas/{id:guid}/polls", CreateAsync).Produces<RcPollCreatedResponse>();
+        app.MapPost("/rc/polls/{id:guid}/vote", VoteAsync).Produces<RcPollVotedResponse>();
+        app.MapPost("/rc/polls/{id:guid}/close", CloseAsync).Produces<RcPollClosedResponse>();
     }
 
     // -- Anlegen --------------------------------------------------------------
@@ -106,10 +106,8 @@ public static class RcPolls
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            pollId = RcId.ToText(pollId), question, mode, reveal
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcPollCreatedResponse(
+            RcId.ToText(pollId), question, mode, reveal), StatusCodes.Status201Created);
     }
 
     // -- Abstimmen ------------------------------------------------------------
@@ -221,7 +219,7 @@ public static class RcPolls
         cmd.Parameters.AddWithValue("@now", now);
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
 
-        await RcResults.WriteJsonAsync(ctx, new { pollId = RcId.ToText(id), voteId = RcId.ToText(voteId) },
+        await RcResults.WriteJsonAsync(ctx, new RcPollVotedResponse(RcId.ToText(id), RcId.ToText(voteId)),
             StatusCodes.Status201Created);
     }
 
@@ -291,7 +289,7 @@ public static class RcPolls
                 poll.Mode, poll.Reveal, poll.Closed, votes.Count, tally, yours));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { polls = views });
+        await RcResults.WriteJsonAsync(ctx, new RcPollsResponse(views));
     }
 
     private static async Task CloseAsync(HttpContext ctx, RcDb db, RcPermissions permissions, Guid id)
@@ -316,11 +314,8 @@ public static class RcPolls
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
         cmd.Parameters.AddWithValue("@id", id);
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            pollId = RcId.ToText(id),
-            closed = await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 1
-        });
+        await RcResults.WriteJsonAsync(ctx, new RcPollClosedResponse(
+            RcId.ToText(id), await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 1));
     }
 
     // -- Datenzugriff ---------------------------------------------------------

@@ -74,3 +74,12 @@ internal static class RcPasswordParameters
     public const int Parallelism = Rc.Kernel.RcPassword.Parallelism;
     public const int OutputBytes = Rc.Kernel.RcPassword.OutputBytes;
 }
+
+/// <summary>
+/// 15.3 — Die Bereitschaftsmeldung. Sie nennt jede Abhaengigkeit einzeln, nicht
+/// bloss ein Gesamturteil: „nicht bereit" ohne Angabe, WAS fehlt, verlaengert
+/// jede Stoerung um die Zeit, die das Suchen kostet.
+/// </summary>
+public sealed record RcHealthCheck(string Name, bool Passed, string Detail);
+
+public sealed record RcHealthResponse(bool Healthy, IReadOnlyList<RcHealthCheck> Checks);
