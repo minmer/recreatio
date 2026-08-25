@@ -6357,6 +6357,9 @@ namespace Recreatio.Api.Migrations
                     b.Property<DateTimeOffset?>("BookedUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<bool>("CompletedManually")
+                        .HasColumnType("bit");
+
                     b.Property<string>("BookingToken")
                         .IsRequired()
                         .HasMaxLength(128)

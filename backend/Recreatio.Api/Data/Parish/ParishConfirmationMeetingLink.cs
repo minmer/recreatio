@@ -21,6 +21,8 @@ public sealed class ParishConfirmationMeetingLink
 
     public DateTimeOffset? BookedUtc { get; set; }
 
+    public bool CompletedManually { get; set; }
+
     public DateTimeOffset CreatedUtc { get; set; }
 
     public DateTimeOffset UpdatedUtc { get; set; }

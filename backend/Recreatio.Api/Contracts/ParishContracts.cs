@@ -231,7 +231,8 @@ public sealed record ParishConfirmationCandidateResponse(
 public sealed record ParishConfirmationCandidateMeetingResponse(
     string Stage,
     Guid? SlotId,
-    DateTimeOffset? BookedUtc);
+    DateTimeOffset? BookedUtc,
+    bool CompletedManually = false);
 
 public sealed record ParishConfirmationCandidateAutoMeetingResponse(
     string Status,
@@ -298,7 +299,8 @@ public sealed record ParishConfirmationExportMeetingLinkResponse(
     Guid? SlotId,
     DateTimeOffset? BookedUtc,
     DateTimeOffset CreatedUtc,
-    DateTimeOffset UpdatedUtc);
+    DateTimeOffset UpdatedUtc,
+    bool CompletedManually = false);
 
 public sealed record ParishConfirmationExportMessageResponse(
     Guid Id,
@@ -521,6 +523,10 @@ public sealed record ParishConfirmationCandidateIndexProofUpdateRequest(
     bool PaperIndexChecked,
     bool QuizCompleted);
 
+public sealed record ParishConfirmationCandidateMeetingCompletionUpdateRequest(
+    string Stage,
+    bool CompletedManually);
+
 public sealed record ParishConfirmationCandidateHandoverAnnotationUpdateRequest(
     string? Annotation);
 
@@ -606,7 +612,9 @@ public sealed record ParishConfirmationPortalCandidateDataResponse(
     DateTimeOffset? SecondSelectedSlotInviteExpiresUtc,
     string? Goal,
     bool UseInternetIndex,
-    bool UsePaperIndex);
+    bool UsePaperIndex,
+    bool FirstMeetingCompletedManually = false,
+    bool SecondMeetingCompletedManually = false);
 
 public sealed record ParishConfirmationCelebrationJoinResponse(
     Guid Id,

@@ -270,7 +270,7 @@ export const buildConfirmationHandoverOverviewHtml = (input: HandoverReportInput
       <thead><tr><th>Lp.</th><th>Kandydat</th><th>Telefon(y)</th><th>Rok zakończony</th><th>Czego brakuje</th><th>Zgoda rodzica</th><th>Adnotacja</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="7">Brak kandydatów.</td></tr>'}</tbody>
     </table>
-    <p class="footer-note">Status roku jest wyliczony z danych widocznych w systemie w chwili eksportu: pierwszego i drugiego spotkania, wpisanego celu, papierowej zgody rodzica, quizu oraz wybranego i uzupełnionego indeksu. Brak któregokolwiek spotkania oznacza rok niezaliczony. Weryfikacja telefonu jest pokazana informacyjnie i nie wpływa na zaliczenie roku.</p>
+    <p class="footer-note">Status roku jest wyliczony z danych widocznych w systemie w chwili eksportu: pierwszego i drugiego spotkania, wpisanego celu, papierowej zgody rodzica, quizu oraz wybranego i uzupełnionego indeksu. Spotkanie jest zaliczone na podstawie zapisanej rezerwacji albo ręcznego potwierdzenia parafii. Brak zaliczenia któregokolwiek spotkania oznacza rok niezaliczony. Weryfikacja telefonu jest pokazana informacyjnie i nie wpływa na zaliczenie roku.</p>
   </main>`;
 
   const html = reportDocument(
@@ -318,10 +318,18 @@ const candidateMeetingHtml = (
   return `<ul class="compact-list">${candidateLinks
     .map((link) => {
       const slot = link.slotId ? slotsById.get(link.slotId) : undefined;
-      const value = slot
+      const isCompleted = Boolean(link.slotId) || link.completedManually === true;
+      const completion = isCompleted
+        ? link.completedManually && !link.slotId
+          ? '<span class="status yes">TAK — potwierdzone ręcznie</span>'
+          : '<span class="status yes">TAK — rezerwacja</span>'
+        : '<span class="status no">NIE</span>';
+      const appointment = slot
         ? `${formatDateTime(slot.startsAtUtc)}${slot.label?.trim() ? ` • ${escapeHtml(slot.label)}` : ''}`
+        : link.completedManually
+        ? '<span class="muted">brak rezerwacji — zaliczone ręcznie</span>'
         : '<span class="warning">brak wybranego terminu</span>';
-      return `<li><strong>${escapeHtml(meetingStageLabel(link.stage))}:</strong> ${value}</li>`;
+      return `<li><strong>${escapeHtml(meetingStageLabel(link.stage))}:</strong> zaliczenie ${completion}; termin: ${appointment}</li>`;
     })
     .join('')}</ul>`;
 };

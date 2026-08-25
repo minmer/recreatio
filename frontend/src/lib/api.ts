@@ -3940,6 +3940,7 @@ export type ParishConfirmationCandidateMeeting = {
   stage: 'year1-start' | 'year1-end' | string;
   slotId?: string | null;
   bookedUtc?: string | null;
+  completedManually?: boolean;
 };
 
 export type ParishConfirmationMeetingSlotCandidate = {
@@ -4027,6 +4028,8 @@ export type ParishConfirmationPortalCandidate = {
   goal?: string | null;
   useInternetIndex?: boolean;
   usePaperIndex?: boolean;
+  firstMeetingCompletedManually?: boolean;
+  secondMeetingCompletedManually?: boolean;
 };
 
 export type ParishConfirmationMessage = {
@@ -4188,6 +4191,7 @@ export type ParishConfirmationExportMeetingLink = {
   bookedUtc?: string | null;
   createdUtc: string;
   updatedUtc: string;
+  completedManually?: boolean;
 };
 
 export type ParishConfirmationExportMessage = {
@@ -4787,6 +4791,18 @@ export function updateParishConfirmationCandidatePaperConsent(
   return request<void>(`/parish/${parishId}/confirmation-candidates/${candidateId}/paper-consent`, {
     method: 'PUT',
     body: JSON.stringify({ paperConsentReceived })
+  });
+}
+
+export function updateParishConfirmationCandidateMeetingCompletion(
+  parishId: string,
+  candidateId: string,
+  stage: 'year1-start' | 'year1-end',
+  completedManually: boolean
+) {
+  return request<void>(`/parish/${parishId}/confirmation-candidates/${candidateId}/meeting-completion`, {
+    method: 'PUT',
+    body: JSON.stringify({ stage, completedManually })
   });
 }
 

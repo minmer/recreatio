@@ -79,6 +79,7 @@ import {
   updateParishConfirmationNote,
   updateParishConfirmationCandidate,
   updateParishConfirmationCandidateHandoverAnnotation,
+  updateParishConfirmationCandidateMeetingCompletion,
   updateParishConfirmationCandidatePaperConsent,
   updateParishConfirmationCandidateIndexProof,
   updateParishConfirmationCandidateGoal,
@@ -119,8 +120,10 @@ import {
   buildConfirmationHandoverOverviewHtml
 } from './confirmationHandoverReport';
 import {
+  getConfirmationCandidateMeetingStatus,
   getConfirmationCandidateMeetingSlotId,
   getConfirmationCandidateYearStatus,
+  getConfirmationPortalMeetingStatus,
   getConfirmationPortalYearStatus
 } from './confirmationYearStatus';
 
@@ -1361,8 +1364,8 @@ const buildConfirmationSummaryStates = (candidate: ParishConfirmationCandidate):
 };
 
 const hasMissingConfirmationMeeting = (candidate: ParishConfirmationCandidate) =>
-  !getConfirmationCandidateMeetingSlotId(candidate, 'year1-start') ||
-  !getConfirmationCandidateMeetingSlotId(candidate, 'year1-end');
+  !getConfirmationCandidateMeetingStatus(candidate, 'year1-start').isCompleted ||
+  !getConfirmationCandidateMeetingStatus(candidate, 'year1-end').isCompleted;
 
 const countSmsSegments = (text: string) => {
   const length = text.length;
@@ -3788,6 +3791,35 @@ export function ParishPage({
       }
     } catch {
       setConfirmationCandidatesError('Nie udało się zaktualizować statusu oświadczenia papierowego.');
+    } finally {
+      setConfirmationAdminSendingAction(false);
+    }
+  };
+
+  const handleAdminToggleCandidateMeetingCompletion = async (
+    candidateId: string,
+    stage: 'year1-start' | 'year1-end',
+    completedManually: boolean
+  ) => {
+    if (!parish) return;
+    setConfirmationAdminSendingAction(true);
+    setConfirmationCandidatesError(null);
+    try {
+      await updateParishConfirmationCandidateMeetingCompletion(
+        parish.id,
+        candidateId,
+        stage,
+        completedManually
+      );
+      await loadConfirmationCandidates();
+      if (confirmationAdminSelectedCandidateId === candidateId) {
+        await loadConfirmationAdminCandidatePortal(candidateId);
+      }
+      if (confirmationPortalToken && confirmationAdminPortalData?.candidate.portalToken === confirmationPortalToken) {
+        await loadConfirmationCandidatePortal(confirmationPortalToken, confirmationMeetingInviteCodeApplied);
+      }
+    } catch {
+      setConfirmationCandidatesError('Nie udało się zaktualizować zaliczenia spotkania.');
     } finally {
       setConfirmationAdminSendingAction(false);
     }
@@ -7536,12 +7568,20 @@ export function ParishPage({
                       <article id="confirmation-candidate-tasks" className="parish-card confirmation-portal-standalone-column">
                         <h4>Lista zadań</h4>
                         <ul className="confirmation-portal-task-list">
-                          <li className={confirmationDisplayPortalData.candidate.selectedSlotId ? 'is-done' : 'is-todo'}>
+                          <li
+                            className={
+                              getConfirmationPortalMeetingStatus(confirmationDisplayPortalData, 'year1-start').isCompleted
+                                ? 'is-done'
+                                : 'is-todo'
+                            }
+                          >
                             <div>
                               <strong>Pierwsze spotkanie — początek 1. roku</strong>
                               <p className="note">
-                                {confirmationDisplayPortalData.candidate.selectedSlotId
-                                  ? 'Pierwsze spotkanie jest odnotowane w systemie.'
+                                {getConfirmationPortalMeetingStatus(confirmationDisplayPortalData, 'year1-start').slotId
+                                  ? 'Pierwsze spotkanie jest zaliczone na podstawie rezerwacji.'
+                                  : getConfirmationPortalMeetingStatus(confirmationDisplayPortalData, 'year1-start').completedManually
+                                  ? 'Pierwsze spotkanie zostało zaliczone przez parafię bez zapisanej rezerwacji.'
                                   : 'Brak potwierdzenia pierwszego spotkania — rok jest niezaliczony.'}
                               </p>
                             </div>
@@ -7553,12 +7593,20 @@ export function ParishPage({
                               Sprawdź spotkanie
                             </button>
                           </li>
-                          <li className={confirmationDisplayPortalData.candidate.secondSelectedSlotId ? 'is-done' : 'is-todo'}>
+                          <li
+                            className={
+                              getConfirmationPortalMeetingStatus(confirmationDisplayPortalData, 'year1-end').isCompleted
+                                ? 'is-done'
+                                : 'is-todo'
+                            }
+                          >
                             <div>
                               <strong>Drugie spotkanie — zakończenie 1. roku</strong>
                               <p className="note">
-                                {confirmationDisplayPortalData.candidate.secondSelectedSlotId
-                                  ? 'Drugie spotkanie jest odnotowane w systemie.'
+                                {getConfirmationPortalMeetingStatus(confirmationDisplayPortalData, 'year1-end').slotId
+                                  ? 'Drugie spotkanie jest zaliczone na podstawie rezerwacji.'
+                                  : getConfirmationPortalMeetingStatus(confirmationDisplayPortalData, 'year1-end').completedManually
+                                  ? 'Drugie spotkanie zostało zaliczone przez parafię bez zapisanej rezerwacji.'
                                   : 'Brak potwierdzenia drugiego spotkania — rok jest niezaliczony.'}
                               </p>
                             </div>
@@ -8040,19 +8088,27 @@ export function ParishPage({
                           ) : null}
                           <p className="note">
                             <strong>Spotkanie początkowe (1. rok):</strong>{' '}
-                            {confirmationDisplayPortalData.candidate.selectedSlotId
-                              ? confirmationDisplaySelectedFirstYearSlot
-                                ? `wybrano ${new Date(confirmationDisplaySelectedFirstYearSlot.startsAtUtc).toLocaleString('pl-PL')}`
-                                : 'termin został wybrany'
-                              : 'nie wybrano jeszcze terminu'}
+                            {getConfirmationPortalMeetingStatus(confirmationDisplayPortalData, 'year1-start').isCompleted
+                              ? getConfirmationPortalMeetingStatus(confirmationDisplayPortalData, 'year1-start').slotId
+                                ? `zaliczone na podstawie rezerwacji${
+                                    confirmationDisplaySelectedFirstYearSlot
+                                      ? ` (${new Date(confirmationDisplaySelectedFirstYearSlot.startsAtUtc).toLocaleString('pl-PL')})`
+                                      : ''
+                                  }`
+                                : 'zaliczone przez parafię bez zapisanej rezerwacji'
+                              : 'niezaliczone'}
                           </p>
                           <p className="note">
                             <strong>Spotkanie końcowe (1. rok):</strong>{' '}
-                            {confirmationDisplayPortalData.candidate.secondSelectedSlotId
-                              ? confirmationDisplaySelectedFirstYearEndSlot
-                                ? `wybrano ${new Date(confirmationDisplaySelectedFirstYearEndSlot.startsAtUtc).toLocaleString('pl-PL')}`
-                                : 'termin został wybrany'
-                              : confirmationDisplayPortalData.secondMeetingAnnouncement}
+                            {getConfirmationPortalMeetingStatus(confirmationDisplayPortalData, 'year1-end').isCompleted
+                              ? getConfirmationPortalMeetingStatus(confirmationDisplayPortalData, 'year1-end').slotId
+                                ? `zaliczone na podstawie rezerwacji${
+                                    confirmationDisplaySelectedFirstYearEndSlot
+                                      ? ` (${new Date(confirmationDisplaySelectedFirstYearEndSlot.startsAtUtc).toLocaleString('pl-PL')})`
+                                      : ''
+                                  }`
+                                : 'zaliczone przez parafię bez zapisanej rezerwacji'
+                              : 'niezaliczone'}
                           </p>
                           <h4>Publiczne adnotacje parafii</h4>
                           {confirmationDisplayPortalData.publicNotes.length === 0 ? (
@@ -8722,6 +8778,42 @@ export function ParishPage({
                               >
                                 Zapisz status zgody papierowej
                               </button>
+                              {!confirmationAdminPortalData.candidate.selectedSlotId ? (
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() =>
+                                    void handleAdminToggleCandidateMeetingCompletion(
+                                      confirmationAdminPortalData.candidate.candidateId,
+                                      'year1-start',
+                                      !confirmationAdminPortalData.candidate.firstMeetingCompletedManually
+                                    )
+                                  }
+                                >
+                                  {confirmationAdminPortalData.candidate.firstMeetingCompletedManually
+                                    ? 'Cofnij zaliczenie pierwszego spotkania'
+                                    : 'Zalicz pierwsze spotkanie bez rezerwacji'}
+                                </button>
+                              ) : null}
+                              {!confirmationAdminPortalData.candidate.secondSelectedSlotId ? (
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() =>
+                                    void handleAdminToggleCandidateMeetingCompletion(
+                                      confirmationAdminPortalData.candidate.candidateId,
+                                      'year1-end',
+                                      !confirmationAdminPortalData.candidate.secondMeetingCompletedManually
+                                    )
+                                  }
+                                >
+                                  {confirmationAdminPortalData.candidate.secondMeetingCompletedManually
+                                    ? 'Cofnij zaliczenie drugiego spotkania'
+                                    : 'Zalicz drugie spotkanie bez rezerwacji'}
+                                </button>
+                              ) : null}
                             </div>
                             <article className="confirmation-portal-card">
                               <h4>Odpowiedź do kandydata</h4>
@@ -11348,6 +11440,22 @@ export function ParishPage({
                               </p>
                             </div>
                           ) : null}
+                          <p className="note">
+                            <strong>Pierwsze spotkanie:</strong>{' '}
+                            {getConfirmationPortalMeetingStatus(confirmationPortalData, 'year1-start').slotId
+                              ? 'zaliczone na podstawie rezerwacji'
+                              : getConfirmationPortalMeetingStatus(confirmationPortalData, 'year1-start').completedManually
+                              ? 'zaliczone przez parafię bez zapisanej rezerwacji'
+                              : 'niezaliczone'}
+                          </p>
+                          <p className="note">
+                            <strong>Drugie spotkanie:</strong>{' '}
+                            {getConfirmationPortalMeetingStatus(confirmationPortalData, 'year1-end').slotId
+                              ? 'zaliczone na podstawie rezerwacji'
+                              : getConfirmationPortalMeetingStatus(confirmationPortalData, 'year1-end').completedManually
+                              ? 'zaliczone przez parafię bez zapisanej rezerwacji'
+                              : 'niezaliczone'}
+                          </p>
                           <div className="confirmation-portal-columns">
                             <article className="confirmation-portal-card">
                               <h4>Dane kandydata</h4>
@@ -12967,15 +13075,25 @@ export function ParishPage({
                                     </p>
                                     <p className="note">
                                       <strong>Pierwsze spotkanie:</strong>{' '}
-                                      {getConfirmationCandidateMeetingSlotId(candidate, 'year1-start')
-                                        ? 'Odnotowane w systemie'
-                                        : 'Brak — rok niezaliczony'}
+                                      {(() => {
+                                        const status = getConfirmationCandidateMeetingStatus(candidate, 'year1-start');
+                                        return status.slotId
+                                          ? 'Zaliczone — termin odnotowany w systemie'
+                                          : status.completedManually
+                                          ? 'Zaliczone ręcznie — bez rezerwacji'
+                                          : 'Brak — rok niezaliczony';
+                                      })()}
                                     </p>
                                     <p className="note">
                                       <strong>Drugie spotkanie:</strong>{' '}
-                                      {getConfirmationCandidateMeetingSlotId(candidate, 'year1-end')
-                                        ? 'Odnotowane w systemie'
-                                        : 'Brak — rok niezaliczony'}
+                                      {(() => {
+                                        const status = getConfirmationCandidateMeetingStatus(candidate, 'year1-end');
+                                        return status.slotId
+                                          ? 'Zaliczone — termin odnotowany w systemie'
+                                          : status.completedManually
+                                          ? 'Zaliczone ręcznie — bez rezerwacji'
+                                          : 'Brak — rok niezaliczony';
+                                      })()}
                                     </p>
                                     {(() => {
                                       const yearStatus = getConfirmationCandidateYearStatus(candidate);
@@ -13049,6 +13167,44 @@ export function ParishPage({
                                       >
                                         {candidate.paperConsentReceived ? 'Oznacz jako brak oświadczenia' : 'Oznacz jako dostarczone'}
                                       </button>
+                                      {!getConfirmationCandidateMeetingSlotId(candidate, 'year1-start') ? (
+                                        <button
+                                          type="button"
+                                          className="ghost"
+                                          disabled={confirmationAdminSendingAction}
+                                          onClick={() => {
+                                            const status = getConfirmationCandidateMeetingStatus(candidate, 'year1-start');
+                                            void handleAdminToggleCandidateMeetingCompletion(
+                                              candidate.id,
+                                              'year1-start',
+                                              !status.completedManually
+                                            );
+                                          }}
+                                        >
+                                          {getConfirmationCandidateMeetingStatus(candidate, 'year1-start').completedManually
+                                            ? 'Cofnij zaliczenie pierwszego spotkania'
+                                            : 'Zalicz pierwsze spotkanie bez rezerwacji'}
+                                        </button>
+                                      ) : null}
+                                      {!getConfirmationCandidateMeetingSlotId(candidate, 'year1-end') ? (
+                                        <button
+                                          type="button"
+                                          className="ghost"
+                                          disabled={confirmationAdminSendingAction}
+                                          onClick={() => {
+                                            const status = getConfirmationCandidateMeetingStatus(candidate, 'year1-end');
+                                            void handleAdminToggleCandidateMeetingCompletion(
+                                              candidate.id,
+                                              'year1-end',
+                                              !status.completedManually
+                                            );
+                                          }}
+                                        >
+                                          {getConfirmationCandidateMeetingStatus(candidate, 'year1-end').completedManually
+                                            ? 'Cofnij zaliczenie drugiego spotkania'
+                                            : 'Zalicz drugie spotkanie bez rezerwacji'}
+                                        </button>
+                                      ) : null}
                                       <button
                                         type="button"
                                         className="ghost"
@@ -13788,6 +13944,42 @@ export function ParishPage({
                               >
                                 {confirmationAdminSendingAction ? 'Zapisywanie...' : 'Zapisz status oświadczenia papierowego'}
                               </button>
+                              {!confirmationAdminPortalData.candidate.selectedSlotId ? (
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() =>
+                                    void handleAdminToggleCandidateMeetingCompletion(
+                                      confirmationAdminPortalData.candidate.candidateId,
+                                      'year1-start',
+                                      !confirmationAdminPortalData.candidate.firstMeetingCompletedManually
+                                    )
+                                  }
+                                >
+                                  {confirmationAdminPortalData.candidate.firstMeetingCompletedManually
+                                    ? 'Cofnij zaliczenie pierwszego spotkania'
+                                    : 'Zalicz pierwsze spotkanie bez rezerwacji'}
+                                </button>
+                              ) : null}
+                              {!confirmationAdminPortalData.candidate.secondSelectedSlotId ? (
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() =>
+                                    void handleAdminToggleCandidateMeetingCompletion(
+                                      confirmationAdminPortalData.candidate.candidateId,
+                                      'year1-end',
+                                      !confirmationAdminPortalData.candidate.secondMeetingCompletedManually
+                                    )
+                                  }
+                                >
+                                  {confirmationAdminPortalData.candidate.secondMeetingCompletedManually
+                                    ? 'Cofnij zaliczenie drugiego spotkania'
+                                    : 'Zalicz drugie spotkanie bez rezerwacji'}
+                                </button>
+                              ) : null}
                             </div>
                             <div className="confirmation-portal-columns">
                               <article className="confirmation-portal-card">

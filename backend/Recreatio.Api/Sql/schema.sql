@@ -435,6 +435,7 @@ CREATE TABLE dbo.ParishConfirmationMeetingLinks
     Stage NVARCHAR(32) NOT NULL CONSTRAINT DF_ParishConfirmationMeetingLinks_Stage DEFAULT ('year1-start'),
     SlotId UNIQUEIDENTIFIER NULL,
     BookedUtc DATETIMEOFFSET NULL,
+    CompletedManually BIT NOT NULL CONSTRAINT DF_ParishConfirmationMeetingLinks_CompletedManually DEFAULT (0),
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_ParishConfirmationMeetingLinks_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id),

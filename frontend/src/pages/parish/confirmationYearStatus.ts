@@ -19,8 +19,8 @@ export type ConfirmationYearRequirement = {
 };
 
 type ConfirmationYearFacts = {
-  firstMeetingRecorded: boolean;
-  secondMeetingRecorded: boolean;
+  firstMeetingCompleted: boolean;
+  secondMeetingCompleted: boolean;
   goalRecorded: boolean;
   paperConsentReceived: boolean;
   quizCompleted: boolean;
@@ -44,13 +44,13 @@ const buildConfirmationYearStatus = (facts: ConfirmationYearFacts): Confirmation
     {
       key: 'meeting-year1-start',
       label: 'pierwsze spotkanie (początek 1. roku)',
-      fulfilled: facts.firstMeetingRecorded,
+      fulfilled: facts.firstMeetingCompleted,
       applicable: true
     },
     {
       key: 'meeting-year1-end',
       label: 'drugie spotkanie (zakończenie 1. roku)',
-      fulfilled: facts.secondMeetingRecorded,
+      fulfilled: facts.secondMeetingCompleted,
       applicable: true
     },
     {
@@ -100,16 +100,37 @@ const buildConfirmationYearStatus = (facts: ConfirmationYearFacts): Confirmation
   };
 };
 
+const candidateMeeting = (candidate: ParishConfirmationCandidate, stage: 'year1-start' | 'year1-end') =>
+  candidate.meetings?.find((meeting) => meeting.stage.trim().toLowerCase() === stage);
+
 const meetingSlotId = (candidate: ParishConfirmationCandidate, stage: 'year1-start' | 'year1-end') =>
-  candidate.meetings?.find((meeting) => meeting.stage.trim().toLowerCase() === stage)?.slotId ??
-  (stage === 'year1-start' ? candidate.meetingSlotId : null);
+  candidateMeeting(candidate, stage)?.slotId ?? (stage === 'year1-start' ? candidate.meetingSlotId : null);
+
+export type ConfirmationCandidateMeetingStatus = {
+  slotId: string | null;
+  completedManually: boolean;
+  isCompleted: boolean;
+};
+
+export const getConfirmationCandidateMeetingStatus = (
+  candidate: ParishConfirmationCandidate,
+  stage: 'year1-start' | 'year1-end'
+): ConfirmationCandidateMeetingStatus => {
+  const slotId = meetingSlotId(candidate, stage) ?? null;
+  const completedManually = candidateMeeting(candidate, stage)?.completedManually === true;
+  return {
+    slotId,
+    completedManually,
+    isCompleted: Boolean(slotId) || completedManually
+  };
+};
 
 export const getConfirmationCandidateYearStatus = (
   candidate: ParishConfirmationCandidate
 ): ConfirmationYearStatus =>
   buildConfirmationYearStatus({
-    firstMeetingRecorded: Boolean(meetingSlotId(candidate, 'year1-start')),
-    secondMeetingRecorded: Boolean(meetingSlotId(candidate, 'year1-end')),
+    firstMeetingCompleted: getConfirmationCandidateMeetingStatus(candidate, 'year1-start').isCompleted,
+    secondMeetingCompleted: getConfirmationCandidateMeetingStatus(candidate, 'year1-end').isCompleted,
     goalRecorded: Boolean(candidate.goal?.trim()),
     paperConsentReceived: candidate.paperConsentReceived === true,
     quizCompleted: candidate.quizCompleted === true,
@@ -120,13 +141,34 @@ export const getConfirmationCandidateYearStatus = (
     paperIndexChecked: candidate.paperIndexChecked === true
   });
 
+export const getConfirmationPortalMeetingStatus = (
+  portal: ParishConfirmationPortal,
+  stage: 'year1-start' | 'year1-end'
+): ConfirmationCandidateMeetingStatus => {
+  const slotId =
+    (stage === 'year1-start'
+      ? portal.candidate.selectedSlotId
+      : portal.candidate.secondSelectedSlotId) ?? null;
+  const completedManually =
+    (stage === 'year1-start'
+      ? portal.candidate.firstMeetingCompletedManually
+      : portal.candidate.secondMeetingCompletedManually) === true;
+  return {
+    slotId,
+    completedManually,
+    isCompleted: Boolean(slotId) || completedManually
+  };
+};
+
 export const getConfirmationPortalYearStatus = (portal: ParishConfirmationPortal): ConfirmationYearStatus => {
   const usesInternetIndex = portal.candidate.useInternetIndex === true;
   const internetCelebrations = usesInternetIndex ? portal.upcomingCelebrations : [];
+  const firstMeeting = getConfirmationPortalMeetingStatus(portal, 'year1-start');
+  const secondMeeting = getConfirmationPortalMeetingStatus(portal, 'year1-end');
 
   return buildConfirmationYearStatus({
-    firstMeetingRecorded: Boolean(portal.candidate.selectedSlotId),
-    secondMeetingRecorded: Boolean(portal.candidate.secondSelectedSlotId),
+    firstMeetingCompleted: firstMeeting.isCompleted,
+    secondMeetingCompleted: secondMeeting.isCompleted,
     goalRecorded: Boolean(portal.candidate.goal?.trim()),
     paperConsentReceived: portal.candidate.paperConsentReceived === true,
     quizCompleted: portal.candidate.quizCompleted === true,

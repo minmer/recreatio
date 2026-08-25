@@ -1471,7 +1471,9 @@ public static class ParishEndpoints
                     secondCanInviteToSelectedSlot ? secondSelectedSlot?.HostInviteExpiresUtc : null,
                     payload.Goal,
                     payload.UseInternetIndex,
-                    payload.UsePaperIndex),
+                    payload.UsePaperIndex,
+                    firstYearStartLink.CompletedManually,
+                    firstYearEndLink.CompletedManually),
                 slots.Where(slot => slot.Stage == ConfirmationMeetingStageYear1Start).Select(slot =>
                 {
                     var reserved = reservedCounts.GetValueOrDefault(slot.Id);
@@ -2538,7 +2540,8 @@ public static class ParishEndpoints
                     candidate.Meetings.Select(meeting => new ParishConfirmationCandidateMeetingResponse(
                         meeting.Stage,
                         meeting.SlotId,
-                        meeting.BookedUtc)).ToList()))
+                        meeting.BookedUtc,
+                        meeting.CompletedManually)).ToList()))
                 .ToList();
 
             return Results.Ok(responses);
@@ -2620,7 +2623,8 @@ public static class ParishEndpoints
                     x.SlotId,
                     x.BookedUtc,
                     x.CreatedUtc,
-                    x.UpdatedUtc))
+                    x.UpdatedUtc,
+                    x.CompletedManually))
                 .ToListAsync(ct);
             var messages = await dbContext.ParishConfirmationMessages.AsNoTracking()
                 .Where(x => x.ParishId == parishId)
@@ -2694,7 +2698,7 @@ public static class ParishEndpoints
                     x.UpdatedUtc))
                 .ToListAsync(ct);
             var response = new ParishConfirmationExportResponse(
-                7,
+                8,
                 parishId,
                 DateTimeOffset.UtcNow,
                 candidates.Select(candidate => new ParishConfirmationExportCandidateResponse(
@@ -3634,6 +3638,8 @@ public static class ParishEndpoints
                 targetLink.Stage = stage;
                 targetLink.SlotId = selectedSlotId;
                 targetLink.BookedUtc = selectedSlotId is null ? null : selectedBookedUtcByStage[stage];
+                targetLink.CompletedManually =
+                    targetLink.CompletedManually || sourceLinksByStage[stage].CompletedManually;
                 targetLink.UpdatedUtc = now;
             }
 
@@ -3900,9 +3906,12 @@ public static class ParishEndpoints
                         ct);
                 if (targetLink is null)
                 {
-                    link.Stage = stage;
-                    link.UpdatedUtc = now;
-                    continue;
+                    targetLink = await EnsureConfirmationMeetingLinkAsync(
+                        parishId,
+                        link.CandidateId,
+                        stage,
+                        dbContext,
+                        ct);
                 }
 
                 if (targetLink.Id != link.Id)
@@ -4193,7 +4202,9 @@ public static class ParishEndpoints
                     secondCanInviteToSelectedSlot ? secondSelectedSlot?.HostInviteExpiresUtc : null,
                     payload.Goal,
                     payload.UseInternetIndex,
-                    payload.UsePaperIndex),
+                    payload.UsePaperIndex,
+                    firstYearStartLink.CompletedManually,
+                    firstYearEndLink.CompletedManually),
                 slots.Where(slot => slot.Stage == ConfirmationMeetingStageYear1Start).Select(slot =>
                 {
                     var reserved = reservedCounts.GetValueOrDefault(slot.Id);
@@ -4297,6 +4308,65 @@ public static class ParishEndpoints
                 "ConfirmationCandidatePaperConsentUpdated",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { candidateId, request.PaperConsentReceived }),
+                ct);
+
+            return Results.Ok();
+        }).RequireAuthorization();
+
+        group.MapPut("/{parishId:guid}/confirmation-candidates/{candidateId:guid}/meeting-completion", async (
+            Guid parishId,
+            Guid candidateId,
+            ParishConfirmationCandidateMeetingCompletionUpdateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var rawStage = (request.Stage ?? string.Empty).Trim().ToLowerInvariant();
+            if (rawStage != ConfirmationMeetingStageYear1Start && rawStage != ConfirmationMeetingStageYear1End)
+            {
+                return Results.BadRequest(new { error = "Meeting stage must be 'year1-start' or 'year1-end'." });
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var candidate = await dbContext.ParishConfirmationCandidates
+                .FirstOrDefaultAsync(x => x.Id == candidateId && x.ParishId == parishId, ct);
+            if (candidate is null)
+            {
+                return Results.NotFound();
+            }
+
+            var link = await EnsureConfirmationMeetingLinkAsync(parishId, candidateId, rawStage, dbContext, ct);
+            var now = DateTimeOffset.UtcNow;
+            link.CompletedManually = request.CompletedManually;
+            link.UpdatedUtc = now;
+            candidate.UpdatedUtc = now;
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationCandidateMeetingCompletionUpdated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { candidateId, Stage = rawStage, request.CompletedManually }),
                 ct);
 
             return Results.Ok();
@@ -7472,7 +7542,8 @@ public static class ParishEndpoints
                     return new ParishConfirmationCandidateMeetingView(
                         stage,
                         stageLink?.SlotId,
-                        stageLink?.BookedUtc);
+                        stageLink?.BookedUtc,
+                        stageLink?.CompletedManually == true);
                 })
                 .ToList();
 
@@ -8053,7 +8124,8 @@ public static class ParishEndpoints
     private sealed record ParishConfirmationCandidateMeetingView(
         string Stage,
         Guid? SlotId,
-        DateTimeOffset? BookedUtc);
+        DateTimeOffset? BookedUtc,
+        bool CompletedManually);
 
     private sealed record ParishConfirmationCandidateView(
         Guid CandidateId,
