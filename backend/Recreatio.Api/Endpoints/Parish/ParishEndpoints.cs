@@ -3682,7 +3682,11 @@ public static class ParishEndpoints
                     TargetCandidateId = targetCandidate.Id,
                     RemovedCandidateId = sourceCandidate.Id,
                     PhoneCount = phoneNumbers.Count,
-                    SelectedMeetingSlotId = selectedSlotId
+                    SelectedMeetings = meetingStages.Select(stage => new
+                    {
+                        Stage = stage,
+                        SlotId = selectedSlotsByStage[stage]
+                    })
                 }),
                 ct);
 

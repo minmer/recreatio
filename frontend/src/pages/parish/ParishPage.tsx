@@ -1263,7 +1263,7 @@ const defaultConfirmationSmsTemplates: ResolvedConfirmationSmsTemplates = {
     '{doneList}\n' +
     'Brakuje potwierdzenia lub uzupełnienia:\n' +
     '{missingList}\n' +
-    'Braki nie zostały uzupełnione do 25.08.2026 r., dlatego rok przygotowania nie został zaliczony i może być konieczne jego powtórzenie.\n' +
+    'Do 25.08.2026 r. nie udało się potwierdzić lub uzupełnić powyższych punktów, dlatego na podstawie dostępnej dokumentacji rok przygotowania nie został zaliczony i może być konieczne jego powtórzenie.\n' +
     'W sprawie dalszego przygotowania proszę o kontakt z parafią.\n' +
     'Z dniem 25.08.2026 r. zakończyłem posługę w parafii i nie jestem już w niej dostępny.\n' +
     'Z Bogiem\n' +
@@ -1320,6 +1320,12 @@ const confirmationSummaryItems: ReadonlyArray<{
   { key: 'internetIndex', label: 'Indeks internetowy (celebracje)', smsLabel: 'indeks internetowy (wpisy przy celebracjach)' },
   { key: 'paperIndex', label: 'Indeks papierowy', smsLabel: 'indeks papierowy' }
 ];
+
+const isConfirmationSummaryMeetingItem = (key: ConfirmationSummaryItemKey) =>
+  key === 'firstMeeting' || key === 'secondMeeting';
+
+const containsExactlyOneConfirmationSmsVariable = (template: string, variable: string) =>
+  template.split(variable).length === 2;
 
 const confirmationSummaryPaperIndexInfo = ' wraz z indeksem papierowym';
 
@@ -2166,7 +2172,8 @@ export function ParishPage({
   const [confirmationMergeSurnameSource, setConfirmationMergeSurnameSource] = useState<'target' | 'source'>('target');
   const [confirmationMergeAddressSource, setConfirmationMergeAddressSource] = useState<'target' | 'source'>('target');
   const [confirmationMergeSchoolSource, setConfirmationMergeSchoolSource] = useState<'target' | 'source'>('target');
-  const [confirmationMergeMeetingSource, setConfirmationMergeMeetingSource] = useState<'none' | 'target' | 'source'>('none');
+  const [confirmationMergeFirstMeetingSource, setConfirmationMergeFirstMeetingSource] = useState<'none' | 'target' | 'source'>('none');
+  const [confirmationMergeSecondMeetingSource, setConfirmationMergeSecondMeetingSource] = useState<'none' | 'target' | 'source'>('none');
   const [confirmationMergePortalSource, setConfirmationMergePortalSource] = useState<'target' | 'source'>('target');
   const [confirmationMergeSelectedPhones, setConfirmationMergeSelectedPhones] = useState<string[]>([]);
   const [confirmationMergeBusy, setConfirmationMergeBusy] = useState(false);
@@ -4078,11 +4085,17 @@ export function ParishPage({
       return;
     }
 
-    const selectedMeetingSlotId =
-      confirmationMergeMeetingSource === 'target'
-        ? confirmationMergeTargetCandidate.meetingSlotId ?? null
-        : confirmationMergeMeetingSource === 'source'
-        ? confirmationMergeSourceCandidate.meetingSlotId ?? null
+    const selectedFirstMeetingSlotId =
+      confirmationMergeFirstMeetingSource === 'target'
+        ? getConfirmationCandidateMeetingSlotId(confirmationMergeTargetCandidate, 'year1-start')
+        : confirmationMergeFirstMeetingSource === 'source'
+        ? getConfirmationCandidateMeetingSlotId(confirmationMergeSourceCandidate, 'year1-start')
+        : null;
+    const selectedSecondMeetingSlotId =
+      confirmationMergeSecondMeetingSource === 'target'
+        ? getConfirmationCandidateMeetingSlotId(confirmationMergeTargetCandidate, 'year1-end')
+        : confirmationMergeSecondMeetingSource === 'source'
+        ? getConfirmationCandidateMeetingSlotId(confirmationMergeSourceCandidate, 'year1-end')
         : null;
     const portalTokenFromCandidateId =
       confirmationMergePortalSource === 'source'
@@ -4101,7 +4114,11 @@ export function ParishPage({
         phoneNumbers: mergedPhones,
         address: mergedAddress,
         schoolShort: mergedSchool,
-        selectedMeetingSlotId,
+        selectedMeetingSlotId: selectedFirstMeetingSlotId,
+        selectedMeetings: [
+          { stage: 'year1-start', slotId: selectedFirstMeetingSlotId },
+          { stage: 'year1-end', slotId: selectedSecondMeetingSlotId }
+        ],
         portalTokenFromCandidateId
       });
 
@@ -4683,10 +4700,17 @@ export function ParishPage({
     setConfirmationMergeSurnameSource('target');
     setConfirmationMergeAddressSource('target');
     setConfirmationMergeSchoolSource('target');
-    setConfirmationMergeMeetingSource(
-      confirmationMergeTargetCandidate.meetingSlotId
+    setConfirmationMergeFirstMeetingSource(
+      getConfirmationCandidateMeetingSlotId(confirmationMergeTargetCandidate, 'year1-start')
         ? 'target'
-        : confirmationMergeSourceCandidate.meetingSlotId
+        : getConfirmationCandidateMeetingSlotId(confirmationMergeSourceCandidate, 'year1-start')
+        ? 'source'
+        : 'none'
+    );
+    setConfirmationMergeSecondMeetingSource(
+      getConfirmationCandidateMeetingSlotId(confirmationMergeTargetCandidate, 'year1-end')
+        ? 'target'
+        : getConfirmationCandidateMeetingSlotId(confirmationMergeSourceCandidate, 'year1-end')
         ? 'source'
         : 'none'
     );
@@ -12635,11 +12659,11 @@ export function ParishPage({
                                           </select>
                                         </label>
                                         <label>
-                                          <span>Termin spotkania</span>
+                                          <span>Pierwsze spotkanie</span>
                                           <select
-                                            value={confirmationMergeMeetingSource}
+                                            value={confirmationMergeFirstMeetingSource}
                                             onChange={(event) =>
-                                              setConfirmationMergeMeetingSource(
+                                              setConfirmationMergeFirstMeetingSource(
                                                 event.target.value === 'target'
                                                   ? 'target'
                                                   : event.target.value === 'source'
@@ -12650,10 +12674,33 @@ export function ParishPage({
                                           >
                                             <option value="none">Brak terminu</option>
                                             <option value="target">
-                                              Rekord docelowy {confirmationMergeTargetCandidate.meetingSlotId ? '(ma termin)' : '(bez terminu)'}
+                                              Rekord docelowy {getConfirmationCandidateMeetingSlotId(confirmationMergeTargetCandidate, 'year1-start') ? '(ma termin)' : '(bez terminu)'}
                                             </option>
                                             <option value="source">
-                                              Rekord źródłowy {confirmationMergeSourceCandidate.meetingSlotId ? '(ma termin)' : '(bez terminu)'}
+                                              Rekord źródłowy {getConfirmationCandidateMeetingSlotId(confirmationMergeSourceCandidate, 'year1-start') ? '(ma termin)' : '(bez terminu)'}
+                                            </option>
+                                          </select>
+                                        </label>
+                                        <label>
+                                          <span>Drugie spotkanie</span>
+                                          <select
+                                            value={confirmationMergeSecondMeetingSource}
+                                            onChange={(event) =>
+                                              setConfirmationMergeSecondMeetingSource(
+                                                event.target.value === 'target'
+                                                  ? 'target'
+                                                  : event.target.value === 'source'
+                                                  ? 'source'
+                                                  : 'none'
+                                              )
+                                            }
+                                          >
+                                            <option value="none">Brak terminu</option>
+                                            <option value="target">
+                                              Rekord docelowy {getConfirmationCandidateMeetingSlotId(confirmationMergeTargetCandidate, 'year1-end') ? '(ma termin)' : '(bez terminu)'}
+                                            </option>
+                                            <option value="source">
+                                              Rekord źródłowy {getConfirmationCandidateMeetingSlotId(confirmationMergeSourceCandidate, 'year1-end') ? '(ma termin)' : '(bez terminu)'}
                                             </option>
                                           </select>
                                         </label>
