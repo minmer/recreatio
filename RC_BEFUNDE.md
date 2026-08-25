@@ -410,10 +410,18 @@ Solange der Browser-Teil die Formen von Hand nachbaute, fiel das nicht auf — e
 fiel erst auf, wenn eine Umbenennung im Server die Nachbildung still falsch
 machte. Genau das schließt der erzeugte Klient.
 
-**Stand:** die Anmeldung ist umgestellt (7 Endpunkte, benannte Datensätze in
-`RcAuthContracts.cs` plus `Produces<T>()`). **Die übrigen 63 Endpunkte antworten
-weiter anonym** — sie stehen im Dokument mit Pfad und Anfragekörper, aber ohne
-Antwortform. Das ist die verbleibende Arbeit und sie ist mechanisch.
+**Erledigt.** Alle Antworten sind benannte Datensätze (vier Vertragsdateien:
+`RcAuthContracts`, `RcRoleContracts`, `RcChatContracts`, `RcDataContracts`),
+jeder Endpunkt trägt `Produces<T>()`. **69 der 70 Endpunkte** stehen mit
+Antwortform im Dokument — 55 Pfade, 121 Typen.
+
+Der eine ohne ist `GET /rc/attachments/{id}/content`: er liefert die Datei
+selbst, kein JSON. Dort ist das Fehlen richtig und keine Lücke.
+
+**Dass der Umbau nichts verschoben hat, zeigen die 157 Prüffälle:** sie lesen
+JSON nach Feldnamen, und ein benannter Datensatz serialisiert genau wie das
+anonyme Objekt davor. Wäre irgendwo ein Feld anders geschrieben worden, wären
+sie rot.
 
 **Nachgewiesen, dass es trägt:** `IdleMinutes` → `IdleTimeoutMinutes` im C#,
 neu erzeugt, und der Browser-Teil bricht mit
@@ -514,3 +522,133 @@ wenig (ein Passwort gegen tausend Namen), nur je Absender ebenfalls (ein
 Botnetz hat tausend Absender). Nach gelungener Anmeldung fällt nur der Zähler
 des Namens — sonst wäscht ein Angreifer mit einem eigenen guten Konto seine
 Fehlversuche gegen alle anderen weg.
+
+### Die Bibliothek war nie ein Dienst
+
+`Rc.Api` ist mit `OutputType=Library` gebaut worden, und das war richtig: die
+Prüfreihe stellt sie sich in den eigenen Prozess, der Beschreibungs-Erzeuger
+startet sie für zwei Sekunden. Beides beweist, dass sie funktioniert.
+
+Keines von beiden macht sie für einen Browser erreichbar. Über Wochen sind 70
+Endpunkte, 158 Prüfungen und eine vollständige Oberfläche entstanden, ohne dass
+die Oberfläche je mit dem Dienst gesprochen hätte — es gab schlicht nichts, was
+sie hätte anrufen können. Aufgefallen ist es erst beim Versuch, den Dienst zu
+starten: `Ein ausführbares Projekt muss OutputType „Exe" verwenden`.
+
+Deshalb jetzt `Rc.Host`. Er tut nichts als `AddRcPlatform` / `UseRcPlatform`
+aufzurufen, und genau deshalb gehört er dazu: **eine Plattform, die man nur mit
+einem Prüfprogramm bedienen kann, hat noch nie jemand benutzt.**
+
+Zwei Entscheidungen darin sind keine Bequemlichkeit:
+
+- Das Servergeheimnis wird in der Entwicklung **einmal** erzeugt und daneben
+  abgelegt. Bei jedem Start ein neues zu würfeln hiesse, dass jeder Neustart
+  alle abmeldet — bei einem Dienst, der beim Entwickeln im Minutentakt neu
+  startet, macht das die Anmeldung unbenutzbar und verleitet dazu, sie
+  wegzulassen.
+- Ausserhalb der Entwicklung gibt es **keinen** Ersatzwert, weder für die
+  Verbindung noch für das Geheimnis. Ein Dienst, der in der Produktion still
+  auf eine leere Datenbank ausweicht, ist schlimmer als einer, der nicht
+  startet.
+
+### Fünf Zustände, von denen vier keinen Text zeigen
+
+Eine Nachricht kann lesbar sein, vom Urheber zurückgenommen, von der Moderation
+ausgeblendet, aus der Zeit vor dem eigenen Beitritt — oder sie ist da, der
+Schlüssel war da, und sie ging trotzdem nicht auf.
+
+Beim ersten Schreiben der Oberfläche habe ich drei davon behandelt. Die
+übrigen zwei — Moderation und jeder Entschlüsselungsfehler ausser
+`crypto.missing_epoch` — wären als **leerer Absatz** erschienen. Also als gar
+nichts. Genau das Loch, das 15.9 verbietet, und zwar an der Stelle, an der es
+am meisten schadet: `crypto.aad_mismatch` heisst, dass jemand am Geheimtext
+gedreht hat, und es hätte ausgesehen wie eine Nachricht, die niemand geschrieben
+hat.
+
+Die Lehre ist nicht „sorgfältiger sein". Sie ist: **diese Entscheidung darf
+nicht im Markup stehen.** Im JSX ist ein vergessener Zweig unsichtbar; als
+Funktion mit einem aufgezählten Rückgabetyp (`rcMessageState`) ist er prüfbar,
+und die Prüfung deckt jetzt alle fünf ab — samt der Rangfolge (zurückgenommen
+schlägt unlesbar, weil es über einen Geheimtext, den es nicht mehr gibt, nichts
+zu sagen gibt) und samt des Falls, den der Dienst gar nicht liefern dürfte:
+kein Text und kein Grund wird zum sichtbaren Vorfall, nicht zum leeren Absatz.
+
+### Eine nachgebaute Prüfreihe prüft den Nachbau
+
+Die erste Fassung des Oberflächen-Durchgangs hat die Aufrufe von Hand
+nachgeschrieben und rief `/auth/salt` als GET auf. Der Dienst antwortete 405.
+Der echte Klient hatte die ganze Zeit recht: er ruft POST.
+
+Der Nachbau hätte also einen Fehler gemeldet, den es nicht gab — und wäre bei
+der nächsten Änderung am Klienten still danebengelaufen. Deshalb bündelt
+`rc:walk` jetzt den **echten** Browser-Code und legt nur das darunter, was Node
+fehlt: ein Keksglas und ein `sessionStorage`. Was er prüft, ist damit dasselbe,
+was der Browser ausführt, und nicht meine Erinnerung daran.
+
+### Der Altbestand macht das Typ-Tor wertlos
+
+`tsc --noEmit` über `src/` meldet rund zwanzig Fehler, die alle aus der alten
+Plattform stammen. Solange sie mitlaufen, steht das Tor immer auf Rot — und ein
+neuer Fehler in `src/rc` fällt niemandem mehr auf. Ein Tor, das immer rot ist,
+ist kein Tor.
+
+Deshalb `tsconfig.rc.json`: derselbe Bauplan, aber nur der Neubau, und der
+**muss** durchgehend sauber sein. Den Altbestand aufzuräumen bleibt eine eigene
+Arbeit; sie gehört nicht in diesen Umbau, aber sie darf ihn auch nicht blenden.
+
+### Was die Oberfläche je Zeile braucht, gehört in die Zeile
+
+Stellungnahmen und Anhänge hingen an eigenen Endpunkten. Die Oberfläche hatte
+damit zwei Möglichkeiten, und beide waren falsch:
+
+- je Beitrag eine weitere Anfrage — bei fünfzig Beiträgen fünfzig, von denen
+  die meisten eine leere Liste zurückbringen;
+- oder gar nicht fragen und etwas Erfundenes anzeigen. Genau das stand kurz im
+  Code: `mine={null}`. Man wählt eine Haltung, lädt neu, und sie ist weg. Der
+  Knopf, dessen ganzer Zweck es ist, eine Haltung festzuhalten, hielt nichts
+  fest.
+
+Deshalb trägt der Verlauf jetzt `reactions`, `yourReaction` und
+`attachmentCount` mit. Drei Dinge daran sind Entscheidungen und keine
+Bequemlichkeit:
+
+**Der Verlauf wird unter einem NAMEN geholt.** Stellungnahmen hängen an der
+Rolle, nicht am Konto — wer mehrere Rollen hält, hat womöglich unter zweien
+verschieden Stellung genommen. `?roleId=` macht die Frage eindeutig. Und der
+Server prüft, dass der Name dem Frager gehört: wäre er frei wählbar, könnte
+jeder die Haltung jedes anderen abfragen, und eine Abstimmung, die vertraulich
+sein soll, wäre über den Verlauf auslesbar.
+
+**Die Auszählung nennt nur, was vorkommt.** Drei Nullen zu schicken hiesse,
+dass neben „ich widerspreche" eine Null steht — eine Aussage über die Sitzung,
+die niemand getroffen hat. Ein Zähler bei null ist kein Messwert, sondern eine
+Behauptung.
+
+**Die Auszählung ist öffentlich, die eigene Haltung persönlich.** In einem
+Gremium ist ein Widerspruch keine Privatsache; wie viele widersprochen haben,
+sieht deshalb jeder. Wer, steht nur für den da, der gefragt hat — und nur über
+seinen eigenen Namen.
+
+### Eine Null ist eine Behauptung, eine Zusage ist etwas anderes
+
+Bei `reveal: on_close` liefert der Server vor dem Schliessen keine Auszählung,
+auch nicht an den, der gefragt hat. Die naheliegende Darstellung wäre „noch
+keine Stimmen". Sie wäre gelogen: es sind welche da, sie werden nur niemandem
+gezeigt.
+
+Die Oberfläche schreibt deshalb hin, dass die Auszählung bis zum Schliessen
+zurückgehalten wird — und dass genau dafür so gefragt wurde. Aus einer
+scheinbaren Lücke wird eine eingelöste Zusage. Dass die Zahl der abgegebenen
+Stimmen trotzdem sichtbar bleibt, gehört dazu: verschwiege der Dienst auch die,
+sähe eine laufende Abstimmung aus wie eine vergessene.
+
+### Ein Knopf, der zuverlässig abgewiesen wird, sieht aus wie eine Befugnis
+
+Anhänge entfernen darf der Eigentümer und die Leitung des Bereichs. Der Knopf
+stand zunächst unter jeder Datei — für die meisten Leser ein Versprechen, das
+der Server dann mit 403 zurücknimmt. Das ist schlechter als kein Knopf: es
+verlagert eine Regel in eine Fehlermeldung, statt sie in der Oberfläche zu
+zeigen.
+
+Dieselbe Überlegung steht hinter `canWrite`: wer nur lesen darf, bekommt keinen
+Schreibkasten, den er füllen und dann abgewiesen bekommen würde.

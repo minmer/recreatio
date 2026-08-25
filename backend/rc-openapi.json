@@ -1357,6 +1357,14 @@
               "type": "integer",
               "format": "int32"
             }
+          },
+          {
+            "name": "roleId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -2256,6 +2264,7 @@
           "canWrite",
           "currentEpoch",
           "isPublic",
+          "ledgerId",
           "lifecycle",
           "readableEpochs"
         ],
@@ -2284,6 +2293,9 @@
           },
           "canWrite": {
             "type": "boolean"
+          },
+          "ledgerId": {
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -2617,6 +2629,7 @@
       },
       "DecisionsDecisionView": {
         "required": [
+          "allowedNext",
           "createdAt",
           "decisionId",
           "history",
@@ -2646,6 +2659,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DecisionsTransitionView"
+            }
+          },
+          "allowedNext": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         },
@@ -2967,9 +2986,11 @@
       },
       "MessagesMessageView": {
         "required": [
+          "attachmentCount",
           "epoch",
           "messageId",
           "postedUtc",
+          "reactions",
           "version"
         ],
         "type": "object",
@@ -3013,6 +3034,22 @@
           "unreadable": {
             "type": "string",
             "nullable": true
+          },
+          "reactions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "yourReaction": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "attachmentCount": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false

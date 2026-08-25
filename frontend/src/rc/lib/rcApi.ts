@@ -98,11 +98,22 @@ export interface RcFetchOptions {
   readonly signal?: AbortSignal;
 }
 
-export async function rcFetch<T>(path: string, options: RcFetchOptions = {}): Promise<T> {
+/**
+ * Der eine Weg nach draußen.
+ *
+ * Anfrage und Wiederholung wurden hier einmal getrennt gebaut — zwei fast
+ * gleiche Blöcke, von denen einer beim nächsten Zusatz stillschweigend
+ * zurückgeblieben wäre. Jetzt gibt es `send()` und zwei Aufrufe davon.
+ */
+export async function rcRaw(path: string, options: RcFetchOptions = {}): Promise<Response> {
+  const isForm = options.body instanceof FormData;
   const method = options.method ?? (options.body === undefined ? 'GET' : 'POST');
   const headers: Record<string, string> = {};
 
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  // Bei FormData setzt der Browser den Typ SELBST — mitsamt der Trennmarke,
+  // die er würfelt. Wer ihn hier von Hand setzt, liefert einen Körper, den
+  // keine Gegenstelle zerlegen kann.
+  if (options.body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
 
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
     headers['X-Rc-Csrf'] = await rcCsrf();
@@ -113,36 +124,39 @@ export async function rcFetch<T>(path: string, options: RcFetchOptions = {}): Pr
     if (piece !== null) headers['X-Rc-Unlock'] = piece;
   }
 
-  const response = await fetch(`${RC_BASE}${path}`, {
-    method,
-    credentials: 'include',
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    signal: options.signal
-  });
+  const send = () =>
+    fetch(`${RC_BASE}${path}`, {
+      method,
+      credentials: 'include',
+      headers,
+      body:
+        options.body === undefined ? undefined
+        : isForm ? (options.body as FormData)
+        : JSON.stringify(options.body),
+      signal: options.signal
+    });
+
+  const response = await send();
 
   // Der Schutzwert läuft nach zwölf Stunden ab. Ein offener Tab über Nacht ist
   // der Normalfall, nicht die Ausnahme — also einmal nachholen statt den
   // Menschen mit einer Fehlermeldung zum Neuladen zu schicken.
   if (response.status === 403 && method !== 'GET') {
     const failure = await toError(response);
-    if (failure.code === 'auth.csrf_missing') {
-      headers['X-Rc-Csrf'] = await rcCsrf(true);
-      const retry = await fetch(`${RC_BASE}${path}`, {
-        method,
-        credentials: 'include',
-        headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
-        signal: options.signal
-      });
-      if (!retry.ok) throw await toError(retry);
-      return (await retry.json()) as T;
-    }
-    throw failure;
+    if (failure.code !== 'auth.csrf_missing') throw failure;
+
+    headers['X-Rc-Csrf'] = await rcCsrf(true);
+    const retry = await send();
+    if (!retry.ok) throw await toError(retry);
+    return retry;
   }
 
   if (!response.ok) throw await toError(response);
-  return (await response.json()) as T;
+  return response;
+}
+
+export async function rcFetch<T>(path: string, options: RcFetchOptions = {}): Promise<T> {
+  return (await rcRaw(path, options)).json() as Promise<T>;
 }
 
 async function toError(response: Response): Promise<RcRequestError> {

@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { rcCopy, rcDetectLang, rcFormat, rcPlural, rcStoreLang, type RcLang } from './i18n';
 import { runRcSelfTest, type RcTestReport } from './lib/rcSelfTest';
+import { RcChat } from './RcChat';
 import { RcSignIn } from './RcSignIn';
 import './styles/rc.css';
 
@@ -61,6 +62,7 @@ export function RcApp() {
   const [lang, setLang] = useState<RcLang>(rcDetectLang);
   const [report, setReport] = useState<RcTestReport | null>(null);
   const [running, setRunning] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
   const t = rcCopy[lang];
 
   useEffect(() => {
@@ -177,7 +179,12 @@ export function RcApp() {
           {/* Kein Schaustück mehr: dieses Formular spricht mit /rc/auth und
               führt einen echten Argon2id-Lauf aus. Das Passwort verlässt das
               Gerät nicht — nur der daraus abgeleitete Schlüssel. */}
-          <RcSignIn lang={lang} />
+          <RcSignIn lang={lang} onReady={setUnlocked} />
+        </section>
+
+        <section className="rc-section">
+          <h2 className="rc-h2">{t.chat.areas}</h2>
+          <RcChat lang={lang} unlocked={unlocked} />
         </section>
 
         <footer className="rc-foot">

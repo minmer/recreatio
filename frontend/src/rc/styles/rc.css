@@ -325,6 +325,476 @@
 }
 .rc-foot a { color: var(--rc-accent); }
 
+/* --- Kapitel 9: Bereiche und Beiträge -------------------------------------- */
+/* Kein Blasen-Chat. Das hier ist ein Protokoll, das man auch in einem Jahr noch
+   aufschlägt — also sieht es aus wie ein Schriftstück und nicht wie ein
+   Messenger: gerade Kanten, ruhige Farben, Zeit in Ziffern mit gleicher
+   Breite. */
+
+.rc-chat {
+  display: grid;
+  grid-template-columns: 15rem 1fr;
+  gap: 0 1.5rem;
+  align-items: start;
+  border-top: 1px solid var(--rc-line);
+  padding-top: 1.25rem;
+}
+
+.rc-chat-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  border-right: 1px solid var(--rc-line);
+  padding-right: 1.5rem;
+  min-height: 20rem;
+}
+
+.rc-chat-h {
+  font-family: var(--rc-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--rc-muted);
+  font-weight: 600;
+  margin: 0;
+}
+
+.rc-area-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+
+.rc-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: var(--rc-ink);
+  background: none;
+  border: 0;
+  border-left: 2px solid transparent;
+  padding: 0.45rem 0.5rem;
+  cursor: pointer;
+}
+.rc-area:hover { background: var(--rc-surface-2); }
+.rc-area[aria-current="true"] {
+  border-left-color: var(--rc-accent);
+  background: var(--rc-surface-2);
+}
+.rc-area:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: -2px; }
+
+.rc-area-title { font-size: 0.92rem; line-height: 1.35; }
+.rc-area-meta { font-size: 0.72rem; color: var(--rc-muted); font-style: italic; }
+
+.rc-new-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--rc-line);
+}
+
+.rc-chat-main { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
+
+.rc-chat-top {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rc-line);
+}
+.rc-chat-count { font-size: 0.75rem; color: var(--rc-muted); font-variant-numeric: tabular-nums; }
+
+.rc-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-height: 30rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* --- Eine Nachricht -------------------------------------------------------- */
+
+.rc-msg { margin: 0; padding: 0.5rem 0.1rem; }
+
+.rc-msg-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  font-size: 0.72rem;
+  color: var(--rc-muted);
+}
+.rc-msg-author {
+  font-family: var(--rc-mono);
+  font-weight: 600;
+  color: var(--rc-ink-2);
+}
+.rc-msg-head time { font-variant-numeric: tabular-nums; }
+.rc-msg-flag {
+  font-family: var(--rc-mono);
+  font-size: 0.65rem;
+  color: var(--rc-warn);
+}
+
+.rc-msg-action {
+  font: inherit;
+  font-size: 0.72rem;
+  color: var(--rc-muted);
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-left: auto;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  opacity: 0;
+}
+.rc-msg:hover .rc-msg-action,
+.rc-msg-action:focus-visible { opacity: 1; }
+
+.rc-msg-body {
+  margin: 0.15rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 60ch;
+}
+
+/* Drei Arten von Nichts, drei Erscheinungen. Sie gleich aussehen zu lassen
+   hiesse, einen Grabstein für eine Störung zu halten — oder umgekehrt. */
+
+.rc-msg-stone,
+.rc-msg-sealed {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--rc-muted);
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--rc-line-2);
+}
+
+.rc-msg-sealed { border-left-style: dashed; }
+
+.rc-msg-broken {
+  font-size: 0.85rem;
+  color: var(--rc-alarm);
+  padding: 0.45rem 0.6rem;
+  border-left: 2px solid var(--rc-alarm);
+  background: color-mix(in srgb, var(--rc-alarm) 7%, transparent);
+}
+.rc-msg-broken code { font-family: var(--rc-mono); font-size: 0.78em; }
+
+/* --- Die Epochengrenze ----------------------------------------------------- */
+/* Der Strich, an dem jemand dazugekommen ist. Ohne ihn wirkt der Sprung von
+   „unlesbar" zu „lesbar" wie ein Fehler. */
+
+.rc-epoch-break {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.9rem 0 0.5rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--rc-muted);
+}
+.rc-epoch-break::before,
+.rc-epoch-break::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--rc-line-2);
+}
+
+/* --- Schreiben ------------------------------------------------------------- */
+
+.rc-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid var(--rc-line-2);
+  background: var(--rc-surface);
+  padding: 0.75rem 0.85rem;
+}
+
+.rc-composer-as {
+  display: flex;
+  gap: 0.45rem;
+  align-items: baseline;
+  font-size: 0.75rem;
+  color: var(--rc-muted);
+}
+.rc-composer-as strong { color: var(--rc-ink-2); font-weight: 600; }
+.rc-composer-as select {
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  border: 1px solid var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  padding: 0.1rem 0.25rem;
+}
+
+.rc-composer textarea {
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  border: 1px solid var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  padding: 0.5rem 0.6rem;
+  resize: vertical;
+  min-height: 3.2rem;
+}
+.rc-composer textarea:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: 1px; }
+.rc-composer textarea:disabled { opacity: 0.6; }
+
+.rc-composer-row { display: flex; gap: 0.75rem; align-items: center; }
+
+.rc-check {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--rc-ink-2);
+  cursor: pointer;
+}
+.rc-check input { accent-color: var(--rc-accent); }
+.rc-composer-row .rc-btn { margin-left: auto; }
+
+.rc-composer-why {
+  font-size: 0.78rem;
+  border-left: 2px solid var(--rc-accent);
+  padding-left: 0.6rem;
+  margin: 0;
+}
+
+.rc-chat-error { margin-top: 0.75rem; grid-column: 1 / -1; }
+
+@media (max-width: 48rem) {
+  .rc-chat { grid-template-columns: 1fr; gap: 1.25rem; }
+  .rc-chat-side {
+    border-right: 0;
+    border-bottom: 1px solid var(--rc-line);
+    padding-right: 0;
+    padding-bottom: 1rem;
+    min-height: 0;
+  }
+  .rc-msg-action { opacity: 1; }
+}
+
+/* --- Reiter ---------------------------------------------------------------- */
+/* Kein Kartenreiter-Ornament: eine Zeile Wörter, das aktive unterstrichen. Der
+   Bereich darunter wechselt, also muss oben klar sein, was man ansieht — mehr
+   soll die Leiste nicht leisten. */
+
+.rc-tabs { display: flex; gap: 1rem; }
+
+.rc-tab {
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--rc-muted);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0 0 0.35rem;
+  cursor: pointer;
+}
+.rc-tab:hover { color: var(--rc-ink-2); }
+.rc-tab[aria-current="true"] {
+  color: var(--rc-ink);
+  border-bottom-color: var(--rc-accent);
+  font-weight: 600;
+}
+.rc-tab:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: 2px; }
+
+.rc-panel { display: flex; flex-direction: column; gap: 1.1rem; }
+
+/* --- Markieren im Gespräch -------------------------------------------------- */
+
+.rc-msg-pick { accent-color: var(--rc-accent); margin: 0; }
+.rc-msg[data-selected="true"] {
+  background: color-mix(in srgb, var(--rc-accent) 7%, transparent);
+  box-shadow: -0.6rem 0 0 color-mix(in srgb, var(--rc-accent) 7%, transparent);
+}
+
+/* --- Themen ----------------------------------------------------------------- */
+
+.rc-topic-list { list-style: none; margin: 0; padding: 0; }
+
+.rc-topic {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--rc-line);
+}
+.rc-topic-main { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 0; }
+.rc-topic-title { font-size: 0.92rem; }
+.rc-topic-meta { font-size: 0.72rem; color: var(--rc-muted); font-variant-numeric: tabular-nums; }
+
+/* Geschlossen heisst erledigt, nicht gelöscht: blasser, aber lesbar. */
+.rc-topic[data-closed="true"] .rc-topic-title { color: var(--rc-muted); text-decoration: line-through; }
+
+.rc-new-topic,
+.rc-new-poll {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  border-top: 1px solid var(--rc-line);
+  padding-top: 0.9rem;
+  align-items: flex-start;
+}
+.rc-topic-from { font-style: italic; }
+
+/* --- Fragen ----------------------------------------------------------------- */
+
+.rc-poll {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+  border: 1px solid var(--rc-line);
+  background: var(--rc-surface);
+  padding: 0.85rem 1rem;
+}
+.rc-poll[data-closed="true"] { border-style: dashed; }
+
+.rc-poll-head { display: flex; flex-direction: column; gap: 0.15rem; }
+.rc-poll-head h4 {
+  margin: 0;
+  font-family: var(--rc-serif);
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.rc-poll-meta { font-size: 0.72rem; color: var(--rc-muted); font-variant-numeric: tabular-nums; }
+
+/* Zurückgehalten ist eine Zusage, keine Lücke — also der Ton eines Hinweises,
+   nicht der eines Fehlers. */
+.rc-poll-sealed {
+  border-left: 2px solid var(--rc-accent);
+  padding-left: 0.65rem;
+  font-style: italic;
+}
+.rc-poll-why { border-left: 2px solid var(--rc-accent); padding-left: 0.65rem; }
+
+.rc-tally { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 0.3rem; }
+.rc-tally li {
+  display: grid;
+  grid-template-columns: minmax(6rem, 14rem) 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+.rc-tally-a { overflow-wrap: anywhere; }
+.rc-tally-bar {
+  height: 0.5rem;
+  background: var(--rc-surface-2);
+  position: relative;
+}
+.rc-tally-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--rc-share, 0) * 100%);
+  background: var(--rc-accent);
+}
+.rc-tally-n { font-variant-numeric: tabular-nums; color: var(--rc-muted); font-size: 0.8rem; }
+
+.rc-poll-yours { margin: 0; font-size: 0.8rem; color: var(--rc-ok); }
+
+.rc-poll-vote { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; width: 100%; }
+.rc-poll-vote input {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  border: 1px solid var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  padding: 0.4rem 0.55rem;
+  flex: 1;
+  min-width: 10rem;
+}
+.rc-poll-vote input:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: 1px; }
+
+.rc-poll-opts { display: flex; gap: 1.1rem; flex-wrap: wrap; }
+.rc-inline-field { display: flex; gap: 0.4rem; align-items: baseline; font-size: 0.78rem; color: var(--rc-muted); }
+.rc-inline-field select {
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  border: 1px solid var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  padding: 0.15rem 0.3rem;
+}
+
+/* --- Stellungnahmen --------------------------------------------------------- */
+/* Ausgeschrieben, nicht als Zeichen. Ein Häkchen kann „gelesen" oder
+   „einverstanden" heissen, und genau dieser Unterschied ist der Punkt. */
+
+.rc-react { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.35rem; }
+
+.rc-react-btn {
+  font: inherit;
+  font-size: 0.72rem;
+  color: var(--rc-muted);
+  background: none;
+  border: 1px solid var(--rc-line);
+  border-radius: var(--rc-radius);
+  padding: 0.12rem 0.45rem;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: baseline;
+}
+.rc-react-btn:hover { border-color: var(--rc-line-2); color: var(--rc-ink-2); }
+.rc-react-btn[aria-pressed="true"] {
+  color: var(--rc-accent);
+  border-color: var(--rc-accent);
+  background: color-mix(in srgb, var(--rc-accent) 8%, transparent);
+  font-weight: 600;
+}
+.rc-react-btn:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: 1px; }
+.rc-react-n { font-variant-numeric: tabular-nums; opacity: 0.8; }
+
+/* --- Anhänge ---------------------------------------------------------------- */
+
+.rc-files { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.35rem; }
+
+.rc-file-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.rc-file-list li { display: flex; gap: 0.5rem; align-items: baseline; font-size: 0.78rem; }
+
+.rc-link {
+  font: inherit;
+  font-size: inherit;
+  color: var(--rc-accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rc-file-size { color: var(--rc-muted); font-variant-numeric: tabular-nums; font-size: 0.72rem; }
+
+/* Der Eingang für Dateien sieht aus wie ein Knopf, weil das Standardfeld in
+   jedem Browser anders aussieht und in keinem gut. */
+.rc-attach { display: inline-flex; }
+.rc-attach input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.rc-attach span {
+  font-size: 0.72rem;
+  color: var(--rc-muted);
+  border: 1px dashed var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  padding: 0.12rem 0.45rem;
+  cursor: pointer;
+}
+.rc-attach:hover span { color: var(--rc-ink-2); border-color: var(--rc-muted); }
+.rc-attach input:focus-visible + span { outline: 2px solid var(--rc-accent); outline-offset: 1px; }
+
 @media (max-width: 34rem) {
   .rc-status li { grid-template-columns: 1fr; gap: 0.15rem 0; }
   .rc-test-item { grid-template-columns: 1.3rem 1fr; }

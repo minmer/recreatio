@@ -3933,6 +3933,13 @@ export type ParishConfirmationCandidate = {
   internetIndexCelebrationFilled?: number;
   goal?: string | null;
   handoverAnnotation?: string | null;
+  meetings?: ParishConfirmationCandidateMeeting[] | null;
+};
+
+export type ParishConfirmationCandidateMeeting = {
+  stage: 'year1-start' | 'year1-end' | string;
+  slotId?: string | null;
+  bookedUtc?: string | null;
 };
 
 export type ParishConfirmationMeetingSlotCandidate = {

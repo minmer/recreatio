@@ -2534,7 +2534,11 @@ public static class ParishEndpoints
                     candidate.InternetIndexCelebrationTotal,
                     candidate.InternetIndexCelebrationFilled,
                     candidate.Goal,
-                    candidate.HandoverAnnotation))
+                    candidate.HandoverAnnotation,
+                    candidate.Meetings.Select(meeting => new ParishConfirmationCandidateMeetingResponse(
+                        meeting.Stage,
+                        meeting.SlotId,
+                        meeting.BookedUtc)).ToList()))
                 .ToList();
 
             return Results.Ok(responses);
@@ -2944,7 +2948,7 @@ public static class ParishEndpoints
                     : createdUtc;
                 var phoneNumbers = phones.Select(x => x.Number).ToList();
                 var goal = NormalizeConfirmationText(sourceCandidate.Goal, 1000);
-                var handoverAnnotation = NormalizeConfirmationText(sourceCandidate.HandoverAnnotation, 600);
+                var handoverAnnotation = NormalizeConfirmationText(sourceCandidate.HandoverAnnotation);
                 var payload = new ParishConfirmationPayload(
                     name,
                     surname,
@@ -3418,7 +3422,7 @@ public static class ParishEndpoints
                 MergeDistinctConfirmationText(targetPayload.Goal, sourcePayload.Goal, 1000),
                 targetPayload.UseInternetIndex || sourcePayload.UseInternetIndex,
                 targetPayload.UsePaperIndex || sourcePayload.UsePaperIndex,
-                MergeDistinctConfirmationText(targetPayload.HandoverAnnotation, sourcePayload.HandoverAnnotation, 600));
+                MergeDistinctConfirmationText(targetPayload.HandoverAnnotation, sourcePayload.HandoverAnnotation));
             targetCandidate.PayloadEnc = protector.Protect(JsonSerializer.SerializeToUtf8Bytes(mergedPayload));
             targetCandidate.AcceptedRodo = true;
             targetCandidate.PaperConsentReceived = targetCandidate.PaperConsentReceived || sourceCandidate.PaperConsentReceived;
@@ -4420,7 +4424,7 @@ public static class ParishEndpoints
                 return Results.BadRequest(new { error = "Cannot read candidate payload." });
             }
 
-            var annotation = NormalizeConfirmationText(request.Annotation, 600);
+            var annotation = NormalizeConfirmationText(request.Annotation);
             var updatedPayload = payload with { HandoverAnnotation = annotation };
             candidate.PayloadEnc = protector.Protect(JsonSerializer.SerializeToUtf8Bytes(updatedPayload));
             candidate.UpdatedUtc = DateTimeOffset.UtcNow;
@@ -6642,7 +6646,7 @@ public static class ParishEndpoints
         return null;
     }
 
-    private static string? NormalizeConfirmationText(string? value, int maxLength)
+    private static string? NormalizeConfirmationText(string? value, int? maxLength = null)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -6650,15 +6654,15 @@ public static class ParishEndpoints
         }
 
         var normalized = value.Trim();
-        if (normalized.Length > maxLength)
+        if (maxLength is { } limit && normalized.Length > limit)
         {
-            normalized = normalized[..maxLength];
+            normalized = normalized[..limit];
         }
 
         return normalized;
     }
 
-    private static string? MergeDistinctConfirmationText(string? primary, string? secondary, int maxLength)
+    private static string? MergeDistinctConfirmationText(string? primary, string? secondary, int? maxLength = null)
     {
         var normalizedPrimary = NormalizeConfirmationText(primary, maxLength);
         var normalizedSecondary = NormalizeConfirmationText(secondary, maxLength);
@@ -7339,6 +7343,9 @@ public static class ParishEndpoints
                 group =>
                     group.FirstOrDefault(x => x.Stage == ConfirmationMeetingStageYear1Start) ??
                     group.First());
+        var meetingLinksByCandidateAndStage = meetingLinks
+            .GroupBy(x => (x.CandidateId, Stage: NormalizeConfirmationMeetingStage(x.Stage)))
+            .ToDictionary(group => group.Key, group => group.First());
 
         // Indeks internetowy uznajemy za uzupełniony, gdy kandydat ma komentarz przy każdej aktywnej celebracji.
         var activeCelebrationIds = await dbContext.ParishConfirmationCelebrations.AsNoTracking()
@@ -7388,6 +7395,20 @@ public static class ParishEndpoints
                 })
                 .ToList();
             var meetingLink = meetingLinksByCandidate.GetValueOrDefault(candidate.Id);
+            var candidateMeetings = new[]
+                {
+                    ConfirmationMeetingStageYear1Start,
+                    ConfirmationMeetingStageYear1End
+                }
+                .Select(stage =>
+                {
+                    var stageLink = meetingLinksByCandidateAndStage.GetValueOrDefault((candidate.Id, stage));
+                    return new ParishConfirmationCandidateMeetingView(
+                        stage,
+                        stageLink?.SlotId,
+                        stageLink?.BookedUtc);
+                })
+                .ToList();
 
             results.Add(new ParishConfirmationCandidateView(
                 candidate.Id,
@@ -7410,7 +7431,8 @@ public static class ParishEndpoints
                 activeCelebrationIds.Count,
                 celebrationCommentCountByCandidate.GetValueOrDefault(candidate.Id),
                 payload.Goal,
-                payload.HandoverAnnotation));
+                payload.HandoverAnnotation,
+                candidateMeetings));
         }
 
         return results;
@@ -7962,6 +7984,11 @@ public static class ParishEndpoints
         string VerificationToken,
         DateTimeOffset? CreatedUtc);
 
+    private sealed record ParishConfirmationCandidateMeetingView(
+        string Stage,
+        Guid? SlotId,
+        DateTimeOffset? BookedUtc);
+
     private sealed record ParishConfirmationCandidateView(
         Guid CandidateId,
         string Name,
@@ -7983,7 +8010,12 @@ public static class ParishEndpoints
         int InternetIndexCelebrationTotal = 0,
         int InternetIndexCelebrationFilled = 0,
         string? Goal = null,
-        string? HandoverAnnotation = null);
+        string? HandoverAnnotation = null,
+        IReadOnlyList<ParishConfirmationCandidateMeetingView>? MeetingValues = null)
+    {
+        public IReadOnlyList<ParishConfirmationCandidateMeetingView> Meetings { get; } =
+            MeetingValues ?? Array.Empty<ParishConfirmationCandidateMeetingView>();
+    }
 
     private sealed record ParishConfirmationImportPhone(
         string Number,

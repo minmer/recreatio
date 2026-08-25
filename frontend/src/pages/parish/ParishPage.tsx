@@ -116,9 +116,13 @@ import {
 import { normalizePolishPhone } from '../../lib/phone';
 import {
   buildConfirmationHandoverCandidatesHtml,
-  buildConfirmationHandoverOverviewHtml,
-  getConfirmationHandoverRequirements
+  buildConfirmationHandoverOverviewHtml
 } from './confirmationHandoverReport';
+import {
+  getConfirmationCandidateMeetingSlotId,
+  getConfirmationCandidateYearStatus,
+  getConfirmationPortalYearStatus
+} from './confirmationYearStatus';
 
 type ThemePreset = 'classic' | 'minimal' | 'warm';
 type ModuleWidth = 'one-third' | 'one-half' | 'two-thirds' | 'full';
@@ -1257,7 +1261,7 @@ const defaultConfirmationSmsTemplates: ResolvedConfirmationSmsTemplates = {
     'Podsumowanie roku przygotowania do bierzmowania - {fullName}.\n' +
     'Zaliczone:\n' +
     '{doneList}\n' +
-    'Nie zostało uzupełnione:\n' +
+    'Brakuje potwierdzenia lub uzupełnienia:\n' +
     '{missingList}\n' +
     'Braki nie zostały uzupełnione do 25.08.2026 r., dlatego rok przygotowania nie został zaliczony i może być konieczne jego powtórzenie.\n' +
     'W sprawie dalszego przygotowania proszę o kontakt z parafią.\n' +
@@ -1289,7 +1293,8 @@ const confirmationSummarySmsTemplateVariables = [
 ] as const;
 
 type ConfirmationSummaryItemKey =
-  | 'meeting'
+  | 'firstMeeting'
+  | 'secondMeeting'
   | 'goal'
   | 'paperConsent'
   | 'quiz'
@@ -1306,7 +1311,8 @@ const confirmationSummaryItems: ReadonlyArray<{
   label: string;
   smsLabel: string;
 }> = [
-  { key: 'meeting', label: 'Termin spotkania', smsLabel: 'termin spotkania' },
+  { key: 'firstMeeting', label: 'Pierwsze spotkanie', smsLabel: 'pierwsze spotkanie (początek 1. roku)' },
+  { key: 'secondMeeting', label: 'Drugie spotkanie', smsLabel: 'drugie spotkanie (zakończenie 1. roku)' },
   { key: 'goal', label: 'Cel bierzmowania', smsLabel: 'cel bierzmowania' },
   { key: 'paperConsent', label: 'Papierowa zgoda rodzica', smsLabel: 'papierowa zgoda rodzica' },
   { key: 'quiz', label: 'Quiz bierzmowania', smsLabel: 'quiz bierzmowania' },
@@ -1328,7 +1334,7 @@ const confirmationSummaryInternetIndexProgress = (candidate: ParishConfirmationC
 
 const buildConfirmationSummaryStates = (candidate: ParishConfirmationCandidate): ConfirmationSummaryStates => {
   const requirements = new Map(
-    getConfirmationHandoverRequirements(candidate).map((requirement) => [requirement.key, requirement])
+    getConfirmationCandidateYearStatus(candidate).requirements.map((requirement) => [requirement.key, requirement])
   );
   const stateFor = (key: string): ConfirmationSummaryItemState => {
     const requirement = requirements.get(key);
@@ -1337,7 +1343,8 @@ const buildConfirmationSummaryStates = (candidate: ParishConfirmationCandidate):
   };
 
   return {
-    meeting: stateFor('meeting'),
+    firstMeeting: stateFor('meeting-year1-start'),
+    secondMeeting: stateFor('meeting-year1-end'),
     goal: stateFor('goal'),
     paperConsent: stateFor('paper-consent'),
     quiz: stateFor('quiz'),
@@ -1346,6 +1353,10 @@ const buildConfirmationSummaryStates = (candidate: ParishConfirmationCandidate):
     paperIndex: stateFor('paper-index')
   };
 };
+
+const hasMissingConfirmationMeeting = (candidate: ParishConfirmationCandidate) =>
+  !getConfirmationCandidateMeetingSlotId(candidate, 'year1-start') ||
+  !getConfirmationCandidateMeetingSlotId(candidate, 'year1-end');
 
 const countSmsSegments = (text: string) => {
   const length = text.length;
@@ -2672,7 +2683,7 @@ export function ParishPage({
   }, [confirmationCandidates]);
 
   const confirmationSubmissionStats = useMemo(() => {
-    const noMeetingCount = confirmationCandidates.filter((candidate) => !candidate.meetingSlotId).length;
+    const noMeetingCount = confirmationCandidates.filter(hasMissingConfirmationMeeting).length;
     const noPaperConsentCount = confirmationCandidates.filter((candidate) => !candidate.paperConsentReceived).length;
     const unverifiedPhoneCount = confirmationCandidates.filter((candidate) =>
       candidate.phoneNumbers.some((phone) => !phone.isVerified)
@@ -2681,7 +2692,7 @@ export function ParishPage({
       (candidate) => !candidate.handoverAnnotation?.trim()
     ).length;
     const needsFollowUpCount = confirmationCandidates.filter((candidate) =>
-      !candidate.meetingSlotId ||
+      hasMissingConfirmationMeeting(candidate) ||
       !candidate.paperConsentReceived ||
       candidate.phoneNumbers.some((phone) => !phone.isVerified)
     ).length;
@@ -2699,7 +2710,7 @@ export function ParishPage({
   const filteredConfirmationSubmissionCandidates = useMemo(() => {
     const search = confirmationSubmissionsSearch.trim().toLowerCase();
     const byFilter = confirmationCandidates.filter((candidate) => {
-      const noMeeting = !candidate.meetingSlotId;
+      const noMeeting = hasMissingConfirmationMeeting(candidate);
       const noPaperConsent = !candidate.paperConsentReceived;
       const unverifiedPhone = candidate.phoneNumbers.some((phone) => !phone.isVerified);
       const noHandoverAnnotation = !candidate.handoverAnnotation?.trim();
@@ -2835,6 +2846,14 @@ export function ParishPage({
   const confirmationDisplayPortalData = useMemo(
     () => confirmationPortalData ?? (isAuthenticated ? confirmationAdminPortalData : null),
     [confirmationPortalData, isAuthenticated, confirmationAdminPortalData]
+  );
+  const confirmationPortalYearStatus = useMemo(
+    () => (confirmationPortalData ? getConfirmationPortalYearStatus(confirmationPortalData) : null),
+    [confirmationPortalData]
+  );
+  const confirmationDisplayYearStatus = useMemo(
+    () => (confirmationDisplayPortalData ? getConfirmationPortalYearStatus(confirmationDisplayPortalData) : null),
+    [confirmationDisplayPortalData]
   );
   // Zapisy zamykamy tylko dla kandydata - podgląd portalu w panelu księdza zachowuje pełne możliwości.
   const confirmationDisplayBookingClosed = confirmationMeetingBookingClosed && confirmationPortalData !== null;
@@ -6542,10 +6561,20 @@ export function ParishPage({
         ? resolvedConfirmationSmsTemplates.yearSummaryIncomplete
         : resolvedConfirmationSmsTemplates.yearSummaryComplete;
 
-    const describeItem = (item: (typeof confirmationSummaryItems)[number]) =>
-      item.key === 'internetIndex' && internetIndexProgress.total > 0
+    const describeItem = (
+      item: (typeof confirmationSummaryItems)[number],
+      state: 'done' | 'missing'
+    ) => {
+      if (state === 'missing' && item.key === 'firstMeeting') {
+        return '- Czy pierwsze spotkanie (na początku 1. roku) zostało zaliczone? Proszę o potwierdzenie.';
+      }
+      if (state === 'missing' && item.key === 'secondMeeting') {
+        return '- Czy drugie spotkanie (na zakończenie 1. roku) zostało zaliczone? Proszę o potwierdzenie.';
+      }
+      return item.key === 'internetIndex' && internetIndexProgress.total > 0
         ? `- ${item.smsLabel} - uzupełnione ${internetIndexProgress.filled} z ${internetIndexProgress.total}`
         : `- ${item.smsLabel}`;
+    };
 
     const message = renderConfirmationSmsTemplate(template, {
       name: candidate.name,
@@ -6557,11 +6586,11 @@ export function ParishPage({
       portalLink: '',
       doneList:
         doneItems.length > 0
-          ? doneItems.map(describeItem).join('\n')
+          ? doneItems.map((item) => describeItem(item, 'done')).join('\n')
           : '- (nic nie zostało jeszcze zaliczone)',
       missingList:
         missingItems.length > 0
-          ? missingItems.map(describeItem).join('\n')
+          ? missingItems.map((item) => describeItem(item, 'missing')).join('\n')
           : '- (brak)',
       paperIndexInfo: states.paperIndex === 'done' ? confirmationSummaryPaperIndexInfo : '',
       internetIndexInfo: states.internetIndex === 'missing' ? confirmationSummaryInternetIndexInfo : ''
@@ -7467,6 +7496,40 @@ export function ParishPage({
                       <article id="confirmation-candidate-tasks" className="parish-card confirmation-portal-standalone-column">
                         <h4>Lista zadań</h4>
                         <ul className="confirmation-portal-task-list">
+                          <li className={confirmationDisplayPortalData.candidate.selectedSlotId ? 'is-done' : 'is-todo'}>
+                            <div>
+                              <strong>Pierwsze spotkanie — początek 1. roku</strong>
+                              <p className="note">
+                                {confirmationDisplayPortalData.candidate.selectedSlotId
+                                  ? 'Pierwsze spotkanie jest odnotowane w systemie.'
+                                  : 'Brak potwierdzenia pierwszego spotkania — rok jest niezaliczony.'}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => openConfirmationPortalStandaloneTab('meetings')}
+                            >
+                              Sprawdź spotkanie
+                            </button>
+                          </li>
+                          <li className={confirmationDisplayPortalData.candidate.secondSelectedSlotId ? 'is-done' : 'is-todo'}>
+                            <div>
+                              <strong>Drugie spotkanie — zakończenie 1. roku</strong>
+                              <p className="note">
+                                {confirmationDisplayPortalData.candidate.secondSelectedSlotId
+                                  ? 'Drugie spotkanie jest odnotowane w systemie.'
+                                  : 'Brak potwierdzenia drugiego spotkania — rok jest niezaliczony.'}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => openConfirmationPortalStandaloneTab('meetings')}
+                            >
+                              Sprawdź spotkanie
+                            </button>
+                          </li>
                           <li className={!confirmationDisplayPortalData.candidate.goal ? 'is-todo' : 'is-done'}>
                             <div>
                               <strong>Wpisz cel bierzmowania</strong>
@@ -7915,6 +7978,26 @@ export function ParishPage({
                       </div>
                       {confirmationPortalStandaloneTab === 'status' ? (
                         <div className="confirmation-portal-tab-content">
+                          {confirmationDisplayYearStatus ? (
+                            <div
+                              className={`confirmation-info ${
+                                confirmationDisplayYearStatus.isComplete
+                                  ? 'confirmation-info-success'
+                                  : 'confirmation-info-error'
+                              }`}
+                            >
+                              <strong>
+                                {confirmationDisplayYearStatus.isComplete ? 'Rok zaliczony' : 'Rok niezaliczony'}
+                              </strong>
+                              <p>
+                                {confirmationDisplayYearStatus.isComplete
+                                  ? 'Wszystkie wymagania pierwszego roku są odnotowane jako spełnione.'
+                                  : `Braki: ${confirmationDisplayYearStatus.missingRequirements
+                                      .map((requirement) => requirement.label)
+                                      .join(', ')}.`}
+                              </p>
+                            </div>
+                          ) : null}
                           <p className="note">
                             <strong>Spotkanie początkowe (1. rok):</strong>{' '}
                             {confirmationDisplayPortalData.candidate.selectedSlotId
@@ -11205,6 +11288,26 @@ export function ParishPage({
                       {confirmationPortalInfo ? <p className="confirmation-info confirmation-info-success">{confirmationPortalInfo}</p> : null}
                       {confirmationPortalData ? (
                         <>
+                          {confirmationPortalYearStatus ? (
+                            <div
+                              className={`confirmation-info ${
+                                confirmationPortalYearStatus.isComplete
+                                  ? 'confirmation-info-success'
+                                  : 'confirmation-info-error'
+                              }`}
+                            >
+                              <strong>
+                                {confirmationPortalYearStatus.isComplete ? 'Rok zaliczony' : 'Rok niezaliczony'}
+                              </strong>
+                              <p>
+                                {confirmationPortalYearStatus.isComplete
+                                  ? 'Wszystkie wymagania pierwszego roku są odnotowane jako spełnione.'
+                                  : `Braki: ${confirmationPortalYearStatus.missingRequirements
+                                      .map((requirement) => requirement.label)
+                                      .join(', ')}.`}
+                              </p>
+                            </div>
+                          ) : null}
                           <div className="confirmation-portal-columns">
                             <article className="confirmation-portal-card">
                               <h4>Dane kandydata</h4>
@@ -12634,7 +12737,7 @@ export function ParishPage({
                                   }
                                 >
                                   <option value="all">Wszystkie zgłoszenia</option>
-                                  <option value="no-meeting">Brak wybranego terminu</option>
+                                  <option value="no-meeting">Brak pierwszego lub drugiego spotkania</option>
                                   <option value="no-paper-consent">Brak oświadczenia papierowego</option>
                                   <option value="unverified-phone">Niezweryfikowany numer telefonu</option>
                                   <option value="no-handover-annotation">Brak adnotacji do przekazania</option>
@@ -12653,7 +12756,7 @@ export function ParishPage({
                             </div>
                             <p className="note">
                               Wszystkich: {confirmationSubmissionStats.total} •
-                              Bez terminu: {confirmationSubmissionStats.noMeetingCount} •
+                              Bez pierwszego lub drugiego spotkania: {confirmationSubmissionStats.noMeetingCount} •
                               Bez oświadczenia papierowego: {confirmationSubmissionStats.noPaperConsentCount} •
                               Z niezweryfikowanym numerem: {confirmationSubmissionStats.unverifiedPhoneCount} •
                               Bez adnotacji do przekazania: {confirmationSubmissionStats.noHandoverAnnotationCount} •
@@ -12688,7 +12791,7 @@ export function ParishPage({
                                     >
                                       <div className="confirmation-candidate-quick-annotation-head">
                                         <div>
-                                          <strong>Krótka adnotacja do przekazania</strong>
+                                          <strong>Adnotacja do przekazania</strong>
                                           <p className="note">
                                             Wewnętrzna informacja widoczna w raporcie dla następnego księdza.
                                           </p>
@@ -12734,9 +12837,8 @@ export function ParishPage({
                                         <>
                                           <textarea
                                             rows={2}
-                                            maxLength={600}
                                             autoFocus
-                                            aria-label={`Krótka adnotacja do przekazania dla ${candidate.name} ${candidate.surname}`}
+                                            aria-label={`Adnotacja do przekazania dla ${candidate.name} ${candidate.surname}`}
                                             value={
                                               confirmationHandoverAnnotationDrafts[candidate.id] ??
                                               candidate.handoverAnnotation ??
@@ -12752,7 +12854,12 @@ export function ParishPage({
                                           />
                                           <div className="confirmation-candidate-quick-annotation-footer">
                                             <span className="muted">
-                                              {(confirmationHandoverAnnotationDrafts[candidate.id] ?? candidate.handoverAnnotation ?? '').length}/600
+                                              Liczba znaków:{' '}
+                                              {(
+                                                confirmationHandoverAnnotationDrafts[candidate.id] ??
+                                                candidate.handoverAnnotation ??
+                                                ''
+                                              ).length.toLocaleString('pl-PL')}
                                             </span>
                                             <div className="confirmation-candidate-quick-annotation-actions">
                                               <button
@@ -12781,7 +12888,7 @@ export function ParishPage({
                                         </>
                                       ) : (
                                         <p className="confirmation-candidate-quick-annotation-preview">
-                                          {candidate.handoverAnnotation?.trim() || 'Brak krótkiej adnotacji dla następnego księdza.'}
+                                          {candidate.handoverAnnotation?.trim() || 'Brak adnotacji dla następnego księdza.'}
                                         </p>
                                       )}
                                       {confirmationHandoverAnnotationEditingId !== candidate.id &&
@@ -12796,9 +12903,30 @@ export function ParishPage({
                                       <strong>Szkoła:</strong> {candidate.schoolShort}
                                     </p>
                                     <p className="note">
-                                      <strong>Spotkanie:</strong>{' '}
-                                      {candidate.meetingSlotId ? 'Termin wybrany' : 'Brak wybranego terminu'}
+                                      <strong>Pierwsze spotkanie:</strong>{' '}
+                                      {getConfirmationCandidateMeetingSlotId(candidate, 'year1-start')
+                                        ? 'Odnotowane w systemie'
+                                        : 'Brak — rok niezaliczony'}
                                     </p>
+                                    <p className="note">
+                                      <strong>Drugie spotkanie:</strong>{' '}
+                                      {getConfirmationCandidateMeetingSlotId(candidate, 'year1-end')
+                                        ? 'Odnotowane w systemie'
+                                        : 'Brak — rok niezaliczony'}
+                                    </p>
+                                    {(() => {
+                                      const yearStatus = getConfirmationCandidateYearStatus(candidate);
+                                      return (
+                                        <p className="note">
+                                          <strong>Wynik roku:</strong>{' '}
+                                          {yearStatus.isComplete
+                                            ? 'Rok zaliczony'
+                                            : `Rok niezaliczony — braki: ${yearStatus.missingRequirements
+                                                .map((requirement) => requirement.label)
+                                                .join(', ')}`}
+                                        </p>
+                                      );
+                                    })()}
                                     <p className="note">
                                       <strong>Oświadczenie papierowe rodzica:</strong>{' '}
                                       {candidate.paperConsentReceived ? 'Dostarczone do księdza' : 'Niepotwierdzone'}
@@ -12886,7 +13014,7 @@ export function ParishPage({
                                       >
                                         {candidate.quizCompleted ? 'Oznacz quiz jako niesprawdzony' : 'Potwierdź quiz'}
                                       </button>
-                                      {!candidate.meetingSlotId ? (
+                                      {!getConfirmationCandidateMeetingSlotId(candidate, 'year1-start') ? (
                                         <button
                                           type="button"
                                           className="ghost"
@@ -13307,9 +13435,7 @@ export function ParishPage({
                                   })
                                 )
                                 .map((candidate) => {
-                                  const missingRequirements = getConfirmationHandoverRequirements(candidate).filter(
-                                    (requirement) => requirement.applicable && !requirement.fulfilled
-                                  );
+                                  const missingRequirements = getConfirmationCandidateYearStatus(candidate).missingRequirements;
                                   return (
                                     <article key={`handover-annotation-${candidate.id}`} className="confirmation-handover-annotation-card">
                                       <div className="confirmation-handover-annotation-head">
@@ -13326,10 +13452,9 @@ export function ParishPage({
                                         </span>
                                       </div>
                                       <label>
-                                        <span>Krótka adnotacja dla następnego duszpasterza</span>
+                                        <span>Adnotacja dla następnego duszpasterza</span>
                                         <textarea
                                           rows={2}
-                                          maxLength={600}
                                           value={
                                             confirmationHandoverAnnotationDrafts[candidate.id] ??
                                             candidate.handoverAnnotation ??
@@ -13346,7 +13471,12 @@ export function ParishPage({
                                       </label>
                                       <div className="confirmation-handover-annotation-footer">
                                         <span className="muted">
-                                          {(confirmationHandoverAnnotationDrafts[candidate.id] ?? candidate.handoverAnnotation ?? '').length}/600
+                                          Liczba znaków:{' '}
+                                          {(
+                                            confirmationHandoverAnnotationDrafts[candidate.id] ??
+                                            candidate.handoverAnnotation ??
+                                            ''
+                                          ).length.toLocaleString('pl-PL')}
                                         </span>
                                         <button
                                           type="button"

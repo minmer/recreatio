@@ -184,9 +184,17 @@ public static class RcAreas
 
     // -- Anzeigen -------------------------------------------------------------
 
+    /// <summary>
+    /// <paramref name="LedgerId"/> ist der Weg zur Kette dieses Bereichs.
+    ///
+    /// Ohne ihn kaeme die Oberflaeche gar nicht an das Protokoll heran: die
+    /// Kennung steht nur in der Zeile des Bereichs, und es gibt keinen zweiten
+    /// Weg, sie zu erfahren. Ein Beweis, den man nicht aufrufen kann, ueberzeugt
+    /// niemanden — und genau dafuer ist er da.
+    /// </summary>
     public sealed record AreaView(
         string AreaId, string? Title, int CurrentEpoch, string Lifecycle, bool IsPublic,
-        int ReadableEpochs, bool CanWrite);
+        int ReadableEpochs, bool CanWrite, string LedgerId);
 
     private static async Task ListAsync(HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions)
     {
@@ -205,7 +213,7 @@ public static class RcAreas
 
         var names = string.Join(", ", reachable.Select((_, i) => $"@r{i}"));
         await using var cmd = new SqlCommand($"""
-            SELECT DISTINCT a.id, a.title_sealed, a.current_epoch, a.lifecycle, a.is_public
+            SELECT DISTINCT a.id, a.title_sealed, a.current_epoch, a.lifecycle, a.is_public, a.ledger_id
             FROM dbo.rc_area a
             JOIN dbo.rc_certificate c
               ON c.scope_kind = 'area' AND c.scope_id = a.id
@@ -217,12 +225,12 @@ public static class RcAreas
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
         for (var i = 0; i < reachable.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", reachable[i].RoleId);
 
-        var rows = new List<(Guid Id, byte[] Title, int Epoch, string Lifecycle, bool IsPublic)>();
+        var rows = new List<(Guid Id, byte[] Title, int Epoch, string Lifecycle, bool IsPublic, Guid Ledger)>();
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
         {
             while (await reader.ReadAsync(ctx.RequestAborted))
                 rows.Add((reader.GetGuid(0), (byte[])reader[1], reader.GetInt32(2),
-                    reader.GetString(3), reader.GetBoolean(4)));
+                    reader.GetString(3), reader.GetBoolean(4), reader.GetGuid(5)));
         }
 
         var views = new List<AreaView>();
@@ -244,7 +252,7 @@ public static class RcAreas
                 session.AccountId, RcScopeKind.Area, row.Id, RcCapability.Write, ctx.RequestAborted);
 
             views.Add(new AreaView(RcId.ToText(row.Id), title, row.Epoch, row.Lifecycle, row.IsPublic,
-                keys.Count, mayWrite.Allowed));
+                keys.Count, mayWrite.Allowed, RcId.ToText(row.Ledger)));
         }
 
         await RcResults.WriteJsonAsync(ctx, new RcAreasResponse(views));

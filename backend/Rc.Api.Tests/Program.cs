@@ -526,6 +526,25 @@ t.Ok("15.9  Unlesbares faellt nicht aus der Liste", () =>
     brunoFeed.GetProperty("messages").GetArrayLength() == 1
     && brunoFeed.GetProperty("readableEpochs").EnumerateArray().Select(e => e.GetInt32()).SequenceEqual([2]));
 
+// 15.9 — Dieselbe Wahrheit eine Ebene hoeher: schon in der BEREICHSLISTE, vor
+// dem Oeffnen, muss ablesbar sein, dass einem ein Teil der Geschichte
+// verschlossen ist. Die Oberflaeche haengt einen Vermerk daran, und der
+// Vermerk haengt an genau dieser Ungleichung — steht sie nicht, behauptet er
+// etwas Falsches oder verschwindet.
+await t.OkAsync("15.9  Die Bereichsliste verraet, dass Geschichte fehlt", async () =>
+{
+    var seen = (await ReadAsync(await bruno.GetAsync("/rc/areas"))).GetProperty("areas")
+        .EnumerateArray().First(a => a.GetProperty("areaId").GetString() == areaId);
+    var mine = (await ReadAsync(await http.GetAsync("/rc/areas"))).GetProperty("areas")
+        .EnumerateArray().First(a => a.GetProperty("areaId").GetString() == areaId);
+
+    // Bruno: eine von zwei Epochen — der Vermerk gehoert hin.
+    // Anna: alle — er gehoert weg, sonst warnt er vor nichts.
+    return seen.GetProperty("readableEpochs").GetInt32() == 1
+        && seen.GetProperty("currentEpoch").GetInt32() == 2
+        && mine.GetProperty("readableEpochs").GetInt32() == mine.GetProperty("currentEpoch").GetInt32();
+});
+
 var secondPost = await http.PostAsJsonAsync($"/rc/areas/{areaId}/messages", new
 {
     authorRoleId = personalRoleId,
@@ -653,6 +672,53 @@ var changed = await ReadAsync(await http.PostAsJsonAsync($"/rc/messages/{firstMe
 
 t.Ok("9.8   Umentscheiden ueberschreibt, es haeuft nicht an", () =>
     changed.GetProperty("kind").GetInt32() == 3);
+
+// Der Verlauf traegt die Stellungnahme mit. Ohne das haette die Oberflaeche
+// zwei Moeglichkeiten, und beide waeren schlecht: je Nachricht eine weitere
+// Anfrage (bei fuenfzig Beitraegen fuenfzig), oder die eigene Haltung nach
+// jedem Neuladen vergessen — also genau den Knopf entwerten, um den es geht.
+await t.OkAsync("9.8   Der Verlauf nennt die eigene Haltung", async () =>
+{
+    var mine = (await ReadAsync(await http.GetAsync(
+            $"/rc/areas/{areaId}/messages?roleId={personalRoleId}")))
+        .GetProperty("messages").EnumerateArray()
+        .First(m => m.GetProperty("messageId").GetString() == firstMessageId);
+
+    return mine.GetProperty("yourReaction").GetInt32() == 3
+        && mine.GetProperty("reactions").GetProperty("3").GetInt32() == 1;
+});
+
+// Ohne Namen keine eigene Haltung — aber die Auszaehlung steht trotzdem da.
+// Sie ist oeffentlich: in einem Gremium ist ein Widerspruch keine Privatsache.
+await t.OkAsync("9.8   Ohne Namen bleibt die Auszaehlung sichtbar", async () =>
+{
+    var anon = (await ReadAsync(await http.GetAsync($"/rc/areas/{areaId}/messages")))
+        .GetProperty("messages").EnumerateArray()
+        .First(m => m.GetProperty("messageId").GetString() == firstMessageId);
+
+    return Text(anon, "yourReaction") is null
+        && anon.GetProperty("reactions").GetProperty("3").GetInt32() == 1;
+});
+
+// Unter fremdem Namen wird nicht geantwortet. Waere @role frei waehlbar,
+// koennte jeder die Haltung jedes anderen abfragen — eine geheime Abstimmung
+// waere damit ueber den Verlauf auslesbar.
+await t.OkAsync("9.8   Unter fremdem Namen fragt niemand die Haltung ab", async () =>
+    (await http.GetAsync($"/rc/areas/{areaId}/messages?roleId={brunoRoleId}"))
+        .StatusCode == HttpStatusCode.Forbidden);
+
+// Was nicht vorkommt, steht nicht drin. Drei Nullen zu schicken hiesse, dass
+// die Oberflaeche neben "ich widerspreche" eine Null zeigt — eine Aussage
+// ueber die Sitzung, die niemand getroffen hat.
+await t.OkAsync("15.9  Die Auszaehlung nennt nur, was vorkommt", async () =>
+{
+    var mine = (await ReadAsync(await http.GetAsync($"/rc/areas/{areaId}/messages")))
+        .GetProperty("messages").EnumerateArray()
+        .First(m => m.GetProperty("messageId").GetString() == firstMessageId)
+        .GetProperty("reactions");
+
+    return mine.EnumerateObject().Count() == 1;
+});
 
 var badKind = await http.PostAsJsonAsync($"/rc/messages/{firstMessageId}/reaction", new
 {
@@ -885,6 +951,74 @@ var skipped = await http.PostAsJsonAsync($"/rc/decisions/{decisionId}/transition
 t.Ok("9.4   Ein uebersprungener Zustand wird abgewiesen", () =>
     skipped.StatusCode == HttpStatusCode.Conflict);
 
+// Und die Sicht sagt vorher, was ueberhaupt offen steht. Die Tafel gehoert in
+// den Server; schriebe die Oberflaeche sie ab, boete sie irgendwann Wege an,
+// die abgewiesen werden — oder verschwiege welche, die offen stehen.
+//
+// Diese Pruefung ist die Klammer: was in allowedNext steht, MUSS durchgehen,
+// und was nicht drinsteht, MUSS abgewiesen werden. Ohne sie waere das Feld
+// eine zweite Behauptung statt derselben Regel.
+await t.OkAsync("9.4   Die Sicht nennt genau die Wege, die der Dienst zulaesst", async () =>
+{
+    var view = (await ReadAsync(await http.GetAsync($"/rc/areas/{areaId}/decisions")))
+        .GetProperty("decisions").EnumerateArray()
+        .First(d => d.GetProperty("decisionId").GetString() == decisionId);
+
+    var next = view.GetProperty("allowedNext").EnumerateArray()
+        .Select(x => x.GetString()).OrderBy(x => x).ToList();
+
+    // "proposed" fuehrt zu "open" oder "rejected" — nicht zu "accepted".
+    return view.GetProperty("state").GetString() == "proposed"
+        && next.SequenceEqual(["open", "rejected"]);
+});
+
+// Eine Endstation nennt keine Wege — und das ist etwas anderes als "noch nicht
+// geladen". Ein leeres Feld muss deshalb wirklich leer sein und nicht fehlen.
+await t.OkAsync("9.4   Nach jedem Uebergang stimmt die Liste weiter", async () =>
+{
+    // In einem EIGENEN Bereich. Jeder Uebergang schreibt einen Ketteneintrag,
+    // und die Kettenpruefungen weiter unten zaehlen die Eintraege von
+    // {areaId} genau ab. Eine Pruefung, die den Zaehler einer anderen
+    // verschiebt, ist ein schlechter Nachbar — sie laesst etwas fehlschlagen,
+    // das voellig in Ordnung ist.
+    var ownArea = (await ReadAsync(await http.PostAsJsonAsync("/rc/areas", new
+    {
+        ownerRoleId = personalRoleId,
+        title = "Nur fuer die Zustandstafel"
+    }))).GetProperty("areaId").GetString()!;
+
+    var probe = await http.PostAsJsonAsync($"/rc/areas/{ownArea}/decisions", new
+    {
+        roleId = personalRoleId,
+        body = "Ein zweiter Beschluss, um die Tafel abzugehen."
+    });
+
+    var probeId = (await ReadAsync(probe)).GetProperty("decisionId").GetString()!;
+
+    // proposed -> open -> accepted -> reopened, und an jeder Station wird
+    // geprueft, dass genau die genannten Wege gehen.
+    foreach (var (from, to) in new[] { ("proposed", "open"), ("open", "accepted"), ("accepted", "reopened") })
+    {
+        var view = (await ReadAsync(await http.GetAsync($"/rc/areas/{ownArea}/decisions")))
+            .GetProperty("decisions").EnumerateArray()
+            .First(d => d.GetProperty("decisionId").GetString() == probeId);
+
+        if (view.GetProperty("state").GetString() != from) return false;
+
+        var next = view.GetProperty("allowedNext").EnumerateArray().Select(x => x.GetString()).ToList();
+        if (!next.Contains(to)) return false;
+
+        var step = await http.PostAsJsonAsync($"/rc/decisions/{probeId}/transition", new
+        {
+            roleId = personalRoleId, toState = to, reason = $"Von {from} nach {to}."
+        });
+
+        if (step.StatusCode != HttpStatusCode.Created) return false;
+    }
+
+    return true;
+});
+
 var noReason = await http.PostAsJsonAsync($"/rc/decisions/{decisionId}/transition", new
 {
     roleId = personalRoleId, toState = "open", reason = ""
@@ -920,13 +1054,23 @@ await t.OkAsync("9.4   Text und Begruendungen sind verschluesselt und gehen auf"
 // -- Der eigentliche Punkt: die Kette laesst sich nachrechnen -------------------
 
 var ledgerId = "";
-await t.OkAsync("7.4   Der Bereich nennt seine Kette", async () =>
+await t.OkAsync("7.4   Der Bereich nennt seine Kette — ueber die Schnittstelle", async () =>
 {
+    // Frueher holte diese Pruefung die Kennung mit eigenem SQL aus der
+    // Datenbank. Genau das war der Beweis, dass die Oberflaeche nicht an das
+    // Protokoll herankam: was sich eine Pruefreihe aus der Datenbank nehmen
+    // muss, kann ein Browser nicht.
+    ledgerId = (await ReadAsync(await http.GetAsync("/rc/areas"))).GetProperty("areas")
+        .EnumerateArray().First(a => a.GetProperty("areaId").GetString() == areaId)
+        .GetProperty("ledgerId").GetString()!;
+
+    // Und sie zeigt auf dieselbe Kette, die auch in der Zeile steht.
     await using var probe = new SqlConnection(connectionString);
     await probe.OpenAsync();
     await using var cmd = new SqlCommand("SELECT ledger_id FROM dbo.rc_area WHERE id = @id;", probe);
     cmd.Parameters.AddWithValue("@id", Guid.Parse(areaId));
-    ledgerId = ((Guid)(await cmd.ExecuteScalarAsync())!).ToString();
+    var fromRow = ((Guid)(await cmd.ExecuteScalarAsync())!).ToString();
+    if (!string.Equals(fromRow, ledgerId, StringComparison.OrdinalIgnoreCase)) return false;
     return ledgerId.Length == 36;
 });
 

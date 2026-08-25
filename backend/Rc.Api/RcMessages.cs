@@ -225,10 +225,26 @@ public static class RcMessages
 
     // -- Lesen ----------------------------------------------------------------
 
+    /// <summary>
+    /// <paramref name="Reactions"/> ist die Auszaehlung der Stellungnahmen
+    /// (Art -> Anzahl), <paramref name="YourReaction"/> die des Lesers unter
+    /// dem Namen, nach dem er gefragt hat.
+    ///
+    /// Beides gehoert in den Verlauf und nicht in einen eigenen Aufruf je
+    /// Nachricht. Ein Verlauf mit fuenfzig Beitraegen wuerde sonst fuenfzig
+    /// weitere Anfragen ausloesen — und die Oberflaeche muesste bis dahin
+    /// entweder nichts oder etwas Falsches anzeigen. Dass die eigene Haltung
+    /// nach einem Neuladen wieder verschwindet, ist keine Kleinigkeit: sie ist
+    /// der ganze Zweck des Knopfes.
+    ///
+    /// <paramref name="AttachmentCount"/> aus demselben Grund. Die Liste der
+    /// Dateien wird erst geholt, wenn es welche gibt.
+    /// </summary>
     public sealed record MessageView(
         string MessageId, int Epoch, string? AuthorRoleId, string? Body, int Version,
         DateTimeOffset PostedUtc, DateTimeOffset? EditedUtc, string? HiddenKind,
-        string? QuoteMessageId, string? Unreadable);
+        string? QuoteMessageId, string? Unreadable,
+        IReadOnlyDictionary<int, int> Reactions, int? YourReaction, int AttachmentCount);
 
     /// <summary>
     /// 15.9 — Was der Leser nicht oeffnen kann, faellt NICHT aus der Liste. Es
@@ -240,7 +256,8 @@ public static class RcMessages
     /// „Aus der Zeit vor deinem Beitritt" ist eine Auskunft; ein Loch ist keine.
     /// </summary>
     private static async Task FeedAsync(
-        HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions, Guid id, int? limit)
+        HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions,
+        Guid id, int? limit, Guid? roleId)
     {
         var session = ctx.RcSession();
         if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
@@ -253,16 +270,33 @@ public static class RcMessages
 
         var keys = await RcAreaKeys.EpochKeysAsync(connection, session.AccountId, held.MasterKey, id, ctx.RequestAborted);
 
+        // Unter fremdem Namen wird nichts beantwortet: waere @role frei
+        // waehlbar, koennte jeder die Haltung jedes anderen abfragen.
+        if (roleId is not null
+            && await RcRoleAccess.RoleKeyAsync(connection, session.AccountId, held.MasterKey, roleId.Value, ctx.RequestAborted) is null)
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status403Forbidden,
+                RcErrorCodes.RoleUnreachable, "Unter diesem Namen kannst du nicht lesen.");
+            return;
+        }
+
         await using var cmd = new SqlCommand("""
-            SELECT TOP (@limit) id, epoch, author_role_id, body_sealed, version, posted_at, edited_at,
-                   hidden_kind, quote_message_id
-            FROM dbo.rc_message
-            WHERE area_id = @area
-            ORDER BY seq DESC;
+            SELECT TOP (@limit) m.id, m.epoch, m.author_role_id, m.body_sealed, m.version,
+                   m.posted_at, m.edited_at, m.hidden_kind, m.quote_message_id,
+                   (SELECT COUNT(*) FROM dbo.rc_attachment a WHERE a.message_id = m.id),
+                   (SELECT kind FROM dbo.rc_reaction r WHERE r.message_id = m.id AND r.role_id = @role),
+                   (SELECT COUNT(*) FROM dbo.rc_reaction r WHERE r.message_id = m.id AND r.kind = 1),
+                   (SELECT COUNT(*) FROM dbo.rc_reaction r WHERE r.message_id = m.id AND r.kind = 2),
+                   (SELECT COUNT(*) FROM dbo.rc_reaction r WHERE r.message_id = m.id AND r.kind = 3)
+            FROM dbo.rc_message m
+            WHERE m.area_id = @area
+            ORDER BY m.seq DESC;
             """, connection);
 
         cmd.Parameters.AddWithValue("@area", id);
         cmd.Parameters.AddWithValue("@limit", Math.Clamp(limit ?? 50, 1, 200));
+        cmd.Parameters.Add("@role", System.Data.SqlDbType.UniqueIdentifier).Value =
+            roleId is null ? DBNull.Value : roleId.Value;
 
         var views = new List<MessageView>();
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
@@ -276,6 +310,19 @@ public static class RcMessages
                 var version = reader.GetInt32(4);
                 var hiddenKind = reader.IsDBNull(7) ? (byte?)null : reader.GetByte(7);
                 var quote = reader.IsDBNull(8) ? (Guid?)null : reader.GetGuid(8);
+                var attachments = reader.GetInt32(9);
+                var yours = reader.IsDBNull(10) ? (int?)null : reader.GetByte(10);
+
+                // Nur was vorkommt, steht in der Auszaehlung. Drei Nullen zu
+                // schicken heisst, dass die Oberflaeche drei Nullen anzeigt —
+                // und eine Null neben „ich widerspreche" liest sich wie eine
+                // Aussage ueber die Sitzung, die niemand getroffen hat.
+                var reactions = new Dictionary<int, int>();
+                for (var k = 1; k <= 3; k++)
+                {
+                    var n = reader.GetInt32(10 + k);
+                    if (n > 0) reactions[k] = n;
+                }
 
                 string? text = null;
                 string? unreadable = null;
@@ -303,7 +350,7 @@ public static class RcMessages
                     reader.IsDBNull(6) ? null : reader.GetDateTimeOffset(6),
                     hiddenKind switch { 1 => "author", 2 => "moderation", _ => null },
                     quote is null ? null : RcId.ToText(quote.Value),
-                    unreadable));
+                    unreadable, reactions, yours, attachments));
             }
         }
 

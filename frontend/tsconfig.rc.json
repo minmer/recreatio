@@ -1,0 +1,17 @@
+/*
+ * Die neue Plattform prüft sich getrennt.
+ *
+ * Der Altbestand unter `src/` trägt rund zwanzig Typfehler mit sich herum. Sie
+ * dort aufzuräumen ist eine eigene Arbeit und gehört nicht in diesen Umbau —
+ * aber solange sie mitlaufen, ist `tsc --noEmit` als Tor wertlos: es steht
+ * ohnehin immer auf Rot, und ein neuer Fehler in `src/rc` fällt niemandem mehr
+ * auf. Deshalb ein eigener Bauplan, der nur den Neubau kennt und deshalb
+ * durchgehend sauber sein MUSS.
+ *
+ * `src/vite-env.d.ts` kommt mit, weil ohne sie weder `import.meta.env` noch
+ * der Stilblatt-Import auflösbar wären.
+ */
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/rc", "src/vite-env.d.ts"]
+}

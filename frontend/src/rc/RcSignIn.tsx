@@ -30,7 +30,7 @@ import {
 
 type Phase = 'idle' | 'deriving' | 'sending';
 
-export function RcSignIn({ lang }: { lang: RcLang }) {
+export function RcSignIn({ lang, onReady }: { lang: RcLang; onReady?: (ready: boolean) => void }) {
   const t = rcCopy[lang].auth;
 
   const [me, setMe] = useState<RcMeState | null>(null);
@@ -97,11 +97,14 @@ export function RcSignIn({ lang }: { lang: RcLang }) {
     [refresh, t]
   );
 
+  // `keysHeld` kommt vom Server, `rcHasUnlockPiece` aus diesem Tab. Beides
+  // muss stimmen: der Server kann den Bund halten, während dieser Tab sein
+  // Öffnungsstück verloren hat — dann ist nichts zu lesen.
+  const ready = me?.signedIn === true && me.keysHeld === true && rcHasUnlockPiece();
+
+  useEffect(() => { onReady?.(ready); }, [ready, onReady]);
+
   if (me?.signedIn) {
-    // `keysHeld` kommt vom Server, `rcHasUnlockPiece` aus diesem Tab. Beides
-    // muss stimmen: der Server kann den Bund halten, während dieser Tab sein
-    // Öffnungsstück verloren hat — dann ist nichts zu lesen.
-    const ready = me.keysHeld === true && rcHasUnlockPiece();
 
     return (
       <div className="rc-auth">

@@ -225,7 +225,13 @@ public sealed record ParishConfirmationCandidateResponse(
     int InternetIndexCelebrationTotal = 0,
     int InternetIndexCelebrationFilled = 0,
     string? Goal = null,
-    string? HandoverAnnotation = null);
+    string? HandoverAnnotation = null,
+    IReadOnlyList<ParishConfirmationCandidateMeetingResponse>? Meetings = null);
+
+public sealed record ParishConfirmationCandidateMeetingResponse(
+    string Stage,
+    Guid? SlotId,
+    DateTimeOffset? BookedUtc);
 
 public sealed record ParishConfirmationCandidateAutoMeetingResponse(
     string Status,

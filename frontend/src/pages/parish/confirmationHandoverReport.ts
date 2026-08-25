@@ -9,6 +9,10 @@ import type {
   ParishConfirmationExportMessage,
   ParishConfirmationExportNote
 } from '../../lib/api';
+import {
+  getConfirmationCandidateYearStatus,
+  type ConfirmationYearRequirement
+} from './confirmationYearStatus';
 
 type HandoverReportInput = {
   parishName: string;
@@ -16,14 +20,6 @@ type HandoverReportInput = {
   exportPayload: ParishConfirmationExport;
   events: ParishConfirmationEvent[];
   generatedAt?: Date;
-};
-
-type Requirement = {
-  key: string;
-  label: string;
-  fulfilled: boolean;
-  applicable: boolean;
-  detail?: string;
 };
 
 type TextGroup = {
@@ -88,60 +84,10 @@ const sortCandidates = (candidates: ParishConfirmationCandidate[]) =>
       : left.name.localeCompare(right.name, 'pl', { sensitivity: 'base' });
   });
 
-export const getConfirmationHandoverRequirements = (candidate: ParishConfirmationCandidate): Requirement[] => {
-  const usesInternetIndex = candidate.useInternetIndex === true;
-  const usesPaperIndex = candidate.usePaperIndex === true;
-  const internetTotal = Math.max(0, candidate.internetIndexCelebrationTotal ?? 0);
-  const internetFilled = Math.min(
-    Math.max(0, candidate.internetIndexCelebrationFilled ?? 0),
-    internetTotal
-  );
-
-  return [
-    {
-      key: 'meeting',
-      label: 'termin spotkania',
-      fulfilled: Boolean(candidate.meetingSlotId),
-      applicable: true
-    },
-    {
-      key: 'goal',
-      label: 'wpisany cel bierzmowania',
-      fulfilled: Boolean(candidate.goal?.trim()),
-      applicable: true
-    },
-    {
-      key: 'paper-consent',
-      label: 'papierowa zgoda rodzica',
-      fulfilled: candidate.paperConsentReceived === true,
-      applicable: true
-    },
-    {
-      key: 'quiz',
-      label: 'quiz bierzmowania',
-      fulfilled: candidate.quizCompleted === true,
-      applicable: true
-    },
-    {
-      key: 'index-choice',
-      label: 'wybór rodzaju indeksu',
-      fulfilled: usesInternetIndex || usesPaperIndex,
-      applicable: true
-    },
-    {
-      key: 'internet-index',
-      label: 'indeks internetowy',
-      fulfilled: internetTotal > 0 && internetFilled >= internetTotal,
-      applicable: usesInternetIndex,
-      detail: `${internetFilled} z ${internetTotal} wpisów`
-    },
-    {
-      key: 'paper-index',
-      label: 'sprawdzony indeks papierowy',
-      fulfilled: candidate.paperIndexChecked === true,
-      applicable: usesPaperIndex
-    }
-  ];
+export const getConfirmationHandoverRequirements = (
+  candidate: ParishConfirmationCandidate
+): ConfirmationYearRequirement[] => {
+  return getConfirmationCandidateYearStatus(candidate).requirements;
 };
 
 const getMissingRequirements = (candidate: ParishConfirmationCandidate) =>
@@ -324,7 +270,7 @@ export const buildConfirmationHandoverOverviewHtml = (input: HandoverReportInput
       <thead><tr><th>Lp.</th><th>Kandydat</th><th>Telefon(y)</th><th>Rok zakończony</th><th>Czego brakuje</th><th>Zgoda rodzica</th><th>Adnotacja</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="7">Brak kandydatów.</td></tr>'}</tbody>
     </table>
-    <p class="footer-note">Status roku jest wyliczony z danych widocznych w systemie w chwili eksportu: terminu spotkania, wpisanego celu, papierowej zgody rodzica, quizu oraz wybranego i uzupełnionego indeksu. Weryfikacja telefonu jest pokazana informacyjnie i nie wpływa na zaliczenie roku.</p>
+    <p class="footer-note">Status roku jest wyliczony z danych widocznych w systemie w chwili eksportu: pierwszego i drugiego spotkania, wpisanego celu, papierowej zgody rodzica, quizu oraz wybranego i uzupełnionego indeksu. Brak któregokolwiek spotkania oznacza rok niezaliczony. Weryfikacja telefonu jest pokazana informacyjnie i nie wpływa na zaliczenie roku.</p>
   </main>`;
 
   const html = reportDocument(

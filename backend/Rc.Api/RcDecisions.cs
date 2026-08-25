@@ -294,9 +294,25 @@ public static class RcDecisions
 
     public sealed record TransitionView(string FromState, string ToState, string? Reason, DateTimeOffset At);
 
+    /// <summary>
+    /// <paramref name="AllowedNext"/> nennt die Uebergaenge, die von hier aus
+    /// zulaessig sind.
+    ///
+    /// Die Tafel steht im Server und gehoert dorthin — sie ist die Regel. Die
+    /// Oberflaeche muesste sie sonst abschreiben, und eine abgeschriebene Regel
+    /// laeuft mit der Zeit von der echten weg: sie boete dann Schaltflaechen an,
+    /// die der Dienst abweist, oder sie verschwiege Wege, die offen stehen.
+    /// Beides sieht fuer den Benutzer wie ein Fehler aus, und in beiden Faellen
+    /// hat niemand gelogen — die Regel stand nur an zwei Stellen.
+    /// </summary>
     public sealed record DecisionView(
         string DecisionId, string State, string? Body, string? TopicId,
-        DateTimeOffset CreatedAt, IReadOnlyList<TransitionView> History);
+        DateTimeOffset CreatedAt, IReadOnlyList<TransitionView> History,
+        IReadOnlyList<string> AllowedNext);
+
+    /// <summary>Was von einem Zustand aus offen steht. Leer heisst: Endstation.</summary>
+    public static IReadOnlyList<string> NextFrom(string state) =>
+        Allowed.TryGetValue(state, out var next) ? next : [];
 
     private static async Task ListAsync(
         HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions, Guid id)
@@ -349,7 +365,7 @@ public static class RcDecisions
                 RcId.ToText(row.Id), row.State,
                 RcAreaKeys.TryOpenText(keys, BodyAad(row.Id), row.Body),
                 row.TopicId is null ? null : RcId.ToText(row.TopicId.Value),
-                row.CreatedAt, history));
+                row.CreatedAt, history, NextFrom(row.State)));
         }
 
         await RcResults.WriteJsonAsync(ctx, new RcDecisionsResponse(views));

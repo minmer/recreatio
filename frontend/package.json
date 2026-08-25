@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "api:types": "openapi-typescript ../backend/rc-openapi.json -o src/rc/lib/rcApiTypes.ts"
+    "api:types": "openapi-typescript ../backend/rc-openapi.json -o src/rc/lib/rcApiTypes.ts",
+    "rc:test": "node scripts/rc-test.mjs",
+    "rc:check": "tsc -p tsconfig.rc.json --noEmit && node scripts/rc-test.mjs",
+    "rc:walk": "node scripts/rc-walk.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

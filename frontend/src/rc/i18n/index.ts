@@ -68,6 +68,120 @@ export interface RcCopy {
     readonly errors: Readonly<Record<string, string>>;
     readonly unknownError: string;
   };
+  readonly chat: {
+    readonly areas: string;
+    readonly noAreas: string;
+    readonly newArea: string;
+    readonly areaName: string;
+    readonly create: string;
+    readonly writingAs: string;
+    readonly placeholder: string;
+    readonly send: string;
+    readonly sending: string;
+    readonly toRecord: string;
+    readonly toRecordWhy: string;
+    readonly recorded: string;
+    readonly withdraw: string;
+    readonly withdrawn: string;
+    readonly epochBreak: string;
+    readonly beforeYou: string;
+    readonly damaged: string;
+    readonly hiddenByModerator: string;
+    readonly partialHistory: string;
+    readonly readOnly: string;
+    readonly locked: string;
+    readonly members: RcPlural;
+    readonly empty: string;
+    readonly loading: string;
+  };
+  readonly threads: {
+    readonly tabChat: string;
+    readonly tabTopics: string;
+    readonly tabPolls: string;
+
+    readonly topics: string;
+    readonly noTopics: string;
+    readonly newTopic: string;
+    readonly topicTitle: string;
+    readonly topicFrom: RcPlural;
+    readonly inTopic: RcPlural;
+    readonly close: string;
+    readonly reopen: string;
+    readonly closed: string;
+    readonly pickFirst: string;
+
+    readonly polls: string;
+    readonly noPolls: string;
+    readonly newPoll: string;
+    readonly question: string;
+    readonly ask: string;
+    readonly mode: string;
+    readonly modeSingle: string;
+    readonly modeMulti: string;
+    readonly modeQuiz: string;
+    readonly reveal: string;
+    readonly revealImmediate: string;
+    readonly revealOnClose: string;
+    readonly revealWhy: string;
+    readonly yourAnswer: string;
+    readonly vote: string;
+    readonly voted: string;
+    readonly changeVote: string;
+    readonly votes: RcPlural;
+    readonly tallySealed: string;
+    readonly closePoll: string;
+    readonly pollClosed: string;
+
+    readonly attach: string;
+    readonly attachments: RcPlural;
+    readonly open: string;
+    readonly remove: string;
+    readonly uploading: string;
+
+    readonly react: string;
+    readonly agree: string;
+    readonly noted: string;
+    readonly object: string;
+    readonly reactWhy: string;
+  };
+  readonly ledger: {
+    readonly tabLedger: string;
+    readonly tabDecisions: string;
+
+    readonly heading: string;
+    readonly intro: string;
+    readonly check: string;
+    readonly checking: string;
+    readonly intact: string;
+    readonly intactWhy: string;
+    readonly broken: string;
+    readonly brokenAt: string;
+    readonly disagree: string;
+    readonly disagreeWhy: string;
+    readonly limits: string;
+    readonly entries: RcPlural;
+    readonly head: string;
+    readonly sequence: string;
+    readonly previous: string;
+    readonly hash: string;
+    readonly module: string;
+    readonly when: string;
+    readonly payload: string;
+    readonly reasons: Readonly<Record<string, string>>;
+    readonly empty: string;
+
+    readonly decisions: string;
+    readonly noDecisions: string;
+    readonly newDecision: string;
+    readonly decisionBody: string;
+    readonly propose: string;
+    readonly reason: string;
+    readonly reasonWhy: string;
+    readonly move: string;
+    readonly history: string;
+    readonly finalState: string;
+    readonly states: Readonly<Record<string, string>>;
+  };
   readonly status: {
     readonly heading: string;
     readonly done: string;
@@ -138,6 +252,137 @@ const en: RcCopy = {
       'session.unlock_required': 'Your key is not in memory. Please unlock.'
     },
     unknownError: 'Something went wrong. Please try again.'
+  },
+  chat: {
+    areas: 'Areas',
+    noAreas: 'No areas yet. Create one, or wait for an invitation.',
+    newArea: 'New area',
+    areaName: 'What is this area for?',
+    create: 'Create',
+    writingAs: 'Writing as',
+    placeholder: 'Say something…',
+    send: 'Send',
+    sending: 'Sending…',
+    toRecord: 'On the record',
+    toRecordWhy:
+      'Adds this post to the chain, so its order and authorship can be proven later. Not every message needs this — a chain full of small talk proves nothing.',
+    recorded: 'on the record',
+    withdraw: 'Withdraw',
+    withdrawn: 'Withdrawn by its author.',
+    epochBreak: 'From here on you were part of this area.',
+    beforeYou: 'From before you joined. Nobody can open this for you.',
+    damaged: 'This did not open, and it should have. Nothing has been lost — but please report it.',
+    hiddenByModerator: 'Hidden by a moderator.',
+    partialHistory: 'part of this history is closed to you',
+    readOnly: 'You can read here, but not write.',
+    locked: 'Unlock to read this area.',
+    members: { one: '{n} member', other: '{n} members' },
+    empty: 'Nothing said here yet.',
+    loading: 'Loading…'
+  },
+  threads: {
+    tabChat: 'Conversation',
+    tabTopics: 'Topics',
+    tabPolls: 'Questions',
+
+    topics: 'Topics',
+    noTopics: 'No topics yet. Select messages that belong together and name them.',
+    newTopic: 'New topic',
+    topicTitle: 'What holds these together?',
+    topicFrom: { one: 'from {n} selected message', other: 'from {n} selected messages' },
+    inTopic: { one: '{n} message', other: '{n} messages' },
+    close: 'Close',
+    reopen: 'Reopen',
+    closed: 'closed',
+    pickFirst: 'Select messages in the conversation first.',
+
+    polls: 'Questions',
+    noPolls: 'Nothing has been asked here yet.',
+    newPoll: 'Ask something',
+    question: 'Your question',
+    ask: 'Ask',
+    mode: 'Answers',
+    modeSingle: 'One each',
+    modeMulti: 'Several each',
+    modeQuiz: 'One right answer',
+    reveal: 'Show the count',
+    revealImmediate: 'Straight away',
+    revealOnClose: 'Only once closed',
+    revealWhy:
+      'Whoever answers tenth sees nine answers and follows them. Hiding the count until the end is how you find out what people think, rather than what they think others think.',
+    yourAnswer: 'Your answer',
+    vote: 'Answer',
+    voted: 'You answered',
+    changeVote: 'Change your answer',
+    votes: { one: '{n} answer', other: '{n} answers' },
+    tallySealed: 'The count stays hidden until this closes. That was the point of asking this way.',
+    closePoll: 'Close and show the count',
+    pollClosed: 'Closed',
+
+    attach: 'Attach a file',
+    attachments: { one: '{n} file', other: '{n} files' },
+    open: 'Open',
+    remove: 'Remove',
+    uploading: 'Uploading…',
+
+    react: 'Say where you stand',
+    agree: 'I agree',
+    noted: 'I have read it',
+    object: 'I object',
+    reactWhy:
+      'One of three, and only one. “I have read it” and “I agree” are not the same thing, and in a meeting that difference is the whole point.'
+  },
+  ledger: {
+    tabLedger: 'Record',
+    tabDecisions: 'Decisions',
+
+    heading: 'The chain',
+    intro:
+      'Every decision is written into a chain, each link naming the hash of the one before it. Remove a line, reorder two, insert one later — the chain stops adding up, and it says where.',
+    check: 'Recompute it here',
+    checking: 'Recomputing…',
+    intact: 'The chain adds up.',
+    intactWhy:
+      'Recomputed in this browser, from the entries as delivered — not taken from the server’s word for it. The operator saying “I checked, it’s fine” is the one claim a record like this exists to do without.',
+    broken: 'The chain does not add up.',
+    brokenAt: 'It first breaks at entry {n}.',
+    disagree: 'The server says something different about its own chain.',
+    disagreeWhy:
+      'This is the finding, not a detail: what the service claims about its record does not follow from the entries it handed over. Keep this page and say so.',
+    limits:
+      'What this checks: that the links join up and no number is missing. What it does not check: whether each entry’s content matches its own hash — that needs the canonical bytes, which arrive here already assembled.',
+    entries: { one: '{n} entry', other: '{n} entries' },
+    head: 'Head',
+    sequence: 'No.',
+    previous: 'follows',
+    hash: 'hash',
+    module: 'from',
+    when: 'recorded',
+    payload: 'what was written',
+    reasons: {
+      'chain.gap': 'A number is missing — something was taken out.',
+      'chain.broken_link': 'An entry does not follow the one before it.'
+    },
+    empty: 'Nothing has been written to the chain here yet.',
+
+    decisions: 'Decisions',
+    noDecisions: 'Nothing has been decided here yet.',
+    newDecision: 'Propose something',
+    decisionBody: 'What is being decided?',
+    propose: 'Propose',
+    reason: 'Why',
+    reasonWhy:
+      'Required, and not as a formality. A decision without a reason cannot be understood a year from now — and then it stands there as a resolution nobody can explain.',
+    move: 'Move to {state}',
+    history: 'How it got here',
+    finalState: 'Nothing follows from here.',
+    states: {
+      proposed: 'proposed',
+      open: 'under discussion',
+      accepted: 'accepted',
+      rejected: 'rejected',
+      reopened: 'reopened'
+    }
   },
   status: {
     heading: 'What stands so far',
@@ -220,6 +465,167 @@ const pl: RcCopy = {
     },
     unknownError: 'Coś poszło nie tak. Spróbuj ponownie.'
   },
+  chat: {
+    areas: 'Obszary',
+    noAreas: 'Nie ma jeszcze obszarów. Załóż jeden albo poczekaj na zaproszenie.',
+    newArea: 'Nowy obszar',
+    areaName: 'Do czego służy ten obszar?',
+    create: 'Załóż',
+    writingAs: 'Piszesz jako',
+    placeholder: 'Powiedz coś…',
+    send: 'Wyślij',
+    sending: 'Wysyłanie…',
+    toRecord: 'Do protokołu',
+    toRecordWhy:
+      'Dopisuje ten wpis do łańcucha, więc jego kolejność i autorstwo da się później udowodnić. Nie każda wiadomość tego potrzebuje — łańcuch pełen pogawędek niczego nie dowodzi.',
+    recorded: 'w protokole',
+    withdraw: 'Wycofaj',
+    withdrawn: 'Wycofane przez autora.',
+    epochBreak: 'Od tego miejsca należysz do tego obszaru.',
+    beforeYou: 'Sprzed Twojego dołączenia. Nikt nie może tego dla Ciebie otworzyć.',
+    damaged: 'To się nie otworzyło, a powinno. Nic nie zginęło — ale proszę, zgłoś to.',
+    hiddenByModerator: 'Ukryte przez moderatora.',
+    partialHistory: 'część tej historii jest dla Ciebie zamknięta',
+    readOnly: 'Możesz tu czytać, ale nie pisać.',
+    locked: 'Odblokuj, aby czytać ten obszar.',
+    members: {
+      one: '{n} osoba',
+      few: '{n} osoby',
+      many: '{n} osób',
+      other: '{n} osób'
+    },
+    empty: 'Nikt tu jeszcze nic nie powiedział.',
+    loading: 'Wczytywanie…'
+  },
+  threads: {
+    tabChat: 'Rozmowa',
+    tabTopics: 'Wątki',
+    tabPolls: 'Pytania',
+
+    topics: 'Wątki',
+    noTopics: 'Nie ma jeszcze wątków. Zaznacz wiadomości, które do siebie należą, i nazwij je.',
+    newTopic: 'Nowy wątek',
+    topicTitle: 'Co je łączy?',
+    topicFrom: {
+      one: 'z {n} zaznaczonej wiadomości',
+      few: 'z {n} zaznaczonych wiadomości',
+      many: 'z {n} zaznaczonych wiadomości',
+      other: 'z {n} zaznaczonych wiadomości'
+    },
+    inTopic: {
+      one: '{n} wiadomość',
+      few: '{n} wiadomości',
+      many: '{n} wiadomości',
+      other: '{n} wiadomości'
+    },
+    close: 'Zamknij',
+    reopen: 'Otwórz ponownie',
+    closed: 'zamknięty',
+    pickFirst: 'Najpierw zaznacz wiadomości w rozmowie.',
+
+    polls: 'Pytania',
+    noPolls: 'Nikt tu jeszcze o nic nie zapytał.',
+    newPoll: 'Zapytaj o coś',
+    question: 'Twoje pytanie',
+    ask: 'Zapytaj',
+    mode: 'Odpowiedzi',
+    modeSingle: 'Po jednej',
+    modeMulti: 'Po kilka',
+    modeQuiz: 'Jedna poprawna',
+    reveal: 'Pokaż wynik',
+    revealImmediate: 'Od razu',
+    revealOnClose: 'Dopiero po zamknięciu',
+    revealWhy:
+      'Kto odpowiada jako dziesiąty, widzi dziewięć odpowiedzi i się do nich przyłącza. Ukrycie wyniku do końca to sposób, żeby dowiedzieć się, co ludzie myślą, a nie co myślą, że myślą inni.',
+    yourAnswer: 'Twoja odpowiedź',
+    vote: 'Odpowiedz',
+    voted: 'Odpowiedziano',
+    changeVote: 'Zmień odpowiedź',
+    votes: {
+      one: '{n} odpowiedź',
+      few: '{n} odpowiedzi',
+      many: '{n} odpowiedzi',
+      other: '{n} odpowiedzi'
+    },
+    tallySealed: 'Wynik pozostaje ukryty do zamknięcia. Po to właśnie tak zapytano.',
+    closePoll: 'Zamknij i pokaż wynik',
+    pollClosed: 'Zamknięte',
+
+    attach: 'Dołącz plik',
+    attachments: {
+      one: '{n} plik',
+      few: '{n} pliki',
+      many: '{n} plików',
+      other: '{n} plików'
+    },
+    open: 'Otwórz',
+    remove: 'Usuń',
+    uploading: 'Wysyłanie…',
+
+    react: 'Zajmij stanowisko',
+    agree: 'Zgadzam się',
+    noted: 'Przeczytałem',
+    object: 'Sprzeciwiam się',
+    reactWhy:
+      'Jedno z trzech, i tylko jedno. „Przeczytałem" i „zgadzam się" to nie to samo, a na posiedzeniu ta różnica jest sednem sprawy.'
+  },
+  ledger: {
+    tabLedger: 'Rejestr',
+    tabDecisions: 'Decyzje',
+
+    heading: 'Łańcuch',
+    intro:
+      'Każda decyzja trafia do łańcucha, a każde ogniwo wskazuje skrót poprzedniego. Usuń wiersz, zamień dwa miejscami, dopisz jeden później — łańcuch przestaje się zgadzać i wskazuje gdzie.',
+    check: 'Przelicz tutaj',
+    checking: 'Przeliczanie…',
+    intact: 'Łańcuch się zgadza.',
+    intactWhy:
+      'Przeliczone w tej przeglądarce, z wpisów tak, jak przyszły — a nie przyjęte na słowo serwera. „Sprawdziłem, wszystko gra" z ust operatora to właśnie to zapewnienie, bez którego taki rejestr ma się obyć.',
+    broken: 'Łańcuch się nie zgadza.',
+    brokenAt: 'Pierwsze pęknięcie przy wpisie {n}.',
+    disagree: 'Serwer mówi co innego o własnym łańcuchu.',
+    disagreeWhy:
+      'To jest właśnie znalezisko, nie szczegół: to, co usługa twierdzi o swoim rejestrze, nie wynika z wpisów, które sama wydała. Zachowaj tę stronę i powiedz o tym.',
+    limits:
+      'Co jest sprawdzane: czy ogniwa do siebie pasują i czy nie brakuje numeru. Czego nie: czy treść każdego wpisu odpowiada jego własnemu skrótowi — do tego potrzebne są bajty w postaci kanonicznej, a te przychodzą tu już złożone.',
+    entries: {
+      one: '{n} wpis',
+      few: '{n} wpisy',
+      many: '{n} wpisów',
+      other: '{n} wpisów'
+    },
+    head: 'Czoło',
+    sequence: 'Nr',
+    previous: 'następuje po',
+    hash: 'skrót',
+    module: 'z',
+    when: 'zapisano',
+    payload: 'co zapisano',
+    reasons: {
+      'chain.gap': 'Brakuje numeru — coś wyjęto.',
+      'chain.broken_link': 'Wpis nie następuje po poprzednim.'
+    },
+    empty: 'Nic tu jeszcze nie trafiło do łańcucha.',
+
+    decisions: 'Decyzje',
+    noDecisions: 'Nic tu jeszcze nie postanowiono.',
+    newDecision: 'Zaproponuj coś',
+    decisionBody: 'O czym się rozstrzyga?',
+    propose: 'Zaproponuj',
+    reason: 'Dlaczego',
+    reasonWhy:
+      'Wymagane, i nie dla formalności. Decyzji bez uzasadnienia nie da się zrozumieć za rok — a wtedy stoi tam uchwała, której nikt nie umie wyjaśnić.',
+    move: 'Przenieś do: {state}',
+    history: 'Jak do tego doszło',
+    finalState: 'Stąd nic już nie wynika.',
+    states: {
+      proposed: 'zaproponowana',
+      open: 'w dyskusji',
+      accepted: 'przyjęta',
+      rejected: 'odrzucona',
+      reopened: 'otwarta ponownie'
+    }
+  },
   status: {
     heading: 'Co już stoi',
     done: 'zbudowane i sprawdzone',
@@ -290,6 +696,137 @@ const de: RcCopy = {
       'session.unlock_required': 'Dein Schlüssel liegt nicht im Speicher. Bitte entsperren.'
     },
     unknownError: 'Da ist etwas schiefgegangen. Bitte erneut versuchen.'
+  },
+  chat: {
+    areas: 'Bereiche',
+    noAreas: 'Noch keine Bereiche. Leg einen an oder warte auf eine Einladung.',
+    newArea: 'Neuer Bereich',
+    areaName: 'Wofür ist dieser Bereich?',
+    create: 'Anlegen',
+    writingAs: 'Du schreibst als',
+    placeholder: 'Sag etwas…',
+    send: 'Senden',
+    sending: 'Wird gesendet…',
+    toRecord: 'Zu Protokoll',
+    toRecordWhy:
+      'Nimmt diesen Beitrag in die Kette auf, damit sich Reihenfolge und Urheberschaft später beweisen lassen. Nicht jede Nachricht braucht das — eine Kette voller Nebensätze beweist nichts.',
+    recorded: 'zu Protokoll',
+    withdraw: 'Zurücknehmen',
+    withdrawn: 'Vom Urheber zurückgenommen.',
+    epochBreak: 'Ab hier gehörst du zu diesem Bereich.',
+    beforeYou: 'Aus der Zeit vor deinem Beitritt. Niemand kann das für dich öffnen.',
+    damaged: 'Das liess sich nicht öffnen, obwohl es sollte. Verloren ist nichts — aber bitte melde es.',
+    hiddenByModerator: 'Von der Moderation ausgeblendet.',
+    partialHistory: 'ein Teil dieser Geschichte ist dir verschlossen',
+    readOnly: 'Du kannst hier lesen, aber nicht schreiben.',
+    locked: 'Zum Lesen dieses Bereichs entsperren.',
+    members: { one: '{n} Mitglied', other: '{n} Mitglieder' },
+    empty: 'Hier wurde noch nichts gesagt.',
+    loading: 'Wird geladen…'
+  },
+  threads: {
+    tabChat: 'Gespräch',
+    tabTopics: 'Themen',
+    tabPolls: 'Fragen',
+
+    topics: 'Themen',
+    noTopics: 'Noch keine Themen. Markiere, was zusammengehört, und gib ihm einen Namen.',
+    newTopic: 'Neues Thema',
+    topicTitle: 'Was hält das zusammen?',
+    topicFrom: { one: 'aus {n} markierten Beitrag', other: 'aus {n} markierten Beiträgen' },
+    inTopic: { one: '{n} Beitrag', other: '{n} Beiträge' },
+    close: 'Schliessen',
+    reopen: 'Wieder öffnen',
+    closed: 'geschlossen',
+    pickFirst: 'Markiere zuerst Beiträge im Gespräch.',
+
+    polls: 'Fragen',
+    noPolls: 'Hier wurde noch nichts gefragt.',
+    newPoll: 'Etwas fragen',
+    question: 'Deine Frage',
+    ask: 'Fragen',
+    mode: 'Antworten',
+    modeSingle: 'Je eine',
+    modeMulti: 'Je mehrere',
+    modeQuiz: 'Eine richtige',
+    reveal: 'Auszählung zeigen',
+    revealImmediate: 'Sofort',
+    revealOnClose: 'Erst beim Schliessen',
+    revealWhy:
+      'Wer als Zehnter antwortet, sieht neun Antworten und schliesst sich an. Die Auszählung bis zum Schluss zurückzuhalten ist der Weg, zu erfahren, was die Leute denken — und nicht, was sie glauben, dass die anderen denken.',
+    yourAnswer: 'Deine Antwort',
+    vote: 'Antworten',
+    voted: 'Du hast geantwortet',
+    changeVote: 'Antwort ändern',
+    votes: { one: '{n} Antwort', other: '{n} Antworten' },
+    tallySealed: 'Die Auszählung bleibt bis zum Schliessen verborgen. Genau dafür wurde so gefragt.',
+    closePoll: 'Schliessen und auszählen',
+    pollClosed: 'Geschlossen',
+
+    attach: 'Datei anhängen',
+    attachments: { one: '{n} Datei', other: '{n} Dateien' },
+    open: 'Öffnen',
+    remove: 'Entfernen',
+    uploading: 'Wird hochgeladen…',
+
+    react: 'Stellung nehmen',
+    agree: 'Ich stimme zu',
+    noted: 'Ich habe es gelesen',
+    object: 'Ich widerspreche',
+    reactWhy:
+      'Eines von dreien, und nur eines. „Ich habe es gelesen" und „ich stimme zu" sind nicht dasselbe, und in einer Sitzung ist genau dieser Unterschied der ganze Punkt.'
+  },
+  ledger: {
+    tabLedger: 'Protokoll',
+    tabDecisions: 'Beschlüsse',
+
+    heading: 'Die Kette',
+    intro:
+      'Jeder Beschluss wird in eine Kette geschrieben, und jedes Glied nennt den Hash des vorigen. Eine Zeile entfernen, zwei vertauschen, eine nachträglich einfügen — die Kette geht nicht mehr auf, und sie sagt wo.',
+    check: 'Hier nachrechnen',
+    checking: 'Wird nachgerechnet…',
+    intact: 'Die Kette geht auf.',
+    intactWhy:
+      'In diesem Browser nachgerechnet, aus den Einträgen so, wie sie kamen — nicht dem Server geglaubt. „Ich habe nachgesehen, es stimmt" aus dem Mund des Betreibers ist genau die Zusicherung, ohne die ein solches Protokoll auskommen soll.',
+    broken: 'Die Kette geht nicht auf.',
+    brokenAt: 'Die erste Bruchstelle ist Eintrag {n}.',
+    disagree: 'Der Dienst sagt etwas anderes über seine eigene Kette.',
+    disagreeWhy:
+      'Das ist der Fund und keine Nebensache: was der Dienst über sein Protokoll behauptet, folgt nicht aus den Einträgen, die er selbst herausgegeben hat. Diese Seite aufheben und es sagen.',
+    limits:
+      'Geprüft wird: dass die Glieder aneinanderpassen und keine Nummer fehlt. Nicht geprüft wird: ob der Inhalt jedes Eintrags zu seinem eigenen Hash passt — dafür braucht es die kanonischen Bytes, und die kommen hier bereits zusammengesetzt an.',
+    entries: { one: '{n} Eintrag', other: '{n} Einträge' },
+    head: 'Kopf',
+    sequence: 'Nr.',
+    previous: 'folgt auf',
+    hash: 'Hash',
+    module: 'aus',
+    when: 'festgehalten',
+    payload: 'was geschrieben wurde',
+    reasons: {
+      'chain.gap': 'Eine Nummer fehlt — es wurde etwas herausgenommen.',
+      'chain.broken_link': 'Ein Eintrag folgt nicht auf den vorigen.'
+    },
+    empty: 'Hier wurde noch nichts in die Kette geschrieben.',
+
+    decisions: 'Beschlüsse',
+    noDecisions: 'Hier wurde noch nichts beschlossen.',
+    newDecision: 'Etwas vorschlagen',
+    decisionBody: 'Worüber wird entschieden?',
+    propose: 'Vorschlagen',
+    reason: 'Warum',
+    reasonWhy:
+      'Pflicht, und nicht als Formalie. Ein Beschluss ohne Begründung ist in einem Jahr nicht mehr nachvollziehbar — dann steht da etwas, das niemand mehr erklären kann.',
+    move: 'Weiter zu {state}',
+    history: 'Wie es dahin kam',
+    finalState: 'Von hier aus folgt nichts mehr.',
+    states: {
+      proposed: 'vorgeschlagen',
+      open: 'in Beratung',
+      accepted: 'angenommen',
+      rejected: 'abgelehnt',
+      reopened: 'wieder geöffnet'
+    }
   },
   status: {
     heading: 'Was bisher steht',

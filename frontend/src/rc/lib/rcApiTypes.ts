@@ -1531,6 +1531,7 @@ export interface paths {
             parameters: {
                 query?: {
                     limit?: number;
+                    roleId?: string;
                 };
                 header?: never;
                 path: {
@@ -2478,6 +2479,7 @@ export interface components {
             /** Format: int32 */
             readableEpochs: number;
             canWrite: boolean;
+            ledgerId: string;
         };
         AreasCreateAreaRequest: {
             ownerRoleId: string;
@@ -2576,6 +2578,7 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             history: components["schemas"]["DecisionsTransitionView"][];
+            allowedNext: string[];
         };
         DecisionsTransitionRequest: {
             roleId: string;
@@ -2683,6 +2686,13 @@ export interface components {
             hiddenKind?: string | null;
             quoteMessageId?: string | null;
             unreadable?: string | null;
+            reactions: {
+                [key: string]: number;
+            };
+            /** Format: int32 */
+            yourReaction?: number | null;
+            /** Format: int32 */
+            attachmentCount: number;
         };
         MessagesPostRequest: {
             authorRoleId: string;
