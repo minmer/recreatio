@@ -5115,7 +5115,8 @@ export function ParishPage({
           ? custom.yearSummaryComplete
           : defaultConfirmationSmsTemplates.yearSummaryComplete,
       yearSummaryIncomplete:
-        custom?.yearSummaryIncomplete?.trim().length
+        custom?.yearSummaryIncomplete?.trim().length &&
+        containsExactlyOneConfirmationSmsVariable(custom.yearSummaryIncomplete, '{missingList}')
           ? custom.yearSummaryIncomplete
           : defaultConfirmationSmsTemplates.yearSummaryIncomplete
     };
@@ -6381,6 +6382,17 @@ export function ParishPage({
     const yearSummaryComplete = confirmationSmsTemplateYearSummaryComplete.trim();
     const yearSummaryIncomplete = confirmationSmsTemplateYearSummaryIncomplete.trim();
 
+    if (
+      yearSummaryIncomplete &&
+      !containsExactlyOneConfirmationSmsVariable(yearSummaryIncomplete, '{missingList}')
+    ) {
+      setConfirmationSmsTemplateError(
+        'Szablon SMS dla niezaliczonego roku musi zawierać dokładnie jeden znacznik {missingList}.'
+      );
+      setConfirmationSmsTemplateInfo(null);
+      return;
+    }
+
     const normalizedTemplates =
       verificationInvite || verificationWarning || portalInvite || yearSummaryComplete || yearSummaryIncomplete
         ? {
@@ -6578,7 +6590,11 @@ export function ParishPage({
     states: ConfirmationSummaryStates
   ) => {
     const doneItems = confirmationSummaryItems.filter((item) => states[item.key] === 'done');
-    const missingItems = confirmationSummaryItems.filter((item) => states[item.key] === 'missing');
+    const missingItems = confirmationSummaryItems.filter(
+      (item) =>
+        states[item.key] === 'missing' ||
+        (isConfirmationSummaryMeetingItem(item.key) && states[item.key] !== 'done')
+    );
     const internetIndexProgress = confirmationSummaryInternetIndexProgress(candidate);
     const template =
       missingItems.length > 0
@@ -6590,10 +6606,10 @@ export function ParishPage({
       state: 'done' | 'missing'
     ) => {
       if (state === 'missing' && item.key === 'firstMeeting') {
-        return '- Czy pierwsze spotkanie (na początku 1. roku) zostało zaliczone? Proszę o potwierdzenie.';
+        return `- Czy ${candidate.name} ${candidate.surname} uczestniczył(a) w pierwszym spotkaniu (na początku 1. roku)? Proszę o potwierdzenie.`;
       }
       if (state === 'missing' && item.key === 'secondMeeting') {
-        return '- Czy drugie spotkanie (na zakończenie 1. roku) zostało zaliczone? Proszę o potwierdzenie.';
+        return `- Czy ${candidate.name} ${candidate.surname} uczestniczył(a) w drugim spotkaniu (na zakończenie 1. roku)? Proszę o potwierdzenie.`;
       }
       return item.key === 'internetIndex' && internetIndexProgress.total > 0
         ? `- ${item.smsLabel} - uzupełnione ${internetIndexProgress.filled} z ${internetIndexProgress.total}`
@@ -13085,7 +13101,10 @@ export function ParishPage({
                                       const summaryStates =
                                         confirmationSummarySmsStates ?? buildConfirmationSummaryStates(candidate);
                                       const missingCount = confirmationSummaryItems.filter(
-                                        (item) => summaryStates[item.key] === 'missing'
+                                        (item) =>
+                                          summaryStates[item.key] === 'missing' ||
+                                          (isConfirmationSummaryMeetingItem(item.key) &&
+                                            summaryStates[item.key] !== 'done')
                                       ).length;
                                       const summaryText = confirmationSummarySmsText.trim();
                                       return (
@@ -13114,7 +13133,9 @@ export function ParishPage({
                                                 >
                                                   <option value="done">Zaliczone</option>
                                                   <option value="missing">Brakuje</option>
-                                                  <option value="skip">Nie dotyczy</option>
+                                                  {!isConfirmationSummaryMeetingItem(item.key) ? (
+                                                    <option value="skip">Nie dotyczy</option>
+                                                  ) : null}
                                                 </select>
                                               </label>
                                             ))}
