@@ -2480,6 +2480,7 @@ export interface components {
             readableEpochs: number;
             canWrite: boolean;
             ledgerId: string;
+            canCertify: boolean;
         };
         AreasCreateAreaRequest: {
             ownerRoleId: string;

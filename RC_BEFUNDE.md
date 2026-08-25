@@ -652,3 +652,139 @@ zeigen.
 
 Dieselbe Überlegung steht hinter `canWrite`: wer nur lesen darf, bekommt keinen
 Schreibkasten, den er füllen und dann abgewiesen bekommen würde.
+
+### Ein Beweis, den nur der Beweisführer nachrechnen kann, ist keiner
+
+Der Dienst hat einen Prüfweg für seine eigene Kette: `/ledgers/{id}/verify`.
+Er ist gründlich, er ist geprüft — und er ist die Aussage genau desjenigen,
+gegen den ein Protokoll schützen soll. „Ich habe nachgesehen, es stimmt alles"
+aus dem Mund des Betreibers ist keine Prüfung, sondern eine Behauptung.
+
+Die Oberfläche rechnet deshalb **selbst** nach (`rcRecompute`), aus den
+Einträgen, wie sie geliefert wurden, und stellt beide Antworten nebeneinander.
+Der interessante Zustand ist nicht „heil" und nicht „kaputt", sondern
+**uneinig**: was der Dienst über sein Protokoll behauptet, folgt nicht aus den
+Einträgen, die er selbst herausgegeben hat. Dafür gibt es einen eigenen,
+deutlich anderen Anblick und einen Satz, der sagt, was zu tun ist.
+
+Die Grenze steht daneben, im Klartext: geprüft wird, dass die Glieder
+aneinanderpassen und keine Nummer fehlt; **nicht** geprüft wird, ob der Inhalt
+jedes Eintrags zu seinem eigenen Hash passt — dafür bräuchte es die kanonischen
+Bytes, und die kommen bereits zusammengesetzt an. Eine Prüfung, die mehr zu
+können vorgibt, als sie kann, ist schlimmer als keine: sie erzeugt genau das
+Vertrauen, das sie nicht deckt.
+
+Eine der Prüfungen hält diese Grenze ausdrücklich fest — ein gefälschter
+Vorgänger im ERSTEN Eintrag fällt hier nicht auf, und die Prüfreihe behauptet
+das Gegenteil nicht.
+
+### Zwei Felder, die es nur gab, damit die Prüfreihe sie sich nehmen konnte
+
+Die Kettenkennung stand nur in der Zeile des Bereichs. Die Prüfreihe holte sie
+sich mit eigenem SQL aus der Datenbank — und genau das war der Beweis, dass die
+Oberfläche nicht an das Protokoll herankam: **was sich eine Prüfreihe aus der
+Datenbank nehmen muss, kann ein Browser nicht.** Ein Feld, das nur über einen
+Datenbankzugriff erreichbar ist, existiert für die Anwendung nicht.
+
+Dasselbe bei den Beschlüssen. Die Tafel der erlaubten Übergänge steht im Server
+und gehört dorthin — sie ist die Regel. Die Oberfläche hätte sie abschreiben
+müssen, und eine abgeschriebene Regel läuft mit der Zeit von der echten weg:
+sie böte Schaltflächen an, die abgewiesen werden, oder verschwiege Wege, die
+offen stehen. Beides sieht wie ein Fehler aus, und in beiden Fällen hat niemand
+gelogen — die Regel stand nur an zwei Stellen. Also nennt die Sicht jetzt
+`allowedNext`, und eine Prüfung klammert beides zusammen: was drinsteht, MUSS
+durchgehen, was fehlt, MUSS abgewiesen werden.
+
+### Eine Prüfung, die den Zähler einer anderen verschiebt, ist ein schlechter Nachbar
+
+Die neue Prüfung für `allowedNext` ging die Zustandstafel ab und schrieb dabei
+vier Ketteneinträge. Drei Prüfungen weiter unten zählen die Einträge desselben
+Bereichs genau ab — und schlugen fehl, obwohl an ihnen nichts falsch war.
+
+Der erste Reflex wäre gewesen, die festen Zahlen dort aufzuweichen. Das wäre
+der falsche Weg: die genaue Zahl ist die Aussage. Sie fängt eine Änderung, die
+anfängt, zusätzliche Einträge zu schreiben. Die neue Prüfung hat stattdessen
+ihren **eigenen** Bereich bekommen.
+
+Beim Umstellen hat ein zu breites Suchen-und-Ersetzen zwei fremde Prüfungen
+mitgenommen. Aufgefallen ist das nur, weil danach nachgesehen wurde, welche
+Zeilen sich tatsächlich geändert haben — nicht, weil etwas fehlschlug. Beide
+liefen weiter grün, nur prüften sie den falschen Bereich.
+
+### Was eine Prüfung an einer Position festmacht, prüft die Position
+
+Eine Prüfung im Durchgang griff `chain[0]` und erwartete dort
+`decision.created`. Sie schlug fehl, sobald vorher eine Nachricht zu Protokoll
+gegeben wurde — die stand dann an erster Stelle. Nichts daran war kaputt: die
+Prüfung hatte sich an eine Reihenfolge geheftet statt an die Sache.
+
+Jetzt sucht sie den Eintrag, statt eine Stelle zu raten. Dazu kam eine, die
+wirklich etwas beweist: dass die Schlüssel in der kanonischen Form sortiert
+sind (RFC 8785). Das ist keine Kosmetik — genau darauf beruht, dass zwei Seiten
+denselben Hash errechnen.
+
+### Eine Einladung teilt eine ROLLE — und das ist leicht zu übersehen
+
+Der erste Durchgang lud zu Annas **persönlicher** Rolle ein. Der Dienst nahm
+das an, der Link funktionierte, Bruno kam herein — und konnte die gesamte
+Vergangenheit des Bereichs lesen.
+
+Kein Fehler im Dienst. Eine Einladung versiegelt einen Rollenschlüssel unter
+dem Token, und wer eine Rolle bekommt, bekommt alles, was an ihr hängt: jeden
+Bereich, jede Epoche. Wer seine persönliche Rolle verschickt, verschickt sein
+halbes Konto — und merkt es nicht, weil nichts fehlschlägt.
+
+Der Weg ist: eine Gruppenrolle anlegen, **diese** in den Bereich aufnehmen,
+und zu ihr einladen. Dann bekommt der Neue genau das, was die Gruppe hat, und
+die Epochengrenze liegt dort, wo die Gruppe aufgenommen wurde.
+
+Aufgefallen ist es nur, weil die Prüfung ausdrücklich verlangte, dass Bruno
+die ältere Geschichte **nicht** sieht. Eine Prüfung, die bloss „Bruno kommt
+herein" festhält, wäre grün geblieben — und hätte die gefährlichste Verwechslung
+der ganzen Plattform durchgewinkt.
+
+Die Oberfläche muss daraus eine Folgerung ziehen, die noch aussteht: sie darf
+das Einladen nicht an einer persönlichen Rolle anbieten, ohne zu sagen, was das
+bedeutet.
+
+### Ein Prüfgerüst für zwei Menschen braucht zwei Ablagen, nicht eine
+
+Der Durchgang hielt Sitzungskekse in einem Glas und das Öffnungsstück in einem
+gemeinsamen Speicher. Sobald ein zweites Konto dazukam, überschrieb dessen
+Entsperren das erste — und der Wechsel zurück führte in eine Sitzung ohne
+Schlüssel. Das hätte wie ein Fehler in der Plattform ausgesehen und wäre einer
+im Prüfgerüst gewesen.
+
+Beides wandert jetzt gemeinsam. Der allgemeine Fall dahinter: ein Ersatzstück
+für eine Browser-Einrichtung muss die Vereinzelung mitbringen, die das Original
+hat — sonst prüft man eine Welt, in der alle dasselbe Fenster teilen.
+
+### `rcAddMember` steht in der Bibliothek und NICHT in der Oberfläche
+
+Es verlangt die Rollenkennung des Neuen, und die kann die Oberfläche nicht
+kennen: es gibt kein Verzeichnis der Rollen (3.4), und das ist keine Lücke,
+sondern der Punkt. Ein Eingabefeld für eine fremde Rollenkennung wäre eine
+Aufforderung, sich diese Kennungen woanders zu besorgen — genau das soll es
+nicht geben. Wer jemanden hineinbitten will, stellt eine Einladung aus; dann
+bringt der Eingeladene seine Rolle selbst mit.
+
+Das steht als Kommentar an der Stelle, an der der Knopf fehlt. Sonst baut ihn
+irgendwann jemand hin, weil die Funktion ja da ist.
+
+### Ein Link, den nur der Empfänger je sieht
+
+Das Geheimnis steht im **Fragment** der Adresse, hinter der Raute. Was dort
+steht, schickt der Browser nicht an den Server — stünde es im Pfad oder in der
+Abfrage, läge es in jedem Zugriffsprotokoll auf dem Weg, auf jedem
+Zwischenknoten und in jedem Verlauf.
+
+Dazu gehört, dass es genau **einmal** angezeigt wird und dass der Grund
+danebensteht: der Schlüssel reist im Link und nicht in der Datenbank, also kann
+ihn niemand wiederherstellen — auch der Betreiber nicht. Ohne diesen Satz sieht
+die Einmaligkeit wie eine Schikane aus statt wie die Zusage, die den ganzen
+Aufbau trägt.
+
+Und: **`firstOpenedUtc` ist kein Zierrat** (10.3). Ein Link, der geöffnet
+wurde, bevor er beim Empfänger ankam, ist unterwegs gelesen worden. Deshalb
+steht die Spalte in Warnfarbe in der Liste und nicht in einer Detailansicht,
+die niemand aufmacht.

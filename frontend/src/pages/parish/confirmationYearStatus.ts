@@ -21,6 +21,8 @@ export type ConfirmationYearRequirement = {
 type ConfirmationYearFacts = {
   firstMeetingCompleted: boolean;
   secondMeetingCompleted: boolean;
+  firstMeetingDetail?: string;
+  secondMeetingDetail?: string;
   goalRecorded: boolean;
   paperConsentReceived: boolean;
   quizCompleted: boolean;
@@ -45,13 +47,15 @@ const buildConfirmationYearStatus = (facts: ConfirmationYearFacts): Confirmation
       key: 'meeting-year1-start',
       label: 'pierwsze spotkanie (początek 1. roku)',
       fulfilled: facts.firstMeetingCompleted,
-      applicable: true
+      applicable: true,
+      detail: facts.firstMeetingDetail
     },
     {
       key: 'meeting-year1-end',
       label: 'drugie spotkanie (zakończenie 1. roku)',
       fulfilled: facts.secondMeetingCompleted,
-      applicable: true
+      applicable: true,
+      detail: facts.secondMeetingDetail
     },
     {
       key: 'goal',
@@ -127,10 +131,22 @@ export const getConfirmationCandidateMeetingStatus = (
 
 export const getConfirmationCandidateYearStatus = (
   candidate: ParishConfirmationCandidate
-): ConfirmationYearStatus =>
-  buildConfirmationYearStatus({
-    firstMeetingCompleted: getConfirmationCandidateMeetingStatus(candidate, 'year1-start').isCompleted,
-    secondMeetingCompleted: getConfirmationCandidateMeetingStatus(candidate, 'year1-end').isCompleted,
+): ConfirmationYearStatus => {
+  const firstMeeting = getConfirmationCandidateMeetingStatus(candidate, 'year1-start');
+  const secondMeeting = getConfirmationCandidateMeetingStatus(candidate, 'year1-end');
+  return buildConfirmationYearStatus({
+    firstMeetingCompleted: firstMeeting.isCompleted,
+    secondMeetingCompleted: secondMeeting.isCompleted,
+    firstMeetingDetail: firstMeeting.slotId
+      ? 'zaliczone na podstawie rezerwacji'
+      : firstMeeting.completedManually
+      ? 'potwierdzone ręcznie przez parafię bez rezerwacji'
+      : undefined,
+    secondMeetingDetail: secondMeeting.slotId
+      ? 'zaliczone na podstawie rezerwacji'
+      : secondMeeting.completedManually
+      ? 'potwierdzone ręcznie przez parafię bez rezerwacji'
+      : undefined,
     goalRecorded: Boolean(candidate.goal?.trim()),
     paperConsentReceived: candidate.paperConsentReceived === true,
     quizCompleted: candidate.quizCompleted === true,
@@ -140,6 +156,7 @@ export const getConfirmationCandidateYearStatus = (
     internetIndexCelebrationFilled: candidate.internetIndexCelebrationFilled ?? 0,
     paperIndexChecked: candidate.paperIndexChecked === true
   });
+};
 
 export const getConfirmationPortalMeetingStatus = (
   portal: ParishConfirmationPortal,
@@ -169,6 +186,16 @@ export const getConfirmationPortalYearStatus = (portal: ParishConfirmationPortal
   return buildConfirmationYearStatus({
     firstMeetingCompleted: firstMeeting.isCompleted,
     secondMeetingCompleted: secondMeeting.isCompleted,
+    firstMeetingDetail: firstMeeting.slotId
+      ? 'zaliczone na podstawie rezerwacji'
+      : firstMeeting.completedManually
+      ? 'potwierdzone ręcznie przez parafię bez rezerwacji'
+      : undefined,
+    secondMeetingDetail: secondMeeting.slotId
+      ? 'zaliczone na podstawie rezerwacji'
+      : secondMeeting.completedManually
+      ? 'potwierdzone ręcznie przez parafię bez rezerwacji'
+      : undefined,
     goalRecorded: Boolean(portal.candidate.goal?.trim()),
     paperConsentReceived: portal.candidate.paperConsentReceived === true,
     quizCompleted: portal.candidate.quizCompleted === true,

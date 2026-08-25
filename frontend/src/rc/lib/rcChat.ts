@@ -26,6 +26,29 @@ export type RcFeed = RcApi<'RcFeedResponse'>;
 
 export const rcRoles = () => rcFetch<RcRolesResponse>('/roles', { withUnlock: true });
 
+export const RC_ROLE_KINDS = ['person', 'group', 'office', 'service'] as const;
+export type RcRoleKind = (typeof RC_ROLE_KINDS)[number];
+
+/**
+ * 21.6 — Eine neue Rolle. `holderRoleId` ist die Rolle, die sie trägt: von dort
+ * kommt der Schlüssel, unter dem der neue verschlossen wird.
+ *
+ * **Warum das der Weg ist, andere hineinzubitten.** Eine Einladung teilt eine
+ * ROLLE, nicht einen Bereich. Wer seine persönliche Rolle verschickt, verschickt
+ * damit alles, was daran hängt — jeden Bereich, jede Epoche, die ganze
+ * Vergangenheit. Deshalb legt man eine Gruppenrolle an, nimmt DIESE in den
+ * Bereich auf und lädt zu ihr ein. Dann bekommt der Neue genau das, was die
+ * Gruppe hat, und nichts darüber hinaus.
+ *
+ * Zwei RSA-4096-Paare dauern Sekunden (21.6) — der Aufruf ist kein Versehen
+ * wert und die Oberfläche sollte sagen, dass er dauert.
+ */
+export const rcCreateRole = (holderRoleId: string, kind: RcRoleKind, displayName: string) =>
+  rcFetch<RcApi<'RcRoleCreatedResponse'>>('/roles', {
+    body: { holderRoleId, kind, displayName },
+    withUnlock: true
+  });
+
 // -- Bereiche -----------------------------------------------------------------
 
 export const rcAreas = () => rcFetch<RcAreasResponse>('/areas', { withUnlock: true });

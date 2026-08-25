@@ -1267,8 +1267,8 @@ const defaultConfirmationSmsTemplates: ResolvedConfirmationSmsTemplates = {
     'Brakuje potwierdzenia lub uzupełnienia:\n' +
     '{missingList}\n' +
     'Do 25.08.2026 r. nie udało się potwierdzić lub uzupełnić powyższych punktów, dlatego na podstawie dostępnej dokumentacji rok przygotowania nie został zaliczony i może być konieczne jego powtórzenie.\n' +
-    'W sprawie dalszego przygotowania proszę o kontakt z parafią.\n' +
-    'Z dniem 25.08.2026 r. zakończyłem posługę w parafii i nie jestem już w niej dostępny.\n' +
+    '{contactTodayInfo}\n' +
+    'Po 25.08.2026 r. zakończyłem posługę w parafii i nie jestem już w niej dostępny.\n' +
     'Z Bogiem\n' +
     'ks. Michał Mleczek'
 };
@@ -1291,6 +1291,7 @@ const confirmationSummarySmsTemplateVariables = [
   '{fullName}',
   '{doneList}',
   '{missingList}',
+  '{contactTodayInfo}',
   '{paperIndexInfo}',
   '{internetIndexInfo}'
 ] as const;
@@ -5148,7 +5149,8 @@ export function ParishPage({
           : defaultConfirmationSmsTemplates.yearSummaryComplete,
       yearSummaryIncomplete:
         custom?.yearSummaryIncomplete?.trim().length &&
-        containsExactlyOneConfirmationSmsVariable(custom.yearSummaryIncomplete, '{missingList}')
+        containsExactlyOneConfirmationSmsVariable(custom.yearSummaryIncomplete, '{missingList}') &&
+        containsExactlyOneConfirmationSmsVariable(custom.yearSummaryIncomplete, '{contactTodayInfo}')
           ? custom.yearSummaryIncomplete
           : defaultConfirmationSmsTemplates.yearSummaryIncomplete
     };
@@ -5166,6 +5168,7 @@ export function ParishPage({
       portalLink: string;
       doneList?: string;
       missingList?: string;
+      contactTodayInfo?: string;
       paperIndexInfo?: string;
       internetIndexInfo?: string;
     }
@@ -5180,6 +5183,7 @@ export function ParishPage({
       portallink: variables.portalLink,
       donelist: variables.doneList ?? '',
       missinglist: variables.missingList ?? '',
+      contacttodayinfo: variables.contactTodayInfo ?? '',
       paperindexinfo: variables.paperIndexInfo ?? '',
       internetindexinfo: variables.internetIndexInfo ?? ''
     };
@@ -6416,10 +6420,11 @@ export function ParishPage({
 
     if (
       yearSummaryIncomplete &&
-      !containsExactlyOneConfirmationSmsVariable(yearSummaryIncomplete, '{missingList}')
+      (!containsExactlyOneConfirmationSmsVariable(yearSummaryIncomplete, '{missingList}') ||
+        !containsExactlyOneConfirmationSmsVariable(yearSummaryIncomplete, '{contactTodayInfo}'))
     ) {
       setConfirmationSmsTemplateError(
-        'Szablon SMS dla niezaliczonego roku musi zawierać dokładnie jeden znacznik {missingList}.'
+        'Szablon SMS dla niezaliczonego roku musi zawierać dokładnie po jednym znaczniku {missingList} i {contactTodayInfo}.'
       );
       setConfirmationSmsTemplateInfo(null);
       return;
@@ -6664,6 +6669,8 @@ export function ParishPage({
         missingItems.length > 0
           ? missingItems.map((item) => describeItem(item, 'missing')).join('\n')
           : '- (brak)',
+      contactTodayInfo:
+        'Proszę o kontakt jeszcze dziś, 25.08.2026 r. O godz. 17:00 będę dostępny w parafii, aby wspólnie wyjaśnić i uzupełnić braki.',
       paperIndexInfo: states.paperIndex === 'done' ? confirmationSummaryPaperIndexInfo : '',
       internetIndexInfo: states.internetIndex === 'missing' ? confirmationSummaryInternetIndexInfo : ''
     });

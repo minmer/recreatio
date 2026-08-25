@@ -23,6 +23,7 @@ import { rcCopy, rcPlural, type RcLang } from './i18n';
 import { RcRequestError } from './lib/rcApi';
 import { RcAttachments, RcPolls, RcReactions, RcTopics } from './RcThreads';
 import { RcDecisions, RcLedger } from './RcLedger';
+import { RcPeople } from './RcInvite';
 import type { RcReaction } from './lib/rcThreads';
 import {
   rcAreas, rcCreateArea, rcEpochBreaks, rcFeed, rcHide, rcMarkRead, rcMembers, rcMessageState,
@@ -155,7 +156,7 @@ function RcAreaView({
   const [messages, setMessages] = useState<readonly RcMessage[]>([]);
   const [memberCount, setMemberCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'chat' | 'topics' | 'polls' | 'decisions' | 'ledger'>('chat');
+  const [tab, setTab] = useState<'chat' | 'topics' | 'polls' | 'decisions' | 'ledger' | 'people'>('chat');
 
   // Was markiert ist, wird zu einem Thema. Die Markierung lebt HIER und nicht
   // im Themen-Reiter: sie entsteht im Gespräch, und sie muss den Wechsel
@@ -201,6 +202,7 @@ function RcAreaView({
 
   const th = rcCopy[lang].threads;
   const tl = rcCopy[lang].ledger;
+  const ti = rcCopy[lang].invite;
 
   const toggle = (id: string) =>
     setSelection((now) => (now.includes(id) ? now.filter((x) => x !== id) : [...now, id]));
@@ -214,7 +216,8 @@ function RcAreaView({
             ['topics', th.tabTopics],
             ['polls', th.tabPolls],
             ['decisions', tl.tabDecisions],
-            ['ledger', tl.tabLedger]
+            ['ledger', tl.tabLedger],
+            ['people', ti.tabMembers]
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -252,6 +255,17 @@ function RcAreaView({
           sonst käme die Oberfläche gar nicht an sein Protokoll heran. */}
       {tab === 'ledger' && (
         <RcLedger lang={lang} ledgerId={area.ledgerId} onError={onError} />
+      )}
+
+      {tab === 'people' && (
+        <RcPeople
+          lang={lang}
+          areaId={areaId}
+          roles={roles}
+          canCertify={area.canCertify}
+          onError={onError}
+          onChanged={() => void refresh()}
+        />
       )}
 
       {tab === 'chat' && (

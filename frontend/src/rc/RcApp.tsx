@@ -17,6 +17,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { rcCopy, rcDetectLang, rcFormat, rcPlural, rcStoreLang, type RcLang } from './i18n';
 import { runRcSelfTest, type RcTestReport } from './lib/rcSelfTest';
 import { RcChat } from './RcChat';
+import { RcInviteBanner } from './RcInvite';
+import { rcSecretFromHash } from './lib/rcInvite';
 import { RcSignIn } from './RcSignIn';
 import './styles/rc.css';
 
@@ -63,6 +65,18 @@ export function RcApp() {
   const [report, setReport] = useState<RcTestReport | null>(null);
   const [running, setRunning] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
+
+  // Wer über einen Einladungslink kommt, bringt das Geheimnis im Fragment
+  // mit — hinter der Raute, wo der Browser es NICHT an den Server schickt.
+  // Es aus der Adresse zu lesen ist deshalb der einzige Weg, es zu sehen.
+  const [inviteSecret, setInviteSecret] = useState<string | null>(() =>
+    rcSecretFromHash(window.location.hash));
+
+  useEffect(() => {
+    const onHash = () => setInviteSecret(rcSecretFromHash(window.location.hash));
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   const t = rcCopy[lang];
 
   useEffect(() => {
@@ -173,6 +187,17 @@ export function RcApp() {
             ))}
           </ul>
         </section>
+
+        {/* Ganz oben und vor allem anderen: wer über einen Link kommt, soll
+            als Erstes erfahren, wohinein er führt — nicht nach dem Scrollen. */}
+        {inviteSecret !== null && (
+          <RcInviteBanner
+            lang={lang}
+            secret={inviteSecret}
+            canRedeem={unlocked}
+            onDone={() => setInviteSecret(null)}
+          />
+        )}
 
         <section className="rc-section">
           <h2 className="rc-h2">{t.auth.heading}</h2>

@@ -51,8 +51,24 @@ const SHIM = `
 // Ein Keksglas. \`fetch\` unter Node kennt keine Sitzung, und ohne Sitzung ist
 // jeder geschützte Aufruf ein 401 — was wie ein Fehler in der Oberfläche
 // aussähe und keiner wäre.
-const jar = new Map();
+let jar = new Map();
+let store = new Map();
 const inner = globalThis.fetch;
+
+// Zwei Konten, zwei Keksglaeser. Eine Einladung fuehrt per Bau von einem
+// Menschen zu einem anderen — mit nur einem Glas liesse sich dieser Weg
+// nicht nachgehen, und genau er ist das Interessante.
+globalThis.__rcJars = { a: new Map(), b: new Map() };
+globalThis.__rcStores = { a: new Map(), b: new Map() };
+
+// Mitwechseln muss auch der Ablageort des Oeffnungsstuecks. Bliebe er
+// gemeinsam, ueberschriebe Brunos Entsperren das von Anna, und der Wechsel
+// zurueck fuehrte in eine Sitzung ohne Schluessel — was wie ein Fehler in der
+// Plattform aussaehe und einer im Pruefgeruest waere.
+globalThis.__rcAs = (who) => {
+  jar = globalThis.__rcJars[who];
+  store = globalThis.__rcStores[who];
+};
 
 globalThis.fetch = async (url, init = {}) => {
   const headers = new Headers(init.headers ?? {});
@@ -77,7 +93,9 @@ globalThis.fetch = async (url, init = {}) => {
   return response;
 };
 
-const store = new Map();
+
+globalThis.__rcAs("a");
+
 globalThis.sessionStorage = {
   getItem: (k) => (store.has(k) ? store.get(k) : null),
   setItem: (k, v) => void store.set(k, String(v)),
@@ -97,7 +115,7 @@ const WALK = `
 import { rcRegister, rcUnlock, rcMe, rcLock } from ${JSON.stringify(LIB + 'rcAuth')};
 import {
   rcRoles, rcAreas, rcCreateArea, rcMembers, rcFeed, rcPost, rcHide, rcMarkRead,
-  rcMessageState, rcEpochBreaks
+  rcMessageState, rcEpochBreaks, rcCreateRole
 } from ${JSON.stringify(LIB + 'rcChat')};
 import { RcRequestError } from ${JSON.stringify(LIB + 'rcApi')};
 import {
@@ -110,6 +128,11 @@ import {
   rcLedgerEntries, rcLedgerHead, rcLedgerVerdict, rcRecompute, rcAgrees,
   rcDecisions, rcCreateDecision, rcTransition
 } from ${JSON.stringify(LIB + 'rcLedger')};
+import {
+  rcCreateInvitation, rcInvitations, rcRevokeInvitation, rcPeekInvitation,
+  rcRedeemInvitation, rcInviteLink, rcSecretFromHash, rcInviteSpent, rcInviteOpened,
+  rcMembers as rcMembersOf, rcRemoveMember, rcAddMember
+} from ${JSON.stringify(LIB + 'rcInvite')};
 
 let passed = 0;
 const failures = [];
@@ -463,6 +486,182 @@ ok('7.5   Beide Antworten stimmen ueberein', rcAgrees(own, theirs) === true,
     && head.sequence === chain[chain.length - 1]?.sequence,
     JSON.stringify({ head, last: chain[chain.length - 1]?.sequence }));
 }
+
+// -- 3.12: Der Weg hinein ----------------------------------------------------
+//
+// Zwei echte Konten. Anna laedt ein, Bruno kommt herein.
+//
+// **Eingeladen wird zu einer ROLLE, nicht zu einem Bereich.** Der erste Anlauf
+// hier lud zu Annas PERSOENLICHER Rolle ein — und Bruno konnte danach die
+// ganze Geschichte lesen. Kein Fehler im Dienst: eine Einladung teilt die
+// Rolle mitsamt allem, was an ihr haengt. Wer seine persoenliche Rolle
+// verschickt, verschickt sein halbes Konto.
+//
+// Der richtige Weg: eine Gruppenrolle anlegen, DIESE in den Bereich aufnehmen,
+// und zu ihr einladen. Dann bekommt der Neue genau das, was die Gruppe hat.
+
+const group = await rcCreateRole(person.roleId, 'group', 'Der Rat');
+ok('21.6  rcCreateRole() legt eine Gruppenrolle an', typeof group.roleId === 'string',
+  JSON.stringify(group));
+
+// Erst JETZT in den Bereich aufnehmen — die bisherigen Beitraege liegen davor
+// und bleiben damit ausserhalb dessen, was die Gruppe oeffnen kann.
+await rcAddMember(areaId, group.roleId, 'write', false);
+ok('9.x   Die Gruppe wird aufgenommen und schneidet eine Epoche', true);
+
+await rcPost(areaId, person.roleId, 'Nach der Aufnahme der Gruppe gesagt.');
+
+const issued = await rcCreateInvitation(group.roleId, {
+  label: 'Fuer Bruno',
+  daysValid: 30,
+  maxUses: 1
+});
+
+ok('3.12  rcCreateInvitation() stellt aus', typeof issued.secret === 'string' && issued.secret.length > 0);
+ok('3.12  Das Geheimnis kommt EINMAL zurueck und steht nicht in der Liste',
+  (await rcInvitations()).invitations.every((i) => !JSON.stringify(i).includes(issued.secret)),
+  'Das Geheimnis stand in der Liste.');
+
+{
+  const one = (await rcInvitations()).invitations.find((i) => i.invitationId === issued.invitationId);
+  ok('3.12  Die Einladung steht in der Liste', one !== undefined);
+  ok('3.12  Mit ihrem Vermerk', one?.label === 'Fuer Bruno', JSON.stringify(one));
+  ok('3.12  Noch ungenutzt', one?.useCount === 0 && rcInviteSpent(one) === false, JSON.stringify(one));
+  ok('10.3  Und noch ungeoeffnet', rcInviteOpened(one) === false);
+}
+
+const link = rcInviteLink(issued.secret, 'https://example.org/');
+const backOut = rcSecretFromHash(link);
+ok('3.12  Der Link traegt das Geheimnis im Fragment', link.includes('#/new/invite/'));
+ok('3.12  Und es kommt unveraendert wieder heraus', backOut === issued.secret,
+  String(backOut).slice(0, 40) + ' vs ' + issued.secret.slice(0, 40));
+
+// -- Bruno: ein eigenes Konto, ohne Einladung ---------------------------------
+
+globalThis.__rcAs('b');
+
+const brunoName = 'walk_b_' + stamp;
+await rcRegister(brunoName, pass);
+await rcUnlock(brunoName, pass, 'rc-walk-b');
+
+ok('3.x   Bruno meldet sich ganz normal an — ohne Link',
+  (await rcMe()).keysHeld === true);
+
+ok('3.4   Und sieht den fremden Bereich nicht',
+  (await rcAreas()).areas.every((a) => a.areaId !== areaId));
+
+{
+  const peek = await rcPeekInvitation(backOut);
+  ok('3.12  Ansehen geht, ohne einzuloesen', typeof peek.purpose === 'string', JSON.stringify(peek));
+  ok('3.12  Und nennt, wohinein der Link fuehrt', peek.label === 'Fuer Bruno', JSON.stringify(peek));
+}
+
+globalThis.__rcAs('a');
+{
+  const one = (await rcInvitations()).invitations.find((i) => i.invitationId === issued.invitationId);
+  ok('10.3  Das erste Oeffnen wird festgehalten', rcInviteOpened(one) === true,
+    JSON.stringify(one?.firstOpenedUtc));
+}
+
+// -- Einloesen ----------------------------------------------------------------
+
+globalThis.__rcAs('b');
+{
+  const redeemed = await rcRedeemInvitation(backOut);
+  ok('3.12  rcRedeemInvitation() loest ein',
+    typeof redeemed.roleId === 'string' && redeemed.alreadyRedeemed === false,
+    JSON.stringify(redeemed));
+}
+
+ok('3.12  Und jetzt sieht Bruno den Bereich',
+  (await rcAreas()).areas.some((a) => a.areaId === areaId));
+
+ok('3.12  Er haelt jetzt die Gruppenrolle',
+  (await rcRoles()).roles.some((r) => r.roleId === group.roleId),
+  JSON.stringify((await rcRoles()).roles.map((r) => r.kind)));
+
+// DER Punkt des Epochenmodells: was vor der Aufnahme der Gruppe gesagt wurde,
+// bleibt zu. Nicht weil es versteckt wird, sondern weil der Schluessel fehlt.
+{
+  const seen = (await rcAreas()).areas.find((a) => a.areaId === areaId);
+  ok('9.x   Er sieht nicht die ganze Geschichte',
+    seen.readableEpochs < seen.currentEpoch,
+    JSON.stringify({ lesbar: seen.readableEpochs, gesamt: seen.currentEpoch }));
+
+  const brunoFeed = await rcFeed(areaId, 50);
+  const kinds = brunoFeed.messages.map((m) => rcMessageState(m).kind);
+
+  ok('15.9  Das Aeltere steht da, unlesbar, mit Grund',
+    kinds.includes('sealed'), JSON.stringify(kinds));
+  ok('15.9  Und das Neuere ist lesbar', kinds.includes('text'), JSON.stringify(kinds));
+
+  // Der Strich gehoert genau dorthin, wo der Sprung passiert.
+  ok('9.x   Die Epochengrenze wird sichtbar', rcEpochBreaks(brunoFeed.messages).size > 0);
+}
+
+// -- Ein Einmal-Link ist danach verbraucht ------------------------------------
+//
+// Ein schon Eingeloester gilt als drin, solange Einloesungen uebrig sind. Ist die
+// Hoechstzahl erreicht, weist der Dienst ab — auch denselben Menschen. Das ist
+// richtig so: die Zahl begrenzt Einloesungen, nicht Personen.
+
+try {
+  await rcRedeemInvitation(backOut);
+  ok('3.12  Ein verbrauchter Einmal-Link wird abgewiesen', false, 'Der Aufruf ging durch.');
+} catch (e) {
+  ok('3.12  Ein verbrauchter Einmal-Link wird abgewiesen', e instanceof RcRequestError,
+    String(e));
+}
+
+globalThis.__rcAs('a');
+{
+  const one = (await rcInvitations()).invitations.find((i) => i.invitationId === issued.invitationId);
+  ok('3.12  Und gilt als verbraucht',
+    one?.useCount === 1 && rcInviteSpent(one) === true, JSON.stringify(one));
+}
+
+// -- Zurueckziehen ------------------------------------------------------------
+
+const doomed = await rcCreateInvitation(group.roleId, { label: 'Wird zurueckgezogen', maxUses: 1 });
+await rcRevokeInvitation(doomed.invitationId);
+
+ok('3.12  Eine zurueckgezogene Einladung faellt aus der Liste',
+  (await rcInvitations()).invitations.every((i) => i.invitationId !== doomed.invitationId));
+
+globalThis.__rcAs('b');
+try {
+  await rcRedeemInvitation(doomed.secret);
+  ok('3.12  Und laesst sich nicht mehr einloesen', false, 'Der Aufruf ging durch.');
+} catch (e) {
+  ok('3.12  Und laesst sich nicht mehr einloesen', e instanceof RcRequestError, String(e));
+}
+
+// -- Entfernen sperrt fuer die Zukunft, nicht rueckwirkend --------------------
+
+globalThis.__rcAs('a');
+await rcRemoveMember(areaId, group.roleId);
+await rcPost(areaId, person.roleId, 'Nach dem Weggang der Gruppe gesagt.');
+ok('9.x   Entfernen geht', true);
+
+globalThis.__rcAs('b');
+{
+  const stillThere = (await rcAreas()).areas.find((a) => a.areaId === areaId);
+
+  // Er sieht den Bereich weiter — er hat ja die alten Schluessel noch. Was er
+  // NICHT mehr bekommt, ist das Neue. Rueckwirkend auszusperren ginge nur,
+  // indem man alles neu verschluesselt, und dann waere die alte Fassung
+  // trotzdem in der Welt.
+  if (stillThere !== undefined) {
+    const after = await rcFeed(areaId, 50);
+    ok('9.x   Das nach dem Weggang Gesagte bleibt ihm zu',
+      after.messages.every((m) => m.body !== 'Nach dem Weggang der Gruppe gesagt.'),
+      JSON.stringify(after.messages.map((m) => rcMessageState(m).kind)));
+  } else {
+    ok('9.x   Wer gegangen ist, erreicht den Bereich nicht mehr', true);
+  }
+}
+
+globalThis.__rcAs('a');
 
 // -- Ohne Schluessel geht nichts ---------------------------------------------
 

@@ -997,6 +997,166 @@
 }
 .rc-new-decision .rc-field { width: 100%; }
 
+/* --- Personen ---------------------------------------------------------------- */
+
+.rc-member-list { list-style: none; margin: 0; padding: 0; }
+
+.rc-member {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--rc-line);
+  font-size: 0.85rem;
+}
+.rc-member-id { font-family: var(--rc-mono); font-size: 0.78rem; color: var(--rc-ink-2); }
+.rc-member-cap { color: var(--rc-accent); }
+.rc-member-keys {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--rc-muted);
+  font-variant-numeric: tabular-nums;
+}
+.rc-member .rc-msg-action { opacity: 1; margin-left: 0.5rem; }
+
+/* Was Entfernen NICHT tut, steht als Satz da — nicht nur als Titel an einem
+   Knopf, den niemand mit der Maus berührt. */
+.rc-remove-why { border-left: 2px solid var(--rc-line-2); padding-left: 0.65rem; font-style: italic; }
+
+/* --- Einladungen -------------------------------------------------------------- */
+
+.rc-invite-list { list-style: none; margin: 0; padding: 0; }
+
+.rc-invite {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--rc-line);
+}
+.rc-invite[data-spent="true"] .rc-invite-label { color: var(--rc-muted); text-decoration: line-through; }
+
+.rc-invite-main { display: flex; flex-direction: column; gap: 0.12rem; flex: 1; min-width: 0; }
+.rc-invite-label { font-size: 0.9rem; }
+.rc-invite-meta { font-size: 0.72rem; color: var(--rc-muted); font-variant-numeric: tabular-nums; }
+
+/* 10.3 — Ein Link, der geöffnet wurde, bevor er ankam, ist unterwegs gelesen
+   worden. Deshalb warnfarben und nicht grau: das ist keine Randnotiz. */
+.rc-invite-opened {
+  font-size: 0.72rem;
+  color: var(--rc-warn);
+  font-variant-numeric: tabular-nums;
+}
+
+.rc-new-invite {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-items: flex-start;
+  border-top: 1px solid var(--rc-line);
+  padding-top: 0.9rem;
+  width: 100%;
+}
+.rc-new-invite .rc-field { width: 100%; max-width: 26rem; }
+.rc-new-invite h5 { margin: 0; }
+.rc-hint { font-size: 0.75rem; font-style: italic; margin-top: -0.25rem; }
+
+.rc-inline-field input[type="number"] {
+  font: inherit;
+  font-size: 0.85rem;
+  width: 5.5rem;
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  border: 1px solid var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  padding: 0.2rem 0.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Der Link, einmal ---------------------------------------------------------- */
+/* Es ist das einzige Mal, dass er zu sehen ist. Also bekommt er den Platz und
+   den Rahmen, die dem entsprechen — und den Grund gleich daneben. */
+
+.rc-fresh-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+  border: 2px solid var(--rc-accent);
+  background: color-mix(in srgb, var(--rc-accent) 6%, transparent);
+  padding: 1rem 1.15rem;
+}
+.rc-fresh-link strong { font-size: 1rem; color: var(--rc-accent); }
+
+.rc-secret {
+  font-family: var(--rc-mono);
+  font-size: 0.8rem;
+  color: var(--rc-ink);
+  background: var(--rc-surface);
+  border: 1px solid var(--rc-line-2);
+  padding: 0.55rem 0.7rem;
+  width: 100%;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.rc-fresh-actions { display: flex; gap: 0.5rem; }
+
+/* --- Wer über einen Link kommt --------------------------------------------------- */
+
+.rc-invite-banner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-items: flex-start;
+  border: 1px solid var(--rc-accent);
+  border-left-width: 3px;
+  background: var(--rc-surface);
+  padding: 1rem 3rem 1rem 1.15rem;
+  margin-bottom: 2rem;
+}
+.rc-invite-banner strong { font-size: 1.02rem; }
+.rc-invite-banner p { margin: 0; font-size: 0.88rem; }
+
+.rc-invite-banner[data-state="invalid"] { border-color: var(--rc-alarm); }
+.rc-invite-banner[data-state="invalid"] strong { color: var(--rc-alarm); }
+.rc-invite-banner[data-state="done"],
+.rc-invite-banner[data-state="already"] { border-color: var(--rc-ok); }
+.rc-invite-banner[data-state="done"] strong,
+.rc-invite-banner[data-state="already"] strong { color: var(--rc-ok); }
+
+.rc-banner-close { position: absolute; top: 0.8rem; right: 1rem; opacity: 1; }
+
+/* Die gefaehrlichste Verwechslung der Plattform bekommt den Ton, der ihr
+   zusteht — und den Ausweg gleich darunter, sonst ist die Warnung nur ein
+   Vorwurf ohne Vorschlag. */
+.rc-personal-warning {
+  border-left: 3px solid var(--rc-warn);
+  background: color-mix(in srgb, var(--rc-warn) 8%, transparent);
+  padding: 0.7rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 42rem;
+}
+.rc-personal-warning p { margin: 0; font-size: 0.85rem; line-height: 1.5; }
+
+.rc-make-group { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.rc-make-group input {
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  border: 1px solid var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  padding: 0.4rem 0.55rem;
+  flex: 1;
+  min-width: 10rem;
+}
+.rc-make-group input:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: 1px; }
+
 @media (max-width: 34rem) {
   .rc-status li { grid-template-columns: 1fr; gap: 0.15rem 0; }
   .rc-test-item { grid-template-columns: 1.3rem 1fr; }

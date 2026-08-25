@@ -182,6 +182,58 @@ export interface RcCopy {
     readonly finalState: string;
     readonly states: Readonly<Record<string, string>>;
   };
+  readonly invite: {
+    readonly tabMembers: string;
+
+    readonly members: string;
+    readonly noMembers: string;
+    readonly capability: string;
+    readonly caps: Readonly<Record<string, string>>;
+    readonly remove: string;
+    readonly removeWhy: string;
+    readonly epochGrants: RcPlural;
+
+    readonly invitations: string;
+    readonly noInvitations: string;
+    readonly create: string;
+    readonly label: string;
+    readonly labelHint: string;
+    readonly daysValid: string;
+    readonly maxUses: string;
+    readonly unlimited: string;
+    readonly forSms: string;
+    readonly forSmsWhy: string;
+    readonly personalWarning: string;
+    readonly newGroup: string;
+    readonly groupName: string;
+    readonly issue: string;
+    readonly issuing: string;
+
+    readonly linkReady: string;
+    readonly linkOnce: string;
+    readonly copy: string;
+    readonly copied: string;
+    readonly done: string;
+    readonly expires: string;
+    readonly used: string;
+    readonly spent: string;
+    readonly opened: string;
+    readonly openedWhy: string;
+    readonly revoke: string;
+
+    readonly grantHistory: string;
+    readonly grantHistoryWhy: string;
+
+    readonly youWereInvited: string;
+    readonly leadsTo: string;
+    readonly needAccount: string;
+    readonly accept: string;
+    readonly accepting: string;
+    readonly accepted: string;
+    readonly alreadyIn: string;
+    readonly invalid: string;
+    readonly dismiss: string;
+  };
   readonly status: {
     readonly heading: string;
     readonly done: string;
@@ -383,6 +435,64 @@ const en: RcCopy = {
       rejected: 'rejected',
       reopened: 'reopened'
     }
+  },
+  invite: {
+    tabMembers: 'People',
+
+    members: 'Who is here',
+    noMembers: 'Nobody else is in this area yet.',
+    capability: 'may',
+    caps: { read: 'read', write: 'write', admin: 'administer', certify: 'invite others' },
+    remove: 'Remove',
+    removeWhy:
+      'From then on they cannot read what is written. What was said before they left stays readable to them — locking that away would mean re-encrypting everything, and the old copy would still be out in the world.',
+    epochGrants: { one: 'holds {n} key', other: 'holds {n} keys' },
+
+    invitations: 'Invitations',
+    noInvitations: 'No invitations outstanding.',
+    create: 'Invite someone',
+    label: 'What is this for',
+    labelHint: 'Only you see this. It tells the invitations apart later.',
+    daysValid: 'Valid for (days)',
+    maxUses: 'Times it can be used',
+    unlimited: 'no limit',
+    forSms: 'Going out by text message',
+    forSmsWhy:
+      'Text messages arrive late, get forwarded, and sit in inboxes. A link sent that way is given at least a week, and its first opening is recorded.',
+    personalWarning:
+      'This is your personal role. Sharing it hands over everything attached to it — every area, every key, the whole history. Make a group for this instead and invite people to that.',
+    newGroup: 'Make a group',
+    groupName: 'What is the group called?',
+    issue: 'Create the link',
+    issuing: 'Creating…',
+
+    linkReady: 'Here is the link.',
+    linkOnce:
+      'This is the only time it can be shown. The key travels inside the link, not in the database — so nobody, including whoever runs this service, can produce it again. Lose it and you issue a new one.',
+    copy: 'Copy',
+    copied: 'Copied',
+    done: 'I have it',
+    expires: 'until {when}',
+    used: 'used {n}×',
+    spent: 'no longer usable',
+    opened: 'opened {when}',
+    openedWhy:
+      'If this was opened before it reached the person you sent it to, somebody read it on the way.',
+    revoke: 'Revoke',
+
+    grantHistory: 'Also give access to everything said before',
+    grantHistoryWhy:
+      'Off by default, and deliberately so: whoever joins today was not here yesterday. Handing over the past cannot be undone — keys given out are given out.',
+
+    youWereInvited: 'You have been invited.',
+    leadsTo: 'This link leads to: {label}',
+    needAccount: 'Sign in first, then this link can be joined to your account.',
+    accept: 'Join it to my account',
+    accepting: 'Joining…',
+    accepted: 'Done — you are in.',
+    alreadyIn: 'You were already in. Nothing to do.',
+    invalid: 'This link is no longer valid. Ask for a new one.',
+    dismiss: 'Close'
   },
   status: {
     heading: 'What stands so far',
@@ -626,6 +736,69 @@ const pl: RcCopy = {
       reopened: 'otwarta ponownie'
     }
   },
+  invite: {
+    tabMembers: 'Osoby',
+
+    members: 'Kto tu jest',
+    noMembers: 'Nikogo innego jeszcze tu nie ma.',
+    capability: 'może',
+    caps: { read: 'czytać', write: 'pisać', admin: 'zarządzać', certify: 'zapraszać innych' },
+    remove: 'Usuń',
+    removeWhy:
+      'Od tej chwili nie odczyta tego, co zostanie napisane. To, co powiedziano wcześniej, pozostanie dla tej osoby czytelne — zamknięcie tego wymagałoby zaszyfrowania wszystkiego od nowa, a stara kopia i tak byłaby już w świecie.',
+    epochGrants: {
+      one: 'ma {n} klucz',
+      few: 'ma {n} klucze',
+      many: 'ma {n} kluczy',
+      other: 'ma {n} kluczy'
+    },
+
+    invitations: 'Zaproszenia',
+    noInvitations: 'Brak wystawionych zaproszeń.',
+    create: 'Zaproś kogoś',
+    label: 'Do czego to',
+    labelHint: 'Widzisz to tylko Ty. Pozwala później odróżnić zaproszenia.',
+    daysValid: 'Ważne przez (dni)',
+    maxUses: 'Ile razy można użyć',
+    unlimited: 'bez ograniczeń',
+    forSms: 'Wysyłane SMS-em',
+    forSmsWhy:
+      'SMS-y przychodzą z opóźnieniem, są przekazywane dalej i leżą w skrzynkach. Link wysłany tą drogą dostaje co najmniej tydzień, a jego pierwsze otwarcie zostaje odnotowane.',
+    personalWarning:
+      'To Twoja rola osobista. Udostępniając ją, przekazujesz wszystko, co do niej należy — każdy obszar, każdy klucz, całą historię. Zamiast tego załóż grupę i zapraszaj do niej.',
+    newGroup: 'Załóż grupę',
+    groupName: 'Jak nazywa się grupa?',
+    issue: 'Utwórz link',
+    issuing: 'Tworzenie…',
+
+    linkReady: 'Oto link.',
+    linkOnce:
+      'To jedyny raz, kiedy można go pokazać. Klucz podróżuje w linku, a nie w bazie — więc nikt, łącznie z tym, kto prowadzi tę usługę, nie odtworzy go ponownie. Zgubisz — wystawiasz nowy.',
+    copy: 'Kopiuj',
+    copied: 'Skopiowano',
+    done: 'Mam go',
+    expires: 'do {when}',
+    used: 'użyto {n}×',
+    spent: 'już nieużywalne',
+    opened: 'otwarto {when}',
+    openedWhy:
+      'Jeśli otwarto go, zanim dotarł do adresata, ktoś przeczytał go po drodze.',
+    revoke: 'Unieważnij',
+
+    grantHistory: 'Daj też dostęp do tego, co powiedziano wcześniej',
+    grantHistoryWhy:
+      'Domyślnie wyłączone, i to celowo: kto dołącza dziś, wczoraj go tu nie było. Przekazania przeszłości nie da się cofnąć — wydane klucze są wydane.',
+
+    youWereInvited: 'Zostałeś zaproszony.',
+    leadsTo: 'Ten link prowadzi do: {label}',
+    needAccount: 'Najpierw się zaloguj, wtedy link da się połączyć z Twoim kontem.',
+    accept: 'Połącz z moim kontem',
+    accepting: 'Łączenie…',
+    accepted: 'Gotowe — jesteś w środku.',
+    alreadyIn: 'Już tam byłeś. Nic do zrobienia.',
+    invalid: 'Ten link jest już nieważny. Poproś o nowy.',
+    dismiss: 'Zamknij'
+  },
   status: {
     heading: 'Co już stoi',
     done: 'zbudowane i sprawdzone',
@@ -827,6 +1000,64 @@ const de: RcCopy = {
       rejected: 'abgelehnt',
       reopened: 'wieder geöffnet'
     }
+  },
+  invite: {
+    tabMembers: 'Personen',
+
+    members: 'Wer hier ist',
+    noMembers: 'Ausser dir ist noch niemand in diesem Bereich.',
+    capability: 'darf',
+    caps: { read: 'lesen', write: 'schreiben', admin: 'verwalten', certify: 'andere einladen' },
+    remove: 'Entfernen',
+    removeWhy:
+      'Von da an liest er nicht mehr, was geschrieben wird. Was vorher gesagt wurde, bleibt für ihn lesbar — das wegzuschliessen hiesse, alles neu zu verschlüsseln, und die alte Fassung wäre trotzdem in der Welt.',
+    epochGrants: { one: 'hält {n} Schlüssel', other: 'hält {n} Schlüssel' },
+
+    invitations: 'Einladungen',
+    noInvitations: 'Keine offenen Einladungen.',
+    create: 'Jemanden einladen',
+    label: 'Wofür',
+    labelHint: 'Sieht nur du. Damit lassen sich die Einladungen später auseinanderhalten.',
+    daysValid: 'Gültig für (Tage)',
+    maxUses: 'Wie oft einlösbar',
+    unlimited: 'unbegrenzt',
+    forSms: 'Geht per SMS raus',
+    forSmsWhy:
+      'SMS kommen verspätet an, werden weitergeleitet und bleiben in Postfächern liegen. Ein so verschickter Link bekommt mindestens eine Woche, und sein erstes Öffnen wird festgehalten.',
+    personalWarning:
+      'Das ist deine persönliche Rolle. Wer sie bekommt, bekommt alles, was an ihr hängt — jeden Bereich, jeden Schlüssel, die ganze Geschichte. Leg dafür lieber eine Gruppe an und lade zu dieser ein.',
+    newGroup: 'Gruppe anlegen',
+    groupName: 'Wie heisst die Gruppe?',
+    issue: 'Link erzeugen',
+    issuing: 'Wird erzeugt…',
+
+    linkReady: 'Hier ist der Link.',
+    linkOnce:
+      'Das ist das einzige Mal, dass er gezeigt werden kann. Der Schlüssel reist IM Link und nicht in der Datenbank — niemand kann ihn wiederherstellen, auch nicht, wer diesen Dienst betreibt. Weg ist weg; dann stellt man einen neuen aus.',
+    copy: 'Kopieren',
+    copied: 'Kopiert',
+    done: 'Habe ihn',
+    expires: 'bis {when}',
+    used: '{n}× eingelöst',
+    spent: 'nicht mehr einlösbar',
+    opened: 'geöffnet {when}',
+    openedWhy:
+      'Wurde er geöffnet, bevor er beim Empfänger ankam, hat ihn unterwegs jemand gelesen.',
+    revoke: 'Zurückziehen',
+
+    grantHistory: 'Auch Zugang zu allem geben, was vorher gesagt wurde',
+    grantHistoryWhy:
+      'Aus, und zwar mit Absicht: wer heute dazukommt, war gestern nicht dabei. Die Vergangenheit mitzugeben lässt sich nicht zurücknehmen — ausgehändigte Schlüssel sind ausgehändigt.',
+
+    youWereInvited: 'Du wurdest eingeladen.',
+    leadsTo: 'Dieser Link führt zu: {label}',
+    needAccount: 'Melde dich zuerst an, dann lässt sich der Link mit deinem Konto verbinden.',
+    accept: 'Mit meinem Konto verbinden',
+    accepting: 'Wird verbunden…',
+    accepted: 'Fertig — du bist drin.',
+    alreadyIn: 'Du warst schon drin. Nichts zu tun.',
+    invalid: 'Dieser Link gilt nicht mehr. Bitte um einen neuen.',
+    dismiss: 'Schliessen'
   },
   status: {
     heading: 'Was bisher steht',

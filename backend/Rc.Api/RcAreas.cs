@@ -192,9 +192,17 @@ public static class RcAreas
     /// Weg, sie zu erfahren. Ein Beweis, den man nicht aufrufen kann, ueberzeugt
     /// niemanden — und genau dafuer ist er da.
     /// </summary>
+    /// <summary>
+    /// <paramref name="CanCertify"/> heisst: darf andere hineinbitten.
+    ///
+    /// Aus demselben Grund wie <paramref name="CanWrite"/>: eine Oberflaeche,
+    /// die "Jemanden einladen" jedem zeigt, verspricht etwas, das der Dienst
+    /// den meisten Lesern verweigert. Ein Knopf, der zuverlaessig mit einer
+    /// Absage endet, sieht aus wie eine Befugnis.
+    /// </summary>
     public sealed record AreaView(
         string AreaId, string? Title, int CurrentEpoch, string Lifecycle, bool IsPublic,
-        int ReadableEpochs, bool CanWrite, string LedgerId);
+        int ReadableEpochs, bool CanWrite, string LedgerId, bool CanCertify);
 
     private static async Task ListAsync(HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions)
     {
@@ -251,8 +259,11 @@ public static class RcAreas
             var mayWrite = await permissions.CheckAsync(
                 session.AccountId, RcScopeKind.Area, row.Id, RcCapability.Write, ctx.RequestAborted);
 
+            var mayCertify = await permissions.CheckAsync(
+                session.AccountId, RcScopeKind.Area, row.Id, RcCapability.Certify, ctx.RequestAborted);
+
             views.Add(new AreaView(RcId.ToText(row.Id), title, row.Epoch, row.Lifecycle, row.IsPublic,
-                keys.Count, mayWrite.Allowed, RcId.ToText(row.Ledger)));
+                keys.Count, mayWrite.Allowed, RcId.ToText(row.Ledger), mayCertify.Allowed));
         }
 
         await RcResults.WriteJsonAsync(ctx, new RcAreasResponse(views));
