@@ -15,7 +15,28 @@
  * Ursprung als diese Seite.
  */
 
+import type { components } from './rcApiTypes';
+
 const RC_BASE = (import.meta.env.VITE_RC_API_BASE as string | undefined) ?? '/rc';
+
+/**
+ * 15.6 — Die Formen kommen aus `rcApiTypes.ts`, und die Datei ist erzeugt.
+ *
+ * Vorher stand jede Antwortform zweimal da: einmal als Datensatz in C#, einmal
+ * hier als Schnittstelle, die ich von Hand nachgebaut hatte. Benannte jemand im
+ * Server ein Feld um, übersetzte dieser Teil weiter und lieferte an der Stelle
+ * `undefined` — der Fehler fiel dann nicht beim Bauen auf, sondern bei einem
+ * Menschen.
+ *
+ * `RcApi<'RcSessionStartedResponse'>` verweist dagegen auf den Server; eine
+ * Umbenennung dort wird hier zum Übersetzungsfehler.
+ *
+ * <b>Was das NICHT leistet.</b> Es sichert die Gestalt zu, nicht die Bedeutung.
+ * Dass ein Feld Geheimtext enthält, dass zum Lesen ein Epochenschlüssel gehört,
+ * dass `secret` sich nicht freigeben lässt — davon weiß der Erzeuger nichts.
+ * Das steht weiter von Hand hier.
+ */
+export type RcApi<K extends keyof components['schemas']> = components['schemas'][K];
 
 /** 15.7 — Der Klient entscheidet anhand von `code`, nie anhand von `message`. */
 export interface RcApiError {

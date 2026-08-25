@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <RootNamespace>Rc.Api.Tests</RootNamespace>
+    <RootNamespace>Rc.OpenApi</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

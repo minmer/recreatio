@@ -11,7 +11,11 @@ public sealed class KdfService : IKdfService
 {
     public byte[] DeriveKey(byte[] input, byte[] salt, int iterations, int lengthBytes)
     {
-        using var deriveBytes = new Rfc2898DeriveBytes(input, salt, iterations, HashAlgorithmName.SHA256);
-        return deriveBytes.GetBytes(lengthBytes);
+        return Rfc2898DeriveBytes.Pbkdf2(
+            input,
+            salt,
+            iterations,
+            HashAlgorithmName.SHA256,
+            lengthBytes);
     }
 }

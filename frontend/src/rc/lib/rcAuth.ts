@@ -18,44 +18,34 @@
  */
 
 import { argon2id } from 'hash-wasm';
-import { rcFetch, rcSetUnlockPiece, rcUnlockPiece } from './rcApi';
+import { rcFetch, rcSetUnlockPiece, rcUnlockPiece, type RcApi } from './rcApi';
 import { rcFromBase64Url, rcToBase64Url } from './rcBase64';
 
-/** 21.1 — Die Parameter kommen vom Server mit, damit sie sich einmal ändern lassen. */
-export interface RcArgon2Params {
-  readonly memoryKiB: number;
-  readonly iterations: number;
-  readonly parallelism: number;
-  readonly outputBytes: number;
-}
+/**
+ * 15.6 — Diese Formen sind nicht mehr abgeschrieben, sondern verwiesen. Wer im
+ * Server `IdleMinutes` umbenennt, bekommt hier einen Übersetzungsfehler statt
+ * eines `undefined` im Browser eines Menschen.
+ */
+export type RcArgon2Params = RcApi<'RcArgon2Parameters'>;
+export type RcSaltResponse = RcApi<'RcSaltResponse'>;
+export type RcSessionStarted = RcApi<'RcSessionStartedResponse'>;
+export type RcRegistered = RcApi<'RcRegisteredResponse'>;
 
+/** 3.9 — `keysHeld` sagt, ob der Server den Bund hält; ob dieser Tab sein
+ *  Öffnungsstück hat, weiß nur der Tab (`rcHasUnlockPiece`). */
+export type RcMe = RcApi<'RcMeResponse'>;
+
+/**
+ * 21.1 — Die Parameter kommen normalerweise vom Server mit. Dieser Rückfall
+ * gilt nur, solange noch keine Antwort da ist; er steht hier und nicht im
+ * Server, weil der Browser sonst gar nicht erst rechnen könnte.
+ */
 export const RC_ARGON2_DEFAULT: RcArgon2Params = {
   memoryKiB: 64 * 1024,
   iterations: 3,
   parallelism: 1,
   outputBytes: 32
 };
-
-export interface RcSaltResponse {
-  readonly passwordSalt: string;
-  readonly argon2: RcArgon2Params;
-}
-
-export interface RcSessionStarted {
-  readonly accountId: string;
-  readonly sessionId: string;
-  readonly expiresUtc: string;
-  /** 3.9 — 0 = bequem (Öffnungsstück je Sitzung), 1 = sicher (je Handlung). */
-  readonly cacheMode: number;
-  readonly idleMinutes: number;
-}
-
-export interface RcMe {
-  readonly signedIn: boolean;
-  readonly accountId?: string;
-  readonly sessionId?: string;
-  readonly keysHeld?: boolean;
-}
 
 /**
  * Der teure Lauf. Läuft in WebAssembly; bei 64 MiB ist er auf einem Telefon
@@ -94,7 +84,7 @@ export async function rcDerivePasswordKey(
 export const rcSalt = (username: string) =>
   rcFetch<RcSaltResponse>('/auth/salt', { body: { username } });
 
-export async function rcRegister(username: string, password: string): Promise<RcSessionStarted> {
+export async function rcRegister(username: string, password: string): Promise<RcRegistered> {
   // Beim Anlegen bestimmt der Browser das Salz. Es ist nicht geheim — es soll
   // nur für jedes Konto ein anderes sein, damit eine vorberechnete Tabelle
   // nicht gegen alle gleichzeitig hilft.
@@ -102,7 +92,7 @@ export async function rcRegister(username: string, password: string): Promise<Rc
   const passwordKey = await rcDerivePasswordKey(password, passwordSalt);
   const encoded = rcToBase64Url(passwordKey);
 
-  const session = await rcFetch<RcSessionStarted>('/auth/register', {
+  const session = await rcFetch<RcRegistered>('/auth/register', {
     body: { username, passwordKey: encoded, passwordSalt: rcToBase64Url(passwordSalt) }
   });
 

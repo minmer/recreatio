@@ -47,13 +47,20 @@ public static class RcAuth
         // Wert kommt aus /rc/csrf und braucht kein Konto; "noch nicht
         // angemeldet" ist deshalb kein Grund. Die Anmeldung ist im Gegenteil
         // gerade der Vorgang, den eine fremde Seite gern ausloesen wuerde.
-        app.MapPost("/rc/auth/salt", SaltAsync);
-        app.MapPost("/rc/auth/register", RegisterAsync);
-        app.MapPost("/rc/auth/unlock", UnlockAsync);
-        app.MapPost("/rc/auth/lock", LockAsync);
-        app.MapPost("/rc/auth/logout", LogoutAsync);
-        app.MapGet("/rc/auth/me", MeAsync);
-        app.MapPost("/rc/auth/cache-mode", SetCacheModeAsync);
+        // 15.6 — Produces<T>() ist die einzige Stelle, an der die Antwortform
+        // sichtbar wird: die Endpunkte schreiben ueber RcResults direkt in den
+        // Antwortstrom und geben Task zurueck, also kann sie niemand ableiten.
+        //
+        // Das ist keine Doppelung, sondern eine Erklaerung — und weil sie
+        // danebensteht, faellt beim Lesen auf, wenn Endpunkt und Zusage
+        // auseinanderlaufen.
+        app.MapPost("/rc/auth/salt", SaltAsync).Produces<RcSaltResponse>();
+        app.MapPost("/rc/auth/register", RegisterAsync).Produces<RcRegisteredResponse>();
+        app.MapPost("/rc/auth/unlock", UnlockAsync).Produces<RcSessionStartedResponse>();
+        app.MapPost("/rc/auth/lock", LockAsync).Produces<RcLockedResponse>();
+        app.MapPost("/rc/auth/logout", LogoutAsync).Produces<RcLoggedOutResponse>();
+        app.MapGet("/rc/auth/me", MeAsync).Produces<RcMeResponse>();
+        app.MapPost("/rc/auth/cache-mode", SetCacheModeAsync).Produces<RcCacheModeResponse>();
     }
 
     // -- 3.9 — Bequem oder sicher ---------------------------------------------
@@ -90,7 +97,7 @@ public static class RcAuth
         }
 
         var forgotten = await keys.SetCacheModeAsync(session.AccountId, body.Mode, ctx.RequestAborted);
-        await RcResults.WriteJsonAsync(ctx, new { cacheMode = body.Mode, forgottenBundles = forgotten });
+        await RcResults.WriteJsonAsync(ctx, new RcCacheModeResponse(body.Mode, forgotten));
     }
 
     // -- Salz -----------------------------------------------------------------
@@ -117,17 +124,8 @@ public static class RcAuth
         var account = await LoadAccountAsync(db, username, ctx.RequestAborted);
         var salt = account?.PasswordSalt ?? secret.DecoySalt(username);
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            passwordSalt = RcBase64Url.Encode(salt),
-            argon2 = new
-            {
-                memoryKiB = RcPassword.MemoryKiB,
-                iterations = RcPassword.Iterations,
-                parallelism = RcPassword.Parallelism,
-                outputBytes = RcPassword.OutputBytes
-            }
-        });
+        await RcResults.WriteJsonAsync(ctx, new RcSaltResponse(
+            RcBase64Url.Encode(salt), RcArgon2Parameters.Current));
     }
 
     // -- Anlegen --------------------------------------------------------------
@@ -260,16 +258,9 @@ public static class RcAuth
         var session = await StartSessionAsync(ctx, connection, accountId, masterKey, passwordKey, vault, 0);
         CryptographicOperations.ZeroMemory(masterKey);
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            session.AccountId,
-            session.SessionId,
-            session.ExpiresUtc,
-            session.CacheMode,
-            session.IdleMinutes,
-            tenantId = RcId.ToText(foundation.TenantId),
-            personalRoleId = RcId.ToText(foundation.PersonalRoleId)
-        });
+        await RcResults.WriteJsonAsync(ctx, new RcRegisteredResponse(
+            session.AccountId, session.SessionId, session.ExpiresUtc, session.CacheMode, session.IdleMinutes,
+            RcId.ToText(foundation.TenantId), RcId.ToText(foundation.PersonalRoleId)));
     }
 
     // -- Entsperren -----------------------------------------------------------
@@ -377,7 +368,7 @@ public static class RcAuth
         }
 
         var forgotten = vault.Forget(RcId.ToText(session.SessionId));
-        await RcResults.WriteJsonAsync(ctx, new { locked = true, hadKeys = forgotten });
+        await RcResults.WriteJsonAsync(ctx, new RcLockedResponse(true, forgotten));
     }
 
     private static async Task LogoutAsync(HttpContext ctx, RcDb db, RcKeyVault vault)
@@ -396,7 +387,7 @@ public static class RcAuth
         }
 
         await ctx.SignOutAsync(Scheme);
-        await RcResults.WriteJsonAsync(ctx, new { loggedOut = true });
+        await RcResults.WriteJsonAsync(ctx, new RcLoggedOutResponse(true));
     }
 
     private static async Task MeAsync(HttpContext ctx, RcKeyVault vault)
@@ -404,25 +395,19 @@ public static class RcAuth
         var session = ctx.RcSession();
         if (session is null)
         {
-            await RcResults.WriteJsonAsync(ctx, new { signedIn = false });
+            await RcResults.WriteJsonAsync(ctx, new RcMeResponse(false));
             return;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            signedIn = true,
-            accountId = RcId.ToText(session.AccountId),
-            sessionId = RcId.ToText(session.SessionId),
-            keysHeld = vault.Holds(RcId.ToText(session.SessionId))
-        });
+        await RcResults.WriteJsonAsync(ctx, new RcMeResponse(
+            true, RcId.ToText(session.AccountId), RcId.ToText(session.SessionId),
+            vault.Holds(RcId.ToText(session.SessionId))));
     }
 
     // -- Gemeinsames ----------------------------------------------------------
 
-    public sealed record SessionStarted(
-        string AccountId, string SessionId, DateTimeOffset ExpiresUtc, int CacheMode, int IdleMinutes);
 
-    private static async Task<SessionStarted> StartSessionAsync(
+    private static async Task<RcSessionStartedResponse> StartSessionAsync(
         HttpContext ctx, SqlConnection connection, Guid accountId,
         byte[] masterKey, byte[] passwordKey, RcKeyVault vault, int cacheMode, string? deviceNote = null)
     {
@@ -467,7 +452,7 @@ public static class RcAuth
             ExpiresUtc = expires
         });
 
-        return new SessionStarted(RcId.ToText(accountId), RcId.ToText(sessionId), expires, cacheMode,
+        return new RcSessionStartedResponse(RcId.ToText(accountId), RcId.ToText(sessionId), expires, cacheMode,
             (int)vault.IdleTimeout.TotalMinutes);
     }
 

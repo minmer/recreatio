@@ -397,6 +397,62 @@ Folgeergebnis.
 
 ---
 
+### BEFUND 47 — Anonyme Antworten lassen sich nicht beschreiben
+
+**Betrifft:** 15.6.
+
+Die Endpunkte antworteten mit `new { … }`. Das ist bequem zu schreiben und für
+einen Klienten **unsichtbar**: aus einem anonymen Objekt lässt sich keine
+Beschreibung erzeugen, weil es keinen Namen hat, unter dem es in einem Schema
+stehen könnte.
+
+Solange der Browser-Teil die Formen von Hand nachbaute, fiel das nicht auf — es
+fiel erst auf, wenn eine Umbenennung im Server die Nachbildung still falsch
+machte. Genau das schließt der erzeugte Klient.
+
+**Stand:** die Anmeldung ist umgestellt (7 Endpunkte, benannte Datensätze in
+`RcAuthContracts.cs` plus `Produces<T>()`). **Die übrigen 63 Endpunkte antworten
+weiter anonym** — sie stehen im Dokument mit Pfad und Anfragekörper, aber ohne
+Antwortform. Das ist die verbleibende Arbeit und sie ist mechanisch.
+
+**Nachgewiesen, dass es trägt:** `IdleMinutes` → `IdleTimeoutMinutes` im C#,
+neu erzeugt, und der Browser-Teil bricht mit
+`Property 'idleMinutes' does not exist`. Vorher wäre daraus ein `undefined` im
+Browser eines Menschen geworden.
+
+**Zwei Dinge, die dabei nötig waren und nicht offensichtlich sind:**
+
+`SupportNonNullableReferenceTypes()` plus ein Schema-Filter, der nicht-nullbare
+Eigenschaften als Pflicht auszeichnet. Ohne beides beschreibt das Dokument jedes
+Feld als möglicherweise fehlend — obwohl `System.Text.Json` jede Eigenschaft
+eines positionsbasierten Datensatzes schreibt. Der erzeugte Klient zwänge dann
+überall zu Prüfungen auf Zustände, die nie eintreten, und **wer sich angewöhnt,
+solche Prüfungen mit `!` wegzuräumen, räumt irgendwann auch die weg, die es
+wirklich braucht.**
+
+*Umgesetzt in `backend/Rc.Api/RcOpenApi.cs`, `backend/Rc.OpenApi/`,
+`frontend/src/rc/lib/rcApiTypes.ts` (erzeugt).*
+
+---
+
+### Nicht von mir: die Umstellung auf net10.0
+
+Zwischen zwei Bauläufen sind **alle** Projekte von `net8.0` auf `net10.0`
+gewechselt, samt Swashbuckle 6.6.2 → 10.2.3 im Altbestand. Das steht als
+uncommittete Änderung an `backend/Recreatio.Api/Recreatio.Api.csproj` im
+Arbeitsverzeichnis und stammt nicht aus dieser Sitzung.
+
+Ich bin mitgegangen statt dagegen zu arbeiten: die neuen Projekte stehen jetzt
+ebenfalls auf `net10.0`, und `Rc.Api` benutzt dieselbe Swashbuckle-Fassung wie
+der Altbestand — zwei Fassungen derselben Bibliothek in einem Prozess wären ein
+vermeidbares Problem.
+
+**Alles baut und alle 263 Prüffälle laufen darauf grün.** Falls die Umstellung
+nicht beabsichtigt war, ist jetzt der Zeitpunkt, sie zurückzunehmen — später
+wird es teurer.
+
+---
+
 ## Erledigt — keine offenen Entscheidungen mehr
 
 ### BEFUND 30 — Minderjährige ~~in Fassung 1~~ ✔ hinfällig

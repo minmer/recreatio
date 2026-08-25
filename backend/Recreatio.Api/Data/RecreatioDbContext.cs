@@ -421,6 +421,10 @@ public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefi
             .HasIndex(x => new { x.ParishId, x.CandidateId, x.Status, x.UpdatedUtc });
 
         modelBuilder.Entity<Data.Pilgrimage.PilgrimageEvent>()
+            .Property(x => x.DistanceKm)
+            .HasPrecision(7, 2);
+
+        modelBuilder.Entity<Data.Pilgrimage.PilgrimageEvent>()
             .HasIndex(x => x.Slug)
             .IsUnique();
 

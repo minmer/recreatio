@@ -38,7 +38,9 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<RecreatioDbContext>(options =>
             options.UseSqlServer(
                 configuration.GetConnectionString("DefaultConnection"),
-                sqlOptions => sqlOptions.UseCompatibilityLevel(120)));
+                sqlOptions => sqlOptions
+                    .UseCompatibilityLevel(120)
+                    .UseParameterizedCollectionMode(ParameterTranslationMode.Constant)));
 
         var dataProtectionBuilder = services.AddDataProtection()
             .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(environment.ContentRootPath, "dataprotection-keys")));
@@ -89,9 +91,13 @@ public static class ServiceCollectionExtensions
                     return null;
                 }
 
-                return string.IsNullOrEmpty(certPassword)
-                    ? new X509Certificate2(path)
-                    : new X509Certificate2(path, certPassword);
+                var extension = Path.GetExtension(path);
+                var isPkcs12 = extension.Equals(".pfx", StringComparison.OrdinalIgnoreCase) ||
+                               extension.Equals(".p12", StringComparison.OrdinalIgnoreCase);
+
+                return isPkcs12 || !string.IsNullOrEmpty(certPassword)
+                    ? X509CertificateLoader.LoadPkcs12FromFile(path, certPassword)
+                    : X509CertificateLoader.LoadCertificateFromFile(path);
             }
             catch
             {

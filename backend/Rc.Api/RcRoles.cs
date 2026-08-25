@@ -89,7 +89,7 @@ public static class RcRoles
                 name, keys.ContainsKey(r.RoleId));
         }).ToList();
 
-        await RcResults.WriteJsonAsync(ctx, new { roles = views });
+        await RcResults.WriteJsonAsync(ctx, new RcRolesResponse(views));
     }
 
     // -- Anlegen --------------------------------------------------------------
@@ -197,13 +197,9 @@ public static class RcRoles
 
         CryptographicOperations.ZeroMemory(newRoleKey);
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            roleId = RcId.ToText(newRoleId),
-            tenantId = RcId.ToText(tenantId),
-            kind,
-            fingerprint = RcCrypto.ToHex(created.Fingerprint)
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcRoleCreatedResponse(
+            RcId.ToText(newRoleId), RcId.ToText(tenantId), kind, RcCrypto.ToHex(created.Fingerprint)),
+            StatusCodes.Status201Created);
     }
 
     // -- Eine bestehende Rolle weitergeben -------------------------------------
@@ -330,16 +326,12 @@ public static class RcRoles
             catch (SqlException e) when (e.Number is 2601 or 2627)
             {
                 await tx.RollbackAsync(ctx.RequestAborted);
-                await RcResults.WriteJsonAsync(ctx, new { edgeId = (string?)null, alreadyHeld = true });
+                await RcResults.WriteJsonAsync(ctx, new RcHolderAddedResponse(null, AlreadyHeld: true));
                 return;
             }
 
-            await RcResults.WriteJsonAsync(ctx, new
-            {
-                edgeId = RcId.ToText(edge.Id),
-                edgeKind,
-                expiresUtc = edge.ExpiresUtc
-            }, StatusCodes.Status201Created);
+            await RcResults.WriteJsonAsync(ctx, new RcHolderAddedResponse(
+                RcId.ToText(edge.Id), edgeKind, edge.ExpiresUtc), StatusCodes.Status201Created);
         }
     }
 
@@ -422,12 +414,9 @@ public static class RcRoles
             return;
         }
 
-        await RcResults.WriteJsonAsync(ctx, new
-        {
-            certificateId = RcId.ToText(certificate.Id),
-            expiresUtc = certificate.ExpiresUtc,
-            capability = RcCapabilities.ToText(capability)
-        }, StatusCodes.Status201Created);
+        await RcResults.WriteJsonAsync(ctx, new RcCertificateIssuedResponse(
+            RcId.ToText(certificate.Id), certificate.ExpiresUtc, RcCapabilities.ToText(capability)),
+            StatusCodes.Status201Created);
     }
 
     public sealed record CertificateView(
@@ -443,7 +432,7 @@ public static class RcRoles
         var reachable = await RcPermissions.ReachableRolesAsync(connection, session.AccountId, ctx.RequestAborted);
         if (reachable.Count == 0)
         {
-            await RcResults.WriteJsonAsync(ctx, new { certificates = Array.Empty<CertificateView>() });
+            await RcResults.WriteJsonAsync(ctx, new RcCertificatesResponse([]));
             return;
         }
 
@@ -468,7 +457,7 @@ public static class RcRoles
                 RcId.ToText(reader.GetGuid(5)), reader.GetDateTimeOffset(6)));
         }
 
-        await RcResults.WriteJsonAsync(ctx, new { certificates = list });
+        await RcResults.WriteJsonAsync(ctx, new RcCertificatesResponse(list));
     }
 
     /// <summary>
@@ -516,7 +505,7 @@ public static class RcRoles
         cmd.Parameters.AddWithValue("@id", id);
 
         var rows = await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
-        await RcResults.WriteJsonAsync(ctx, new { revoked = rows == 1 });
+        await RcResults.WriteJsonAsync(ctx, new RcRevokedResponse(rows == 1));
     }
 
     private static async Task CheckAsync(
