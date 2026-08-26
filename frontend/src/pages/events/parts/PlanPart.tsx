@@ -32,8 +32,12 @@ export const planPart = definePart<PlanConfig>({
       groups: mapEntries<Group>(record.groups, (group) => {
         const rows = mapEntries<Row>(group.rows, (row) => {
           const title = asText(row.title).trim();
-          if (title.length === 0) return null;
-          return { time: asOptionalText(row.time), title, detail: asOptionalText(row.detail) };
+          const time = asOptionalText(row.time);
+          const detail = asOptionalText(row.detail);
+          // A line added to a stage is blank until it is typed. Dropping it here
+          // left "add" doing nothing; the renderer skips the untitled ones.
+          if (title.length === 0 && time === null && detail === null) return null;
+          return { time, title, detail };
         });
         const label = asText(group.label).trim();
         if (label.length === 0 && rows.length === 0) return null;
@@ -55,7 +59,7 @@ export const planPart = definePart<PlanConfig>({
               {group.caption ? <p>{group.caption}</p> : null}
             </header>
             <ol className="ev-plan-rows">
-              {group.rows.map((row, rowIndex) => (
+              {group.rows.filter((row) => row.title.length > 0).map((row, rowIndex) => (
                 <li key={rowIndex}>
                   <span className="ev-plan-time">{row.time ?? '—'}</span>
                   <span className="ev-plan-body">

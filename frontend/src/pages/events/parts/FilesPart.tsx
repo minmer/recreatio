@@ -68,7 +68,8 @@ export const filesPart = definePart<FilesConfig>({
       )}
       {config.note ? <p className="ev-note">{config.note}</p> : null}
     </div>
-  ),
+    );
+  },
 
   Editor: ({ config, onChange }) => (
     <>

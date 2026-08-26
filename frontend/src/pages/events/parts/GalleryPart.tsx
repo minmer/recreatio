@@ -43,31 +43,37 @@ export const galleryPart = definePart<GalleryConfig>({
   parse: (raw) => ({
     shots: mapEntries<Shot>(asRecord(raw).shots, (item) => {
       const url = asText(item.url).trim();
-      if (url.length === 0) return null;
       const caption = asOptionalText(item.caption);
-      return { url, caption, alt: asText(item.alt, caption ?? '').trim() };
+      const alt = asText(item.alt, caption ?? '').trim();
+      // A shot added in the builder starts with no address at all. Dropping it
+      // here left the "add" button doing nothing; the renderer skips the ones
+      // that still have no picture.
+      if (url.length === 0 && caption === null && alt.length === 0) return null;
+      return { url, caption, alt };
     })
   }),
 
   Renderer: ({ config }) => {
     const [open, setOpen] = useState<number | null>(null);
+    // Nothing to show for an entry whose picture has not been named yet.
+    const shots = config.shots.filter((shot) => shot.url.length > 0);
 
-    if (config.shots.length === 0) {
+    if (shots.length === 0) {
       return <p className="ev-note">Nie dodano jeszcze zdjęć.</p>;
     }
 
     return (
       <div className="ev-gallery">
         <div className="ev-gallery-grid">
-          {config.shots.map((shot, index) => (
+          {shots.map((shot, index) => (
             <button type="button" key={index} onClick={() => setOpen(index)}>
               <img src={shot.url} alt={shot.alt} loading="lazy" />
               {shot.caption ? <span>{shot.caption}</span> : null}
             </button>
           ))}
         </div>
-        {open !== null && config.shots[open] ? (
-          <Lightbox shot={config.shots[open]} onClose={() => setOpen(null)} />
+        {open !== null && shots[open] ? (
+          <Lightbox shot={shots[open]} onClose={() => setOpen(null)} />
         ) : null}
       </div>
     );

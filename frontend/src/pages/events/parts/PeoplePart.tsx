@@ -51,8 +51,7 @@ export const peoplePart = definePart<PeopleConfig>({
     return {
       people: mapEntries<Person>(record.people, (item) => {
         const name = asText(item.name).trim();
-        if (name.length === 0) return null;
-        return {
+        const person = {
           name,
           role: asOptionalText(item.role),
           detail: asOptionalText(item.detail),
@@ -60,18 +59,29 @@ export const peoplePart = definePart<PeopleConfig>({
           contact: asOptionalText(item.contact),
           contactHref: asOptionalText(item.contactHref)
         };
+        // A person added in the builder has no name for as long as it takes to
+        // type one. Dropping the entry here left the "add" button dead; the
+        // renderer is what keeps a nameless card off the page.
+        const empty = name.length === 0
+          && person.role === null && person.detail === null
+          && person.photoUrl === null && person.contact === null;
+        return empty ? null : person;
       }),
       note: asOptionalText(record.note)
     };
   },
 
-  Renderer: ({ config }) => (
+  Renderer: ({ config }) => {
+    // A card with no name is a card nobody can be introduced by.
+    const people = config.people.filter((person) => person.name.length > 0);
+
+    return (
     <div className="ev-people">
-      {config.people.length === 0 ? (
+      {people.length === 0 ? (
         <p className="ev-note">Nie dodano jeszcze żadnych osób.</p>
       ) : (
         <div className="ev-people-grid">
-          {config.people.map((person, index) => (
+          {people.map((person, index) => (
             <article key={index}>
               <div className="ev-person-avatar" aria-hidden="true">
                 {person.photoUrl ? <img src={person.photoUrl} alt="" loading="lazy" /> : <span>{initials(person.name)}</span>}
@@ -92,7 +102,8 @@ export const peoplePart = definePart<PeopleConfig>({
       )}
       {config.note ? <p className="ev-note">{config.note}</p> : null}
     </div>
-  ),
+    );
+  },
 
   Editor: ({ config, onChange }) => (
     <>
