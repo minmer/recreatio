@@ -63,6 +63,40 @@ const BOUNDARY_HOLD_MS = 90;
 const PULL_MEMORY_MS = 1200;
 
 /**
+ * How far a finger travels before its direction counts.
+ *
+ * Only applied where a gesture could mean two things — inside something that
+ * scrolls sideways, a wide table above all. Everywhere else the slide answers
+ * from the first pixel, as it always did.
+ */
+const AXIS_THRESHOLD_PX = 8;
+
+type TouchAxis = 'undecided' | 'vertical' | 'horizontal';
+
+/**
+ * The nearest ancestor that can still be panned sideways, or null.
+ *
+ * A table wider than the phone lives in such a box. Without this, the shell
+ * swallowed every touchmove for its own vertical scroll, and the columns to the
+ * right of the screen edge could not be reached by finger at all — the wheel
+ * path had yielded to horizontal gestures since the beginning, the touch path
+ * never did.
+ */
+function horizontallyScrollable(node: EventTarget | null): Element | null {
+  let element = node instanceof Element ? node : null;
+
+  while (element !== null) {
+    if (element.scrollWidth > element.clientWidth + 1) {
+      const overflowX = window.getComputedStyle(element).overflowX;
+      if (overflowX === 'auto' || overflowX === 'scroll') return element;
+    }
+    element = element.parentElement;
+  }
+
+  return null;
+}
+
+/**
  * Inner travel below this is not worth scrolling through — a slide whose
  * content fits the screen has nothing to read on the way past, so its inner
  * range is treated as a single point.
@@ -141,6 +175,9 @@ export function useSlideScroll(slideCount: number) {
   const targetRef = useRef(0);
   const interpolationRef = useRef(TRACK_INTERPOLATION);
   const touchYRef = useRef<number | null>(null);
+  /** Where the finger went down, so a gesture's direction can be judged. */
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const touchAxisRef = useRef<TouchAxis>('vertical');
   const velocityRef = useRef(0);
   const lastTouchAtRef = useRef(0);
   const maxScrollRef = useRef(0);
