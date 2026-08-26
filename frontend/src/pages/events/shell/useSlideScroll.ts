@@ -633,6 +633,10 @@ export function useSlideScroll(slideCount: number) {
       stopSettle();
       cancelResolveTimer();
       touchYRef.current = event.touches[0].clientY;
+      touchStartRef.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+      // Only a touch that begins inside something pannable has a question to
+      // answer; anywhere else the slide takes the gesture at once.
+      touchAxisRef.current = horizontallyScrollable(event.target) === null ? 'vertical' : 'undecided';
       lastTouchAtRef.current = performance.now();
       velocityRef.current = 0;
     };
@@ -640,6 +644,36 @@ export function useSlideScroll(slideCount: number) {
     const onTouchMove = (event: TouchEvent) => {
       if (event.touches.length === 0 || touchYRef.current === null) return;
       const nextY = event.touches[0].clientY;
+
+      // The direction is decided once and then held: a table panned sideways
+      // must not start dragging the page the moment the finger wavers.
+      if (touchAxisRef.current !== 'vertical') {
+        const start = touchStartRef.current;
+        if (start === null) {
+          touchAxisRef.current = 'vertical';
+        } else if (touchAxisRef.current === 'undecided') {
+          const travelX = Math.abs(event.touches[0].clientX - start.x);
+          const travelY = Math.abs(nextY - start.y);
+
+          if (Math.max(travelX, travelY) < AXIS_THRESHOLD_PX) {
+            // Still inside the dead zone. Follow the finger without acting on
+            // it, and above all without preventDefault: once this gesture is
+            // cancelled the browser will not pan the table for the rest of it.
+            touchYRef.current = nextY;
+            lastTouchAtRef.current = performance.now();
+            return;
+          }
+
+          touchAxisRef.current = travelX > travelY ? 'horizontal' : 'vertical';
+        }
+
+        if (touchAxisRef.current === 'horizontal') {
+          // The browser pans the box the finger is in. The slide stays put.
+          touchYRef.current = nextY;
+          return;
+        }
+      }
+
       const delta = touchYRef.current - nextY;
       touchYRef.current = nextY;
 
@@ -657,6 +691,18 @@ export function useSlideScroll(slideCount: number) {
 
     const onTouchEnd = () => {
       touchYRef.current = null;
+      touchStartRef.current = null;
+
+      // A sideways pan never moved the track, so it has nothing to settle and
+      // no throw to carry: leaving it to the code below would fling the slide
+      // on the strength of a gesture that belonged to the table.
+      if (touchAxisRef.current === 'horizontal') {
+        touchAxisRef.current = 'vertical';
+        velocityRef.current = 0;
+        return;
+      }
+      touchAxisRef.current = 'vertical';
+
       // A drag that ended in a pause has no throw left.
       const stale = performance.now() - lastTouchAtRef.current > 90;
       const velocity = stale ? 0 : velocityRef.current;
