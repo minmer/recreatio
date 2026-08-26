@@ -26,7 +26,6 @@ import {
   matchesFilters,
   matchesQuery,
   parseQuery,
-  phoneForRow,
   readOp,
   renderTemplate,
   smsHref,
@@ -110,8 +109,6 @@ type RosterConfig = {
   source: 'registered' | 'everyone';
   columns: RosterColumnConfig[];
   presets: RosterPreset[];
-  /** Which column holds the number to ring. Empty — the first that reads as one. */
-  phoneKey: string;
   smsTemplates: SmsTemplate[];
   /** Columns filled in on the list itself. */
   extras: RosterExtra[];
@@ -152,7 +149,6 @@ export const rosterPart = definePart<RosterConfig>({
       { key: 'person.submitted', label: '', state: 'hidden' }
     ],
     presets: [],
-    phoneKey: '',
     smsTemplates: [],
     extras: [],
     whoMayFill: 'admin',
@@ -178,7 +174,6 @@ export const rosterPart = definePart<RosterConfig>({
         columns: []
       }
     ],
-    phoneKey: 'person.contact',
     extras: [{ code: 'obecnosc', label: 'Obecność', kind: 'check', options: [] }],
     whoMayFill: 'admin',
     smsTemplates: [
@@ -216,7 +211,6 @@ export const rosterPart = definePart<RosterConfig>({
           columns: asStringList(entry.columns)
         };
       }),
-      phoneKey: asText(record.phoneKey).trim(),
       extras: mapEntries(record.extras, (entry) => {
         const code = asText(entry.code).trim();
         if (code.length === 0 || code.length > 40) return null;
@@ -288,6 +282,8 @@ function RosterTable({
   const [shown, setShown] = useState<string[]>([]);
   /** "rowKey:code" while one mark is on its way to the server. */
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  /** The message being written under the list, or null while none is. */
+  const [smsText, setSmsText] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -545,10 +541,11 @@ function RosterTable({
                 row={row}
                 head={head}
                 columns={columns}
-                phone={phoneForRow(row, columns, config.phoneKey)}
-                templates={config.smsTemplates}
-                eventTitle={eventTitle}
-                nameKey={nameKey}
+                smsBody={
+                  smsText === null
+                    ? null
+                    : renderTemplate(smsText, row, columns, { eventTitle, nameKey })
+                }
                 writable={writable}
                 busyKey={busyKey}
                 onWrite={(code, next) => void writeMark(row.key, code, next)}
@@ -562,6 +559,33 @@ function RosterTable({
       )}
 
       {ordered.length === 0 ? <p className="ev-note">Nikt nie pasuje do tego wyszukiwania.</p> : null}
+
+      {/* The message lives under the list, not in a row: it is written once and
+          then sent to as many people as need it. */}
+      <div className="ev-roster-sms-bar">
+        <button
+          type="button"
+          className={`ev-roster-preset ${smsText === null ? '' : 'is-on'}`}
+          aria-expanded={smsText !== null}
+          onClick={() => setSmsText(smsText === null ? config.smsTemplates[0]?.text ?? '' : null)}
+        >
+          {smsText === null ? 'Napisz SMS' : 'Zakończ pisanie'}
+        </button>
+
+        {smsText === null ? null : (
+          <SmsPanel
+            text={smsText}
+            templates={config.smsTemplates}
+            columns={columns}
+            preview={
+              ordered[0] === undefined
+                ? null
+                : renderTemplate(smsText, ordered[0], columns, { eventTitle, nameKey })
+            }
+            onText={setSmsText}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -654,20 +678,52 @@ function MarkCell({
 }
 
 /**
+ * What one number can do while a message is being written under the table:
+ * carry it, and remember that it did.
+ */
+type CellSms = {
+  /** The message, already filled in for the person whose row this is. */
+  body: string;
+  isSent: (phone: string) => boolean;
+  markSent: (phone: string) => void;
+};
+
+/**
  * A cell. A number that a phone could dial becomes a call, an address becomes a
  * mail — on the day, the list is read on a phone, and a number one has to
- * memorize and retype is a number one gets wrong.
+ * memorize and retype is a number one gets wrong. Tapping the number IS the
+ * call; there is no second button for it.
+ *
+ * While a message is being written, every number carries an SMS beside it —
+ * which is the whole gesture: pick the message once, then walk down the list
+ * tapping whoever needs it, with the ones already tapped marked off.
  */
-function Cell({ value }: { value: string | null | undefined }) {
+function Cell({ value, sms }: { value: string | null | undefined; sms?: CellSms | null }) {
   const text = formatCell(value);
   if (text.length === 0) return null;
 
   const phone = dialablePhone(value);
   if (phone !== null) {
+    const done = sms !== null && sms !== undefined && sms.isSent(phone);
     return (
-      <a className="ev-roster-tel" href={`tel:${phone}`}>
-        {text}
-      </a>
+      <span className="ev-roster-phone">
+        <a className="ev-roster-tel" href={`tel:${phone}`}>
+          {text}
+        </a>
+        {sms === null || sms === undefined ? null : (
+          <a
+            className={`ev-roster-sms-go ${done ? 'is-sent' : ''}`}
+            href={smsHref(phone, sms.body)}
+            aria-label={done ? `SMS na ${phone} — już otwarty w tej sesji` : `SMS na ${phone}`}
+            onClick={() => sms.markSent(phone)}
+          >
+            {/* The tick, not only the colour: walking down a list of forty, the
+                one thing that must not depend on how a screen renders blue is
+                which names are already done. */}
+            SMS{done ? ' ✓' : ''}
+          </a>
+        )}
+      </span>
     );
   }
 
@@ -686,10 +742,7 @@ function RosterRow({
   row,
   head,
   columns,
-  phone,
-  templates,
-  eventTitle,
-  nameKey,
+  smsBody,
   writable,
   busyKey,
   onWrite,
@@ -699,10 +752,8 @@ function RosterRow({
   row: EventRosterRow;
   head: EventRosterColumn[];
   columns: EventRosterColumn[];
-  phone: string | null;
-  templates: SmsTemplate[];
-  eventTitle: string;
-  nameKey: string;
+  /** The message being written under the table, filled in for this person — null when none is. */
+  smsBody: string | null;
   /** The organizer's own columns, by column key — empty when this reader may only read. */
   writable: Map<string, RosterExtra>;
   busyKey: string | null;
@@ -710,7 +761,6 @@ function RosterRow({
   isOpen: boolean;
   onToggle: () => void;
 }) {
-  const [writing, setWriting] = useState(false);
 
   // A folded-away column with nothing in it is not worth a line — unless it is
   // one of the organizer's own, where the empty cell is the thing to fill in.
@@ -722,13 +772,13 @@ function RosterRow({
 
   return (
     <>
-      <tr className={isOpen || writing ? 'is-open' : undefined}>
+      <tr className={isOpen ? 'is-open' : undefined}>
         {head.map((column) => {
           const extra = writable.get(column.key);
           return (
             <td key={column.key} className={extra === undefined ? undefined : 'ev-roster-mark-cell'}>
               {extra === undefined ? (
-                <Cell value={row.values[column.key]} />
+                <Cell value={row.values[column.key]} smsBody={smsBody} />
               ) : (
                 <MarkCell
                   extra={extra}
@@ -741,21 +791,6 @@ function RosterRow({
           );
         })}
         <td className="ev-roster-more-cell">
-          {phone !== null ? (
-            <>
-              <a className="ev-roster-act" href={`tel:${phone}`} aria-label={`Zadzwoń: ${phone}`}>
-                Zadzwoń
-              </a>
-              <button
-                type="button"
-                className="ev-roster-act"
-                aria-expanded={writing}
-                onClick={() => setWriting((current) => !current)}
-              >
-                SMS
-              </button>
-            </>
-          ) : null}
           {rest.length > 0 ? (
             <button type="button" className="ev-roster-more" aria-expanded={isOpen} onClick={onToggle}>
               {isOpen ? 'Mniej' : 'Więcej'}
@@ -775,7 +810,7 @@ function RosterRow({
                     <dt>{column.label}</dt>
                     <dd>
                       {extra === undefined ? (
-                        <Cell value={row.values[column.key]} />
+                        <Cell value={row.values[column.key]} smsBody={smsBody} />
                       ) : (
                         <MarkCell
                           extra={extra}
@@ -792,84 +827,41 @@ function RosterRow({
           </td>
         </tr>
       ) : null}
-
-      {writing && phone !== null ? (
-        <tr className="ev-roster-detail">
-          <td colSpan={head.length + 1}>
-            <SmsComposer
-              row={row}
-              columns={columns}
-              phone={phone}
-              templates={templates}
-              eventTitle={eventTitle}
-              nameKey={nameKey}
-              onClose={() => setWriting(false)}
-            />
-          </td>
-        </tr>
-      ) : null}
     </>
   );
 }
 
 /**
- * The message, for this one person, before it leaves for the phone's own SMS
- * app.
+ * The message, written once for everybody, under the list.
  *
- * A prepared message is filled in from the row — the group, the meeting point,
- * the first name — and then stays editable, because the one thing a template
- * never covers is the reason you are writing today. The fields on offer append
- * the value rather than the placeholder: at this point the person is known, so
- * `{Grupa}` would be a step backwards.
+ * The order of the gesture is the whole design: pick the wording first, then
+ * walk down the list tapping SMS beside whoever needs it. A form per person
+ * meant opening and closing the same message twenty times to send twenty
+ * near-identical texts.
+ *
+ * So the text here keeps its placeholders — {imie}, {Grupa} — and every row
+ * fills them in for itself the moment it is tapped. The fields on offer insert
+ * the placeholder rather than a value: at this point no particular person is
+ * meant yet.
  */
-function SmsComposer({
-  row,
-  columns,
-  phone,
+function SmsPanel({
+  text,
   templates,
-  eventTitle,
-  nameKey,
-  onClose
+  columns,
+  preview,
+  onText
 }: {
-  row: EventRosterRow;
-  columns: EventRosterColumn[];
-  phone: string;
+  text: string;
   templates: SmsTemplate[];
-  eventTitle: string;
-  nameKey: string;
-  onClose: () => void;
+  columns: EventRosterColumn[];
+  /** The first person on the list, so the wording can be read as it will arrive. */
+  preview: string | null;
+  onText: (next: string) => void;
 }) {
-  const fill = useCallback(
-    (template: SmsTemplate) => renderTemplate(template.text, row, columns, { eventTitle, nameKey }),
-    [row, columns, eventTitle, nameKey]
-  );
-
-  const [text, setText] = useState(() => (templates[0] ? fill(templates[0]) : ''));
-  const [copied, setCopied] = useState(false);
-
-  const filled = columns.filter((column) => (row.values[column.key] ?? '').trim().length > 0);
-
-  const append = (piece: string) => setText((current) => (current.length === 0 ? piece : `${current} ${piece}`));
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
+  const insert = (token: string) => onText(`${text}${token}`);
 
   return (
     <div className="ev-roster-sms">
-      <div className="ev-roster-sms-head">
-        <strong>SMS na {phone}</strong>
-        <button type="button" className="ev-roster-more" onClick={onClose}>
-          Zamknij
-        </button>
-      </div>
-
       {templates.length > 0 ? (
         <div className="ev-roster-chips">
           {templates.map((template, index) => (
@@ -877,7 +869,7 @@ function SmsComposer({
               key={`${template.label}-${index}`}
               type="button"
               className="ev-roster-chip"
-              onClick={() => setText(fill(template))}
+              onClick={() => onText(template.text)}
             >
               {template.label}
             </button>
@@ -887,37 +879,40 @@ function SmsComposer({
 
       <textarea
         className="ev-roster-sms-text"
-        rows={4}
+        rows={3}
         value={text}
         aria-label="Treść wiadomości"
-        onChange={(event) => setText(event.target.value)}
+        placeholder="Napisz wiadomość albo wybierz gotową…"
+        onChange={(event) => onText(event.target.value)}
       />
 
       <div className="ev-roster-chips">
-        {filled.map((column) => (
+        {['{imie}', '{osoba}', '{wydarzenie}'].map((token) => (
+          <button key={token} type="button" className="ev-roster-chip is-field" onClick={() => insert(token)}>
+            + {token}
+          </button>
+        ))}
+        {columns.map((column) => (
           <button
             key={column.key}
             type="button"
             className="ev-roster-chip is-field"
-            title={`Dopisz: ${formatCell(row.values[column.key])}`}
-            onClick={() => append(formatCell(row.values[column.key]))}
+            onClick={() => insert(`{${column.label}}`)}
           >
             + {column.label}
           </button>
         ))}
       </div>
 
-      <div className="ev-roster-sms-actions">
-        {/* The phone's own SMS app takes it from here: the number and the text
-            arrive filled in, and the sending stays where the SIM card is. */}
-        <a className="ev-cta" href={smsHref(phone, text)}>
-          Otwórz SMS
-        </a>
-        <button type="button" className="ev-ghost" onClick={() => void copy()}>
-          {copied ? 'Skopiowano' : 'Kopiuj treść'}
-        </button>
-        <span className="ev-roster-count">{text.length} znaków</span>
-      </div>
+      {preview === null || preview.length === 0 ? null : (
+        <p className="ev-roster-preview">
+          <span>Dla pierwszej osoby na liście:</span> {preview}
+        </p>
+      )}
+
+      <p className="ev-roster-count">
+        Kliknij <strong>SMS</strong> przy numerze — dane osoby wstawią się same. Wysyła Twój telefon.
+      </p>
     </div>
   );
 }
@@ -1275,13 +1270,6 @@ function RosterEditor({
           )}
         />
       </Fieldset>
-
-      <SelectRow
-        label="Numer do dzwonienia i SMS-ów"
-        value={config.phoneKey}
-        options={[{ value: '', label: '— pierwsza kolumna, która wygląda na telefon —' }, ...columnOptions.slice(1)]}
-        onChange={(phoneKey) => onChange({ ...config, phoneKey })}
-      />
 
       <ListEditor<SmsTemplate>
         legend="Gotowe SMS-y"

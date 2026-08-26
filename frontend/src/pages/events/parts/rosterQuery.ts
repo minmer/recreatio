@@ -206,25 +206,6 @@ export function isEmail(value: string | null | undefined): boolean {
 }
 
 /**
- * The number to ring for one person. The organizer may name the column; without
- * that, the first column that reads as a phone wins, in the order the table is
- * built — so the contact from the sign-up comes before a guardian's number.
- */
-export function phoneForRow(
-  row: EventRosterRow,
-  columns: EventRosterColumn[],
-  preferredKey: string
-): string | null {
-  if (preferredKey.length > 0) return dialablePhone(row.values[preferredKey]);
-
-  for (const column of columns) {
-    const dialable = dialablePhone(row.values[column.key]);
-    if (dialable !== null) return dialable;
-  }
-  return null;
-}
-
-/**
  * Fills a message in for one person.
  *
  * `{...}` names a column — by its key, or by the name shown at the top of it, so
