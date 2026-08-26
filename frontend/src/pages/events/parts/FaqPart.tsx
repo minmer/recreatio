@@ -17,12 +17,17 @@ export const faqPart = definePart<FaqConfig>({
   parse: (raw) => ({
     items: mapEntries<FaqItem>(asRecord(raw).items, (item) => {
       const question = asText(item.question).trim();
-      if (question.length === 0) return null;
-      return { question, answer: asText(item.answer).trim() };
+      const answer = asText(item.answer).trim();
+      // A question just added is empty on both sides; dropping it here made the
+      // "add" button do nothing at all, since the config is re-parsed between
+      // the click and the next render. The reader is protected below instead.
+      if (question.length === 0 && answer.length === 0) return null;
+      return { question, answer };
     })
   }),
 
-  Renderer: ({ config }) => <FaqList items={config.items} />,
+  // A question still being written has nothing to ask the reader.
+  Renderer: ({ config }) => <FaqList items={config.items.filter((item) => item.question.length > 0)} />,
 
   Editor: ({ config, onChange }) => (
     <ListEditor<FaqItem>

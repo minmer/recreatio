@@ -29,20 +29,28 @@ export const filesPart = definePart<FilesConfig>({
       files: mapEntries<FileEntry>(record.files, (item) => {
         const label = asText(item.label).trim();
         const url = asText(item.url).trim();
-        if (label.length === 0 || url.length === 0) return null;
+        // Half-written is normal in the builder: an entry is added blank and
+        // filled in afterwards. Only one that is empty through and through is
+        // dropped — the renderer below is what keeps a fileless link off the
+        // page.
+        if (label.length === 0 && url.length === 0) return null;
         return { label, url, note: asOptionalText(item.note), size: asOptionalText(item.size) };
       }),
       note: asOptionalText(record.note)
     };
   },
 
-  Renderer: ({ config }) => (
+  Renderer: ({ config }) => {
+    // Without an address there is nothing to hand the reader.
+    const files = config.files.filter((file) => file.url.length > 0);
+
+    return (
     <div className="ev-files">
-      {config.files.length === 0 ? (
+      {files.length === 0 ? (
         <p className="ev-note">Nie dodano jeszcze plików.</p>
       ) : (
         <ul className="ev-file-list">
-          {config.files.map((file, index) => (
+          {files.map((file, index) => (
             <li key={index}>
               <a href={file.url} target="_blank" rel="noreferrer noopener" download>
                 <span className="ev-file-icon" aria-hidden="true">
