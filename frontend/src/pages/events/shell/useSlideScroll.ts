@@ -693,18 +693,15 @@ export function useSlideScroll(slideCount: number) {
       touchYRef.current = null;
       touchStartRef.current = null;
 
-      // A sideways pan never moved the track, so it has nothing to settle and
-      // no throw to carry: leaving it to the code below would fling the slide
-      // on the strength of a gesture that belonged to the table.
-      if (touchAxisRef.current === 'horizontal') {
-        touchAxisRef.current = 'vertical';
-        velocityRef.current = 0;
-        return;
-      }
+      // A sideways pan carries no throw for the track: it belonged to the table.
+      // It still settles, with nothing behind it — a touch that lands during a
+      // running settle stops it, and the slide must not be left half-way just
+      // because the finger then went sideways.
+      const sideways = touchAxisRef.current === 'horizontal';
       touchAxisRef.current = 'vertical';
 
       // A drag that ended in a pause has no throw left.
-      const stale = performance.now() - lastTouchAtRef.current > 90;
+      const stale = sideways || performance.now() - lastTouchAtRef.current > 90;
       const velocity = stale ? 0 : velocityRef.current;
       velocityRef.current = 0;
 
