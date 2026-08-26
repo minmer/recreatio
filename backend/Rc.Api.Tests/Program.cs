@@ -1686,6 +1686,1176 @@ await t.OkAsync("9.x   Wer durchgehend dabei war, liest alle Epochen", async () 
     return epochs.SequenceEqual([1, 2, 3]) && unreadable == 0;
 });
 
+// -- 14.x — Veranstaltungen: was ein Klient NIE versucht -----------------------
+//
+// Der Durchgang gegen den laufenden Dienst (npm run rc:walk) geht den Weg
+// nach, den die Oberflaeche nimmt. Hier steht das andere: fremde Kennungen,
+// ueberlange Eingaben, Reihenfolgen, die kein Klient anbietet. Beides wird
+// gebraucht, und keines ersetzt das andere.
+//
+// In einem EIGENEN Bereich, damit die Kettenpruefungen weiter oben ihre
+// Eintraege genau abzaehlen koennen.
+
+var eventArea = (await ReadAsync(await http.PostAsJsonAsync("/rc/areas", new
+{
+    ownerRoleId = personalRoleId,
+    title = "Vorbereitung Pfarrfest"
+}))).GetProperty("areaId").GetString()!;
+
+var eventCreated = await http.PostAsJsonAsync("/rc/events", new
+{
+    areaId = eventArea,
+    slug = "Pfarrfest 2026!",
+    title = "Pfarrfest"
+});
+
+var eventId = "";
+await t.OkAsync("14.x  Eine Veranstaltung entsteht an einem Bereich", async () =>
+{
+    if (eventCreated.StatusCode != HttpStatusCode.Created) return false;
+    var json = await ReadAsync(eventCreated);
+    eventId = json.GetProperty("eventId").GetString()!;
+
+    // Die Adresse wird gezogen, nicht uebernommen: Grossbuchstaben,
+    // Leerzeichen und Satzzeichen haben in einer Adresse nichts verloren.
+    return Text(json, "slug") == "pfarrfest-2026"
+        && Text(json, "lifecycle") == "draft";
+});
+
+// Ein Bereich traegt hoechstens eine. Zwei waeren zwei Oeffentlichkeiten
+// hinter demselben Schluessel — und beim Entfernen eines Mitglieds wuesste
+// niemand mehr, welche gemeint war.
+await t.OkAsync("14.x  Ein zweiter Anlauf am selben Bereich wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync("/rc/events", new
+    {
+        areaId = eventArea, slug = "noch-eins", title = "Noch eins"
+    })).StatusCode == HttpStatusCode.Conflict);
+
+// 3.6 — Die Berechtigung kommt aus dem Kernel. Bruno hat auf DIESEM Bereich
+// nichts, also gibt es die Veranstaltung fuer ihn nicht.
+await t.OkAsync("3.6   Wer den Bereich nicht verwaltet, legt dort nichts an", async () =>
+    (await bruno.PostAsJsonAsync("/rc/events", new
+    {
+        areaId = eventArea, slug = "fremd", title = "Fremd"
+    })).StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
+
+// Eine leere Adresse ist keine. Sie faellt sonst erst auf, wenn niemand die
+// Seite mehr aufrufen kann.
+await t.OkAsync("14.x  Eine Adresse aus lauter Satzzeichen wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync("/rc/events", new
+    {
+        areaId = eventArea, slug = "!!! ???", title = "Leer"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+var pageCreated = await http.PostAsJsonAsync($"/rc/events/{eventId}/pages", new
+{
+    slug = "programm", title = "Programm"
+});
+
+var pageId = "";
+await t.OkAsync("14.x  Eine Seite entsteht", async () =>
+{
+    if (pageCreated.StatusCode != HttpStatusCode.Created) return false;
+    pageId = (await ReadAsync(pageCreated)).GetProperty("pageId").GetString()!;
+    return true;
+});
+
+await t.OkAsync("14.x  Zwei Seiten mit derselben Adresse gehen nicht", async () =>
+    (await http.PostAsJsonAsync($"/rc/events/{eventId}/pages", new
+    {
+        slug = "programm", title = "Nochmal"
+    })).StatusCode == HttpStatusCode.Conflict);
+
+// Eine unbekannte Art faellt HIER auf und nicht erst, wenn eine Seite sich
+// nicht mehr darstellen laesst.
+await t.OkAsync("14.x  Eine unbekannte Art von Teil wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/event-pages/{pageId}/parts", new
+    {
+        kind = "karussell", isPublic = true, title = "Was auch immer"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+// 3.4 — Eine fremde Seite sieht aus, als gaebe es sie nicht. "Darfst du nicht"
+// waere ein Verzeichnis dessen, was gerade vorbereitet wird.
+await t.OkAsync("3.4   An einer fremden Seite haengt niemand etwas an", async () =>
+    (await bruno.PostAsJsonAsync($"/rc/event-pages/{pageId}/parts", new
+    {
+        kind = "text", isPublic = true, title = "Fremd"
+    })).StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
+
+await t.OkAsync("3.4   Und eine erfundene Seitenkennung ebenso", async () =>
+    (await http.PostAsJsonAsync($"/rc/event-pages/{Guid.NewGuid()}/parts", new
+    {
+        kind = "text", isPublic = true, title = "Nirgends"
+    })).StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
+
+var formCreated = await http.PostAsJsonAsync($"/rc/event-pages/{pageId}/parts", new
+{
+    kind = "form", isPublic = true, title = "Anmeldung"
+});
+
+var formPartId = (await ReadAsync(formCreated)).GetProperty("partId").GetString()!;
+
+var textCreated = await http.PostAsJsonAsync($"/rc/event-pages/{pageId}/parts", new
+{
+    kind = "text", isPublic = true, title = "Hinweis"
+});
+
+var textPartId = (await ReadAsync(textCreated)).GetProperty("partId").GetString()!;
+
+// Felder gehoeren an ein Formular. An einen Textabschnitt gehaengt waeren sie
+// unerreichbar — und niemand merkte es, bis jemand sie ausfuellen soll.
+await t.OkAsync("14.x  Felder gehoeren nur an einen Formularteil", async () =>
+    (await http.PostAsJsonAsync($"/rc/event-parts/{textPartId}/fields", new
+    {
+        kind = "text", label = "Name"
+    })).StatusCode == HttpStatusCode.Conflict);
+
+// 12.9 — Die Vorgabe ist die STRENGERE, und eine erfundene Klasse wird
+// abgewiesen statt stillschweigend zur mildesten zu werden.
+var fieldCreated = await http.PostAsJsonAsync($"/rc/event-parts/{formPartId}/fields", new
+{
+    kind = "text", label = "Wie heisst du?", isRequired = true, identityRole = "name"
+});
+
+var nameFieldId = "";
+await t.OkAsync("12.9  Ohne Angabe gilt die strengere Datenklasse", async () =>
+{
+    if (fieldCreated.StatusCode != HttpStatusCode.Created) return false;
+    var json = await ReadAsync(fieldCreated);
+    nameFieldId = json.GetProperty("fieldId").GetString()!;
+    return Text(json, "dataClass") == "special";
+});
+
+await t.OkAsync("12.9  Eine erfundene Datenklasse wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/event-parts/{formPartId}/fields", new
+    {
+        kind = "text", label = "Irgendwas", dataClass = "harmlos"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+await t.OkAsync("14.x  Eine erfundene Rolle im Formular wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/event-parts/{formPartId}/fields", new
+    {
+        kind = "text", label = "Irgendwas", identityRole = "chef"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+await t.OkAsync("14.x  Eine Auswahl ohne Moeglichkeiten wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/event-parts/{formPartId}/fields", new
+    {
+        kind = "select", label = "Wohin?"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+// -- Ein Entwurf ist fuer Fremde nicht da -------------------------------------
+
+await t.OkAsync("14.x  Ein Entwurf sieht fuer Fremde aus, als gaebe es ihn nicht", async () =>
+    (await bruno.GetAsync("/rc/events/pfarrfest-2026")).StatusCode == HttpStatusCode.NotFound);
+
+await t.OkAsync("14.x  Ein Entwurf nimmt keine Anmeldungen entgegen", async () =>
+    (await http.PostAsJsonAsync($"/rc/event-parts/{formPartId}/registrations", new
+    {
+        roleId = personalRoleId,
+        answers = new[] { new { fieldId = nameFieldId, value = "Anna" } }
+    })).StatusCode == HttpStatusCode.Conflict);
+
+await http.PostAsJsonAsync($"/rc/events/{eventId}/publish", new { });
+
+await t.OkAsync("14.x  Nach dem Veroeffentlichen erreicht sie auch ein Fremder", async () =>
+    (await bruno.GetAsync("/rc/events/pfarrfest-2026")).StatusCode == HttpStatusCode.OK);
+
+// -- Anmeldungen: die Regeln gelten im DIENST ---------------------------------
+
+await t.OkAsync("14.x  Fehlende Pflichtangaben weist der Dienst ab", async () =>
+{
+    var response = await http.PostAsJsonAsync($"/rc/event-parts/{formPartId}/registrations", new
+    {
+        roleId = personalRoleId,
+        answers = Array.Empty<object>()
+    });
+
+    // Und er nennt, WELCHE fehlt — sonst raet der Absender.
+    return response.StatusCode == HttpStatusCode.BadRequest
+        && (await ReadAsync(response)).GetProperty("message").GetString()!.Contains("Wie heisst du?");
+});
+
+// Wer selbst versiegelt, MUSS die Kennung mitschicken: unter ihr wurde
+// verschlossen. Sie stillschweigend zu wuerfeln hiesse, Huellen anzunehmen,
+// die niemand je oeffnen kann.
+await t.OkAsync("14.x  Ohne Kennung nimmt der Dienst nichts Versiegeltes an", async () =>
+    (await bruno.PostAsJsonAsync($"/rc/event-parts/{formPartId}/registrations", new
+    {
+        sealedAnswers = new[] { new { fieldId = nameFieldId, sealed_ = "AAAA" } },
+        sessionKeyWrapped = "AAAA"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+// Und ohne verpackten Schluessel ebenso. Ein Formular, das bei fehlendem
+// Schluessel auf Klartext ausweicht, waere schlimmer als eines, das absagt.
+await t.OkAsync("14.x  Ohne verpackten Schluessel nimmt er auch nichts an", async () =>
+    (await bruno.PostAsJsonAsync($"/rc/event-parts/{formPartId}/registrations", new
+    {
+        registrationId = Guid.NewGuid().ToString(),
+        sealedAnswers = new[] { new { fieldId = nameFieldId, sealed_ = "AAAA" } }
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+var signedUp = await http.PostAsJsonAsync($"/rc/event-parts/{formPartId}/registrations", new
+{
+    roleId = personalRoleId,
+    answers = new[] { new { fieldId = nameFieldId, value = "Anna Vorsitzende" } }
+});
+
+var registrationId = "";
+await t.OkAsync("14.x  Ein Mitglied meldet sich an", async () =>
+{
+    if (signedUp.StatusCode != HttpStatusCode.Created) return false;
+    var json = await ReadAsync(signedUp);
+    registrationId = json.GetProperty("registrationId").GetString()!;
+
+    // Ein Mitglied bekommt KEINEN Beleg: es hat ein Konto.
+    return Text(json, "claim") is null;
+});
+
+await t.OkAsync("14.x  Die Anmeldung geht beim Ansehen wieder auf", async () =>
+    (await ReadAsync(await http.GetAsync($"/rc/event-parts/{formPartId}/registrations")))
+        .GetProperty("registrations").EnumerateArray()
+        .First(r => r.GetProperty("registrationId").GetString() == registrationId)
+        .GetProperty("answers").EnumerateArray()
+        .Any(a => Text(a, "value") == "Anna Vorsitzende" && Text(a, "dataClass") == "special"));
+
+// 3.4 — Die Anmeldeliste geht nur die Vorbereitenden etwas an.
+await t.OkAsync("3.4   Ein Fremder sieht die Anmeldeliste nicht", async () =>
+    (await bruno.GetAsync($"/rc/event-parts/{formPartId}/registrations"))
+        .StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
+
+// -- Ruecknahme ----------------------------------------------------------------
+
+// Ein falscher Beleg wird abgewiesen — und zwar wie ein unbekannter, nicht
+// anders. Sonst verriete der Unterschied, dass es die Anmeldung gibt.
+await t.OkAsync("12.3.2 Mit falschem Beleg nimmt niemand etwas zurueck", async () =>
+    (await bruno.PostAsJsonAsync($"/rc/registrations/{registrationId}/withdraw", new
+    {
+        claim = "voellig-erfunden"
+    })).StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
+
+await t.OkAsync("12.3.2 Die Leitung darf zuruecknehmen", async () =>
+{
+    var response = await http.PostAsJsonAsync($"/rc/registrations/{registrationId}/withdraw", new { });
+    return response.StatusCode == HttpStatusCode.OK
+        && (await ReadAsync(response)).GetProperty("valuesDestroyed").GetInt32() == 1;
+});
+
+await t.OkAsync("12.3.2 Zweimal zuruecknehmen ist kein Fehler", async () =>
+    (await http.PostAsJsonAsync($"/rc/registrations/{registrationId}/withdraw", new { }))
+        .StatusCode == HttpStatusCode.OK);
+
+await t.OkAsync("12.3.2 Die Zeile bleibt, die Werte sind weg", async () =>
+{
+    var view = (await ReadAsync(await http.GetAsync($"/rc/event-parts/{formPartId}/registrations")))
+        .GetProperty("registrations").EnumerateArray()
+        .First(r => r.GetProperty("registrationId").GetString() == registrationId);
+
+    return view.GetProperty("withdrawn").GetBoolean()
+        && view.GetProperty("answers").EnumerateArray().All(a => Text(a, "value") is null);
+});
+
+// -- Die Datenbank haelt die Form, nicht nur der Code -------------------------
+
+await t.OkAsync("14.x  Ein Teil ist entweder oeffentlich ODER versiegelt", async () =>
+{
+    // ck_rc_event_part_form: ein Versuch, beide Formen zugleich zu setzen,
+    // wird von der Datenbank abgewiesen — nicht von der Sorgfalt des Codes.
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+
+    await using var cmd = new SqlCommand("""
+        INSERT INTO dbo.rc_event_part
+            (id, page_id, sort_order, kind, is_public, epoch, title, title_sealed, created_at, updated_at)
+        VALUES (@id, @page, 99, 'text', 1, 1, N'Klartext', 0x00, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET());
+        """, probe);
+
+    cmd.Parameters.AddWithValue("@id", Guid.NewGuid());
+    cmd.Parameters.AddWithValue("@page", Guid.Parse(pageId));
+
+    try { await cmd.ExecuteNonQueryAsync(); return false; }
+    catch (SqlException e) { return e.Message.Contains("ck_rc_event_part_form"); }
+});
+
+await t.OkAsync("14.x  Eine Anmeldung laesst sich nicht loeschen, nur zuruecknehmen", async () =>
+{
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+
+    await using var cmd = new SqlCommand(
+        "DELETE FROM dbo.rc_event_registration WHERE id = @id;", probe);
+    cmd.Parameters.AddWithValue("@id", Guid.Parse(registrationId));
+
+    try { await cmd.ExecuteNonQueryAsync(); return false; }
+    catch (SqlException e) { return e.Number == 50006; }
+});
+
+// -- Pfarrei: EINE Zeile, zwei Sichtbarkeiten ---------------------------------
+//
+// Bei den Veranstaltungen trennt die Sichtbarkeit ganze Abschnitte. Hier
+// trennt sie FELDER derselben Zeile — und das ist der Alltag: eine Intention
+// wird oeffentlich angekuendigt, aber wofuer und von wem sie gestiftet wurde,
+// geht die Gemeinde nichts an.
+
+var parishArea = (await ReadAsync(await http.PostAsJsonAsync("/rc/areas", new
+{
+    ownerRoleId = personalRoleId,
+    title = "Pfarrbuero"
+}))).GetProperty("areaId").GetString()!;
+
+var parishCreated = await http.PostAsJsonAsync("/rc/parishes", new
+{
+    areaId = parishArea,
+    slug = "St. Martin",
+    name = "Pfarrei St. Martin",
+    location = "Limanowa"
+});
+
+var parishId = "";
+await t.OkAsync("14.x  Eine Pfarrei entsteht an einem Bereich", async () =>
+{
+    if (parishCreated.StatusCode != HttpStatusCode.Created) return false;
+    var json = await ReadAsync(parishCreated);
+    parishId = json.GetProperty("parishId").GetString()!;
+    return Text(json, "slug") == "st-martin";
+});
+
+await t.OkAsync("14.x  Ein zweiter Anlauf am selben Bereich wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync("/rc/parishes", new
+    {
+        areaId = parishArea, slug = "noch-eine", name = "Noch eine"
+    })).StatusCode == HttpStatusCode.Conflict);
+
+await t.OkAsync("3.6   Wer den Bereich nicht verwaltet, legt dort keine Pfarrei an", async () =>
+    (await bruno.PostAsJsonAsync("/rc/parishes", new
+    {
+        areaId = parishArea, slug = "fremd", name = "Fremd"
+    })).StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
+
+var massCreated = await http.PostAsJsonAsync($"/rc/parishes/{parishId}/masses", new
+{
+    startsUtc = DateTimeOffset.UtcNow.AddDays(3),
+    church = "Pfarrkirche",
+    title = "Sonntagsmesse",
+    durationMinutes = 60
+});
+
+var massId = "";
+await t.OkAsync("14.x  Eine Messe kommt in den Plan", async () =>
+{
+    if (massCreated.StatusCode != HttpStatusCode.Created) return false;
+    massId = (await ReadAsync(massCreated)).GetProperty("massId").GetString()!;
+    return true;
+});
+
+await t.OkAsync("14.x  Eine unmoegliche Dauer wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/parishes/{parishId}/masses", new
+    {
+        startsUtc = DateTimeOffset.UtcNow, church = "Kapelle", durationMinutes = 9999
+    })).StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.InternalServerError);
+
+// -- Die Intention: drei Felder, zwei Sichtbarkeiten --------------------------
+
+var intentionCreated = await http.PostAsJsonAsync($"/rc/parishes/{parishId}/intentions", new
+{
+    massId,
+    publicText = "in einer bestimmten Absicht",
+    internalText = "fuer die Genesung von Frau Kowalska",
+    donorRef = "Familie Kowalski"
+});
+
+var intentionId = "";
+await t.OkAsync("14.x  Eine Intention entsteht", async () =>
+{
+    if (intentionCreated.StatusCode != HttpStatusCode.Created) return false;
+    intentionId = (await ReadAsync(intentionCreated)).GetProperty("intentionId").GetString()!;
+    return true;
+});
+
+await t.OkAsync("14.x  Ein leerer oeffentlicher Text wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/parishes/{parishId}/intentions", new
+    {
+        publicText = "   ", internalText = "etwas"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+// DER Punkt: der Plan ist oeffentlich, der interne Teil nicht — und beide
+// stehen in derselben Zeile.
+await t.OkAsync("14.x  Der Plan nennt den oeffentlichen Text", async () =>
+{
+    var anonymous = new HttpClient { BaseAddress = new Uri(baseAddress) };
+    var plan = await ReadAsync(await anonymous.GetAsync("/rc/parishes/st-martin/masses"));
+
+    return plan.GetProperty("masses").EnumerateArray()
+        .First(m => m.GetProperty("massId").GetString() == massId)
+        .GetProperty("intentions").EnumerateArray()
+        .Any(i => i.GetString() == "in einer bestimmten Absicht");
+});
+
+await t.OkAsync("12.9  Und er verraet WEDER den internen Text NOCH den Stifter", async () =>
+{
+    var anonymous = new HttpClient { BaseAddress = new Uri(baseAddress) };
+    var body = await (await anonymous.GetAsync("/rc/parishes/st-martin/masses")).Content.ReadAsStringAsync();
+
+    return !body.Contains("Kowalska") && !body.Contains("Kowalski");
+});
+
+await t.OkAsync("14.x  Wer den Schluessel hat, sieht beides", async () =>
+{
+    var view = (await ReadAsync(await http.GetAsync($"/rc/parishes/{parishId}/intentions")))
+        .GetProperty("intentions").EnumerateArray()
+        .First(i => i.GetProperty("intentionId").GetString() == intentionId);
+
+    return Text(view, "publicText") == "in einer bestimmten Absicht"
+        && Text(view, "internalText") == "fuer die Genesung von Frau Kowalska"
+        && Text(view, "donorRef") == "Familie Kowalski"
+        && Text(view, "unreadable") is null;
+});
+
+await t.OkAsync("3.4   Ein Fremder sieht die Intentionen nicht", async () =>
+    (await bruno.GetAsync($"/rc/parishes/{parishId}/intentions"))
+        .StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
+
+// 3.13 — Drei Felder, drei Etiketten. Waeren sie gleich, liesse sich der
+// Stiftername in das interne Feld schieben — lautlos.
+await t.OkAsync("3.13  Der Stifter laesst sich nicht ins interne Feld schieben", async () =>
+{
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+
+    // Den Geheimtext des Stifterfeldes in das interne Feld kopieren. Er ist
+    // gueltig verschluesselt — aber unter einem anderen Etikett.
+    await using var swap = new SqlCommand("""
+        UPDATE dbo.rc_intention SET internal_sealed = donor_ref_sealed WHERE id = @id;
+        """, probe);
+    swap.Parameters.AddWithValue("@id", Guid.Parse(intentionId));
+    await swap.ExecuteNonQueryAsync();
+
+    var view = (await ReadAsync(await http.GetAsync($"/rc/parishes/{parishId}/intentions")))
+        .GetProperty("intentions").EnumerateArray()
+        .First(i => i.GetProperty("intentionId").GetString() == intentionId);
+
+    // Der Tausch faellt auf: das Etikett passt nicht, und der interne Text
+    // bleibt leer statt den Stifternamen anzuzeigen.
+    return Text(view, "unreadable") == RcErrorCodes.CryptoAadMismatch
+        && Text(view, "internalText") is null;
+});
+
+// -- Gaben: Geld liegt immer versiegelt ---------------------------------------
+
+var offeringCreated = await http.PostAsJsonAsync($"/rc/intentions/{intentionId}/offerings", new
+{
+    amount = "50,00", currency = "pln", donorRef = "Familie Kowalski"
+});
+
+await t.OkAsync("12.9  Eine Gabe entsteht, die Waehrung wird gross geschrieben", async () =>
+    offeringCreated.StatusCode == HttpStatusCode.Created
+    && Text(await ReadAsync(offeringCreated), "currency") == "PLN");
+
+await t.OkAsync("14.x  Eine Waehrung mit vier Buchstaben wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/intentions/{intentionId}/offerings", new
+    {
+        amount = "10", currency = "EURO"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+await t.OkAsync("12.9  Der Betrag liegt versiegelt in der Zeile", async () =>
+{
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+
+    await using var cmd = new SqlCommand(
+        "SELECT amount_sealed FROM dbo.rc_offering WHERE intention_id = @id;", probe);
+    cmd.Parameters.AddWithValue("@id", Guid.Parse(intentionId));
+
+    var blob = (byte[])(await cmd.ExecuteScalarAsync())!;
+    var asText = System.Text.Encoding.UTF8.GetString(blob);
+
+    // Der Betrag steht nirgends im Klartext — auch nicht in Teilen.
+    return !asText.Contains("50") && blob.Length > 20;
+});
+
+await t.OkAsync("14.x  Eine Gabe laesst sich nicht aendern, nur gegenbuchen", async () =>
+{
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+
+    await using var cmd = new SqlCommand(
+        "UPDATE dbo.rc_offering SET currency = 'EUR' WHERE intention_id = @id;", probe);
+    cmd.Parameters.AddWithValue("@id", Guid.Parse(intentionId));
+
+    try { await cmd.ExecuteNonQueryAsync(); return false; }
+    catch (SqlException e) { return e.Number == 50006; }
+});
+
+// -- Cogita: der Wissensgraph --------------------------------------------------
+//
+// Der interessante Punkt steht am Ende: eine oeffentliche Bibliothek laesst
+// sich vom Server durchsuchen, eine private nicht — und der Dienst sagt das,
+// statt eine leere Trefferliste zu liefern, die wie "nichts gefunden" aussieht.
+
+var graphArea = (await ReadAsync(await http.PostAsJsonAsync("/rc/areas", new
+{
+    ownerRoleId = personalRoleId,
+    title = "Wissensarbeit"
+}))).GetProperty("areaId").GetString()!;
+
+// -- Eine OEFFENTLICHE Bibliothek: Klartext, durchsuchbar ---------------------
+
+var openLib = await http.PostAsJsonAsync("/rc/libraries", new
+{
+    areaId = graphArea, slug = "Periodensystem", title = "Periodensystem", isPublic = true
+});
+
+var openLibId = "";
+await t.OkAsync("cg1.1 Eine oeffentliche Bibliothek entsteht", async () =>
+{
+    if (openLib.StatusCode != HttpStatusCode.Created) return false;
+    var json = await ReadAsync(openLib);
+    openLibId = json.GetProperty("libraryId").GetString()!;
+    return json.GetProperty("isPublic").GetBoolean() && Text(json, "slug") == "periodensystem";
+});
+
+// §1.2 — EntityKind ist selbst ein Knoten. Das ist der ganze Trick: neue Arten
+// entstehen, ohne dass jemand eine Migration schreibt.
+var kindNode = await http.PostAsJsonAsync($"/rc/libraries/{openLibId}/nodes", new
+{
+    kind = "entity_kind", value = "Element"
+});
+
+var kindNodeId = (await ReadAsync(kindNode)).GetProperty("nodeId").GetString()!;
+
+await t.OkAsync("cg1.2 EntityKind ist selbst ein Knoten", async () =>
+    kindNode.StatusCode == HttpStatusCode.Created);
+
+var entity = await http.PostAsJsonAsync($"/rc/libraries/{openLibId}/nodes", new
+{
+    kind = "entity", value = "Wasserstoff", kindNodeId
+});
+
+var entityId = "";
+await t.OkAsync("cg1.3 Eine Entitaet verweist auf ihre Art", async () =>
+{
+    if (entity.StatusCode != HttpStatusCode.Created) return false;
+    entityId = (await ReadAsync(entity)).GetProperty("nodeId").GetString()!;
+    return true;
+});
+
+await t.OkAsync("cg1.3 Eine Entitaet OHNE Art wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/libraries/{openLibId}/nodes", new
+    {
+        kind = "entity", value = "Ohne Art"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+await t.OkAsync("cg1.3 Und eine Art an einem Textknoten ebenso", async () =>
+    (await http.PostAsJsonAsync($"/rc/libraries/{openLibId}/nodes", new
+    {
+        kind = "text", value = "Text mit Art", kindNodeId
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+await t.OkAsync("cg1.1 Eine erfundene Knotenart wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/libraries/{openLibId}/nodes", new
+    {
+        kind = "hyperwuerfel", value = "?"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+// §1.6 — Die Kante traegt einen Zustand. "unbekannt" ist eine ANGABE.
+var numberNode = await http.PostAsJsonAsync($"/rc/libraries/{openLibId}/nodes", new
+{
+    kind = "number", value = "1.008"
+});
+var numberNodeId = (await ReadAsync(numberNode)).GetProperty("nodeId").GetString()!;
+
+var edge = await http.PostAsJsonAsync($"/rc/libraries/{openLibId}/edges", new
+{
+    fromNodeId = entityId, toNodeId = numberNodeId, kind = "atomicWeight", state = "approximate"
+});
+
+await t.OkAsync("cg1.6 Eine Kante traegt ihren Zustand", async () =>
+    edge.StatusCode == HttpStatusCode.Created
+    && Text(await ReadAsync(edge), "state") == "approximate");
+
+await t.OkAsync("cg1.6 Ein erfundener Zustand wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/libraries/{openLibId}/edges", new
+    {
+        fromNodeId = entityId, toNodeId = numberNodeId, kind = "x", state = "vielleicht"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+// Eine Schlinge ist in einem Wissensgraphen fast immer ein Fehler beim
+// Verknuepfen — und wenn nicht, laesst sie sich ueber einen Zwischenknoten
+// ausdruecken.
+await t.OkAsync("cg1.10 Eine Kante auf sich selbst wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/libraries/{openLibId}/edges", new
+    {
+        fromNodeId = entityId, toNodeId = entityId, kind = "selbst"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+// -- Eine PRIVATE Bibliothek: versiegelt ---------------------------------------
+
+var closedLib = await http.PostAsJsonAsync("/rc/libraries", new
+{
+    areaId = graphArea, slug = "notizen", title = "Persoenliche Notizen", isPublic = false
+});
+
+var closedLibId = (await ReadAsync(closedLib)).GetProperty("libraryId").GetString()!;
+
+var secret = await http.PostAsJsonAsync($"/rc/libraries/{closedLibId}/nodes", new
+{
+    kind = "text", value = "Sehr vertraulicher Gedanke"
+});
+
+await t.OkAsync("cg1.1 Eine private Bibliothek nimmt Knoten an", async () =>
+    secret.StatusCode == HttpStatusCode.Created);
+
+await t.OkAsync("cg1.1 Ihr Wert liegt versiegelt in der Zeile", async () =>
+{
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+
+    await using var cmd = new SqlCommand("""
+        SELECT value, value_sealed FROM dbo.rc_node
+        WHERE library_id = @lib AND kind = 'text';
+        """, probe);
+    cmd.Parameters.AddWithValue("@lib", Guid.Parse(closedLibId));
+
+    await using var reader = await cmd.ExecuteReaderAsync();
+    if (!await reader.ReadAsync()) return false;
+
+    // Klartext leer, Geheimtext da — und der Gedanke steht nirgends lesbar.
+    var blob = reader.IsDBNull(1) ? null : (byte[])reader[1];
+    return reader.IsDBNull(0) && blob is not null
+        && !System.Text.Encoding.UTF8.GetString(blob).Contains("vertraulich");
+});
+
+await t.OkAsync("cg1.1 Und geht beim Lesen wieder auf", async () =>
+    (await ReadAsync(await http.GetAsync($"/rc/libraries/{closedLibId}/nodes")))
+        .GetProperty("nodes").EnumerateArray()
+        .Any(n => Text(n, "value") == "Sehr vertraulicher Gedanke" && Text(n, "unreadable") is null));
+
+// -- §5: Suche, und die ehrliche Grenze ---------------------------------------
+
+await t.OkAsync("cg5.1 In einer oeffentlichen Bibliothek sucht der Server", async () =>
+{
+    var found = await ReadAsync(await http.GetAsync(
+        $"/rc/libraries/{openLibId}/search?q=Wasser"));
+
+    return found.GetProperty("serverSide").GetBoolean()
+        && found.GetProperty("hits").EnumerateArray()
+            .Any(h => Text(h, "value") == "Wasserstoff");
+});
+
+// DER Punkt: der Dienst sagt, dass er NICHT suchen kann, statt eine leere
+// Liste zu liefern, die wie "nichts gefunden" aussieht.
+await t.OkAsync("cg5.1 In einer privaten sagt er, dass er es nicht kann", async () =>
+{
+    var found = await ReadAsync(await http.GetAsync(
+        $"/rc/libraries/{closedLibId}/search?q=Gedanke"));
+
+    return !found.GetProperty("serverSide").GetBoolean()
+        && found.GetProperty("hits").GetArrayLength() == 0;
+});
+
+// Ein Prozentzeichen ist ein Suchbegriff, kein Platzhalter. Ohne Maskierung
+// lieferte es alles — und das saehe wie ein Treffer aus.
+await t.OkAsync("cg5.1 Ein Prozentzeichen sucht nach einem Prozentzeichen", async () =>
+    (await ReadAsync(await http.GetAsync($"/rc/libraries/{openLibId}/search?q=%25")))
+        .GetProperty("hits").GetArrayLength() == 0);
+
+// -- Grenzen -------------------------------------------------------------------
+
+await t.OkAsync("3.4   Ein Fremder sieht die Bibliothek nicht", async () =>
+    (await bruno.GetAsync($"/rc/libraries/{openLibId}/nodes"))
+        .StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
+
+await t.OkAsync("3.4   Und sie steht nicht in seiner Liste", async () =>
+    (await ReadAsync(await bruno.GetAsync("/rc/libraries"))).GetProperty("libraries")
+        .EnumerateArray().All(l => l.GetProperty("libraryId").GetString() != openLibId));
+
+// Eine Kante ueber Bibliotheksgrenzen waere ein Weg, Inhalte der einen in der
+// anderen sichtbar zu machen — und die Berechtigung haengt an der Bibliothek.
+await t.OkAsync("cg1.1 Eine Kante ueber Bibliotheksgrenzen wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/libraries/{openLibId}/edges", new
+    {
+        fromNodeId = entityId,
+        toNodeId = (await ReadAsync(await http.GetAsync($"/rc/libraries/{closedLibId}/nodes")))
+            .GetProperty("nodes").EnumerateArray().First().GetProperty("nodeId").GetString(),
+        kind = "quer"
+    })).StatusCode == HttpStatusCode.Conflict);
+
+// -- Kalender: Zeit ist nicht Inhalt -------------------------------------------
+//
+// Der Punkt dieses Moduls: WANN jemand belegt ist, liegt im Klartext; WOMIT er
+// belegt ist, liegt versiegelt. Das ist kein Verlust an Schutz, sondern eine
+// ehrliche Grenze — und sie wird hier nachgewiesen.
+
+var calArea = (await ReadAsync(await http.PostAsJsonAsync("/rc/areas", new
+{
+    ownerRoleId = personalRoleId,
+    title = "Terminplanung"
+}))).GetProperty("areaId").GetString()!;
+
+var calCreated = await http.PostAsJsonAsync("/rc/calendars", new
+{
+    areaId = calArea, title = "Pfarrbuero", timeZone = "Europe/Warsaw"
+});
+
+var calendarId = "";
+await t.OkAsync("kal   Ein Kalender entsteht an einem Bereich", async () =>
+{
+    if (calCreated.StatusCode != HttpStatusCode.Created) return false;
+    calendarId = (await ReadAsync(calCreated)).GetProperty("calendarId").GetString()!;
+    return true;
+});
+
+// Eine unbekannte Zeitzone faellt beim ANLEGEN auf, nicht erst beim Rechnen.
+await t.OkAsync("kal   Eine erfundene Zeitzone wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync("/rc/calendars", new
+    {
+        areaId = calArea, title = "Falsch", timeZone = "Mars/Olympus"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+// -- Ein Termin mit oeffentlichem und versiegeltem Teil ------------------------
+
+var itemCreated = await http.PostAsJsonAsync($"/rc/calendars/{calendarId}/items", new
+{
+    ownerRoleId = personalRoleId,
+    startsUtc = new DateTimeOffset(2026, 3, 2, 8, 0, 0, TimeSpan.Zero),
+    endsUtc = new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero),
+    titlePublic = "Sitzung",
+    visibility = "area",
+    title = "Gespraech mit Frau Kowalska wegen der Kuendigung",
+    location = "Pfarrbuero, Zimmer 2",
+    notes = "Unterlagen mitbringen"
+});
+
+var itemId = "";
+await t.OkAsync("kal   Ein Termin entsteht", async () =>
+{
+    if (itemCreated.StatusCode != HttpStatusCode.Created) return false;
+    itemId = (await ReadAsync(itemCreated)).GetProperty("itemId").GetString()!;
+    return true;
+});
+
+// DER Nachweis: die Zeit steht im Klartext, der Inhalt nicht.
+await t.OkAsync("kal   Die ZEIT liegt im Klartext in der Zeile", async () =>
+{
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+
+    await using var cmd = new SqlCommand("""
+        SELECT starts_at, title_public, title_sealed FROM dbo.rc_calendar_item WHERE id = @id;
+        """, probe);
+    cmd.Parameters.AddWithValue("@id", Guid.Parse(itemId));
+
+    await using var reader = await cmd.ExecuteReaderAsync();
+    if (!await reader.ReadAsync()) return false;
+
+    // Anfang lesbar, oeffentlicher Titel lesbar, echter Titel Geheimtext.
+    var blob = (byte[])reader[2];
+    return reader.GetDateTimeOffset(0).Hour == 8
+        && reader.GetString(1) == "Sitzung"
+        && !System.Text.Encoding.UTF8.GetString(blob).Contains("Kowalska");
+});
+
+await t.OkAsync("kal   Wer den Schluessel hat, sieht beides", async () =>
+{
+    var list = (await ReadAsync(await http.GetAsync(
+        $"/rc/calendars/{calendarId}/items?from=2026-03-01T00:00:00Z&to=2026-03-08T00:00:00Z")))
+        .GetProperty("occurrences").EnumerateArray().ToList();
+
+    var one = list.FirstOrDefault(o => o.GetProperty("itemId").GetString() == itemId);
+
+    return Text(one, "titlePublic") == "Sitzung"
+        && Text(one, "title")!.Contains("Kowalska")
+        && Text(one, "location") == "Pfarrbuero, Zimmer 2"
+        && Text(one, "unreadable") is null;
+});
+
+// -- Sichtbarkeit ---------------------------------------------------------------
+//
+// Privat heisst: der Eintrag faellt fuer andere ganz aus der Liste. Ihnen zu
+// zeigen, DASS dort etwas Privates steht, waere schon eine Auskunft ueber den Tag.
+
+var privateItem = await http.PostAsJsonAsync($"/rc/calendars/{calendarId}/items", new
+{
+    ownerRoleId = personalRoleId,
+    startsUtc = new DateTimeOffset(2026, 3, 3, 8, 0, 0, TimeSpan.Zero),
+    endsUtc = new DateTimeOffset(2026, 3, 3, 9, 0, 0, TimeSpan.Zero),
+    visibility = "private",
+    title = "Arzttermin"
+});
+
+t.Ok("kal   Ein privater Eintrag entsteht", () => privateItem.StatusCode == HttpStatusCode.Created);
+
+await t.OkAsync("kal   Der Eigentuemer sieht ihn", async () =>
+    (await ReadAsync(await http.GetAsync(
+        $"/rc/calendars/{calendarId}/items?from=2026-03-01T00:00:00Z&to=2026-03-08T00:00:00Z")))
+        .GetProperty("occurrences").EnumerateArray()
+        .Any(o => Text(o, "title") == "Arzttermin"));
+
+await t.OkAsync("3.4   Ein Fremder sieht den Kalender gar nicht", async () =>
+    (await bruno.GetAsync($"/rc/calendars/{calendarId}/items"))
+        .StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
+
+// -- Wiederholungen --------------------------------------------------------------
+
+var weekly = await http.PostAsJsonAsync($"/rc/calendars/{calendarId}/items", new
+{
+    ownerRoleId = personalRoleId,
+    startsUtc = new DateTimeOffset(2026, 3, 2, 8, 0, 0, TimeSpan.Zero),
+    endsUtc = new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero),
+    titlePublic = "Wochensitzung",
+    visibility = "area",
+    repeatKind = "weekly",
+    repeatEvery = 1,
+    repeatCount = 4
+});
+
+var weeklyId = (await ReadAsync(weekly)).GetProperty("itemId").GetString()!;
+
+await t.OkAsync("kal   Eine Wochenreihe wird ausgerechnet", async () =>
+    (await ReadAsync(await http.GetAsync(
+        $"/rc/calendars/{calendarId}/items?from=2026-03-01T00:00:00Z&to=2026-04-01T00:00:00Z")))
+        .GetProperty("occurrences").EnumerateArray()
+        .Count(o => o.GetProperty("itemId").GetString() == weeklyId) == 4);
+
+// Eine Wiederholung ohne Ende laesst sich nicht ausrechnen, nur abschneiden —
+// und jede Ansicht schnitte woanders ab.
+await t.OkAsync("kal   Eine Wiederholung ohne Ende wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/calendars/{calendarId}/items", new
+    {
+        ownerRoleId = personalRoleId,
+        startsUtc = new DateTimeOffset(2026, 3, 2, 8, 0, 0, TimeSpan.Zero),
+        endsUtc = new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero),
+        repeatKind = "daily", repeatEvery = 1
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+await t.OkAsync("kal   Ein rueckwaerts laufender Termin wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/calendars/{calendarId}/items", new
+    {
+        ownerRoleId = personalRoleId,
+        startsUtc = new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero),
+        endsUtc = new DateTimeOffset(2026, 3, 2, 8, 0, 0, TimeSpan.Zero)
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+// -- Ausnahmen: die Reihe bleibt eine Reihe --------------------------------------
+
+await t.OkAsync("kal   Ein einzelnes Vorkommen laesst sich absagen", async () =>
+{
+    var cancelled = await http.PostAsJsonAsync(
+        $"/rc/calendar-items/{weeklyId}/occurrences/2026-03-09T08:00:00Z/cancel", new { });
+
+    if (cancelled.StatusCode != HttpStatusCode.OK) return false;
+
+    return (await ReadAsync(await http.GetAsync(
+        $"/rc/calendars/{calendarId}/items?from=2026-03-01T00:00:00Z&to=2026-04-01T00:00:00Z")))
+        .GetProperty("occurrences").EnumerateArray()
+        .Count(o => o.GetProperty("itemId").GetString() == weeklyId) == 3;
+});
+
+await t.OkAsync("kal   Ein Vorkommen laesst sich verschieben und behaelt seinen Platz", async () =>
+{
+    var moved = await http.PostAsJsonAsync(
+        $"/rc/calendar-items/{weeklyId}/occurrences/2026-03-16T08:00:00Z/move", new
+        {
+            newStartUtc = new DateTimeOffset(2026, 3, 17, 13, 0, 0, TimeSpan.Zero),
+            newEndUtc = new DateTimeOffset(2026, 3, 17, 14, 0, 0, TimeSpan.Zero)
+        });
+
+    if (moved.StatusCode != HttpStatusCode.OK) return false;
+
+    var one = (await ReadAsync(await http.GetAsync(
+        $"/rc/calendars/{calendarId}/items?from=2026-03-01T00:00:00Z&to=2026-04-01T00:00:00Z")))
+        .GetProperty("occurrences").EnumerateArray()
+        .FirstOrDefault(o => o.GetProperty("itemId").GetString() == weeklyId
+                          && o.GetProperty("moved").GetBoolean());
+
+    // Der urspruengliche Anfang bleibt der NAME dieses Termins — daran haengt
+    // die Ausnahme. Verloere er ihn, liesse sie sich nie wieder aufheben.
+    return one.ValueKind != JsonValueKind.Undefined
+        && one.GetProperty("startsUtc").GetDateTimeOffset().Hour == 13
+        && one.GetProperty("originalStartUtc").GetDateTimeOffset().Day == 16;
+});
+
+// Die Regel bleibt eine Regel: sie wurde NICHT in Einzeltermine aufgeloest.
+await t.OkAsync("kal   Die Reihe bleibt eine Reihe", async () =>
+{
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+
+    await using var cmd = new SqlCommand(
+        "SELECT COUNT(*) FROM dbo.rc_calendar_item WHERE calendar_id = @cal AND repeat_kind = 'weekly';",
+        probe);
+    cmd.Parameters.AddWithValue("@cal", Guid.Parse(calendarId));
+
+    return (int)(await cmd.ExecuteScalarAsync())! == 1;
+});
+
+// -- Ein zu weites Fenster --------------------------------------------------------
+
+await t.OkAsync("kal   Ein zu weiter Zeitraum wird abgewiesen", async () =>
+    (await http.GetAsync(
+        $"/rc/calendars/{calendarId}/items?from=2020-01-01T00:00:00Z&to=2030-01-01T00:00:00Z"))
+        .StatusCode == HttpStatusCode.BadRequest);
+
+// -- Firmung: der empfindlichste Teil ------------------------------------------
+//
+// Kandidaten sind Minderjaehrige. Drei Dinge werden hier nachgewiesen: dass
+// nichts von ihnen im Klartext liegt, dass die Felder sich nicht gegeneinander
+// tauschen lassen, und dass zwei gleichzeitige Anmeldungen auf den letzten
+// Platz nicht beide durchgehen.
+
+var confArea = (await ReadAsync(await http.PostAsJsonAsync("/rc/areas", new
+{
+    ownerRoleId = personalRoleId,
+    title = "Firmvorbereitung"
+}))).GetProperty("areaId").GetString()!;
+
+var groupCreated = await http.PostAsJsonAsync("/rc/confirmation-groups", new
+{
+    parishId, areaId = confArea, name = "Firmung 2027"
+});
+
+var groupId = "";
+await t.OkAsync("frm   Ein Jahrgang entsteht an einem EIGENEN Bereich", async () =>
+{
+    if (groupCreated.StatusCode != HttpStatusCode.Created) return false;
+    groupId = (await ReadAsync(groupCreated)).GetProperty("groupId").GetString()!;
+    return true;
+});
+
+// Wer die Pfarrei verwaltet, darf den Jahrgang nicht in einen FREMDEN Bereich
+// haengen — sonst waere der eigene Bereich fuer die Akten ein Vorschlag und
+// keine Grenze.
+await t.OkAsync("frm   In einen fremden Bereich haengt ihn niemand", async () =>
+    (await bruno.PostAsJsonAsync("/rc/confirmation-groups", new
+    {
+        parishId, areaId = confArea, name = "Fremd"
+    })).StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
+
+// -- Ein Kandidat ----------------------------------------------------------------
+
+var candidateCreated = await http.PostAsJsonAsync($"/rc/confirmation-groups/{groupId}/candidates", new
+{
+    name = "Anna Nowak",
+    born = "2012-04-17",
+    contact = "matka: 600 123 456",
+    school = "SP nr 3",
+    baptism = "Parafia sw. Mikolaja, 2012-06-03"
+});
+
+var candidateId = "";
+await t.OkAsync("frm   Ein Kandidat entsteht", async () =>
+{
+    if (candidateCreated.StatusCode != HttpStatusCode.Created) return false;
+    candidateId = (await ReadAsync(candidateCreated)).GetProperty("candidateId").GetString()!;
+    return true;
+});
+
+// DER Nachweis: nichts davon steht im Klartext in der Zeile.
+await t.OkAsync("12.9  NICHTS vom Kandidaten liegt im Klartext", async () =>
+{
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+
+    await using var cmd = new SqlCommand("""
+        SELECT name_sealed, born_sealed, contact_sealed, school_sealed, baptism_sealed
+        FROM dbo.rc_candidate WHERE id = @id;
+        """, probe);
+    cmd.Parameters.AddWithValue("@id", Guid.Parse(candidateId));
+
+    await using var reader = await cmd.ExecuteReaderAsync();
+    if (!await reader.ReadAsync()) return false;
+
+    var all = new System.Text.StringBuilder();
+    for (var i = 0; i < 5; i++)
+        if (!reader.IsDBNull(i)) all.Append(System.Text.Encoding.UTF8.GetString((byte[])reader[i]));
+
+    var blob = all.ToString();
+    return !blob.Contains("Nowak") && !blob.Contains("2012")
+        && !blob.Contains("600") && !blob.Contains("Mikolaja");
+});
+
+await t.OkAsync("frm   Wer den Schluessel hat, sieht alles", async () =>
+{
+    var view = (await ReadAsync(await http.GetAsync($"/rc/confirmation-groups/{groupId}/candidates")))
+        .GetProperty("candidates").EnumerateArray()
+        .First(c => c.GetProperty("candidateId").GetString() == candidateId);
+
+    return Text(view, "name") == "Anna Nowak"
+        && Text(view, "born") == "2012-04-17"
+        && Text(view, "school") == "SP nr 3"
+        && Text(view, "unreadable") is null;
+});
+
+// 3.13 — Der Altbestand hatte EINEN Klumpen fuer alles. Damit liesse sich der
+// Kontakt in das Namensfeld schieben, ohne dass etwas auffaellt. Hier nicht.
+await t.OkAsync("3.13  Der Kontakt laesst sich nicht ins Namensfeld schieben", async () =>
+{
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+
+    await using var swap = new SqlCommand(
+        "UPDATE dbo.rc_candidate SET name_sealed = contact_sealed WHERE id = @id;", probe);
+    swap.Parameters.AddWithValue("@id", Guid.Parse(candidateId));
+    await swap.ExecuteNonQueryAsync();
+
+    var view = (await ReadAsync(await http.GetAsync($"/rc/confirmation-groups/{groupId}/candidates")))
+        .GetProperty("candidates").EnumerateArray()
+        .First(c => c.GetProperty("candidateId").GetString() == candidateId);
+
+    // Der Tausch faellt auf — und der Kandidat faellt trotzdem NICHT aus der
+    // Liste, sonst stimmten die Zahlen des Jahrgangs nicht mehr (15.9).
+    return Text(view, "unreadable") == RcErrorCodes.CryptoAadMismatch
+        && Text(view, "name") is null;
+});
+
+// Zuruecksetzen fuer die folgenden Pruefungen.
+{
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+    await using var fix = new SqlCommand("""
+        UPDATE dbo.rc_candidate SET name_sealed = @orig WHERE id = @id;
+        """, probe);
+    fix.Parameters.AddWithValue("@id", Guid.Parse(candidateId));
+
+    // Den Namen neu setzen geht nicht ohne Schluessel — stattdessen wird der
+    // Kandidat fuer die Anmeldepruefung neu angelegt.
+    fix.Parameters.Add("@orig", System.Data.SqlDbType.VarBinary).Value = DBNull.Value;
+}
+
+// -- Notizen: versiegelt, anders als im Altbestand --------------------------------
+
+var noteAdded = await http.PostAsJsonAsync($"/rc/candidates/{candidateId}/notes", new
+{
+    authorRoleId = personalRoleId,
+    text = "Braucht Unterstuetzung beim Auswendiglernen.",
+    forFamily = false
+});
+
+t.Ok("frm   Eine Notiz laesst sich schreiben", () => noteAdded.StatusCode == HttpStatusCode.Created);
+
+await t.OkAsync("12.9  Und sie liegt versiegelt — anders als im Altbestand", async () =>
+{
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+
+    await using var cmd = new SqlCommand(
+        "SELECT text_sealed FROM dbo.rc_candidate_note WHERE candidate_id = @id;", probe);
+    cmd.Parameters.AddWithValue("@id", Guid.Parse(candidateId));
+
+    var blob = (byte[])(await cmd.ExecuteScalarAsync())!;
+    return !System.Text.Encoding.UTF8.GetString(blob).Contains("Auswendiglernen");
+});
+
+await t.OkAsync("3.3   Unter fremdem Namen schreibt niemand eine Notiz", async () =>
+    (await http.PostAsJsonAsync($"/rc/candidates/{candidateId}/notes", new
+    {
+        authorRoleId = brunoRoleId, text = "Untergeschoben."
+    })).StatusCode == HttpStatusCode.Forbidden);
+
+await t.OkAsync("frm   Eine Notiz laesst sich nicht still aendern", async () =>
+{
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+
+    await using var cmd = new SqlCommand(
+        "UPDATE dbo.rc_candidate_note SET for_family = 1 WHERE candidate_id = @id;", probe);
+    cmd.Parameters.AddWithValue("@id", Guid.Parse(candidateId));
+
+    try { await cmd.ExecuteNonQueryAsync(); return false; }
+    catch (SqlException e) { return e.Number == 50006; }
+});
+
+// -- Treffen: die Kapazitaet haelt --------------------------------------------------
+
+var slotCreated = await http.PostAsJsonAsync($"/rc/confirmation-groups/{groupId}/slots", new
+{
+    startsUtc = DateTimeOffset.UtcNow.AddDays(7),
+    durationMinutes = 60,
+    capacity = 1,
+    label = "Einzelgespraech"
+});
+
+var slotId = "";
+await t.OkAsync("frm   Ein Treffen mit EINEM Platz entsteht", async () =>
+{
+    if (slotCreated.StatusCode != HttpStatusCode.Created) return false;
+    slotId = (await ReadAsync(slotCreated)).GetProperty("slotId").GetString()!;
+    return true;
+});
+
+// Ein zweiter Kandidat, damit sich um den einen Platz streiten laesst.
+var secondCandidate = (await ReadAsync(await http.PostAsJsonAsync(
+    $"/rc/confirmation-groups/{groupId}/candidates", new { name = "Piotr Kowalczyk" })))
+    .GetProperty("candidateId").GetString()!;
+
+await t.OkAsync("frm   Der erste bekommt den Platz", async () =>
+{
+    var booked = await http.PostAsJsonAsync($"/rc/meeting-slots/{slotId}/book", new
+    {
+        candidateId = secondCandidate
+    });
+
+    return booked.StatusCode == HttpStatusCode.Created
+        && (await ReadAsync(booked)).GetProperty("booked").GetInt32() == 1;
+});
+
+// DER Punkt: der Platz ist weg, und der zweite bekommt eine klare Absage —
+// keinen Serverfehler und keinen stillen zweiten Stuhl.
+await t.OkAsync("frm   Der zweite bekommt eine Absage, keinen zweiten Stuhl", async () =>
+    (await http.PostAsJsonAsync($"/rc/meeting-slots/{slotId}/book", new
+    {
+        candidateId
+    })).StatusCode == HttpStatusCode.Conflict);
+
+// Zweimal derselbe Kandidat ist kein Fehler, sondern ein zweiter Klick.
+await t.OkAsync("frm   Zweimal derselbe Kandidat erschreckt niemanden", async () =>
+    (await http.PostAsJsonAsync($"/rc/meeting-slots/{slotId}/book", new
+    {
+        candidateId = secondCandidate
+    })).StatusCode == HttpStatusCode.OK);
+
+// Ein Kandidat aus einem fremden Jahrgang gehoert nicht in diese Liste.
+await t.OkAsync("frm   Ein fremder Kandidat wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/meeting-slots/{slotId}/book", new
+    {
+        candidateId = Guid.NewGuid().ToString()
+    })).StatusCode == HttpStatusCode.Conflict);
+
+await t.OkAsync("frm   Der Belegungsstand steht in der Liste", async () =>
+{
+    var slot = (await ReadAsync(await http.GetAsync($"/rc/confirmation-groups/{groupId}/slots")))
+        .GetProperty("slots").EnumerateArray()
+        .First(x => x.GetProperty("slotId").GetString() == slotId);
+
+    return slot.GetProperty("booked").GetInt32() == 1
+        && slot.GetProperty("capacity").GetInt32() == 1;
+});
+
+// -- Austritt: Felder weg, Zeile bleibt ---------------------------------------------
+
+await t.OkAsync("12.3  Austritt vernichtet die Felder und laesst die Zeile stehen", async () =>
+{
+    var withdrawn = await http.PostAsJsonAsync($"/rc/candidates/{secondCandidate}/withdraw", new { });
+    if (withdrawn.StatusCode != HttpStatusCode.OK) return false;
+
+    await using var probe = new SqlConnection(connectionString);
+    await probe.OpenAsync();
+
+    await using var cmd = new SqlCommand("""
+        SELECT status, contact_sealed, school_sealed FROM dbo.rc_candidate WHERE id = @id;
+        """, probe);
+    cmd.Parameters.AddWithValue("@id", Guid.Parse(secondCandidate));
+
+    await using var reader = await cmd.ExecuteReaderAsync();
+    if (!await reader.ReadAsync()) return false;   // Die Zeile MUSS noch da sein.
+
+    return reader.GetString(0) == "withdrawn" && reader.IsDBNull(1) && reader.IsDBNull(2);
+});
+
+await t.OkAsync("3.4   Ein Fremder sieht den Jahrgang nicht", async () =>
+    (await bruno.GetAsync($"/rc/confirmation-groups/{groupId}/candidates"))
+        .StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
+
 // -- 3.9 — Sicherer Modus ------------------------------------------------------
 
 var toSecure = await bruno.PostAsJsonAsync("/rc/auth/cache-mode", new { mode = 1 });
@@ -1897,6 +3067,51 @@ static async Task ResetAsync(string connectionString)
         ENABLE TRIGGER dbo.tr_rc_data_access_log_append_only ON dbo.rc_data_access_log;
         DELETE FROM dbo.rc_data_item;
         DELETE FROM dbo.rc_attachment;
+        /* Firmung. Der anfuegende Ausloeser auf den Notizen deckt auch
+           UPDATE ab und muss fuer die Ruecksetzung weichen. */
+        DELETE FROM dbo.rc_meeting_booking;
+        DELETE FROM dbo.rc_meeting_slot;
+        DISABLE TRIGGER dbo.tr_rc_candidate_note_append ON dbo.rc_candidate_note;
+        DELETE FROM dbo.rc_candidate_note;
+        ENABLE TRIGGER dbo.tr_rc_candidate_note_append ON dbo.rc_candidate_note;
+        DELETE FROM dbo.rc_candidate;
+        DELETE FROM dbo.rc_confirmation_group;
+
+        /* Kalender. Ausnahmen vor Eintraegen, Eintraege vor Kalender. */
+        DELETE FROM dbo.rc_calendar_exception;
+        DELETE FROM dbo.rc_calendar_item;
+        DELETE FROM dbo.rc_calendar;
+
+        /* Cogita. Kanten vor Knoten, Knoten vor Bibliothek. */
+        DELETE FROM dbo.rc_range_segment;
+        DELETE FROM dbo.rc_edge;
+        DELETE FROM dbo.rc_node;
+        DELETE FROM dbo.rc_library;
+
+        /* Pfarrei. Der anfuegende Ausloeser auf rc_offering deckt auch
+           UPDATE ab und muss deshalb fuer die Ruecksetzung weichen. */
+        DISABLE TRIGGER dbo.tr_rc_offering_append ON dbo.rc_offering;
+        DELETE FROM dbo.rc_offering;
+        ENABLE TRIGGER dbo.tr_rc_offering_append ON dbo.rc_offering;
+        DELETE FROM dbo.rc_intention;
+        DELETE FROM dbo.rc_mass;
+        DELETE FROM dbo.rc_parish;
+
+        /* Veranstaltungen. Die Reihenfolge folgt den Fremdschluesseln von
+           innen nach aussen; die anfuegenden Ausloeser werden dafuer kurz
+           abgeschaltet — im Betrieb ist genau das der Sinn der Sache, hier
+           steht ein Neuanfang an. */
+        DISABLE TRIGGER dbo.tr_rc_event_reg_value_append ON dbo.rc_event_registration_value;
+        DELETE FROM dbo.rc_event_registration_value;
+        ENABLE TRIGGER dbo.tr_rc_event_reg_value_append ON dbo.rc_event_registration_value;
+        DISABLE TRIGGER dbo.tr_rc_event_registration_append ON dbo.rc_event_registration;
+        DELETE FROM dbo.rc_event_registration;
+        ENABLE TRIGGER dbo.tr_rc_event_registration_append ON dbo.rc_event_registration;
+        DELETE FROM dbo.rc_event_field;
+        DELETE FROM dbo.rc_event_part;
+        DELETE FROM dbo.rc_event_page;
+        DELETE FROM dbo.rc_event;
+
         DELETE FROM dbo.rc_ledger_outbox;
         DELETE FROM dbo.rc_decision_transition;
         DELETE FROM dbo.rc_decision;

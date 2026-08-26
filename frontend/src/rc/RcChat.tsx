@@ -24,6 +24,11 @@ import { RcRequestError } from './lib/rcApi';
 import { RcAttachments, RcPolls, RcReactions, RcTopics } from './RcThreads';
 import { RcDecisions, RcLedger } from './RcLedger';
 import { RcPeople } from './RcInvite';
+import { RcEventList } from './RcEvents';
+import { RcParishSection } from './RcParish';
+import { RcGraphSection } from './RcGraph';
+import { RcCalendarSection } from './RcCalendar';
+import { RcConfirmationSection } from './RcConfirmation';
 import type { RcReaction } from './lib/rcThreads';
 import {
   rcAreas, rcCreateArea, rcEpochBreaks, rcFeed, rcHide, rcMarkRead, rcMembers, rcMessageState,
@@ -137,6 +142,40 @@ export function RcChat({ lang, unlocked }: { lang: RcLang; unlocked: boolean }) 
 
       {error !== null && <p className="rc-auth-error rc-chat-error">{error}</p>}
     </div>
+  );
+}
+
+/**
+ * Veranstaltungen stehen NEBEN den Bereichen, nicht darin.
+ *
+ * Eine Veranstaltung haengt zwar an einem Bereich, aber wer sie sucht, sucht
+ * sie nicht ueber den Bereich — er sucht das Pfarrfest, nicht die Gruppe, die
+ * es vorbereitet. Sie als Reiter in einen einzelnen Bereich zu haengen hiesse,
+ * dass man erst wissen muss, wer sie macht, um sie zu finden.
+ */
+export function RcEventsSection({ lang, unlocked }: { lang: RcLang; unlocked: boolean }) {
+  const [roles, setRoles] = useState<readonly RcRole[]>([]);
+  const [areas, setAreas] = useState<readonly RcArea[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!unlocked) return;
+    void (async () => {
+      try {
+        const [r, a] = await Promise.all([rcRoles(), rcAreas()]);
+        setRoles(r.roles ?? []);
+        setAreas(a.areas ?? []);
+      } catch {
+        // Die Liste bleibt leer; die Veranstaltungsansicht sagt es selbst.
+      }
+    })();
+  }, [unlocked]);
+
+  return (
+    <>
+      <RcEventList lang={lang} areas={areas} roles={roles} unlocked={unlocked} onError={setError} />
+      {error !== null && <p className="rc-auth-error rc-chat-error">{error}</p>}
+    </>
   );
 }
 
@@ -546,3 +585,101 @@ function RcNewArea({
 }
 
 export default RcChat;
+
+/** Die Pfarrei, mit denselben Bereichen wie die Veranstaltungen. */
+export function RcParishOutlet({ lang, unlocked }: { lang: RcLang; unlocked: boolean }) {
+  const [areas, setAreas] = useState<readonly RcArea[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!unlocked) return;
+    void (async () => {
+      try { setAreas((await rcAreas()).areas ?? []); }
+      catch { /* Die Ansicht sagt es selbst. */ }
+    })();
+  }, [unlocked]);
+
+  return (
+    <>
+      <RcParishSection lang={lang} areas={areas} unlocked={unlocked} onError={setError} />
+      {error !== null && <p className="rc-auth-error rc-chat-error">{error}</p>}
+    </>
+  );
+}
+
+/** Der Wissensgraph, mit denselben Bereichen wie die uebrigen Module. */
+export function RcGraphOutlet({ lang, unlocked }: { lang: RcLang; unlocked: boolean }) {
+  const [areas, setAreas] = useState<readonly RcArea[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!unlocked) return;
+    void (async () => {
+      try { setAreas((await rcAreas()).areas ?? []); }
+      catch { /* Die Ansicht sagt es selbst. */ }
+    })();
+  }, [unlocked]);
+
+  return (
+    <>
+      <RcGraphSection lang={lang} areas={areas} unlocked={unlocked} onError={setError} />
+      {error !== null && <p className="rc-auth-error rc-chat-error">{error}</p>}
+    </>
+  );
+}
+
+/** Der Kalender, mit denselben Bereichen und Rollen wie die uebrigen Module. */
+export function RcCalendarOutlet({ lang, unlocked }: { lang: RcLang; unlocked: boolean }) {
+  const [areas, setAreas] = useState<readonly RcArea[]>([]);
+  const [roles, setRoles] = useState<readonly RcRole[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!unlocked) return;
+    void (async () => {
+      try {
+        const [a, r] = await Promise.all([rcAreas(), rcRoles()]);
+        setAreas(a.areas ?? []);
+        setRoles(r.roles ?? []);
+      } catch { /* Die Ansicht sagt es selbst. */ }
+    })();
+  }, [unlocked]);
+
+  return (
+    <>
+      <RcCalendarSection lang={lang} areas={areas} roles={roles} unlocked={unlocked} onError={setError} />
+      {error !== null && <p className="rc-auth-error rc-chat-error">{error}</p>}
+    </>
+  );
+}
+
+/** Die Firmung, mit denselben Bereichen und Rollen wie die uebrigen Module. */
+export function RcConfirmationOutlet({ lang, unlocked }: { lang: RcLang; unlocked: boolean }) {
+  const [areas, setAreas] = useState<readonly RcArea[]>([]);
+  const [roles, setRoles] = useState<readonly RcRole[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!unlocked) return;
+    void (async () => {
+      try {
+        const [a, r] = await Promise.all([rcAreas(), rcRoles()]);
+        setAreas(a.areas ?? []);
+        setRoles(r.roles ?? []);
+      } catch { /* Die Ansicht sagt es selbst. */ }
+    })();
+  }, [unlocked]);
+
+  return (
+    <>
+      <RcConfirmationSection
+        lang={lang}
+        areas={areas}
+        roles={roles}
+        unlocked={unlocked}
+        onError={setError}
+      />
+      {error !== null && <p className="rc-auth-error rc-chat-error">{error}</p>}
+    </>
+  );
+}

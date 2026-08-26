@@ -630,6 +630,510 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/calendars": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcCalendarsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CalendarCreateCalendarRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcCalendarCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/calendars/{id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcCalendarItemsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CalendarAddItemRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcCalendarItemCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/calendar-items/{id}/occurrences/{at}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    at: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcOccurrenceChangedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/calendar-items/{id}/occurrences/{at}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    at: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CalendarMoveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcOccurrenceChangedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/confirmation-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcConfirmationGroupsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfirmationCreateGroupRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcConfirmationGroupCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/confirmation-groups/{id}/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcCandidatesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfirmationAddCandidateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcCandidateCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/candidates/{id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfirmationAddNoteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcCandidateNoteAddedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/candidates/{id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcCandidateWithdrawnResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/confirmation-groups/{id}/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcMeetingSlotsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfirmationAddSlotRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcMeetingSlotCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/meeting-slots/{id}/book": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfirmationBookRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcMeetingBookedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/consent/{key}": {
         parameters: {
             query?: never;
@@ -1233,6 +1737,509 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventsCreateEventRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/events/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventViewResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/events/{id}/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventsAddPageRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventPageCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/events/{id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventsPublishRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventPublishedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/event-pages/{id}/parts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventsAddPartRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventPartCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/event-parts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventsUpdatePartRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventPartUpdatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/event-parts/{id}/fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventsAddFieldRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventFieldCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/libraries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcLibrariesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GraphCreateLibraryRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcLibraryCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/libraries/{id}/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    kind?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcNodesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GraphAddNodeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcNodeCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/libraries/{id}/edges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GraphAddEdgeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEdgeCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/libraries/{id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    q?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcGraphSearchResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/invitations": {
         parameters: {
             query?: never;
@@ -1667,6 +2674,248 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/parishes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcParishesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ParishCreateParishRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcParishCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/parishes/{slug}/masses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcMassesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/parishes/{id}/masses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ParishAddMassRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcMassCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/parishes/{id}/intentions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcIntentionsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ParishAddIntentionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcIntentionCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/intentions/{id}/offerings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ParishAddOfferingRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcOfferingCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/areas/{id}/polls": {
         parameters: {
             query?: never;
@@ -2032,6 +3281,109 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["RcRecoveryCompletedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/event-parts/{id}/registrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcRegistrationsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RegistrationsSubmitRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcRegistrationSubmittedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/registrations/{id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RegistrationsWithdrawRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcRegistrationWithdrawnResponse"];
                     };
                 };
             };
@@ -2521,6 +3873,156 @@ export interface components {
             passwordKey: string;
             deviceNote?: string | null;
         };
+        CalendarAddItemRequest: {
+            ownerRoleId: string;
+            itemType?: string | null;
+            /** Format: date-time */
+            startsUtc: string;
+            /** Format: date-time */
+            endsUtc: string;
+            allDay?: boolean | null;
+            titlePublic?: string | null;
+            visibility?: string | null;
+            status?: string | null;
+            title?: string | null;
+            location?: string | null;
+            notes?: string | null;
+            repeatKind?: string | null;
+            /** Format: int32 */
+            repeatEvery?: number | null;
+            /** Format: int32 */
+            repeatWeekdays?: number | null;
+            /** Format: date-time */
+            repeatUntil?: string | null;
+            /** Format: int32 */
+            repeatCount?: number | null;
+            taskState?: string | null;
+        };
+        CalendarCalendarSummary: {
+            calendarId: string;
+            areaId: string;
+            title: string;
+            timeZone: string;
+            /** Format: int32 */
+            items: number;
+        };
+        CalendarCreateCalendarRequest: {
+            areaId: string;
+            title: string;
+            timeZone?: string | null;
+        };
+        CalendarMoveRequest: {
+            /** Format: date-time */
+            newStartUtc: string;
+            /** Format: date-time */
+            newEndUtc: string;
+        };
+        CalendarOccurrenceView: {
+            itemId: string;
+            /** Format: date-time */
+            originalStartUtc: string;
+            /** Format: date-time */
+            startsUtc: string;
+            /** Format: date-time */
+            endsUtc: string;
+            moved: boolean;
+            allDay: boolean;
+            itemType: string;
+            visibility: string;
+            status: string;
+            titlePublic?: string | null;
+            title?: string | null;
+            location?: string | null;
+            notes?: string | null;
+            taskState?: string | null;
+            mine: boolean;
+            unreadable?: string | null;
+        };
+        ConfirmationAddCandidateRequest: {
+            name: string;
+            born?: string | null;
+            contact?: string | null;
+            school?: string | null;
+            baptism?: string | null;
+            consentTextId?: string | null;
+        };
+        ConfirmationAddNoteRequest: {
+            authorRoleId: string;
+            text: string;
+            forFamily?: boolean | null;
+        };
+        ConfirmationAddSlotRequest: {
+            /** Format: date-time */
+            startsUtc: string;
+            /** Format: int32 */
+            durationMinutes?: number | null;
+            /** Format: int32 */
+            capacity?: number | null;
+            label?: string | null;
+            stage?: string | null;
+        };
+        ConfirmationBookRequest: {
+            candidateId: string;
+        };
+        ConfirmationCandidateView: {
+            candidateId: string;
+            name?: string | null;
+            born?: string | null;
+            contact?: string | null;
+            school?: string | null;
+            baptism?: string | null;
+            consentGiven: boolean;
+            paperReceived: boolean;
+            quizPassed: boolean;
+            status: string;
+            /** Format: int32 */
+            bookings: number;
+            notes: components["schemas"]["ConfirmationNoteView"][];
+            unreadable?: string | null;
+        };
+        ConfirmationCreateGroupRequest: {
+            parishId: string;
+            areaId: string;
+            name: string;
+            /** Format: date */
+            startsOn?: string | null;
+            /** Format: date */
+            endsOn?: string | null;
+        };
+        ConfirmationGroupSummary: {
+            groupId: string;
+            parishId: string;
+            areaId: string;
+            name: string;
+            lifecycle: string;
+            /** Format: int32 */
+            candidates: number;
+            /** Format: int32 */
+            slots: number;
+        };
+        ConfirmationNoteView: {
+            noteId: string;
+            authorRoleId: string;
+            text?: string | null;
+            forFamily: boolean;
+            /** Format: date-time */
+            createdUtc: string;
+            unreadable?: string | null;
+        };
+        ConfirmationSlotView: {
+            slotId: string;
+            /** Format: date-time */
+            startsUtc: string;
+            /** Format: int32 */
+            durationMinutes: number;
+            /** Format: int32 */
+            capacity: number;
+            /** Format: int32 */
+            booked: number;
+            label?: string | null;
+            stage: string;
+            isOpen: boolean;
+        };
         ConsentConsentView: {
             consentKey: string;
             language: string;
@@ -2615,6 +4117,145 @@ export interface components {
             /** Format: date-time */
             lastReadAt: string;
         };
+        EventsAddFieldRequest: {
+            kind: string;
+            label: string;
+            helpText?: string | null;
+            options?: string[] | null;
+            isRequired?: boolean | null;
+            isHalfWidth?: boolean | null;
+            identityRole?: string | null;
+            dataClass?: string | null;
+        };
+        EventsAddPageRequest: {
+            slug: string;
+            title: string;
+            /** Format: int32 */
+            sortOrder?: number | null;
+        };
+        EventsAddPartRequest: {
+            kind: string;
+            isPublic?: boolean | null;
+            menuLabel?: string | null;
+            title?: string | null;
+            intro?: string | null;
+            configJson?: string | null;
+            /** Format: int32 */
+            sortOrder?: number | null;
+        };
+        EventsCreateEventRequest: {
+            areaId: string;
+            slug: string;
+            title: string;
+            /** Format: date-time */
+            startsUtc?: string | null;
+            /** Format: date-time */
+            endsUtc?: string | null;
+            isPublic?: boolean | null;
+        };
+        EventsEventSummary: {
+            eventId: string;
+            areaId: string;
+            slug: string;
+            title: string;
+            lifecycle: string;
+            isPublic: boolean;
+            /** Format: date-time */
+            startsUtc?: string | null;
+            /** Format: date-time */
+            endsUtc?: string | null;
+            /** Format: int32 */
+            pages: number;
+        };
+        EventsFieldView: {
+            fieldId: string;
+            kind: string;
+            label: string;
+            helpText?: string | null;
+            options: string[];
+            isRequired: boolean;
+            isHalfWidth: boolean;
+            identityRole: string;
+            dataClass: string;
+        };
+        EventsPageView: {
+            pageId: string;
+            slug: string;
+            title: string;
+            /** Format: int32 */
+            sortOrder: number;
+            isVisible: boolean;
+            parts: components["schemas"]["EventsPartView"][];
+        };
+        EventsPartView: {
+            partId: string;
+            kind: string;
+            isPublic: boolean;
+            /** Format: int32 */
+            sortOrder: number;
+            menuLabel?: string | null;
+            title?: string | null;
+            intro?: string | null;
+            configJson?: string | null;
+            isVisible: boolean;
+            unreadable?: string | null;
+            fields: components["schemas"]["EventsFieldView"][];
+        };
+        EventsPublishRequest: {
+            archive?: boolean | null;
+        };
+        EventsUpdatePartRequest: {
+            menuLabel?: string | null;
+            title?: string | null;
+            intro?: string | null;
+            configJson?: string | null;
+            isVisible?: boolean | null;
+        };
+        GraphAddEdgeRequest: {
+            fromNodeId: string;
+            toNodeId: string;
+            kind: string;
+            kindNodeId?: string | null;
+            state?: string | null;
+            note?: string | null;
+            sourceNodeId?: string | null;
+            /** Format: int32 */
+            sortOrder?: number | null;
+        };
+        GraphAddNodeRequest: {
+            kind: string;
+            value?: string | null;
+            kindNodeId?: string | null;
+        };
+        GraphCreateLibraryRequest: {
+            areaId: string;
+            slug: string;
+            title: string;
+            isPublic?: boolean | null;
+        };
+        GraphLibrarySummary: {
+            libraryId: string;
+            areaId: string;
+            slug: string;
+            title: string;
+            isPublic: boolean;
+            /** Format: int32 */
+            nodes: number;
+            /** Format: int32 */
+            edges: number;
+        };
+        GraphNodeView: {
+            nodeId: string;
+            kind: string;
+            kindNodeId?: string | null;
+            value?: string | null;
+            unreadable?: string | null;
+        };
+        GraphSearchHit: {
+            nodeId: string;
+            kind: string;
+            value: string;
+        };
         InvitationsCreateRequest: {
             roleId: string;
             label?: string | null;
@@ -2701,6 +4342,67 @@ export interface components {
             quoteMessageId?: string | null;
             chainBound?: boolean | null;
         };
+        ParishAddIntentionRequest: {
+            publicText: string;
+            internalText?: string | null;
+            donorRef?: string | null;
+            massId?: string | null;
+        };
+        ParishAddMassRequest: {
+            /** Format: date-time */
+            startsUtc: string;
+            church: string;
+            title?: string | null;
+            note?: string | null;
+            isCollective?: boolean | null;
+            /** Format: int32 */
+            durationMinutes?: number | null;
+            kind?: string | null;
+        };
+        ParishAddOfferingRequest: {
+            amount: string;
+            currency?: string | null;
+            donorRef?: string | null;
+            /** Format: date */
+            receivedOn?: string | null;
+        };
+        ParishCreateParishRequest: {
+            areaId: string;
+            slug: string;
+            name: string;
+            location?: string | null;
+        };
+        ParishIntentionView: {
+            intentionId: string;
+            massId?: string | null;
+            publicText: string;
+            internalText?: string | null;
+            donorRef?: string | null;
+            status: string;
+            unreadable?: string | null;
+        };
+        ParishMassView: {
+            massId: string;
+            /** Format: date-time */
+            startsUtc: string;
+            church: string;
+            title?: string | null;
+            note?: string | null;
+            isCollective: boolean;
+            /** Format: int32 */
+            durationMinutes?: number | null;
+            kind?: string | null;
+            intentions: string[];
+        };
+        ParishParishSummary: {
+            parishId: string;
+            areaId: string;
+            slug: string;
+            name: string;
+            location?: string | null;
+            /** Format: int32 */
+            masses: number;
+        };
         PollsCreatePollRequest: {
             question: string;
             mode?: string | null;
@@ -2769,6 +4471,42 @@ export interface components {
             /** Format: int32 */
             forgottenBundles: number;
         };
+        RcCalendarCreatedResponse: {
+            calendarId: string;
+            title: string;
+        };
+        RcCalendarItemCreatedResponse: {
+            itemId: string;
+            itemType: string;
+            repeatKind: string;
+        };
+        RcCalendarItemsResponse: {
+            calendarId: string;
+            timeZone: string;
+            /** Format: date-time */
+            fromUtc: string;
+            /** Format: date-time */
+            toUtc: string;
+            occurrences: components["schemas"]["CalendarOccurrenceView"][];
+        };
+        RcCalendarsResponse: {
+            calendars: components["schemas"]["CalendarCalendarSummary"][];
+        };
+        RcCandidateCreatedResponse: {
+            candidateId: string;
+            name: string;
+        };
+        RcCandidateNoteAddedResponse: {
+            noteId: string;
+            forFamily: boolean;
+        };
+        RcCandidateWithdrawnResponse: {
+            candidateId: string;
+            withdrawn: boolean;
+        };
+        RcCandidatesResponse: {
+            candidates: components["schemas"]["ConfirmationCandidateView"][];
+        };
         RcCertificateIssuedResponse: {
             certificateId: string;
             /** Format: date-time */
@@ -2777,6 +4515,13 @@ export interface components {
         };
         RcCertificatesResponse: {
             certificates: components["schemas"]["RolesCertificateView"][];
+        };
+        RcConfirmationGroupCreatedResponse: {
+            groupId: string;
+            name: string;
+        };
+        RcConfirmationGroupsResponse: {
+            groups: components["schemas"]["ConfirmationGroupSummary"][];
         };
         RcConsentPublishedResponse: {
             consentKey: string;
@@ -2862,9 +4607,67 @@ export interface components {
             areaId: string;
             saved: boolean;
         };
+        RcEdgeCreatedResponse: {
+            edgeId: string;
+            state: string;
+        };
+        RcEventCreatedResponse: {
+            eventId: string;
+            slug: string;
+            title: string;
+            lifecycle: string;
+        };
+        RcEventFieldCreatedResponse: {
+            fieldId: string;
+            kind: string;
+            label: string;
+            dataClass: string;
+        };
+        RcEventPageCreatedResponse: {
+            pageId: string;
+            slug: string;
+            title: string;
+        };
+        RcEventPartCreatedResponse: {
+            partId: string;
+            kind: string;
+            isPublic: boolean;
+            /** Format: int32 */
+            sortOrder: number;
+        };
+        RcEventPartUpdatedResponse: {
+            partId: string;
+            updated: boolean;
+        };
+        RcEventPublishedResponse: {
+            eventId: string;
+            lifecycle: string;
+        };
+        RcEventViewResponse: {
+            eventId: string;
+            areaId: string;
+            slug: string;
+            title: string;
+            lifecycle: string;
+            isPublic: boolean;
+            /** Format: date-time */
+            startsUtc?: string | null;
+            /** Format: date-time */
+            endsUtc?: string | null;
+            mayRead: boolean;
+            pages: components["schemas"]["EventsPageView"][];
+            intakePublicKey?: string | null;
+        };
+        RcEventsResponse: {
+            events: components["schemas"]["EventsEventSummary"][];
+        };
         RcFeedResponse: {
             messages: components["schemas"]["MessagesMessageView"][];
             readableEpochs: number[];
+        };
+        RcGraphSearchResponse: {
+            hits: components["schemas"]["GraphSearchHit"][];
+            serverSide: boolean;
         };
         RcHealthCheck: {
             name: string;
@@ -2881,6 +4684,13 @@ export interface components {
             /** Format: date-time */
             expiresUtc?: string | null;
             alreadyHeld: boolean;
+        };
+        RcIntentionCreatedResponse: {
+            intentionId: string;
+            publicText: string;
+        };
+        RcIntentionsResponse: {
+            intentions: components["schemas"]["ParishIntentionView"][];
         };
         RcInvitationCreatedResponse: {
             invitationId: string;
@@ -2916,6 +4726,15 @@ export interface components {
             hash: string;
             note: string;
         };
+        RcLibrariesResponse: {
+            libraries: components["schemas"]["GraphLibrarySummary"][];
+        };
+        RcLibraryCreatedResponse: {
+            libraryId: string;
+            slug: string;
+            title: string;
+            isPublic: boolean;
+        };
         RcLockedResponse: {
             locked: boolean;
             hadKeys: boolean;
@@ -2923,11 +4742,39 @@ export interface components {
         RcLoggedOutResponse: {
             loggedOut: boolean;
         };
+        RcMassCreatedResponse: {
+            massId: string;
+            /** Format: date-time */
+            startsUtc: string;
+            church: string;
+        };
+        RcMassesResponse: {
+            parishId: string;
+            masses: components["schemas"]["ParishMassView"][];
+        };
         RcMeResponse: {
             signedIn: boolean;
             accountId?: string | null;
             sessionId?: string | null;
             keysHeld?: boolean | null;
+        };
+        RcMeetingBookedResponse: {
+            slotId: string;
+            candidateId: string;
+            /** Format: int32 */
+            booked: number;
+            /** Format: int32 */
+            capacity: number;
+        };
+        RcMeetingSlotCreatedResponse: {
+            slotId: string;
+            /** Format: date-time */
+            startsUtc: string;
+            /** Format: int32 */
+            capacity: number;
+        };
+        RcMeetingSlotsResponse: {
+            slots: components["schemas"]["ConfirmationSlotView"][];
         };
         RcMemberAddedResponse: {
             roleId: string;
@@ -2971,9 +4818,35 @@ export interface components {
             appendWindowUntil: string;
             chainBound: boolean;
         };
+        RcNodeCreatedResponse: {
+            nodeId: string;
+            kind: string;
+        };
+        RcNodesResponse: {
+            nodes: components["schemas"]["GraphNodeView"][];
+            isPublic: boolean;
+        };
         RcObjectionResponse: {
             requestId: string;
             objected: boolean;
+        };
+        RcOccurrenceChangedResponse: {
+            itemId: string;
+            /** Format: date-time */
+            occurrenceUtc: string;
+            kind: string;
+        };
+        RcOfferingCreatedResponse: {
+            offeringId: string;
+            currency: string;
+        };
+        RcParishCreatedResponse: {
+            parishId: string;
+            slug: string;
+            name: string;
+        };
+        RcParishesResponse: {
+            parishes: components["schemas"]["ParishParishSummary"][];
         };
         RcPermissionCheckResponse: {
             allowed: boolean;
@@ -3041,6 +4914,20 @@ export interface components {
             idleMinutes: number;
             tenantId: string;
             personalRoleId: string;
+        };
+        RcRegistrationSubmittedResponse: {
+            registrationId: string;
+            claim?: string | null;
+            /** Format: date-time */
+            submittedUtc: string;
+        };
+        RcRegistrationWithdrawnResponse: {
+            registrationId: string;
+            /** Format: int32 */
+            valuesDestroyed: number;
+        };
+        RcRegistrationsResponse: {
+            registrations: components["schemas"]["RegistrationsRegistrationView"][];
         };
         RcRevokedResponse: {
             revoked: boolean;
@@ -3137,6 +5024,40 @@ export interface components {
             totalShares: number;
             /** Format: date-time */
             createdAt: string;
+        };
+        RegistrationsAnswer: {
+            fieldId: string;
+            value: string;
+        };
+        RegistrationsAnswerView: {
+            fieldId: string;
+            label: string;
+            value?: string | null;
+            dataClass: string;
+        };
+        RegistrationsRegistrationView: {
+            registrationId: string;
+            /** Format: date-time */
+            submittedUtc: string;
+            withdrawn: boolean;
+            submitterRoleId?: string | null;
+            answers: components["schemas"]["RegistrationsAnswerView"][];
+            unreadable?: string | null;
+        };
+        RegistrationsSealedAnswer: {
+            fieldId: string;
+            sealed: string;
+        };
+        RegistrationsSubmitRequest: {
+            answers?: components["schemas"]["RegistrationsAnswer"][] | null;
+            sealedAnswers?: components["schemas"]["RegistrationsSealedAnswer"][] | null;
+            sessionKeyWrapped?: string | null;
+            roleId?: string | null;
+            consentTextId?: string | null;
+            registrationId?: string | null;
+        };
+        RegistrationsWithdrawRequest: {
+            claim?: string | null;
         };
         RolesAddHolderRequest: {
             holderRoleId: string;

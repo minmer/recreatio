@@ -234,6 +234,205 @@ export interface RcCopy {
     readonly invalid: string;
     readonly dismiss: string;
   };
+  readonly events: {
+    readonly heading: string;
+    readonly none: string;
+    readonly create: string;
+    readonly eventTitle: string;
+    readonly address: string;
+    readonly addressHint: string;
+    readonly make: string;
+    readonly states: Readonly<Record<string, string>>;
+    readonly publish: string;
+    readonly archive: string;
+    readonly draftWarning: string;
+
+    readonly pages: RcPlural;
+    readonly newPage: string;
+    readonly pageTitle: string;
+    readonly addPart: string;
+    readonly partKinds: Readonly<Record<string, string>>;
+    readonly visibility: string;
+    readonly isPublic: string;
+    readonly isInternal: string;
+    readonly publicWhy: string;
+    readonly internalWhy: string;
+    readonly sealedHere: string;
+    readonly onlyPublic: string;
+
+    readonly register: string;
+    readonly registering: string;
+    readonly registered: string;
+    readonly keepClaim: string;
+    readonly claimWhy: string;
+    readonly notYet: string;
+    readonly missing: string;
+    readonly registrations: RcPlural;
+    readonly withdrawn: string;
+    readonly withdraw: string;
+    readonly classes: Readonly<Record<string, string>>;
+    readonly sealedFor: string;
+  };
+  readonly parish: {
+    readonly heading: string;
+    readonly none: string;
+    readonly create: string;
+    readonly name: string;
+    readonly location: string;
+    readonly make: string;
+
+    readonly plan: string;
+    readonly noMasses: string;
+    readonly addMass: string;
+    readonly church: string;
+    readonly when: string;
+    readonly massTitle: string;
+    readonly duration: string;
+    readonly collective: string;
+    readonly collectiveWhy: string;
+
+    readonly intentions: RcPlural;
+    readonly addIntention: string;
+    readonly publicText: string;
+    readonly publicWhy: string;
+    readonly internalText: string;
+    readonly internalWhy: string;
+    readonly donor: string;
+    readonly forMass: string;
+    readonly unassigned: string;
+    readonly sealedPart: string;
+
+    readonly offerings: string;
+    readonly addOffering: string;
+    readonly amount: string;
+    readonly amountWhy: string;
+    readonly currency: string;
+    readonly received: string;
+    readonly booked: string;
+  };
+  readonly graph: {
+    readonly heading: string;
+    readonly none: string;
+    readonly create: string;
+    readonly title: string;
+    readonly public: string;
+    readonly publicWhy: string;
+    readonly privateWhy: string;
+    readonly locked: string;
+    readonly make: string;
+
+    readonly nodes: RcPlural;
+    readonly edges: RcPlural;
+    readonly addNode: string;
+    readonly kind: string;
+    readonly value: string;
+    readonly ofKind: string;
+    readonly needsKind: string;
+    readonly emptyNode: string;
+    readonly unreadable: string;
+
+    readonly addEdge: string;
+    readonly from: string;
+    readonly to: string;
+    readonly relation: string;
+    readonly state: string;
+    readonly states: Readonly<Record<string, string>>;
+    readonly stateWhy: string;
+    readonly note: string;
+
+    readonly search: string;
+    readonly searchHint: string;
+    readonly foundServer: string;
+    readonly foundBrowser: string;
+    readonly browserWhy: string;
+    readonly nothing: string;
+    readonly kinds: Readonly<Record<string, string>>;
+  };
+  readonly cal: {
+    readonly heading: string;
+    readonly none: string;
+    readonly create: string;
+    readonly title: string;
+    readonly zone: string;
+    readonly zoneWhy: string;
+    readonly make: string;
+
+    readonly nothing: string;
+    readonly busy: string;
+    readonly sealedItem: string;
+    readonly moved: string;
+    readonly clashes: RcPlural;
+    readonly clashWhy: string;
+
+    readonly add: string;
+    readonly when: string;
+    readonly until: string;
+    readonly allDay: string;
+    readonly publicTitle: string;
+    readonly publicWhy: string;
+    readonly privateTitle: string;
+    readonly privateWhy: string;
+    readonly where: string;
+    readonly notes: string;
+    readonly visibility: string;
+    readonly visibilities: Readonly<Record<string, string>>;
+    readonly repeat: string;
+    readonly repeats: Readonly<Record<string, string>>;
+    readonly every: string;
+    readonly times: string;
+    readonly repeatWhy: string;
+    readonly weekdays: readonly string[];
+
+    readonly cancelOne: string;
+    readonly moveOne: string;
+    readonly seriesKept: string;
+  };
+  readonly conf: {
+    readonly heading: string;
+    readonly none: string;
+    readonly create: string;
+    readonly name: string;
+    readonly ownArea: string;
+    readonly ownAreaWhy: string;
+    readonly make: string;
+
+    readonly candidates: RcPlural;
+    readonly outstanding: RcPlural;
+    readonly outstandingWhy: string;
+    readonly noCandidates: string;
+    readonly add: string;
+    readonly born: string;
+    readonly contact: string;
+    readonly school: string;
+    readonly baptism: string;
+    readonly sealedWhy: string;
+    readonly sealedCandidate: string;
+    readonly withdrawn: string;
+    readonly withdraw: string;
+    readonly withdrawWhy: string;
+
+    readonly steps: Readonly<Record<string, string>>;
+    readonly stepsDone: string;
+
+    readonly notes: RcPlural;
+    readonly addNote: string;
+    readonly noteText: string;
+    readonly forFamily: string;
+    readonly forFamilyWhy: string;
+    readonly internalOnly: string;
+
+    readonly slots: string;
+    readonly noSlots: string;
+    readonly addSlot: string;
+    readonly when: string;
+    readonly capacity: string;
+    readonly label: string;
+    readonly free: RcPlural;
+    readonly full: string;
+    readonly book: string;
+    readonly booked: string;
+    readonly pick: string;
+  };
   readonly status: {
     readonly heading: string;
     readonly done: string;
@@ -493,6 +692,245 @@ const en: RcCopy = {
     alreadyIn: 'You were already in. Nothing to do.',
     invalid: 'This link is no longer valid. Ask for a new one.',
     dismiss: 'Close'
+  },
+  events: {
+    heading: 'Events',
+    none: 'No events yet. An event hangs on an area — make one there.',
+    create: 'New event',
+    eventTitle: 'What is it called?',
+    address: 'Address',
+    addressHint: 'This is what goes in the link. Letters, digits and dashes.',
+    make: 'Create',
+    states: { draft: 'draft', published: 'published', archived: 'archived' },
+    publish: 'Publish',
+    archive: 'Archive',
+    draftWarning: 'A draft is not public. Nobody outside can reach it, and it takes no sign-ups.',
+
+    pages: { one: '{n} page', other: '{n} pages' },
+    newPage: 'Add a page',
+    pageTitle: 'What is on it?',
+    addPart: 'Add a section',
+    partKinds: {
+      title: 'Title', shortinfos: 'Facts at a glance', text: 'Text', plan: 'Schedule',
+      map: 'Map', faq: 'Questions', form: 'Sign-up form', costs: 'Costs',
+      contact: 'Contact', gallery: 'Pictures', files: 'Files', people: 'People'
+    },
+    visibility: 'Who sees this',
+    isPublic: 'Everyone',
+    isInternal: 'Only the people preparing this',
+    publicWhy:
+      'Public means readable by anyone with the link, and it is stored as plain text. Encrypting something and handing out the key would only look like protection.',
+    internalWhy:
+      'Sealed under this area\u2019s key. Whoever joins later will not see it — same rule as for messages, and for the same reason.',
+    sealedHere: 'Sealed. You joined after this was written.',
+    onlyPublic: 'You are seeing the public part. There may be more.',
+
+    register: 'Sign up',
+    registering: 'Sending…',
+    registered: 'Thank you — you are signed up.',
+    keepClaim: 'Keep this. It is your receipt.',
+    claimWhy:
+      'It is the only way to withdraw your sign-up later. It is shown once and stored only as a fingerprint — nobody can produce it again, not even whoever runs this service.',
+    notYet: 'This event is not taking sign-ups yet.',
+    missing: 'Still missing: {what}',
+    registrations: { one: '{n} sign-up', other: '{n} sign-ups' },
+    withdrawn: 'withdrawn',
+    withdraw: 'Withdraw',
+    classes: {
+      normal: 'ordinary', sensitive: 'sensitive',
+      special: 'special category', secret: 'secret'
+    },
+    sealedFor: 'From before you joined — nobody can open this for you.'
+  },
+  parish: {
+    heading: 'Parish',
+    none: 'No parish yet. A parish hangs on an area — make one there.',
+    create: 'New parish',
+    name: 'Name',
+    location: 'Where',
+    make: 'Create',
+
+    plan: 'Mass schedule',
+    noMasses: 'Nothing scheduled.',
+    addMass: 'Add a mass',
+    church: 'Church',
+    when: 'When',
+    massTitle: 'What kind',
+    duration: 'Minutes',
+    collective: 'Several intentions at once',
+    collectiveWhy:
+      'A collective mass carries several intentions on one date. The difference is not cosmetic: with a single mass the intention belongs to it, with a collective one several share the slot.',
+
+    intentions: { one: '{n} intention', other: '{n} intentions' },
+    addIntention: 'Add an intention',
+    publicText: 'What goes on the noticeboard',
+    publicWhy:
+      'This is read aloud and printed. It is stored as plain text, because it is public — encrypting it and handing out the key would only look like protection.',
+    internalText: 'What is actually meant',
+    internalWhy:
+      'Sealed under this area\u2019s key. Nobody outside the parish can read it — not even whoever runs this service.',
+    donor: 'Who gave it',
+    forMass: 'For which mass',
+    unassigned: 'no date yet',
+    sealedPart: 'There is a note here you cannot open.',
+
+    offerings: 'Offerings',
+    addOffering: 'Record an offering',
+    amount: 'Amount',
+    amountWhy:
+      'Kept sealed, always. That means no total can be computed in the database — whoever needs one fetches the rows and adds them up with the key in hand.',
+    currency: 'Currency',
+    received: 'Received',
+    booked: 'Recorded'
+  },
+  graph: {
+    heading: 'Knowledge',
+    none: 'No library yet. A library hangs on an area — make one there.',
+    create: 'New library',
+    title: 'Title',
+    public: 'Open library',
+    publicWhy:
+      'Contents are stored as plain text and the server can search them. Right for vocabulary, periodic tables, timelines — knowledge that is in every textbook anyway.',
+    privateWhy:
+      'Contents are sealed. The server sees ciphertext and cannot search it — this browser searches instead, through what it has already loaded. That scales worse. It is the price for the operator not being able to read your notes.',
+    locked: 'This choice is made once and cannot be changed later.',
+    make: 'Create',
+
+    nodes: { one: '{n} node', other: '{n} nodes' },
+    edges: { one: '{n} edge', other: '{n} edges' },
+    addNode: 'Add a node',
+    kind: 'Kind',
+    value: 'Value',
+    ofKind: 'Of kind',
+    needsKind: 'An entity needs the kind that describes it.',
+    emptyNode: 'Nothing filled in yet',
+    unreadable: 'You cannot open this one.',
+
+    addEdge: 'Connect two nodes',
+    from: 'From',
+    to: 'To',
+    relation: 'Relation',
+    state: 'How sure',
+    states: {
+      known: 'known',
+      approximate: 'approximately',
+      disputed: 'disputed',
+      unknown: 'not known',
+      not_applicable: 'does not apply',
+      pending: 'still open'
+    },
+    stateWhy:
+      '“Not known” is a statement, not a missing value. Saying it is different from saying nothing — that difference is what this model is for.',
+    note: 'Note',
+
+    search: 'Search',
+    searchHint: 'Type to search this library.',
+    foundServer: 'Searched on the server.',
+    foundBrowser: 'Searched here in your browser.',
+    browserWhy:
+      'The contents are sealed, so the server cannot search them. This searches what is loaded — which is not necessarily everything.',
+    nothing: 'Nothing matched.',
+    kinds: {
+      text: 'text', number: 'number', date: 'date', boolean: 'yes/no', media: 'file',
+      entity: 'entity', entity_kind: 'kind of entity', edge_kind: 'kind of relation',
+      range: 'range', knowledge: 'knowledge', topic: 'topic', question: 'question'
+    }
+  },
+  cal: {
+    heading: 'Calendar',
+    none: 'No calendar yet. A calendar hangs on an area — make one there.',
+    create: 'New calendar',
+    title: 'Title',
+    zone: 'Time zone',
+    zoneWhy:
+      'Repeats are computed in this zone. “Every Monday at nine” stays at nine across the clock change — in UTC it would not.',
+    make: 'Create',
+
+    nothing: 'Nothing in this period.',
+    busy: 'Busy',
+    sealedItem: 'Something is here that you cannot open.',
+    moved: 'moved',
+    clashes: { one: '{n} clash', other: '{n} clashes' },
+    clashWhy:
+      'Two appointments overlap. This can be checked because the times are stored in the clear — that is what pays for it.',
+
+    add: 'Add an entry',
+    when: 'From',
+    until: 'Until',
+    allDay: 'All day',
+    publicTitle: 'What others see',
+    publicWhy:
+      'Stored in the clear. Leave it empty and others only see “busy” — which is often the right answer.',
+    privateTitle: 'What it actually is',
+    privateWhy:
+      'Sealed under this area’s key. Nobody outside can read it — not even whoever runs this service.',
+    where: 'Where',
+    notes: 'Notes',
+    visibility: 'Who sees it',
+    visibilities: { private: 'only me', area: 'the area', public: 'anyone' },
+    repeat: 'Repeats',
+    repeats: { none: 'once', daily: 'daily', weekly: 'weekly', monthly: 'monthly', yearly: 'yearly' },
+    every: 'every',
+    times: 'times',
+    repeatWhy:
+      'A repeat needs an end — a count. Without one it cannot be computed, only cut off, and every view cuts somewhere else.',
+    weekdays: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'],
+
+    cancelOne: 'Cancel this one',
+    moveOne: 'Move this one',
+    seriesKept:
+      'The series stays a rule. Cancelling one date writes an exception — it does not turn “every Monday” into fifty separate entries.'
+  },
+  conf: {
+    heading: 'Confirmation',
+    none: 'No year group yet.',
+    create: 'New year group',
+    name: 'Name',
+    ownArea: 'Area for the records',
+    ownAreaWhy:
+      'A separate area, not the parish one. Whoever maintains the mass schedule should not thereby reach the children’s records — that is what an area is for.',
+    make: 'Create',
+
+    candidates: { one: '{n} candidate', other: '{n} candidates' },
+    outstanding: { one: '{n} still owes something', other: '{n} still owe something' },
+    outstandingWhy:
+      'Counted from the process markers, without opening a single record. That is why those markers are kept in the clear — they say nothing about the person.',
+    noCandidates: 'Nobody enrolled yet.',
+    add: 'Enrol someone',
+    born: 'Born',
+    contact: 'Contact (parents)',
+    school: 'School',
+    baptism: 'Baptised at',
+    sealedWhy:
+      'All of this is sealed under this area’s key. Nobody outside can read it — not even whoever runs this service.',
+    sealedCandidate: 'Someone is here that you cannot open.',
+    withdrawn: 'withdrawn',
+    withdraw: 'Withdraw',
+    withdrawWhy:
+      'The fields are destroyed, the row stays. “Was it forty or forty-one” is exactly what a list like this has to answer.',
+
+    steps: { consent: 'consent', paper: 'paper', quiz: 'quiz' },
+    stepsDone: 'everything in',
+
+    notes: { one: '{n} note', other: '{n} notes' },
+    addNote: 'Add a note',
+    noteText: 'Note',
+    forFamily: 'The family may read this',
+    forFamilyWhy:
+      'Both kinds are sealed. This one is not public — it is only visible to a wider circle. A child has no “public”.',
+    internalOnly: 'internal',
+
+    slots: 'Meetings',
+    noSlots: 'Nothing scheduled.',
+    addSlot: 'Schedule a meeting',
+    when: 'When',
+    capacity: 'Seats',
+    label: 'What for',
+    free: { one: '{n} seat free', other: '{n} seats free' },
+    full: 'full',
+    book: 'Book a seat',
+    booked: 'booked',
+    pick: 'Who for'
   },
   status: {
     heading: 'What stands so far',
@@ -799,6 +1237,252 @@ const pl: RcCopy = {
     invalid: 'Ten link jest już nieważny. Poproś o nowy.',
     dismiss: 'Zamknij'
   },
+  events: {
+    heading: 'Wydarzenia',
+    none: 'Nie ma jeszcze wydarzeń. Wydarzenie wisi przy obszarze — załóż je tam.',
+    create: 'Nowe wydarzenie',
+    eventTitle: 'Jak się nazywa?',
+    address: 'Adres',
+    addressHint: 'To trafia do linku. Litery, cyfry i myślniki.',
+    make: 'Utwórz',
+    states: { draft: 'szkic', published: 'opublikowane', archived: 'zarchiwizowane' },
+    publish: 'Opublikuj',
+    archive: 'Zarchiwizuj',
+    draftWarning: 'Szkic nie jest publiczny. Nikt z zewnątrz go nie otworzy i nie przyjmuje zapisów.',
+
+    pages: { one: '{n} strona', few: '{n} strony', many: '{n} stron', other: '{n} stron' },
+    newPage: 'Dodaj stronę',
+    pageTitle: 'Co na niej będzie?',
+    addPart: 'Dodaj sekcję',
+    partKinds: {
+      title: 'Tytuł', shortinfos: 'Najważniejsze', text: 'Tekst', plan: 'Program',
+      map: 'Mapa', faq: 'Pytania', form: 'Formularz zapisu', costs: 'Koszty',
+      contact: 'Kontakt', gallery: 'Zdjęcia', files: 'Pliki', people: 'Osoby'
+    },
+    visibility: 'Kto to widzi',
+    isPublic: 'Wszyscy',
+    isInternal: 'Tylko przygotowujący',
+    publicWhy:
+      'Publiczne znaczy czytelne dla każdego, kto ma link, i zapisane jawnym tekstem. Szyfrowanie czegoś i rozdawanie klucza tylko wyglądałoby na ochronę.',
+    internalWhy:
+      'Zapieczętowane kluczem tego obszaru. Kto dołączy później, tego nie zobaczy — ta sama zasada co przy wiadomościach i z tego samego powodu.',
+    sealedHere: 'Zapieczętowane. Dołączyłeś po tym, jak to powstało.',
+    onlyPublic: 'Widzisz część publiczną. Może być tego więcej.',
+
+    register: 'Zapisz się',
+    registering: 'Wysyłanie…',
+    registered: 'Dziękujemy — jesteś zapisany.',
+    keepClaim: 'Zachowaj to. To Twój dowód.',
+    claimWhy:
+      'To jedyny sposób, żeby później wycofać zapis. Pokazujemy go raz i przechowujemy tylko odcisk — nikt go nie odtworzy, nawet ten, kto prowadzi tę usługę.',
+    notYet: 'To wydarzenie nie przyjmuje jeszcze zapisów.',
+    missing: 'Wciąż brakuje: {what}',
+    registrations: { one: '{n} zapis', few: '{n} zapisy', many: '{n} zapisów', other: '{n} zapisów' },
+    withdrawn: 'wycofane',
+    withdraw: 'Wycofaj',
+    classes: {
+      normal: 'zwykłe', sensitive: 'wrażliwe',
+      special: 'kategoria szczególna', secret: 'tajne'
+    },
+    sealedFor: 'Sprzed Twojego dołączenia — nikt nie może tego dla Ciebie otworzyć.'
+  },
+  parish: {
+    heading: 'Parafia',
+    none: 'Nie ma jeszcze parafii. Parafia wisi przy obszarze — załóż ją tam.',
+    create: 'Nowa parafia',
+    name: 'Nazwa',
+    location: 'Gdzie',
+    make: 'Utwórz',
+
+    plan: 'Plan mszy',
+    noMasses: 'Nic nie zaplanowano.',
+    addMass: 'Dodaj mszę',
+    church: 'Kościół',
+    when: 'Kiedy',
+    massTitle: 'Jaka',
+    duration: 'Minut',
+    collective: 'Kilka intencji naraz',
+    collectiveWhy:
+      'Msza zbiorowa niesie kilka intencji w jednym terminie. Różnica nie jest kosmetyczna: przy mszy pojedynczej intencja należy do niej, przy zbiorowej kilka dzieli termin.',
+
+    intentions: {
+      one: '{n} intencja', few: '{n} intencje', many: '{n} intencji', other: '{n} intencji'
+    },
+    addIntention: 'Dodaj intencję',
+    publicText: 'Co trafia do ogłoszeń',
+    publicWhy:
+      'To jest odczytywane i drukowane. Zapisane jawnym tekstem, bo jest publiczne — szyfrowanie tego i rozdawanie klucza tylko wyglądałoby na ochronę.',
+    internalText: 'O co naprawdę chodzi',
+    internalWhy:
+      'Zapieczętowane kluczem tego obszaru. Nikt spoza parafii tego nie przeczyta — nawet ten, kto prowadzi tę usługę.',
+    donor: 'Kto ofiarował',
+    forMass: 'Do której mszy',
+    unassigned: 'bez terminu',
+    sealedPart: 'Jest tu notatka, której nie możesz otworzyć.',
+
+    offerings: 'Ofiary',
+    addOffering: 'Zapisz ofiarę',
+    amount: 'Kwota',
+    amountWhy:
+      'Zawsze zapieczętowana. To znaczy, że sumy nie da się policzyć w bazie — kto jej potrzebuje, pobiera wiersze i dodaje z kluczem w ręku.',
+    currency: 'Waluta',
+    received: 'Otrzymano',
+    booked: 'Zapisano'
+  },
+  graph: {
+    heading: 'Wiedza',
+    none: 'Nie ma jeszcze biblioteki. Biblioteka wisi przy obszarze — załóż ją tam.',
+    create: 'Nowa biblioteka',
+    title: 'Tytuł',
+    public: 'Biblioteka otwarta',
+    publicWhy:
+      'Treść zapisana jawnym tekstem, serwer może ją przeszukiwać. Dobre dla słówek, układu okresowego, osi czasu — wiedzy, która i tak jest w każdym podręczniku.',
+    privateWhy:
+      'Treść zapieczętowana. Serwer widzi szyfrogram i nie umie w nim szukać — szuka ta przeglądarka, w tym, co już wczytała. To gorzej się skaluje. To cena za to, że operator nie przeczyta Twoich notatek.',
+    locked: 'Ten wybór zapada raz i nie da się go później zmienić.',
+    make: 'Utwórz',
+
+    nodes: { one: '{n} węzeł', few: '{n} węzły', many: '{n} węzłów', other: '{n} węzłów' },
+    edges: { one: '{n} krawędź', few: '{n} krawędzie', many: '{n} krawędzi', other: '{n} krawędzi' },
+    addNode: 'Dodaj węzeł',
+    kind: 'Rodzaj',
+    value: 'Wartość',
+    ofKind: 'Rodzaju',
+    needsKind: 'Encja potrzebuje rodzaju, który ją opisuje.',
+    emptyNode: 'Nic jeszcze nie wypełniono',
+    unreadable: 'Tego nie możesz otworzyć.',
+
+    addEdge: 'Połącz dwa węzły',
+    from: 'Od',
+    to: 'Do',
+    relation: 'Relacja',
+    state: 'Na ile pewne',
+    states: {
+      known: 'znane',
+      approximate: 'w przybliżeniu',
+      disputed: 'sporne',
+      unknown: 'nieznane',
+      not_applicable: 'nie dotyczy',
+      pending: 'wciąż otwarte'
+    },
+    stateWhy:
+      '„Nieznane" to stwierdzenie, a nie brak wartości. Powiedzieć to znaczy co innego niż nie powiedzieć nic — po to właśnie jest ten model.',
+    note: 'Notatka',
+
+    search: 'Szukaj',
+    searchHint: 'Pisz, aby przeszukać tę bibliotekę.',
+    foundServer: 'Szukano na serwerze.',
+    foundBrowser: 'Szukano tutaj, w Twojej przeglądarce.',
+    browserWhy:
+      'Treść jest zapieczętowana, więc serwer nie może w niej szukać. Szuka się w tym, co wczytano — a to niekoniecznie wszystko.',
+    nothing: 'Nic nie pasuje.',
+    kinds: {
+      text: 'tekst', number: 'liczba', date: 'data', boolean: 'tak/nie', media: 'plik',
+      entity: 'encja', entity_kind: 'rodzaj encji', edge_kind: 'rodzaj relacji',
+      range: 'zakres', knowledge: 'wiedza', topic: 'temat', question: 'pytanie'
+    }
+  },
+  cal: {
+    heading: 'Kalendarz',
+    none: 'Nie ma jeszcze kalendarza. Kalendarz wisi przy obszarze — załóż go tam.',
+    create: 'Nowy kalendarz',
+    title: 'Tytuł',
+    zone: 'Strefa czasowa',
+    zoneWhy:
+      'Powtórzenia liczone są w tej strefie. „W każdy poniedziałek o dziewiątej" zostaje o dziewiątej mimo zmiany czasu — w UTC by nie zostało.',
+    make: 'Utwórz',
+
+    nothing: 'Nic w tym okresie.',
+    busy: 'Zajęte',
+    sealedItem: 'Jest tu coś, czego nie możesz otworzyć.',
+    moved: 'przeniesione',
+    clashes: { one: '{n} kolizja', few: '{n} kolizje', many: '{n} kolizji', other: '{n} kolizji' },
+    clashWhy:
+      'Dwa terminy nachodzą na siebie. Da się to sprawdzić, bo czasy leżą jawnym tekstem — i to jest za to zapłata.',
+
+    add: 'Dodaj wpis',
+    when: 'Od',
+    until: 'Do',
+    allDay: 'Cały dzień',
+    publicTitle: 'Co widzą inni',
+    publicWhy:
+      'Zapisane jawnym tekstem. Zostaw puste, a inni zobaczą tylko „zajęte" — co często jest właściwą odpowiedzią.',
+    privateTitle: 'Co to naprawdę jest',
+    privateWhy:
+      'Zapieczętowane kluczem tego obszaru. Nikt z zewnątrz tego nie przeczyta — nawet ten, kto prowadzi tę usługę.',
+    where: 'Gdzie',
+    notes: 'Notatki',
+    visibility: 'Kto widzi',
+    visibilities: { private: 'tylko ja', area: 'obszar', public: 'każdy' },
+    repeat: 'Powtarza się',
+    repeats: { none: 'raz', daily: 'codziennie', weekly: 'co tydzień', monthly: 'co miesiąc', yearly: 'co rok' },
+    every: 'co',
+    times: 'razy',
+    repeatWhy:
+      'Powtórzenie potrzebuje końca — liczby. Bez niego nie da się go policzyć, tylko uciąć, a każdy widok utnie gdzie indziej.',
+    weekdays: ['pn', 'wt', 'śr', 'cz', 'pt', 'sb', 'nd'],
+
+    cancelOne: 'Odwołaj ten',
+    moveOne: 'Przenieś ten',
+    seriesKept:
+      'Seria pozostaje regułą. Odwołanie jednego terminu zapisuje wyjątek — nie zamienia „w każdy poniedziałek" w pięćdziesiąt osobnych wpisów.'
+  },
+  conf: {
+    heading: 'Bierzmowanie',
+    none: 'Nie ma jeszcze rocznika.',
+    create: 'Nowy rocznik',
+    name: 'Nazwa',
+    ownArea: 'Obszar dla akt',
+    ownAreaWhy:
+      'Osobny obszar, nie ten parafialny. Kto prowadzi plan mszy, nie powinien przez to sięgać do akt dzieci — po to właśnie jest obszar.',
+    make: 'Utwórz',
+
+    candidates: { one: '{n} kandydat', few: '{n} kandydatów', many: '{n} kandydatów', other: '{n} kandydatów' },
+    outstanding: {
+      one: '{n} ma jeszcze zaległości',
+      few: '{n} mają jeszcze zaległości',
+      many: '{n} ma jeszcze zaległości',
+      other: '{n} ma jeszcze zaległości'
+    },
+    outstandingWhy:
+      'Policzone ze znaczników procesu, bez otwierania ani jednego rekordu. Po to właśnie leżą one jawnym tekstem — nie mówią nic o osobie.',
+    noCandidates: 'Nikt jeszcze nie zapisany.',
+    add: 'Zapisz kogoś',
+    born: 'Urodzony(a)',
+    contact: 'Kontakt (rodzice)',
+    school: 'Szkoła',
+    baptism: 'Chrzest w',
+    sealedWhy:
+      'Wszystko to jest zapieczętowane kluczem tego obszaru. Nikt z zewnątrz tego nie przeczyta — nawet ten, kto prowadzi tę usługę.',
+    sealedCandidate: 'Jest tu ktoś, kogo nie możesz otworzyć.',
+    withdrawn: 'wypisany(a)',
+    withdraw: 'Wypisz',
+    withdrawWhy:
+      'Pola zostają zniszczone, wiersz zostaje. „Było ich czterdziestu czy czterdziestu jeden" to dokładnie to, na co taka lista ma odpowiadać.',
+
+    steps: { consent: 'zgoda', paper: 'papiery', quiz: 'test' },
+    stepsDone: 'wszystko jest',
+
+    notes: { one: '{n} notatka', few: '{n} notatki', many: '{n} notatek', other: '{n} notatek' },
+    addNote: 'Dodaj notatkę',
+    noteText: 'Notatka',
+    forFamily: 'Rodzina może to przeczytać',
+    forFamilyWhy:
+      'Obie są zapieczętowane. Ta nie jest publiczna — jest tylko widoczna dla szerszego kręgu. Dziecko nie ma „publicznego".',
+    internalOnly: 'wewnętrzna',
+
+    slots: 'Spotkania',
+    noSlots: 'Nic nie zaplanowano.',
+    addSlot: 'Zaplanuj spotkanie',
+    when: 'Kiedy',
+    capacity: 'Miejsc',
+    label: 'Na co',
+    free: { one: '{n} wolne miejsce', few: '{n} wolne miejsca', many: '{n} wolnych miejsc', other: '{n} wolnych miejsc' },
+    full: 'pełne',
+    book: 'Zajmij miejsce',
+    booked: 'zajęte',
+    pick: 'Dla kogo'
+  },
   status: {
     heading: 'Co już stoi',
     done: 'zbudowane i sprawdzone',
@@ -1058,6 +1742,245 @@ const de: RcCopy = {
     alreadyIn: 'Du warst schon drin. Nichts zu tun.',
     invalid: 'Dieser Link gilt nicht mehr. Bitte um einen neuen.',
     dismiss: 'Schliessen'
+  },
+  events: {
+    heading: 'Veranstaltungen',
+    none: 'Noch keine Veranstaltungen. Eine haengt an einem Bereich — leg sie dort an.',
+    create: 'Neue Veranstaltung',
+    eventTitle: 'Wie heisst sie?',
+    address: 'Adresse',
+    addressHint: 'Das steht im Link. Buchstaben, Ziffern und Striche.',
+    make: 'Anlegen',
+    states: { draft: 'Entwurf', published: 'veröffentlicht', archived: 'archiviert' },
+    publish: 'Veröffentlichen',
+    archive: 'Archivieren',
+    draftWarning: 'Ein Entwurf ist nicht öffentlich. Von aussen erreicht ihn niemand, und er nimmt keine Anmeldungen an.',
+
+    pages: { one: '{n} Seite', other: '{n} Seiten' },
+    newPage: 'Seite hinzufügen',
+    pageTitle: 'Was steht darauf?',
+    addPart: 'Abschnitt hinzufügen',
+    partKinds: {
+      title: 'Titel', shortinfos: 'Das Wichtigste', text: 'Text', plan: 'Ablauf',
+      map: 'Karte', faq: 'Fragen', form: 'Anmeldeformular', costs: 'Kosten',
+      contact: 'Kontakt', gallery: 'Bilder', files: 'Dateien', people: 'Personen'
+    },
+    visibility: 'Wer sieht das',
+    isPublic: 'Alle',
+    isInternal: 'Nur die Vorbereitenden',
+    publicWhy:
+      'Öffentlich heisst: für jeden lesbar, der den Link hat — und im Klartext gespeichert. Etwas zu verschlüsseln und den Schlüssel mitzuliefern sähe nur nach Schutz aus.',
+    internalWhy:
+      'Versiegelt unter dem Schlüssel dieses Bereichs. Wer später dazukommt, sieht es nicht — dieselbe Regel wie bei Nachrichten, und aus demselben Grund.',
+    sealedHere: 'Versiegelt. Du bist dazugekommen, nachdem das geschrieben wurde.',
+    onlyPublic: 'Du siehst den öffentlichen Teil. Es kann mehr geben.',
+
+    register: 'Anmelden',
+    registering: 'Wird gesendet…',
+    registered: 'Danke — du bist angemeldet.',
+    keepClaim: 'Heb das auf. Es ist dein Beleg.',
+    claimWhy:
+      'Nur damit lässt sich die Anmeldung später zurücknehmen. Er wird einmal gezeigt und nur als Abdruck gespeichert — niemand kann ihn wiederherstellen, auch nicht, wer diesen Dienst betreibt.',
+    notYet: 'Diese Veranstaltung nimmt noch keine Anmeldungen entgegen.',
+    missing: 'Es fehlt noch: {what}',
+    registrations: { one: '{n} Anmeldung', other: '{n} Anmeldungen' },
+    withdrawn: 'zurückgenommen',
+    withdraw: 'Zurücknehmen',
+    classes: {
+      normal: 'gewöhnlich', sensitive: 'sensibel',
+      special: 'besondere Kategorie', secret: 'geheim'
+    },
+    sealedFor: 'Aus der Zeit vor deinem Beitritt — niemand kann das für dich öffnen.'
+  },
+  parish: {
+    heading: 'Pfarrei',
+    none: 'Noch keine Pfarrei. Eine haengt an einem Bereich — leg sie dort an.',
+    create: 'Neue Pfarrei',
+    name: 'Name',
+    location: 'Wo',
+    make: 'Anlegen',
+
+    plan: 'Messplan',
+    noMasses: 'Nichts angesetzt.',
+    addMass: 'Messe ansetzen',
+    church: 'Kirche',
+    when: 'Wann',
+    massTitle: 'Welche',
+    duration: 'Minuten',
+    collective: 'Mehrere Intentionen zugleich',
+    collectiveWhy:
+      'Eine Sammelmesse traegt mehrere Intentionen an einem Termin. Der Unterschied ist nicht kosmetisch: bei einer Einzelmesse gehoert die Intention dieser Messe, bei einer Sammelmesse teilen sich mehrere den Termin.',
+
+    intentions: { one: '{n} Intention', other: '{n} Intentionen' },
+    addIntention: 'Intention hinzufügen',
+    publicText: 'Was im Schaukasten steht',
+    publicWhy:
+      'Das wird verlesen und gedruckt. Es liegt im Klartext, weil es öffentlich ist — es zu verschlüsseln und den Schlüssel mitzuliefern sähe nur nach Schutz aus.',
+    internalText: 'Was wirklich gemeint ist',
+    internalWhy:
+      'Versiegelt unter dem Schlüssel dieses Bereichs. Niemand ausserhalb der Pfarrei liest es — auch nicht, wer diesen Dienst betreibt.',
+    donor: 'Von wem',
+    forMass: 'Zu welcher Messe',
+    unassigned: 'noch ohne Termin',
+    sealedPart: 'Hier steht ein Vermerk, den du nicht öffnen kannst.',
+
+    offerings: 'Gaben',
+    addOffering: 'Gabe eintragen',
+    amount: 'Betrag',
+    amountWhy:
+      'Liegt immer versiegelt. Das heisst: eine Summe lässt sich nicht in der Datenbank bilden — wer eine braucht, holt die Zeilen und rechnet mit dem Schlüssel in der Hand.',
+    currency: 'Währung',
+    received: 'Erhalten',
+    booked: 'Eingetragen'
+  },
+  graph: {
+    heading: 'Wissen',
+    none: 'Noch keine Bibliothek. Eine haengt an einem Bereich — leg sie dort an.',
+    create: 'Neue Bibliothek',
+    title: 'Titel',
+    public: 'Offene Bibliothek',
+    publicWhy:
+      'Die Inhalte liegen im Klartext, der Server kann sie durchsuchen. Richtig für Vokabeln, Periodensysteme, Zeitleisten — Wissen, das ohnehin in jedem Lehrbuch steht.',
+    privateWhy:
+      'Die Inhalte liegen versiegelt. Der Server sieht Geheimtext und kann nicht darin suchen — dieser Browser sucht stattdessen, in dem, was er ohnehin geladen hat. Das skaliert schlechter. Es ist der Preis dafür, dass der Betreiber deine Notizen nicht lesen kann.',
+    locked: 'Diese Wahl fällt einmal und lässt sich später nicht umlegen.',
+    make: 'Anlegen',
+
+    nodes: { one: '{n} Knoten', other: '{n} Knoten' },
+    edges: { one: '{n} Kante', other: '{n} Kanten' },
+    addNode: 'Knoten anlegen',
+    kind: 'Art',
+    value: 'Wert',
+    ofKind: 'Von der Art',
+    needsKind: 'Eine Entität braucht die Art, die sie beschreibt.',
+    emptyNode: 'Noch nichts ausgefüllt',
+    unreadable: 'Diesen kannst du nicht öffnen.',
+
+    addEdge: 'Zwei Knoten verbinden',
+    from: 'Von',
+    to: 'Nach',
+    relation: 'Beziehung',
+    state: 'Wie sicher',
+    states: {
+      known: 'bekannt',
+      approximate: 'ungefähr',
+      disputed: 'umstritten',
+      unknown: 'nicht bekannt',
+      not_applicable: 'trifft nicht zu',
+      pending: 'noch offen'
+    },
+    stateWhy:
+      '„Nicht bekannt" ist eine Aussage und kein fehlender Wert. Das zu sagen ist etwas anderes, als nichts zu sagen — genau dafür gibt es dieses Modell.',
+    note: 'Notiz',
+
+    search: 'Suchen',
+    searchHint: 'Tippen, um diese Bibliothek zu durchsuchen.',
+    foundServer: 'Auf dem Server gesucht.',
+    foundBrowser: 'Hier im Browser gesucht.',
+    browserWhy:
+      'Die Inhalte liegen versiegelt, der Server kann nicht darin suchen. Gesucht wird in dem, was geladen ist — und das ist nicht zwingend alles.',
+    nothing: 'Nichts gefunden.',
+    kinds: {
+      text: 'Text', number: 'Zahl', date: 'Datum', boolean: 'ja/nein', media: 'Datei',
+      entity: 'Entität', entity_kind: 'Art von Entität', edge_kind: 'Art von Beziehung',
+      range: 'Bereich', knowledge: 'Wissen', topic: 'Thema', question: 'Frage'
+    }
+  },
+  cal: {
+    heading: 'Kalender',
+    none: 'Noch kein Kalender. Einer hängt an einem Bereich — leg ihn dort an.',
+    create: 'Neuer Kalender',
+    title: 'Titel',
+    zone: 'Zeitzone',
+    zoneWhy:
+      'Wiederholungen werden darin gerechnet. „Jeden Montag um neun" bleibt über die Zeitumstellung hinweg um neun — in UTC bliebe es das nicht.',
+    make: 'Anlegen',
+
+    nothing: 'Nichts in diesem Zeitraum.',
+    busy: 'Belegt',
+    sealedItem: 'Hier steht etwas, das du nicht öffnen kannst.',
+    moved: 'verschoben',
+    clashes: { one: '{n} Überschneidung', other: '{n} Überschneidungen' },
+    clashWhy:
+      'Zwei Termine überlappen sich. Das lässt sich prüfen, weil die Zeiten im Klartext liegen — dafür wird bezahlt.',
+
+    add: 'Eintrag hinzufügen',
+    when: 'Von',
+    until: 'Bis',
+    allDay: 'Ganztägig',
+    publicTitle: 'Was andere sehen',
+    publicWhy:
+      'Liegt im Klartext. Lass es leer, dann sehen andere nur „belegt" — und das ist oft die richtige Antwort.',
+    privateTitle: 'Was es wirklich ist',
+    privateWhy:
+      'Versiegelt unter dem Schlüssel dieses Bereichs. Niemand von aussen liest es — auch nicht, wer diesen Dienst betreibt.',
+    where: 'Wo',
+    notes: 'Notizen',
+    visibility: 'Wer es sieht',
+    visibilities: { private: 'nur ich', area: 'der Bereich', public: 'alle' },
+    repeat: 'Wiederholt sich',
+    repeats: { none: 'einmalig', daily: 'täglich', weekly: 'wöchentlich', monthly: 'monatlich', yearly: 'jährlich' },
+    every: 'alle',
+    times: 'mal',
+    repeatWhy:
+      'Eine Wiederholung braucht ein Ende — eine Anzahl. Ohne eines lässt sie sich nicht ausrechnen, nur abschneiden, und jede Ansicht schneidet woanders ab.',
+    weekdays: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
+
+    cancelOne: 'Diesen absagen',
+    moveOne: 'Diesen verschieben',
+    seriesKept:
+      'Die Reihe bleibt eine Regel. Einen Termin abzusagen schreibt eine Ausnahme — es macht aus „jeden Montag" nicht fünfzig Einzeleinträge.'
+  },
+  conf: {
+    heading: 'Firmung',
+    none: 'Noch kein Jahrgang.',
+    create: 'Neuer Jahrgang',
+    name: 'Name',
+    ownArea: 'Bereich für die Akten',
+    ownAreaWhy:
+      'Ein eigener Bereich, nicht der der Pfarrei. Wer den Messplan pflegt, soll damit nicht auch an die Akten der Kinder kommen — dafür ist ein Bereich da.',
+    make: 'Anlegen',
+
+    candidates: { one: '{n} Kandidat', other: '{n} Kandidaten' },
+    outstanding: { one: '{n} hat noch etwas offen', other: '{n} haben noch etwas offen' },
+    outstandingWhy:
+      'Aus den Ablaufmerkern gerechnet, ohne einen einzigen Datensatz zu öffnen. Genau dafür liegen sie im Klartext — sie sagen nichts über die Person.',
+    noCandidates: 'Noch niemand aufgenommen.',
+    add: 'Jemanden aufnehmen',
+    born: 'Geboren',
+    contact: 'Kontakt (Eltern)',
+    school: 'Schule',
+    baptism: 'Getauft in',
+    sealedWhy:
+      'All das liegt versiegelt unter dem Schlüssel dieses Bereichs. Niemand von aussen liest es — auch nicht, wer diesen Dienst betreibt.',
+    sealedCandidate: 'Hier ist jemand, den du nicht öffnen kannst.',
+    withdrawn: 'ausgetreten',
+    withdraw: 'Austragen',
+    withdrawWhy:
+      'Die Felder werden vernichtet, die Zeile bleibt. „Waren es nun vierzig oder einundvierzig" ist genau die Frage, die eine solche Liste beantworten soll.',
+
+    steps: { consent: 'Einwilligung', paper: 'Papier', quiz: 'Quiz' },
+    stepsDone: 'alles da',
+
+    notes: { one: '{n} Notiz', other: '{n} Notizen' },
+    addNote: 'Notiz hinzufügen',
+    noteText: 'Notiz',
+    forFamily: 'Die Familie darf das lesen',
+    forFamilyWhy:
+      'Beide liegen versiegelt. Diese ist nicht öffentlich — sie ist nur für einen weiteren Kreis sichtbar. Ein Kind hat kein „öffentlich".',
+    internalOnly: 'intern',
+
+    slots: 'Treffen',
+    noSlots: 'Nichts angesetzt.',
+    addSlot: 'Treffen ansetzen',
+    when: 'Wann',
+    capacity: 'Plätze',
+    label: 'Wofür',
+    free: { one: '{n} Platz frei', other: '{n} Plätze frei' },
+    full: 'voll',
+    book: 'Platz belegen',
+    booked: 'belegt',
+    pick: 'Für wen'
   },
   status: {
     heading: 'Was bisher steht',

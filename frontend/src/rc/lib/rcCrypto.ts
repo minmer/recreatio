@@ -105,7 +105,13 @@ export const RcField = {
   CalendarEventDescription: 'event_description',
   ParishDonorName: 'donor_name',
   ParishDonationAmount: 'amount',
-  ContactPhone: 'phone'
+  ContactPhone: 'phone',
+
+  // Veranstaltungen. Nur die, die der Browser wirklich anfasst — die übrigen
+  // bleiben serverseitig, und ein Name, der hier ungenutzt steht, ist eine
+  // Einladung, ihn irgendwann falsch zu benutzen.
+  EventAnswer: 'answer',
+  EventIntakeKey: 'intake_key'
 } as const;
 
 export type RcFieldName = (typeof RcField)[keyof typeof RcField];
@@ -272,3 +278,64 @@ export class RcDecryptError extends Error {
 }
 
 export const newSymmetricKey = () => crypto.getRandomValues(new Uint8Array(RC_KEY_SIZE));
+
+// --- Verpacken unter einem öffentlichen Schlüssel (21.4) --------------------
+
+/** 21.3 — Die ersten 16 Byte von SHA-256 über die SPKI-Form. */
+export async function keyIdFromPublicKey(spkiDer: Uint8Array): Promise<Uint8Array> {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', spkiDer as BufferSource));
+  return digest.slice(0, 16);
+}
+
+/**
+ * Einen symmetrischen Schlüssel unter einem öffentlichen RSA-Schlüssel
+ * verpacken — bitgenau so, wie es der Kernel in `RcCrypto.WrapKey` tut.
+ *
+ * Gebraucht wird das an genau einer Stelle: wenn sich jemand OHNE Konto zu
+ * einer Veranstaltung anmeldet. Er hat keinen Schlüssel, die Antworten sollen
+ * trotzdem nur die Vorbereitenden lesen können, und der Server soll sie
+ * ausdrücklich NICHT sehen. Also würfelt dieser Browser einen
+ * Sitzungsschlüssel, versiegelt damit die Antworten und verpackt ihn hier.
+ *
+ * **Warum das Label im Klartext steckt.** RSA-OAEP kennt einen
+ * Label-Parameter, aber weder .NET noch WebCrypto geben darauf Zugriff
+ * (Befund 34). Der Kernel stellt das Label deshalb dem Klartext voran und
+ * prüft es beim Auspacken in fester Zeit. Diese Seite muss es genauso machen
+ * — nicht weil es schöner wäre, sondern weil sonst nichts aufgeht.
+ *
+ * Ein Fehler hier fällt NICHT beim Schreiben auf. Er fällt Wochen später auf,
+ * wenn jemand eine Anmeldeliste öffnen will und sie nicht aufgeht. Deshalb
+ * rechnen beide Seiten denselben Testvektor nach.
+ */
+export async function wrapKey(
+  spkiDer: Uint8Array,
+  aad: RcAad,
+  keyToWrap: Uint8Array
+): Promise<Uint8Array> {
+  const kid = await keyIdFromPublicKey(spkiDer);
+  const header = buildHeader(RcAlg.RsaOaep4096, kid);
+
+  // Das Label bindet die Hülle an ihren Platz — dieselbe Zeichenkette, die bei
+  // AES-GCM als AAD mitläuft.
+  const label = new Uint8Array(
+    await crypto.subtle.digest('SHA-256', fullAad(header, aad) as BufferSource)
+  );
+
+  const publicKey = await crypto.subtle.importKey(
+    'spki',
+    spkiDer as BufferSource,
+    { name: 'RSA-OAEP', hash: 'SHA-256' },
+    false,
+    ['encrypt']
+  );
+
+  const ct = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: 'RSA-OAEP' },
+      publicKey,
+      concat(label, keyToWrap) as BufferSource
+    )
+  );
+
+  return concat(header, ct);
+}

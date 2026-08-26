@@ -504,6 +504,514 @@
         }
       }
     },
+    "/rc/calendars": {
+      "get": {
+        "tags": [
+          "RcCalendar"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCalendarsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcCalendar"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarCreateCalendarRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCalendarCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/calendars/{id}/items": {
+      "get": {
+        "tags": [
+          "RcCalendar"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCalendarItemsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcCalendar"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarAddItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCalendarItemCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/calendar-items/{id}/occurrences/{at}/cancel": {
+      "post": {
+        "tags": [
+          "RcCalendar"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "at",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcOccurrenceChangedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/calendar-items/{id}/occurrences/{at}/move": {
+      "post": {
+        "tags": [
+          "RcCalendar"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "at",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarMoveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcOccurrenceChangedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/confirmation-groups": {
+      "get": {
+        "tags": [
+          "RcConfirmation"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcConfirmationGroupsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcConfirmation"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationCreateGroupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcConfirmationGroupCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/confirmation-groups/{id}/candidates": {
+      "get": {
+        "tags": [
+          "RcConfirmation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCandidatesResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcConfirmation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationAddCandidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCandidateCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/candidates/{id}/notes": {
+      "post": {
+        "tags": [
+          "RcConfirmation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationAddNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCandidateNoteAddedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/candidates/{id}/withdraw": {
+      "post": {
+        "tags": [
+          "RcConfirmation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCandidateWithdrawnResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/confirmation-groups/{id}/slots": {
+      "get": {
+        "tags": [
+          "RcConfirmation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcMeetingSlotsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcConfirmation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationAddSlotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcMeetingSlotCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/meeting-slots/{id}/book": {
+      "post": {
+        "tags": [
+          "RcConfirmation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationBookRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcMeetingBookedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/consent/{key}": {
       "get": {
         "tags": [
@@ -1095,6 +1603,487 @@
         }
       }
     },
+    "/rc/events": {
+      "get": {
+        "tags": [
+          "RcEvents"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcEvents"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventsCreateEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/events/{slug}": {
+      "get": {
+        "tags": [
+          "RcEvents"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventViewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/events/{id}/pages": {
+      "post": {
+        "tags": [
+          "RcEvents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventsAddPageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventPageCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/events/{id}/publish": {
+      "post": {
+        "tags": [
+          "RcEvents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventsPublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventPublishedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-pages/{id}/parts": {
+      "post": {
+        "tags": [
+          "RcEvents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventsAddPartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventPartCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-parts/{id}": {
+      "post": {
+        "tags": [
+          "RcEvents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventsUpdatePartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventPartUpdatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-parts/{id}/fields": {
+      "post": {
+        "tags": [
+          "RcEvents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventsAddFieldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventFieldCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/libraries": {
+      "get": {
+        "tags": [
+          "RcGraph"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcLibrariesResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcGraph"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphCreateLibraryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcLibraryCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/libraries/{id}/nodes": {
+      "get": {
+        "tags": [
+          "RcGraph"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcNodesResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcGraph"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphAddNodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcNodeCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/libraries/{id}/edges": {
+      "post": {
+        "tags": [
+          "RcGraph"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphAddEdgeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEdgeCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/libraries/{id}/search": {
+      "get": {
+        "tags": [
+          "RcGraph"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcGraphSearchResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/invitations": {
       "post": {
         "tags": [
@@ -1499,6 +2488,245 @@
         }
       }
     },
+    "/rc/parishes": {
+      "get": {
+        "tags": [
+          "RcParish"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcParishesResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcParish"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParishCreateParishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcParishCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/parishes/{slug}/masses": {
+      "get": {
+        "tags": [
+          "RcParish"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcMassesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/parishes/{id}/masses": {
+      "post": {
+        "tags": [
+          "RcParish"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParishAddMassRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcMassCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/parishes/{id}/intentions": {
+      "post": {
+        "tags": [
+          "RcParish"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParishAddIntentionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcIntentionCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "RcParish"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcIntentionsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/intentions/{id}/offerings": {
+      "post": {
+        "tags": [
+          "RcParish"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParishAddOfferingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcOfferingCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/areas/{id}/polls": {
       "get": {
         "tags": [
@@ -1832,6 +3060,114 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RcRecoveryCompletedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-parts/{id}/registrations": {
+      "post": {
+        "tags": [
+          "RcRegistrations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationsSubmitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcRegistrationSubmittedResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "RcRegistrations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcRegistrationsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/registrations/{id}/withdraw": {
+      "post": {
+        "tags": [
+          "RcRegistrations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationsWithdrawRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcRegistrationWithdrawnResponse"
                 }
               }
             }
@@ -2445,6 +3781,534 @@
         },
         "additionalProperties": false
       },
+      "CalendarAddItemRequest": {
+        "required": [
+          "endsUtc",
+          "ownerRoleId",
+          "startsUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "ownerRoleId": {
+            "type": "string"
+          },
+          "itemType": {
+            "type": "string",
+            "nullable": true
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "allDay": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "titlePublic": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibility": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "repeatKind": {
+            "type": "string",
+            "nullable": true
+          },
+          "repeatEvery": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "repeatWeekdays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "repeatUntil": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "repeatCount": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "taskState": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CalendarCalendarSummary": {
+        "required": [
+          "areaId",
+          "calendarId",
+          "items",
+          "timeZone",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "calendarId": {
+            "type": "string"
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CalendarCreateCalendarRequest": {
+        "required": [
+          "areaId",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "areaId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CalendarMoveRequest": {
+        "required": [
+          "newEndUtc",
+          "newStartUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "newStartUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "newEndUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CalendarOccurrenceView": {
+        "required": [
+          "allDay",
+          "endsUtc",
+          "itemId",
+          "itemType",
+          "mine",
+          "moved",
+          "originalStartUtc",
+          "startsUtc",
+          "status",
+          "visibility"
+        ],
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "originalStartUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "moved": {
+            "type": "boolean"
+          },
+          "allDay": {
+            "type": "boolean"
+          },
+          "itemType": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "titlePublic": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "taskState": {
+            "type": "string",
+            "nullable": true
+          },
+          "mine": {
+            "type": "boolean"
+          },
+          "unreadable": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationAddCandidateRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "born": {
+            "type": "string",
+            "nullable": true
+          },
+          "contact": {
+            "type": "string",
+            "nullable": true
+          },
+          "school": {
+            "type": "string",
+            "nullable": true
+          },
+          "baptism": {
+            "type": "string",
+            "nullable": true
+          },
+          "consentTextId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationAddNoteRequest": {
+        "required": [
+          "authorRoleId",
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "authorRoleId": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "forFamily": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationAddSlotRequest": {
+        "required": [
+          "startsUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "capacity": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "stage": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationBookRequest": {
+        "required": [
+          "candidateId"
+        ],
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationCandidateView": {
+        "required": [
+          "bookings",
+          "candidateId",
+          "consentGiven",
+          "notes",
+          "paperReceived",
+          "quizPassed",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "born": {
+            "type": "string",
+            "nullable": true
+          },
+          "contact": {
+            "type": "string",
+            "nullable": true
+          },
+          "school": {
+            "type": "string",
+            "nullable": true
+          },
+          "baptism": {
+            "type": "string",
+            "nullable": true
+          },
+          "consentGiven": {
+            "type": "boolean"
+          },
+          "paperReceived": {
+            "type": "boolean"
+          },
+          "quizPassed": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "bookings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfirmationNoteView"
+            }
+          },
+          "unreadable": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationCreateGroupRequest": {
+        "required": [
+          "areaId",
+          "name",
+          "parishId"
+        ],
+        "type": "object",
+        "properties": {
+          "parishId": {
+            "type": "string"
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "endsOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationGroupSummary": {
+        "required": [
+          "areaId",
+          "candidates",
+          "groupId",
+          "lifecycle",
+          "name",
+          "parishId",
+          "slots"
+        ],
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "parishId": {
+            "type": "string"
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "candidates": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "slots": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationNoteView": {
+        "required": [
+          "authorRoleId",
+          "createdUtc",
+          "forFamily",
+          "noteId"
+        ],
+        "type": "object",
+        "properties": {
+          "noteId": {
+            "type": "string"
+          },
+          "authorRoleId": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "forFamily": {
+            "type": "boolean"
+          },
+          "createdUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unreadable": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationSlotView": {
+        "required": [
+          "booked",
+          "capacity",
+          "durationMinutes",
+          "isOpen",
+          "slotId",
+          "stage",
+          "startsUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "slotId": {
+            "type": "string"
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "capacity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "booked": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "stage": {
+            "type": "string"
+          },
+          "isOpen": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "ConsentConsentView": {
         "required": [
           "body",
@@ -2795,6 +4659,534 @@
         },
         "additionalProperties": false
       },
+      "EventsAddFieldRequest": {
+        "required": [
+          "kind",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "helpText": {
+            "type": "string",
+            "nullable": true
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "isRequired": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "isHalfWidth": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "identityRole": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataClass": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventsAddPageRequest": {
+        "required": [
+          "slug",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventsAddPartRequest": {
+        "required": [
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "isPublic": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "menuLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "intro": {
+            "type": "string",
+            "nullable": true
+          },
+          "configJson": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventsCreateEventRequest": {
+        "required": [
+          "areaId",
+          "slug",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "areaId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "isPublic": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventsEventSummary": {
+        "required": [
+          "areaId",
+          "eventId",
+          "isPublic",
+          "lifecycle",
+          "pages",
+          "slug",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string"
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "isPublic": {
+            "type": "boolean"
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "pages": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventsFieldView": {
+        "required": [
+          "dataClass",
+          "fieldId",
+          "identityRole",
+          "isHalfWidth",
+          "isRequired",
+          "kind",
+          "label",
+          "options"
+        ],
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "helpText": {
+            "type": "string",
+            "nullable": true
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isRequired": {
+            "type": "boolean"
+          },
+          "isHalfWidth": {
+            "type": "boolean"
+          },
+          "identityRole": {
+            "type": "string"
+          },
+          "dataClass": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventsPageView": {
+        "required": [
+          "isVisible",
+          "pageId",
+          "parts",
+          "slug",
+          "sortOrder",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "pageId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isVisible": {
+            "type": "boolean"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventsPartView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventsPartView": {
+        "required": [
+          "fields",
+          "isPublic",
+          "isVisible",
+          "kind",
+          "partId",
+          "sortOrder"
+        ],
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "isPublic": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "menuLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "intro": {
+            "type": "string",
+            "nullable": true
+          },
+          "configJson": {
+            "type": "string",
+            "nullable": true
+          },
+          "isVisible": {
+            "type": "boolean"
+          },
+          "unreadable": {
+            "type": "string",
+            "nullable": true
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventsFieldView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventsPublishRequest": {
+        "type": "object",
+        "properties": {
+          "archive": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventsUpdatePartRequest": {
+        "type": "object",
+        "properties": {
+          "menuLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "intro": {
+            "type": "string",
+            "nullable": true
+          },
+          "configJson": {
+            "type": "string",
+            "nullable": true
+          },
+          "isVisible": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GraphAddEdgeRequest": {
+        "required": [
+          "fromNodeId",
+          "kind",
+          "toNodeId"
+        ],
+        "type": "object",
+        "properties": {
+          "fromNodeId": {
+            "type": "string"
+          },
+          "toNodeId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "kindNodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceNodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GraphAddNodeRequest": {
+        "required": [
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          },
+          "kindNodeId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GraphCreateLibraryRequest": {
+        "required": [
+          "areaId",
+          "slug",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "areaId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "isPublic": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GraphLibrarySummary": {
+        "required": [
+          "areaId",
+          "edges",
+          "isPublic",
+          "libraryId",
+          "nodes",
+          "slug",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "libraryId": {
+            "type": "string"
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "isPublic": {
+            "type": "boolean"
+          },
+          "nodes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "edges": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GraphNodeView": {
+        "required": [
+          "kind",
+          "nodeId"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "kindNodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          },
+          "unreadable": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GraphSearchHit": {
+        "required": [
+          "kind",
+          "nodeId",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "InvitationsCreateRequest": {
         "required": [
           "roleId"
@@ -3082,6 +5474,235 @@
         },
         "additionalProperties": false
       },
+      "ParishAddIntentionRequest": {
+        "required": [
+          "publicText"
+        ],
+        "type": "object",
+        "properties": {
+          "publicText": {
+            "type": "string"
+          },
+          "internalText": {
+            "type": "string",
+            "nullable": true
+          },
+          "donorRef": {
+            "type": "string",
+            "nullable": true
+          },
+          "massId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ParishAddMassRequest": {
+        "required": [
+          "church",
+          "startsUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "church": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "isCollective": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ParishAddOfferingRequest": {
+        "required": [
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
+          },
+          "donorRef": {
+            "type": "string",
+            "nullable": true
+          },
+          "receivedOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ParishCreateParishRequest": {
+        "required": [
+          "areaId",
+          "name",
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "areaId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ParishIntentionView": {
+        "required": [
+          "intentionId",
+          "publicText",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "intentionId": {
+            "type": "string"
+          },
+          "massId": {
+            "type": "string",
+            "nullable": true
+          },
+          "publicText": {
+            "type": "string"
+          },
+          "internalText": {
+            "type": "string",
+            "nullable": true
+          },
+          "donorRef": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "unreadable": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ParishMassView": {
+        "required": [
+          "church",
+          "intentions",
+          "isCollective",
+          "massId",
+          "startsUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "massId": {
+            "type": "string"
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "church": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "isCollective": {
+            "type": "boolean"
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "intentions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ParishParishSummary": {
+        "required": [
+          "areaId",
+          "masses",
+          "name",
+          "parishId",
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "parishId": {
+            "type": "string"
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "masses": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "PollsCreatePollRequest": {
         "required": [
           "question"
@@ -3326,6 +5947,153 @@
         },
         "additionalProperties": false
       },
+      "RcCalendarCreatedResponse": {
+        "required": [
+          "calendarId",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "calendarId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCalendarItemCreatedResponse": {
+        "required": [
+          "itemId",
+          "itemType",
+          "repeatKind"
+        ],
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "itemType": {
+            "type": "string"
+          },
+          "repeatKind": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCalendarItemsResponse": {
+        "required": [
+          "calendarId",
+          "fromUtc",
+          "occurrences",
+          "timeZone",
+          "toUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "calendarId": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "fromUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "toUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "occurrences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CalendarOccurrenceView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCalendarsResponse": {
+        "required": [
+          "calendars"
+        ],
+        "type": "object",
+        "properties": {
+          "calendars": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CalendarCalendarSummary"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCandidateCreatedResponse": {
+        "required": [
+          "candidateId",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCandidateNoteAddedResponse": {
+        "required": [
+          "forFamily",
+          "noteId"
+        ],
+        "type": "object",
+        "properties": {
+          "noteId": {
+            "type": "string"
+          },
+          "forFamily": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCandidateWithdrawnResponse": {
+        "required": [
+          "candidateId",
+          "withdrawn"
+        ],
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string"
+          },
+          "withdrawn": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCandidatesResponse": {
+        "required": [
+          "candidates"
+        ],
+        "type": "object",
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfirmationCandidateView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "RcCertificateIssuedResponse": {
         "required": [
           "capability",
@@ -3357,6 +6125,37 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RolesCertificateView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcConfirmationGroupCreatedResponse": {
+        "required": [
+          "groupId",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcConfirmationGroupsResponse": {
+        "required": [
+          "groups"
+        ],
+        "type": "object",
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfirmationGroupSummary"
             }
           }
         },
@@ -3683,6 +6482,219 @@
         },
         "additionalProperties": false
       },
+      "RcEdgeCreatedResponse": {
+        "required": [
+          "edgeId",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "edgeId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventCreatedResponse": {
+        "required": [
+          "eventId",
+          "lifecycle",
+          "slug",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventFieldCreatedResponse": {
+        "required": [
+          "dataClass",
+          "fieldId",
+          "kind",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "dataClass": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventPageCreatedResponse": {
+        "required": [
+          "pageId",
+          "slug",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "pageId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventPartCreatedResponse": {
+        "required": [
+          "isPublic",
+          "kind",
+          "partId",
+          "sortOrder"
+        ],
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "isPublic": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventPartUpdatedResponse": {
+        "required": [
+          "partId",
+          "updated"
+        ],
+        "type": "object",
+        "properties": {
+          "partId": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventPublishedResponse": {
+        "required": [
+          "eventId",
+          "lifecycle"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventViewResponse": {
+        "required": [
+          "areaId",
+          "eventId",
+          "isPublic",
+          "lifecycle",
+          "mayRead",
+          "pages",
+          "slug",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string"
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "isPublic": {
+            "type": "boolean"
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "mayRead": {
+            "type": "boolean"
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventsPageView"
+            }
+          },
+          "intakePublicKey": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventsResponse": {
+        "required": [
+          "events"
+        ],
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventsEventSummary"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "RcFeedResponse": {
         "required": [
           "messages",
@@ -3702,6 +6714,25 @@
               "type": "integer",
               "format": "int32"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcGraphSearchResponse": {
+        "required": [
+          "hits",
+          "serverSide"
+        ],
+        "type": "object",
+        "properties": {
+          "hits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphSearchHit"
+            }
+          },
+          "serverSide": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -3766,6 +6797,37 @@
           },
           "alreadyHeld": {
             "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcIntentionCreatedResponse": {
+        "required": [
+          "intentionId",
+          "publicText"
+        ],
+        "type": "object",
+        "properties": {
+          "intentionId": {
+            "type": "string"
+          },
+          "publicText": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcIntentionsResponse": {
+        "required": [
+          "intentions"
+        ],
+        "type": "object",
+        "properties": {
+          "intentions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParishIntentionView"
+            }
           }
         },
         "additionalProperties": false
@@ -3900,6 +6962,45 @@
         },
         "additionalProperties": false
       },
+      "RcLibrariesResponse": {
+        "required": [
+          "libraries"
+        ],
+        "type": "object",
+        "properties": {
+          "libraries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphLibrarySummary"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcLibraryCreatedResponse": {
+        "required": [
+          "isPublic",
+          "libraryId",
+          "slug",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "libraryId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "isPublic": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "RcLockedResponse": {
         "required": [
           "hadKeys",
@@ -3928,6 +7029,46 @@
         },
         "additionalProperties": false
       },
+      "RcMassCreatedResponse": {
+        "required": [
+          "church",
+          "massId",
+          "startsUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "massId": {
+            "type": "string"
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "church": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcMassesResponse": {
+        "required": [
+          "masses",
+          "parishId"
+        ],
+        "type": "object",
+        "properties": {
+          "parishId": {
+            "type": "string"
+          },
+          "masses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParishMassView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "RcMeResponse": {
         "required": [
           "signedIn"
@@ -3948,6 +7089,69 @@
           "keysHeld": {
             "type": "boolean",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcMeetingBookedResponse": {
+        "required": [
+          "booked",
+          "candidateId",
+          "capacity",
+          "slotId"
+        ],
+        "type": "object",
+        "properties": {
+          "slotId": {
+            "type": "string"
+          },
+          "candidateId": {
+            "type": "string"
+          },
+          "booked": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "capacity": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcMeetingSlotCreatedResponse": {
+        "required": [
+          "capacity",
+          "slotId",
+          "startsUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "slotId": {
+            "type": "string"
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "capacity": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcMeetingSlotsResponse": {
+        "required": [
+          "slots"
+        ],
+        "type": "object",
+        "properties": {
+          "slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfirmationSlotView"
+            }
           }
         },
         "additionalProperties": false
@@ -4099,6 +7303,41 @@
         },
         "additionalProperties": false
       },
+      "RcNodeCreatedResponse": {
+        "required": [
+          "kind",
+          "nodeId"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcNodesResponse": {
+        "required": [
+          "isPublic",
+          "nodes"
+        ],
+        "type": "object",
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphNodeView"
+            }
+          },
+          "isPublic": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "RcObjectionResponse": {
         "required": [
           "objected",
@@ -4111,6 +7350,78 @@
           },
           "objected": {
             "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcOccurrenceChangedResponse": {
+        "required": [
+          "itemId",
+          "kind",
+          "occurrenceUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "occurrenceUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcOfferingCreatedResponse": {
+        "required": [
+          "currency",
+          "offeringId"
+        ],
+        "type": "object",
+        "properties": {
+          "offeringId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcParishCreatedResponse": {
+        "required": [
+          "name",
+          "parishId",
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "parishId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcParishesResponse": {
+        "required": [
+          "parishes"
+        ],
+        "type": "object",
+        "properties": {
+          "parishes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParishParishSummary"
+            }
           }
         },
         "additionalProperties": false
@@ -4364,6 +7675,59 @@
           },
           "personalRoleId": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcRegistrationSubmittedResponse": {
+        "required": [
+          "registrationId",
+          "submittedUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "registrationId": {
+            "type": "string"
+          },
+          "claim": {
+            "type": "string",
+            "nullable": true
+          },
+          "submittedUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcRegistrationWithdrawnResponse": {
+        "required": [
+          "registrationId",
+          "valuesDestroyed"
+        ],
+        "type": "object",
+        "properties": {
+          "registrationId": {
+            "type": "string"
+          },
+          "valuesDestroyed": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcRegistrationsResponse": {
+        "required": [
+          "registrations"
+        ],
+        "type": "object",
+        "properties": {
+          "registrations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistrationsRegistrationView"
+            }
           }
         },
         "additionalProperties": false
@@ -4726,6 +8090,144 @@
         },
         "additionalProperties": false
       },
+      "RegistrationsAnswer": {
+        "required": [
+          "fieldId",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegistrationsAnswerView": {
+        "required": [
+          "dataClass",
+          "fieldId",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataClass": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegistrationsRegistrationView": {
+        "required": [
+          "answers",
+          "registrationId",
+          "submittedUtc",
+          "withdrawn"
+        ],
+        "type": "object",
+        "properties": {
+          "registrationId": {
+            "type": "string"
+          },
+          "submittedUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "withdrawn": {
+            "type": "boolean"
+          },
+          "submitterRoleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistrationsAnswerView"
+            }
+          },
+          "unreadable": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegistrationsSealedAnswer": {
+        "required": [
+          "fieldId",
+          "sealed"
+        ],
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "sealed": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegistrationsSubmitRequest": {
+        "type": "object",
+        "properties": {
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistrationsAnswer"
+            },
+            "nullable": true
+          },
+          "sealedAnswers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistrationsSealedAnswer"
+            },
+            "nullable": true
+          },
+          "sessionKeyWrapped": {
+            "type": "string",
+            "nullable": true
+          },
+          "roleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "consentTextId": {
+            "type": "string",
+            "nullable": true
+          },
+          "registrationId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegistrationsWithdrawRequest": {
+        "type": "object",
+        "properties": {
+          "claim": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "RolesAddHolderRequest": {
         "required": [
           "holderRoleId"
@@ -4991,6 +8493,12 @@
       "name": "RcAuth"
     },
     {
+      "name": "RcCalendar"
+    },
+    {
+      "name": "RcConfirmation"
+    },
+    {
       "name": "RcConsent"
     },
     {
@@ -5003,6 +8511,12 @@
       "name": "RcEngagement"
     },
     {
+      "name": "RcEvents"
+    },
+    {
+      "name": "RcGraph"
+    },
+    {
       "name": "RcInvitations"
     },
     {
@@ -5012,10 +8526,16 @@
       "name": "RcMessages"
     },
     {
+      "name": "RcParish"
+    },
+    {
       "name": "RcPolls"
     },
     {
       "name": "RcRecovery"
+    },
+    {
+      "name": "RcRegistrations"
     },
     {
       "name": "RcRoles"

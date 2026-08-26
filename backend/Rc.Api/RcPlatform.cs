@@ -97,6 +97,12 @@ public static class RcPlatform
         app.MapRcAttachments();
         app.MapRcDataItems();
         app.MapRcConsent();
+        app.MapRcEvents();
+        app.MapRcRegistrations();
+        app.MapRcParish();
+        app.MapRcGraph();
+        app.MapRcCalendar();
+        app.MapRcConfirmation();
         app.MapRcRecovery();
         return app;
     }

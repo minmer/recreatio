@@ -161,6 +161,18 @@ public static class RcSessionExtensions
             : null;
 
     /// <summary>
+    /// Liegt ueberhaupt ein Oeffnungsstueck bei?
+    ///
+    /// <see cref="RcUnlockPiece"/> WIRFT, wenn keines mitkam — richtig so fuer
+    /// jeden Endpunkt, der ohne Schluessel nichts tun kann. Es gibt aber einen,
+    /// der beides bedienen muss: die Anmeldung zu einer Veranstaltung geht mit
+    /// Konto UND ohne. Dort saehe ein Aufruf mit anschliessendem Null-Test wie
+    /// eine Pruefung aus und waere in Wahrheit der Fehlerfall selbst.
+    /// </summary>
+    public static bool RcHasUnlockPiece(this HttpContext context) =>
+        !string.IsNullOrEmpty(context.Request.Headers[RcSessionMiddleware.UnlockHeader].ToString());
+
+    /// <summary>
     /// 3.9 Schicht 2 — Das Oeffnungsstueck aus dem eigenen Kopf. Es wird
     /// NIRGENDS protokolliert: Kapitel 16 verlangt eine Sperrliste der
     /// Protokollierung fuer Koepfe mit Schluesselmaterial.

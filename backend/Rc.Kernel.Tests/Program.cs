@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Rc.Kernel;
 
 // ---------------------------------------------------------------------------
@@ -698,6 +699,394 @@ t.Eq("TV-12 Argon2id 64 MiB, t=3, p=1, 32 Byte",
 t.Note($"3.15  Argon2id 64 MiB t=3: Browser-Anteil {swPw.ElapsedMilliseconds} ms, " +
        $"Server-Anteil {swVerifier.ElapsedMilliseconds} ms " +
        $"(woertliche Fassung des 21.8 kostete beide im Browser)");
+
+
+// ---------------------------------------------------------------------------
+// 21.4 — Der gemeinsame Testvektor fuer das Verpacken.
+//
+// RSA-OAEP ist zufaellig: zwei Verpackungen desselben Schluessels sehen
+// verschieden aus, Geheimtexte lassen sich also nicht vergleichen. Was sich
+// vergleichen laesst, ist alles DAVOR — die Schluesselkennung und das Label —,
+// und genau dort saesse ein Formatfehler.
+//
+// Er faellt nicht beim Schreiben auf. Er faellt Wochen spaeter auf, wenn jemand
+// eine Anmeldeliste oeffnen will und sie nicht aufgeht. Deshalb rechnen beide
+// Seiten dieselben Bytes nach, aus DERSELBEN Datei: zwei Kopien waeren genau
+// der Verzug, den der Vektor verhindern soll.
+// ---------------------------------------------------------------------------
+
+{
+    var vectorPath = Path.Combine(AppContext.BaseDirectory, "rc-wrap-vector.json");
+
+    if (!File.Exists(vectorPath))
+    {
+        t.Ok("21.4  Der gemeinsame Verpackungsvektor liegt bereit", () => false);
+    }
+    else
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllText(vectorPath));
+        var v = doc.RootElement;
+
+        var spki = Convert.FromBase64String(v.GetProperty("spkiBase64").GetString()!);
+        var pkcs8 = Convert.FromBase64String(v.GetProperty("pkcs8Base64").GetString()!);
+        var aadText = v.GetProperty("aadText").GetString()!;
+
+        // Der Vektor nennt die AAD als fertige Zeichenkette; hier wird sie aus
+        // ihren Teilen gebaut. Stimmen beide ueberein, ist auch die
+        // Zusammensetzung geprueft und nicht nur der Hash darueber.
+        var parts = aadText.Split(':');
+        var wrapAad = RcAad.Create(parts[0], parts[1], Guid.Parse(parts[2]),
+            RcField.EventAnswer, int.Parse(parts[4]));
+
+        t.Ok("3.13  Die AAD des Vektors setzt sich genauso zusammen", () =>
+            wrapAad.ToString() == aadText);
+
+        var keyId = RcCrypto.KeyIdFromPublicKey(spki);
+        t.Ok("21.3  Die Schluesselkennung stimmt mit dem Vektor ueberein", () =>
+            Convert.ToHexString(keyId).ToLowerInvariant() == v.GetProperty("keyIdHex").GetString());
+
+        var header = RcCrypto.BuildHeader(RcAlg.RsaOaep4096, keyId);
+        t.Ok("21.3  Der Kopf stimmt mit dem Vektor ueberein", () =>
+            Convert.ToHexString(header).ToLowerInvariant() == v.GetProperty("headerHex").GetString());
+
+        // Das Label ist der Teil, den OAEP nicht selbst traegt (Befund 34) und
+        // den beide Seiten deshalb gleich bilden muessen.
+        var full = new byte[header.Length + Encoding.UTF8.GetByteCount(aadText)];
+        header.CopyTo(full, 0);
+        Encoding.UTF8.GetBytes(aadText, full.AsSpan(header.Length));
+        var label = SHA256.HashData(full);
+
+        t.Ok("21.4  Das Label stimmt mit dem Vektor ueberein", () =>
+            Convert.ToHexString(label).ToLowerInvariant() == v.GetProperty("labelHex").GetString());
+
+        // Und der Rundlauf: verpacken, auspacken, derselbe Schluessel.
+        using var rsa = RSA.Create();
+        rsa.ImportPkcs8PrivateKey(pkcs8, out _);
+
+        var secret = RcCrypto.NewSymmetricKey();
+        var wrapped = RcCrypto.WrapKey(rsa, wrapAad, secret);
+
+        t.Ok("21.4  Verpacken und Auspacken ergibt denselben Schluessel", () =>
+            RcCrypto.UnwrapKey(rsa, wrapAad, wrapped).SequenceEqual(secret));
+
+        t.Ok("21.3  Die Verpackung traegt den erwarteten Kopf", () =>
+            wrapped.Take(20).SequenceEqual(header));
+
+        // 3.13 — Eine Huelle klebt an ihrem Platz. Unter einer anderen AAD darf
+        // sie sich nicht oeffnen lassen, sonst waere der ganze Aufwand umsonst.
+        var elsewhere = RcAad.Create("events", "registration",
+            Guid.Parse("0190a1b2-0000-7000-8000-000000000002"), RcField.EventAnswer, 1);
+
+        t.Throws("3.13  Unter fremder AAD geht die Verpackung nicht auf", RcDecryptError.AadMismatch, () =>
+            RcCrypto.UnwrapKey(rsa, elsewhere, wrapped));
+        // DER eigentliche Beweis: eine Huelle, die der BROWSER-Code erzeugt
+        // hat, wird hier ausgepackt. Kopf und Label auf beiden Seiten gleich
+        // zu rechnen ist ein starkes Indiz — aber die Anordnung im
+        // OAEP-Klartext koennte trotzdem abweichen, und das faellt sonst erst
+        // auf, wenn eine echte Anmeldung nicht mehr aufgeht.
+        //
+        // Erzeugt wird sie mit "npm run rc:vector". Aendert eine Seite das
+        // Format, schlaegt DIESE Pruefung fehl und nicht erst der Betrieb.
+        if (v.TryGetProperty("wrappedByBrowserBase64", out var browserBlob))
+        {
+            var expected = Convert.FromHexString(v.GetProperty("secretHex").GetString()!);
+            var fromBrowser = Convert.FromBase64String(browserBlob.GetString()!);
+
+            t.Ok("21.4  Was der Browser verpackt hat, packt der Kernel aus", () =>
+                RcCrypto.UnwrapKey(rsa, wrapAad, fromBrowser).SequenceEqual(expected));
+
+            t.Ok("21.3  Die Huelle des Browsers ist 532 Byte lang", () =>
+                fromBrowser.Length == 532);
+        }
+        else
+        {
+            t.Ok("21.4  Die Huelle des Browsers liegt im Vektor bereit", () => false);
+        }
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// Wiederholungen
+//
+// Der Teil des Kalenders, an dem sich am leichtesten irren laesst — und bei dem
+// ein Irrtum nicht auffaellt: ein Termin, der einmal im Jahr auf dem falschen
+// Tag steht, sieht aus wie ein Tippfehler des Menschen, der ihn eingetragen
+// hat. Deshalb wird hier gegen von Hand nachgerechnete Faelle geprueft.
+// ---------------------------------------------------------------------------
+
+// Warschau, weil dort Sommerzeit gilt und die Plattform dort steht.
+var warsaw = TimeZoneInfo.FindSystemTimeZoneById(
+    OperatingSystem.IsWindows() ? "Central European Standard Time" : "Europe/Warsaw");
+
+static DateTimeOffset At(int y, int m, int d, int h, int min = 0) =>
+    new(new DateTime(y, m, d, h, min, 0, DateTimeKind.Utc));
+
+var window = (From: At(2026, 1, 1, 0), To: At(2027, 1, 1, 0));
+
+// -- Ein einzelner Termin ist eine Reihe mit einem Glied ---------------------
+
+t.Ok("kal   Ohne Wiederholung gibt es genau ein Vorkommen", () =>
+    RcRecurrence.Expand(At(2026, 3, 10, 9), At(2026, 3, 10, 10),
+        new RcRecurrence.Rule(RcRecurrence.None, 1, null, null, null),
+        warsaw, window.From, window.To).Count == 1);
+
+t.Ok("kal   Ausserhalb des Fensters kommt nichts", () =>
+    RcRecurrence.Expand(At(2030, 3, 10, 9), At(2030, 3, 10, 10),
+        new RcRecurrence.Rule(RcRecurrence.None, 1, null, null, null),
+        warsaw, window.From, window.To).Count == 0);
+
+// Ein Termin, der ins Fenster HINEINRAGT, gehoert hinein — auch wenn er davor
+// beginnt. Sonst verschwaende eine Woche Urlaub aus der Wochenansicht, sobald
+// man die zweite Woche ansieht.
+t.Ok("kal   Was ins Fenster hineinragt, gehoert hinein", () =>
+    RcRecurrence.Expand(At(2025, 12, 30, 9), At(2026, 1, 3, 10),
+        new RcRecurrence.Rule(RcRecurrence.None, 1, null, null, null),
+        warsaw, window.From, window.To).Count == 1);
+
+// -- Taeglich -----------------------------------------------------------------
+
+t.Ok("kal   Taeglich, zehnmal", () =>
+    RcRecurrence.Expand(At(2026, 3, 2, 9), At(2026, 3, 2, 10),
+        new RcRecurrence.Rule(RcRecurrence.Daily, 1, null, null, 10),
+        warsaw, window.From, window.To).Count == 10);
+
+t.Ok("kal   Jeden dritten Tag, fuenfmal, mit den richtigen Abstaenden", () =>
+{
+    var list = RcRecurrence.Expand(At(2026, 3, 2, 9), At(2026, 3, 2, 10),
+        new RcRecurrence.Rule(RcRecurrence.Daily, 3, null, null, 5),
+        warsaw, window.From, window.To);
+
+    return list.Count == 5
+        && list[1].Start - list[0].Start == TimeSpan.FromDays(3)
+        && list[4].Start - list[0].Start == TimeSpan.FromDays(12);
+});
+
+// Der Rhythmus haengt am ANFANG der Reihe, nicht am angesehenen Fenster.
+// Sonst laege "jeden dritten Tag" je nach Monat woanders.
+t.Ok("kal   Der Rhythmus haengt am Anfang, nicht am Fenster", () =>
+{
+    var start = At(2026, 1, 1, 9);
+    var rule = new RcRecurrence.Rule(RcRecurrence.Daily, 3, null, At(2026, 12, 31, 0), null);
+
+    var march = RcRecurrence.Expand(start, start.AddHours(1), rule, warsaw,
+        At(2026, 3, 1, 0), At(2026, 4, 1, 0));
+
+    // 1. Januar + 3n. Der erste Maerz-Termin muss auf einem solchen Tag liegen.
+    return march.Count > 0
+        && (march[0].Start.UtcDateTime.Date - new DateTime(2026, 1, 1)).Days % 3 == 0;
+});
+
+// -- Woechentlich --------------------------------------------------------------
+
+t.Ok("kal   Woechentlich an einem Tag", () =>
+{
+    // 2. Maerz 2026 ist ein Montag.
+    var list = RcRecurrence.Expand(At(2026, 3, 2, 9), At(2026, 3, 2, 10),
+        new RcRecurrence.Rule(RcRecurrence.Weekly, 1,
+            RcRecurrence.WeekdayBit(DayOfWeek.Monday), null, 4),
+        warsaw, window.From, window.To);
+
+    return list.Count == 4
+        && list.All(o => TimeZoneInfo.ConvertTime(o.Start, warsaw).DayOfWeek == DayOfWeek.Monday)
+        && list[1].Start - list[0].Start == TimeSpan.FromDays(7);
+});
+
+// DER Fall, an dem eine naive Umsetzung scheitert: mehrere Wochentage in
+// derselben Woche. Wer den Schritt in WOCHEN zaehlt, bekommt nur einen davon.
+t.Ok("kal   Woechentlich an zwei Tagen gibt beide", () =>
+{
+    var mask = (byte)(RcRecurrence.WeekdayBit(DayOfWeek.Monday)
+                    | RcRecurrence.WeekdayBit(DayOfWeek.Wednesday));
+
+    var list = RcRecurrence.Expand(At(2026, 3, 2, 9), At(2026, 3, 2, 10),
+        new RcRecurrence.Rule(RcRecurrence.Weekly, 1, mask, null, 6),
+        warsaw, window.From, window.To);
+
+    var days = list.Select(o => TimeZoneInfo.ConvertTime(o.Start, warsaw).DayOfWeek).ToList();
+
+    return list.Count == 6
+        && days.Count(d => d == DayOfWeek.Monday) == 3
+        && days.Count(d => d == DayOfWeek.Wednesday) == 3;
+});
+
+// Und der zweite Fall: alle zwei Wochen an zwei Tagen. Das sind zwei Termine,
+// dann zwoelf Tage Pause — nicht zwei Termine alle vier Wochen.
+t.Ok("kal   Alle zwei Wochen an zwei Tagen laesst eine Woche aus", () =>
+{
+    var mask = (byte)(RcRecurrence.WeekdayBit(DayOfWeek.Monday)
+                    | RcRecurrence.WeekdayBit(DayOfWeek.Wednesday));
+
+    var list = RcRecurrence.Expand(At(2026, 3, 2, 9), At(2026, 3, 2, 10),
+        new RcRecurrence.Rule(RcRecurrence.Weekly, 2, mask, null, 4),
+        warsaw, window.From, window.To);
+
+    if (list.Count != 4) return false;
+
+    // Mo, Mi, dann zwoelf Tage bis zum naechsten Mo.
+    return list[1].Start - list[0].Start == TimeSpan.FromDays(2)
+        && list[2].Start - list[1].Start == TimeSpan.FromDays(12);
+});
+
+// Eine Reihe, die mittwochs beginnt, faengt nicht am Montag davor an.
+t.Ok("kal   Vor dem Anfang liegt nichts", () =>
+{
+    var mask = (byte)(RcRecurrence.WeekdayBit(DayOfWeek.Monday)
+                    | RcRecurrence.WeekdayBit(DayOfWeek.Wednesday));
+
+    // 4. Maerz 2026 ist ein Mittwoch.
+    var list = RcRecurrence.Expand(At(2026, 3, 4, 9), At(2026, 3, 4, 10),
+        new RcRecurrence.Rule(RcRecurrence.Weekly, 1, mask, null, 3),
+        warsaw, window.From, window.To);
+
+    return list.Count == 3 && list[0].Start == At(2026, 3, 4, 9);
+});
+
+// -- Monatlich und jaehrlich ---------------------------------------------------
+
+t.Ok("kal   Monatlich, drei Monate", () =>
+{
+    var list = RcRecurrence.Expand(At(2026, 1, 15, 9), At(2026, 1, 15, 10),
+        new RcRecurrence.Rule(RcRecurrence.Monthly, 1, null, null, 3),
+        warsaw, window.From, window.To);
+
+    return list.Count == 3
+        && TimeZoneInfo.ConvertTime(list[2].Start, warsaw).Month == 3;
+});
+
+// Der 31. gibt es im Februar nicht. Ihn ausfallen zu lassen ueberrascht mehr,
+// als ihn auf den letzten Tag zu ziehen.
+t.Ok("kal   Der 31. wird im Februar zum letzten Tag", () =>
+{
+    var list = RcRecurrence.Expand(At(2026, 1, 31, 9), At(2026, 1, 31, 10),
+        new RcRecurrence.Rule(RcRecurrence.Monthly, 1, null, null, 2),
+        warsaw, window.From, window.To);
+
+    return list.Count == 2
+        && TimeZoneInfo.ConvertTime(list[1].Start, warsaw).Day == 28;
+});
+
+// -- Sommerzeit -----------------------------------------------------------------
+//
+// DER Fall, an dem sich Kalender blamieren. In Warschau wird 2026 am 29. Maerz
+// vorgestellt. "Jeden Montag um 9" muss danach um 9 bleiben — in oertlicher
+// Zeit, nicht in UTC.
+
+t.Ok("kal   Ueber die Zeitumstellung bleibt es dieselbe Uhrzeit", () =>
+{
+    var list = RcRecurrence.Expand(At(2026, 3, 23, 8), At(2026, 3, 23, 9),
+        new RcRecurrence.Rule(RcRecurrence.Weekly, 1,
+            RcRecurrence.WeekdayBit(DayOfWeek.Monday), null, 3),
+        warsaw, At(2026, 3, 1, 0), At(2026, 5, 1, 0));
+
+    // 23.3. (Winterzeit), 30.3. und 6.4. (Sommerzeit) — alle oertlich 9 Uhr.
+    var hours = list.Select(o => TimeZoneInfo.ConvertTime(o.Start, warsaw).Hour).Distinct().ToList();
+    return list.Count == 3 && hours.Count == 1 && hours[0] == 9;
+});
+
+// Und die Stunde, die es nicht gibt: sie faellt nicht aus, sie rueckt.
+//
+// Der erste Anlauf dieser Pruefung traf die Luecke gar nicht: sie setzte den
+// Anfang auf 01:30 UTC, und das sind in Warschau 03:30 oertlich — hinter der
+// Luecke. Die Pruefung war gruen und pruefte nichts. Eine solche ist
+// schlimmer als keine, weil sie Zuversicht erzeugt.
+//
+// Es gibt KEINEN UTC-Zeitpunkt, der auf 02:30 oertlich faellt — die Zeit
+// existiert nicht. Erreichen laesst sie sich nur ueber eine Reihe: am 28.
+// um 02:30 oertlich beginnen, taeglich weiter, und der 29. landet in der
+// Luecke.
+t.Ok("kal   Ein Termin in der uebersprungenen Stunde rueckt, statt auszufallen", () =>
+{
+    // 28.3.2026 02:30 oertlich = 01:30 UTC (noch Winterzeit).
+    var list = RcRecurrence.Expand(At(2026, 3, 28, 1, 30), At(2026, 3, 28, 2, 30),
+        new RcRecurrence.Rule(RcRecurrence.Daily, 1, null, null, 2),
+        warsaw, At(2026, 3, 1, 0), At(2026, 4, 1, 0));
+
+    if (list.Count != 2) return false;
+
+    // Der zweite faellt auf den 29. um 02:30 oertlich — die gibt es nicht.
+    // Er rueckt hinter die Luecke, also auf 03:00, und faellt nicht aus.
+    var second = TimeZoneInfo.ConvertTime(list[1].Start, warsaw);
+    return second.Day == 29 && second.Hour == 3 && second.Minute == 0;
+});
+
+// Und die Stunde, die es zweimal gibt: genommen wird die erste. Die Regel
+// muss festliegen, sonst kommt bei zwei Aufrufen zweimal etwas anderes heraus.
+t.Ok("kal   In der doppelten Stunde wird die erste genommen", () =>
+{
+    // Rueckstellung 2026 in Warschau: 25. Oktober. 02:30 oertlich gibt es
+    // zweimal — einmal als Sommer-, einmal als Winterzeit.
+    var list = RcRecurrence.Expand(At(2026, 10, 24, 0, 30), At(2026, 10, 24, 1, 30),
+        new RcRecurrence.Rule(RcRecurrence.Daily, 1, null, null, 2),
+        warsaw, At(2026, 10, 1, 0), At(2026, 11, 1, 0));
+
+    if (list.Count != 2) return false;
+
+    // 02:30 als Sommerzeit ist 00:30 UTC; als Winterzeit 01:30 UTC.
+    // Genommen wird die erste, also 00:30 UTC.
+    return list[1].Start == At(2026, 10, 25, 0, 30);
+});
+
+// -- Ausnahmen -------------------------------------------------------------------
+
+t.Ok("kal   Ein abgesagtes Vorkommen faellt heraus", () =>
+{
+    var second = At(2026, 3, 9, 9);
+    var list = RcRecurrence.Expand(At(2026, 3, 2, 9), At(2026, 3, 2, 10),
+        new RcRecurrence.Rule(RcRecurrence.Weekly, 1,
+            RcRecurrence.WeekdayBit(DayOfWeek.Monday), null, 3),
+        warsaw, window.From, window.To,
+        [new RcRecurrence.Exception(second, "cancelled", null, null)]);
+
+    return list.Count == 2 && list.All(o => o.OriginalStart != second);
+});
+
+t.Ok("kal   Ein verschobenes Vorkommen behaelt seinen Platz in der Reihe", () =>
+{
+    var second = At(2026, 3, 9, 9);
+    var list = RcRecurrence.Expand(At(2026, 3, 2, 9), At(2026, 3, 2, 10),
+        new RcRecurrence.Rule(RcRecurrence.Weekly, 1,
+            RcRecurrence.WeekdayBit(DayOfWeek.Monday), null, 3),
+        warsaw, window.From, window.To,
+        [new RcRecurrence.Exception(second, "moved", At(2026, 3, 10, 14), At(2026, 3, 10, 15))]);
+
+    var moved = list.FirstOrDefault(o => o.OriginalStart == second);
+
+    // Der urspruengliche Anfang bleibt der NAME dieses Termins — daran haengt
+    // die Ausnahme. Verloere er ihn, liesse sie sich nie wieder aufheben.
+    return list.Count == 3 && moved is not null
+        && moved.Moved && moved.Start == At(2026, 3, 10, 14);
+});
+
+// Ein Termin, der IN das Fenster verschoben wurde, gehoert hinein — und einer,
+// der hinaus verschoben wurde, nicht mehr. Geprueft wird gegen die
+// TATSAECHLICHE Zeit, nicht gegen die urspruengliche.
+t.Ok("kal   Das Fenster gilt fuer die tatsaechliche Zeit", () =>
+{
+    var first = At(2026, 3, 2, 9);
+    var list = RcRecurrence.Expand(first, At(2026, 3, 2, 10),
+        new RcRecurrence.Rule(RcRecurrence.Weekly, 1,
+            RcRecurrence.WeekdayBit(DayOfWeek.Monday), null, 3),
+        warsaw, At(2026, 3, 1, 0), At(2026, 3, 8, 0),
+        [new RcRecurrence.Exception(first, "moved", At(2026, 4, 1, 9), At(2026, 4, 1, 10))]);
+
+    // Der einzige Termin dieser Woche wurde in den April geschoben.
+    return list.Count == 0;
+});
+
+// -- Grenzen ---------------------------------------------------------------------
+
+t.Ok("kal   Eine Reihe wird nicht unbegrenzt ausgerechnet", () =>
+    RcRecurrence.Expand(At(2026, 1, 1, 9), At(2026, 1, 1, 10),
+        new RcRecurrence.Rule(RcRecurrence.Daily, 1, null, At(2099, 1, 1, 0), null),
+        warsaw, At(2026, 1, 1, 0), At(2099, 1, 1, 0)).Count <= RcRecurrence.MaxOccurrences);
+
+t.Ok("kal   Ein Ende per Datum wird eingehalten", () =>
+    RcRecurrence.Expand(At(2026, 3, 2, 9), At(2026, 3, 2, 10),
+        new RcRecurrence.Rule(RcRecurrence.Daily, 1, null, At(2026, 3, 5, 0), null),
+        warsaw, window.From, window.To)
+        .All(o => o.Start <= At(2026, 3, 5, 0)));
+
 
 return t.Report();
 

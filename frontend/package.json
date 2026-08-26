@@ -10,7 +10,8 @@
     "api:types": "openapi-typescript ../backend/rc-openapi.json -o src/rc/lib/rcApiTypes.ts",
     "rc:test": "node scripts/rc-test.mjs",
     "rc:check": "tsc -p tsconfig.rc.json --noEmit && node scripts/rc-test.mjs",
-    "rc:walk": "node scripts/rc-walk.mjs"
+    "rc:walk": "node scripts/rc-walk.mjs",
+    "rc:vector": "node scripts/rc-wrap-vector.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -1157,9 +1157,729 @@
 }
 .rc-make-group input:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: 1px; }
 
+/* --- Veranstaltungen -------------------------------------------------------- */
+
+.rc-event-list { list-style: none; margin: 0; padding: 0; }
+
+.rc-event-row { border-bottom: 1px solid var(--rc-line); }
+.rc-event-open {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: var(--rc-ink);
+  background: none;
+  border: 0;
+  border-left: 2px solid transparent;
+  padding: 0.6rem 0.5rem;
+  cursor: pointer;
+}
+.rc-event-open:hover { background: var(--rc-surface-2); }
+.rc-event-open:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: -2px; }
+.rc-event-row[data-state="published"] .rc-event-open { border-left-color: var(--rc-ok); }
+.rc-event-row[data-state="draft"]     .rc-event-open { border-left-color: var(--rc-warn); }
+.rc-event-row[data-state="archived"]  .rc-event-open { border-left-color: var(--rc-line-2); }
+
+.rc-event-title { font-family: var(--rc-serif); font-size: 1.02rem; }
+.rc-event-meta { font-size: 0.72rem; color: var(--rc-muted); }
+.rc-event-meta code { font-family: var(--rc-mono); }
+
+.rc-event-head { display: flex; gap: 0.75rem; align-items: baseline; }
+.rc-event-head h3 { margin: 0; font-family: var(--rc-serif); font-size: 1.3rem; font-weight: 600; }
+.rc-event-state {
+  margin-left: auto;
+  font-family: var(--rc-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--rc-muted);
+}
+.rc-event-state[data-state="published"] { color: var(--rc-ok); }
+.rc-event-state[data-state="draft"]     { color: var(--rc-warn); }
+
+/* Ein Entwurf ist nicht öffentlich. Das ist eine Warnung und kein Vermerk. */
+.rc-draft-warning {
+  border-left: 3px solid var(--rc-warn);
+  background: color-mix(in srgb, var(--rc-warn) 8%, transparent);
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+.rc-draft-warning p { margin: 0; font-size: 0.88rem; }
+
+.rc-only-public { border-left: 2px solid var(--rc-line-2); padding-left: 0.65rem; font-style: italic; }
+
+.rc-event-page { display: flex; flex-direction: column; gap: 0.85rem; }
+.rc-event-page h4 {
+  margin: 0;
+  font-family: var(--rc-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--rc-muted);
+  border-bottom: 1px solid var(--rc-line);
+  padding-bottom: 0.4rem;
+}
+
+/* --- Abschnitte -------------------------------------------------------------- */
+
+.rc-part {
+  border: 1px solid var(--rc-line);
+  background: var(--rc-surface);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+/* Intern sieht anders aus als öffentlich — sonst wüsste beim Bauen niemand,
+   was er gerade in die Welt stellt. */
+.rc-part[data-public="false"] { border-left: 3px solid var(--rc-accent); }
+.rc-part-sealed {
+  border-style: dashed;
+  color: var(--rc-muted);
+  font-style: italic;
+}
+.rc-part-sealed p { margin: 0; font-size: 0.85rem; }
+
+.rc-part-head { display: flex; gap: 0.6rem; align-items: baseline; }
+.rc-part-kind {
+  font-family: var(--rc-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--rc-muted);
+}
+.rc-part-lock { margin-left: auto; font-size: 0.7rem; color: var(--rc-accent); }
+.rc-part h5 { margin: 0; font-family: var(--rc-serif); font-size: 1.05rem; font-weight: 600; }
+.rc-part-intro { margin: 0; font-size: 0.92rem; line-height: 1.55; max-width: 60ch; }
+
+.rc-visibility-why { border-left: 2px solid var(--rc-line-2); padding-left: 0.65rem; }
+
+/* --- Formular ---------------------------------------------------------------- */
+
+.rc-event-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  align-items: flex-start;
+  border-top: 1px solid var(--rc-line);
+  padding-top: 0.8rem;
+  width: 100%;
+  max-width: 34rem;
+}
+.rc-event-form .rc-field { width: 100%; }
+.rc-event-form textarea,
+.rc-event-form select {
+  font: inherit;
+  font-size: 0.93rem;
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  border: 1px solid var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  padding: 0.45rem 0.55rem;
+}
+.rc-field-help { font-size: 0.75rem; color: var(--rc-muted); font-style: italic; }
+
+/* 12.9 — Wer etwas Besonderes eingibt, soll das beim Eintippen sehen. */
+.rc-class-tag {
+  font-family: var(--rc-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  border-radius: var(--rc-radius);
+  padding: 0.02em 0.3em;
+  margin-left: 0.45rem;
+  vertical-align: middle;
+}
+.rc-class-tag[data-class="special"] { color: var(--rc-warn); }
+.rc-class-tag[data-class="secret"]  { color: var(--rc-alarm); }
+
+.rc-not-yet { border-left: 2px solid var(--rc-warn); padding-left: 0.65rem; }
+
+.rc-registered {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-items: flex-start;
+  border: 2px solid var(--rc-ok);
+  background: color-mix(in srgb, var(--rc-ok) 6%, transparent);
+  padding: 0.9rem 1rem;
+  width: 100%;
+  max-width: 34rem;
+}
+.rc-registered strong { color: var(--rc-ok); font-size: 1rem; }
+
+/* --- Anmeldeliste ------------------------------------------------------------ */
+
+.rc-registrations { border-top: 1px solid var(--rc-line); padding-top: 0.8rem; width: 100%; }
+.rc-registrations ul { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+.rc-registrations li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--rc-line);
+  font-size: 0.85rem;
+}
+.rc-registrations li[data-withdrawn="true"] { color: var(--rc-muted); }
+.rc-registrations time { margin-left: auto; font-size: 0.7rem; color: var(--rc-muted); white-space: nowrap; }
+
+.rc-reg-answers { margin: 0; display: flex; flex-direction: column; gap: 0.2rem; flex: 1; min-width: 0; }
+.rc-reg-answers > div { display: grid; grid-template-columns: minmax(8rem, 14rem) 1fr; gap: 0.6rem; }
+.rc-reg-answers dt { font-size: 0.75rem; color: var(--rc-muted); }
+.rc-reg-answers dd { margin: 0; overflow-wrap: anywhere; }
+.rc-reg-sealed { font-style: italic; color: var(--rc-muted); flex: 1; }
+
+.rc-new-event,
+.rc-new-page,
+.rc-new-part {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-items: flex-start;
+  border-top: 1px solid var(--rc-line);
+  padding-top: 0.9rem;
+  width: 100%;
+}
+.rc-new-event .rc-field,
+.rc-new-page .rc-field,
+.rc-new-part .rc-field { width: 100%; max-width: 26rem; }
+
+/* --- Pfarrei ----------------------------------------------------------------- */
+
+.rc-mass-day { display: flex; flex-direction: column; gap: 0.6rem; }
+.rc-mass-day h5 {
+  margin: 0.6rem 0 0;
+  font-family: var(--rc-serif);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--rc-ink-2);
+  border-bottom: 1px solid var(--rc-line);
+  padding-bottom: 0.3rem;
+}
+
+.rc-mass {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border-left: 2px solid var(--rc-line-2);
+  padding: 0.35rem 0 0.35rem 0.8rem;
+}
+
+.rc-mass-head { display: flex; gap: 0.7rem; align-items: baseline; flex-wrap: wrap; }
+.rc-mass-head time {
+  font-family: var(--rc-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--rc-ink);
+}
+.rc-mass-church { font-size: 0.85rem; color: var(--rc-ink-2); }
+.rc-mass-title { font-size: 0.8rem; color: var(--rc-muted); }
+.rc-mass-coll {
+  font-family: var(--rc-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--rc-accent);
+}
+.rc-mass-note { margin: 0; font-size: 0.8rem; color: var(--rc-muted); font-style: italic; }
+
+/* --- Intention: zwei Sichtbarkeiten in einer Zeile -------------------------- */
+
+.rc-intention {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.35rem 0;
+}
+
+/* Der öffentliche Text sieht aus wie das, was er ist: der Aushang. */
+.rc-intention-public {
+  margin: 0;
+  font-family: var(--rc-serif);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+/* Das Interne sieht ANDERS aus. Gleich zu setzen hiesse, den Unterschied
+   ausgerechnet dort zu verwischen, wo er zählt. */
+.rc-intention-internal,
+.rc-intention-donor {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--rc-ink-2);
+  border-left: 2px solid var(--rc-accent);
+  padding-left: 0.6rem;
+}
+.rc-intention-label {
+  display: block;
+  font-family: var(--rc-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rc-accent);
+}
+
+.rc-intention-sealed {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--rc-muted);
+  font-style: italic;
+  border-left: 2px dashed var(--rc-line-2);
+  padding-left: 0.6rem;
+}
+
+.rc-offering-form { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.25rem; }
+.rc-offering-form input {
+  font: inherit;
+  font-size: 0.82rem;
+  width: 7rem;
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  border: 1px solid var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  padding: 0.2rem 0.4rem;
+  font-variant-numeric: tabular-nums;
+}
+.rc-offering-form input:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: 1px; }
+.rc-booked { color: var(--rc-ok); font-size: 0.8rem; }
+
+/* --- Neue Intention: die beiden Felder sehen verschieden aus ---------------- */
+
+.rc-new-intention {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+  border-top: 1px solid var(--rc-line);
+  padding-top: 0.9rem;
+  width: 100%;
+}
+.rc-new-intention .rc-field { width: 100%; max-width: 34rem; }
+.rc-new-intention textarea {
+  font: inherit;
+  font-size: 0.92rem;
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  border: 1px solid var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  padding: 0.45rem 0.55rem;
+  resize: vertical;
+}
+
+/* Öffentlich und intern tragen verschiedene Ränder. Das ist die ganze
+   Botschaft dieses Formulars, und sie muss sichtbar sein, bevor jemand
+   tippt — nicht erst, wenn er es abgeschickt hat. */
+.rc-field-public input { border-left: 3px solid var(--rc-muted); }
+.rc-field-internal input,
+.rc-field-internal textarea { border-left: 3px solid var(--rc-accent); }
+
+.rc-why-public { border-left: 2px solid var(--rc-muted); padding-left: 0.6rem; margin-top: -0.25rem; }
+.rc-why-internal { border-left: 2px solid var(--rc-accent); padding-left: 0.6rem; margin-top: -0.25rem; }
+
+/* --- Cogita: der Wissensgraph ------------------------------------------------ */
+
+/* Offen oder versiegelt ist die wichtigste Eigenschaft einer Bibliothek und
+   steht deshalb an der Liste, nicht in einer Detailansicht. */
+.rc-lib-mode {
+  font-family: var(--rc-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  color: var(--rc-muted);
+}
+.rc-lib-mode[data-public="true"] { color: var(--rc-warn); border-color: var(--rc-warn); }
+
+/* Beide Folgen stehen da, die gewählte hervorgehoben. Wer nur eine liest,
+   kennt die Entscheidung nicht — er kennt eine Hälfte davon. */
+.rc-mode-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: 100%;
+  max-width: 42rem;
+}
+.rc-mode-choice p {
+  border-left: 2px solid var(--rc-line);
+  padding-left: 0.65rem;
+  opacity: 0.55;
+}
+.rc-mode-choice p[data-chosen="true"] {
+  border-left-color: var(--rc-accent);
+  opacity: 1;
+  color: var(--rc-ink-2);
+}
+.rc-mode-locked {
+  border-left-color: var(--rc-warn) !important;
+  opacity: 1 !important;
+  font-style: italic;
+}
+
+/* --- Suche: wo gesucht wurde ------------------------------------------------- */
+/* Der wichtigste Teil der Trefferliste steht über ihr. */
+
+.rc-graph-search { display: flex; gap: 0.5rem; align-items: center; }
+.rc-graph-search input {
+  font: inherit;
+  font-size: 0.92rem;
+  flex: 1;
+  min-width: 10rem;
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  border: 1px solid var(--rc-line-2);
+  border-radius: var(--rc-radius);
+  padding: 0.4rem 0.6rem;
+}
+.rc-graph-search input:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: 1px; }
+
+.rc-search-where {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-left: 3px solid var(--rc-accent);
+  padding: 0.4rem 0 0.4rem 0.7rem;
+  font-size: 0.85rem;
+}
+.rc-search-where p { margin: 0; }
+
+/* Im Browser gesucht heisst: nur in dem, was geladen ist. Das ist kein Fehler,
+   aber auch keine Vollständigkeit — also warnfarben statt grün. */
+.rc-search-where[data-where="browser"] { border-left-color: var(--rc-warn); }
+
+/* --- Knoten ------------------------------------------------------------------ */
+
+.rc-node-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+
+.rc-node {
+  display: grid;
+  grid-template-columns: 8rem 1fr auto;
+  gap: 0.7rem;
+  align-items: baseline;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--rc-line);
+  font-size: 0.88rem;
+}
+
+.rc-node-kind {
+  font-family: var(--rc-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--rc-accent);
+}
+.rc-node-value { overflow-wrap: anywhere; }
+.rc-node-value em { color: var(--rc-muted); font-style: italic; }
+.rc-node-id { font-family: var(--rc-mono); font-size: 0.68rem; color: var(--rc-muted); }
+
+/* 15.9 — Unlesbar heisst NICHT weg. Der Knoten bleibt in der Liste, sonst
+   zeigten die Kanten daran ins Leere. */
+.rc-node[data-unreadable="true"] { background: color-mix(in srgb, var(--rc-line) 30%, transparent); }
+.rc-node-sealed { color: var(--rc-muted); font-style: italic; }
+
 @media (max-width: 34rem) {
   .rc-status li { grid-template-columns: 1fr; gap: 0.15rem 0; }
   .rc-test-item { grid-template-columns: 1.3rem 1fr; }
+}
+
+/* --- Kalender ---------------------------------------------------------------- */
+
+.rc-cal-day { display: flex; flex-direction: column; gap: 0.3rem; }
+.rc-cal-day h5 {
+  margin: 0.7rem 0 0;
+  font-family: var(--rc-serif);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--rc-ink-2);
+  border-bottom: 1px solid var(--rc-line);
+  padding-bottom: 0.3rem;
+}
+
+.rc-cal-item {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr auto;
+  gap: 0.7rem;
+  align-items: baseline;
+  padding: 0.4rem 0;
+  border-left: 2px solid var(--rc-line-2);
+  padding-left: 0.7rem;
+}
+.rc-cal-item time {
+  font-family: var(--rc-mono);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--rc-ink-2);
+}
+.rc-cal-main { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+
+/* Die drei Arten von „kein Titel". Sie gleich zu setzen hiesse, einen
+   verschlossenen Termin für einen leeren Tag zu halten. */
+
+.rc-cal-title { font-size: 0.92rem; overflow-wrap: anywhere; }
+/* Der eigene, entschlüsselte Titel steht kräftiger als die Zusammenfassung,
+   die für andere gedacht war. */
+.rc-cal-title[data-detailed="true"] { color: var(--rc-ink); }
+.rc-cal-title[data-detailed="false"] { color: var(--rc-ink-2); }
+
+.rc-cal-busy {
+  font-size: 0.88rem;
+  color: var(--rc-muted);
+  font-style: italic;
+}
+
+.rc-cal-item[data-kind="sealed"] { border-left-style: dashed; }
+.rc-cal-sealed { font-size: 0.85rem; color: var(--rc-muted); font-style: italic; }
+
+.rc-cal-where { font-size: 0.75rem; color: var(--rc-muted); }
+.rc-cal-moved {
+  font-family: var(--rc-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--rc-warn);
+}
+
+.rc-cal-item[data-status="cancelled"] { opacity: 0.5; }
+.rc-cal-item[data-status="cancelled"] .rc-cal-title { text-decoration: line-through; }
+
+.rc-cal-item .rc-msg-action { opacity: 0; }
+.rc-cal-item:hover .rc-msg-action,
+.rc-cal-item .rc-msg-action:focus-visible { opacity: 1; }
+
+.rc-cal-more { display: flex; justify-content: center; padding: 0.5rem 0; }
+
+/* Überschneidungen: der sichtbare Gegenwert dafür, dass die Zeiten im
+   Klartext liegen. */
+.rc-clash {
+  border-left: 3px solid var(--rc-warn);
+  background: color-mix(in srgb, var(--rc-warn) 8%, transparent);
+  padding: 0.6rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.rc-clash strong { color: var(--rc-warn); font-size: 0.95rem; }
+
+/* Wochentage als Reihe von Kästchen — kompakter als sieben Zeilen und
+   näher an dem, wie ein Mensch eine Woche denkt. */
+.rc-weekdays { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.rc-weekday {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  font-family: var(--rc-mono);
+  font-size: 0.68rem;
+  color: var(--rc-muted);
+  cursor: pointer;
+}
+.rc-weekday input { accent-color: var(--rc-accent); margin: 0; }
+.rc-weekday:has(input:checked) { color: var(--rc-accent); font-weight: 600; }
+
+@media (max-width: 34rem) {
+  .rc-cal-item { grid-template-columns: 1fr; gap: 0.15rem; }
+  .rc-cal-item .rc-msg-action { opacity: 1; }
+}
+
+/* --- Firmung ------------------------------------------------------------------ */
+
+/* Die häufigste Frage eines Katecheten steht ganz oben — und der Satz, warum
+   sie sich ohne einen entschlüsselten Datensatz beantworten lässt. */
+.rc-outstanding {
+  border-left: 3px solid var(--rc-warn);
+  background: color-mix(in srgb, var(--rc-warn) 8%, transparent);
+  padding: 0.6rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.rc-outstanding strong { color: var(--rc-warn); font-size: 0.95rem; }
+.rc-outstanding[data-clear="true"] {
+  border-left-color: var(--rc-ok);
+  background: color-mix(in srgb, var(--rc-ok) 8%, transparent);
+}
+.rc-outstanding[data-clear="true"] strong { color: var(--rc-ok); }
+
+.rc-cand-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+
+.rc-cand { border-bottom: 1px solid var(--rc-line); }
+.rc-cand[data-withdrawn="true"] .rc-cand-name {
+  color: var(--rc-muted);
+  text-decoration: line-through;
+}
+
+/* 15.9 — Unlesbar heisst NICHT weg: der Kandidat bleibt in der Liste, sonst
+   stimmten die Zahlen des Jahrgangs nicht mehr. */
+.rc-cand[data-sealed="true"] { background: color-mix(in srgb, var(--rc-line) 30%, transparent); }
+.rc-cand[data-sealed="true"] .rc-cand-name { font-style: italic; color: var(--rc-muted); }
+
+.rc-cand-head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: var(--rc-ink);
+  background: none;
+  border: 0;
+  padding: 0.5rem 0.2rem;
+  cursor: pointer;
+}
+.rc-cand-head:hover { background: var(--rc-surface-2); }
+.rc-cand-head:focus-visible { outline: 2px solid var(--rc-accent); outline-offset: -2px; }
+
+.rc-cand-name { font-size: 0.92rem; flex: 1; min-width: 0; }
+.rc-cand-steps { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+
+/* Was fehlt, in Warnfarbe; was vollständig ist, in Grün. Beides aus den
+   Klartext-Merkern, ohne dass etwas entschlüsselt werden musste. */
+.rc-step-missing {
+  font-family: var(--rc-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rc-warn);
+  border: 1px solid var(--rc-warn);
+  border-radius: var(--rc-radius);
+  padding: 0.02rem 0.3rem;
+}
+.rc-step-done {
+  font-family: var(--rc-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rc-ok);
+}
+
+.rc-cand-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.5rem 0 0.9rem 0.7rem;
+  border-left: 2px solid var(--rc-accent);
+  margin-left: 0.2rem;
+}
+
+.rc-cand-fields {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 0.2rem 0.8rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+.rc-cand-fields dt { color: var(--rc-muted); font-size: 0.75rem; }
+.rc-cand-fields dd { margin: 0; }
+
+/* --- Notizen: beide versiegelt, verschiedener Kreis ---------------------------- */
+
+.rc-note-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rc-cand-note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  border-left: 2px solid var(--rc-line-2);
+  padding-left: 0.6rem;
+  font-size: 0.85rem;
+}
+
+/* Für die Familie sichtbar heisst NICHT unverschlüsselt — deshalb dieselbe
+   Grundform, nur ein anderer Rand. Ein offenes Schloss wäre eine Lüge. */
+.rc-cand-note[data-family="true"] { border-left-color: var(--rc-accent); }
+
+.rc-note-kind {
+  font-family: var(--rc-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--rc-muted);
+}
+.rc-cand-note[data-family="true"] .rc-note-kind { color: var(--rc-accent); }
+.rc-note-text { line-height: 1.45; overflow-wrap: anywhere; }
+
+.rc-new-note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  align-items: flex-start;
+  border-top: 1px solid var(--rc-line);
+  padding-top: 0.6rem;
+  width: 100%;
+  max-width: 36rem;
+}
+.rc-new-note .rc-field { width: 100%; }
+.rc-new-note textarea {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--rc-ink);
+  background: var(--rc-paper);
+  border: 1px solid var(--rc-line-2);
+  border-left: 3px solid var(--rc-accent);
+  border-radius: var(--rc-radius);
+  padding: 0.4rem 0.55rem;
+  resize: vertical;
+  width: 100%;
+}
+
+.rc-cand-withdraw { display: flex; flex-direction: column; gap: 0.2rem; }
+.rc-cand-withdraw .rc-msg-action {
+  opacity: 1;
+  align-self: flex-start;
+  color: var(--rc-alarm);
+}
+
+/* --- Treffen -------------------------------------------------------------------- */
+
+.rc-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--rc-line);
+  background: var(--rc-surface);
+  padding: 0.6rem 0.85rem;
+}
+.rc-slot[data-full="true"] { border-style: dashed; }
+
+.rc-slot-head { display: flex; gap: 0.75rem; align-items: baseline; flex-wrap: wrap; }
+.rc-slot-head time {
+  font-family: var(--rc-mono);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--rc-ink-2);
+}
+.rc-slot-label { font-size: 0.85rem; }
+.rc-slot-seats {
+  margin-left: auto;
+  font-family: var(--rc-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--rc-ok);
+}
+.rc-slot-seats[data-full="true"] { color: var(--rc-muted); }
+
+.rc-slot-book { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+
+@media (max-width: 34rem) {
+  .rc-cand-fields { grid-template-columns: 1fr; gap: 0.05rem; }
+  .rc-cand-head { flex-direction: column; gap: 0.2rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

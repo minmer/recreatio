@@ -788,3 +788,589 @@ Und: **`firstOpenedUtc` ist kein Zierrat** (10.3). Ein Link, der geöffnet
 wurde, bevor er beim Empfänger ankam, ist unterwegs gelesen worden. Deshalb
 steht die Spalte in Warnfarbe in der Liste und nicht in einer Detailansicht,
 die niemand aufmacht.
+
+### Eine Veranstaltung ist ein Bereich mit Seiten daran
+
+Der erste Entwurf des Veranstaltungsschemas hatte alles doppelt: eigene
+Epochen, eigene Schlüsselverwaltung, eine eigene Kette, eigene Zertifikate. Er
+war fertig geschrieben und angewendet, bevor auffiel, was das bedeutet — eine
+**zweite Umsetzung des heikelsten Codes der Plattform**, und die zweite ist
+immer die, die beim nächsten Befund vergessen wird.
+
+Es passt auch sachlich nicht. Wer eine Veranstaltung vorbereitet, ist eine
+Gruppe, die miteinander redet, Beschlüsse fasst und Leute dazuholt. Genau das
+ist ein Bereich. Also zeigt `rc_event` jetzt auf einen, und der bringt
+Schlüssel, Mitglieder, Zertifikate und Protokoll mit. Die Veranstaltung fügt
+Seiten hinzu, sonst nichts.
+
+Nebenwirkung, die den Ausschlag gab: eine Veranstaltung hat damit **von selbst**
+ein Protokoll, Beschlüsse, einen Chat und Einladungen. Nichts davon musste
+gebaut werden.
+
+### Öffentlichen Inhalt zu verschlüsseln ist Selbstbetrug
+
+Der naheliegende Weg wäre, alles zu versiegeln und für öffentliche Seiten den
+Schlüssel mitzuliefern. Ein Schlüssel, den jeder bekommt, ist keiner. Es sähe
+nach Schutz aus, wo keiner ist — und das ist schlechter als sichtbar
+ungeschützt, weil sich jemand darauf verlässt.
+
+Ein Teil ist deshalb **entweder** öffentlich (Klartext) **oder** intern
+(versiegelt unter dem Epochenschlüssel des Bereichs). Die Datenbank erzwingt,
+dass genau eines gilt (`ck_rc_event_part_form`) — sonst entstünde irgendwann
+eine Zeile mit beidem, und niemand wüsste mehr, welche Fassung zählt.
+
+Dieselbe Linie zieht sich durch das Formular: die **Beschriftung** ist
+öffentlich, sie steht auf einer Seite, die verschickt werden soll. Die
+**Antwort** ist es nie.
+
+### Der Annahmeschlüssel — das Problem, das erst beim Hinsehen auftauchte
+
+Wer sich zu einem Pfarrfest anmeldet, legt sich dafür kein Konto an. Er hat
+also keinen Schlüssel, und die Antworten sollen trotzdem nur die
+Vorbereitenden lesen können.
+
+Der erste Anlauf schrieb einen 503 und einen Kommentar, der einen Mechanismus
+beschrieb, den es nicht gab. Das war die unangenehmste Stelle des ganzen
+Moduls: der Kommentar klang plausibel, der Code tat nichts, und niemand hätte
+es gemerkt, bevor jemand ein Formular veröffentlicht.
+
+Der zweitnaheliegende Weg wäre auch falsch gewesen: den Klartext schicken und
+den **Server** versiegeln lassen. Dann liegt zwar nichts im Klartext auf der
+Platte — aber der Server *sieht* ihn, und das ist genau die Zusage, die diese
+Plattform nicht brechen will.
+
+Jede Veranstaltung bekommt deshalb ein eigenes RSA-Paar. Der öffentliche Teil
+reist **mit dem Formular**, der private liegt versiegelt unter dem
+Epochenschlüssel des Bereichs. Der Browser des Anmelders würfelt einen
+Sitzungsschlüssel, versiegelt damit die Antworten und verpackt ihn unter dem
+Annahmeschlüssel. Der Server kann keines von beiden öffnen und legt sie nur
+hin.
+
+Welcher der beiden Wege gilt, entscheidet sich **am Schlüssel** und nicht an
+einem Merker aus der Anfrage. Ein Feld `istVonAussen` wäre eine Angabe, die
+der Absender selbst macht — und damit keine.
+
+### Der Migrationslauf hat mich zu Recht angehalten
+
+`rc_0006` war angewendet, als der Entwurfsfehler auffiel. Der Lauf weigerte
+sich, die geänderte Datei anzuwenden: *„Eine angewendete Migration wird nicht
+bearbeitet, sondern ergänzt."*
+
+Das ist richtig, und es ist mein eigener Code. Zulässig war das Zurücknehmen
+nur, weil das Skript diese Maschine nie verlassen hat — mit einem ausdrücklichen
+Rollback-Skript, nicht mit einem Schalter, der die Prüfung umgeht. Für den
+Annahmeschlüssel gab es dann folgerichtig `rc_0007`, obwohl es „nur drei
+Spalten" waren.
+
+### Ein Fremdschlüssel auf eine Tabelle, die es nicht gibt
+
+`fk_rc_event_tenant` zeigte auf `dbo.rc_tenant`. Die gibt es nicht: der
+Mandant ist überall eine blosse Kennung ohne eigene Tabelle. Der Lauf brach ab
+und rollte zurück — die Datenbank stand danach exakt wie vorher.
+
+Kein grosser Befund, aber ein gutes Zeichen: der Fehler fiel in der Sekunde
+auf, in der er entstand, und nicht beim ersten Schreibversuch in einem halben
+Jahr.
+
+### Ein Testvektor prüft das Format, nicht die Verabredung
+
+Für das Verpacken eines Schlüssels unter einem öffentlichen RSA-Schlüssel liegt
+jetzt ein gemeinsamer Vektor bereit (`backend/rc-wrap-vector.json`, EINE Datei,
+von beiden Seiten gelesen). Er prüft Schlüsselkennung, Kopf und Label, und er
+enthält eine Hülle, die der **Browser** erzeugt hat und die der **Kernel**
+auspackt — ein echter Rundlauf über die Sprachgrenze. Ein gekipptes Byte lässt
+ihn fehlschlagen; das ist nachgestellt worden.
+
+Er hat den eigentlichen Fehler trotzdem nicht gefunden.
+
+Der Browser verpackte den Sitzungsschlüssel unter der AAD der **Antwort**
+(`events:registration:<id>:answer:1`), der Server packte ihn unter der AAD der
+**Veranstaltung** aus (`events:event:<id>:intake_key:1`). Beide Seiten waren
+für sich schlüssig, beide rechneten formal richtig, und nichts ging auf.
+
+Der Vektor konnte das nicht sehen: er prüft, ob beide Seiten dieselben Bytes
+bilden, wenn sie sich über den Platz einig sind — nicht, ob sie sich einig
+sind. Gefunden hat es der Durchgang gegen den laufenden Dienst, an genau der
+Prüfung, die dafür da war: *„Was der fremde Browser versiegelt hat, geht hier
+auf."*
+
+Die Lehre: ein Formatvektor und ein Durchgang durch den echten Ablauf prüfen
+**verschiedene Dinge**, und keiner ersetzt den anderen. Der verpackte Schlüssel
+hat jetzt einen eigenen, benannten Platz — an der Anmeldung, mit dem Feldnamen
+eines Schlüssels.
+
+### Eine Prüfung, die in Wahrheit der Fehlerfall ist
+
+`ctx.RcUnlockPiece()` **wirft**, wenn kein Öffnungsstück mitkam. Für jeden
+Endpunkt, der ohne Schlüssel nichts tun kann, ist das genau richtig.
+
+Die Anmeldung zu einer Veranstaltung ist der erste Endpunkt, der beides bedienen
+muss: mit Konto und ohne. Dort stand
+
+    if (session is not null && ctx.RcUnlockPiece() is not null)
+
+Das sieht aus wie eine Prüfung und ist der Fehlerfall selbst — der Aufruf wirft,
+bevor irgendein Vergleich stattfindet, und jede kontolose Anmeldung endete mit
+*„Bitte entsperren"*. Dafür gibt es jetzt `RcHasUnlockPiece()`, das nur
+nachsieht.
+
+Der allgemeine Fall: eine Zugriffsfunktion, die bei Abwesenheit wirft, darf
+nicht in einem Ausdruck stehen, der Abwesenheit als zulässig behandelt. Der
+Rückgabetyp `byte[]` — nicht `byte[]?` — sagt das eigentlich schon.
+
+### Derselbe DBNull-Fehler, zum zweiten Mal
+
+`AddWithValue(name, DBNull.Value)` leitet den Typ aus dem Wert ab und kommt auf
+nvarchar. Gegen eine varbinary-Spalte bricht das ab — beim Ausführen, nicht beim
+Übersetzen.
+
+Genau dieser Fehler steht schon weiter oben in diesem Bericht, an einer anderen
+Tabelle. Er ist trotzdem wiedergekommen, an drei Stellen gleichzeitig, weil ein
+Hilfsdurchlauf ihn bequem gemacht hat:
+
+    private static void Null(SqlCommand cmd, params string[] names)
+
+Ein Helfer, der eine Falle wiederholbar macht, ist schlechter als die Falle. Er
+nimmt den Typ jetzt entgegen.
+
+### Was die Prüfreihen NICHT abdecken
+
+Das Veranstaltungsmodul hat 34 Schritte im Durchgang gegen den laufenden
+Dienst, aber **keine einzige Prüfung in `Rc.Api.Tests`**. Die 164 dort sind
+unverändert die alten.
+
+Das ist kein Versehen, sondern eine offene Stelle: der Durchgang prüft den Weg
+durch den echten Klienten, die API-Prüfreihe prüft Randfälle, die ein Klient gar
+nicht erst versucht — fremde Kennungen, überlange Eingaben, Reihenfolgen, die
+die Oberfläche nicht anbietet. Beides wird gebraucht.
+
+### Zwei Fehler in vier Zeilen, beide nur von der API-Prüfreihe gefunden
+
+Die Rücknahme einer Anmeldung enthielt:
+
+    if (!allowed && session is not null && submitter is not null)
+    {
+        await using var connection2 = connection;
+        allowed = (await permissions.CheckAsync(..., RcCapability.Read, ...)).Allowed;
+    }
+
+**Erstens** schliesst `await using var connection2 = connection;` die Verbindung
+am Ende des Blocks — die anschliessende Änderung lief gegen eine geschlossene
+Verbindung. Ein Überbleibsel aus einer früheren Fassung, das übersetzte und
+plausibel aussah.
+
+**Zweitens**, und schlimmer: geprüft wurde auf **Lesezugriff im Bereich**. Damit
+hätte jedes Mitglied die Anmeldung jedes anderen zurücknehmen können — und die
+Zeile sähe danach aus, als habe der Einsender selbst zurückgezogen. Richtig ist:
+wer unter einem Namen eingesandt hat, darf unter demselben Namen zurücknehmen,
+und geprüft wird der **Schlüssel** der Rolle, nicht eine Behauptung.
+
+Der Durchgang gegen den laufenden Dienst hat beides NICHT gefunden: dort nimmt
+der Einsender mit seinem Beleg zurück, und dieser Weg funktionierte. Gefunden
+hat es die API-Prüfreihe an der Stelle, die genau dafür da war — *„Die Leitung
+darf zurücknehmen"*.
+
+Das ist die Begründung dafür, beide Reihen zu führen. Der Durchgang prüft den
+Weg, den ein Klient nimmt; die API-Reihe prüft die Wege, die er nicht nimmt —
+und dort sitzen die Berechtigungsfehler.
+
+### Eine Rücksetzung, die neue Tabellen nicht kennt, bricht alles
+
+Nach den ersten Veranstaltungs-Prüfungen scheiterte der GANZE Lauf: die
+Rücksetzung der Prüfdatenbank kannte `rc_event*` nicht und lief in einen
+Fremdschlüssel. Kein Befund über die Plattform, aber eine Erinnerung daran, dass
+eine neue Tabelle drei Stellen berührt — Schema, Code und den Weg zurück auf
+Null. Die anfügenden Auslöser müssen dafür kurz abgeschaltet werden; im Betrieb
+ist genau das ihr Sinn, hier steht ein Neuanfang an.
+
+### Die Intention: eine Zeile, zwei Sichtbarkeiten
+
+Bei den Veranstaltungen trennt die Sichtbarkeit ganze Abschnitte: ein Teil ist
+öffentlich **oder** intern, und die Datenbank erzwingt, dass genau eines gilt.
+
+Bei einer Messintention gilt beides gleichzeitig, in derselben Zeile:
+
+    public_text        "in einer bestimmten Absicht"   steht im Schaukasten
+    internal_sealed    was wirklich gemeint ist         nur die Pfarrei
+    donor_ref_sealed   von wem                          nur die Pfarrei
+
+Das ist kein Sonderfall, sondern der Alltag. Und es ist die Stelle, an der sich
+die **Feldnamen aus 3.13** zum ersten Mal wirklich bewähren: drei Felder
+derselben Zeile, drei verschiedene Etiketten. Trügen sie dasselbe, könnte wer
+Schreibzugriff hat den Stifternamen in das interne Feld schieben — lautlos,
+ohne Fehlermeldung, ohne Protokolleintrag.
+
+Genau das prüft eine der neuen Prüfungen: sie kopiert den Geheimtext des
+Stifterfeldes per SQL in das interne Feld. Er ist gültig verschlüsselt und
+gehört derselben Zeile. Trotzdem geht er nicht auf — das Etikett passt nicht,
+und die Antwort trägt `crypto.aad_mismatch` statt den Stifternamen.
+
+Der Altbestand hatte die Aufteilung bereits (`ParishIntention.cs`:
+`PublicText` neben `InternalTextEnc` und `DonorRefEnc`). Übernommen wurde die
+Einsicht, nicht der Code — und ergänzt wurde, was fehlte: dass die drei Felder
+sich nicht gegeneinander tauschen lassen.
+
+### Ein Betrag ist eine Zeichenkette
+
+Gaben liegen versiegelt, und der Betrag reist als Zeichenkette statt als Zahl.
+Zwei Gründe, beide unbequem:
+
+**Er wird ohnehin nie gerechnet.** Was verschlüsselt in der Zeile liegt, lässt
+sich nicht summieren — eine Summe über alle Gaben ist in SQL nicht bildbar. Wer
+sie will, holt die Zeilen und rechnet mit dem Schlüssel in der Hand. Das ist
+der Preis von 12.9 und er ist bekannt.
+
+**Eine Gleitkommazahl ist ein Rundungsfehler, der auf eine Gelegenheit
+wartet.** Bei Geld ist das keine Theorie. Da der Wert ohnehin nur gespeichert
+und wieder angezeigt wird, bleibt er, was jemand hingeschrieben hat.
+
+Die Währung dagegen ist Klartext: sie ist keine Auskunft über eine Person, und
+ohne sie liesse sich ein Betrag nicht einmal darstellen. Drei Buchstaben,
+erzwungen von der Datenbank — ein Tippfehler dort bedeutet, dass zwei Beträge
+später nicht mehr vergleichbar sind.
+
+### Gaben werden gegengebucht, nicht geändert
+
+Der anfügende Auslöser auf `rc_offering` deckt **UPDATE** ab, nicht nur DELETE
+— anders als bei Nachrichten oder Anmeldungen. Das ist die Regel in jeder
+Kasse, und sie steht hier in der Datenbank statt in einer Handreichung.
+
+Folge für die Prüfreihe: die Rücksetzung muss den Auslöser kurz abschalten, wie
+schon bei den anfügenden Tabellen davor. Eine neue Tabelle berührt drei Stellen
+— Schema, Code und den Weg zurück auf Null.
+
+### Zwei Eingabefelder, die gleich aussehen und es nicht sind
+
+Das Formular für eine neue Intention hat ein Feld „was im Schaukasten steht"
+und daneben eines „was wirklich gemeint ist". Beide nehmen Text entgegen,
+beide sehen aus wie ein Textfeld — und der Unterschied ist der grösste im
+ganzen Modul: das eine wird verlesen und gedruckt, das andere sieht niemand
+ausserhalb der Pfarrei.
+
+Ohne sichtbaren Unterschied stünde diese Unterscheidung nur im Kopf dessen, der
+gerade tippt. Und der tippt sie irgendwann falsch herum.
+
+Deshalb tragen die beiden **verschiedene Ränder**, und unter jedem steht, was
+mit dem geschieht, was man hineinschreibt — auch unter dem öffentlichen. Es ist
+dieselbe Entscheidung; sie nur beim ungewöhnlichen Fall zu erklären hiesse, den
+Normalfall als selbstverständlich auszugeben, was er nicht ist.
+
+Dieselbe Linie zieht sich durch die Anzeige: der öffentliche Text steht in der
+Serifenschrift des Aushangs, der interne Vermerk daneben in kleinerer Schrift
+mit farbigem Rand. Beide gleich zu setzen würde den Unterschied ausgerechnet
+dort verwischen, wo er zählt.
+
+### Volltextsuche und Verschlüsselung schliessen einander aus
+
+`cogita-graph.md` §5.2 verlangt: *„All indexed fields searched."* Das setzt
+Klartext voraus. Ein Server durchsucht nicht, was er nicht lesen kann.
+
+Es gibt Verfahren, die so tun als ob — deterministische Verschlüsselung,
+Blind-Index, verschlüsselte Suchbäume. Sie verraten alle etwas: Gleichheit,
+Häufigkeit, Zugriffsmuster. Bei einem Vokabelheft ist das egal, bei
+persönlichen Notizen nicht, und die Plattform kann nicht wissen, welches von
+beiden gerade angelegt wird.
+
+Aufgelöst wird das nicht mit einem Trick, sondern mit einer **Entscheidung je
+Bibliothek**:
+
+- **öffentlich** — Klartext, der Server durchsucht. Für Vokabeln,
+  Periodensysteme, Zeitleisten: Wissen, das in jedem Lehrbuch steht.
+- **privat** — versiegelt unter dem Epochenschlüssel. Der Server sieht
+  Geheimtext, und **der Browser sucht** in dem, was er ohnehin geladen hat.
+
+Die zweite Form skaliert schlechter. Das ist der Preis, und er steht im Schema,
+im Endpunkt und im Klienten — damit ihn niemand später für einen Fehler hält.
+Die Wahl fällt beim Anlegen und lässt sich nicht umlegen: aus öffentlich privat
+zu machen hiesse, alles nachträglich zu verschlüsseln, während die
+Klartextfassung schon in der Welt ist.
+
+**Das wichtigste Feld der ganzen Antwort ist `serverSide`.**
+
+`false` heisst NICHT „nichts gefunden", sondern „hier kann ich nicht suchen".
+Ohne dieses Feld sähen beide Fälle identisch aus, und die Oberfläche meldete
+eine leere Trefferliste, wo sie selbst hätte suchen müssen. Der Unterschied
+zwischen *„ich habe gesucht und nichts gefunden"* und *„ich kann hier nicht
+suchen"* ist genau die Auskunft, die eine verschlüsselte Plattform schuldig
+bleibt, wenn sie nicht aufpasst.
+
+Beide Wege sortieren gleich — genauer Treffer zuerst, dann der kürzere. Wer in
+einer privaten Bibliothek eine andere Reihenfolge bekäme als in einer
+öffentlichen, hielte das für einen Fehler und hätte recht.
+
+### Eine Tabelle für alle Knoten
+
+EntityKind, EdgeKind, Range, Text, Zahl, Datum und jede vom Benutzer erfundene
+Art sind **Knoten derselben Tabelle** (§1.2, §1.10). Sie zu trennen hiesse, bei
+jeder neuen Art eine Migration zu schreiben — und der ganze Punkt ist, dass der
+Benutzer neue Arten erfindet, ohne dass jemand etwas baut.
+
+Was in der Datenbank steht, ist deshalb dünn: Kennung, Art, Bibliothek, Wert.
+Was eine Art *bedeutet*, steht in einem Knoten derselben Tabelle.
+
+Die **Art** bleibt dabei immer Klartext, auch in einer privaten Bibliothek —
+dieselbe Überlegung wie bei den Abschnitten einer Veranstaltung: sie ist
+Struktur, ohne sie liesse sich der Graph nicht einmal zeichnen, und sie verrät
+nur, *dass* es eine Person gibt, nicht wer.
+
+### Ein richtiges Nein mit falscher Begründung
+
+Eine Kante von einem Knoten auf sich selbst wurde abgewiesen — aber mit
+*„beide Knoten müssen zu dieser Bibliothek gehören"*. Die Prüfung zählte
+`id IN (@from, @to)`, und bei zwei gleichen Kennungen ist das **eine** Zeile,
+nicht zwei.
+
+Das Ergebnis war richtig, die Auskunft falsch, und der Test bemerkte es. Wer
+danach gesucht hätte, hätte an der Bibliothekszugehörigkeit gesucht statt an
+der Schlinge. Sie wird jetzt zuerst geprüft, vor allem anderen.
+
+### Beide Folgen stehen da, nicht nur die der angeklickten Hälfte
+
+Beim Anlegen einer Bibliothek fällt die Entscheidung offen/versiegelt, und sie
+lässt sich nie wieder umlegen. Die naheliegende Oberfläche wäre ein Schalter
+mit einem Hinweis darunter, der sich je nach Stellung ändert.
+
+Das wäre zu wenig. Wer nur den Hinweis zur gewählten Hälfte liest, kennt die
+Entscheidung nicht — er kennt eine Hälfte davon. Also stehen **beide** Folgen
+untereinander, die gewählte hervorgehoben, die andere blass daneben. Dazu ein
+Satz in Warnfarbe: dass die Wahl einmal fällt.
+
+Dieselbe Überlegung wie bei der Intention und beim Einladen unter der
+persönlichen Rolle: eine Entscheidung, die sich nicht zurücknehmen lässt, muss
+vor dem Klick vollständig lesbar sein — nicht als Fussnote, sondern als der
+eigentliche Inhalt des Formulars.
+
+### Die Suche schreibt hin, wo sie gesucht hat
+
+`serverSide: false` heisst „ich kann hier nicht suchen", nicht „nichts
+gefunden". Der Klient sucht dann selbst — aber nur in dem, was geladen ist.
+
+Die Trefferliste allein wäre damit eine Lüge über ihre eigene Vollständigkeit.
+Über ihr steht deshalb ein Satz: **auf dem Server gesucht** oder **hier im
+Browser gesucht**, und im zweiten Fall dazu, dass „hier" nicht zwingend
+„alles" heisst. Warnfarbe, nicht grün: es ist kein Fehler, aber auch keine
+Vollständigkeit.
+
+### „Nicht bekannt" wird ausgeschrieben
+
+Der Zustand einer Kante steht als Wort da, nicht als leeres Feld. Der
+Unterschied ist der Gewinn des ganzen Modells: ein leeres Feld heisst „niemand
+hat sich damit befasst", `unknown` heisst „wir haben nachgesehen und wissen es
+nicht". Eine Oberfläche, die beides gleich zeigt, wirft genau das weg, wofür
+die Envelope aus §1.6 gebaut ist.
+
+### Zeit ist nicht Inhalt
+
+Der Kalender trennt anders als alles davor. Bei den Veranstaltungen trennt die
+Sichtbarkeit ganze Abschnitte, bei einer Messintention Felder derselben Zeile
+— hier trennt sie **die Zeit vom Anlass**:
+
+    WANN jemand belegt ist   →  Klartext
+    WOMIT er belegt ist      →  versiegelt
+
+Ein Kalender, der die Zeiten mitverschlüsselt, kann drei Dinge nicht mehr:
+freie Zeiten finden, ohne alles herunterzuladen und zu entschlüsseln;
+Überschneidungen melden, bevor jemand doppelt zusagt; eine Wiederholung
+ausrechnen, ohne den Schlüssel zu haben.
+
+Das ist kein Verlust an Schutz, sondern eine ehrliche Grenze: *dass* jemand
+Dienstag um zehn belegt ist, verrät ungleich weniger als *wobei*. Wer auch das
+verbergen will, legt den Termin in einen Kalender, den nur er sieht — dann
+sieht niemand die Zeit, weil niemand den Kalender sieht.
+
+**`title_public` ist kein entschlüsselter Titel**, sondern ein eigenes Feld:
+was andere sehen dürfen. Oft nichts, manchmal „Sitzung", nie „Gespräch mit
+Frau K. wegen der Kündigung". Beides in einem Feld zu führen hiesse, dass jede
+Anzeige entscheiden muss, wie viel sie verrät — und irgendeine entscheidet
+falsch.
+
+Daraus folgen in der Oberfläche **drei** Arten von „kein Titel", die nicht
+gleich aussehen dürfen: *versiegelt* (es steht etwas da, du kannst es nicht
+öffnen), *belegt* (es gibt nichts Öffentliches zu sagen) und *benannt*.
+
+### Eine grüne Prüfung, die nichts prüfte
+
+Die Prüfung „ein Termin in der übersprungenen Stunde fällt nicht aus" setzte
+den Anfang auf 01:30 UTC. In Warschau sind das 03:30 örtlich — **hinter** der
+Lücke. Sie war grün und prüfte nichts.
+
+Es gibt keinen UTC-Zeitpunkt, der auf 02:30 örtlich fällt; die Zeit existiert
+nicht. Erreichen lässt sie sich nur über eine Reihe: am 28. um 02:30 örtlich
+beginnen, täglich weiter, und der 29. landet in der Lücke. Jetzt prüft sie,
+dass der Termin auf 03:00 rückt statt auszufallen.
+
+Eine grüne Prüfung, die ihren Fall nicht trifft, ist schlimmer als keine: sie
+erzeugt Zuversicht, die nichts trägt.
+
+### `GetAmbiguousTimeOffsets()[0]` ist nicht die erste Stunde
+
+Bei der Rückstellung gibt es eine Stunde zweimal. Der Kommentar im Code sagte
+„genommen wird die erste" und der Code nahm `[0]` — das ist in .NET die
+**Winterzeit**, also der *spätere* Zeitpunkt. Genau das Gegenteil.
+
+Die Reihenfolge dieser Liste ist ohnehin nicht zugesagt. Genommen wird jetzt
+ausdrücklich der **grösste Versatz** = die früheste UTC-Zeit = das erste
+Vorkommen der doppelten Stunde. Wer „halb drei" sagt, meint das erste halb
+drei.
+
+### Zeitstempel werden nicht als Zeichenketten verglichen
+
+Derselbe Augenblick sieht je nach Absender anders aus: der Dienst schreibt
+`2026-03-02T08:00:00+00:00`, JavaScript schreibt `2026-03-02T08:00:00.000Z`.
+Als Text zwei verschiedene Dinge, als Augenblick derselbe.
+
+`rcOverlaps` verglich Zeichenketten. Innerhalb der Antworten des Dienstes ging
+das gut, weil dort alle dasselbe Format haben — die Prüfungen mit gebauten
+Daten liefen grün. Aufgefallen ist es erst im Durchgang gegen den laufenden
+Dienst. Genau dafür gibt es ihn.
+
+### Eine Wiederholung braucht ein Ende
+
+Eine Reihe ohne Ende lässt sich nicht ausrechnen, nur abschneiden — und jede
+Ansicht schneidet woanders ab. Die Datenbank verlangt deshalb entweder ein
+Datum oder eine Anzahl, genau eines von beidem.
+
+Und die Reihe bleibt eine **Regel**: wird ein einzelnes Vorkommen abgesagt
+oder verschoben, entsteht eine Ausnahmezeile, nicht fünfzig Einzeltermine.
+Wer die Reihe bei der ersten Änderung auflöst, verliert „jeden Montag" für
+immer.
+
+### Drei Arten von „kein Titel"
+
+Im Kalender heisst eine leere Beschriftung dreierlei, und die drei dürfen
+nicht gleich aussehen:
+
+- **belegt** — es gibt nichts Öffentliches zu sagen. Das ist keine Lücke,
+  sondern die Aussage: *belegt, mehr geht dich nichts an.*
+- **versiegelt** — hier steht etwas, dieser Leser hat den Schlüssel nicht.
+- **benannt** — es gibt einen Titel, öffentlich oder entschlüsselt.
+
+Sie gleich darzustellen wäre die Art Fehler, die niemandem auffällt und dazu
+führt, dass jemand einen Tag für leer hält, an dem er es nicht ist. Der eigene,
+entschlüsselte Titel steht kräftiger als die Zusammenfassung, die für andere
+gedacht war; ein versiegelter Eintrag trägt einen gestrichelten Rand statt
+eines durchgezogenen.
+
+Und: **der entschlüsselte Titel gewinnt.** Wer den Schlüssel hat, will sehen,
+was es wirklich ist — nicht das, was für andere geschrieben wurde.
+
+### Überschneidungen sind der sichtbare Gegenwert
+
+Dass die Zeiten im Klartext liegen, ist eine Einschränkung, die man erklären
+muss. Die Ansicht erklärt sie nicht mit Worten allein, sondern zeigt, wofür
+bezahlt wird: sie meldet Überschneidungen, und der Satz daneben sagt, dass
+genau das ohne Klartext-Zeiten nicht ginge.
+
+Ganztägige zählen dabei nicht mit. „Den ganzen Tag Urlaub" und „um zehn ein
+Termin" ist kein Konflikt, sondern der Normalfall — eine Warnung dafür wäre
+Lärm, und Lärm wird nach dem dritten Mal weggeklickt.
+
+### Das Ende einer Wiederholung steht da, bevor es fehlt
+
+Der Dienst weist eine Reihe ohne Ende ab. Die Oberfläche zeigt das Feld
+deshalb, **sobald** eine Wiederholung gewählt wird — mit einem brauchbaren
+Vorgabewert. Es hinterher als Absage zu erklären wäre derselbe Fehler wie ein
+Knopf, der zuverlässig mit einem Nein endet.
+
+Dasselbe beim Ende eines Termins: wer einen Anfang wählt, bekommt ein Ende
+eine Stunde später eingetragen. Der Dienst würde einen rückwärts laufenden
+Termin abweisen; ihn gar nicht erst entstehen zu lassen ist billiger als die
+Erklärung danach.
+
+### Firmung: drei Dinge aus dem Altbestand, die nicht übernommen werden
+
+Kandidaten sind Minderjährige. Was über sie gespeichert wird, ist besondere
+Kategorie nach 12.9 ohne Abwägung — Religionszugehörigkeit ist es per
+Definition, und alles andere hängt daran. Drei Stellen des Altbestands werden
+deshalb ausdrücklich **nicht** übernommen:
+
+**1. Notizen lagen im Klartext.** `ParishConfirmationNote.NoteText` war eine
+gewöhnliche Textspalte, mit einem `IsPublic`-Schalter daneben. Eine Notiz über
+ein Kind, unter seinem Namen, lesbar für jeden mit Datenbankzugriff. Hier liegt
+sie versiegelt — und die Unterscheidung bleibt, weil sie richtig ist: was die
+Eltern sehen dürfen, ist etwas anderes als was der Katechet sich notiert.
+
+Wichtig dabei: **`forFamily` heisst nicht „unverschlüsselt".** Beide liegen
+versiegelt. Anders als beim Messplan, wo öffentlich wirklich am Schaukasten
+hängt, gibt es bei einem Kind kein „öffentlich" — nur einen engeren und einen
+weiteren Kreis.
+
+**2. Token lagen roh in der Zeile.** `HostInviteToken` und
+`VerificationToken` waren Zeichenketten in der Tabelle. Wer die Tabelle hatte,
+hatte die Token. Es gibt keinen zweiten Token-Baustein: `rc_token` trägt auch
+diese (10.3.1), und gespeichert wird nur der Abdruck.
+
+**3. Ein einziger verschlüsselter Klumpen für alles.** `PayloadEnc` war
+bequem — und das heimtückischste von den dreien. Mit einem Klumpen lässt sich
+der Datensatz eines Kindes gegen den eines anderen tauschen, ohne dass etwas
+auffällt. Jedes Feld trägt jetzt sein eigenes Etikett (3.13), und eine Prüfung
+schiebt den Kontakt in das Namensfeld: es fällt auf, und der Kandidat fällt
+trotzdem nicht aus der Liste.
+
+### Ein eigener Bereich für die Akten
+
+Der Jahrgang hängt nicht am Bereich der Pfarrei, sondern an einem eigenen. Wer
+den Messplan pflegt, hat damit nicht auch Zugriff auf die Akten der Kinder —
+und genau dafür ist ein Bereich die Einheit der Sichtbarkeit.
+
+Der Dienst verlangt beim Anlegen Verwaltungsrecht in **beiden**: in der Pfarrei
+und im Zielbereich. Ohne das zweite wäre der eigene Bereich ein Vorschlag und
+keine Grenze — wer die Pfarrei verwaltet, könnte den Jahrgang in einen Bereich
+hängen, den er selbst kontrolliert.
+
+### Was im Klartext bleibt, und warum
+
+Die Ablaufmerker (Einwilligung da, Papier da, Quiz bestanden) und die Zeiten
+und Plätze der Treffen liegen im Klartext. Sie sagen nichts über die Person,
+sondern über den **Vorgang** — und ohne sie liesse sich die häufigste Frage
+eines Katecheten („wer muss noch was abgeben") nur beantworten, indem jeder
+Datensatz entschlüsselt wird.
+
+Dieselbe Linie wie im Kalender: die Zeit ist nicht der Anlass, der Merker ist
+nicht die Person.
+
+### Der Belegte hört nicht, das Treffen sei voll
+
+Beim Buchen eines Platzes prüfte der erste Anlauf die Kapazität, bevor er sah,
+ob dieser Kandidat bereits gebucht hat. Bei einem Einzelplatz führte das dazu,
+dass derjenige, der **selbst darin sitzt**, beim zweiten Klick „dieses Treffen
+ist voll" bekam.
+
+Richtig ist die andere Reihenfolge: wer schon sitzt, nimmt keinen neuen Platz.
+Erst danach die Kapazität. Die Prüfung hat es gefunden — sie erwartete eine
+freundliche Antwort und bekam eine Absage.
+
+Die Kapazität selbst wird in einer **serialisierbaren** Transaktion geprüft.
+Zwei gleichzeitige Anmeldungen auf den letzten Platz sind bei einem Jahrgang,
+dem morgens um acht die Liste freigeschaltet wird, der Regelfall — eine Prüfung
+ausserhalb der Transaktion ist genau dann falsch, wenn es darauf ankommt.
+
+### „Für die Familie" ist kein offenes Schloss
+
+Beim Messplan heisst öffentlich: es hängt am Schaukasten, es liegt im
+Klartext. Bei einem Kind gibt es das nicht — beide Arten von Notiz liegen
+versiegelt, und `forFamily` sagt nur, **wer** sie lesen darf.
+
+Die Oberfläche muss das aussprechen, sonst liest sich der Schalter wie „diese
+hier verschlüsseln wir nicht". Er trägt deshalb einen Satz, der immer
+dasteht — nicht nur, wenn er angehakt ist. Und beide Notizarten haben dieselbe
+Grundform, nur einen anderen Rand: ein offenes Schloss neben der einen wäre
+eine Lüge über den Schutz.
+
+Aus demselben Grund tragen im Aufnahmeformular **alle** Felder denselben Rand.
+Beim Messplan und im Kalender unterscheiden sie sich, weil sich die
+Sichtbarkeit unterscheidet. Hier ist nichts öffentlich, und ein Feld, das
+anders aussieht, würde etwas anderes behaupten.
+
+### Die häufigste Frage steht ganz oben
+
+„Wer muss noch was abgeben" ist die Frage, die ein Katechet am häufigsten
+stellt — und sie lässt sich aus den Klartext-Merkern beantworten, ohne einen
+einzigen Datensatz zu öffnen.
+
+Sie steht deshalb über der Liste, mit dem Satz daneben, warum das geht. Ohne
+ihn sähe es aus, als würde hier fahrlässig etwas offen gelassen; mit ihm ist
+sichtbar, dass die Merker den **Vorgang** betreffen und nicht die Person.
+
+Dieselbe Linie wie überall: was im Klartext liegt, liegt dort aus einem Grund,
+und der Grund wird genannt statt verschwiegen.

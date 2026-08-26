@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { rcCopy, rcDetectLang, rcFormat, rcPlural, rcStoreLang, type RcLang } from './i18n';
 import { runRcSelfTest, type RcTestReport } from './lib/rcSelfTest';
-import { RcChat } from './RcChat';
+import { RcChat, RcEventsSection, RcParishOutlet, RcGraphOutlet, RcCalendarOutlet, RcConfirmationOutlet } from './RcChat';
 import { RcInviteBanner } from './RcInvite';
 import { rcSecretFromHash } from './lib/rcInvite';
 import { RcSignIn } from './RcSignIn';
@@ -210,6 +210,31 @@ export function RcApp() {
         <section className="rc-section">
           <h2 className="rc-h2">{t.chat.areas}</h2>
           <RcChat lang={lang} unlocked={unlocked} />
+        </section>
+
+        <section className="rc-section">
+          <h2 className="rc-h2">{t.events.heading}</h2>
+          <RcEventsSection lang={lang} unlocked={unlocked} />
+        </section>
+
+        <section className="rc-section">
+          <h2 className="rc-h2">{t.parish.heading}</h2>
+          <RcParishOutlet lang={lang} unlocked={unlocked} />
+        </section>
+
+        <section className="rc-section">
+          <h2 className="rc-h2">{t.graph.heading}</h2>
+          <RcGraphOutlet lang={lang} unlocked={unlocked} />
+        </section>
+
+        <section className="rc-section">
+          <h2 className="rc-h2">{t.cal.heading}</h2>
+          <RcCalendarOutlet lang={lang} unlocked={unlocked} />
+        </section>
+
+        <section className="rc-section">
+          <h2 className="rc-h2">{t.conf.heading}</h2>
+          <RcConfirmationOutlet lang={lang} unlocked={unlocked} />
         </section>
 
         <footer className="rc-foot">

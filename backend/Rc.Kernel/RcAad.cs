@@ -42,10 +42,76 @@ public enum RcField
     ParticipantCardConsents,
     ParticipantCardClause,
 
+    // Veranstaltungen (14.4)
+    //
+    // Jeder Eintrag hier zwingt zu der Frage, welcher Klasse nach 12.9 das
+    // Feld angehoert. Bei Anmeldungen ist die Antwort unangenehm: der Wert
+    // eines Formularfeldes kann alles sein — eine Essgewohnheit, eine
+    // Unvertraeglichkeit, eine Konfession. Deshalb traegt jedes Feld seine
+    // Klasse in der Zeile, und die Vorgabe ist die strengere.
+    EventTitle,
+    EventEpochKey,
+    EventPageTitle,
+    EventPartMenu,
+    EventPartTitle,
+    EventPartIntro,
+
+    /// <summary>Was nur das Teil-Modul selbst versteht. Im Altbestand Klartext.</summary>
+    EventPartConfig,
+    EventPartLayers,
+
+    EventFieldLabel,
+    EventFieldHelp,
+    EventFieldOptions,
+
+    /// <summary>Eine eingesandte Antwort. Besondere Kategorie, bis das Gegenteil gesagt wird.</summary>
+    EventAnswer,
+
+    /// <summary>Der private Annahmeschluessel einer Veranstaltung.</summary>
+    EventIntakeKey,
+
+    // Cogita — der Wissensgraph
+    //
+    // Nur ZWEI Felder, obwohl der Graph beliebig viele Arten kennt. Das ist
+    // Absicht: die ART eines Knotens ist Struktur und bleibt Klartext, der
+    // WERT ist Inhalt und traegt immer dasselbe Etikett. Ein Feldname je
+    // benutzerdefinierter Art waere eine Aufzaehlung, die der Benutzer
+    // erweitert — und damit keine feste Aufzaehlung mehr.
+    GraphNodeValue,
+    GraphEdgeNote,
+
+    // Firmung — der empfindlichste Teil der Plattform
+    //
+    // Kandidaten sind Minderjaehrige. Der Altbestand hatte EINEN
+    // verschluesselten Klumpen fuer alles (PayloadEnc); damit laesst sich der
+    // Klumpen eines Kindes gegen den eines anderen tauschen, ohne dass etwas
+    // auffaellt. Jedes Feld traegt deshalb sein eigenes Etikett.
+    CandidateName,
+    CandidateBorn,
+    CandidateContact,
+    CandidateSchool,
+    CandidateBaptism,
+    CandidateNote,
+
+    // Pfarrei
+    //
+    // Die Intention ist der Fall, an dem sich die Feldnamen bewaehren: EINE
+    // Zeile traegt einen oeffentlichen Text, einen internen und einen Hinweis
+    // auf den Stifter. Trugen alle drei dasselbe Etikett, koennte wer
+    // Schreibzugriff hat den Stifternamen in das interne Feld schieben —
+    // lautlos und ohne Fehlermeldung. Genau dafuer gibt es 3.13.
+    IntentionInternal,
+    IntentionDonorRef,
+    OfferingAmount,
+    OfferingDonorRef,
+
     // Module
     CalendarEventTitle,
     CalendarEventLocation,
     CalendarEventDescription,
+
+    /// <summary>Die Notizen eines Kalendereintrags — das WOMIT, nicht das WANN.</summary>
+    CalendarItemNotes,
     ParishDonorName,
     ParishDonationAmount,
     ContactPhone
@@ -132,9 +198,35 @@ public readonly record struct RcAad
         RcField.ParticipantCardData     => "card_data",
         RcField.ParticipantCardConsents => "card_consents",
         RcField.ParticipantCardClause   => "card_clause",
+        RcField.EventTitle              => "event_title_sealed",
+        RcField.EventEpochKey           => "event_epoch_key",
+        RcField.EventPageTitle          => "page_title",
+        RcField.EventPartMenu           => "part_menu",
+        RcField.EventPartTitle          => "part_title",
+        RcField.EventPartIntro          => "part_intro",
+        RcField.EventPartConfig         => "part_config",
+        RcField.EventPartLayers         => "part_layers",
+        RcField.EventFieldLabel         => "field_label",
+        RcField.EventFieldHelp          => "field_help",
+        RcField.EventFieldOptions       => "field_options",
+        RcField.EventAnswer             => "answer",
+        RcField.EventIntakeKey          => "intake_key",
+        RcField.GraphNodeValue          => "node_value",
+        RcField.GraphEdgeNote           => "edge_note",
+        RcField.CandidateName           => "candidate_name",
+        RcField.CandidateBorn           => "candidate_born",
+        RcField.CandidateContact        => "candidate_contact",
+        RcField.CandidateSchool         => "candidate_school",
+        RcField.CandidateBaptism        => "candidate_baptism",
+        RcField.CandidateNote           => "candidate_note",
+        RcField.IntentionInternal       => "internal_text",
+        RcField.IntentionDonorRef       => "donor_ref",
+        RcField.OfferingAmount          => "amount_sealed",
+        RcField.OfferingDonorRef        => "offering_donor",
         RcField.CalendarEventTitle      => "event_title",
         RcField.CalendarEventLocation   => "event_location",
         RcField.CalendarEventDescription=> "event_description",
+        RcField.CalendarItemNotes       => "item_notes",
         RcField.ParishDonorName         => "donor_name",
         RcField.ParishDonationAmount    => "amount",
         RcField.ContactPhone            => "phone",
