@@ -434,6 +434,7 @@ function SiteEditor({ siteId, onBack }: { siteId: string; onBack: () => void }) 
                         key={part.id}
                         part={part}
                         siteId={siteId}
+                        pageKind={activePage.kind}
                         mode={siteMode}
                         isFirst={index === 0}
                         isLast={index === sortedParts.length - 1}

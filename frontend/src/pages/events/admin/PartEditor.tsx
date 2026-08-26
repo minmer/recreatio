@@ -12,6 +12,7 @@ import { LayerEditor } from './LayerEditor';
 export function PartEditor({
   part,
   siteId,
+  pageKind,
   mode,
   isFirst,
   isLast,
@@ -20,6 +21,8 @@ export function PartEditor({
 }: {
   part: EventAdminPart;
   siteId: string;
+  /** The kind of page this part sits on — a public page shows to everyone. */
+  pageKind: 'public' | 'internal';
   /** The event's colour mode, so new backgrounds start on the right ground. */
   mode: ThemeMode;
   isFirst: boolean;
@@ -160,7 +163,7 @@ export function PartEditor({
                 setConfigJson(next);
                 setDirty(true);
               }}
-              ctx={{ part: editorPart, onStructureChanged: onChanged }}
+              ctx={{ part: editorPart, siteId, pageKind, onStructureChanged: onChanged }}
             />
           ) : (
             <p className="eva-error">Nieznany typ części: {part.kind}.</p>

@@ -15,6 +15,14 @@ export type PartContext = {
 
 export type PartEditorContext = {
   part: EventPart;
+  /** For a part whose settings are drawn from the event's own data. */
+  siteId: string;
+  /**
+   * Whether the page this part sits on is open to everyone. A part that shows
+   * other people's data has to be able to say so while it is being built, not
+   * after it has been published.
+   */
+  pageKind: 'public' | 'internal';
   /** Called after a change that lives outside ConfigJson (form fields). */
   onStructureChanged: () => void;
 };

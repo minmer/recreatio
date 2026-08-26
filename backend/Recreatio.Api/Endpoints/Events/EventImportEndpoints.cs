@@ -346,6 +346,7 @@ public static partial class EventEndpoints
         "gallery" => "Galeria",
         "files" => "Pliki",
         "people" => "Osoby",
+        "roster" => "Uczestnicy",
         _ => "Sekcja"
     };
 

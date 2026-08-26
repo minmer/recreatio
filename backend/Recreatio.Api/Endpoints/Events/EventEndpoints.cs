@@ -24,7 +24,9 @@ public static partial class EventEndpoints
         "faq", "form", "costs", "contact", "gallery", "files", "people",
         // Behind an individual link only: correcting one's own submission, and
         // the participant card with its consents.
-        "registration", "card", "topics"
+        "registration", "card", "topics",
+        // The organizer's own view of who signed up, placed as a slide.
+        "roster"
     ];
 
     private static readonly string[] AllowedFieldKinds =
@@ -52,6 +54,7 @@ public static partial class EventEndpoints
         MapAdminAccessEndpoints(group);
         MapParticipantEndpoints(group);
         MapParticipantAdminEndpoints(group);
+        MapRosterEndpoints(group);
         MapTopicEndpoints(group);
         MapTopicAdminEndpoints(group);
         MapImportEndpoints(group);

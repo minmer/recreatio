@@ -1869,6 +1869,245 @@
   line-height: 1.6;
 }
 
+/* ── Roster: the participant list ────────────────────────── */
+
+.ev-roster {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.ev-roster-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ev-roster-search {
+  flex: 1 1 14rem;
+  min-width: 0;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  background: var(--ev-field);
+  color: var(--ev-ink);
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.ev-roster-search:focus {
+  outline: none;
+  border-color: var(--ev-accent);
+}
+
+.ev-roster-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ev-roster-preset {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.42rem 0.85rem;
+  background: var(--ev-surface);
+  color: var(--ev-ink);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.ev-roster-preset:hover {
+  background: var(--ev-surface-3);
+}
+
+.ev-roster-preset.is-on {
+  border-color: transparent;
+  background: var(--ev-accent);
+  color: var(--ev-on-accent);
+}
+
+/* The live count. It is the point of the button, so it keeps its own pill
+   rather than hiding in the label. */
+.ev-roster-badge {
+  border-radius: 999px;
+  padding: 0.05rem 0.44rem;
+  background: var(--ev-surface-3);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-roster-preset.is-on .ev-roster-badge {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.ev-roster-picker > summary {
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.42rem 0.85rem;
+  background: var(--ev-surface);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ev-roster-picker > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ev-roster-picker-body {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  background: var(--ev-surface);
+}
+
+.ev-roster-picker-body .eve-check {
+  font-size: 0.88rem;
+}
+
+.ev-roster-count {
+  margin: 0;
+  color: var(--ev-muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A wide list scrolls inside its own box; the page must not go sideways. */
+.ev-roster-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  background: var(--ev-surface);
+}
+
+.ev-roster-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.ev-roster-table th,
+.ev-roster-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.ev-roster-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 1px solid var(--ev-line-2);
+  background: var(--ev-chrome);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ev-roster-sort {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--ev-muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ev-roster-sort:hover {
+  color: var(--ev-ink);
+}
+
+.ev-roster-table tbody tr + tr td {
+  border-top: 1px solid var(--ev-line);
+}
+
+.ev-roster-table tbody tr:hover td {
+  background: var(--ev-surface-2);
+}
+
+.ev-roster-table tbody tr.is-open td {
+  background: var(--ev-surface-3);
+}
+
+.ev-roster-more-head {
+  width: 1%;
+}
+
+.ev-roster-more-cell {
+  text-align: right;
+}
+
+.ev-roster-more {
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  background: none;
+  color: var(--ev-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.ev-roster-more:hover {
+  color: var(--ev-ink);
+  background: var(--ev-surface-3);
+}
+
+/* The hidden columns for one person, opened under their row. */
+.ev-roster-detail td {
+  border-top: 0 !important;
+  background: var(--ev-surface-2);
+  white-space: normal;
+}
+
+.ev-roster-detail dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 0.5rem 1.2rem;
+  margin: 0;
+}
+
+.ev-roster-detail dt {
+  color: var(--ev-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ev-roster-detail dd {
+  margin: 0.1rem 0 0;
+}
+
+.ev-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The builder's column picker, one button per column. */
+.eve-chiprow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
 /* ── Individual-link banner ──────────────────────────────── */
 
 .ev-link-card {

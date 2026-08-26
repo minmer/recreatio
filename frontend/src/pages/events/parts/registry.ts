@@ -11,6 +11,7 @@ import { participantCardPart } from './ParticipantCardPart';
 import { peoplePart } from './PeoplePart';
 import { planPart } from './PlanPart';
 import { registrationPart } from './RegistrationPart';
+import { rosterPart } from './RosterPart';
 import { shortInfosPart } from './ShortInfosPart';
 import { textPart } from './TextPart';
 import { titlePart } from './TitlePart';
@@ -39,6 +40,7 @@ export const PART_MODULES: PartModule[] = [
   // Only useful behind an individual link: these act on the reader's own data.
   registrationPart,
   participantCardPart,
+  rosterPart,
   topicsPart
 ];
 

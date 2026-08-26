@@ -337,3 +337,26 @@ public sealed record EventTopicMessageRequest(string Body);
 
 /// <summary>Retitle, close or reopen. Status is ignored when it is not one of the three.</summary>
 public sealed record EventTopicUpdateRequest(string? Title, string? Status);
+
+// ── Roster: the participant list as a slide ──────────────────────────────────
+
+/// <summary>
+/// One column offered by the roster. <paramref name="Group"/> is what the
+/// builder sorts the checkboxes under ("Formularz: Zapisy"), and
+/// <paramref name="Filled"/> how many people actually have a value there — a
+/// column nobody filled in is worth knowing about before it goes on the table.
+/// </summary>
+public sealed record EventRosterColumn(string Key, string Label, string Group, int Filled);
+
+public sealed record EventRosterRow(string Key, IReadOnlyDictionary<string, string?> Values);
+
+/// <summary>
+/// The table behind one roster part. Columns the organizer switched off are not
+/// in <paramref name="Columns"/> and their values are not in the rows — they are
+/// dropped here, not in the browser.
+/// </summary>
+public sealed record EventRosterResponse(
+    IReadOnlyList<EventRosterColumn> Columns,
+    IReadOnlyList<EventRosterRow> Rows,
+    /// <summary>True when the slide has no columns chosen yet, so the reader is told rather than shown an empty table.</summary>
+    bool IsUnconfigured);

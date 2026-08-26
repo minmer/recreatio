@@ -7831,7 +7831,9 @@ export type EventPartKind =
   | 'form' | 'costs' | 'contact' | 'gallery' | 'files' | 'people'
   // Only meaningful behind an individual link: the two parts that act on the
   // reader's own data rather than on the event's content.
-  | 'registration' | 'card' | 'topics';
+  | 'registration' | 'card' | 'topics'
+  // The organizer's view of who signed up, placed as a slide of its own.
+  | 'roster';
 
 export type EventPartField = {
   id: string;
@@ -8252,6 +8254,40 @@ export function moderateEventTopic(
     method: 'PUT',
     body: JSON.stringify({ title: patch.title ?? null, status: patch.status ?? null })
   });
+}
+
+// ── Roster: the participant list as a slide ─────────────────────────────────
+
+/** One column a roster can show. `filled` is how many people have a value there. */
+export type EventRosterColumn = { key: string; label: string; group: string; filled: number };
+
+export type EventRosterRow = { key: string; values: Record<string, string | null> };
+
+export type EventRosterTable = {
+  columns: EventRosterColumn[];
+  rows: EventRosterRow[];
+  /** True when no column has been chosen yet — an empty table would look like an empty event. */
+  isUnconfigured: boolean;
+};
+
+/**
+ * Every column this event could offer, for the builder. It names data and counts
+ * it; it never carries anybody's answers.
+ */
+export function getEventRosterColumns(siteId: string) {
+  return request<EventRosterColumn[]>(`/events/admin/sites/${siteId}/roster-columns`, { method: 'GET' });
+}
+
+/**
+ * The table behind one roster slide. The columns the organizer switched off are
+ * missing from the response, not merely hidden in it — the server strips them.
+ */
+export function getEventRoster(slug: string, partId: string, token: string | null) {
+  const query = token ? `?token=${encodeURIComponent(token)}` : '';
+  return request<EventRosterTable>(
+    `/events/site/${encodeURIComponent(slug)}/parts/${partId}/roster${query}`,
+    { method: 'GET' }
+  );
 }
 
 export function getEventCards(siteId: string) {
