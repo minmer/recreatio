@@ -162,3 +162,105 @@ export function compareRows(a: EventRosterRow, b: EventRosterRow, key: string): 
 
   return left.localeCompare(right, 'pl');
 }
+
+// ── Reaching the person ──────────────────────────────────────────────────────
+
+/**
+ * A number a phone can dial, or null when this is not one.
+ *
+ * The rule has to tell a phone number from the other long runs of digits a
+ * roster carries — a PESEL above all, which is eleven digits and must never
+ * become a tappable "call this person". So: anything written with a plus is a
+ * number; nine bare digits are the Polish national form; ten to twelve digits
+ * count only when somebody wrote them with spaces or dashes, which a PESEL is
+ * not. Everything else stays plain text.
+ */
+export function dialablePhone(value: string | null | undefined): string | null {
+  if (!value) return null;
+
+  const text = value.trim();
+  if (text.includes('@')) return null;
+
+  // Letters mean this is a sentence that happens to contain digits.
+  if (/[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/.test(text)) return null;
+
+  const compact = text.replace(/[\s\-().]/g, '');
+  const separated = /[\s\-()]/.test(text);
+
+  if (compact.startsWith('+')) {
+    const digits = compact.slice(1);
+    return /^\d{7,15}$/.test(digits) ? `+${digits}` : null;
+  }
+
+  if (!/^\d+$/.test(compact)) return null;
+  if (compact.length === 9) return `+48${compact}`;
+  if (compact.length >= 10 && compact.length <= 12 && separated) {
+    return compact.startsWith('48') ? `+${compact}` : `+48${compact}`;
+  }
+
+  return null;
+}
+
+export function isEmail(value: string | null | undefined): boolean {
+  return typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+/**
+ * The number to ring for one person. The organizer may name the column; without
+ * that, the first column that reads as a phone wins, in the order the table is
+ * built — so the contact from the sign-up comes before a guardian's number.
+ */
+export function phoneForRow(
+  row: EventRosterRow,
+  columns: EventRosterColumn[],
+  preferredKey: string
+): string | null {
+  if (preferredKey.length > 0) return dialablePhone(row.values[preferredKey]);
+
+  for (const column of columns) {
+    const dialable = dialablePhone(row.values[column.key]);
+    if (dialable !== null) return dialable;
+  }
+  return null;
+}
+
+/**
+ * Fills a message in for one person.
+ *
+ * `{...}` names a column — by its key, or by the name shown at the top of it, so
+ * the organizer can write `{Grupa}` and read back what they meant. Three words
+ * stand for something the table has no column for: `{osoba}` the full name,
+ * `{imie}` how you greet them, and `{wydarzenie}` the event.
+ *
+ * A placeholder that names nothing is left standing rather than blanked: the
+ * organizer sees their own typo in the message instead of a hole where the
+ * group number should be.
+ */
+export function renderTemplate(
+  template: string,
+  row: EventRosterRow,
+  columns: EventRosterColumn[],
+  extras: { eventTitle: string; nameKey: string }
+): string {
+  const fullName = (row.values[extras.nameKey] ?? '').trim();
+
+  return template.replace(/\{([^{}]+)\}/g, (whole, token: string) => {
+    const wanted = fold(token.trim());
+
+    if (wanted === 'wydarzenie') return extras.eventTitle;
+    if (wanted === 'osoba') return fullName;
+    if (wanted === 'imie') return fullName.split(/\s+/)[0] ?? fullName;
+
+    const column = columns.find(
+      (entry) => entry.key === token.trim() || fold(entry.label) === wanted
+    );
+    if (column === undefined) return whole;
+
+    return (row.values[column.key] ?? '').trim();
+  });
+}
+
+/** What the SMS app is handed. The house form, as in the access panel. */
+export function smsHref(phone: string, body: string): string {
+  return `sms:${phone}?body=${encodeURIComponent(body)}`;
+}
