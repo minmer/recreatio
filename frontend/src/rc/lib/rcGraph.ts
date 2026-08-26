@@ -162,3 +162,77 @@ export function rcNodeLabel(node: RcNode, fallback: string): string {
   // Kennung. Sie ist ein Verbindungspunkt und noch nichts weiter.
   return `${node.kind} ${node.nodeId.slice(0, 8)}`;
 }
+
+// -- §1.6a: Bereiche ----------------------------------------------------------
+
+export type RcSegment = RcApi<'GraphSegmentView'>;
+
+export const RC_SEGMENT_TYPES = ['date', 'number', 'text'] as const;
+export const RC_FROM_STATES = ['inclusive', 'exclusive', 'approximate', 'unknown'] as const;
+export const RC_TO_STATES = ['inclusive', 'exclusive', 'approximate', 'open'] as const;
+
+export type RcSegmentType = (typeof RC_SEGMENT_TYPES)[number];
+export type RcFromState = (typeof RC_FROM_STATES)[number];
+export type RcToState = (typeof RC_TO_STATES)[number];
+
+export interface RcSegmentInput {
+  readonly valueType: RcSegmentType;
+  readonly from: string;
+  readonly to?: string;
+  readonly fromState?: RcFromState;
+  readonly toState?: RcToState;
+}
+
+export const rcSegments = (nodeId: string) =>
+  rcFetch<RcApi<'RcRangeSegmentsResponse'>>(`/nodes/${nodeId}/segments`, { withUnlock: true });
+
+/**
+ * Die Abschnitte eines Bereichsknotens setzen — ALLE auf einmal.
+ *
+ * Ein Bereich ist EIN Wert, kein Behälter, in den man einzeln hineinlegt. Ein
+ * König, der 992–1000 und wieder 1002–1025 regierte, hat EINE Regierung mit
+ * zwei Abschnitten; sie einzeln anzufügen hiesse, dass es zwischendurch einen
+ * Zustand gibt, in dem nur die halbe Regierung dasteht — und irgendeine
+ * Anzeige liest genau dann.
+ */
+export const rcSetSegments = (nodeId: string, segments: readonly RcSegmentInput[]) =>
+  rcFetch<RcApi<'RcRangeSegmentsSetResponse'>>(`/nodes/${nodeId}/segments`, {
+    body: {
+      segments: segments.map((segment) => ({
+        valueType: segment.valueType,
+        from: segment.from,
+        to: segment.to ?? null,
+        fromState: segment.fromState ?? 'inclusive',
+        toState: segment.toState ?? 'inclusive'
+      }))
+    },
+    withUnlock: true
+  });
+
+/**
+ * Einen Abschnitt als Text, so wie ein Mensch ihn liest.
+ *
+ * Ein offenes Ende wird als solches gezeigt und nicht weggelassen: „ab 1002"
+ * ist eine Aussage, ein fehlendes Ende sähe aus wie ein vergessenes Feld. Und
+ * „ungefähr" steht dabei — ein ungefähres Datum als genaues zu zeigen ist die
+ * Art Genauigkeit, die es nicht gibt.
+ */
+export function rcSegmentText(segment: RcSegment, openMark = '…'): string {
+  const from = segment.fromState === 'approximate' ? `~${segment.from}` : segment.from;
+
+  if (segment.toState === 'open') return `${from} ${openMark}`;
+  if (segment.to === null || segment.to === undefined) return from;
+
+  const to = segment.toState === 'approximate' ? `~${segment.to}` : segment.to;
+  return `${from}–${to}`;
+}
+
+/**
+ * Alle Abschnitte hintereinander.
+ *
+ * Zwei Abschnitte sind EIN Wert und kein Paar: „992–1000, 1002–1025" ist eine
+ * Regierung mit einer Unterbrechung, nicht zwei Regierungen.
+ */
+export function rcRangeText(segments: readonly RcSegment[], separator = ', '): string {
+  return segments.map((segment) => rcSegmentText(segment)).join(separator);
+}

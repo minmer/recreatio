@@ -28,3 +28,16 @@ public sealed record RcEdgeCreatedResponse(string EdgeId, string State);
 /// Wahrheit selbst suchen muesste.
 /// </summary>
 public sealed record RcGraphSearchResponse(IReadOnlyList<RcGraph.SearchHit> Hits, bool ServerSide);
+
+/// <summary>
+/// §1.6a — Die Abschnitte eines Bereichsknotens, in ihrer Reihenfolge.
+///
+/// Ein Koenig, der 992–1000 und wieder 1002–1025 regierte, hat EINE
+/// Regierung mit zwei Abschnitten. Sie in zwei Kanten zu zerlegen hiesse,
+/// zwei Regierungen zu behaupten — und genau das soll dieses Modell
+/// verhindern.
+/// </summary>
+public sealed record RcRangeSegmentsResponse(
+    string NodeId, IReadOnlyList<RcGraph.SegmentView> Segments);
+
+public sealed record RcRangeSegmentsSetResponse(string NodeId, int Segments);

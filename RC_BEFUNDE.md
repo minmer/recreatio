@@ -1374,3 +1374,39 @@ sichtbar, dass die Merker den **Vorgang** betreffen und nicht die Person.
 
 Dieselbe Linie wie überall: was im Klartext liegt, liegt dort aus einem Grund,
 und der Grund wird genannt statt verschwiegen.
+
+### Eine Tabelle ohne Code ist ein Versprechen, das niemand hält
+
+Nach dem Einchecken der Module trug **eine** von 56 Tabellen keinen Code:
+`rc_range_segment`, die Abschnitte eines Bereichsknotens (§1.6a). Sie stand im
+Schema, war migriert, hatte Bedingungen und einen Index — und nichts schrieb je
+hinein.
+
+Das ist schlechter als eine fehlende Tabelle. Wer das Schema liest, sieht eine
+Zusage; wer den Code liest, findet sie nicht eingelöst, und beide halten das
+jeweils andere für den Fehler.
+
+Zwei ehrliche Auswege: umsetzen oder entfernen. Umgesetzt, weil §1.6a genau
+das ist, wofür der Graph gebaut ist — ein König, der 992–1000 und wieder
+1002–1025 regierte, hat EINE Regierung mit zwei Abschnitten. In zwei Kanten
+zerlegt behauptete man zwei Regierungen.
+
+**Setzen ersetzt die Liste vollständig.** Ein Bereich ist EIN Wert, kein
+Behälter, in den man einzeln hineinlegt. Abschnitte einzeln anzufügen hiesse,
+dass es zwischendurch einen Zustand gibt, in dem nur die halbe Regierung
+dasteht — und irgendeine Anzeige liest genau dann.
+
+### Was eine Darstellung behauptet
+
+`rcSegmentText` beantwortet nicht „wie sieht es hübsch aus", sondern „was sagt
+die Darstellung":
+
+- Ein **offenes Ende** wird gezeigt (`1002 …`) und nicht weggelassen. „Ab 1002"
+  ist eine Aussage; ein fehlendes Ende sähe aus wie ein vergessenes Feld.
+- **Ungefähr** steht dabei (`~0992`). Ein ungefähres Datum als genaues zu
+  zeigen ist eine Genauigkeit, die es nicht gibt.
+- Zwei Abschnitte stehen als **ein** Wert (`0992–1000, 1002–1025`), nicht als
+  zwei Zeilen.
+
+Dieselbe Linie wie überall: die Anzeige darf nicht mehr behaupten, als die
+Daten hergeben — und nicht weniger.

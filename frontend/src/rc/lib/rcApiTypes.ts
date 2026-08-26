@@ -2240,6 +2240,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/nodes/{id}/segments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcRangeSegmentsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GraphSetSegmentsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcRangeSegmentsSetResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/invitations": {
         parameters: {
             query?: never;
@@ -4256,6 +4318,25 @@ export interface components {
             kind: string;
             value: string;
         };
+        GraphSegment: {
+            valueType: string;
+            from: string;
+            to?: string | null;
+            fromState?: string | null;
+            toState?: string | null;
+        };
+        GraphSegmentView: {
+            /** Format: int32 */
+            sortOrder: number;
+            valueType: string;
+            from: string;
+            to?: string | null;
+            fromState: string;
+            toState: string;
+        };
+        GraphSetSegmentsRequest: {
+            segments: components["schemas"]["GraphSegment"][];
+        };
         InvitationsCreateRequest: {
             roleId: string;
             label?: string | null;
@@ -4869,6 +4950,15 @@ export interface components {
         };
         RcPollsResponse: {
             polls: components["schemas"]["PollsPollView"][];
+        };
+        RcRangeSegmentsResponse: {
+            nodeId: string;
+            segments: components["schemas"]["GraphSegmentView"][];
+        };
+        RcRangeSegmentsSetResponse: {
+            nodeId: string;
+            /** Format: int32 */
+            segments: number;
         };
         RcReactionResponse: {
             messageId: string;

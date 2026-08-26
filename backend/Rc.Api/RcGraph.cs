@@ -65,6 +65,10 @@ public static class RcGraph
         // §5 — Suche. Nur in oeffentlichen Bibliotheken; siehe die Begruendung
         // oben und die Antwort, die es ausdruecklich sagt.
         app.MapGet("/rc/libraries/{id:guid}/search", SearchAsync).Produces<RcGraphSearchResponse>();
+
+        // §1.6a — Die Abschnitte eines Bereichsknotens.
+        app.MapGet("/rc/nodes/{id:guid}/segments", SegmentsAsync).Produces<RcRangeSegmentsResponse>();
+        app.MapPost("/rc/nodes/{id:guid}/segments", SetSegmentsAsync).Produces<RcRangeSegmentsSetResponse>();
     }
 
     private static RcAad ValueAad(Guid nodeId) =>
@@ -588,4 +592,197 @@ public static class RcGraph
         cmd.Parameters.AddWithValue("@id", areaId);
         return await cmd.ExecuteScalarAsync(ct) is Guid g ? g : Guid.Empty;
     }
+    // -- §1.6a: Bereiche ------------------------------------------------------
+
+    public static readonly string[] SegmentTypes = ["date", "number", "text"];
+    public static readonly string[] FromStates = ["inclusive", "exclusive", "approximate", "unknown"];
+    public static readonly string[] ToStates = ["inclusive", "exclusive", "approximate", "open"];
+
+    public sealed record SegmentView(int SortOrder, string ValueType,
+        string From, string? To, string FromState, string ToState);
+
+    public sealed record Segment(string ValueType, string From, string? To,
+        string? FromState, string? ToState);
+
+    public sealed record SetSegmentsRequest(Segment[] Segments);
+
+    /// <summary>
+    /// Die Abschnitte eines Bereichsknotens setzen — ALLE auf einmal.
+    ///
+    /// Ein Bereich ist EIN Wert, kein Behaelter, in den man einzeln
+    /// hineinlegt. Ein Koenig, der 992–1000 und wieder 1002–1025 regierte,
+    /// hat EINE Regierung mit zwei Abschnitten; sie einzeln anzufuegen
+    /// hiesse, dass es zwischendurch einen Zustand gibt, in dem nur die
+    /// halbe Regierung dasteht — und irgendeine Anzeige liest genau dann.
+    ///
+    /// Deshalb ersetzt dieser Aufruf die Liste vollstaendig, in einer
+    /// Transaktion. Ein Bereich OHNE Abschnitte ist erlaubt: er ist die
+    /// Aussage „hier gehoert ein Zeitraum hin, wir kennen ihn noch nicht".
+    /// </summary>
+    private static async Task SetSegmentsAsync(
+        HttpContext ctx, RcDb db, RcPermissions permissions, Guid id, SetSegmentsRequest body)
+    {
+        var session = ctx.RcSession();
+        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var node = await LoadNodeAsync(connection, id, ctx.RequestAborted);
+        if (node is null) { await RcAreas.NotForYou(ctx); return; }
+
+        // Abschnitte gehoeren an einen Bereichsknoten und sonst nirgendwohin.
+        // Sie an einen Textknoten zu haengen waere eine Zeitleiste, die
+        // niemand jemals zeichnet.
+        if (node.Kind != "range")
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status409Conflict,
+                RcErrorCodes.PermissionDenied, "Abschnitte gehoeren an einen Bereichsknoten.");
+            return;
+        }
+
+        var may = await permissions.CheckAsync(session.AccountId, RcScopeKind.Area, node.AreaId,
+            RcCapability.Write, ctx.RequestAborted);
+        if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
+
+        var segments = body.Segments ?? [];
+
+        // ALLE Abschnitte eines Bereichs tragen denselben Grundtyp — sonst
+        // liesse sich nicht vergleichen, was verglichen werden soll: ein
+        // Datum gegen eine Seitenzahl ergibt keine Ordnung.
+        if (segments.Length > 0)
+        {
+            var type = segments[0].ValueType?.Trim().ToLowerInvariant() ?? "";
+            if (!SegmentTypes.Contains(type))
+            {
+                await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                    RcErrorCodes.PermissionDenied, "Diesen Grundtyp gibt es nicht.");
+                return;
+            }
+
+            if (segments.Any(x => (x.ValueType?.Trim().ToLowerInvariant() ?? "") != type))
+            {
+                await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                    RcErrorCodes.PermissionDenied,
+                    "Alle Abschnitte eines Bereichs tragen denselben Grundtyp.");
+                return;
+            }
+
+            foreach (var segment in segments)
+            {
+                var from = segment.From?.Trim() ?? "";
+                if (from.Length is 0 or > 200)
+                {
+                    await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                        RcErrorCodes.PermissionDenied, "Ein Abschnitt braucht einen Anfang.");
+                    return;
+                }
+
+                if (!FromStates.Contains(segment.FromState?.Trim().ToLowerInvariant() ?? "inclusive")
+                 || !ToStates.Contains(segment.ToState?.Trim().ToLowerInvariant() ?? "inclusive"))
+                {
+                    await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                        RcErrorCodes.PermissionDenied, "Diesen Zustand gibt es nicht.");
+                    return;
+                }
+            }
+        }
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(
+            System.Data.IsolationLevel.ReadCommitted, ctx.RequestAborted);
+
+        try
+        {
+            await using (var clear = new SqlCommand(
+                "DELETE FROM dbo.rc_range_segment WHERE range_node_id = @id;", connection, tx))
+            {
+                clear.Parameters.AddWithValue("@id", id);
+                await clear.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            for (var i = 0; i < segments.Length; i++)
+            {
+                var segment = segments[i];
+
+                await using var insert = new SqlCommand("""
+                    INSERT INTO dbo.rc_range_segment
+                        (range_node_id, sort_order, value_type, from_value, to_value,
+                         from_state, to_state)
+                    VALUES (@id, @sort, @type, @from, @to, @fs, @ts);
+                    """, connection, tx);
+
+                insert.Parameters.AddWithValue("@id", id);
+                insert.Parameters.AddWithValue("@sort", i);
+                insert.Parameters.AddWithValue("@type", segment.ValueType!.Trim().ToLowerInvariant());
+                insert.Parameters.AddWithValue("@from", segment.From!.Trim());
+                insert.Parameters.Add("@to", System.Data.SqlDbType.NVarChar, 200).Value =
+                    string.IsNullOrWhiteSpace(segment.To) ? DBNull.Value : segment.To.Trim();
+                insert.Parameters.AddWithValue("@fs",
+                    segment.FromState?.Trim().ToLowerInvariant() ?? "inclusive");
+                insert.Parameters.AddWithValue("@ts",
+                    segment.ToState?.Trim().ToLowerInvariant() ?? "inclusive");
+
+                await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        await RcResults.WriteJsonAsync(ctx, new RcRangeSegmentsSetResponse(
+            RcId.ToText(id), segments.Length));
+    }
+
+    private static async Task SegmentsAsync(
+        HttpContext ctx, RcDb db, RcPermissions permissions, Guid id)
+    {
+        var session = ctx.RcSession();
+        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var node = await LoadNodeAsync(connection, id, ctx.RequestAborted);
+        if (node is null) { await RcAreas.NotForYou(ctx); return; }
+
+        var may = await permissions.CheckAsync(session.AccountId, RcScopeKind.Area, node.AreaId,
+            RcCapability.Read, ctx.RequestAborted);
+        if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
+
+        await using var cmd = new SqlCommand("""
+            SELECT sort_order, value_type, from_value, to_value, from_state, to_state
+            FROM dbo.rc_range_segment WHERE range_node_id = @id ORDER BY sort_order;
+            """, connection);
+        cmd.Parameters.AddWithValue("@id", id);
+
+        var views = new List<SegmentView>();
+        await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
+        {
+            while (await reader.ReadAsync(ctx.RequestAborted))
+                views.Add(new SegmentView(
+                    reader.GetInt32(0), reader.GetString(1), reader.GetString(2),
+                    reader.IsDBNull(3) ? null : reader.GetString(3),
+                    reader.GetString(4), reader.GetString(5)));
+        }
+
+        await RcResults.WriteJsonAsync(ctx, new RcRangeSegmentsResponse(RcId.ToText(id), views));
+    }
+
+    private sealed record NodeRow(Guid Id, Guid AreaId, string Kind);
+
+    private static async Task<NodeRow?> LoadNodeAsync(
+        SqlConnection connection, Guid nodeId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("""
+            SELECT n.id, l.area_id, n.kind FROM dbo.rc_node n
+            JOIN dbo.rc_library l ON l.id = n.library_id WHERE n.id = @id;
+            """, connection);
+        cmd.Parameters.AddWithValue("@id", nodeId);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct)
+            ? new NodeRow(reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2))
+            : null;
+    }
+
 }

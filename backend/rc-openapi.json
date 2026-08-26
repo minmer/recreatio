@@ -2084,6 +2084,74 @@
         }
       }
     },
+    "/rc/nodes/{id}/segments": {
+      "get": {
+        "tags": [
+          "RcGraph"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcRangeSegmentsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcGraph"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphSetSegmentsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcRangeSegmentsSetResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/invitations": {
       "post": {
         "tags": [
@@ -5187,6 +5255,82 @@
         },
         "additionalProperties": false
       },
+      "GraphSegment": {
+        "required": [
+          "from",
+          "valueType"
+        ],
+        "type": "object",
+        "properties": {
+          "valueType": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string",
+            "nullable": true
+          },
+          "fromState": {
+            "type": "string",
+            "nullable": true
+          },
+          "toState": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GraphSegmentView": {
+        "required": [
+          "from",
+          "fromState",
+          "sortOrder",
+          "toState",
+          "valueType"
+        ],
+        "type": "object",
+        "properties": {
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "valueType": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string",
+            "nullable": true
+          },
+          "fromState": {
+            "type": "string"
+          },
+          "toState": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GraphSetSegmentsRequest": {
+        "required": [
+          "segments"
+        ],
+        "type": "object",
+        "properties": {
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphSegment"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "InvitationsCreateRequest": {
         "required": [
           "roleId"
@@ -7513,6 +7657,42 @@
             "items": {
               "$ref": "#/components/schemas/PollsPollView"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcRangeSegmentsResponse": {
+        "required": [
+          "nodeId",
+          "segments"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphSegmentView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcRangeSegmentsSetResponse": {
+        "required": [
+          "nodeId",
+          "segments"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "segments": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false

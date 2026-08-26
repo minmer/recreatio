@@ -2380,6 +2380,108 @@ await t.OkAsync("cg1.1 Eine Kante ueber Bibliotheksgrenzen wird abgewiesen", asy
         kind = "quer"
     })).StatusCode == HttpStatusCode.Conflict);
 
+// -- cg1.6a: Bereiche mit mehreren Abschnitten ---------------------------------
+//
+// Ein Koenig, der 992–1000 und wieder 1002–1025 regierte, hat EINE Regierung
+// mit zwei Abschnitten. Sie in zwei Kanten zu zerlegen hiesse, zwei
+// Regierungen zu behaupten.
+
+var rangeNode = (await ReadAsync(await http.PostAsJsonAsync(
+    $"/rc/libraries/{openLibId}/nodes", new { kind = "range" })))
+    .GetProperty("nodeId").GetString()!;
+
+await t.OkAsync("cg1.6a Ein Bereich nimmt zwei Abschnitte", async () =>
+{
+    var set = await http.PostAsJsonAsync($"/rc/nodes/{rangeNode}/segments", new
+    {
+        segments = new[]
+        {
+            new { valueType = "date", from = "0992", to = "1000", fromState = "inclusive", toState = "inclusive" },
+            new { valueType = "date", from = "1002", to = "1025", fromState = "inclusive", toState = "inclusive" }
+        }
+    });
+
+    return set.StatusCode == HttpStatusCode.OK
+        && (await ReadAsync(set)).GetProperty("segments").GetInt32() == 2;
+});
+
+await t.OkAsync("cg1.6a Sie kommen in ihrer Reihenfolge zurueck", async () =>
+{
+    var list = (await ReadAsync(await http.GetAsync($"/rc/nodes/{rangeNode}/segments")))
+        .GetProperty("segments").EnumerateArray().ToList();
+
+    return list.Count == 2
+        && Text(list[0], "from") == "0992"
+        && Text(list[1], "from") == "1002"
+        && list[0].GetProperty("sortOrder").GetInt32() == 0;
+});
+
+// Ein Bereich ist EIN Wert, kein Behaelter. Setzen ersetzt die Liste
+// vollstaendig — sonst gaebe es zwischendurch eine halbe Regierung.
+await t.OkAsync("cg1.6a Setzen ersetzt die Liste, es haengt nicht an", async () =>
+{
+    await http.PostAsJsonAsync($"/rc/nodes/{rangeNode}/segments", new
+    {
+        segments = new[] { new { valueType = "date", from = "0992", to = "1025" } }
+    });
+
+    return (await ReadAsync(await http.GetAsync($"/rc/nodes/{rangeNode}/segments")))
+        .GetProperty("segments").GetArrayLength() == 1;
+});
+
+// Alle Abschnitte tragen denselben Grundtyp — ein Datum gegen eine Seitenzahl
+// ergibt keine Ordnung.
+await t.OkAsync("cg1.6a Gemischte Grundtypen werden abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/nodes/{rangeNode}/segments", new
+    {
+        segments = new[]
+        {
+            new { valueType = "date", from = "0992" },
+            new { valueType = "number", from = "3" }
+        }
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+// Ein Ende ist freiwillig: ein Abschnitt ohne Ende ist ein einzelner Punkt.
+await t.OkAsync("cg1.6a Ein Abschnitt ohne Ende ist ein Punkt", async () =>
+{
+    await http.PostAsJsonAsync($"/rc/nodes/{rangeNode}/segments", new
+    {
+        segments = new[] { new { valueType = "number", from = "42", toState = "open" } }
+    });
+
+    var one = (await ReadAsync(await http.GetAsync($"/rc/nodes/{rangeNode}/segments")))
+        .GetProperty("segments").EnumerateArray().First();
+
+    return Text(one, "to") is null && Text(one, "toState") == "open";
+});
+
+// Ein leerer Bereich ist erlaubt: die Aussage „hier gehoert ein Zeitraum hin,
+// wir kennen ihn noch nicht".
+await t.OkAsync("cg1.6a Ein Bereich ohne Abschnitte ist erlaubt", async () =>
+{
+    await http.PostAsJsonAsync($"/rc/nodes/{rangeNode}/segments", new { segments = new object[0] });
+
+    return (await ReadAsync(await http.GetAsync($"/rc/nodes/{rangeNode}/segments")))
+        .GetProperty("segments").GetArrayLength() == 0;
+});
+
+// Abschnitte gehoeren an einen Bereichsknoten und sonst nirgendwohin.
+await t.OkAsync("cg1.6a An einem Textknoten haengen keine Abschnitte", async () =>
+    (await http.PostAsJsonAsync($"/rc/nodes/{numberNodeId}/segments", new
+    {
+        segments = new[] { new { valueType = "date", from = "0992" } }
+    })).StatusCode == HttpStatusCode.Conflict);
+
+await t.OkAsync("cg1.6a Ein erfundener Zustand wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync($"/rc/nodes/{rangeNode}/segments", new
+    {
+        segments = new[] { new { valueType = "date", from = "0992", fromState = "vielleicht" } }
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+await t.OkAsync("3.4   Ein Fremder sieht die Abschnitte nicht", async () =>
+    (await bruno.GetAsync($"/rc/nodes/{rangeNode}/segments"))
+        .StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
+
 // -- Kalender: Zeit ist nicht Inhalt -------------------------------------------
 //
 // Der Punkt dieses Moduls: WANN jemand belegt ist, liegt im Klartext; WOMIT er

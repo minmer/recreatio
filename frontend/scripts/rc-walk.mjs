@@ -144,7 +144,8 @@ import {
 } from ${JSON.stringify(LIB + 'rcParish')};
 import {
   rcLibraries, rcCreateLibrary, rcNodes, rcAddNode, rcAddEdge,
-  rcSearchGraph, rcSearchLoaded, rcNodeLabel
+  rcSearchGraph, rcSearchLoaded, rcNodeLabel,
+  rcSegments, rcSetSegments, rcSegmentText, rcRangeText
 } from ${JSON.stringify(LIB + 'rcGraph')};
 import {
   rcCalendars, rcCreateCalendar, rcAddItem, rcOccurrences,
@@ -1151,6 +1152,87 @@ globalThis.__rcAs('a');
 ok('cg1.1 rcLibraries() nennt beide',
   (await rcLibraries()).libraries.filter(
     (l) => l.libraryId === openLib.libraryId || l.libraryId === closedLib.libraryId).length === 2);
+
+// -- cg1.6a: Ein Wert mit zwei Abschnitten -------------------------------------
+//
+// Ein Koenig, der 992–1000 und wieder 1002–1025 regierte, hat EINE Regierung
+// mit zwei Abschnitten. Sie in zwei Kanten zu zerlegen hiesse, zwei
+// Regierungen zu behaupten.
+
+const reign = await rcAddNode(openLib.libraryId, 'range');
+ok('cg1.6a Ein Bereichsknoten entsteht', typeof reign.nodeId === 'string');
+
+{
+  const set = await rcSetSegments(reign.nodeId, [
+    { valueType: 'date', from: '0992', to: '1000' },
+    { valueType: 'date', from: '1002', to: '1025' }
+  ]);
+
+  ok('cg1.6a rcSetSegments() nimmt zwei Abschnitte', set.segments === 2, JSON.stringify(set));
+}
+
+{
+  const list = (await rcSegments(reign.nodeId)).segments;
+
+  ok('cg1.6a Sie kommen in ihrer Reihenfolge zurueck',
+    list.length === 2 && list[0].from === '0992' && list[1].from === '1002',
+    JSON.stringify(list.map((x) => x.from)));
+
+  // Zwei Abschnitte sind EIN Wert und kein Paar.
+  ok('cg1.6a Und stehen als ein Wert da',
+    rcRangeText(list) === '0992–1000, 1002–1025', rcRangeText(list));
+}
+
+// Setzen ERSETZT — sonst gaebe es zwischendurch eine halbe Regierung.
+{
+  await rcSetSegments(reign.nodeId, [{ valueType: 'date', from: '0992', to: '1025' }]);
+  const list = (await rcSegments(reign.nodeId)).segments;
+
+  ok('cg1.6a Setzen ersetzt, es haengt nicht an', list.length === 1, String(list.length));
+}
+
+// Ein offenes Ende wird gezeigt und nicht weggelassen: „ab 1002" ist eine
+// Aussage, ein fehlendes Ende saehe aus wie ein vergessenes Feld.
+{
+  await rcSetSegments(reign.nodeId, [
+    { valueType: 'date', from: '1002', fromState: 'approximate', toState: 'open' }
+  ]);
+
+  const one = (await rcSegments(reign.nodeId)).segments[0];
+
+  ok('cg1.6a Ein offenes Ende kommt als solches zurueck',
+    one.toState === 'open' && (one.to ?? null) === null, JSON.stringify(one));
+  ok('cg1.6a Und die Darstellung sagt beides',
+    rcSegmentText(one) === '~1002 …', rcSegmentText(one));
+}
+
+// Alle Abschnitte tragen denselben Grundtyp — ein Datum gegen eine Seitenzahl
+// ergibt keine Ordnung.
+try {
+  await rcSetSegments(reign.nodeId, [
+    { valueType: 'date', from: '0992' },
+    { valueType: 'number', from: '3' }
+  ]);
+  ok('cg1.6a Gemischte Grundtypen werden abgewiesen', false, 'ging durch');
+} catch (e) {
+  ok('cg1.6a Gemischte Grundtypen werden abgewiesen', e instanceof RcRequestError);
+}
+
+// Abschnitte gehoeren an einen Bereichsknoten und sonst nirgendwohin.
+try {
+  await rcSetSegments(weight.nodeId, [{ valueType: 'number', from: '1' }]);
+  ok('cg1.6a An einem Zahlknoten haengen keine Abschnitte', false, 'ging durch');
+} catch (e) {
+  ok('cg1.6a An einem Zahlknoten haengen keine Abschnitte', e instanceof RcRequestError);
+}
+
+// Ein leerer Bereich ist erlaubt: „hier gehoert ein Zeitraum hin, wir kennen
+// ihn noch nicht".
+{
+  await rcSetSegments(reign.nodeId, []);
+  ok('cg1.6a Ein Bereich ohne Abschnitte ist erlaubt',
+    (await rcSegments(reign.nodeId)).segments.length === 0);
+}
 
 // -- Kalender: Zeit ist nicht Inhalt ------------------------------------------
 //
