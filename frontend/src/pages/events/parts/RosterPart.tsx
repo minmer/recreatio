@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   getEventRoster,
   getEventRosterColumns,
+  setEventRosterMark,
   type EventRosterColumn,
   type EventRosterRow,
   type EventRosterTable
@@ -15,7 +16,7 @@ import {
   definePart,
   mapEntries
 } from './contracts';
-import { AreaRow, CheckRow, Fieldset, ListEditor, SelectRow, TextRow } from './editorKit';
+import { AreaRow, CheckRow, Fieldset, LinesRow, ListEditor, SelectRow, TextRow } from './editorKit';
 import {
   FILTER_OPS,
   compareRows,
@@ -81,6 +82,29 @@ type RosterPreset = {
 /** A message prepared once, sent from the row of whoever it is about. */
 type SmsTemplate = { label: string; text: string };
 
+type ExtraKind = 'check' | 'text' | 'number' | 'choice';
+
+/**
+ * A column nobody filled in from the outside: attendance, a bus number, a note
+ * that the money arrived. Written on the list itself, kept apart from the
+ * registration and the card — those are what the participant said.
+ *
+ * `code` is fixed at creation and never follows the name: the values written so
+ * far hang from it, and renaming a column must not orphan them.
+ */
+type RosterExtra = { code: string; label: string; kind: ExtraKind; options: string[] };
+
+const EXTRA_KINDS: Array<{ value: ExtraKind; label: string }> = [
+  { value: 'check', label: 'Odhaczenie (tak / nie)' },
+  { value: 'text', label: 'Krótki tekst' },
+  { value: 'number', label: 'Liczba' },
+  { value: 'choice', label: 'Wybór z listy' }
+];
+
+function readExtraKind(value: unknown): ExtraKind {
+  return value === 'check' || value === 'number' || value === 'choice' ? value : 'text';
+}
+
 type RosterConfig = {
   /** registered — people who sent the form; everyone — those with a link too. */
   source: 'registered' | 'everyone';
@@ -89,6 +113,10 @@ type RosterConfig = {
   /** Which column holds the number to ring. Empty — the first that reads as one. */
   phoneKey: string;
   smsTemplates: SmsTemplate[];
+  /** Columns filled in on the list itself. */
+  extras: RosterExtra[];
+  /** admin — only the organizer writes them; readers — anyone with a link to this page. */
+  whoMayFill: 'admin' | 'readers';
   searchHint: string | null;
   emptyText: string | null;
   /** The live count on each preset button. */
@@ -126,6 +154,8 @@ export const rosterPart = definePart<RosterConfig>({
     presets: [],
     phoneKey: '',
     smsTemplates: [],
+    extras: [],
+    whoMayFill: 'admin',
     searchHint: null,
     emptyText: null,
     showCounts: true
@@ -149,6 +179,8 @@ export const rosterPart = definePart<RosterConfig>({
       }
     ],
     phoneKey: 'person.contact',
+    extras: [{ code: 'obecnosc', label: 'Obecność', kind: 'check', options: [] }],
+    whoMayFill: 'admin',
     smsTemplates: [
       {
         label: 'Przypomnienie',
@@ -185,6 +217,17 @@ export const rosterPart = definePart<RosterConfig>({
         };
       }),
       phoneKey: asText(record.phoneKey).trim(),
+      extras: mapEntries(record.extras, (entry) => {
+        const code = asText(entry.code).trim();
+        if (code.length === 0 || code.length > 40) return null;
+        return {
+          code,
+          label: asText(entry.label).trim() || code,
+          kind: readExtraKind(entry.kind),
+          options: asStringList(entry.options)
+        };
+      }),
+      whoMayFill: record.whoMayFill === 'readers' ? 'readers' : 'admin',
       smsTemplates: mapEntries(record.smsTemplates, (entry) => {
         const text = asText(entry.text).trim();
         if (text.length === 0) return null;
@@ -236,6 +279,8 @@ function RosterTable({
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [sort, setSort] = useState<{ key: string; descending: boolean } | null>(null);
   const [shown, setShown] = useState<string[]>([]);
+  /** "rowKey:code" while one mark is on its way to the server. */
+  const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -333,6 +378,45 @@ function RosterTable({
       current !== null && current.key === key ? { key, descending: !current.descending } : { key, descending: false }
     );
 
+  /** One cell of the table, changed in place, so search and counts follow along. */
+  const patchRow = (rowKey: string, columnKey: string, value: string | null) =>
+    setTable((current) =>
+      current === null
+        ? current
+        : {
+            ...current,
+            rows: current.rows.map((entry) =>
+              entry.key === rowKey ? { ...entry, values: { ...entry.values, [columnKey]: value } } : entry
+            )
+          }
+    );
+
+  /**
+   * Ticking somebody off shows at once and is sent behind it. If the server
+   * refuses — a link that no longer opens this page, a column since deleted —
+   * the tick goes back where it was and says so. A mark that silently did not
+   * save is worse than one that never appeared: the list would be read as if
+   * the person had been counted.
+   */
+  const writeMark = async (rowKey: string, code: string, next: string | null) => {
+    const columnKey = `extra:${code}`;
+    const before = table?.rows.find((entry) => entry.key === rowKey)?.values[columnKey] ?? null;
+
+    setBusyKey(`${rowKey}:${code}`);
+    patchRow(rowKey, columnKey, next);
+
+    try {
+      const saved = await setEventRosterMark(slug, partId, rowKey, code, next, token);
+      patchRow(rowKey, columnKey, saved.value);
+      setError(null);
+    } catch (writeError: unknown) {
+      patchRow(rowKey, columnKey, before);
+      setError(writeError instanceof Error ? writeError.message : 'Nie udało się zapisać.');
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
   if (loading && table === null) return <p className="ev-note">Ładowanie listy…</p>;
   if (error !== null) return <p className="ev-error">{error}</p>;
   if (table === null) return null;
@@ -356,6 +440,12 @@ function RosterTable({
   // Whose name a message greets. The name column if it is on the table at all,
   // otherwise the first one — a roster always leads with who the row is about.
   const nameKey = byKey.has('person.name') ? 'person.name' : columns[0]?.key ?? '';
+
+  // Which cells this reader may write. The server decides — it sent mayFill —
+  // and the browser only draws what that answer allows.
+  const writable = new Map<string, RosterExtra>(
+    table.mayFill ? config.extras.map((extra) => [`extra:${extra.code}`, extra]) : []
+  );
 
   return (
     <div className="ev-roster">
@@ -452,6 +542,9 @@ function RosterTable({
                 templates={config.smsTemplates}
                 eventTitle={eventTitle}
                 nameKey={nameKey}
+                writable={writable}
+                busyKey={busyKey}
+                onWrite={(code, next) => void writeMark(row.key, code, next)}
                 isOpen={openRow === row.key}
                 onToggle={() => setOpenRow(openRow === row.key ? null : row.key)}
               />
@@ -471,6 +564,88 @@ function RosterTable({
  * — the hidden columns — waits under the row, for this one person, so looking up
  * a phone number does not mean widening the table for everybody.
  */
+/**
+ * One of the organizer's own columns, for one person — the only cell on this
+ * table that can be written.
+ *
+ * It saves the moment it is set, because the moment is the point: a name is
+ * ticked off while the person stands there, and a list with a "save" button at
+ * the bottom is a list that gets half saved. Typed columns save when the field
+ * is left, so a number is not written down digit by digit.
+ */
+function MarkCell({
+  extra,
+  value,
+  busy,
+  onWrite
+}: {
+  extra: RosterExtra;
+  value: string | null | undefined;
+  busy: boolean;
+  onWrite: (next: string | null) => void;
+}) {
+  const stored = (value ?? '').trim();
+  const [draft, setDraft] = useState(stored);
+  const [editing, setEditing] = useState(false);
+
+  // While somebody types, the field is theirs; otherwise it follows the table,
+  // which may have been corrected by whoever else has the list open.
+  useEffect(() => {
+    if (!editing) setDraft(stored);
+  }, [stored, editing]);
+
+  if (extra.kind === 'check') {
+    return (
+      <input
+        type="checkbox"
+        className="ev-roster-check"
+        checked={stored === 'tak'}
+        disabled={busy}
+        aria-label={extra.label}
+        onChange={(event) => onWrite(event.target.checked ? 'tak' : null)}
+      />
+    );
+  }
+
+  if (extra.kind === 'choice') {
+    return (
+      <select
+        className="ev-roster-mark"
+        value={stored}
+        disabled={busy}
+        aria-label={extra.label}
+        onChange={(event) => onWrite(event.target.value || null)}
+      >
+        <option value="" />
+        {extra.options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  return (
+    <input
+      className="ev-roster-mark"
+      type={extra.kind === 'number' ? 'number' : 'text'}
+      value={draft}
+      disabled={busy}
+      aria-label={extra.label}
+      onFocus={() => setEditing(true)}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => {
+        setEditing(false);
+        if (draft.trim() !== stored) onWrite(draft.trim() || null);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur();
+      }}
+    />
+  );
+}
+
 /**
  * A cell. A number that a phone could dial becomes a call, an address becomes a
  * mail — on the day, the list is read on a phone, and a number one has to
@@ -508,6 +683,9 @@ function RosterRow({
   templates,
   eventTitle,
   nameKey,
+  writable,
+  busyKey,
+  onWrite,
   isOpen,
   onToggle
 }: {
@@ -518,23 +696,43 @@ function RosterRow({
   templates: SmsTemplate[];
   eventTitle: string;
   nameKey: string;
+  /** The organizer's own columns, by column key — empty when this reader may only read. */
+  writable: Map<string, RosterExtra>;
+  busyKey: string | null;
+  onWrite: (code: string, next: string | null) => void;
   isOpen: boolean;
   onToggle: () => void;
 }) {
   const [writing, setWriting] = useState(false);
 
+  // A folded-away column with nothing in it is not worth a line — unless it is
+  // one of the organizer's own, where the empty cell is the thing to fill in.
   const rest = columns.filter(
-    (column) => !head.some((shownColumn) => shownColumn.key === column.key) && row.values[column.key]
+    (column) =>
+      !head.some((shownColumn) => shownColumn.key === column.key) &&
+      (Boolean(row.values[column.key]) || writable.has(column.key))
   );
 
   return (
     <>
       <tr className={isOpen || writing ? 'is-open' : undefined}>
-        {head.map((column) => (
-          <td key={column.key}>
-            <Cell value={row.values[column.key]} />
-          </td>
-        ))}
+        {head.map((column) => {
+          const extra = writable.get(column.key);
+          return (
+            <td key={column.key} className={extra === undefined ? undefined : 'ev-roster-mark-cell'}>
+              {extra === undefined ? (
+                <Cell value={row.values[column.key]} />
+              ) : (
+                <MarkCell
+                  extra={extra}
+                  value={row.values[column.key]}
+                  busy={busyKey === `${row.key}:${extra.code}`}
+                  onWrite={(next) => onWrite(extra.code, next)}
+                />
+              )}
+            </td>
+          );
+        })}
         <td className="ev-roster-more-cell">
           {phone !== null ? (
             <>
@@ -563,14 +761,26 @@ function RosterRow({
         <tr className="ev-roster-detail">
           <td colSpan={head.length + 1}>
             <dl>
-              {rest.map((column) => (
-                <div key={column.key}>
-                  <dt>{column.label}</dt>
-                  <dd>
-                    <Cell value={row.values[column.key]} />
-                  </dd>
-                </div>
-              ))}
+              {rest.map((column) => {
+                const extra = writable.get(column.key);
+                return (
+                  <div key={column.key}>
+                    <dt>{column.label}</dt>
+                    <dd>
+                      {extra === undefined ? (
+                        <Cell value={row.values[column.key]} />
+                      ) : (
+                        <MarkCell
+                          extra={extra}
+                          value={row.values[column.key]}
+                          busy={busyKey === `${row.key}:${extra.code}`}
+                          onWrite={(next) => onWrite(extra.code, next)}
+                        />
+                      )}
+                    </dd>
+                  </div>
+                );
+              })}
             </dl>
           </td>
         </tr>
@@ -737,7 +947,21 @@ function RosterEditor({
     };
   }, [siteId]);
 
-  const known = useMemo(() => new Map((universe ?? []).map((column) => [column.key, column])), [universe]);
+  // What the event carries, plus the columns this slide adds itself — the
+  // picker above has to offer both, and the universe endpoint knows nothing
+  // about a column that lives in this part's own config.
+  const known = useMemo(() => {
+    const map = new Map((universe ?? []).map((column) => [column.key, column]));
+    for (const extra of config.extras) {
+      map.set(`extra:${extra.code}`, {
+        key: `extra:${extra.code}`,
+        label: extra.label,
+        group: 'Wypełniane na liście',
+        filled: 0
+      });
+    }
+    return map;
+  }, [universe, config.extras]);
 
   const chosen = config.columns.filter((column) => column.state !== 'off');
   const chosenKeys = new Set(config.columns.map((column) => column.key));
@@ -968,6 +1192,82 @@ function RosterEditor({
           </>
         )}
       />
+
+      <Fieldset legend="Kolumny wypełniane na liście">
+        <p className="eve-hint">
+          Kolumny, których nikt nie przysyła z zewnątrz: obecność, numer autokaru, adnotacja o wpłacie.
+          Dopisujesz je przy osobie wprost w tabeli. Nowa kolumna od razu trafia na listę kolumn powyżej —
+          tam ustawiasz, czy jest widoczna.
+        </p>
+
+        {config.whoMayFill === 'readers' && pageKind === 'public' ? (
+          <p className="eve-warn">
+            Na stronie publicznej serwer nie pozwoli nikomu poza organizatorem nic wpisać — lista, którą
+            odhaczy dowolna osoba z internetu, nie jest listą obecności. Przenieś część na stronę wewnętrzną.
+          </p>
+        ) : null}
+
+        <SelectRow<RosterConfig['whoMayFill']>
+          label="Kto wypełnia"
+          value={config.whoMayFill}
+          options={[
+            { value: 'admin', label: 'Tylko organizator' },
+            { value: 'readers', label: 'Także osoby z linkiem do tej strony' }
+          ]}
+          onChange={(whoMayFill) => onChange({ ...config, whoMayFill })}
+        />
+
+        <ListEditor<RosterExtra>
+          legend="Kolumny"
+          items={config.extras}
+          addLabel="Dodaj kolumnę"
+          titleOf={(extra) => extra.label || extra.code}
+          blank={() => {
+            // The code is minted once and never follows the name: what has been
+            // written so far hangs from it.
+            const used = new Set(config.extras.map((extra) => extra.code));
+            let index = config.extras.length + 1;
+            while (used.has(`pole-${index}`)) index += 1;
+            return { code: `pole-${index}`, label: 'Nowa kolumna', kind: 'check', options: [] };
+          }}
+          onChange={(extras) => {
+            // A new column joins the table at once; a deleted one leaves it,
+            // rather than lingering as a column the server no longer knows.
+            const gone = config.extras
+              .filter((extra) => !extras.some((entry) => entry.code === extra.code))
+              .map((extra) => `extra:${extra.code}`);
+
+            const added = extras
+              .filter((extra) => !config.extras.some((entry) => entry.code === extra.code))
+              .map((extra) => ({ key: `extra:${extra.code}`, label: '', state: 'visible' as ColumnState }));
+
+            onChange({
+              ...config,
+              extras,
+              columns: [...config.columns.filter((column) => !gone.includes(column.key)), ...added]
+            });
+          }}
+          renderItem={(extra, update) => (
+            <>
+              <TextRow label="Nazwa" value={extra.label} onChange={(label) => update({ ...extra, label })} />
+              <SelectRow<ExtraKind>
+                label="Co się wpisuje"
+                value={extra.kind}
+                options={EXTRA_KINDS}
+                onChange={(kind) => update({ ...extra, kind })}
+              />
+              {extra.kind === 'choice' ? (
+                <LinesRow
+                  label="Opcje"
+                  values={extra.options}
+                  onChange={(options) => update({ ...extra, options })}
+                />
+              ) : null}
+              <p className="eve-hint">kod: {extra.code} — nie zmienia się przy zmianie nazwy.</p>
+            </>
+          )}
+        />
+      </Fieldset>
 
       <SelectRow
         label="Numer do dzwonienia i SMS-ów"

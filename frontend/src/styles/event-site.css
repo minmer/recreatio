@@ -2130,6 +2130,40 @@
   background: var(--ev-surface-3);
 }
 
+/* The organizer's own columns: written in the table, saved as they are set. */
+.ev-roster-mark-cell {
+  white-space: nowrap;
+}
+
+.ev-roster-check {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--ev-accent);
+  cursor: pointer;
+}
+
+.ev-roster-mark {
+  min-width: 5rem;
+  max-width: 11rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 6px;
+  padding: 0.25rem 0.45rem;
+  background: var(--ev-field);
+  color: var(--ev-ink);
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+.ev-roster-mark:focus {
+  outline: none;
+  border-color: var(--ev-accent);
+}
+
+.ev-roster-mark:disabled,
+.ev-roster-check:disabled {
+  opacity: 0.5;
+}
+
 /* Writing one message to one person, under their row. */
 .ev-roster-sms {
   display: grid;

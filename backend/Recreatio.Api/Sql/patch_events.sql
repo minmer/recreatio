@@ -538,3 +538,38 @@ BEGIN
         ADD Status NVARCHAR(16) NOT NULL CONSTRAINT DF_EventTopics_Status DEFAULT(N'open');
 END
 GO
+
+-- ── The organizer's own columns on the participant list ─────────────────────
+-- Attendance, a bus number, a note that the money arrived. Kept apart from the
+-- registration and from the signed card: those are what the participant said,
+-- this is what the organizer wrote next to it.
+IF OBJECT_ID(N'events.EventRosterEntries', N'U') IS NULL
+BEGIN
+    CREATE TABLE events.EventRosterEntries
+    (
+        Id         UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventRosterEntries PRIMARY KEY,
+        SiteId     UNIQUEIDENTIFIER NOT NULL,
+        PartId     UNIQUEIDENTIFIER NOT NULL,
+        RowKey     NVARCHAR(64)     NOT NULL,
+        Code       NVARCHAR(40)     NOT NULL,
+        Value      NVARCHAR(400)    NULL,
+        UpdatedBy  NVARCHAR(200)    NULL,
+        UpdatedUtc DATETIMEOFFSET   NOT NULL,
+        CONSTRAINT FK_EventRosterEntries_Part
+            FOREIGN KEY (PartId) REFERENCES events.EventParts(Id)
+    );
+END
+GO
+
+-- One value per person per column: writing the same mark twice is a correction,
+-- not a second row.
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'UX_EventRosterEntries_Part_Row_Code'
+      AND object_id = OBJECT_ID('events.EventRosterEntries')
+)
+BEGIN
+    CREATE UNIQUE INDEX UX_EventRosterEntries_Part_Row_Code
+        ON events.EventRosterEntries(PartId, RowKey, Code);
+END
+GO
