@@ -2135,6 +2135,20 @@
   color: var(--ev-on-accent);
 }
 
+/* Already handed to the phone during this pass down the list. Colour plus a
+   tick, so the difference survives a screen in sunlight and eyes that do not
+   separate blue from grey. */
+.ev-roster-sms-go.is-sent {
+  border-color: var(--ev-line);
+  background: var(--ev-surface-3);
+  color: var(--ev-muted);
+}
+
+.ev-roster-sms-go.is-sent:hover {
+  background: var(--ev-surface-3);
+  color: var(--ev-ink);
+}
+
 /* The message itself: written once, under the list. */
 .ev-roster-sms-bar {
   display: grid;

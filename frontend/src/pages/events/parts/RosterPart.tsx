@@ -257,6 +257,7 @@ export const rosterPart = definePart<RosterConfig>({
 
 // ── Renderer ─────────────────────────────────────────────────────────────────
 
+
 function RosterTable({
   config,
   slug,
@@ -284,6 +285,19 @@ function RosterTable({
   const [busyKey, setBusyKey] = useState<string | null>(null);
   /** The message being written under the list, or null while none is. */
   const [smsText, setSmsText] = useState<string | null>(null);
+
+  /**
+   * Which numbers have already been handed to the phone, as "rowKey|number".
+   *
+   * It lives exactly as long as this view does — nothing is stored. The mark is
+   * a working note for one pass down the list ("that one is done"), not a record
+   * of anything: the phone never tells the page whether the message actually
+   * went, so keeping it beyond the view would be claiming more than is known.
+   */
+  const [sent, setSent] = useState<ReadonlySet<string>>(() => new Set());
+
+  const markSent = (key: string) =>
+    setSent((current) => (current.has(key) ? current : new Set(current).add(key)));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -541,10 +555,14 @@ function RosterTable({
                 row={row}
                 head={head}
                 columns={columns}
-                smsBody={
+                sms={
                   smsText === null
                     ? null
-                    : renderTemplate(smsText, row, columns, { eventTitle, nameKey })
+                    : {
+                        body: renderTemplate(smsText, row, columns, { eventTitle, nameKey }),
+                        isSent: (phone) => sent.has(`${row.key}|${phone}`),
+                        markSent: (phone) => markSent(`${row.key}|${phone}`)
+                      }
                 }
                 writable={writable}
                 busyKey={busyKey}
@@ -567,7 +585,10 @@ function RosterTable({
           type="button"
           className={`ev-roster-preset ${smsText === null ? '' : 'is-on'}`}
           aria-expanded={smsText !== null}
-          onClick={() => setSmsText(smsText === null ? config.smsTemplates[0]?.text ?? '' : null)}
+          onClick={() => {
+            setSmsText(smsText === null ? config.smsTemplates[0]?.text ?? '' : null);
+            setSent(new Set());
+          }}
         >
           {smsText === null ? 'Napisz SMS' : 'Zakończ pisanie'}
         </button>
@@ -583,6 +604,8 @@ function RosterTable({
                 : renderTemplate(smsText, ordered[0], columns, { eventTitle, nameKey })
             }
             onText={setSmsText}
+            sentCount={sent.size}
+            onForget={() => setSent(new Set())}
           />
         )}
       </div>
@@ -742,7 +765,7 @@ function RosterRow({
   row,
   head,
   columns,
-  smsBody,
+  sms,
   writable,
   busyKey,
   onWrite,
@@ -753,7 +776,7 @@ function RosterRow({
   head: EventRosterColumn[];
   columns: EventRosterColumn[];
   /** The message being written under the table, filled in for this person — null when none is. */
-  smsBody: string | null;
+  sms: CellSms | null;
   /** The organizer's own columns, by column key — empty when this reader may only read. */
   writable: Map<string, RosterExtra>;
   busyKey: string | null;
@@ -778,7 +801,7 @@ function RosterRow({
           return (
             <td key={column.key} className={extra === undefined ? undefined : 'ev-roster-mark-cell'}>
               {extra === undefined ? (
-                <Cell value={row.values[column.key]} smsBody={smsBody} />
+                <Cell value={row.values[column.key]} sms={sms} />
               ) : (
                 <MarkCell
                   extra={extra}
@@ -810,7 +833,7 @@ function RosterRow({
                     <dt>{column.label}</dt>
                     <dd>
                       {extra === undefined ? (
-                        <Cell value={row.values[column.key]} smsBody={smsBody} />
+                        <Cell value={row.values[column.key]} sms={sms} />
                       ) : (
                         <MarkCell
                           extra={extra}
@@ -849,7 +872,9 @@ function SmsPanel({
   templates,
   columns,
   preview,
-  onText
+  onText,
+  sentCount,
+  onForget
 }: {
   text: string;
   templates: SmsTemplate[];
@@ -857,6 +882,9 @@ function SmsPanel({
   /** The first person on the list, so the wording can be read as it will arrive. */
   preview: string | null;
   onText: (next: string) => void;
+  /** How many numbers have been opened during this pass. */
+  sentCount: number;
+  onForget: () => void;
 }) {
   const insert = (token: string) => onText(`${text}${token}`);
 
@@ -912,6 +940,14 @@ function SmsPanel({
 
       <p className="ev-roster-count">
         Kliknij <strong>SMS</strong> przy numerze — dane osoby wstawią się same. Wysyła Twój telefon.
+        {sentCount > 0 ? (
+          <>
+            {' '}Otwarte w tym przejściu: <strong>{sentCount}</strong>.{' '}
+            <button type="button" className="ev-roster-more" onClick={onForget}>
+              Wyczyść oznaczenia
+            </button>
+          </>
+        ) : null}
       </p>
     </div>
   );
