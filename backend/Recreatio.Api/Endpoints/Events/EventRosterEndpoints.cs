@@ -58,6 +58,7 @@ public static partial class EventEndpoints
     private const string GroupCard = "Karta uczestnika";
     private const string GroupConsents = "Zgody";
     private const string GroupAssignments = "Przydziały z linku";
+    private const string GroupMarks = "Dopisane na liście";
 
     private static void MapRosterEndpoints(RouteGroupBuilder group)
     {
@@ -77,7 +78,8 @@ public static partial class EventEndpoints
 
             // No filter: the builder is allowed to see which columns exist. It
             // gets names and counts, never anybody's answers.
-            var roster = await BuildRosterAsync(dbContext, siteId, includeLinkOnly: true, allowed: null, ct);
+            var roster = await BuildRosterAsync(
+                dbContext, siteId, includeLinkOnly: true, allowed: null, partId: null, extras: null, ct);
             return Results.Ok(roster.Columns);
         }).RequireAuthorization();
 
@@ -106,11 +108,13 @@ public static partial class EventEndpoints
                 .FirstOrDefaultAsync(x => x.Id == part.PageId && x.SiteId == site.Id, ct);
             if (page is null) return Results.NotFound();
 
+            var access = await ResolveAccessAsync(dbContext, context, site.Id, page.Id, token, ct);
+
             if (page.Kind == "public")
             {
                 if (!site.IsPublished) return Results.NotFound();
             }
-            else if (!await MayReadPageAsync(dbContext, context, site.Id, page.Id, token, ct))
+            else if (!access.MayRead)
             {
                 return Results.NotFound();
             }
@@ -118,20 +122,165 @@ public static partial class EventEndpoints
             var config = ReadRosterConfig(part.ConfigJson);
             if (config.Allowed.Count == 0)
             {
-                return Results.Ok(new EventRosterResponse([], [], IsUnconfigured: true));
+                return Results.Ok(new EventRosterResponse([], [], IsUnconfigured: true, MayFill: false));
             }
 
-            var roster = await BuildRosterAsync(dbContext, site.Id, config.IncludeLinkOnly, config.Allowed, ct);
-            return Results.Ok(new EventRosterResponse(roster.Columns, roster.Rows, IsUnconfigured: false));
+            var roster = await BuildRosterAsync(
+                dbContext, site.Id, config.IncludeLinkOnly, config.Allowed, part.Id, config.Extras, ct);
+
+            return Results.Ok(new EventRosterResponse(
+                roster.Columns, roster.Rows, IsUnconfigured: false, MayFill(config, access, page.Kind)));
+        });
+
+        // Writing one mark: attendance ticked off, a note added.
+        group.MapPut("/site/{slug}/parts/{partId:guid}/roster/{rowKey}", async (
+            string slug,
+            Guid partId,
+            string rowKey,
+            string? token,
+            EventRosterMarkRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            var normalized = slug.Trim().ToLowerInvariant();
+            var site = await dbContext.EventSites.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == normalized, ct);
+            if (site is null) return Results.NotFound();
+
+            var part = await dbContext.EventParts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == partId, ct);
+            if (part is null || !part.IsVisible || part.Kind != "roster") return Results.NotFound();
+
+            var page = await dbContext.EventPages.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == part.PageId && x.SiteId == site.Id, ct);
+            if (page is null) return Results.NotFound();
+
+            var access = await ResolveAccessAsync(dbContext, context, site.Id, page.Id, token, ct);
+            var config = ReadRosterConfig(part.ConfigJson);
+
+            if (!MayFill(config, access, page.Kind))
+            {
+                return Results.Forbid();
+            }
+
+            if (!config.Extras.TryGetValue(request.Code.Trim(), out var extra))
+            {
+                // A column the slide does not declare is not a column. Otherwise
+                // the table would be a place to store anything at all.
+                return Results.BadRequest(new { error = "Nieznana kolumna." });
+            }
+
+            if (!await RowExistsAsync(dbContext, site.Id, rowKey, ct))
+            {
+                return Results.NotFound();
+            }
+
+            var value = NormalizeMark(extra, request.Value);
+            var existing = await dbContext.EventRosterEntries
+                .FirstOrDefaultAsync(x => x.PartId == partId && x.RowKey == rowKey && x.Code == extra.Code, ct);
+
+            var who = access.IsAdmin ? "organizator" : access.Link?.RecipientName;
+            var now = DateTimeOffset.UtcNow;
+
+            if (value is null)
+            {
+                // A mark taken back leaves no row: an empty cell and a cell that
+                // says nothing are the same thing to everybody reading the list.
+                if (existing is not null) dbContext.EventRosterEntries.Remove(existing);
+            }
+            else if (existing is null)
+            {
+                dbContext.EventRosterEntries.Add(new EventRosterEntry
+                {
+                    Id = Guid.NewGuid(),
+                    SiteId = site.Id,
+                    PartId = partId,
+                    RowKey = rowKey,
+                    Code = extra.Code,
+                    Value = value,
+                    UpdatedBy = who,
+                    UpdatedUtc = now
+                });
+            }
+            else
+            {
+                existing.Value = value;
+                existing.UpdatedBy = who;
+                existing.UpdatedUtc = now;
+            }
+
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok(new EventRosterMarkResponse(rowKey, extra.Code, value, who, now));
         });
     }
 
     /// <summary>
-    /// An internal page opens for the link that was granted it — and for the
-    /// organizer, who would otherwise have to send themselves a link to look at
-    /// their own event.
+    /// Whether the row being written to is a row of this event — a registration
+    /// or a link of this site. The key comes from the browser, so it is checked
+    /// rather than trusted.
     /// </summary>
-    private static async Task<bool> MayReadPageAsync(
+    private static async Task<bool> RowExistsAsync(
+        RecreatioDbContext dbContext,
+        Guid siteId,
+        string rowKey,
+        CancellationToken ct)
+    {
+        if (rowKey.Length < 3 || !Guid.TryParse(rowKey[2..], out var id)) return false;
+
+        return rowKey[0] switch
+        {
+            'r' => await dbContext.EventRegistrations.AsNoTracking()
+                .AnyAsync(x => x.Id == id && x.SiteId == siteId, ct),
+            'l' => await dbContext.EventAccessLinks.AsNoTracking()
+                .AnyAsync(x => x.Id == id && x.SiteId == siteId, ct),
+            _ => false
+        };
+    }
+
+    /// <summary>
+    /// The value as the column allows it, or null to clear the cell. The kind is
+    /// declared in the slide, so it is enforced here — a "check" column that
+    /// arrives holding a paragraph is not a check column any more.
+    /// </summary>
+    private static string? NormalizeMark(RosterExtra extra, string? raw)
+    {
+        var value = raw?.Trim();
+        if (string.IsNullOrWhiteSpace(value)) return null;
+
+        switch (extra.Kind)
+        {
+            case "check":
+                return value is "tak" or "true" or "1" ? "tak" : null;
+
+            case "number":
+                return decimal.TryParse(
+                    value.Replace(',', '.'),
+                    System.Globalization.NumberStyles.Number,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out _)
+                        ? value
+                        : null;
+
+            case "choice":
+                return extra.Options.FirstOrDefault(
+                    option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase));
+
+            default:
+                return value.Length > 400 ? value[..400] : value;
+        }
+    }
+
+    /// <summary>
+    /// Who is asking. An internal page opens for the link that was granted it —
+    /// and for the organizer, who would otherwise have to send themselves a link
+    /// to look at their own event.
+    /// </summary>
+    private sealed record RosterAccess(bool ViaLink, bool IsAdmin, EventAccessLink? Link)
+    {
+        public bool MayRead => ViaLink || IsAdmin;
+    }
+
+    private static async Task<RosterAccess> ResolveAccessAsync(
         RecreatioDbContext dbContext,
         HttpContext context,
         Guid siteId,
@@ -139,24 +288,47 @@ public static partial class EventEndpoints
         string? token,
         CancellationToken ct)
     {
+        EventAccessLink? link = null;
+        var viaLink = false;
+
         if (!string.IsNullOrWhiteSpace(token))
         {
-            var link = await dbContext.EventAccessLinks.AsNoTracking()
+            link = await dbContext.EventAccessLinks.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Token == token && x.SiteId == siteId && x.Status == "active", ct);
             if (link is not null)
             {
-                var granted = await dbContext.EventAccessLinkPages.AsNoTracking()
+                viaLink = await dbContext.EventAccessLinkPages.AsNoTracking()
                     .AnyAsync(x => x.AccessLinkId == link.Id && x.PageId == pageId, ct);
-                if (granted) return true;
             }
         }
 
-        return await IsAdminAsync(context, dbContext, ct);
+        return new RosterAccess(viaLink, await IsAdminAsync(context, dbContext, ct), link);
     }
+
+    /// <summary>
+    /// Whether this reader may write the organizer's own columns.
+    ///
+    /// The organizer always may. Anybody else needs three things at once: the
+    /// slide has to invite it, the page has to be an internal one, and the
+    /// reader has to have come through a link that was granted that page. A
+    /// public page is never writable by its readers — a list anyone on the
+    /// internet can tick off is not a list of who was there.
+    /// </summary>
+    private static bool MayFill(RosterConfig config, RosterAccess access, string pageKind) =>
+        config.Extras.Count > 0
+        && (access.IsAdmin || (config.ReadersMayFill && pageKind != "public" && access.ViaLink));
 
     // ── Config ───────────────────────────────────────────────────────────────
 
-    private sealed record RosterConfig(Dictionary<string, string> Allowed, bool IncludeLinkOnly);
+    /// <summary>A column the organizer fills in on the list itself.</summary>
+    private sealed record RosterExtra(string Code, string Label, string Kind, IReadOnlyList<string> Options);
+
+    private sealed record RosterConfig(
+        Dictionary<string, string> Allowed,
+        bool IncludeLinkOnly,
+        Dictionary<string, RosterExtra> Extras,
+        /// <summary>Whether people holding a link may write, or only the organizer.</summary>
+        bool ReadersMayFill);
 
     /// <summary>
     /// Reads the slide's config the way every part module reads its own: badly
@@ -168,15 +340,63 @@ public static partial class EventEndpoints
     private static RosterConfig ReadRosterConfig(string? configJson)
     {
         var allowed = new Dictionary<string, string>(StringComparer.Ordinal);
+        var extras = new Dictionary<string, RosterExtra>(StringComparer.Ordinal);
         var includeLinkOnly = false;
+        var readersMayFill = false;
 
-        if (string.IsNullOrWhiteSpace(configJson)) return new RosterConfig(allowed, includeLinkOnly);
+        var empty = new RosterConfig(allowed, includeLinkOnly, extras, readersMayFill);
+        if (string.IsNullOrWhiteSpace(configJson)) return empty;
 
         try
         {
             using var document = JsonDocument.Parse(configJson);
             var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) return new RosterConfig(allowed, includeLinkOnly);
+            if (root.ValueKind != JsonValueKind.Object) return empty;
+
+            if (root.TryGetProperty("whoMayFill", out var whoMayFill)
+                && whoMayFill.ValueKind == JsonValueKind.String
+                && whoMayFill.GetString() == "readers")
+            {
+                readersMayFill = true;
+            }
+
+            if (root.TryGetProperty("extras", out var declared) && declared.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var extra in declared.EnumerateArray())
+                {
+                    if (extra.ValueKind != JsonValueKind.Object) continue;
+
+                    var code = extra.TryGetProperty("code", out var codeValue) && codeValue.ValueKind == JsonValueKind.String
+                        ? codeValue.GetString()?.Trim()
+                        : null;
+                    if (string.IsNullOrWhiteSpace(code) || code.Length > 40) continue;
+
+                    var label = extra.TryGetProperty("label", out var labelValue) && labelValue.ValueKind == JsonValueKind.String
+                        ? labelValue.GetString()?.Trim()
+                        : null;
+
+                    var kind = extra.TryGetProperty("kind", out var kindValue) && kindValue.ValueKind == JsonValueKind.String
+                        ? kindValue.GetString()
+                        : null;
+
+                    var options = new List<string>();
+                    if (extra.TryGetProperty("options", out var optionValues) && optionValues.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var option in optionValues.EnumerateArray())
+                        {
+                            if (option.ValueKind != JsonValueKind.String) continue;
+                            var text = option.GetString()?.Trim();
+                            if (!string.IsNullOrWhiteSpace(text)) options.Add(text);
+                        }
+                    }
+
+                    extras[code] = new RosterExtra(
+                        code,
+                        string.IsNullOrWhiteSpace(label) ? code : label,
+                        kind is "check" or "number" or "choice" ? kind : "text",
+                        options);
+                }
+            }
 
             if (root.TryGetProperty("source", out var source)
                 && source.ValueKind == JsonValueKind.String
@@ -216,10 +436,16 @@ public static partial class EventEndpoints
         }
         catch (JsonException)
         {
-            return new RosterConfig(new Dictionary<string, string>(StringComparer.Ordinal), false);
+            // Half-written config: nothing may leave and nothing may be written.
+            // Both defaults fail closed.
+            return new RosterConfig(
+                new Dictionary<string, string>(StringComparer.Ordinal),
+                false,
+                new Dictionary<string, RosterExtra>(StringComparer.Ordinal),
+                false);
         }
 
-        return new RosterConfig(allowed, includeLinkOnly);
+        return new RosterConfig(allowed, includeLinkOnly, extras, readersMayFill);
     }
 
     // ── The table ────────────────────────────────────────────────────────────
@@ -234,6 +460,8 @@ public static partial class EventEndpoints
         Guid siteId,
         bool includeLinkOnly,
         IReadOnlyDictionary<string, string>? allowed,
+        Guid? partId,
+        IReadOnlyDictionary<string, RosterExtra>? extras,
         CancellationToken ct)
     {
         // Hidden registrations are out of the working list by the organizer's own
@@ -346,6 +574,23 @@ public static partial class EventEndpoints
             definitions.Add(new EventRosterColumn(AssignmentKey(label), label, GroupAssignments, 0));
         }
 
+        // The organizer's own columns, and what has been written in them so far.
+        var marksByRow = new Dictionary<string, List<EventRosterEntry>>(StringComparer.Ordinal);
+        if (partId is not null && extras is not null && extras.Count > 0)
+        {
+            foreach (var extra in extras.Values)
+            {
+                definitions.Add(new EventRosterColumn($"extra:{extra.Code}", extra.Label, GroupMarks, 0));
+            }
+
+            marksByRow = (await dbContext.EventRosterEntries.AsNoTracking()
+                .Where(x => x.PartId == partId.Value)
+                .ToListAsync(ct))
+                .Where(x => extras.ContainsKey(x.Code))
+                .GroupBy(x => x.RowKey, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
+        }
+
         // ── One row per person ───────────────────────────────────────────────
         var valuesByRegistration = values
             .GroupBy(x => x.RegistrationId)
@@ -395,6 +640,7 @@ public static partial class EventEndpoints
 
             AddCard(row, card, cardData, cardConsents);
             AddAssignments(row, link, assignmentsByLink);
+            AddMarks(row, $"r-{registration.Id}", marksByRow);
 
             built.Add(($"r-{registration.Id}", row));
         }
@@ -419,6 +665,7 @@ public static partial class EventEndpoints
 
                 AddCard(row, card, cardData, cardConsents);
                 AddAssignments(row, link, assignmentsByLink);
+                AddMarks(row, $"l-{link.Id}", marksByRow);
 
                 built.Add(($"l-{link.Id}", row));
             }
@@ -467,6 +714,17 @@ public static partial class EventEndpoints
         foreach (var consent in cardConsents.GetValueOrDefault(card.Id) ?? [])
         {
             row[$"consent:{consent.Code}"] = consent.Accepted ? "tak" : "nie";
+        }
+    }
+
+    private static void AddMarks(
+        Dictionary<string, string?> row,
+        string rowKey,
+        IReadOnlyDictionary<string, List<EventRosterEntry>> marksByRow)
+    {
+        foreach (var mark in marksByRow.GetValueOrDefault(rowKey) ?? [])
+        {
+            row[$"extra:{mark.Code}"] = mark.Value;
         }
     }
 

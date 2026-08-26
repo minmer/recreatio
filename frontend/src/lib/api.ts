@@ -8268,6 +8268,16 @@ export type EventRosterTable = {
   rows: EventRosterRow[];
   /** True when no column has been chosen yet — an empty table would look like an empty event. */
   isUnconfigured: boolean;
+  /** Whether this reader may write the organizer's own columns (attendance and the like). */
+  mayFill: boolean;
+};
+
+export type EventRosterMark = {
+  rowKey: string;
+  code: string;
+  value: string | null;
+  updatedBy: string | null;
+  updatedUtc: string;
 };
 
 /**
@@ -8287,6 +8297,25 @@ export function getEventRoster(slug: string, partId: string, token: string | nul
   return request<EventRosterTable>(
     `/events/site/${encodeURIComponent(slug)}/parts/${partId}/roster${query}`,
     { method: 'GET' }
+  );
+}
+
+/**
+ * Writes one of the organizer's own columns for one person — ticking attendance,
+ * noting a payment. An empty value clears the cell.
+ */
+export function setEventRosterMark(
+  slug: string,
+  partId: string,
+  rowKey: string,
+  code: string,
+  value: string | null,
+  token: string | null
+) {
+  const query = token ? `?token=${encodeURIComponent(token)}` : '';
+  return request<EventRosterMark>(
+    `/events/site/${encodeURIComponent(slug)}/parts/${partId}/roster/${encodeURIComponent(rowKey)}${query}`,
+    { method: 'PUT', body: JSON.stringify({ code, value }) }
   );
 }
 

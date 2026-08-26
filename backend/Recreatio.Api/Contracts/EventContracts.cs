@@ -359,4 +359,16 @@ public sealed record EventRosterResponse(
     IReadOnlyList<EventRosterColumn> Columns,
     IReadOnlyList<EventRosterRow> Rows,
     /// <summary>True when the slide has no columns chosen yet, so the reader is told rather than shown an empty table.</summary>
-    bool IsUnconfigured);
+    bool IsUnconfigured,
+    /// <summary>Whether THIS reader may write the organizer's own columns — the table asks before it offers a checkbox.</summary>
+    bool MayFill);
+
+/// <summary>What the organizer writes onto the list itself — attendance, a note.</summary>
+public sealed record EventRosterMarkRequest(string Code, string? Value);
+
+public sealed record EventRosterMarkResponse(
+    string RowKey,
+    string Code,
+    string? Value,
+    string? UpdatedBy,
+    DateTimeOffset UpdatedUtc);
