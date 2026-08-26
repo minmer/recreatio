@@ -361,7 +361,9 @@ public sealed record EventRosterResponse(
     /// <summary>True when the slide has no columns chosen yet, so the reader is told rather than shown an empty table.</summary>
     bool IsUnconfigured,
     /// <summary>Whether THIS reader may write the organizer's own columns — the table asks before it offers a checkbox.</summary>
-    bool MayFill);
+    bool MayFill,
+    /// <summary>Whether this reader is the organizer. Only they are offered the export.</summary>
+    bool IsOrganizer);
 
 /// <summary>What the organizer writes onto the list itself — attendance, a note.</summary>
 public sealed record EventRosterMarkRequest(string Code, string? Value);

@@ -29,6 +29,7 @@ import {
   readOp,
   renderTemplate,
   smsHref,
+  toCsv,
   type FilterOp,
   type RosterFilter
 } from './rosterQuery';
@@ -257,6 +258,29 @@ export const rosterPart = definePart<RosterConfig>({
 
 // ── Renderer ─────────────────────────────────────────────────────────────────
 
+/**
+ * Hands the browser a file.
+ *
+ * The BOM is not decoration: without it Excel reads the bytes as its own code
+ * page, and every name with ł, ą or ż arrives mangled — the one thing that makes
+ * an export useless for the purpose it was asked for.
+ */
+function downloadCsv(slug: string, columns: ReadonlyArray<{ key: string; label: string }>, rows: readonly EventRosterRow[]) {
+  const blob = new Blob(['﻿' + toCsv(columns, rows)], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${slug}-lista-${today}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  // The object URL holds the whole file in memory until it is let go.
+  URL.revokeObjectURL(url);
+}
+
 
 function RosterTable({
   config,
@@ -295,6 +319,16 @@ function RosterTable({
    * went, so keeping it beyond the view would be claiming more than is known.
    */
   const [sent, setSent] = useState<ReadonlySet<string>>(() => new Set());
+
+  /** Rows ticked for the export, by row key. Nothing ticked means "everything on screen". */
+  const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set());
+
+  const togglePicked = (rowKey: string) =>
+    setPicked((current) => {
+      const next = new Set(current);
+      if (!next.delete(rowKey)) next.add(rowKey);
+      return next;
+    });
 
   const markSent = (key: string) =>
     setSent((current) => (current.has(key) ? current : new Set(current).add(key)));
@@ -454,6 +488,11 @@ function RosterTable({
   // event since the slide was built is simply not there any more.
   const head = shown.map((key) => byKey.get(key)).filter((column): column is EventRosterColumn => column !== undefined);
 
+  // What the file will hold: the ticked rows, or — when nothing is ticked —
+  // everything the search and the active view have left on screen. Ticking
+  // nothing is the common case, and it should mean the obvious thing.
+  const exported = picked.size > 0 ? ordered.filter((row) => picked.has(row.key)) : ordered;
+
   // Whose name a message greets. The name column if it is on the table at all,
   // otherwise the first one — a roster always leads with who the row is about.
   const nameKey = byKey.has('person.name') ? 'person.name' : columns[0]?.key ?? '';
@@ -533,6 +572,25 @@ function RosterTable({
         <table className="ev-roster-table">
           <thead>
             <tr>
+              {!table.isOrganizer ? null : (
+                <th scope="col" className="ev-roster-pick-cell">
+                  <input
+                    type="checkbox"
+                    className="ev-roster-check"
+                    // Ticked only when every row on screen is: a half-picked
+                    // list must not look like a whole one.
+                    checked={ordered.length > 0 && ordered.every((row) => picked.has(row.key))}
+                    aria-label="Zaznacz wszystkie na ekranie"
+                    onChange={(event) =>
+                      setPicked(
+                        event.target.checked
+                          ? new Set([...picked, ...ordered.map((row) => row.key)])
+                          : new Set([...picked].filter((key) => !ordered.some((row) => row.key === key)))
+                      )
+                    }
+                  />
+                </th>
+              )}
               {head.map((column) => (
                 <th key={column.key} scope="col">
                   <button type="button" className="ev-roster-sort" onClick={() => sortBy(column.key)}>
@@ -555,6 +613,11 @@ function RosterTable({
                 row={row}
                 head={head}
                 columns={columns}
+                picked={
+                  table.isOrganizer
+                    ? { on: picked.has(row.key), toggle: () => togglePicked(row.key) }
+                    : null
+                }
                 sms={
                   smsText === null
                     ? null
@@ -577,6 +640,33 @@ function RosterTable({
       )}
 
       {ordered.length === 0 ? <p className="ev-note">Nikt nie pasuje do tego wyszukiwania.</p> : null}
+
+      {/* The organizer's own way out of the browser. Nothing is asked of the
+          server: the file is written from exactly what the table was allowed to
+          fetch, so the export can never hold a column the slide switched off. */}
+      {!table.isOrganizer ? null : (
+        <div className="ev-roster-export">
+          <button
+            type="button"
+            className="ev-ghost"
+            disabled={exported.length === 0}
+            onClick={() => downloadCsv(slug, head, exported)}
+          >
+            Pobierz CSV ({exported.length})
+          </button>
+          <span className="ev-roster-count">
+            {picked.size > 0 ? 'Zaznaczone wiersze' : 'Wszystko, co widać na ekranie'} · kolumny jak w tabeli
+          </span>
+          {picked.size > 0 ? (
+            <button type="button" className="ev-roster-more" onClick={() => setPicked(new Set())}>
+              Odznacz
+            </button>
+          ) : null}
+          <p className="ev-roster-count">
+            Plik zawiera dane osobowe uczestników — trzymaj go tak jak papierową listę.
+          </p>
+        </div>
+      )}
 
       {/* The message lives under the list, not in a row: it is written once and
           then sent to as many people as need it. */}
@@ -766,6 +856,7 @@ function RosterRow({
   head,
   columns,
   sms,
+  picked,
   writable,
   busyKey,
   onWrite,
@@ -777,6 +868,8 @@ function RosterRow({
   columns: EventRosterColumn[];
   /** The message being written under the table, filled in for this person — null when none is. */
   sms: CellSms | null;
+  /** Null unless this reader is the organizer, who alone exports the list. */
+  picked: { on: boolean; toggle: () => void } | null;
   /** The organizer's own columns, by column key — empty when this reader may only read. */
   writable: Map<string, RosterExtra>;
   busyKey: string | null;
@@ -796,6 +889,17 @@ function RosterRow({
   return (
     <>
       <tr className={isOpen ? 'is-open' : undefined}>
+        {picked === null ? null : (
+          <td className="ev-roster-pick-cell">
+            <input
+              type="checkbox"
+              className="ev-roster-check"
+              checked={picked.on}
+              aria-label="Weź do pliku"
+              onChange={picked.toggle}
+            />
+          </td>
+        )}
         {head.map((column) => {
           const extra = writable.get(column.key);
           return (
@@ -824,7 +928,7 @@ function RosterRow({
 
       {isOpen ? (
         <tr className="ev-roster-detail">
-          <td colSpan={head.length + 1}>
+          <td colSpan={head.length + (picked === null ? 1 : 2)}>
             <dl>
               {rest.map((column) => {
                 const extra = writable.get(column.key);

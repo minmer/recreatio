@@ -122,14 +122,19 @@ public static partial class EventEndpoints
             var config = ReadRosterConfig(part.ConfigJson);
             if (config.Allowed.Count == 0)
             {
-                return Results.Ok(new EventRosterResponse([], [], IsUnconfigured: true, MayFill: false));
+                return Results.Ok(
+                    new EventRosterResponse([], [], IsUnconfigured: true, MayFill: false, IsOrganizer: access.IsAdmin));
             }
 
             var roster = await BuildRosterAsync(
                 dbContext, site.Id, config.IncludeLinkOnly, config.Allowed, part.Id, config.Extras, ct);
 
             return Results.Ok(new EventRosterResponse(
-                roster.Columns, roster.Rows, IsUnconfigured: false, MayFill(config, access, page.Kind)));
+                roster.Columns,
+                roster.Rows,
+                IsUnconfigured: false,
+                MayFill(config, access, page.Kind),
+                IsOrganizer: access.IsAdmin));
         });
 
         // Writing one mark: attendance ticked off, a note added.

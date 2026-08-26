@@ -8270,6 +8270,8 @@ export type EventRosterTable = {
   isUnconfigured: boolean;
   /** Whether this reader may write the organizer's own columns (attendance and the like). */
   mayFill: boolean;
+  /** True for the events organizer. Only they are offered the CSV export. */
+  isOrganizer: boolean;
 };
 
 export type EventRosterMark = {

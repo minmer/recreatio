@@ -245,3 +245,55 @@ export function renderTemplate(
 export function smsHref(phone: string, body: string): string {
   return `sms:${phone}?body=${encodeURIComponent(body)}`;
 }
+
+// ── Taking the list off the screen ───────────────────────────────────────────
+
+/**
+ * A cell as it belongs in a spreadsheet rather than on a screen.
+ *
+ * The table draws a tick for "tak" and a dash for "nie"; a file that says ✓ can
+ * be neither sorted nor counted, so the words go back in. Moments become the
+ * local date and time, which is what somebody reading the column expects to see.
+ */
+export function csvValue(value: string | null | undefined): string {
+  if (value === null || value === undefined) return '';
+
+  const text = value.trim();
+  if (text.length === 0) return '';
+
+  if (ISO_MOMENT.test(text)) {
+    const moment = new Date(text);
+    if (!Number.isNaN(moment.getTime())) {
+      return moment.toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' });
+    }
+  }
+
+  return text;
+}
+
+/** One field, quoted where the separator, a quote or a line break would break it. */
+function csvField(value: string): string {
+  return /[";\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+/**
+ * The chosen rows and columns as one CSV document.
+ *
+ * Semicolons, not commas: this file is opened in Excel with Polish regional
+ * settings, where the comma is the decimal mark and a comma-separated file lands
+ * in a single column. The caller prepends a BOM for the same reason — without it
+ * Excel reads UTF-8 as its own code page and every "ł" arrives broken.
+ */
+export function toCsv(
+  columns: ReadonlyArray<{ key: string; label: string }>,
+  rows: readonly EventRosterRow[]
+): string {
+  const lines = [columns.map((column) => csvField(column.label)).join(';')];
+
+  for (const row of rows) {
+    lines.push(columns.map((column) => csvField(csvValue(row.values[column.key]))).join(';'));
+  }
+
+  // CRLF: the line ending every spreadsheet on Windows agrees about.
+  return lines.join('\r\n');
+}

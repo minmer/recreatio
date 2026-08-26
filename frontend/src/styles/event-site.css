@@ -2112,6 +2112,23 @@
   text-decoration: underline;
 }
 
+/* The tick column, and the organizer's way out of the browser. */
+.ev-roster-pick-cell {
+  width: 1%;
+  padding-right: 0.35rem !important;
+}
+
+.ev-roster-export {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ev-roster-export .ev-roster-count {
+  flex-basis: 100%;
+}
+
 /* A number and, while a message is being written, the SMS beside it. */
 .ev-roster-phone {
   display: inline-flex;
