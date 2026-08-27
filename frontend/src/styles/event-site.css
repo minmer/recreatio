@@ -3398,6 +3398,62 @@
   font-size: 0.78rem;
 }
 
+/* The event's file library, in the builder. */
+.eva-docs {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.eva-doc-list {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eva-doc-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 8px;
+  padding: 0.3rem 0.5rem;
+  background: var(--ev-surface);
+}
+
+.eva-doc-list li.is-picked {
+  border-color: var(--ev-accent);
+}
+
+.eva-doc-pick {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.eva-doc-pick strong {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eva-doc-pick span {
+  color: var(--ev-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
 /* ── Background image upload ─────────────────────────────── */
 
 .eva-images {

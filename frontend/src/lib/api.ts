@@ -8463,6 +8463,35 @@ export function eventImageUrl(imageId: string): string {
   return `${apiBase}/events/images/${imageId}`;
 }
 
+// ── The event's own file library ────────────────────────────────────────────
+
+export type EventDocument = {
+  id: string;
+  fileName: string;
+  contentType: string;
+  byteSize: number;
+  createdUtc: string;
+};
+
+/** Absolute, and stable: the bytes at an id never change, so a slide may store it. */
+export function eventDocumentUrl(documentId: string): string {
+  return `${apiBase}/events/documents/${documentId}`;
+}
+
+export function getEventDocuments(siteId: string) {
+  return request<EventDocument[]>(`/events/admin/sites/${siteId}/documents`, { method: 'GET' });
+}
+
+export function uploadEventDocument(siteId: string, file: File) {
+  const body = new FormData();
+  body.append('file', file);
+  return request<EventDocument>(`/events/admin/sites/${siteId}/documents`, { method: 'POST', body });
+}
+
+export function deleteEventDocument(documentId: string) {
+  return request<{ deleted: boolean }>(`/events/admin/documents/${documentId}`, { method: 'DELETE' });
+}
+
 export function getEventImages(siteId: string) {
   return request<EventImage[]>(`/events/admin/sites/${siteId}/images`, { method: 'GET' });
 }

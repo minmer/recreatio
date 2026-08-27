@@ -296,6 +296,14 @@ public sealed record EventImageResponse(
     int ByteSize,
     DateTimeOffset CreatedUtc);
 
+/// <summary>One file in the event's own library — a regulamin, a consent, a track.</summary>
+public sealed record EventDocumentResponse(
+    Guid Id,
+    string FileName,
+    string ContentType,
+    int ByteSize,
+    DateTimeOffset CreatedUtc);
+
 /// <summary>
 /// Outcome of a bulk import. Warnings list what was skipped and why, so the
 /// document can be corrected and re-imported.

@@ -573,3 +573,36 @@ BEGIN
         ON events.EventRosterEntries(PartId, RowKey, Code);
 END
 GO
+
+-- ── Files an event hands out ────────────────────────────────────────────────
+-- The regulamin, a consent to print, a GPX track: uploaded into the event's own
+-- library and picked from there, so a link in a "files" slide points at
+-- something this application still has. Kept apart from EventImages: pictures
+-- are painted into pages, these are handed over as downloads.
+IF OBJECT_ID(N'events.EventDocuments', N'U') IS NULL
+BEGIN
+    CREATE TABLE events.EventDocuments
+    (
+        Id          UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventDocuments PRIMARY KEY,
+        SiteId      UNIQUEIDENTIFIER NOT NULL,
+        FileName    NVARCHAR(200)    NOT NULL,
+        ContentType NVARCHAR(120)    NOT NULL,
+        ByteSize    INT              NOT NULL,
+        Data        VARBINARY(MAX)   NOT NULL,
+        CreatedUtc  DATETIMEOFFSET   NOT NULL,
+        CONSTRAINT FK_EventDocuments_Site
+            FOREIGN KEY (SiteId) REFERENCES events.EventSites(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_EventDocuments_SiteId_CreatedUtc'
+      AND object_id = OBJECT_ID('events.EventDocuments')
+)
+BEGIN
+    CREATE INDEX IX_EventDocuments_SiteId_CreatedUtc
+        ON events.EventDocuments(SiteId, CreatedUtc DESC);
+END
+GO

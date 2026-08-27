@@ -1,3 +1,4 @@
+import { DocumentPicker, formatSize } from '../admin/DocumentPicker';
 import { asOptionalText, asRecord, asText, definePart, mapEntries } from './contracts';
 import { AreaRow, ListEditor, TextRow } from './editorKit';
 
@@ -73,7 +74,7 @@ export const filesPart = definePart<FilesConfig>({
     );
   },
 
-  Editor: ({ config, onChange }) => (
+  Editor: ({ config, onChange, ctx }) => (
     <>
       <ListEditor<FileEntry>
         legend="Pliki"
@@ -86,6 +87,22 @@ export const filesPart = definePart<FilesConfig>({
           <>
             <TextRow label="Nazwa" value={item.label} onChange={(label) => update({ ...item, label })} />
             <TextRow label="Adres pliku" value={item.url} onChange={(url) => update({ ...item, url })} />
+
+            {/* Uploading fills the address, and — only where they are still
+                empty — the name and the size, so a file added in one click is
+                already a finished entry. Anything typed by hand stays. */}
+            <DocumentPicker
+              siteId={ctx.siteId}
+              value={item.url}
+              onPick={(url, fileName, byteSize) =>
+                update({
+                  ...item,
+                  url,
+                  label: item.label.trim().length > 0 ? item.label : fileName,
+                  size: item.size ?? formatSize(byteSize)
+                })
+              }
+            />
             <TextRow
               label="Opis"
               value={item.note ?? ''}
