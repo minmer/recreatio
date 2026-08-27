@@ -56,6 +56,29 @@ const DONE_WHEN: Array<{ value: MarkStep['doneWhen']; label: string }> = [
   { value: 'is', label: 'dokładnie ta wartość' }
 ];
 
+/**
+ * What a finished line says under its name.
+ *
+ * The moment it was sent, not merely a tick: "wysłane 26.08, 19:45" is what
+ * somebody unsure whether their form went through is actually looking for, and
+ * it is the difference between being told and being reassured.
+ */
+function doneDetail(step: EventProgressStep): string | null {
+  const when =
+    step.doneUtc === null
+      ? null
+      : new Date(step.doneUtc).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' });
+
+  const sent = step.kind === 'card' ? 'Podpisane' : 'Wysłane';
+  const moment = when === null ? sent.toLowerCase() : `${sent}: ${when}`;
+
+  // A minor's card is only finished on paper, and that is worth repeating here
+  // rather than only on the card itself.
+  return step.kind === 'card' && step.isMinor
+    ? `${moment}. Pamiętaj o wydrukowanej i podpisanej karcie — oddajesz ją organizatorowi.`
+    : moment;
+}
+
 /** What a line is called, once the organizer has had their say. */
 function labelFor(step: EventProgressStep, overrides: StepOverride[]): string {
   const override = overrides.find((entry) => entry.partId === step.partId);
@@ -195,10 +218,7 @@ function Checklist({
       key: step.partId,
       label: labelFor(step, config.overrides),
       done: step.done,
-      detail:
-        step.done && step.kind === 'card' && step.isMinor
-          ? 'Pamiętaj o wydrukowanej i podpisanej karcie — oddajesz ją organizatorowi.'
-          : null,
+      detail: step.done ? doneDetail(step) : null,
       href:
         step.partId === partId
           ? null
