@@ -1,5 +1,6 @@
 import type { EventPartKind } from '../../../lib/api';
 import type { PartModule } from './contracts';
+import { checklistPart } from './ChecklistPart';
 import { contactPart } from './ContactPart';
 import { costsPart } from './CostsPart';
 import { faqPart } from './FaqPart';
@@ -40,6 +41,7 @@ export const PART_MODULES: PartModule[] = [
   // Only useful behind an individual link: these act on the reader's own data.
   registrationPart,
   participantCardPart,
+  checklistPart,
   rosterPart,
   topicsPart
 ];

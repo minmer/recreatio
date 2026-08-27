@@ -1,18 +1,12 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import type { EventPage, EventPageRef, EventSiteHeader } from '../../../lib/api';
 import { getPartModule } from '../parts/registry';
+import { partAnchor } from './anchors';
 import { parseLayers, parseTheme, type Layer } from './layers';
 import { useSlideScroll } from './useSlideScroll';
 
-/** Stable in-page anchor for a part, derived from its menu label. */
-export function partAnchor(menuLabel: string): string {
-  return menuLabel
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
+// Re-exported: this is where the rest of the module has always imported it from.
+export { partAnchor };
 
 function layerBackground(layer: Layer): string | undefined {
   if (layer.kind !== 'gradient') return undefined;
@@ -359,6 +353,7 @@ export function EventShell({
                         configJson={part.configJson}
                         ctx={{
                           siteSlug: site.slug,
+                          pageSlug: page.slug,
                           siteTitle: site.title,
                           siteDateLabel: site.dateLabel,
                           sitePlaces: site.places,

@@ -47,6 +47,9 @@ const ADDS = [
   ['title', ['actions'], { label: 'Przycisk', href: '#', variant: 'cta' }],
   ['roster', ['smsTemplates'], { label: 'Nowa wiadomość', text: '' }],
   ['roster', ['presets'], { label: 'Nowy widok', filters: [], sortKey: '', sortDescending: false, columns: [] }],
+  ['checklist', ['marks'], { code: '', label: 'Wpłata', doneWhen: 'filled', value: '', note: null }],
+  ['checklist', ['notes'], { label: 'Nowe przypomnienie', detail: null }],
+  ['checklist', ['overrides'], { partId: '', label: '', hidden: false }],
   ['roster', ['extras'], { code: 'pole-9', label: 'Nowa kolumna', kind: 'check', options: [] }]
 ];
 

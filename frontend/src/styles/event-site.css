@@ -1869,6 +1869,104 @@
   line-height: 1.6;
 }
 
+/* ── What one person still has to do ─────────────────────── */
+
+.ev-todo {
+  display: grid;
+  gap: 0.7rem;
+  max-width: var(--ev-measure);
+}
+
+.ev-todo-verdict {
+  margin: 0;
+  border-left: 3px solid var(--ev-accent);
+  border-radius: 0 8px 8px 0;
+  padding: 0.5rem 0.9rem;
+  background: var(--ev-surface-2);
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.ev-todo-verdict.is-done {
+  border-left-color: var(--ev-good);
+}
+
+.ev-todo-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ev-todo-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  background: var(--ev-surface);
+}
+
+/* Done fades back; what is left keeps the reader's eye. */
+.ev-todo-list li[data-done='true'] {
+  border-color: transparent;
+  background: none;
+  opacity: 0.72;
+}
+
+.ev-todo-mark {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ev-surface-3);
+  font-size: 0.86rem;
+}
+
+.ev-todo-list li[data-done='true'] .ev-todo-mark {
+  background: rgba(80, 200, 130, 0.22);
+  color: var(--ev-good);
+}
+
+.ev-todo-body {
+  display: grid;
+  flex: 1;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.ev-todo-body em {
+  color: var(--ev-muted);
+  font-size: 0.86rem;
+  font-style: normal;
+  line-height: 1.5;
+}
+
+.ev-todo-state {
+  flex: none;
+}
+
+.ev-todo-state .ev-cta,
+.ev-todo-state .ev-ghost {
+  padding: 0.36rem 0.9rem;
+  font-size: 0.84rem;
+}
+
+.ev-todo-word {
+  color: var(--ev-muted);
+  font-size: 0.82rem;
+}
+
+.ev-todo-foot {
+  margin: 0;
+  color: var(--ev-muted);
+  font-size: 0.8rem;
+}
+
 /* ── Roster: the participant list ────────────────────────── */
 
 .ev-roster {

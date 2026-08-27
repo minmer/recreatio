@@ -296,6 +296,28 @@ public sealed record EventImageResponse(
     int ByteSize,
     DateTimeOffset CreatedUtc);
 
+/// <summary>
+/// One thing a participant has to do, and where it lives. PartNumber is the
+/// position the shell renders it at, so /event/link/{token}/{page}/{n} opens it.
+/// </summary>
+public sealed record EventProgressStep(
+    Guid PartId,
+    string Kind,
+    string MenuLabel,
+    string PageSlug,
+    int PartNumber,
+    bool Done,
+    DateTimeOffset? DoneUtc,
+    bool IsMinor);
+
+/// <summary>An organizer's own column about this person — the money, the returned form.</summary>
+public sealed record EventProgressMark(string Code, string? Value);
+
+public sealed record EventProgressResponse(
+    string RecipientName,
+    IReadOnlyList<EventProgressStep> Steps,
+    IReadOnlyList<EventProgressMark> Marks);
+
 /// <summary>One file in the event's own library — a regulamin, a consent, a track.</summary>
 public sealed record EventDocumentResponse(
     Guid Id,

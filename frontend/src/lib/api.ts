@@ -7833,7 +7833,9 @@ export type EventPartKind =
   // reader's own data rather than on the event's content.
   | 'registration' | 'card' | 'topics'
   // The organizer's view of who signed up, placed as a slide of its own.
-  | 'roster';
+  | 'roster'
+  // And the participant's own: what is still theirs to do.
+  | 'checklist';
 
 export type EventPartField = {
   id: string;
@@ -8461,6 +8463,36 @@ export type EventImage = {
  */
 export function eventImageUrl(imageId: string): string {
   return `${apiBase}/events/images/${imageId}`;
+}
+
+// ── What one person still has to do ─────────────────────────────────────────
+
+export type EventProgressStep = {
+  partId: string;
+  kind: 'form' | 'card';
+  menuLabel: string;
+  pageSlug: string;
+  /** The position in /event/link/{token}/{page}/{n} that opens this part. */
+  partNumber: number;
+  done: boolean;
+  doneUtc: string | null;
+  isMinor: boolean;
+};
+
+export type EventProgressMark = { code: string; value: string | null };
+
+export type EventProgress = {
+  recipientName: string;
+  steps: EventProgressStep[];
+  marks: EventProgressMark[];
+};
+
+/**
+ * Everything this one person still owes the event, and where each of those
+ * things lives. The token is the whole authority: it answers for its own holder.
+ */
+export function getEventProgress(token: string) {
+  return request<EventProgress>(`/events/link/${encodeURIComponent(token)}/progress`, { method: 'GET' });
 }
 
 // ── The event's own file library ────────────────────────────────────────────

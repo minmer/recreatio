@@ -26,7 +26,9 @@ public static partial class EventEndpoints
         // the participant card with its consents.
         "registration", "card", "topics",
         // The organizer's own view of who signed up, placed as a slide.
-        "roster"
+        "roster",
+        // And the participant's own: what is still theirs to do.
+        "checklist"
     ];
 
     private static readonly string[] AllowedFieldKinds =
@@ -53,6 +55,7 @@ public static partial class EventEndpoints
         MapAdminFieldEndpoints(group);
         MapAdminAccessEndpoints(group);
         MapParticipantEndpoints(group);
+        MapProgressEndpoints(group);
         MapParticipantAdminEndpoints(group);
         MapRosterEndpoints(group);
         MapTopicEndpoints(group);
