@@ -26,21 +26,29 @@ export const contactPart = definePart<ContactConfig>({
     return {
       organizer: asOptionalText(record.organizer),
       channels: mapEntries<Channel>(record.channels, (item) => {
-        const label = asText(item.label).trim();
-        const value = asText(item.value).trim();
-        if (label.length === 0 || value.length === 0) return null;
-        return { label, value, href: asOptionalText(item.href) };
+        // Nothing is dropped here: a channel is added with a name and no
+        // address yet, and the config is re-parsed before the address can be
+        // typed. The renderer below leaves the addressless ones out.
+        return {
+          label: asText(item.label).trim(),
+          value: asText(item.value).trim(),
+          href: asOptionalText(item.href)
+        };
       }),
       note: asOptionalText(record.note)
     };
   },
 
-  Renderer: ({ config }) => (
+  Renderer: ({ config }) => {
+    // A channel with nothing to reach anybody at is not yet a way to get in touch.
+    const channels = config.channels.filter((channel) => channel.value.length > 0);
+
+    return (
     <div className="ev-contact">
       {config.organizer ? <p className="ev-contact-organizer">{config.organizer}</p> : null}
-      {config.channels.length > 0 ? (
+      {channels.length > 0 ? (
         <div className="ev-card-grid">
-          {config.channels.map((channel, index) => (
+          {channels.map((channel, index) => (
             <article key={index}>
               <h3>{channel.label}</h3>
               <p>{channel.href ? <a href={channel.href}>{channel.value}</a> : channel.value}</p>
@@ -50,7 +58,8 @@ export const contactPart = definePart<ContactConfig>({
       ) : null}
       {config.note ? <p className="ev-note">{config.note}</p> : null}
     </div>
-  ),
+    );
+  },
 
   Editor: ({ config, onChange }) => (
     <>

@@ -50,6 +50,15 @@ export type PartModule = {
   exampleConfigJson: () => string;
   Renderer: ComponentType<PartRendererProps>;
   Editor: ComponentType<PartEditorProps>;
+  /**
+   * The tolerant reader on its own, JSON in and config out.
+   *
+   * It exists so the round trip the builder performs on every keystroke —
+   * config to JSON, JSON back to config — can be exercised without a browser.
+   * That round trip is where a newly added, still-empty entry used to vanish,
+   * and the "add" button appeared to do nothing at all.
+   */
+  readConfigJson: (configJson: string | null) => unknown;
 };
 
 /**
@@ -89,7 +98,8 @@ export function definePart<C>(spec: {
     defaultConfigJson: () => JSON.stringify(spec.defaultConfig(), null, 2),
     exampleConfigJson: () => JSON.stringify((spec.example ?? spec.defaultConfig)(), null, 2),
     Renderer,
-    Editor
+    Editor,
+    readConfigJson: read
   };
 }
 

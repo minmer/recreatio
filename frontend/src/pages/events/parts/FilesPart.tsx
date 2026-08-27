@@ -27,14 +27,16 @@ export const filesPart = definePart<FilesConfig>({
     const record = asRecord(raw);
     return {
       files: mapEntries<FileEntry>(record.files, (item) => {
-        const label = asText(item.label).trim();
-        const url = asText(item.url).trim();
-        // Half-written is normal in the builder: an entry is added blank and
-        // filled in afterwards. Only one that is empty through and through is
-        // dropped — the renderer below is what keeps a fileless link off the
-        // page.
-        if (label.length === 0 && url.length === 0) return null;
-        return { label, url, note: asOptionalText(item.note), size: asOptionalText(item.size) };
+        // Nothing is dropped here. A file is added blank and filled in
+        // afterwards, and the config is re-parsed in between — a guard at this
+        // point is what made "Dodaj plik" appear to do nothing. The renderer
+        // below is what keeps an addressless entry off the page.
+        return {
+          label: asText(item.label).trim(),
+          url: asText(item.url).trim(),
+          note: asOptionalText(item.note),
+          size: asOptionalText(item.size)
+        };
       }),
       note: asOptionalText(record.note)
     };

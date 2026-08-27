@@ -224,16 +224,10 @@ export const rosterPart = definePart<RosterConfig>({
       }),
       whoMayFill: record.whoMayFill === 'readers' ? 'readers' : 'admin',
       smsTemplates: mapEntries(record.smsTemplates, (entry) => {
-        const label = asText(entry.label).trim();
-        const text = asText(entry.text);
-
-        // Only an entry that is empty through and through is dropped. Requiring
-        // the text here meant a message added in the builder disappeared between
-        // two renders — it is written blank, and the config is re-parsed before
-        // anybody can type a word into it.
-        if (label.length === 0 && text.trim().length === 0) return null;
-
-        return { label: label || 'SMS', text };
+        // Nothing is dropped here, for the same reason as everywhere else in
+        // the builder: the entry is added blank and the config is re-parsed
+        // before a word can be typed into it.
+        return { label: asText(entry.label).trim() || 'SMS', text: asText(entry.text) };
       }),
       searchHint: asOptionalText(record.searchHint),
       emptyText: asOptionalText(record.emptyText),

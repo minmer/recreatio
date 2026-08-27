@@ -11,7 +11,8 @@
     "rc:test": "node scripts/rc-test.mjs",
     "rc:check": "tsc -p tsconfig.rc.json --noEmit && node scripts/rc-test.mjs",
     "rc:walk": "node scripts/rc-walk.mjs",
-    "rc:vector": "node scripts/rc-wrap-vector.mjs"
+    "rc:vector": "node scripts/rc-wrap-vector.mjs",
+    "events:check": "node scripts/events-add-check.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

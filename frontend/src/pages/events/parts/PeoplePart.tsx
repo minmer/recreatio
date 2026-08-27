@@ -50,22 +50,17 @@ export const peoplePart = definePart<PeopleConfig>({
     const record = asRecord(raw);
     return {
       people: mapEntries<Person>(record.people, (item) => {
-        const name = asText(item.name).trim();
-        const person = {
-          name,
+        // Nothing is dropped here: a person is added nameless and named a moment
+        // later, with the config re-parsed in between. The renderer keeps the
+        // nameless ones off the page.
+        return {
+          name: asText(item.name).trim(),
           role: asOptionalText(item.role),
           detail: asOptionalText(item.detail),
           photoUrl: asOptionalText(item.photoUrl),
           contact: asOptionalText(item.contact),
           contactHref: asOptionalText(item.contactHref)
         };
-        // A person added in the builder has no name for as long as it takes to
-        // type one. Dropping the entry here left the "add" button dead; the
-        // renderer is what keeps a nameless card off the page.
-        const empty = name.length === 0
-          && person.role === null && person.detail === null
-          && person.photoUrl === null && person.contact === null;
-        return empty ? null : person;
       }),
       note: asOptionalText(record.note)
     };

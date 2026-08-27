@@ -42,14 +42,11 @@ export const galleryPart = definePart<GalleryConfig>({
 
   parse: (raw) => ({
     shots: mapEntries<Shot>(asRecord(raw).shots, (item) => {
-      const url = asText(item.url).trim();
+      // Nothing is dropped here — a shot added in the builder starts with no
+      // address at all, and a guard would leave the "add" button doing nothing.
+      // The renderer skips the ones that still have no picture.
       const caption = asOptionalText(item.caption);
-      const alt = asText(item.alt, caption ?? '').trim();
-      // A shot added in the builder starts with no address at all. Dropping it
-      // here left the "add" button doing nothing; the renderer skips the ones
-      // that still have no picture.
-      if (url.length === 0 && caption === null && alt.length === 0) return null;
-      return { url, caption, alt };
+      return { url: asText(item.url).trim(), caption, alt: asText(item.alt, caption ?? '').trim() };
     })
   }),
 

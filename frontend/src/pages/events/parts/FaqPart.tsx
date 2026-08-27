@@ -16,13 +16,11 @@ export const faqPart = definePart<FaqConfig>({
 
   parse: (raw) => ({
     items: mapEntries<FaqItem>(asRecord(raw).items, (item) => {
-      const question = asText(item.question).trim();
-      const answer = asText(item.answer).trim();
-      // A question just added is empty on both sides; dropping it here made the
-      // "add" button do nothing at all, since the config is re-parsed between
-      // the click and the next render. The reader is protected below instead.
-      if (question.length === 0 && answer.length === 0) return null;
-      return { question, answer };
+      // Nothing is dropped here: a question just added is empty on both sides,
+      // and the config is re-parsed between the click and the next render, so a
+      // guard at this point makes the "add" button do nothing whatsoever. The
+      // reader is protected in the renderer instead.
+      return { question: asText(item.question).trim(), answer: asText(item.answer).trim() };
     })
   }),
 
