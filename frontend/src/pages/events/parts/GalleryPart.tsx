@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
 import {
   deleteEventPhoto,
   eventPhotoUrl,
@@ -9,6 +9,7 @@ import {
 import { asOptionalText, asRecord, asText, definePart, mapEntries } from './contracts';
 import { CheckRow, ListEditor, SelectRow, TextRow } from './editorKit';
 import { Fullscreen } from './Fullscreen';
+import { FIT, clampView, zoomAbout, type View } from './galleryZoom';
 import { downscaleImage } from './imageDownscale';
 
 type Shot = { url: string; caption: string | null; alt: string };
@@ -60,6 +61,8 @@ type Picture = {
   credit: string | null;
   /** Only a contributed picture can be taken down from here. */
   photoId: string | null;
+  /** When it arrived, which is the order the opened gallery reads in. */
+  addedAt: string;
   width: number;
   height: number;
 };
@@ -139,7 +142,8 @@ function Gallery({
   token: string | null;
 }) {
   const [gallery, setGallery] = useState<EventGallery | null>(null);
-  const [open, setOpen] = useState<number | null>(null);
+  /** The picture the viewer opened on, by key — the two orders differ. */
+  const [open, setOpen] = useState<string | null>(null);
   const [front, setFront] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -168,6 +172,7 @@ function Gallery({
         alt: shot.alt,
         credit: null,
         photoId: null,
+        addedAt: '',
         width: 0,
         height: 0
       }));
@@ -179,18 +184,35 @@ function Gallery({
       alt: photo.caption ?? `Zdjęcie od: ${photo.uploaderName}`,
       credit: photo.uploaderName,
       photoId: photo.id,
+      addedAt: photo.createdUtc,
       width: photo.width,
       height: photo.height
     }));
 
-    const all = [...own, ...sent];
-    return config.shuffle ? shuffled(all, seed) : all;
-  }, [config.shots, config.shuffle, gallery, seed]);
+    // The gallery's order is the order they arrived: the organizer's pictures as
+    // they stand in the slide, then everybody else's oldest first. Opened, a
+    // gallery should read like a roll of film — going back to a photograph one
+    // saw a minute ago must not mean hunting through a reshuffled set.
+    return [
+      ...own,
+      ...sent.sort((left, right) => left.addedAt.localeCompare(right.addedAt))
+    ];
+  }, [config.shots, gallery]);
+
+  /**
+   * The carousel's own order, drawn once per visit. Randomness belongs here and
+   * nowhere else: five pictures out of forty should be a different five each
+   * time, but the gallery behind them stays put.
+   */
+  const ring = useMemo(
+    () => (config.shuffle ? shuffled(pictures, seed) : pictures),
+    [pictures, config.shuffle, seed]
+  );
 
   // The front picture must stay inside the set as pictures arrive or leave.
   useEffect(() => {
-    setFront((current) => (pictures.length === 0 ? 0 : current % pictures.length));
-  }, [pictures.length]);
+    setFront((current) => (ring.length === 0 ? 0 : current % ring.length));
+  }, [ring.length]);
 
   const send = async (files: FileList) => {
     if (token === null) return;
@@ -252,6 +274,9 @@ function Gallery({
       </div>
     ) : null;
 
+  // The carousel hands back a key; the viewer needs its place in the other order.
+  const openAt = open === null ? -1 : pictures.findIndex((picture) => picture.key === open);
+
   if (pictures.length === 0) {
     return (
       <div className="ev-gallery">
@@ -264,15 +289,15 @@ function Gallery({
 
   return (
     <div className="ev-gallery">
-      <Carousel pictures={pictures} front={front} onFront={setFront} onOpen={setOpen} />
+      <Carousel pictures={ring} front={front} onFront={setFront} onOpen={setOpen} />
 
       {invite}
       {error ? <p className="ev-error">{error}</p> : null}
 
-      {open !== null && pictures[open] ? (
+      {openAt >= 0 ? (
         <Viewer
           pictures={pictures}
-          start={open}
+          start={openAt}
           mayManage={gallery?.mayManage === true}
           onRemove={remove}
           onClose={() => setOpen(null)}
@@ -298,7 +323,7 @@ function Carousel({
   pictures: Picture[];
   front: number;
   onFront: (index: number) => void;
-  onOpen: (index: number) => void;
+  onOpen: (key: string) => void;
 }) {
   const touchRef = useRef<number | null>(null);
   const count = pictures.length;
@@ -350,7 +375,7 @@ function Carousel({
             // The front picture opens the viewer; the ones behind step forward
             // first, which is what a finger reaching for a half-hidden picture
             // means. One more tap opens it.
-            onClick={() => (offset === 0 ? onOpen(index) : onFront(index))}
+            onClick={() => (offset === 0 ? onOpen(picture.key) : onFront(index))}
           >
             <img src={picture.url} alt={picture.alt} loading="lazy" draggable={false} />
           </button>
@@ -378,11 +403,22 @@ function Carousel({
  * The gallery, opened.
  *
  * Everything a picture viewer is expected to do, because anything missing is
- * noticed immediately: arrows and swipe, the keyboard (←, →, Home, End, Escape),
- * a counter, the caption and who sent it, a strip of the rest along the bottom,
- * and the two neighbouring pictures already loading so the next one is there
- * before the finger lands.
+ * noticed at once: arrows and swipe, the keyboard, a counter, the caption and
+ * who sent it, a strip of the rest along the bottom, both neighbours already
+ * loading — and zoom, because half the reason to open a photograph full screen
+ * is to look at who is standing in the back row.
+ *
+ * The zoom is the one every phone gallery has: pinch, double-tap in and out,
+ * drag to move around, and the picture snapping back to the middle when it is
+ * smaller than the frame. While it is zoomed a sideways drag moves the picture
+ * rather than changing it — that is the rule that makes zooming usable at all,
+ * and the one people notice when it is missing.
  */
+/** Two taps closer together than this are one gesture: the zoom. */
+const DOUBLE_TAP_MS = 300;
+
+type Gesture = { kind: 'swipe' | 'pan' | 'pinch'; x: number; y: number; view: View; distance: number };
+
 function Viewer({
   pictures,
   start,
@@ -397,11 +433,38 @@ function Viewer({
   onClose: () => void;
 }) {
   const [at, setAt] = useState(start);
-  const touchRef = useRef<{ x: number; y: number } | null>(null);
+  const [view, setView] = useState<View>(FIT);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const stripRef = useRef<HTMLDivElement | null>(null);
+  const gestureRef = useRef<Gesture | null>(null);
+  const lastTapRef = useRef(0);
 
   const count = pictures.length;
-  const go = useCallback((next: number) => setAt(((next % count) + count) % count), [count]);
+
+  const go = useCallback((next: number) => {
+    setAt(((next % count) + count) % count);
+    // A new picture arrives fitted: carrying a zoom across would drop somebody
+    // into the middle of a photograph they have not seen yet.
+    setView(FIT);
+  }, [count]);
+
+  const frame = () => {
+    const box = stageRef.current?.getBoundingClientRect();
+    return { width: box?.width ?? 0, height: box?.height ?? 0 };
+  };
+
+  /** A point on screen, measured from the middle of the frame. */
+  const pointIn = (clientX: number, clientY: number) => {
+    const box = stageRef.current?.getBoundingClientRect();
+    if (!box) return { x: 0, y: 0 };
+    return { x: clientX - box.left - box.width / 2, y: clientY - box.top - box.height / 2 };
+  };
+
+  const zoomBy = (factor: number, point: { x: number; y: number }) =>
+    setView((current) => clampView(zoomAbout(current, current.scale * factor, point), frame()));
+
+  const toggleZoom = (point: { x: number; y: number }) =>
+    setView((current) => (current.scale > 1.01 ? FIT : clampView(zoomAbout(current, 2.5, point), frame())));
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -409,6 +472,9 @@ function Viewer({
       else if (event.key === 'ArrowLeft') go(at - 1);
       else if (event.key === 'Home') go(0);
       else if (event.key === 'End') go(count - 1);
+      else if (event.key === '+' || event.key === '=') zoomBy(1.4, { x: 0, y: 0 });
+      else if (event.key === '-') zoomBy(1 / 1.4, { x: 0, y: 0 });
+      else if (event.key === '0') setView(FIT);
       else return;
       event.preventDefault();
     };
@@ -417,55 +483,140 @@ function Viewer({
     return () => window.removeEventListener('keydown', onKey);
   }, [at, count, go]);
 
-  // Keep the thumbnail of the picture being looked at inside the strip.
   useEffect(() => {
-    const strip = stripRef.current;
-    const active = strip?.querySelector('[data-active="true"]');
+    const active = stripRef.current?.querySelector('[data-active="true"]');
     active?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
   }, [at]);
 
   const picture = pictures[at];
   if (!picture) return null;
 
-  // The neighbours, fetched but not shown: the browser has them decoded by the
-  // time the arrow is pressed.
+  const zoomed = view.scale > 1.01;
   const neighbours = [pictures[(at + 1) % count], pictures[(at - 1 + count) % count]];
+
+  const touchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length === 2) {
+      const first = event.touches[0];
+      const second = event.touches[1];
+      gestureRef.current = {
+        kind: 'pinch',
+        x: (first.clientX + second.clientX) / 2,
+        y: (first.clientY + second.clientY) / 2,
+        view,
+        distance: Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY)
+      };
+      return;
+    }
+
+    const touch = event.touches[0];
+    if (!touch) return;
+    gestureRef.current = { kind: zoomed ? 'pan' : 'swipe', x: touch.clientX, y: touch.clientY, view, distance: 0 };
+  };
+
+  const touchMove = (event: TouchEvent<HTMLDivElement>) => {
+    const gesture = gestureRef.current;
+    if (!gesture) return;
+
+    if (gesture.kind === 'pinch' && event.touches.length === 2) {
+      const first = event.touches[0];
+      const second = event.touches[1];
+      const distance = Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+      const scale = gesture.view.scale * (distance / (gesture.distance || distance));
+      setView(clampView(zoomAbout(gesture.view, scale, pointIn(gesture.x, gesture.y)), frame()));
+      return;
+    }
+
+    if (gesture.kind === 'pan') {
+      const touch = event.touches[0];
+      if (!touch) return;
+      setView(
+        clampView(
+          {
+            scale: gesture.view.scale,
+            x: gesture.view.x + (touch.clientX - gesture.x),
+            y: gesture.view.y + (touch.clientY - gesture.y)
+          },
+          frame()
+        )
+      );
+    }
+  };
+
+  const touchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    const gesture = gestureRef.current;
+    gestureRef.current = null;
+    if (!gesture || gesture.kind !== 'swipe') return;
+
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+
+    const dx = touch.clientX - gesture.x;
+    const dy = touch.clientY - gesture.y;
+
+    // A tap rather than a drag: two in quick succession are the zoom.
+    if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
+      const now = Date.now();
+      if (now - lastTapRef.current < DOUBLE_TAP_MS) {
+        toggleZoom(pointIn(touch.clientX, touch.clientY));
+        lastTapRef.current = 0;
+      } else {
+        lastTapRef.current = now;
+      }
+      return;
+    }
+
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) go(dx < 0 ? at + 1 : at - 1);
+    else if (dy > 90 && Math.abs(dy) > Math.abs(dx)) onClose();
+  };
 
   return (
     <Fullscreen label="Galeria zdjęć" onClose={onClose}>
-      <div
-        className="ev-viewer"
-        onTouchStart={(event) => {
-          const touch = event.touches[0];
-          touchRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
-        }}
-        onTouchEnd={(event) => {
-          const from = touchRef.current;
-          touchRef.current = null;
-          if (from === null) return;
+      <div className="ev-viewer">
+        <div
+          className="ev-viewer-stage"
+          ref={stageRef}
+          data-zoomed={zoomed}
+          onTouchStart={touchStart}
+          onTouchMove={touchMove}
+          onTouchEnd={touchEnd}
+          onDoubleClick={(event) => toggleZoom(pointIn(event.clientX, event.clientY))}
+          onWheel={(event) => zoomBy(Math.exp(-event.deltaY / 400), pointIn(event.clientX, event.clientY))}
+          onPointerDown={(event) => {
+            // Mouse only: a finger is handled above, and taking both would move
+            // the picture twice as far as it was dragged.
+            if (event.pointerType !== 'mouse' || !zoomed) return;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            gestureRef.current = { kind: 'pan', x: event.clientX, y: event.clientY, view, distance: 0 };
+          }}
+          onPointerMove={(event) => {
+            const gesture = gestureRef.current;
+            if (event.pointerType !== 'mouse' || gesture?.kind !== 'pan') return;
+            setView(
+              clampView(
+                {
+                  scale: gesture.view.scale,
+                  x: gesture.view.x + (event.clientX - gesture.x),
+                  y: gesture.view.y + (event.clientY - gesture.y)
+                },
+                frame()
+              )
+            );
+          }}
+          onPointerUp={() => {
+            if (gestureRef.current?.kind === 'pan') gestureRef.current = null;
+          }}
+        >
+          <img
+            src={picture.url}
+            alt={picture.alt}
+            draggable={false}
+            style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
+          />
+        </div>
 
-          const touch = event.changedTouches[0];
-          if (!touch) return;
-          const dx = touch.clientX - from.x;
-          const dy = touch.clientY - from.y;
-
-          // Sideways moves through the gallery; a downward pull closes it, the
-          // way every photo app on a phone behaves.
-          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) go(dx < 0 ? at + 1 : at - 1);
-          else if (dy > 90 && Math.abs(dy) > Math.abs(dx)) onClose();
-        }}
-      >
-        <figure className="ev-viewer-stage">
-          <img src={picture.url} alt={picture.alt} />
-          {picture.caption || picture.credit ? (
-            <figcaption>
-              {picture.caption}
-              {picture.credit ? <span>Zdjęcie: {picture.credit}</span> : null}
-            </figcaption>
-          ) : null}
-        </figure>
-
-        {count > 1 ? (
+        {/* Hidden while zoomed: at that point a sideways drag is panning, and an
+            arrow under the finger would change the picture instead. */}
+        {count > 1 && !zoomed ? (
           <>
             <button type="button" className="ev-viewer-step is-back" aria-label="Poprzednie" onClick={() => go(at - 1)}>
               ‹
@@ -476,33 +627,54 @@ function Viewer({
           </>
         ) : null}
 
-        <div className="ev-viewer-bar">
-          <span className="ev-viewer-count">
-            {at + 1} / {count}
-          </span>
+        <div className="ev-viewer-foot">
+          {picture.caption || picture.credit ? (
+            <p className="ev-viewer-caption">
+              {picture.caption}
+              {picture.credit ? <span>Zdjęcie: {picture.credit}</span> : null}
+            </p>
+          ) : null}
 
-          {mayManage && picture.photoId !== null ? (
-            <button type="button" className="ev-ghost" onClick={() => onRemove(picture.photoId as string)}>
-              Usuń zdjęcie
-            </button>
+          <div className="ev-viewer-bar">
+            <span className="ev-viewer-count">
+              {at + 1} / {count}
+            </span>
+
+            <span className="ev-viewer-zoom">
+              <button type="button" aria-label="Pomniejsz" onClick={() => zoomBy(1 / 1.4, { x: 0, y: 0 })}>
+                −
+              </button>
+              <button type="button" onClick={() => setView(FIT)} disabled={!zoomed}>
+                {Math.round(view.scale * 100)}%
+              </button>
+              <button type="button" aria-label="Powiększ" onClick={() => zoomBy(1.4, { x: 0, y: 0 })}>
+                +
+              </button>
+            </span>
+
+            {mayManage && picture.photoId !== null ? (
+              <button type="button" className="ev-ghost" onClick={() => onRemove(picture.photoId as string)}>
+                Usuń zdjęcie
+              </button>
+            ) : null}
+          </div>
+
+          {count > 1 ? (
+            <div className="ev-viewer-strip" ref={stripRef}>
+              {pictures.map((entry, index) => (
+                <button
+                  type="button"
+                  key={entry.key}
+                  data-active={index === at}
+                  aria-label={`Zdjęcie ${index + 1}`}
+                  onClick={() => go(index)}
+                >
+                  <img src={entry.url} alt="" loading="lazy" />
+                </button>
+              ))}
+            </div>
           ) : null}
         </div>
-
-        {count > 1 ? (
-          <div className="ev-viewer-strip" ref={stripRef}>
-            {pictures.map((entry, index) => (
-              <button
-                type="button"
-                key={entry.key}
-                data-active={index === at}
-                aria-label={`Zdjęcie ${index + 1}`}
-                onClick={() => go(index)}
-              >
-                <img src={entry.url} alt="" loading="lazy" />
-              </button>
-            ))}
-          </div>
-        ) : null}
 
         <div className="ev-viewer-preload" aria-hidden="true">
           {neighbours.map((entry) => (
