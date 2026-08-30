@@ -146,6 +146,18 @@ function Gallery({
   /** The picture the viewer opened on, by key — the two orders differ. */
   const [open, setOpen] = useState<string | null>(null);
   const [front, setFront] = useState(0);
+  /**
+   * How far somebody has walked the ring, and whether they ever opened it.
+   *
+   * The hint is for the person who takes the carousel for the whole gallery:
+   * they step past three or four pictures with the arrows and never think to
+   * click one. Saying it straight away would be noise for everybody else —
+   * most people click the big picture within seconds — so it waits until the
+   * stepping itself shows that it is needed, and never returns once the
+   * gallery has been opened.
+   */
+  const [steps, setSteps] = useState(0);
+  const [everOpened, setEverOpened] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [seed] = useState(() => Math.floor(Math.random() * 2 ** 31) || 1);
@@ -278,6 +290,9 @@ function Gallery({
   // The carousel hands back a key; the viewer needs its place in the other order.
   const openAt = open === null ? -1 : pictures.findIndex((picture) => picture.key === open);
 
+  /** Three steps without opening anything: that is the misunderstanding, quietly. */
+  const showHint = !everOpened && steps >= 3 && pictures.length > 1;
+
   if (pictures.length === 0) {
     return (
       <div className="ev-gallery">
@@ -290,7 +305,19 @@ function Gallery({
 
   return (
     <div className="ev-gallery">
-      <Carousel pictures={ring} front={front} onFront={setFront} onOpen={setOpen} />
+      <Carousel
+        pictures={ring}
+        front={front}
+        hint={showHint}
+        onFront={(index) => {
+          setFront(index);
+          setSteps((current) => current + 1);
+        }}
+        onOpen={(key) => {
+          setEverOpened(true);
+          setOpen(key);
+        }}
+      />
 
       {invite}
       {error ? <p className="ev-error">{error}</p> : null}
@@ -318,11 +345,14 @@ function Gallery({
 function Carousel({
   pictures,
   front,
+  hint,
   onFront,
   onOpen
 }: {
   pictures: Picture[];
   front: number;
+  /** Whether to fade in the line about what a click does. */
+  hint: boolean;
   onFront: (index: number) => void;
   onOpen: (key: string) => void;
 }) {
@@ -397,11 +427,12 @@ function Carousel({
         {pictures[front]?.credit ? <span> · {pictures[front]?.credit}</span> : null}
       </p>
 
-      {/* The carousel shows five at most, so the size of what is behind it is
-          invisible — and so is the fact that a click opens it. Somebody who
-          steps through three pictures with the arrows has no way of knowing
-          either, which is exactly when this is worth saying. */}
-      <p className="ev-carousel-hint">
+      {/* The carousel shows five at most, so neither the size of what is behind
+          it nor the fact that a click opens it is visible. The line keeps its
+          space whether or not it is showing, so fading in moves nothing on the
+          page — a hint that shoves the slide down as it arrives is exactly the
+          kind of help nobody asked for. */}
+      <p className="ev-carousel-hint" data-show={hint} aria-hidden={!hint}>
         Kliknij zdjęcie, żeby otworzyć całą galerię — {photoCount(count)}
       </p>
     </div>
