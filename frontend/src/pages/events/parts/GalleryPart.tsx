@@ -158,6 +158,9 @@ function Gallery({
    */
   const [steps, setSteps] = useState(0);
   const [everOpened, setEverOpened] = useState(false);
+  const [hint, setHint] = useState(false);
+  /** The step count at which the hint is due again. */
+  const dueRef = useRef(3);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [seed] = useState(() => Math.floor(Math.random() * 2 ** 31) || 1);
@@ -174,6 +177,7 @@ function Gallery({
   useEffect(() => {
     void load();
   }, [load]);
+
 
   const pictures = useMemo(() => {
     const own: Picture[] = config.shots
@@ -221,6 +225,29 @@ function Gallery({
     () => (config.shuffle ? shuffled(pictures, seed) : pictures),
     [pictures, config.shuffle, seed]
   );
+
+  /**
+   * The hint comes and goes.
+   *
+   * Three steps through the ring without opening anything is somebody who takes
+   * the carousel for the whole gallery, so it says so — over the picture, where
+   * it cannot fall below the bottom of a phone screen — and then leaves after a
+   * few seconds, because a line that stays is furniture rather than help. If
+   * they keep stepping without ever opening a picture it returns, a few
+   * photographs later. Opening the gallery ends it for good: the point is made.
+   */
+  useEffect(() => {
+    if (everOpened || pictures.length < 2 || steps < dueRef.current) return;
+
+    setHint(true);
+    const timer = window.setTimeout(() => {
+      setHint(false);
+      dueRef.current = steps + HINT_AGAIN_AFTER;
+    }, HINT_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [steps, everOpened, pictures.length]);
+
 
   // The front picture must stay inside the set as pictures arrive or leave.
   useEffect(() => {
@@ -290,8 +317,7 @@ function Gallery({
   // The carousel hands back a key; the viewer needs its place in the other order.
   const openAt = open === null ? -1 : pictures.findIndex((picture) => picture.key === open);
 
-  /** Three steps without opening anything: that is the misunderstanding, quietly. */
-  const showHint = !everOpened && steps >= 3 && pictures.length > 1;
+
 
   if (pictures.length === 0) {
     return (
@@ -308,13 +334,14 @@ function Gallery({
       <Carousel
         pictures={ring}
         front={front}
-        hint={showHint}
+        hint={hint}
         onFront={(index) => {
           setFront(index);
           setSteps((current) => current + 1);
         }}
         onOpen={(key) => {
           setEverOpened(true);
+          setHint(false);
           setOpen(key);
         }}
       />
@@ -411,7 +438,16 @@ function Carousel({
             <img src={picture.url} alt={picture.alt} loading="lazy" draggable={false} />
           </button>
         ))}
+
+        {/* Over the front picture, not under the carousel: below the slide, on a
+            phone, the line can sit past the bottom of the screen — which is the
+            one place a hint is no use at all. It takes no layout space and no
+            clicks, so the picture underneath still opens on the tap aimed at it. */}
+        <p className="ev-carousel-hint" data-show={hint} aria-hidden={!hint}>
+          Kliknij zdjęcie, żeby otworzyć całą galerię — {photoCount(count)}
+        </p>
       </div>
+
 
       <button
         type="button"
@@ -425,15 +461,6 @@ function Carousel({
       <p className="ev-carousel-caption">
         {pictures[front]?.caption ?? ''}
         {pictures[front]?.credit ? <span> · {pictures[front]?.credit}</span> : null}
-      </p>
-
-      {/* The carousel shows five at most, so neither the size of what is behind
-          it nor the fact that a click opens it is visible. The line keeps its
-          space whether or not it is showing, so fading in moves nothing on the
-          page — a hint that shoves the slide down as it arrives is exactly the
-          kind of help nobody asked for. */}
-      <p className="ev-carousel-hint" data-show={hint} aria-hidden={!hint}>
-        Kliknij zdjęcie, żeby otworzyć całą galerię — {photoCount(count)}
       </p>
     </div>
   );
@@ -456,6 +483,15 @@ function Carousel({
  */
 /** Two taps closer together than this are one gesture: the zoom. */
 const DOUBLE_TAP_MS = 300;
+
+/** How long the picture is left alone before the furniture fades away. */
+const IDLE_MS = 2600;
+
+/** How long the carousel's hint stays up once it has said its piece. */
+const HINT_MS = 5000;
+
+/** How many pictures go by before it is worth saying again. */
+const HINT_AGAIN_AFTER = 4;
 
 type Gesture = { kind: 'swipe' | 'pan' | 'pinch'; x: number; y: number; view: View; distance: number };
 
@@ -489,14 +525,43 @@ function Viewer({
    */
   const pointerKindRef = useRef<string>('mouse');
 
+  /**
+   * The furniture, and when it gets out of the way.
+   *
+   * Every photograph application does this and it is noticed only in the
+   * breach: the counter, the arrows, the caption and the strip fade out a few
+   * seconds after the last movement, so what is left on the screen is the
+   * picture. Anything at all — a moved mouse, a finger, a key, a new picture —
+   * brings them back. On a phone held sideways this is the difference between
+   * looking at a photograph and looking at a photograph in a frame of buttons.
+   */
+  const [chrome, setChrome] = useState(true);
+  const idleRef = useRef<number | null>(null);
+  const tapRef = useRef<number | null>(null);
+
+  const wake = useCallback(() => {
+    setChrome(true);
+    if (idleRef.current !== null) window.clearTimeout(idleRef.current);
+    idleRef.current = window.setTimeout(() => setChrome(false), IDLE_MS);
+  }, []);
+
+  useEffect(() => {
+    wake();
+    return () => {
+      if (idleRef.current !== null) window.clearTimeout(idleRef.current);
+      if (tapRef.current !== null) window.clearTimeout(tapRef.current);
+    };
+  }, [wake]);
+
   const count = pictures.length;
 
   const go = useCallback((next: number) => {
     setAt(((next % count) + count) % count);
+    wake();
     // A new picture arrives fitted: carrying a zoom across would drop somebody
     // into the middle of a photograph they have not seen yet.
     setView(FIT);
-  }, [count]);
+  }, [count, wake]);
 
   const frame = () => {
     const box = stageRef.current?.getBoundingClientRect();
@@ -526,12 +591,13 @@ function Viewer({
       else if (event.key === '-') zoomBy(1 / 1.4, { x: 0, y: 0 });
       else if (event.key === '0') setView(FIT);
       else return;
+      wake();
       event.preventDefault();
     };
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [at, count, go]);
+  }, [at, count, go, wake]);
 
   useEffect(() => {
     const active = stripRef.current?.querySelector('[data-active="true"]');
@@ -603,25 +669,44 @@ function Viewer({
     const dx = touch.clientX - gesture.x;
     const dy = touch.clientY - gesture.y;
 
-    // A tap rather than a drag: two in quick succession are the zoom.
+    // A tap rather than a drag. One shows or hides the furniture, two are the
+    // zoom — so the first one waits to see whether a second is coming, or the
+    // screen would flicker on every double-tap.
     if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
       const now = Date.now();
+
       if (now - lastTapRef.current < DOUBLE_TAP_MS) {
-        toggleZoom(pointIn(touch.clientX, touch.clientY));
+        if (tapRef.current !== null) window.clearTimeout(tapRef.current);
+        tapRef.current = null;
         lastTapRef.current = 0;
-      } else {
-        lastTapRef.current = now;
+        toggleZoom(pointIn(touch.clientX, touch.clientY));
+        wake();
+        return;
       }
+
+      lastTapRef.current = now;
+      tapRef.current = window.setTimeout(() => {
+        tapRef.current = null;
+        setChrome((visible) => !visible);
+        if (idleRef.current !== null) window.clearTimeout(idleRef.current);
+        idleRef.current = window.setTimeout(() => setChrome(false), IDLE_MS);
+      }, DOUBLE_TAP_MS);
       return;
     }
 
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) go(dx < 0 ? at + 1 : at - 1);
     else if (dy > 90 && Math.abs(dy) > Math.abs(dx)) onClose();
+    else wake();
   };
 
   return (
     <Fullscreen label="Galeria zdjęć" onClose={onClose}>
-      <div className="ev-viewer">
+      <div className="ev-viewer" data-chrome={chrome} onPointerMove={wake} onFocusCapture={wake}>
+        {/* The picture owns the whole layer, in either orientation: everything
+            else floats over it. Giving the caption and the strip rows of their
+            own cost a portrait photograph a third of its height and a landscape
+            one most of its width — and on a phone turned sideways there is
+            nothing left to look at. */}
         <div
           className="ev-viewer-stage"
           ref={stageRef}
@@ -669,8 +754,10 @@ function Viewer({
           />
         </div>
 
-        {/* Hidden while zoomed: at that point a sideways drag is panning, and an
-            arrow under the finger would change the picture instead. */}
+        {/* Half off the edge, and fully out on hover or focus: two thirds of an
+            arrow is plenty to aim at, and the third that is missing is picture
+            the reader gets to keep. Hidden while zoomed, where a sideways drag
+            means panning. */}
         {count > 1 && !zoomed ? (
           <>
             <button type="button" className="ev-viewer-step is-back" aria-label="Poprzednie" onClick={() => go(at - 1)}>
@@ -682,6 +769,30 @@ function Viewer({
           </>
         ) : null}
 
+        <div className="ev-viewer-top">
+          <span className="ev-viewer-count">
+            {at + 1} / {count}
+          </span>
+
+          <span className="ev-viewer-zoom">
+            <button type="button" aria-label="Pomniejsz" onClick={() => zoomBy(1 / 1.4, { x: 0, y: 0 })}>
+              −
+            </button>
+            <button type="button" onClick={() => setView(FIT)} disabled={!zoomed}>
+              {Math.round(view.scale * 100)}%
+            </button>
+            <button type="button" aria-label="Powiększ" onClick={() => zoomBy(1.4, { x: 0, y: 0 })}>
+              +
+            </button>
+          </span>
+
+          {mayManage && picture.photoId !== null ? (
+            <button type="button" className="ev-ghost" onClick={() => onRemove(picture.photoId as string)}>
+              Usuń zdjęcie
+            </button>
+          ) : null}
+        </div>
+
         <div className="ev-viewer-foot">
           {picture.caption || picture.credit ? (
             <p className="ev-viewer-caption">
@@ -689,30 +800,6 @@ function Viewer({
               {picture.credit ? <span>Zdjęcie: {picture.credit}</span> : null}
             </p>
           ) : null}
-
-          <div className="ev-viewer-bar">
-            <span className="ev-viewer-count">
-              {at + 1} / {count}
-            </span>
-
-            <span className="ev-viewer-zoom">
-              <button type="button" aria-label="Pomniejsz" onClick={() => zoomBy(1 / 1.4, { x: 0, y: 0 })}>
-                −
-              </button>
-              <button type="button" onClick={() => setView(FIT)} disabled={!zoomed}>
-                {Math.round(view.scale * 100)}%
-              </button>
-              <button type="button" aria-label="Powiększ" onClick={() => zoomBy(1.4, { x: 0, y: 0 })}>
-                +
-              </button>
-            </span>
-
-            {mayManage && picture.photoId !== null ? (
-              <button type="button" className="ev-ghost" onClick={() => onRemove(picture.photoId as string)}>
-                Usuń zdjęcie
-              </button>
-            ) : null}
-          </div>
 
           {count > 1 ? (
             <div className="ev-viewer-strip" ref={stripRef}>

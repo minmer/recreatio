@@ -1190,32 +1190,41 @@
   opacity: 0.75;
 }
 
-/* Waits until somebody has stepped through the ring a few times without opening
-   it, then arrives: a short rise and a fade, no more. The line holds its space
-   at all times, so nothing on the slide moves when it appears — a hint that
-   shoves the page down as it arrives is the kind of help nobody asked for. */
+/* Over the front picture, not under the carousel: below the slide the line can
+   sit past the bottom edge of a phone, which is the one place a hint is no use
+   at all. It takes no layout space and swallows no clicks, so the picture
+   underneath still opens on the tap that was aimed at it. */
 .ev-carousel-hint {
-  grid-column: 1 / -1;
+  position: absolute;
+  left: 50%;
+  bottom: 0.9rem;
+  z-index: 4;
+  max-width: min(88%, 26rem);
   margin: 0;
-  min-height: 1.15rem;
-  color: var(--ev-muted);
-  font-size: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 0.42rem 1rem;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 0.84rem;
   text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
   opacity: 0;
-  transform: translateY(5px);
-  transition: opacity 520ms ease, transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translate(-50%, 8px);
+  transition: opacity 420ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
 }
 
 .ev-carousel-hint[data-show='true'] {
-  opacity: 0.9;
-  transform: translateY(0);
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 /* Somebody who asked for less movement gets the words without the travel. */
 @media (prefers-reduced-motion: reduce) {
   .ev-carousel-hint {
-    transform: none;
+    transform: translate(-50%, 0);
     transition: opacity 200ms ease;
   }
 }
@@ -1240,25 +1249,28 @@
   font-size: 0.8rem;
 }
 
-/* The opened gallery. Two rows: the picture takes everything the furniture
-   below does not, which is what actually centres it — a caption inside the
-   picture's own box pushes the image off the middle by half its height. */
+/* The opened gallery.
+   
+   The picture takes the entire layer in both orientations and everything else
+   floats over it. Rows of their own cost a portrait photograph a third of its
+   height and a phone held sideways nearly all of it — which is the one thing a
+   full-screen viewer must not do. The chrome carries a scrim and a shadow
+   instead, so it stays legible over a white sky and a black cassock alike, and
+   it fades away a few seconds after the last movement. */
 .ev-viewer {
-  position: relative;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 
 .ev-viewer-stage {
-  position: relative;
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 0;
-  padding: clamp(0.5rem, 2vw, 1.5rem);
-  overflow: hidden;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   /* The finger zooms and pans here; the browser must not also scroll the page
      underneath, or a pinch turns into a page zoom. */
   touch-action: none;
@@ -1276,7 +1288,6 @@
 .ev-viewer-stage img {
   max-width: 100%;
   max-height: 100%;
-  border-radius: 6px;
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
@@ -1284,49 +1295,66 @@
   will-change: transform;
 }
 
-/* No animation while a finger is on it — a transition would lag behind the
-   pinch. The snap back to fitted is quick enough to read as a snap. */
 .ev-viewer-stage[data-zoomed='false'] img {
   transition: transform 180ms ease-out;
 }
 
+/* Chrome: over the picture, and out of the way when nothing is happening. */
+.ev-viewer-top,
+.ev-viewer-foot,
 .ev-viewer-step {
-  position: absolute;
-  top: 50%;
   z-index: 2;
-  width: 3rem;
-  height: 3rem;
-  margin-top: -1.5rem;
-  border: 1px solid var(--ev-line);
-  border-radius: 50%;
-  background: var(--ev-chrome-2);
-  color: var(--ev-ink);
-  font-size: 1.8rem;
-  line-height: 1;
-  cursor: pointer;
+  transition: opacity 260ms ease, transform 260ms ease;
 }
 
-.ev-viewer-step.is-back {
-  left: 0.6rem;
+.ev-viewer[data-chrome='false'] .ev-viewer-top,
+.ev-viewer[data-chrome='false'] .ev-viewer-foot,
+.ev-viewer[data-chrome='false'] .ev-viewer-step {
+  opacity: 0;
+  pointer-events: none;
 }
 
-.ev-viewer-step.is-next {
-  right: 0.6rem;
+.ev-viewer[data-chrome='false'] .ev-viewer-top {
+  transform: translateY(-0.5rem);
+}
+
+.ev-viewer[data-chrome='false'] .ev-viewer-foot {
+  transform: translateY(0.5rem);
+}
+
+.ev-viewer-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  /* Clear of the close button, which the layer puts in the top right. */
+  padding: max(0.7rem, env(safe-area-inset-top, 0px)) 4rem 2.5rem
+    max(0.9rem, env(safe-area-inset-left, 0px));
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
 .ev-viewer-foot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
   display: grid;
   gap: 0.3rem;
-  padding-bottom: max(0.4rem, env(safe-area-inset-bottom, 0px));
-  background: var(--ev-chrome);
+  padding: 2.5rem 0 max(0.5rem, env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
 }
 
 .ev-viewer-caption {
   display: grid;
   gap: 0.1rem;
   margin: 0;
-  padding: 0.5rem 1rem 0;
+  padding: 0 1rem;
   text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
 .ev-viewer-caption span {
@@ -1334,26 +1362,19 @@
   font-size: 0.82rem;
 }
 
-.ev-viewer-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.7rem;
-  padding: 0.35rem 1rem;
-}
-
 .ev-viewer-count {
-  color: var(--ev-muted);
+  color: var(--ev-ink);
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 
 .ev-viewer-zoom {
   display: inline-flex;
   align-items: center;
-  border: 1px solid var(--ev-line-2);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
   overflow: hidden;
 }
 
@@ -1370,7 +1391,7 @@
 }
 
 .ev-viewer-zoom button:hover:not(:disabled) {
-  background: var(--ev-surface-3);
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .ev-viewer-zoom button:disabled {
@@ -1378,24 +1399,62 @@
   cursor: default;
 }
 
+/* Half off the edge: two thirds of an arrow is plenty to aim at, and the third
+   that is missing is picture the reader gets to keep. It slides fully in when
+   pointed at or reached by keyboard. */
+.ev-viewer-step {
+  position: absolute;
+  top: 50%;
+  width: 3.4rem;
+  height: 3.4rem;
+  margin-top: -1.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.42);
+  color: #fff;
+  font-size: 1.9rem;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(3px);
+  transition: opacity 260ms ease, transform 200ms ease, background-color 200ms ease;
+}
+
+.ev-viewer-step.is-back {
+  left: max(0px, env(safe-area-inset-left, 0px));
+  transform: translateX(-42%);
+}
+
+.ev-viewer-step.is-next {
+  right: max(0px, env(safe-area-inset-right, 0px));
+  transform: translateX(42%);
+}
+
+.ev-viewer-step.is-back:hover,
+.ev-viewer-step.is-back:focus-visible,
+.ev-viewer-step.is-next:hover,
+.ev-viewer-step.is-next:focus-visible {
+  transform: translateX(0);
+  background: rgba(0, 0, 0, 0.62);
+}
+
 .ev-viewer-strip {
   display: flex;
   gap: 0.35rem;
-  padding: 0.2rem 0.8rem 0.5rem;
+  padding: 0.2rem 0.8rem 0.4rem;
   overflow-x: auto;
   scrollbar-width: thin;
 }
 
 .ev-viewer-strip button {
   flex: none;
-  width: 4.5rem;
-  height: 3.2rem;
+  width: 4.2rem;
+  height: 3rem;
   border: 2px solid transparent;
   border-radius: 6px;
   padding: 0;
   background: none;
   cursor: pointer;
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
 .ev-viewer-strip button[data-active='true'] {
@@ -1419,21 +1478,45 @@
   pointer-events: none;
 }
 
+/* A phone on its side has about 350px of height for everything. The strip is
+   the first thing to go: it is a convenience, and here it would take a third of
+   the photograph. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .ev-viewer-strip {
+    display: none;
+  }
+
+  .ev-viewer-top {
+    padding-bottom: 1.4rem;
+  }
+
+  .ev-viewer-foot {
+    padding-top: 1.4rem;
+  }
+
+  .ev-viewer-caption {
+    font-size: 0.85rem;
+  }
+}
+
 @media (max-width: 640px) {
   .ev-carousel-slot {
     width: min(78%, 22rem);
   }
 
   .ev-viewer-step {
-    width: 2.4rem;
-    height: 2.4rem;
-    margin-top: -1.2rem;
-    font-size: 1.4rem;
+    width: 2.9rem;
+    height: 2.9rem;
+    margin-top: -1.45rem;
+    font-size: 1.5rem;
   }
+}
 
-  .ev-viewer-strip button {
-    width: 3.4rem;
-    height: 2.5rem;
+@media (prefers-reduced-motion: reduce) {
+  .ev-viewer-top,
+  .ev-viewer-foot,
+  .ev-viewer-step {
+    transition: opacity 150ms ease;
   }
 }
 
@@ -4196,6 +4279,12 @@
 .ev-layer-full {
   position: fixed;
   inset: 0;
+  /* inset alone resolves against the layout viewport, which on a phone extends
+     behind the browser toolbar — the bottom of a full-screen picture then sits
+     under it. dvh is the height actually on screen at this moment; the vh line
+     above it is what older engines fall back to. */
+  height: 100vh;
+  height: 100dvh;
   z-index: 120;
   background: var(--ev-ground, #080d15);
   color: var(--ev-ink, #eef2f8);
