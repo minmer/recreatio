@@ -235,6 +235,7 @@ public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefi
     public DbSet<Data.Events.EventRegistrationValue> EventRegistrationValues => Set<Data.Events.EventRegistrationValue>();
     public DbSet<Data.Events.EventImage> EventImages => Set<Data.Events.EventImage>();
     public DbSet<Data.Events.EventDocument> EventDocuments => Set<Data.Events.EventDocument>();
+    public DbSet<Data.Events.EventGalleryPhoto> EventGalleryPhotos => Set<Data.Events.EventGalleryPhoto>();
     public DbSet<Data.Events.EventAccessLink> EventAccessLinks => Set<Data.Events.EventAccessLink>();
     public DbSet<Data.Events.EventAccessLinkPage> EventAccessLinkPages => Set<Data.Events.EventAccessLinkPage>();
     public DbSet<Data.Events.EventAccessLinkAssignment> EventAccessLinkAssignments => Set<Data.Events.EventAccessLinkAssignment>();

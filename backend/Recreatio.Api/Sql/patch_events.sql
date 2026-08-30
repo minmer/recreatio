@@ -606,3 +606,44 @@ BEGIN
         ON events.EventDocuments(SiteId, CreatedUtc DESC);
 END
 GO
+
+-- ── Photographs participants add to a gallery slide ─────────────────────────
+-- Somebody else's picture, attached to one slide and to the link it came
+-- through. Kept apart from EventImages, which is the organizer's own library:
+-- this one carries who sent it, because a picture nobody can be asked about is
+-- a picture nobody can take down.
+IF OBJECT_ID(N'events.EventGalleryPhotos', N'U') IS NULL
+BEGIN
+    CREATE TABLE events.EventGalleryPhotos
+    (
+        Id           UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_EventGalleryPhotos PRIMARY KEY,
+        SiteId       UNIQUEIDENTIFIER NOT NULL,
+        PartId       UNIQUEIDENTIFIER NOT NULL,
+        AccessLinkId UNIQUEIDENTIFIER NOT NULL,
+        UploaderName NVARCHAR(200)    NOT NULL,
+        FileName     NVARCHAR(200)    NOT NULL,
+        ContentType  NVARCHAR(80)     NOT NULL,
+        ByteSize     INT              NOT NULL,
+        Width        INT              NOT NULL CONSTRAINT DF_EventGalleryPhotos_W DEFAULT(0),
+        Height       INT              NOT NULL CONSTRAINT DF_EventGalleryPhotos_H DEFAULT(0),
+        Data         VARBINARY(MAX)   NOT NULL,
+        Caption      NVARCHAR(300)    NULL,
+        CreatedUtc   DATETIMEOFFSET   NOT NULL,
+        CONSTRAINT FK_EventGalleryPhotos_Part
+            FOREIGN KEY (PartId) REFERENCES events.EventParts(Id),
+        CONSTRAINT FK_EventGalleryPhotos_Link
+            FOREIGN KEY (AccessLinkId) REFERENCES events.EventAccessLinks(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_EventGalleryPhotos_PartId_CreatedUtc'
+      AND object_id = OBJECT_ID('events.EventGalleryPhotos')
+)
+BEGIN
+    CREATE INDEX IX_EventGalleryPhotos_PartId_CreatedUtc
+        ON events.EventGalleryPhotos(PartId, CreatedUtc DESC);
+END
+GO

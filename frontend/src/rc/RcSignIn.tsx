@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { rcCopy, rcFormat, type RcLang } from './i18n';
 import { RcRequestError } from './lib/rcApi';
+import { rcEntryCheck, type RcEntry } from './lib/rcBoot';
 import {
   rcHasUnlockPiece,
   rcLock,
@@ -30,28 +31,47 @@ import {
 
 type Phase = 'idle' | 'deriving' | 'sending';
 
-export function RcSignIn({ lang, onReady }: { lang: RcLang; onReady?: (ready: boolean) => void }) {
-  const t = rcCopy[lang].auth;
+export interface RcSignInProps {
+  readonly lang: RcLang;
+  /**
+   * Wer hier ist — kommt vom Eintritt und nicht mehr von hier.
+   *
+   * Diese Auskunft wurde einmal in diesem Bauteil geholt, beim Einhängen.
+   * Solange das Formular immer auf der Seite stand, fiel das nicht auf: die
+   * Frage wurde bei jedem Aufruf gestellt, weil das Formular bei jedem Aufruf
+   * da war. Sobald es hinter einen Knopf wandert, verschwände die Frage mit
+   * ihm — und die Kopfleiste wüsste nicht mehr, wen sie vor sich hat. Deshalb
+   * steht sie jetzt im Eintritt (`rcBoot.ts`).
+   */
+  readonly entry: RcEntry<RcMeState>;
+  readonly onEntry: (entry: RcEntry<RcMeState>) => void;
+  readonly onReady?: (ready: boolean) => void;
+}
 
-  const [me, setMe] = useState<RcMeState | null>(null);
+export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
+  const t = rcCopy[lang].auth;
+  const tr = rcCopy[lang].route;
+
+  const me = entry.kind === 'signed-in' ? entry.who : null;
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
 
+  /** Nach jeder Handlung neu fragen — und auf demselben Weg wie beim Eintritt. */
   const refresh = useCallback(async () => {
-    try {
-      setMe(await rcMe());
-    } catch {
-      // Kein Dienst erreichbar ist ein anderer Zustand als „nicht angemeldet".
-      // Er wird hier nicht zu einem Anmeldefehler verbogen.
-      setMe(null);
-    }
-  }, []);
+    onEntry({ kind: 'checking' });
+    onEntry(await rcEntryCheck(rcMe));
+  }, [onEntry]);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  /**
+   * Der Rückfall aus `rcBoot.ts`: wurde beim Eintritt nicht gefragt, wird es
+   * hier nachgeholt — sobald jemand das Formular anfasst, ohne dass er dafür
+   * ein zweites Mal drücken muss.
+   */
+  const wake = useCallback(() => {
+    if (entry.kind === 'unasked') void refresh();
+  }, [entry.kind, refresh]);
 
   const describe = (e: unknown): string => {
     if (e instanceof RcRequestError) return t.errors[e.code] ?? t.unknownError;
@@ -135,12 +155,17 @@ export function RcSignIn({ lang, onReady }: { lang: RcLang; onReady?: (ready: bo
     );
   }
 
-  const busy = phase !== 'idle';
+  const busy = phase !== 'idle' || entry.kind === 'checking';
   const canSubmit = username.trim().length >= 3 && password.length > 0 && !busy;
 
   return (
     <form
       className="rc-auth"
+      // Der Rückfall hängt am ERSTEN Anfassen und nicht am Absenden: bis das
+      // Passwort getippt ist, ist die Antwort längst da, und wer bereits
+      // angemeldet war, sieht es, bevor er seinen Namen eingibt.
+      onFocusCapture={wake}
+      onPointerDown={wake}
       onSubmit={(e) => {
         e.preventDefault();
         if (canSubmit) void submit('unlock');
@@ -183,7 +208,12 @@ export function RcSignIn({ lang, onReady }: { lang: RcLang; onReady?: (ready: bo
       </div>
 
       {phase === 'deriving' && <p className="rc-note">{t.derivingWhy}</p>}
-      {phase === 'idle' && <p className="rc-note">{t.signUpHint}</p>}
+      {phase === 'idle' && entry.kind !== 'checking' && <p className="rc-note">{t.signUpHint}</p>}
+      {entry.kind === 'checking' && <p className="rc-note">{tr.checking}</p>}
+
+      {/* Ein stummer Dienst ist kein Anmeldefehler und wird auch nicht als
+          einer angezeigt — hier steht, was wirklich los ist. */}
+      {entry.kind === 'unreachable' && <p className="rc-note">{tr.unreachable}</p>}
       {error !== null && <p className="rc-auth-error">{error}</p>}
     </form>
   );

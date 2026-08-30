@@ -1083,86 +1083,261 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Gallery ─────────────────────────────────────────────── */
+/* ── Gallery: carousel and full-screen viewer ─────────────── */
 
-.ev-gallery-grid {
+.ev-carousel {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr));
-  gap: 0.45rem;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-.ev-gallery-grid button {
+.ev-carousel-stage {
   position: relative;
-  border: 1px solid var(--ev-line);
-  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  height: min(52vh, 420px);
+  overflow: hidden;
+  /* The finger belongs to the ring here, not to the page. */
+  touch-action: pan-y;
+}
+
+/* Every picture sits in the middle and is pushed aside by its offset, so the
+   ring is one rule rather than five. */
+.ev-carousel-slot {
+  position: absolute;
+  width: min(62%, 30rem);
+  height: 100%;
+  border: 0;
   padding: 0;
   background: none;
-  overflow: hidden;
   cursor: pointer;
-  aspect-ratio: 4 / 3;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease, filter 320ms ease;
 }
 
-.ev-gallery-grid img {
+.ev-carousel-slot img {
   width: 100%;
   height: 100%;
+  border-radius: 12px;
   object-fit: cover;
-  display: block;
+  box-shadow: 0 12px 32px var(--ev-shade);
 }
 
-.ev-gallery-grid span {
+.ev-carousel-slot[data-offset='0'] {
+  z-index: 3;
+  transform: translateX(0) scale(1);
+  opacity: 1;
+}
+
+.ev-carousel-slot[data-offset='-1'],
+.ev-carousel-slot[data-offset='1'] {
+  z-index: 2;
+  opacity: 0.55;
+  filter: saturate(0.8);
+}
+
+.ev-carousel-slot[data-offset='-1'] {
+  transform: translateX(-46%) scale(0.82);
+}
+
+.ev-carousel-slot[data-offset='1'] {
+  transform: translateX(46%) scale(0.82);
+}
+
+.ev-carousel-slot[data-offset='-2'],
+.ev-carousel-slot[data-offset='2'] {
+  z-index: 1;
+  opacity: 0.26;
+  filter: saturate(0.6);
+}
+
+.ev-carousel-slot[data-offset='-2'] {
+  transform: translateX(-80%) scale(0.66);
+}
+
+.ev-carousel-slot[data-offset='2'] {
+  transform: translateX(80%) scale(0.66);
+}
+
+.ev-carousel-step {
+  z-index: 4;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 50%;
+  background: var(--ev-chrome);
+  color: var(--ev-ink);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ev-carousel-step:hover {
+  background: var(--ev-surface-3);
+}
+
+.ev-carousel-caption {
+  grid-column: 1 / -1;
+  margin: 0;
+  min-height: 1.4em;
+  color: var(--ev-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.ev-carousel-caption span {
+  opacity: 0.75;
+}
+
+.ev-gallery-invite {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+  border: 1px dashed var(--ev-line-2);
+  border-radius: 12px;
+  padding: 0.9rem;
+  text-align: center;
+}
+
+.ev-gallery-invite p {
+  margin: 0;
+}
+
+.ev-gallery-invite small {
+  color: var(--ev-muted);
+  font-size: 0.8rem;
+}
+
+/* The opened gallery. */
+.ev-viewer {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  width: 100%;
+  height: 100%;
+  touch-action: pan-y;
+}
+
+.ev-viewer-stage {
+  display: grid;
+  place-items: center;
+  margin: 0;
+  min-height: 0;
+  padding: 1rem;
+}
+
+.ev-viewer-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.ev-viewer-stage figcaption {
+  display: grid;
+  gap: 0.15rem;
+  margin-top: 0.6rem;
+  color: var(--ev-ink);
+  text-align: center;
+}
+
+.ev-viewer-stage figcaption span {
+  color: var(--ev-muted);
+  font-size: 0.82rem;
+}
+
+.ev-viewer-step {
   position: absolute;
-  inset: auto 0 0 0;
-  padding: 0.35rem 0.5rem;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.82));
-  color: #fff;
-  font-size: 0.78rem;
-  text-align: left;
+  top: 50%;
+  z-index: 2;
+  width: 3rem;
+  height: 3rem;
+  margin-top: -1.5rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 50%;
+  background: var(--ev-chrome-2);
+  color: var(--ev-ink);
+  font-size: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
 }
 
-.ev-lightbox {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
+.ev-viewer-step.is-back {
+  left: 0.6rem;
+}
+
+.ev-viewer-step.is-next {
+  right: 0.6rem;
+}
+
+.ev-viewer-bar {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(1rem, 5vw, 3rem);
-  background: rgba(4, 7, 12, 0.94);
+  gap: 0.8rem;
+  padding: 0.3rem 1rem;
 }
 
-.ev-lightbox figure {
-  margin: 0;
-  max-width: 100%;
-  max-height: 100%;
-  display: grid;
-  gap: 0.6rem;
-}
-
-.ev-lightbox img {
-  max-width: 100%;
-  max-height: 78vh;
-  object-fit: contain;
-  border-radius: 8px;
-}
-
-.ev-lightbox figcaption {
+.ev-viewer-count {
   color: var(--ev-muted);
-  text-align: center;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.ev-lightbox-close {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--ev-line-2);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--ev-ink);
-  font-size: 1.4rem;
+.ev-viewer-strip {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.5rem 0.8rem 0.9rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.ev-viewer-strip button {
+  flex: none;
+  width: 4.5rem;
+  height: 3.2rem;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  padding: 0;
+  background: none;
   cursor: pointer;
+  opacity: 0.55;
+}
+
+.ev-viewer-strip button[data-active='true'] {
+  border-color: var(--ev-accent);
+  opacity: 1;
+}
+
+.ev-viewer-strip img {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.ev-viewer-preload {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .ev-carousel-slot {
+    width: min(78%, 22rem);
+  }
+
+  .ev-viewer-step {
+    width: 2.4rem;
+    height: 2.4rem;
+    margin-top: -1.2rem;
+    font-size: 1.4rem;
+  }
 }
 
 /* ── Map ─────────────────────────────────────────────────── */

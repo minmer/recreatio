@@ -18,6 +18,7 @@
  */
 
 import { argon2id } from 'hash-wasm';
+import { rcBrowserMemory } from './rcBoot';
 import { rcFetch, rcSetUnlockPiece, rcUnlockPiece, type RcApi } from './rcApi';
 import { rcFromBase64Url, rcToBase64Url } from './rcBase64';
 
@@ -97,6 +98,7 @@ export async function rcRegister(username: string, password: string): Promise<Rc
   });
 
   rcSetUnlockPiece(encoded);
+  rcBrowserMemory.remember();
   return session;
 }
 
@@ -117,6 +119,11 @@ export async function rcUnlock(
   // keine entsperrte Sitzung gibt, führt bei jeder weiteren Anfrage zu einem
   // Fehler, den niemand mehr auf die fehlgeschlagene Anmeldung zurückführt.
   rcSetUnlockPiece(encoded);
+
+  // Der Merker für den Eintritt: ab jetzt lohnt es sich, diesen Browser beim
+  // nächsten Aufruf gleich zu fragen, wer hier ist. Er trägt keine Kennung —
+  // nur „hier war einmal jemand angemeldet" (`rcBoot.ts`).
+  rcBrowserMemory.remember();
   return session;
 }
 
@@ -139,6 +146,10 @@ export async function rcLogout(): Promise<void> {
     await rcFetch<{ loggedOut: boolean }>('/auth/logout', { method: 'POST', body: {} });
   } finally {
     rcSetUnlockPiece(null);
+    // Der Merker geht mit. Beim SPERREN bleibt er dagegen stehen — dort
+    // bleibt die Sitzung bestehen, und nach dem Sperren zu fragen, wer hier
+    // ist, hat weiterhin eine Antwort.
+    rcBrowserMemory.forget();
   }
 }
 

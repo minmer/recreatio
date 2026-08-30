@@ -318,6 +318,22 @@ public sealed record EventProgressResponse(
     IReadOnlyList<EventProgressStep> Steps,
     IReadOnlyList<EventProgressMark> Marks);
 
+/// <summary>One photograph on a gallery slide, as everybody reading it sees it.</summary>
+public sealed record EventGalleryPhotoRow(
+    Guid Id,
+    string? Caption,
+    string UploaderName,
+    int Width,
+    int Height,
+    DateTimeOffset CreatedUtc);
+
+public sealed record EventGalleryResponse(
+    IReadOnlyList<EventGalleryPhotoRow> Photos,
+    /// <summary>Whether THIS reader may add one — a link, and a slide that invites it.</summary>
+    bool MayAdd,
+    /// <summary>The organizer, who may also take one down.</summary>
+    bool MayManage);
+
 /// <summary>One file in the event's own library — a regulamin, a consent, a track.</summary>
 public sealed record EventDocumentResponse(
     Guid Id,

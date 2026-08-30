@@ -30,6 +30,19 @@ export interface RcCopy {
     readonly legacyHint: string;
     readonly openLegacy: string;
   };
+  /**
+   * Die Adresse und der Eintritt. `stray*` ist der Fall, in dem einer Adresse
+   * der Teil vor dem Namen fehlt (`#/new/jan`) — sie wird nicht verschwiegen,
+   * sondern erklärt, weil der Link sonst als kaputt gilt.
+   */
+  readonly route: {
+    readonly strayHeading: string;
+    readonly strayBody: string;
+    readonly strayHome: string;
+    readonly checking: string;
+    readonly unreachable: string;
+    readonly backToStart: string;
+  };
   readonly selfTest: {
     readonly heading: string;
     readonly intro: string;
@@ -449,6 +462,15 @@ const en: RcCopy = {
     stage: 'Phase 0 — foundation',
     legacyHint: 'The current platform keeps running unchanged alongside this.',
     openLegacy: 'Open the current platform'
+  },
+  route: {
+    strayHeading: 'This address is missing its part',
+    strayBody:
+      'Nothing here is called “{word}” on its own. Every address names the part first, then the thing: {example}. The link you followed left the part out.',
+    strayHome: 'Go to the start page',
+    checking: 'Checking…',
+    unreachable: 'The service did not answer. That is not the same as being signed out — nothing was changed.',
+    backToStart: 'All parts'
   },
   selfTest: {
     heading: 'Cryptographic self-check',
@@ -948,6 +970,15 @@ const pl: RcCopy = {
     stage: 'Faza 0 — fundament',
     legacyHint: 'Obecna platforma działa dalej bez zmian, obok tej.',
     openLegacy: 'Otwórz obecną platformę'
+  },
+  route: {
+    strayHeading: 'Temu adresowi brakuje części',
+    strayBody:
+      'Nic tutaj nie nazywa się samo „{word}”. Każdy adres podaje najpierw część, potem rzecz: {example}. W linku, którym przyszedłeś, części zabrakło.',
+    strayHome: 'Przejdź na stronę główną',
+    checking: 'Sprawdzanie…',
+    unreachable: 'Usługa nie odpowiedziała. To co innego niż wylogowanie — nic nie zostało zmienione.',
+    backToStart: 'Wszystkie części'
   },
   selfTest: {
     heading: 'Sprawdzenie kryptografii',
@@ -1499,6 +1530,15 @@ const de: RcCopy = {
     stage: 'Phase 0 — Fundament',
     legacyHint: 'Die bisherige Plattform läuft unverändert daneben weiter.',
     openLegacy: 'Bisherige Plattform öffnen'
+  },
+  route: {
+    strayHeading: 'Dieser Adresse fehlt ihr Teil',
+    strayBody:
+      'Es heisst hier nichts für sich allein „{word}“. Jede Adresse nennt erst den Teil und dann die Sache: {example}. Im Link, über den Sie gekommen sind, fehlt der Teil.',
+    strayHome: 'Zur Startseite',
+    checking: 'Wird geprüft …',
+    unreachable: 'Der Dienst hat nicht geantwortet. Das ist nicht dasselbe wie abgemeldet — es wurde nichts geändert.',
+    backToStart: 'Alle Teile'
   },
   selfTest: {
     heading: 'Kryptografische Selbstprüfung',

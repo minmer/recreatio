@@ -63,6 +63,7 @@ public static partial class EventEndpoints
         MapImportEndpoints(group);
         MapImageEndpoints(group);
         MapDocumentEndpoints(group);
+        MapGalleryEndpoints(group);
     }
 
     // ── Public ───────────────────────────────────────────────────────────────

@@ -18,7 +18,9 @@ import { rcCopy, rcDetectLang, rcFormat, rcPlural, rcStoreLang, type RcLang } fr
 import { runRcSelfTest, type RcTestReport } from './lib/rcSelfTest';
 import { RcChat, RcEventsSection, RcParishOutlet, RcGraphOutlet, RcCalendarOutlet, RcConfirmationOutlet } from './RcChat';
 import { RcInviteBanner } from './RcInvite';
-import { rcSecretFromHash } from './lib/rcInvite';
+import { rcEnter, rcEntryCheck, rcBrowserMemory, type RcEntry } from './lib/rcBoot';
+import { rcHasUnlockPiece, rcMe, type RcMe } from './lib/rcAuth';
+import { rcNeedsIdentity, rcParsePath, rcPath, type RcAddress, type RcPart } from './lib/rcRoute';
 import { RcSignIn } from './RcSignIn';
 import './styles/rc.css';
 
@@ -66,17 +68,67 @@ export function RcApp() {
   const [running, setRunning] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
 
-  // Wer über einen Einladungslink kommt, bringt das Geheimnis im Fragment
-  // mit — hinter der Raute, wo der Browser es NICHT an den Server schickt.
-  // Es aus der Adresse zu lesen ist deshalb der einzige Weg, es zu sehen.
-  const [inviteSecret, setInviteSecret] = useState<string | null>(() =>
-    rcSecretFromHash(window.location.hash));
+  /**
+   * Die Adresse. Aus ihr folgt beides: WAS gezeigt wird und OB beim Eintritt
+   * gefragt werden muss, wer hier ist (`rcRoute.ts`, `rcBoot.ts`).
+   */
+  const [address, setAddress] = useState<RcAddress>(() => rcParsePath(window.location.hash));
 
   useEffect(() => {
-    const onHash = () => setInviteSecret(rcSecretFromHash(window.location.hash));
+    const onHash = () => setAddress(rcParsePath(window.location.hash));
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
+
+  // Wer über einen Einladungslink kommt, bringt das Geheimnis im Fragment
+  // mit — hinter der Raute, wo der Browser es NICHT an den Server schickt.
+  // Es aus der Adresse zu lesen ist deshalb der einzige Weg, es zu sehen.
+  const inviteSecret = address.part === 'invite' ? address.slug : null;
+
+  /**
+   * Der Eintritt. Er läuft EINMAL beim Öffnen und stellt die Frage nur, wenn
+   * ihre Antwort etwas ändern kann — sonst gar nicht, bis jemand das
+   * Anmeldeformular anfasst. Die Begründung steht in `rcBoot.ts`.
+   */
+  const [entry, setEntry] = useState<RcEntry<RcMe>>({ kind: 'checking' });
+
+  useEffect(() => {
+    let alive = true;
+
+    // Die Adresse wird hier BEIM ÖFFNEN gelesen, nicht die des Zustands: ein
+    // späterer Sprung innerhalb der Plattform ist kein neuer Eintritt, und
+    // die Frage ein zweites Mal zu stellen brächte nichts Neues.
+    const hints = {
+      needsIdentity: rcNeedsIdentity(rcParsePath(window.location.hash)),
+      signedInBefore: rcBrowserMemory.signedInBefore(),
+      hasUnlockPiece: rcHasUnlockPiece()
+    };
+
+    void rcEnter(hints, rcMe).then((result) => {
+      if (alive) setEntry(result);
+    });
+
+    return () => { alive = false; };
+  }, []);
+
+  /**
+   * Der zweite Rückfall: nicht der Anmeldeknopf, sondern der Schritt IN die
+   * Werkstatt. Wer auf der öffentlichen Seite anfängt, wurde beim Eintritt
+   * nicht gefragt — geht er von dort in einen Teil, der ohne Schlüssel leer
+   * wäre, muss die Frage nachgeholt werden, bevor dieser Teil malt.
+   */
+  useEffect(() => {
+    if (entry.kind !== 'unasked' || !rcNeedsIdentity(address)) return;
+
+    let alive = true;
+    setEntry({ kind: 'checking' });
+    void rcEntryCheck(rcMe).then((result) => {
+      if (alive) setEntry(result);
+    });
+
+    return () => { alive = false; };
+  }, [address, entry.kind]);
+
   const t = rcCopy[lang];
 
   useEffect(() => {
@@ -93,11 +145,23 @@ export function RcApp() {
     }
   }, []);
 
-  // Beim ersten Aufruf sofort prüfen. Wer die Seite öffnet, soll nicht erst
-  // einen Knopf suchen müssen, um zu erfahren, ob seine Fassung stimmt.
+  /**
+   * Die Selbstprüfung läuft von selbst — aber nicht für jeden.
+   *
+   * Sie enthält einen echten Argon2id-Lauf mit 64 MiB. Wer die Seite der
+   * Stiftung liest, zahlt dafür eine Sekunde Rechenzeit und 64 MiB Speicher
+   * seines Telefons, für eine Auskunft, die ihn nichts angeht: ob dieser
+   * Browser bitgenau dasselbe rechnet wie der Kernel, entscheidet sich erst,
+   * wenn wirklich etwas verschlüsselt wird.
+   *
+   * Genau derselbe Schnitt wie beim Eintritt, aus genau demselben Grund — und
+   * deshalb an derselben Bedingung: sobald jemand bekannt ist oder in die
+   * Werkstatt will, läuft sie ohne Zutun. Der Knopf bleibt für alle da.
+   */
   useEffect(() => {
-    void run();
-  }, [run]);
+    if (report !== null || running) return;
+    if (entry.kind === 'signed-in' || rcNeedsIdentity(address)) void run();
+  }, [address, entry.kind, report, running, run]);
 
   const allGreen = report !== null && report.failed === 0;
 
@@ -110,11 +174,40 @@ export function RcApp() {
     };
   }, [report, lang, t]);
 
+  /**
+   * Was die Adresse zeigt.
+   *
+   * Nennt sie keinen Teil, steht alles untereinander wie bisher — das ist die
+   * Bauseite der Phase 0. Nennt sie einen, steht dieser Teil allein da. Die
+   * ADRESSE entscheidet und nicht ein Zustand im Speicher: nur so überlebt
+   * die Ansicht ein Neuladen und lässt sich weitergeben.
+   */
+  const shows = useCallback(
+    (part: RcPart) => address.part === 'home' || address.part === part,
+    [address.part]
+  );
+
+  /** Die Teile mit eigener Ansicht, in der Reihenfolge der Seite. */
+  const parts = useMemo(
+    () =>
+      [
+        ['chat', t.chat.areas],
+        ['event', t.events.heading],
+        ['parish', t.parish.heading],
+        ['cogita', t.graph.heading],
+        ['calendar', t.cal.heading],
+        ['confirmation', t.conf.heading]
+      ] as const,
+    [t]
+  );
+
   return (
     <div className="rc-root">
       <div className="rc-shell">
         <header className="rc-top">
-          <h1 className="rc-brand">{t.shell.title}</h1>
+          <h1 className="rc-brand">
+            <a href={rcPath('home')}>{t.shell.title}</a>
+          </h1>
           <span className="rc-stage">{t.shell.stage}</span>
           <div className="rc-top-right">
             {(['pl', 'de', 'en'] as const).map((l) => (
@@ -133,6 +226,36 @@ export function RcApp() {
 
         <p className="rc-lead">{t.shell.subtitle}</p>
 
+        {/* Die Teile als Adressen und nicht als Knöpfe: jeder hat einen Ort,
+            der sich weitergeben lässt. */}
+        <nav className="rc-parts">
+          {address.part !== 'home' && <a href={rcPath('home')}>{t.route.backToStart}</a>}
+          {parts.map(([part, label]) => (
+            <a key={part} href={rcPath(part)} aria-current={address.part === part ? 'page' : undefined}>
+              {label}
+            </a>
+          ))}
+        </nav>
+
+        {/* Einer Adresse fehlt der Teil vor dem Namen. Sie wird NICHT
+            stillschweigend zur Startseite — wer so einen Link bekommen hat,
+            soll erfahren, was ihm fehlt. */}
+        {address.stray !== null && (
+          <section className="rc-section rc-stray">
+            <h2 className="rc-h2">{t.route.strayHeading}</h2>
+            <p className="rc-note">
+              {rcFormat(t.route.strayBody, {
+                word: address.stray,
+                example: rcPath('parish', address.stray)
+              })}
+            </p>
+            <a className="rc-btn rc-btn-quiet" href={rcPath('home')}>{t.route.strayHome}</a>
+          </section>
+        )}
+
+        {/* Selbstprüfung und Baustand gehören zur Bauseite und nicht in einen
+            einzelnen Teil. Wer `#/new/parish` aufruft, will die Pfarrei sehen. */}
+        {address.part === 'home' && (
         <section className="rc-section">
           <h2 className="rc-h2">{t.selfTest.heading}</h2>
           <p className="rc-note">{t.selfTest.intro}</p>
@@ -171,7 +294,9 @@ export function RcApp() {
             </>
           )}
         </section>
+        )}
 
+        {address.part === 'home' && (
         <section className="rc-section">
           <h2 className="rc-h2">{t.status.heading}</h2>
           <ul className="rc-status">
@@ -187,6 +312,7 @@ export function RcApp() {
             ))}
           </ul>
         </section>
+        )}
 
         {/* Ganz oben und vor allem anderen: wer über einen Link kommt, soll
             als Erstes erfahren, wohinein er führt — nicht nach dem Scrollen. */}
@@ -195,7 +321,10 @@ export function RcApp() {
             lang={lang}
             secret={inviteSecret}
             canRedeem={unlocked}
-            onDone={() => setInviteSecret(null)}
+            // Nach dem Einlösen führt die Adresse woandershin. Das Geheimnis
+            // bliebe sonst im Adressfeld und im Verlauf stehen — sichtbar für
+            // den Nächsten am selben Rechner, obwohl es verbraucht ist.
+            onDone={() => { window.location.hash = rcPath('home'); }}
           />
         )}
 
@@ -204,38 +333,50 @@ export function RcApp() {
           {/* Kein Schaustück mehr: dieses Formular spricht mit /rc/auth und
               führt einen echten Argon2id-Lauf aus. Das Passwort verlässt das
               Gerät nicht — nur der daraus abgeleitete Schlüssel. */}
-          <RcSignIn lang={lang} onReady={setUnlocked} />
+          <RcSignIn lang={lang} entry={entry} onEntry={setEntry} onReady={setUnlocked} />
         </section>
 
+        {shows('chat') && (
         <section className="rc-section">
           <h2 className="rc-h2">{t.chat.areas}</h2>
           <RcChat lang={lang} unlocked={unlocked} />
         </section>
+        )}
 
+        {shows('event') && (
         <section className="rc-section">
           <h2 className="rc-h2">{t.events.heading}</h2>
           <RcEventsSection lang={lang} unlocked={unlocked} />
         </section>
+        )}
 
+        {shows('parish') && (
         <section className="rc-section">
           <h2 className="rc-h2">{t.parish.heading}</h2>
           <RcParishOutlet lang={lang} unlocked={unlocked} />
         </section>
+        )}
 
+        {shows('cogita') && (
         <section className="rc-section">
           <h2 className="rc-h2">{t.graph.heading}</h2>
           <RcGraphOutlet lang={lang} unlocked={unlocked} />
         </section>
+        )}
 
+        {shows('calendar') && (
         <section className="rc-section">
           <h2 className="rc-h2">{t.cal.heading}</h2>
           <RcCalendarOutlet lang={lang} unlocked={unlocked} />
         </section>
+        )}
 
+        {shows('confirmation') && (
         <section className="rc-section">
           <h2 className="rc-h2">{t.conf.heading}</h2>
           <RcConfirmationOutlet lang={lang} unlocked={unlocked} />
         </section>
+        )}
 
         <footer className="rc-foot">
           <span>{t.shell.legacyHint}</span>

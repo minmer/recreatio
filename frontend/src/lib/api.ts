@@ -8495,6 +8495,63 @@ export function getEventProgress(token: string) {
   return request<EventProgress>(`/events/link/${encodeURIComponent(token)}/progress`, { method: 'GET' });
 }
 
+// ── Photographs on a gallery slide ──────────────────────────────────────────
+
+export type EventGalleryPhoto = {
+  id: string;
+  caption: string | null;
+  uploaderName: string;
+  width: number;
+  height: number;
+  createdUtc: string;
+};
+
+export type EventGallery = {
+  photos: EventGalleryPhoto[];
+  /** This reader holds a link, and the slide invites photographs. */
+  mayAdd: boolean;
+  /** The organizer, who may also take one down. */
+  mayManage: boolean;
+};
+
+export function eventPhotoUrl(photoId: string): string {
+  return `${apiBase}/events/photos/${photoId}`;
+}
+
+export function getEventGallery(slug: string, partId: string, token: string | null) {
+  const query = token ? `?token=${encodeURIComponent(token)}` : '';
+  return request<EventGallery>(
+    `/events/site/${encodeURIComponent(slug)}/parts/${partId}/photos${query}`,
+    { method: 'GET' }
+  );
+}
+
+/**
+ * Sends one photograph, already shrunk by the browser. The dimensions travel
+ * with it so the page can leave room for a picture before it has loaded.
+ */
+export function uploadEventPhoto(
+  token: string,
+  partId: string,
+  file: Blob,
+  meta: { fileName: string; width: number; height: number; caption?: string | null }
+) {
+  const body = new FormData();
+  body.append('file', file, meta.fileName);
+  body.append('width', String(meta.width));
+  body.append('height', String(meta.height));
+  if (meta.caption) body.append('caption', meta.caption);
+
+  return request<EventGalleryPhoto>(
+    `/events/link/${encodeURIComponent(token)}/parts/${partId}/photos`,
+    { method: 'POST', body }
+  );
+}
+
+export function deleteEventPhoto(photoId: string) {
+  return request<{ deleted: boolean }>(`/events/admin/photos/${photoId}`, { method: 'DELETE' });
+}
+
 // ── The event's own file library ────────────────────────────────────────────
 
 export type EventDocument = {

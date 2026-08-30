@@ -126,6 +126,53 @@
   text-wrap: pretty;
 }
 
+/* -- Die Teile ---------------------------------------------------------------
+ *
+ * Adressen und keine Knöpfe: jeder Teil hat einen Ort, der sich weitergeben
+ * lässt. Deshalb Anker mit `href` — mit der mittleren Maustaste in einem neuen
+ * Reiter zu öffnen ist kein Zusatz, sondern das, was Anker können und was ein
+ * `onClick` auf einem `div` wegnimmt.
+ */
+.rc-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  margin-top: 1.25rem;
+  font-family: var(--rc-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+}
+
+.rc-parts a {
+  color: var(--rc-muted);
+  text-decoration: none;
+  padding: 0.15rem 0;
+  border-bottom: 1px solid transparent;
+}
+
+.rc-parts a:hover,
+.rc-parts a:focus-visible {
+  color: var(--rc-ink);
+  border-bottom-color: var(--rc-line-2);
+}
+
+.rc-parts a[aria-current='page'] {
+  color: var(--rc-accent);
+  border-bottom-color: var(--rc-accent);
+}
+
+.rc-brand a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Einer Adresse fehlt der Teil vor dem Namen. Sie sieht aus wie eine Auskunft
+ * und nicht wie ein Absturz — der Link ist ja nicht des Lesers Fehler. */
+.rc-stray {
+  border-left: 2px solid var(--rc-warn);
+  padding-left: 1rem;
+}
+
 .rc-section { margin-top: 2.75rem; }
 
 .rc-h2 {

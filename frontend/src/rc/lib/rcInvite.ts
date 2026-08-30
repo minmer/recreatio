@@ -19,6 +19,7 @@
  */
 
 import { rcFetch, type RcApi } from './rcApi';
+import { rcParsePath, rcPath } from './rcRoute';
 
 export type RcInvitation = RcApi<'InvitationsInvitationView'>;
 export type RcInvitationCreated = RcApi<'RcInvitationCreatedResponse'>;
@@ -95,13 +96,21 @@ export const rcRedeemInvitation = (secret: string) =>
  * Geheimnis in jedem Zugriffsprotokoll auf dem Weg.
  */
 export function rcInviteLink(secret: string, origin = window.location.origin + window.location.pathname): string {
-  return `${origin}#/new/invite/${encodeURIComponent(secret)}`;
+  return `${origin}${rcPath('invite', secret)}`;
 }
 
-/** Das Geheimnis aus der Adresse holen, wenn jemand über einen Link kommt. */
+/**
+ * Das Geheimnis aus der Adresse holen, wenn jemand über einen Link kommt.
+ *
+ * Läuft über `rcParsePath` und nicht über einen eigenen Ausdruck: der
+ * Einladungslink war die erste Adresse der Plattform, und er folgt derselben
+ * Regel wie alle anderen — der Teil (`invite`) steht vor dem einzelnen Ding
+ * (dem Geheimnis). Zwei Zerleger für dieselbe Form wären zwei Gelegenheiten,
+ * sie auseinanderlaufen zu lassen.
+ */
 export function rcSecretFromHash(hash: string): string | null {
-  const match = /#\/new\/invite\/([^/?&]+)/.exec(hash);
-  return match === null ? null : decodeURIComponent(match[1]);
+  const address = rcParsePath(hash);
+  return address.part === 'invite' ? address.slug : null;
 }
 
 // -- Mitglieder ---------------------------------------------------------------
