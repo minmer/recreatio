@@ -1190,6 +1190,15 @@
   opacity: 0.75;
 }
 
+.ev-carousel-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--ev-muted);
+  font-size: 0.8rem;
+  text-align: center;
+  opacity: 0.85;
+}
+
 .ev-gallery-invite {
   display: grid;
   justify-items: center;

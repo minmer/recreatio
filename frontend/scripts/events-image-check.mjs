@@ -7,11 +7,16 @@ import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'ev-img-'));
 await build({
-  entryPoints: ['src/pages/events/parts/imageDownscale.ts', 'src/pages/events/parts/galleryZoom.ts'],
+  entryPoints: [
+    'src/pages/events/parts/imageDownscale.ts',
+    'src/pages/events/parts/galleryZoom.ts',
+    'src/pages/events/parts/galleryCount.ts'
+  ],
   bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error'
 });
 const q = await import(pathToFileURL(join(workspace, 'imageDownscale.js')).href);
 const z = await import(pathToFileURL(join(workspace, 'galleryZoom.js')).href);
+const c = await import(pathToFileURL(join(workspace, 'galleryCount.js')).href);
 
 let failed = 0;
 const near = (a, b) => Math.abs(a - b) < 0.001;
@@ -55,5 +60,14 @@ truth('a fitted picture cannot be panned at all',
 truth('a modest pan inside the bounds is left alone',
   JSON.stringify(z.clampView({ scale: 2, x: 100, y: 50 }, frame)) === JSON.stringify({ scale: 2, x: 100, y: 50 }));
 
+
+// Polish counts three ways, and a gallery says its size on every visit.
+check('count: one', c.photoCount(1), '1 zdjęcie');
+check('count: a few', c.photoCount(3), '3 zdjęcia');
+check('count: many', c.photoCount(8), '8 zdjęć');
+check('count: the teens are all zdjęć', c.photoCount(13), '13 zdjęć');
+check('count: twenty-two takes zdjęcia again', c.photoCount(22), '22 zdjęcia');
+check('count: twenty-five does not', c.photoCount(25), '25 zdjęć');
+check('count: none', c.photoCount(0), '0 zdjęć');
 
 process.exit(failed === 0 ? 0 : 1);

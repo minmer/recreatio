@@ -9,6 +9,7 @@ import {
 import { asOptionalText, asRecord, asText, definePart, mapEntries } from './contracts';
 import { CheckRow, ListEditor, SelectRow, TextRow } from './editorKit';
 import { Fullscreen } from './Fullscreen';
+import { photoCount } from './galleryCount';
 import { FIT, clampView, zoomAbout, type View } from './galleryZoom';
 import { downscaleImage } from './imageDownscale';
 
@@ -395,6 +396,14 @@ function Carousel({
         {pictures[front]?.caption ?? ''}
         {pictures[front]?.credit ? <span> · {pictures[front]?.credit}</span> : null}
       </p>
+
+      {/* The carousel shows five at most, so the size of what is behind it is
+          invisible — and so is the fact that a click opens it. Somebody who
+          steps through three pictures with the arrows has no way of knowing
+          either, which is exactly when this is worth saying. */}
+      <p className="ev-carousel-hint">
+        Kliknij zdjęcie, żeby otworzyć całą galerię — {photoCount(count)}
+      </p>
     </div>
   );
 }
@@ -438,6 +447,16 @@ function Viewer({
   const stripRef = useRef<HTMLDivElement | null>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const lastTapRef = useRef(0);
+  /**
+   * What kind of pointer last touched the stage.
+   *
+   * A phone reports a double-tap twice: once as the two touchend events this
+   * component counts itself, and once as the dblclick every mobile browser
+   * synthesises afterwards for the sake of old pages. Both ran toggleZoom, so
+   * the picture went in and straight back out — on a mouse, where no touch
+   * events arrive at all, only one of them ever fired, which is why it behaved.
+   */
+  const pointerKindRef = useRef<string>('mouse');
 
   const count = pictures.length;
 
@@ -579,9 +598,14 @@ function Viewer({
           onTouchStart={touchStart}
           onTouchMove={touchMove}
           onTouchEnd={touchEnd}
-          onDoubleClick={(event) => toggleZoom(pointIn(event.clientX, event.clientY))}
+          onDoubleClick={(event) => {
+            // Mouse only. The touch path has already counted its own taps.
+            if (pointerKindRef.current !== 'mouse') return;
+            toggleZoom(pointIn(event.clientX, event.clientY));
+          }}
           onWheel={(event) => zoomBy(Math.exp(-event.deltaY / 400), pointIn(event.clientX, event.clientY))}
           onPointerDown={(event) => {
+            pointerKindRef.current = event.pointerType;
             // Mouse only: a finger is handled above, and taking both would move
             // the picture twice as far as it was dragged.
             if (event.pointerType !== 'mouse' || !zoomed) return;
