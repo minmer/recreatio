@@ -46,27 +46,39 @@ export const en: PublicCopy = {
 
     screen2: {
       title: 'What this is about',
-      paragraphs: [
+      lead:
         'A person is not made of separate compartments. Spiritual, intellectual, '
-        + 'emotional, social and physical life are one life. The spiritual is not '
-        + 'detached from daily life, upbringing not from relationships within the '
-        + 'family, and intellectual growth not from responsibility for one\'s own body, '
-        + 'one\'s emotions and other people. We need prayer and silence as much as '
-        + 'conversation, knowledge, movement, rest, friendship and responsibility for '
-        + 'someone.',
-
-        'Nobody grows on their own. It happens among others — in a family, in '
-        + 'friendships, in communities, in shared work and shared rest. Not an '
-        + 'audience, a fellowship.',
-
-        'Christianity is not one more area of life alongside the others. It is the '
-        + 'perspective from which the whole person is seen: their dignity, freedom, '
-        + 'responsibility, relationships, work, suffering, rest and vocation.'
+        + 'emotional, social and physical life are one life.',
+      image: { missing: 'Image for the first bubble — the house, an expedition or a meeting' },
+      relations: [
+        {
+          name: 'In themselves',
+          body:
+            'The spiritual is not detached from daily life, upbringing not from '
+            + 'relationships within the family, and intellectual growth not from '
+            + 'responsibility for one\'s own body and emotions.'
+        },
+        {
+          name: 'In community',
+          body:
+            'Nobody grows on their own — in a family, in friendships, in shared work and '
+            + 'shared rest. Not an audience, a fellowship.'
+        },
+        {
+          name: 'With God',
+          body:
+            'Christianity is not one more area alongside the others. It is the perspective '
+            + 'from which the whole person is seen.'
+        }
       ],
-      openness:
-        'We say so plainly, and the door stays open. A believer can deepen their '
-        + 'faith. A seeker can ask questions. Someone who does not believe is received '
-        + 'with the same respect for their dignity and freedom.'
+      openness: [
+        { name: 'A believer', body: 'can deepen their faith.' },
+        { name: 'A seeker', body: 'can ask questions.' },
+        {
+          name: 'Someone who does not believe',
+          body: 'is received with the same respect for their dignity and freedom.'
+        }
+      ]
     },
 
     screen3: {

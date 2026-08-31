@@ -1,59 +1,54 @@
 /**
- * Die Startseite — drei Bilder, EINE Bewegung in die Tiefe.
+ * Die Startseite — fünf Zustände, eine Bewegung in die Tiefe.
  *
- *   1  Der Name waechst auf den Betrachter zu und gibt das zweite Bild frei.
- *   2  Die Gedanken kommen einzeln aus der Tiefe nach vorn.
- *   3  Man geht durch das zweite Bild hindurch; das dritte lag schon dahinter.
+ *   0  Der Name.
+ *   1  Erste Welle: Titel, der Gedanke, ein Bild.
+ *   2  Zweite Welle: in sich — in Gemeinschaft — mit Gott.
+ *   3  Dritte Welle: wer glaubt — wer sucht — wer nicht glaubt.
+ *   4  Die vier Werke.
  *
- * Es faehrt nichts von unten herein und nichts scrollt weg.
+ * <b>Zwischen den Zuständen kann man nicht stehenbleiben.</b> Jeder Zustand ist
+ * ein Rastpunkt; der Bildlauf rastet immer auf einem davon ein. Was dazwischen
+ * liegt, ist ein Übergang und kein Ort — genau deshalb gibt es dort nichts zu
+ * lesen und nichts zu verpassen.
+ *
+ * <b>Die Blasen kommen aus der Tiefe, ziehen vorbei und vergehen.</b> Sie
+ * werden nicht eingeblendet: sie sind klein und fern, wachsen auf den
+ * Betrachter zu, sind einen Augenblick da und sind dann hinter ihm. Innerhalb
+ * einer Welle versetzt, damit drei Blasen nicht als Block auftreten.
  *
  * ---------------------------------------------------------------------------
- * WARUM HIER DOCH JAVASCRIPT STEHT
+ * WARUM DIE BEWEGUNG AN JAVASCRIPT HÄNGT
  *
- * Der Auftrag verlangte `animation-timeline` und ausdruecklich keine
- * Bildsteuerung per JavaScript. Genau so war es gebaut — und beim Ansehen kam
- * nur ein gewoehnlicher Bildlauf heraus. Der Grund liegt in der Sache: die
- * bildlaufgesteuerte Animation gibt es in Firefox nicht, und wo das
- * Betriebssystem „Animationen aus" meldet, greift der Rueckfall. In beiden
- * Faellen war das Ergebnis dasselbe: drei Abschnitte untereinander. Der
- * vorgeschriebene Weg fuehrte also verlaesslich dahin, wo die Seite gerade
- * NICHT hin soll.
+ * Der erste Bau folgte dem Auftrag und benutzte `animation-timeline`. In
+ * Firefox kam davon nichts an — die bildlaufgesteuerte Animation gibt es dort
+ * nicht —, und dasselbe geschah, wo das Betriebssystem „Animationen aus"
+ * meldet. Beide Male blieb ein gewöhnlicher Bildlauf übrig, also genau das,
+ * was die Seite nicht sein soll. Jetzt hängt alles an einem Wert: `--p`, dem
+ * Fortschritt durch die Bühne.
  *
- * Deshalb steht die Bewegung jetzt auf einem einzigen Wert: `--p`, dem
- * Fortschritt durch die Buehne, den ein Bildlaufhorcher setzt. Das ist eine
- * Abweichung vom Auftrag, und sie ist bewusst.
+ * <b>Der Text bleibt davon unberührt.</b> Er steht vollständig im Markup und
+ * wird von der Bewegung nur bewegt, nicht erzeugt: kein Absatz entsteht durch
+ * ein Ereignis, keiner wartet auf einen Beobachter. Ohne `is-live` — schmales
+ * Fenster oder kein JavaScript — steht alles untereinander und ist lesbar.
  *
- * Was dabei erhalten bleibt:
- *
- *   - Kein Abfangen von Rad, Berührung oder Taste. Der Besucher scrollt
- *     normal; gelesen wird nur, wo er steht.
- *   - Ein `requestAnimationFrame` je Bild, nicht je Ereignis.
- *   - Ohne JavaScript bleibt die Klasse `is-live` aus, und die Seite ist das,
- *     was sie ohne Bewegung sein soll: drei Abschnitte untereinander,
- *     vollstaendig lesbar. Die Buehne baut sich NUR mit dieser Klasse auf —
- *     es gibt keinen Zustand, in dem eine Flaeche haengen bleibt.
- *   - Auf schmalen Fenstern bleibt es bei den drei Abschnitten. Fuenf
- *     Bildschirmhoehen Scrollweg auf einem Telefon waeren keine Idee.
+ * Kein Abfangen von Rad, Berührung oder Taste: gerastet wird vom Browser,
+ * gelesen wird nur, wo der Besucher steht. Ein `requestAnimationFrame` je Bild.
  */
 
 import { useEffect, useRef } from 'react';
-import type { PublicCopy } from '../content';
+import type { PublicCopy, Text } from '../content';
 import { PublicText } from '../PublicText';
 import { publicHref, type PublicPage } from '../publicRoutes';
 
-/** Die Reihenfolge der Werke steht fest und wird nicht umgestellt. */
 const WORK_PAGES: readonly PublicPage[] = ['osrodek', 'wydarzenia', 'cogita', 'biblioteka'];
 
-/** Unter dieser Breite gibt es keine Buehne. */
+/** Unter dieser Breite gibt es keine Bühne. */
 const WIDE = '(min-width: 860px)';
 
-/**
- * Der Name als SVG.
- *
- * `slice` statt `none`: eine Wortmarke, die sich mit dem Fenster verzerrt, ist
- * keine Wortmarke mehr. Das Rechteck ist absichtlich viel groesser als das
- * Sichtfeld — beim Beschneiden darf an keinem Rand eine Luecke entstehen.
- */
+/** Fünf Zustände — und damit fünf Rastpunkte. */
+const STEPS = 5;
+
 function Wordmark({ text, masked }: { text: string; masked: boolean }) {
   return (
     <svg
@@ -88,6 +83,24 @@ function Wordmark({ text, masked }: { text: string; masked: boolean }) {
   );
 }
 
+function Bubble({
+  name, body, gap, copy, big
+}: {
+  name?: string;
+  body?: string;
+  gap?: Text;
+  copy: PublicCopy;
+  big?: boolean;
+}) {
+  return (
+    <div className={`rc-bubble ${big === true ? 'is-big' : ''}`}>
+      {name !== undefined && <p className="rc-bubble-n">{name}</p>}
+      {body !== undefined && <p className="rc-bubble-b">{body}</p>}
+      {gap !== undefined && <PublicText value={gap} copy={copy} as="div" />}
+    </div>
+  );
+}
+
 export function FrontPage({ copy }: { copy: PublicCopy }) {
   const t = copy.front;
   const stage = useRef<HTMLDivElement | null>(null);
@@ -97,12 +110,11 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     if (node === null) return;
 
     const wide = window.matchMedia(WIDE);
+    const root = document.documentElement;
     let frame = 0;
 
     const read = () => {
       frame = 0;
-
-      // Der Weg, den die Buehne zu vergeben hat: ihre Hoehe minus ein Fenster.
       const travel = node.offsetHeight - window.innerHeight;
       if (travel <= 0) { node.style.setProperty('--p', '0'); return; }
 
@@ -112,20 +124,19 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     };
 
     const onScroll = () => {
-      // Ein Bild je Einzelbild, nicht je Ereignis. Ein Bildlauf feuert
-      // Dutzende Male zwischen zwei Bildern; jedes davon zu rechnen ist
-      // verschenkte Arbeit und ruckelt am Ende sogar.
+      // Ein Bild je Einzelbild, nicht je Ereignis.
       if (frame === 0) frame = requestAnimationFrame(read);
     };
 
     const apply = () => {
       if (wide.matches) {
         node.classList.add('is-live');
+        // Das Rasten gehoert an den Scroller, und das ist das Wurzelelement.
+        root.classList.add('rc-snap');
         read();
       } else {
-        // Schmales Fenster: die Buehne verschwindet, und mit ihr jede Spur
-        // davon. Ein halb abgebauter Aufbau waere schlimmer als keiner.
         node.classList.remove('is-live');
+        root.classList.remove('rc-snap');
         node.style.removeProperty('--p');
       }
     };
@@ -141,6 +152,8 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       window.removeEventListener('resize', onScroll);
       wide.removeEventListener('change', apply);
       node.classList.remove('is-live');
+      // Ohne dieses Aufraeumen rastete jede andere Seite weiter.
+      root.classList.remove('rc-snap');
     };
   }, []);
 
@@ -153,7 +166,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
               <Wordmark text={t.screen1.wordmark} masked={false} />
             </div>
 
-            {/* Die einzige Ueberschrift erster Ordnung der Seite. */}
+            {/* Die einzige Überschrift erster Ordnung der Seite. */}
             <h1 className="rc-sentence" id="rc-h1">
               <PublicText value={t.screen1.sentence} copy={copy} as="span" />
             </h1>
@@ -164,27 +177,27 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
             </p>
           </div>
 
-          {/*
-            Die Gedanken kommen EINZELN nach vorn — dieselbe Bewegung wie beim
-            Namen, nur eine Ebene weiter. Erst der Gedanke vom Menschen, dann
-            der von der Gemeinschaft, dann der von Gott; danach die Offenheit.
-          */}
-          <section className="rc-behind rc-l2" aria-labelledby="rc-h2">
-            <div className="rc-s2-in">
-              <h2 className="rc-h2" id="rc-h2">{t.screen2.title}</h2>
-
-              <div className="rc-vision">
-                {t.screen2.paragraphs.map((paragraph) => (
-                  <p key={paragraph.slice(0, 40)}>{paragraph}</p>
-                ))}
-              </div>
-
-              {/* Die Offenheit steht abgesetzt — sie ist kein Nachsatz. */}
-              <p className="rc-open">{t.screen2.openness}</p>
+          <section className="rc-wave" data-wave="1" aria-labelledby="rc-h2">
+            <div className="rc-bubble is-big">
+              <h2 className="rc-bubble-h" id="rc-h2">{t.screen2.title}</h2>
             </div>
+            <Bubble body={t.screen2.lead} copy={copy} big />
+            <Bubble gap={t.screen2.image} copy={copy} />
           </section>
 
-          {/* Das dritte Bild liegt am tiefsten und wartet. */}
+          <section className="rc-wave" data-wave="2" aria-label={t.screen2.title}>
+            {t.screen2.relations.map((item) => (
+              <Bubble key={item.name} name={item.name} body={item.body} copy={copy} />
+            ))}
+          </section>
+
+          <section className="rc-wave" data-wave="3" aria-label={t.screen2.title}>
+            {t.screen2.openness.map((item) => (
+              <Bubble key={item.name} name={item.name} body={item.body} copy={copy} />
+            ))}
+          </section>
+
+          {/* Das vierte Bild liegt am tiefsten und wartet. */}
           <section className="rc-s3 rc-l3" aria-labelledby="rc-h3">
             <div className="rc-s3-in">
               <h2 className="rc-h2" id="rc-h3">{t.screen3.title}</h2>
@@ -207,6 +220,17 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
           <div className="rc-veil" aria-hidden="true">
             <Wordmark text={t.screen1.wordmark} masked />
           </div>
+        </div>
+
+        {/*
+          Die Rastpunkte. Sie sind unsichtbar und tragen nichts — sie sagen dem
+          Browser nur, wo ein Zustand liegt. Deshalb kann der Bildlauf nicht
+          mitten in einem Übergang zur Ruhe kommen.
+        */}
+        <div className="rc-steps" aria-hidden="true">
+          {Array.from({ length: STEPS }, (_, index) => (
+            <div className="rc-step" key={index} style={{ top: `${index * 100}vh` }} />
+          ))}
         </div>
       </div>
     </div>

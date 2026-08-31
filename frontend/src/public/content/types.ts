@@ -144,12 +144,24 @@ export interface PublicCopy {
       readonly hint: string;
     };
 
+    /**
+     * Das zweite Bild kommt in DREI WELLEN von Blasen.
+     *
+     *   Welle 1  Titel, der Gedanke, ein Bild
+     *   Welle 2  die dreifache Verbindung: in sich, in Gemeinschaft, mit Gott
+     *   Welle 3  die Offenheit, in ihren drei Sätzen
+     *
+     * Die Aufteilung ist nicht erfunden, um Blasen zu füllen: der Quelltext
+     * nennt drei Verbindungen und die Offenheit nennt drei Menschen. Die Form
+     * folgt dem Inhalt und nicht umgekehrt.
+     */
     readonly screen2: {
       readonly title: string;
-      /** Die dreifache Verbindung: in sich, in der Gemeinschaft, mit Gott. */
-      readonly paragraphs: readonly string[];
-      /** Die Offenheit. Wird nicht weggelassen und nicht zur Losung gekürzt. */
-      readonly openness: string;
+      readonly lead: string;
+      /** Die Blase, in der ein Bild stehen soll — solange keines da ist, sichtbar leer. */
+      readonly image: Text;
+      readonly relations: readonly { readonly name: string; readonly body: string }[];
+      readonly openness: readonly { readonly name: string; readonly body: string }[];
     };
 
     readonly screen3: {

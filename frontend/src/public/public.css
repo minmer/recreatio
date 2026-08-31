@@ -359,93 +359,104 @@
 }
 
 
-/* -- Bild 2: worum es geht -------------------------------------------------- */
+/* -- Bild 2: die Blasen ----------------------------------------------------- */
 
-.rc-behind { background: var(--paper); padding: clamp(3rem, 9vh, 7rem) var(--pad); }
+/*
+   Ohne Buehne sind die Wellen gewoehnliche Abschnitte und die Blasen
+   gewoehnliche Absaetze. So sieht die Seite ein Suchprogramm, und so sieht sie
+   ein Telefon: der ganze Text steht da, in der Reihenfolge, in der er gelesen
+   werden soll.
+*/
 
-.rc-s2-in { max-width: var(--page); margin: 0 auto; }
+.rc-wave {
+  background: var(--paper);
+  padding: clamp(2.5rem, 7vh, 5rem) var(--pad) 0;
+}
 
-.rc-h2 {
+.rc-wave:last-of-type { padding-bottom: clamp(2.5rem, 7vh, 5rem); }
+
+.rc-bubble {
+  max-width: 42rem;
+  margin: 0 auto 1.75rem;
+}
+
+.rc-bubble-h {
   font-family: var(--sans);
   font-size: 0.76rem;
   font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--accent);
-  margin: 0 0 1.75rem;
-}
-
-.rc-vision { display: grid; gap: 1.35rem; max-width: 44rem; }
-
-.rc-vision p {
   margin: 0;
-  font-size: clamp(1.02rem, 1.55vw, 1.32rem);
-  line-height: 1.48;
-  letter-spacing: -0.005em;
+}
+
+.rc-bubble-n {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 0.5rem;
+}
+
+.rc-bubble-b {
+  margin: 0;
+  font-size: clamp(1.02rem, 1.5vw, 1.25rem);
+  line-height: 1.5;
   text-wrap: pretty;
 }
 
-.rc-vision p:first-child { font-size: clamp(1.15rem, 1.95vw, 1.62rem); }
+.rc-bubble.is-big .rc-bubble-b { font-size: clamp(1.15rem, 1.9vw, 1.5rem); }
 
-.rc-open {
-  margin: 2rem 0 0;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--line);
-  max-width: 40rem;
-  font-size: clamp(0.96rem, 1.35vw, 1.1rem);
-  color: var(--ink-soft);
-  text-wrap: pretty;
-}
-
-/* -- Die Buehne: EINE Bewegung durch alle drei Bilder ----------------------- */
+/* -- Die Buehne: fuenf Zustaende, eine Bewegung in die Tiefe ---------------- */
 
 /*
    Alles haengt an EINEM Wert: `--p`, dem Fortschritt durch die Buehne, den ein
-   Bildlaufhorcher setzt (siehe FrontPage.tsx). Kein `animation-timeline`, keine
-   Keyframes, kein Uebergang — jede Ebene rechnet ihre Lage direkt aus `--p`.
+   Bildlaufhorcher setzt (siehe FrontPage.tsx). Kein `animation-timeline` —
+   das gibt es in Firefox nicht, und dort war die Seite deshalb still.
 
-   Warum nicht wie urspruenglich vorgeschrieben: die bildlaufgesteuerte
-   Animation gibt es in Firefox nicht, und wo das Betriebssystem „Animationen
-   aus" meldet, greift der Rueckfall. Beide Wege endeten bei drei Abschnitten
-   untereinander — also genau da, wo die Seite nicht hin soll.
+   Fuenf Zustaende, also fuenf Rastpunkte. Zwischen ihnen kann der Bildlauf
+   nicht zur Ruhe kommen: was dazwischen liegt, ist ein UEBERGANG und kein Ort.
 
-   Die Abschnitte auf dem Weg, in Anteilen von `--p`:
+     0.00 – 0.17   der Name waechst auf den Betrachter zu
+     0.03 – 0.43   erste Welle: Titel, Gedanke, Bild
+     0.27 – 0.67   zweite Welle: in sich, in Gemeinschaft, mit Gott
+     0.51 – 0.91   dritte Welle: wer glaubt, wer sucht, wer nicht glaubt
+     0.78 – 1.00   die vier Werke kommen an
 
-     0.00 – 0.34   der Name waechst auf den Betrachter zu
-     0.02 – 0.20   der Satz blendet aus
-     0.24 – 0.73   die Gedanken kommen einzeln nach vorn
-     0.76 – 0.93   man geht durch das zweite Bild hindurch
-     0.74 – 0.94   das dritte Bild kommt an
-
-   Die letzten beiden ueberschneiden sich mit Absicht: das dritte Bild ist
-   schon unterwegs, waehrend das zweite noch vorbeizieht. Ohne die
-   Ueberschneidung waere es ein Wechsel und kein Durchgang.
+   Die Wellen ueberschneiden sich mit Absicht. Eine Welle, die ganz weg ist,
+   bevor die naechste beginnt, waere ein Diawechsel; so zieht die eine vorbei,
+   waehrend die naechste schon aus der Tiefe kommt.
 */
 
-.rc-veil { display: none; }
-.rc-veil-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+html.rc-snap { scroll-snap-type: y mandatory; }
 
-/*
-   Die Buehne baut sich NUR mit `is-live` auf. Die Klasse setzt das Bauteil
-   selbst, und nur auf breiten Fenstern. Ohne JavaScript bleibt sie aus — dann
-   stehen die drei Abschnitte untereinander, vollstaendig lesbar, und es gibt
-   keinen Zustand, in dem eine Flaeche haengen bleibt.
-*/
+.rc-steps { display: none; }
+
+.rc-stage.is-live .rc-steps { display: block; }
+
+.rc-step {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  scroll-margin-top: var(--head-h);
+}
+
 .rc-stage.is-live {
   position: relative;
-  height: 480vh;
+  height: 500vh;
 
-  /* Jeder Abschnitt als eigener Anteil, sauber auf 0..1 begrenzt. */
-  --pw:  clamp(0, calc(var(--p, 0) / 0.34), 1);
-  --pv:  clamp(0, calc((var(--p, 0) - 0.28) / 0.08), 1);
-  --ps:  clamp(0, calc((var(--p, 0) - 0.02) / 0.18), 1);
-  --ph:  clamp(0, calc((var(--p, 0) - 0.24) / 0.08), 1);
-  --t1:  clamp(0, calc((var(--p, 0) - 0.28) / 0.13), 1);
-  --t2:  clamp(0, calc((var(--p, 0) - 0.39) / 0.13), 1);
-  --t3:  clamp(0, calc((var(--p, 0) - 0.50) / 0.13), 1);
-  --po:  clamp(0, calc((var(--p, 0) - 0.62) / 0.11), 1);
-  --pl2: clamp(0, calc((var(--p, 0) - 0.76) / 0.17), 1);
-  --pl3: clamp(0, calc((var(--p, 0) - 0.74) / 0.20), 1);
+  --pw:  clamp(0, calc(var(--p, 0) / 0.17), 1);
+  --pv:  clamp(0, calc((var(--p, 0) - 0.12) / 0.06), 1);
+  --ps:  clamp(0, calc((var(--p, 0) - 0.01) / 0.09), 1);
+  --w1:  clamp(0, calc((var(--p, 0) - 0.03) / 0.40), 1);
+  --w2:  clamp(0, calc((var(--p, 0) - 0.27) / 0.40), 1);
+  --w3:  clamp(0, calc((var(--p, 0) - 0.51) / 0.40), 1);
+  --pl3: clamp(0, calc((var(--p, 0) - 0.78) / 0.22), 1);
 }
 
 .rc-stage.is-live .rc-pin {
@@ -456,21 +467,19 @@
 }
 
 .rc-stage.is-live .rc-first,
-.rc-stage.is-live .rc-l2,
+.rc-stage.is-live .rc-wave,
 .rc-stage.is-live .rc-l3 {
   position: absolute;
   inset: 0;
-  display: grid;
-  align-content: center;
-  overflow-y: auto;
   padding: 2rem var(--pad);
   transform-origin: center;
-  will-change: transform, opacity;
 }
 
 .rc-stage.is-live .rc-first {
-  z-index: 4;
+  z-index: 5;
+  display: grid;
   grid-template-rows: 1fr auto auto;
+  align-content: center;
   background: transparent;
   pointer-events: none;
   opacity: calc(1 - var(--ps));
@@ -480,13 +489,12 @@
   display: block;
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 4;
   color: #14180f;
   pointer-events: none;
   opacity: calc(1 - var(--pv));
 }
 
-/* Der Name waechst, bis das Loch groesser ist als das Fenster. */
 .rc-stage.is-live .rc-veil-text {
   transform-box: fill-box;
   transform-origin: center;
@@ -495,73 +503,92 @@
 
 .rc-stage.is-live .rc-mark-static { visibility: hidden; }
 
-/* Das zweite Bild: liegt dahinter — und man geht spaeter hindurch. */
-.rc-stage.is-live .rc-l2 {
-  z-index: 2;
-  opacity: calc(1 - var(--pl2));
-  transform: scale(calc(1 + 1.9 * var(--pl2)));
+/* -- Die Wellen ------------------------------------------------------------- */
+
+.rc-stage.is-live .rc-wave {
+  z-index: 3;
+  background: transparent;
+  pointer-events: none;
 }
 
-/* Die Gedanken, einer nach dem anderen aus der Tiefe. */
-.rc-stage.is-live .rc-l2 .rc-h2,
-.rc-stage.is-live .rc-vision p,
-.rc-stage.is-live .rc-open {
-  transform-origin: left center;
-  will-change: transform, opacity;
+.rc-stage.is-live .rc-wave[data-wave='1'] { --w: var(--w1); }
+.rc-stage.is-live .rc-wave[data-wave='2'] { --w: var(--w2); }
+.rc-stage.is-live .rc-wave[data-wave='3'] { --w: var(--w3); }
+
+/*
+   Eine Blase kommt aus der Tiefe, zieht vorbei und ist dann hinter dem
+   Betrachter. Die Deckkraft ist ein Dreieck — an beiden Enden null, in der
+   Mitte eins —, und dafuer gibt es `min()`: sie steigt, bis sie faellt.
+*/
+.rc-stage.is-live .rc-bubble {
+  position: absolute;
+  margin: 0;
+  max-width: none;
+  width: 22rem;
+  padding: 1.6rem 1.8rem;
+  border-radius: 1.75rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 50px rgb(20 24 15 / 0.13);
+  transform-origin: center;
+
+  --b: clamp(0, calc((var(--w) - var(--d, 0)) / 0.76), 1);
+
+  opacity: clamp(0, min(calc(var(--b) / 0.24), calc((1 - var(--b)) / 0.24)), 1);
+  transform: scale(calc(0.5 + 1.25 * var(--b)));
 }
 
-.rc-stage.is-live .rc-l2 .rc-h2 {
-  opacity: var(--ph);
-  transform: scale(calc(0.72 + 0.28 * var(--ph)));
+.rc-stage.is-live .rc-bubble:nth-child(2) { --d: 0.12; }
+.rc-stage.is-live .rc-bubble:nth-child(3) { --d: 0.24; }
+
+.rc-stage.is-live .rc-bubble.is-big { width: 30rem; }
+
+/* Verteilt, nicht gerastert: drei Blasen in einer Reihe waeren ein Balken. */
+.rc-stage.is-live .rc-wave[data-wave='1'] .rc-bubble:nth-child(1) { top: 20%; left: 7%; }
+.rc-stage.is-live .rc-wave[data-wave='1'] .rc-bubble:nth-child(2) { top: 40%; left: 30%; }
+.rc-stage.is-live .rc-wave[data-wave='1'] .rc-bubble:nth-child(3) { top: 15%; right: 8%; left: auto; }
+
+.rc-stage.is-live .rc-wave[data-wave='2'] .rc-bubble:nth-child(1) { top: 14%; left: 11%; }
+.rc-stage.is-live .rc-wave[data-wave='2'] .rc-bubble:nth-child(2) { top: 44%; left: 37%; }
+.rc-stage.is-live .rc-wave[data-wave='2'] .rc-bubble:nth-child(3) { top: 24%; right: 10%; left: auto; }
+
+.rc-stage.is-live .rc-wave[data-wave='3'] .rc-bubble:nth-child(1) { top: 24%; left: 6%; }
+.rc-stage.is-live .rc-wave[data-wave='3'] .rc-bubble:nth-child(2) { top: 48%; left: 33%; }
+.rc-stage.is-live .rc-wave[data-wave='3'] .rc-bubble:nth-child(3) { top: 22%; right: 9%; left: auto; }
+
+/* Die Bildblase traegt noch kein Bild — sie zeigt die Luecke, rund wie sie. */
+.rc-stage.is-live .rc-bubble .pub-gap {
+  margin: 0;
+  border-radius: 1.25rem;
+  min-height: 9rem;
+  display: grid;
+  align-content: center;
 }
 
-.rc-stage.is-live .rc-vision p:nth-child(1) {
-  opacity: var(--t1);
-  transform: scale(calc(0.72 + 0.28 * var(--t1)));
-}
+/* -- Die vier Werke --------------------------------------------------------- */
 
-.rc-stage.is-live .rc-vision p:nth-child(2) {
-  opacity: var(--t2);
-  transform: scale(calc(0.72 + 0.28 * var(--t2)));
-}
-
-.rc-stage.is-live .rc-vision p:nth-child(3) {
-  opacity: var(--t3);
-  transform: scale(calc(0.72 + 0.28 * var(--t3)));
-}
-
-.rc-stage.is-live .rc-open {
-  opacity: var(--po);
-  transform: scale(calc(0.72 + 0.28 * var(--po)));
-}
-
-/* Das dritte Bild wartet am tiefsten Punkt. */
 .rc-stage.is-live .rc-l3 {
   z-index: 1;
+  display: grid;
+  align-content: center;
+  overflow-y: auto;
   border-top: 0;
   opacity: var(--pl3);
-  transform: scale(calc(0.78 + 0.22 * var(--pl3)));
+  transform: scale(calc(0.8 + 0.2 * var(--pl3)));
 }
 
 /*
-   Verringerte Bewegung: dieselbe Abfolge, ohne Weg.
-
-   Nichts waechst und nichts kommt heran — die Ebenen blenden nur ueber. Das
-   geschieht hier durch Zuruecknehmen der Transformationen; die Deckkraft
-   bleibt, wie sie ist, denn SIE ist die Ueberblendung. Ein pauschales
-   Abschalten wuerde statt dessen den Schleier stehen lassen.
+   Verringerte Bewegung: dieselbe Abfolge, ohne Weg. Nichts waechst und nichts
+   kommt heran — die Ebenen blenden nur ueber. Die Deckkraft BLEIBT, denn sie
+   ist die Ueberblendung; abgeschaltet wird der Weg.
 */
 @media (prefers-reduced-motion: reduce) {
   .rc-stage.is-live .rc-veil-text,
-  .rc-stage.is-live .rc-l2,
-  .rc-stage.is-live .rc-l3,
-  .rc-stage.is-live .rc-l2 .rc-h2,
-  .rc-stage.is-live .rc-vision p,
-  .rc-stage.is-live .rc-open { transform: none; }
+  .rc-stage.is-live .rc-bubble,
+  .rc-stage.is-live .rc-l3 { transform: none; }
 
-  /* Ohne wachsendes Loch muss der Schleier frueher fort sein, sonst stuende
-     er noch da, wenn die Gedanken schon kommen. */
-  .rc-stage.is-live { --pv: clamp(0, calc((var(--p, 0) - 0.04) / 0.18), 1); }
+  /* Ohne wachsendes Loch muss der Schleier frueher fort sein. */
+  .rc-stage.is-live { --pv: clamp(0, calc((var(--p, 0) - 0.02) / 0.10), 1); }
 }
 
 /* -- Bild 3: wie es geschieht ----------------------------------------------- */

@@ -48,27 +48,40 @@ export const de: PublicCopy = {
 
     screen2: {
       title: 'Worum es geht',
-      paragraphs: [
+      lead:
         'Ein Mensch besteht nicht aus getrennten Fächern. Geistliches, geistiges, '
-        + 'seelisches, soziales und körperliches Leben sind ein Leben. Das Geistliche '
-        + 'ist nicht vom Alltag abgelöst, die Erziehung nicht von den Beziehungen in der '
-        + 'Familie, das Lernen nicht von der Verantwortung für den eigenen Körper, die '
-        + 'eigenen Gefühle und den anderen. Wir brauchen Gebet und Stille ebenso wie '
-        + 'Gespräch, Wissen, Bewegung, Ruhe, Freundschaft und Verantwortung für jemanden.',
-
-        'Niemand wächst für sich allein. Es geschieht unter anderen — in der Familie, '
-        + 'in Freundschaften, in Gemeinschaften, in gemeinsamer Arbeit und gemeinsamer '
-        + 'Ruhe. Kein Publikum, sondern eine Gemeinschaft.',
-
-        'Das Christliche ist nicht ein weiterer Bereich neben den übrigen. Es ist die '
-        + 'Sicht, aus der der ganze Mensch zu sehen ist: seine Würde, Freiheit, '
-        + 'Verantwortung, seine Beziehungen, Arbeit, sein Leiden, seine Ruhe und '
-        + 'Berufung.'
+        + 'seelisches, soziales und körperliches Leben sind ein Leben.',
+      image: { missing: 'Bild für die erste Blase — Haus, Fahrt oder Treffen' },
+      relations: [
+        {
+          name: 'In sich',
+          body:
+            'Das Geistliche ist nicht vom Alltag abgelöst, die Erziehung nicht von den '
+            + 'Beziehungen in der Familie, das Lernen nicht von der Verantwortung für den '
+            + 'eigenen Körper und die eigenen Gefühle.'
+        },
+        {
+          name: 'In Gemeinschaft',
+          body:
+            'Niemand wächst für sich allein — in der Familie, in Freundschaften, in '
+            + 'gemeinsamer Arbeit und gemeinsamer Ruhe. Kein Publikum, sondern eine '
+            + 'Gemeinschaft.'
+        },
+        {
+          name: 'Mit Gott',
+          body:
+            'Das Christliche ist nicht ein weiterer Bereich neben den übrigen. Es ist die '
+            + 'Sicht, aus der der ganze Mensch zu sehen ist.'
+        }
       ],
-      openness:
-        'Wir sagen das geradeheraus, und die Tür bleibt offen. Wer glaubt, kann den '
-        + 'Glauben vertiefen. Wer sucht, darf fragen. Wer nicht glaubt, wird mit '
-        + 'demselben Respekt vor seiner Würde und Freiheit aufgenommen.'
+      openness: [
+        { name: 'Wer glaubt', body: 'kann den Glauben vertiefen.' },
+        { name: 'Wer sucht', body: 'darf fragen.' },
+        {
+          name: 'Wer nicht glaubt',
+          body: 'wird mit demselben Respekt vor seiner Würde und Freiheit aufgenommen.'
+        }
+      ]
     },
 
     screen3: {

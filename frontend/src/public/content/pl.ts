@@ -61,26 +61,38 @@ export const pl: PublicCopy = {
 
     screen2: {
       title: 'O co chodzi',
-      paragraphs: [
+      lead:
         'Człowiek nie składa się z osobnych przegród. Życie duchowe, intelektualne, '
-        + 'emocjonalne, społeczne i fizyczne to jedno życie. Duchowość nie jest oderwana '
-        + 'od codzienności, wychowanie od relacji w rodzinie, a rozwój intelektualny od '
-        + 'odpowiedzialności za własne ciało, emocje i drugiego człowieka. Potrzebujemy '
-        + 'modlitwy i ciszy tak samo jak rozmowy, wiedzy, ruchu, odpoczynku, przyjaźni '
-        + 'i odpowiedzialności za kogoś.',
-
-        'Nikt nie wzrasta osobno. Dzieje się to wśród innych — w rodzinie, '
-        + 'w przyjaźniach, we wspólnotach, we wspólnej pracy i wspólnym odpoczynku. '
-        + 'Nie publiczność, lecz wspólnota.',
-
-        'Chrześcijaństwo nie jest kolejnym obszarem życia obok pozostałych. Jest '
-        + 'perspektywą, z której widać całego człowieka: jego godność, wolność, '
-        + 'odpowiedzialność, relacje, pracę, cierpienie, odpoczynek i powołanie.'
+        + 'emocjonalne, społeczne i fizyczne to jedno życie.',
+      image: { missing: 'Zdjęcie do pierwszej bańki — dom, wyprawa albo spotkanie' },
+      relations: [
+        {
+          name: 'W sobie',
+          body:
+            'Duchowość nie jest oderwana od codzienności, wychowanie od relacji w rodzinie, '
+            + 'a rozwój intelektualny od odpowiedzialności za własne ciało i emocje.'
+        },
+        {
+          name: 'We wspólnocie',
+          body:
+            'Nikt nie wzrasta osobno — w rodzinie, w przyjaźniach, we wspólnej pracy '
+            + 'i wspólnym odpoczynku. Nie publiczność, lecz wspólnota.'
+        },
+        {
+          name: 'Z Bogiem',
+          body:
+            'Chrześcijaństwo nie jest kolejnym obszarem obok pozostałych. Jest perspektywą, '
+            + 'z której widać całego człowieka.'
+        }
       ],
-      openness:
-        'Mówimy o tym wprost, a drzwi zostają otwarte. Kto wierzy, może wiarę pogłębić. '
-        + 'Kto szuka, może pytać. Kto nie wierzy, jest przyjęty z tym samym szacunkiem '
-        + 'dla jego godności i wolności.'
+      openness: [
+        { name: 'Kto wierzy', body: 'może wiarę pogłębić.' },
+        { name: 'Kto szuka', body: 'może pytać.' },
+        {
+          name: 'Kto nie wierzy',
+          body: 'jest przyjęty z tym samym szacunkiem dla jego godności i wolności.'
+        }
+      ]
     },
 
     screen3: {
