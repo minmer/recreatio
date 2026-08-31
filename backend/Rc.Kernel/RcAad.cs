@@ -114,7 +114,25 @@ public enum RcField
     CalendarItemNotes,
     ParishDonorName,
     ParishDonationAmount,
-    ContactPhone
+    ContactPhone,
+
+    // Belegung — Haus, Zimmer, Pfarrsaal
+    //
+    // Die ZEIT einer Anfrage bleibt Klartext: sie ist der Grund, warum das
+    // Modul ueberhaupt benutzbar ist (freie Zeitraeume finden, ohne alles
+    // herunterzuladen). Alles, was eine GRUPPE kenntlich macht, ist es nicht.
+    //
+    // Je Feld ein eigenes Etikett, aus demselben Grund wie bei der Intention:
+    // trugen alle dasselbe, koennte wer schreiben darf die Telefonnummer in
+    // das Bemerkungsfeld schieben — lautlos und ohne Fehlermeldung.
+    EnquiryGroupName,
+    EnquiryContactPerson,
+    EnquiryContact,
+    EnquiryGroupKind,
+    EnquiryNote,
+
+    /// <summary>Der verpackte Sitzungsschluessel einer Anfrage von aussen.</summary>
+    EnquiryIntakeKey
 }
 
 /// <summary>
@@ -230,6 +248,12 @@ public readonly record struct RcAad
         RcField.ParishDonorName         => "donor_name",
         RcField.ParishDonationAmount    => "amount",
         RcField.ContactPhone            => "phone",
+        RcField.EnquiryGroupName        => "enquiry_group_name",
+        RcField.EnquiryContactPerson    => "enquiry_contact_person",
+        RcField.EnquiryContact          => "enquiry_contact",
+        RcField.EnquiryGroupKind        => "enquiry_group_kind",
+        RcField.EnquiryNote             => "enquiry_note",
+        RcField.EnquiryIntakeKey        => "enquiry_intake_key",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

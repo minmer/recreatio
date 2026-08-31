@@ -107,6 +107,15 @@ export const RcField = {
   ParishDonationAmount: 'amount',
   ContactPhone: 'phone',
 
+  // Belegung. Je Feld ein eigenes Etikett — dieselben Zeichenketten wie in
+  // `RcAad.FieldName`; weicht eine ab, geht die Anfrage nie wieder auf.
+  EnquiryGroupName: 'enquiry_group_name',
+  EnquiryContactPerson: 'enquiry_contact_person',
+  EnquiryContact: 'enquiry_contact',
+  EnquiryGroupKind: 'enquiry_group_kind',
+  EnquiryNote: 'enquiry_note',
+  EnquiryIntakeKey: 'enquiry_intake_key',
+
   // Veranstaltungen. Nur die, die der Browser wirklich anfasst — die übrigen
   // bleiben serverseitig, und ein Name, der hier ungenutzt steht, ist eine
   // Einladung, ihn irgendwann falsch zu benutzen.

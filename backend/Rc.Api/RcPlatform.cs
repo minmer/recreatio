@@ -103,6 +103,7 @@ public static class RcPlatform
         app.MapRcGraph();
         app.MapRcCalendar();
         app.MapRcConfirmation();
+        app.MapRcResource();
         app.MapRcRecovery();
         return app;
     }

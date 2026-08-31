@@ -1,0 +1,12 @@
+/*
+ * Die oeffentliche Seite prueft sich getrennt — aus demselben Grund wie
+ * `tsconfig.rc.json`: der Altbestand unter `src/` traegt rund zwanzig
+ * Typfehler, und solange die mitlaufen, ist `tsc --noEmit` als Tor wertlos.
+ *
+ * `src/rc` kommt mit, weil die oeffentliche Seite den Eintrittscheck und die
+ * Belegung von dort holt. `src/public` MUSS durchgehend sauber sein.
+ */
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/public", "src/rc", "src/vite-env.d.ts"]
+}

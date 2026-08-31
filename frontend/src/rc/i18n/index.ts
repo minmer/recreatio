@@ -457,7 +457,7 @@ export interface RcCopy {
 
 const en: RcCopy = {
   shell: {
-    title: 'Recreatio',
+    title: 'REcreatio',
     subtitle: 'The rebuilt platform. Encrypted by construction, provable by chain.',
     stage: 'Phase 0 — foundation',
     legacyHint: 'The current platform keeps running unchanged alongside this.',
@@ -965,7 +965,7 @@ const en: RcCopy = {
 
 const pl: RcCopy = {
   shell: {
-    title: 'Recreatio',
+    title: 'REcreatio',
     subtitle: 'Platforma zbudowana od nowa. Szyfrowana z założenia, dowodliwa przez łańcuch.',
     stage: 'Faza 0 — fundament',
     legacyHint: 'Obecna platforma działa dalej bez zmian, obok tej.',
@@ -1525,7 +1525,7 @@ const pl: RcCopy = {
 
 const de: RcCopy = {
   shell: {
-    title: 'Recreatio',
+    title: 'REcreatio',
     subtitle: 'Die neu gebaute Plattform. Verschlüsselt von Bauart, beweisbar durch die Kette.',
     stage: 'Phase 0 — Fundament',
     legacyHint: 'Die bisherige Plattform läuft unverändert daneben weiter.',

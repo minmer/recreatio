@@ -13,3 +13,7 @@
 **/*.user
 **/*.suo
 backend/Recreatio.Api/dataprotection-keys/
+
+# Der polnische Quelltext des Manifests wird nicht mitversioniert.
+# Siehe frontend/src/public/content/localText.ts.
+frontend/src/public/content/local/

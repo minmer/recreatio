@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
+import { PUBLIC_BASE } from './public/publicRoutes';
 import './styles/base.css';
 
 /**
@@ -25,12 +26,41 @@ import './styles/base.css';
  * Aufruf der Startseite.
  */
 
-const isNewPlatform = () => window.location.hash.startsWith('#/new');
+/**
+ * Drei Zonen, ein Auslieferungsstand.
+ *
+ *   `#/rc`   die neue oeffentliche REcreatio-Seite
+ *   `#/new`  die Plattform (Phase 0)
+ *   sonst    der Altbestand mit dem Foliensatz
+ *
+ * Die oeffentliche Seite liegt so lange unter `#/rc`, bis sie abgenommen ist.
+ * Der Tausch danach ist zweizeilig: `PUBLIC_BASE` in `publicRoutes.ts` leeren
+ * und hier `isPublic` zur Vorgabe machen. Erst dann verschwindet der
+ * Foliensatz — nicht vorher, damit nie ein halber Umbau live steht.
+ */
+const zoneOf = (): 'public' | 'platform' | 'legacy' => {
+  const hash = window.location.hash;
+  if (hash === PUBLIC_BASE || hash.startsWith(`${PUBLIC_BASE}/`)) return 'public';
+  if (hash.startsWith('#/new')) return 'platform';
+  return 'legacy';
+};
 
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 
 async function mount() {
-  if (isNewPlatform()) {
+  const zone = zoneOf();
+
+  if (zone === 'public') {
+    const { PublicApp } = await import('./public/PublicApp');
+    root.render(
+      <React.StrictMode>
+        <PublicApp />
+      </React.StrictMode>
+    );
+    return;
+  }
+
+  if (zone === 'platform') {
     const { RcApp } = await import('./rc/RcApp');
     root.render(
       <React.StrictMode>
@@ -77,11 +107,11 @@ void mount();
  *
  * Innerhalb einer Plattform bleibt die Navigation unangetastet.
  */
-let wasNew = isNewPlatform();
+let wasZone = zoneOf();
 window.addEventListener('hashchange', () => {
-  const nowNew = isNewPlatform();
-  if (nowNew !== wasNew) {
-    wasNew = nowNew;
+  const zone = zoneOf();
+  if (zone !== wasZone) {
+    wasZone = zone;
     window.location.reload();
   }
 });
