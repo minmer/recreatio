@@ -53,144 +53,70 @@ export const pl: PublicCopy = {
   },
 
   front: {
-    scrollHint: 'Przewiń',
-
-    thesis: {
-      eyebrow: 'REcreatio · Limanowa',
-      title: 'Człowieka dzieli się na części.',
-      body:
-        'Szkoła bierze rozum, siłownia ciało, parafia duszę, a oprogramowanie zbiera '
-        + 'wszystkie trzy i handluje nimi dalej. Budujemy miejsce i narzędzia, które tego '
-        + 'nie robią.',
-      cta: 'Poznaj inicjatywę',
-      facts: [
-        { value: '6', label: 'obszarów' },
-        { value: '52', label: 'miejsca w ośrodku' },
-        { value: '2027', label: 'rejestracja fundacji' }
-      ]
+    screen1: {
+      wordmark: 'REcreatio',
+      sentence: { missing: 'Jedno zdanie pod znakiem — h1 strony' },
+      hint: 'Przewiń'
     },
 
-    areas: {
-      eyebrow: 'Co robimy',
-      title: 'Sześć obszarów, jeden człowiek.',
-      panels: [
+    screen2: {
+      title: 'O co chodzi',
+      paragraphs: [
+        'Człowiek nie składa się z osobnych przegród. Życie duchowe, intelektualne, '
+        + 'emocjonalne, społeczne i fizyczne to jedno życie. Duchowość nie jest oderwana '
+        + 'od codzienności, wychowanie od relacji w rodzinie, a rozwój intelektualny od '
+        + 'odpowiedzialności za własne ciało, emocje i drugiego człowieka. Potrzebujemy '
+        + 'modlitwy i ciszy tak samo jak rozmowy, wiedzy, ruchu, odpoczynku, przyjaźni '
+        + 'i odpowiedzialności za kogoś.',
+
+        'Nikt nie wzrasta osobno. Dzieje się to wśród innych — w rodzinie, '
+        + 'w przyjaźniach, we wspólnotach, we wspólnej pracy i wspólnym odpoczynku. '
+        + 'Nie publiczność, lecz wspólnota.',
+
+        'Chrześcijaństwo nie jest kolejnym obszarem życia obok pozostałych. Jest '
+        + 'perspektywą, z której widać całego człowieka: jego godność, wolność, '
+        + 'odpowiedzialność, relacje, pracę, cierpienie, odpoczynek i powołanie.'
+      ],
+      openness:
+        'Mówimy o tym wprost, a drzwi zostają otwarte. Kto wierzy, może wiarę pogłębić. '
+        + 'Kto szuka, może pytać. Kto nie wierzy, jest przyjęty z tym samym szacunkiem '
+        + 'dla jego godności i wolności.'
+    },
+
+    screen3: {
+      title: 'Jak to się dzieje',
+      stages: 'Te części są na różnych etapach.',
+      works: [
         {
-          name: 'Życie duchowe i wiara',
-          body: 'Rekolekcje, dni skupienia, pielgrzymki, spotkania modlitewne i formacyjne.'
-        },
-        {
-          name: 'Rodzina',
-          body: 'Wsparcie małżeństw, więzi międzypokoleniowych i rodziców w wychowaniu dzieci.'
-        },
-        {
-          name: 'Dzieci i młodzież',
-          body: 'Formacja, obozy i wyprawy. Odpowiedzialność, dojrzałość, kompetencje społeczne.'
-        },
-        {
-          name: 'Edukacja',
-          body: 'Kursy, materiały, wydawnictwa i portal edukacyjny. Stąd Cogita i Biblioteka.'
-        },
-        {
-          name: 'Zdrowie',
+          name: 'Hortus Dei',
           body:
-            'Profilaktyka zdrowia psychicznego, fizycznego i społecznego. Bez działalności '
-            + 'leczniczej — na to trzeba odrębnych uprawnień.'
+            'Dom w Limanowej, w budowie, na około 52 osoby. Rekolekcje, dni skupienia, '
+            + 'formacja, edukacja i wypoczynek. Pomyślany dla grup — parafii, wspólnot, '
+            + 'ministrantów, duszpasterstw, harcerstwa, szkół, rodzin i inicjatyw '
+            + 'młodzieżowych.',
+          cta: 'Zobacz ośrodek'
         },
         {
-          name: 'Sport i przygoda',
-          body: 'Wyprawy piesze i rowerowe, sport, rekreacja, turystyka i krajoznawstwo.'
+          name: 'Wydarzenia',
+          body:
+            'Rekolekcje, pielgrzymki piesze i rowerowe, wyprawy oraz wydarzenia '
+            + 'sportowo-formacyjne. Wysiłek, modlitwa, przyroda, rozmowa i przekraczanie '
+            + 'własnych granic.',
+          cta: 'Zobacz wydarzenia'
+        },
+        {
+          name: 'Cogita',
+          body: 'Środowisko do nauki: teksty, storyboardy, zbiory i powtórki.',
+          cta: 'Zobacz Cogitę'
+        },
+        {
+          name: 'I dalej',
+          body:
+            'Działalność wydawnicza i spis książek, materiały edukacyjne, portal '
+            + 'edukacyjny oraz projekty dla dzieci, młodzieży i rodzin.',
+          cta: 'Zobacz bibliotekę'
         }
       ]
-    },
-
-    osrodek: {
-      eyebrow: '01 — Miejsce',
-      title: 'Najpierw dom.',
-      body:
-        'Ośrodek w Limanowej na około 52 osoby, w budowie. Rekolekcje, formacja, edukacja '
-        + 'i wypoczynek — dla grup, także spoza inicjatywy. Wolne terminy sprawdzisz bez '
-        + 'zakładania konta.',
-      cta: 'Zobacz ośrodek'
-    },
-
-    wydarzenia: {
-      eyebrow: '02 — To już się dzieje',
-      title: 'Nie plan. Praktyka.',
-      body:
-        'Pielgrzymki piesze i rowerowe, wyprawy, rekolekcje i spotkania — organizowane od '
-        + 'lat, zanim powstała jakakolwiek strona. Fundacja ma je prowadzić dalej.',
-      cta: 'Zobacz wydarzenia'
-    },
-
-    cogita: {
-      eyebrow: '03 — Wiedza',
-      title: 'Cogita',
-      body:
-        'Storyboardy, teksty, zbiory i powtórki. Powstała do prowadzenia zajęć, nie na '
-        + 'sprzedaż — i z wszystkiego, co tu zbudowano, jest używana najczęściej.',
-      cta: 'Zobacz Cogitę'
-    },
-
-    narzedzia: {
-      eyebrow: '04 — Jak to jest zbudowane',
-      title: 'Nie ma administratora.',
-      body:
-        'Klucze powstają na twoim urządzeniu. Nikt po naszej stronie nie otworzy twoich '
-        + 'treści — my też nie. Hasła nie da się zresetować; konto odzyskują poręczyciele, '
-        + 'których sam wskazujesz. Kalendarz, czat, obłożenie i formularze działają na tej '
-        + 'samej zasadzie.',
-      cta: 'Jak to działa',
-      facts: [
-        { value: '0', label: 'administratorów z dostępem' },
-        { value: '64 MiB', label: 'pamięci na jedno wyliczenie hasła' },
-        { value: '2', label: 'warstwy: sesja i klucz' }
-      ]
-    },
-
-    road: {
-      eyebrow: 'Plan',
-      title: 'Osiem kroków, i to, na którym stoimy.',
-      legend: { live: 'trwa', building: 'w budowie', planned: 'planowane' },
-      steps: [
-        { title: 'Dom w Limanowej', note: 'Budowa trwa.', state: 'building' },
-        { title: 'Własne rekolekcje i wydarzenia', note: 'Organizowane od lat.', state: 'live' },
-        {
-          title: 'Otwarcie ośrodka dla innych wspólnot',
-          note: 'Po oddaniu domu do użytku.',
-          state: 'planned'
-        },
-        {
-          title: 'Pielgrzymki i wydarzenia sportowo-formacyjne',
-          note: 'Piesze i rowerowe, co roku.',
-          state: 'live'
-        },
-        { title: 'Materiały edukacyjne', note: 'Powstają wraz z Cogitą.', state: 'building' },
-        {
-          title: 'Działalność wydawnicza',
-          note: 'Książki wydane; spis w przygotowaniu.',
-          state: 'live'
-        },
-        {
-          title: 'Portal edukacyjny',
-          note: 'Cogita działa, reszta w budowie.',
-          state: 'building'
-        },
-        {
-          title: 'Projekty dla dzieci, młodzieży i rodzin',
-          note: 'Po rejestracji fundacji.',
-          state: 'planned'
-        }
-      ]
-    },
-
-    close: {
-      words: ['Odnowić.', 'Odpocząć.', 'Wzrastać.', 'Spotkać.'],
-      body:
-        'Fundacja jeszcze nie istnieje. Rejestracja nastąpi, gdy dokumenty, zgody '
-        + 'i księgowość będą gotowe — planowo w 2027 roku. Do tego czasu nie zbieramy '
-        + 'darowizn.',
-      primary: 'Wesprzyj',
-      secondary: 'Kontakt'
     }
   },
 

@@ -123,38 +123,44 @@ export interface PublicCopy {
    * Abwechslung: es ist dieselbe Kante wie in der Plattform — hell ist das
    * Haus, dunkel die Werkstatt.
    */
+  /**
+   * Die Startseite: DREI Bilder, EIN Dokument.
+   *
+   *   1  Der Name. Sonst nichts.
+   *   2  Worum es geht — eine Sicht, keine Leistungsliste.
+   *   3  Wie es geschieht — die konkreten Werke.
+   *
+   * Keine Adresse beim Scrollen, keine Rasterung, kein Abfangen des Rades.
+   * Der Besucher bestimmt das Tempo.
+   */
   readonly front: {
-    readonly scrollHint: string;
-    readonly thesis: Slide;
+    readonly screen1: {
+      readonly wordmark: string;
+      /**
+       * Die `h1` der Seite — und die Zeile, die Suchmaschinen und
+       * Sprachmodelle zitieren werden. Sie wird NICHT erfunden.
+       */
+      readonly sentence: Text;
+      readonly hint: string;
+    };
 
-    /** Die sechs Bereiche als wechselnde Tafeln — eine Liste wäre hier tot. */
-    readonly areas: {
-      readonly eyebrow: string;
+    readonly screen2: {
       readonly title: string;
-      readonly panels: readonly {
+      /** Die dreifache Verbindung: in sich, in der Gemeinschaft, mit Gott. */
+      readonly paragraphs: readonly string[];
+      /** Die Offenheit. Wird nicht weggelassen und nicht zur Losung gekürzt. */
+      readonly openness: string;
+    };
+
+    readonly screen3: {
+      readonly title: string;
+      /** Dass die Teile verschieden weit sind, steht ausdrücklich da. */
+      readonly stages: string;
+      readonly works: readonly {
         readonly name: string;
         readonly body: string;
+        readonly cta: string;
       }[];
-    };
-
-    readonly osrodek: Slide;
-    readonly wydarzenia: Slide;
-    readonly cogita: Slide;
-    readonly narzedzia: Slide;
-
-    /** Der Stufenplan, nummeriert und mit Zustand. */
-    readonly road: {
-      readonly eyebrow: string;
-      readonly title: string;
-      readonly legend: Readonly<Record<StepState, string>>;
-      readonly steps: readonly RoadStep[];
-    };
-
-    readonly close: {
-      readonly words: readonly string[];
-      readonly body: string;
-      readonly primary: string;
-      readonly secondary: string;
     };
   };
 

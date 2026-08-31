@@ -38,151 +38,71 @@ export const en: PublicCopy = {
   },
 
   front: {
-    scrollHint: 'Scroll',
-
-    thesis: {
-      eyebrow: 'REcreatio · Limanowa',
-      title: 'People get divided into parts.',
-      body:
-        'School takes the mind, the gym takes the body, the parish takes the soul — and '
-        + 'software collects all three and trades them on. We are building a place and '
-        + 'tools that do not.',
-      cta: 'Meet the initiative',
-      facts: [
-        { value: '6', label: 'areas' },
-        { value: '52', label: 'places in the house' },
-        { value: '2027', label: 'registration of the foundation' }
-      ]
+    screen1: {
+      wordmark: 'REcreatio',
+      sentence: { missing: 'The one sentence under the wordmark — the page h1' },
+      hint: 'Scroll'
     },
 
-    areas: {
-      eyebrow: 'What we do',
-      title: 'Six areas, one person.',
-      panels: [
+    screen2: {
+      title: 'What this is about',
+      paragraphs: [
+        'A person is not made of separate compartments. Spiritual, intellectual, '
+        + 'emotional, social and physical life are one life. The spiritual is not '
+        + 'detached from daily life, upbringing not from relationships within the '
+        + 'family, and intellectual growth not from responsibility for one\'s own body, '
+        + 'one\'s emotions and other people. We need prayer and silence as much as '
+        + 'conversation, knowledge, movement, rest, friendship and responsibility for '
+        + 'someone.',
+
+        'Nobody grows on their own. It happens among others — in a family, in '
+        + 'friendships, in communities, in shared work and shared rest. Not an '
+        + 'audience, a fellowship.',
+
+        'Christianity is not one more area of life alongside the others. It is the '
+        + 'perspective from which the whole person is seen: their dignity, freedom, '
+        + 'responsibility, relationships, work, suffering, rest and vocation.'
+      ],
+      openness:
+        'We say so plainly, and the door stays open. A believer can deepen their '
+        + 'faith. A seeker can ask questions. Someone who does not believe is received '
+        + 'with the same respect for their dignity and freedom.'
+    },
+
+    screen3: {
+      title: 'How this happens',
+      stages: 'These parts are at different stages.',
+      works: [
         {
-          name: 'Spiritual life',
-          body: 'Retreats, days of recollection, pilgrimages, prayer and formation meetings.'
-        },
-        {
-          name: 'Family',
-          body: 'Support for marriages, for bonds between generations, and for parents.'
-        },
-        {
-          name: 'Children and youth',
-          body: 'Formation, camps and expeditions. Responsibility, maturity, social competence.'
-        },
-        {
-          name: 'Education',
-          body: 'Courses, materials, publishing and an education portal. Hence Cogita and the Library.'
-        },
-        {
-          name: 'Health',
+          name: 'Hortus Dei',
           body:
-            'Prevention in mental, physical and social health. No medical treatment — that '
-            + 'requires separate authorisation.'
+            'The house in Limanowa, under construction, for about 52 people. Retreats, '
+            + 'days of recollection, formation, education and rest. Intended for '
+            + 'groups — parishes, communities, altar servers, chaplaincies, scouts, '
+            + 'schools, families and youth initiatives.',
+          cta: 'See the house'
         },
         {
-          name: 'Sport and adventure',
-          body: 'Expeditions on foot and by bicycle, sport, recreation, travel and country lore.'
+          name: 'Events',
+          body:
+            'Retreats, pilgrimages on foot and by bicycle, expeditions, and sport and '
+            + 'formation events. Effort, prayer, nature, conversation and going past '
+            + 'one\'s own limits.',
+          cta: 'See the events'
+        },
+        {
+          name: 'Cogita',
+          body: 'The learning environment: texts, storyboards, collections, repetition.',
+          cta: 'See Cogita'
+        },
+        {
+          name: 'And further',
+          body:
+            'Publishing and the book list, educational materials, the education portal, '
+            + 'and projects for children, youth and families.',
+          cta: 'To the library'
         }
       ]
-    },
-
-    osrodek: {
-      eyebrow: '01 — The place',
-      title: 'The house first.',
-      body:
-        'A house in Limanowa for about 52 people, under construction. Retreats, formation, '
-        + 'education and rest — for groups, including from outside. Free periods can be '
-        + 'checked without an account.',
-      cta: 'See the house'
-    },
-
-    wydarzenia: {
-      eyebrow: '02 — Already happening',
-      title: 'Not a plan. Practice.',
-      body:
-        'Pilgrimages on foot and by bicycle, expeditions, retreats and meetings — run for '
-        + 'years, long before there was any website. The foundation is to continue them.',
-      cta: 'See the events'
-    },
-
-    cogita: {
-      eyebrow: '03 — Knowledge',
-      title: 'Cogita',
-      body:
-        'Storyboards, texts, collections, repetition. Built to run our own teaching, not to '
-        + 'sell — and of everything built here, the most used.',
-      cta: 'See Cogita'
-    },
-
-    narzedzia: {
-      eyebrow: '04 — How it is built',
-      title: 'There is no administrator.',
-      body:
-        'The keys are created on your device. Nobody on our side opens your content — we '
-        + 'do not either. A password cannot be reset; an account is brought back by '
-        + 'guarantors you name yourself. Calendar, chat, occupancy and forms all work by '
-        + 'the same rule.',
-      cta: 'How it works',
-      facts: [
-        { value: '0', label: 'administrators with access' },
-        { value: '64 MiB', label: 'memory per password derivation' },
-        { value: '2', label: 'layers: session and key' }
-      ]
-    },
-
-    road: {
-      eyebrow: 'The plan',
-      title: 'Eight steps, and the one we are standing on.',
-      legend: { live: 'running', building: 'building', planned: 'planned' },
-      steps: [
-        { title: 'The house in Limanowa', note: 'Construction under way.', state: 'building' },
-        {
-          title: 'Our own retreats and events',
-          note: 'Run for years.',
-          state: 'live'
-        },
-        {
-          title: 'Opening the house to other communities',
-          note: 'Once the house is finished.',
-          state: 'planned'
-        },
-        {
-          title: 'Pilgrimages and sport-formation events',
-          note: 'On foot and by bicycle, every year.',
-          state: 'live'
-        },
-        {
-          title: 'Educational materials',
-          note: 'Growing alongside Cogita.',
-          state: 'building'
-        },
-        {
-          title: 'Publishing',
-          note: 'Books are out; the catalogue is being built.',
-          state: 'live'
-        },
-        {
-          title: 'The education portal',
-          note: 'Cogita runs; the rest is being built.',
-          state: 'building'
-        },
-        {
-          title: 'Projects for children, youth and families',
-          note: 'After registration.',
-          state: 'planned'
-        }
-      ]
-    },
-
-    close: {
-      words: ['Renew.', 'Rest.', 'Grow.', 'Meet.'],
-      body:
-        'The foundation does not exist yet. Registration follows once documents, permissions '
-        + 'and accounting are ready — planned for 2027. Until then we collect no donations.',
-      primary: 'Get involved',
-      secondary: 'Contact'
     }
   },
 

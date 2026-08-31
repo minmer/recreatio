@@ -40,153 +40,71 @@ export const de: PublicCopy = {
   },
 
   front: {
-    scrollHint: 'Weiter',
-
-    thesis: {
-      eyebrow: 'REcreatio · Limanowa',
-      title: 'Der Mensch wird in Teile zerlegt.',
-      body:
-        'Die Schule nimmt den Verstand, das Studio den Körper, die Pfarrei die Seele — und '
-        + 'die Software sammelt alle drei ein und handelt damit weiter. Wir bauen einen Ort '
-        + 'und Werkzeuge, die das nicht tun.',
-      cta: 'Die Initiative kennenlernen',
-      facts: [
-        { value: '6', label: 'Bereiche' },
-        { value: '52', label: 'Plätze im Haus' },
-        { value: '2027', label: 'Eintragung der Stiftung' }
-      ]
+    screen1: {
+      wordmark: 'REcreatio',
+      sentence: { missing: 'Der eine Satz unter dem Zeichen — die h1 der Seite' },
+      hint: 'Weiter'
     },
 
-    areas: {
-      eyebrow: 'Was wir tun',
-      title: 'Sechs Bereiche, ein Mensch.',
-      panels: [
+    screen2: {
+      title: 'Worum es geht',
+      paragraphs: [
+        'Ein Mensch besteht nicht aus getrennten Fächern. Geistliches, geistiges, '
+        + 'seelisches, soziales und körperliches Leben sind ein Leben. Das Geistliche '
+        + 'ist nicht vom Alltag abgelöst, die Erziehung nicht von den Beziehungen in der '
+        + 'Familie, das Lernen nicht von der Verantwortung für den eigenen Körper, die '
+        + 'eigenen Gefühle und den anderen. Wir brauchen Gebet und Stille ebenso wie '
+        + 'Gespräch, Wissen, Bewegung, Ruhe, Freundschaft und Verantwortung für jemanden.',
+
+        'Niemand wächst für sich allein. Es geschieht unter anderen — in der Familie, '
+        + 'in Freundschaften, in Gemeinschaften, in gemeinsamer Arbeit und gemeinsamer '
+        + 'Ruhe. Kein Publikum, sondern eine Gemeinschaft.',
+
+        'Das Christliche ist nicht ein weiterer Bereich neben den übrigen. Es ist die '
+        + 'Sicht, aus der der ganze Mensch zu sehen ist: seine Würde, Freiheit, '
+        + 'Verantwortung, seine Beziehungen, Arbeit, sein Leiden, seine Ruhe und '
+        + 'Berufung.'
+      ],
+      openness:
+        'Wir sagen das geradeheraus, und die Tür bleibt offen. Wer glaubt, kann den '
+        + 'Glauben vertiefen. Wer sucht, darf fragen. Wer nicht glaubt, wird mit '
+        + 'demselben Respekt vor seiner Würde und Freiheit aufgenommen.'
+    },
+
+    screen3: {
+      title: 'Wie es geschieht',
+      stages: 'Diese Teile sind verschieden weit.',
+      works: [
         {
-          name: 'Geistliches Leben',
-          body: 'Exerzitien, Besinnungstage, Wallfahrten, Gebets- und Formungstreffen.'
-        },
-        {
-          name: 'Familie',
-          body: 'Unterstützung für Ehen, für die Bande zwischen Generationen und für Eltern.'
-        },
-        {
-          name: 'Kinder und Jugend',
-          body: 'Formung, Lager und Fahrten. Verantwortung, Reife, soziale Fähigkeiten.'
-        },
-        {
-          name: 'Bildung',
-          body: 'Kurse, Materialien, Verlagsarbeit und Bildungsportal. Daher Cogita und Bibliothek.'
-        },
-        {
-          name: 'Gesundheit',
+          name: 'Hortus Dei',
           body:
-            'Vorbeugung für seelische, körperliche und soziale Gesundheit. Ohne '
-            + 'Heilbehandlung — dafür braucht es eigene Befugnisse.'
+            'Das Haus in Limanowa, im Bau, für etwa 52 Personen. Exerzitien, '
+            + 'Besinnungstage, Formung, Bildung und Erholung. Gedacht für Gruppen — '
+            + 'Pfarreien, Gemeinschaften, Ministranten, Seelsorge, Pfadfinder, Schulen, '
+            + 'Familien und Jugendinitiativen.',
+          cta: 'Das Haus ansehen'
         },
         {
-          name: 'Sport und Abenteuer',
-          body: 'Fahrten zu Fuss und mit dem Rad, Sport, Erholung, Reisen und Landeskunde.'
+          name: 'Veranstaltungen',
+          body:
+            'Exerzitien, Wallfahrten zu Fuss und mit dem Rad, Fahrten sowie Sport- und '
+            + 'Formungsveranstaltungen. Anstrengung, Gebet, Natur, Gespräch und das '
+            + 'Überschreiten eigener Grenzen.',
+          cta: 'Veranstaltungen ansehen'
+        },
+        {
+          name: 'Cogita',
+          body: 'Die Lernumgebung: Texte, Storyboards, Sammlungen, Wiederholung.',
+          cta: 'Cogita ansehen'
+        },
+        {
+          name: 'Und weiter',
+          body:
+            'Verlagsarbeit und das Bücherverzeichnis, Bildungsmaterialien, das '
+            + 'Bildungsportal sowie Projekte für Kinder, Jugendliche und Familien.',
+          cta: 'Zur Bibliothek'
         }
       ]
-    },
-
-    osrodek: {
-      eyebrow: '01 — Der Ort',
-      title: 'Zuerst das Haus.',
-      body:
-        'Ein Haus in Limanowa für etwa 52 Personen, im Bau. Exerzitien, Formung, Bildung '
-        + 'und Erholung — für Gruppen, auch von ausserhalb. Freie Zeiträume lassen sich '
-        + 'ohne Konto einsehen.',
-      cta: 'Das Haus ansehen'
-    },
-
-    wydarzenia: {
-      eyebrow: '02 — Es geschieht bereits',
-      title: 'Kein Plan. Praxis.',
-      body:
-        'Wallfahrten zu Fuss und mit dem Rad, Fahrten, Exerzitien und Treffen — seit Jahren '
-        + 'durchgeführt, lange vor jeder Internetseite. Die Stiftung soll sie fortsetzen.',
-      cta: 'Veranstaltungen ansehen'
-    },
-
-    cogita: {
-      eyebrow: '03 — Wissen',
-      title: 'Cogita',
-      body:
-        'Storyboards, Texte, Sammlungen, Wiederholung. Entstanden für den eigenen '
-        + 'Unterricht, nicht für den Verkauf — und von allem, was hier gebaut wurde, das '
-        + 'meistgenutzte.',
-      cta: 'Cogita ansehen'
-    },
-
-    narzedzia: {
-      eyebrow: '04 — Wie es gebaut ist',
-      title: 'Es gibt keinen Verwalter.',
-      body:
-        'Die Schlüssel entstehen auf deinem Gerät. Niemand auf unserer Seite öffnet deine '
-        + 'Inhalte — wir auch nicht. Ein Passwort lässt sich nicht zurücksetzen; ein Konto '
-        + 'holen Bürgen zurück, die du selbst benennst. Kalender, Nachrichten, Belegung und '
-        + 'Formulare arbeiten nach derselben Regel.',
-      cta: 'Wie das geht',
-      facts: [
-        { value: '0', label: 'Verwalter mit Zugriff' },
-        { value: '64 MiB', label: 'Speicher je Passwortdurchgang' },
-        { value: '2', label: 'Schichten: Sitzung und Schlüssel' }
-      ]
-    },
-
-    road: {
-      eyebrow: 'Der Plan',
-      title: 'Acht Schritte, und der, auf dem wir stehen.',
-      legend: { live: 'läuft', building: 'im Bau', planned: 'geplant' },
-      steps: [
-        { title: 'Das Haus in Limanowa', note: 'Die Bauarbeiten laufen.', state: 'building' },
-        {
-          title: 'Eigene Exerzitien und Veranstaltungen',
-          note: 'Seit Jahren durchgeführt.',
-          state: 'live'
-        },
-        {
-          title: 'Das Haus für andere Gemeinschaften öffnen',
-          note: 'Nach der Fertigstellung.',
-          state: 'planned'
-        },
-        {
-          title: 'Wallfahrten sowie Sport- und Formungsveranstaltungen',
-          note: 'Zu Fuss und mit dem Rad, jedes Jahr.',
-          state: 'live'
-        },
-        {
-          title: 'Bildungsmaterialien',
-          note: 'Entstehen zusammen mit Cogita.',
-          state: 'building'
-        },
-        {
-          title: 'Verlagsarbeit',
-          note: 'Bücher sind erschienen; das Verzeichnis entsteht.',
-          state: 'live'
-        },
-        {
-          title: 'Das Bildungsportal',
-          note: 'Cogita läuft, der Rest ist im Bau.',
-          state: 'building'
-        },
-        {
-          title: 'Projekte für Kinder, Jugendliche und Familien',
-          note: 'Nach der Eintragung.',
-          state: 'planned'
-        }
-      ]
-    },
-
-    close: {
-      words: ['Erneuern.', 'Ausruhen.', 'Wachsen.', 'Begegnen.'],
-      body:
-        'Die Stiftung gibt es noch nicht. Die Eintragung erfolgt, wenn Unterlagen, '
-        + 'Zustimmungen und Buchhaltung bereit sind — geplant für 2027. Bis dahin sammeln '
-        + 'wir keine Spenden.',
-      primary: 'Mitmachen',
-      secondary: 'Kontakt'
     }
   },
 

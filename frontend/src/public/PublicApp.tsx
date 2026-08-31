@@ -56,13 +56,12 @@ export function PublicApp() {
   const title = page === null ? copy.notFound.title : titleOf(page, copy);
   usePublicHead(page, title, copy, lang);
 
-  // Die Startseite rastert den Bildlauf und traegt ihre eigene Fusszeile am
-  // Ende der letzten Folie — eine feste Fusszeile darunter wuerde die Rasterung
-  // bei jeder Folie um ihre Hoehe verschieben.
+  // Die Startseite endet mit dem dritten Bild. Keine Fusszeile darunter: eine
+  // Fusszeile mit Verweisen waere ein viertes Bild, und drei sind drei.
   const isFront = page === 'front';
 
   return (
-    <div className={`pub-root ${isFront ? 'is-front' : ''}`}>
+    <div className="pub-root">
       <PublicHeader copy={copy} lang={lang} onLang={setLang} active={page} />
 
       <main className="pub-main" id="pub-main">
