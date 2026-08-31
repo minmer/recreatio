@@ -54,45 +54,74 @@ export const pl: PublicCopy = {
 
   front: {
     scrollHint: 'Przewiń',
-    initiative: {
-      eyebrow: 'Inicjatywa',
-      title: 'REcreatio',
+
+    thesis: {
+      eyebrow: 'REcreatio · Limanowa',
+      title: 'Człowieka dzieli się na części.',
       body:
-        'Rodzinne i duszpasterskie przedsięwzięcie z Limanowej: rekolekcje, formacja, '
-        + 'edukacja i wypoczynek. W trakcie powstawania — fundacja jeszcze nie istnieje.',
-      cta: 'Poznaj inicjatywę'
+        'Szkoła bierze rozum, siłownia ciało, parafia duszę, a oprogramowanie zbiera '
+        + 'wszystkie trzy i handluje nimi dalej. Budujemy miejsce i narzędzia, które tego '
+        + 'nie robią.',
+      cta: 'Poznaj inicjatywę',
+      facts: [
+        { value: '6', label: 'obszarów' },
+        { value: '52', label: 'miejsca w ośrodku' },
+        { value: '2027', label: 'rejestracja fundacji' }
+      ]
     },
+
     osrodek: {
-      eyebrow: 'Limanowa',
-      title: 'Ośrodek',
+      eyebrow: '01 — Miejsce',
+      title: 'Najpierw dom.',
       body:
-        'Dom na około 52 osoby, przede wszystkim dla grup. W budowie. Wolne terminy '
-        + 'można sprawdzić już teraz, bez zakładania konta.',
+        'Ośrodek w Limanowej na około 52 osoby, w budowie. Rekolekcje, formacja, edukacja '
+        + 'i wypoczynek — dla grup, także spoza inicjatywy. Wolne terminy sprawdzisz bez '
+        + 'zakładania konta.',
       cta: 'Zobacz ośrodek'
     },
+
     wydarzenia: {
-      eyebrow: 'Pielgrzymki i spotkania',
-      title: 'Wydarzenia',
+      eyebrow: '02 — To już się dzieje',
+      title: 'Nie plan. Praktyka.',
       body:
-        'Pielgrzymki piesze i rowerowe, wyprawy, rekolekcje i spotkania — organizowane '
-        + 'od lat. Fundacja ma je prowadzić dalej.',
+        'Pielgrzymki piesze i rowerowe, wyprawy, rekolekcje i spotkania — organizowane od '
+        + 'lat, zanim powstała jakakolwiek strona. Fundacja ma je prowadzić dalej.',
       cta: 'Zobacz wydarzenia'
     },
+
     cogita: {
-      eyebrow: 'Najbardziej znana część',
+      eyebrow: '03 — Wiedza',
       title: 'Cogita',
       body:
-        'Środowisko do nauki: storyboardy, teksty, zbiory i powtórki. Z wszystkiego, co '
-        + 'tu powstało, używane najczęściej.',
+        'Storyboardy, teksty, zbiory i powtórki. Powstała do prowadzenia zajęć, nie na '
+        + 'sprzedaż — i z wszystkiego, co tu zbudowano, jest używana najczęściej.',
       cta: 'Zobacz Cogitę'
     },
+
     narzedzia: {
-      eyebrow: 'Reszta',
-      title: 'Narzędzia',
+      eyebrow: '04 — Jak to jest zbudowane',
+      title: 'Nie ma administratora.',
       body:
-        'Kalendarz, czat, obłożenie sal, formularze, biblioteka. Każde powstało przy '
-        + 'konkretnej pracy i każde może służyć innym wspólnotom.',
-      cta: 'Zobacz narzędzia'
+        'Klucze powstają na twoim urządzeniu. Nikt po naszej stronie nie otworzy twoich '
+        + 'treści — my też nie. Hasła nie da się zresetować; konto odzyskują poręczyciele, '
+        + 'których sam wskazujesz. Kalendarz, czat, obłożenie i formularze działają na tej '
+        + 'samej zasadzie.',
+      cta: 'Jak to działa',
+      facts: [
+        { value: '0', label: 'administratorów z dostępem' },
+        { value: '64 MiB', label: 'pamięci na jedno wyliczenie hasła' },
+        { value: '2', label: 'warstwy: sesja i klucz' }
+      ]
+    },
+
+    close: {
+      words: ['Odnowić.', 'Odpocząć.', 'Wzrastać.', 'Spotkać.'],
+      body:
+        'Fundacja jeszcze nie istnieje. Rejestracja nastąpi, gdy dokumenty, zgody '
+        + 'i księgowość będą gotowe — planowo w 2027 roku. Do tego czasu nie zbieramy '
+        + 'darowizn.',
+      primary: 'Wesprzyj',
+      secondary: 'Kontakt'
     }
   },
 

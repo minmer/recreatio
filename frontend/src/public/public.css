@@ -269,7 +269,15 @@
   border: 0;
 }
 
-/* -- Startseite: Folien ---------------------------------------------------- */
+/* ==========================================================================
+   Startseite
+   ==========================================================================
+
+   Der Bogen läuft von Papier nach Dunkel. Das ist keine Abwechslung: es ist
+   dieselbe Kante wie in der Plattform — hell ist, was offen liegt, dunkel ist,
+   was verschlossen ist. Wer bis zur Werkstatt scrollt, hat den Übergang
+   gesehen, bevor er ihn gelesen hat.
+*/
 
 .pub-root.is-front .pub-main { flex: 1 1 auto; min-height: 0; }
 
@@ -278,97 +286,203 @@
   overflow-y: auto;
   scroll-snap-type: y mandatory;
   position: relative;
+  scrollbar-width: none;
 }
+
+.pub-front::-webkit-scrollbar { display: none; }
 
 .pub-slide {
   min-height: calc(100vh - var(--head-h));
   scroll-snap-align: start;
   display: flex;
   align-items: center;
-  padding: 3rem var(--pad);
-  border-bottom: 1px solid var(--line);
+  padding: 4rem var(--pad);
   position: relative;
+  background: var(--paper);
+  color: var(--ink);
 }
 
-.pub-slide:nth-child(even) { background: var(--paper-2); }
+.pub-slide[data-tone='paper'] + .pub-slide[data-tone='paper'] { border-top: 1px solid var(--line); }
 
-.pub-slide-in { max-width: 46rem; margin: 0 auto; width: 100%; }
+/* Die Werkstatt. Ein anderes Material, nicht eine dunklere Fassung
+   desselben — deshalb eigene Werte statt einer Umkehrung der Marken. */
+.pub-slide[data-tone='sealed'] {
+  --ink: #f2f4ef;
+  --ink-soft: #a9b1a4;
+  --ink-faint: #79806f;
+  --line: #2b312a;
+  --accent: #9ed3b4;
+  background: #14180f;
+  color: #f2f4ef;
+}
+
+.pub-slide-in {
+  max-width: var(--page);
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Der Einzug. Einmal und leise — nicht als Effekt, sondern damit die Folie
+   beim Ankommen zusammenhält statt fertig dazustehen. */
+.pub-slide-in > * {
+  opacity: 0;
+  transform: translateY(0.85rem);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+
+.pub-slide[data-seen='true'] .pub-slide-in > * { opacity: 1; transform: none; }
+.pub-slide[data-seen='true'] .pub-slide-in > :nth-child(2) { transition-delay: 0.06s; }
+.pub-slide[data-seen='true'] .pub-slide-in > :nth-child(3) { transition-delay: 0.12s; }
+.pub-slide[data-seen='true'] .pub-slide-in > :nth-child(4) { transition-delay: 0.18s; }
+.pub-slide[data-seen='true'] .pub-slide-in > :nth-child(5) { transition-delay: 0.24s; }
 
 .pub-eyebrow {
   font-family: var(--sans);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
-  letter-spacing: 0.13em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--accent);
-  margin: 0 0 1rem;
+  margin: 0 0 1.6rem;
 }
 
 .pub-slide-h {
-  font-size: clamp(2.6rem, 8vw, 5rem);
+  font-size: clamp(2.9rem, 8.5vw, 7rem);
   font-weight: 300;
-  line-height: 1.02;
-  letter-spacing: -0.025em;
-  margin: 0 0 1.25rem;
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  margin: 0 0 1.6rem;
+  max-width: 16ch;
   text-wrap: balance;
 }
 
 .pub-slide-b {
-  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  font-size: clamp(1.1rem, 1.7vw, 1.45rem);
+  line-height: 1.5;
   color: var(--ink-soft);
-  max-width: 34rem;
-  margin: 0 0 2rem;
+  max-width: 40rem;
+  margin: 0 0 2.4rem;
   text-wrap: pretty;
+}
+
+/* Zahlen, die für sich stehen. Nur echte — eine geschätzte Zahl in dieser
+   Grösse ist eine Behauptung, die sich niemand mehr nachzurechnen traut. */
+.pub-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2.5rem 3.5rem;
+  margin: 0 0 2.6rem;
+  padding: 1.6rem 0 0;
+  border-top: 1px solid var(--line);
+  max-width: 46rem;
+}
+
+.pub-facts div { display: flex; flex-direction: column; gap: 0.3rem; }
+
+.pub-facts dt {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.pub-facts dd {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--ink-faint);
+  max-width: 12rem;
 }
 
 .pub-slide-cta {
   display: inline-block;
   font-family: var(--sans);
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   font-weight: 500;
   text-decoration: none;
-  color: var(--paper);
-  background: var(--ink);
-  border: 1px solid var(--ink);
-  padding: 0.65rem 1.4rem;
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 0.75rem 1.6rem;
   border-radius: 2px;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-.pub-slide-cta:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pub-slide[data-tone='sealed'] .pub-slide-cta { color: #14180f; }
+.pub-slide-cta:hover { background: transparent; color: var(--accent); }
 
 .pub-scroll {
   position: absolute;
-  bottom: 2rem;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 2.2rem;
+  left: var(--pad);
   font-family: var(--sans);
-  font-size: 0.75rem;
-  letter-spacing: 0.16em;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--ink-faint);
   margin: 0;
 }
 
-.pub-dots {
+/* -- Der Schluss ----------------------------------------------------------- */
+
+.pub-close-words {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  margin: 0 0 2.4rem;
+  font-size: clamp(2.6rem, 8vw, 6.5rem);
+  font-weight: 300;
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  font-style: italic;
+  color: var(--accent);
+}
+
+.pub-close-body {
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  max-width: 34rem;
+  margin: 0 0 2.2rem;
+}
+
+.pub-close-do { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; margin: 0; }
+
+.pub-close-quiet {
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+  text-underline-offset: 4px;
+}
+
+/* -- Die Leiste ------------------------------------------------------------ */
+
+.pub-rail {
   position: fixed;
-  right: clamp(0.8rem, 2vw, 1.6rem);
+  right: clamp(1rem, 2.5vw, 2.2rem);
   top: 50%;
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  z-index: 20;
+  gap: 0.55rem;
+  z-index: 25;
+  mix-blend-mode: difference;
 }
 
-.pub-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  border: 1px solid var(--ink-faint);
+.pub-rail-step {
   display: block;
+  width: 1.5rem;
+  height: 2px;
+  background: #8a8a8a;
+  transition: background 0.25s ease, width 0.25s ease;
 }
 
-.pub-dot[aria-current='true'] { background: var(--accent); border-color: var(--accent); }
+.pub-rail-step:hover { background: #fff; }
+.pub-rail-step[aria-current='true'] { width: 2.6rem; background: #fff; }
 
 /* -- Innenseiten ----------------------------------------------------------- */
 
@@ -734,10 +848,19 @@
 
   .pub-front { height: auto; overflow: visible; scroll-snap-type: none; }
   .pub-slide { min-height: 78vh; }
-  .pub-dots { display: none; }
+  .pub-rail { display: none; }
+  .pub-facts { gap: 1.75rem 2.5rem; }
+  .pub-slide-h { max-width: none; }
 }
 
+/*
+ * Wer Bewegung abbestellt hat, bekommt keine — und zwar so, dass der Inhalt
+ * trotzdem da ist. Ein Einzug, der nur per Übergang sichtbar wird, liesse die
+ * Seite hier leer stehen; deshalb wird die Ausgangslage zurückgesetzt und
+ * nicht bloss der Übergang abgeschaltet.
+ */
 @media (prefers-reduced-motion: reduce) {
   .pub-root * { animation: none !important; transition: none !important; }
   .pub-front { scroll-snap-type: none; }
+  .pub-slide-in > * { opacity: 1; transform: none; }
 }

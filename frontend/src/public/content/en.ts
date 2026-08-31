@@ -39,45 +39,73 @@ export const en: PublicCopy = {
 
   front: {
     scrollHint: 'Scroll',
-    initiative: {
-      eyebrow: 'The initiative',
-      title: 'REcreatio',
+
+    thesis: {
+      eyebrow: 'REcreatio · Limanowa',
+      title: 'People get divided into parts.',
       body:
-        'A family and pastoral undertaking from Limanowa: retreats, formation, education '
-        + 'and rest. In formation — the foundation does not exist yet.',
-      cta: 'Meet the initiative'
+        'School takes the mind, the gym takes the body, the parish takes the soul — and '
+        + 'software collects all three and trades them on. We are building a place and '
+        + 'tools that do not.',
+      cta: 'Meet the initiative',
+      facts: [
+        { value: '6', label: 'areas' },
+        { value: '52', label: 'places in the house' },
+        { value: '2027', label: 'registration of the foundation' }
+      ]
     },
+
     osrodek: {
-      eyebrow: 'Limanowa',
-      title: 'The house',
+      eyebrow: '01 — The place',
+      title: 'The house first.',
       body:
-        'A house for about 52 people, mainly for groups. Under construction. Free periods '
-        + 'can be checked now, without an account.',
+        'A house in Limanowa for about 52 people, under construction. Retreats, formation, '
+        + 'education and rest — for groups, including from outside. Free periods can be '
+        + 'checked without an account.',
       cta: 'See the house'
     },
+
     wydarzenia: {
-      eyebrow: 'Pilgrimages and meetings',
-      title: 'Events',
+      eyebrow: '02 — Already happening',
+      title: 'Not a plan. Practice.',
       body:
         'Pilgrimages on foot and by bicycle, expeditions, retreats and meetings — run for '
-        + 'years. The foundation is to continue them.',
+        + 'years, long before there was any website. The foundation is to continue them.',
       cta: 'See the events'
     },
+
     cogita: {
-      eyebrow: 'The best-known part',
+      eyebrow: '03 — Knowledge',
       title: 'Cogita',
       body:
-        'The learning environment: storyboards, texts, collections, repetition. Of '
-        + 'everything built here, the most used.',
+        'Storyboards, texts, collections, repetition. Built to run our own teaching, not to '
+        + 'sell — and of everything built here, the most used.',
       cta: 'See Cogita'
     },
+
     narzedzia: {
-      eyebrow: 'The rest',
-      title: 'Tools',
+      eyebrow: '04 — How it is built',
+      title: 'There is no administrator.',
       body:
-        'Calendar, chat, room occupancy, forms, library. Each came out of a concrete piece '
-        + 'of work, and each can serve other communities.',
-      cta: 'See the tools'
+        'The keys are created on your device. Nobody on our side opens your content — we '
+        + 'do not either. A password cannot be reset; an account is brought back by '
+        + 'guarantors you name yourself. Calendar, chat, occupancy and forms all work by '
+        + 'the same rule.',
+      cta: 'How it works',
+      facts: [
+        { value: '0', label: 'administrators with access' },
+        { value: '64 MiB', label: 'memory per password derivation' },
+        { value: '2', label: 'layers: session and key' }
+      ]
+    },
+
+    close: {
+      words: ['Renew.', 'Rest.', 'Grow.', 'Meet.'],
+      body:
+        'The foundation does not exist yet. Registration follows once documents, permissions '
+        + 'and accounting are ready — planned for 2027. Until then we collect no donations.',
+      primary: 'Get involved',
+      secondary: 'Contact'
     }
   },
 

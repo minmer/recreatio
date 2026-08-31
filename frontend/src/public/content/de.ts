@@ -41,45 +41,75 @@ export const de: PublicCopy = {
 
   front: {
     scrollHint: 'Weiter',
-    initiative: {
-      eyebrow: 'Initiative',
-      title: 'REcreatio',
+
+    thesis: {
+      eyebrow: 'REcreatio · Limanowa',
+      title: 'Der Mensch wird in Teile zerlegt.',
       body:
-        'Ein familiäres und seelsorgliches Vorhaben aus Limanowa: Exerzitien, Formung, '
-        + 'Bildung und Erholung. Im Entstehen — die Stiftung gibt es noch nicht.',
-      cta: 'Die Initiative kennenlernen'
+        'Die Schule nimmt den Verstand, das Studio den Körper, die Pfarrei die Seele — und '
+        + 'die Software sammelt alle drei ein und handelt damit weiter. Wir bauen einen Ort '
+        + 'und Werkzeuge, die das nicht tun.',
+      cta: 'Die Initiative kennenlernen',
+      facts: [
+        { value: '6', label: 'Bereiche' },
+        { value: '52', label: 'Plätze im Haus' },
+        { value: '2027', label: 'Eintragung der Stiftung' }
+      ]
     },
+
     osrodek: {
-      eyebrow: 'Limanowa',
-      title: 'Das Haus',
+      eyebrow: '01 — Der Ort',
+      title: 'Zuerst das Haus.',
       body:
-        'Ein Haus für etwa 52 Personen, vor allem für Gruppen. Im Bau. Freie Zeiträume '
-        + 'lassen sich schon jetzt einsehen, ohne Konto.',
+        'Ein Haus in Limanowa für etwa 52 Personen, im Bau. Exerzitien, Formung, Bildung '
+        + 'und Erholung — für Gruppen, auch von ausserhalb. Freie Zeiträume lassen sich '
+        + 'ohne Konto einsehen.',
       cta: 'Das Haus ansehen'
     },
+
     wydarzenia: {
-      eyebrow: 'Wallfahrten und Treffen',
-      title: 'Veranstaltungen',
+      eyebrow: '02 — Es geschieht bereits',
+      title: 'Kein Plan. Praxis.',
       body:
-        'Wallfahrten zu Fuss und mit dem Rad, Fahrten, Exerzitien und Treffen — seit '
-        + 'Jahren durchgeführt. Die Stiftung soll sie fortsetzen.',
+        'Wallfahrten zu Fuss und mit dem Rad, Fahrten, Exerzitien und Treffen — seit Jahren '
+        + 'durchgeführt, lange vor jeder Internetseite. Die Stiftung soll sie fortsetzen.',
       cta: 'Veranstaltungen ansehen'
     },
+
     cogita: {
-      eyebrow: 'Der bekannteste Teil',
+      eyebrow: '03 — Wissen',
       title: 'Cogita',
       body:
-        'Die Lernumgebung: Storyboards, Texte, Sammlungen, Wiederholung. Von allem, was '
-        + 'hier entstanden ist, das meistgenutzte.',
+        'Storyboards, Texte, Sammlungen, Wiederholung. Entstanden für den eigenen '
+        + 'Unterricht, nicht für den Verkauf — und von allem, was hier gebaut wurde, das '
+        + 'meistgenutzte.',
       cta: 'Cogita ansehen'
     },
+
     narzedzia: {
-      eyebrow: 'Der Rest',
-      title: 'Werkzeuge',
+      eyebrow: '04 — Wie es gebaut ist',
+      title: 'Es gibt keinen Verwalter.',
       body:
-        'Kalender, Nachrichten, Belegung, Formulare, Bibliothek. Jedes entstand bei einer '
-        + 'konkreten Arbeit, und jedes kann anderen Gemeinschaften dienen.',
-      cta: 'Werkzeuge ansehen'
+        'Die Schlüssel entstehen auf deinem Gerät. Niemand auf unserer Seite öffnet deine '
+        + 'Inhalte — wir auch nicht. Ein Passwort lässt sich nicht zurücksetzen; ein Konto '
+        + 'holen Bürgen zurück, die du selbst benennst. Kalender, Nachrichten, Belegung und '
+        + 'Formulare arbeiten nach derselben Regel.',
+      cta: 'Wie das geht',
+      facts: [
+        { value: '0', label: 'Verwalter mit Zugriff' },
+        { value: '64 MiB', label: 'Speicher je Passwortdurchgang' },
+        { value: '2', label: 'Schichten: Sitzung und Schlüssel' }
+      ]
+    },
+
+    close: {
+      words: ['Erneuern.', 'Ausruhen.', 'Wachsen.', 'Begegnen.'],
+      body:
+        'Die Stiftung gibt es noch nicht. Die Eintragung erfolgt, wenn Unterlagen, '
+        + 'Zustimmungen und Buchhaltung bereit sind — geplant für 2027. Bis dahin sammeln '
+        + 'wir keine Spenden.',
+      primary: 'Mitmachen',
+      secondary: 'Kontakt'
     }
   },
 

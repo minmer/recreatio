@@ -40,6 +40,12 @@ export interface PlaceholderCopy {
   readonly preparing: string;
 }
 
+/** Eine Zahl, die für sich steht. Nur echte Zahlen — keine geschätzten. */
+export interface Fact {
+  readonly value: string;
+  readonly label: string;
+}
+
 /** Eine Folie der Startseite. */
 export interface Slide {
   /** Das kleine Wort darüber. Sagt, WAS das hier ist. */
@@ -47,6 +53,7 @@ export interface Slide {
   readonly title: string;
   readonly body: string;
   readonly cta: string;
+  readonly facts?: readonly Fact[];
 }
 
 /** Ein Abschnitt der Sicherheitsseite: eine Frage, eine Antwort. */
@@ -86,14 +93,33 @@ export interface PublicCopy {
     readonly more: string;
   };
 
-  /** Die Startseite: fünf Folien, in dieser Reihenfolge. */
+  /**
+   * Die Startseite erzählt einen Bogen, sie zählt keine Angebote auf.
+   *
+   *   These   — was falsch läuft, und wogegen sich das hier stellt
+   *   Ort     — wo es konkret wird
+   *   Beleg   — dass es das schon gibt, nicht erst geplant ist
+   *   Werk    — was daraus entstanden ist
+   *   Haltung — wie gebaut wird, und warum das eine Aussage ist
+   *   Schluss — die vier Wörter, und die ehrliche Zeile darunter
+   *
+   * Die letzten beiden Folien liegen auf dunklem Grund. Das ist keine
+   * Abwechslung: es ist dieselbe Kante wie in der Plattform — hell ist das
+   * Haus, dunkel die Werkstatt.
+   */
   readonly front: {
     readonly scrollHint: string;
-    readonly initiative: Slide;
+    readonly thesis: Slide;
     readonly osrodek: Slide;
     readonly wydarzenia: Slide;
     readonly cogita: Slide;
     readonly narzedzia: Slide;
+    readonly close: {
+      readonly words: readonly string[];
+      readonly body: string;
+      readonly primary: string;
+      readonly secondary: string;
+    };
   };
 
   readonly manifest: {
