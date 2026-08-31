@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { EventPage, EventPageRef, EventSiteHeader } from '../../../lib/api';
 import { getPartModule } from '../parts/registry';
 import { partAnchor } from './anchors';
@@ -71,29 +71,73 @@ export function EventShell({
    * Waits for measurement: before the parts have been measured every slide
    * starts at the same place and the jump would land on the first one.
    */
-  const jumpedRef = useRef(false);
-  const { scrollToSlide, geometry } = scroll;
-  const measured = geometry.length > 0 && geometry[geometry.length - 1].height > 1;
+  const { scrollToSlide, geometry, measured } = scroll;
+
+  const wantsJump =
+    initialPartIndex !== null &&
+    initialPartIndex !== undefined &&
+    initialPartIndex > 0 &&
+    initialPartIndex < parts.length;
+
+  const [jumped, setJumped] = useState(!wantsJump);
+  /** Where the jump put the track, for as long as the reader has not moved it. */
+  const landedRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (jumpedRef.current || !measured) return;
-    jumpedRef.current = true;
+    if (jumped || !wantsJump) return;
 
-    if (initialPartIndex === null || initialPartIndex === undefined) return;
-    if (initialPartIndex <= 0 || initialPartIndex >= parts.length) return;
-    scrollToSlide(initialPartIndex);
-  }, [initialPartIndex, measured, parts.length, scrollToSlide]);
+    const land = () => {
+      scrollToSlide(initialPartIndex as number);
+      landedRef.current = geometry[initialPartIndex as number]?.start ?? null;
+      setJumped(true);
+    };
+
+    if (measured) {
+      land();
+      return;
+    }
+
+    // A slide that never reports a height must not strand the jump for ever.
+    const timer = window.setTimeout(land, 800);
+    return () => window.clearTimeout(timer);
+  }, [geometry, initialPartIndex, jumped, measured, scrollToSlide, wantsJump]);
+
+  /**
+   * Pictures and fonts arrive after the jump and every slide below them moves.
+   * While the reader has not scrolled, the address they opened still means what
+   * it said, so the track is put back on that slide; the moment they move, this
+   * lets go and never interferes again.
+   */
+  useEffect(() => {
+    if (!jumped || !wantsJump || landedRef.current === null) return;
+
+    // The reader has taken hold: the address is theirs now, and this lets go for
+    // good. Their own scrolling must never be undone by a picture loading.
+    if (scroll.interacted) {
+      landedRef.current = null;
+      return;
+    }
+
+    const start = geometry[initialPartIndex as number]?.start;
+    if (start === undefined || Math.abs(start - landedRef.current) <= 2) return;
+
+    scrollToSlide(initialPartIndex as number);
+    landedRef.current = start;
+  }, [geometry, initialPartIndex, jumped, scroll.interacted, scrollToSlide, wantsJump]);
 
   // Keep the address on the part being read, so copying it shares the spot.
   // replaceState rather than a router navigation: this must not add history
   // entries, and the router has nothing to re-render for it.
   useEffect(() => {
-    if (!partHref || parts.length === 0) return;
+    // Not before the jump: the address would be rewritten from wherever the
+    // track happens to be standing, which is exactly the number the reader
+    // asked to leave.
+    if (!partHref || parts.length === 0 || !jumped) return;
     const target = partHref(scroll.activeIndex);
     if (window.location.hash !== target.replace(/^\//, '')) {
       window.history.replaceState(window.history.state, '', target);
     }
-  }, [partHref, parts.length, scroll.activeIndex]);
+  }, [jumped, partHref, parts.length, scroll.activeIndex]);
 
   const themeStyle = {
     '--ev-accent': theme.accent,

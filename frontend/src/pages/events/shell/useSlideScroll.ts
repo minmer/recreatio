@@ -183,6 +183,17 @@ export function useSlideScroll(slideCount: number) {
   const maxScrollRef = useRef(0);
   const viewportRefValue = useRef(1);
 
+  /**
+   * Whether the reader has taken hold of the page yet.
+   *
+   * Only real input counts — a wheel, a finger, a key. Anything the shell does
+   * to the track itself, above all the jump to the slide an address named, is
+   * not the reader moving, and must not be mistaken for it: while this is still
+   * false the shell is free to keep the track on that slide as pictures load
+   * and everything below them shifts.
+   */
+  const [interacted, setInteracted] = useState(false);
+
   const [viewportHeight, setViewportHeight] = useState(1);
   const [position, setPosition] = useState(0);
   const [contentHeights, setContentHeights] = useState<number[]>(() => new Array(slideCount).fill(0));
@@ -215,6 +226,18 @@ export function useSlideScroll(slideCount: number) {
     }
     return result;
   }, [contentHeights, minSlideHeight, position, slideCount, viewportHeight]);
+
+  /**
+   * Whether every slide has said how tall it is.
+   *
+   * Not "the geometry looks plausible": until a slide has been measured it is
+   * assumed to be exactly one screen tall, and a page whose slides are two or
+   * three screens each is then wrong about where every one of them starts.
+   * Anything that jumps to a particular slide has to wait for this, or it lands
+   * in the middle of an earlier one — and the address, which follows whatever
+   * slide the reader appears to be on, then reports that wrong place.
+   */
+  const measured = contentHeights.length === slideCount && contentHeights.every((height) => height > 0);
 
   const totalHeight = geometry.reduce((sum, slide) => sum + slide.height, 0);
   const maxScroll = Math.max(0, totalHeight - viewportHeight);
@@ -620,6 +643,7 @@ export function useSlideScroll(slideCount: number) {
 
     const onWheel = (event: WheelEvent) => {
       if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
+      setInteracted(true);
       const delta = normalizeWheelDelta(event);
       if (Math.abs(delta) < 0.01) return;
       event.preventDefault();
@@ -630,6 +654,7 @@ export function useSlideScroll(slideCount: number) {
 
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length === 0) return;
+      setInteracted(true);
       stopSettle();
       cancelResolveTimer();
       touchYRef.current = event.touches[0].clientY;
@@ -733,6 +758,7 @@ export function useSlideScroll(slideCount: number) {
       // Typing a space in a form field must reach the field, not scroll.
       if (ownsKeyboardInput(event.target)) return;
       if (event.altKey || event.ctrlKey || event.metaKey) return;
+      setInteracted(true);
 
       const page = viewportHeight * 0.82;
       if (event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ') {
@@ -783,6 +809,8 @@ export function useSlideScroll(slideCount: number) {
     viewportHeight,
     position,
     geometry,
+    measured,
+    interacted,
     activeIndex,
     scrollToSlide,
     scrollToTop
