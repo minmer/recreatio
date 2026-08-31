@@ -63,8 +63,19 @@ public static partial class EventEndpoints
                 return Results.NotFound();
             }
 
+            // A gallery can be asked to carry the memes made out of it, but is
+            // not by default: a meme belongs to the slide it was made on, and a
+            // gallery of photographs from the trip is not improved by filling up
+            // with captioned versions of itself. The meme slide decides, since
+            // that is where the connection is configured.
+            var memePartIds = part.Kind == "gallery"
+                ? await MemePartsFeedingAsync(dbContext, site.Id, part.Id, ct)
+                : [];
+
+            var partIds = memePartIds.Append(part.Id).ToList();
+
             var photos = await dbContext.EventGalleryPhotos.AsNoTracking()
-                .Where(x => x.PartId == part.Id)
+                .Where(x => partIds.Contains(x.PartId))
                 .OrderByDescending(x => x.CreatedUtc)
                 .Select(x => new EventGalleryPhotoRow(
                     x.Id,
@@ -73,7 +84,8 @@ public static partial class EventEndpoints
                     x.Width,
                     x.Height,
                     x.CreatedUtc,
-                    access.Link != null && x.AccessLinkId == access.Link.Id))
+                    access.Link != null && x.AccessLinkId == access.Link.Id,
+                    memePartIds.Contains(x.PartId)))
                 .ToListAsync(ct);
 
             return Results.Ok(new EventGalleryResponse(
@@ -183,7 +195,14 @@ public static partial class EventEndpoints
             await dbContext.SaveChangesAsync(ct);
 
             return Results.Ok(new EventGalleryPhotoRow(
-                photo.Id, photo.Caption, photo.UploaderName, photo.Width, photo.Height, photo.CreatedUtc, Mine: true));
+                photo.Id,
+                photo.Caption,
+                photo.UploaderName,
+                photo.Width,
+                photo.Height,
+                photo.CreatedUtc,
+                Mine: true,
+                IsMeme: part.Kind == "meme"));
         });
 
         // A picture is the sender's to withdraw. The link that brought it is the
@@ -272,6 +291,67 @@ public static partial class EventEndpoints
         {
             // A config nobody can read grants nothing.
             return false;
+        }
+    }
+
+    /// <summary>
+    /// The meme slides that draw on this gallery and hand their results back.
+    ///
+    /// Read out of each slide's own config rather than from a table: the link
+    /// between the two is the organizer's setting on the meme slide, and there
+    /// is exactly one place it should live.
+    /// </summary>
+    private static async Task<List<Guid>> MemePartsFeedingAsync(
+        RecreatioDbContext dbContext,
+        Guid siteId,
+        Guid galleryPartId,
+        CancellationToken ct)
+    {
+        var pageIds = await dbContext.EventPages.AsNoTracking()
+            .Where(x => x.SiteId == siteId)
+            .Select(x => x.Id)
+            .ToListAsync(ct);
+
+        var memeParts = await dbContext.EventParts.AsNoTracking()
+            .Where(x => pageIds.Contains(x.PageId) && x.Kind == "meme" && x.IsVisible)
+            .Select(x => new { x.Id, x.ConfigJson })
+            .ToListAsync(ct);
+
+        var feeding = new List<Guid>();
+        foreach (var meme in memeParts)
+        {
+            if (ReadMemeSource(meme.ConfigJson) == galleryPartId) feeding.Add(meme.Id);
+        }
+
+        return feeding;
+    }
+
+    /// <summary>The gallery a meme slide draws on, or null when it keeps to itself.</summary>
+    private static Guid? ReadMemeSource(string? configJson)
+    {
+        if (string.IsNullOrWhiteSpace(configJson)) return null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(configJson);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+
+            // Only a slide that explicitly asks for it hands its memes back.
+            if (!root.TryGetProperty("shareToGallery", out var share) || share.ValueKind != JsonValueKind.True)
+            {
+                return null;
+            }
+
+            return root.TryGetProperty("sourcePartId", out var source)
+                && source.ValueKind == JsonValueKind.String
+                && Guid.TryParse(source.GetString(), out var id)
+                    ? id
+                    : null;
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 

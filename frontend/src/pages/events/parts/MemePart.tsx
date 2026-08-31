@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import {
+  deleteEventPhoto,
+  deleteOwnEventPhoto,
   eventPhotoUrl,
   getEventAdminSite,
   getEventGallery,
@@ -8,7 +10,8 @@ import {
 } from '../../../lib/api';
 import { asOptionalText, asRecord, asText, definePart } from './contracts';
 import { Fullscreen } from './Fullscreen';
-import { SelectRow, TextRow } from './editorKit';
+import { CheckRow, SelectRow, TextRow } from './editorKit';
+import { Carousel, Viewer, type Picture } from './galleryView';
 import {
   BAR_SHARE,
   cropInPixels,
@@ -49,6 +52,8 @@ type MemeConfig = {
   inviteText: string | null;
   /** The band's share of the finished picture. */
   barShare: number;
+  /** Finished memes also appear in that gallery. Off: a meme stays on its own slide. */
+  shareToGallery: boolean;
 };
 
 export const memePart = definePart<MemeConfig>({
@@ -56,12 +61,13 @@ export const memePart = definePart<MemeConfig>({
   label: 'Memy',
   description: 'Uczestnicy robią memy ze zdjęć z galerii: kadr, podpis na czarnym pasku, gotowe.',
 
-  defaultConfig: () => ({ sourcePartId: '', inviteText: null, barShare: BAR_SHARE }),
+  defaultConfig: () => ({ sourcePartId: '', inviteText: null, barShare: BAR_SHARE, shareToGallery: false }),
 
   example: () => ({
     sourcePartId: '00000000-0000-0000-0000-000000000000',
     inviteText: 'Zrób mem ze zdjęć z trasy!',
-    barShare: BAR_SHARE
+    barShare: BAR_SHARE,
+    shareToGallery: false
   }),
 
   parse: (raw) => {
@@ -71,7 +77,8 @@ export const memePart = definePart<MemeConfig>({
       sourcePartId: asText(record.sourcePartId).trim(),
       inviteText: asOptionalText(record.inviteText),
       // A band beyond these bounds is either invisible or the whole picture.
-      barShare: Number.isFinite(share) && share >= 0.12 && share <= 0.4 ? share : BAR_SHARE
+      barShare: Number.isFinite(share) && share >= 0.12 && share <= 0.4 ? share : BAR_SHARE,
+      shareToGallery: record.shareToGallery === true
     };
   },
 
@@ -98,6 +105,8 @@ function Memes({
   const [made, setMade] = useState<EventGallery | null>(null);
   const [source, setSource] = useState<EventGallery | null>(null);
   const [making, setMaking] = useState(false);
+  const [front, setFront] = useState(0);
+  const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const sourceId = config.sourcePartId.length > 0 ? config.sourcePartId : partId;
@@ -123,27 +132,57 @@ function Memes({
     void load();
   }, [load]);
 
-  const pictures = useMemo(
-    () => (sourceId === partId ? made?.photos ?? [] : source?.photos ?? []),
-    [sourceId, partId, made, source]
+  const pictures = useMemo(() => {
+    const pool = sourceId === partId ? made?.photos ?? [] : source?.photos ?? [];
+    // Photographs only. A meme of a meme is a picture of a black band.
+    return pool.filter((photo) => !photo.isMeme);
+  }, [sourceId, partId, made, source]);
+
+  const memes: Picture[] = useMemo(
+    () =>
+      (made?.photos ?? []).map((meme) => ({
+        key: `meme-${meme.id}`,
+        url: eventPhotoUrl(meme.id),
+        caption: meme.caption,
+        alt: meme.caption ?? `Mem od: ${meme.uploaderName}`,
+        credit: meme.uploaderName,
+        photoId: meme.id,
+        mine: meme.mine,
+        addedAt: meme.createdUtc,
+        width: meme.width,
+        height: meme.height
+      })),
+    [made]
   );
 
-  const memes = made?.photos ?? [];
   const mayMake = made?.mayAdd === true && token !== null && pictures.length > 0;
+
+  const remove = async (photoId: string, mine: boolean) => {
+    if (!window.confirm(mine ? 'Usunąć swój mem?' : 'Usunąć ten mem?')) return;
+    try {
+      if (mine && token !== null) await deleteOwnEventPhoto(token, photoId);
+      else await deleteEventPhoto(photoId);
+      setOpen(null);
+      await load();
+    } catch (deleteError: unknown) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Nie udało się usunąć mema.');
+    }
+  };
+
+  const openAt = open === null ? -1 : memes.findIndex((meme) => meme.key === open);
 
   return (
     <div className="ev-memes">
       {memes.length === 0 ? (
         <p className="ev-note">Nikt jeszcze nie zrobił mema. Możesz być pierwszy.</p>
       ) : (
-        <div className="ev-meme-grid">
-          {memes.map((meme) => (
-            <figure key={meme.id}>
-              <img src={eventPhotoUrl(meme.id)} alt={meme.caption ?? 'Mem'} loading="lazy" />
-              <figcaption>{meme.uploaderName}</figcaption>
-            </figure>
-          ))}
-        </div>
+        <Carousel
+          pictures={memes}
+          front={front}
+          hint={false}
+          onFront={setFront}
+          onOpen={setOpen}
+        />
       )}
 
       <div className="ev-gallery-invite">
@@ -165,6 +204,16 @@ function Memes({
       </div>
 
       {error ? <p className="ev-error">{error}</p> : null}
+
+      {openAt >= 0 ? (
+        <Viewer
+          pictures={memes}
+          start={openAt}
+          mayManage={made?.mayManage === true}
+          onRemove={(photoId, mine) => void remove(photoId, mine)}
+          onClose={() => setOpen(null)}
+        />
+      ) : null}
 
       {making && token !== null ? (
         <MemeMaker
@@ -196,11 +245,70 @@ function Memes({
 
 type Step = 'pick' | 'frame';
 
+/** Where a press landed relative to the crop, which decides what the drag means. */
+type Grip = 'nw' | 'ne' | 'sw' | 'se';
+
+/** A press this close to a corner, in fractions of the frame, takes hold of it. */
+const GRIP_REACH = 0.07;
+
+/** Anything smaller than this was a tap, not a selection. */
+const MIN_CROP = 0.05;
+
+type Drag =
+  | { mode: 'draw'; anchorX: number; anchorY: number }
+  | { mode: 'move'; x: number; y: number; origin: CropBox }
+  | { mode: 'resize'; grip: Grip; origin: CropBox };
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+
+/** A box from two corners, in either order — a drag may go up and to the left. */
+function boxBetween(ax: number, ay: number, bx: number, by: number): CropBox {
+  return {
+    x: Math.min(ax, bx),
+    y: Math.min(ay, by),
+    width: Math.abs(bx - ax),
+    height: Math.abs(by - ay)
+  };
+}
+
+/** Which corner a press has taken hold of, if any. */
+function gripAt(crop: CropBox, x: number, y: number): Grip | null {
+  const near = (a: number, b: number) => Math.abs(a - b) < GRIP_REACH;
+  const right = crop.x + crop.width;
+  const bottom = crop.y + crop.height;
+
+  if (near(x, crop.x) && near(y, crop.y)) return 'nw';
+  if (near(x, right) && near(y, crop.y)) return 'ne';
+  if (near(x, crop.x) && near(y, bottom)) return 'sw';
+  if (near(x, right) && near(y, bottom)) return 'se';
+  return null;
+}
+
+/** Dragging one corner: the opposite one stays where it is. */
+function resized(origin: CropBox, grip: Grip, x: number, y: number): CropBox {
+  const left = origin.x;
+  const top = origin.y;
+  const right = origin.x + origin.width;
+  const bottom = origin.y + origin.height;
+
+  if (grip === 'nw') return boxBetween(right, bottom, x, y);
+  if (grip === 'ne') return boxBetween(left, bottom, x, y);
+  if (grip === 'sw') return boxBetween(right, top, x, y);
+  return boxBetween(left, top, x, y);
+}
+
 /**
  * Three things in order: which picture, which part of it, what it says.
  *
  * Full screen, because framing a photograph inside a slide that is itself
  * scrolling is a fight nobody wins on a phone.
+ *
+ * The whole picture is used until somebody says otherwise. Asking for a frame
+ * first and drawing it afterwards is the wrong way round: most memes want the
+ * whole photograph, and a crop box that appears unbidden has to be understood
+ * and dismissed before anything else can happen. So: a button arms it, the next
+ * drag draws it from where the finger went down to where it came up, and after
+ * that it can be pushed around and pulled by its corners.
  */
 function MemeMaker({
   pictures,
@@ -216,52 +324,94 @@ function MemeMaker({
   const [step, setStep] = useState<Step>('pick');
   const [chosen, setChosen] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
-  const [crop, setCrop] = useState<CropBox>({ x: 0.05, y: 0.05, width: 0.9, height: 0.9 });
+  /** null — the whole picture, which is where everybody starts. */
+  const [crop, setCrop] = useState<CropBox | null>(null);
+  /** Armed by the button: the next drag draws the frame. */
+  const [arming, setArming] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const imageRef = useRef<HTMLImageElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
-  const dragRef = useRef<{ mode: 'move' | 'size'; x: number; y: number; crop: CropBox } | null>(null);
+  const dragRef = useRef<Drag | null>(null);
 
-  const pointerFraction = (event: ReactPointerEvent) => {
-    const box = frameRef.current?.getBoundingClientRect();
+  /**
+   * Where a pointer is, as a fraction of the picture as drawn.
+   *
+   * Measured against the image element rather than its box: the picture is
+   * letterboxed inside the frame, and a fraction of the frame would put the crop
+   * somewhere else entirely on anything that is not exactly the frame's shape.
+   */
+  const pointFraction = (event: ReactPointerEvent) => {
+    const box = imageRef.current?.getBoundingClientRect();
     if (!box || box.width === 0 || box.height === 0) return { x: 0, y: 0 };
-    return { x: (event.clientX - box.left) / box.width, y: (event.clientY - box.top) / box.height };
+    return { x: clamp01((event.clientX - box.left) / box.width), y: clamp01((event.clientY - box.top) / box.height) };
   };
 
-  const startDrag = (mode: 'move' | 'size') => (event: ReactPointerEvent) => {
-    event.preventDefault();
+  const onPointerDown = (event: ReactPointerEvent) => {
+    if (step !== 'frame') return;
+    const point = pointFraction(event);
+
+    // Taking hold of a corner, or of the frame itself.
+    if (crop !== null && !arming) {
+      const grip = gripAt(crop, point.x, point.y);
+      if (grip !== null) {
+        dragRef.current = { mode: 'resize', grip, origin: crop };
+      } else if (
+        point.x >= crop.x && point.x <= crop.x + crop.width &&
+        point.y >= crop.y && point.y <= crop.y + crop.height
+      ) {
+        dragRef.current = { mode: 'move', x: point.x, y: point.y, origin: crop };
+      } else {
+        // A press outside the frame starts a new one, which is what pressing
+        // outside a selection means everywhere else.
+        dragRef.current = { mode: 'draw', anchorX: point.x, anchorY: point.y };
+        setCrop({ x: point.x, y: point.y, width: 0, height: 0 });
+      }
+    } else {
+      dragRef.current = { mode: 'draw', anchorX: point.x, anchorY: point.y };
+      setCrop({ x: point.x, y: point.y, width: 0, height: 0 });
+    }
+
+    // Captured on the frame, which is also where the moves are handled: a
+    // capture on a child would send the rest of the gesture somewhere else.
     event.currentTarget.setPointerCapture(event.pointerId);
-    const point = pointerFraction(event);
-    dragRef.current = { mode, x: point.x, y: point.y, crop };
+    event.preventDefault();
   };
 
-  const onDrag = (event: ReactPointerEvent) => {
+  const onPointerMove = (event: ReactPointerEvent) => {
     const drag = dragRef.current;
     if (!drag) return;
 
-    const point = pointerFraction(event);
-    const dx = point.x - drag.x;
-    const dy = point.y - drag.y;
+    const point = pointFraction(event);
 
-    if (drag.mode === 'move') {
-      setCrop({
-        ...drag.crop,
-        x: Math.max(0, Math.min(1 - drag.crop.width, drag.crop.x + dx)),
-        y: Math.max(0, Math.min(1 - drag.crop.height, drag.crop.y + dy))
-      });
+    if (drag.mode === 'draw') {
+      setCrop(boxBetween(drag.anchorX, drag.anchorY, point.x, point.y));
+      return;
+    }
+
+    if (drag.mode === 'resize') {
+      setCrop(resized(drag.origin, drag.grip, point.x, point.y));
       return;
     }
 
     setCrop({
-      ...drag.crop,
-      width: Math.max(0.15, Math.min(1 - drag.crop.x, drag.crop.width + dx)),
-      height: Math.max(0.15, Math.min(1 - drag.crop.y, drag.crop.height + dy))
+      ...drag.origin,
+      x: Math.max(0, Math.min(1 - drag.origin.width, drag.origin.x + (point.x - drag.x))),
+      y: Math.max(0, Math.min(1 - drag.origin.height, drag.origin.y + (point.y - drag.y)))
     });
   };
 
-  const endDrag = () => {
+  const onPointerUp = () => {
+    const drag = dragRef.current;
     dragRef.current = null;
+    if (!drag) return;
+
+    setArming(false);
+    // A drag too small to be a frame was a tap: back to the whole picture,
+    // rather than a sliver of it nobody meant to choose.
+    setCrop((current) =>
+      current === null || current.width < MIN_CROP || current.height < MIN_CROP ? null : current
+    );
   };
 
   /** Draws the meme at full size and hands back the bytes. */
@@ -269,7 +419,7 @@ function MemeMaker({
     const image = imageRef.current;
     if (!image) return null;
 
-    const box = cropInPixels(crop, image.naturalWidth, image.naturalHeight);
+    const box = cropInPixels(crop ?? { x: 0, y: 0, width: 1, height: 1 }, image.naturalWidth, image.naturalHeight);
     const layout = memeLayout(box.width, box.height, barShare);
 
     const canvas = document.createElement('canvas');
@@ -332,6 +482,8 @@ function MemeMaker({
                   type="button"
                   onClick={() => {
                     setChosen(picture.id);
+                    setCrop(null);
+                    setArming(false);
                     setStep('frame');
                   }}
                 >
@@ -342,25 +494,56 @@ function MemeMaker({
           </>
         ) : (
           <>
-            {/* The frame and the words on one screen: the caption changes what
-                the crop should be at least as often as the other way round. */}
-            <div className="ev-meme-frame" ref={frameRef} onPointerMove={onDrag} onPointerUp={endDrag}>
+            <div
+              className="ev-meme-frame"
+              ref={frameRef}
+              data-arming={arming}
+              data-cropping={crop !== null}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
+            >
               {chosen ? (
                 <img ref={imageRef} src={eventPhotoUrl(chosen)} alt="" crossOrigin="anonymous" draggable={false} />
               ) : null}
 
-              <div
-                className="ev-meme-crop"
-                style={{
-                  left: `${crop.x * 100}%`,
-                  top: `${crop.y * 100}%`,
-                  width: `${crop.width * 100}%`,
-                  height: `${crop.height * 100}%`
-                }}
-                onPointerDown={startDrag('move')}
-              >
-                <span className="ev-meme-grip" onPointerDown={startDrag('size')} />
-              </div>
+              {crop !== null ? (
+                <div
+                  className="ev-meme-crop"
+                  style={{
+                    left: `${crop.x * 100}%`,
+                    top: `${crop.y * 100}%`,
+                    width: `${crop.width * 100}%`,
+                    height: `${crop.height * 100}%`
+                  }}
+                >
+                  {/* Drawn, not listened to: the frame handles every press
+                      itself and works out which corner was taken, so a handle
+                      can never swallow the gesture meant for the box. */}
+                  <span className="ev-meme-grip is-nw" />
+                  <span className="ev-meme-grip is-ne" />
+                  <span className="ev-meme-grip is-sw" />
+                  <span className="ev-meme-grip is-se" />
+                </div>
+              ) : null}
+
+              {arming && crop === null ? (
+                <p className="ev-meme-arming">Przeciągnij po zdjęciu, żeby zaznaczyć fragment</p>
+              ) : null}
+            </div>
+
+            <div className="ev-meme-actions">
+              {crop === null ? (
+                <button type="button" className={arming ? 'ev-cta' : 'ev-ghost'} onClick={() => setArming(true)}>
+                  {arming ? 'Przeciągnij po zdjęciu…' : 'Zaznacz fragment'}
+                </button>
+              ) : (
+                <button type="button" className="ev-ghost" onClick={() => { setCrop(null); setArming(false); }}>
+                  Cały obrazek
+                </button>
+              )}
+              <span className="ev-meme-state">{crop === null ? 'Używasz całego zdjęcia' : 'Używasz zaznaczonego fragmentu'}</span>
             </div>
 
             <p className="ev-meme-strip">{caption.trim() || 'Tu pojawi się Twój podpis'}</p>
@@ -446,6 +629,16 @@ function MemeEditor({
         placeholder="Zrób własny mem ze zdjęć z galerii."
         onChange={(inviteText) => onChange({ ...config, inviteText: inviteText || null })}
       />
+
+      <CheckRow
+        label="Gotowe memy pokazuj też w galerii"
+        checked={config.shareToGallery}
+        onChange={(shareToGallery) => onChange({ ...config, shareToGallery })}
+      />
+      <p className="eve-hint">
+        Domyślnie memy zostają na tej części — galeria pokazuje zdjęcia z wydarzenia, a nie ich podpisane
+        wersje. Włącz, jeśli mają trafiać także do galerii, z której powstały.
+      </p>
 
       <SelectRow
         label="Wysokość czarnego paska"

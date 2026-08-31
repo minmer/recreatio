@@ -8508,6 +8508,8 @@ export type EventGalleryPhoto = {
   createdUtc: string;
   /** Sent through the link that is asking — the one person who may take it back. */
   mine: boolean;
+  /** Made on a meme slide out of one of these pictures, rather than sent from a camera. */
+  isMeme: boolean;
 };
 
 export type EventGallery = {

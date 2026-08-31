@@ -327,7 +327,9 @@ public sealed record EventGalleryPhotoRow(
     int Height,
     DateTimeOffset CreatedUtc,
     /// <summary>Sent through the link that is asking — the one person who may take it down again.</summary>
-    bool Mine);
+    bool Mine,
+    /// <summary>Made on a meme slide out of one of these pictures, rather than sent from a camera.</summary>
+    bool IsMeme);
 
 public sealed record EventGalleryResponse(
     IReadOnlyList<EventGalleryPhotoRow> Photos,
