@@ -209,9 +209,11 @@ export function isEmail(value: string | null | undefined): boolean {
  * Fills a message in for one person.
  *
  * `{...}` names a column — by its key, or by the name shown at the top of it, so
- * the organizer can write `{Grupa}` and read back what they meant. Three words
+ * the organizer can write `{Grupa}` and read back what they meant. Four words
  * stand for something the table has no column for: `{osoba}` the full name,
- * `{imie}` how you greet them, and `{wydarzenie}` the event.
+ * `{imie}` how you greet them, `{wydarzenie}` the event, and `{link}` this
+ * person's own address — which is the reason for writing to them from a list at
+ * all, and which only the organizer is ever given.
  *
  * A placeholder that names nothing is left standing rather than blanked: the
  * organizer sees their own typo in the message instead of a hole where the
@@ -221,7 +223,7 @@ export function renderTemplate(
   template: string,
   row: EventRosterRow,
   columns: EventRosterColumn[],
-  extras: { eventTitle: string; nameKey: string }
+  extras: { eventTitle: string; nameKey: string; link?: string }
 ): string {
   const fullName = (row.values[extras.nameKey] ?? '').trim();
 
@@ -231,6 +233,10 @@ export function renderTemplate(
     if (wanted === 'wydarzenie') return extras.eventTitle;
     if (wanted === 'osoba') return fullName;
     if (wanted === 'imie') return fullName.split(/\s+/)[0] ?? fullName;
+    // Empty rather than left standing: only the organizer is given the
+    // addresses, and a message must never go out with the literal word {link}
+    // where somebody's own page should have been.
+    if (wanted === 'link') return extras.link ?? '';
 
     const column = columns.find(
       (entry) => entry.key === token.trim() || fold(entry.label) === wanted

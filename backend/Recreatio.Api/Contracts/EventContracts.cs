@@ -325,7 +325,9 @@ public sealed record EventGalleryPhotoRow(
     string UploaderName,
     int Width,
     int Height,
-    DateTimeOffset CreatedUtc);
+    DateTimeOffset CreatedUtc,
+    /// <summary>Sent through the link that is asking — the one person who may take it down again.</summary>
+    bool Mine);
 
 public sealed record EventGalleryResponse(
     IReadOnlyList<EventGalleryPhotoRow> Photos,

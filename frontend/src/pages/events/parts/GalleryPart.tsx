@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
 import {
   deleteEventPhoto,
+  deleteOwnEventPhoto,
   eventPhotoUrl,
   getEventGallery,
   uploadEventPhoto,
@@ -62,6 +63,8 @@ type Picture = {
   credit: string | null;
   /** Only a contributed picture can be taken down from here. */
   photoId: string | null;
+  /** Sent from this very link: its sender may withdraw it. */
+  mine: boolean;
   /** When it arrived, which is the order the opened gallery reads in. */
   addedAt: string;
   width: number;
@@ -189,6 +192,7 @@ function Gallery({
         alt: shot.alt,
         credit: null,
         photoId: null,
+        mine: false,
         addedAt: '',
         width: 0,
         height: 0
@@ -201,6 +205,7 @@ function Gallery({
       alt: photo.caption ?? `Zdjęcie od: ${photo.uploaderName}`,
       credit: photo.uploaderName,
       photoId: photo.id,
+      mine: photo.mine,
       addedAt: photo.createdUtc,
       width: photo.width,
       height: photo.height
@@ -281,10 +286,20 @@ function Gallery({
     await load();
   };
 
-  const remove = async (photoId: string) => {
-    if (!window.confirm('Usunąć to zdjęcie z galerii?')) return;
+  /**
+   * Taking a picture out again.
+   *
+   * The sender's own is theirs to withdraw, through their link — that is the
+   * one path that needs no organizer and no e-mail asking for a favour. The
+   * organizer's own removal stays beside it: they answer for what stands on
+   * their event's page, and a picture only its sender can take down is a
+   * problem the first time somebody sends the wrong one.
+   */
+  const remove = async (photoId: string, mine: boolean) => {
+    if (!window.confirm(mine ? 'Usunąć swoje zdjęcie z galerii?' : 'Usunąć to zdjęcie z galerii?')) return;
     try {
-      await deleteEventPhoto(photoId);
+      if (mine && token !== null) await deleteOwnEventPhoto(token, photoId);
+      else await deleteEventPhoto(photoId);
       setOpen(null);
       await load();
     } catch (deleteError: unknown) {
@@ -354,7 +369,7 @@ function Gallery({
           pictures={pictures}
           start={openAt}
           mayManage={gallery?.mayManage === true}
-          onRemove={remove}
+          onRemove={(photoId, mine) => void remove(photoId, mine)}
           onClose={() => setOpen(null)}
         />
       ) : null}
@@ -504,8 +519,9 @@ function Viewer({
 }: {
   pictures: Picture[];
   start: number;
+  /** The organizer, who answers for the page. */
   mayManage: boolean;
-  onRemove: (photoId: string) => void;
+  onRemove: (photoId: string, mine: boolean) => void;
   onClose: () => void;
 }) {
   const [at, setAt] = useState(start);
@@ -786,9 +802,13 @@ function Viewer({
             </button>
           </span>
 
-          {mayManage && picture.photoId !== null ? (
-            <button type="button" className="ev-ghost" onClick={() => onRemove(picture.photoId as string)}>
-              Usuń zdjęcie
+          {picture.photoId !== null && (picture.mine || mayManage) ? (
+            <button
+              type="button"
+              className="ev-ghost"
+              onClick={() => onRemove(picture.photoId as string, picture.mine)}
+            >
+              {picture.mine ? 'Usuń moje zdjęcie' : 'Usuń zdjęcie'}
             </button>
           ) : null}
         </div>

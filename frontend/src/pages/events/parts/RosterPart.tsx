@@ -487,6 +487,18 @@ function RosterTable({
   // nothing is the common case, and it should mean the obvious thing.
   const exported = picked.size > 0 ? ordered.filter((row) => picked.has(row.key)) : ordered;
 
+  /**
+   * One person's own link, as an address to send.
+   *
+   * The server hands the organizer the token and nobody else; the address is
+   * assembled here because the event's own pages are on this origin, and the
+   * link in a message must be the one the recipient can open.
+   */
+  const linkFor = (row: EventRosterRow): string => {
+    const token = (row.values['person.token'] ?? '').trim();
+    return token.length === 0 ? '' : `${window.location.origin}/#/event/link/${token}`;
+  };
+
   // Whose name a message greets. The name column if it is on the table at all,
   // otherwise the first one — a roster always leads with who the row is about.
   const nameKey = byKey.has('person.name') ? 'person.name' : columns[0]?.key ?? '';
@@ -616,7 +628,11 @@ function RosterTable({
                   smsText === null
                     ? null
                     : {
-                        body: renderTemplate(smsText, row, columns, { eventTitle, nameKey }),
+                        body: renderTemplate(smsText, row, columns, {
+                          eventTitle,
+                          nameKey,
+                          link: linkFor(row)
+                        }),
                         isSent: (phone) => sent.has(`${row.key}|${phone}`),
                         markSent: (phone) => markSent(`${row.key}|${phone}`)
                       }
@@ -682,10 +698,15 @@ function RosterTable({
             text={smsText}
             templates={config.smsTemplates}
             columns={columns}
+            hasLinks={table.isOrganizer}
             preview={
               ordered[0] === undefined
                 ? null
-                : renderTemplate(smsText, ordered[0], columns, { eventTitle, nameKey })
+                : renderTemplate(smsText, ordered[0], columns, {
+                    eventTitle,
+                    nameKey,
+                    link: linkFor(ordered[0])
+                  })
             }
             onText={setSmsText}
             sentCount={sent.size}
@@ -969,6 +990,7 @@ function SmsPanel({
   text,
   templates,
   columns,
+  hasLinks,
   preview,
   onText,
   sentCount,
@@ -977,6 +999,8 @@ function SmsPanel({
   text: string;
   templates: SmsTemplate[];
   columns: EventRosterColumn[];
+  /** Whether {link} resolves for this reader — only the organizer is given the addresses. */
+  hasLinks: boolean;
   /** The first person on the list, so the wording can be read as it will arrive. */
   preview: string | null;
   onText: (next: string) => void;
@@ -1013,7 +1037,7 @@ function SmsPanel({
       />
 
       <div className="ev-roster-chips">
-        {['{imie}', '{osoba}', '{wydarzenie}'].map((token) => (
+        {(hasLinks ? ['{imie}', '{osoba}', '{wydarzenie}', '{link}'] : ['{imie}', '{osoba}', '{wydarzenie}']).map((token) => (
           <button key={token} type="button" className="ev-roster-chip is-field" onClick={() => insert(token)}>
             + {token}
           </button>
@@ -1429,9 +1453,10 @@ function RosterEditor({
             />
 
             {/* The vocabulary of the access panel's SMS, plus every column this
-                table carries — written the way the organizer reads it. */}
+                table carries — written the way the organizer reads it. {link} is
+                the recipient's own page, which only you are given. */}
             <div className="eve-chiprow">
-              {['imie', 'osoba', 'wydarzenie'].map((token) => (
+              {['imie', 'osoba', 'wydarzenie', 'link'].map((token) => (
                 <button
                   key={token}
                   type="button"

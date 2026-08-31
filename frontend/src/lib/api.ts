@@ -8504,6 +8504,8 @@ export type EventGalleryPhoto = {
   width: number;
   height: number;
   createdUtc: string;
+  /** Sent through the link that is asking — the one person who may take it back. */
+  mine: boolean;
 };
 
 export type EventGallery = {
@@ -8545,6 +8547,14 @@ export function uploadEventPhoto(
   return request<EventGalleryPhoto>(
     `/events/link/${encodeURIComponent(token)}/parts/${partId}/photos`,
     { method: 'POST', body }
+  );
+}
+
+/** Withdrawing one's own picture. The link that sent it is the only one that can. */
+export function deleteOwnEventPhoto(token: string, photoId: string) {
+  return request<{ deleted: boolean }>(
+    `/events/link/${encodeURIComponent(token)}/photos/${photoId}`,
+    { method: 'DELETE' }
   );
 }
 

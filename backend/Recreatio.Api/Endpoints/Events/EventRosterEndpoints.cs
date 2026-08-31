@@ -79,7 +79,8 @@ public static partial class EventEndpoints
             // No filter: the builder is allowed to see which columns exist. It
             // gets names and counts, never anybody's answers.
             var roster = await BuildRosterAsync(
-                dbContext, siteId, includeLinkOnly: true, allowed: null, partId: null, extras: null, ct);
+                dbContext, siteId, includeLinkOnly: true, allowed: null, partId: null, extras: null,
+                includeTokens: true, ct);
             return Results.Ok(roster.Columns);
         }).RequireAuthorization();
 
@@ -127,7 +128,11 @@ public static partial class EventEndpoints
             }
 
             var roster = await BuildRosterAsync(
-                dbContext, site.Id, config.IncludeLinkOnly, config.Allowed, part.Id, config.Extras, ct);
+                dbContext, site.Id, config.IncludeLinkOnly, config.Allowed, part.Id, config.Extras,
+                // Only the organizer is handed the tokens: they are the keys to
+                // other people's pages, and a reader holding one link has no
+                // business receiving everybody else's.
+                includeTokens: access.IsAdmin, ct);
 
             return Results.Ok(new EventRosterResponse(
                 roster.Columns,
@@ -467,6 +472,7 @@ public static partial class EventEndpoints
         IReadOnlyDictionary<string, string>? allowed,
         Guid? partId,
         IReadOnlyDictionary<string, RosterExtra>? extras,
+        bool includeTokens,
         CancellationToken ct)
     {
         // Hidden registrations are out of the working list by the organizer's own
@@ -528,6 +534,15 @@ public static partial class EventEndpoints
             new("person.link", "Link osobisty", GroupPerson, 0),
             new("person.card", "Karta", GroupPerson, 0)
         };
+
+        // The address of the individual link itself, and not merely whether one
+        // exists. It is the thing an organizer needs in hand to send somebody
+        // their own page — and it is a key, so it is offered to the organizer
+        // and to nobody else, whatever the slide's config asks for.
+        if (includeTokens)
+        {
+            definitions.Add(new EventRosterColumn("person.token", "Link osobisty (adres)", GroupPerson, 0));
+        }
 
         var partLabels = parts.ToDictionary(x => x.Id, x => x.MenuLabel);
         foreach (var field in fields.OrderBy(x => formPartIds.IndexOf(x.PartId)).ThenBy(x => x.SortOrder))
@@ -638,6 +653,8 @@ public static partial class EventEndpoints
                 ["person.card"] = card is not null ? "tak" : "nie"
             };
 
+            if (includeTokens && link is not null && link.Status == "active") row["person.token"] = link.Token;
+
             foreach (var value in valuesByRegistration.GetValueOrDefault(registration.Id) ?? [])
             {
                 row[$"field:{value.FieldId}"] = value.Value;
@@ -667,6 +684,8 @@ public static partial class EventEndpoints
                     ["person.link"] = link.Status == "active" ? "tak" : "nie",
                     ["person.card"] = card is not null ? "tak" : "nie"
                 };
+
+                if (includeTokens && link.Status == "active") row["person.token"] = link.Token;
 
                 AddCard(row, card, cardData, cardConsents);
                 AddAssignments(row, link, assignmentsByLink);

@@ -67,7 +67,13 @@ public static partial class EventEndpoints
                 .Where(x => x.PartId == part.Id)
                 .OrderByDescending(x => x.CreatedUtc)
                 .Select(x => new EventGalleryPhotoRow(
-                    x.Id, x.Caption, x.UploaderName, x.Width, x.Height, x.CreatedUtc))
+                    x.Id,
+                    x.Caption,
+                    x.UploaderName,
+                    x.Width,
+                    x.Height,
+                    x.CreatedUtc,
+                    access.Link != null && x.AccessLinkId == access.Link.Id))
                 .ToListAsync(ct);
 
             return Results.Ok(new EventGalleryResponse(
@@ -173,7 +179,32 @@ public static partial class EventEndpoints
             await dbContext.SaveChangesAsync(ct);
 
             return Results.Ok(new EventGalleryPhotoRow(
-                photo.Id, photo.Caption, photo.UploaderName, photo.Width, photo.Height, photo.CreatedUtc));
+                photo.Id, photo.Caption, photo.UploaderName, photo.Width, photo.Height, photo.CreatedUtc, Mine: true));
+        });
+
+        // A picture is the sender's to withdraw. The link that brought it is the
+        // only one that can take it back — not another participant's, and not an
+        // anonymous caller who guessed an id.
+        group.MapDelete("/link/{token}/photos/{photoId:guid}", async (
+            string token,
+            Guid photoId,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            var link = await dbContext.EventAccessLinks.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Token == token && x.Status == "active", ct);
+            if (link is null) return Results.NotFound();
+
+            var photo = await dbContext.EventGalleryPhotos
+                .FirstOrDefaultAsync(x => x.Id == photoId && x.AccessLinkId == link.Id, ct);
+            // Not "forbidden": somebody else's picture is simply not theirs to
+            // find, and saying which of the two it is tells them nothing useful.
+            if (photo is null) return Results.NotFound();
+
+            dbContext.EventGalleryPhotos.Remove(photo);
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new { deleted = true });
         });
 
         group.MapDelete("/admin/photos/{photoId:guid}", async (
