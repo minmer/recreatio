@@ -7835,7 +7835,9 @@ export type EventPartKind =
   // The organizer's view of who signed up, placed as a slide of its own.
   | 'roster'
   // And the participant's own: what is still theirs to do.
-  | 'checklist';
+  | 'checklist'
+  // Pictures from a gallery, with a caption band under them.
+  | 'meme';
 
 export type EventPartField = {
   id: string;

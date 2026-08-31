@@ -28,7 +28,9 @@ public static partial class EventEndpoints
         // The organizer's own view of who signed up, placed as a slide.
         "roster",
         // And the participant's own: what is still theirs to do.
-        "checklist"
+        "checklist",
+        // Pictures from the gallery, with a caption bar under them.
+        "meme"
     ];
 
     private static readonly string[] AllowedFieldKinds =

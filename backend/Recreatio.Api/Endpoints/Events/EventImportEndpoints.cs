@@ -348,6 +348,7 @@ public static partial class EventEndpoints
         "people" => "Osoby",
         "roster" => "Uczestnicy",
         "checklist" => "Do zrobienia",
+        "meme" => "Memy",
         _ => "Sekcja"
     };
 

@@ -1,4 +1,4 @@
-/** The gallery's two pieces of arithmetic: how far a photo shrinks, and the zoom. */
+/** The gallery's arithmetic: shrinking a photo, the zoom, the counts, the memes. */
 import { build } from 'esbuild';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -10,13 +10,15 @@ await build({
   entryPoints: [
     'src/pages/events/parts/imageDownscale.ts',
     'src/pages/events/parts/galleryZoom.ts',
-    'src/pages/events/parts/galleryCount.ts'
+    'src/pages/events/parts/galleryCount.ts',
+    'src/pages/events/parts/memeCanvas.ts'
   ],
   bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error'
 });
 const q = await import(pathToFileURL(join(workspace, 'imageDownscale.js')).href);
 const z = await import(pathToFileURL(join(workspace, 'galleryZoom.js')).href);
 const c = await import(pathToFileURL(join(workspace, 'galleryCount.js')).href);
+const m = await import(pathToFileURL(join(workspace, 'memeCanvas.js')).href);
 
 let failed = 0;
 const near = (a, b) => Math.abs(a - b) < 0.001;
@@ -69,5 +71,53 @@ check('count: the teens are all zdjęć', c.photoCount(13), '13 zdjęć');
 check('count: twenty-two takes zdjęcia again', c.photoCount(22), '22 zdjęcia');
 check('count: twenty-five does not', c.photoCount(25), '25 zdjęć');
 check('count: none', c.photoCount(0), '0 zdjęć');
+
+
+// ── The meme's arithmetic ────────────────────────────────────────────────────
+
+const layout = m.memeLayout(1200, 900);
+check('meme: a wide picture comes down to 1080', layout.width, 1080);
+check('meme: the crop keeps its proportions', layout.imageHeight, 810);
+truth('meme: the band is about a fifth of the whole', Math.abs(layout.barHeight / layout.height - 0.22) < 0.01);
+truth('meme: picture plus band is the whole height', layout.imageHeight + layout.barHeight === layout.height);
+
+const tall = m.memeLayout(600, 1200, 0.18);
+truth('meme: a portrait picture is not enlarged', tall.width === 600);
+truth('meme: a lower band is honoured', Math.abs(tall.barHeight / tall.height - 0.18) < 0.01);
+
+// A ruler of our own: every character is half the font size wide.
+const ruler = (text, size) => text.length * size * 0.5;
+
+check('meme: a short caption stays on one line',
+  m.wrapLines('Ale zjazd', 40, 1000, ruler).length, 1);
+check('meme: a long caption breaks into lines',
+  m.wrapLines('Kiedy myslisz ze to juz koniec podjazdu a za zakretem jest jeszcze jeden', 40, 400, ruler).length > 2, true);
+truth('meme: no line is wider than the band',
+  m.wrapLines('Kiedy myslisz ze to juz koniec podjazdu a za zakretem jest jeszcze jeden', 40, 400, ruler)
+    .every((line) => ruler(line, 40) <= 400));
+truth('meme: one endless word is cut rather than left hanging out',
+  m.wrapLines('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 40, 200, ruler).every((line) => ruler(line, 40) <= 200));
+check('meme: nothing to wrap is no lines', m.wrapLines('   ', 40, 400, ruler).length, 0);
+
+const fit = m.fitCaption('Krotki podpis', layout, ruler);
+truth('meme: the caption fits inside the band',
+  fit.lines.length * fit.lineHeight <= layout.barHeight);
+truth('meme: a short caption is set large', fit.fontSize > layout.barHeight * 0.3);
+
+const long = m.fitCaption('Kiedy myslisz ze to juz koniec podjazdu a za zakretem jest jeszcze jeden i jeszcze jeden', layout, ruler);
+truth('meme: a long caption is set smaller than a short one', long.fontSize < fit.fontSize);
+truth('meme: even a long caption stays inside the band',
+  long.lines.length * long.lineHeight <= layout.barHeight);
+
+// The crop arrives as fractions of the picture and must never read past its edge.
+check('meme: a crop becomes pixels', m.cropInPixels({ x: 0.25, y: 0.5, width: 0.5, height: 0.25 }, 1000, 800),
+  { x: 250, y: 400, width: 500, height: 200 });
+check('meme: a crop dragged past the corner is trimmed',
+  m.cropInPixels({ x: 0.8, y: 0.8, width: 0.9, height: 0.9 }, 1000, 1000),
+  { x: 800, y: 800, width: 200, height: 200 });
+check('meme: a negative crop is pulled back inside',
+  m.cropInPixels({ x: -0.5, y: -0.5, width: 0.5, height: 0.5 }, 1000, 1000),
+  { x: 0, y: 0, width: 500, height: 500 });
+
 
 process.exit(failed === 0 ? 0 : 1);

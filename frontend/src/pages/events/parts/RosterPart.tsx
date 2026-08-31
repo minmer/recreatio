@@ -699,6 +699,11 @@ function RosterTable({
             templates={config.smsTemplates}
             columns={columns}
             hasLinks={table.isOrganizer}
+            withoutLink={
+              table.isOrganizer
+                ? ordered.filter((row) => (row.values['person.token'] ?? '').trim().length === 0).length
+                : 0
+            }
             preview={
               ordered[0] === undefined
                 ? null
@@ -991,6 +996,7 @@ function SmsPanel({
   templates,
   columns,
   hasLinks,
+  withoutLink,
   preview,
   onText,
   sentCount,
@@ -1001,6 +1007,8 @@ function SmsPanel({
   columns: EventRosterColumn[];
   /** Whether {link} resolves for this reader — only the organizer is given the addresses. */
   hasLinks: boolean;
+  /** How many people on screen have no individual link yet. */
+  withoutLink: number;
   /** The first person on the list, so the wording can be read as it will arrive. */
   preview: string | null;
   onText: (next: string) => void;
@@ -1059,6 +1067,15 @@ function SmsPanel({
           <span>Dla pierwszej osoby na liście:</span> {preview}
         </p>
       )}
+
+      {/* A message with {link} in it says nothing to somebody who has no link:
+          better to know that before walking down the list than after. */}
+      {hasLinks && withoutLink > 0 && text.includes('{link}') ? (
+        <p className="ev-roster-count">
+          Uwaga: {withoutLink} {withoutLink === 1 ? 'osoba nie ma' : 'osób nie ma'} linku osobistego — u nich{' '}
+          <strong>{'{link}'}</strong> zostanie puste. Nadaj im dostęp w „Zgłoszenia i dostęp”.
+        </p>
+      ) : null}
 
       <p className="ev-roster-count">
         Kliknij <strong>SMS</strong> przy numerze — dane osoby wstawią się same. Wysyła Twój telefon.

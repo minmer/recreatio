@@ -714,7 +714,15 @@ public static partial class EventEndpoints
             });
         }
 
-        var rows = built.Select(entry => new EventRosterRow(entry.Key, Keep(entry.Values, allowed))).ToList();
+        var rows = built
+            // The link travels whether or not it is a column. It is not there to
+            // be read off the table: it is what a message to that person has to
+            // contain, and making it depend on the slide's column list meant
+            // {link} came out blank for anybody who had not thought to add a
+            // column they never wanted to see.
+            .Select(entry => new EventRosterRow(entry.Key, Keep(entry.Values, allowed, includeTokens)))
+            .ToList();
+
         return (columns, rows);
     }
 
@@ -777,14 +785,19 @@ public static partial class EventEndpoints
     /// </summary>
     private static Dictionary<string, string?> Keep(
         Dictionary<string, string?> row,
-        IReadOnlyDictionary<string, string>? allowed)
+        IReadOnlyDictionary<string, string>? allowed,
+        bool keepToken)
     {
         if (allowed is null) return [];
 
         var kept = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var (key, value) in row)
         {
-            if (allowed.ContainsKey(key) && !string.IsNullOrWhiteSpace(value)) kept[key] = value;
+            if (string.IsNullOrWhiteSpace(value)) continue;
+
+            // The organizer's own copy of the link always passes; everything
+            // else has to be a column the slide asked for.
+            if (allowed.ContainsKey(key) || (keepToken && key == "person.token")) kept[key] = value;
         }
 
         return kept;

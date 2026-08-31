@@ -78,7 +78,7 @@ public static partial class EventEndpoints
 
             return Results.Ok(new EventGalleryResponse(
                 photos,
-                MayAdd: access.ViaLink && ReadGalleryTakesPhotos(part.ConfigJson),
+                MayAdd: access.ViaLink && (part.Kind == "meme" || ReadGalleryTakesPhotos(part.ConfigJson)),
                 MayManage: access.IsAdmin));
         });
 
@@ -111,7 +111,8 @@ public static partial class EventEndpoints
             if (link is null) return Results.NotFound();
 
             var part = await dbContext.EventParts.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == partId && x.IsVisible && x.Kind == "gallery", ct);
+                .FirstOrDefaultAsync(
+                    x => x.Id == partId && x.IsVisible && (x.Kind == "gallery" || x.Kind == "meme"), ct);
             if (part is null) return Results.NotFound();
 
             var page = await dbContext.EventPages.AsNoTracking()
@@ -127,7 +128,10 @@ public static partial class EventEndpoints
                 if (!granted) return Results.NotFound();
             }
 
-            if (!ReadGalleryTakesPhotos(part.ConfigJson))
+            // A meme slide exists to be added to: the whole slide is the
+            // invitation, so there is no separate switch to read. A gallery has
+            // one, and it is the organizer's.
+            if (part.Kind == "gallery" && !ReadGalleryTakesPhotos(part.ConfigJson))
             {
                 return Results.BadRequest(new { error = "Ta galeria nie przyjmuje zdjęć." });
             }
@@ -237,7 +241,8 @@ public static partial class EventEndpoints
         if (site is null) return null;
 
         var part = await dbContext.EventParts.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == partId && x.IsVisible && x.Kind == "gallery", ct);
+            .FirstOrDefaultAsync(
+                x => x.Id == partId && x.IsVisible && (x.Kind == "gallery" || x.Kind == "meme"), ct);
         if (part is null) return null;
 
         var page = await dbContext.EventPages.AsNoTracking()

@@ -8,6 +8,7 @@ import { filesPart } from './FilesPart';
 import { formPart } from './FormPart';
 import { galleryPart } from './GalleryPart';
 import { mapPart } from './MapPart';
+import { memePart } from './MemePart';
 import { participantCardPart } from './ParticipantCardPart';
 import { peoplePart } from './PeoplePart';
 import { planPart } from './PlanPart';
@@ -37,6 +38,7 @@ export const PART_MODULES: PartModule[] = [
   peoplePart,
   filesPart,
   galleryPart,
+  memePart,
   contactPart,
   // Only useful behind an individual link: these act on the reader's own data.
   registrationPart,

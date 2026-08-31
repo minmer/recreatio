@@ -1083,6 +1083,138 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Memes: the gallery's pictures, with a line under them ─ */
+
+.ev-memes {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.ev-meme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+  gap: 0.6rem;
+}
+
+.ev-meme-grid figure {
+  margin: 0;
+}
+
+.ev-meme-grid img {
+  width: 100%;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px var(--ev-shade);
+}
+
+.ev-meme-grid figcaption {
+  margin-top: 0.25rem;
+  color: var(--ev-muted);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+/* The maker, full screen: framing a photograph inside a scrolling slide is a
+   fight nobody wins on a phone. */
+.ev-meme-maker {
+  display: grid;
+  align-content: start;
+  gap: 0.7rem;
+  width: min(46rem, 100%);
+  height: 100%;
+  margin: 0 auto;
+  padding: max(3.2rem, env(safe-area-inset-top, 0px)) 1rem max(1rem, env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+}
+
+.ev-meme-maker h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.ev-meme-picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(130px, 100%), 1fr));
+  gap: 0.5rem;
+}
+
+.ev-meme-picks button {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.ev-meme-picks button:hover {
+  border-color: var(--ev-accent);
+}
+
+.ev-meme-picks img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+/* The frame over the picture: drag it to move, drag the corner to resize. */
+.ev-meme-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  max-height: 52vh;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #000;
+  touch-action: none;
+  user-select: none;
+}
+
+.ev-meme-frame img {
+  width: 100%;
+  max-height: 52vh;
+  object-fit: contain;
+  opacity: 0.55;
+}
+
+.ev-meme-crop {
+  position: absolute;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  cursor: move;
+}
+
+.ev-meme-grip {
+  position: absolute;
+  right: -0.7rem;
+  bottom: -0.7rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--ev-accent);
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+/* What the black band will look like, at the size it will look like it. */
+.ev-meme-strip {
+  margin: 0;
+  border-radius: 6px;
+  padding: 0.7rem 1rem;
+  background: #000;
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+}
+
+.ev-meme-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
 /* ── Gallery: carousel and full-screen viewer ─────────────── */
 
 .ev-carousel {
