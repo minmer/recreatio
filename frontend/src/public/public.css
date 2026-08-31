@@ -398,89 +398,148 @@
   text-wrap: pretty;
 }
 
-/* -- Die Buehne ------------------------------------------------------------- */
-
-@keyframes rc-open   { from { transform: scale(1); }   to { transform: scale(34); } }
-@keyframes rc-gone   { 0%, 76% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
-@keyframes rc-hide   { 0%, 12% { opacity: 1; } 46% { opacity: 0; } 100% { opacity: 0; } }
-@keyframes rc-settle { from { transform: scale(1.12); } to { transform: scale(1); } }
+/* -- Die Buehne: EINE Bewegung durch alle drei Bilder ----------------------- */
 
 /*
-   Alles, was die Buehne baut, steht INNERHALB dieser Abfrage. Sonst bliebe in
-   Firefox eine undurchdringliche Flaeche ueber der Seite stehen.
+   Dieselbe Geste dreimal. Der Name kommt auf den Betrachter zu und gibt das
+   zweite Bild frei; die Gedanken des zweiten Bildes kommen einzeln aus der
+   Tiefe nach vorn; dann geht man durch das zweite Bild hindurch und das dritte
+   liegt schon da. Es faehrt nichts von unten herein und nichts scrollt weg —
+   die Bewegung laeuft in die Tiefe, nicht nach oben.
+
+   Die Zahlen sind Scrollweg, kein Zeitmass:
+
+       0 – 170vh   der Name waechst, der Satz blendet aus
+     130 – 355vh   die Gedanken kommen nacheinander nach vorn
+     360 – 450vh   man geht durch das zweite Bild hindurch
+     350 – 460vh   das dritte Bild kommt an
 */
-@supports (animation-timeline: scroll()) {
-  /* Die Hoehe ist nur Scrollweg. Sichtbar ist immer nur ein Fenster davon. */
-  .rc-stage { position: relative; height: 220vh; }
 
-  .rc-pin {
-    position: sticky;
-    top: var(--head-h);
-    height: calc(100vh - var(--head-h));
-    overflow: hidden;
+@keyframes rc-open    { from { transform: scale(1); }   to { transform: scale(34); } }
+@keyframes rc-gone    { 0%, 76% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+@keyframes rc-hide    { 0%, 14% { opacity: 1; } 55% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes rc-forward { from { opacity: 0; transform: scale(0.72); } to { opacity: 1; transform: none; } }
+@keyframes rc-pass    { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(2.9); } }
+@keyframes rc-arrive  { 0% { opacity: 0; transform: scale(0.78); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+
+/* Ueberblendungen fuer verringerte Bewegung — dieselben Rollen, ohne Weg. */
+@keyframes rc-fadein  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rc-fadeout { from { opacity: 1; } to { opacity: 0; } }
+
+/*
+   Nur auf breiten Fenstern und nur mit Bildlaufzeitachse.
+
+   Auf einem Telefon waeren das fuenf Bildschirmhoehen Scrollweg, um drei
+   Abschnitte zu lesen, und das dritte Bild muesste in ein Fenster passen, in
+   das es nicht passt. Dort stehen die drei Abschnitte deshalb schlicht
+   untereinander — das ist keine Notloesung, sondern dort die bessere Seite.
+*/
+@media (min-width: 860px) {
+  @supports (animation-timeline: scroll()) {
+    .rc-stage { position: relative; height: 480vh; }
+
+    .rc-pin {
+      position: sticky;
+      top: var(--head-h);
+      height: calc(100vh - var(--head-h));
+      overflow: hidden;
+    }
+
+    .rc-stage .rc-first,
+    .rc-stage .rc-l2,
+    .rc-stage .rc-l3 {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      align-content: center;
+      overflow-y: auto;
+      padding: 2rem var(--pad);
+      transform-origin: center;
+      animation-timeline: scroll(root block);
+      animation-fill-mode: both;
+      animation-timing-function: linear;
+    }
+
+    .rc-stage .rc-first {
+      z-index: 4;
+      grid-template-rows: 1fr auto auto;
+      background: transparent;
+      pointer-events: none;
+      animation-name: rc-hide;
+      animation-range: 0 100vh;
+    }
+
+    .rc-veil {
+      display: block;
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      color: #14180f;
+      pointer-events: none;
+      animation: rc-gone linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 190vh;
+    }
+
+    .rc-veil-text {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: rc-open linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 170vh;
+    }
+
+    .rc-mark-static { visibility: hidden; }
+
+    /* Das zweite Bild: liegt dahinter, und man geht spaeter hindurch. */
+    .rc-stage .rc-l2 {
+      z-index: 2;
+      animation-name: rc-pass;
+      animation-range: 360vh 450vh;
+    }
+
+    /* Die Gedanken, einer nach dem anderen aus der Tiefe. */
+    .rc-stage .rc-l2 .rc-h2,
+    .rc-stage .rc-vision p,
+    .rc-stage .rc-open {
+      animation: rc-forward linear both;
+      animation-timeline: scroll(root block);
+      transform-origin: left center;
+    }
+
+    .rc-stage .rc-l2 .rc-h2        { animation-range: 130vh 170vh; }
+    .rc-stage .rc-vision p:nth-child(1) { animation-range: 155vh 210vh; }
+    .rc-stage .rc-vision p:nth-child(2) { animation-range: 205vh 260vh; }
+    .rc-stage .rc-vision p:nth-child(3) { animation-range: 255vh 310vh; }
+    .rc-stage .rc-open             { animation-range: 305vh 355vh; }
+
+    /* Das dritte Bild wartet am tiefsten Punkt. */
+    .rc-stage .rc-l3 {
+      z-index: 1;
+      border-top: 0;
+      animation-name: rc-arrive;
+      animation-range: 350vh 460vh;
+    }
   }
-
-  .rc-first {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    background: transparent;
-    pointer-events: none;
-    animation: rc-hide linear both;
-    animation-timeline: scroll(root block);
-    animation-range: 0 120vh;
-  }
-
-  /* Es liegt DAHINTER, von Anfang an. Es kommt nicht von unten herein. */
-  .rc-behind {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    display: grid;
-    align-content: center;
-    overflow-y: auto;
-    transform-origin: center;
-    animation: rc-settle linear both;
-    animation-timeline: scroll(root block);
-    animation-range: 0 190vh;
-  }
-
-  .rc-veil {
-    display: block;
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    color: #14180f;
-    pointer-events: none;
-    animation: rc-gone linear both;
-    animation-timeline: scroll(root block);
-    animation-range: 0 200vh;
-  }
-
-  .rc-veil-text {
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: rc-open linear both;
-    animation-timeline: scroll(root block);
-    animation-range: 0 190vh;
-  }
-
-  .rc-mark-static { visibility: hidden; }
 }
 
 /*
-   Verringerte Bewegung: ueberblenden statt bewegen.
-   Der Name waechst nicht, das zweite Bild rueckt nicht — der Schleier und der
-   Satz blenden nur aus. Beide tragen `rc-keep` und sind deshalb von der
-   pauschalen Abschaltung ausgenommen; ohne diese Ausnahme bliebe die
-   undurchsichtige Flaeche fuer immer stehen.
+   Verringerte Bewegung: dieselben Rollen, nur ohne Weg. Nichts waechst, nichts
+   faehrt heran — es wird ueberblendet. Alle beteiligten Ebenen tragen
+   `rc-keep` und sind deshalb von der pauschalen Abschaltung ausgenommen; ohne
+   diese Ausnahme bliebe der Schleier fuer immer stehen und der Satz dauerhaft
+   ueber dem zweiten Bild.
 */
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce) and (min-width: 860px) {
   @supports (animation-timeline: scroll()) {
     .rc-veil-text { animation: none; transform: none; }
-    .rc-behind { animation: none; transform: none; }
-    .rc-veil { animation-range: 6vh 90vh; }
-    .rc-first { animation-range: 0 60vh; }
+
+    .rc-stage .rc-l2 .rc-h2,
+    .rc-stage .rc-vision p,
+    .rc-stage .rc-open,
+    .rc-stage .rc-l3 { animation-name: rc-fadein; transform: none; }
+
+    .rc-stage .rc-l2 { animation-name: rc-fadeout; transform: none; }
   }
 }
 

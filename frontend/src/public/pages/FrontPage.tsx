@@ -107,18 +107,49 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
             </p>
           </div>
 
-          <section className="rc-behind" aria-labelledby="rc-h2">
+          {/*
+            Die Gedanken kommen EINZELN nach vorn — dieselbe Bewegung wie beim
+            Namen, nur eine Ebene weiter. Erst der Gedanke vom Menschen, dann
+            der von der Gemeinschaft, dann der von Gott; danach die Offenheit.
+            Sie stehen nicht schon da und blenden auf, sie kommen aus der
+            Tiefe.
+          */}
+          <section className="rc-behind rc-l2 rc-keep" aria-labelledby="rc-h2">
             <div className="rc-s2-in">
-              <h2 className="rc-h2" id="rc-h2">{t.screen2.title}</h2>
+              <h2 className="rc-h2 rc-keep" id="rc-h2">{t.screen2.title}</h2>
 
               <div className="rc-vision">
                 {t.screen2.paragraphs.map((paragraph) => (
-                  <p key={paragraph.slice(0, 40)}>{paragraph}</p>
+                  <p className="rc-keep" key={paragraph.slice(0, 40)}>{paragraph}</p>
                 ))}
               </div>
 
               {/* Die Offenheit steht abgesetzt — sie ist kein Nachsatz. */}
-              <p className="rc-open">{t.screen2.openness}</p>
+              <p className="rc-open rc-keep">{t.screen2.openness}</p>
+            </div>
+          </section>
+
+          {/*
+            Das dritte Bild liegt am tiefsten und wartet. Man kommt hinein,
+            indem man durch das zweite hindurchgeht — dieselbe Bewegung zum
+            dritten Mal.
+          */}
+          <section className="rc-s3 rc-l3 rc-keep" aria-labelledby="rc-h3">
+            <div className="rc-s3-in">
+              <h2 className="rc-h2 rc-keep" id="rc-h3">{t.screen3.title}</h2>
+              <p className="rc-stages">{t.screen3.stages}</p>
+
+              <div className="rc-works">
+                {t.screen3.works.map((work, index) => (
+                  <article className="rc-work" key={work.name}>
+                    <h3 className="rc-work-h">{work.name}</h3>
+                    <p className="rc-work-b">{work.body}</p>
+                    <a className="rc-work-a" href={publicHref(WORK_PAGES[index])}>
+                      {work.cta}
+                    </a>
+                  </article>
+                ))}
+              </div>
             </div>
           </section>
 
@@ -127,25 +158,6 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
           </div>
         </div>
       </div>
-
-      <section className="rc-s3" aria-labelledby="rc-h3">
-        <div className="rc-s3-in">
-          <h2 className="rc-h2" id="rc-h3">{t.screen3.title}</h2>
-          <p className="rc-stages">{t.screen3.stages}</p>
-
-          <div className="rc-works">
-            {t.screen3.works.map((work, index) => (
-              <article className="rc-work" key={work.name}>
-                <h3 className="rc-work-h">{work.name}</h3>
-                <p className="rc-work-b">{work.body}</p>
-                <a className="rc-work-a" href={publicHref(WORK_PAGES[index])}>
-                  {work.cta}
-                </a>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
