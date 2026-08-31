@@ -1,9 +1,7 @@
 /**
- * Deutsch. Folgt dem Polnischen, das die Hauptsprache ist.
- *
- * Übersetzt aus dem Polnischen, nicht unabhängig davon geschrieben. Eine
- * deutsche Fassung, die etwas anderes sagt als die polnische, ist schlimmer als
- * gar keine.
+ * Deutsch. Übersetzt aus dem Polnischen, nicht unabhängig davon geschrieben.
+ * Eine deutsche Fassung, die etwas anderes sagt als die polnische, ist
+ * schlimmer als gar keine.
  */
 
 import type { PublicCopy } from './types';
@@ -12,54 +10,97 @@ export const de: PublicCopy = {
   meta: {
     siteName: 'REcreatio',
     description:
-      'REcreatio — eine familiäre und seelsorgliche Initiative für die integrale '
-      + 'Entwicklung des Menschen. Das entstehende Haus in Limanowa, Exerzitien, '
-      + 'Bildung und Erholung.',
+      'REcreatio — eine familiäre und seelsorgliche Initiative aus Limanowa. Das '
+      + 'entstehende Haus für 52 Personen, Wallfahrten, Exerzitien, Bildung und Werkzeuge.',
     titleSuffix: 'REcreatio'
   },
 
   nav: {
-    manifest: 'REcreatio',
+    front: 'Start',
+    recreatio: 'REcreatio',
+    'o-nas': 'Über die Initiative',
+    bezpieczenstwo: 'Sicherheit',
+    przejrzystosc: 'Transparenz',
+    kontakt: 'Kontakt',
     osrodek: 'Das Haus',
     wydarzenia: 'Veranstaltungen',
     biblioteka: 'Bibliothek',
     cogita: 'Cogita',
     narzedzia: 'Werkzeuge',
     wesprzyj: 'Mitmachen',
-    'o-nas': 'Über die Initiative',
-    przejrzystosc: 'Transparenz',
-    kontakt: 'Kontakt',
+
     menu: 'Menü',
     skipToContent: 'Zum Inhalt springen',
     signIn: 'Anmelden',
-    platform: 'Plattform'
+    platform: 'Plattform',
+    account: 'Konto',
+    lock: 'Schlüssel sperren',
+    signOut: 'Abmelden',
+    more: 'Mehr'
+  },
+
+  front: {
+    scrollHint: 'Weiter',
+    initiative: {
+      eyebrow: 'Initiative',
+      title: 'REcreatio',
+      body:
+        'Ein familiäres und seelsorgliches Vorhaben aus Limanowa: Exerzitien, Formung, '
+        + 'Bildung und Erholung. Im Entstehen — die Stiftung gibt es noch nicht.',
+      cta: 'Die Initiative kennenlernen'
+    },
+    osrodek: {
+      eyebrow: 'Limanowa',
+      title: 'Das Haus',
+      body:
+        'Ein Haus für etwa 52 Personen, vor allem für Gruppen. Im Bau. Freie Zeiträume '
+        + 'lassen sich schon jetzt einsehen, ohne Konto.',
+      cta: 'Das Haus ansehen'
+    },
+    wydarzenia: {
+      eyebrow: 'Wallfahrten und Treffen',
+      title: 'Veranstaltungen',
+      body:
+        'Wallfahrten zu Fuss und mit dem Rad, Fahrten, Exerzitien und Treffen — seit '
+        + 'Jahren durchgeführt. Die Stiftung soll sie fortsetzen.',
+      cta: 'Veranstaltungen ansehen'
+    },
+    cogita: {
+      eyebrow: 'Der bekannteste Teil',
+      title: 'Cogita',
+      body:
+        'Die Lernumgebung: Storyboards, Texte, Sammlungen, Wiederholung. Von allem, was '
+        + 'hier entstanden ist, das meistgenutzte.',
+      cta: 'Cogita ansehen'
+    },
+    narzedzia: {
+      eyebrow: 'Der Rest',
+      title: 'Werkzeuge',
+      body:
+        'Kalender, Nachrichten, Belegung, Formulare, Bibliothek. Jedes entstand bei einer '
+        + 'konkreten Arbeit, und jedes kann anderen Gemeinschaften dienen.',
+      cta: 'Werkzeuge ansehen'
+    }
   },
 
   manifest: {
     title: 'REcreatio',
     opening: {
       lead:
-        'REcreatio ist eine familiäre und seelsorgliche Initiative für die integrale '
-        + 'Entwicklung des Menschen — geistlich, religiös, sittlich, geistig, seelisch, '
-        + 'sozial und körperlich. Der Name sagt bereits, worum es geht: Erneuerung, '
-        + 'Ruhe und Erholung, den Menschen neu entdecken, geistliche Erneuerung und '
-        + 'neue Schöpfung in Christus.',
+        'Eine familiäre und seelsorgliche Initiative aus Limanowa. Der Name sagt, worum '
+        + 'es geht: Erneuerung, Ruhe und Erholung, den Menschen neu entdecken, '
+        + 'geistliche Erneuerung und neue Schöpfung in Christus.',
       inFormation:
-        'REcreatio ist eine Initiative im Entstehen — ein familiäres und seelsorgliches '
-        + 'Vorhaben, das später die Form einer eingetragenen Stiftung annehmen will. '
-        + 'Heute gibt es diese Stiftung noch nicht, und wir sammeln keine Spenden.'
+        'Die Stiftung gibt es noch nicht. Keine Registernummer, kein Vorstand, keine '
+        + 'Satzung; wir sammeln keine Spenden und nennen kein Konto.'
     },
 
     mission: {
       title: 'Auftrag',
       body:
-        'Einen Menschen kann man nicht stückweise entwickeln. Das Geistliche und das '
-        + 'Leibliche; was der Verstand lernt und was das Herz lernt; das Gebet allein '
-        + 'und die gemeinsame Fahrt — all das gehört zu einem Leben und wird hier auch '
-        + 'so behandelt. Daraus folgt eine Ordnung: geistliches Leben, Verkündigung und '
-        + 'Gottesdienst sind das Fundament, und daraus wachsen die übrigen Ziele — '
-        + 'Familie, Erziehung, Bildung, Kultur, Gesundheit, Sport, Erholung und '
-        + 'Reisen. Nicht nebeneinander, sondern eines aus dem anderen.'
+        'Die Entwicklung des Menschen im Ganzen: geistlich, religiös, sittlich, geistig, '
+        + 'seelisch, sozial und körperlich. Grundlage ist das geistliche Leben; daraus '
+        + 'folgen Familie, Erziehung, Bildung, Kultur, Gesundheit, Sport und Reisen.'
     },
 
     areas: {
@@ -67,45 +108,29 @@ export const de: PublicCopy = {
       items: [
         {
           name: 'Geistliches Leben und Glaube',
-          body:
-            'Exerzitien, Besinnungstage, Wallfahrten, Gebets- und Formungstreffen. '
-            + 'Die Arbeit daran, dass der Glaube kein Zusatz zum Leben ist, sondern '
-            + 'dessen Ordnung.'
+          body: 'Exerzitien, Besinnungstage, Wallfahrten, Gebets- und Formungstreffen.'
         },
         {
           name: 'Familie',
-          body:
-            'Unterstützung für Ehe, Familie und die Bande zwischen den Generationen — '
-            + 'und für Eltern in dem, was zuerst ihnen gehört: der Erziehung ihrer '
-            + 'eigenen Kinder.'
+          body: 'Unterstützung für Ehen, für die Bande zwischen Generationen und für Eltern.'
         },
         {
           name: 'Kinder und Jugendliche',
-          body:
-            'Erziehung und Entwicklung im Ganzen: Verantwortung, Reife, Tugenden, '
-            + 'soziale Fähigkeiten und die Bereitschaft zu dienen. Keine Beschäftigung '
-            + 'zum Zeitvertreib, sondern Arbeit am Charakter.'
+          body: 'Formung, Lager und Fahrten. Verantwortung, Reife, soziale Fähigkeiten.'
         },
         {
           name: 'Bildung',
-          body:
-            'Bildung, Wissenschaft, Selbststudium und Vermittlung; Kultur, Kunst und '
-            + 'Lesen; Verlags- und Internetarbeit — Bücher, Kurse, Aufnahmen und das '
-            + 'Bildungsportal. Daher kommen die Bibliothek und Cogita.'
+          body: 'Kurse, Materialien, Verlagsarbeit und Bildungsportal. Daher Cogita und Bibliothek.'
         },
         {
           name: 'Gesundheit und integrale Entwicklung',
           body:
-            'Vorbeugung für seelische, körperliche und soziale Gesundheit; Arbeit gegen '
-            + 'Sucht, Gewalt, Ausgrenzung und Einsamkeit. Ohne Heilbehandlung — die '
-            + 'verlangt eigene Befugnisse, die wir nicht haben und nicht vorgeben.'
+            'Vorbeugung für seelische, körperliche und soziale Gesundheit. Ohne '
+            + 'Heilbehandlung — dafür braucht es eigene Befugnisse.'
         },
         {
           name: 'Wallfahrt, Sport und Abenteuer',
-          body:
-            'Sport, Leibeserziehung, Erholung, Reisen und Landeskunde; Fahrten zu Fuss '
-            + 'und mit dem Rad, tätige Erholung und ein sicherer Umgang mit der Natur. '
-            + 'Ein Weg, den man gemeinsam geht, lehrt, was kein Saal lehrt.'
+          body: 'Fahrten zu Fuss und mit dem Rad, Sport, Erholung, Reisen und Landeskunde.'
         }
       ]
     },
@@ -113,38 +138,29 @@ export const de: PublicCopy = {
     inspiration: {
       title: 'Christliche Inspiration und Offenheit',
       body:
-        'Die Inspiration ist das Evangelium, das christliche Bild vom Menschen und das '
-        + 'Erbe christlicher Kultur. Daraus kommt, was hier gilt: die unveräusserliche '
-        + 'Würde der Person, der Vorrang von Wahrheit und Gutem, Freiheit und '
-        + 'Verantwortung, Nächstenliebe, Solidarität und der Dienst am Gemeinwohl. Und '
-        + 'dabei steht alles jedem offen, unabhängig von Bekenntnis und Weltanschauung. '
-        + 'Wer glaubt, kann den Glauben vertiefen. Wer sucht, darf fragen. Wer nicht '
-        + 'glaubt, wird mit demselben Respekt aufgenommen. Die Teilnahme bleibt '
-        + 'freiwillig, und die christliche Prägung wird dabei nicht versteckt — das eine '
-        + 'schliesst das andere nicht aus.'
+        'Die Inspiration ist das Evangelium und das christliche Bild vom Menschen: Würde '
+        + 'der Person, Vorrang der Wahrheit, Freiheit und Verantwortung, Nächstenliebe, '
+        + 'Dienst am Gemeinwohl. Die Teilnahme steht jedem offen, unabhängig von '
+        + 'Bekenntnis und Weltanschauung, und ist freiwillig. Die christliche Prägung '
+        + 'wird dabei nicht versteckt.'
     },
 
     family: {
       title: 'In einer Familie verwurzelt',
       body:
-        'Die Sache wächst aus einer Familie und aus der Verantwortung für die '
-        + 'Fortsetzung dessen, was begonnen wurde. Gemeint ist damit aber weder eine '
-        + '„Familienstiftung" im rechtlichen Sinn noch eine kirchliche Einrichtung: '
-        + 'werden soll es ein familiäres, weltliches Rechtssubjekt des Zivilrechts, das '
-        + 'mit Pfarreien und Gemeinschaften zusammenarbeitet und dabei eigenständig '
-        + 'bleibt. Die Familie ist der Ausgangspunkt, nicht der Abschluss — das Haus '
-        + 'öffnet sich für andere, und darin liegt der Sinn des Ganzen.'
+        'Getragen wird das Vorhaben von einer Familie. Werden soll es ein familiäres, '
+        + 'weltliches Rechtssubjekt des Zivilrechts — keine kirchliche Einrichtung und '
+        + 'keine „Familienstiftung" im rechtlichen Sinn. Zusammenarbeit mit Pfarreien '
+        + 'und Gemeinschaften bei eigener Selbstständigkeit.'
     },
 
     road: {
       title: 'Wohin das führt',
-      intro:
-        'Die Reihenfolge ist nicht beliebig. Zuerst muss das Haus stehen, denn ohne Ort '
-        + 'bleibt alles Übrige ein Plan.',
+      intro: 'Zuerst das Haus. Ohne Ort bleibt der Rest ein Plan.',
       steps: [
-        'Zuerst das Haus.',
+        'Das Haus in Limanowa.',
         'Eigene Exerzitien und Veranstaltungen.',
-        'Den Raum für andere Gemeinschaften öffnen.',
+        'Das Haus für andere Gemeinschaften öffnen.',
         'Wallfahrten sowie Sport- und Formungsveranstaltungen.',
         'Bildungsmaterialien.',
         'Verlagsarbeit.',
@@ -156,35 +172,136 @@ export const de: PublicCopy = {
     closing: ['Erneuern.', 'Ausruhen.', 'Wachsen.', 'Begegnen.']
   },
 
+  security: {
+    title: 'Sicherheit, und warum so',
+    lead:
+      'Die Werkzeuge von REcreatio sind anders gebaut als die meisten. Worin der '
+      + 'Unterschied besteht und was er kostet, steht hier.',
+
+    points: [
+      {
+        q: 'Es gibt keinen Verwalter',
+        a:
+          'Niemand auf unserer Seite kann deine Inhalte öffnen. Die Schlüssel entstehen '
+          + 'auf deinem Gerät; der Server kennt sie nicht. Wer die ganze Datenbank '
+          + 'stähle, bekäme verschlüsselte Blöcke und Datumsangaben.'
+      },
+      {
+        q: 'Ein Passwort lässt sich nicht zurücksetzen — ein Konto lässt sich zurückholen',
+        a:
+          'Das Passwort verlässt das Gerät nicht. Hinaus geht nur ein Schlüssel, den '
+          + 'Argon2id daraus errechnet, mit 64 MiB Speicher je Durchgang. Der Server '
+          + 'kennt das Passwort nicht und kann es deshalb nicht ändern — eine E-Mail '
+          + '„neues Passwort setzen" ist unmöglich. Das Zurückholen geht anders: du '
+          + 'benennst mehrere Bürgen. Jeder hält einen Anteil, mit seinem eigenen '
+          + 'Schlüssel verschlossen. Geben genügend viele ihren Anteil, kommt das Konto '
+          + 'zurück. Ein Bürge genügt nicht, und ein einzelner Anteil sagt nichts.'
+      },
+      {
+        q: 'Die Werkzeuge sind öffentlich, der Eingang führt über die Adresse',
+        a:
+          'Es gibt kein Verzeichnis und keine Suche über Gemeinschaften. Eine Adresse '
+          + 'sieht so aus: /parish/limanowa, /cogita/name-der-bibliothek. Wer sie kennt, '
+          + 'kommt hinein; wer nicht, stösst beim Blättern nicht darauf. Die Adresse '
+          + 'allein öffnet nichts Verschlüsseltes — sie führt zu dem, was ohnehin offen '
+          + 'ist, etwa dem Messplan im Schaukasten.'
+      },
+      {
+        q: 'Du gibst keine Daten — du teilst deine',
+        a:
+          'Wir fragen nicht nach Daten, um sie aufzubewahren. Du behältst deine und gibst '
+          + 'anderen einen Ausschnitt frei. Die Freigabe lässt sich zurücknehmen. Die '
+          + 'Grenze, die wir offen nennen: das Zurücknehmen wirkt ab dem Zeitpunkt des '
+          + 'Zurücknehmens. Wer vorher Zugang hatte, konnte bereits lesen, und das holt '
+          + 'kein Knopf zurück. Neue Einträge sind für ihn ab dann verschlossen; die '
+          + 'Vergangenheit bleibt die Vergangenheit. Etwas anderes zu versprechen wäre '
+          + 'gelogen.'
+      }
+    ],
+
+    originTitle: 'Woher diese Werkzeuge kommen',
+    origin:
+      'Keines ist als Ware entstanden. Jedes entstand bei einer konkreten Arbeit, bei '
+      + 'der etwas fehlte: der Messplan mit den Intentionen, die Liste der Firmlinge, '
+      + 'die Anmeldung zur Wallfahrt, der Kalender der Räume. Deshalb sind sie so, wie '
+      + 'sie sind — und deshalb sagt ihr Zuschnitt etwas über die Initiative selbst: '
+      + 'Dinge entstehen hier aus einem Bedarf, nicht umgekehrt. Was einmal gut gebaut '
+      + 'ist, lässt sich anderen Gemeinschaften überlassen, und so wird es gehalten.',
+
+    toolsTitle: 'Die Werkzeuge der Reihe nach',
+    toolsIntro: 'Was jedes tut, und was dabei sichtbar ist und was nicht.',
+    tools: [
+      {
+        name: 'Nachrichten',
+        body:
+          'Gespräch in einer Gruppe. Wer heute dazukommt, sieht nicht, was vorher '
+          + 'geschrieben wurde — es sei denn, jemand gibt ihm bewusst den Schlüssel zur '
+          + 'Vergangenheit. Ein Austritt schneidet eine Epoche: weitere Nachrichten sind '
+          + 'für ihn unlesbar.'
+      },
+      {
+        name: 'Kalender',
+        body:
+          'Die Zeit ist offen, der Inhalt nicht. Man sieht, dass jemand Dienstag um zehn '
+          + 'belegt ist; womit, sieht man nicht. So lassen sich freie Zeiten finden, ohne '
+          + 'irgendwem zu zeigen, was geschieht.'
+      },
+      {
+        name: 'Belegung',
+        body:
+          'Dasselbe für Räume und Häuser: frei oder belegt, ohne Gruppennamen und ohne '
+          + 'Kontakt. Ohne Konto einsehbar, damit eine Gruppe den Juli prüfen kann, ohne '
+          + 'unterwegs etwas anzulegen.'
+      },
+      {
+        name: 'Formulare',
+        body:
+          'Anmeldungen und Anfragen. Offen eingesandt, verschlüsselt abgelegt — '
+          + 'verschlüsselt wird im Browser, bevor etwas das Gerät verlässt. Lesen kann '
+          + 'nur, wer die Sache führt.'
+      },
+      {
+        name: 'Pfarrei',
+        body:
+          'Messplan und Intentionen. Eine Zeile ist zugleich öffentlich und intern: „in '
+          + 'einer bestimmten Absicht" im Schaukasten, und innen — in welcher und von wem.'
+      },
+      {
+        name: 'Cogita',
+        body:
+          'Lernen: Storyboards, Texte, Sammlungen, Wiederholung und Sitzungen in Echtzeit. '
+          + 'Inhalte dürfen offen sein; die Schlüssel bleiben privat.'
+      }
+    ]
+  },
+
   about: {
     title: 'Über die Initiative',
-    lead:
-      'REcreatio ist noch keine Stiftung. Diese Seite sagt geradeheraus, was es heute '
-      + 'ist und was geschehen muss, bevor es mehr wird.',
+    lead: 'Was REcreatio heute ist und was es noch nicht gibt.',
     whatInitiativeMeans: {
-      title: 'Was „Initiative im Entstehen" heisst',
+      title: 'Initiative, nicht Stiftung',
       body:
         'Es gibt keine juristische Person: keine Registernummer, keine Steuernummer, '
-        + 'keinen Vorstand, keine Satzung, keinen Status der Gemeinnützigkeit. Was '
-        + 'geschieht, geschieht formlos, durch eine Familie und die Menschen, die mit ihr '
-        + 'arbeiten. Alles auf dieser Seite beschreibt die Absicht und das, was wirklich '
-        + 'da ist — keine Rechtsform.'
+        + 'keinen Vorstand, keine Satzung, keinen Gemeinnützigkeitsstatus. Getragen wird '
+        + 'es von einer Familie und den Menschen, die mit ihr arbeiten. Die Eintragung '
+        + 'ist eine Absicht; bis dahin erscheint hier keine Registernummer und kein '
+        + 'Spendenkonto.'
     },
     family: {
-      title: 'Familie, nicht „Familienstiftung"',
+      title: 'Familie',
       body:
-        'Die Initiative wächst aus einer Familie und aus der Verantwortung für die '
-        + 'Fortsetzung dessen, was begonnen wurde. Das ist keine „Familienstiftung" im '
-        + 'rechtlichen Sinn — es ist die schlichte Auskunft, woher die Sache kommt und '
-        + 'wer heute für sie einsteht.'
+        'Das Vorhaben wächst aus einer Familie und aus der Verantwortung für seine '
+        + 'Fortsetzung. Die angestrebte Form ist ein familiäres, weltliches Rechtssubjekt '
+        + 'des Zivilrechts, das mit Pfarreien und Gemeinschaften zusammenarbeitet und '
+        + 'dabei eigenständig bleibt.'
     },
     road: {
-      title: 'Der Weg zur Rechtsform',
+      title: 'Was geschehen muss',
       body:
-        'Die Eintragung einer Stiftung ist eine Absicht, keine Tatsache. Solange sie '
-        + 'nicht geschehen ist, erscheint auf dieser Seite keine Registernummer, kein '
-        + 'Spendenkonto und kein Spendenaufruf. Wenn sie geschieht, ändert sich der Text '
-        + 'dieser Seite — nicht ihr Aufbau.'
+        'Gründungsunterlagen, die schriftliche Zustimmung der kirchlichen Autorität, eine '
+        + 'Buchhaltung und der notarielle Akt. Erst danach die Eintragung. Der '
+        + 'Gemeinnützigkeitsstatus verlangt gesondert erfüllte gesetzliche Bedingungen '
+        + 'und ein unabhängiges Prüfgremium.'
     },
     people: {
       title: 'Wer dahintersteht',
@@ -195,41 +312,36 @@ export const de: PublicCopy = {
   transparency: {
     title: 'Transparenz',
     lead:
-      'Wie die Dinge getrennt sind: die Tätigkeit der Initiative und das private Vermögen '
-      + 'derer, die sie tragen, sind zweierlei. Wir beschreiben es im Präsens und nur so '
-      + 'weit, wie es heute stimmt.',
+      'Wie die Tätigkeit der Initiative und das private Vermögen der Tragenden getrennt sind.',
     separation: {
       title: 'Tätigkeit und Privatvermögen',
       body:
-        'Die Tätigkeit der Initiative und das private Vermögen der Gründer bleiben '
-        + 'getrennt. Die Initiative besitzt weder Grundstücke noch anderes Vermögen — sie '
-        + 'hat keine Rechtspersönlichkeit und kann deshalb nichts besitzen.'
+        'Die Initiative hat keine Rechtspersönlichkeit und besitzt deshalb weder '
+        + 'Grundstücke noch anderes Vermögen. Das Privatvermögen der Gründer bleibt '
+        + 'davon getrennt.'
     },
     house: {
       title: 'Das Haus',
       body:
         'Das Haus in Limanowa bleibt Privateigentum und wird nicht in eine künftige '
         + 'Stiftung eingebracht — weder als Schenkung noch als Einlage. Nach einer '
-        + 'etwaigen Eintragung würde es aufgrund eines Mietvertrages zu marktüblichen '
-        + 'Bedingungen zur Verfügung gestellt. Der Grundsatz, den wir uns vorab geben: '
-        + 'jeder Vertrag mit einer nahestehenden Person verlangt die Zustimmung des '
-        + 'Aufsichtsorgans, den Nachweis marktüblicher Bedingungen und die Unterschrift '
-        + 'einer von diesem Organ benannten Person; Aufwendungen auf das private '
-        + 'Grundstück verlangen eine gesonderte Abrechnung. Das steht hier jetzt und '
-        + 'nicht dann, wenn es bequem wird.'
+        + 'etwaigen Eintragung würde es zu marktüblichen Bedingungen vermietet. Vorab '
+        + 'festgelegt: ein Vertrag mit einer nahestehenden Person verlangt die Zustimmung '
+        + 'des Aufsichtsorgans, den Nachweis marktüblicher Bedingungen und die '
+        + 'Unterschrift einer von diesem Organ benannten Person; Aufwendungen auf das '
+        + 'private Grundstück werden gesondert abgerechnet.'
     },
     notYet: {
       title: 'Was es noch nicht gibt',
       body:
-        'Wir führen keine getrennte Buchhaltung für die Initiative, haben keinen Status '
-        + 'der Gemeinnützigkeit und unterliegen keiner Prüfung. Das steht hier, weil das '
-        + 'Fehlen dieses Satzes sich wie das Gegenteil läse.'
+        'Keine getrennte Buchhaltung, kein Gemeinnützigkeitsstatus, keine Prüfung. Das '
+        + 'steht hier, weil das Fehlen dieses Satzes sich umgekehrt läse.'
     }
   },
 
   contact: {
     title: 'Kontakt',
-    lead: 'Am einfachsten per E-Mail. Es antwortet ein Mensch, kein Formular.',
+    lead: 'Es antwortet ein Mensch, kein Formular.',
     email: 'kontakt@recreatio.pl',
     address: { missing: 'Postanschrift und die Entscheidung, ob sie vor der Eröffnung öffentlich sein darf' },
     people: { missing: 'Ansprechpartner und die Zustimmung, Namen zu nennen' }
@@ -238,17 +350,15 @@ export const de: PublicCopy = {
   osrodek: {
     title: 'Das Haus in Limanowa',
     underConstruction:
-      'Das Haus ist im Bau. Wir nehmen noch keine Gäste auf — was hier steht, beschreibt, '
-      + 'was es werden soll und für wen, damit Gruppen vorausplanen können.',
+      'Das Haus ist im Bau und nimmt noch keine Gäste auf. Was schon feststeht, steht '
+      + 'hier, damit Gruppen vorausplanen können.',
     purpose: {
       title: 'Wofür es da ist',
-      body:
-        'Exerzitien, Besinnungstage, Formung, Bildung und Erholung — an einem Ort und '
-        + 'ohne diese Dinge voneinander zu trennen.'
+      body: 'Exerzitien, Besinnungstage, Formung, Bildung und Erholung.'
     },
     capacity: {
       title: 'Wie viele Menschen',
-      body: 'Etwa 52 Personen. Das Haus ist vor allem für Gruppen gedacht.',
+      body: 'Etwa 52 Personen, vor allem Gruppen.',
       exact: { missing: 'Bestätigung, ob die Platzzahl genau 52 beträgt' },
       groups: [
         'Exerzitiengruppen',
@@ -264,9 +374,7 @@ export const de: PublicCopy = {
     },
     character: {
       title: 'Der Charakter des Ortes',
-      body:
-        'Einfach, gastfreundlich und lebendig — ein Ort zum Beten, Arbeiten, Reden, '
-        + 'Lernen, Ausruhen und einfach Beisammensein.'
+      body: 'Einfach und gastfreundlich: Gebet, Arbeit, Lernen, Gespräch und Ruhe an einem Ort.'
     },
     facilities: {
       title: 'Was vor Ort ist',
@@ -274,12 +382,12 @@ export const de: PublicCopy = {
         'Schlafplätze',
         'ein gemeinsamer Raum',
         'ein Speisesaal',
-        'eine Küche, die die Gruppe selbst benutzen kann'
+        'eine Küche zur eigenen Nutzung durch die Gruppe'
       ]
     },
     openToOthers: {
       title: 'Nicht nur für uns',
-      body: 'Das Haus dient nicht allein den eigenen Vorhaben der Initiative. Eingeladen sind auch:',
+      body: 'Das Haus dient nicht allein den eigenen Vorhaben. Eingeladen sind auch:',
       items: [
         'Pfarreien',
         'Gemeinschaften der Licht-Leben-Bewegung',
@@ -294,9 +402,7 @@ export const de: PublicCopy = {
     },
     supports: {
       title: 'Warum gegen Entgelt',
-      body:
-        'Das Haus gegen Entgelt zur Verfügung zu stellen trägt die übrige Arbeit der '
-        + 'Initiative. Wir sagen es geradeheraus, weil es so ist.'
+      body: 'Die Vermietung des Hauses trägt die übrige Arbeit der Initiative.'
     },
     where: {
       title: 'Wo',
@@ -308,9 +414,8 @@ export const de: PublicCopy = {
       title: 'Freie Zeiträume',
       intro: 'Welche Zeiträume noch frei sind.',
       showsNothingElse:
-        'Diese Liste zeigt ausschliesslich, ob ein Zeitraum frei oder belegt ist. Sie '
-        + 'zeigt nicht, wer kommt, wozu, oder wie jemand zu erreichen wäre — und sie wird '
-        + 'es auch nicht zeigen.',
+        'Die Liste zeigt ausschliesslich: frei oder belegt. Nicht, wer kommt, wozu, oder '
+        + 'wie jemand zu erreichen wäre.',
       free: 'frei',
       held: 'vorgemerkt',
       taken: 'belegt',
@@ -318,18 +423,17 @@ export const de: PublicCopy = {
       unreachable:
         'Die Zeiträume liessen sich nicht abrufen. Das heisst nicht, dass sie belegt '
         + 'sind — bitte noch einmal versuchen oder schreiben.',
-      noAccountNeeded: 'Für die Einsicht in die Zeiträume ist kein Konto nötig.',
+      noAccountNeeded: 'Für die Einsicht ist kein Konto nötig.',
       month: 'Monat',
       nothingPlanned: 'In diesem Monat ist noch nichts belegt.'
     },
 
     enquiry: {
       title: 'Anfrage für einen Zeitraum',
-      intro: 'Formular ausfüllen — wir antworten.',
+      intro: 'Formular ausfüllen, wir antworten.',
       brokeredNotBooked:
         'Das ist eine Anfrage, keine Buchung. Es wird nichts bezahlt, keine Anzahlung '
-        + 'verlangt und über diese Seite kein Vertrag geschlossen — auf die Anfrage '
-        + 'antwortet ein Mensch, und erst dann wird das Weitere besprochen.',
+        + 'verlangt und über diese Seite kein Vertrag geschlossen.',
       groupName: 'Name der Gruppe',
       contactPerson: 'Ansprechpartner',
       contact: 'Telefon oder E-Mail',
@@ -341,69 +445,54 @@ export const de: PublicCopy = {
       submit: 'Anfrage senden',
       sending: 'Wird gesendet …',
       sent: 'Anfrage gesendet.',
-      sentBody: 'Wir antworten auf dem angegebenen Weg. Mehr ist nicht zu tun.',
+      sentBody: 'Wir antworten auf dem angegebenen Weg.',
       failed:
         'Die Anfrage liess sich nicht senden. Bitte noch einmal versuchen oder an '
         + 'kontakt@recreatio.pl schreiben.',
       sealedNote:
-        'Die Angaben aus dem Formular werden verschlüsselt abgelegt. Lesen kann sie nur, '
-        + 'wer das Haus führt — nicht der Server und nicht wir „für alle Fälle".',
+        'Das Formular verschlüsselt im Browser, bevor etwas das Gerät verlässt. Lesen '
+        + 'kann es nur, wer das Haus führt.',
       required: 'Dieses Feld wird gebraucht.'
     }
   },
 
   wesprzyj: {
     title: 'Mitmachen',
-    lead:
-      'Helfen lässt sich auf mehrere Weisen. Keine davon besteht heute darin, Geld zu geben.',
+    lead: 'Keiner dieser Wege besteht heute darin, Geld zu geben.',
     ways: [
-      {
-        name: 'Mitarbeit',
-        body: 'Arbeit am Haus, Hilfe bei Veranstaltungen, da sein, wenn Hände gebraucht werden.'
-      },
+      { name: 'Mitarbeit', body: 'Arbeit am Haus und Hilfe bei Veranstaltungen.' },
       {
         name: 'Wissen und Können',
-        body:
-          'Berufliche Erfahrung, die sich teilen lässt — handwerklich, rechtlich, '
-          + 'pädagogisch, technisch.'
+        body: 'Handwerkliche, rechtliche, pädagogische oder technische Erfahrung.'
       },
       {
         name: 'Veranstaltungen mitgestalten',
-        body:
-          'Exerzitien, Wallfahrten, Fahrten sowie Sport- und Formungsveranstaltungen '
-          + 'gemeinsam vorbereiten.'
+        body: 'Exerzitien, Wallfahrten, Fahrten sowie Sport- und Formungsveranstaltungen.'
       },
       {
         name: 'Das Haus nutzen',
-        body:
-          'Sobald das Haus offen ist, ist ein Aufenthalt mit einer Gruppe für sich genommen '
-          + 'schon eine Unterstützung der übrigen Arbeit.'
+        body: 'Nach der Eröffnung trägt ein Aufenthalt mit einer Gruppe die übrige Arbeit.'
       },
-      {
-        name: 'Gebet',
-        body:
-          'Hier nicht aus Höflichkeit genannt — für eine Initiative dieser Art ist es '
-          + 'wirkliche Unterstützung.'
-      }
+      { name: 'Gebet', body: 'Hier nicht aus Höflichkeit genannt.' }
     ],
     financialLater:
-      'Finanzielle Unterstützung wird erst dann eingerichtet, wenn die Initiative eine '
-      + 'Rechtsform hat. Bis dahin sammeln wir keine Spenden und nennen kein Konto.'
+      'Finanzielle Unterstützung wird nach Erhalt der Rechtsform eingerichtet. Bis dahin '
+      + 'sammeln wir keine Spenden und nennen kein Konto.'
   },
 
   placeholders: {
     wydarzenia: {
       title: 'Veranstaltungen',
       body:
-        'Exerzitien, Wallfahrten zu Fuss und mit dem Rad, Fahrten sowie Sport- und '
+        'Wallfahrten zu Fuss und mit dem Rad, Fahrten, Exerzitien sowie Sport- und '
         + 'Formungsveranstaltungen. Anmeldung und Einzelheiten kommen hierher.',
       preparing: 'Dieser Teil wird vorbereitet.'
     },
     biblioteka: {
       title: 'Bibliothek',
       body:
-        'Ein Verzeichnis der erschienenen Bücher mit dem, was beim Lesen hilft. '
-        + 'Zugleich die Quelle der Belegstellen, aus der Cogita schöpft.',
+        'Ein Verzeichnis der erschienenen Bücher mit dem, was beim Lesen hilft. Zugleich '
+        + 'die Quelle der Belegstellen für Cogita.',
       preparing: 'Dieser Teil wird vorbereitet.'
     },
     cogita: {
@@ -414,22 +503,21 @@ export const de: PublicCopy = {
     narzedzia: {
       title: 'Werkzeuge',
       body:
-        'Die gemeinsamen Bausteine — Kalender, Nachrichten, Belegung, Formulare — die '
-        + 'andere Gemeinschaften auf ihren eigenen Seiten verwenden können.',
+        'Kalender, Nachrichten, Belegung und Formulare — zur Nutzung durch andere '
+        + 'Gemeinschaften auf ihren eigenen Seiten.',
       preparing: 'Dieser Teil wird vorbereitet.'
     }
   },
 
   notFound: {
     title: 'Diese Seite gibt es nicht',
-    body: 'Die Adresse, auf der du gelandet bist, führt nirgendwohin. Vielleicht ist der Link veraltet.',
+    body: 'Diese Adresse führt nirgendwohin. Der Link ist womöglich veraltet.',
     back: 'Zurück zur Startseite'
   },
 
   footer: {
     logoAlt: 'REcreatio',
-    initiative: 'Eine Initiative im Entstehen.',
-    platform: 'Plattform'
+    initiative: 'Eine Initiative im Entstehen.'
   },
 
   factNeeded: 'Fehlende Angabe',

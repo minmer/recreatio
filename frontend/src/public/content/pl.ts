@@ -1,20 +1,20 @@
 /**
  * Polnisch — die Hauptsprache der öffentlichen Seite.
  *
- * Die Absätze des Manifests stammen aus der Gründungskarte und dem
- * Satzungsentwurf, die unter `content/local/` liegen und NICHT mitversioniert
- * werden. Übernommen ist daraus, was den ZWECK betrifft; nicht übernommen ist
- * alles Persönliche und Rechtliche — Namen, Anschriften, Beträge, Zustimmungen.
- * Eine Tatsache zu haben ist keine Erlaubnis, sie zu veröffentlichen.
+ * <b>Kurz und konkret.</b> Die erste Fassung war zu lang und las sich
+ * geschrieben: Antithesen („nicht X, sondern Y"), Sinnsprüche am Absatzende,
+ * Sätze, die etwas Allgemeines behaupten. Was hier steht, soll Tatsachen
+ * nennen — Zahlen, Namen, was wirklich geschieht.
+ *
+ * Die Absätze stammen aus der Gründungskarte und dem Satzungsentwurf unter
+ * `content/local/`, die NICHT mitversioniert werden. Übernommen ist daraus,
+ * was den ZWECK betrifft; Namen, Anschriften, Beträge und Zustimmungen sind es
+ * nicht. Eine Tatsache zu haben ist keine Erlaubnis, sie zu veröffentlichen.
  *
  * Was als `{ missing: … }` steht, ist eine Tatsache, die noch niemand
- * entschieden hat (Abschnitt 7). Bei zweien davon — Namen und Anschrift —
- * stehen die Angaben in den Unterlagen; sie bleiben hier trotzdem offen, weil
- * die Entscheidung über ihre Veröffentlichung nicht mir gehört.
- *
- * Alles andere steht so im Auftrag und ist deshalb echter Text — die
- * Beschreibung des Ośrodek (4.2), die Platzhalterseiten (5) und die Wege der
- * Unterstützung (6) sind dort ausformuliert und mussten nicht erfunden werden.
+ * entschieden hat. Bei zweien — Namen und Anschrift — stehen die Angaben in
+ * den Unterlagen; sie bleiben trotzdem offen, weil die Entscheidung über ihre
+ * Veröffentlichung nicht mir gehört.
  */
 
 import type { PublicCopy } from './types';
@@ -23,54 +23,97 @@ export const pl: PublicCopy = {
   meta: {
     siteName: 'REcreatio',
     description:
-      'REcreatio — inicjatywa rodzinna i duszpasterska na rzecz integralnego rozwoju '
-      + 'człowieka. Powstający ośrodek w Limanowej, rekolekcje, formacja, edukacja '
-      + 'i wypoczynek.',
+      'REcreatio — inicjatywa rodzinna i duszpasterska z Limanowej. Powstający ośrodek '
+      + 'na 52 osoby, pielgrzymki, rekolekcje, formacja i narzędzia edukacyjne.',
     titleSuffix: 'REcreatio'
   },
 
   nav: {
-    manifest: 'REcreatio',
+    front: 'Start',
+    recreatio: 'REcreatio',
+    'o-nas': 'O inicjatywie',
+    bezpieczenstwo: 'Bezpieczeństwo',
+    przejrzystosc: 'Przejrzystość',
+    kontakt: 'Kontakt',
     osrodek: 'Ośrodek',
     wydarzenia: 'Wydarzenia',
     biblioteka: 'Biblioteka',
     cogita: 'Cogita',
     narzedzia: 'Narzędzia',
     wesprzyj: 'Wesprzyj',
-    'o-nas': 'O inicjatywie',
-    przejrzystosc: 'Przejrzystość',
-    kontakt: 'Kontakt',
+
     menu: 'Menu',
     skipToContent: 'Przejdź do treści',
     signIn: 'Zaloguj się',
-    platform: 'Platforma'
+    platform: 'Platforma',
+    account: 'Konto',
+    lock: 'Zablokuj klucze',
+    signOut: 'Wyloguj',
+    more: 'Więcej'
+  },
+
+  front: {
+    scrollHint: 'Przewiń',
+    initiative: {
+      eyebrow: 'Inicjatywa',
+      title: 'REcreatio',
+      body:
+        'Rodzinne i duszpasterskie przedsięwzięcie z Limanowej: rekolekcje, formacja, '
+        + 'edukacja i wypoczynek. W trakcie powstawania — fundacja jeszcze nie istnieje.',
+      cta: 'Poznaj inicjatywę'
+    },
+    osrodek: {
+      eyebrow: 'Limanowa',
+      title: 'Ośrodek',
+      body:
+        'Dom na około 52 osoby, przede wszystkim dla grup. W budowie. Wolne terminy '
+        + 'można sprawdzić już teraz, bez zakładania konta.',
+      cta: 'Zobacz ośrodek'
+    },
+    wydarzenia: {
+      eyebrow: 'Pielgrzymki i spotkania',
+      title: 'Wydarzenia',
+      body:
+        'Pielgrzymki piesze i rowerowe, wyprawy, rekolekcje i spotkania — organizowane '
+        + 'od lat. Fundacja ma je prowadzić dalej.',
+      cta: 'Zobacz wydarzenia'
+    },
+    cogita: {
+      eyebrow: 'Najbardziej znana część',
+      title: 'Cogita',
+      body:
+        'Środowisko do nauki: storyboardy, teksty, zbiory i powtórki. Z wszystkiego, co '
+        + 'tu powstało, używane najczęściej.',
+      cta: 'Zobacz Cogitę'
+    },
+    narzedzia: {
+      eyebrow: 'Reszta',
+      title: 'Narzędzia',
+      body:
+        'Kalendarz, czat, obłożenie sal, formularze, biblioteka. Każde powstało przy '
+        + 'konkretnej pracy i każde może służyć innym wspólnotom.',
+      cta: 'Zobacz narzędzia'
+    }
   },
 
   manifest: {
     title: 'REcreatio',
     opening: {
       lead:
-        'REcreatio to inicjatywa rodzinna i duszpasterska, która służy integralnemu '
-        + 'rozwojowi człowieka — duchowemu, religijnemu, moralnemu, intelektualnemu, '
-        + 'psychicznemu, społecznemu i fizycznemu. W samej nazwie mieści się to, o co '
-        + 'chodzi: odnowienie, odpoczynek i rekreacja, ponowne odkrywanie człowieka, '
-        + 'odnowa duchowa i nowe stworzenie w Chrystusie.',
+        'Inicjatywa rodzinna i duszpasterska z Limanowej. Nazwa mówi, o co chodzi: '
+        + 'odnowienie, odpoczynek i rekreacja, ponowne odkrywanie człowieka, odnowa '
+        + 'duchowa i nowe stworzenie w Chrystusie.',
       inFormation:
-        'REcreatio jest inicjatywą w trakcie powstawania — rodzinnym i duszpasterskim '
-        + 'przedsięwzięciem, które zamierza w przyszłości przyjąć formę zarejestrowanej '
-        + 'fundacji. Dziś fundacja jeszcze nie istnieje i nie prowadzimy zbiórki środków.'
+        'Fundacja jeszcze nie istnieje. Nie ma numeru KRS, zarządu ani statutu, '
+        + 'nie zbieramy darowizn i nie podajemy numeru konta.'
     },
 
     mission: {
       title: 'Misja',
       body:
-        'Człowieka nie da się rozwijać po kawałku. To, co duchowe, i to, co cielesne; '
-        + 'to, czego uczy się rozum, i to, czego uczy się serce; samotna modlitwa '
-        + 'i wspólna wyprawa — wszystko to należy do jednego życia i tak też jest tutaj '
-        + 'traktowane. Stąd porządek, który obowiązuje: życie duchowe, ewangelizacja '
-        + 'i kult stanowią fundament, a z niego wyrastają pozostałe cele — rodzina, '
-        + 'wychowanie, edukacja, kultura, zdrowie, sport, rekreacja i turystyka. '
-        + 'Nie obok siebie, lecz jedno z drugiego.'
+        'Rozwój człowieka w całości: duchowy, religijny, moralny, intelektualny, '
+        + 'psychiczny, społeczny i fizyczny. Podstawą jest życie duchowe; z niego '
+        + 'wynikają rodzina, wychowanie, edukacja, kultura, zdrowie, sport i turystyka.'
     },
 
     areas: {
@@ -78,44 +121,29 @@ export const pl: PublicCopy = {
       items: [
         {
           name: 'Życie duchowe i wiara',
-          body:
-            'Rekolekcje, dni skupienia, pielgrzymki, spotkania modlitewne i formacyjne. '
-            + 'Praca nad tym, żeby wiara nie była dodatkiem do życia, lecz jego porządkiem.'
+          body: 'Rekolekcje, dni skupienia, pielgrzymki, spotkania modlitewne i formacyjne.'
         },
         {
           name: 'Rodzina',
-          body:
-            'Wsparcie małżeństwa, rodziny i więzi między pokoleniami — oraz rodziców '
-            + 'w tym, co należy przede wszystkim do nich: w wychowaniu własnych dzieci.'
+          body: 'Wsparcie małżeństw, więzi międzypokoleniowych i rodziców w wychowaniu dzieci.'
         },
         {
           name: 'Dzieci i młodzież',
-          body:
-            'Wychowanie i wszechstronny rozwój: odpowiedzialność, dojrzałość, cnoty, '
-            + 'kompetencje społeczne i gotowość do służby. Nie zajęcia na przeczekanie, '
-            + 'lecz praca nad charakterem.'
+          body: 'Formacja, obozy i wyprawy. Odpowiedzialność, dojrzałość, kompetencje społeczne.'
         },
         {
           name: 'Edukacja',
-          body:
-            'Edukacja, nauka, samokształcenie i praca popularyzatorska; kultura, sztuka '
-            + 'i czytelnictwo; działalność wydawnicza i internetowa — książki, kursy, '
-            + 'nagrania i portal edukacyjny. Stąd biorą się Biblioteka i Cogita.'
+          body: 'Kursy, materiały, wydawnictwa i portal edukacyjny. Stąd Cogita i Biblioteka.'
         },
         {
           name: 'Zdrowie i rozwój integralny',
           body:
-            'Profilaktyka zdrowia psychicznego, fizycznego i społecznego; '
-            + 'przeciwdziałanie uzależnieniom, przemocy, wykluczeniu i samotności. '
-            + 'Bez działalności leczniczej — ta wymaga odrębnych uprawnień, których '
-            + 'nie mamy i których nie udajemy.'
+            'Profilaktyka zdrowia psychicznego, fizycznego i społecznego. Bez działalności '
+            + 'leczniczej — na to trzeba odrębnych uprawnień.'
         },
         {
           name: 'Pielgrzymki, sport i przygoda',
-          body:
-            'Sport, kultura fizyczna, rekreacja, turystyka i krajoznawstwo; wyprawy '
-            + 'piesze i rowerowe, aktywny wypoczynek i bezpieczny kontakt z przyrodą. '
-            + 'Droga, którą idzie się razem, uczy tego, czego nie uczy sala.'
+          body: 'Wyprawy piesze i rowerowe, sport, rekreacja, turystyka i krajoznawstwo.'
         }
       ]
     },
@@ -123,37 +151,30 @@ export const pl: PublicCopy = {
     inspiration: {
       title: 'Inspiracja chrześcijańska i otwartość',
       body:
-        'Inspiracją jest Ewangelia, chrześcijańska wizja człowieka i dziedzictwo kultury '
-        + 'chrześcijańskiej. Z niej bierze się to, co uznajemy: niezbywalną godność osoby '
-        + 'ludzkiej, prymat prawdy i dobra, wolność i odpowiedzialność, miłość bliźniego, '
-        + 'solidarność i służbę dobru wspólnemu. Działania są przy tym otwarte dla '
-        + 'wszystkich, niezależnie od wyznania i światopoglądu. Kto wierzy, może wiarę '
-        + 'pogłębić. Kto szuka, może pytać. Kto nie wierzy, jest przyjęty z tym samym '
-        + 'szacunkiem. Udział pozostaje dobrowolny, a tożsamość chrześcijańska nie jest '
-        + 'przy tym ukrywana — jedno nie wyklucza drugiego.'
+        'Inspiracją jest Ewangelia i chrześcijańska wizja człowieka: godność osoby, '
+        + 'prymat prawdy, wolność i odpowiedzialność, miłość bliźniego, służba dobru '
+        + 'wspólnemu. Udział jest otwarty dla wszystkich, niezależnie od wyznania '
+        + 'i światopoglądu, i dobrowolny. Tożsamości chrześcijańskiej przy tym nie '
+        + 'ukrywamy.'
     },
 
     family: {
       title: 'Zakorzenienie w rodzinie',
       body:
-        'Rzecz wyrasta z jednej rodziny i z odpowiedzialności za ciągłość tego, co '
-        + 'zostało zaczęte. Nie chodzi jednak o „fundację rodzinną” w znaczeniu prawnym '
-        + 'ani o instytucję kościelną: docelowo ma to być rodzinny, świecki podmiot prawa '
-        + 'cywilnego, który współpracuje z parafiami i wspólnotami, zachowując własną '
-        + 'autonomię. Rodzina jest punktem wyjścia, nie zamknięciem — dom otwiera się dla '
-        + 'innych, i w tym mieści się sens całego przedsięwzięcia.'
+        'Przedsięwzięcie prowadzi jedna rodzina. Docelowo ma to być rodzinny, świecki '
+        + 'podmiot prawa cywilnego — nie instytucja kościelna i nie „fundacja rodzinna” '
+        + 'w znaczeniu prawnym. Współpraca z parafiami i wspólnotami, przy zachowaniu '
+        + 'własnej autonomii.'
     },
 
     road: {
       title: 'Dokąd to zmierza',
-      intro:
-        'Kolejność nie jest przypadkowa. Najpierw musi stanąć dom, bo bez miejsca reszta '
-        + 'zostaje planem.',
+      intro: 'Najpierw dom. Bez miejsca reszta zostaje planem.',
       steps: [
-        'Najpierw dom.',
+        'Dom w Limanowej.',
         'Własne rekolekcje i wydarzenia.',
-        'Otwarcie przestrzeni dla innych wspólnot.',
-        'Pielgrzymki oraz wydarzenia sportowo-formacyjne.',
+        'Otwarcie ośrodka dla innych wspólnot.',
+        'Pielgrzymki i wydarzenia sportowo-formacyjne.',
         'Materiały edukacyjne.',
         'Działalność wydawnicza.',
         'Portal edukacyjny.',
@@ -164,32 +185,131 @@ export const pl: PublicCopy = {
     closing: ['Odnowić.', 'Odpocząć.', 'Wzrastać.', 'Spotkać.']
   },
 
+  security: {
+    title: 'Bezpieczeństwo i dlaczego tak',
+    lead:
+      'Narzędzia REcreatio są zbudowane inaczej niż większość. Poniżej wprost, na czym '
+      + 'ta różnica polega i czego ona kosztuje.',
+
+    points: [
+      {
+        q: 'Nie ma administratora',
+        a:
+          'Nikt po naszej stronie nie może otworzyć twoich treści. Klucze powstają na '
+          + 'twoim urządzeniu; serwer ich nie zna. Kto wykradłby całą bazę, dostałby '
+          + 'zaszyfrowane bloki i daty.'
+      },
+      {
+        q: 'Hasła nie da się zresetować — ale da się odzyskać konto',
+        a:
+          'Hasło nie opuszcza urządzenia. Wychodzi z niego tylko klucz wyliczony przez '
+          + 'Argon2id, po 64 MiB pamięci na jedno wyliczenie. Serwer nie zna hasła, więc '
+          + 'nie może go zmienić — żaden e-mail „ustaw nowe hasło” nie jest możliwy. '
+          + 'Odzyskanie działa inaczej: wskazujesz kilku poręczycieli. Każdy trzyma jeden '
+          + 'udział, zaszyfrowany własnym kluczem. Gdy wystarczająco wielu przekaże swój '
+          + 'udział, konto wraca. Jeden poręczyciel nie wystarczy, a pojedynczy udział '
+          + 'nic nie znaczy.'
+      },
+      {
+        q: 'Narzędzia są publiczne, ale wejście prowadzi przez adres',
+        a:
+          'Nie ma katalogu ani wyszukiwarki wspólnot. Adres wygląda tak: '
+          + '/parish/limanowa, /cogita/nazwa-biblioteki. Kto zna adres, wchodzi; kto nie '
+          + 'zna, nie natrafi na niego przeglądając. Sam adres nie otwiera treści '
+          + 'zaszyfrowanych — daje dostęp do tego, co i tak jest jawne, na przykład do '
+          + 'planu mszy w gablocie.'
+      },
+      {
+        q: 'Nie podajesz danych — udostępniasz swoje',
+        a:
+          'Nie prosimy o dane po to, żeby je przechowywać. Ty trzymasz swoje, a innym '
+          + 'udostępniasz wybrany fragment. Udostępnienie da się cofnąć. Ograniczenie, '
+          + 'które mówimy wprost: cofnięcie działa od chwili cofnięcia. Kto miał dostęp '
+          + 'wcześniej, mógł już przeczytać, a tego nie cofnie żaden przycisk. Nowe '
+          + 'wpisy są od tego momentu zamknięte dla niego; przeszłość zostaje '
+          + 'przeszłością. Obiecywanie czegoś innego byłoby kłamstwem.'
+      }
+    ],
+
+    originTitle: 'Skąd biorą się te narzędzia',
+    origin:
+      'Żadne nie powstało jako produkt na sprzedaż. Każde powstało przy konkretnej '
+      + 'pracy, w której czegoś zabrakło: plan mszy z intencjami, lista kandydatów do '
+      + 'bierzmowania, zapisy na pielgrzymkę, kalendarz sal. Dlatego są takie, jakie są '
+      + '— i dlatego ich układ mówi coś o samej inicjatywie: rzeczy powstają tu z '
+      + 'potrzeby, a nie odwrotnie. Kto zrobi je dobrze raz, może udostępnić je innym '
+      + 'wspólnotom, i tak też robimy.',
+
+    toolsTitle: 'Narzędzia po kolei',
+    toolsIntro: 'Co robi każde z nich i co przy tym widać, a czego nie.',
+    tools: [
+      {
+        name: 'Czat',
+        body:
+          'Rozmowa w grupie. Kto dołącza dziś, nie widzi tego, co napisano wcześniej — '
+          + 'chyba że ktoś świadomie da mu klucz do przeszłości. Odejście kogoś zamyka '
+          + 'epokę: dalsze wiadomości są dla niego nieczytelne.'
+      },
+      {
+        name: 'Kalendarz',
+        body:
+          'Czas jest jawny, treść nie. Widać, że ktoś jest zajęty we wtorek o 10; nie '
+          + 'widać, czym. Dzięki temu da się szukać wolnych terminów, nie pokazując '
+          + 'nikomu, co się dzieje.'
+      },
+      {
+        name: 'Obłożenie',
+        body:
+          'To samo dla sal i domów: wolne albo zajęte, bez nazwy grupy i bez kontaktu. '
+          + 'Widoczne bez konta, żeby grupa mogła sprawdzić lipiec i nie zakładać nic '
+          + 'po drodze.'
+      },
+      {
+        name: 'Formularze',
+        body:
+          'Zapisy i zgłoszenia. Wysyłane otwarcie, zapisywane w postaci zaszyfrowanej — '
+          + 'szyfruje przeglądarka, zanim cokolwiek wyjdzie z urządzenia. Odczytać może '
+          + 'tylko osoba prowadząca.'
+      },
+      {
+        name: 'Parafia',
+        body:
+          'Plan mszy i intencje. Jedna linijka bywa jednocześnie jawna i wewnętrzna: '
+          + '„w pewnej intencji” w gablocie, a wewnątrz — w jakiej i od kogo.'
+      },
+      {
+        name: 'Cogita',
+        body:
+          'Nauka: storyboardy, teksty, zbiory, powtórki i sesje na żywo. Treści bywają '
+          + 'publiczne; klucze pozostają prywatne.'
+      }
+    ]
+  },
+
   about: {
     title: 'O inicjatywie',
-    lead:
-      'REcreatio nie jest jeszcze fundacją. Ta strona mówi wprost, czym jest dzisiaj '
-      + 'i co musi się wydarzyć, zanim będzie czymś więcej.',
+    lead: 'Czym REcreatio jest dzisiaj i czego jeszcze nie ma.',
     whatInitiativeMeans: {
-      title: 'Co znaczy „inicjatywa w trakcie powstawania”',
+      title: 'Inicjatywa, nie fundacja',
       body:
-        'Nie istnieje osoba prawna: nie ma numeru KRS ani NIP, nie ma zarządu, statutu '
-        + 'ani statusu organizacji pożytku publicznego. Działania prowadzone są '
-        + 'nieformalnie, przez rodzinę i osoby z nią współpracujące. Wszystko, co czytasz '
-        + 'na tej stronie, opisuje zamiar i to, co realnie istnieje — nie strukturę prawną.'
+        'Nie istnieje osoba prawna: brak numeru KRS i NIP, zarządu, statutu i statusu '
+        + 'OPP. Działania prowadzi rodzina i osoby z nią współpracujące. Rejestracja '
+        + 'fundacji jest zamiarem; do tego czasu na tej stronie nie pojawi się numer '
+        + 'rejestrowy ani konto do wpłat.'
     },
     family: {
-      title: 'Rodzina, nie „fundacja rodzinna”',
+      title: 'Rodzina',
       body:
-        'Inicjatywa wyrasta z jednej rodziny i z poczucia odpowiedzialności za ciągłość '
-        + 'tego, co zostało zaczęte. To nie jest „fundacja rodzinna” w znaczeniu prawnym — '
-        + 'to zwykłe stwierdzenie, skąd rzecz pochodzi i kto za nią dziś odpowiada.'
+        'Przedsięwzięcie wyrasta z jednej rodziny i z odpowiedzialności za jego dalszy '
+        + 'ciąg. Docelowa forma to rodzinny, świecki podmiot prawa cywilnego, '
+        + 'współpracujący z parafiami i wspólnotami przy zachowaniu autonomii.'
     },
     road: {
-      title: 'Droga do formy prawnej',
+      title: 'Co musi się wydarzyć',
       body:
-        'Rejestracja fundacji jest zamiarem, nie faktem. Dopóki nie nastąpi, na tej '
-        + 'stronie nie pojawi się numer rejestrowy, konto do wpłat ani apel o darowizny. '
-        + 'Kiedy nastąpi, zmieni się treść tej strony — nie jej budowa.'
+        'Dokumenty założycielskie, pisemna zgoda władzy kościelnej, obsługa księgowa '
+        + 'i akt notarialny. Dopiero potem rejestracja. Status OPP wymaga osobno '
+        + 'spełnionych warunków ustawowych i niezależnej komisji rewizyjnej.'
     },
     people: {
       title: 'Kto za tym stoi',
@@ -199,41 +319,34 @@ export const pl: PublicCopy = {
 
   transparency: {
     title: 'Przejrzystość',
-    lead:
-      'Jak rozdzielone są sprawy: działalność inicjatywy i prywatny majątek osób, '
-      + 'które ją prowadzą, to dwie różne rzeczy. Opisujemy to w czasie teraźniejszym '
-      + 'i tylko w takim zakresie, w jakim jest to dziś prawdą.',
+    lead: 'Jak rozdzielone są działalność inicjatywy i prywatny majątek osób, które ją prowadzą.',
     separation: {
       title: 'Działalność a majątek prywatny',
       body:
-        'Działania inicjatywy oraz prywatny majątek założycieli pozostają rozdzielone. '
-        + 'Inicjatywa nie jest właścicielem nieruchomości ani innego majątku — nie ma '
-        + 'osobowości prawnej, więc nie może nim być.'
+        'Inicjatywa nie ma osobowości prawnej, więc nie jest właścicielem nieruchomości '
+        + 'ani innego majątku. Majątek prywatny założycieli pozostaje odrębny.'
     },
     house: {
       title: 'Dom',
       body:
         'Dom w Limanowej pozostaje własnością prywatną i nie jest wnoszony do przyszłej '
-        + 'fundacji — nie jest darowizną ani wkładem. Po ewentualnej rejestracji byłby '
-        + 'udostępniany na podstawie umowy najmu na warunkach rynkowych. Zasada, którą '
-        + 'przyjmujemy z góry: każda umowa z osobą bliską wymaga zgody organu '
-        + 'kontrolnego, udokumentowania warunków rynkowych i podpisania przez osobę '
-        + 'przez ten organ wskazaną, a nakłady poczynione na prywatną nieruchomość '
-        + 'wymagają odrębnego rozliczenia. Piszemy to teraz, a nie wtedy, gdy zacznie '
-        + 'to być wygodne.'
+        + 'fundacji — ani jako darowizna, ani jako wkład. Po ewentualnej rejestracji '
+        + 'byłby wynajmowany na warunkach rynkowych. Zasada przyjęta z góry: umowa '
+        + 'z osobą bliską wymaga zgody organu kontrolnego, udokumentowanych warunków '
+        + 'rynkowych i podpisu osoby przez ten organ wskazanej; nakłady na prywatną '
+        + 'nieruchomość rozlicza się odrębnie.'
     },
     notYet: {
       title: 'Czego jeszcze nie ma',
       body:
-        'Nie prowadzimy odrębnej księgowości inicjatywy, nie mamy statusu organizacji '
-        + 'pożytku publicznego i nie podlegamy audytowi. Piszemy to wprost, ponieważ '
-        + 'brak takiego zdania czytałoby się jako sugestia, że jest inaczej.'
+        'Nie prowadzimy odrębnej księgowości, nie mamy statusu OPP i nie podlegamy '
+        + 'audytowi. Piszemy to wprost, bo brak takiego zdania czytałoby się odwrotnie.'
     }
   },
 
   contact: {
     title: 'Kontakt',
-    lead: 'Najprostsza droga to poczta elektroniczna. Odpowiada człowiek, nie formularz.',
+    lead: 'Odpowiada człowiek, nie formularz.',
     email: 'kontakt@recreatio.pl',
     address: { missing: 'Adres pocztowy i decyzja, czy może być publikowany przed otwarciem' },
     people: { missing: 'Osoby do kontaktu i zgoda na publikację nazwisk' }
@@ -242,17 +355,15 @@ export const pl: PublicCopy = {
   osrodek: {
     title: 'Ośrodek w Limanowej',
     underConstruction:
-      'Ośrodek jest w budowie. Nie przyjmujemy jeszcze gości — poniżej opisujemy, '
-      + 'czym ma być i dla kogo, żeby grupy mogły planować z wyprzedzeniem.',
+      'Ośrodek jest w budowie i nie przyjmuje jeszcze gości. Poniżej to, co już wiadomo, '
+      + 'żeby grupy mogły planować z wyprzedzeniem.',
     purpose: {
       title: 'Do czego służy',
-      body:
-        'Rekolekcje, dni skupienia, formacja, edukacja i wypoczynek — w jednym miejscu '
-        + 'i bez rozdzielania tych rzeczy od siebie.'
+      body: 'Rekolekcje, dni skupienia, formacja, edukacja i wypoczynek.'
     },
     capacity: {
       title: 'Ile osób',
-      body: 'Około 52 osoby. Ośrodek pomyślany jest przede wszystkim dla grup.',
+      body: 'Około 52 osoby, przede wszystkim grupy.',
       exact: { missing: 'Potwierdzenie, czy docelowa liczba miejsc to dokładnie 52' },
       groups: [
         'grupy rekolekcyjne',
@@ -268,9 +379,7 @@ export const pl: PublicCopy = {
     },
     character: {
       title: 'Charakter miejsca',
-      body:
-        'Prosto, gościnnie i żywo — miejsce, w którym można się modlić, pracować, '
-        + 'rozmawiać, uczyć się, odpoczywać i po prostu być razem.'
+      body: 'Prosto i gościnnie: modlitwa, praca, nauka, rozmowa i odpoczynek w jednym miejscu.'
     },
     facilities: {
       title: 'Co jest na miejscu',
@@ -278,12 +387,12 @@ export const pl: PublicCopy = {
         'miejsca noclegowe',
         'przestrzeń wspólna',
         'jadalnia',
-        'kuchnia, z której grupa może korzystać samodzielnie'
+        'kuchnia do samodzielnego użytku grupy'
       ]
     },
     openToOthers: {
       title: 'Nie tylko dla nas',
-      body: 'Ośrodek nie służy wyłącznie własnym projektom inicjatywy. Zapraszamy również:',
+      body: 'Ośrodek nie służy wyłącznie własnym projektom. Zapraszamy również:',
       items: [
         'parafie',
         'wspólnoty Ruchu Światło–Życie',
@@ -298,9 +407,7 @@ export const pl: PublicCopy = {
     },
     supports: {
       title: 'Dlaczego odpłatnie',
-      body:
-        'Udostępnianie domu za opłatą wspiera pozostałe działania inicjatywy. '
-        + 'Mówimy o tym wprost, bo tak jest.'
+      body: 'Wynajem domu finansuje pozostałe działania inicjatywy.'
     },
     where: {
       title: 'Gdzie',
@@ -312,28 +419,26 @@ export const pl: PublicCopy = {
       title: 'Wolne terminy',
       intro: 'Które okresy są jeszcze wolne.',
       showsNothingElse:
-        'Ta lista pokazuje wyłącznie, czy termin jest wolny czy zajęty. Nie pokazuje, '
-        + 'kto przyjeżdża, w jakim celu ani jak się z kimkolwiek skontaktować — '
-        + 'i nie będzie tego pokazywać.',
+        'Lista pokazuje wyłącznie: wolne albo zajęte. Nie pokazuje, kto przyjeżdża, '
+        + 'w jakim celu ani jak się z kimkolwiek skontaktować.',
       free: 'wolne',
       held: 'wstępnie zarezerwowane',
       taken: 'zajęte',
       loading: 'Sprawdzamy terminy…',
       unreachable:
         'Nie udało się pobrać terminów. To nie znaczy, że są zajęte — spróbuj ponownie '
-        + 'albo napisz do nas.',
+        + 'albo napisz.',
       noAccountNeeded: 'Podgląd terminów nie wymaga konta.',
       month: 'Miesiąc',
-      nothingPlanned: 'W tym miesiącu nie ma jeszcze żadnych zajętych terminów.'
+      nothingPlanned: 'W tym miesiącu nie ma jeszcze zajętych terminów.'
     },
 
     enquiry: {
       title: 'Zapytanie o termin',
-      intro: 'Wypełnij formularz, a odpiszemy.',
+      intro: 'Wypełnij formularz, odpiszemy.',
       brokeredNotBooked:
         'To zapytanie, nie rezerwacja. Nie pobieramy opłat ani zaliczki i nie zawieramy '
-        + 'umowy przez tę stronę — na zgłoszenie odpowiada człowiek i dopiero wtedy '
-        + 'ustalamy szczegóły.',
+        + 'umowy przez tę stronę.',
       groupName: 'Nazwa grupy',
       contactPerson: 'Osoba do kontaktu',
       contact: 'Telefon lub e-mail',
@@ -345,69 +450,54 @@ export const pl: PublicCopy = {
       submit: 'Wyślij zapytanie',
       sending: 'Wysyłamy…',
       sent: 'Zapytanie wysłane.',
-      sentBody: 'Odpiszemy na podany kontakt. Nie musisz nic więcej robić.',
+      sentBody: 'Odpiszemy na podany kontakt.',
       failed:
         'Nie udało się wysłać zapytania. Spróbuj ponownie albo napisz '
         + 'na kontakt@recreatio.pl.',
       sealedNote:
-        'Dane z formularza zapisujemy w postaci zaszyfrowanej. Odczytać je może tylko '
-        + 'osoba prowadząca ośrodek — nie serwer i nie my „na wszelki wypadek”.',
+        'Formularz szyfruje dane w przeglądarce, zanim wyjdą z urządzenia. Odczyta je '
+        + 'tylko osoba prowadząca ośrodek.',
       required: 'To pole jest wymagane.'
     }
   },
 
   wesprzyj: {
     title: 'Wesprzyj',
-    lead:
-      'Można pomóc na kilka sposobów. Żaden z nich nie polega dziś na przekazaniu pieniędzy.',
+    lead: 'Żaden z tych sposobów nie polega dziś na przekazaniu pieniędzy.',
     ways: [
-      {
-        name: 'Wolontariat',
-        body: 'Praca przy domu, pomoc przy wydarzeniach, obecność wtedy, gdy potrzeba rąk.'
-      },
+      { name: 'Wolontariat', body: 'Praca przy domu i pomoc przy wydarzeniach.' },
       {
         name: 'Wiedza i umiejętności',
-        body:
-          'Doświadczenie zawodowe, którym można się podzielić — budowlane, prawne, '
-          + 'edukacyjne, techniczne.'
+        body: 'Doświadczenie budowlane, prawne, edukacyjne lub techniczne.'
       },
       {
         name: 'Współorganizacja wydarzeń',
-        body:
-          'Rekolekcje, pielgrzymki, wyprawy i wydarzenia sportowo-formacyjne '
-          + 'przygotowywane razem.'
+        body: 'Rekolekcje, pielgrzymki, wyprawy i wydarzenia sportowo-formacyjne.'
       },
       {
         name: 'Korzystanie z domu',
-        body:
-          'Kiedy ośrodek zostanie otwarty, przyjazd z grupą będzie sam w sobie wsparciem '
-          + 'dla pozostałych działań.'
+        body: 'Po otwarciu ośrodka przyjazd z grupą finansuje pozostałe działania.'
       },
-      {
-        name: 'Modlitwa',
-        body:
-          'Wymieniona tu nie z grzeczności — dla inicjatywy o tym charakterze jest to '
-          + 'realne wsparcie.'
-      }
+      { name: 'Modlitwa', body: 'Wymieniona tu nie z grzeczności.' }
     ],
     financialLater:
-      'Wsparcie finansowe zostanie zorganizowane dopiero wtedy, gdy inicjatywa przyjmie '
-      + 'formę prawną. Do tego czasu nie zbieramy darowizn i nie podajemy numeru konta.'
+      'Wsparcie finansowe zostanie zorganizowane po uzyskaniu formy prawnej. Do tego '
+      + 'czasu nie zbieramy darowizn i nie podajemy numeru konta.'
   },
 
   placeholders: {
     wydarzenia: {
       title: 'Wydarzenia',
       body:
-        'Rekolekcje, pielgrzymki piesze i rowerowe, wyprawy oraz wydarzenia '
+        'Pielgrzymki piesze i rowerowe, wyprawy, rekolekcje i wydarzenia '
         + 'sportowo-formacyjne. Tutaj znajdą się zapisy i szczegóły.',
       preparing: 'Ta część jest przygotowywana.'
     },
     biblioteka: {
       title: 'Biblioteka',
       body:
-        'Spis wydanych książek wraz z informacjami, które pomagają z nich korzystać. '
-        + 'Jest to również źródło cytatów, z którego korzysta Cogita.',
+        'Spis wydanych książek z informacjami, które pomagają z nich korzystać. '
+        + 'Także źródło cytatów dla Cogity.',
       preparing: 'Ta część jest przygotowywana.'
     },
     cogita: {
@@ -418,22 +508,21 @@ export const pl: PublicCopy = {
     narzedzia: {
       title: 'Narzędzia',
       body:
-        'Wspólne moduły — kalendarz, czat, obłożenie, formularze — z których inne '
-        + 'wspólnoty będą mogły korzystać na własnych stronach.',
+        'Kalendarz, czat, obłożenie i formularze — do wykorzystania przez inne '
+        + 'wspólnoty na własnych stronach.',
       preparing: 'Ta część jest przygotowywana.'
     }
   },
 
   notFound: {
     title: 'Nie ma takiej strony',
-    body: 'Adres, pod który trafiłeś, nie istnieje. Być może link jest już nieaktualny.',
+    body: 'Ten adres nie istnieje. Link może być nieaktualny.',
     back: 'Wróć na stronę główną'
   },
 
   footer: {
     logoAlt: 'REcreatio',
-    initiative: 'Inicjatywa w trakcie powstawania.',
-    platform: 'Platforma'
+    initiative: 'Inicjatywa w trakcie powstawania.'
   },
 
   factNeeded: 'Brakująca informacja',

@@ -17,7 +17,7 @@ export function NotFoundPage({ copy }: { copy: PublicCopy }) {
       <h1 className="pub-h1">{t.title}</h1>
       <p className="pub-lead">{t.body}</p>
       <p className="pub-onward">
-        <a href={publicHref('manifest')}>{t.back}</a>
+        <a href={publicHref('front')}>{t.back}</a>
       </p>
     </article>
   );

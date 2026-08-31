@@ -1,19 +1,15 @@
 /**
  * Die öffentliche REcreatio-Seite.
  *
- * <b>Sie ersetzt den Foliensatz nicht — noch nicht.</b> Sie liegt unter
- * `PUBLIC_BASE` (`#/rc`) neben ihm, bis sie abgenommen ist; der Tausch ist eine
- * Zeile in `publicRoutes.ts` und eine in `main.tsx`.
+ * Sie liegt unter `PUBLIC_BASE` (`#/rc`) neben dem alten Foliensatz, bis sie
+ * abgenommen ist; der Tausch ist eine Zeile in `publicRoutes.ts` und eine in
+ * `main.tsx`.
  *
- * <b>Ein eigener Router wäre hier zu viel.</b> Zehn Seiten ohne Parameter,
- * ohne verschachtelte Ansichten und ohne Übergänge — dafür genügt die Adresse
- * und ein `hashchange`. `react-router` mitzuschleppen hiesse, dem öffentlichen
- * Teil eine Abhängigkeit aufzuladen, die er nicht braucht und die beim Wechsel
- * auf gewöhnliche Pfade sowieso neu bedacht werden müsste.
- *
- * <b>Der Bildlauf springt bei jedem Seitenwechsel nach oben.</b> Ohne das
- * landet man auf der neuen Seite in der Mitte — der Fehler, den fast jede
- * Einzelseiten-Anwendung einmal hatte.
+ * <b>Ein eigener Router wäre hier zu viel.</b> Zwölf Seiten ohne Parameter,
+ * ohne verschachtelte Ansichten — dafür genügen die Adresse und ein
+ * `hashchange`. `react-router` mitzuschleppen hiesse, dem öffentlichen Teil
+ * eine Abhängigkeit aufzuladen, die beim Wechsel auf gewöhnliche Pfade ohnehin
+ * neu bedacht werden müsste.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -27,8 +23,10 @@ import { PublicFooter } from './PublicFooter';
 import { publicPageOf, type PublicPage } from './publicRoutes';
 import { usePublicHead } from './usePublicHead';
 
+import { FrontPage } from './pages/FrontPage';
 import { ManifestPage } from './pages/ManifestPage';
 import { AboutPage } from './pages/AboutPage';
+import { SecurityPage } from './pages/SecurityPage';
 import { TransparencyPage } from './pages/TransparencyPage';
 import { ContactPage } from './pages/ContactPage';
 import { OsrodekPage } from './pages/OsrodekPage';
@@ -53,20 +51,25 @@ export function PublicApp() {
 
   useEffect(() => { storePublicLang(lang); }, [lang]);
 
-  // Der Quelltext aus `content/local/` tritt hier an die Stelle der Lücken.
-  // Liegt er nicht da, bleiben die Lücken sichtbar — und die Seite baut.
   const copy = useMemo(() => applyLocalText(publicCopy[lang], lang), [lang]);
 
   const title = page === null ? copy.notFound.title : titleOf(page, copy);
   usePublicHead(page, title, copy, lang);
 
+  // Die Startseite rastert den Bildlauf und traegt ihre eigene Fusszeile am
+  // Ende der letzten Folie — eine feste Fusszeile darunter wuerde die Rasterung
+  // bei jeder Folie um ihre Hoehe verschieben.
+  const isFront = page === 'front';
+
   return (
-    <div className="pub-root">
+    <div className={`pub-root ${isFront ? 'is-front' : ''}`}>
       <PublicHeader copy={copy} lang={lang} onLang={setLang} active={page} />
 
       <main className="pub-main" id="pub-main">
-        {page === 'manifest' && <ManifestPage copy={copy} />}
+        {page === 'front' && <FrontPage copy={copy} />}
+        {page === 'recreatio' && <ManifestPage copy={copy} />}
         {page === 'o-nas' && <AboutPage copy={copy} />}
+        {page === 'bezpieczenstwo' && <SecurityPage copy={copy} />}
         {page === 'przejrzystosc' && <TransparencyPage copy={copy} />}
         {page === 'kontakt' && <ContactPage copy={copy} />}
         {page === 'osrodek' && <OsrodekPage copy={copy} />}
@@ -86,14 +89,14 @@ export function PublicApp() {
         {page === null && <NotFoundPage copy={copy} />}
       </main>
 
-      <PublicFooter copy={copy} />
+      {!isFront && <PublicFooter copy={copy} />}
     </div>
   );
 }
 
 /** Der Fenstertitel je Seite. Die Startseite trägt den Namen allein. */
 function titleOf(page: PublicPage, copy: PublicCopy): string {
-  if (page === 'manifest') return copy.meta.siteName;
+  if (page === 'front') return copy.meta.siteName;
   return copy.nav[page];
 }
 

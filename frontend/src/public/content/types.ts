@@ -7,8 +7,8 @@
  * Vorkehrung dagegen: was hier nicht steht, kann eine Seite nicht anzeigen.
  *
  * <b>Fehlende Tatsachen sind ein eigener Typ</b>, kein leerer String. Ein
- * leerer String verschwindet lautlos; `RcFactNeeded` wird sichtbar gesetzt und
- * ist im Baum auffindbar. Abschnitt 7 verlangt genau das.
+ * leerer String verschwindet lautlos; `FactNeeded` wird sichtbar gesetzt und
+ * ist im Baum auffindbar.
  */
 
 /** Eine Tatsache, die noch niemand entschieden hat. Wird sichtbar dargestellt. */
@@ -16,12 +16,11 @@ export interface FactNeeded {
   readonly missing: string;
 }
 
-/** Ein Absatz, der aus dem polnischen Quelltext kommt und nicht erfunden wird. */
+/** Ein Absatz, der noch aus dem Quelltext kommen muss. */
 export interface SourceText {
   readonly source: string;
 }
 
-/** Ein Text ist entweder da, oder er fehlt sichtbar. */
 export type Text = string | FactNeeded | SourceText;
 
 export const isFactNeeded = (t: Text): t is FactNeeded =>
@@ -38,36 +37,63 @@ export interface Area {
 export interface PlaceholderCopy {
   readonly title: string;
   readonly body: string;
-  /** Die eine ehrliche Zeile: das hier wird vorbereitet. Kein Datum. */
   readonly preparing: string;
+}
+
+/** Eine Folie der Startseite. */
+export interface Slide {
+  /** Das kleine Wort darüber. Sagt, WAS das hier ist. */
+  readonly eyebrow: string;
+  readonly title: string;
+  readonly body: string;
+  readonly cta: string;
+}
+
+/** Ein Abschnitt der Sicherheitsseite: eine Frage, eine Antwort. */
+export interface Point {
+  readonly q: string;
+  readonly a: string;
 }
 
 export interface PublicCopy {
   readonly meta: {
     readonly siteName: string;
     readonly description: string;
-    /** Der Zusatz im Fensterttitel hinter dem Seitennamen. */
     readonly titleSuffix: string;
   };
 
   readonly nav: {
-    readonly manifest: string;
+    readonly front: string;
+    readonly recreatio: string;
+    readonly 'o-nas': string;
+    readonly bezpieczenstwo: string;
+    readonly przejrzystosc: string;
+    readonly kontakt: string;
     readonly osrodek: string;
     readonly wydarzenia: string;
     readonly biblioteka: string;
     readonly cogita: string;
     readonly narzedzia: string;
     readonly wesprzyj: string;
-    readonly 'o-nas': string;
-    readonly przejrzystosc: string;
-    readonly kontakt: string;
+
     readonly menu: string;
     readonly skipToContent: string;
-
-    /** Der Knopf rechts oben, abgemeldet. */
     readonly signIn: string;
-    /** Derselbe Knopf, angemeldet — er führt in die Plattform, nicht ins Profil. */
     readonly platform: string;
+    readonly account: string;
+    readonly lock: string;
+    readonly signOut: string;
+    readonly more: string;
+  };
+
+  /** Die Startseite: fünf Folien, in dieser Reihenfolge. */
+  readonly front: {
+    readonly scrollHint: string;
+    readonly initiative: Slide;
+    readonly osrodek: Slide;
+    readonly wydarzenia: Slide;
+    readonly cogita: Slide;
+    readonly narzedzia: Slide;
   };
 
   readonly manifest: {
@@ -83,6 +109,24 @@ export interface PublicCopy {
       readonly steps: readonly string[];
     };
     readonly closing: readonly string[];
+  };
+
+  /**
+   * Warum die Werkzeuge so gebaut sind, wie sie gebaut sind.
+   *
+   * Diese Seite gehört zu REcreatio und nicht zur Plattform: sie erklärt kein
+   * Bedienfeld, sondern eine Haltung. Wer nicht versteht, warum es keinen
+   * Verwalter gibt, hält das Fehlen für einen Mangel.
+   */
+  readonly security: {
+    readonly title: string;
+    readonly lead: string;
+    readonly points: readonly Point[];
+    readonly toolsTitle: string;
+    readonly toolsIntro: string;
+    readonly tools: readonly { readonly name: string; readonly body: string }[];
+    readonly originTitle: string;
+    readonly origin: string;
   };
 
   readonly about: {
@@ -134,7 +178,6 @@ export interface PublicCopy {
     readonly availability: {
       readonly title: string;
       readonly intro: string;
-      /** Was die Insel NICHT zeigt — steht auf der Seite, nicht nur im Code. */
       readonly showsNothingElse: string;
       readonly free: string;
       readonly held: string;
@@ -149,7 +192,6 @@ export interface PublicCopy {
     readonly enquiry: {
       readonly title: string;
       readonly intro: string;
-      /** Der Satz, der den Unterschied zur Buchung macht. */
       readonly brokeredNotBooked: string;
       readonly groupName: string;
       readonly contactPerson: string;
@@ -173,7 +215,6 @@ export interface PublicCopy {
     readonly title: string;
     readonly lead: string;
     readonly ways: readonly { readonly name: string; readonly body: string }[];
-    /** Die eine ehrliche Zeile zur finanziellen Unterstützung. Mehr nicht. */
     readonly financialLater: string;
   };
 
@@ -189,7 +230,6 @@ export interface PublicCopy {
   readonly footer: {
     readonly logoAlt: string;
     readonly initiative: string;
-    readonly platform: string;
   };
 
   readonly factNeeded: string;

@@ -1,57 +1,49 @@
-# Der Quelltext des Manifests — wo er hingehört
+# `content/local/` — was hier liegt und was nicht mitversioniert wird
 
-Der polnische Quelltext wird **nicht** mitversioniert. Er liegt in
+Dieser Ordner steht in `.gitignore`. Er enthält heute:
 
-```
-frontend/src/public/content/local/text.ts
-```
+- `01_Karta_zalozen_Fundacja_reCreatio.docx` / `.pdf`
+- `02_Statut_Fundacji_reCreatio.docx` / `.pdf`
 
-und dieser Ordner steht in `.gitignore`. Fehlt er, baut die Seite trotzdem und
-zeigt an seiner Stelle die sichtbaren Lücken aus Abschnitt 7 des Auftrags.
+Das sind **interne Rechtsunterlagen**: Namen der Gründer, PESEL-Anforderungen,
+eine private Anschrift, Beträge, die Zustimmung des Ordinarius, Nachfolgeregeln.
+Nichts davon gehört auf die Seite, und nichts davon gehört in die
+Versionsverwaltung.
 
-## Die Form
+Aus ihnen stammen die Absätze des Manifests — aber nur, was den **Zweck**
+betrifft. Der abgeleitete öffentliche Text steht in `pl.ts`, `de.ts`, `en.ts`
+und wird mitversioniert: er ist für die Öffentlichkeit bestimmt, und ohne ihn
+liesse sich die Seite aus einem frischen Klon nicht bauen.
+
+## Der Übersteuerungsweg
+
+`localText.ts` kann jeden Textpfad aus einer Datei `local/*.ts` ersetzen:
 
 ```ts
 import type { LocalText } from '../localText';
 
 const text: LocalText = {
-  pl: {
-    'manifest.opening.lead': '…',
-    'manifest.mission.body': '…'
-    // usw.
-  },
-  de: { /* dieselben Schlüssel, übersetzt */ },
-  en: { /* dieselben Schlüssel, übersetzt */ }
+  pl: { 'manifest.mission.body': '…' },
+  de: { 'manifest.mission.body': '…' },
+  en: { 'manifest.mission.body': '…' }
 };
 
 export default text;
 ```
 
-## Die elf Schlüssel
+Fehlt der Ordner, baut die Seite und zeigt den versionierten Text. Ein
+Schlüssel, der ins Leere zeigt, wird beim Start in der Konsole gemeldet — still
+verworfen wird keiner.
 
-Genau diese Stellen stehen in den versionierten Texten als `{ source: … }` und
-warten auf den Quelltext:
+**Derzeit wird der Weg nicht gebraucht**: es gibt keine `{ source: … }`-Lücke
+mehr. Er bleibt für den Fall, dass ein Absatz einmal nicht in die
+Versionsverwaltung soll.
 
-| Schlüssel | Abschnitt im Auftrag |
-|---|---|
-| `manifest.opening.lead` | 4.1 (1) Eröffnung |
-| `manifest.mission.body` | 4.1 (2) Auftrag |
-| `manifest.areas.items.0.body` | 4.1 (3) Geistliches Leben und Glaube |
-| `manifest.areas.items.1.body` | 4.1 (3) Familie |
-| `manifest.areas.items.2.body` | 4.1 (3) Kinder und Jugendliche |
-| `manifest.areas.items.3.body` | 4.1 (3) Bildung |
-| `manifest.areas.items.4.body` | 4.1 (3) Gesundheit und integrale Entwicklung |
-| `manifest.areas.items.5.body` | 4.1 (3) Wallfahrt, Sport und Abenteuer |
-| `manifest.inspiration.body` | 4.1 (4) Christliche Inspiration und Offenheit |
-| `manifest.family.body` | 4.1 (5) In einer Familie verwurzelt |
-| `manifest.road.intro` | 4.1 (6) Wohin das führt |
+## Die offenen Entscheidungen
 
-Ein Schlüssel, der ins Leere zeigt, wird beim Start in der Konsole gemeldet —
-still verworfen wird keiner.
-
-## Was NICHT hierher gehört
-
-Die übrigen Lücken sind keine Quelltexte, sondern **Entscheidungen**: Namen,
-Anschrift, Eröffnungstermin, Preise, Bilder. Sie stehen als `{ missing: … }` in
-den versionierten Texten und werden dort ersetzt, sobald sie feststehen — sie
-sind keine Geheimnisse und gehören in die Versionsverwaltung.
+Was als `{ missing: … }` in den versionierten Texten steht, sind **keine**
+Geheimnisse, sondern Entscheidungen: Namen und ihre Freigabe, die Anschrift des
+Hauses, die genaue Platzzahl, Bilder, der Eröffnungstermin. Bei Namen und
+Anschrift stehen die Angaben in den Unterlagen oben — sie bleiben trotzdem
+offen, weil die Entscheidung über ihre Veröffentlichung dem Eigentümer gehört
+und nicht daraus folgt, dass die Tatsache bekannt ist.
