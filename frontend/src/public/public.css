@@ -273,37 +273,36 @@
    Startseite — drei Bilder, ein Dokument
    ==========================================================================
 
+   NICHTS SCROLLT WEG. Der innere Teil der Buehne steht fest, waehrend der Name
+   auf den Betrachter zuwaechst und das zweite Bild hinter ihm sichtbar wird.
+   Der Besucher scrollt, aber die Seite wandert nicht nach oben — das zweite
+   Bild kommt nicht von unten herein, es lag die ganze Zeit dahinter.
+
    Der Schleier ist eine MASKE. Die Buchstaben sind ein Loch in einer
    undurchsichtigen Flaeche; waechst die Maske, waechst das Loch, bis die
-   Flaeche fort ist — man sieht durch das Wort hindurch. Ein `scale()` auf
-   einem Bild saehe aus wie eine Diaschau und verloere genau diese Bedeutung.
+   Flaeche fort ist. Ein `scale()` auf einem Bild saehe aus wie eine Diaschau
+   und verloere genau diese Bedeutung.
 
-   Ohne `animation-timeline` erscheint der Schleier gar nicht. Dann traegt das
-   erste Bild seinen eigenen dunklen Grund und den Namen still darauf, und
-   darunter folgt der naechste Abschnitt. Es gibt keinen halben Zustand: der
-   Schleier ist entweder ganz da und beweglich, oder gar nicht.
+   Ohne `animation-timeline` gibt es weder Buehne noch Schleier: dann steht der
+   Name still auf dunklem Grund, darunter folgt das zweite Bild, darunter das
+   dritte. Nie ein halber Zustand.
 */
 
 .rc-home { background: var(--paper); }
 
-/* -- Bild 1: der Name ------------------------------------------------------ */
+/* -- Ohne Bildlaufzeitachse: drei Abschnitte untereinander ------------------ */
 
-.rc-s1 {
-  position: relative;
-  z-index: 2;
+.rc-first {
   min-height: calc(100vh - var(--head-h));
   display: grid;
   grid-template-rows: 1fr auto auto;
   align-items: center;
   padding: 2rem var(--pad) 3rem;
-
-  /* Ohne Schleier traegt dieser Abschnitt den dunklen Grund selbst. */
   background: #14180f;
   color: #f2f4ef;
 }
 
 .rc-mark-static { display: grid; place-items: center; width: 100%; }
-
 .rc-mark-svg { width: min(78vw, 60rem); height: auto; aspect-ratio: 16 / 5; overflow: visible; }
 
 .rc-mark-text,
@@ -318,7 +317,7 @@
   margin: 0;
   max-width: 34rem;
   justify-self: start;
-  font-size: clamp(1.25rem, 2.6vw, 1.9rem);
+  font-size: clamp(1.2rem, 2.4vw, 1.8rem);
   font-weight: 300;
   line-height: 1.3;
   letter-spacing: -0.015em;
@@ -329,14 +328,14 @@
 .rc-sentence .pub-p { display: block; }
 
 /* Die Luecke muss auch auf dunklem Grund lesbar bleiben. */
-.rc-s1 .pub-gap { background: rgb(232 184 114 / 0.1); border-color: #6a5228; color: #e8b872; }
+.rc-first .pub-gap { background: rgb(232 184 114 / 0.1); border-color: #6a5228; color: #e8b872; }
 
 .rc-hint {
   justify-self: start;
   display: flex;
   align-items: center;
   gap: 0.85rem;
-  margin: 2.5rem 0 0;
+  margin: 2.25rem 0 0;
   font-family: var(--sans);
   font-size: 0.7rem;
   letter-spacing: 0.24em;
@@ -347,7 +346,7 @@
 .rc-hint i {
   display: block;
   width: 1px;
-  height: 2.4rem;
+  height: 2.2rem;
   background: currentColor;
   transform-origin: top;
   animation: rc-drop 2s ease-in-out infinite;
@@ -358,38 +357,104 @@
   50%      { transform: scaleY(1);   opacity: 1; }
 }
 
-/* -- Der Schleier ---------------------------------------------------------- */
-
 .rc-veil { display: none; }
-
 .rc-veil-svg { width: 100%; height: 100%; display: block; overflow: visible; }
 
-@keyframes rc-open {
-  from { transform: scale(1); }
-  to   { transform: scale(30); }
+/* -- Bild 2: worum es geht -------------------------------------------------- */
+
+.rc-behind { background: var(--paper); padding: clamp(3rem, 9vh, 7rem) var(--pad); }
+
+.rc-s2-in { max-width: var(--page); margin: 0 auto; }
+
+.rc-h2 {
+  font-family: var(--sans);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 1.75rem;
 }
 
-@keyframes rc-gone {
-  0%, 72% { opacity: 1; }
-  100%    { opacity: 0; visibility: hidden; }
+.rc-vision { display: grid; gap: 1.35rem; max-width: 44rem; }
+
+.rc-vision p {
+  margin: 0;
+  font-size: clamp(1.02rem, 1.55vw, 1.32rem);
+  line-height: 1.48;
+  letter-spacing: -0.005em;
+  text-wrap: pretty;
 }
+
+.rc-vision p:first-child { font-size: clamp(1.15rem, 1.95vw, 1.62rem); }
+
+.rc-open {
+  margin: 2rem 0 0;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+  max-width: 40rem;
+  font-size: clamp(0.96rem, 1.35vw, 1.1rem);
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+/* -- Die Buehne ------------------------------------------------------------- */
+
+@keyframes rc-open   { from { transform: scale(1); }   to { transform: scale(34); } }
+@keyframes rc-gone   { 0%, 76% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+@keyframes rc-hide   { 0%, 12% { opacity: 1; } 46% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes rc-settle { from { transform: scale(1.12); } to { transform: scale(1); } }
 
 /*
-   Nur wo die Bildlaufzeitachse wirklich da ist. Alles, was den Schleier
-   sichtbar macht, steht INNERHALB dieser Abfrage — sonst bliebe er in
-   Firefox als undurchdringliche Flaeche ueber der Seite stehen.
+   Alles, was die Buehne baut, steht INNERHALB dieser Abfrage. Sonst bliebe in
+   Firefox eine undurchdringliche Flaeche ueber der Seite stehen.
 */
 @supports (animation-timeline: scroll()) {
-  .rc-veil {
-    display: block;
-    position: fixed;
+  /* Die Hoehe ist nur Scrollweg. Sichtbar ist immer nur ein Fenster davon. */
+  .rc-stage { position: relative; height: 220vh; }
+
+  .rc-pin {
+    position: sticky;
+    top: var(--head-h);
+    height: calc(100vh - var(--head-h));
+    overflow: hidden;
+  }
+
+  .rc-first {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    background: transparent;
+    pointer-events: none;
+    animation: rc-hide linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 120vh;
+  }
+
+  /* Es liegt DAHINTER, von Anfang an. Es kommt nicht von unten herein. */
+  .rc-behind {
+    position: absolute;
     inset: 0;
     z-index: 1;
+    display: grid;
+    align-content: center;
+    overflow-y: auto;
+    transform-origin: center;
+    animation: rc-settle linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 190vh;
+  }
+
+  .rc-veil {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
     color: #14180f;
     pointer-events: none;
     animation: rc-gone linear both;
     animation-timeline: scroll(root block);
-    animation-range: 0 100vh;
+    animation-range: 0 200vh;
   }
 
   .rc-veil-text {
@@ -397,71 +462,26 @@
     transform-origin: center;
     animation: rc-open linear both;
     animation-timeline: scroll(root block);
-    animation-range: 0 95vh;
+    animation-range: 0 190vh;
   }
 
-  /* Den Grund liefert jetzt der Schleier; der Abschnitt bleibt durchsichtig,
-     damit das Loch das Papier darunter zeigt. */
-  .rc-s1 { background: transparent; }
   .rc-mark-static { visibility: hidden; }
 }
 
 /*
-   Verringerte Bewegung: ueberblenden statt bewegen. Der Schleier bleibt eine
-   Maske — der Name steht also weiter als Loch da —, aber er waechst nicht,
-   sondern verschwindet weich.
+   Verringerte Bewegung: ueberblenden statt bewegen.
+   Der Name waechst nicht, das zweite Bild rueckt nicht — der Schleier und der
+   Satz blenden nur aus. Beide tragen `rc-keep` und sind deshalb von der
+   pauschalen Abschaltung ausgenommen; ohne diese Ausnahme bliebe die
+   undurchsichtige Flaeche fuer immer stehen.
 */
 @media (prefers-reduced-motion: reduce) {
-  .rc-hint i { animation: none; transform: scaleY(0.7); }
-
   @supports (animation-timeline: scroll()) {
     .rc-veil-text { animation: none; transform: none; }
-    .rc-veil { animation-range: 6vh 72vh; }
+    .rc-behind { animation: none; transform: none; }
+    .rc-veil { animation-range: 6vh 90vh; }
+    .rc-first { animation-range: 0 60vh; }
   }
-}
-
-/* -- Bild 2: worum es geht -------------------------------------------------- */
-
-.rc-s2 {
-  position: relative;
-  z-index: 2;
-  background: var(--paper);
-  padding: clamp(5rem, 14vh, 10rem) var(--pad);
-}
-
-.rc-s2-in { max-width: var(--page); margin: 0 auto; }
-
-.rc-h2 {
-  font-family: var(--sans);
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin: 0 0 2.5rem;
-}
-
-/* Der Text traegt dieses Bild allein — also gross genug, dass er das darf. */
-.rc-vision { display: grid; gap: 1.9rem; max-width: 44rem; }
-
-.rc-vision p {
-  margin: 0;
-  font-size: clamp(1.2rem, 2.1vw, 1.7rem);
-  line-height: 1.46;
-  letter-spacing: -0.01em;
-  text-wrap: pretty;
-}
-
-.rc-vision p:first-child { font-size: clamp(1.35rem, 2.6vw, 2.05rem); }
-
-.rc-open {
-  margin: 3.5rem 0 0;
-  padding-top: 2rem;
-  border-top: 1px solid var(--line);
-  max-width: 40rem;
-  font-size: clamp(1.02rem, 1.6vw, 1.2rem);
-  color: var(--ink-soft);
-  text-wrap: pretty;
 }
 
 /* -- Bild 3: wie es geschieht ----------------------------------------------- */
@@ -893,5 +913,5 @@
  * weiter unter die Regel und waechst deshalb nicht.
  */
 @media (prefers-reduced-motion: reduce) {
-  .pub-root *:not(.rc-veil) { animation: none !important; transition: none !important; }
+  .pub-root *:not(.rc-keep) { animation: none !important; transition: none !important; }
 }

@@ -80,44 +80,53 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
   return (
     <div className="rc-home">
       {/*
-        Der Schleier liegt über dem ersten Bild und öffnet sich beim Scrollen.
-        Er steht VOR den Abschnitten im Baum, damit der Satz darüber liegen
-        kann, ohne dass irgendwo ein Stapelindex geraten werden muss.
+        Die Bühne. Sie ist hoch, damit es Weg zum Scrollen gibt — aber NICHTS
+        an ihr wandert nach oben: der innere Teil steht fest, während der Name
+        auf den Betrachter zuwächst und das zweite Bild hinter ihm sichtbar
+        wird. Es scrollt also, ohne dass etwas wegscrollt.
+
+        Reihenfolge im Baum: erst der Satz, dann das zweite Bild, dann der
+        Schleier. So liest ein Vorleseprogramm die Überschrift zuerst; gestapelt
+        wird über den Stapelindex und nicht über die Reihenfolge.
       */}
-      <div className="rc-veil" aria-hidden="true">
-        <Wordmark text={t.screen1.wordmark} masked />
-      </div>
+      <div className="rc-stage">
+        <div className="rc-pin">
+          <div className="rc-first rc-keep">
+            <div className="rc-mark-static">
+              <Wordmark text={t.screen1.wordmark} masked={false} />
+            </div>
 
-      <section className="rc-s1" aria-labelledby="rc-h1">
-        <div className="rc-mark-static">
-          <Wordmark text={t.screen1.wordmark} masked={false} />
-        </div>
+            {/* Die einzige Überschrift erster Ordnung der Seite. */}
+            <h1 className="rc-sentence" id="rc-h1">
+              <PublicText value={t.screen1.sentence} copy={copy} as="span" />
+            </h1>
 
-        {/* Die einzige Überschrift erster Ordnung der Seite. */}
-        <h1 className="rc-sentence" id="rc-h1">
-          <PublicText value={t.screen1.sentence} copy={copy} as="span" />
-        </h1>
-
-        <p className="rc-hint" aria-hidden="true">
-          <span>{t.screen1.hint}</span>
-          <i />
-        </p>
-      </section>
-
-      <section className="rc-s2" aria-labelledby="rc-h2">
-        <div className="rc-s2-in">
-          <h2 className="rc-h2" id="rc-h2">{t.screen2.title}</h2>
-
-          <div className="rc-vision">
-            {t.screen2.paragraphs.map((paragraph) => (
-              <p key={paragraph.slice(0, 40)}>{paragraph}</p>
-            ))}
+            <p className="rc-hint" aria-hidden="true">
+              <span>{t.screen1.hint}</span>
+              <i />
+            </p>
           </div>
 
-          {/* Die Offenheit steht abgesetzt — sie ist kein Nachsatz. */}
-          <p className="rc-open">{t.screen2.openness}</p>
+          <section className="rc-behind" aria-labelledby="rc-h2">
+            <div className="rc-s2-in">
+              <h2 className="rc-h2" id="rc-h2">{t.screen2.title}</h2>
+
+              <div className="rc-vision">
+                {t.screen2.paragraphs.map((paragraph) => (
+                  <p key={paragraph.slice(0, 40)}>{paragraph}</p>
+                ))}
+              </div>
+
+              {/* Die Offenheit steht abgesetzt — sie ist kein Nachsatz. */}
+              <p className="rc-open">{t.screen2.openness}</p>
+            </div>
+          </section>
+
+          <div className="rc-veil rc-keep" aria-hidden="true">
+            <Wordmark text={t.screen1.wordmark} masked />
+          </div>
         </div>
-      </section>
+      </div>
 
       <section className="rc-s3" aria-labelledby="rc-h3">
         <div className="rc-s3-in">
