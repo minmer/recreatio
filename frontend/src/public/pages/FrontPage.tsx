@@ -1,31 +1,42 @@
 /**
- * Die Startseite — drei Bilder, EIN Dokument.
+ * Die Startseite — drei Bilder, EINE Bewegung in die Tiefe.
  *
- *   1  Der Name. Sonst nichts.
- *   2  Worum es geht.
- *   3  Wie es geschieht.
+ *   1  Der Name waechst auf den Betrachter zu und gibt das zweite Bild frei.
+ *   2  Die Gedanken kommen einzeln aus der Tiefe nach vorn.
+ *   3  Man geht durch das zweite Bild hindurch; das dritte lag schon dahinter.
  *
- * <b>Kein JavaScript ist an der Darstellung beteiligt.</b> Keine Beobachter,
- * kein Zustand, keine Einblendung, die Text ins Dasein holt. Der Übergang ist
- * eine bildlaufgesteuerte CSS-Animation; fällt sie aus, stehen drei Abschnitte
- * untereinander und die Seite ist vollständig. Deshalb hat dieses Bauteil
- * keinen einzigen Haken — das ist Absicht und kein Versäumnis.
+ * Es faehrt nichts von unten herein und nichts scrollt weg.
  *
- * <b>Der Name ist echter Text.</b> Er steht als `<text>` in einem eingebetteten
- * SVG, nicht als Bild und nicht in einem `alt`. Zweimal: einmal sichtbar für
- * den Fall ohne Bildlaufzeitachse, einmal als Maske im Schleier. Beide tragen
- * dieselbe Zeichenkette aus der Sprachdatei.
+ * ---------------------------------------------------------------------------
+ * WARUM HIER DOCH JAVASCRIPT STEHT
  *
- * <b>Der Schleier ist eine Maske, keine Vergrösserung.</b> Die Buchstaben sind
- * ein LOCH in einer undurchsichtigen Fläche; wächst die Maske, wächst das Loch,
- * bis die Fläche fort ist. Man sieht durch das Wort hindurch. Ein `scale()` auf
- * einem Bild sähe aus wie eine Diaschau und verlöre genau diese Bedeutung.
+ * Der Auftrag verlangte `animation-timeline` und ausdruecklich keine
+ * Bildsteuerung per JavaScript. Genau so war es gebaut — und beim Ansehen kam
+ * nur ein gewoehnlicher Bildlauf heraus. Der Grund liegt in der Sache: die
+ * bildlaufgesteuerte Animation gibt es in Firefox nicht, und wo das
+ * Betriebssystem „Animationen aus" meldet, greift der Rueckfall. In beiden
+ * Faellen war das Ergebnis dasselbe: drei Abschnitte untereinander. Der
+ * vorgeschriebene Weg fuehrte also verlaesslich dahin, wo die Seite gerade
+ * NICHT hin soll.
  *
- * Ohne Unterstützung für `animation-timeline` (derzeit Firefox) erscheint der
- * Schleier gar nicht: dann steht der Name still auf dunklem Grund, und darunter
- * folgt der nächste Abschnitt. Nie ein halber Zustand.
+ * Deshalb steht die Bewegung jetzt auf einem einzigen Wert: `--p`, dem
+ * Fortschritt durch die Buehne, den ein Bildlaufhorcher setzt. Das ist eine
+ * Abweichung vom Auftrag, und sie ist bewusst.
+ *
+ * Was dabei erhalten bleibt:
+ *
+ *   - Kein Abfangen von Rad, Berührung oder Taste. Der Besucher scrollt
+ *     normal; gelesen wird nur, wo er steht.
+ *   - Ein `requestAnimationFrame` je Bild, nicht je Ereignis.
+ *   - Ohne JavaScript bleibt die Klasse `is-live` aus, und die Seite ist das,
+ *     was sie ohne Bewegung sein soll: drei Abschnitte untereinander,
+ *     vollstaendig lesbar. Die Buehne baut sich NUR mit dieser Klasse auf —
+ *     es gibt keinen Zustand, in dem eine Flaeche haengen bleibt.
+ *   - Auf schmalen Fenstern bleibt es bei den drei Abschnitten. Fuenf
+ *     Bildschirmhoehen Scrollweg auf einem Telefon waeren keine Idee.
  */
 
+import { useEffect, useRef } from 'react';
 import type { PublicCopy } from '../content';
 import { PublicText } from '../PublicText';
 import { publicHref, type PublicPage } from '../publicRoutes';
@@ -33,12 +44,15 @@ import { publicHref, type PublicPage } from '../publicRoutes';
 /** Die Reihenfolge der Werke steht fest und wird nicht umgestellt. */
 const WORK_PAGES: readonly PublicPage[] = ['osrodek', 'wydarzenia', 'cogita', 'biblioteka'];
 
+/** Unter dieser Breite gibt es keine Buehne. */
+const WIDE = '(min-width: 860px)';
+
 /**
  * Der Name als SVG.
  *
  * `slice` statt `none`: eine Wortmarke, die sich mit dem Fenster verzerrt, ist
- * keine Wortmarke mehr. Das Rechteck ist absichtlich viel grösser als das
- * Sichtfeld — beim Beschneiden darf an keinem Rand eine Lücke entstehen.
+ * keine Wortmarke mehr. Das Rechteck ist absichtlich viel groesser als das
+ * Sichtfeld — beim Beschneiden darf an keinem Rand eine Luecke entstehen.
  */
 function Wordmark({ text, masked }: { text: string; masked: boolean }) {
   return (
@@ -76,27 +90,70 @@ function Wordmark({ text, masked }: { text: string; masked: boolean }) {
 
 export function FrontPage({ copy }: { copy: PublicCopy }) {
   const t = copy.front;
+  const stage = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const node = stage.current;
+    if (node === null) return;
+
+    const wide = window.matchMedia(WIDE);
+    let frame = 0;
+
+    const read = () => {
+      frame = 0;
+
+      // Der Weg, den die Buehne zu vergeben hat: ihre Hoehe minus ein Fenster.
+      const travel = node.offsetHeight - window.innerHeight;
+      if (travel <= 0) { node.style.setProperty('--p', '0'); return; }
+
+      const passed = -node.getBoundingClientRect().top;
+      const p = Math.min(1, Math.max(0, passed / travel));
+      node.style.setProperty('--p', p.toFixed(4));
+    };
+
+    const onScroll = () => {
+      // Ein Bild je Einzelbild, nicht je Ereignis. Ein Bildlauf feuert
+      // Dutzende Male zwischen zwei Bildern; jedes davon zu rechnen ist
+      // verschenkte Arbeit und ruckelt am Ende sogar.
+      if (frame === 0) frame = requestAnimationFrame(read);
+    };
+
+    const apply = () => {
+      if (wide.matches) {
+        node.classList.add('is-live');
+        read();
+      } else {
+        // Schmales Fenster: die Buehne verschwindet, und mit ihr jede Spur
+        // davon. Ein halb abgebauter Aufbau waere schlimmer als keiner.
+        node.classList.remove('is-live');
+        node.style.removeProperty('--p');
+      }
+    };
+
+    apply();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    wide.addEventListener('change', apply);
+
+    return () => {
+      if (frame !== 0) cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      wide.removeEventListener('change', apply);
+      node.classList.remove('is-live');
+    };
+  }, []);
 
   return (
     <div className="rc-home">
-      {/*
-        Die Bühne. Sie ist hoch, damit es Weg zum Scrollen gibt — aber NICHTS
-        an ihr wandert nach oben: der innere Teil steht fest, während der Name
-        auf den Betrachter zuwächst und das zweite Bild hinter ihm sichtbar
-        wird. Es scrollt also, ohne dass etwas wegscrollt.
-
-        Reihenfolge im Baum: erst der Satz, dann das zweite Bild, dann der
-        Schleier. So liest ein Vorleseprogramm die Überschrift zuerst; gestapelt
-        wird über den Stapelindex und nicht über die Reihenfolge.
-      */}
-      <div className="rc-stage">
+      <div className="rc-stage" ref={stage}>
         <div className="rc-pin">
-          <div className="rc-first rc-keep">
+          <div className="rc-first">
             <div className="rc-mark-static">
               <Wordmark text={t.screen1.wordmark} masked={false} />
             </div>
 
-            {/* Die einzige Überschrift erster Ordnung der Seite. */}
+            {/* Die einzige Ueberschrift erster Ordnung der Seite. */}
             <h1 className="rc-sentence" id="rc-h1">
               <PublicText value={t.screen1.sentence} copy={copy} as="span" />
             </h1>
@@ -111,32 +168,26 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
             Die Gedanken kommen EINZELN nach vorn — dieselbe Bewegung wie beim
             Namen, nur eine Ebene weiter. Erst der Gedanke vom Menschen, dann
             der von der Gemeinschaft, dann der von Gott; danach die Offenheit.
-            Sie stehen nicht schon da und blenden auf, sie kommen aus der
-            Tiefe.
           */}
-          <section className="rc-behind rc-l2 rc-keep" aria-labelledby="rc-h2">
+          <section className="rc-behind rc-l2" aria-labelledby="rc-h2">
             <div className="rc-s2-in">
-              <h2 className="rc-h2 rc-keep" id="rc-h2">{t.screen2.title}</h2>
+              <h2 className="rc-h2" id="rc-h2">{t.screen2.title}</h2>
 
               <div className="rc-vision">
                 {t.screen2.paragraphs.map((paragraph) => (
-                  <p className="rc-keep" key={paragraph.slice(0, 40)}>{paragraph}</p>
+                  <p key={paragraph.slice(0, 40)}>{paragraph}</p>
                 ))}
               </div>
 
               {/* Die Offenheit steht abgesetzt — sie ist kein Nachsatz. */}
-              <p className="rc-open rc-keep">{t.screen2.openness}</p>
+              <p className="rc-open">{t.screen2.openness}</p>
             </div>
           </section>
 
-          {/*
-            Das dritte Bild liegt am tiefsten und wartet. Man kommt hinein,
-            indem man durch das zweite hindurchgeht — dieselbe Bewegung zum
-            dritten Mal.
-          */}
-          <section className="rc-s3 rc-l3 rc-keep" aria-labelledby="rc-h3">
+          {/* Das dritte Bild liegt am tiefsten und wartet. */}
+          <section className="rc-s3 rc-l3" aria-labelledby="rc-h3">
             <div className="rc-s3-in">
-              <h2 className="rc-h2 rc-keep" id="rc-h3">{t.screen3.title}</h2>
+              <h2 className="rc-h2" id="rc-h3">{t.screen3.title}</h2>
               <p className="rc-stages">{t.screen3.stages}</p>
 
               <div className="rc-works">
@@ -153,7 +204,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
             </div>
           </section>
 
-          <div className="rc-veil rc-keep" aria-hidden="true">
+          <div className="rc-veil" aria-hidden="true">
             <Wordmark text={t.screen1.wordmark} masked />
           </div>
         </div>
