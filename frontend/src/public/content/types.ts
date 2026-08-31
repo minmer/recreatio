@@ -46,6 +46,22 @@ export interface Fact {
   readonly label: string;
 }
 
+/**
+ * Ein Schritt des Stufenplans.
+ *
+ * <b>Der Zustand ist der Punkt.</b> Eine Liste von acht Vorhaben ohne Angabe,
+ * was davon läuft, liest sich als Wunschzettel. Mit dem Zustand wird sie zu
+ * einer Auskunft: das hier steht schon, das hier wird gerade gebaut, das hier
+ * ist Absicht. Nur drei Zustände, und keiner davon heisst „fast fertig".
+ */
+export type StepState = 'live' | 'building' | 'planned';
+
+export interface RoadStep {
+  readonly title: string;
+  readonly note: string;
+  readonly state: StepState;
+}
+
 /** Eine Folie der Startseite. */
 export interface Slide {
   /** Das kleine Wort darüber. Sagt, WAS das hier ist. */
@@ -110,10 +126,30 @@ export interface PublicCopy {
   readonly front: {
     readonly scrollHint: string;
     readonly thesis: Slide;
+
+    /** Die sechs Bereiche als wechselnde Tafeln — eine Liste wäre hier tot. */
+    readonly areas: {
+      readonly eyebrow: string;
+      readonly title: string;
+      readonly panels: readonly {
+        readonly name: string;
+        readonly body: string;
+      }[];
+    };
+
     readonly osrodek: Slide;
     readonly wydarzenia: Slide;
     readonly cogita: Slide;
     readonly narzedzia: Slide;
+
+    /** Der Stufenplan, nummeriert und mit Zustand. */
+    readonly road: {
+      readonly eyebrow: string;
+      readonly title: string;
+      readonly legend: Readonly<Record<StepState, string>>;
+      readonly steps: readonly RoadStep[];
+    };
+
     readonly close: {
       readonly words: readonly string[];
       readonly body: string;

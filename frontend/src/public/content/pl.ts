@@ -70,6 +70,39 @@ export const pl: PublicCopy = {
       ]
     },
 
+    areas: {
+      eyebrow: 'Co robimy',
+      title: 'Sześć obszarów, jeden człowiek.',
+      panels: [
+        {
+          name: 'Życie duchowe i wiara',
+          body: 'Rekolekcje, dni skupienia, pielgrzymki, spotkania modlitewne i formacyjne.'
+        },
+        {
+          name: 'Rodzina',
+          body: 'Wsparcie małżeństw, więzi międzypokoleniowych i rodziców w wychowaniu dzieci.'
+        },
+        {
+          name: 'Dzieci i młodzież',
+          body: 'Formacja, obozy i wyprawy. Odpowiedzialność, dojrzałość, kompetencje społeczne.'
+        },
+        {
+          name: 'Edukacja',
+          body: 'Kursy, materiały, wydawnictwa i portal edukacyjny. Stąd Cogita i Biblioteka.'
+        },
+        {
+          name: 'Zdrowie',
+          body:
+            'Profilaktyka zdrowia psychicznego, fizycznego i społecznego. Bez działalności '
+            + 'leczniczej — na to trzeba odrębnych uprawnień.'
+        },
+        {
+          name: 'Sport i przygoda',
+          body: 'Wyprawy piesze i rowerowe, sport, rekreacja, turystyka i krajoznawstwo.'
+        }
+      ]
+    },
+
     osrodek: {
       eyebrow: '01 — Miejsce',
       title: 'Najpierw dom.',
@@ -111,6 +144,42 @@ export const pl: PublicCopy = {
         { value: '0', label: 'administratorów z dostępem' },
         { value: '64 MiB', label: 'pamięci na jedno wyliczenie hasła' },
         { value: '2', label: 'warstwy: sesja i klucz' }
+      ]
+    },
+
+    road: {
+      eyebrow: 'Plan',
+      title: 'Osiem kroków, i to, na którym stoimy.',
+      legend: { live: 'trwa', building: 'w budowie', planned: 'planowane' },
+      steps: [
+        { title: 'Dom w Limanowej', note: 'Budowa trwa.', state: 'building' },
+        { title: 'Własne rekolekcje i wydarzenia', note: 'Organizowane od lat.', state: 'live' },
+        {
+          title: 'Otwarcie ośrodka dla innych wspólnot',
+          note: 'Po oddaniu domu do użytku.',
+          state: 'planned'
+        },
+        {
+          title: 'Pielgrzymki i wydarzenia sportowo-formacyjne',
+          note: 'Piesze i rowerowe, co roku.',
+          state: 'live'
+        },
+        { title: 'Materiały edukacyjne', note: 'Powstają wraz z Cogitą.', state: 'building' },
+        {
+          title: 'Działalność wydawnicza',
+          note: 'Książki wydane; spis w przygotowaniu.',
+          state: 'live'
+        },
+        {
+          title: 'Portal edukacyjny',
+          note: 'Cogita działa, reszta w budowie.',
+          state: 'building'
+        },
+        {
+          title: 'Projekty dla dzieci, młodzieży i rodzin',
+          note: 'Po rejestracji fundacji.',
+          state: 'planned'
+        }
       ]
     },
 

@@ -57,6 +57,39 @@ export const de: PublicCopy = {
       ]
     },
 
+    areas: {
+      eyebrow: 'Was wir tun',
+      title: 'Sechs Bereiche, ein Mensch.',
+      panels: [
+        {
+          name: 'Geistliches Leben',
+          body: 'Exerzitien, Besinnungstage, Wallfahrten, Gebets- und Formungstreffen.'
+        },
+        {
+          name: 'Familie',
+          body: 'Unterstützung für Ehen, für die Bande zwischen Generationen und für Eltern.'
+        },
+        {
+          name: 'Kinder und Jugend',
+          body: 'Formung, Lager und Fahrten. Verantwortung, Reife, soziale Fähigkeiten.'
+        },
+        {
+          name: 'Bildung',
+          body: 'Kurse, Materialien, Verlagsarbeit und Bildungsportal. Daher Cogita und Bibliothek.'
+        },
+        {
+          name: 'Gesundheit',
+          body:
+            'Vorbeugung für seelische, körperliche und soziale Gesundheit. Ohne '
+            + 'Heilbehandlung — dafür braucht es eigene Befugnisse.'
+        },
+        {
+          name: 'Sport und Abenteuer',
+          body: 'Fahrten zu Fuss und mit dem Rad, Sport, Erholung, Reisen und Landeskunde.'
+        }
+      ]
+    },
+
     osrodek: {
       eyebrow: '01 — Der Ort',
       title: 'Zuerst das Haus.',
@@ -99,6 +132,50 @@ export const de: PublicCopy = {
         { value: '0', label: 'Verwalter mit Zugriff' },
         { value: '64 MiB', label: 'Speicher je Passwortdurchgang' },
         { value: '2', label: 'Schichten: Sitzung und Schlüssel' }
+      ]
+    },
+
+    road: {
+      eyebrow: 'Der Plan',
+      title: 'Acht Schritte, und der, auf dem wir stehen.',
+      legend: { live: 'läuft', building: 'im Bau', planned: 'geplant' },
+      steps: [
+        { title: 'Das Haus in Limanowa', note: 'Die Bauarbeiten laufen.', state: 'building' },
+        {
+          title: 'Eigene Exerzitien und Veranstaltungen',
+          note: 'Seit Jahren durchgeführt.',
+          state: 'live'
+        },
+        {
+          title: 'Das Haus für andere Gemeinschaften öffnen',
+          note: 'Nach der Fertigstellung.',
+          state: 'planned'
+        },
+        {
+          title: 'Wallfahrten sowie Sport- und Formungsveranstaltungen',
+          note: 'Zu Fuss und mit dem Rad, jedes Jahr.',
+          state: 'live'
+        },
+        {
+          title: 'Bildungsmaterialien',
+          note: 'Entstehen zusammen mit Cogita.',
+          state: 'building'
+        },
+        {
+          title: 'Verlagsarbeit',
+          note: 'Bücher sind erschienen; das Verzeichnis entsteht.',
+          state: 'live'
+        },
+        {
+          title: 'Das Bildungsportal',
+          note: 'Cogita läuft, der Rest ist im Bau.',
+          state: 'building'
+        },
+        {
+          title: 'Projekte für Kinder, Jugendliche und Familien',
+          note: 'Nach der Eintragung.',
+          state: 'planned'
+        }
       ]
     },
 

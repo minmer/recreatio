@@ -418,6 +418,9 @@
   position: absolute;
   bottom: 2.2rem;
   left: var(--pad);
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
   font-family: var(--sans);
   font-size: 0.72rem;
   letter-spacing: 0.22em;
@@ -425,6 +428,141 @@
   color: var(--ink-faint);
   margin: 0;
 }
+
+/* Der Strich wandert nach unten. Das ist die einzige Bewegung, die nichts
+   erklärt — sie zeigt nur die Richtung, und dafür ist sie da. */
+.pub-scroll i {
+  display: block;
+  width: 1px;
+  height: 2.6rem;
+  background: currentColor;
+  transform-origin: top;
+  animation: pub-drop 1.9s ease-in-out infinite;
+}
+
+@keyframes pub-drop {
+  0%, 100% { transform: scaleY(0.35); opacity: 0.45; }
+  50%      { transform: scaleY(1);    opacity: 1; }
+}
+
+/* -- Die sechs Bereiche als Tafeln ----------------------------------------- */
+
+.pub-tabs { display: grid; gap: 2rem; margin-top: 0.5rem; }
+
+@media (min-width: 860px) {
+  .pub-tabs { grid-template-columns: minmax(0, 20rem) minmax(0, 1fr); gap: 3.5rem; }
+}
+
+.pub-tab-list { display: flex; flex-direction: column; }
+
+.pub-tab {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  font: inherit;
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  padding: 0.85rem 0;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color 0.2s ease, padding-left 0.2s ease;
+}
+
+.pub-tab:last-child { border-bottom: 1px solid var(--line); }
+.pub-tab:hover { color: var(--ink-soft); }
+
+.pub-tab[aria-selected='true'] {
+  color: var(--ink);
+  padding-left: 0.6rem;
+}
+
+.pub-tab-n {
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.pub-tab-body {
+  font-size: clamp(1.15rem, 2vw, 1.6rem);
+  line-height: 1.45;
+  color: var(--ink-soft);
+  max-width: 32rem;
+  align-self: center;
+  animation: pub-fade 0.35s ease;
+}
+
+.pub-tab-body p { margin: 0; }
+
+@keyframes pub-fade {
+  from { opacity: 0; transform: translateY(0.4rem); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* -- Der Plan --------------------------------------------------------------- */
+
+.pub-steps {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  counter-reset: step;
+}
+
+.pub-steps li {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  gap: 0.2rem 1.25rem;
+  align-items: baseline;
+  padding: 0.95rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.pub-steps li:last-child { border-bottom: 1px solid var(--line); }
+
+.pub-step-n {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.pub-step-t { font-size: clamp(1.02rem, 1.7vw, 1.25rem); color: var(--ink); }
+
+.pub-step-note {
+  grid-column: 2;
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+}
+
+.pub-step-state {
+  grid-row: 1;
+  grid-column: 3;
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+/* Drei Zustände, drei Töne. „Läuft" ist der einzige, der leuchtet — er ist
+   auch der einzige, der schon wahr ist. */
+.pub-steps li[data-state='live'] .pub-step-state { color: var(--accent); }
+.pub-steps li[data-state='building'] .pub-step-state { color: #e8b872; }
+.pub-steps li[data-state='planned'] .pub-step-state { color: var(--ink-faint); }
+
+.pub-steps li[data-state='planned'] .pub-step-t { color: var(--ink-soft); }
 
 /* -- Der Schluss ----------------------------------------------------------- */
 
@@ -851,6 +989,13 @@
   .pub-rail { display: none; }
   .pub-facts { gap: 1.75rem 2.5rem; }
   .pub-slide-h { max-width: none; }
+
+  /* Der Zustand rutscht unter den Titel. Nebeneinander bliebe für den Titel
+     eine Spalte von zwei Wörtern Breite. */
+  .pub-steps li { grid-template-columns: 2.5rem minmax(0, 1fr); gap: 0.15rem 0.9rem; }
+  .pub-steps .pub-step-state { grid-row: auto; grid-column: 2; justify-self: start; margin-top: 0.4rem; }
+
+  .pub-tab-body { font-size: 1.05rem; }
 }
 
 /*

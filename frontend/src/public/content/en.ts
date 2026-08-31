@@ -55,6 +55,39 @@ export const en: PublicCopy = {
       ]
     },
 
+    areas: {
+      eyebrow: 'What we do',
+      title: 'Six areas, one person.',
+      panels: [
+        {
+          name: 'Spiritual life',
+          body: 'Retreats, days of recollection, pilgrimages, prayer and formation meetings.'
+        },
+        {
+          name: 'Family',
+          body: 'Support for marriages, for bonds between generations, and for parents.'
+        },
+        {
+          name: 'Children and youth',
+          body: 'Formation, camps and expeditions. Responsibility, maturity, social competence.'
+        },
+        {
+          name: 'Education',
+          body: 'Courses, materials, publishing and an education portal. Hence Cogita and the Library.'
+        },
+        {
+          name: 'Health',
+          body:
+            'Prevention in mental, physical and social health. No medical treatment — that '
+            + 'requires separate authorisation.'
+        },
+        {
+          name: 'Sport and adventure',
+          body: 'Expeditions on foot and by bicycle, sport, recreation, travel and country lore.'
+        }
+      ]
+    },
+
     osrodek: {
       eyebrow: '01 — The place',
       title: 'The house first.',
@@ -96,6 +129,50 @@ export const en: PublicCopy = {
         { value: '0', label: 'administrators with access' },
         { value: '64 MiB', label: 'memory per password derivation' },
         { value: '2', label: 'layers: session and key' }
+      ]
+    },
+
+    road: {
+      eyebrow: 'The plan',
+      title: 'Eight steps, and the one we are standing on.',
+      legend: { live: 'running', building: 'building', planned: 'planned' },
+      steps: [
+        { title: 'The house in Limanowa', note: 'Construction under way.', state: 'building' },
+        {
+          title: 'Our own retreats and events',
+          note: 'Run for years.',
+          state: 'live'
+        },
+        {
+          title: 'Opening the house to other communities',
+          note: 'Once the house is finished.',
+          state: 'planned'
+        },
+        {
+          title: 'Pilgrimages and sport-formation events',
+          note: 'On foot and by bicycle, every year.',
+          state: 'live'
+        },
+        {
+          title: 'Educational materials',
+          note: 'Growing alongside Cogita.',
+          state: 'building'
+        },
+        {
+          title: 'Publishing',
+          note: 'Books are out; the catalogue is being built.',
+          state: 'live'
+        },
+        {
+          title: 'The education portal',
+          note: 'Cogita runs; the rest is being built.',
+          state: 'building'
+        },
+        {
+          title: 'Projects for children, youth and families',
+          note: 'After registration.',
+          state: 'planned'
+        }
       ]
     },
 
