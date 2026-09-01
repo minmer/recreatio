@@ -36,14 +36,28 @@
  * Jetzt gilt eine einzige Regel — <b>eine Geste bewegt um einen Zustand.</b>
  * Die Zeitstempel sagen, was eine Geste ist: nach einer Ruhe von GESTURE_GAP
  * beginnt eine neue; alles, was innerhalb einer Geste noch eintrifft (ein
- * Trackpad schickt Dutzende Ereignisse), zählt nicht weiter mit.
+ * Trackpad schickt Dutzende Ereignisse), löst keinen zweiten Schritt aus.
  *
- * Damit ist beides erledigt, was vorher nicht ging:
+ * <b>Und eine Geste muss etwas kosten.</b> Gesammelt wird der Weg, nicht das
+ * blosse Auftreten: erst STEP_PUSH gescrollte Pixel lösen aus. Der gesammelte
+ * Weg verfällt über PUSH_FADE, aber nie ganz — sonst käme jemand, der langsam,
+ * aber stetig schiebt, nie an, weil jede einzelne Rastung von vorn anfinge.
+ *
+ * Damit ist alles drei erledigt, was vorher nicht ging:
  *
  *   - Langsam scrollen fällt nicht zurück. Es gibt keine Feder mehr, die
- *     zurückzieht; jede Geste geht einen Schritt weiter.
+ *     zurückzieht; stetiges Schieben sammelt sich, bis es reicht.
  *   - Schnell scrollen überspringt nichts. Eine Geste bleibt eine Geste, wie
  *     kräftig sie auch ist.
+ *   - Nichts geschieht von selbst. Ein Zucken auf dem Trackpad bewegt die
+ *     Seite nicht mehr um ein ganzes Bild.
+ *
+ * <b>Und nach einem Übergang ist nichts mehr übrig.</b> Während er läuft, wird
+ * überhaupt nichts gesammelt: die Hand darf ihn lenken, aber nicht schon den
+ * nächsten Schritt anzahlen. Am Ende sind auch die gemessene Geschwindigkeit
+ * und der Rest des Weges bei null — wer weiterwill, schiebt von vorn an. Sonst
+ * käme man in einem Zug durch mehrere Bilder, ohne je eines gesehen zu haben,
+ * und das ist das Gegenteil dessen, wofür die Rastpunkte da sind.
  *
  * <b>Der Übergang fängt dort an, wo die Hand ist.</b> Er beginnt mit genau der
  * Geschwindigkeit, mit der gerade geschoben wird — eine einzige Bewegung, nicht
@@ -70,11 +84,8 @@
  * Überschwingen zeigt sich nirgends als Fehler, sondern nur als ein schlechtes
  * Gefühl beim Scrollen.
  *
- * Wer dauerhaft weiterschiebt, kommt trotzdem voran: nach REPEAT_MS im selben
- * Zug folgt der nächste Schritt. Dabei wird die Geschwindigkeit des laufenden
- * Übergangs mitgenommen, damit auch eine Kette aus Schritten eine Bewegung
- * bleibt. Die Tastatur ist eigens bedient, damit die Seite ohne Zeigegerät
- * begehbar bleibt.
+ * Die Tastatur ist eigens bedient, damit die Seite ohne Zeigegerät begehbar
+ * bleibt — sie sammelt nichts, ein Tastendruck ist ein Schritt.
  */
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
@@ -101,8 +112,38 @@ const STEP_VH = 60;
  */
 const GESTURE_GAP = 150;
 
-/** Wer im selben Zug weiterschiebt, kommt nach dieser Zeit einen Schritt weiter. */
-const REPEAT_MS = 500;
+/**
+ * Wie weit geschoben werden muss, ehe ein Schritt fällt.
+ *
+ * Vorher genügte das blosse Auftreten einer Geste, wie klein sie auch war —
+ * eine Rastung, ein Zucken auf dem Trackpad, und die Seite war einen Zustand
+ * weiter. Dreizehn Zustände flogen so vorbei, ohne dass jemand etwas dafür tun
+ * musste; es fehlte das Gewicht.
+ *
+ * Jetzt wird der Weg innerhalb einer Geste gesammelt. Erst dieses Mass löst
+ * aus, und danach fängt die Sammlung bei null an — kein Rest, der in den
+ * nächsten Schritt hineinträgt.
+ */
+const STEP_PUSH = 180;
+
+/** In dieser Zeit ohne Schub verfällt der gesammelte Weg. */
+const PUSH_FADE = 900;
+
+/**
+ * Wie viel ein einzelnes Ereignis dem Verfall mindestens abringt.
+ *
+ * Ohne diese Schranke gibt es eine tote Zone: schiebt jemand langsamer, als
+ * der Weg verfällt, fängt jede Rastung wieder bei null an und die Seite rührt
+ * sich NIE. Eine Seite, die auf gemächliches Scrollen gar nicht reagiert, ist
+ * für den Besucher kaputt, nicht ruhig.
+ *
+ * Mit der Schranke läuft die Sammlung gegen das Dreifache einer einzelnen
+ * Rastung, ganz gleich wie langsam geschoben wird. Alles ab etwa 54 Pixeln je
+ * Rastung kommt damit an — der eine nach zwei, der andere nach vier. Kleinere
+ * Schritte meldet nur ein hochauflösendes Rad, und das meldet sie im Strom,
+ * wo ohnehin nichts verfällt.
+ */
+const PUSH_KEEP = 0.7;
 
 /** Wie lange ein Übergang dauert. Seine eigene Zeit, nicht die der Geste. */
 const GLIDE_MS = 700;
@@ -186,7 +227,22 @@ const WORDS = ['colligere', 'novatio', 'conciliatio', 'fectio', 'dintegratio'] a
 const PERSPECTIVE = 1000;
 const LOGO_Z = -320;
 const SENTENCE_Z = -980;
-const SENTENCE_Y = 11;
+
+/*
+ * Zeichen und Satz stehen auseinander, nicht ineinander.
+ *
+ * Beide Werte sind Tiefenmasse, keine Bildschirmmasse: was weiter hinten liegt,
+ * rueckt in der Projektion naeher an die Mitte. Der Satz braucht deshalb den
+ * groesseren Wert, um am Ende gleich weit unter dem Zeichen zu stehen — bei
+ * z = -980 kommt von 18 nur die Haelfte auf dem Bild an, bei z = -320 von 5
+ * gut drei Viertel. Auf dem Bild sind es also etwa -4 und +9 statt 0 und +6.
+ */
+const LOGO_Y = -5;
+const SENTENCE_Y = 18;
+
+/** Die Tiefe der Woerter: von ganz hinten bis dicht vor die Kamera. */
+const WORD_FAR = -1650;
+const WORD_NEAR = -150;
 
 /** Wie weit die Kamera insgesamt fährt. Beide müssen daran vorbeikommen. */
 const CAM_END = 2200;
@@ -205,16 +261,32 @@ const CAM_END = 2200;
  */
 function placeWord(index: number, roll: () => number) {
   const angle = index * 2.39996 + (roll() - 0.5) * 0.7;
-  const radius = 22 + roll() * 30;
+
+  // Nah heisst gross und schnell vorbei, fern heisst klein und lange da.
+  const z = WORD_FAR + roll() * (WORD_NEAR - WORD_FAR);
+
+  /*
+   * Der Abstand zur Mitte wird um die Tiefe VORGERECHNET.
+   *
+   * Ein fernes Wort verkleinert die Perspektive; derselbe Abstand kam bei ihm
+   * also viel naeher an der Mitte an als bei einem nahen. Genau daher kam der
+   * Eindruck, die Woerter draengten sich um das Zeichen: sie standen zwar
+   * gestreut im Raum, aber nicht auf dem Bild. Mit diesem Faktor streuen sie
+   * auf dem Bild gleich weit — und die aeusseren duerfen ueber den Rand
+   * hinausragen.
+   */
+  const shrink = (PERSPECTIVE - z) / PERSPECTIVE;
+  const radius = (32 + roll() * 34) * shrink;
 
   return {
     x: Math.cos(angle) * radius,
     y: Math.sin(angle) * radius * 0.78,
-    // Von weit hinten bis dicht vor die Kamera. Nah heisst gross und schnell
-    // vorbei, fern heisst klein und lange da.
-    z: -1650 + roll() * 1500,
+    z,
     size: 1.5 + roll() * 1.5,
-    alpha: 0.34 + roll() * 0.42
+    // Nur noch die Handschrift des einzelnen Wortes. Was die Tiefe an
+    // Durchsichtigkeit ausmacht, rechnet das Stilblatt aus `--ze` — dort
+    // gilt es dann fuer alles im Raum und nicht nur fuer die Woerter.
+    alpha: 0.62 + roll() * 0.3
   };
 }
 
@@ -382,14 +454,16 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     let lead = 0;
     let gliding = false;
 
-    /** Die Zeitstempel: das letzte Ereignis, der letzte Schritt. */
+    /** Der Zeitstempel des letzten Ereignisses. */
     let lastEvent = 0;
-    let lastStep = 0;
 
     /** Die Hand: wo der Finger zuletzt war, wann, und wie schnell (px/ms). */
     let touchAt = 0;
     let touchTime = 0;
     let speed = 0;
+
+    /** Der gesammelte Weg, seit zuletzt ein Schritt fiel. */
+    let push = 0;
 
     const measure = () => {
       const pin = node.firstElementChild as HTMLElement | null;
@@ -417,8 +491,19 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       window.scrollTo(0, fromY + (toY - fromY) * rcGlide(k, lead));
       paint();
 
-      if (k < 1) frame = requestAnimationFrame(tick);
-      else gliding = false;
+      if (k < 1) { frame = requestAnimationFrame(tick); return; }
+
+      /*
+       * Angekommen — und damit ist wirklich nichts mehr übrig.
+       *
+       * Weder die gemessene Geschwindigkeit noch der gesammelte Weg tragen in
+       * den nächsten Zustand hinein. Wer weiterwill, schiebt von vorn an. Sonst
+       * käme man in einem Zug durch mehrere Bilder, ohne je eines gesehen zu
+       * haben — das Gegenteil dessen, wofür die Rastpunkte da sind.
+       */
+      gliding = false;
+      speed = 0;
+      push = 0;
     };
 
     /**
@@ -442,7 +527,6 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
         : 0;
 
       target = next;
-      lastStep = now;
 
       fromY = window.scrollY;
       toY = origin + target * stepPx;
@@ -520,24 +604,59 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
      */
     const gesture = (px: number, dt: number) => {
       const now = performance.now();
-      const fresh = now - lastEvent > GESTURE_GAP;
-      const held = now - lastStep > REPEAT_MS;
+      const idle = now - lastEvent;
+      const fresh = idle > GESTURE_GAP;
       lastEvent = now;
 
       const v = px / Math.max(4, dt);
       speed = fresh ? v : speed * 0.55 + v * 0.45;
 
-      if (fresh || held) go(px > 0 ? 1 : -1, speed);
-      else steer(speed);
+      /*
+       * Während eines Übergangs wird NICHTS gesammelt.
+       *
+       * Die Seite spricht gerade. Die Hand darf den Übergang lenken, aber
+       * nicht schon den nächsten Schritt anzahlen — sonst trüge ein einziger
+       * langer Wisch durch mehrere Bilder, ohne dass eines zu sehen gewesen
+       * wäre. Das ist die ganze Regel, die vorher REPEAT_MS und ein Merkzeichen
+       * gebraucht hätte.
+       */
+      if (gliding) { steer(speed); return; }
+
+      /*
+       * Der gesammelte Weg VERFÄLLT mit der Zeit, statt an einer Gestengrenze
+       * ganz wegzufallen — und nie um mehr als PUSH_KEEP.
+       *
+       * Fiele er ganz weg, käme jemand, der langsam, aber stetig schiebt, nie
+       * an: jede einzelne Rastung finge wieder bei null an und bliebe für
+       * immer unter dem Mass.
+       */
+      push *= Math.max(PUSH_KEEP, 1 - idle / PUSH_FADE);
+
+      // Wer umkehrt, meint etwas anderes.
+      if (px * push < 0) push = 0;
+      push += px;
+
+      if (Math.abs(push) < STEP_PUSH) return;
+
+      const dir = push > 0 ? 1 : -1;
+      push = 0;
+      go(dir, speed);
     };
 
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       if (event.deltaY === 0) return;
 
-      // deltaMode: 0 Pixel, 1 Zeilen, 2 Seiten. Ohne Umrechnung führe ein
-      // zeilenweise meldendes Rad den Übergang um ein Vielfaches zu langsam an.
-      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1;
+      /*
+       * deltaMode: 0 Pixel, 1 Zeilen, 2 Seiten.
+       *
+       * Ohne Umrechnung führe ein zeilenweise meldendes Rad den Übergang um ein
+       * Vielfaches zu langsam an — und käme, seit ein Mass gesammelt werden
+       * muss, überhaupt nicht mehr an: 40 statt 16 je Zeile, weil eine Rastung
+       * dort drei Zeilen meldet und erst so wieder ungefähr die 120 Pixel
+       * ergibt, die dieselbe Rastung anderswo meldet.
+       */
+      const unit = event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? window.innerHeight : 1;
 
       const gap = performance.now() - lastEvent;
       gesture(event.deltaY * unit, gap > GESTURE_GAP ? NOTCH_MS : gap);
@@ -548,6 +667,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       touchTime = performance.now();
       lastEvent = 0;
       speed = 0;
+      push = 0;
     };
 
     const onTouchMove = (event: TouchEvent) => {
@@ -651,7 +771,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
               <div
                 className="rc-item rc-logo"
-                style={{ '--x': '0vmin', '--y': '0vmin', '--z': LOGO_Z } as CSSProperties}
+                style={{ '--x': '0vmin', '--y': `${LOGO_Y}vmin`, '--z': LOGO_Z } as CSSProperties}
               >
                 <img src="/logo_inv.svg" alt={t.screen1.wordmark} />
               </div>
@@ -697,10 +817,12 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
                 style={{
                   '--c': plan.starts[index],
                   '--n': scene.bubbles.length,
-                  // Lebensdauer der Szene in Zuständen. Hier gerechnet und
-                  // nicht im Stilblatt: eine Division durch einen
-                  // Benutzerwert ist in `calc()` heikel, eine Zahl nicht.
-                  '--life': scene.bubbles.length + 1.4
+                  // Lebensdauer der Szene in Zuständen: genau so viele, wie
+                  // sie Blasen hat. Der Zuschlag von 1.4, der hier stand,
+                  // schob das Ende der Szene mitten auf ihren letzten
+                  // Rastpunkt — dort stand sie dann halb verschwunden neben
+                  // der nächsten.
+                  '--life': scene.bubbles.length
                 } as CSSProperties}
               >
                 <Thread points={points} />

@@ -497,12 +497,18 @@
 
   --s: calc(var(--p, 0) * var(--states));
 
-  /* Die Kamerafahrt. Alles im Raum haengt allein daran. */
-  --pcam: clamp(0, calc(var(--s) / 1.1), 1);
+  /*
+     Die Kamerafahrt. Alles im Raum haengt allein daran.
+
+     Sie ist im Zustand 1 zu Ende — genau dann, wenn die erste Szene einrastet.
+     Lief sie darueber hinaus (vorher bis 1.1), stand die erste Szene noch im
+     halb durchsichtigen Raum, und der dunkle Grund lag als Schleier ueber ihr.
+  */
+  --pcam: clamp(0, var(--s), 1);
   --cam: calc(var(--pcam) * var(--cam-end));
 
-  /* Wenn Zeichen und Satz durch sind, geht der Raum. */
-  --pspace: clamp(0, calc((var(--s) - 0.86) / 0.24), 1);
+  /* Und der Raum ist dort auch fort, nicht erst ein Stueck spaeter. */
+  --pspace: clamp(0, calc((var(--s) - 0.55) / 0.45), 1);
   --ps: clamp(0, calc((var(--s) - 0.05) / 0.4), 1);
 
   /* Die Werke: vollständig da im Zustand `--works`. */
@@ -574,7 +580,18 @@
 
   --ze: calc(var(--cam) + var(--z));
 
-  opacity: calc(var(--alpha, 1) * clamp(0, calc((880 - var(--ze)) / 320), 1));
+  /*
+     Ferne ist auch Durchsichtigkeit, nicht nur Kleinheit.
+
+     Ein Raum, in dem alles gleich satt steht, liest sich flach: die Groesse
+     allein reicht dem Auge als Tiefenzeichen nicht. Weit hinten steht ein
+     Gegenstand deshalb bei 0.4 und wird satt, waehrend die Kamera auf ihn
+     zufaehrt. Das trifft den Satz mit: er steht hinter dem Zeichen, kommt
+     also blasser an und wird hell, wenn er allein uebrig bleibt.
+  */
+  --far: clamp(0.4, calc(1 + (var(--ze) + 500) / 1800), 1);
+
+  opacity: calc(var(--alpha, 1) * var(--far) * clamp(0, calc((880 - var(--ze)) / 320), 1));
   transform:
     translate(-50%, -50%)
     translate3d(var(--x), var(--y), calc(var(--z) * 1px));
@@ -599,7 +616,7 @@
 */
 @media (prefers-reduced-motion: reduce) {
   .rc-stage.is-live .rc-cam { transform: none; }
-  .rc-stage.is-live .rc-item { opacity: var(--alpha, 1); }
+  .rc-stage.is-live .rc-item { opacity: calc(var(--alpha, 1) * var(--far)); }
   .rc-stage.is-live .rc-space { opacity: calc(1 - var(--ps)); }
 }
 
@@ -610,16 +627,35 @@
   background: transparent;
   pointer-events: none;
 
-  /* Sie ist schon da, bevor ihre erste Blase dran ist, und noch da, wenn die
-     naechste beginnt. Diese Ueberlappung macht, dass man immer sieht, was
-     kommt. */
-  --u: clamp(0, calc((var(--s) - var(--c) + 1.2) / var(--life)), 1);
+  /* Sie waechst ueber ihre ganze Lebenszeit: sie taucht im Zustand davor auf
+     und ist bei ihrer letzten Blase ausgewachsen. */
+  --u: clamp(0, calc((var(--s) - var(--c) + 1) / var(--life)), 1);
 
-  /* Trapez: kommt an, bleibt, geht. Kein Aufblitzen an den Raendern. */
-  --present: clamp(0, min(calc(var(--u) / 0.14), calc((1 - var(--u)) / 0.14)), 1);
+  /*
+     GANZ da, solange einer ihrer eigenen Zustaende dran ist — und nur in der
+     Luecke dazwischen im Wechsel.
+
+     Vorher lag der Wechsel auf den Rastpunkten selbst: eine Szene war genau
+     dann verschwunden, wenn ihre letzte Blase betont sein sollte, und zwei
+     Szenen blieben halb uebereinander stehen. Ein Rastpunkt ist aber der
+     einzige Ort, an dem wirklich jemand hinsieht — dort muss genau eine Szene
+     stehen und sonst nichts.
+
+     `--c` ist der erste Zustand der Szene, `--life` die Zahl ihrer Blasen. Die
+     beiden Rampen laufen deshalb ueber die Zustaende davor und danach, auf
+     denen nie geruht wird.
+  */
+  --present: clamp(0, min(calc(var(--s) - var(--c) + 1), calc(var(--c) + var(--life) - var(--s))), 1);
 
   opacity: var(--present);
-  transform: scale(calc(0.62 + 0.72 * var(--u)));
+
+  /*
+     Sie waechst, aber nur wenig. Frueher ging es von 0.62 bis 1.34 — das war
+     gedacht, als die Szene bei ihrer letzten Blase ohnehin schon verschwand.
+     Jetzt steht sie dort ganz da, und ein Drittel mehr Groesse schoebe die
+     breiten Blasen ueber den Rand.
+  */
+  transform: scale(calc(0.8 + 0.28 * var(--u)));
 }
 
 .rc-thread {
@@ -705,7 +741,7 @@
   .rc-stage.is-live .rc-bubble { padding: 1.05rem 1.2rem; }
   .rc-stage.is-live .rc-bubble[data-kind='body'] { width: min(84vw, 22rem); }
   .rc-stage.is-live .rc-bub-body { font-size: 0.95rem; }
-  .rc-stage.is-live .rc-wave { transform: scale(calc(0.66 + 0.6 * var(--u))); }
+  .rc-stage.is-live .rc-wave { transform: scale(calc(0.78 + 0.24 * var(--u))); }
 }
 
 /* -- Die vier Werke --------------------------------------------------------- */
