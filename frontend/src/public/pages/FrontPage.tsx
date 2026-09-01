@@ -27,17 +27,36 @@
  * verrutschen.
  *
  * ---------------------------------------------------------------------------
- * TRÄGHEIT STATT RASTUNG
+ * ZWEI KRÄFTE, DIE SICH ADDIEREN
  *
- * `scroll-snap` kennt nur „nächster Punkt" — ein kräftiger Wisch am Ende sieht
- * dort genauso aus wie ein Antippen. Deshalb wird jetzt in JavaScript
- * eingerastet: aus den letzten Positionen und Zeitstempeln kommt die
- * Geschwindigkeit, und die entscheidet, wie weit es trägt. Langsam heisst
- * nächster Zustand, ein Wisch trägt bis zu zwei weiter.
+ * Schwung und Rastung wirken GLEICHZEITIG, nicht nacheinander.
  *
- * Abgefangen wird dabei nichts: `wheel` und `touchstart` werden nur passiv
- * mitgehört, um eine laufende Einrastbewegung abzubrechen, sobald der Besucher
- * wieder selbst scrollt. Kein `preventDefault`, nirgends.
+ * Der erste Anlauf machte es nacheinander: warten, bis der Bildlauf steht, dann
+ * aus der Geschwindigkeit ein Ziel ausrechnen, dann dorthin gleiten. Das ist
+ * eine Entscheidung, keine Bewegung — und man sieht es: die Seite hält an und
+ * fährt noch einmal los.
+ *
+ * Jetzt läuft in jedem Bild eine kleine Rechnung:
+ *
+ *     v = v · DÄMPFUNG + Abstand_zum_nächsten_Zustand · ZUG
+ *
+ * `v` trägt den Schwung des Besuchers, der Summand daneben ist der Zug des
+ * Rasters. Beides steht in derselben Zeile und wird addiert.
+ *
+ * <b>Das Ziel wird nirgends gewählt.</b> Es ergibt sich: ein kräftiger Wisch
+ * hat so viel `v`, dass er über den nächsten Zustand hinausschiesst — und dann
+ * zieht ihn der übernächste an, weil `nächster Zustand` in jedem Bild neu aus
+ * der aktuellen Lage kommt. Wie weit es trägt, ist Physik und keine Fallunter-
+ * scheidung. Die frühere Rechnung `min(2, floor(|v| / 1.6))` ist damit weg.
+ *
+ * <b>Während der Besucher selbst scrollt</b>, bewegt der Browser die Seite; der
+ * Zug kommt dann als kleiner Zuschlag im selben Bild dazu (`PULL_LIVE`) — es
+ * zieht also schon magnetisch, während man noch scrollt. Der Schwung wird dabei
+ * nur mitgeschrieben und NICHT noch einmal aufgeschlagen; täte man das, liefe
+ * die Seite doppelt so schnell wie die Hand.
+ *
+ * Abgefangen wird nichts: `wheel` und `touchstart` werden nur passiv mitgehört,
+ * um zu wissen, ob gerade eine Hand am Werk ist. Kein `preventDefault`.
  */
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
@@ -53,14 +72,48 @@ const STATES = 11;
 /** Bildlaufweg je Übergang. Der Regler für „langsamer". */
 const STEP_VH = 120;
 
-/** So lange muss der Bildlauf ruhen, bevor eingerastet wird. */
-const IDLE_MS = 110;
+/**
+ * So lange nach der letzten Hand-Eingabe gilt der Bildlauf als „geführt".
+ * Solange zieht das Raster nur leicht (`PULL_LIVE`), damit es sich nicht gegen
+ * die Hand stemmt.
+ */
+const INPUT_GRACE = 90;
 
-/** Darunter gilt es als Antippen: es geht zum nächsten Zustand. */
-const SLOW = 0.35;
+/*
+ * DÄMPFUNG und ZUG sind nicht geraten, sondern durchgerechnet.
+ *
+ * Geprüft wurde gegen vier Forderungen — ein Antippen fällt zurück; knapp über
+ * der Mitte trägt es weiter; eine klare Rückwärtsgeste gewinnt; ein kräftiger
+ * Wisch trägt mehrere Zustände — und gegen die Bedingung, dass die Bewegung
+ * ÜBERALL zur Ruhe kommt. Über den ganzen Raum (jede Lage, jede
+ * Geschwindigkeit) liegt der längste Lauf bei rund einer Sekunde, und es bleibt
+ * kein Fall offen.
+ *
+ * Zwei Wege, die dabei durchgefallen sind und deshalb hier stehen, damit sie
+ * niemand noch einmal einbaut:
+ *
+ *   - Den Anzieher mit dem Schwung verschieben (`round(here + v · k)`). Das ist
+ *     rückgekoppelt: mehr Schwung schiebt das Ziel weiter nach vorn, was noch
+ *     mehr Schwung erzeugt. Eine von drei Abstimmungen lief davon und kam nie
+ *     zur Ruhe.
+ *   - Eine SCHWACHE Rückwärtsgeste dicht vor einem Zustand gewinnen lassen.
+ *     Keine einzige stabile Abstimmung kann das. Der Zug ist dort am stärksten,
+ *     wo man am ehesten umkehren will — das ist der Preis der Magnetik und
+ *     genau das Verhalten, das man von einer Rasterung kennt. Eine deutliche
+ *     Rückwärtsgeste gewinnt.
+ */
 
-/** Je so viel Geschwindigkeit ein Zustand weiter — höchstens zwei. */
-const CARRY = 1.6;
+/** Wie viel Schwung ein Bild ins nächste mitnimmt. Kleiner = zäher. */
+const DAMP = 0.80;
+
+/** Der Zug des Rasters, während die Hand scrollt. Nur ein Zuschlag. */
+const PULL_LIVE = 0.020;
+
+/** Der Zug des Rasters, sobald die Hand los ist. Die zweite Kraft. */
+const PULL_FREE = 0.030;
+
+/** Darunter ist die Bewegung zu Ende und die Schleife hört auf. */
+const REST = 0.12;
 
 type Points = readonly (readonly (readonly [number, number])[])[];
 
@@ -155,89 +208,102 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     if (node === null) return;
 
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
     let frame = 0;
-    let idle = 0;
-    let settling = false;
     let lastY = window.scrollY;
-    let lastT = performance.now();
-    let speed = 0;
+    let lastInput = 0;
+    /** Der Schwung. Trägt, was die Hand hinterlassen hat. */
+    let v = 0;
 
-    const read = () => {
+    /**
+     * Ein Bild: ablesen, beide Kräfte addieren, weiterschieben.
+     *
+     * Die Schleife läuft nur, solange sich etwas bewegt oder etwas zu ziehen
+     * ist. Steht alles still, hört sie auf und wartet auf das nächste Ereignis.
+     */
+    const step = () => {
       frame = 0;
+
+      const y = window.scrollY;
+      const box = node.getBoundingClientRect();
+      const top = y + box.top;
       const travel = node.offsetHeight - window.innerHeight;
-      if (travel <= 0) { node.style.setProperty('--p', '0'); return; }
+      const stepPx = (STEP_VH / 100) * window.innerHeight;
 
-      const passed = -node.getBoundingClientRect().top;
-      const p = Math.min(1, Math.max(0, passed / travel));
-      node.style.setProperty('--p', p.toFixed(5));
-    };
+      if (travel <= 0 || stepPx <= 0) { node.style.setProperty('--p', '0'); return; }
 
-    /** Einrasten — mit Schwung. */
-    const settle = () => {
-      const step = (STEP_VH / 100) * window.innerHeight;
-      const top = window.scrollY + node.getBoundingClientRect().top;
-      const passed = window.scrollY - top;
+      node.style.setProperty('--p', Math.min(1, Math.max(0, (y - top) / travel)).toFixed(5));
 
-      if (passed < -step || passed > (STATES - 1) * step + step) return;
+      // Was der Browser seit dem letzten Bild bewegt hat — die Hand, samt dem
+      // Nachlauf, den das Gerät selbst erzeugt.
+      const observed = y - lastY;
+      lastY = y;
 
-      const here = passed / step;
-      const dir = speed >= 0 ? 1 : -1;
+      const here = (y - top) / stepPx;
+      if (here < -0.6 || here > STATES - 0.4) { v = 0; return; }
 
-      // Langsam: der nächstgelegene Zustand. Schnell: in Richtung des Wischs,
-      // und je nach Schwung ein oder zwei weiter.
-      const target = Math.abs(speed) < SLOW
-        ? Math.round(here)
-        : (dir > 0 ? Math.ceil(here) : Math.floor(here))
-          + dir * Math.min(2, Math.floor(Math.abs(speed) / CARRY));
+      const nearest = Math.min(STATES - 1, Math.max(0, Math.round(here)));
+      const gap = top + nearest * stepPx - y;
 
-      const clamped = Math.min(STATES - 1, Math.max(0, target));
-      const goal = top + clamped * step;
+      const guided = performance.now() - lastInput < INPUT_GRACE;
 
-      if (Math.abs(goal - window.scrollY) < 2) return;
-
-      settling = true;
-      window.scrollTo({ top: goal, behavior: reduce.matches ? 'auto' : 'smooth' });
-    };
-
-    const onScroll = () => {
-      if (frame === 0) frame = requestAnimationFrame(read);
-
-      // Geschwindigkeit aus Weg und Zeit. Zeitstempel sind genau das, was
-      // einen kräftigen Wisch von einem Antippen unterscheidet.
-      const now = performance.now();
-      const dt = now - lastT;
-      if (dt > 0) {
-        speed = (window.scrollY - lastY) / dt;
-        lastY = window.scrollY;
-        lastT = now;
+      if (guided) {
+        // Die Hand bewegt. Der Schwung wird nur MITGESCHRIEBEN — ihn hier noch
+        // einmal aufzuschlagen liesse die Seite doppelt so schnell laufen wie
+        // die Hand. Dazu kommt der Zug des Rasters als kleiner Zuschlag: es
+        // zieht schon magnetisch, während man noch scrollt.
+        v = observed;
+        const nudge = gap * (reduce.matches ? 0 : PULL_LIVE);
+        if (Math.abs(nudge) > 0.3) window.scrollTo(0, y + nudge);
+        frame = requestAnimationFrame(step);
+        return;
       }
 
-      if (settling) return;
-      window.clearTimeout(idle);
-      idle = window.setTimeout(settle, IDLE_MS);
+      // Die Hand ist los. Jetzt die eine Zeile, um die es geht: Schwung und
+      // Zug in derselben Rechnung. Wie weit es traegt, wird nirgends gewaehlt —
+      // ein kraeftiger Wisch schiesst ueber den naechsten Zustand hinaus, und
+      // dann zieht ihn der uebernaechste, weil `nearest` jedes Bild neu kommt.
+      v = reduce.matches ? gap : v * DAMP + gap * PULL_FREE;
+
+      if (Math.abs(v) > REST) {
+        window.scrollTo(0, y + v);
+        frame = requestAnimationFrame(step);
+        return;
+      }
+
+      // Zur Ruhe gekommen: den Rest genau setzen, dann aufhoeren.
+      if (Math.abs(gap) > 0.5) window.scrollTo(0, top + nearest * stepPx);
+      v = 0;
     };
 
-    // Sobald der Besucher selbst scrollt, gehört die Bewegung wieder ihm.
-    const release = () => { settling = false; };
-
-    const start = () => {
-      node.classList.add('is-live');
-      read();
+    const wake = () => {
+      if (frame === 0) frame = requestAnimationFrame(step);
     };
 
-    start();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll, { passive: true });
-    window.addEventListener('wheel', release, { passive: true });
-    window.addEventListener('touchstart', release, { passive: true });
+    const onInput = () => {
+      lastInput = performance.now();
+      wake();
+    };
+
+    node.classList.add('is-live');
+    wake();
+    // `scroll` weckt nur; `wheel`, `touch` und die Tastatur sagen zusätzlich,
+    // dass eine Hand am Werk ist. Alle passiv — nichts wird abgefangen.
+    window.addEventListener('scroll', wake, { passive: true });
+    window.addEventListener('resize', wake, { passive: true });
+    window.addEventListener('wheel', onInput, { passive: true });
+    window.addEventListener('touchstart', onInput, { passive: true });
+    window.addEventListener('touchmove', onInput, { passive: true });
+    window.addEventListener('keydown', onInput, { passive: true });
 
     return () => {
       if (frame !== 0) cancelAnimationFrame(frame);
-      window.clearTimeout(idle);
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
-      window.removeEventListener('wheel', release);
-      window.removeEventListener('touchstart', release);
+      window.removeEventListener('scroll', wake);
+      window.removeEventListener('resize', wake);
+      window.removeEventListener('wheel', onInput);
+      window.removeEventListener('touchstart', onInput);
+      window.removeEventListener('touchmove', onInput);
+      window.removeEventListener('keydown', onInput);
       node.classList.remove('is-live');
     };
   }, []);
