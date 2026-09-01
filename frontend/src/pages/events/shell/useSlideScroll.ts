@@ -539,6 +539,54 @@ export function useSlideScroll(slideCount: number) {
    * Decides what an unresolved peek meant. `velocity` is the speed at release,
    * positive downwards — a hard flick commits even from a shallow pull.
    */
+  /**
+   * Leaves for another slide, continuing whatever movement asked for it.
+   *
+   * Given speed, the transition starts at that speed and decelerates from it —
+   * an ease-out's initial rate is EASE_OUT_KICK × distance ÷ duration, so the
+   * duration that matches an incoming speed is that ratio rearranged. Given
+   * none, it keeps the deliberate ease-in-out of a departure somebody pulled
+   * for.
+   *
+   * Either way the movement ends here: the leftover speed is spent on this
+   * transition and the coast is stopped, so nothing carries on into the slide
+   * that was just arrived at.
+   */
+  const departTo = useCallback(
+    (destination: number, velocity: number) => {
+      const speed = Math.abs(velocity);
+      const distance = Math.abs(destination - positionRef.current);
+
+      if (speed >= FLICK_COMMIT_VELOCITY && distance > 0) {
+        const duration = clamp((EASE_OUT_KICK * distance) / speed, 220, SLIDE_TRANSITION_MS);
+        tweenTo(destination, duration, easeOut);
+        gateUntilRef.current = performance.now() + duration + BOUNDARY_HOLD_MS;
+      } else {
+        tweenTo(destination, SLIDE_TRANSITION_MS);
+        gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS + BOUNDARY_HOLD_MS;
+      }
+
+      peekRef.current = null;
+      pullRef.current = null;
+      velocityRef.current = 0;
+      stopSettle();
+    },
+    [stopSettle, tweenTo]
+  );
+
+  /**
+   * The slide the track is standing in, and where leaving it would land.
+   */
+  const departureFrom = useCallback((direction: 1 | -1): number | undefined => {
+    const slides = slidesRef.current;
+    const from = targetRef.current;
+
+    let index = slides.findIndex((slide) => from <= slide.innerEnd + 0.5);
+    if (index === -1) index = slides.length - 1;
+
+    return direction > 0 ? slides[index + 1]?.start : slides[index - 1]?.innerEnd;
+  }, []);
+
   const resolvePeek = useCallback(
     (velocity: number): boolean => {
       const peek = peekRef.current;
@@ -558,36 +606,7 @@ export function useSlideScroll(slideCount: number) {
         peek.direction > 0 ? slides[peek.index + 1]?.start : slides[peek.index - 1]?.innerEnd;
 
       if ((pulledFar || flicked) && destination !== undefined) {
-        pullRef.current = null; // spent — the next slide starts from zero
-
-        /**
-         * A departure a throw carried into has to leave at the speed the throw
-         * had. The fixed ease-in-out this used to run began from a standstill,
-         * so a fast flick read as three separate things: the fling slowing to
-         * the edge, a pause, and then a new animation starting. One movement
-         * means the hand-over is invisible, and that means matching the speed.
-         *
-         * An ease-out starts at EASE_OUT_KICK × distance ÷ duration, so the
-         * duration that starts at the incoming speed is that ratio rearranged.
-         * A slow, deliberate pull has no speed to match and keeps the old shape.
-         */
-        const speed = Math.abs(velocity);
-        const distance = Math.abs(destination - positionRef.current);
-
-        if (speed >= FLICK_COMMIT_VELOCITY && distance > 0) {
-          const carried = clamp((EASE_OUT_KICK * distance) / speed, 220, SLIDE_TRANSITION_MS);
-          tweenTo(destination, carried, easeOut);
-          gateUntilRef.current = performance.now() + carried + BOUNDARY_HOLD_MS;
-        } else {
-          tweenTo(destination, SLIDE_TRANSITION_MS);
-          gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS + BOUNDARY_HOLD_MS;
-        }
-
-        // Whatever is left of the throw has now been spent on the departure.
-        // Without this it would come back as a second movement inside the slide
-        // that was just arrived at.
-        velocityRef.current = 0;
-        stopSettle();
+        departTo(destination, velocity);
         return true;
       }
 
@@ -598,7 +617,7 @@ export function useSlideScroll(slideCount: number) {
       pullRef.current = { index: peek.index, direction: peek.direction, raw: peek.raw, at: performance.now() };
       return false;
     },
-    [stopSettle, tweenTo]
+    [departTo, tweenTo]
   );
 
   const applyDelta = useCallback(
@@ -680,19 +699,39 @@ export function useSlideScroll(slideCount: number) {
           settleRafRef.current = null;
 
           /**
-           * A coast that ran onto an edge opens a peek nothing else would
-           * resolve — the finger is long gone and the touch path has no idle
-           * timer. What it is resolved WITH is the whole question.
+           * The coast has met a boundary. What happens now is the whole feel of
+           * the page.
            *
-           * A throw that carried somebody through the slide and then met the
-           * boundary hands its speed over, so leaving is the same movement they
-           * started. A flick that began at the edge — which on a slide exactly
-           * one screen tall is every flick, since such a slide has no inside —
-           * hands over nothing, and the deliberate peek rules decide, as they
+           * A throw that carried somebody through the slide and is still moving
+           * when it arrives hands its speed straight to the departure: the
+           * transition picks the movement up where the throw left it and
+           * decelerates to a stop on the next slide. One movement, beginning
+           * with the finger and ending on the other side — and ending there for
+           * good, since departTo spends what is left of the speed.
+           *
+           * 'edge' is the landing frame and 'peek' the frame after, when the
+           * track is already resting on the boundary and being stretched past
+           * it. Both are answered, because which of the two a throw arrives on
+           * is an accident of frame timing, and the reader should not be able to
+           * feel the difference.
+           *
+           * A flick that began AT an edge hands over nothing. On a slide exactly
+           * one screen tall that is every flick — such a slide has no inside to
+           * be thrown through — and the deliberate peek rules decide, as they
            * always did.
            */
-          const carried = travelled >= viewportRefValue.current * CARRY_MIN_TRAVEL_FACTOR;
-          if (outcome === 'peek') resolvePeek(carried ? velocity : 0);
+          const carriedFar = travelled >= viewportRefValue.current * CARRY_MIN_TRAVEL_FACTOR;
+          const fast = Math.abs(velocity) >= FLICK_COMMIT_VELOCITY;
+
+          if (outcome === 'edge' && carriedFar && fast) {
+            const destination = departureFrom(velocity > 0 ? 1 : -1);
+            if (destination !== undefined) {
+              departTo(destination, velocity);
+              return;
+            }
+          }
+
+          if (outcome === 'peek') resolvePeek(carriedFar ? velocity : 0);
           return;
         }
 
@@ -701,7 +740,7 @@ export function useSlideScroll(slideCount: number) {
 
       settleRafRef.current = requestAnimationFrame(step);
     },
-    [advance, resolvePeek, stopSettle]
+    [advance, departTo, departureFrom, resolvePeek, stopSettle]
   );
 
   const scrollToSlide = useCallback(

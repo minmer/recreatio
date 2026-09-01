@@ -51,6 +51,13 @@
  * sein eigenes Mass: er läuft über GLIDE_MS aus und kommt von selbst zur Ruhe,
  * gleichgültig, was die Hand inzwischen tut.
  *
+ * Solange die Hand weiterschiebt, folgt der Übergang ihr auch: jedes weitere
+ * Ereignis derselben Geste zieht seine Geschwindigkeit an die der Hand heran —
+ * ohne einen zweiten Schritt auszulösen und ohne den Zeitpunkt zu verschieben,
+ * an dem er ankommt. Hört die Hand auf, hört auch das Ziehen auf, und die Kurve
+ * bringt die Bewegung von selbst zu Ende. Das ist der Magnet: gezogen wird
+ * immer auf das Mass des Übergangs, nie über dieses hinaus.
+ *
  * Das leistet eine Hermite-Kurve: Anfangssteigung aus der Geste, Endsteigung
  * null. Eine gewöhnliche Ein-und-Ausblendkurve kann das nicht — sie fängt immer
  * bei null an, und genau deshalb las sich der Übergang als etwas Zweites, das
@@ -58,7 +65,10 @@
  *
  * Über der Steigung 3 schwänge die Kurve über das Ziel hinaus; dort wird ihre
  * Ableitung gerade noch nicht negativ. Deshalb ist genau dort gedeckelt: ein
- * sehr harter Wurf fährt schnell an, aber die Seite läuft nie zurück.
+ * sehr harter Wurf fährt schnell an, aber die Seite läuft nie zurück. Die
+ * Kurve selbst steht in rcGlide — dort hängt eine Prüfreihe an ihr, denn ein
+ * Überschwingen zeigt sich nirgends als Fehler, sondern nur als ein schlechtes
+ * Gefühl beim Scrollen.
  *
  * Wer dauerhaft weiterschiebt, kommt trotzdem voran: nach REPEAT_MS im selben
  * Zug folgt der nächste Schritt. Dabei wird die Geschwindigkeit des laufenden
@@ -70,6 +80,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { PublicCopy, SceneBubble } from '../content';
 import { PublicText } from '../PublicText';
+import { rcGlide, rcGlideSlope, rcGlideLead } from '../../rc/lib/rcGlide';
 import { publicHref, type PublicPage } from '../publicRoutes';
 
 const WORK_PAGES: readonly PublicPage[] = ['osrodek', 'wydarzenia', 'cogita', 'biblioteka'];
@@ -98,6 +109,20 @@ const GLIDE_MS = 700;
 
 /** So weit muss ein Finger wandern, ehe es als Geste zählt. */
 const TOUCH_MIN = 26;
+
+/**
+ * Wie lange eine Rastung des Mausrades dauert.
+ *
+ * Ein Rad meldet eine Strecke, keine Geschwindigkeit: deltaY sagt, wie weit
+ * gescrollt werden soll, nicht wie schnell. Erst diese Zeit macht daraus ein
+ * Mass — es ist ungefähr die Spanne, die ein Browser sich für eine Rastung
+ * nimmt. Mit einem Vollbild gerechnet käme jede Rastung an den Anschlag, und
+ * jeder Übergang führe gleich hart an.
+ */
+const NOTCH_MS = 110;
+
+/** Wie stark ein Ereignis den laufenden Übergang an die Hand heranzieht. */
+const PULL = 0.4;
 
 type Point = readonly [number, number];
 
@@ -361,8 +386,9 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     let lastEvent = 0;
     let lastStep = 0;
 
-    /** Die Hand: wo der Finger zuletzt war, wie schnell sie schiebt (px/ms). */
+    /** Die Hand: wo der Finger zuletzt war, wann, und wie schnell (px/ms). */
     let touchAt = 0;
+    let touchTime = 0;
     let speed = 0;
 
     const measure = () => {
@@ -383,28 +409,12 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       node.style.setProperty('--p', Math.min(1, Math.max(0, here / last)).toFixed(5));
     };
 
-    /*
-     * Die Kurve des Übergangs.
-     *
-     * Eine kubische Hermite-Kurve mit vorgegebener Anfangssteigung m und der
-     * Endsteigung null:  p(k) = m·k·(k−1)² + k²·(3−2k).
-     *
-     * Sie fängt mit der Geschwindigkeit an, mit der die Hand geschoben hat, und
-     * kommt von selbst zur Ruhe. Bei m = 0 ist sie die gewöhnliche
-     * Ausblendkurve; bei m = 3 ist sie gerade noch monoton (ihre Ableitung wird
-     * dann 3(k−1)² und berührt die Null nur am Ende).
-     */
-    const curve = (k: number, m: number) => m * k * (k - 1) * (k - 1) + k * k * (3 - 2 * k);
-
-    /** Ihre Ableitung — gebraucht, wenn ein Übergang in den nächsten übergeht. */
-    const slope = (k: number, m: number) => m * (3 * k - 1) * (k - 1) + 6 * k * (1 - k);
-
     const tick = () => {
       frame = 0;
       if (!gliding) return;
 
       const k = span <= 0 ? 1 : Math.min(1, (performance.now() - startedAt) / span);
-      window.scrollTo(0, fromY + (toY - fromY) * curve(k, lead));
+      window.scrollTo(0, fromY + (toY - fromY) * rcGlide(k, lead));
       paint();
 
       if (k < 1) frame = requestAnimationFrame(tick);
@@ -428,7 +438,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
       // Noch vor dem Überschreiben: wie schnell der laufende Übergang gerade ist.
       const running = gliding && span > 0
-        ? (slope(Math.min(1, (now - startedAt) / span), lead) * (toY - fromY)) / span
+        ? (rcGlideSlope(Math.min(1, (now - startedAt) / span), lead) * (toY - fromY)) / span
         : 0;
 
       target = next;
@@ -454,9 +464,42 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
        */
       const reach = toY - fromY;
       const v = dir > 0 ? Math.max(hand, running, 0) : Math.min(hand, running, 0);
-      lead = reach === 0 ? 0 : Math.min(3, Math.max(0, (v * span) / reach));
+      lead = rcGlideLead(v, span, reach);
 
       if (frame === 0) frame = requestAnimationFrame(tick);
+    };
+
+    /**
+     * Den laufenden Übergang an die Hand heranziehen — ohne einen Schritt.
+     *
+     * Die verbleibende Zeit bleibt dabei stehen: der Übergang kommt an, wann er
+     * ohnehin angekommen wäre. Gezogen wird allein an seiner Geschwindigkeit,
+     * und zwar von der jetzigen aus, damit es keinen Sprung gibt. Hört die Hand
+     * auf, hört auch das Ziehen auf, und die Kurve läuft von selbst aus.
+     */
+    const steer = (hand: number) => {
+      if (!gliding || span <= 0) return;
+
+      const now = performance.now();
+      const k = Math.min(1, (now - startedAt) / span);
+      const left = span * (1 - k);
+
+      // Kurz vor dem Ziel nicht mehr rühren: dort wird jede Änderung der
+      // Steigung zu einem sichtbaren Ruck.
+      if (left < 80) return;
+
+      const y = fromY + (toY - fromY) * rcGlide(k, lead);
+      const reach = toY - y;
+      if (reach === 0) return;
+
+      const here = (rcGlideSlope(k, lead) * (toY - fromY)) / span;
+      const want = reach > 0 ? Math.max(hand, 0) : Math.min(hand, 0);
+      const v = here + (want - here) * PULL;
+
+      fromY = y;
+      startedAt = now;
+      span = left;
+      lead = rcGlideLead(v, left, reach);
     };
 
     /*
@@ -475,19 +518,17 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
      * mehr Schritte zu machen, sondern damit der Übergang dort anfängt, wo die
      * Hand gerade ist.
      */
-    const gesture = (dir: number, px: number) => {
+    const gesture = (px: number, dt: number) => {
       const now = performance.now();
       const fresh = now - lastEvent > GESTURE_GAP;
       const held = now - lastStep > REPEAT_MS;
-
-      // Beim ersten Ereignis einer Geste gibt es noch keinen Abstand, aus dem
-      // sich eine Geschwindigkeit ergäbe; dann gilt ein Vollbild als Mass.
-      const dt = fresh ? 16 : Math.min(120, Math.max(4, now - lastEvent));
-      const v = px / dt;
-      speed = fresh ? v : speed * 0.55 + v * 0.45;
       lastEvent = now;
 
-      if (fresh || held) go(dir, speed);
+      const v = px / Math.max(4, dt);
+      speed = fresh ? v : speed * 0.55 + v * 0.45;
+
+      if (fresh || held) go(px > 0 ? 1 : -1, speed);
+      else steer(speed);
     };
 
     const onWheel = (event: WheelEvent) => {
@@ -497,12 +538,14 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       // deltaMode: 0 Pixel, 1 Zeilen, 2 Seiten. Ohne Umrechnung führe ein
       // zeilenweise meldendes Rad den Übergang um ein Vielfaches zu langsam an.
       const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1;
-      const px = event.deltaY * unit;
-      gesture(px > 0 ? 1 : -1, px);
+
+      const gap = performance.now() - lastEvent;
+      gesture(event.deltaY * unit, gap > GESTURE_GAP ? NOTCH_MS : gap);
     };
 
     const onTouchStart = (event: TouchEvent) => {
       touchAt = event.touches[0]?.clientY ?? 0;
+      touchTime = performance.now();
       lastEvent = 0;
       speed = 0;
     };
@@ -513,8 +556,12 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       const dy = touchAt - y;
       if (Math.abs(dy) < TOUCH_MIN) return;
 
+      // Der Finger ist das einzige Zeigegerät, das wirklich eine
+      // Geschwindigkeit hergibt: Weg und Zeit sind beide gemessen.
+      const now = performance.now();
+      gesture(dy, now - touchTime);
       touchAt = y;
-      gesture(dy > 0 ? 1 : -1, dy);
+      touchTime = now;
     };
 
     // Die Tastatur muss weiter funktionieren — sie ist für manche der einzige
