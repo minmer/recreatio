@@ -308,43 +308,77 @@
 
 .rc-home { background: var(--paper); }
 
-/* -- Ohne Bildlaufzeitachse: drei Abschnitte untereinander ------------------ */
+/* -- Das erste Bild: EIN Raum, eine Kamera ---------------------------------- */
 
-.rc-first {
-  min-height: calc(100vh - var(--head-h));
-  display: grid;
-  grid-template-rows: 1fr auto auto;
-  align-items: center;
-  padding: 2rem var(--pad) 3rem;
-  background: #14180f;
+/*
+   Alles darin ist ein Gegenstand mit einem z. Bewegt wird die KAMERA — sie
+   faehrt nach vorn, auf den Satz zu.
+
+   Groesse, Parallaxe und das Vorbeifliegen fallen aus der Projektion heraus und
+   werden nirgends gerechnet. Vorher war jedes davon eine eigene Formel; genau
+   deshalb wirkten die Woerter wie eine zweite Ebene neben dem Zeichen statt wie
+   Dinge im selben Raum.
+
+   Die Reihenfolge ergibt sich von selbst: das Zeichen steht der Kamera naeher
+   (z = -320) und zieht zuerst vorbei; der Satz liegt dahinter (z = -980), wird
+   dabei gross und bleibt einen Augenblick allein, bevor auch er vorbeizieht.
+
+   Ohne Buehne (kein JavaScript, schmales Fenster) ist es ein gewoehnlicher
+   Abschnitt: Woerter, Zeichen, Satz untereinander auf dunklem Grund.
+*/
+
+.rc-space {
+  background: var(--orb);
   color: #f2f4ef;
+  padding: clamp(2.5rem, 8vh, 6rem) var(--pad);
+  display: grid;
+  justify-items: center;
+  gap: 1.5rem;
 }
 
+.rc-cam { display: contents; }
 
+.rc-logo img { width: min(78vw, 40rem); height: auto; display: block; }
 
 .rc-sentence {
   margin: 0;
-  max-width: 34rem;
-  justify-self: start;
   font-size: clamp(1.2rem, 2.4vw, 1.8rem);
   font-weight: 300;
   line-height: 1.3;
   letter-spacing: -0.015em;
+  text-align: center;
   text-wrap: pretty;
+  max-width: min(88vw, 36rem);
   color: #f2f4ef;
 }
 
-.rc-sentence .pub-p { display: block; }
+.rc-word {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 300;
+  font-size: var(--size);
+  line-height: 1;
+  white-space: nowrap;
+  color: #f2f4ef;
+  opacity: var(--alpha);
+}
 
-/* Die Luecke muss auch auf dunklem Grund lesbar bleiben. */
-.rc-first .pub-gap { background: rgb(232 184 114 / 0.1); border-color: #6a5228; color: #e8b872; }
+/*
+   Das RE steht gross und aufrecht — dasselbe RE wie in REcreatio. Es ist der
+   gemeinsame Anfang aller Woerter; der Rest folgt klein und kursiv.
+*/
+.rc-word-re {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 1.32em;
+  letter-spacing: -0.01em;
+}
 
 .rc-hint {
-  justify-self: start;
   display: flex;
   align-items: center;
   gap: 0.85rem;
-  margin: 2.25rem 0 0;
+  margin: 1.5rem 0 0;
   font-family: var(--sans);
   font-size: 0.7rem;
   letter-spacing: 0.24em;
@@ -366,6 +400,8 @@
   50%      { transform: scaleY(1);   opacity: 1; }
 }
 
+/* Die Luecke muss auch auf dunklem Grund lesbar bleiben. */
+.rc-space .pub-gap { background: rgb(232 184 114 / 0.1); border-color: #6a5228; color: #e8b872; }
 
 /* -- Bild 2: die Szenen ----------------------------------------------------- */
 
@@ -461,9 +497,12 @@
 
   --s: calc(var(--p, 0) * var(--states));
 
-  --pw: clamp(0, calc(var(--s) / 0.85), 1);
-  --pv: clamp(0, calc((var(--s) - 0.55) / 0.35), 1);
-  --pt: clamp(0, calc((var(--s) - 0.45) / 0.75), 1);
+  /* Die Kamerafahrt. Alles im Raum haengt allein daran. */
+  --pcam: clamp(0, calc(var(--s) / 1.1), 1);
+  --cam: calc(var(--pcam) * var(--cam-end));
+
+  /* Wenn Zeichen und Satz durch sind, geht der Raum. */
+  --pspace: clamp(0, calc((var(--s) - 0.86) / 0.24), 1);
   --ps: clamp(0, calc((var(--s) - 0.05) / 0.4), 1);
 
   /* Die Werke: vollständig da im Zustand `--works`. */
@@ -494,172 +533,74 @@
   transform-origin: center;
 }
 
-/* -- Das erste Bild: Zeichen und Satz --------------------------------------- */
+/* -- Mit Buehne: die Perspektive ------------------------------------------- */
 
-/*
-   Der Satz liegt TIEFER als das Zeichen und fliegt deshalb spaeter: das Zeichen
-   ist bei 0.85 durch, der Satz erst bei 1.2. Dazwischen steht er allein — genau
-   der Augenblick, in dem er hervortritt.
-*/
-/*
-   Zeichen und Satz sind EINE Gruppe: der Satz steht mittig unmittelbar unter
-   dem Zeichen, nicht in einer Ecke. Beide sitzen in der Mitte der Flaeche, der
-   Hinweis unten am Rand — er gehoert nicht zur Gruppe.
-*/
-.rc-stage.is-live .rc-first {
+.rc-stage.is-live .rc-space {
+  position: absolute;
+  inset: 0;
   z-index: 7;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: clamp(1.25rem, 3vh, 2.5rem);
-  background: transparent;
+  display: block;
+  padding: 0;
   pointer-events: none;
-  transform-origin: center;
-  opacity: calc(1 - var(--pt));
-  transform: scale(calc(1 + var(--pt) * 2.2));
+  overflow: hidden;
+
+  perspective: var(--persp);
+  perspective-origin: 50% 46%;
+
+  /* Wenn alles vorbeigezogen ist, geht auch der Raum. */
+  opacity: calc(1 - var(--pspace));
 }
 
-.rc-stage.is-live .rc-sentence {
-  justify-self: center;
-  text-align: center;
-  max-width: min(88vw, 36rem);
+.rc-stage.is-live .rc-cam {
+  display: block;
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: translateZ(calc(var(--cam) * 1px));
 }
+
+/*
+   Ein Gegenstand im Raum. Die eigene Tiefe steht in --z, der Abstand zur
+   Kamera nach der Fahrt in --ze.
+
+   Ausgeblendet wird VOR der Kameraebene — bei --persp waere die Vergroesserung
+   unendlich. So zieht ein Gegenstand vorbei und ist fort, statt umzuklappen.
+*/
+.rc-stage.is-live .rc-item {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin: 0;
+
+  --ze: calc(var(--cam) + var(--z));
+
+  opacity: calc(var(--alpha, 1) * clamp(0, calc((880 - var(--ze)) / 320), 1));
+  transform:
+    translate(-50%, -50%)
+    translate3d(var(--x), var(--y), calc(var(--z) * 1px));
+}
+
+.rc-stage.is-live .rc-sentence { max-width: 34rem; font-size: 2.2rem; }
+
+.rc-stage.is-live .rc-logo img { width: 34rem; }
 
 .rc-stage.is-live .rc-hint {
   position: absolute;
   left: 50%;
   bottom: 2rem;
   transform: translateX(-50%);
-  justify-self: center;
+  margin: 0;
   opacity: calc(1 - var(--ps));
 }
 
 /*
-   Sobald der Schleier fort ist, liegt der Satz nicht mehr auf Dunkel, sondern
-   auf Papier — heller Text waere dort unsichtbar. Die Farbe wandert deshalb mit
-   dem Schleier von hell nach dunkel.
+   Verringerte Bewegung: keine Fahrt. Die Kamera steht, und der Raum blendet
+   an derselben Stelle aus, an der er sonst durchflogen wuerde.
 */
-.rc-stage.is-live .rc-sentence {
-  color: color-mix(in oklab, #f2f4ef, var(--ink) calc(var(--pv) * 100%));
-}
-
-/* -- Das Zeichen als Loch --------------------------------------------------- */
-
-/*
-   Zwei Maskenschichten: eine deckt alles, die andere ist das Logo. `exclude`
-   zieht die zweite von der ersten ab — uebrig bleibt eine undurchsichtige
-   Flaeche MIT dem Zeichen als Loch.
-
-   `mask-position: center` heisst: es waechst aus der Mitte. Es kann nicht
-   verrutschen, weil nirgends ein Mittelpunkt gerechnet wird.
-
-   Die Datei hat 600 kB Pfaddaten. Als Maske laedt sie einmal; im Bauteil
-   eingebettet laege sie in jedem Auslieferungsstand der Seite.
-*/
-.rc-stage.is-live .rc-veil {
-  display: none;
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  background: #14180f;
-  pointer-events: none;
-  opacity: calc(1 - var(--pv));
-}
-
-/*
-   Ohne `mask-composite` gaebe es kein Loch, sondern eine geschlossene Flaeche
-   ueber der ganzen Seite. Deshalb erscheint der Schleier NUR, wo es die
-   Zusammensetzung wirklich gibt — sonst bleibt das Zeichen einfach stehen und
-   blendet mit dem ersten Bild aus.
-*/
-@supports (mask-composite: exclude) or (-webkit-mask-composite: xor) {
-  .rc-stage.is-live .rc-veil {
-    display: block;
-
-    -webkit-mask-image: linear-gradient(#000, #000), url('/logo_new.svg');
-    mask-image: linear-gradient(#000, #000), url('/logo_new.svg');
-    -webkit-mask-repeat: no-repeat, no-repeat;
-    mask-repeat: no-repeat, no-repeat;
-    -webkit-mask-position: center, center;
-    mask-position: center, center;
-    -webkit-mask-size: 100% 100%, calc(32% + 2600% * var(--pw)) auto;
-    mask-size: 100% 100%, calc(32% + 2600% * var(--pw)) auto;
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-  }
-
-  .rc-stage.is-live .rc-mark-static { visibility: hidden; }
-}
-
-.rc-mark-static { display: grid; place-items: center; width: 100%; }
-.rc-mark-static img { width: min(82vw, 56rem); height: auto; }
-
-/* -- Die fuenf Woerter um das Zeichen --------------------------------------- */
-
-/*
-   Woher der Name kommt. Sie liegen UEBER dem Schleier — im Loch waeren sie mit
-   ausgeschnitten. Jedes Wort hat seine eigene TIEFE: fuenf Tiefen ergeben fuenf
-   Geschwindigkeiten, und daher kommt der raeumliche Eindruck.
-*/
-.rc-halo { display: none; }
-
-.rc-stage.is-live .rc-halo {
-  display: block;
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  pointer-events: none;
-  opacity: calc(1 - var(--pv));
-}
-
-/*
-   DIESELBE TIEFE WIE ZEICHEN UND SATZ.
-
-   Das Zeichen fliegt frueh (`--pw`, bis 0.85), der Satz spaet (`--pt`, bis
-   1.2). Ein Wort liegt irgendwo dazwischen — und genau das sagt sein `--k`:
-   1 heisst „so nah wie das Zeichen", 0 heisst „so fern wie der Satz". Sein
-   Fortschritt wird daraus gemischt.
-
-   Vorher liefen alle fuenf allein am Zeichen; sie waren fort, bevor der Satz
-   ueberhaupt losflog, und dadurch sah es aus wie zwei getrennte Ebenen. Jetzt
-   ist noch etwas unterwegs, waehrend der Satz vorbeizieht — und erst dadurch
-   liegt alles im selben Raum.
-*/
-.rc-word {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  font-family: var(--serif);
-  font-style: italic;
-  font-weight: 300;
-  font-size: var(--size);
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  color: #f2f4ef;
-  line-height: 1;
-
-  --pd: calc(var(--pw) * var(--k) + var(--pt) * (1 - var(--k)));
-
-  opacity: calc(var(--alpha) * max(0, 1 - var(--pd) * 1.15));
-
-  transform:
-    translate(-50%, -50%)
-    translate(
-      calc(var(--dx) * (1 + var(--pd) * var(--depth) * 3.4)),
-      calc(var(--dy) * (1 + var(--pd) * var(--depth) * 3.4))
-    )
-    scale(calc(1 + var(--pd) * var(--depth) * 1.7));
-}
-
-/*
-   Das RE steht gross und aufrecht — dasselbe RE wie in REcreatio. Es ist der
-   gemeinsame Anfang aller fuenf Woerter; der Rest folgt klein und kursiv.
-*/
-.rc-word-re {
-  font-style: normal;
-  font-weight: 400;
-  font-size: 1.32em;
-  letter-spacing: -0.01em;
+@media (prefers-reduced-motion: reduce) {
+  .rc-stage.is-live .rc-cam { transform: none; }
+  .rc-stage.is-live .rc-item { opacity: var(--alpha, 1); }
+  .rc-stage.is-live .rc-space { opacity: calc(1 - var(--ps)); }
 }
 
 /* -- Die Szenen ------------------------------------------------------------- */
@@ -1008,8 +949,6 @@
   .rc-stage.is-live .rc-bubble { transform: translate(-50%, -50%); }
 
   /* Ohne wachsendes Loch muss der Schleier frueher fort sein. */
-  .rc-stage.is-live { --pv: clamp(0, calc((var(--s) - 0.1) / 0.6), 1); }
-  .rc-stage.is-live .rc-veil { mask-size: 100% 100%, 32% auto; }
 }
 
 /* -- Bild 3: wie es geschieht ----------------------------------------------- */

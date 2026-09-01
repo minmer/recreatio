@@ -170,24 +170,55 @@ function ringPoints(count: number, scene: number, portrait: boolean): readonly P
  * Wort nach aussen läuft. Fünf verschiedene Tiefen ergeben fünf
  * Geschwindigkeiten, und daraus entsteht der räumliche Eindruck.
  */
-const WORDS = [
-  { tail: 'colligere', angle: 203, radius: 62, depth: 1.15, alpha: 0.50, size: 2.2 },
-  { tail: 'novatio', angle: 331, radius: 55, depth: 0.80, alpha: 0.44, size: 2.6 },
-  { tail: 'conciliatio', angle: 148, radius: 72, depth: 1.34, alpha: 0.34, size: 1.9 },
-  { tail: 'fectio', angle: 26, radius: 50, depth: 0.66, alpha: 0.56, size: 2.9 },
-  { tail: 'dintegratio', angle: 287, radius: 76, depth: 1.02, alpha: 0.30, size: 2.0 }
-] as const;
+const WORDS = ['colligere', 'novatio', 'conciliatio', 'fectio', 'dintegratio'] as const;
 
 /**
- * Die Sperrzone um das Zeichen, als halbe Achsen in vmin.
+ * Der Raum des ersten Bildes.
  *
- * Das Logo ist breit und flach (210 zu 74), also ist die Zone eine Ellipse und
- * kein Kreis. Ein Wort, das nach dem Würfeln darin läge, wird auf seiner
- * eigenen Richtung nach aussen geschoben, bis es frei steht — so darf die Lage
- * kräftig streuen, ohne dass je etwas über dem Zeichen landet.
+ * <b>Eine echte Perspektive, keine nachgebaute.</b> Alles steht als Gegenstand
+ * mit einem z im selben Raum; bewegt wird die KAMERA. Grösse, Parallaxe und das
+ * Vorbeifliegen fallen dann aus der Projektion heraus und müssen nicht einzeln
+ * gerechnet werden — vorher war jedes davon eine eigene Formel, und genau
+ * deshalb wirkten die Wörter wie eine zweite Ebene neben dem Zeichen.
+ *
+ * Die Kamera fährt nach vorn, auf den Satz zu. Das Zeichen steht ihr näher und
+ * zieht deshalb zuerst vorbei; der Satz liegt dahinter, wird gross und bleibt
+ * einen Augenblick allein, bevor auch er vorbeizieht.
  */
-const KEEP_X = 40;
-const KEEP_Y = 19;
+const PERSPECTIVE = 1000;
+const LOGO_Z = -320;
+const SENTENCE_Z = -980;
+const SENTENCE_Y = 11;
+
+/** Wie weit die Kamera insgesamt fährt. Beide müssen daran vorbeikommen. */
+const CAM_END = 2200;
+
+/**
+ * Ein Wort im Raum setzen.
+ *
+ * <b>Die Liste darf wachsen.</b> Ein Wort mehr in `WORDS` genügt — Richtung,
+ * Abstand und Tiefe kommen aus dem Index, nicht aus einer Tabelle. Der Winkel
+ * läuft im goldenen Schnitt weiter, damit sich auch bei zwölf Wörtern keine
+ * Speiche wiederholt.
+ *
+ * Eine Sperrzone braucht es nicht mehr: im Raum liegt ein Wort ENTWEDER vor dem
+ * Zeichen ODER dahinter, und beides ist richtig. Nur ganz nah an der Achse
+ * würde es davorstehen — deshalb ein Mindestabstand zur Mitte.
+ */
+function placeWord(index: number, roll: () => number) {
+  const angle = index * 2.39996 + (roll() - 0.5) * 0.7;
+  const radius = 22 + roll() * 30;
+
+  return {
+    x: Math.cos(angle) * radius,
+    y: Math.sin(angle) * radius * 0.78,
+    // Von weit hinten bis dicht vor die Kamera. Nah heisst gross und schnell
+    // vorbei, fern heisst klein und lange da.
+    z: -1650 + roll() * 1500,
+    size: 1.5 + roll() * 1.5,
+    alpha: 0.34 + roll() * 0.42
+  };
+}
 
 /**
  * Die vier Werke kommen NICHT als Block, sondern jedes in sein Viertel.
@@ -334,40 +365,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
    * zu würfeln hiesse: die Wörter zittern, statt zu fliegen.
    */
   const halo = useMemo(
-    () => WORDS.map((word) => {
-      const jitter = (span: number) => (Math.random() - 0.5) * span;
-      const angle = ((word.angle + jitter(44)) * Math.PI) / 180;
-
-      /*
-       * Weit hinaus — und ruhig ueber den Rand. Ein Wort, das angeschnitten
-       * ist, sagt „da geht es weiter"; fuenf Woerter brav im Bild sagen
-       * „das ist alles".
-       */
-      const radius = word.radius + jitter(34);
-
-      let dx = Math.cos(angle) * radius;
-      let dy = Math.sin(angle) * radius * 0.66;
-
-      // Liegt der Punkt in der Sperrzone, auf seiner eigenen Richtung
-      // hinausschieben — mit etwas Luft, damit nichts das Zeichen streift.
-      const inside = Math.hypot(dx / KEEP_X, dy / KEEP_Y);
-      if (inside < 1) {
-        const push = (1 / Math.max(inside, 0.001)) * 1.08;
-        dx *= push;
-        dy *= push;
-      }
-
-      return {
-        tail: word.tail,
-        dx,
-        dy,
-        depth: word.depth + jitter(0.3),
-        // 1 = so nah wie das Zeichen, 0 = so fern wie der Satz.
-        k: Math.min(1, Math.max(0, (word.depth - 0.6) / 0.8)),
-        alpha: Math.max(0.24, word.alpha + jitter(0.18)),
-        size: Math.max(1.4, word.size + jitter(0.55))
-      };
-    }),
+    () => WORDS.map((tail, index) => ({ tail, ...placeWord(index, Math.random) })),
     []
   );
 
@@ -517,23 +515,68 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     // Die beiden letzten Zustände als Zahl: das Stilblatt rechnet damit, statt
     // sie aus `--states` zurückzuschliessen — das ginge beim nächsten Zusatz schief.
     '--works': plan.works,
-    '--contact': plan.contact
+    '--contact': plan.contact,
+
+    // Der Raum des ersten Bildes. Beide Zahlen stehen nur hier: das Stilblatt
+    // rechnet damit, statt sie ein zweites Mal zu führen.
+    '--persp': `${PERSPECTIVE}px`,
+    '--cam-end': CAM_END
   } as CSSProperties;
 
   return (
     <div className="rc-home">
       <div className="rc-stage" ref={stage} style={stageStyle}>
         <div className="rc-pin">
-          <div className="rc-first">
-            <div className="rc-mark-static">
-              <img src="/logo_inv.svg" alt={t.screen1.wordmark} />
+          {/*
+            EIN Raum. Alles darin ist ein Gegenstand mit einem z; bewegt wird
+            die Kamera. Näher heisst grösser und früher vorbei, ferner heisst
+            kleiner und länger da — das rechnet die Perspektive, nicht wir.
+          */}
+          <div className="rc-space">
+            <div className="rc-cam">
+              {halo.map((word) => (
+                <span
+                  key={word.tail}
+                  className="rc-item rc-word"
+                  aria-hidden="true"
+                  style={{
+                    '--x': `${word.x.toFixed(2)}vmin`,
+                    '--y': `${word.y.toFixed(2)}vmin`,
+                    '--z': word.z.toFixed(0),
+                    '--alpha': word.alpha.toFixed(3),
+                    '--size': `${word.size.toFixed(2)}rem`
+                  } as CSSProperties}
+                >
+                  <b className="rc-word-re">RE</b>{word.tail}
+                </span>
+              ))}
+
+              <div
+                className="rc-item rc-logo"
+                style={{ '--x': '0vmin', '--y': '0vmin', '--z': LOGO_Z } as CSSProperties}
+              >
+                <img src="/logo_inv.svg" alt={t.screen1.wordmark} />
+              </div>
+
+              {/*
+                Die einzige Überschrift erster Ordnung der Seite. Sie steht
+                etwas unter dem Zeichen und WEITER HINTEN — deshalb zieht das
+                Zeichen zuerst vorbei und sie bleibt einen Augenblick allein.
+              */}
+              <h1
+                className="rc-item rc-sentence"
+                id="rc-h1"
+                style={{
+                  '--x': '0vmin',
+                  '--y': `${SENTENCE_Y}vmin`,
+                  '--z': SENTENCE_Z
+                } as CSSProperties}
+              >
+                <PublicText value={t.screen1.sentence} copy={copy} as="span" />
+              </h1>
             </div>
 
-            {/* Die einzige Überschrift erster Ordnung der Seite. */}
-            <h1 className="rc-sentence" id="rc-h1">
-              <PublicText value={t.screen1.sentence} copy={copy} as="span" />
-            </h1>
-
+            {/* Der Hinweis gehört nicht in den Raum — er fliegt nicht mit. */}
             <p className="rc-hint" aria-hidden="true">
               <span>{t.screen1.hint}</span>
               <i />
@@ -641,33 +684,6 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
             </div>
           </section>
 
-          {/* Das Zeichen als Loch. Die Maske steckt im Stilblatt. */}
-          <div className="rc-veil" aria-hidden="true" />
-
-          {/*
-            Die fünf Wörter liegen ÜBER dem Schleier — im Loch wären sie mit
-            ausgeschnitten. Für ein Vorleseprogramm sind sie ausgeblendet: fünf
-            lateinische Wörter ohne Satz ergeben dort keinen Sinn, und was der
-            Name bedeutet, steht im Manifest ausgeschrieben.
-          */}
-          <div className="rc-halo" aria-hidden="true">
-            {halo.map((word) => (
-              <span
-                key={word.tail}
-                className="rc-word"
-                style={{
-                  '--dx': `${word.dx.toFixed(2)}vmin`,
-                  '--dy': `${word.dy.toFixed(2)}vmin`,
-                  '--depth': word.depth.toFixed(3),
-                  '--k': word.k.toFixed(3),
-                  '--alpha': word.alpha.toFixed(3),
-                  '--size': `${word.size.toFixed(2)}rem`
-                } as CSSProperties}
-              >
-                <b className="rc-word-re">RE</b>{word.tail}
-              </span>
-            ))}
-          </div>
         </div>
       </div>
     </div>
