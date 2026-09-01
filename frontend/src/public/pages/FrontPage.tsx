@@ -8,58 +8,52 @@
  *   10        Die vier Werke.
  *
  * <b>Eine Welle ist EIN Ding, nicht drei.</b> Die drei Blasen hängen an einem
- * Faden und wachsen GEMEINSAM — die Vergrösserung sitzt auf der Welle, nicht
- * auf der einzelnen Blase. Was wandert, ist nur die Hervorhebung.
- *
- * <b>Man sieht immer, wohin es geht.</b> Die nächste Welle ist schon da, klein
- * und halb durchsichtig, während die laufende vorbeizieht.
+ * Faden und wachsen GEMEINSAM. Was wandert, ist nur die Hervorhebung.
  *
  * ---------------------------------------------------------------------------
- * DAS ZEICHEN ALS MASKE
+ * DAS ZEICHEN ALS MASKE, MIT SEINEN FÜNF WÖRTERN
  *
- * Der Schleier trägt das Logo als Loch — als CSS-Maske aus `logo_new.svg`, mit
- * `mask-composite: exclude`. Die Datei hat 600 kB Pfaddaten; sie in das Bauteil
- * zu schreiben hiesse, jede Seite damit zu belasten. Als Maske lädt sie einmal
- * und liegt im Zwischenspeicher.
+ * Der Schleier trägt das Logo als Loch — CSS-Maske aus `logo_new.svg` mit
+ * `mask-composite: exclude`, `mask-position: center`. Es wächst aus der Mitte,
+ * ohne dass irgendwo ein Mittelpunkt gerechnet wird; es KANN nicht verrutschen.
  *
- * `mask-position: center` heisst: das Zeichen wächst aus der Mitte heraus, und
- * zwar ohne dass irgendwo ein Mittelpunkt gerechnet wird. Es KANN nicht
- * verrutschen.
+ * Um das Zeichen stehen die fünf Wörter, aus denen der Name kommt. Jedes hat
+ * seine eigene TIEFE: wie schnell es nach aussen fliegt und wie stark es dabei
+ * wächst. Weil die Tiefen verschieden sind, laufen sie unterschiedlich schnell
+ * auseinander — das ist Parallaxe, und daher kommt der räumliche Eindruck. Alle
+ * fünf fliegen mit dem Zeichen, nicht davor und nicht dahinter.
  *
  * ---------------------------------------------------------------------------
- * ZWEI KRÄFTE, DIE SICH ADDIEREN
+ * ZWEI KRÄFTE — UND WARUM NUR NACH DEM LOSLASSEN
  *
- * Schwung und Rastung wirken GLEICHZEITIG, nicht nacheinander.
- *
- * Der erste Anlauf machte es nacheinander: warten, bis der Bildlauf steht, dann
- * aus der Geschwindigkeit ein Ziel ausrechnen, dann dorthin gleiten. Das ist
- * eine Entscheidung, keine Bewegung — und man sieht es: die Seite hält an und
- * fährt noch einmal los.
- *
- * Jetzt läuft in jedem Bild eine kleine Rechnung:
+ * Sobald die Hand los ist, läuft in jedem Bild:
  *
  *     v = v · DÄMPFUNG + Abstand_zum_nächsten_Zustand · ZUG
  *
- * `v` trägt den Schwung des Besuchers, der Summand daneben ist der Zug des
- * Rasters. Beides steht in derselben Zeile und wird addiert.
+ * `v` trägt den Schwung, der Summand daneben ist der Zug des Rasters. Beides in
+ * derselben Zeile, addiert. <b>Das Ziel wird nirgends gewählt</b> — ein
+ * kräftiger Wisch schiesst über den nächsten Zustand hinaus, und dann zieht ihn
+ * der übernächste, weil `nearest` in jedem Bild neu aus der Lage kommt.
  *
- * <b>Das Ziel wird nirgends gewählt.</b> Es ergibt sich: ein kräftiger Wisch
- * hat so viel `v`, dass er über den nächsten Zustand hinausschiesst — und dann
- * zieht ihn der übernächste an, weil `nächster Zustand` in jedem Bild neu aus
- * der aktuellen Lage kommt. Wie weit es trägt, ist Physik und keine Fallunter-
- * scheidung. Die frühere Rechnung `min(2, floor(|v| / 1.6))` ist damit weg.
+ * <b>Während die Hand scrollt, wird NICHTS angefasst.</b> Ein früherer Versuch
+ * legte den Zug als kleinen Zuschlag schon während der Geste dazu — und machte
+ * damit den Bildlauf unbrauchbar: `scrollTo` bricht in Chrome und Firefox den
+ * laufenden nativen Bildlauf ab, also hat jedes Bild die eigene Geste des
+ * Besuchers gelöscht und durch einen Ruck ersetzt. Man kann einer Bewegung,
+ * die der Browser gerade selbst führt, keine zweite Kraft aufaddieren.
  *
- * <b>Während der Besucher selbst scrollt</b>, bewegt der Browser die Seite; der
- * Zug kommt dann als kleiner Zuschlag im selben Bild dazu (`PULL_LIVE`) — es
- * zieht also schon magnetisch, während man noch scrollt. Der Schwung wird dabei
- * nur mitgeschrieben und NICHT noch einmal aufgeschlagen; täte man das, liefe
- * die Seite doppelt so schnell wie die Hand.
+ * Deshalb zwei Betriebsarten:
  *
- * Abgefangen wird nichts: `wheel` und `touchstart` werden nur passiv mitgehört,
- * um zu wissen, ob gerade eine Hand am Werk ist. Kein `preventDefault`.
+ *   `watch`  Der Browser bewegt. Wir lesen nur mit und merken uns den Schwung.
+ *            Kein `scrollTo`, keine Einmischung.
+ *   `drive`  Der native Bildlauf steht (zwei Bilder ohne Weg) und keine Hand
+ *            ist am Werk. Erst jetzt rechnen wir die beiden Kräfte.
+ *
+ * Jede Eingabe schaltet sofort zurück auf `watch`. Abgefangen wird nichts —
+ * alle Horcher sind passiv, kein `preventDefault`.
  */
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { PublicCopy, Text } from '../content';
 import { PublicText } from '../PublicText';
 import { publicHref, type PublicPage } from '../publicRoutes';
@@ -72,48 +66,43 @@ const STATES = 11;
 /** Bildlaufweg je Übergang. Der Regler für „langsamer". */
 const STEP_VH = 120;
 
-/**
- * So lange nach der letzten Hand-Eingabe gilt der Bildlauf als „geführt".
- * Solange zieht das Raster nur leicht (`PULL_LIVE`), damit es sich nicht gegen
- * die Hand stemmt.
- */
-const INPUT_GRACE = 90;
+/** So lange nach der letzten Hand-Eingabe wird nicht übernommen. */
+const INPUT_GRACE = 140;
+
+/** So viele Bilder ohne Weg gelten als „der native Bildlauf steht". */
+const STILL_FRAMES = 2;
 
 /*
  * DÄMPFUNG und ZUG sind nicht geraten, sondern durchgerechnet.
  *
- * Geprüft wurde gegen vier Forderungen — ein Antippen fällt zurück; knapp über
- * der Mitte trägt es weiter; eine klare Rückwärtsgeste gewinnt; ein kräftiger
- * Wisch trägt mehrere Zustände — und gegen die Bedingung, dass die Bewegung
- * ÜBERALL zur Ruhe kommt. Über den ganzen Raum (jede Lage, jede
- * Geschwindigkeit) liegt der längste Lauf bei rund einer Sekunde, und es bleibt
- * kein Fall offen.
+ * Geprüft gegen vier Forderungen — ein Antippen fällt zurück; knapp über der
+ * Mitte trägt es weiter; eine klare Rückwärtsgeste gewinnt; ein kräftiger Wisch
+ * trägt mehrere Zustände — und gegen die Bedingung, dass es ÜBERALL zur Ruhe
+ * kommt. Über jede Lage und jede Geschwindigkeit: längster Lauf rund eine
+ * Sekunde, kein Fall bleibt offen.
  *
- * Zwei Wege, die dabei durchgefallen sind und deshalb hier stehen, damit sie
- * niemand noch einmal einbaut:
+ * Zwei Wege sind dabei durchgefallen und stehen hier, damit sie niemand noch
+ * einmal einbaut:
  *
- *   - Den Anzieher mit dem Schwung verschieben (`round(here + v · k)`). Das ist
- *     rückgekoppelt: mehr Schwung schiebt das Ziel weiter nach vorn, was noch
- *     mehr Schwung erzeugt. Eine von drei Abstimmungen lief davon und kam nie
- *     zur Ruhe.
- *   - Eine SCHWACHE Rückwärtsgeste dicht vor einem Zustand gewinnen lassen.
- *     Keine einzige stabile Abstimmung kann das. Der Zug ist dort am stärksten,
- *     wo man am ehesten umkehren will — das ist der Preis der Magnetik und
- *     genau das Verhalten, das man von einer Rasterung kennt. Eine deutliche
- *     Rückwärtsgeste gewinnt.
+ *   - Den Anzieher mit dem Schwung verschieben (`round(here + v · k)`) ist
+ *     rückgekoppelt: mehr Schwung schiebt das Ziel weiter, was mehr Schwung
+ *     erzeugt. Eine von drei Abstimmungen kam nie zur Ruhe.
+ *   - Eine SCHWACHE Rückwärtsgeste dicht vor einem Zustand gewinnen lassen:
+ *     keine stabile Abstimmung kann das. Der Zug ist dort am stärksten, wo man
+ *     am ehesten umkehren will. Eine deutliche Rückwärtsgeste gewinnt.
  */
 
 /** Wie viel Schwung ein Bild ins nächste mitnimmt. Kleiner = zäher. */
 const DAMP = 0.80;
 
-/** Der Zug des Rasters, während die Hand scrollt. Nur ein Zuschlag. */
-const PULL_LIVE = 0.020;
+/** Der Zug des Rasters. Die zweite Kraft. */
+const PULL = 0.030;
 
-/** Der Zug des Rasters, sobald die Hand los ist. Die zweite Kraft. */
-const PULL_FREE = 0.030;
-
-/** Darunter ist die Bewegung zu Ende und die Schleife hört auf. */
+/** Darunter ist die Bewegung zu Ende. */
 const REST = 0.12;
+
+/** Darunter gilt ein Bild als „ohne Weg". */
+const QUIET = 0.6;
 
 type Points = readonly (readonly (readonly [number, number])[])[];
 
@@ -122,10 +111,6 @@ type Points = readonly (readonly (readonly [number, number])[])[];
  *
  * Dieselben Zahlen tragen die Blasen (als Mittelpunkt) UND der Faden. Stünden
  * sie an zwei Stellen, liefe der Faden an den Blasen vorbei.
- *
- * Im Hochformat ist die Breite knapp: dort liegen sie fast übereinander, nur
- * leicht versetzt, damit der Faden eine Bewegung beschreibt und keine gerade
- * Linie.
  */
 const LANDSCAPE: Points = [
   [[26, 30], [52, 57], [78, 28]],
@@ -138,6 +123,22 @@ const PORTRAIT: Points = [
   [[60, 22], [38, 52], [60, 81]],
   [[42, 21], [62, 51], [40, 79]]
 ];
+
+/**
+ * Die fünf Wörter, aus denen der Name kommt.
+ *
+ * Grundlage: Richtung vom Zeichen aus, Abstand, TIEFE, Deckkraft, Grösse. Die
+ * Tiefe ist der eigentliche Trick — sie bestimmt, wie schnell ein Wort nach
+ * aussen läuft. Fünf verschiedene Tiefen ergeben fünf Geschwindigkeiten, und
+ * daraus entsteht der räumliche Eindruck.
+ */
+const WORDS = [
+  { text: 'recolligere', angle: 203, radius: 33, depth: 1.15, alpha: 0.50, size: 1.55 },
+  { text: 'renovatio', angle: 331, radius: 29, depth: 0.80, alpha: 0.44, size: 1.85 },
+  { text: 'reconciliatio', angle: 148, radius: 39, depth: 1.34, alpha: 0.34, size: 1.25 },
+  { text: 'refectio', angle: 26, radius: 25, depth: 0.66, alpha: 0.56, size: 2.05 },
+  { text: 'redintegratio', angle: 287, radius: 41, depth: 1.02, alpha: 0.30, size: 1.35 }
+] as const;
 
 function Bubble({
   index, at, name, body, gap, copy, big, children
@@ -167,13 +168,6 @@ function Bubble({
   );
 }
 
-/**
- * Der Faden zwischen den drei Blasen.
- *
- * `preserveAspectRatio="none"` bildet die Koordinaten direkt auf Prozent ab —
- * dieselbe Rechnung wie bei den Blasen. `non-scaling-stroke` verhindert, dass
- * die ungleiche Streckung die Linie mit verzerrt.
- */
 function Thread({ points }: { points: readonly (readonly [number, number])[] }) {
   return (
     <svg className="rc-thread" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -190,8 +184,6 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
   const t = copy.front;
   const stage = useRef<HTMLDivElement | null>(null);
 
-  // Die Punkte müssen zu der Ausrichtung passen, in der wirklich gezeichnet
-  // wird — sie über CSS zu verschieben würde den Faden zurücklassen.
   const [portrait, setPortrait] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(orientation: portrait)').matches
   );
@@ -203,6 +195,27 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     return () => query.removeEventListener('change', onChange);
   }, []);
 
+  /*
+   * Die Streuung wird EINMAL gewürfelt und dann behalten. Bei jedem Bild neu
+   * zu würfeln hiesse: die Wörter zittern, statt zu fliegen.
+   */
+  const halo = useMemo(
+    () => WORDS.map((word) => {
+      const jitter = (span: number) => (Math.random() - 0.5) * span;
+      const angle = ((word.angle + jitter(14)) * Math.PI) / 180;
+      const radius = word.radius + jitter(7);
+      return {
+        text: word.text,
+        dx: Math.cos(angle) * radius,
+        dy: Math.sin(angle) * radius,
+        depth: word.depth + jitter(0.22),
+        alpha: Math.max(0.2, word.alpha + jitter(0.16)),
+        size: Math.max(0.9, word.size + jitter(0.3))
+      };
+    }),
+    []
+  );
+
   useEffect(() => {
     const node = stage.current;
     if (node === null) return;
@@ -210,17 +223,12 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     let frame = 0;
+    let mode: 'watch' | 'drive' = 'watch';
     let lastY = window.scrollY;
-    let lastInput = 0;
-    /** Der Schwung. Trägt, was die Hand hinterlassen hat. */
+    let lastInput = performance.now();
+    let still = 0;
     let v = 0;
 
-    /**
-     * Ein Bild: ablesen, beide Kräfte addieren, weiterschieben.
-     *
-     * Die Schleife läuft nur, solange sich etwas bewegt oder etwas zu ziehen
-     * ist. Steht alles still, hört sie auf und wartet auf das nächste Ereignis.
-     */
     const step = () => {
       frame = 0;
 
@@ -234,61 +242,67 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
       node.style.setProperty('--p', Math.min(1, Math.max(0, (y - top) / travel)).toFixed(5));
 
-      // Was der Browser seit dem letzten Bild bewegt hat — die Hand, samt dem
-      // Nachlauf, den das Gerät selbst erzeugt.
       const observed = y - lastY;
       lastY = y;
 
       const here = (y - top) / stepPx;
-      if (here < -0.6 || here > STATES - 0.4) { v = 0; return; }
+      const outside = here < -0.6 || here > STATES - 0.4;
+
+      if (mode === 'watch') {
+        // Nur mitlesen. Der Browser führt, und dem wird nicht ins Lenkrad
+        // gegriffen — genau daran ist die erste Fassung gescheitert.
+        v = observed;
+        still = Math.abs(observed) < QUIET ? still + 1 : 0;
+
+        const handsOff = performance.now() - lastInput > INPUT_GRACE;
+        if (still < STILL_FRAMES || !handsOff || outside) {
+          if (!outside || still < STILL_FRAMES) frame = requestAnimationFrame(step);
+          return;
+        }
+
+        mode = 'drive';
+      }
+
+      if (outside) { mode = 'watch'; v = 0; return; }
 
       const nearest = Math.min(STATES - 1, Math.max(0, Math.round(here)));
       const gap = top + nearest * stepPx - y;
 
-      const guided = performance.now() - lastInput < INPUT_GRACE;
-
-      if (guided) {
-        // Die Hand bewegt. Der Schwung wird nur MITGESCHRIEBEN — ihn hier noch
-        // einmal aufzuschlagen liesse die Seite doppelt so schnell laufen wie
-        // die Hand. Dazu kommt der Zug des Rasters als kleiner Zuschlag: es
-        // zieht schon magnetisch, während man noch scrollt.
-        v = observed;
-        const nudge = gap * (reduce.matches ? 0 : PULL_LIVE);
-        if (Math.abs(nudge) > 0.3) window.scrollTo(0, y + nudge);
-        frame = requestAnimationFrame(step);
-        return;
-      }
-
-      // Die Hand ist los. Jetzt die eine Zeile, um die es geht: Schwung und
-      // Zug in derselben Rechnung. Wie weit es traegt, wird nirgends gewaehlt —
-      // ein kraeftiger Wisch schiesst ueber den naechsten Zustand hinaus, und
-      // dann zieht ihn der uebernaechste, weil `nearest` jedes Bild neu kommt.
-      v = reduce.matches ? gap : v * DAMP + gap * PULL_FREE;
+      // Die eine Zeile: Schwung und Zug, addiert.
+      v = reduce.matches ? gap : v * DAMP + gap * PULL;
 
       if (Math.abs(v) > REST) {
         window.scrollTo(0, y + v);
+        lastY = y + v;
         frame = requestAnimationFrame(step);
         return;
       }
 
-      // Zur Ruhe gekommen: den Rest genau setzen, dann aufhoeren.
-      if (Math.abs(gap) > 0.5) window.scrollTo(0, top + nearest * stepPx);
+      if (Math.abs(gap) > 0.5) {
+        window.scrollTo(0, top + nearest * stepPx);
+        lastY = top + nearest * stepPx;
+      }
+
       v = 0;
+      still = 0;
+      mode = 'watch';
     };
 
     const wake = () => {
       if (frame === 0) frame = requestAnimationFrame(step);
     };
 
+    /** Jede Eingabe gibt die Bewegung sofort zurück. */
     const onInput = () => {
       lastInput = performance.now();
+      mode = 'watch';
+      still = 0;
       wake();
     };
 
     node.classList.add('is-live');
     wake();
-    // `scroll` weckt nur; `wheel`, `touch` und die Tastatur sagen zusätzlich,
-    // dass eine Hand am Werk ist. Alle passiv — nichts wird abgefangen.
+
     window.addEventListener('scroll', wake, { passive: true });
     window.addEventListener('resize', wake, { passive: true });
     window.addEventListener('wheel', onInput, { passive: true });
@@ -320,7 +334,6 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       <div className="rc-stage" ref={stage} style={stageStyle}>
         <div className="rc-pin">
           <div className="rc-first">
-            {/* Ohne Schleier steht das Zeichen still auf dunklem Grund. */}
             <div className="rc-mark-static">
               <img src="/logo_inv.svg" alt={t.screen1.wordmark} />
             </div>
@@ -373,7 +386,6 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
             ))}
           </section>
 
-          {/* Das vierte Bild liegt am tiefsten und wartet. */}
           <section className="rc-s3 rc-l3" aria-labelledby="rc-h3">
             <div className="rc-s3-in">
               <h2 className="rc-h2" id="rc-h3">{t.screen3.title}</h2>
@@ -395,6 +407,30 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
           {/* Das Zeichen als Loch. Die Maske steckt im Stilblatt. */}
           <div className="rc-veil" aria-hidden="true" />
+
+          {/*
+            Die fünf Wörter liegen ÜBER dem Schleier — im Loch wären sie mit
+            ausgeschnitten. Für ein Vorleseprogramm sind sie ausgeblendet: fünf
+            lateinische Wörter ohne Satz ergeben dort keinen Sinn, und was der
+            Name bedeutet, steht im Manifest ausgeschrieben.
+          */}
+          <div className="rc-halo" aria-hidden="true">
+            {halo.map((word) => (
+              <span
+                key={word.text}
+                className="rc-word"
+                style={{
+                  '--dx': `${word.dx.toFixed(2)}vmin`,
+                  '--dy': `${word.dy.toFixed(2)}vmin`,
+                  '--depth': word.depth.toFixed(3),
+                  '--alpha': word.alpha.toFixed(3),
+                  '--size': `${word.size.toFixed(2)}rem`
+                } as CSSProperties}
+              >
+                {word.text}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </div>
