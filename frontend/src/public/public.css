@@ -461,6 +461,139 @@
   transform-origin: center;
 }
 
+/* -- Das erste Bild: Zeichen und Satz --------------------------------------- */
+
+/*
+   Der Satz liegt TIEFER als das Zeichen und fliegt deshalb spaeter: das Zeichen
+   ist bei 0.85 durch, der Satz erst bei 1.2. Dazwischen steht er allein — genau
+   der Augenblick, in dem er hervortritt.
+*/
+.rc-stage.is-live .rc-first {
+  z-index: 7;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  align-content: center;
+  background: transparent;
+  pointer-events: none;
+  transform-origin: center;
+  opacity: calc(1 - var(--pt));
+  transform: scale(calc(1 + var(--pt) * 2.2));
+}
+
+.rc-stage.is-live .rc-hint { opacity: calc(1 - var(--ps)); }
+
+/*
+   Sobald der Schleier fort ist, liegt der Satz nicht mehr auf Dunkel, sondern
+   auf Papier — heller Text waere dort unsichtbar. Die Farbe wandert deshalb mit
+   dem Schleier von hell nach dunkel.
+*/
+.rc-stage.is-live .rc-sentence {
+  color: color-mix(in oklab, #f2f4ef, var(--ink) calc(var(--pv) * 100%));
+}
+
+/* -- Das Zeichen als Loch --------------------------------------------------- */
+
+/*
+   Zwei Maskenschichten: eine deckt alles, die andere ist das Logo. `exclude`
+   zieht die zweite von der ersten ab — uebrig bleibt eine undurchsichtige
+   Flaeche MIT dem Zeichen als Loch.
+
+   `mask-position: center` heisst: es waechst aus der Mitte. Es kann nicht
+   verrutschen, weil nirgends ein Mittelpunkt gerechnet wird.
+
+   Die Datei hat 600 kB Pfaddaten. Als Maske laedt sie einmal; im Bauteil
+   eingebettet laege sie in jedem Auslieferungsstand der Seite.
+*/
+.rc-stage.is-live .rc-veil {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: #14180f;
+  pointer-events: none;
+  opacity: calc(1 - var(--pv));
+}
+
+/*
+   Ohne `mask-composite` gaebe es kein Loch, sondern eine geschlossene Flaeche
+   ueber der ganzen Seite. Deshalb erscheint der Schleier NUR, wo es die
+   Zusammensetzung wirklich gibt — sonst bleibt das Zeichen einfach stehen und
+   blendet mit dem ersten Bild aus.
+*/
+@supports (mask-composite: exclude) or (-webkit-mask-composite: xor) {
+  .rc-stage.is-live .rc-veil {
+    display: block;
+
+    -webkit-mask-image: linear-gradient(#000, #000), url('/logo_new.svg');
+    mask-image: linear-gradient(#000, #000), url('/logo_new.svg');
+    -webkit-mask-repeat: no-repeat, no-repeat;
+    mask-repeat: no-repeat, no-repeat;
+    -webkit-mask-position: center, center;
+    mask-position: center, center;
+    -webkit-mask-size: 100% 100%, calc(32% + 2600% * var(--pw)) auto;
+    mask-size: 100% 100%, calc(32% + 2600% * var(--pw)) auto;
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  .rc-stage.is-live .rc-mark-static { visibility: hidden; }
+}
+
+.rc-mark-static { display: grid; place-items: center; width: 100%; }
+.rc-mark-static img { width: min(82vw, 56rem); height: auto; }
+
+/* -- Die fuenf Woerter um das Zeichen --------------------------------------- */
+
+/*
+   Woher der Name kommt. Sie liegen UEBER dem Schleier — im Loch waeren sie mit
+   ausgeschnitten. Jedes Wort hat seine eigene TIEFE: fuenf Tiefen ergeben fuenf
+   Geschwindigkeiten, und daher kommt der raeumliche Eindruck.
+*/
+.rc-halo { display: none; }
+
+.rc-stage.is-live .rc-halo {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  opacity: calc(1 - var(--pv));
+}
+
+.rc-word {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 300;
+  font-size: var(--size);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: #f2f4ef;
+  line-height: 1;
+  opacity: calc(var(--alpha) * max(0, 1 - var(--pw) * 1.25));
+
+  transform:
+    translate(-50%, -50%)
+    translate(
+      calc(var(--dx) * (1 + var(--pw) * var(--depth) * 2.6)),
+      calc(var(--dy) * (1 + var(--pw) * var(--depth) * 2.6))
+    )
+    scale(calc(1 + var(--pw) * var(--depth) * 1.5));
+}
+
+/*
+   Das RE steht gross und aufrecht — dasselbe RE wie in REcreatio. Es ist der
+   gemeinsame Anfang aller fuenf Woerter; der Rest folgt klein und kursiv.
+*/
+.rc-word-re {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 1.32em;
+  letter-spacing: -0.01em;
+}
+
 /* -- Die Szenen ------------------------------------------------------------- */
 
 .rc-stage.is-live .rc-wave {
@@ -579,11 +712,20 @@
    ausserhalb der beschnittenen Buehne. Damit ist es auch nicht anklickbar,
    solange es unsichtbar ist.
 */
+/*
+   DURCHSICHTIG, und das ist kein Detail. Der Abschnitt liegt bei z-index 4 —
+   also ueber den Szenen — und traegt aus der Grundregel einen deckenden
+   Hintergrund. Der stand eine Fassung lang ueber der ganzen Buehne und hat
+   Zeichen, Satz und alle drei Szenen verdeckt: sichtbar war nur eine leere
+   Flaeche. Solange die Werke selbst noch nicht da sind, darf hier nichts
+   gemalt werden.
+*/
 .rc-stage.is-live .rc-l3 {
   z-index: 4;
   display: block;
   overflow: hidden;
   border-top: 0;
+  background: transparent;
 }
 
 .rc-stage.is-live .rc-s3-in {
