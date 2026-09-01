@@ -75,42 +75,55 @@ export const de: PublicCopy = {
           {
             kind: 'body',
             lines: [
-              'Wir wollen keinen Ort bauen, an dem jemand noch mehr Zeit vor einem '
-              + 'Bildschirm verbringt. Wir wollen Menschen helfen, sich wirklich zu '
-              + 'begegnen — am Tisch, unterwegs, bei Exerzitien, bei der Arbeit, beim '
-              + 'Lernen und in der Ruhe. Denn vieles vom Wichtigsten im Menschen wächst '
-              + 'gerade in der Beziehung zum anderen.'
-            ]
-          },
-          {
-            kind: 'image',
-            lines: ['Kein Publikum.', 'Eine Gemeinschaft.'],
-            image: { missing: 'Bild von Menschen miteinander — Tisch, Weg oder Exerzitien' }
-          }
-        ]
-      },
-      {
-        label: 'Zurück zu den Quellen',
-        bubbles: [
-          { kind: 'title', lines: ['Zurück zu den Quellen'] },
-          {
-            kind: 'body',
-            lines: [
-              'Man muss nicht zwischen dem Bewährten und dem Neuen wählen. Wir wollen zu '
-              + 'den einfachen und grundlegenden Dingen zurück — Begegnung, Gemeinschaft, '
-              + 'Verantwortung, kluge Ruhe, gute Lektüre, Gebet und Arbeit an sich selbst '
-              + '— und dabei nutzen, was die heutige Welt möglich macht.',
+              'Wir wollen keinen weiteren Ort schaffen, der den Menschen vor dem '
+              + 'Bildschirm festhält. Wir wollen die Möglichkeiten der Gegenwart nutzen, '
+              + 'damit es leichter wird, sich zu treffen, gemeinsam etwas auf die Beine '
+              + 'zu stellen, zu lernen, aufzubrechen, ein gutes Buch zu lesen oder eine '
+              + 'Gemeinschaft aufzubauen.',
 
-              'Technik kann helfen, eine Veranstaltung zu finden, Menschen '
-              + 'zusammenzubringen, ein Treffen vorzubereiten, zu einem gelesenen Gedanken '
-              + 'zurückzukehren oder gemeinsame Arbeit zu ordnen. Ihre Aufgabe ist nicht, '
-              + 'jemanden am Bildschirm zu halten, sondern ihm zu helfen, davon '
-              + 'wegzukommen.'
+              'Wir kehren zum Grundlegenden zurück — zu Beziehungen, Verantwortung, gutem '
+              + 'Gespräch, gemeinsamer Arbeit, Ruhe und Gebet — und greifen dort zu den '
+              + 'Werkzeugen der heutigen Welt, wo sie wirklich helfen.'
             ]
           },
           {
             kind: 'close',
             lines: ['Werkzeuge sollen ins Leben führen.', 'Nicht das Leben in die Werkzeuge.']
+          }
+        ]
+      },
+      {
+        label: 'Deine Daten gehören dir',
+        bubbles: [
+          { kind: 'title', lines: ['Deine Daten gehören dir'] },
+          {
+            kind: 'body',
+            lines: [
+              'Wir wollen kein System bauen, das mehr über einen Menschen weiss, als es '
+              + 'wirklich braucht.',
+
+              'REcreatio soll nur die Daten erheben, die eine bestimmte Aufgabe zum '
+              + 'Arbeiten braucht. Zugang zu einer Auskunft soll nur haben, wem er '
+              + 'wirklich gegeben wurde — nicht ein einziger Verwalter, der von Amts '
+              + 'wegen alles sehen kann.',
+
+              'Wir wollen niemanden verfolgen und aus seinem Verhalten kein Profil '
+              + 'bilden. Sicherheit und Privatheit sollen daraus folgen, wie das System '
+              + 'gebaut ist, und nicht bloss aus einer Ordnung.'
+            ]
+          },
+          {
+            kind: 'close',
+            lines: [
+              'Weniger Daten.',
+              'Weniger Verfolgung.',
+              'Weniger unnötiger Zugang.',
+              '',
+              'Mehr Verfügung beim Menschen.',
+              '',
+              'Privatheit durch Beschränkung.',
+              'Nicht durch Versprechen.'
+            ]
           }
         ]
       }

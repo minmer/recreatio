@@ -88,42 +88,54 @@ export const pl: PublicCopy = {
           {
             kind: 'body',
             lines: [
-              'Nie chcemy budować miejsca, w którym człowiek spędzi jeszcze więcej czasu '
-              + 'przed ekranem. Chcemy pomagać ludziom spotykać się naprawdę — przy stole, '
-              + 'w drodze, na rekolekcjach, podczas pracy, nauki i odpoczynku. Bo wiele '
-              + 'z tego, co najważniejsze w człowieku, rozwija się właśnie w relacji '
-              + 'z drugim.'
-            ]
-          },
-          {
-            kind: 'image',
-            lines: ['Nie publiczność.', 'Wspólnota.'],
-            image: { missing: 'Zdjęcie ludzi razem — stół, droga albo rekolekcje' }
-          }
-        ]
-      },
-      {
-        label: 'Wracamy do źródeł',
-        bubbles: [
-          { kind: 'title', lines: ['Wracamy do źródeł'] },
-          {
-            kind: 'body',
-            lines: [
-              'Nie trzeba wybierać między tym, co sprawdzone, a tym, co nowe. Chcemy '
-              + 'wracać do rzeczy prostych i podstawowych — spotkania, wspólnoty, '
-              + 'odpowiedzialności, mądrego odpoczynku, dobrej lektury, modlitwy i pracy '
-              + 'nad sobą — korzystając jednocześnie z możliwości, które daje współczesny '
-              + 'świat.',
+              'Nie chcemy tworzyć kolejnego miejsca, które zatrzymuje człowieka przed '
+              + 'ekranem. Chcemy wykorzystywać współczesne możliwości, aby łatwiej było '
+              + 'się spotkać, coś razem zorganizować, uczyć się, wyruszyć w drogę, '
+              + 'przeczytać dobrą książkę czy zbudować wspólnotę.',
 
-              'Technologia może pomóc znaleźć wydarzenie, zebrać ludzi, przygotować '
-              + 'spotkanie, wrócić do przeczytanej myśli czy zorganizować wspólną pracę. '
-              + 'Jej zadaniem nie jest zatrzymać człowieka przy ekranie, lecz pomóc mu od '
-              + 'niego odejść.'
+              'Wracamy do rzeczy podstawowych — relacji, odpowiedzialności, dobrej '
+              + 'rozmowy, wspólnej pracy, odpoczynku i modlitwy — korzystając z narzędzi '
+              + 'współczesnego świata tam, gdzie rzeczywiście pomagają.'
             ]
           },
           {
             kind: 'close',
             lines: ['Narzędzia mają prowadzić do życia.', 'Nie życie do narzędzi.']
+          }
+        ]
+      },
+      {
+        label: 'Twoje dane są twoje',
+        bubbles: [
+          { kind: 'title', lines: ['Twoje dane są twoje'] },
+          {
+            kind: 'body',
+            lines: [
+              'Nie chcemy budować systemu, który wie o człowieku więcej, niż naprawdę '
+              + 'potrzebuje.',
+
+              'REcreatio ma zbierać tylko te dane, które są konieczne do działania '
+              + 'konkretnej funkcji. Dostęp do informacji powinny mieć tylko osoby, '
+              + 'którym został on rzeczywiście nadany — nie jeden administrator, który '
+              + 'z definicji może zobaczyć wszystko.',
+
+              'Nie chcemy śledzić użytkowników ani tworzyć ich profili na podstawie '
+              + 'aktywności. Bezpieczeństwo i prywatność mają wynikać ze sposobu, w jaki '
+              + 'system jest zbudowany, a nie tylko z regulaminu.'
+            ]
+          },
+          {
+            kind: 'close',
+            lines: [
+              'Mniej danych.',
+              'Mniej śledzenia.',
+              'Mniej zbędnego dostępu.',
+              '',
+              'Więcej kontroli po stronie człowieka.',
+              '',
+              'Prywatność przez ograniczenie.',
+              'Nie przez obietnicę.'
+            ]
           }
         ]
       }

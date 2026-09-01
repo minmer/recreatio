@@ -455,6 +455,16 @@
   text-wrap: balance;
 }
 
+/*
+   Eine leere Zeile trennt zwei Gedankengruppen.
+
+   Ohne Hoehe waere sie nichts: ein leeres Element ist null hoch, und die
+   Luecke von 0.15em zaehlte dann doppelt statt zu trennen. Drei Saetze
+   hintereinander sind eine Aufzaehlung; drei Gruppen sind ein Schluss.
+*/
+.rc-bub-close span:empty,
+.rc-bub-over span:empty { height: 0.5em; }
+
 .rc-bub-note {
   margin: 0;
   font-family: var(--sans);

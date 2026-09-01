@@ -73,40 +73,54 @@ export const en: PublicCopy = {
           {
             kind: 'body',
             lines: [
-              'We do not want to build a place where someone spends even more time in '
-              + 'front of a screen. We want to help people meet for real — at a table, on '
-              + 'the road, on retreat, at work, while studying and while resting. Because '
-              + 'much of what matters most in a person grows precisely in the '
-              + 'relationship with another.'
-            ]
-          },
-          {
-            kind: 'image',
-            lines: ['Not an audience.', 'A fellowship.'],
-            image: { missing: 'A photograph of people together — a table, a road or a retreat' }
-          }
-        ]
-      },
-      {
-        label: 'Back to the sources',
-        bubbles: [
-          { kind: 'title', lines: ['Back to the sources'] },
-          {
-            kind: 'body',
-            lines: [
-              'There is no need to choose between what is proven and what is new. We want '
-              + 'to return to simple and basic things — meeting, community, '
-              + 'responsibility, wise rest, good reading, prayer and work on oneself — '
-              + 'while using what the present world makes possible.',
+              'We do not want to build one more place that holds a person in front of a '
+              + 'screen. We want to use what the present makes possible, so that it '
+              + 'becomes easier to meet, to organise something together, to study, to set '
+              + 'out on a road, to read a good book or to build a community.',
 
-              'Technology can help to find an event, gather people, prepare a meeting, '
-              + 'return to a thought once read, or organise shared work. Its task is not '
-              + 'to hold someone at a screen, but to help them step away from it.'
+              'We are going back to the basic things — relationships, responsibility, '
+              + 'good conversation, shared work, rest and prayer — reaching for the tools '
+              + 'of the present world where they genuinely help.'
             ]
           },
           {
             kind: 'close',
             lines: ['Tools should lead into life.', 'Not life into tools.']
+          }
+        ]
+      },
+      {
+        label: 'Your data is yours',
+        bubbles: [
+          { kind: 'title', lines: ['Your data is yours'] },
+          {
+            kind: 'body',
+            lines: [
+              'We do not want to build a system that knows more about a person than it '
+              + 'truly needs to.',
+
+              'REcreatio should collect only the data a particular function needs in '
+              + 'order to work. Access to information should belong only to those who '
+              + 'have actually been granted it — not to a single administrator who by '
+              + 'definition can see everything.',
+
+              'We do not want to track people or build profiles out of what they do. '
+              + 'Security and privacy should follow from the way the system is built, and '
+              + 'not from its terms alone.'
+            ]
+          },
+          {
+            kind: 'close',
+            lines: [
+              'Less data.',
+              'Less tracking.',
+              'Less access than needed.',
+              '',
+              'More control on the person’s side.',
+              '',
+              'Privacy by limitation.',
+              'Not by promise.'
+            ]
           }
         ]
       }

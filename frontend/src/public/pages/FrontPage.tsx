@@ -379,9 +379,13 @@ function Bubble({
         <p className="rc-bub-body" key={line.slice(0, 32)}>{line}</p>
       ))}
 
+      {/*
+        Der Schlüssel ist die Stelle, nicht die Zeile: eine Leerzeile trennt
+        Gedankengruppen, und zwei davon wären als Schlüssel dasselbe.
+      */}
       {bubble.kind === 'close' && (
         <p className="rc-bub-close">
-          {bubble.lines.map((line) => <span key={line}>{line}</span>)}
+          {bubble.lines.map((line, at) => <span key={at}>{line}</span>)}
         </p>
       )}
 
