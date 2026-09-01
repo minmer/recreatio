@@ -148,6 +148,22 @@ const WORK_PAGES: readonly PublicPage[] = ['osrodek', 'wydarzenia', 'cogita', 'b
 const STEP_VH = 60;
 
 /**
+ * Ein zweites Mass für den Schritt, das an der BREITE hängt — und ein Deckel.
+ *
+ * <b>Der Bildlaufweg darf im Querformat nicht zusammenbrechen.</b> Ein Telefon
+ * quer ist nur rund 340 Pixel hoch; sechzig Prozent davon sind 200 Pixel je
+ * Blase, gegen 474 im Hochformat. Derselbe Wisch kam damit quer mehr als
+ * doppelt so weit — die Seite raste im einen Format und ging im anderen
+ * gemächlich, obwohl es dasselbe Gerät und dieselbe Hand ist.
+ *
+ * Der Deckel sorgt dafür, dass dieses zweite Mass NUR auf kurzen Schirmen
+ * greift: auf jedem Schreibtisch gewinnt die Höhe ohnehin, und dort bleibt
+ * alles genau, wie es war.
+ */
+const STEP_VW = 34;
+const STEP_WIDE = 900;
+
+/**
  * Ruhe, nach der eine neue Geste beginnt.
  *
  * Ein Rad schickt einzelne Ereignisse, ein Trackpad einen Strom. Erst dieser
@@ -223,7 +239,39 @@ const FREE_TOUCH_MS = 90;
  * ohne dass sich etwas rührt, festgefahren. Mit diesem Faktor bleibt es im
  * Mittel knapp beim Weg des Fingers.
  */
-const TOUCH_GAIN = 1.8;
+const TOUCH_GAIN = 2.1;
+
+/**
+ * Der Auslauf — und warum er an einer Blase schneller stirbt als dazwischen.
+ *
+ * Wer die Hand hebt, während es noch läuft, soll nicht auf der Stelle stehen:
+ * die Bewegung rollt aus. <b>Wie schnell sie ausrollt, hängt aber davon ab, wo
+ * sie gerade ist.</b> An einer Blase ist die Halbwertszeit kurz — die Bewegung
+ * versickert dort binnen eines Augenblicks. Zwischen zwei Blasen ist sie
+ * mehrfach länger, und der Rest der Bewegung trägt hinüber.
+ *
+ * Zusammen ist das ein Gefälle: der Auslauf sucht sich eine Blase. Er wird
+ * nicht dorthin gezogen und nicht eingerastet — man kann überall stehenbleiben,
+ * wenn man will. Aber wer loslässt, kommt meistens an einer Blase zur Ruhe, und
+ * genau das war gewünscht.
+ *
+ * Die Zahlen sind gerechnet, nicht geraten: ein zügiger Wisch trägt rund eine
+ * Blase weit, ein sanfter aus der Mitte gerade bis zur nächsten, und ein
+ * Loslassen AN einer Blase bewegt so gut wie nichts mehr.
+ */
+const COAST_STICK = 35;
+const COAST_SLIDE = 150;
+
+/** Darunter lohnt der Auslauf nicht mehr — Achseneinheiten je Millisekunde. */
+const COAST_MIN = 0.0004;
+
+/**
+ * So frisch muss die letzte Bewegung sein, damit überhaupt ausgerollt wird.
+ *
+ * Sonst rollte auch aus, wer die Hand eine Sekunde stillhält und dann hebt: die
+ * gemessene Geschwindigkeit ist dann alt und meint nichts mehr.
+ */
+const COAST_HAND = 300;
 
 /**
  * Wie stark der Gang von Blase zu Blase bei jeder verweilt.
@@ -232,9 +280,10 @@ const TOUCH_GAIN = 1.8;
  * Glättung, die bei jeder Blase auf null Geschwindigkeit geht: der Bildlauf
  * bliebe dort stehen, obwohl die Hand weiterschiebt, und das läse sich als
  * Haken. Dazwischen liegt das Gemeinte — die Bewegung wird bei einer Blase
- * gut viermal langsamer als auf halbem Weg und bleibt doch in Fahrt.
+ * bei einer Blase rund achtzehnmal langsamer als auf halbem Weg und bleibt
+ * doch in Fahrt.
  */
-const WALK_HOLD = 0.75;
+const WALK_HOLD = 0.9;
 
 /** Wie lange der erste dauert — der durch den Raum, mit dem Innehalten darin. */
 const OPENING_MS = 1700;
@@ -669,6 +718,11 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     /** Laeuft gerade ein Uebergang zwischen Gruppen (im Gegensatz zum freien Lauf)? */
     let snapping = false;
 
+    /** Der Auslauf nach der Geste: Geschwindigkeit in Achseneinheiten je ms. */
+    let coasting = false;
+    let vel = 0;
+    let coastAt = 0;
+
     /** Der Zeitstempel des letzten Ereignisses. */
     let lastEvent = 0;
 
@@ -704,7 +758,13 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       const head = document.querySelector('.pub-head');
       headH = head === null ? 0 : Math.round(head.getBoundingClientRect().height);
       pinH = Math.max(320, window.innerHeight - headH);
-      stepPx = Math.round((pinH * STEP_VH) / 100);
+
+      // Die Höhe gibt das Mass — ausser sie ist zu klein dafür, dann die
+      // Breite. Siehe STEP_VW: sonst rast das Telefon im Querformat.
+      stepPx = Math.round(Math.max(
+        (pinH * STEP_VH) / 100,
+        (Math.min(window.innerWidth, STEP_WIDE) * STEP_VW) / 100
+      ));
 
       node.style.setProperty('--head-h', `${headH}px`);
       node.style.setProperty('--pin-h', `${pinH}px`);
@@ -791,28 +851,77 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       node.style.setProperty('--pany', `${y.toFixed(2)}%`);
     };
 
+    /** Wie weit die Stelle zwischen zwei Blasen liegt: 0 an einer, 1 mittig. */
+    const betweenAt = (at: number) => {
+      const zone = zoneOf(at);
+      if (zone.to <= zone.at) return 0;
+
+      const t = at - Math.floor(at);
+      return 1 - Math.abs(2 * t - 1);
+    };
+
     const tick = () => {
       frame = 0;
-      if (!gliding) return;
+      const now = performance.now();
 
-      const k = span <= 0 ? 1 : Math.min(1, (performance.now() - startedAt) / span);
-      window.scrollTo(0, fromY + (toY - fromY) * rcGlide(k, lead));
-      paint();
+      if (gliding) {
+        const k = span <= 0 ? 1 : Math.min(1, (now - startedAt) / span);
+        window.scrollTo(0, fromY + (toY - fromY) * rcGlide(k, lead));
+        paint();
 
-      if (k < 1) { frame = requestAnimationFrame(tick); return; }
+        if (k < 1) { frame = requestAnimationFrame(tick); return; }
+
+        gliding = false;
+
+        /*
+         * War die Hand beim Ende noch dran, rollt es aus.
+         *
+         * Nur nach einem FREIEN Lauf: ein Übergang zwischen zwei Gruppen endet
+         * ohnehin mit der Geschwindigkeit null, und noch etwas anzuhängen hiesse,
+         * über den Rastpunkt hinauszuschiessen.
+         */
+        if (!snapping && now - lastEvent < COAST_HAND && Math.abs(speed / stepPx) > COAST_MIN) {
+          vel = speed / stepPx;
+          coastAt = now;
+          coasting = true;
+          frame = requestAnimationFrame(tick);
+        }
+
+        /*
+         * Angekommen — und damit ist von der GESTE nichts mehr übrig. Weder die
+         * gemessene Geschwindigkeit noch der gesammelte Weg tragen in die
+         * nächste Gruppe hinein; wer weiterwill, schiebt von vorn an.
+         */
+        snapping = false;
+        speed = 0;
+        push = 0;
+        return;
+      }
+
+      if (!coasting) return;
 
       /*
-       * Angekommen — und damit ist wirklich nichts mehr übrig.
-       *
-       * Weder die gemessene Geschwindigkeit noch der gesammelte Weg tragen in
-       * den nächsten Zustand hinein. Wer weiterwill, schiebt von vorn an. Sonst
-       * käme man in einem Zug durch mehrere Bilder, ohne je eines gesehen zu
-       * haben — das Gegenteil dessen, wofür die Rastpunkte da sind.
+       * Der Auslauf. Die Halbwertszeit hängt davon ab, WO er gerade ist: an
+       * einer Blase kurz, dazwischen lang. Damit sucht er sich eine Blase,
+       * ohne dorthin gezogen zu werden.
        */
-      gliding = false;
-      snapping = false;
-      speed = 0;
-      push = 0;
+      const dt = Math.min(64, now - coastAt);
+      coastAt = now;
+
+      const half = COAST_STICK + (COAST_SLIDE - COAST_STICK) * betweenAt(target);
+      vel *= Math.pow(0.5, dt / half);
+
+      const { origin } = measure();
+      const zone = zoneOf(target);
+      const next = Math.min(zone.to, Math.max(zone.at, target + vel * dt));
+      const stuck = next === target;
+
+      target = next;
+      window.scrollTo(0, origin + target * stepPx);
+      paint();
+
+      if (stuck || Math.abs(vel) < COAST_MIN) { coasting = false; vel = 0; return; }
+      frame = requestAnimationFrame(tick);
     };
 
     /**
@@ -844,6 +953,10 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
       target = next;
       snapping = snap;
+
+      // Eine neue Bewegung loest den Auslauf ab.
+      coasting = false;
+      vel = 0;
 
       fromY = window.scrollY;
       toY = origin + target * stepPx;
@@ -1102,6 +1215,8 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
      * Telefon klappt dort ein Menü auf, und das ist kein Fenstermass.
      */
     const relayout = () => {
+      coasting = false;
+      vel = 0;
       layout();
       const { origin } = measure();
       window.scrollTo(0, origin + target * stepPx);
