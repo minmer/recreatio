@@ -1,19 +1,24 @@
 /**
  * Die Startseite — das Zeichen, drei Szenen, die vier Werke.
  *
- *    0            Das Zeichen.
- *    1 … 4        Der Mensch ist ein Ganzes.        (vier Blasen)
- *    5 … 7        Der Mensch braucht den Menschen.  (drei)
- *    8 … 10       Zurück zu den Quellen.            (drei)
- *   11            Die vier Werke.
- *   12            Kontakt.
+ *    0   Das Zeichen.
+ *    1   Der Mensch ist ein Ganzes.        (vier Blasen)
+ *    2   Der Mensch braucht den Menschen.  (drei)
+ *    3   Zurück zu den Quellen.            (drei)
+ *    4   Die vier Werke.
+ *    5   Kontakt.
  *
- * <b>Die Zahl der Blasen ist nicht überall dieselbe</b>, und der Fahrplan
- * rechnet sich daraus. Kommt eine Blase dazu, verschiebt sich alles Weitere von
- * selbst — im Code steht keine Zustandszahl von Hand.
+ * <b>Eine Szene ist EIN Zustand</b>, gleichgültig wie viele Blasen sie trägt.
+ * Ihre Blasen hängen an einem Faden: sie sind ein Gedanke mit Teilen und nicht
+ * ein Stapel von Gedanken. Jede einzeln anzufahren machte daraus eine Liste —
+ * und aus dem Weg durch sechs Bilder einen durch dreizehn.
  *
- * <b>Eine Szene ist EIN Ding.</b> Ihre Blasen stehen gemeinsam da, hängen an
- * einem Faden und wachsen zusammen. Was wandert, ist allein die Hervorhebung.
+ * Sie kommen deshalb gemeinsam, aber nicht im selben Augenblick: der Versatz
+ * steckt IN dem einen Übergang (`--i` im Stilblatt). Am Rastpunkt steht die
+ * ganze Szene da.
+ *
+ * Der Fahrplan rechnet sich weiterhin aus dem Text: eine Szene mehr, und alles
+ * Weitere verschiebt sich von selbst.
  *
  * ---------------------------------------------------------------------------
  * DAS ERSTE BILD IST EIN RAUM
@@ -25,6 +30,12 @@
  *
  * Das Zeichen steht der Kamera näher als der Satz und zieht deshalb zuerst
  * vorbei; der Satz wird gross und bleibt einen Augenblick allein.
+ *
+ * Für diesen Augenblick <b>hält die Fahrt kurz inne</b>: die Kamerakurve im
+ * Stilblatt hat drei Rampen, und die mittlere — langsame — liegt genau dort,
+ * wo das Zeichen schon fort und der Satz noch nicht am Verblassen ist. Und der
+ * Fluchtpunkt liegt beim Satz, nicht in der Bildmitte, damit dieser beim
+ * Näherkommen stehen bleibt und nur wächst, statt aus dem Bild zu rutschen.
  *
  * ---------------------------------------------------------------------------
  * DER BILDLAUF: EINE GESTE, EIN ÜBERGANG
@@ -148,6 +159,9 @@ const PUSH_KEEP = 0.7;
 /** Wie lange ein Übergang dauert. Seine eigene Zeit, nicht die der Geste. */
 const GLIDE_MS = 700;
 
+/** Wie lange der erste dauert — der durch den Raum, mit dem Innehalten darin. */
+const OPENING_MS = 1300;
+
 /** So weit muss ein Finger wandern, ehe es als Geste zählt. */
 const TOUCH_MIN = 26;
 
@@ -212,6 +226,18 @@ function ringPoints(count: number, scene: number, portrait: boolean): readonly P
 const WORDS = ['colligere', 'novatio', 'conciliatio', 'fectio', 'dintegratio'] as const;
 
 /**
+ * Wie viele Wörter im Raum stehen.
+ *
+ * Die fünf sind die Sache; diese Zahl ist die Wirkung. Fünf Wörter waren fünf
+ * Beschriftungen, die um das Zeichen herum lagen — man las sie ab. Sechsunddreissig
+ * sind eine Wolke, in der man steht: dasselbe Wort taucht in verschiedener
+ * Tiefe, Grösse und Helligkeit mehrfach auf, und keines davon liest man einzeln.
+ *
+ * Ein Vielfaches der fünf, damit keines häufiger vorkommt als ein anderes.
+ */
+const WORD_COUNT = 35;
+
+/**
  * Der Raum des ersten Bildes.
  *
  * <b>Eine echte Perspektive, keine nachgebaute.</b> Alles steht als Gegenstand
@@ -231,14 +257,18 @@ const SENTENCE_Z = -980;
 /*
  * Zeichen und Satz stehen auseinander, nicht ineinander.
  *
- * Beide Werte sind Tiefenmasse, keine Bildschirmmasse: was weiter hinten liegt,
- * rueckt in der Projektion naeher an die Mitte. Der Satz braucht deshalb den
- * groesseren Wert, um am Ende gleich weit unter dem Zeichen zu stehen — bei
- * z = -980 kommt von 18 nur die Haelfte auf dem Bild an, bei z = -320 von 5
- * gut drei Viertel. Auf dem Bild sind es also etwa -4 und +9 statt 0 und +6.
+ * <b>Der Satz liegt AUF dem Fluchtpunkt</b> (im Stilblatt: 56% der Hoehe, also
+ * 6 unter der Mitte). Das ist kein Zufallswert, sondern die Bedingung dafuer,
+ * dass er beim Naeherkommen stehen bleibt und nur waechst: alles andere dehnt
+ * sich vom Fluchtpunkt weg, er allein nicht. Lag er daneben, so rutschte er
+ * genau dann aus dem Bild, wenn er gross und allein sein soll.
+ *
+ * Das Zeichen darf daneben liegen — es SOLL vorbeiziehen. Bei z = -320 kommen
+ * von seinen 10 gut drei Viertel auf dem Bild an; es steht also rund 12 Prozent
+ * der Hoehe ueber dem Satz und zieht nach oben davon.
  */
-const LOGO_Y = -5;
-const SENTENCE_Y = 18;
+const LOGO_Y = -10;
+const SENTENCE_Y = 6;
 
 /** Die Tiefe der Woerter: von ganz hinten bis dicht vor die Kamera. */
 const WORD_FAR = -1650;
@@ -276,17 +306,22 @@ function placeWord(index: number, roll: () => number) {
    * hinausragen.
    */
   const shrink = (PERSPECTIVE - z) / PERSPECTIVE;
-  const radius = (32 + roll() * 34) * shrink;
+  const radius = (30 + roll() * 46) * shrink;
 
   return {
     x: Math.cos(angle) * radius,
     y: Math.sin(angle) * radius * 0.78,
     z,
     size: 1.5 + roll() * 1.5,
-    // Nur noch die Handschrift des einzelnen Wortes. Was die Tiefe an
-    // Durchsichtigkeit ausmacht, rechnet das Stilblatt aus `--ze` — dort
-    // gilt es dann fuer alles im Raum und nicht nur fuer die Woerter.
-    alpha: 0.62 + roll() * 0.3
+    /*
+     * Nur noch die Handschrift des einzelnen Wortes; was die Tiefe an
+     * Durchsichtigkeit ausmacht, rechnet das Stilblatt aus `--ze`.
+     *
+     * Blasser als zuvor, weil es jetzt fünfunddreissig sind: bei der alten
+     * Sättigung wäre das keine Wolke, sondern eine Wand, und das Zeichen
+     * stünde in einem Gedränge statt in einem Raum.
+     */
+    alpha: 0.35 + roll() * 0.45
   };
 }
 
@@ -295,19 +330,22 @@ function placeWord(index: number, roll: () => number) {
  *
  *   links oben  →  links unten  →  rechts oben  →  rechts unten
  *
- * `from` ist die Seite, von der es hereinfährt (-1 links, +1 rechts), `at` der
- * Zustand, ab dem es losläuft. Der Versatz von 0.15 zwischen ihnen ist klein
- * genug, dass es eine Bewegung bleibt, und gross genug, dass man vier Dinge
- * nacheinander sieht statt eines Blocks, der aufblendet.
+ * `from` ist die Seite, von der es hereinfährt (-1 links, +1 rechts), `lead`
+ * der Vorlauf vor dem Zustand der Werke. Der Versatz von 0.15 zwischen ihnen
+ * ist klein genug, dass es eine Bewegung bleibt, und gross genug, dass man vier
+ * Dinge nacheinander sieht statt eines Blocks, der aufblendet.
  *
- * Alle vier stehen bei 9.85 — also vor Zustand 10, damit dort wirklich Ruhe
- * ist und nicht noch etwas nachläuft.
+ * <b>Kein Vorlauf ist grösser als 1.</b> Das ist die Bedingung dafür, dass am
+ * vorigen Rastpunkt wirklich Ruhe ist: bei 1.15 fing das erste Viertel schon
+ * an hereinzufahren, während die letzte Szene noch stand, und lag dort mit
+ * einem Viertel Deckkraft über ihr. Dieselbe Sache, die die Szenen selbst
+ * halb übereinander stehen liess.
  */
 const QUARTERS = [
-  { from: -1, lead: 1.15 },
-  { from: -1, lead: 1.00 },
-  { from: 1, lead: 0.85 },
-  { from: 1, lead: 0.70 }
+  { from: -1, lead: 0.85 },
+  { from: -1, lead: 0.70 },
+  { from: 1, lead: 0.55 },
+  { from: 1, lead: 0.40 }
 ] as const;
 
 /**
@@ -397,12 +435,19 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
    * nächsten Textänderung nicht mehr stimmt.
    */
   const plan = useMemo(() => {
-    const starts: number[] = [];
-    let at = 1;
-    for (const scene of t.scenes) { starts.push(at); at += scene.bubbles.length; }
+    /*
+     * EINE Szene ist EIN Zustand — nicht eine je Blase.
+     *
+     * Die Blasen einer Szene hängen an einem Faden; sie sind ein Gedanke mit
+     * Teilen, kein Stapel von Gedanken. Jede einzeln anzufahren machte aus
+     * einem Zusammenhang eine Liste, und aus einem Bildlauf durch vier Bilder
+     * einen durch dreizehn. Sie kommen jetzt gemeinsam, nur nicht im selben
+     * Augenblick: der Versatz steckt IN dem einen Übergang.
+     */
+    const starts = t.scenes.map((_, index) => index + 1);
 
-    const works = at;
-    const contact = at + 1;
+    const works = t.scenes.length + 1;
+    const contact = works + 1;
 
     return {
       starts,
@@ -428,7 +473,10 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
    * zu würfeln hiesse: die Wörter zittern, statt zu fliegen.
    */
   const halo = useMemo(
-    () => WORDS.map((tail, index) => ({ tail, ...placeWord(index, Math.random) })),
+    () => Array.from({ length: WORD_COUNT }, (_, index) => ({
+      tail: WORDS[index % WORDS.length],
+      ...placeWord(index, Math.random)
+    })),
     []
   );
 
@@ -526,6 +574,17 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
         ? (rcGlideSlope(Math.min(1, (now - startedAt) / span), lead) * (toY - fromY)) / span
         : 0;
 
+      /*
+       * Der erste Übergang dauert länger als die anderen.
+       *
+       * Er ist auch mehr: die übrigen wechseln eine Szene, dieser durchfliegt
+       * einen ganzen Raum — an den Wörtern vorbei, am Zeichen vorbei, bis der
+       * Satz allein steht. Und das Innehalten unterwegs, das die Kamerakurve im
+       * Stilblatt vorsieht, braucht Zeit, um überhaupt als Innehalten
+       * anzukommen: bei GLIDE_MS wären es keine 200 Millisekunden.
+       */
+      const opening = next === 0 || target === 0;
+
       target = next;
 
       fromY = window.scrollY;
@@ -533,7 +592,9 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
       // Wer während eines Übergangs weiterschiebt, soll nicht warten müssen:
       // der nächste läuft etwas straffer.
-      span = reduce.matches ? 0 : (gliding ? GLIDE_MS * 0.72 : GLIDE_MS);
+      span = reduce.matches
+        ? 0
+        : opening ? OPENING_MS : (gliding ? GLIDE_MS * 0.72 : GLIDE_MS);
       startedAt = now;
       gliding = true;
 
@@ -752,9 +813,9 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
           */}
           <div className="rc-space">
             <div className="rc-cam">
-              {halo.map((word) => (
+              {halo.map((word, index) => (
                 <span
-                  key={word.tail}
+                  key={index}
                   className="rc-item rc-word"
                   aria-hidden="true"
                   style={{
@@ -817,12 +878,10 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
                 style={{
                   '--c': plan.starts[index],
                   '--n': scene.bubbles.length,
-                  // Lebensdauer der Szene in Zuständen: genau so viele, wie
-                  // sie Blasen hat. Der Zuschlag von 1.4, der hier stand,
-                  // schob das Ende der Szene mitten auf ihren letzten
-                  // Rastpunkt — dort stand sie dann halb verschwunden neben
-                  // der nächsten.
-                  '--life': scene.bubbles.length
+                  // Lebensdauer in Zuständen. Eine Szene ist ein Zustand, also
+                  // einer: sie kommt im Übergang davor an und geht im Übergang
+                  // danach. Gerastet wird genau in ihrer Mitte.
+                  '--life': 1
                 } as CSSProperties}
               >
                 <Thread points={points} />

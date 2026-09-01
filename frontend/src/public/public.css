@@ -503,8 +503,23 @@
      Sie ist im Zustand 1 zu Ende — genau dann, wenn die erste Szene einrastet.
      Lief sie darueber hinaus (vorher bis 1.1), stand die erste Szene noch im
      halb durchsichtigen Raum, und der dunkle Grund lag als Schleier ueber ihr.
+
+     UND SIE HAELT UNTERWEGS KURZ INNE. Drei Rampen statt einer geraden Fahrt:
+     schnell heran, dann ein langsames Stueck, dann wieder schnell davon. Das
+     langsame Stueck liegt genau dort, wo das Zeichen schon vorbeigezogen und
+     der Satz noch nicht am Verblassen ist — bei einem Kamerastand von 1200 bis
+     1540, also dem Fenster, in dem der Satz allein und ganz da steht.
+
+     Es ist ein Innehalten, kein Halt: die Fahrt geht mit knapp der halben
+     Geschwindigkeit weiter. Ein wirklicher Halt waere ein weiterer Rastpunkt,
+     und dafuer ist der Satz kein eigener Gedanke, sondern das Ende des ersten.
   */
-  --pcam: clamp(0, var(--s), 1);
+  --pcam:
+    calc(
+      0.545 * clamp(0, calc(var(--s) / 0.42), 1) +
+      0.155 * clamp(0, calc((var(--s) - 0.42) / 0.26), 1) +
+      0.300 * clamp(0, calc((var(--s) - 0.68) / 0.32), 1)
+    );
   --cam: calc(var(--pcam) * var(--cam-end));
 
   /* Und der Raum ist dort auch fort, nicht erst ein Stueck spaeter. */
@@ -551,7 +566,21 @@
   overflow: hidden;
 
   perspective: var(--persp);
-  perspective-origin: 50% 46%;
+
+  /*
+     Der Fluchtpunkt liegt beim SATZ, nicht in der Bildmitte.
+
+     Er ist der Punkt, auf den die Kamera zufaehrt, und alles im Raum dehnt sich
+     von ihm weg. Lag er in der Mitte, so wanderte der Satz — der ja etwas
+     tiefer steht — beim Naeherkommen immer weiter nach unten und war gerade
+     dann fast aus dem Bild, wenn er gross und allein sein sollte. Ein Gegenstand
+     bleibt nur dort stehen, wo der Fluchtpunkt ist.
+
+     Also: der Fluchtpunkt dorthin, wo der Satz stehen soll, und SENTENCE_Y so
+     gewaehlt, dass der Satz genau dort liegt. Er waechst dann an Ort und
+     Stelle, waehrend das Zeichen darueber nach oben aus dem Bild zieht.
+  */
+  perspective-origin: 50% 56%;
 
   /* Wenn alles vorbeigezogen ist, geht auch der Raum. */
   opacity: calc(1 - var(--pspace));
@@ -682,11 +711,17 @@
    Die Blase sitzt MIT IHREM MITTELPUNKT auf ihrem Punkt — dieselben Zahlen,
    die der Faden verbindet.
 
-   `--f` ist die Hervorhebung: ein Dreieck um den eigenen Zustand, aus zwei
-   Rampen mit `min()` gebaut.
+   `--f` ist die ANKUNFT, nicht mehr eine wandernde Betonung.
 
-   Der Grundwert von 0.46 ist der Unterschied zu frueher: die Blasen einer Szene
-   stehen ALLE lesbar da: was wandert, ist die Betonung und nicht die Anwesenheit.
+   Frueher hatte jede Blase ihren eigenen Zustand, und `--f` war ein Dreieck
+   darum: man fuhr eine Szene Blase fuer Blase ab. Das machte aus einem
+   Zusammenhang eine Liste — die Blasen haengen an einem Faden, sie sind ein
+   Gedanke mit Teilen und nicht vier Gedanken.
+
+   Jetzt ist die ganze Szene EIN Zustand, und der Versatz steckt im Uebergang
+   dorthin: `--i` schiebt jede Blase ein Stueck spaeter an. Am Rastpunkt sind
+   alle da (auch die vierte: 1 - 3 x 0.12 liegt ueber dem Fenster von 0.55),
+   und was man gesehen hat, war eine Bewegung und kein Aufblenden.
 */
 .rc-stage.is-live .rc-bubble {
   position: absolute;
@@ -701,13 +736,21 @@
   border: 1px solid var(--line);
   box-shadow: 0 14px 40px rgb(20 24 15 / 0.10);
 
-  --f: clamp(0, min(calc(var(--s) - var(--c) - var(--i) + 1), calc(var(--c) + var(--i) + 1 - var(--s))), 1);
+  --f: clamp(0, calc((var(--s) - var(--c) + 1 - var(--i) * 0.12) / 0.55), 1);
 
-  opacity: calc(0.64 + 0.36 * var(--f));
-  transform: translate(-50%, -50%) scale(calc(1 + 0.08 * var(--f)));
+  opacity: var(--f);
+  transform: translate(-50%, -50%) scale(calc(0.93 + 0.07 * var(--f)));
   transform-origin: center;
-  border-color: color-mix(in oklab, var(--line), var(--accent) calc(var(--f) * 100%));
 }
+
+/*
+   Die Ueberschrift der Szene traegt den Akzent, und zwar dauerhaft.
+
+   Vorher lag er auf der jeweils betonten Blase und wanderte mit. Ohne dieses
+   Wandern braucht die Szene trotzdem einen Anfang, an dem das Auge einsetzt —
+   das ist ihr Titel.
+*/
+.rc-stage.is-live .rc-bubble[data-kind='title'] { border-color: var(--accent); }
 
 /* Die Rollen tragen verschiedene Breiten — sonst sieht jede Szene gleich aus. */
 .rc-stage.is-live .rc-bubble[data-kind='title'] { width: min(76vw, 22rem); }
@@ -819,7 +862,9 @@
    genug, um nicht bunt zu werden.
 */
 .rc-stage.is-live .rc-work {
-  --a: clamp(0, calc((var(--s) - var(--at)) / 0.55), 1);
+  /* 0.4 statt 0.55: der letzte Vorlauf ist 0.4, und alle vier muessen bis zum
+     Rastpunkt der Werke angekommen sein. */
+  --a: clamp(0, calc((var(--s) - var(--at)) / 0.4), 1);
 
   border-top: 0;
   padding: clamp(1.5rem, 4vh, 3rem) clamp(1.5rem, 4vw, 3.5rem);

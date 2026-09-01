@@ -25,23 +25,28 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
  *   PEEK_MAX_FACTOR of a viewport so the next slide can be looked at before
  *   committing, and springing back if it is not.
  *
- *   **Enough to leave.** A throw that has carried the reader at least
- *   CARRY_MIN_TRAVEL_FACTOR of a screen and still runs at FLICK_COMMIT_VELOCITY
- *   when it reaches the edge hands its speed straight to the transition, which
- *   picks the movement up at that speed and decelerates to a stop at the top of
- *   the next slide. One movement from the finger to the far side — and it ENDS
+ *   **Enough to leave.** The reader's own scrolling reached the end of the
+ *   slide and there was still a throw behind it: that remaining speed is handed
+ *   straight to the transition, which picks the movement up where the throw
+ *   left it and decelerates to a stop at the top of the next slide.
+ *   One movement from the finger to the far side — and it ENDS
  *   there: the leftover speed is spent on the transition, the coast is stopped,
  *   and the pull is cleared, so nothing carries on into the slide just reached.
  *
- * The travel condition is not decoration. A slide exactly one screen tall has no
- * inner range at all — it rests on both of its edges at once — so every flick on
- * it arrives at a boundary already moving. Without the condition each twitch
- * became a departure and such a page flipped between two slides.
+ * Inertia by itself is never enough. A throw let go in the middle of a slide
+ * drifts to the bottom and stops there; the next scroll is what leaves. And a
+ * slide with no reading range worth the name is excluded from carrying through
+ * at all — it is at its own end from the first pixel, so every twitch on it
+ * would qualify, and such a page flipped between two slides.
  *
- * After any departure the input is gated, and the gate is pushed forward by
- * every event it swallows (GATE_QUIET_MS). A trackpad sends deltas for up to a
- * second after the fingers leave; a gate that merely expired let that tail land
- * in the newly arrived slide and scroll it on its own.
+ * After any departure the input is gated. A trackpad sends deltas for up to a
+ * second after the fingers leave, and a gate that merely expired let that tail
+ * land in the newly arrived slide and scroll it on its own — so the gate is held
+ * open by the tail itself (GATE_QUIET_MS). But only while it behaves like one:
+ * momentum decays, so an event bigger than the last is a person pushing again
+ * and goes straight through, and GATE_MAX_MS ends the matter regardless.
+ * Without both of those the gate wedged shut against steady scrolling on a
+ * wheel, and the page stopped answering until the hand came off.
  */
 
 /** A slide is never shorter than the screen; content decides anything more. */
@@ -82,6 +87,23 @@ const BOUNDARY_HOLD_MS = 90;
  * swallows, so it lifts only once the stream has actually stopped.
  */
 const GATE_QUIET_MS = 140;
+
+/**
+ * A swallowed event bigger than this multiple of the last one is a new push,
+ * not the tail of the old gesture.
+ *
+ * Momentum only ever decays. A gate that extended itself on ANY input therefore
+ * wedged shut against somebody scrolling steadily on a wheel — every notch
+ * looked like more tail and the page stopped answering until they took their
+ * hand off. Growth is the signal that a person is pushing again.
+ */
+const GATE_NEW_PUSH_RATIO = 1.2;
+
+/** However quiet it never gets, a gate lets go this long after the departure. */
+const GATE_MAX_MS = 1100;
+
+/** Silence this long ends a wheel gesture; the next delta begins a new one. */
+const GESTURE_GAP_MS = 180;
 /**
  * How long a pull against an edge is remembered after it springs back. A mouse
  * wheel arrives as separate notches, so without this each one would peek, bounce
@@ -171,22 +193,6 @@ function easeOut(t: number): number {
 const EASE_OUT_KICK = 3;
 
 /**
- * How far a throw must have carried the reader through a slide before its speed
- * is allowed to carry them out of it, as a share of the viewport.
- *
- * Without this the rule breaks on the commonest slide of all: one exactly the
- * height of the screen has no inner range whatsoever, so the track rests on both
- * of its edges at once and every flick — in either direction, however small —
- * arrives at an edge already moving. Handing the speed over there turned each
- * twitch into a committed departure, and a page of screen-high slides flipped
- * back and forth between two of them.
- *
- * A throw that has actually carried somebody a quarter of a screen through the
- * content is a different thing, and that is the one this is for.
- */
-const CARRY_MIN_TRAVEL_FACTOR = 0.25;
-
-/**
  * Rubber band: the first pixels of pull come through nearly whole, later ones
  * barely at all, approaching `max` without ever quite reaching it. That rising
  * resistance is what makes the edge feel like a physical stop you are stretching.
@@ -238,6 +244,18 @@ export function useSlideScroll(slideCount: number) {
   /** Pull accumulated against one edge, surviving the springs back between scrolls. */
   const pullRef = useRef<{ index: number; direction: 1 | -1; raw: number; at: number } | null>(null);
   const gateUntilRef = useRef(0);
+  /** The tail of the gesture that caused a departure: size, deadline, and a cap. */
+  const tailRef = useRef({ until: 0, size: 0, cap: 0 });
+  const lastWheelAtRef = useRef(0);
+  /**
+   * Whether the reader's own scrolling — not its momentum — has reached the end
+   * of the slide during this gesture.
+   *
+   * This is the difference between "I threw the page and it drifted to the
+   * bottom" and "I scrolled to the bottom and I am still going". Only the second
+   * may leave on inertia.
+   */
+  const reachedEdgeRef = useRef(false);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
   const interpolationRef = useRef(TRACK_INTERPOLATION);
@@ -504,8 +522,18 @@ export function useSlideScroll(slideCount: number) {
       if (index === -1) index = slides.length - 1;
       const slide = slides[index];
 
-      const lowerBound = slide.shallow ? slide.start : Math.min(slide.start, slide.innerEnd);
-      const upperBound = slide.shallow ? slide.start : slide.innerEnd;
+      /**
+       * The real inner range, whatever its size.
+       *
+       * These used to collapse to a single point on a "shallow" slide — one
+       * whose content overruns the screen by less than SHALLOW_TRAVEL_FACTOR —
+       * which made that last strip of content unreachable: the page simply
+       * refused to scroll the few dozen pixels needed to read it. Shallowness
+       * still decides whether such a slide may be LEFT on inertia, which is what
+       * it was always really about.
+       */
+      const lowerBound = Math.min(slide.start, slide.innerEnd);
+      const upperBound = Math.max(slide.start, slide.innerEnd);
       const to = from + delta;
 
       /**
@@ -533,6 +561,7 @@ export function useSlideScroll(slideCount: number) {
       // stops there instead — which is what keeps a throw made while reading
       // from spilling over into the next slide.
       if (to > upperBound && slides[index + 1]) {
+        if (!coasting) reachedEdgeRef.current = true;
         if (from < upperBound - 0.5) {
           setTarget(upperBound);
           // The part of the scroll that went past the edge is not thrown away:
@@ -549,6 +578,7 @@ export function useSlideScroll(slideCount: number) {
         return 'peek';
       }
       if (to < lowerBound && slides[index - 1]) {
+        if (!coasting) reachedEdgeRef.current = true;
         if (from > lowerBound + 0.5) {
           setTarget(lowerBound);
           if (!coasting) rememberPull(index, -1, lowerBound - to);
@@ -599,9 +629,13 @@ export function useSlideScroll(slideCount: number) {
         gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS + BOUNDARY_HOLD_MS;
       }
 
+      const now = performance.now();
+      tailRef.current = { until: gateUntilRef.current + GATE_QUIET_MS, size: 0, cap: now + GATE_MAX_MS };
+
       peekRef.current = null;
       pullRef.current = null;
       velocityRef.current = 0;
+      reachedEdgeRef.current = false;
       stopSettle();
     },
     [stopSettle, tweenTo]
@@ -657,14 +691,30 @@ export function useSlideScroll(slideCount: number) {
     (delta: number): boolean => {
       if (!Number.isFinite(delta) || delta === 0) return false;
 
-      // Mid-commit or mid-bounce: swallow input rather than queue it — and hold
-      // the gate open for as long as the input keeps coming, so the tail of a
-      // trackpad's momentum is spent here instead of moving the slide that was
-      // just arrived at.
       const now = performance.now();
+      const size = Math.abs(delta);
+      const tail = tailRef.current;
+
+      // Mid-transition: swallow, and start counting the tail from here.
       if (now < gateUntilRef.current) {
-        gateUntilRef.current = now + GATE_QUIET_MS;
+        tail.size = Math.max(tail.size, size);
+        tail.until = now + GATE_QUIET_MS;
         return false;
+      }
+
+      // The transition is over but the gesture that caused it may not be: a
+      // trackpad sends deltas for up to a second after the fingers leave, and
+      // that tail used to scroll the slide just arrived at. It is swallowed —
+      // but only while it behaves like a tail. Momentum decays; an event bigger
+      // than the last is somebody pushing again, and it goes straight through.
+      // Without that the gate wedged shut against steady scrolling on a wheel.
+      if (now < tail.until && now < tail.cap) {
+        if (size <= tail.size * GATE_NEW_PUSH_RATIO) {
+          tail.size = size;
+          tail.until = now + GATE_QUIET_MS;
+          return false;
+        }
+        tail.until = 0;
       }
 
       advance(delta);
@@ -719,8 +769,6 @@ export function useSlideScroll(slideCount: number) {
       if (Math.abs(velocity) < FLING_MIN_VELOCITY) return;
 
       let lastFrameAt = performance.now();
-      /** How far this coast has actually carried the reader through the slide. */
-      let travelled = 0;
 
       const step = () => {
         const now = performance.now();
@@ -734,9 +782,7 @@ export function useSlideScroll(slideCount: number) {
           return;
         }
 
-        const before = targetRef.current;
         const outcome = advance(velocity * frameMs, true);
-        if (outcome === 'moved') travelled += Math.abs(targetRef.current - before);
 
         if (outcome !== 'moved') {
           settleRafRef.current = null;
@@ -763,10 +809,29 @@ export function useSlideScroll(slideCount: number) {
            * be thrown through — and the deliberate peek rules decide, as they
            * always did.
            */
-          const carriedFar = travelled >= viewportRefValue.current * CARRY_MIN_TRAVEL_FACTOR;
+          /**
+           * Inertia alone never leaves a slide. The reader's own scrolling has
+           * to have reached the end of it — then, and only then, what is left of
+           * the throw carries on into the transition.
+           *
+           * A throw let go in the middle of a slide drifts to the bottom and
+           * stops there, which is where somebody who threw gently expects to
+           * find themselves; the next scroll is what leaves. The measure used to
+           * be distance travelled, which got this wrong in both directions.
+           *
+           * A slide with no reading range to speak of is excluded outright: it
+           * is at its own end from the first pixel, so "the scroll reached the
+           * end" would be true of every twitch, and the page would flip between
+           * two slides.
+           */
+          const slides = slidesRef.current;
+          const here = slides.findIndex((slide) => targetRef.current <= slide.innerEnd + 0.5);
+          const readable = here === -1 ? true : !slides[here].shallow;
+
+          const earned = reachedEdgeRef.current && readable;
           const fast = Math.abs(velocity) >= FLICK_COMMIT_VELOCITY;
 
-          if (outcome === 'edge' && carriedFar && fast) {
+          if (outcome === 'edge' && earned && fast) {
             const destination = departureFrom(velocity > 0 ? 1 : -1);
             if (destination !== undefined) {
               departTo(destination, velocity);
@@ -774,7 +839,7 @@ export function useSlideScroll(slideCount: number) {
             }
           }
 
-          if (outcome === 'peek') resolvePeek(carriedFar ? velocity : 0);
+          if (outcome === 'peek') resolvePeek(earned ? velocity : 0);
           return;
         }
 
@@ -825,6 +890,12 @@ export function useSlideScroll(slideCount: number) {
       setInteracted(true);
       const delta = normalizeWheelDelta(event);
       if (Math.abs(delta) < 0.01) return;
+
+      // Silence long enough means the last gesture is over: what it reached is
+      // no longer this scroll's business.
+      const wheelAt = performance.now();
+      if (wheelAt - lastWheelAtRef.current > GESTURE_GAP_MS) reachedEdgeRef.current = false;
+      lastWheelAtRef.current = wheelAt;
       event.preventDefault();
       stopSettle();
       if (applyDelta(delta)) resolveDriven();
@@ -837,6 +908,7 @@ export function useSlideScroll(slideCount: number) {
       // over from the last one. Only wheels need to be held off after a
       // departure; a finger has already announced itself by arriving.
       gateUntilRef.current = 0;
+      reachedEdgeRef.current = false;
       stopSettle();
       cancelResolveTimer();
       touchYRef.current = event.touches[0].clientY;
