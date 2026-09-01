@@ -12,13 +12,20 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
  *
  * ── How a slide is left ──────────────────────────────────────────────────────
  * A slide's inner range, start → innerEnd, scrolls freely: that is reading.
- * Arriving at either end stops there, and a throw's inertia stops with it — no
- * amount of speed built up while reading will carry on into the next slide.
  *
- * Leaving is a separate, deliberate act. Once the track is already resting on
- * an edge, further scrolling stretches past it with rising resistance, up to a
+ * Arriving at an edge slowly stops there. Leaving is then a deliberate act:
+ * further scrolling stretches past the edge with rising resistance, up to a
  * peek of PEEK_MAX_FACTOR of a viewport, uncovering the top of the next slide
  * while the finger is still down so you can look before committing.
+ *
+ * Arriving at an edge FAST is different, and the difference is the whole feel
+ * of the thing. A throw still carrying FLICK_COMMIT_VELOCITY or more when it
+ * reaches the edge hands its speed to the departure: the transition starts at
+ * that speed and decelerates from it, so the two are one movement. Throwing the
+ * speed away and playing a fixed ease-in-out instead — which is what this did
+ * at first — reads as three: the fling slowing to a stop, a pause, and then
+ * something else beginning. Whatever is left of the throw is spent on the
+ * departure, so nothing resumes on the other side either.
  *
  * That pull is held against the edge and accumulates across separate scrolls,
  * which is what lets a few notches of a mouse wheel add up to one departure.
@@ -126,6 +133,23 @@ function easeInOut(t: number): number {
 }
 
 /**
+ * Starts at speed and slows to a stop — the shape a throw already has.
+ *
+ * Used for a departure that a fling carried into: an ease-in-out would begin
+ * from a standstill, and a movement that stops and then starts again is read as
+ * two movements, however short the pause.
+ *
+ * Its initial speed is 3 × distance ÷ duration, which is what lets the duration
+ * below be chosen to match the speed the finger actually left behind.
+ */
+function easeOut(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+/** The ease-out's speed at t=0, as a multiple of the average. */
+const EASE_OUT_KICK = 3;
+
+/**
  * Rubber band: the first pixels of pull come through nearly whole, later ones
  * barely at all, approaching `max` without ever quite reaching it. That rising
  * resistance is what makes the edge feel like a physical stop you are stretching.
@@ -165,7 +189,13 @@ export function useSlideScroll(slideCount: number) {
   const rafRef = useRef<number | null>(null);
   const settleRafRef = useRef<number | null>(null);
   const resolveTimerRef = useRef<number | null>(null);
-  const tweenRef = useRef<{ from: number; to: number; start: number; duration: number } | null>(null);
+  const tweenRef = useRef<{
+    from: number;
+    to: number;
+    start: number;
+    duration: number;
+    ease: (t: number) => number;
+  } | null>(null);
   const slidesRef = useRef<Slide[]>([]);
   const peekRef = useRef<Peek | null>(null);
   /** Pull accumulated against one edge, surviving the springs back between scrolls. */
@@ -306,7 +336,7 @@ export function useSlideScroll(slideCount: number) {
 
       if (tween) {
         const progress = clamp((performance.now() - tween.start) / tween.duration, 0, 1);
-        const next = tween.from + (tween.to - tween.from) * easeInOut(progress);
+        const next = tween.from + (tween.to - tween.from) * tween.ease(progress);
         positionRef.current = next;
         setPosition(next);
 
@@ -351,10 +381,10 @@ export function useSlideScroll(slideCount: number) {
 
   /** Timed ease — the spring back, and the move between slides. */
   const tweenTo = useCallback(
-    (value: number, duration: number) => {
+    (value: number, duration: number, ease: (t: number) => number = easeInOut) => {
       const to = clamp(value, 0, maxScrollRef.current);
       targetRef.current = to;
-      tweenRef.current = { from: positionRef.current, to, start: performance.now(), duration };
+      tweenRef.current = { from: positionRef.current, to, start: performance.now(), duration, ease };
       animate();
     },
     [animate]
@@ -505,8 +535,35 @@ export function useSlideScroll(slideCount: number) {
 
       if ((pulledFar || flicked) && destination !== undefined) {
         pullRef.current = null; // spent — the next slide starts from zero
-        tweenTo(destination, SLIDE_TRANSITION_MS);
-        gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS + BOUNDARY_HOLD_MS;
+
+        /**
+         * A departure a throw carried into has to leave at the speed the throw
+         * had. The fixed ease-in-out this used to run began from a standstill,
+         * so a fast flick read as three separate things: the fling slowing to
+         * the edge, a pause, and then a new animation starting. One movement
+         * means the hand-over is invisible, and that means matching the speed.
+         *
+         * An ease-out starts at EASE_OUT_KICK × distance ÷ duration, so the
+         * duration that starts at the incoming speed is that ratio rearranged.
+         * A slow, deliberate pull has no speed to match and keeps the old shape.
+         */
+        const speed = Math.abs(velocity);
+        const distance = Math.abs(destination - positionRef.current);
+
+        if (speed >= FLICK_COMMIT_VELOCITY && distance > 0) {
+          const carried = clamp((EASE_OUT_KICK * distance) / speed, 220, SLIDE_TRANSITION_MS);
+          tweenTo(destination, carried, easeOut);
+          gateUntilRef.current = performance.now() + carried + BOUNDARY_HOLD_MS;
+        } else {
+          tweenTo(destination, SLIDE_TRANSITION_MS);
+          gateUntilRef.current = performance.now() + SLIDE_TRANSITION_MS + BOUNDARY_HOLD_MS;
+        }
+
+        // Whatever is left of the throw has now been spent on the departure.
+        // Without this it would come back as a second movement inside the slide
+        // that was just arrived at.
+        velocityRef.current = 0;
+        stopSettle();
         return true;
       }
 
@@ -517,7 +574,7 @@ export function useSlideScroll(slideCount: number) {
       pullRef.current = { index: peek.index, direction: peek.direction, raw: peek.raw, at: performance.now() };
       return false;
     },
-    [tweenTo]
+    [stopSettle, tweenTo]
   );
 
   const applyDelta = useCallback(
@@ -592,10 +649,13 @@ export function useSlideScroll(slideCount: number) {
         const outcome = advance(velocity * frameMs, true);
         if (outcome !== 'moved') {
           settleRafRef.current = null;
-          // A coast that ran onto an edge it was already resting on opens a
-          // peek that nothing would ever resolve — the finger is long gone and
-          // there is no idle timer on the touch path. Spring it back now.
-          if (outcome === 'peek') resolvePeek(0);
+          // A coast that ran onto an edge opens a peek that nothing would else
+          // resolve — the finger is long gone and there is no idle timer on the
+          // touch path. It is resolved here, and with the speed it arrived at:
+          // passing zero threw the throw away, which is what made leaving a
+          // slide feel like a separate, second movement. Fast enough, and it
+          // carries straight through; slow, and it springs back as before.
+          if (outcome === 'peek') resolvePeek(velocity);
           return;
         }
 
