@@ -168,6 +168,26 @@ const WORDS = [
 const KEEP_X = 40;
 const KEEP_Y = 19;
 
+/**
+ * Die vier Werke kommen NICHT als Block, sondern jedes in sein Viertel.
+ *
+ *   links oben  →  links unten  →  rechts oben  →  rechts unten
+ *
+ * `from` ist die Seite, von der es hereinfährt (-1 links, +1 rechts), `at` der
+ * Zustand, ab dem es losläuft. Der Versatz von 0.15 zwischen ihnen ist klein
+ * genug, dass es eine Bewegung bleibt, und gross genug, dass man vier Dinge
+ * nacheinander sieht statt eines Blocks, der aufblendet.
+ *
+ * Alle vier stehen bei 9.85 — also vor Zustand 10, damit dort wirklich Ruhe
+ * ist und nicht noch etwas nachläuft.
+ */
+const QUARTERS = [
+  { from: -1, at: 8.85 },
+  { from: -1, at: 9.00 },
+  { from: 1, at: 9.15 },
+  { from: 1, at: 9.30 }
+] as const;
+
 function Bubble({
   index, at, name, body, gap, copy, big, children
 }: {
@@ -440,7 +460,14 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
               <div className="rc-works">
                 {t.screen3.works.map((work, index) => (
-                  <article className="rc-work" key={work.name}>
+                  <article
+                    className="rc-work"
+                    key={work.name}
+                    style={{
+                      '--from': QUARTERS[index].from,
+                      '--at': QUARTERS[index].at
+                    } as CSSProperties}
+                  >
                     <h3 className="rc-work-h">{work.name}</h3>
                     <p className="rc-work-b">{work.body}</p>
                     <a className="rc-work-a" href={publicHref(WORK_PAGES[index])}>

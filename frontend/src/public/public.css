@@ -722,14 +722,80 @@
 
 /* -- Die vier Werke --------------------------------------------------------- */
 
+/*
+   Vier Viertel statt eines Blocks.
+
+   Jedes Werk faehrt von seiner Seite herein — die beiden linken von links, die
+   beiden rechten von rechts — und zwar nacheinander: links oben, links unten,
+   rechts oben, rechts unten. Der Titel steht dort, wo die vier Viertel
+   zusammenstossen.
+
+   Der Inhalt jedes Viertels sitzt an seiner AEUSSEREN Ecke: oben nach oben,
+   unten nach unten, links linksbuendig, rechts rechtsbuendig. So bleibt die
+   Mitte frei, ohne dass irgendwo ein Abstand geraten werden muss.
+
+   Ein Werk, das noch nicht da ist, steht um 46vw zur Seite versetzt — also
+   ausserhalb der beschnittenen Buehne. Damit ist es auch nicht anklickbar,
+   solange es unsichtbar ist.
+*/
 .rc-stage.is-live .rc-l3 {
-  z-index: 1;
-  display: grid;
-  align-content: center;
-  overflow-y: auto;
+  z-index: 4;
+  display: block;
+  overflow: hidden;
   border-top: 0;
+}
+
+.rc-stage.is-live .rc-s3-in {
+  position: relative;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.rc-stage.is-live .rc-l3 .rc-h2,
+.rc-stage.is-live .rc-stages {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin: 0;
+  text-align: center;
+  white-space: nowrap;
   opacity: var(--pl3);
-  transform: scale(calc(0.82 + 0.18 * var(--pl3)));
+}
+
+.rc-stage.is-live .rc-l3 .rc-h2 { transform: translate(-50%, -160%); }
+.rc-stage.is-live .rc-stages { transform: translate(-50%, 60%); }
+
+.rc-stage.is-live .rc-works {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: clamp(3rem, 12vh, 7rem) clamp(3rem, 14vw, 11rem);
+  height: 100%;
+  align-items: center;
+}
+
+.rc-stage.is-live .rc-work {
+  --a: clamp(0, calc((var(--s) - var(--at)) / 0.55), 1);
+
+  border-top: 0;
+  padding-top: 0;
+  max-width: 25rem;
+  opacity: var(--a);
+  transform: translateX(calc(var(--from) * 46vw * (1 - var(--a))));
+}
+
+.rc-stage.is-live .rc-work-b { max-width: none; }
+
+/* Links oben, links unten, rechts oben, rechts unten. */
+.rc-stage.is-live .rc-work:nth-child(1) { grid-area: 1 / 1; align-self: start; justify-self: start; }
+.rc-stage.is-live .rc-work:nth-child(2) { grid-area: 2 / 1; align-self: end; justify-self: start; }
+.rc-stage.is-live .rc-work:nth-child(3) { grid-area: 1 / 2; align-self: start; justify-self: end; text-align: right; }
+.rc-stage.is-live .rc-work:nth-child(4) { grid-area: 2 / 2; align-self: end; justify-self: end; text-align: right; }
+
+/* Ohne Weg: sie sind einfach da, wenn sie dran sind. */
+@media (prefers-reduced-motion: reduce) {
+  .rc-stage.is-live .rc-work { transform: none; }
 }
 
 /*
