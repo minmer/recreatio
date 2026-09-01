@@ -55,7 +55,7 @@ export const pl: PublicCopy = {
   front: {
     screen1: {
       wordmark: 'REcreatio',
-      sentence: { missing: 'Jedno zdanie pod znakiem — h1 strony' },
+      sentence: 'Inicjatywa starająca się o integralny rozwój człowieka',
       hint: 'Przewiń'
     },
 

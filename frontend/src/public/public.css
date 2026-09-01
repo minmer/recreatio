@@ -431,9 +431,24 @@
   /* Der Zustand als Zahl. Alles Weitere rechnet in dieser Einheit. */
   --s: calc(var(--p, 0) * var(--states));
 
+  /* Das Zeichen fliegt zuerst: es ist vorn. */
   --pw: clamp(0, calc(var(--s) / 0.85), 1);
   --pv: clamp(0, calc((var(--s) - 0.55) / 0.35), 1);
-  --ps: clamp(0, calc((var(--s) - 0.05) / 0.5), 1);
+
+  /*
+     Der Satz liegt TIEFER als das Zeichen und startet deshalb spaeter: er
+     beginnt erst bei 0.45 zu fliegen und ist bis 1.2 unterwegs, waehrend das
+     Zeichen schon bei 0.85 durch ist. Zwischen 0.85 und 1.2 steht er also
+     allein — und genau das ist der Augenblick, in dem er hervortritt.
+
+     Die erste Fassung hatte es andersherum: der Satz war bei 0.55 verschwunden,
+     also BEVOR das Zeichen fertig war. Damit fiel weg, was hier auffallen soll.
+  */
+  --pt: clamp(0, calc((var(--s) - 0.45) / 0.75), 1);
+
+  /* Der Hinweis zum Scrollen geht sofort — er hat seine Arbeit getan. */
+  --ps: clamp(0, calc((var(--s) - 0.05) / 0.4), 1);
+
   --pl3: clamp(0, calc((var(--s) - 9) / 1), 1);
 }
 
@@ -453,14 +468,33 @@
   transform-origin: center;
 }
 
+/*
+   Der Satz fliegt mit — aber aus groesserer Tiefe und daher spaeter als das
+   Zeichen. Er waechst schwaecher (2.2 statt 33): was weiter hinten liegt,
+   bewegt sich langsamer. Das ist dieselbe Parallaxe wie bei den fuenf Woertern,
+   nur mit einer einzigen Ebene.
+*/
 .rc-stage.is-live .rc-first {
-  z-index: 6;
+  z-index: 7;
   display: grid;
   grid-template-rows: 1fr auto auto;
   align-content: center;
   background: transparent;
   pointer-events: none;
-  opacity: calc(1 - var(--ps));
+  transform-origin: center;
+  opacity: calc(1 - var(--pt));
+  transform: scale(calc(1 + var(--pt) * 2.2));
+}
+
+.rc-stage.is-live .rc-hint { opacity: calc(1 - var(--ps)); }
+
+/*
+   Sobald der Schleier fort ist, liegt der Satz nicht mehr auf Dunkel, sondern
+   auf Papier — heller Text waere dort unsichtbar. Die Farbe wandert deshalb mit
+   dem Schleier von hell nach dunkel.
+*/
+.rc-stage.is-live .rc-sentence {
+  color: color-mix(in oklab, #f2f4ef, var(--ink) calc(var(--pv) * 100%));
 }
 
 /* -- Das Zeichen als Loch --------------------------------------------------- */

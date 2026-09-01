@@ -40,7 +40,7 @@ export const en: PublicCopy = {
   front: {
     screen1: {
       wordmark: 'REcreatio',
-      sentence: { missing: 'The one sentence under the wordmark — the page h1' },
+      sentence: 'An initiative working for the integral development of the person',
       hint: 'Scroll'
     },
 

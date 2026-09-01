@@ -42,7 +42,7 @@ export const de: PublicCopy = {
   front: {
     screen1: {
       wordmark: 'REcreatio',
-      sentence: { missing: 'Der eine Satz unter dem Zeichen — die h1 der Seite' },
+      sentence: 'Eine Initiative für die integrale Entwicklung des Menschen',
       hint: 'Weiter'
     },
 
