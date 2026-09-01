@@ -6,6 +6,7 @@
  *    5 … 7        Der Mensch braucht den Menschen.  (drei)
  *    8 … 10       Zurück zu den Quellen.            (drei)
  *   11            Die vier Werke.
+ *   12            Kontakt.
  *
  * <b>Die Zahl der Blasen ist nicht überall dieselbe</b>, und der Fahrplan
  * rechnet sich daraus. Kommt eine Blase dazu, verschiebt sich alles Weitere von
@@ -14,58 +15,56 @@
  * <b>Eine Szene ist EIN Ding.</b> Ihre Blasen stehen gemeinsam da, hängen an
  * einem Faden und wachsen zusammen. Was wandert, ist allein die Hervorhebung.
  *
- * <b>Gerastet wird nur zwischen den Szenen.</b> Innerhalb einer Szene ist der
- * Bildlauf frei: dort lässt sich jede Zwischenlage halten, und damit ist jede
- * Blase als hervorgehobene erreichbar. Der Zug greift erst, wenn ein
- * Szenenanfang nah genug ist (`CAPTURE`).
+ * ---------------------------------------------------------------------------
+ * DAS ERSTE BILD IST EIN RAUM
+ *
+ * Kein Schleier, keine Maske: eine echte Perspektive. Alles darin ist ein
+ * Gegenstand mit einem z — die Wörter, das Zeichen, der Satz —, und bewegt wird
+ * die KAMERA. Grösse, Parallaxe und das Vorbeifliegen fallen aus der Projektion
+ * heraus und werden nirgends gerechnet.
+ *
+ * Das Zeichen steht der Kamera näher als der Satz und zieht deshalb zuerst
+ * vorbei; der Satz wird gross und bleibt einen Augenblick allein.
  *
  * ---------------------------------------------------------------------------
- * DAS ZEICHEN ALS MASKE, MIT SEINEN FÜNF WÖRTERN
+ * DER BILDLAUF: EINE GESTE, EIN ÜBERGANG
  *
- * Der Schleier trägt das Logo als Loch — CSS-Maske aus `logo_new.svg` mit
- * `mask-composite: exclude`, `mask-position: center`. Es wächst aus der Mitte,
- * ohne dass irgendwo ein Mittelpunkt gerechnet wird; es KANN nicht verrutschen.
+ * Der Bildlauf wird abgefangen, und das ist diesmal Absicht. Alle Versuche, ihn
+ * dem Browser zu lassen und nur nachzuhelfen, scheiterten an derselben Stelle:
+ * eine native Bewegung lässt sich nicht mitsteuern, ohne sie abzubrechen.
  *
- * Um das Zeichen stehen die fünf Wörter, aus denen der Name kommt. Jedes hat
- * seine eigene TIEFE: wie schnell es nach aussen fliegt und wie stark es dabei
- * wächst. Weil die Tiefen verschieden sind, laufen sie unterschiedlich schnell
- * auseinander — das ist Parallaxe, und daher kommt der räumliche Eindruck. Alle
- * fünf fliegen mit dem Zeichen, nicht davor und nicht dahinter.
+ * Jetzt gilt eine einzige Regel — <b>eine Geste bewegt um einen Zustand.</b>
+ * Die Zeitstempel sagen, was eine Geste ist: nach einer Ruhe von GESTURE_GAP
+ * beginnt eine neue; alles, was innerhalb einer Geste noch eintrifft (ein
+ * Trackpad schickt Dutzende Ereignisse), zählt nicht weiter mit.
  *
- * ---------------------------------------------------------------------------
- * ZWEI KRÄFTE — UND WARUM NUR NACH DEM LOSLASSEN
+ * Damit ist beides erledigt, was vorher nicht ging:
  *
- * Sobald die Hand los ist, läuft in jedem Bild:
+ *   - Langsam scrollen fällt nicht zurück. Es gibt keine Feder mehr, die
+ *     zurückzieht; jede Geste geht einen Schritt weiter.
+ *   - Schnell scrollen überspringt nichts. Eine Geste bleibt eine Geste, wie
+ *     kräftig sie auch ist.
  *
- *     v = v · DÄMPFUNG + Abstand_zum_nächsten_Zustand · ZUG
+ * <b>Der Übergang fängt dort an, wo die Hand ist.</b> Er beginnt mit genau der
+ * Geschwindigkeit, mit der gerade geschoben wird — eine einzige Bewegung, nicht
+ * eine zweite, die daneben neu anfängt. Danach zieht ihn seine eigene Zeit auf
+ * sein eigenes Mass: er läuft über GLIDE_MS aus und kommt von selbst zur Ruhe,
+ * gleichgültig, was die Hand inzwischen tut.
  *
- * `v` trägt den Schwung, der Summand daneben ist der Zug des Rasters. Beides in
- * derselben Zeile, addiert. <b>Das Ziel wird nirgends gewählt</b> — ein
- * kräftiger Wisch schiesst über den nächsten Zustand hinaus, und dann zieht ihn
- * der übernächste, weil `nearest` in jedem Bild neu aus der Lage kommt.
+ * Das leistet eine Hermite-Kurve: Anfangssteigung aus der Geste, Endsteigung
+ * null. Eine gewöhnliche Ein-und-Ausblendkurve kann das nicht — sie fängt immer
+ * bei null an, und genau deshalb las sich der Übergang als etwas Zweites, das
+ * nach der Geste einsetzt, statt als deren Fortsetzung.
  *
- * <b>Während die Hand scrollt, wird NICHTS angefasst.</b> Ein früherer Versuch
- * legte den Zug als kleinen Zuschlag schon während der Geste dazu — und machte
- * damit den Bildlauf unbrauchbar: `scrollTo` bricht in Chrome und Firefox den
- * laufenden nativen Bildlauf ab, also hat jedes Bild die eigene Geste des
- * Besuchers gelöscht und durch einen Ruck ersetzt. Man kann einer Bewegung,
- * die der Browser gerade selbst führt, keine zweite Kraft aufaddieren.
+ * Über der Steigung 3 schwänge die Kurve über das Ziel hinaus; dort wird ihre
+ * Ableitung gerade noch nicht negativ. Deshalb ist genau dort gedeckelt: ein
+ * sehr harter Wurf fährt schnell an, aber die Seite läuft nie zurück.
  *
- * Deshalb zwei Betriebsarten:
- *
- *   `watch`  Eine Hand ist am Werk. Der Browser bewegt, wir lesen nur mit und
- *            schreiben den Schwung geglättet mit. Kein `scrollTo`.
- *   `drive`  Die Hand ist seit `INPUT_GRACE` still. Wir übernehmen — MIT dem
- *            Schwung, den die Seite gerade hat, nicht erst wenn sie steht.
- *
- * Der Unterschied ist der zwischen flüssig und stockend. Eine frühere Fassung
- * wartete, bis der native Nachlauf ausgelaufen war: die Bewegung bremste auf
- * null ab und wurde dann von der Feder wieder beschleunigt. Jetzt läuft sie
- * ohne Halt weiter, weil `v` beim Wechsel schon die richtige Geschwindigkeit
- * trägt.
- *
- * Jede Eingabe schaltet sofort zurück auf `watch`. Abgefangen wird nichts —
- * alle Horcher sind passiv, kein `preventDefault`.
+ * Wer dauerhaft weiterschiebt, kommt trotzdem voran: nach REPEAT_MS im selben
+ * Zug folgt der nächste Schritt. Dabei wird die Geschwindigkeit des laufenden
+ * Übergangs mitgenommen, damit auch eine Kette aus Schritten eine Bewegung
+ * bleibt. Die Tastatur ist eigens bedient, damit die Seite ohne Zeigegerät
+ * begehbar bleibt.
  */
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
@@ -76,55 +75,29 @@ import { publicHref, type PublicPage } from '../publicRoutes';
 const WORK_PAGES: readonly PublicPage[] = ['osrodek', 'wydarzenia', 'cogita', 'biblioteka'];
 
 /**
- * Bildlaufweg je Übergang.
+ * Bildlaufweg je Übergang — und damit die Höhe der Bühne.
  *
- * War 120vh und damit zu mühsam: bis zur Mitte eines Schrittes waren rund 500
- * Pixel zu scrollen, und wer davor aufhörte, wurde zurückgezogen. Bei 60vh
- * liegt die Mitte bei gut 250 Pixeln — zwei, drei Radrasten. Die Rastung musste
- * dafür NICHT schwächer werden; sie war nie das Problem, der Weg war zu lang.
+ * Seit der Bildlauf abgefangen wird, ist das kein Kraftaufwand mehr für den
+ * Besucher, sondern nur noch die Strecke, die ein Übergang zurücklegt.
  */
 const STEP_VH = 60;
 
 /**
- * So lange nach der letzten Hand-Eingabe gehört die Bewegung dem Browser.
- * Danach wird übernommen — mit dem Schwung, den sie in dem Augenblick hat.
+ * Ruhe, nach der eine neue Geste beginnt.
+ *
+ * Ein Rad schickt einzelne Ereignisse, ein Trackpad einen Strom. Erst dieser
+ * Abstand macht aus beidem dasselbe: eine Geste.
  */
-const INPUT_GRACE = 130;
+const GESTURE_GAP = 150;
 
-/** Wie stark der mitgeschriebene Schwung geglättet wird. */
-const SMOOTH = 0.55;
+/** Wer im selben Zug weiterschiebt, kommt nach dieser Zeit einen Schritt weiter. */
+const REPEAT_MS = 500;
 
-/*
- * DÄMPFUNG und ZUG sind nicht geraten, sondern durchgerechnet.
- *
- * Geprüft gegen vier Forderungen — ein Antippen fällt zurück; knapp über der
- * Mitte trägt es weiter; eine klare Rückwärtsgeste gewinnt; ein kräftiger Wisch
- * trägt mehrere Zustände — und gegen die Bedingung, dass es ÜBERALL zur Ruhe
- * kommt. Über jede Lage und jede Geschwindigkeit: längster Lauf rund eine
- * Sekunde, kein Fall bleibt offen.
- *
- * Zwei Wege sind dabei durchgefallen und stehen hier, damit sie niemand noch
- * einmal einbaut:
- *
- *   - Den Anzieher mit dem Schwung verschieben (`round(here + v · k)`) ist
- *     rückgekoppelt: mehr Schwung schiebt das Ziel weiter, was mehr Schwung
- *     erzeugt. Eine von drei Abstimmungen kam nie zur Ruhe.
- *   - Eine SCHWACHE Rückwärtsgeste dicht vor einem Zustand gewinnen lassen:
- *     keine stabile Abstimmung kann das. Der Zug ist dort am stärksten, wo man
- *     am ehesten umkehren will. Eine deutliche Rückwärtsgeste gewinnt.
- */
+/** Wie lange ein Übergang dauert. Seine eigene Zeit, nicht die der Geste. */
+const GLIDE_MS = 700;
 
-/** Wie viel Schwung ein Bild ins nächste mitnimmt. Kleiner = zäher. */
-const DAMP = 0.895;
-
-/** Der Zug des Rasters. Die zweite Kraft. */
-const PULL = 0.014;
-
-/** Darunter ist die Bewegung zu Ende. */
-const REST = 0.12;
-
-/** Wie nah an einem Rastpunkt der Zug überhaupt greift. */
-const CAPTURE = 0.7;
+/** So weit muss ein Finger wandern, ehe es als Geste zählt. */
+const TOUCH_MIN = 26;
 
 type Point = readonly [number, number];
 
@@ -338,14 +311,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       starts,
       works,
       contact,
-      states: contact + 1,
-      /*
-       * Gerastet wird NUR am Anfang einer Szene — und am Zeichen und an den
-       * Werken. Innerhalb einer Szene ist der Bildlauf frei: dort lässt sich
-       * jede Zwischenlage halten, und damit ist jede Blase als hervorgehobene
-       * erreichbar. Genau das war gewünscht: eine Strecke ohne Rastung.
-       */
-      snaps: [0, ...starts, works, contact]
+      states: contact + 1
     };
   }, [t.scenes]);
 
@@ -376,135 +342,220 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     let frame = 0;
-    let mode: 'watch' | 'drive' = 'watch';
-    let lastY = window.scrollY;
-    let lastInput = performance.now();
-    let v = 0;
 
-    const step = () => {
-      frame = 0;
+    /** Der Zustand, auf den zugefahren wird. Immer eine ganze Zahl. */
+    let target = 0;
 
-      const y = window.scrollY;
-      const box = node.getBoundingClientRect();
+    /*
+     * Der laufende Übergang: von wo, wohin, seit wann, wie lange — und mit
+     * welcher Steigung er angefangen hat.
+     */
+    let fromY = 0;
+    let toY = 0;
+    let startedAt = 0;
+    let span = GLIDE_MS;
+    let lead = 0;
+    let gliding = false;
 
-      /*
-       * DER NULLPUNKT IST NICHT DIE OBERKANTE DER BUEHNE.
-       *
-       * Der angeheftete Teil klebt bei `--head-h`, also ist er schon
-       * festgesetzt, wenn die Buehne noch eine Kopfleistenhoehe weiter oben
-       * steht. Rechnete man ab der Oberkante, laege jeder Rastpunkt um genau
-       * diesen Betrag daneben — und die Seite sprang beim Aufschlagen als
-       * Erstes um eine Kopfleiste nach unten, um „Zustand 0" zu erreichen.
-       */
+    /** Die Zeitstempel: das letzte Ereignis, der letzte Schritt. */
+    let lastEvent = 0;
+    let lastStep = 0;
+
+    /** Die Hand: wo der Finger zuletzt war, wie schnell sie schiebt (px/ms). */
+    let touchAt = 0;
+    let speed = 0;
+
+    const measure = () => {
       const pin = node.firstElementChild as HTMLElement | null;
       const headH = pin === null ? 0 : parseFloat(getComputedStyle(pin).top) || 0;
+      return {
+        origin: window.scrollY + node.getBoundingClientRect().top - headH,
+        stepPx: (STEP_VH / 100) * window.innerHeight,
+        last: planRef.current.states - 1
+      };
+    };
 
-      const origin = y + box.top - headH;
-      const travel = node.offsetHeight - (window.innerHeight - headH);
-      const stepPx = (STEP_VH / 100) * window.innerHeight;
+    const paint = () => {
+      const { origin, stepPx, last } = measure();
+      if (stepPx <= 0 || last <= 0) { node.style.setProperty('--p', '0'); return; }
 
-      if (travel <= 0 || stepPx <= 0) { node.style.setProperty('--p', '0'); return; }
+      const here = (window.scrollY - origin) / stepPx;
+      node.style.setProperty('--p', Math.min(1, Math.max(0, here / last)).toFixed(5));
+    };
 
-      node.style.setProperty('--p', Math.min(1, Math.max(0, (y - origin) / travel)).toFixed(5));
-      const top = origin;
+    /*
+     * Die Kurve des Übergangs.
+     *
+     * Eine kubische Hermite-Kurve mit vorgegebener Anfangssteigung m und der
+     * Endsteigung null:  p(k) = m·k·(k−1)² + k²·(3−2k).
+     *
+     * Sie fängt mit der Geschwindigkeit an, mit der die Hand geschoben hat, und
+     * kommt von selbst zur Ruhe. Bei m = 0 ist sie die gewöhnliche
+     * Ausblendkurve; bei m = 3 ist sie gerade noch monoton (ihre Ableitung wird
+     * dann 3(k−1)² und berührt die Null nur am Ende).
+     */
+    const curve = (k: number, m: number) => m * k * (k - 1) * (k - 1) + k * k * (3 - 2 * k);
 
-      const observed = y - lastY;
-      lastY = y;
+    /** Ihre Ableitung — gebraucht, wenn ein Übergang in den nächsten übergeht. */
+    const slope = (k: number, m: number) => m * (3 * k - 1) * (k - 1) + 6 * k * (1 - k);
 
-      const here = (y - top) / stepPx;
-      const outside = here < -0.6 || here > planRef.current.states - 0.4;
+    const tick = () => {
+      frame = 0;
+      if (!gliding) return;
 
-      if (mode === 'watch') {
-        // Nur mitlesen und den Schwung glätten. Der Browser führt, und dem wird
-        // nicht ins Lenkrad gegriffen — daran ist eine frühere Fassung
-        // gescheitert.
-        v = v * SMOOTH + observed * (1 - SMOOTH);
+      const k = span <= 0 ? 1 : Math.min(1, (performance.now() - startedAt) / span);
+      window.scrollTo(0, fromY + (toY - fromY) * curve(k, lead));
+      paint();
 
-        if (performance.now() - lastInput <= INPUT_GRACE) {
-          frame = requestAnimationFrame(step);
-          return;
-        }
+      if (k < 1) frame = requestAnimationFrame(tick);
+      else gliding = false;
+    };
 
-        /*
-         * Übernommen wird, WÄHREND die Seite noch läuft — nicht erst, wenn sie
-         * steht. Der Schwung ist schon in `v`, also geht es ohne Halt weiter.
-         *
-         * Die Fassung davor wartete auf zwei Bilder ohne Weg. Damit bremste die
-         * Bewegung erst auf null ab und wurde dann von der Feder wieder
-         * beschleunigt — sichtbar als Stocken. Dass `scrollTo` den nativen
-         * Nachlauf abbricht, ist hier kein Schaden, sondern genau die Übergabe:
-         * wir setzen ihn mit derselben Geschwindigkeit fort.
-         */
-        mode = 'drive';
-      }
+    /**
+     * Einen Zustand weiter — als Fortsetzung dessen, was die Hand gerade tut.
+     *
+     * <b>hand</b> ist deren Geschwindigkeit in Pixeln je Millisekunde. Läuft
+     * schon ein Übergang, wird auch dessen Geschwindigkeit mitgenommen: eine
+     * Kette aus Schritten soll eine Bewegung bleiben und nicht bei jedem
+     * Schritt neu anfahren.
+     */
+    const go = (dir: number, hand: number) => {
+      const { origin, stepPx, last } = measure();
+      const next = Math.min(last, Math.max(0, target + dir));
+      if (next === target && gliding) return;
 
-      if (outside) { mode = 'watch'; v = 0; return; }
+      const now = performance.now();
+
+      // Noch vor dem Überschreiben: wie schnell der laufende Übergang gerade ist.
+      const running = gliding && span > 0
+        ? (slope(Math.min(1, (now - startedAt) / span), lead) * (toY - fromY)) / span
+        : 0;
+
+      target = next;
+      lastStep = now;
+
+      fromY = window.scrollY;
+      toY = origin + target * stepPx;
+
+      // Wer während eines Übergangs weiterschiebt, soll nicht warten müssen:
+      // der nächste läuft etwas straffer.
+      span = reduce.matches ? 0 : (gliding ? GLIDE_MS * 0.72 : GLIDE_MS);
+      startedAt = now;
+      gliding = true;
+
+      if (span === 0) { window.scrollTo(0, toY); gliding = false; paint(); return; }
 
       /*
-       * Nur die Rastpunkte ziehen — und nur, wenn einer nah genug ist.
+       * Die Anfangssteigung in den Einheiten der Kurve: welchen Anteil der
+       * ganzen Strecke die Hand in der ganzen Zeit des Übergangs schaffte.
        *
-       * Zwischen ihnen liegt die freie Strecke: dort ist der Zug null, und es
-       * bleibt allein die Dämpfung. Die Bewegung läuft also aus und hält, wo
-       * sie hält. Dadurch ist innerhalb einer Szene JEDE Lage erreichbar und
-       * jede Blase kann die hervorgehobene sein.
+       * Gezählt wird nur, was in die Richtung des Schrittes zeigt — eine Hand,
+       * die dagegen schiebt, soll den Übergang nicht rückwärts anfahren lassen.
        */
-      const snaps = planRef.current.snaps;
-      let nearest = snaps[0];
-      for (const candidate of snaps) {
-        if (Math.abs(candidate - here) < Math.abs(nearest - here)) nearest = candidate;
-      }
+      const reach = toY - fromY;
+      const v = dir > 0 ? Math.max(hand, running, 0) : Math.min(hand, running, 0);
+      lead = reach === 0 ? 0 : Math.min(3, Math.max(0, (v * span) / reach));
 
-      const captured = Math.abs(nearest - here) <= CAPTURE;
-      const gap = captured ? top + nearest * stepPx - y : 0;
-
-      // Die eine Zeile: Schwung und Zug, addiert.
-      v = reduce.matches ? gap : v * DAMP + gap * PULL;
-
-      if (Math.abs(v) > REST) {
-        window.scrollTo(0, y + v);
-        lastY = y + v;
-        frame = requestAnimationFrame(step);
-        return;
-      }
-
-      if (captured && Math.abs(gap) > 0.5) {
-        window.scrollTo(0, top + nearest * stepPx);
-        lastY = top + nearest * stepPx;
-      }
-
-      v = 0;
-      mode = 'watch';
+      if (frame === 0) frame = requestAnimationFrame(tick);
     };
 
-    const wake = () => {
-      if (frame === 0) frame = requestAnimationFrame(step);
+    /*
+     * EINE GESTE, EIN SCHRITT.
+     *
+     * Die Zeitstempel entscheiden, was eine Geste ist: nach einer Ruhe von
+     * GESTURE_GAP fängt eine neue an. Alles, was innerhalb einer Geste noch
+     * kommt — und ein Rad oder ein Trackpad schickt Dutzende Ereignisse —,
+     * zählt nicht weiter mit.
+     *
+     * Damit ist beides erledigt: langsames Scrollen fällt nicht zurück, denn
+     * jede Geste geht einen Schritt weiter; schnelles Scrollen überspringt
+     * nichts, denn eine Geste bleibt eine Geste, wie kräftig sie auch ist.
+     *
+     * Gemessen wird dabei mit, wie schnell geschoben wird — nicht um daraus
+     * mehr Schritte zu machen, sondern damit der Übergang dort anfängt, wo die
+     * Hand gerade ist.
+     */
+    const gesture = (dir: number, px: number) => {
+      const now = performance.now();
+      const fresh = now - lastEvent > GESTURE_GAP;
+      const held = now - lastStep > REPEAT_MS;
+
+      // Beim ersten Ereignis einer Geste gibt es noch keinen Abstand, aus dem
+      // sich eine Geschwindigkeit ergäbe; dann gilt ein Vollbild als Mass.
+      const dt = fresh ? 16 : Math.min(120, Math.max(4, now - lastEvent));
+      const v = px / dt;
+      speed = fresh ? v : speed * 0.55 + v * 0.45;
+      lastEvent = now;
+
+      if (fresh || held) go(dir, speed);
     };
 
-    /** Jede Eingabe gibt die Bewegung sofort zurück. */
-    const onInput = () => {
-      lastInput = performance.now();
-      mode = 'watch';
-      wake();
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      if (event.deltaY === 0) return;
+
+      // deltaMode: 0 Pixel, 1 Zeilen, 2 Seiten. Ohne Umrechnung führe ein
+      // zeilenweise meldendes Rad den Übergang um ein Vielfaches zu langsam an.
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1;
+      const px = event.deltaY * unit;
+      gesture(px > 0 ? 1 : -1, px);
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      touchAt = event.touches[0]?.clientY ?? 0;
+      lastEvent = 0;
+      speed = 0;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      event.preventDefault();
+      const y = event.touches[0]?.clientY ?? 0;
+      const dy = touchAt - y;
+      if (Math.abs(dy) < TOUCH_MIN) return;
+
+      touchAt = y;
+      gesture(dy > 0 ? 1 : -1, dy);
+    };
+
+    // Die Tastatur muss weiter funktionieren — sie ist für manche der einzige
+    // Weg durch die Seite. Sie schiebt nicht, also fängt ihr Übergang bei null
+    // an; allein ein schon laufender wird mitgenommen.
+    const onKey = (event: KeyboardEvent) => {
+      const down = event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ';
+      const up = event.key === 'ArrowUp' || event.key === 'PageUp';
+      if (!down && !up) return;
+
+      event.preventDefault();
+      go(down ? 1 : -1, 0);
+    };
+
+    const onResize = () => {
+      const { origin, stepPx } = measure();
+      window.scrollTo(0, origin + target * stepPx);
+      paint();
     };
 
     node.classList.add('is-live');
-    wake();
 
-    window.addEventListener('scroll', wake, { passive: true });
-    window.addEventListener('resize', wake, { passive: true });
-    window.addEventListener('wheel', onInput, { passive: true });
-    window.addEventListener('touchstart', onInput, { passive: true });
-    window.addEventListener('touchmove', onInput, { passive: true });
-    window.addEventListener('keydown', onInput, { passive: true });
+    // Da anfangen, wo die Seite gerade steht — ein Neuladen mitten im Verlauf
+    // soll nicht nach oben springen.
+    const start = measure();
+    target = Math.min(start.last, Math.max(0, Math.round((window.scrollY - start.origin) / start.stepPx)));
+    paint();
+
+    window.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onResize, { passive: true });
 
     return () => {
       if (frame !== 0) cancelAnimationFrame(frame);
-      window.removeEventListener('scroll', wake);
-      window.removeEventListener('resize', wake);
-      window.removeEventListener('wheel', onInput);
-      window.removeEventListener('touchstart', onInput);
-      window.removeEventListener('touchmove', onInput);
-      window.removeEventListener('keydown', onInput);
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
       node.classList.remove('is-live');
     };
   }, []);

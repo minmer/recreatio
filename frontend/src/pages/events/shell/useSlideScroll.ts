@@ -19,13 +19,21 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
  * while the finger is still down so you can look before committing.
  *
  * Arriving at an edge FAST is different, and the difference is the whole feel
- * of the thing. A throw still carrying FLICK_COMMIT_VELOCITY or more when it
- * reaches the edge hands its speed to the departure: the transition starts at
- * that speed and decelerates from it, so the two are one movement. Throwing the
- * speed away and playing a fixed ease-in-out instead — which is what this did
- * at first — reads as three: the fling slowing to a stop, a pause, and then
- * something else beginning. Whatever is left of the throw is spent on the
- * departure, so nothing resumes on the other side either.
+ * of the thing. A throw that has carried the reader at least
+ * CARRY_MIN_TRAVEL_FACTOR of a screen through the slide and is still moving at
+ * FLICK_COMMIT_VELOCITY when it reaches the edge hands its speed to the
+ * departure: the transition starts at that speed and decelerates from it, so
+ * the two are one movement. Throwing the speed away and playing a fixed
+ * ease-in-out instead reads as three — the fling slowing to a stop, a pause,
+ * and then something else beginning. Whatever is left of the throw is spent on
+ * the departure, so nothing resumes on the other side either.
+ *
+ * The travel condition is not decoration. A slide exactly one screen tall has no
+ * inner range at all: the track rests on both its edges at once, so every flick
+ * arrives at an edge already moving, and handing the speed over unconditionally
+ * turned each twitch into a departure — such a page flipped between two slides.
+ * A flick made at an edge is a deliberate act and goes through the peek rules;
+ * only a throw with real reading behind it carries on out.
  *
  * That pull is held against the edge and accumulates across separate scrolls,
  * which is what lets a few notches of a mouse wheel add up to one departure.
@@ -148,6 +156,22 @@ function easeOut(t: number): number {
 
 /** The ease-out's speed at t=0, as a multiple of the average. */
 const EASE_OUT_KICK = 3;
+
+/**
+ * How far a throw must have carried the reader through a slide before its speed
+ * is allowed to carry them out of it, as a share of the viewport.
+ *
+ * Without this the rule breaks on the commonest slide of all: one exactly the
+ * height of the screen has no inner range whatsoever, so the track rests on both
+ * of its edges at once and every flick — in either direction, however small —
+ * arrives at an edge already moving. Handing the speed over there turned each
+ * twitch into a committed departure, and a page of screen-high slides flipped
+ * back and forth between two of them.
+ *
+ * A throw that has actually carried somebody a quarter of a screen through the
+ * content is a different thing, and that is the one this is for.
+ */
+const CARRY_MIN_TRAVEL_FACTOR = 0.25;
 
 /**
  * Rubber band: the first pixels of pull come through nearly whole, later ones
@@ -633,6 +657,8 @@ export function useSlideScroll(slideCount: number) {
       if (Math.abs(velocity) < FLING_MIN_VELOCITY) return;
 
       let lastFrameAt = performance.now();
+      /** How far this coast has actually carried the reader through the slide. */
+      let travelled = 0;
 
       const step = () => {
         const now = performance.now();
@@ -646,16 +672,27 @@ export function useSlideScroll(slideCount: number) {
           return;
         }
 
+        const before = targetRef.current;
         const outcome = advance(velocity * frameMs, true);
+        if (outcome === 'moved') travelled += Math.abs(targetRef.current - before);
+
         if (outcome !== 'moved') {
           settleRafRef.current = null;
-          // A coast that ran onto an edge opens a peek that nothing would else
-          // resolve — the finger is long gone and there is no idle timer on the
-          // touch path. It is resolved here, and with the speed it arrived at:
-          // passing zero threw the throw away, which is what made leaving a
-          // slide feel like a separate, second movement. Fast enough, and it
-          // carries straight through; slow, and it springs back as before.
-          if (outcome === 'peek') resolvePeek(velocity);
+
+          /**
+           * A coast that ran onto an edge opens a peek nothing else would
+           * resolve — the finger is long gone and the touch path has no idle
+           * timer. What it is resolved WITH is the whole question.
+           *
+           * A throw that carried somebody through the slide and then met the
+           * boundary hands its speed over, so leaving is the same movement they
+           * started. A flick that began at the edge — which on a slide exactly
+           * one screen tall is every flick, since such a slide has no inside —
+           * hands over nothing, and the deliberate peek rules decide, as they
+           * always did.
+           */
+          const carried = travelled >= viewportRefValue.current * CARRY_MIN_TRAVEL_FACTOR;
+          if (outcome === 'peek') resolvePeek(carried ? velocity : 0);
           return;
         }
 
