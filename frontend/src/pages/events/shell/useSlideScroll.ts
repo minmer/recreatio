@@ -11,36 +11,37 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
  * screen, so a tall background always has room to slide.
  *
  * ── How a slide is left ──────────────────────────────────────────────────────
- * A slide's inner range, start → innerEnd, scrolls freely: that is reading.
+ * A slide's inner range, start → innerEnd, scrolls freely: that is reading, and
+ * a throw coasts through it with friction like any other scroller.
  *
- * Arriving at an edge slowly stops there. Leaving is then a deliberate act:
- * further scrolling stretches past the edge with rising resistance, up to a
- * peek of PEEK_MAX_FACTOR of a viewport, uncovering the top of the next slide
- * while the finger is still down so you can look before committing.
+ * What happens at the boundary is the whole feel of the page, and there are
+ * exactly two answers:
  *
- * Arriving at an edge FAST is different, and the difference is the whole feel
- * of the thing. A throw that has carried the reader at least
- * CARRY_MIN_TRAVEL_FACTOR of a screen through the slide and is still moving at
- * FLICK_COMMIT_VELOCITY when it reaches the edge hands its speed to the
- * departure: the transition starts at that speed and decelerates from it, so
- * the two are one movement. Throwing the speed away and playing a fixed
- * ease-in-out instead reads as three — the fling slowing to a stop, a pause,
- * and then something else beginning. Whatever is left of the throw is spent on
- * the departure, so nothing resumes on the other side either.
+ *   **Not enough to leave.** The movement slows to a stop at the end of the
+ *   slide and is spent there. A coast never stretches past an edge and never
+ *   counts towards leaving: momentum is not an intention. Only a further,
+ *   deliberate scroll — a finger dragging, wheel notches adding up over
+ *   PULL_MEMORY_MS — pushes past it, stretching with rising resistance up to
+ *   PEEK_MAX_FACTOR of a viewport so the next slide can be looked at before
+ *   committing, and springing back if it is not.
+ *
+ *   **Enough to leave.** A throw that has carried the reader at least
+ *   CARRY_MIN_TRAVEL_FACTOR of a screen and still runs at FLICK_COMMIT_VELOCITY
+ *   when it reaches the edge hands its speed straight to the transition, which
+ *   picks the movement up at that speed and decelerates to a stop at the top of
+ *   the next slide. One movement from the finger to the far side — and it ENDS
+ *   there: the leftover speed is spent on the transition, the coast is stopped,
+ *   and the pull is cleared, so nothing carries on into the slide just reached.
  *
  * The travel condition is not decoration. A slide exactly one screen tall has no
- * inner range at all: the track rests on both its edges at once, so every flick
- * arrives at an edge already moving, and handing the speed over unconditionally
- * turned each twitch into a departure — such a page flipped between two slides.
- * A flick made at an edge is a deliberate act and goes through the peek rules;
- * only a throw with real reading behind it carries on out.
+ * inner range at all — it rests on both of its edges at once — so every flick on
+ * it arrives at a boundary already moving. Without the condition each twitch
+ * became a departure and such a page flipped between two slides.
  *
- * That pull is held against the edge and accumulates across separate scrolls,
- * which is what lets a few notches of a mouse wheel add up to one departure.
- * A small pull springs back; a pull past PEEK_COMMIT_RATIO of the maximum, or
- * a flick faster than FLICK_COMMIT_VELOCITY made from the edge itself, carries
- * through. Since the peek is capped, one gesture can never reach past the
- * neighbouring slide.
+ * After any departure the input is gated, and the gate is pushed forward by
+ * every event it swallows (GATE_QUIET_MS). A trackpad sends deltas for up to a
+ * second after the fingers leave; a gate that merely expired let that tail land
+ * in the newly arrived slide and scroll it on its own.
  */
 
 /** A slide is never shorter than the screen; content decides anything more. */
@@ -69,6 +70,18 @@ const SLIDE_TRANSITION_MS = 520;
 const RESOLVE_IDLE_MS = 120;
 /** Breathing room after a committed move, so one burst cannot chain. */
 const BOUNDARY_HOLD_MS = 90;
+
+/**
+ * How quiet the input has to go before a gate lifts.
+ *
+ * A trackpad keeps sending deltas for up to a second after the fingers have
+ * left, and a departure takes about half of that. The tail therefore used to
+ * arrive AFTER the transition had finished and scrolled the slide that had just
+ * been arrived at — the "further movement" at the end of every flick. A gate
+ * that merely expires cannot help; this one is pushed forward by every event it
+ * swallows, so it lifts only once the stream has actually stopped.
+ */
+const GATE_QUIET_MS = 140;
 /**
  * How long a pull against an edge is remembered after it springs back. A mouse
  * wheel arrives as separate notches, so without this each one would peek, bounce
@@ -495,6 +508,26 @@ export function useSlideScroll(slideCount: number) {
       const upperBound = slide.shallow ? slide.start : slide.innerEnd;
       const to = from + delta;
 
+      /**
+       * A coast that reaches a boundary stops there, full stop: it neither
+       * stretches past it nor counts towards the pull that would leave.
+       *
+       * Momentum is not an intention. The caller decides separately whether the
+       * throw was fast enough to carry straight through — that is the one way
+       * inertia may leave a slide — and everything slower simply slows to the
+       * end of the slide, which is where a reader who threw gently expects to
+       * find themselves.
+       *
+       * This also settles the slide exactly one screen tall. Such a slide rests
+       * on both of its edges at once, so every coasting frame was opening a peek
+       * and feeding the pull; a few of those in a row committed a departure
+       * nobody asked for, and the page flipped between two slides.
+       */
+      if (coasting && (to > upperBound || to < lowerBound)) {
+        setTarget(clamp(to, lowerBound, upperBound));
+        return 'edge';
+      }
+
       // Peeking is only offered where there is something to peek at, and only
       // once the track is already resting on the edge. Arriving at the edge
       // stops there instead — which is what keeps a throw made while reading
@@ -621,11 +654,21 @@ export function useSlideScroll(slideCount: number) {
   );
 
   const applyDelta = useCallback(
-    (delta: number) => {
-      if (!Number.isFinite(delta) || delta === 0) return;
-      // Mid-commit or mid-bounce: swallow input rather than queue it.
-      if (performance.now() < gateUntilRef.current) return;
+    (delta: number): boolean => {
+      if (!Number.isFinite(delta) || delta === 0) return false;
+
+      // Mid-commit or mid-bounce: swallow input rather than queue it — and hold
+      // the gate open for as long as the input keeps coming, so the tail of a
+      // trackpad's momentum is spent here instead of moving the slide that was
+      // just arrived at.
+      const now = performance.now();
+      if (now < gateUntilRef.current) {
+        gateUntilRef.current = now + GATE_QUIET_MS;
+        return false;
+      }
+
       advance(delta);
+      return true;
     },
     [advance]
   );
@@ -784,13 +827,16 @@ export function useSlideScroll(slideCount: number) {
       if (Math.abs(delta) < 0.01) return;
       event.preventDefault();
       stopSettle();
-      applyDelta(delta);
-      resolveDriven();
+      if (applyDelta(delta)) resolveDriven();
     };
 
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length === 0) return;
       setInteracted(true);
+      // A hand on the screen is a new intention, and it outranks any gate left
+      // over from the last one. Only wheels need to be held off after a
+      // departure; a finger has already announced itself by arriving.
+      gateUntilRef.current = 0;
       stopSettle();
       cancelResolveTimer();
       touchYRef.current = event.touches[0].clientY;
