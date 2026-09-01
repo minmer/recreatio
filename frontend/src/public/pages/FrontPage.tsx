@@ -44,10 +44,16 @@
  *
  * Deshalb zwei Betriebsarten:
  *
- *   `watch`  Der Browser bewegt. Wir lesen nur mit und merken uns den Schwung.
- *            Kein `scrollTo`, keine Einmischung.
- *   `drive`  Der native Bildlauf steht (zwei Bilder ohne Weg) und keine Hand
- *            ist am Werk. Erst jetzt rechnen wir die beiden Kräfte.
+ *   `watch`  Eine Hand ist am Werk. Der Browser bewegt, wir lesen nur mit und
+ *            schreiben den Schwung geglättet mit. Kein `scrollTo`.
+ *   `drive`  Die Hand ist seit `INPUT_GRACE` still. Wir übernehmen — MIT dem
+ *            Schwung, den die Seite gerade hat, nicht erst wenn sie steht.
+ *
+ * Der Unterschied ist der zwischen flüssig und stockend. Eine frühere Fassung
+ * wartete, bis der native Nachlauf ausgelaufen war: die Bewegung bremste auf
+ * null ab und wurde dann von der Feder wieder beschleunigt. Jetzt läuft sie
+ * ohne Halt weiter, weil `v` beim Wechsel schon die richtige Geschwindigkeit
+ * trägt.
  *
  * Jede Eingabe schaltet sofort zurück auf `watch`. Abgefangen wird nichts —
  * alle Horcher sind passiv, kein `preventDefault`.
@@ -63,14 +69,24 @@ const WORK_PAGES: readonly PublicPage[] = ['osrodek', 'wydarzenia', 'cogita', 'b
 /** Elf Zustände — und damit zehn Übergänge. */
 const STATES = 11;
 
-/** Bildlaufweg je Übergang. Der Regler für „langsamer". */
-const STEP_VH = 120;
+/**
+ * Bildlaufweg je Übergang.
+ *
+ * War 120vh und damit zu mühsam: bis zur Mitte eines Schrittes waren rund 500
+ * Pixel zu scrollen, und wer davor aufhörte, wurde zurückgezogen. Bei 60vh
+ * liegt die Mitte bei gut 250 Pixeln — zwei, drei Radrasten. Die Rastung musste
+ * dafür NICHT schwächer werden; sie war nie das Problem, der Weg war zu lang.
+ */
+const STEP_VH = 60;
 
-/** So lange nach der letzten Hand-Eingabe wird nicht übernommen. */
-const INPUT_GRACE = 140;
+/**
+ * So lange nach der letzten Hand-Eingabe gehört die Bewegung dem Browser.
+ * Danach wird übernommen — mit dem Schwung, den sie in dem Augenblick hat.
+ */
+const INPUT_GRACE = 130;
 
-/** So viele Bilder ohne Weg gelten als „der native Bildlauf steht". */
-const STILL_FRAMES = 2;
+/** Wie stark der mitgeschriebene Schwung geglättet wird. */
+const SMOOTH = 0.55;
 
 /*
  * DÄMPFUNG und ZUG sind nicht geraten, sondern durchgerechnet.
@@ -93,16 +109,13 @@ const STILL_FRAMES = 2;
  */
 
 /** Wie viel Schwung ein Bild ins nächste mitnimmt. Kleiner = zäher. */
-const DAMP = 0.80;
+const DAMP = 0.895;
 
 /** Der Zug des Rasters. Die zweite Kraft. */
-const PULL = 0.030;
+const PULL = 0.014;
 
 /** Darunter ist die Bewegung zu Ende. */
 const REST = 0.12;
-
-/** Darunter gilt ein Bild als „ohne Weg". */
-const QUIET = 0.6;
 
 type Points = readonly (readonly (readonly [number, number])[])[];
 
@@ -127,18 +140,33 @@ const PORTRAIT: Points = [
 /**
  * Die fünf Wörter, aus denen der Name kommt.
  *
- * Grundlage: Richtung vom Zeichen aus, Abstand, TIEFE, Deckkraft, Grösse. Die
- * Tiefe ist der eigentliche Trick — sie bestimmt, wie schnell ein Wort nach
- * aussen läuft. Fünf verschiedene Tiefen ergeben fünf Geschwindigkeiten, und
- * daraus entsteht der räumliche Eindruck.
+ * Das **RE** steht gross — dasselbe RE wie in REcreatio. Es ist der gemeinsame
+ * Anfang aller fünf und der Grund, warum die Einrichtung so heisst; deshalb
+ * trägt es die Betonung und der Rest folgt klein.
+ *
+ * Grundlage je Wort: Richtung vom Zeichen aus, Abstand, TIEFE, Deckkraft,
+ * Grösse. Die Tiefe ist der eigentliche Trick — sie bestimmt, wie schnell ein
+ * Wort nach aussen läuft. Fünf verschiedene Tiefen ergeben fünf
+ * Geschwindigkeiten, und daraus entsteht der räumliche Eindruck.
  */
 const WORDS = [
-  { text: 'recolligere', angle: 203, radius: 33, depth: 1.15, alpha: 0.50, size: 1.55 },
-  { text: 'renovatio', angle: 331, radius: 29, depth: 0.80, alpha: 0.44, size: 1.85 },
-  { text: 'reconciliatio', angle: 148, radius: 39, depth: 1.34, alpha: 0.34, size: 1.25 },
-  { text: 'refectio', angle: 26, radius: 25, depth: 0.66, alpha: 0.56, size: 2.05 },
-  { text: 'redintegratio', angle: 287, radius: 41, depth: 1.02, alpha: 0.30, size: 1.35 }
+  { tail: 'colligere', angle: 203, radius: 46, depth: 1.15, alpha: 0.50, size: 2.2 },
+  { tail: 'novatio', angle: 331, radius: 41, depth: 0.80, alpha: 0.44, size: 2.6 },
+  { tail: 'conciliatio', angle: 148, radius: 52, depth: 1.34, alpha: 0.34, size: 1.9 },
+  { tail: 'fectio', angle: 26, radius: 38, depth: 0.66, alpha: 0.56, size: 2.9 },
+  { tail: 'dintegratio', angle: 287, radius: 54, depth: 1.02, alpha: 0.30, size: 2.0 }
 ] as const;
+
+/**
+ * Die Sperrzone um das Zeichen, als halbe Achsen in vmin.
+ *
+ * Das Logo ist breit und flach (210 zu 74), also ist die Zone eine Ellipse und
+ * kein Kreis. Ein Wort, das nach dem Würfeln darin läge, wird auf seiner
+ * eigenen Richtung nach aussen geschoben, bis es frei steht — so darf die Lage
+ * kräftig streuen, ohne dass je etwas über dem Zeichen landet.
+ */
+const KEEP_X = 40;
+const KEEP_Y = 19;
 
 function Bubble({
   index, at, name, body, gap, copy, big, children
@@ -202,15 +230,28 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
   const halo = useMemo(
     () => WORDS.map((word) => {
       const jitter = (span: number) => (Math.random() - 0.5) * span;
-      const angle = ((word.angle + jitter(14)) * Math.PI) / 180;
-      const radius = word.radius + jitter(7);
+      const angle = ((word.angle + jitter(30)) * Math.PI) / 180;
+      const radius = word.radius + jitter(18);
+
+      let dx = Math.cos(angle) * radius;
+      let dy = Math.sin(angle) * radius * 0.72;
+
+      // Liegt der Punkt in der Sperrzone, auf seiner eigenen Richtung
+      // hinausschieben — mit etwas Luft, damit nichts das Zeichen streift.
+      const inside = Math.hypot(dx / KEEP_X, dy / KEEP_Y);
+      if (inside < 1) {
+        const push = (1 / Math.max(inside, 0.001)) * 1.08;
+        dx *= push;
+        dy *= push;
+      }
+
       return {
-        text: word.text,
-        dx: Math.cos(angle) * radius,
-        dy: Math.sin(angle) * radius,
-        depth: word.depth + jitter(0.22),
-        alpha: Math.max(0.2, word.alpha + jitter(0.16)),
-        size: Math.max(0.9, word.size + jitter(0.3))
+        tail: word.tail,
+        dx,
+        dy,
+        depth: word.depth + jitter(0.3),
+        alpha: Math.max(0.24, word.alpha + jitter(0.18)),
+        size: Math.max(1.4, word.size + jitter(0.55))
       };
     }),
     []
@@ -226,7 +267,6 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     let mode: 'watch' | 'drive' = 'watch';
     let lastY = window.scrollY;
     let lastInput = performance.now();
-    let still = 0;
     let v = 0;
 
     const step = () => {
@@ -249,17 +289,26 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       const outside = here < -0.6 || here > STATES - 0.4;
 
       if (mode === 'watch') {
-        // Nur mitlesen. Der Browser führt, und dem wird nicht ins Lenkrad
-        // gegriffen — genau daran ist die erste Fassung gescheitert.
-        v = observed;
-        still = Math.abs(observed) < QUIET ? still + 1 : 0;
+        // Nur mitlesen und den Schwung glätten. Der Browser führt, und dem wird
+        // nicht ins Lenkrad gegriffen — daran ist eine frühere Fassung
+        // gescheitert.
+        v = v * SMOOTH + observed * (1 - SMOOTH);
 
-        const handsOff = performance.now() - lastInput > INPUT_GRACE;
-        if (still < STILL_FRAMES || !handsOff || outside) {
-          if (!outside || still < STILL_FRAMES) frame = requestAnimationFrame(step);
+        if (performance.now() - lastInput <= INPUT_GRACE) {
+          frame = requestAnimationFrame(step);
           return;
         }
 
+        /*
+         * Übernommen wird, WÄHREND die Seite noch läuft — nicht erst, wenn sie
+         * steht. Der Schwung ist schon in `v`, also geht es ohne Halt weiter.
+         *
+         * Die Fassung davor wartete auf zwei Bilder ohne Weg. Damit bremste die
+         * Bewegung erst auf null ab und wurde dann von der Feder wieder
+         * beschleunigt — sichtbar als Stocken. Dass `scrollTo` den nativen
+         * Nachlauf abbricht, ist hier kein Schaden, sondern genau die Übergabe:
+         * wir setzen ihn mit derselben Geschwindigkeit fort.
+         */
         mode = 'drive';
       }
 
@@ -284,7 +333,6 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       }
 
       v = 0;
-      still = 0;
       mode = 'watch';
     };
 
@@ -296,7 +344,6 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     const onInput = () => {
       lastInput = performance.now();
       mode = 'watch';
-      still = 0;
       wake();
     };
 
@@ -417,7 +464,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
           <div className="rc-halo" aria-hidden="true">
             {halo.map((word) => (
               <span
-                key={word.text}
+                key={word.tail}
                 className="rc-word"
                 style={{
                   '--dx': `${word.dx.toFixed(2)}vmin`,
@@ -427,7 +474,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
                   '--size': `${word.size.toFixed(2)}rem`
                 } as CSSProperties}
               >
-                {word.text}
+                <b className="rc-word-re">RE</b>{word.tail}
               </span>
             ))}
           </div>

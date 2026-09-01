@@ -536,7 +536,7 @@
     mask-repeat: no-repeat, no-repeat;
     -webkit-mask-position: center, center;
     mask-position: center, center;
-    -webkit-mask-size: 100% 100%, calc(24% + 2600% * var(--pw)) auto;
+    -webkit-mask-size: 100% 100%, calc(32% + 2600% * var(--pw)) auto;
     mask-size: 100% 100%, calc(24% + 2600% * var(--pw)) auto;
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -546,7 +546,7 @@
 }
 
 .rc-mark-static { display: grid; place-items: center; width: 100%; }
-.rc-mark-static img { width: min(72vw, 46rem); height: auto; }
+.rc-mark-static img { width: min(82vw, 56rem); height: auto; }
 
 /* -- Die fuenf Woerter um das Zeichen --------------------------------------- */
 
@@ -588,6 +588,7 @@
   letter-spacing: 0.01em;
   white-space: nowrap;
   color: #f2f4ef;
+  line-height: 1;
   opacity: calc(var(--alpha) * max(0, 1 - var(--pw) * 1.25));
 
   /* Erst an den eigenen Platz, dann mit der Tiefe nach aussen — und dabei
@@ -599,6 +600,19 @@
       calc(var(--dy) * (1 + var(--pw) * var(--depth) * 2.6))
     )
     scale(calc(1 + var(--pw) * var(--depth) * 1.5));
+}
+
+/*
+   Das RE steht gross und aufrecht — dasselbe RE wie in REcreatio. Es ist der
+   gemeinsame Anfang aller fuenf Woerter und der Grund fuer den Namen; der Rest
+   folgt klein und kursiv, damit die Silbe traegt und nicht das ganze Wort
+   schreit.
+*/
+.rc-word-re {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 1.32em;
+  letter-spacing: -0.01em;
 }
 
 /* Ohne Weg: sie stehen, wo sie stehen, und blenden mit dem Schleier aus. */
@@ -732,7 +746,7 @@
 
   /* Ohne wachsendes Loch muss der Schleier frueher fort sein. */
   .rc-stage.is-live { --pv: clamp(0, calc((var(--s) - 0.1) / 0.6), 1); }
-  .rc-stage.is-live .rc-veil { mask-size: 100% 100%, 24% auto; }
+  .rc-stage.is-live .rc-veil { mask-size: 100% 100%, 32% auto; }
 }
 
 /* -- Bild 3: wie es geschieht ----------------------------------------------- */
