@@ -831,8 +831,23 @@
 */
 .rc-stage.is-live .rc-bubble {
   position: absolute;
-  left: var(--x);
-  top: var(--y);
+
+  /*
+     SIE WEICHT AUS, WENN SIE NICHT DRAN IST.
+
+     `--ox`/`--oy` zeigen vom Mittelpunkt des Rings nach aussen. Ist die Blase
+     betont (`--f` = 1), steht sie genau auf ihrem Ringpunkt — dort, wo der
+     Faden sie trifft. Ist sie es nicht, rueckt sie ein Stueck hinaus.
+
+     Der zweite Summand ist der wichtigere. Ohne ihn hebt sich das Ausweichen
+     zwischen zwei Nachbarn genau auf: die Betonungen ergeben zusammen immer 1,
+     also weichen beide zusammen immer gleich weit — der Abstand bliebe die
+     ganze Zeit derselbe, und beim Kreuzen half es gar nichts. `--travel` steht
+     dagegen bei 0 an einer Blase und bei 1 auf halbem Weg, schiebt also GENAU
+     DANN auseinander, wenn die beiden aneinander vorbeimuessen.
+  */
+  left: calc(var(--x) + var(--ox, 0%) * (1 - var(--f) + 0.6 * var(--travel, 0)));
+  top: calc(var(--y) + var(--oy, 0%) * (1 - var(--f) + 0.6 * var(--travel, 0)));
   margin: 0;
   width: min(72vw, 20rem);
   max-width: none;
@@ -852,9 +867,20 @@
      dabei nicht. Der Grundwert von 0.62 ist der Punkt: ALLE Blasen bleiben
      lesbar, was wandert, ist die Betonung und nicht die Anwesenheit.
   */
-  --f: clamp(0, min(calc(var(--s) - var(--c) - var(--i) + 1), calc(var(--c) + var(--i) + 1 - var(--s))), 1);
+  --f: clamp(0, min(calc(var(--sw, 0) - var(--c) - var(--i) + 1), calc(var(--c) + var(--i) + 1 - var(--sw, 0))), 1);
 
-  opacity: calc(var(--in) * (0.62 + 0.38 * var(--f)));
+  /*
+     UNTERWEGS WIRD ES BLASSER.
+
+     `--travel` ist 0, wenn eine Blase dran ist, und 1 auf halbem Weg zur
+     naechsten. Der Einbruch dort ist der Augenblick, in dem sich die beiden
+     aneinander vorbeischieben — halb durchsichtig sieht man das als
+     Ueberblendung und nicht als zwei Koerper, die sich kreuzen.
+
+     Er trifft die ganze Szene, nicht nur die beiden: eine Szene, in der zwei
+     Blasen verblassen und der Rest steht, saehe nach einem Fehler aus.
+  */
+  opacity: calc(var(--in) * (0.62 + 0.38 * var(--f)) * (1 - 0.34 * var(--travel, 0)));
   transform: translate(-50%, -50%) scale(calc(0.93 + 0.07 * var(--in) + 0.07 * var(--f)));
   transform-origin: center;
   border-color: color-mix(in oklab, var(--line), var(--accent) calc(var(--f) * 100%));

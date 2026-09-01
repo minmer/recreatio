@@ -52,11 +52,18 @@
  * Es gibt <b>zwei Bewegungen</b>, und sie fühlen sich mit Absicht verschieden
  * an:
  *
- *   - INNERHALB einer Szene läuft es frei. Der Weg der Hand wird eins zu eins
- *     zur Strecke, ein kurzer Nachlauf (FREE_MS) glättet das Rad, und man kann
- *     überall stehenbleiben. Nichts rastet ein — die Betonung wandert einfach.
+ *   - INNERHALB einer Szene läuft es frei. Der Weg der Hand wird zur Strecke,
+ *     ein kurzer Nachlauf glättet das Rad, und man kann überall stehenbleiben.
+ *     Nichts rastet ein — die Betonung wandert einfach.
  *   - ZWISCHEN zwei Gruppen wird gesprungen. Das ist der Übergang, den der Rest
  *     dieses Textes beschreibt.
+ *
+ * <b>Finger und Rad werden dabei verschieden behandelt</b>, und zwar weil sie
+ * verschieden sind: ein Finger hat eine Bildschirmhöhe Weg, ein Rad hat
+ * unendlich viel. Bei gleichem Mass kostete jede Blase auf dem Telefon einen
+ * halben Schirm Wischweg — dort wirkte es zäh, am Schreibtisch nicht. Der
+ * Finger zählt deshalb mit TOUCH_GAIN, und sein Nachlauf ist viel kürzer: was
+ * beim Rad Sprünge glättet, ist bei ihm nur Verzug.
  *
  * Für den Sprung gilt eine einzige Regel — <b>eine Geste bewegt um eine
  * Gruppe.</b> Die Zeitstempel sagen, was eine Geste ist: nach einer Ruhe von
@@ -193,6 +200,42 @@ const GLIDE_MS = 700;
  */
 const FREE_MS = 220;
 
+/**
+ * Derselbe Nachlauf für den Finger — viel kürzer.
+ *
+ * Er ist beim Rad dazu da, aus Sprüngen von hundert Pixeln eine Bewegung zu
+ * machen. Der Finger hat dieses Problem nicht: er meldet ohnehin dicht und
+ * stetig, und was ihm hier zugefügt wird, ist nur Verzug. Ein Finger erwartet,
+ * dass der Inhalt an ihm klebt.
+ */
+const FREE_TOUCH_MS = 90;
+
+/**
+ * Wie stark der Weg des Fingers zählt.
+ *
+ * <b>Ein Finger hat nur eine Bildschirmhöhe Weg, ein Rad hat unendlich viel.</b>
+ * Bei gleichem Mass muss auf dem Telefon jede Blase mit einem halben Schirm
+ * Wischweg bezahlt werden, und das ist der Grund, warum es dort zäh wirkt und
+ * am Schreibtisch nicht.
+ *
+ * Dazu kommt das Verweilen der Gangkurve: bei einer Blase läuft sie mit einem
+ * Viertel der Geschwindigkeit, und genau dort wirkt ein Finger, der zieht,
+ * ohne dass sich etwas rührt, festgefahren. Mit diesem Faktor bleibt es im
+ * Mittel knapp beim Weg des Fingers.
+ */
+const TOUCH_GAIN = 1.8;
+
+/**
+ * Wie stark der Gang von Blase zu Blase bei jeder verweilt.
+ *
+ * 0 wäre gleichmässig — jede Blase nur ein Durchgangspunkt. 1 wäre eine
+ * Glättung, die bei jeder Blase auf null Geschwindigkeit geht: der Bildlauf
+ * bliebe dort stehen, obwohl die Hand weiterschiebt, und das läse sich als
+ * Haken. Dazwischen liegt das Gemeinte — die Bewegung wird bei einer Blase
+ * gut viermal langsamer als auf halbem Weg und bleibt doch in Fahrt.
+ */
+const WALK_HOLD = 0.75;
+
 /** Wie lange der erste dauert — der durch den Raum, mit dem Innehalten darin. */
 const OPENING_MS = 1700;
 
@@ -226,9 +269,27 @@ type Point = readonly [number, number];
  *
  * Dieselben Zahlen tragen die Blasen (als Mittelpunkt) UND der Faden.
  */
+/** Die Mitte des Rings. Von ihr weg weichen die unbetonten Blasen aus. */
+function ringCentre(portrait: boolean): Point {
+  return portrait ? [50, 50] : [52, 52];
+}
+
+/**
+ * Wie weit eine unbetonte Blase nach aussen weicht, in Prozent der Bühne.
+ *
+ * <b>Damit sich zwei Blasen nicht durcheinander schieben.</b> Wandert die
+ * Betonung von einer zur nächsten, wächst die eine, während die andere
+ * schrumpft — standen sie dicht beieinander, schob sich dabei die eine durch
+ * die andere hindurch. Jetzt weicht jede Blase, die nicht dran ist, ein Stück
+ * radial nach aussen: die beiden gehen auseinander, statt sich zu kreuzen.
+ *
+ * Klein genug, dass der Faden weiterhin sichtbar in der Blase endet — er
+ * verbindet die festen Ringpunkte und wandert nicht mit.
+ */
+const BUBBLE_YIELD = 5;
+
 function ringPoints(count: number, scene: number, portrait: boolean): readonly Point[] {
-  const cx = portrait ? 50 : 52;
-  const cy = portrait ? 50 : 52;
+  const [cx, cy] = ringCentre(portrait);
   const rx = portrait ? 17 : 27;
   const ry = portrait ? 31 : 24;
 
@@ -404,17 +465,21 @@ const QUARTERS = [
  * Seite bleibt der Satz unter dem Zeichen.
  */
 function Bubble({
-  index, at, bubble, copy
+  index, at, yield: away, bubble, copy
 }: {
   index: number;
   at: Point;
+  yield: Point;
   bubble: SceneBubble;
   copy: PublicCopy;
 }) {
   const style = {
     '--i': index,
     '--x': `${at[0]}%`,
-    '--y': `${at[1]}%`
+    '--y': `${at[1]}%`,
+    // Die Richtung, in die sie ausweicht, wenn sie nicht dran ist.
+    '--ox': `${away[0].toFixed(2)}%`,
+    '--oy': `${away[1].toFixed(2)}%`
   } as CSSProperties;
 
   return (
@@ -543,6 +608,23 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
   const ringsRef = useRef(rings);
   ringsRef.current = rings;
 
+  /*
+   * Die Ausweichrichtung je Blase: vom Mittelpunkt des Rings weg.
+   *
+   * Einmal gerechnet und nicht bei jedem Bild — es hängt nur am Ring und am
+   * Format, nicht am Bildlauf.
+   */
+  const yields = useMemo(() => {
+    const [cx, cy] = ringCentre(portrait);
+
+    return rings.map((points) => points.map((point) => {
+      const dx = point[0] - cx;
+      const dy = point[1] - cy;
+      const len = Math.hypot(dx, dy) || 1;
+      return [(dx / len) * BUBBLE_YIELD, (dy / len) * BUBBLE_YIELD] as Point;
+    }));
+  }, [rings, portrait]);
+
   useEffect(() => {
     const query = window.matchMedia('(orientation: portrait)');
     const onChange = () => setPortrait(query.matches);
@@ -641,7 +723,36 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
       const here = (window.scrollY - origin) / stepPx;
       node.style.setProperty('--p', Math.min(1, Math.max(0, here / last)).toFixed(5));
-      pan(here);
+
+      /*
+       * Der Gang von Blase zu Blase folgt einer eigenen Kurve.
+       *
+       * Gleichmässig gelesen wäre jede Blase nur ein Durchgangspunkt. Mit
+       * WALK_HOLD verweilt die Bewegung bei jeder und läuft dazwischen rasch
+       * hinüber — das Verweilen IST der Augenblick, in dem eine Blase dran
+       * ist, und dazwischen soll man nicht lesen, sondern ankommen.
+       *
+       * Betonung und Verschiebung hängen beide daran, sonst liefen sie
+       * auseinander.
+       */
+      const base = Math.floor(here);
+      const t = here - base;
+      const smooth = t * t * t * (t * (t * 6 - 15) + 10);
+      const walk = base + t + WALK_HOLD * (smooth - t);
+
+      /*
+       * Wie weit die Bewegung zwischen zwei Blasen steht: 0 bei einer, 1 in
+       * der Mitte dazwischen. Nur INNERHALB einer Szene — der Wechsel von
+       * einer Gruppe zur nächsten blendet ohnehin über.
+       */
+      const zone = zoneOf(here);
+      const between = zone.to > zone.at && here > zone.at && here < zone.to
+        ? 1 - Math.abs(2 * t - 1)
+        : 0;
+
+      node.style.setProperty('--sw', walk.toFixed(4));
+      node.style.setProperty('--travel', between.toFixed(3));
+      pan(walk);
     };
 
     /**
@@ -841,7 +952,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
      * mehr Schritte zu machen, sondern damit der Übergang dort anfängt, wo die
      * Hand gerade ist.
      */
-    const gesture = (px: number, dt: number) => {
+    const gesture = (px: number, dt: number, follow: number) => {
       const now = performance.now();
       const idle = now - lastEvent;
       const fresh = idle > GESTURE_GAP;
@@ -877,7 +988,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
        */
       if (want >= zone.at - 1e-4 && want <= zone.to + 1e-4) {
         push = 0;
-        go(want, speed, FREE_MS, false);
+        go(want, speed, follow, false);
         return;
       }
 
@@ -901,7 +1012,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       const edge = dir > 0 ? zone.to : zone.at;
 
       if (Math.abs(push) < STEP_PUSH) {
-        if (Math.abs(edge - target) > 1e-4) go(edge, speed, FREE_MS, false);
+        if (Math.abs(edge - target) > 1e-4) go(edge, speed, follow, false);
         return;
       }
 
@@ -945,7 +1056,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       const unit = event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? window.innerHeight : 1;
 
       const gap = performance.now() - lastEvent;
-      gesture(event.deltaY * unit, gap > GESTURE_GAP ? NOTCH_MS : gap);
+      gesture(event.deltaY * unit, gap > GESTURE_GAP ? NOTCH_MS : gap, FREE_MS);
     };
 
     const onTouchStart = (event: TouchEvent) => {
@@ -966,7 +1077,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       // Der Finger ist das einzige Zeigegerät, das wirklich eine
       // Geschwindigkeit hergibt: Weg und Zeit sind beide gemessen.
       const now = performance.now();
-      gesture(dy, now - touchTime);
+      gesture(dy * TOUCH_GAIN, now - touchTime, FREE_TOUCH_MS);
       touchAt = y;
       touchTime = now;
     };
@@ -1146,6 +1257,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
                     key={bubble.kind + at}
                     index={at}
                     at={points[at]}
+                    yield={yields[index][at]}
                     bubble={bubble}
                     copy={copy}
                   />
