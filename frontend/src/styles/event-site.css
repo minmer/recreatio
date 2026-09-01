@@ -1445,6 +1445,30 @@
   cursor: zoom-in;
 }
 
+/* Room for the furniture rather than under it.
+   
+   A photograph is happy behind a counter in one corner; a meme is not, because
+   its caption is a black band along the bottom edge and the credit line lands
+   squarely on the words. So where the picture asks for it, the stage is inset
+   while the chrome is up — and takes the space back the moment it fades, which
+   is why the padding is worth animating. */
+.ev-viewer[data-reserve='true'][data-chrome='true'] .ev-viewer-stage {
+  padding-top: 3.6rem;
+  padding-bottom: 7.5rem;
+}
+
+.ev-viewer[data-reserve='true'] .ev-viewer-stage {
+  transition: padding 260ms ease;
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  /* No thumbnail strip down here, so less to keep clear of. */
+  .ev-viewer[data-reserve='true'][data-chrome='true'] .ev-viewer-stage {
+    padding-top: 2.6rem;
+    padding-bottom: 4.2rem;
+  }
+}
+
 .ev-viewer-stage[data-zoomed='true'] {
   cursor: grab;
 }

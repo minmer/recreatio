@@ -447,9 +447,17 @@
    ist allein die Hervorhebung.
 */
 
+/*
+   DIE HOEHE RECHNET MIT DER KOPFLEISTE.
+
+   Der angeheftete Teil ist nur `100vh - --head-h` hoch und klebt bei
+   `--head-h`. Rechnete die Buehne mit vollen `100vh`, waere der Weg um genau
+   eine Kopfleistenhoehe zu lang — die Rastpunkte lagen dann nicht dort, wo der
+   angeheftete Teil wirklich einrastet, und alles wirkte verschoben.
+*/
 .rc-stage.is-live {
   position: relative;
-  height: calc(var(--states) * var(--step) + 100vh);
+  height: calc(var(--states) * var(--step) + 100vh - var(--head-h));
 
   --s: calc(var(--p, 0) * var(--states));
 
@@ -493,11 +501,17 @@
    ist bei 0.85 durch, der Satz erst bei 1.2. Dazwischen steht er allein — genau
    der Augenblick, in dem er hervortritt.
 */
+/*
+   Zeichen und Satz sind EINE Gruppe: der Satz steht mittig unmittelbar unter
+   dem Zeichen, nicht in einer Ecke. Beide sitzen in der Mitte der Flaeche, der
+   Hinweis unten am Rand — er gehoert nicht zur Gruppe.
+*/
 .rc-stage.is-live .rc-first {
   z-index: 7;
   display: grid;
-  grid-template-rows: 1fr auto auto;
   align-content: center;
+  justify-items: center;
+  gap: clamp(1.25rem, 3vh, 2.5rem);
   background: transparent;
   pointer-events: none;
   transform-origin: center;
@@ -505,7 +519,20 @@
   transform: scale(calc(1 + var(--pt) * 2.2));
 }
 
-.rc-stage.is-live .rc-hint { opacity: calc(1 - var(--ps)); }
+.rc-stage.is-live .rc-sentence {
+  justify-self: center;
+  text-align: center;
+  max-width: min(88vw, 36rem);
+}
+
+.rc-stage.is-live .rc-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 2rem;
+  transform: translateX(-50%);
+  justify-self: center;
+  opacity: calc(1 - var(--ps));
+}
 
 /*
    Sobald der Schleier fort ist, liegt der Satz nicht mehr auf Dunkel, sondern
@@ -585,6 +612,19 @@
   opacity: calc(1 - var(--pv));
 }
 
+/*
+   DIESELBE TIEFE WIE ZEICHEN UND SATZ.
+
+   Das Zeichen fliegt frueh (`--pw`, bis 0.85), der Satz spaet (`--pt`, bis
+   1.2). Ein Wort liegt irgendwo dazwischen — und genau das sagt sein `--k`:
+   1 heisst „so nah wie das Zeichen", 0 heisst „so fern wie der Satz". Sein
+   Fortschritt wird daraus gemischt.
+
+   Vorher liefen alle fuenf allein am Zeichen; sie waren fort, bevor der Satz
+   ueberhaupt losflog, und dadurch sah es aus wie zwei getrennte Ebenen. Jetzt
+   ist noch etwas unterwegs, waehrend der Satz vorbeizieht — und erst dadurch
+   liegt alles im selben Raum.
+*/
 .rc-word {
   position: absolute;
   left: 50%;
@@ -597,15 +637,18 @@
   white-space: nowrap;
   color: #f2f4ef;
   line-height: 1;
-  opacity: calc(var(--alpha) * max(0, 1 - var(--pw) * 1.25));
+
+  --pd: calc(var(--pw) * var(--k) + var(--pt) * (1 - var(--k)));
+
+  opacity: calc(var(--alpha) * max(0, 1 - var(--pd) * 1.15));
 
   transform:
     translate(-50%, -50%)
     translate(
-      calc(var(--dx) * (1 + var(--pw) * var(--depth) * 2.6)),
-      calc(var(--dy) * (1 + var(--pw) * var(--depth) * 2.6))
+      calc(var(--dx) * (1 + var(--pd) * var(--depth) * 3.4)),
+      calc(var(--dy) * (1 + var(--pd) * var(--depth) * 3.4))
     )
-    scale(calc(1 + var(--pw) * var(--depth) * 1.5));
+    scale(calc(1 + var(--pd) * var(--depth) * 1.7));
 }
 
 /*
@@ -654,7 +697,7 @@
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.35;
+  opacity: 0.5;
   stroke-dasharray: 2 6;
 }
 
@@ -683,7 +726,7 @@
 
   --f: clamp(0, min(calc(var(--s) - var(--c) - var(--i) + 1), calc(var(--c) + var(--i) + 1 - var(--s))), 1);
 
-  opacity: calc(0.46 + 0.54 * var(--f));
+  opacity: calc(0.64 + 0.36 * var(--f));
   transform: translate(-50%, -50%) scale(calc(1 + 0.08 * var(--f)));
   transform-origin: center;
   border-color: color-mix(in oklab, var(--line), var(--accent) calc(var(--f) * 100%));
@@ -695,12 +738,17 @@
 .rc-stage.is-live .rc-bubble[data-kind='close'] { width: min(70vw, 21rem); }
 .rc-stage.is-live .rc-bubble[data-kind='image'] { width: min(66vw, 19rem); }
 
+/*
+   Die letzte Blase liegt VOR der Verbindungslinie: sie deckt sie, statt sie
+   durchscheinen zu lassen. Ein durchsichtiges Feld auf einer gestrichelten
+   Linie liest sich als Fehler, nicht als Absicht.
+*/
 .rc-stage.is-live .rc-bubble[data-kind='note'] {
   width: auto;
-  padding: 0.7rem 1.2rem;
+  padding: 0.7rem 1.3rem;
   border-radius: 999px;
-  background: transparent;
-  box-shadow: none;
+  background: var(--paper);
+  box-shadow: 0 8px 24px rgb(20 24 15 / 0.08);
 }
 
 .rc-stage.is-live .rc-bubble .pub-gap {

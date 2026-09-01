@@ -171,11 +171,11 @@ function ringPoints(count: number, scene: number, portrait: boolean): readonly P
  * Geschwindigkeiten, und daraus entsteht der räumliche Eindruck.
  */
 const WORDS = [
-  { tail: 'colligere', angle: 203, radius: 46, depth: 1.15, alpha: 0.50, size: 2.2 },
-  { tail: 'novatio', angle: 331, radius: 41, depth: 0.80, alpha: 0.44, size: 2.6 },
-  { tail: 'conciliatio', angle: 148, radius: 52, depth: 1.34, alpha: 0.34, size: 1.9 },
-  { tail: 'fectio', angle: 26, radius: 38, depth: 0.66, alpha: 0.56, size: 2.9 },
-  { tail: 'dintegratio', angle: 287, radius: 54, depth: 1.02, alpha: 0.30, size: 2.0 }
+  { tail: 'colligere', angle: 203, radius: 62, depth: 1.15, alpha: 0.50, size: 2.2 },
+  { tail: 'novatio', angle: 331, radius: 55, depth: 0.80, alpha: 0.44, size: 2.6 },
+  { tail: 'conciliatio', angle: 148, radius: 72, depth: 1.34, alpha: 0.34, size: 1.9 },
+  { tail: 'fectio', angle: 26, radius: 50, depth: 0.66, alpha: 0.56, size: 2.9 },
+  { tail: 'dintegratio', angle: 287, radius: 76, depth: 1.02, alpha: 0.30, size: 2.0 }
 ] as const;
 
 /**
@@ -336,11 +336,17 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
   const halo = useMemo(
     () => WORDS.map((word) => {
       const jitter = (span: number) => (Math.random() - 0.5) * span;
-      const angle = ((word.angle + jitter(30)) * Math.PI) / 180;
-      const radius = word.radius + jitter(18);
+      const angle = ((word.angle + jitter(44)) * Math.PI) / 180;
+
+      /*
+       * Weit hinaus — und ruhig ueber den Rand. Ein Wort, das angeschnitten
+       * ist, sagt „da geht es weiter"; fuenf Woerter brav im Bild sagen
+       * „das ist alles".
+       */
+      const radius = word.radius + jitter(34);
 
       let dx = Math.cos(angle) * radius;
-      let dy = Math.sin(angle) * radius * 0.72;
+      let dy = Math.sin(angle) * radius * 0.66;
 
       // Liegt der Punkt in der Sperrzone, auf seiner eigenen Richtung
       // hinausschieben — mit etwas Luft, damit nichts das Zeichen streift.
@@ -356,6 +362,8 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
         dx,
         dy,
         depth: word.depth + jitter(0.3),
+        // 1 = so nah wie das Zeichen, 0 = so fern wie der Satz.
+        k: Math.min(1, Math.max(0, (word.depth - 0.6) / 0.8)),
         alpha: Math.max(0.24, word.alpha + jitter(0.18)),
         size: Math.max(1.4, word.size + jitter(0.55))
       };
@@ -380,13 +388,27 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
       const y = window.scrollY;
       const box = node.getBoundingClientRect();
-      const top = y + box.top;
-      const travel = node.offsetHeight - window.innerHeight;
+
+      /*
+       * DER NULLPUNKT IST NICHT DIE OBERKANTE DER BUEHNE.
+       *
+       * Der angeheftete Teil klebt bei `--head-h`, also ist er schon
+       * festgesetzt, wenn die Buehne noch eine Kopfleistenhoehe weiter oben
+       * steht. Rechnete man ab der Oberkante, laege jeder Rastpunkt um genau
+       * diesen Betrag daneben — und die Seite sprang beim Aufschlagen als
+       * Erstes um eine Kopfleiste nach unten, um „Zustand 0" zu erreichen.
+       */
+      const pin = node.firstElementChild as HTMLElement | null;
+      const headH = pin === null ? 0 : parseFloat(getComputedStyle(pin).top) || 0;
+
+      const origin = y + box.top - headH;
+      const travel = node.offsetHeight - (window.innerHeight - headH);
       const stepPx = (STEP_VH / 100) * window.innerHeight;
 
       if (travel <= 0 || stepPx <= 0) { node.style.setProperty('--p', '0'); return; }
 
-      node.style.setProperty('--p', Math.min(1, Math.max(0, (y - top) / travel)).toFixed(5));
+      node.style.setProperty('--p', Math.min(1, Math.max(0, (y - origin) / travel)).toFixed(5));
+      const top = origin;
 
       const observed = y - lastY;
       lastY = y;
@@ -637,6 +659,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
                   '--dx': `${word.dx.toFixed(2)}vmin`,
                   '--dy': `${word.dy.toFixed(2)}vmin`,
                   '--depth': word.depth.toFixed(3),
+                  '--k': word.k.toFixed(3),
                   '--alpha': word.alpha.toFixed(3),
                   '--size': `${word.size.toFixed(2)}rem`
                 } as CSSProperties}

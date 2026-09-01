@@ -401,7 +401,13 @@ export function Viewer({
 
   return (
     <Fullscreen label="Galeria zdjęć" onClose={onClose}>
-      <div className="ev-viewer" data-chrome={chrome} onPointerMove={wake} onFocusCapture={wake}>
+      <div
+        className="ev-viewer"
+        data-chrome={chrome}
+        data-reserve={reserveChrome}
+        onPointerMove={wake}
+        onFocusCapture={wake}
+      >
         {/* The picture owns the whole layer, in either orientation: everything
             else floats over it. Giving the caption and the strip rows of their
             own cost a portrait photograph a third of its height and a landscape

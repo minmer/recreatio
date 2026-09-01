@@ -215,6 +215,7 @@ function Memes({
           pictures={memes}
           start={openAt}
           mayManage={made?.mayManage === true}
+          reserveChrome
           onRemove={(photoId, mine) => void remove(photoId, mine)}
           onClose={() => setOpen(null)}
         />
