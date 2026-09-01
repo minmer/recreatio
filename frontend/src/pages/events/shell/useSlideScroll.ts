@@ -104,6 +104,17 @@ const GATE_QUIET_MS = 140;
  */
 const TAIL_GAP_MS = 34;
 
+/**
+ * A swallowed event smaller than this share of the last one is still the tail.
+ *
+ * Momentum thins out as it dies — the events grow further apart as well as
+ * smaller — so towards its end the gap alone stops recognising it, and that last
+ * weak stretch was what escaped the gate and moved the newly arrived slide. Only
+ * a decaying stream qualifies: a wheel notch is about as big as the one before
+ * it, and a fresh flick is bigger, so both come straight through.
+ */
+const TAIL_DECAY_RATIO = 0.92;
+
 /** However quiet it never gets, a gate lets go this long after the departure. */
 const GATE_MAX_MS = 1100;
 
@@ -263,6 +274,8 @@ export function useSlideScroll(slideCount: number) {
    * may leave on inertia.
    */
   const reachedEdgeRef = useRef(false);
+  /** Whether the current gesture is allowed to accumulate its way out of a slide. */
+  const armedRef = useRef(true);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
   const interpolationRef = useRef(TRACK_INTERPOLATION);
@@ -487,6 +500,12 @@ export function useSlideScroll(slideCount: number) {
    */
   /** Adds to the pull held against one edge, starting over if it went stale. */
   const rememberPull = useCallback((index: number, direction: 1 | -1, added: number): number => {
+    // A departure disarms the accumulator until a gesture of its own begins.
+    // What is left of the one that just left a slide may still scroll the new
+    // one — being deaf is worse — but it may not stack up into a second
+    // departure, which is how a single flick used to walk through three slides.
+    if (!armedRef.current) return 0;
+
     const now = performance.now();
     const held = pullRef.current;
     const continues =
@@ -655,6 +674,7 @@ export function useSlideScroll(slideCount: number) {
       pullRef.current = null;
       velocityRef.current = 0;
       reachedEdgeRef.current = false;
+      armedRef.current = false;
       stopSettle();
     },
     [stopSettle, tweenTo]
@@ -717,6 +737,7 @@ export function useSlideScroll(slideCount: number) {
 
       // Mid-transition: swallow, and take this event as the start of the tail.
       if (now < gateUntilRef.current) {
+        tail.size = Math.abs(delta);
         tail.until = now + GATE_QUIET_MS;
         return false;
       }
@@ -730,12 +751,17 @@ export function useSlideScroll(slideCount: number) {
       // break. The first gap wider than a frame or two ends it, which is every
       // wheel notch and every new flick, so a person scrolling on is answered at
       // once. GATE_MAX_MS is the backstop for a stream that never breaks.
-      if (now < tail.until && now < tail.cap && sinceLast <= TAIL_GAP_MS) {
+      const size = Math.abs(delta);
+      const stillFading = tail.size > 0 && size < tail.size * TAIL_DECAY_RATIO;
+
+      if (now < tail.until && now < tail.cap && (sinceLast <= TAIL_GAP_MS || stillFading)) {
+        tail.size = size;
         tail.until = now + GATE_QUIET_MS;
         return false;
       }
 
       tail.until = 0;
+      tail.size = 0;
       advance(delta);
       return true;
     },
@@ -913,7 +939,10 @@ export function useSlideScroll(slideCount: number) {
       // Silence long enough means the last gesture is over: what it reached is
       // no longer this scroll's business.
       const wheelAt = performance.now();
-      if (wheelAt - lastWheelAtRef.current > GESTURE_GAP_MS) reachedEdgeRef.current = false;
+      if (wheelAt - lastWheelAtRef.current > GESTURE_GAP_MS) {
+        reachedEdgeRef.current = false;
+        armedRef.current = true;
+      }
       lastWheelAtRef.current = wheelAt;
       event.preventDefault();
       stopSettle();
@@ -928,6 +957,7 @@ export function useSlideScroll(slideCount: number) {
       // departure; a finger has already announced itself by arriving.
       gateUntilRef.current = 0;
       reachedEdgeRef.current = false;
+      armedRef.current = true;
       stopSettle();
       cancelResolveTimer();
       touchYRef.current = event.touches[0].clientY;
@@ -1032,6 +1062,9 @@ export function useSlideScroll(slideCount: number) {
       if (ownsKeyboardInput(event.target)) return;
       if (event.altKey || event.ctrlKey || event.metaKey) return;
       setInteracted(true);
+      // A key press is a whole gesture in itself, and always its own.
+      armedRef.current = true;
+      gateUntilRef.current = 0;
 
       const page = viewportHeight * 0.82;
       if (event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ') {
