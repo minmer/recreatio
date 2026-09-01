@@ -105,6 +105,16 @@ import { PublicText } from '../PublicText';
 import { rcGlide, rcGlideSlope, rcGlideLead } from '../../rc/lib/rcGlide';
 import { publicHref, type PublicPage } from '../publicRoutes';
 
+/**
+ * Bereiche, die ihren eigenen Bildlauf behalten dürfen.
+ *
+ * Der Rest der Seite fährt in Zuständen; diese beiden müssen in sich rollen
+ * können, sonst ist ein Teil ihres Inhalts unerreichbar: das aufgeklappte Menü
+ * auf dem Telefon und die Anschrift im letzten Bild, wenn sie auf einem hohen,
+ * schmalen Schirm länger ist als ihr Platz.
+ */
+const FREE_SCROLL = '.pub-nav, .rc-contact-in';
+
 const WORK_PAGES: readonly PublicPage[] = ['osrodek', 'wydarzenia', 'cogita', 'biblioteka'];
 
 /**
@@ -267,7 +277,7 @@ const SENTENCE_Z = -980;
  * von seinen 10 gut drei Viertel auf dem Bild an; es steht also rund 12 Prozent
  * der Hoehe ueber dem Satz und zieht nach oben davon.
  */
-const LOGO_Y = -10;
+const LOGO_Y = -13;
 const SENTENCE_Y = 6;
 
 /** Die Tiefe der Woerter: von ganz hinten bis dicht vor die Kamera. */
@@ -517,15 +527,42 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     /** Der gesammelte Weg, seit zuletzt ein Schritt fiel. */
     let push = 0;
 
-    const measure = () => {
-      const pin = node.firstElementChild as HTMLElement | null;
-      const headH = pin === null ? 0 : parseFloat(getComputedStyle(pin).top) || 0;
-      return {
-        origin: window.scrollY + node.getBoundingClientRect().top - headH,
-        stepPx: (STEP_VH / 100) * window.innerHeight,
-        last: planRef.current.states - 1
-      };
+    /*
+     * Die Masse der Bühne — in Pixeln, und nur hier gerechnet.
+     *
+     * <b>Das Stilblatt darf sie nicht ein zweites Mal ausrechnen.</b> Vorher
+     * stand in der CSS `100vh` und hier `window.innerHeight`, und auf dem
+     * Telefon sind das zwei verschiedene Zahlen: `vh` meint dort die grosse
+     * Ansicht (Adressleiste eingefahren), `innerHeight` die gerade sichtbare.
+     * Der Weg der Bühne und der Weg, den dieser Code fährt, gingen damit
+     * auseinander, und die Rastpunkte lagen daneben — genau das, was auf dem
+     * Schreibtisch nie auffällt.
+     *
+     * Auch die Kopfleiste wird gemessen statt geglaubt. `--head-h` ist eine
+     * feste Zahl für den Schreibtisch; unter 900 Pixeln bricht die Leiste um
+     * und ist in Wirklichkeit mal niedriger, mal (bei offenem Menü) deutlich
+     * höher. Der angeheftete Teil klebte dann an der falschen Stelle.
+     */
+    let headH = 0;
+    let pinH = 0;
+    let stepPx = 0;
+
+    const layout = () => {
+      const head = document.querySelector('.pub-head');
+      headH = head === null ? 0 : Math.round(head.getBoundingClientRect().height);
+      pinH = Math.max(320, window.innerHeight - headH);
+      stepPx = Math.round((pinH * STEP_VH) / 100);
+
+      node.style.setProperty('--head-h', `${headH}px`);
+      node.style.setProperty('--pin-h', `${pinH}px`);
+      node.style.setProperty('--step', `${stepPx}px`);
     };
+
+    const measure = () => ({
+      origin: window.scrollY + node.getBoundingClientRect().top - headH,
+      stepPx,
+      last: planRef.current.states - 1
+    });
 
     const paint = () => {
       const { origin, stepPx, last } = measure();
@@ -708,7 +745,20 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       go(dir, speed);
     };
 
+    /*
+     * Rollt der Bereich unter dem Zeiger selbst?
+     *
+     * Geprüft wird, ob dort wirklich etwas überläuft. Bloss auf den Bereich zu
+     * sehen genügte nicht: über der geschlossenen Kopfleiste liesse ein Rad
+     * dann die Seite frei scrollen und umginge die Zustände.
+     */
+    const rolls = (event: Event) => {
+      const box = event.target instanceof Element ? event.target.closest(FREE_SCROLL) : null;
+      return box !== null && box.scrollHeight > box.clientHeight + 1;
+    };
+
     const onWheel = (event: WheelEvent) => {
+      if (rolls(event)) return;
       event.preventDefault();
       if (event.deltaY === 0) return;
 
@@ -736,6 +786,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     };
 
     const onTouchMove = (event: TouchEvent) => {
+      if (rolls(event)) return;
       event.preventDefault();
       const y = event.touches[0]?.clientY ?? 0;
       const dy = touchAt - y;
@@ -761,13 +812,26 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       go(down ? 1 : -1, 0);
     };
 
-    const onResize = () => {
-      const { origin, stepPx } = measure();
+    /*
+     * Neu vermessen und den Zustand halten.
+     *
+     * Läuft nicht nur beim Ändern der Fenstergrösse: auch beim Drehen des
+     * Geräts, und immer dann, wenn die Kopfleiste ihre Höhe ändert — auf dem
+     * Telefon klappt dort ein Menü auf, und das ist kein Fenstermass.
+     */
+    const relayout = () => {
+      layout();
+      const { origin } = measure();
       window.scrollTo(0, origin + target * stepPx);
       paint();
     };
 
     node.classList.add('is-live');
+    layout();
+
+    const head = document.querySelector('.pub-head');
+    const watch = head === null ? null : new ResizeObserver(relayout);
+    if (head !== null && watch !== null) watch.observe(head);
 
     // Da anfangen, wo die Seite gerade steht — ein Neuladen mitten im Verlauf
     // soll nicht nach oben springen.
@@ -779,7 +843,8 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     window.addEventListener('touchstart', onTouchStart, { passive: true });
     window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('keydown', onKey);
-    window.addEventListener('resize', onResize, { passive: true });
+    window.addEventListener('resize', relayout, { passive: true });
+    window.addEventListener('orientationchange', relayout, { passive: true });
 
     return () => {
       if (frame !== 0) cancelAnimationFrame(frame);
@@ -787,7 +852,9 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       window.removeEventListener('touchstart', onTouchStart);
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('keydown', onKey);
-      window.removeEventListener('resize', onResize);
+      window.removeEventListener('resize', relayout);
+      window.removeEventListener('orientationchange', relayout);
+      if (watch !== null) watch.disconnect();
       node.classList.remove('is-live');
     };
   }, []);
@@ -803,6 +870,15 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     // Der Raum des ersten Bildes. Beide Zahlen stehen nur hier: das Stilblatt
     // rechnet damit, statt sie ein zweites Mal zu führen.
     '--persp': `${PERSPECTIVE}px`,
+
+    /*
+     * Der Abstand des Satzes von der Mitte — und damit auch die Lage des
+     * Fluchtpunktes im Stilblatt. EINE Zahl fuer beides: nur wenn der Satz
+     * genau auf dem Fluchtpunkt liegt, bleibt er beim Naeherkommen stehen.
+     * Vorher stand der Abstand in `vmin` und der Fluchtpunkt in Prozent der
+     * Hoehe — im Hochformat sind das zwei verschiedene Orte.
+     */
+    '--sy': `calc(${SENTENCE_Y} * var(--uy, 1vmin))`,
     '--cam-end': CAM_END
   } as CSSProperties;
 
@@ -823,11 +899,11 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
                   className="rc-item rc-word"
                   aria-hidden="true"
                   style={{
-                    '--x': `${word.x.toFixed(2)}vmin`,
-                    '--y': `${word.y.toFixed(2)}vmin`,
+                    '--x': `calc(${word.x.toFixed(2)} * var(--ux, 1vmin))`,
+                    '--y': `calc(${word.y.toFixed(2)} * var(--uy, 1vmin))`,
                     '--z': word.z.toFixed(0),
                     '--alpha': word.alpha.toFixed(3),
-                    '--size': `${word.size.toFixed(2)}rem`
+                    '--size': `${word.size.toFixed(2)}vmin`
                   } as CSSProperties}
                 >
                   <b className="rc-word-re">RE</b>{word.tail}
@@ -836,7 +912,11 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
               <div
                 className="rc-item rc-logo"
-                style={{ '--x': '0vmin', '--y': `${LOGO_Y}vmin`, '--z': LOGO_Z } as CSSProperties}
+                style={{
+                  '--x': '0px',
+                  '--y': `calc(${LOGO_Y} * var(--uy, 1vmin))`,
+                  '--z': LOGO_Z
+                } as CSSProperties}
               >
                 <img src="/logo_inv.svg" alt={t.screen1.wordmark} />
               </div>
@@ -850,8 +930,9 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
                 className="rc-item rc-sentence"
                 id="rc-h1"
                 style={{
-                  '--x': '0vmin',
-                  '--y': `${SENTENCE_Y}vmin`,
+                  '--x': '0px',
+                  // Genau der Fluchtpunkt — dieselbe Zahl wie im Stilblatt.
+                  '--y': 'var(--sy)',
                   '--z': SENTENCE_Z
                 } as CSSProperties}
               >

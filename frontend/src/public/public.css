@@ -503,9 +503,41 @@
 */
 .rc-stage.is-live {
   position: relative;
-  height: calc(var(--states) * var(--step) + 100vh - var(--head-h));
+
+  /*
+     `--pin-h` und `--step` kommen in PIXELN aus dem Bildlauf-Code, nicht aus
+     `vh`. Auf dem Telefon meint `vh` die grosse Ansicht (Adressleiste
+     eingefahren), `window.innerHeight` aber die gerade sichtbare — der Weg der
+     Buehne und der Weg, den der Code faehrt, gingen damit auseinander, und die
+     Rastpunkte lagen daneben. Eine Zahl, ein Ort.
+
+     Der Rueckfall auf `vh` gilt nur fuer den Augenblick vor dem ersten Messen.
+  */
+  height: calc(var(--states) * var(--step, 60vh) + var(--pin-h, calc(100vh - var(--head-h))));
 
   --s: calc(var(--p, 0) * var(--states));
+
+  /*
+     Die Masseinheit fuer alles, was im Raum quer und hoch steht.
+
+     `vmin` allein reicht nicht. Im Querformat ist es die Hoehe, im Hochformat
+     die Breite — dieselbe Zahl beschreibt dort also einen viel kleineren
+     Bruchteil der Hoehe. Die Woerter draengten sich damit im Hochformat in ein
+     flaches Band quer ueber die Mitte, und Zeichen und Satz rueckten so dicht
+     zusammen, dass sie sich ueberlagerten.
+
+     Zwei Einheiten statt einer: eine fuer quer, eine fuer hoch. Alles im Raum
+     rechnet damit, und die Streuung selbst bleibt dieselbe Zahl.
+
+     Die beiden Werte sind nicht geraten, sondern aus dem Entwurf
+     zurueckgerechnet: dort war ein `vmin` auf einem Schirm von 1440x900 gleich
+     9 Pixeln — also 0.625vw quer und 1vh hoch. Damit ist das Querformat genau
+     wie bisher, und jedes andere Format teilt das Bild im selben Verhaeltnis.
+     Ein fester Zuschlag fuers Hochformat koennte das nicht: er passte dem
+     Telefon und zerrte das Tablett auseinander.
+  */
+  --ux: 0.625vw;
+  --uy: 1vh;
 
   /*
      Die Kamerafahrt. Alles im Raum haengt allein daran.
@@ -551,8 +583,21 @@
 .rc-stage.is-live .rc-pin {
   position: sticky;
   top: var(--head-h);
-  height: calc(100vh - var(--head-h));
+  height: var(--pin-h, calc(100vh - var(--head-h)));
   overflow: hidden;
+
+  /*
+     Der Bildlauf wird hier abgefangen. Ohne diese beiden Zeilen holt das
+     Telefon sich die Geste trotzdem: `touch-action` verhindert, dass der
+     Browser sie als Bildlauf deutet, ehe der Code sie sieht, und
+     `overscroll-behavior` unterbindet das Herunterziehen zum Neuladen.
+
+     `pinch-zoom` und nicht `none`: das Aufziehen mit zwei Fingern MUSS bleiben.
+     Es ist fuer manche die einzige Art, kleine Schrift zu lesen, und es mit
+     abzuschalten waere kein Nebeneffekt, sondern eine ausgesperrte Person.
+  */
+  touch-action: pinch-zoom;
+  overscroll-behavior: none;
 }
 
 .rc-stage.is-live .rc-first,
@@ -578,6 +623,18 @@
   perspective: var(--persp);
 
   /*
+     DIESELBE Zahl wie der Abstand des Satzes von der Mitte (`--sy`), und
+     deshalb liegt der Fluchtpunkt in jedem Format genau auf ihm.
+
+     Vorher stand hier ein fester Prozentwert der Hoehe und dort ein Mass in
+     `vmin`. Im Querformat ist `vmin` gleich `vh`, da fielen beide zusammen; im
+     Hochformat ist `vmin` gleich `vw`, und dann lagen sie auseinander — der
+     Satz rutschte beim Naeherkommen fort, statt zu wachsen. Ein Fehler, den
+     man auf dem Schreibtisch nie sieht.
+  */
+  perspective-origin: 50% calc(50% + var(--sy, 6vmin));
+
+  /*
      Der Fluchtpunkt liegt beim SATZ, nicht in der Bildmitte.
 
      Er ist der Punkt, auf den die Kamera zufaehrt, und alles im Raum dehnt sich
@@ -586,11 +643,9 @@
      dann fast aus dem Bild, wenn er gross und allein sein sollte. Ein Gegenstand
      bleibt nur dort stehen, wo der Fluchtpunkt ist.
 
-     Also: der Fluchtpunkt dorthin, wo der Satz stehen soll, und SENTENCE_Y so
-     gewaehlt, dass der Satz genau dort liegt. Er waechst dann an Ort und
-     Stelle, waehrend das Zeichen darueber nach oben aus dem Bild zieht.
+     Also: der Fluchtpunkt dorthin, wo der Satz stehen soll. Er waechst dann an
+     Ort und Stelle, waehrend das Zeichen darueber nach oben aus dem Bild zieht.
   */
-  perspective-origin: 50% 56%;
 
   /* Wenn alles vorbeigezogen ist, geht auch der Raum. */
   opacity: calc(1 - var(--pspace));
@@ -636,9 +691,25 @@
     translate3d(var(--x), var(--y), calc(var(--z) * 1px));
 }
 
-.rc-stage.is-live .rc-sentence { max-width: 34rem; font-size: 2.2rem; }
+/*
+   Zeichen und Satz messen in `vmin`, nicht in `rem`.
 
-.rc-stage.is-live .rc-logo img { width: 34rem; }
+   Ihre Groesse auf dem Bild ist die CSS-Groesse mal der Projektion, und die
+   Projektion haengt nur an z — nicht am Fenster. Eine feste Zahl in `rem` war
+   auf dem Schreibtisch ein Teil des Bildes und auf dem Telefon breiter als das
+   Bild: derselbe Satz, der dort schoen gross wurde, stand hier ueber den Rand
+   hinaus. In `vmin` ist die Bildaufteilung in jeder Groesse dieselbe.
+
+   Die Grenzen von `clamp` sind fuer die Lesbarkeit da: sehr kleine Geraete
+   sollen den Satz nicht unter eine lesbare Groesse druecken, sehr grosse ihn
+   nicht ins Masslose ziehen.
+*/
+.rc-stage.is-live .rc-sentence {
+  max-width: 62vmin;
+  font-size: clamp(1.5rem, 3.9vmin, 2.6rem);
+}
+
+.rc-stage.is-live .rc-logo img { width: 60vmin; }
 
 .rc-stage.is-live .rc-hint {
   position: absolute;
@@ -791,10 +862,89 @@
 
 /* Im Hochformat ist die Breite knapp. */
 @media (orientation: portrait) {
+  /*
+     Zeichen und Satz duerfen mehr von der schmalen Breite nehmen. `--ux` und
+     `--uy` brauchen hier nichts: sie messen ohnehin in vw und vh und teilen
+     das Bild schon von sich aus richtig.
+  */
+  .rc-stage.is-live .rc-logo img { width: 74vmin; }
+
+  .rc-stage.is-live .rc-sentence {
+    max-width: 76vmin;
+    font-size: clamp(1.5rem, 6vmin, 2.4rem);
+  }
+
   .rc-stage.is-live .rc-bubble { padding: 1.05rem 1.2rem; }
   .rc-stage.is-live .rc-bubble[data-kind='body'] { width: min(84vw, 22rem); }
   .rc-stage.is-live .rc-bub-body { font-size: 0.95rem; }
   .rc-stage.is-live .rc-wave { transform: scale(calc(0.78 + 0.24 * var(--u))); }
+
+  /*
+     Die Schlussblase der dritten Szene traegt acht Zeilen, die anderen zwei.
+     In der Grundgroesse wuerde sie im Hochformat ueber die halbe Bildhoehe
+     einnehmen und die Nachbarn auf dem Ring ueberdecken.
+  */
+  .rc-stage.is-live .rc-bub-close { font-size: clamp(0.95rem, 4vw, 1.2rem); }
+  .rc-stage.is-live .rc-bubble[data-kind='close'] { width: min(76vw, 18rem); }
+
+  /*
+     Vier Viertel auf einem hohen Bild: der Text muss kleiner werden, sonst
+     laeuft er aus seinem Viertel heraus. Der Einzug von aussen wird ebenfalls
+     enger — 46vw waeren hier fast das ganze Bild.
+  */
+  .rc-stage.is-live .rc-work { padding: 1rem 1.1rem; gap: 0.3rem; }
+  .rc-stage.is-live .rc-work-h { font-size: clamp(1.05rem, 4.6vw, 1.5rem); }
+  .rc-stage.is-live .rc-work-b { font-size: 0.82rem; line-height: 1.4; }
+  .rc-stage.is-live .rc-work-a { font-size: 0.72rem; }
+
+  /*
+     Das letzte Bild: die Anschrift steht unter dem Zeichen, das oben links
+     gelandet ist. Auf einem hohen, schmalen Bild braucht sie die ganze Breite
+     und darf notfalls in sich rollen — abgeschnittene Anschrift waere das
+     Schlimmste, was diese Seite tun kann.
+  */
+  .rc-stage.is-live .rc-contact-in {
+    top: 26%;
+    right: var(--pad);
+    max-width: none;
+    gap: 0.7rem;
+    max-height: 68%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    pointer-events: auto;
+  }
+
+  .rc-contact-lead { font-size: 0.95rem; }
+  .rc-contact-note { font-size: 0.78rem; }
+}
+
+/*
+   Das Telefon quer: 390 Pixel Hoehe, und alles muss hineinpassen.
+
+   Hier ist nicht die Breite knapp, sondern die Hoehe — der einzige Fall, in
+   dem das so ist. Bliebe das Zeichen so gross wie sonst, stuende der Satz ihm
+   direkt auf der Unterkante.
+*/
+@media (orientation: landscape) and (max-height: 560px) {
+  .rc-stage.is-live .rc-logo img { width: 44vmin; }
+  .rc-stage.is-live .rc-sentence { font-size: clamp(1.1rem, 3.9vmin, 2.6rem); }
+  .rc-stage.is-live .rc-hint { display: none; }
+
+  .rc-stage.is-live .rc-bubble { padding: 0.85rem 1rem; }
+  .rc-stage.is-live .rc-bub-body { font-size: 0.85rem; }
+  .rc-stage.is-live .rc-bub-close { font-size: clamp(0.9rem, 2.6vh, 1.2rem); }
+  .rc-stage.is-live .rc-bub-title { font-size: clamp(1rem, 3.4vh, 1.5rem); }
+
+  .rc-stage.is-live .rc-work { padding: 0.8rem 1rem; }
+  .rc-stage.is-live .rc-work-b { font-size: 0.78rem; line-height: 1.35; }
+
+  .rc-stage.is-live .rc-contact-in {
+    top: 22%;
+    max-height: 72%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    pointer-events: auto;
+  }
 }
 
 /* -- Die vier Werke --------------------------------------------------------- */
@@ -1451,7 +1601,20 @@
 
   .pub-sub a { padding: 0.35rem 0; font-size: 0.86rem; }
 
+  /*
+     Das offene Menü rollt in sich.
 
+     Auf der Startseite fängt der Bildlauf-Code jede Geste ab, damit die Seite
+     in Zuständen fährt. Ein Menü, das laenger ist als das Bild, waere damit
+     unten nicht erreichbar — sieben Punkte samt offenem Untermenü sind auf
+     einem Telefon schnell laenger als das Bild. Die Deckelung macht daraus
+     einen eigenen Rollbereich, und `FREE_SCROLL` nimmt ihn vom Abfangen aus.
+  */
+  .pub-nav.is-open {
+    max-height: 62vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 
 /*
