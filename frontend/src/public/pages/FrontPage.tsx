@@ -1,24 +1,29 @@
 /**
  * Die Startseite — das Zeichen, drei Szenen, die vier Werke.
  *
- *    0   Das Zeichen.
- *    1   Der Mensch ist ein Ganzes.        (vier Blasen)
- *    2   Der Mensch braucht den Menschen.  (drei)
- *    3   Zurück zu den Quellen.            (drei)
- *    4   Die vier Werke.
- *    5   Kontakt.
+ *    0        Das Zeichen.                     ← Rastpunkt
+ *    1 … 4    Der Mensch ist ein Ganzes.       ← Rastpunkt bei 1, dann frei
+ *    5 … 7    Der Mensch braucht den Menschen. ← Rastpunkt bei 5, dann frei
+ *    8 … 10   Zurück zu den Quellen.           ← Rastpunkt bei 8, dann frei
+ *   11        Die vier Werke.                  ← Rastpunkt
+ *   12        Kontakt.                         ← Rastpunkt
  *
- * <b>Eine Szene ist EIN Zustand</b>, gleichgültig wie viele Blasen sie trägt.
- * Ihre Blasen hängen an einem Faden: sie sind ein Gedanke mit Teilen und nicht
- * ein Stapel von Gedanken. Jede einzeln anzufahren machte daraus eine Liste —
- * und aus dem Weg durch sechs Bilder einen durch dreizehn.
+ * <b>Eine Szene ist eine STRECKE, kein Punkt.</b> Jede Blase hat ihre Stelle
+ * auf der Achse, aber gerastet wird nur an den sechs Stellen oben. Dazwischen
+ * läuft der Bildlauf frei, und die Betonung wandert mit — von Blase zu Blase,
+ * ohne Halten und Anfahren.
  *
- * Sie kommen deshalb gemeinsam, aber nicht im selben Augenblick: der Versatz
- * steckt IN dem einen Übergang (`--i` im Stilblatt). Am Rastpunkt steht die
- * ganze Szene da.
+ * Das ist der Unterschied zwischen einer Liste und einem Gedanken mit Teilen.
+ * Die Blasen einer Szene hängen an einem Faden; jede einzeln anzurasten machte
+ * aus dem Zusammenhang eine Aufzählung.
  *
- * Der Fahrplan rechnet sich weiterhin aus dem Text: eine Szene mehr, und alles
- * Weitere verschiebt sich von selbst.
+ * <b>Und die Szene geht der Betonung nach.</b> Die betonte Blase wird in die
+ * Mitte gefahren (`--panx`/`--pany`, gerechnet in `pan()`), damit sie ganz im
+ * Bild steht und lesbar ist. Auf schmalen Schirmen ist das keine Verzierung,
+ * sondern die einzige Art, an die äussere Blase des Rings heranzukommen.
+ *
+ * Der Fahrplan rechnet sich weiterhin aus dem Text: eine Szene mehr oder eine
+ * Blase mehr, und alles Weitere verschiebt sich von selbst.
  *
  * ---------------------------------------------------------------------------
  * DAS ERSTE BILD IST EIN RAUM
@@ -44,10 +49,20 @@
  * dem Browser zu lassen und nur nachzuhelfen, scheiterten an derselben Stelle:
  * eine native Bewegung lässt sich nicht mitsteuern, ohne sie abzubrechen.
  *
- * Jetzt gilt eine einzige Regel — <b>eine Geste bewegt um einen Zustand.</b>
- * Die Zeitstempel sagen, was eine Geste ist: nach einer Ruhe von GESTURE_GAP
- * beginnt eine neue; alles, was innerhalb einer Geste noch eintrifft (ein
- * Trackpad schickt Dutzende Ereignisse), löst keinen zweiten Schritt aus.
+ * Es gibt <b>zwei Bewegungen</b>, und sie fühlen sich mit Absicht verschieden
+ * an:
+ *
+ *   - INNERHALB einer Szene läuft es frei. Der Weg der Hand wird eins zu eins
+ *     zur Strecke, ein kurzer Nachlauf (FREE_MS) glättet das Rad, und man kann
+ *     überall stehenbleiben. Nichts rastet ein — die Betonung wandert einfach.
+ *   - ZWISCHEN zwei Gruppen wird gesprungen. Das ist der Übergang, den der Rest
+ *     dieses Textes beschreibt.
+ *
+ * Für den Sprung gilt eine einzige Regel — <b>eine Geste bewegt um eine
+ * Gruppe.</b> Die Zeitstempel sagen, was eine Geste ist: nach einer Ruhe von
+ * GESTURE_GAP beginnt eine neue; alles, was innerhalb einer Geste noch
+ * eintrifft (ein Trackpad schickt Dutzende Ereignisse), löst keinen zweiten
+ * Sprung aus.
  *
  * <b>Und eine Geste muss etwas kosten.</b> Gesammelt wird der Weg, nicht das
  * blosse Auftreten: erst STEP_PUSH gescrollte Pixel lösen aus. Der gesammelte
@@ -166,11 +181,20 @@ const PUSH_FADE = 900;
  */
 const PUSH_KEEP = 0.7;
 
-/** Wie lange ein Übergang dauert. Seine eigene Zeit, nicht die der Geste. */
+/** Wie lange ein Übergang zwischen zwei Gruppen dauert. Seine eigene Zeit. */
 const GLIDE_MS = 700;
 
+/**
+ * Der Nachlauf beim freien Laufen INNERHALB einer Szene.
+ *
+ * Kurz genug, dass die Seite der Hand folgt, und lang genug, dass ein Mausrad
+ * nicht ruckt: es meldet in Sprüngen von hundert Pixeln, und ohne diesen
+ * Nachlauf sähe man jeden davon einzeln.
+ */
+const FREE_MS = 220;
+
 /** Wie lange der erste dauert — der durch den Raum, mit dem Innehalten darin. */
-const OPENING_MS = 1300;
+const OPENING_MS = 1700;
 
 /** So weit muss ein Finger wandern, ehe es als Geste zählt. */
 const TOUCH_MIN = 26;
@@ -316,13 +340,27 @@ function placeWord(index: number, roll: () => number) {
    * hinausragen.
    */
   const shrink = (PERSPECTIVE - z) / PERSPECTIVE;
-  const radius = (30 + roll() * 46) * shrink;
+
+  /** Wie weit draussen das Wort steht: 0 dicht am Zeichen, 1 ganz am Rand. */
+  const out = roll();
+  const radius = (30 + out * 46) * shrink;
 
   return {
     x: Math.cos(angle) * radius,
     y: Math.sin(angle) * radius * 0.78,
     z,
-    size: 1.5 + roll() * 1.5,
+    /*
+     * AUSSEN IST GROSS.
+     *
+     * Vorher war die Grösse rein zufällig, und die Wolke bekam dadurch etwas
+     * Gleichförmiges: überall dieselbe Streuung, nichts, dem das Auge folgt.
+     * Mit der Kopplung an den Abstand hat sie eine Ordnung — die Mitte gehört
+     * dem Zeichen, und nach aussen hin werden die Wörter gross, so wie es die
+     * Nähe zum Betrachter am Rand eines weiten Raumes tut.
+     *
+     * Der Zufallsanteil bleibt, sonst wäre es ein Muster statt einer Wolke.
+     */
+    size: 1.5 + out * 3.4 + roll() * 1.3,
     /*
      * Nur noch die Handschrift des einzelnen Wortes; was die Tiefe an
      * Durchsichtigkeit ausmacht, rechnet das Stilblatt aus `--ze`.
@@ -450,21 +488,38 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
    */
   const plan = useMemo(() => {
     /*
-     * EINE Szene ist EIN Zustand — nicht eine je Blase.
+     * EINE SZENE IST EINE STRECKE, KEIN PUNKT.
      *
-     * Die Blasen einer Szene hängen an einem Faden; sie sind ein Gedanke mit
-     * Teilen, kein Stapel von Gedanken. Jede einzeln anzufahren machte aus
-     * einem Zusammenhang eine Liste, und aus einem Bildlauf durch vier Bilder
-     * einen durch dreizehn. Sie kommen jetzt gemeinsam, nur nicht im selben
-     * Augenblick: der Versatz steckt IN dem einen Übergang.
+     * Auf der Achse `--s` bekommt jede Blase ihre eigene Stelle — die vierte
+     * Szenenblase liegt bei c+3. Gerastet wird darauf aber NICHT: Rastpunkte
+     * sind allein die Szenenanfänge, das Zeichen, die Werke und der Kontakt.
+     *
+     * Dazwischen läuft der Bildlauf frei. Die Blasen einer Szene hängen an
+     * einem Faden; sie sind ein Gedanke mit Teilen. Jede einzeln anzufahren
+     * machte daraus eine Liste aus Halten und Anfahren — dieselbe Strecke frei
+     * zu durchlaufen macht daraus eine Bewegung, in der die Betonung wandert.
+     *
+     * `zones` sagt beides in einem: wo gerastet wird (`at`) und wie weit man
+     * von dort aus frei kommt (`to`). Ein Punkt ohne Strecke ist `at === to`
+     * und verhält sich genau wie vorher.
      */
-    const starts = t.scenes.map((_, index) => index + 1);
+    const starts: number[] = [];
+    const zones: { at: number; to: number }[] = [{ at: 0, to: 0 }];
 
-    const works = t.scenes.length + 1;
-    const contact = works + 1;
+    let at = 1;
+    for (const scene of t.scenes) {
+      starts.push(at);
+      zones.push({ at, to: at + scene.bubbles.length - 1 });
+      at += scene.bubbles.length;
+    }
+
+    const works = at;
+    const contact = at + 1;
+    zones.push({ at: works, to: works }, { at: contact, to: contact });
 
     return {
       starts,
+      zones,
       works,
       contact,
       states: contact + 1
@@ -474,6 +529,19 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
   // Die Physik liest den Fahrplan, ohne dass ihr Effekt neu aufgesetzt wird.
   const planRef = useRef(plan);
   planRef.current = plan;
+
+  /*
+   * Die Ringpunkte einmal für beide: die Blasen werden danach gesetzt, und der
+   * Bildlauf rechnet daraus, wie weit die Szene geschoben werden muss, damit
+   * die betonte Blase in der Mitte steht.
+   */
+  const rings = useMemo(
+    () => t.scenes.map((scene, index) => ringPoints(scene.bubbles.length, index, portrait)),
+    [t.scenes, portrait]
+  );
+
+  const ringsRef = useRef(rings);
+  ringsRef.current = rings;
 
   useEffect(() => {
     const query = window.matchMedia('(orientation: portrait)');
@@ -515,6 +583,9 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     let span = GLIDE_MS;
     let lead = 0;
     let gliding = false;
+
+    /** Laeuft gerade ein Uebergang zwischen Gruppen (im Gegensatz zum freien Lauf)? */
+    let snapping = false;
 
     /** Der Zeitstempel des letzten Ereignisses. */
     let lastEvent = 0;
@@ -570,6 +641,43 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
       const here = (window.scrollY - origin) / stepPx;
       node.style.setProperty('--p', Math.min(1, Math.max(0, here / last)).toFixed(5));
+      pan(here);
+    };
+
+    /**
+     * Die Szene so verschieben, dass die betonte Blase in der Mitte steht.
+     *
+     * <b>Das ist eine Zusage, keine Verzierung.</b> Die Blasen liegen auf einem
+     * Ring; auf einem schmalen Schirm ragt die äussere über den Rand, und wer
+     * nur sie lesen will, kann es nicht. Verschoben wird deshalb die GANZE
+     * Szene — mitsamt Faden und Nachbarn —, nicht die einzelne Blase: der Ring
+     * bleibt steif, und der Faden hängt weiter an allen.
+     *
+     * Gerechnet wird als Summe über alle Blasen. Die Betonungen `--f` sind
+     * Dreiecke, die sich zu jedem Zeitpunkt zu 1 addieren — die Summe ist also
+     * genau die Strecke zwischen zwei Ringpunkten, und die Szene wandert
+     * gleichmässig von einer Blase zur nächsten statt zu springen.
+     */
+    const pan = (here: number) => {
+      const { zones } = planRef.current;
+      let x = 0;
+      let y = 0;
+
+      for (let index = 0; index < ringsRef.current.length; index++) {
+        const points = ringsRef.current[index];
+        const at = zones[index + 1]?.at;
+        if (at === undefined) continue;
+
+        for (let bubble = 0; bubble < points.length; bubble++) {
+          const weight = Math.max(0, 1 - Math.abs(here - (at + bubble)));
+          if (weight === 0) continue;
+          x += (50 - points[bubble][0]) * weight;
+          y += (50 - points[bubble][1]) * weight;
+        }
+      }
+
+      node.style.setProperty('--panx', `${x.toFixed(2)}%`);
+      node.style.setProperty('--pany', `${y.toFixed(2)}%`);
     };
 
     const tick = () => {
@@ -591,6 +699,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
        * haben — das Gegenteil dessen, wofür die Rastpunkte da sind.
        */
       gliding = false;
+      snapping = false;
       speed = 0;
       push = 0;
     };
@@ -603,10 +712,17 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
      * Kette aus Schritten soll eine Bewegung bleiben und nicht bei jedem
      * Schritt neu anfahren.
      */
-    const go = (dir: number, hand: number) => {
+    /**
+     * Auf eine Stelle zufahren. Die Stelle ist eine Bruchzahl, kein Zustand.
+     *
+     * <b>snap</b> unterscheidet die beiden Bewegungen, die es gibt: das freie
+     * Laufen innerhalb einer Szene (kurz, wird vom nächsten Ereignis einfach
+     * weitergeschoben) und den Übergang zwischen zwei Gruppen (lang, läuft in
+     * seiner eigenen Zeit zu Ende und lässt sich nur noch lenken).
+     */
+    const go = (to: number, hand: number, ms: number, snap: boolean) => {
       const { origin, stepPx, last } = measure();
-      const next = Math.min(last, Math.max(0, target + dir));
-      if (next === target && gliding) return;
+      const next = Math.min(last, Math.max(0, to));
 
       const now = performance.now();
 
@@ -615,27 +731,13 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
         ? (rcGlideSlope(Math.min(1, (now - startedAt) / span), lead) * (toY - fromY)) / span
         : 0;
 
-      /*
-       * Der erste Übergang dauert länger als die anderen.
-       *
-       * Er ist auch mehr: die übrigen wechseln eine Szene, dieser durchfliegt
-       * einen ganzen Raum — an den Wörtern vorbei, am Zeichen vorbei, bis der
-       * Satz allein steht. Und das Innehalten unterwegs, das die Kamerakurve im
-       * Stilblatt vorsieht, braucht Zeit, um überhaupt als Innehalten
-       * anzukommen: bei GLIDE_MS wären es keine 200 Millisekunden.
-       */
-      const opening = next === 0 || target === 0;
-
       target = next;
+      snapping = snap;
 
       fromY = window.scrollY;
       toY = origin + target * stepPx;
 
-      // Wer während eines Übergangs weiterschiebt, soll nicht warten müssen:
-      // der nächste läuft etwas straffer.
-      span = reduce.matches
-        ? 0
-        : opening ? OPENING_MS : (gliding ? GLIDE_MS * 0.72 : GLIDE_MS);
+      span = reduce.matches ? 0 : ms;
       startedAt = now;
       gliding = true;
 
@@ -645,14 +747,49 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
        * Die Anfangssteigung in den Einheiten der Kurve: welchen Anteil der
        * ganzen Strecke die Hand in der ganzen Zeit des Übergangs schaffte.
        *
-       * Gezählt wird nur, was in die Richtung des Schrittes zeigt — eine Hand,
-       * die dagegen schiebt, soll den Übergang nicht rückwärts anfahren lassen.
+       * Gezählt wird nur, was in die Richtung der Fahrt zeigt — eine Hand, die
+       * dagegen schiebt, soll den Übergang nicht rückwärts anfahren lassen.
        */
       const reach = toY - fromY;
-      const v = dir > 0 ? Math.max(hand, running, 0) : Math.min(hand, running, 0);
+      const v = reach >= 0 ? Math.max(hand, running, 0) : Math.min(hand, running, 0);
       lead = rcGlideLead(v, span, reach);
 
       if (frame === 0) frame = requestAnimationFrame(tick);
+    };
+
+    /** Die Strecke, auf der diese Stelle liegt. */
+    const zoneOf = (at: number) => {
+      const { zones } = planRef.current;
+      for (const zone of zones) {
+        if (at >= zone.at - 1e-4 && at <= zone.to + 1e-4) return zone;
+      }
+
+      let best = zones[0];
+      for (const zone of zones) {
+        if (Math.abs(zone.at - at) < Math.abs(best.at - at)) best = zone;
+      }
+      return best;
+    };
+
+    /**
+     * Eine Stelle weiter — für die Tastatur.
+     *
+     * Sie fährt immer ganze Stellen an: innerhalb einer Szene von Blase zu
+     * Blase, an deren Rand zur nächsten Gruppe. Ohne Zeigegerät soll der Weg
+     * durch die Seite vorhersagbar sein, nicht gleitend.
+     */
+    const stepBy = (dir: number) => {
+      const { zones } = planRef.current;
+      const zone = zoneOf(target);
+      const want = Math.round(target) + dir;
+
+      if (want >= zone.at && want <= zone.to) { go(want, 0, GLIDE_MS, true); return; }
+
+      const next = zones[zones.indexOf(zone) + dir];
+      if (next === undefined) return;
+
+      const opening = zone.at === 0 || next.at === 0;
+      go(dir > 0 ? next.at : next.to, 0, opening ? OPENING_MS : GLIDE_MS, true);
     };
 
     /**
@@ -714,15 +851,35 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       speed = fresh ? v : speed * 0.55 + v * 0.45;
 
       /*
-       * Während eines Übergangs wird NICHTS gesammelt.
+       * Während eines ÜBERGANGS wird nichts gesammelt.
        *
-       * Die Seite spricht gerade. Die Hand darf den Übergang lenken, aber
-       * nicht schon den nächsten Schritt anzahlen — sonst trüge ein einziger
-       * langer Wisch durch mehrere Bilder, ohne dass eines zu sehen gewesen
-       * wäre. Das ist die ganze Regel, die vorher REPEAT_MS und ein Merkzeichen
-       * gebraucht hätte.
+       * Die Seite spricht gerade. Die Hand darf ihn lenken, aber nicht schon
+       * den nächsten Schritt anzahlen — sonst trüge ein einziger langer Wisch
+       * durch mehrere Bilder, ohne dass eines zu sehen gewesen wäre.
+       *
+       * Das freie Laufen ist davon ausgenommen: dort SOLL das nächste Ereignis
+       * weiterschieben, sonst wäre es kein Laufen, sondern eine Kette kurzer
+       * Sprünge.
        */
-      if (gliding) { steer(speed); return; }
+      if (gliding && snapping) { steer(speed); return; }
+
+      const { zones } = planRef.current;
+      const zone = zoneOf(target);
+      const want = target + px / stepPx;
+
+      /*
+       * INNERHALB einer Szene: frei, unmittelbar, ohne Sammeln.
+       *
+       * Der Weg der Hand wird eins zu eins zur Strecke, und der kurze Nachlauf
+       * macht daraus auch beim Mausrad eine Bewegung statt einer Folge von
+       * Rucken. Hier wird nichts eingerastet — die Betonung wandert einfach
+       * mit, und man kann zwischen zwei Blasen stehenbleiben.
+       */
+      if (want >= zone.at - 1e-4 && want <= zone.to + 1e-4) {
+        push = 0;
+        go(want, speed, FREE_MS, false);
+        return;
+      }
 
       /*
        * Der gesammelte Weg VERFÄLLT mit der Zeit, statt an einer Gestengrenze
@@ -738,11 +895,25 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       if (px * push < 0) push = 0;
       push += px;
 
-      if (Math.abs(push) < STEP_PUSH) return;
-
+      // Noch nicht genug für den Sprung: bis an den Rand der eigenen Strecke,
+      // und dort warten. Sonst bliebe die Szene mitten im Lauf stehen.
       const dir = push > 0 ? 1 : -1;
+      const edge = dir > 0 ? zone.to : zone.at;
+
+      if (Math.abs(push) < STEP_PUSH) {
+        if (Math.abs(edge - target) > 1e-4) go(edge, speed, FREE_MS, false);
+        return;
+      }
+
       push = 0;
-      go(dir, speed);
+
+      const next = zones[zones.indexOf(zone) + dir];
+      if (next === undefined) return;
+
+      // Rückwärts landet man am ENDE der vorigen Gruppe, nicht an ihrem Anfang:
+      // wer zurückgeht, kommt dort an, wo er sie verlassen hat.
+      const opening = zone.at === 0 || next.at === 0;
+      go(dir > 0 ? next.at : next.to, speed, opening ? OPENING_MS : GLIDE_MS, true);
     };
 
     /*
@@ -809,7 +980,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       if (!down && !up) return;
 
       event.preventDefault();
-      go(down ? 1 : -1, 0);
+      stepBy(down ? 1 : -1);
     };
 
     /*
@@ -954,7 +1125,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
             Stilblatt Auftritt, Wachsen und Abgang.
           */}
           {t.scenes.map((scene, index) => {
-            const points = ringPoints(scene.bubbles.length, index, portrait);
+            const points = rings[index];
             return (
               <section
                 className="rc-wave"
@@ -963,10 +1134,10 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
                 style={{
                   '--c': plan.starts[index],
                   '--n': scene.bubbles.length,
-                  // Lebensdauer in Zuständen. Eine Szene ist ein Zustand, also
-                  // einer: sie kommt im Übergang davor an und geht im Übergang
-                  // danach. Gerastet wird genau in ihrer Mitte.
-                  '--life': 1
+                  // Lebensdauer in Stellen: so viele, wie sie Blasen hat. Ganz
+                  // da ist sie auf ihrer ganzen Strecke — gewechselt wird nur
+                  // in der Lücke zur nächsten Gruppe, auf der nie geruht wird.
+                  '--life': scene.bubbles.length
                 } as CSSProperties}
               >
                 <Thread points={points} />

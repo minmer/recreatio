@@ -540,27 +540,43 @@
   --uy: 1vh;
 
   /*
+     Wie stark die Szene der betonten Blase nachgeht.
+
+     Auf einem breiten Schirm steht der ganze Ring im Bild; dort waere ein
+     volles Nachfuehren unruhig, und ein Teil davon genuegt als Hinweis. Auf
+     einem schmalen ist es keine Frage des Geschmacks mehr: ohne volles
+     Nachfuehren ragt die aeussere Blase ueber den Rand und ist nicht lesbar.
+  */
+  --pan-k: 0.45;
+
+  /*
      Die Kamerafahrt. Alles im Raum haengt allein daran.
 
      Sie ist im Zustand 1 zu Ende — genau dann, wenn die erste Szene einrastet.
      Lief sie darueber hinaus (vorher bis 1.1), stand die erste Szene noch im
      halb durchsichtigen Raum, und der dunkle Grund lag als Schleier ueber ihr.
 
-     UND SIE HAELT UNTERWEGS KURZ INNE. Drei Rampen statt einer geraden Fahrt:
+     UND SIE HAELT UNTERWEGS INNE. Drei Rampen statt einer geraden Fahrt:
      schnell heran, dann ein langsames Stueck, dann wieder schnell davon. Das
      langsame Stueck liegt genau dort, wo das Zeichen schon vorbeigezogen und
      der Satz noch nicht am Verblassen ist — bei einem Kamerastand von 1200 bis
      1540, also dem Fenster, in dem der Satz allein und ganz da steht.
 
-     Es ist ein Innehalten, kein Halt: die Fahrt geht mit knapp der halben
-     Geschwindigkeit weiter. Ein wirklicher Halt waere ein weiterer Rastpunkt,
-     und dafuer ist der Satz kein eigener Gedanke, sondern das Ende des ersten.
+     Dieses Fenster nimmt jetzt fast die HAELFTE des Uebergangs ein (0.30 bis
+     0.76) und laeuft dabei mit gut einem Viertel der Geschwindigkeit der
+     Nachbarstuecke. Mit OPENING_MS sind das ueber siebenhundert Millisekunden,
+     in denen der Satz gross und allein steht — vorher waren es keine
+     dreihundert, und das war zu wenig, um ihn zu lesen.
+
+     Es bleibt ein Innehalten, kein Halt. Ein wirklicher Halt waere ein
+     weiterer Rastpunkt, und dafuer ist der Satz kein eigener Gedanke, sondern
+     das Ende des ersten.
   */
   --pcam:
     calc(
-      0.545 * clamp(0, calc(var(--s) / 0.42), 1) +
-      0.155 * clamp(0, calc((var(--s) - 0.42) / 0.26), 1) +
-      0.300 * clamp(0, calc((var(--s) - 0.68) / 0.32), 1)
+      0.545 * clamp(0, calc(var(--s) / 0.30), 1) +
+      0.155 * clamp(0, calc((var(--s) - 0.30) / 0.46), 1) +
+      0.300 * clamp(0, calc((var(--s) - 0.76) / 0.24), 1)
     );
   --cam: calc(var(--pcam) * var(--cam-end));
 
@@ -760,12 +776,21 @@
   opacity: var(--present);
 
   /*
-     Sie waechst, aber nur wenig. Frueher ging es von 0.62 bis 1.34 — das war
-     gedacht, als die Szene bei ihrer letzten Blase ohnehin schon verschwand.
-     Jetzt steht sie dort ganz da, und ein Drittel mehr Groesse schoebe die
-     breiten Blasen ueber den Rand.
+     DIE SZENE WANDERT MIT DER BETONUNG.
+
+     `--panx`/`--pany` kommen aus dem Bildlauf-Code und sagen, wie weit die
+     Szene stehen muss, damit die gerade betonte Blase in der Mitte liegt. Das
+     ist die Zusage, dass man jede Blase auch wirklich LESEN kann: auf einem
+     schmalen Schirm ragt die aeussere Blase des Rings sonst ueber den Rand.
+
+     Verschoben wird die ganze Szene, nicht die einzelne Blase — der Ring
+     bleibt steif, und der Faden haengt weiter an allen. Auf breiten Schirmen
+     passt der Ring ohnehin; dort genuegt ein Anteil davon als leichte
+     Bewegung, und `--pan-k` regelt genau das.
   */
-  transform: scale(calc(0.8 + 0.28 * var(--u)));
+  transform:
+    translate(calc(var(--panx, 0%) * var(--pan-k)), calc(var(--pany, 0%) * var(--pan-k)))
+    scale(calc(0.8 + 0.28 * var(--u)));
 }
 
 .rc-thread {
@@ -817,21 +842,26 @@
   border: 1px solid var(--line);
   box-shadow: 0 14px 40px rgb(20 24 15 / 0.10);
 
-  --f: clamp(0, calc((var(--s) - var(--c) + 1 - var(--i) * 0.12) / 0.55), 1);
+  /* Die ANKUNFT: gestaffelt, damit die Szene als Bewegung hereinkommt. */
+  --in: clamp(0, calc((var(--s) - var(--c) + 1 - var(--i) * 0.12) / 0.55), 1);
 
-  opacity: var(--f);
-  transform: translate(-50%, -50%) scale(calc(0.93 + 0.07 * var(--f)));
+  /*
+     Die BETONUNG: ein Dreieck um die eigene Stelle.
+
+     Sie wandert, waehrend man frei durch die Szene laeuft — eingerastet wird
+     dabei nicht. Der Grundwert von 0.62 ist der Punkt: ALLE Blasen bleiben
+     lesbar, was wandert, ist die Betonung und nicht die Anwesenheit.
+  */
+  --f: clamp(0, min(calc(var(--s) - var(--c) - var(--i) + 1), calc(var(--c) + var(--i) + 1 - var(--s))), 1);
+
+  opacity: calc(var(--in) * (0.62 + 0.38 * var(--f)));
+  transform: translate(-50%, -50%) scale(calc(0.93 + 0.07 * var(--in) + 0.07 * var(--f)));
   transform-origin: center;
+  border-color: color-mix(in oklab, var(--line), var(--accent) calc(var(--f) * 100%));
+
+  /* Die betonte Blase liegt vorn — sonst deckt eine blasse Nachbarin sie zu. */
+  z-index: calc(1 + var(--f));
 }
-
-/*
-   Die Ueberschrift der Szene traegt den Akzent, und zwar dauerhaft.
-
-   Vorher lag er auf der jeweils betonten Blase und wanderte mit. Ohne dieses
-   Wandern braucht die Szene trotzdem einen Anfang, an dem das Auge einsetzt —
-   das ist ihr Titel.
-*/
-.rc-stage.is-live .rc-bubble[data-kind='title'] { border-color: var(--accent); }
 
 /* Die Rollen tragen verschiedene Breiten — sonst sieht jede Szene gleich aus. */
 .rc-stage.is-live .rc-bubble[data-kind='title'] { width: min(76vw, 22rem); }
@@ -873,6 +903,9 @@
     max-width: 76vmin;
     font-size: clamp(1.5rem, 6vmin, 2.4rem);
   }
+
+  /* Schmaler Schirm: die betonte Blase muss ganz in die Mitte, nicht ein Stück. */
+  .rc-stage.is-live { --pan-k: 1; }
 
   .rc-stage.is-live .rc-bubble { padding: 1.05rem 1.2rem; }
   .rc-stage.is-live .rc-bubble[data-kind='body'] { width: min(84vw, 22rem); }
@@ -926,6 +959,7 @@
    direkt auf der Unterkante.
 */
 @media (orientation: landscape) and (max-height: 560px) {
+  .rc-stage.is-live { --pan-k: 1; }
   .rc-stage.is-live .rc-logo img { width: 44vmin; }
   .rc-stage.is-live .rc-sentence { font-size: clamp(1.1rem, 3.9vmin, 2.6rem); }
   .rc-stage.is-live .rc-hint { display: none; }
@@ -1035,8 +1069,19 @@
   align-content: start;
   gap: 0.4rem;
   background: var(--tone-1);
-  opacity: var(--a);
-  transform: translateX(calc(var(--from) * 46vw * (1 - var(--a))));
+
+  /*
+     KEIN Aufblenden — ein Einfahren.
+
+     Vorher lag zusaetzlich `opacity: var(--a)` darauf, und damit kam der Grund
+     als Schleier herein statt als Flaeche. Eine Flaeche, die sich schiebt, ist
+     ein Gegenstand; eine, die durchsichtig anfaengt, ist ein Effekt.
+
+     54vw statt 46: das Viertel ist selbst 50vw breit, bei 46 blieb ein Streifen
+     davon am Rand stehen. Ohne die Deckkraft, die das vorher zudeckte, waere er
+     jetzt zu sehen.
+  */
+  transform: translateX(calc(var(--from) * 54vw * (1 - var(--a))));
 }
 
 .rc-stage.is-live .rc-work:nth-child(2) { background: var(--tone-2); }
@@ -1081,8 +1126,23 @@
   border-radius: 50%;
   background: var(--orb);
   pointer-events: none;
-  opacity: var(--pl3);
-  transform: translate(-50%, -50%) scale(calc(1 + 25 * var(--porb) * var(--porb)));
+
+  /*
+     ER WAECHST HEREIN, ER BLENDET NICHT AUF.
+
+     Vorher stand hier `opacity: var(--pl3)`: der Kreis lag von Anfang an in
+     voller Groesse da und wurde nur langsam sichtbar. Das las sich als
+     Ueberblendung zweier Bilder — genau das, was ein Kreis, der aufgeht, nicht
+     sein soll.
+
+     Jetzt ist er immer undurchsichtig, und `--pl3` steckt im Massstab: aus
+     einem Punkt in der Mitte der vier Viertel wird der Kreis, und aus dem
+     Kreis der Grund des letzten Bildes. EINE Bewegung ueber beide Uebergaenge,
+     und dieselbe Flaeche von Anfang bis Ende.
+  */
+  opacity: 1;
+  transform: translate(-50%, -50%)
+    scale(calc(var(--pl3) * (1 + 25 * var(--porb) * var(--porb))));
 }
 
 /*
@@ -1171,10 +1231,21 @@
   max-width: none;
 }
 
-/* Ohne Weg: sie sind einfach da, wenn sie dran sind. */
+/*
+   Ohne Weg: sie sind einfach da, wenn sie dran sind.
+
+   Und dann MUSS die Deckkraft zurueck. Im gewoehnlichen Fall tragen Viertel
+   und Kreis ihre Anwesenheit im Weg — das Viertel steht ausserhalb der Buehne,
+   der Kreis ist ein Punkt. Nimmt man den Weg fort und sonst nichts, stehen
+   beide von Anfang an in voller Groesse ueber den Szenen.
+*/
 @media (prefers-reduced-motion: reduce) {
-  .rc-stage.is-live .rc-work { transform: none; }
-  .rc-stage.is-live .rc-orb { transform: translate(-50%, -50%) scale(calc(1 + 25 * var(--porb))); }
+  .rc-stage.is-live .rc-work { transform: none; opacity: var(--a); }
+
+  .rc-stage.is-live .rc-orb {
+    opacity: var(--pl3);
+    transform: translate(-50%, -50%) scale(calc(1 + 25 * var(--porb)));
+  }
 }
 
 /*
