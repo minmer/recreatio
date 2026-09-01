@@ -143,7 +143,11 @@ function Memes({
       (made?.photos ?? []).map((meme) => ({
         key: `meme-${meme.id}`,
         url: eventPhotoUrl(meme.id),
-        caption: meme.caption,
+        // A meme carries its caption in its own pixels — a black band along the
+        // bottom edge is the whole point of it. Repeating the words over the
+        // picture would print them twice and cover the band while doing it.
+        // They stay in the alt text, where a screen reader still finds them.
+        caption: null,
         alt: meme.caption ?? `Mem od: ${meme.uploaderName}`,
         credit: meme.uploaderName,
         photoId: meme.id,
@@ -336,14 +340,18 @@ function MemeMaker({
   const dragRef = useRef<Drag | null>(null);
 
   /**
-   * Where a pointer is, as a fraction of the picture as drawn.
+   * Where a pointer is, as a fraction of the picture.
    *
-   * Measured against the image element rather than its box: the picture is
-   * letterboxed inside the frame, and a fraction of the frame would put the crop
-   * somewhere else entirely on anything that is not exactly the frame's shape.
+   * Measured against the box that wraps the picture — which is exactly the
+   * picture, because it shrinks to fit it. The first version measured the image
+   * element and applied those fractions to the file's own pixels; with
+   * object-fit: contain those are not the same rectangle, the picture being
+   * letterboxed inside a wider or taller element, and every crop came out
+   * shifted by however much letterboxing there happened to be. Sizing the box to
+   * the picture removes the discrepancy instead of correcting for it.
    */
   const pointFraction = (event: ReactPointerEvent) => {
-    const box = imageRef.current?.getBoundingClientRect();
+    const box = frameRef.current?.getBoundingClientRect();
     if (!box || box.width === 0 || box.height === 0) return { x: 0, y: 0 };
     return { x: clamp01((event.clientX - box.left) / box.width), y: clamp01((event.clientY - box.top) / box.height) };
   };
@@ -495,43 +503,48 @@ function MemeMaker({
           </>
         ) : (
           <>
-            <div
-              className="ev-meme-frame"
-              ref={frameRef}
-              data-arming={arming}
-              data-cropping={crop !== null}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerCancel={onPointerUp}
-            >
-              {chosen ? (
-                <img ref={imageRef} src={eventPhotoUrl(chosen)} alt="" crossOrigin="anonymous" draggable={false} />
-              ) : null}
+            <div className="ev-meme-frame">
+              {/* This box is the picture: it shrink-wraps the image, so a
+                  fraction of it is a fraction of the photograph, and the frame
+                  drawn on top lands where the finger actually was. */}
+              <div
+                className="ev-meme-canvas"
+                ref={frameRef}
+                data-arming={arming}
+                data-cropping={crop !== null}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerUp}
+              >
+                {chosen ? (
+                  <img ref={imageRef} src={eventPhotoUrl(chosen)} alt="" crossOrigin="anonymous" draggable={false} />
+                ) : null}
 
-              {crop !== null ? (
-                <div
-                  className="ev-meme-crop"
-                  style={{
-                    left: `${crop.x * 100}%`,
-                    top: `${crop.y * 100}%`,
-                    width: `${crop.width * 100}%`,
-                    height: `${crop.height * 100}%`
-                  }}
-                >
-                  {/* Drawn, not listened to: the frame handles every press
-                      itself and works out which corner was taken, so a handle
-                      can never swallow the gesture meant for the box. */}
-                  <span className="ev-meme-grip is-nw" />
-                  <span className="ev-meme-grip is-ne" />
-                  <span className="ev-meme-grip is-sw" />
-                  <span className="ev-meme-grip is-se" />
-                </div>
-              ) : null}
+                {crop !== null ? (
+                  <div
+                    className="ev-meme-crop"
+                    style={{
+                      left: `${crop.x * 100}%`,
+                      top: `${crop.y * 100}%`,
+                      width: `${crop.width * 100}%`,
+                      height: `${crop.height * 100}%`
+                    }}
+                  >
+                    {/* Drawn, not listened to: the frame handles every press
+                        itself and works out which corner was taken, so a handle
+                        can never swallow the gesture meant for the box. */}
+                    <span className="ev-meme-grip is-nw" />
+                    <span className="ev-meme-grip is-ne" />
+                    <span className="ev-meme-grip is-sw" />
+                    <span className="ev-meme-grip is-se" />
+                  </div>
+                ) : null}
 
-              {arming && crop === null ? (
-                <p className="ev-meme-arming">Przeciągnij po zdjęciu, żeby zaznaczyć fragment</p>
-              ) : null}
+                {arming && crop === null ? (
+                  <p className="ev-meme-arming">Przeciągnij po zdjęciu, żeby zaznaczyć fragment</p>
+                ) : null}
+              </div>
             </div>
 
             <div className="ev-meme-actions">

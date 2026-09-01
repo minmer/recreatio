@@ -1136,24 +1136,43 @@
 
 /* The frame over the picture: drag it to move, drag the corner to resize. */
 .ev-meme-frame {
-  position: relative;
-  display: grid;
-  place-items: center;
-  max-height: 52vh;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 8px;
   background: #000;
+  overflow: hidden;
+}
+
+/* Shrink-wrapped to the picture, so a percentage of this box is a percentage of
+   the photograph — which is what makes the drawn frame land where the finger
+   went down. Letterboxing inside a larger element was what put the crop off. */
+.ev-meme-canvas {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
   touch-action: none;
   user-select: none;
 }
 
-.ev-meme-frame img {
-  width: 100%;
-  max-height: 52vh;
-  object-fit: contain;
+.ev-meme-canvas[data-arming='true'] {
+  cursor: crosshair;
 }
 
-.ev-meme-frame[data-cropping='true'] img {
+.ev-meme-canvas[data-cropping='true'] {
+  cursor: move;
+}
+
+.ev-meme-canvas img {
+  display: block;
+  max-width: 100%;
+  max-height: 52vh;
+  width: auto;
+  height: auto;
+}
+
+.ev-meme-canvas[data-cropping='true'] img {
   opacity: 0.6;
 }
 
@@ -1165,14 +1184,6 @@
      press took hold of, so a handle can never swallow the gesture meant for the
      box — which is exactly how the first version stopped working. */
   pointer-events: none;
-}
-
-.ev-meme-frame[data-arming='true'] {
-  cursor: crosshair;
-}
-
-.ev-meme-frame[data-cropping='true'] {
-  cursor: move;
 }
 
 .ev-meme-arming {
