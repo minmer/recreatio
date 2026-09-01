@@ -1,42 +1,39 @@
 /**
- * Die Startseite — fünf Zustände, eine Bewegung in die Tiefe.
+ * Die Startseite — elf Zustände, EINE Bewegung in die Tiefe.
  *
- *   0  Der Name.
- *   1  Erste Welle: Titel, der Gedanke, ein Bild.
- *   2  Zweite Welle: in sich — in Gemeinschaft — mit Gott.
- *   3  Dritte Welle: wer glaubt — wer sucht — wer nicht glaubt.
- *   4  Die vier Werke.
+ *    0        Der Name.
+ *    1  2  3  Erste Welle: Titel, der Gedanke, ein Bild.
+ *    4  5  6  Zweite Welle: in sich — in Gemeinschaft — mit Gott.
+ *    7  8  9  Dritte Welle: wer glaubt — wer sucht — wer nicht glaubt.
+ *   10        Die vier Werke.
  *
- * <b>Zwischen den Zuständen kann man nicht stehenbleiben.</b> Jeder Zustand ist
- * ein Rastpunkt; der Bildlauf rastet immer auf einem davon ein. Was dazwischen
- * liegt, ist ein Übergang und kein Ort — genau deshalb gibt es dort nichts zu
- * lesen und nichts zu verpassen.
+ * <b>Eine Welle ist EIN Ding, nicht drei.</b> Die drei Blasen einer Welle
+ * hängen an einem Faden und wachsen GEMEINSAM — die Vergrösserung sitzt auf der
+ * Welle, nicht auf der einzelnen Blase. Was wandert, ist nur die Hervorhebung:
+ * erst die erste Blase, dann die zweite, dann die dritte. Läge die Bewegung auf
+ * den Blasen einzeln, wären es drei Dinge, die zufällig nebeneinander liegen.
  *
- * <b>Die Blasen kommen aus der Tiefe, ziehen vorbei und vergehen.</b> Sie
- * werden nicht eingeblendet: sie sind klein und fern, wachsen auf den
- * Betrachter zu, sind einen Augenblick da und sind dann hinter ihm. Innerhalb
- * einer Welle versetzt, damit drei Blasen nicht als Block auftreten.
+ * <b>Man sieht immer, wohin es geht.</b> Die nächste Welle ist schon da, klein
+ * und halb durchsichtig, während die laufende noch vorbeizieht. Deshalb zeigt
+ * jeder Zwischenstand die Richtung — auch mitten im Übergang, wo nicht gerastet
+ * wird.
+ *
+ * <b>Rastpunkte liegen auf den Hervorhebungen</b>, nicht auf den Wellen. Es
+ * gibt also wirklich einen Augenblick, in dem die zweite Blase dran ist. Was
+ * zwischen zwei Zuständen liegt, ist Übergang und kein Ort.
  *
  * ---------------------------------------------------------------------------
- * WARUM DIE BEWEGUNG AN JAVASCRIPT HÄNGT
+ * Die Bewegung hängt an einem Wert: `--p`, dem Fortschritt durch die Bühne,
+ * den ein Bildlaufhorcher setzt. `animation-timeline` war der erste Weg und
+ * fiel aus — in Firefox gibt es das nicht, und dort blieb ein gewöhnlicher
+ * Bildlauf übrig.
  *
- * Der erste Bau folgte dem Auftrag und benutzte `animation-timeline`. In
- * Firefox kam davon nichts an — die bildlaufgesteuerte Animation gibt es dort
- * nicht —, und dasselbe geschah, wo das Betriebssystem „Animationen aus"
- * meldet. Beide Male blieb ein gewöhnlicher Bildlauf übrig, also genau das,
- * was die Seite nicht sein soll. Jetzt hängt alles an einem Wert: `--p`, dem
- * Fortschritt durch die Bühne.
- *
- * <b>Der Text bleibt davon unberührt.</b> Er steht vollständig im Markup und
- * wird von der Bewegung nur bewegt, nicht erzeugt: kein Absatz entsteht durch
- * ein Ereignis, keiner wartet auf einen Beobachter. Ohne `is-live` — schmales
- * Fenster oder kein JavaScript — steht alles untereinander und ist lesbar.
- *
- * Kein Abfangen von Rad, Berührung oder Taste: gerastet wird vom Browser,
- * gelesen wird nur, wo der Besucher steht. Ein `requestAnimationFrame` je Bild.
+ * Der TEXT hängt nicht daran. Er steht vollständig im Markup; die Bewegung
+ * bewegt ihn nur. Ohne `is-live` — schmales Fenster oder kein JavaScript —
+ * steht alles untereinander und ist lesbar.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import type { PublicCopy, Text } from '../content';
 import { PublicText } from '../PublicText';
 import { publicHref, type PublicPage } from '../publicRoutes';
@@ -46,8 +43,30 @@ const WORK_PAGES: readonly PublicPage[] = ['osrodek', 'wydarzenia', 'cogita', 'b
 /** Unter dieser Breite gibt es keine Bühne. */
 const WIDE = '(min-width: 860px)';
 
-/** Fünf Zustände — und damit fünf Rastpunkte. */
-const STEPS = 5;
+/** Elf Zustände — und damit zehn Übergänge. */
+const STATES = 11;
+
+/**
+ * Wie viel Bildlaufweg ein Übergang bekommt.
+ *
+ * Das ist der Regler für „langsamer". Mehr Weg heisst: die Rastbewegung des
+ * Browsers legt eine längere Strecke zurück und ein freier Bildlauf braucht
+ * länger, bis der nächste Zustand erreicht ist.
+ */
+const STEP_VH = 120;
+
+/**
+ * Wo die drei Blasen einer Welle liegen — in Prozent der Bühne.
+ *
+ * Dieselben Zahlen tragen die Blasen (als Mittelpunkt) UND der Faden zwischen
+ * ihnen. Stünden sie an zwei Stellen, liefe der Faden früher oder später an
+ * den Blasen vorbei.
+ */
+const WAVE_POINTS: readonly (readonly (readonly [number, number])[])[] = [
+  [[26, 30], [52, 57], [78, 28]],
+  [[24, 34], [50, 61], [76, 31]],
+  [[28, 31], [50, 58], [74, 33]]
+];
 
 function Wordmark({ text, masked }: { text: string; masked: boolean }) {
   return (
@@ -83,17 +102,46 @@ function Wordmark({ text, masked }: { text: string; masked: boolean }) {
   );
 }
 
+/**
+ * Der Faden zwischen den drei Blasen.
+ *
+ * `preserveAspectRatio="none"` bildet die Koordinaten direkt auf Prozent der
+ * Fläche ab — dieselbe Rechnung wie bei den Blasen. `non-scaling-stroke`
+ * verhindert, dass die ungleiche Streckung die Linie mit verzerrt.
+ */
+function Thread({ points }: { points: readonly (readonly [number, number])[] }) {
+  return (
+    <svg className="rc-thread" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <polyline
+        points={points.map(([x, y]) => `${x},${y}`).join(' ')}
+        fill="none"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
 function Bubble({
-  name, body, gap, copy, big
+  index, at, name, body, gap, copy, big, children
 }: {
+  index: number;
+  at: readonly [number, number];
   name?: string;
   body?: string;
   gap?: Text;
   copy: PublicCopy;
   big?: boolean;
+  children?: React.ReactNode;
 }) {
+  const style = {
+    '--i': index,
+    '--x': `${at[0]}%`,
+    '--y': `${at[1]}%`
+  } as CSSProperties;
+
   return (
-    <div className={`rc-bubble ${big === true ? 'is-big' : ''}`}>
+    <div className={`rc-bubble ${big === true ? 'is-big' : ''}`} style={style}>
+      {children}
       {name !== undefined && <p className="rc-bubble-n">{name}</p>}
       {body !== undefined && <p className="rc-bubble-b">{body}</p>}
       {gap !== undefined && <PublicText value={gap} copy={copy} as="div" />}
@@ -120,7 +168,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
       const passed = -node.getBoundingClientRect().top;
       const p = Math.min(1, Math.max(0, passed / travel));
-      node.style.setProperty('--p', p.toFixed(4));
+      node.style.setProperty('--p', p.toFixed(5));
     };
 
     const onScroll = () => {
@@ -131,7 +179,6 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     const apply = () => {
       if (wide.matches) {
         node.classList.add('is-live');
-        // Das Rasten gehoert an den Scroller, und das ist das Wurzelelement.
         root.classList.add('rc-snap');
         read();
       } else {
@@ -157,9 +204,14 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     };
   }, []);
 
+  const stageStyle = {
+    '--states': STATES - 1,
+    '--step': `${STEP_VH}vh`
+  } as CSSProperties;
+
   return (
     <div className="rc-home">
-      <div className="rc-stage" ref={stage}>
+      <div className="rc-stage" ref={stage} style={stageStyle}>
         <div className="rc-pin">
           <div className="rc-first">
             <div className="rc-mark-static">
@@ -178,22 +230,39 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
           </div>
 
           <section className="rc-wave" data-wave="1" aria-labelledby="rc-h2">
-            <div className="rc-bubble is-big">
+            <Thread points={WAVE_POINTS[0]} />
+            <Bubble index={0} at={WAVE_POINTS[0][0]} copy={copy} big>
               <h2 className="rc-bubble-h" id="rc-h2">{t.screen2.title}</h2>
-            </div>
-            <Bubble body={t.screen2.lead} copy={copy} big />
-            <Bubble gap={t.screen2.image} copy={copy} />
+            </Bubble>
+            <Bubble index={1} at={WAVE_POINTS[0][1]} body={t.screen2.lead} copy={copy} big />
+            <Bubble index={2} at={WAVE_POINTS[0][2]} gap={t.screen2.image} copy={copy} />
           </section>
 
           <section className="rc-wave" data-wave="2" aria-label={t.screen2.title}>
-            {t.screen2.relations.map((item) => (
-              <Bubble key={item.name} name={item.name} body={item.body} copy={copy} />
+            <Thread points={WAVE_POINTS[1]} />
+            {t.screen2.relations.map((item, index) => (
+              <Bubble
+                key={item.name}
+                index={index}
+                at={WAVE_POINTS[1][index]}
+                name={item.name}
+                body={item.body}
+                copy={copy}
+              />
             ))}
           </section>
 
           <section className="rc-wave" data-wave="3" aria-label={t.screen2.title}>
-            {t.screen2.openness.map((item) => (
-              <Bubble key={item.name} name={item.name} body={item.body} copy={copy} />
+            <Thread points={WAVE_POINTS[2]} />
+            {t.screen2.openness.map((item, index) => (
+              <Bubble
+                key={item.name}
+                index={index}
+                at={WAVE_POINTS[2][index]}
+                name={item.name}
+                body={item.body}
+                copy={copy}
+              />
             ))}
           </section>
 
@@ -223,13 +292,17 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
         </div>
 
         {/*
-          Die Rastpunkte. Sie sind unsichtbar und tragen nichts — sie sagen dem
-          Browser nur, wo ein Zustand liegt. Deshalb kann der Bildlauf nicht
-          mitten in einem Übergang zur Ruhe kommen.
+          Die Rastpunkte. Unsichtbar, tragen nichts — sie sagen dem Browser nur,
+          wo ein Zustand liegt. Einer je Hervorhebung, damit es den Augenblick
+          wirklich gibt, in dem die zweite Blase dran ist.
         */}
         <div className="rc-steps" aria-hidden="true">
-          {Array.from({ length: STEPS }, (_, index) => (
-            <div className="rc-step" key={index} style={{ top: `${index * 100}vh` }} />
+          {Array.from({ length: STATES }, (_, index) => (
+            <div
+              className="rc-step"
+              key={index}
+              style={{ top: `calc(${index} * var(--step))` }}
+            />
           ))}
         </div>
       </div>
