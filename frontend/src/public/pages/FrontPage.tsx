@@ -1,14 +1,23 @@
 /**
- * Die Startseite — elf Zustände, EINE Bewegung in die Tiefe.
+ * Die Startseite — das Zeichen, drei Szenen, die vier Werke.
  *
- *    0        Das Zeichen.
- *    1  2  3  Erste Welle: Titel, der Gedanke, ein Bild.
- *    4  5  6  Zweite Welle: in sich — in Gemeinschaft — mit Gott.
- *    7  8  9  Dritte Welle: wer glaubt — wer sucht — wer nicht glaubt.
- *   10        Die vier Werke.
+ *    0            Das Zeichen.
+ *    1 … 4        Der Mensch ist ein Ganzes.        (vier Blasen)
+ *    5 … 7        Der Mensch braucht den Menschen.  (drei)
+ *    8 … 10       Zurück zu den Quellen.            (drei)
+ *   11            Die vier Werke.
  *
- * <b>Eine Welle ist EIN Ding, nicht drei.</b> Die drei Blasen hängen an einem
- * Faden und wachsen GEMEINSAM. Was wandert, ist nur die Hervorhebung.
+ * <b>Die Zahl der Blasen ist nicht überall dieselbe</b>, und der Fahrplan
+ * rechnet sich daraus. Kommt eine Blase dazu, verschiebt sich alles Weitere von
+ * selbst — im Code steht keine Zustandszahl von Hand.
+ *
+ * <b>Eine Szene ist EIN Ding.</b> Ihre Blasen stehen gemeinsam da, hängen an
+ * einem Faden und wachsen zusammen. Was wandert, ist allein die Hervorhebung.
+ *
+ * <b>Gerastet wird nur zwischen den Szenen.</b> Innerhalb einer Szene ist der
+ * Bildlauf frei: dort lässt sich jede Zwischenlage halten, und damit ist jede
+ * Blase als hervorgehobene erreichbar. Der Zug greift erst, wenn ein
+ * Szenenanfang nah genug ist (`CAPTURE`).
  *
  * ---------------------------------------------------------------------------
  * DAS ZEICHEN ALS MASKE, MIT SEINEN FÜNF WÖRTERN
@@ -60,14 +69,11 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import type { PublicCopy, Text } from '../content';
+import type { PublicCopy, SceneBubble } from '../content';
 import { PublicText } from '../PublicText';
 import { publicHref, type PublicPage } from '../publicRoutes';
 
 const WORK_PAGES: readonly PublicPage[] = ['osrodek', 'wydarzenia', 'cogita', 'biblioteka'];
-
-/** Elf Zustände — und damit zehn Übergänge. */
-const STATES = 11;
 
 /**
  * Bildlaufweg je Übergang.
@@ -117,25 +123,40 @@ const PULL = 0.014;
 /** Darunter ist die Bewegung zu Ende. */
 const REST = 0.12;
 
-type Points = readonly (readonly (readonly [number, number])[])[];
+/** Wie nah an einem Rastpunkt der Zug überhaupt greift. */
+const CAPTURE = 0.7;
+
+type Point = readonly [number, number];
 
 /**
- * Wo die drei Blasen einer Welle liegen — in Prozent der Bühne.
+ * Wo die Blasen einer Szene liegen — in Prozent der Bühne.
  *
- * Dieselben Zahlen tragen die Blasen (als Mittelpunkt) UND der Faden. Stünden
- * sie an zwei Stellen, liefe der Faden an den Blasen vorbei.
+ * <b>Gerechnet, nicht eingetragen.</b> Die Szenen haben verschieden viele
+ * Blasen (vier, drei, drei), und eine Tabelle von Hand müsste bei jeder
+ * Textänderung mitgepflegt werden — genau dort geraten Faden und Blasen
+ * auseinander. Die Punkte kommen deshalb aus der ANZAHL: gleichmässig auf einer
+ * Ellipse verteilt, je Szene gedreht, damit zwei Szenen nicht gleich aussehen.
+ *
+ * Dieselben Zahlen tragen die Blasen (als Mittelpunkt) UND der Faden.
  */
-const LANDSCAPE: Points = [
-  [[26, 30], [52, 57], [78, 28]],
-  [[24, 34], [50, 61], [76, 31]],
-  [[28, 31], [50, 58], [74, 33]]
-];
+function ringPoints(count: number, scene: number, portrait: boolean): readonly Point[] {
+  const cx = portrait ? 50 : 52;
+  const cy = portrait ? 50 : 52;
+  const rx = portrait ? 17 : 27;
+  const ry = portrait ? 31 : 24;
 
-const PORTRAIT: Points = [
-  [[40, 20], [60, 50], [42, 80]],
-  [[60, 22], [38, 52], [60, 81]],
-  [[42, 21], [62, 51], [40, 79]]
-];
+  // Eine Drittelumdrehung Versatz je Szene, plus ein Viertel nach oben, damit
+  // die erste Blase oben steht und nicht rechts.
+  const turn = scene * 0.37 - 0.25;
+
+  return Array.from({ length: count }, (_, index) => {
+    const a = 2 * Math.PI * (index / count + turn);
+    return [
+      Number((cx + rx * Math.cos(a)).toFixed(2)),
+      Number((cy + ry * Math.sin(a)).toFixed(2))
+    ] as Point;
+  });
+}
 
 /**
  * Die fünf Wörter, aus denen der Name kommt.
@@ -182,23 +203,26 @@ const KEEP_Y = 19;
  * ist und nicht noch etwas nachläuft.
  */
 const QUARTERS = [
-  { from: -1, at: 8.85 },
-  { from: -1, at: 9.00 },
-  { from: 1, at: 9.15 },
-  { from: 1, at: 9.30 }
+  { from: -1, lead: 1.15 },
+  { from: -1, lead: 1.00 },
+  { from: 1, lead: 0.85 },
+  { from: 1, lead: 0.70 }
 ] as const;
 
+/**
+ * Eine Blase. Die ART entscheidet, was darin steht — nicht der Platz.
+ *
+ * `title` trägt eine Überschrift zweiter Ordnung: jede Szene ist ein Abschnitt
+ * mit einer Aussage, und die soll auch in der Gliederung stehen. Die `h1` der
+ * Seite bleibt der Satz unter dem Zeichen.
+ */
 function Bubble({
-  index, at, name, body, gap, copy, big, children
+  index, at, bubble, copy
 }: {
   index: number;
-  at: readonly [number, number];
-  name?: string;
-  body?: string;
-  gap?: Text;
+  at: Point;
+  bubble: SceneBubble;
   copy: PublicCopy;
-  big?: boolean;
-  children?: React.ReactNode;
 }) {
   const style = {
     '--i': index,
@@ -207,11 +231,35 @@ function Bubble({
   } as CSSProperties;
 
   return (
-    <div className={`rc-bubble ${big === true ? 'is-big' : ''}`} style={style}>
-      {children}
-      {name !== undefined && <p className="rc-bubble-n">{name}</p>}
-      {body !== undefined && <p className="rc-bubble-b">{body}</p>}
-      {gap !== undefined && <PublicText value={gap} copy={copy} as="div" />}
+    <div className="rc-bubble" data-kind={bubble.kind} style={style}>
+      {bubble.kind === 'title' && (
+        <h2 className="rc-bub-title">{bubble.lines[0]}</h2>
+      )}
+
+      {bubble.kind === 'body' && bubble.lines.map((line) => (
+        <p className="rc-bub-body" key={line.slice(0, 32)}>{line}</p>
+      ))}
+
+      {bubble.kind === 'close' && (
+        <p className="rc-bub-close">
+          {bubble.lines.map((line) => <span key={line}>{line}</span>)}
+        </p>
+      )}
+
+      {bubble.kind === 'note' && (
+        <p className="rc-bub-note">{bubble.lines[0]}</p>
+      )}
+
+      {bubble.kind === 'image' && (
+        <>
+          {bubble.image !== undefined && (
+            <PublicText value={bubble.image} copy={copy} as="div" />
+          )}
+          <p className="rc-bub-over">
+            {bubble.lines.map((line) => <span key={line}>{line}</span>)}
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -235,6 +283,40 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
   const [portrait, setPortrait] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(orientation: portrait)').matches
   );
+
+  /*
+   * Der Fahrplan folgt dem INHALT, nicht umgekehrt.
+   *
+   *   Zustand 0            das Zeichen
+   *   dann je Szene so viele Zustände, wie sie Blasen hat
+   *   zuletzt              die vier Werke
+   *
+   * Bekommt eine Szene eine Blase mehr, verschiebt sich alles Weitere von
+   * selbst. Eine Zahl von Hand an dieser Stelle wäre die erste, die bei der
+   * nächsten Textänderung nicht mehr stimmt.
+   */
+  const plan = useMemo(() => {
+    const starts: number[] = [];
+    let at = 1;
+    for (const scene of t.scenes) { starts.push(at); at += scene.bubbles.length; }
+
+    return {
+      starts,
+      works: at,
+      states: at + 1,
+      /*
+       * Gerastet wird NUR am Anfang einer Szene — und am Zeichen und an den
+       * Werken. Innerhalb einer Szene ist der Bildlauf frei: dort lässt sich
+       * jede Zwischenlage halten, und damit ist jede Blase als hervorgehobene
+       * erreichbar. Genau das war gewünscht: eine Strecke ohne Rastung.
+       */
+      snaps: [0, ...starts, at]
+    };
+  }, [t.scenes]);
+
+  // Die Physik liest den Fahrplan, ohne dass ihr Effekt neu aufgesetzt wird.
+  const planRef = useRef(plan);
+  planRef.current = plan;
 
   useEffect(() => {
     const query = window.matchMedia('(orientation: portrait)');
@@ -306,7 +388,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
       lastY = y;
 
       const here = (y - top) / stepPx;
-      const outside = here < -0.6 || here > STATES - 0.4;
+      const outside = here < -0.6 || here > planRef.current.states - 0.4;
 
       if (mode === 'watch') {
         // Nur mitlesen und den Schwung glätten. Der Browser führt, und dem wird
@@ -334,8 +416,22 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
       if (outside) { mode = 'watch'; v = 0; return; }
 
-      const nearest = Math.min(STATES - 1, Math.max(0, Math.round(here)));
-      const gap = top + nearest * stepPx - y;
+      /*
+       * Nur die Rastpunkte ziehen — und nur, wenn einer nah genug ist.
+       *
+       * Zwischen ihnen liegt die freie Strecke: dort ist der Zug null, und es
+       * bleibt allein die Dämpfung. Die Bewegung läuft also aus und hält, wo
+       * sie hält. Dadurch ist innerhalb einer Szene JEDE Lage erreichbar und
+       * jede Blase kann die hervorgehobene sein.
+       */
+      const snaps = planRef.current.snaps;
+      let nearest = snaps[0];
+      for (const candidate of snaps) {
+        if (Math.abs(candidate - here) < Math.abs(nearest - here)) nearest = candidate;
+      }
+
+      const captured = Math.abs(nearest - here) <= CAPTURE;
+      const gap = captured ? top + nearest * stepPx - y : 0;
 
       // Die eine Zeile: Schwung und Zug, addiert.
       v = reduce.matches ? gap : v * DAMP + gap * PULL;
@@ -347,7 +443,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
         return;
       }
 
-      if (Math.abs(gap) > 0.5) {
+      if (captured && Math.abs(gap) > 0.5) {
         window.scrollTo(0, top + nearest * stepPx);
         lastY = top + nearest * stepPx;
       }
@@ -389,10 +485,8 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     };
   }, []);
 
-  const points = portrait ? PORTRAIT : LANDSCAPE;
-
   const stageStyle = {
-    '--states': STATES - 1,
+    '--states': plan.states - 1,
     '--step': `${STEP_VH}vh`
   } as CSSProperties;
 
@@ -416,42 +510,41 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
             </p>
           </div>
 
-          <section className="rc-wave" data-wave="1" aria-labelledby="rc-h2">
-            <Thread points={points[0]} />
-            <Bubble index={0} at={points[0][0]} copy={copy} big>
-              <h2 className="rc-bubble-h" id="rc-h2">{t.screen2.title}</h2>
-            </Bubble>
-            <Bubble index={1} at={points[0][1]} body={t.screen2.lead} copy={copy} big />
-            <Bubble index={2} at={points[0][2]} gap={t.screen2.image} copy={copy} />
-          </section>
-
-          <section className="rc-wave" data-wave="2" aria-label={t.screen2.title}>
-            <Thread points={points[1]} />
-            {t.screen2.relations.map((item, index) => (
-              <Bubble
-                key={item.name}
-                index={index}
-                at={points[1][index]}
-                name={item.name}
-                body={item.body}
-                copy={copy}
-              />
-            ))}
-          </section>
-
-          <section className="rc-wave" data-wave="3" aria-label={t.screen2.title}>
-            <Thread points={points[2]} />
-            {t.screen2.openness.map((item, index) => (
-              <Bubble
-                key={item.name}
-                index={index}
-                at={points[2][index]}
-                name={item.name}
-                body={item.body}
-                copy={copy}
-              />
-            ))}
-          </section>
+          {/*
+            Die drei Szenen. Alle Blasen einer Szene stehen GEMEINSAM da; was
+            beim Scrollen wandert, ist allein die Hervorhebung. `--c` ist der
+            Zustand der ersten Blase, `--n` die Anzahl — daraus rechnet das
+            Stilblatt Auftritt, Wachsen und Abgang.
+          */}
+          {t.scenes.map((scene, index) => {
+            const points = ringPoints(scene.bubbles.length, index, portrait);
+            return (
+              <section
+                className="rc-wave"
+                key={scene.label}
+                aria-label={scene.label}
+                style={{
+                  '--c': plan.starts[index],
+                  '--n': scene.bubbles.length,
+                  // Lebensdauer der Szene in Zuständen. Hier gerechnet und
+                  // nicht im Stilblatt: eine Division durch einen
+                  // Benutzerwert ist in `calc()` heikel, eine Zahl nicht.
+                  '--life': scene.bubbles.length + 1.4
+                } as CSSProperties}
+              >
+                <Thread points={points} />
+                {scene.bubbles.map((bubble, at) => (
+                  <Bubble
+                    key={bubble.kind + at}
+                    index={at}
+                    at={points[at]}
+                    bubble={bubble}
+                    copy={copy}
+                  />
+                ))}
+              </section>
+            );
+          })}
 
           <section className="rc-s3 rc-l3" aria-labelledby="rc-h3">
             <div className="rc-s3-in">
@@ -465,7 +558,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
                     key={work.name}
                     style={{
                       '--from': QUARTERS[index].from,
-                      '--at': QUARTERS[index].at
+                      '--at': plan.works - QUARTERS[index].lead
                     } as CSSProperties}
                   >
                     <h3 className="rc-work-h">{work.name}</h3>

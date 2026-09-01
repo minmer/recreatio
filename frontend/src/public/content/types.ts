@@ -40,6 +40,31 @@ export interface PlaceholderCopy {
   readonly preparing: string;
 }
 
+/**
+ * Was eine Blase ist — die Rolle, nicht das Aussehen.
+ *
+ *   `title`  die Aussage, kurz und in Versalien
+ *   `body`   der Absatz, der sie trägt
+ *   `close`  der Schluss, zwei knappe Zeilen
+ *   `note`   ein Nachklang, klein
+ *   `image`  Platz für ein Bild, mit der Zeile darüber
+ */
+export type BubbleKind = 'title' | 'body' | 'close' | 'note' | 'image';
+
+export interface SceneBubble {
+  readonly kind: BubbleKind;
+  /** Absätze bei `body`, Zeilen bei `close` und `image`, ein Satz sonst. */
+  readonly lines: readonly string[];
+  /** Nur bei `image`: die sichtbare Lücke, solange kein Bild da ist. */
+  readonly image?: Text;
+}
+
+export interface Scene {
+  /** Für Vorleseprogramme — worum es in der Szene geht. */
+  readonly label: string;
+  readonly bubbles: readonly SceneBubble[];
+}
+
 /** Eine Zahl, die für sich steht. Nur echte Zahlen — keine geschätzten. */
 export interface Fact {
   readonly value: string;
@@ -145,24 +170,22 @@ export interface PublicCopy {
     };
 
     /**
-     * Das zweite Bild kommt in DREI WELLEN von Blasen.
+     * Das zweite Bild: DREI SZENEN aus Blasen.
      *
-     *   Welle 1  Titel, der Gedanke, ein Bild
-     *   Welle 2  die dreifache Verbindung: in sich, in Gemeinschaft, mit Gott
-     *   Welle 3  die Offenheit, in ihren drei Sätzen
+     *   1  Der Mensch ist ein Ganzes.
+     *   2  Der Mensch braucht den Menschen.
+     *   3  Zurück zu den Quellen.
      *
-     * Die Aufteilung ist nicht erfunden, um Blasen zu füllen: der Quelltext
-     * nennt drei Verbindungen und die Offenheit nennt drei Menschen. Die Form
-     * folgt dem Inhalt und nicht umgekehrt.
+     * <b>Die Zahl der Blasen ist NICHT überall dieselbe</b> — vier, drei,
+     * drei. Immer genau drei zu nehmen sähe nach Schema aus, und beim dritten
+     * Mal weiss der Leser, was kommt. Was eine Szene braucht, entscheidet ihr
+     * Inhalt.
+     *
+     * Die Arten sind nicht Dekoration, sondern Rollen: `title` ist die Aussage,
+     * `body` trägt sie, `close` zieht den Schluss, `note` ist ein Nachklang,
+     * `image` hält den Platz für ein Bild samt der Zeile darüber.
      */
-    readonly screen2: {
-      readonly title: string;
-      readonly lead: string;
-      /** Die Blase, in der ein Bild stehen soll — solange keines da ist, sichtbar leer. */
-      readonly image: Text;
-      readonly relations: readonly { readonly name: string; readonly body: string }[];
-      readonly openness: readonly { readonly name: string; readonly body: string }[];
-    };
+    readonly scenes: readonly Scene[];
 
     readonly screen3: {
       readonly title: string;

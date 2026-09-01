@@ -1270,6 +1270,17 @@
   box-shadow: 0 12px 32px var(--ev-shade);
 }
 
+/* A meme is shown whole: its caption is a black band along the bottom edge, and
+   cropping to fill the slot would cut off the point of it. The shadow follows
+   the picture's own shape rather than the slot's, or a portrait meme would sit
+   inside a rectangle of shadow it does not fill. */
+.ev-carousel-slot[data-fit='contain'] img {
+  object-fit: contain;
+  border-radius: 0;
+  box-shadow: none;
+  filter: drop-shadow(0 10px 24px var(--ev-shade));
+}
+
 .ev-carousel-slot[data-offset='0'] {
   z-index: 3;
   transform: translateX(0) scale(1);

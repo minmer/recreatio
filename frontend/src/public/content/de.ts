@@ -46,43 +46,75 @@ export const de: PublicCopy = {
       hint: 'Weiter'
     },
 
-    screen2: {
-      title: 'Worum es geht',
-      lead:
-        'Ein Mensch besteht nicht aus getrennten Fächern. Geistliches, geistiges, '
-        + 'seelisches, soziales und körperliches Leben sind ein Leben.',
-      image: { missing: 'Bild für die erste Blase — Haus, Fahrt oder Treffen' },
-      relations: [
-        {
-          name: 'In sich',
-          body:
-            'Das Geistliche ist nicht vom Alltag abgelöst, die Erziehung nicht von den '
-            + 'Beziehungen in der Familie, das Lernen nicht von der Verantwortung für den '
-            + 'eigenen Körper und die eigenen Gefühle.'
-        },
-        {
-          name: 'In Gemeinschaft',
-          body:
-            'Niemand wächst für sich allein — in der Familie, in Freundschaften, in '
-            + 'gemeinsamer Arbeit und gemeinsamer Ruhe. Kein Publikum, sondern eine '
-            + 'Gemeinschaft.'
-        },
-        {
-          name: 'Mit Gott',
-          body:
-            'Das Christliche ist nicht ein weiterer Bereich neben den übrigen. Es ist die '
-            + 'Sicht, aus der der ganze Mensch zu sehen ist.'
-        }
-      ],
-      openness: [
-        { name: 'Wer glaubt', body: 'kann den Glauben vertiefen.' },
-        { name: 'Wer sucht', body: 'darf fragen.' },
-        {
-          name: 'Wer nicht glaubt',
-          body: 'wird mit demselben Respekt vor seiner Würde und Freiheit aufgenommen.'
-        }
-      ]
-    },
+    scenes: [
+      {
+        label: 'Der Mensch ist ein Ganzes',
+        bubbles: [
+          { kind: 'title', lines: ['Der Mensch ist ein Ganzes'] },
+          {
+            kind: 'body',
+            lines: [
+              'Wir wachsen nicht getrennt — geistlich, geistig, seelisch oder körperlich. '
+              + 'Das alles trifft sich in einem Menschen und in einem Leben. Deshalb will '
+              + 'REcreatio Gelegenheiten zum Wachsen in allen diesen Richtungen schaffen: '
+              + 'durch Formung, Gespräch, Arbeit, Lernen, Bewegung, Ruhe, Kultur und '
+              + 'Gebet.'
+            ]
+          },
+          {
+            kind: 'close',
+            lines: ['Kein weiteres Gebiet des Lebens.', 'Ein menschlicheres Leben im Ganzen.']
+          },
+          { kind: 'note', lines: ['in sich · in Gemeinschaft · mit Gott'] }
+        ]
+      },
+      {
+        label: 'Der Mensch braucht den Menschen',
+        bubbles: [
+          { kind: 'title', lines: ['Der Mensch braucht den Menschen'] },
+          {
+            kind: 'body',
+            lines: [
+              'Wir wollen keinen Ort bauen, an dem jemand noch mehr Zeit vor einem '
+              + 'Bildschirm verbringt. Wir wollen Menschen helfen, sich wirklich zu '
+              + 'begegnen — am Tisch, unterwegs, bei Exerzitien, bei der Arbeit, beim '
+              + 'Lernen und in der Ruhe. Denn vieles vom Wichtigsten im Menschen wächst '
+              + 'gerade in der Beziehung zum anderen.'
+            ]
+          },
+          {
+            kind: 'image',
+            lines: ['Kein Publikum.', 'Eine Gemeinschaft.'],
+            image: { missing: 'Bild von Menschen miteinander — Tisch, Weg oder Exerzitien' }
+          }
+        ]
+      },
+      {
+        label: 'Zurück zu den Quellen',
+        bubbles: [
+          { kind: 'title', lines: ['Zurück zu den Quellen'] },
+          {
+            kind: 'body',
+            lines: [
+              'Man muss nicht zwischen dem Bewährten und dem Neuen wählen. Wir wollen zu '
+              + 'den einfachen und grundlegenden Dingen zurück — Begegnung, Gemeinschaft, '
+              + 'Verantwortung, kluge Ruhe, gute Lektüre, Gebet und Arbeit an sich selbst '
+              + '— und dabei nutzen, was die heutige Welt möglich macht.',
+
+              'Technik kann helfen, eine Veranstaltung zu finden, Menschen '
+              + 'zusammenzubringen, ein Treffen vorzubereiten, zu einem gelesenen Gedanken '
+              + 'zurückzukehren oder gemeinsame Arbeit zu ordnen. Ihre Aufgabe ist nicht, '
+              + 'jemanden am Bildschirm zu halten, sondern ihm zu helfen, davon '
+              + 'wegzukommen.'
+            ]
+          },
+          {
+            kind: 'close',
+            lines: ['Werkzeuge sollen ins Leben führen.', 'Nicht das Leben in die Werkzeuge.']
+          }
+        ]
+      }
+    ],
 
     screen3: {
       title: 'Wie es geschieht',

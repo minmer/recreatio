@@ -67,6 +67,7 @@ export function Carousel({
   pictures,
   front,
   hint,
+  fit = 'cover',
   onFront,
   onOpen
 }: {
@@ -74,6 +75,15 @@ export function Carousel({
   front: number;
   /** Whether to fade in the line about what a click does. */
   hint: boolean;
+  /**
+   * How a picture sits in its slot.
+   *
+   * Photographs are filled to the slot — a ring of differently shaped pictures
+   * with gaps around them looks like a mistake. A meme is not a photograph: its
+   * caption is a black band along the bottom edge, and cropping to fill would
+   * cut off the very thing it was made for. So it is shown whole.
+   */
+  fit?: 'cover' | 'contain';
   onFront: (index: number) => void;
   onOpen: (key: string) => void;
 }) {
@@ -123,6 +133,7 @@ export function Carousel({
             key={picture.key}
             className="ev-carousel-slot"
             data-offset={offset}
+            data-fit={fit}
             aria-label={offset === 0 ? `Otwórz: ${picture.alt || 'zdjęcie'}` : 'Pokaż to zdjęcie'}
             // The front picture opens the viewer; the ones behind step forward
             // first, which is what a finger reaching for a half-hidden picture

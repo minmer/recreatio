@@ -59,41 +59,75 @@ export const pl: PublicCopy = {
       hint: 'Przewiń'
     },
 
-    screen2: {
-      title: 'O co chodzi',
-      lead:
-        'Człowiek nie składa się z osobnych przegród. Życie duchowe, intelektualne, '
-        + 'emocjonalne, społeczne i fizyczne to jedno życie.',
-      image: { missing: 'Zdjęcie do pierwszej bańki — dom, wyprawa albo spotkanie' },
-      relations: [
-        {
-          name: 'W sobie',
-          body:
-            'Duchowość nie jest oderwana od codzienności, wychowanie od relacji w rodzinie, '
-            + 'a rozwój intelektualny od odpowiedzialności za własne ciało i emocje.'
-        },
-        {
-          name: 'We wspólnocie',
-          body:
-            'Nikt nie wzrasta osobno — w rodzinie, w przyjaźniach, we wspólnej pracy '
-            + 'i wspólnym odpoczynku. Nie publiczność, lecz wspólnota.'
-        },
-        {
-          name: 'Z Bogiem',
-          body:
-            'Chrześcijaństwo nie jest kolejnym obszarem obok pozostałych. Jest perspektywą, '
-            + 'z której widać całego człowieka.'
-        }
-      ],
-      openness: [
-        { name: 'Kto wierzy', body: 'może wiarę pogłębić.' },
-        { name: 'Kto szuka', body: 'może pytać.' },
-        {
-          name: 'Kto nie wierzy',
-          body: 'jest przyjęty z tym samym szacunkiem dla jego godności i wolności.'
-        }
-      ]
-    },
+    scenes: [
+      {
+        label: 'Człowiek jest całością',
+        bubbles: [
+          { kind: 'title', lines: ['Człowiek jest całością'] },
+          {
+            kind: 'body',
+            lines: [
+              'Nie rozwijamy się osobno duchowo, intelektualnie, emocjonalnie czy '
+              + 'fizycznie. To wszystko spotyka się w jednym człowieku i w jednym życiu. '
+              + 'Dlatego REcreatio chce tworzyć okazje do wzrostu w różnych wymiarach — '
+              + 'przez formację, rozmowę, pracę, naukę, ruch, odpoczynek, kulturę '
+              + 'i modlitwę.'
+            ]
+          },
+          {
+            kind: 'close',
+            lines: ['Nie kolejna dziedzina życia.', 'Bardziej ludzkie życie jako całość.']
+          },
+          { kind: 'note', lines: ['w sobie · we wspólnocie · z Bogiem'] }
+        ]
+      },
+      {
+        label: 'Człowiek potrzebuje człowieka',
+        bubbles: [
+          { kind: 'title', lines: ['Człowiek potrzebuje człowieka'] },
+          {
+            kind: 'body',
+            lines: [
+              'Nie chcemy budować miejsca, w którym człowiek spędzi jeszcze więcej czasu '
+              + 'przed ekranem. Chcemy pomagać ludziom spotykać się naprawdę — przy stole, '
+              + 'w drodze, na rekolekcjach, podczas pracy, nauki i odpoczynku. Bo wiele '
+              + 'z tego, co najważniejsze w człowieku, rozwija się właśnie w relacji '
+              + 'z drugim.'
+            ]
+          },
+          {
+            kind: 'image',
+            lines: ['Nie publiczność.', 'Wspólnota.'],
+            image: { missing: 'Zdjęcie ludzi razem — stół, droga albo rekolekcje' }
+          }
+        ]
+      },
+      {
+        label: 'Wracamy do źródeł',
+        bubbles: [
+          { kind: 'title', lines: ['Wracamy do źródeł'] },
+          {
+            kind: 'body',
+            lines: [
+              'Nie trzeba wybierać między tym, co sprawdzone, a tym, co nowe. Chcemy '
+              + 'wracać do rzeczy prostych i podstawowych — spotkania, wspólnoty, '
+              + 'odpowiedzialności, mądrego odpoczynku, dobrej lektury, modlitwy i pracy '
+              + 'nad sobą — korzystając jednocześnie z możliwości, które daje współczesny '
+              + 'świat.',
+
+              'Technologia może pomóc znaleźć wydarzenie, zebrać ludzi, przygotować '
+              + 'spotkanie, wrócić do przeczytanej myśli czy zorganizować wspólną pracę. '
+              + 'Jej zadaniem nie jest zatrzymać człowieka przy ekranie, lecz pomóc mu od '
+              + 'niego odejść.'
+            ]
+          },
+          {
+            kind: 'close',
+            lines: ['Narzędzia mają prowadzić do życia.', 'Nie życie do narzędzi.']
+          }
+        ]
+      }
+    ],
 
     screen3: {
       title: 'Jak to się dzieje',

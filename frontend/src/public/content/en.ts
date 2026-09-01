@@ -44,42 +44,73 @@ export const en: PublicCopy = {
       hint: 'Scroll'
     },
 
-    screen2: {
-      title: 'What this is about',
-      lead:
-        'A person is not made of separate compartments. Spiritual, intellectual, '
-        + 'emotional, social and physical life are one life.',
-      image: { missing: 'Image for the first bubble — the house, an expedition or a meeting' },
-      relations: [
-        {
-          name: 'In themselves',
-          body:
-            'The spiritual is not detached from daily life, upbringing not from '
-            + 'relationships within the family, and intellectual growth not from '
-            + 'responsibility for one\'s own body and emotions.'
-        },
-        {
-          name: 'In community',
-          body:
-            'Nobody grows on their own — in a family, in friendships, in shared work and '
-            + 'shared rest. Not an audience, a fellowship.'
-        },
-        {
-          name: 'With God',
-          body:
-            'Christianity is not one more area alongside the others. It is the perspective '
-            + 'from which the whole person is seen.'
-        }
-      ],
-      openness: [
-        { name: 'A believer', body: 'can deepen their faith.' },
-        { name: 'A seeker', body: 'can ask questions.' },
-        {
-          name: 'Someone who does not believe',
-          body: 'is received with the same respect for their dignity and freedom.'
-        }
-      ]
-    },
+    scenes: [
+      {
+        label: 'A person is a whole',
+        bubbles: [
+          { kind: 'title', lines: ['A person is a whole'] },
+          {
+            kind: 'body',
+            lines: [
+              'We do not grow separately — spiritually, intellectually, emotionally or '
+              + 'physically. All of it meets in one person and in one life. That is why '
+              + 'REcreatio wants to make room for growth in every one of those '
+              + 'directions: through formation, conversation, work, study, movement, '
+              + 'rest, culture and prayer.'
+            ]
+          },
+          {
+            kind: 'close',
+            lines: ['Not one more area of life.', 'A more human life, whole.']
+          },
+          { kind: 'note', lines: ['in themselves · in community · with God'] }
+        ]
+      },
+      {
+        label: 'A person needs another person',
+        bubbles: [
+          { kind: 'title', lines: ['A person needs another person'] },
+          {
+            kind: 'body',
+            lines: [
+              'We do not want to build a place where someone spends even more time in '
+              + 'front of a screen. We want to help people meet for real — at a table, on '
+              + 'the road, on retreat, at work, while studying and while resting. Because '
+              + 'much of what matters most in a person grows precisely in the '
+              + 'relationship with another.'
+            ]
+          },
+          {
+            kind: 'image',
+            lines: ['Not an audience.', 'A fellowship.'],
+            image: { missing: 'A photograph of people together — a table, a road or a retreat' }
+          }
+        ]
+      },
+      {
+        label: 'Back to the sources',
+        bubbles: [
+          { kind: 'title', lines: ['Back to the sources'] },
+          {
+            kind: 'body',
+            lines: [
+              'There is no need to choose between what is proven and what is new. We want '
+              + 'to return to simple and basic things — meeting, community, '
+              + 'responsibility, wise rest, good reading, prayer and work on oneself — '
+              + 'while using what the present world makes possible.',
+
+              'Technology can help to find an event, gather people, prepare a meeting, '
+              + 'return to a thought once read, or organise shared work. Its task is not '
+              + 'to hold someone at a screen, but to help them step away from it.'
+            ]
+          },
+          {
+            kind: 'close',
+            lines: ['Tools should lead into life.', 'Not life into tools.']
+          }
+        ]
+      }
+    ],
 
     screen3: {
       title: 'How this happens',

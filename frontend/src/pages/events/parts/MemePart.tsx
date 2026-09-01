@@ -180,6 +180,7 @@ function Memes({
           pictures={memes}
           front={front}
           hint={false}
+          fit="contain"
           onFront={setFront}
           onOpen={setOpen}
         />
