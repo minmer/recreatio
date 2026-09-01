@@ -300,17 +300,21 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     let at = 1;
     for (const scene of t.scenes) { starts.push(at); at += scene.bubbles.length; }
 
+    const works = at;
+    const contact = at + 1;
+
     return {
       starts,
-      works: at,
-      states: at + 1,
+      works,
+      contact,
+      states: contact + 1,
       /*
        * Gerastet wird NUR am Anfang einer Szene — und am Zeichen und an den
        * Werken. Innerhalb einer Szene ist der Bildlauf frei: dort lässt sich
        * jede Zwischenlage halten, und damit ist jede Blase als hervorgehobene
        * erreichbar. Genau das war gewünscht: eine Strecke ohne Rastung.
        */
-      snaps: [0, ...starts, at]
+      snaps: [0, ...starts, works, contact]
     };
   }, [t.scenes]);
 
@@ -487,7 +491,11 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
   const stageStyle = {
     '--states': plan.states - 1,
-    '--step': `${STEP_VH}vh`
+    '--step': `${STEP_VH}vh`,
+    // Die beiden letzten Zustände als Zahl: das Stilblatt rechnet damit, statt
+    // sie aus `--states` zurückzuschliessen — das ginge beim nächsten Zusatz schief.
+    '--works': plan.works,
+    '--contact': plan.contact
   } as CSSProperties;
 
   return (
@@ -569,6 +577,45 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
                   </article>
                 ))}
               </div>
+            </div>
+          </section>
+
+          {/*
+            Der Kreis in der Mitte der vier Sektoren. Er wächst zum Grund des
+            letzten Bildes — deshalb ist er dieselbe Fläche und keine zweite:
+            was man am Ende sieht, ist der Kreis von vorhin, nur gross.
+          */}
+          <div className="rc-orb" aria-hidden="true" />
+
+          {/*
+            Das Zeichen, das mitgeht. Es sitzt erst mitten im Kreis und wandert
+            beim Wachsen in die obere linke Ecke — dorthin, wo im letzten Bild
+            die Anschrift darunter steht.
+          */}
+          <div className="rc-mark-fly">
+            <img src="/logo_inv.svg" alt={t.screen1.wordmark} />
+          </div>
+
+          <section className="rc-contact" aria-labelledby="rc-h4">
+            <div className="rc-contact-in">
+              <h2 className="rc-h2" id="rc-h4">{copy.contact.title}</h2>
+              <p className="rc-contact-lead">{copy.contact.lead}</p>
+
+              <p className="rc-contact-mail">
+                <a href={`mailto:${copy.contact.email}`}>{copy.contact.email}</a>
+              </p>
+
+              <PublicText value={copy.contact.address} copy={copy} as="div" />
+
+              {/* Die ehrliche Zeile steht auch hier — sie ist das Letzte, was
+                  jemand liest, und sie muss stimmen. */}
+              <p className="rc-contact-note">{t.screen1.wordmark}: {copy.manifest.opening.inFormation}</p>
+
+              <p className="rc-contact-more">
+                <a href={publicHref('o-nas')}>{copy.nav['o-nas']}</a>
+                <a href={publicHref('przejrzystosc')}>{copy.nav.przejrzystosc}</a>
+                <a href={publicHref('kontakt')}>{copy.nav.kontakt}</a>
+              </p>
             </div>
           </section>
 
