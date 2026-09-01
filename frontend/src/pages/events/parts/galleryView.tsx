@@ -198,6 +198,7 @@ export function Viewer({
   pictures,
   start,
   mayManage,
+  reserveChrome = false,
   onRemove,
   onClose
 }: {
@@ -205,6 +206,16 @@ export function Viewer({
   start: number;
   /** The organizer, who answers for the page. */
   mayManage: boolean;
+  /**
+   * Keep the furniture off the picture instead of floating it over.
+   *
+   * A photograph loses nothing to a counter in one corner, and the chrome fades
+   * away a few seconds later anyway. A meme does: its caption is a black band
+   * along the bottom edge — words, the point of the whole thing — and the credit
+   * line lands squarely on them. Where that is so, the picture is inset while
+   * the furniture is up and takes the space back when it goes.
+   */
+  reserveChrome?: boolean;
   onRemove: (photoId: string, mine: boolean) => void;
   onClose: () => void;
 }) {
