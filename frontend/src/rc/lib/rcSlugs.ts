@@ -32,6 +32,15 @@
  * statt nur ein Muster zu zeigen. Und wer hier einträgt, muss den Namen genau
  * einmal richtig schreiben.
  *
+ * <b>Der Server hat dieselbe Liste</b>, in `backend/Rc.Api/RcParishSlugs.cs`,
+ * und DORT ist sie die Schranke. Diese hier ist die Freundlichkeit: sie warnt,
+ * sobald jemand tippt, statt ihn absenden und ablehnen zu lassen. Ein Formular
+ * ist keine Schranke — wer die Anfrage von Hand stellt, käme daran vorbei.
+ *
+ * Beide gehören zusammen geändert. Laufen sie auseinander, ist das kein stiller
+ * Fehler: der Server lehnt ab und nennt in der Antwort die wirklich
+ * vorgesehenen Namen.
+ *
  * <b>`invite` steht mit Absicht nicht hier</b>, und darf hier auch nie stehen:
  * sein Name IST das Geheimnis der Einladung. Eine Liste bekannter Einladungen
  * wäre eine Liste offener Türen.

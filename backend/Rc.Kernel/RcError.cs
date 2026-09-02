@@ -139,6 +139,20 @@ public static class RcErrorCodes
     public const string RoleUnreachable = "role.unreachable";
     public const string RoleRevoked = "role.revoked";
 
+    // Pfarrei
+    /// <summary>
+    /// Der Name in der Adresse ist nicht vorgesehen.
+    ///
+    /// Eigener Code und nicht das allgemeine "verboten": der Mensch davor hat
+    /// nichts Unerlaubtes versucht, sondern einen Namen benutzt, ueber den
+    /// noch niemand entschieden hat. Das ist eine andere Auskunft, und sie
+    /// gehoert auch anders formuliert.
+    ///
+    /// Die erlaubten Namen stehen in den Einzelheiten der Antwort — wer eine
+    /// Pfarrei anlegen darf, darf auch wissen, welche vorgesehen sind.
+    /// </summary>
+    public const string ParishSlugNotAllowed = "parish.slug_not_allowed";
+
     // Ablage
     public const string StorageQuotaExceeded = "storage.quota_exceeded";
     public const string StorageFileTooLarge = "storage.file_too_large";

@@ -99,6 +99,28 @@ public static class RcParish
             RcCapability.Admin, ctx.RequestAborted);
         if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
 
+        // Die Adresse wird vorher entschieden, nicht hier erfunden. Die
+        // Begruendung steht in RcParishSlugs; das Formular kennt dieselbe
+        // Liste, aber ein Formular ist keine Schranke.
+        //
+        // ERST NACH der Berechtigungspruefung, und das ist kein Zufall: die
+        // Antwort nennt die vorgesehenen Namen. Wer den Bereich gar nicht
+        // verwaltet, soll sie nicht erfahren — er bekommt dieselbe Abfuhr wie
+        // fuer alles andere hier auch. Andernfalls waere dieser Zweig eine
+        // Auskunft an jeden, der raten will.
+        if (!RcParishSlugs.IsAllowed(slug))
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                RcErrorCodes.ParishSlugNotAllowed,
+                "Dieser Name ist fuer eine Pfarrei nicht vorgesehen.",
+                new Dictionary<string, string>
+                {
+                    ["slug"] = slug,
+                    ["allowed"] = RcParishSlugs.AllowedList()
+                });
+            return;
+        }
+
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         var tenantId = await TenantOfAreaAsync(connection, areaId, ctx.RequestAborted);

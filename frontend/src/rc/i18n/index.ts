@@ -524,6 +524,9 @@ const en: RcCopy = {
       'auth.password_weak': 'That password cannot be used.',
       'auth.token_invalid': 'That link is no longer valid. Ask for a new one.',
       'permission.denied': 'You are not allowed to do that here.',
+      'parish.slug_not_allowed':
+        'That address is not on the list of parishes and cannot be created. Addresses '
+        + 'are settled in advance, because they are given out and printed.',
       'role.cycle': 'That would make two roles unlock each other.',
       'role.unreachable': 'That role is not available to you.',
       'session.revoked': 'That session has ended. Please sign in again.',
@@ -1050,6 +1053,9 @@ const pl: RcCopy = {
       'auth.password_weak': 'Tego hasła nie można użyć.',
       'auth.token_invalid': 'Ten link już nie działa. Poproś o nowy.',
       'permission.denied': 'Nie masz tu takich uprawnień.',
+      'parish.slug_not_allowed':
+        'Tego adresu nie ma na liście parafii i nie można go utworzyć. Adresy '
+        + 'ustalane są z góry, bo są rozdawane i drukowane.',
       'role.cycle': 'To sprawiłoby, że dwie role otwierałyby się nawzajem.',
       'role.unreachable': 'Ta rola nie jest dla Ciebie dostępna.',
       'session.revoked': 'Ta sesja została zakończona. Zaloguj się ponownie.',
@@ -1608,6 +1614,10 @@ const de: RcCopy = {
       'auth.password_weak': 'Dieses Passwort lässt sich nicht verwenden.',
       'auth.token_invalid': 'Dieser Link gilt nicht mehr. Bitte um einen neuen.',
       'permission.denied': 'Das darfst du hier nicht.',
+      'parish.slug_not_allowed':
+        'Diese Adresse steht nicht auf der Liste der Pfarreien und kann nicht angelegt '
+        + 'werden. Adressen werden vorher festgelegt, weil sie weitergegeben und '
+        + 'gedruckt werden.',
       'role.cycle': 'Dabei würden zwei Rollen einander gegenseitig aufschließen.',
       'role.unreachable': 'Diese Rolle steht dir nicht zur Verfügung.',
       'session.revoked': 'Diese Sitzung wurde beendet. Bitte neu anmelden.',

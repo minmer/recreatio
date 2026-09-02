@@ -2006,8 +2006,11 @@ var parishArea = (await ReadAsync(await http.PostAsJsonAsync("/rc/areas", new
 var parishCreated = await http.PostAsJsonAsync("/rc/parishes", new
 {
     areaId = parishArea,
-    slug = "St. Martin",
-    name = "Pfarrei St. Martin",
+    // Grossbuchstaben, damit die Umformung mitgeprueft wird — und ein Name, der
+    // auf der Liste steht (RcParishSlugs). Ein beliebiger Name kaeme hier nicht
+    // mehr durch, und genau das ist der Zweck der Liste.
+    slug = "Grzegorzki",
+    name = "Parafia Grzegorzki",
     location = "Limanowa"
 });
 
@@ -2017,14 +2020,33 @@ await t.OkAsync("14.x  Eine Pfarrei entsteht an einem Bereich", async () =>
     if (parishCreated.StatusCode != HttpStatusCode.Created) return false;
     var json = await ReadAsync(parishCreated);
     parishId = json.GetProperty("parishId").GetString()!;
-    return Text(json, "slug") == "st-martin";
+    return Text(json, "slug") == "grzegorzki";
 });
 
 await t.OkAsync("14.x  Ein zweiter Anlauf am selben Bereich wird abgewiesen", async () =>
     (await http.PostAsJsonAsync("/rc/parishes", new
     {
-        areaId = parishArea, slug = "noch-eine", name = "Noch eine"
+        areaId = parishArea, slug = "grzegorzki", name = "Noch eine"
     })).StatusCode == HttpStatusCode.Conflict);
+
+// Die Liste ist die Schranke, nicht das Formular. Wer die Anfrage von Hand
+// stellt, kommt an der Warnung im Browser vorbei — hier nicht.
+var strangeSlug = await http.PostAsJsonAsync("/rc/parishes", new
+{
+    areaId = parishArea, slug = "sankt-nimmerlein", name = "Nicht vorgesehen"
+});
+
+await t.OkAsync("14.x  Ein Name ausserhalb der Liste wird abgewiesen", async () =>
+{
+    if (strangeSlug.StatusCode != HttpStatusCode.BadRequest) return false;
+
+    var json = await ReadAsync(strangeSlug);
+    if (json.GetProperty("code").GetString() != RcErrorCodes.ParishSlugNotAllowed) return false;
+
+    // Die Antwort sagt AUCH, was vorgesehen ist. Eine Abfuhr ohne diese
+    // Auskunft liesse den Menschen davor raten.
+    return json.GetProperty("details").GetProperty("allowed").GetString()!.Contains("grzegorzki");
+});
 
 await t.OkAsync("3.6   Wer den Bereich nicht verwaltet, legt dort keine Pfarrei an", async () =>
     (await bruno.PostAsJsonAsync("/rc/parishes", new
