@@ -14,6 +14,21 @@
 **/*.suo
 backend/Recreatio.Api/dataprotection-keys/
 
+# Betriebsgeheimnisse gehoeren nicht ins Verzeichnis.
+#
+# appsettings.json und appsettings.Development.json SIND versioniert — dort
+# stehen nur Entwicklungswerte. Alles, was ein echtes Passwort oder Geheimnis
+# traegt, gehoert in eine dieser Dateien, und die bleiben draussen:
+#
+#   Entwicklung  dotnet user-secrets (liegt ohnehin ausserhalb des Baums)
+#   Betrieb      appsettings.Production.json auf dem Server
+#
+# web.config ist versioniert (siehe backend/Recreatio.Api/web.config). Ein
+# <environmentVariable> mit einem Passwort darin waere also ein Commit des
+# Passworts — deshalb steht dort nur, was oeffentlich sein darf.
+backend/*/appsettings.Production.json
+backend/*/appsettings.*.local.json
+
 # Der polnische Quelltext des Manifests wird nicht mitversioniert.
 # Siehe frontend/src/public/content/localText.ts.
 frontend/src/public/content/local/
