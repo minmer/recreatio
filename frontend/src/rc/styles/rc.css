@@ -1932,3 +1932,62 @@
 @media (prefers-reduced-motion: reduce) {
   .rc-root * { animation: none !important; transition: none !important; }
 }
+
+/* -- Die Anmeldeseite ------------------------------------------------------- */
+
+/*
+   Ein Bild, eine Aufgabe.
+
+   Wer nicht angemeldet ist, sieht keine Werkstatt: kein Menue, keine
+   Baustandsliste, keine sechs Module mit „gesperrt" daneben. Nur das Zeichen,
+   das Formular und die Sprache — mittig, wie es Google und Outlook tun, und aus
+   demselben Grund: es gibt hier genau EINE Sache zu tun.
+
+   `100dvh` und nicht `100vh`: auf dem Telefon meint `vh` die grosse Ansicht mit
+   eingefahrener Adressleiste, und das Formular saesse dann teilweise darunter.
+*/
+.rc-gate {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 2rem var(--rc-pad, 1.25rem);
+  background: var(--rc-paper);
+  color: var(--rc-ink);
+}
+
+.rc-gate-in {
+  width: 100%;
+  max-width: 26rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.6rem;
+}
+
+.rc-gate-mark { display: block; line-height: 0; }
+
+/*
+   Das Zeichen fuehrt zurueck auf die oeffentliche Seite. Es ist der einzige
+   Weg von hier fort, und deshalb gehoert er auf das Zeichen und nicht auf
+   einen zusaetzlichen Verweis, der die Seite wieder zu einer Seite mit
+   Auswahl machte.
+*/
+.rc-gate-mark img {
+  width: clamp(9rem, 46vw, 13.75rem);
+  height: auto;
+}
+
+/* Die Karte traegt hier die ganze Breite — sie IST die Seite. */
+.rc-gate-card { width: 100%; }
+.rc-gate-card .rc-auth { max-width: none; width: 100%; }
+
+.rc-gate-lang { display: flex; gap: 0.4rem; }
+
+/*
+   Auf sehr niedrigen Fenstern (Telefon quer) darf sie oben anfangen und
+   rollen, statt mittig zu stehen und ueber den Rand zu laufen.
+*/
+@media (max-height: 520px) {
+  .rc-gate { align-items: start; }
+  .rc-gate-in { gap: 1.1rem; }
+}
