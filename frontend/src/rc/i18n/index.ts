@@ -294,6 +294,12 @@ export interface RcCopy {
     readonly location: string;
     readonly make: string;
 
+    /** Der Name in der Adresse — und was gilt, wenn er nicht vorgesehen ist. */
+    readonly slug: string;
+    readonly slugUnknown: string;
+    readonly slugAvailable: string;
+    readonly slugShape: string;
+
     readonly plan: string;
     readonly noMasses: string;
     readonly addMass: string;
@@ -771,6 +777,14 @@ const en: RcCopy = {
     name: 'Name',
     location: 'Where',
     make: 'Create',
+
+    slug: 'Address name',
+    slugUnknown:
+      'This address is not on the list and cannot be created. Addresses are settled in '
+      + 'advance, because they are given out and printed — a parish cannot be renamed '
+      + 'without breaking every link to it.',
+    slugAvailable: 'Available',
+    slugShape: 'Lowercase letters, digits and hyphens between them.',
 
     plan: 'Mass schedule',
     noMasses: 'Nothing scheduled.',
@@ -1325,6 +1339,14 @@ const pl: RcCopy = {
     location: 'Gdzie',
     make: 'Utwórz',
 
+    slug: 'Nazwa w adresie',
+    slugUnknown:
+      'Tej nazwy nie ma na liście i nie można jej utworzyć. Adresy ustalane są '
+      + 'z góry, bo są rozdawane i drukowane — zmiana adresu parafii zepsułaby '
+      + 'każdy link do niej.',
+    slugAvailable: 'Dostępne',
+    slugShape: 'Małe litery, cyfry i myślniki pomiędzy nimi.',
+
     plan: 'Plan mszy',
     noMasses: 'Nic nie zaplanowano.',
     addMass: 'Dodaj mszę',
@@ -1839,6 +1861,14 @@ const de: RcCopy = {
     name: 'Name',
     location: 'Wo',
     make: 'Anlegen',
+
+    slug: 'Name in der Adresse',
+    slugUnknown:
+      'Dieser Name steht nicht auf der Liste und kann nicht angelegt werden. Adressen '
+      + 'werden vorher festgelegt, weil sie weitergegeben und gedruckt werden — eine '
+      + 'Pfarrei umzubenennen zerbraeche jeden Verweis auf sie.',
+    slugAvailable: 'Vorgesehen',
+    slugShape: 'Kleine Buchstaben, Ziffern und Bindestriche dazwischen.',
 
     plan: 'Messplan',
     noMasses: 'Nichts angesetzt.',

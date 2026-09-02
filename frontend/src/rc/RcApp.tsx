@@ -18,6 +18,7 @@ import { rcCopy, rcDetectLang, rcFormat, rcPlural, rcStoreLang, type RcLang } fr
 import { runRcSelfTest, type RcTestReport } from './lib/rcSelfTest';
 import { RcChat, RcEventsSection, RcParishOutlet, RcGraphOutlet, RcCalendarOutlet, RcConfirmationOutlet } from './RcChat';
 import { RcInviteBanner } from './RcInvite';
+import { RcSignInPage } from './RcSignInPage';
 import { rcEnter, rcEntryCheck, rcBrowserMemory, type RcEntry } from './lib/rcBoot';
 import { rcHasUnlockPiece, rcMe, type RcMe } from './lib/rcAuth';
 import { rcNeedsIdentity, rcParsePath, rcPath, type RcAddress, type RcPart } from './lib/rcRoute';
@@ -200,6 +201,37 @@ export function RcApp() {
       ] as const,
     [t]
   );
+
+  /*
+   * SOLANGE DIE SCHLÜSSEL FEHLEN, GIBT ES NUR EINE SEITE.
+   *
+   * Vorher stand das Formular als ein Abschnitt unter vielen, umgeben von
+   * sechs Modulen, die alle „gesperrt" meldeten. Wer sich anmelden wollte,
+   * musste zuerst an einer Baustandsliste und einer Teilenavigation vorbei.
+   *
+   * Der Einladungsbanner wandert MIT: wer über einen Link kommt, soll vorher
+   * wissen, wohin er führt — das war schon immer so und bleibt es.
+   */
+  if (!unlocked) {
+    return (
+      <div className="rc-root">
+        <RcSignInPage
+          lang={lang}
+          onLang={setLang}
+          banner={inviteSecret === null ? null : (
+            <RcInviteBanner
+              lang={lang}
+              secret={inviteSecret}
+              canRedeem={false}
+              onDone={() => { window.location.hash = rcPath('home'); }}
+            />
+          )}
+        >
+          <RcSignIn lang={lang} entry={entry} onEntry={setEntry} onReady={setUnlocked} />
+        </RcSignInPage>
+      </div>
+    );
+  }
 
   return (
     <div className="rc-root">

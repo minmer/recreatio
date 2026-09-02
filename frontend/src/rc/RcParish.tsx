@@ -21,6 +21,7 @@ import {
   rcMasses, rcMassesByDay, rcParishes,
   type RcIntention, type RcMass, type RcParish
 } from './lib/rcParish';
+import { rcIsKnownSlug, rcIsSlug, rcKnownSlugs } from './lib/rcSlugs';
 import { useRcError } from './RcThreads';
 
 export function RcParishSection({
@@ -101,20 +102,47 @@ function RcNewParish({
   const [areaId, setAreaId] = useState(areas[0]?.areaId ?? '');
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
+  const [slug, setSlug] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  /*
+   * DER NAME IN DER ADRESSE IST EIN EIGENES FELD — und nicht mehr aus dem
+   * Namen abgeleitet.
+   *
+   * Die Ableitung war für polnische Namen unbrauchbar: „Grzegórzki" wurde zu
+   * `grzeg-rzki`, weil jedes diakritische Zeichen durch einen Bindestrich
+   * ersetzt wurde. Wer den Namen richtig schreibt, bekam die falsche Adresse —
+   * und zwar lautlos.
+   *
+   * Der Vorschlag aus dem Namen bleibt als Starthilfe; er lässt sich
+   * überschreiben, und er entscheidet nichts.
+   */
+  const guess = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const wanted = (slug === '' ? guess : slug).trim();
+
+  const known = rcKnownSlugs('parish');
+  const shaped = wanted === '' || rcIsSlug(wanted);
+  const listed = wanted !== '' && rcIsKnownSlug('parish', wanted);
+
+  /*
+   * <b>Die Liste ist hier eine Schranke</b>, anders als beim Lesen einer
+   * Adresse. Eine Pfarrei anzulegen heisst, eine öffentliche Adresse zu
+   * vergeben, die danach weitergegeben und gedruckt wird; sie hinterher zu
+   * ändern zerbräche jeden Verweis. Deshalb wird der Name vorher entschieden
+   * und in `rcSlugs` eingetragen, nicht hier im Formular erfunden.
+   */
+  const may = listed && !busy && name.trim().length > 0;
 
   return (
     <form
       className="rc-new-event"
       onSubmit={async (e) => {
         e.preventDefault();
-        if (name.trim().length === 0 || busy) return;
+        if (!may) return;
         setBusy(true);
         try {
-          await rcCreateParish(areaId, slug, name, location.trim() || undefined);
-          setName(''); setLocation('');
+          await rcCreateParish(areaId, wanted, name, location.trim() || undefined);
+          setName(''); setLocation(''); setSlug('');
           await onDone();
         } catch (err) {
           onError(describe(err));
@@ -146,7 +174,38 @@ function RcNewParish({
         <input type="text" value={location} disabled={busy} onChange={(e) => setLocation(e.target.value)} />
       </label>
 
-      <button type="submit" className="rc-btn" disabled={busy || name.trim().length === 0}>
+      <label className="rc-field">
+        <span>{t.slug}</span>
+        <input
+          type="text"
+          value={slug === '' ? guess : slug}
+          disabled={busy}
+          spellCheck={false}
+          autoCapitalize="none"
+          onChange={(e) => setSlug(e.target.value.trim().toLowerCase())}
+        />
+      </label>
+
+      {/*
+        Der Einwand steht, SOBALD etwas dasteht — nicht erst nach dem Absenden.
+        Ein Formular, das erst beim Klick sagt, dass es nichts tun wird, hat
+        jemanden umsonst tippen lassen.
+      */}
+      {wanted !== '' && !shaped && <p className="rc-auth-error">{t.slugShape}</p>}
+
+      {wanted !== '' && shaped && !listed && (
+        <p className="rc-auth-error">
+          {t.slugUnknown}
+          {known.length > 0 && (
+            <>
+              {' '}
+              {t.slugAvailable}: {known.join(', ')}.
+            </>
+          )}
+        </p>
+      )}
+
+      <button type="submit" className="rc-btn" disabled={!may}>
         {t.make}
       </button>
     </form>
