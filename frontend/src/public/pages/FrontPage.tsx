@@ -1415,11 +1415,22 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
                       '--at': plan.works - QUARTERS[index].lead
                     } as CSSProperties}
                   >
-                    <h3 className="rc-work-h">{work.name}</h3>
-                    <p className="rc-work-b">{work.body}</p>
-                    <a className="rc-work-a" href={publicHref(WORK_PAGES[index])}>
-                      {work.cta}
-                    </a>
+                    {/*
+                      Der Text steht in einem eigenen Kasten, und das ist der
+                      Grund, warum kein Buchstabe mehr auf einem Bild liegt: das
+                      Viertel ist ein Raster aus zwei Reihen — Text und Bild —,
+                      und das Bild bekommt, was der Text übrig lässt. Vorher
+                      lagen beide übereinander und ein Verlauf sollte sie
+                      trennen; wie hoch der Text wirklich wird, weiss aber nur
+                      der Umbruch.
+                    */}
+                    <div className="rc-work-in">
+                      <h3 className="rc-work-h">{work.name}</h3>
+                      <p className="rc-work-b">{work.body}</p>
+                      <a className="rc-work-a" href={publicHref(WORK_PAGES[index])}>
+                        {work.cta}
+                      </a>
+                    </div>
                   </article>
                 ))}
               </div>
