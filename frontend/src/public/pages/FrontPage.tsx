@@ -359,27 +359,46 @@ function ringPoints(count: number, scene: number, portrait: boolean): readonly P
  * Die fünf Wörter, aus denen der Name kommt.
  *
  * Das **RE** steht gross — dasselbe RE wie in REcreatio. Es ist der gemeinsame
- * Anfang aller fünf und der Grund, warum die Einrichtung so heisst; deshalb
- * trägt es die Betonung und der Rest folgt klein.
+ * Anfang aller und der Grund, warum die Einrichtung so heisst; deshalb trägt es
+ * die Betonung und der Rest folgt klein.
+ *
+ * Hier steht nur der Rest nach dem RE. Ein Wort mehr ist ein Eintrag mehr —
+ * Richtung, Abstand, Tiefe, Deckkraft und Grösse kommen aus dem Index.
  *
  * Grundlage je Wort: Richtung vom Zeichen aus, Abstand, TIEFE, Deckkraft,
  * Grösse. Die Tiefe ist der eigentliche Trick — sie bestimmt, wie schnell ein
- * Wort nach aussen läuft. Fünf verschiedene Tiefen ergeben fünf
+ * Wort nach aussen läuft. Verschiedene Tiefen ergeben verschiedene
  * Geschwindigkeiten, und daraus entsteht der räumliche Eindruck.
  */
-const WORDS = ['colligere', 'novatio', 'conciliatio', 'fectio', 'dintegratio'] as const;
+const WORDS = [
+  'colligere',    // REcolligere    — wieder sammeln
+  'novatio',      // REnovatio      — Erneuerung
+  'conciliatio',  // REconciliatio  — Versöhnung
+  'fectio',       // REfectio       — Stärkung, Erquickung
+  'dintegratio',  // REdintegratio  — Wiederherstellung des Ganzen
+  'ditus',        // REditus        — Rückkehr
+  'cognitio',     // REcognitio     — Wiedererkennen
+  'stitutio',     // REstitutio     — Wiedergutmachung
+  'generatio',    // REgeneratio    — Wiedergeburt
+  'paratio',      // REparatio      — Ausbesserung
+  'latio',        // RElatio        — Beziehung
+  'quies',        // REquies        — Ruhe
+  'surrectio'     // REsurrectio    — Auferstehung
+] as const;
 
 /**
  * Wie viele Wörter im Raum stehen.
  *
- * Die fünf sind die Sache; diese Zahl ist die Wirkung. Fünf Wörter waren fünf
- * Beschriftungen, die um das Zeichen herum lagen — man las sie ab. Sechsunddreissig
- * sind eine Wolke, in der man steht: dasselbe Wort taucht in verschiedener
- * Tiefe, Grösse und Helligkeit mehrfach auf, und keines davon liest man einzeln.
+ * Die Wörter sind die Sache; diese Zahl ist die Wirkung. Wenige wären wenige
+ * Beschriftungen, die um das Zeichen herum liegen — man liest sie ab. Erst
+ * viele sind eine Wolke, in der man steht: dasselbe Wort taucht in
+ * verschiedener Tiefe, Grösse und Helligkeit mehrfach auf, und keines davon
+ * liest man einzeln.
  *
- * Ein Vielfaches der fünf, damit keines häufiger vorkommt als ein anderes.
+ * <b>Ein Vielfaches der Wortzahl</b>, damit keines häufiger vorkommt als ein
+ * anderes — bei dreizehn Wörtern also dreimal jedes.
  */
-const WORD_COUNT = 35;
+const WORD_COUNT = 39;
 
 /**
  * Der Raum des ersten Bildes.

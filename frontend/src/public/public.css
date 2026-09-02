@@ -28,12 +28,36 @@
   --gap-bg: #fdf4e6;
   --gap-line: #e0bd82;
 
-  /* Die vier Sektoren. Aus einer Familie, damit vier Felder zu sehen sind,
-     ohne dass die Seite bunt wird. */
-  --tone-1: #e9eee7;
-  --tone-2: #dee7e0;
-  --tone-3: #e8e5db;
-  --tone-4: #d8e2dd;
+  /*
+     Die vier Sektoren.
+
+     Drei davon tragen jetzt ein Bild oder ein Zeichen, und die Toene sind
+     danach gewaehlt — nicht mehr bloss als vier Abstufungen derselben Familie.
+     Ein Ton ist das, WORAUS ein Bild auftaucht: laeuft ein warmes Nachtbild aus
+     einem kalten Grau heraus, sieht der Verlauf nach Schmutz aus.
+
+     tone-1 traegt den Garten bei Nacht — warmer Sand, die Farbe des
+     Feuerscheins. tone-2 die Fahrt im Gegenlicht — ein kuehles Gruengrau, das
+     Laub und Pflaster aufnimmt. tone-4 bleibt ohne Bild und haelt die anderen
+     zusammen. tone-3 wird nicht mehr gebraucht: dort steht Cogita mit seiner
+     eigenen Farbe.
+  */
+  --tone-1: #ece4d6;
+  --tone-2: #e3eae1;
+  --tone-4: #dde4e1;
+
+  /*
+     Cogita bringt seine eigene Farbe mit.
+
+     Es ist das einzige der vier, das nicht dem Haus gehoert: ein Werkzeug mit
+     eigener Herkunft, eigenem Zeichen und eigenem Nachtblau. Genau deshalb
+     bleibt dieses Blau in BEIDEN Ansichten dasselbe — eine Marke, die sich mit
+     der Umgebung umfaerbt, ist keine.
+  */
+  --cogita-ground: #0a1c2f;
+  --cogita-ink: #e6ecf3;
+  --cogita-ink-soft: #a9bccf;
+  --cogita-accent: #f95e3f;
 
   /* Der Kreis, der zum Grund des letzten Bildes wird. */
   --orb: #14180f;
@@ -76,9 +100,10 @@
     --gap-bg: #241c0e;
     --gap-line: #6a5228;
 
-    --tone-1: #1b2019;
-    --tone-2: #212a22;
-    --tone-3: #24241c;
+    /* Dieselbe Herleitung wie im Hellen: warm unter dem Nachtbild, kuehl unter
+       der Fahrt. Cogita bleibt, was es ist, und steht deshalb nicht hier. */
+    --tone-1: #221b12;
+    --tone-2: #182018;
     --tone-4: #1a231f;
 
     --orb: #0b0d08;
@@ -957,6 +982,26 @@
   .rc-stage.is-live .rc-work-a { font-size: 0.72rem; }
 
   /*
+     Das Viertel ist hier schmal und niedrig, der Text nimmt darin mehr Platz
+     ein als auf dem Schreibtisch. Also faengt das Bild spaeter an und bleibt
+     zurueckhaltender — sonst stuende der Verweis darauf.
+  */
+  .rc-stage.is-live .rc-work::before {
+    opacity: calc(var(--shot-a, 0) * 0.82);
+    -webkit-mask-image: linear-gradient(var(--lean, to bottom),
+      transparent 0%, transparent 60%, rgb(0 0 0 / 0.25) 76%, rgb(0 0 0 / 0.85) 100%);
+    mask-image: linear-gradient(var(--lean, to bottom),
+      transparent 0%, transparent 60%, rgb(0 0 0 / 0.25) 76%, rgb(0 0 0 / 0.85) 100%);
+  }
+
+  .rc-stage.is-live .rc-work:nth-child(3)::before {
+    background-size: min(52%, 9rem) auto;
+    background-position: 12% 88%;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  /*
      Das letzte Bild: die Anschrift steht unter dem Zeichen, das oben links
      gelandet ist. Auf einem hohen, schmalen Bild braucht sie die ganze Breite
      und darf notfalls in sich rollen — abgeschnittene Anschrift waere das
@@ -997,6 +1042,21 @@
 
   .rc-stage.is-live .rc-work { padding: 0.8rem 1rem; }
   .rc-stage.is-live .rc-work-b { font-size: 0.78rem; line-height: 1.35; }
+
+  /* Ein Viertel ist hier nur gut 160 Pixel hoch. Das Bild bleibt ein Saum. */
+  .rc-stage.is-live .rc-work::before {
+    opacity: calc(var(--shot-a, 0) * 0.7);
+    -webkit-mask-image: linear-gradient(var(--lean, to bottom),
+      transparent 0%, transparent 70%, rgb(0 0 0 / 0.7) 100%);
+    mask-image: linear-gradient(var(--lean, to bottom),
+      transparent 0%, transparent 70%, rgb(0 0 0 / 0.7) 100%);
+  }
+
+  .rc-stage.is-live .rc-work:nth-child(3)::before {
+    background-size: min(46%, 7rem) auto;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
 
   .rc-stage.is-live .rc-contact-in {
     top: 22%;
@@ -1110,8 +1170,124 @@
   transform: translateX(calc(var(--from) * 54vw * (1 - var(--a))));
 }
 
-.rc-stage.is-live .rc-work:nth-child(2) { background: var(--tone-2); }
-.rc-stage.is-live .rc-work:nth-child(3) { background: var(--tone-3); }
+/* -- Die Bilder in den Vierteln --------------------------------------------- */
+
+/*
+   JEDES BILD LEHNT ZUR MITTE.
+
+   Der Text eines Viertels sitzt an seiner AEUSSEREN Ecke — das war schon so,
+   damit die Mitte frei bleibt. Genau daraus folgt, wohin ein Bild gehoert: an
+   die INNERE Ecke, wo kein Text steht. Es verschwindet zum Text hin vollstaendig
+   und ist zur Mitte hin ganz da.
+
+   Damit haben die vier Bilder eine gemeinsame Richtung: sie laufen auf den
+   Punkt zu, an dem der Kreis steht — und der Kreis waechst spaeter genau aus
+   dieser Stelle und verschluckt sie. Kein Bild muss dafuer beschnitten werden,
+   und kein Text steht je auf einem Bild.
+
+   Das Bild liegt auf einem `::before` und nicht im Grund des Viertels: nur so
+   laesst sich die Verlaufsmaske vom Grund trennen. Der Grund traegt weiterhin
+   den Ton des Viertels, und die Maske blendet das Bild darauf ein.
+*/
+
+.rc-stage.is-live .rc-work { position: relative; overflow: hidden; }
+
+/* Der Text liegt ueber dem Bild — sonst deckte das Bild ihn zu. */
+.rc-stage.is-live .rc-work > * { position: relative; z-index: 1; }
+
+.rc-stage.is-live .rc-work::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+
+  background-image: var(--shot, none);
+  background-size: cover;
+  background-position: var(--shot-at, center);
+  opacity: var(--shot-a, 0);
+
+  /*
+     Die Maske laeuft von der Textseite (nichts) zur Mitte hin (fast alles).
+     Der weiche Verlauf dazwischen ist das eigentliche Mittel: eine harte Kante
+     waere eine Collage, dieser Uebergang ist ein Grund, aus dem ein Bild
+     auftaucht.
+
+     <b>Bis 46 Prozent bleibt sie voellig leer</b>, und das ist keine gerundete
+     Zahl: so hoch steht der Text im Viertel — Ueberschrift, Absatz und Verweis
+     zusammen nehmen knapp die Haelfte der Hoehe ein. Darunter faengt das Bild
+     erst an. Kein Buchstabe steht je auf einem Bild, und keiner braucht dafuer
+     einen Schatten oder eine Hinterlegung.
+
+     Die Richtung ist deshalb auch fast senkrecht und nur leicht zur Mitte
+     geneigt: der Text laeuft ueber die ganze Breite des Viertels: bei einem
+     echten Diagonalverlauf saesse sein aeusseres Ende schon im Bild.
+  */
+  -webkit-mask-image: linear-gradient(var(--lean, to bottom),
+    transparent 0%, transparent 46%, rgb(0 0 0 / 0.18) 62%, rgb(0 0 0 / 0.6) 82%, rgb(0 0 0 / 0.92) 100%);
+  mask-image: linear-gradient(var(--lean, to bottom),
+    transparent 0%, transparent 46%, rgb(0 0 0 / 0.18) 62%, rgb(0 0 0 / 0.6) 82%, rgb(0 0 0 / 0.92) 100%);
+}
+
+/*
+   Hortus Dei — der Garten bei Nacht, mit dem Feuer.
+
+   Ein dunkles Bild auf hellem Grund. Der Ton ist deshalb warm gehalten (der
+   Sand des Feuerscheins), damit der Uebergang vom Papier ins Bild nicht durch
+   einen kalten Grauton laeuft. Der Bildausschnitt sitzt etwas rechts der Mitte:
+   dort brennt das Feuer, und das soll in der Ecke zur Mitte hin stehen.
+*/
+.rc-stage.is-live .rc-work:nth-child(1) {
+  background: var(--tone-1);
+  --shot: url('/Hortus.jpg');
+  --shot-at: 62% 52%;
+  --shot-a: 0.82;
+  /* Fast senkrecht nach unten, ein wenig zur Bildmitte geneigt. */
+  --lean: 165deg;
+}
+
+/* Wydarzenia — die Fahrt nach Jasna Gora, im Gegenlicht. Ein helles Bild. */
+.rc-stage.is-live .rc-work:nth-child(2) {
+  background: var(--tone-2);
+  --shot: url('/Events.jpg');
+  --shot-at: 52% 40%;
+  --shot-a: 0.8;
+  /* Fast senkrecht nach oben — hier steht der Text unten. */
+  --lean: 15deg;
+}
+
+/*
+   Cogita — die eigene Farbe und das eigene Zeichen.
+
+   Es ist das einzige Viertel, das nicht dem Haus gehoert, sondern einem
+   Werkzeug mit eigener Herkunft; deshalb traegt es dessen Nachtblau statt eines
+   Tons der Seite. Das Zeichen ist helle Zeichnung auf dunklem Grund — es ist
+   fuer genau diesen Grund gemacht und funktioniert auf keinem anderen.
+
+   Ein Zeichen ist kein Foto: es wird nicht formatfuellend beschnitten und nicht
+   verlaufend ausgeblendet, sondern steht als Ganzes da, nur zurueckhaltend.
+   Eine halb weggeblendete Wortmarke saehe nach einem Fehler aus.
+*/
+.rc-stage.is-live .rc-work:nth-child(3) {
+  background: var(--cogita-ground);
+  color: var(--cogita-ink);
+}
+
+.rc-stage.is-live .rc-work:nth-child(3)::before {
+  background-image: url('/cogita/logo/Cogita_Plain.svg');
+  background-repeat: no-repeat;
+  background-size: min(58%, 15rem) auto;
+  background-position: 14% 84%;
+  opacity: 0.62;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.rc-stage.is-live .rc-work:nth-child(3) .rc-work-b { color: var(--cogita-ink-soft); }
+.rc-stage.is-live .rc-work:nth-child(3) .rc-work-a { color: var(--cogita-accent); }
+.rc-stage.is-live .rc-work:nth-child(3) .rc-work-a:hover { color: var(--cogita-ink); }
+
+/* Biblioteka — ohne Bild. Ein ruhiger Ton, der die drei anderen zusammenhaelt. */
 .rc-stage.is-live .rc-work:nth-child(4) { background: var(--tone-4); }
 
 /* Untere Reihe: der Inhalt sitzt unten, damit die Mitte frei bleibt. */
