@@ -1,0 +1,76 @@
+/**
+ * „Narzędzia" — das Verzeichnis dessen, was gebaut wird.
+ *
+ * <b>Diese Seite ist ein Nachschlagewerk, keine Haltung.</b> Warum die
+ * Werkzeuge so gebaut sind, steht auf der Sicherheitsseite; hier steht, WELCHE
+ * es gibt, wo sie liegen und was ohne Schlüssel davon zu sehen ist. Die beiden
+ * Seiten verweisen aufeinander und wiederholen sich nicht.
+ *
+ * <b>Die Adressen werden nicht getippt, sondern gebaut.</b> `rcPath` und
+ * `RC_HASH_BASE` stammen aus derselben Datei, die auch die Plattform benutzt —
+ * steht dort eines Tages `#` statt `#/new`, ändert sich diese Seite von selbst
+ * mit. Eine Liste von Adressen, die als Text danebensteht, ist genau die Art
+ * Angabe, die still veraltet.
+ *
+ * <b>Der Stand gehört dazu.</b> Ein Verzeichnis ohne die Zeile, dass die Teile
+ * verschieden weit sind, liest sich als Angebot. Es ist aber eine Auskunft
+ * darüber, was entsteht.
+ */
+
+import type { PublicCopy } from '../content';
+import { RC_HASH_BASE, rcPath } from '../../rc/lib/rcRoute';
+import { publicHref } from '../publicRoutes';
+
+export function ToolsPage({ copy }: { copy: PublicCopy }) {
+  const t = copy.tools;
+
+  return (
+    <article className="pub-page pub-wide">
+      <h1 className="pub-h1">{t.title}</h1>
+      <p className="pub-lead">{t.lead}</p>
+
+      <section className="pub-sec">
+        <h2 className="pub-h2">{t.addressTitle}</h2>
+        <p className="pub-p">{t.address}</p>
+      </section>
+
+      <div className="pub-tools">
+        {t.items.map((tool) => {
+          /*
+           * Ein Werkzeug ohne eigenen Teil hat keine Adresse — und bekommt
+           * deshalb auch keinen Verweis, der ins Leere zeigte. Stattdessen
+           * steht dort, was stattdessen gilt.
+           */
+          const home = tool.part === null ? null : rcPath(tool.part);
+          const shown = tool.part === null ? null : `${RC_HASH_BASE}/${tool.part}/${t.slug}`;
+
+          return (
+            <section className="pub-tool" key={tool.name}>
+              <h3 className="pub-h3">
+                {home === null ? tool.name : <a href={home}>{tool.name}</a>}
+              </h3>
+
+              <p className="pub-p">{tool.body}</p>
+
+              {shown === null
+                ? <p className="pub-tool-at" data-kind="none">{t.embedded}</p>
+                : <p className="pub-tool-at"><code>{shown}</code></p>}
+
+              <p className="pub-tool-open">
+                <span className="pub-tool-tag">{t.openLabel}</span>
+                {tool.open}
+              </p>
+            </section>
+          );
+        })}
+      </div>
+
+      <p className="pub-note">{t.note}</p>
+
+      <p className="pub-onward">
+        <a href={publicHref('bezpieczenstwo')}>{copy.nav.bezpieczenstwo}</a>
+        <a href={publicHref('przejrzystosc')}>{copy.nav.przejrzystosc}</a>
+      </p>
+    </article>
+  );
+}

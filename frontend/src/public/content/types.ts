@@ -11,6 +11,8 @@
  * ist im Baum auffindbar.
  */
 
+import type { RcPart } from '../../rc/lib/rcRoute';
+
 /** Eine Tatsache, die noch niemand entschieden hat. Wird sichtbar dargestellt. */
 export interface FactNeeded {
   readonly missing: string;
@@ -38,6 +40,28 @@ export interface PlaceholderCopy {
   readonly title: string;
   readonly body: string;
   readonly preparing: string;
+}
+
+/**
+ * Ein Werkzeug im Verzeichnis.
+ *
+ * <b>`part` ist vom Typ `RcPart` und keine freie Zeichenkette.</b> Damit ist
+ * eine Adresse auf dieser Seite genau dann schreibbar, wenn es den Teil
+ * wirklich gibt — ein Tippfehler wird zum Übersetzungsfehler statt zu einem
+ * Verweis, der ins Leere führt. Und die Wörter selbst werden NICHT übersetzt:
+ * ein Link, der in drei Sprachen drei Adressen hätte, wäre in dem Augenblick
+ * kaputt, in dem ihn jemand weitergibt (siehe `rcRoute.ts`).
+ *
+ * `null` heisst: es gibt das Werkzeug, aber es hat keine eigene Adresse — es
+ * wird in einer fremden Seite eingesetzt, so wie das Obłożenie hier im Ośrodek.
+ */
+export interface ToolCopy {
+  readonly name: string;
+  readonly body: string;
+  readonly part: RcPart | null;
+
+  /** Was ohne Schlüssel zu sehen ist. Ein Satz, keine Einstufung. */
+  readonly open: string;
 }
 
 /**
@@ -324,11 +348,35 @@ export interface PublicCopy {
     readonly financialLater: string;
   };
 
+  /**
+   * Das Verzeichnis der Werkzeuge.
+   *
+   * Die Sicherheitsseite erklärt, WARUM sie so gebaut sind; hier steht, WELCHE
+   * es gibt, wo sie liegen und was ohne Schlüssel davon zu sehen ist. Beides
+   * gehört getrennt: die eine Seite ist eine Haltung, diese hier ein
+   * Nachschlagewerk.
+   */
+  readonly tools: {
+    readonly title: string;
+    readonly lead: string;
+
+    readonly addressTitle: string;
+    readonly address: string;
+    /** Der Platzhalter im Adressbeispiel — „nazwa", „Name", „name". */
+    readonly slug: string;
+
+    readonly items: readonly ToolCopy[];
+    readonly openLabel: string;
+    readonly embedded: string;
+
+    /** Der Stand. Ohne ihn liest sich das Verzeichnis als Angebot. */
+    readonly note: string;
+  };
+
   readonly placeholders: {
     readonly wydarzenia: PlaceholderCopy;
     readonly biblioteka: PlaceholderCopy;
     readonly cogita: PlaceholderCopy;
-    readonly narzedzia: PlaceholderCopy;
   };
 
   readonly notFound: { readonly title: string; readonly body: string; readonly back: string };

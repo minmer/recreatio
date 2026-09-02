@@ -581,14 +581,86 @@ export const de: PublicCopy = {
       title: 'Cogita',
       body: 'Die Lernumgebung: Storyboards, Texte, Sammlungen, Wiederholung.',
       preparing: 'Dieser Teil wird vorbereitet.'
-    },
-    narzedzia: {
-      title: 'Werkzeuge',
-      body:
-        'Kalender, Nachrichten, Belegung und Formulare — zur Nutzung durch andere '
-        + 'Gemeinschaften auf ihren eigenen Seiten.',
-      preparing: 'Dieser Teil wird vorbereitet.'
     }
+  },
+
+  tools: {
+    title: 'Werkzeuge',
+    lead:
+      'Alles, was in REcreatio entsteht, und wo es zu finden ist. Jedes Werkzeug läuft '
+      + 'für jede Gemeinschaft getrennt — eine Pfarrei, eine Gruppe, ein Jahrgang hat '
+      + 'ihre eigene Adresse und ihre eigenen Daten.',
+
+    addressTitle: 'Wie eine Adresse gebaut ist',
+    address:
+      'Erst der Teil, dann der Name: /parish/jan, nicht /jan. So dürfen zwei '
+      + 'Gemeinschaften gleich heissen, und der Browser weiss schon aus der Adresse, ob '
+      + 'er jemanden erkennen muss, bevor er etwas zeigt.',
+    slug: 'name',
+
+    openLabel: 'Ohne Schlüssel',
+    embedded: 'Ohne eigene Adresse — wird in eine fremde Seite eingesetzt.',
+
+    items: [
+      {
+        name: 'Pfarrei',
+        part: 'parish',
+        body:
+          'Messplan, Intentionen und Gaben. Der Plan hängt im Schaukasten und tut es '
+          + 'hier genauso; der Rest ist verschlossen.',
+        open: 'Der Messplan ist ohne Konto zu sehen.'
+      },
+      {
+        name: 'Veranstaltungen',
+        part: 'event',
+        body:
+          'Exerzitien, Wallfahrten und Fahrten: Ankündigung, Einzelheiten und Anmeldung. '
+          + 'Wer sie leitet, baut sie selbst.',
+        open: 'Die Ankündigung ist ohne Konto zu sehen.'
+      },
+      {
+        name: 'Cogita',
+        part: 'cogita',
+        body:
+          'Die Lernumgebung: Texte, Storyboards, Sammlungen und Wiederholung, verbunden '
+          + 'zu einem Wissensgraphen.',
+        open: 'Nichts — es braucht einen Schlüssel.'
+      },
+      {
+        name: 'Kalender',
+        part: 'calendar',
+        body:
+          'Termine, Aufgaben und Wiederholungen. Die Zeit ist offen, der Inhalt nicht: '
+          + 'man sieht, dass jemand belegt ist, nicht womit.',
+        open: 'Belegt oder frei, ohne den Inhalt.'
+      },
+      {
+        name: 'Nachrichten',
+        part: 'chat',
+        body:
+          'Das Gespräch in der Gruppe, mit Epochen: wer heute dazukommt, liest nicht, '
+          + 'was vorher stand — es sei denn, jemand öffnet es ihm eigens.',
+        open: 'Nichts — es braucht einen Schlüssel.'
+      },
+      {
+        name: 'Firmung',
+        part: 'confirmation',
+        body: 'Jahrgang, Kandidaten, Treffen und Anwesenheit. Geführt von der Katechese.',
+        open: 'Nichts — es braucht einen Schlüssel.'
+      },
+      {
+        name: 'Belegung und Anfragen',
+        part: null,
+        body:
+          'Freie und belegte Zeiten von Räumen und Häusern, dazu das Anfrageformular. '
+          + 'Wird in eine Seite eingesetzt — so wie hier beim Haus.',
+        open: 'Frei und belegt ohne Konto; die Anfrage verschlüsselt der Browser.'
+      }
+    ],
+
+    note:
+      'Die Werkzeuge entstehen mit der Plattform und sind verschieden weit. Die '
+      + 'Adressen stehen bereits fest und ändern sich nicht mehr.'
   },
 
   notFound: {

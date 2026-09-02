@@ -573,14 +573,86 @@ export const en: PublicCopy = {
       title: 'Cogita',
       body: 'The learning environment: storyboards, texts, collections, repetition.',
       preparing: 'This part is being prepared.'
-    },
-    narzedzia: {
-      title: 'Tools',
-      body:
-        'Calendar, chat, occupancy and forms — for other communities to use on their own '
-        + 'pages.',
-      preparing: 'This part is being prepared.'
     }
+  },
+
+  tools: {
+    title: 'Tools',
+    lead:
+      'Everything being built in REcreatio, and where to find it. Each tool runs '
+      + 'separately for each community — a parish, a group, a confirmation year has its '
+      + 'own address and its own data.',
+
+    addressTitle: 'How an address is built',
+    address:
+      'The part first, then the name: /parish/jan, not /jan. That way two communities '
+      + 'may share a name, and the browser knows from the address alone whether it must '
+      + 'recognise someone before showing anything.',
+    slug: 'name',
+
+    openLabel: 'Without a key',
+    embedded: 'No address of its own — it is placed inside another page.',
+
+    items: [
+      {
+        name: 'Parish',
+        part: 'parish',
+        body:
+          'Mass schedule, intentions and offerings. The schedule hangs in the noticeboard '
+          + 'and does the same here; the rest is sealed.',
+        open: 'The mass schedule is visible without an account.'
+      },
+      {
+        name: 'Events',
+        part: 'event',
+        body:
+          'Retreats, pilgrimages and expeditions: the announcement, the details and '
+          + 'sign-up. Whoever leads one builds it themselves.',
+        open: 'The announcement is visible without an account.'
+      },
+      {
+        name: 'Cogita',
+        part: 'cogita',
+        body:
+          'The learning environment: texts, storyboards, collections and repetition, tied '
+          + 'together into a knowledge graph.',
+        open: 'Nothing — a key is needed.'
+      },
+      {
+        name: 'Calendar',
+        part: 'calendar',
+        body:
+          'Dates, tasks and repetitions. The time is open, the content is not: you can '
+          + 'see that someone is busy, not what with.',
+        open: 'Busy or free, without the content.'
+      },
+      {
+        name: 'Chat',
+        part: 'chat',
+        body:
+          'Conversation in a group, with epochs: whoever joins today does not read what '
+          + 'came before, unless someone deliberately opens it to them.',
+        open: 'Nothing — a key is needed.'
+      },
+      {
+        name: 'Confirmation',
+        part: 'confirmation',
+        body: 'The year, candidates, meetings and attendance. Run by the catechist.',
+        open: 'Nothing — a key is needed.'
+      },
+      {
+        name: 'Occupancy and enquiries',
+        part: null,
+        body:
+          'Free and taken times for rooms and houses, plus the enquiry form. Placed into '
+          + 'a page — as on the house page here.',
+        open: 'Free and taken without an account; the enquiry is encrypted in the browser.'
+      }
+    ],
+
+    note:
+      'The tools are being built along with the platform and are at different stages. '
+      + 'The addresses are already settled and will not change.'
   },
 
   notFound: {

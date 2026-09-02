@@ -585,14 +585,86 @@ export const pl: PublicCopy = {
       title: 'Cogita',
       body: 'Środowisko do nauki: storyboardy, teksty, zbiory i powtórki.',
       preparing: 'Ta część jest przygotowywana.'
-    },
-    narzedzia: {
-      title: 'Narzędzia',
-      body:
-        'Kalendarz, czat, obłożenie i formularze — do wykorzystania przez inne '
-        + 'wspólnoty na własnych stronach.',
-      preparing: 'Ta część jest przygotowywana.'
     }
+  },
+
+  tools: {
+    title: 'Narzędzia',
+    lead:
+      'Wszystko, co powstaje w REcreatio, i gdzie tego szukać. Każde narzędzie działa '
+      + 'osobno dla każdej wspólnoty — parafia, grupa czy rocznik ma własny adres '
+      + 'i własne dane.',
+
+    addressTitle: 'Jak zbudowany jest adres',
+    address:
+      'Najpierw część, potem nazwa: /parish/jan, a nie /jan. Dzięki temu dwie różne '
+      + 'wspólnoty mogą nazywać się tak samo, a przeglądarka wie z samego adresu, czy '
+      + 'musi kogoś rozpoznać, zanim cokolwiek pokaże.',
+    slug: 'nazwa',
+
+    openLabel: 'Bez klucza',
+    embedded: 'Bez własnego adresu — wstawiane w cudzą stronę.',
+
+    items: [
+      {
+        name: 'Parafia',
+        part: 'parish',
+        body:
+          'Plan Mszy, intencje i ofiary. Plan wisi w gablocie i tak samo działa tutaj; '
+          + 'reszta jest zamknięta.',
+        open: 'Plan Mszy widać bez konta.'
+      },
+      {
+        name: 'Wydarzenia',
+        part: 'event',
+        body:
+          'Rekolekcje, pielgrzymki i wyprawy: ogłoszenie, szczegóły i zapisy. Kto '
+          + 'prowadzi, buduje wydarzenie sam.',
+        open: 'Ogłoszenie widać bez konta.'
+      },
+      {
+        name: 'Cogita',
+        part: 'cogita',
+        body:
+          'Środowisko do nauki: teksty, storyboardy, zbiory i powtórki, powiązane w graf '
+          + 'wiedzy.',
+        open: 'Nic — potrzebny jest klucz.'
+      },
+      {
+        name: 'Kalendarz',
+        part: 'calendar',
+        body:
+          'Terminy, zadania i powtórzenia. Czas jest jawny, treść nie: widać, że ktoś '
+          + 'jest zajęty, nie widać czym.',
+        open: 'Zajętość terminu, bez treści.'
+      },
+      {
+        name: 'Czat',
+        part: 'chat',
+        body:
+          'Rozmowa w grupie, z epokami: kto dołącza dziś, nie czyta tego, co było '
+          + 'wcześniej, chyba że ktoś świadomie mu to otworzy.',
+        open: 'Nic — potrzebny jest klucz.'
+      },
+      {
+        name: 'Bierzmowanie',
+        part: 'confirmation',
+        body: 'Rocznik, kandydaci, spotkania i obecności. Prowadzone przez katechetę.',
+        open: 'Nic — potrzebny jest klucz.'
+      },
+      {
+        name: 'Obłożenie i zapytania',
+        part: null,
+        body:
+          'Wolne i zajęte terminy sal i domów, oraz formularz zapytania. Wstawiane '
+          + 'w stronę — tak jak na stronie ośrodka tutaj.',
+        open: 'Wolne i zajęte widać bez konta; treść zapytania szyfruje przeglądarka.'
+      }
+    ],
+
+    note:
+      'Narzędzia powstają razem z platformą i są na różnych etapach. Adresy są już '
+      + 'ustalone i nie będą się zmieniać.'
   },
 
   notFound: {

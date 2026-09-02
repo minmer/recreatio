@@ -1698,6 +1698,53 @@
 .pub-tool { border-top: 1px solid var(--line); padding-top: 0.9rem; }
 .pub-tool .pub-p { max-width: none; font-size: 0.96rem; }
 
+/*
+   Die Adresse eines Werkzeugs.
+
+   Sie steht in Schreibmaschinenschrift, weil sie eine ist: etwas, das man
+   abtippt oder weitergibt, kein Fliesstext. Der Umbruch ist ausdruecklich
+   erlaubt — eine Adresse, die aus ihrem Feld laeuft, ist auf einem Telefon
+   schlimmer als eine, die zweizeilig steht.
+*/
+.pub-tool-at { margin: 0.55rem 0 0; }
+
+.pub-tool-at code {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 0.15rem 0.45rem;
+  overflow-wrap: anywhere;
+}
+
+/* Ein Werkzeug ohne eigene Adresse sagt das im Fliesstext, nicht als Code. */
+.pub-tool-at[data-kind='none'] {
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+}
+
+.pub-tool-open {
+  margin: 0.5rem 0 0;
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+/* „Ohne Schluessel" steht als Marke davor, damit die Zeile scanbar bleibt. */
+.pub-tool-tag {
+  display: inline-block;
+  margin-right: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
 /* -- Listen ---------------------------------------------------------------- */
 
 .pub-list { margin: 0; padding-left: 1.25rem; color: var(--ink-soft); max-width: var(--measure); }

@@ -32,6 +32,7 @@ import { ContactPage } from './pages/ContactPage';
 import { OsrodekPage } from './pages/OsrodekPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { WesprzyjPage } from './pages/WesprzyjPage';
+import { ToolsPage } from './pages/ToolsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
 import './public.css';
@@ -81,9 +82,7 @@ export function PublicApp() {
           <PlaceholderPage copy={copy} page={copy.placeholders.biblioteka} />
         )}
         {page === 'cogita' && <PlaceholderPage copy={copy} page={copy.placeholders.cogita} />}
-        {page === 'narzedzia' && (
-          <PlaceholderPage copy={copy} page={copy.placeholders.narzedzia} />
-        )}
+        {page === 'narzedzia' && <ToolsPage copy={copy} />}
 
         {page === null && <NotFoundPage copy={copy} />}
       </main>
