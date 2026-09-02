@@ -45,6 +45,8 @@ export const pl: PublicCopy = {
     menu: 'Menu',
     skipToContent: 'Przejdź do treści',
     signIn: 'Zaloguj się',
+    register: 'Rejestracja',
+    access: 'Dostęp',
     platform: 'Platforma',
     account: 'Konto',
     lock: 'Zablokuj klucze',
@@ -603,6 +605,7 @@ export const pl: PublicCopy = {
     slug: 'nazwa',
 
     openLabel: 'Bez klucza',
+    instances: 'Już istnieje',
     embedded: 'Bez własnego adresu — wstawiane w cudzą stronę.',
 
     items: [

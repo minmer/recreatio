@@ -60,19 +60,52 @@ export function PublicAuth({
     };
   }, []);
 
-  // Abgemeldet gibt es nichts zu überlaufen: ein Knopf, der in die Plattform
-  // führt. Ein leeres Menü aufzuklappen wäre eine Verheissung ohne Inhalt.
+  /*
+   * ABGEMELDET ÜBERLÄUFT ES AUCH — und zwar mit ZWEI Einträgen.
+   *
+   * Der Altbestand kannte beides: „Logowanie" und „Rejestracja", zwei Reiter
+   * derselben Tafel. Hier stand bis jetzt nur ein Knopf mit „Zaloguj się", und
+   * wer noch kein Konto hat, las daraus, dass die Seite nichts für ihn hat.
+   *
+   * Beide führen an dieselbe Stelle, weil die Plattform beides auf einer Maske
+   * anbietet. Das ist kein Umweg: der Knopf soll SAGEN, dass es zweierlei
+   * gibt, und das Formular tut es dann.
+   */
   if (!signedIn) {
     return (
-      <a
-        className="pub-auth"
-        href={RC_HASH_BASE}
-        aria-busy={busy}
-        onMouseEnter={onAsk}
-        onFocus={onAsk}
+      <div
+        className={`pub-menu ${open ? 'is-open' : ''}`}
+        ref={wrapper}
+        onMouseEnter={() => { setOpen(true); onAsk(); }}
+        onMouseLeave={() => setOpen(false)}
+        onPointerDown={(event) => { pointer.current = event.pointerType; }}
       >
-        {copy.nav.signIn}
-      </a>
+        <a
+          className="pub-auth"
+          href={RC_HASH_BASE}
+          aria-busy={busy}
+          aria-expanded={open}
+          aria-haspopup="menu"
+          onFocus={onAsk}
+          onClick={(event) => {
+            if (pointer.current === 'touch' || pointer.current === 'pen') {
+              event.preventDefault();
+              setOpen((current) => !current);
+            }
+          }}
+        >
+          {copy.nav.access}
+        </a>
+
+        <div className="pub-menu-drop" role="menu">
+          <a href={RC_HASH_BASE} role="menuitem" onClick={() => setOpen(false)}>
+            {copy.nav.signIn}
+          </a>
+          <a href={RC_HASH_BASE} role="menuitem" onClick={() => setOpen(false)}>
+            {copy.nav.register}
+          </a>
+        </div>
+      </div>
     );
   }
 

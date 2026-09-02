@@ -30,6 +30,8 @@ export const en: PublicCopy = {
     menu: 'Menu',
     skipToContent: 'Skip to content',
     signIn: 'Sign in',
+    register: 'Register',
+    access: 'Access',
     platform: 'Platform',
     account: 'Account',
     lock: 'Lock keys',
@@ -591,6 +593,7 @@ export const en: PublicCopy = {
     slug: 'name',
 
     openLabel: 'Without a key',
+    instances: 'Already there',
     embedded: 'No address of its own — it is placed inside another page.',
 
     items: [
