@@ -32,6 +32,10 @@
 /**
  * Wo die Plattform hängt. EINE Stelle — wird aus `#/new` später `#`, ändert
  * sich diese Zeile und sonst nichts.
+ *
+ * DOMAENENWECHSEL — mit einer eigenen Domäne je Mandant wird daraus womöglich
+ * `/`. Die vollständige Liste dessen, was dann zusammengehört, steht in
+ * `rcOrigins.ts`.
  */
 export const RC_HASH_BASE = '#/new';
 

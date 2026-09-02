@@ -9,6 +9,9 @@
  *   3. Nichts sonst. Die Seiten kennen keine Adresse; sie bekommen ihre Links
  *      aus `publicHref()`.
  *
+ * DOMAENENWECHSEL — dieser Umzug und der der Plattform gehören zusammen; die
+ * vollständige Liste steht in `rc/lib/rcOrigins.ts`.
+ *
  * Solange 1 und 2 nicht geschehen sind, ist die Seite für Suchmaschinen EINE
  * Adresse. Das ist die Folge der Raute — was hinter ihr steht, erreicht den
  * Server nie — und steht hier, damit es niemand später für ein Versehen hält.

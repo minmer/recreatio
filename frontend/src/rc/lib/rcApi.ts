@@ -16,8 +16,32 @@
  */
 
 import type { components } from './rcApiTypes';
+import { RC_API_ORIGIN } from './rcOrigins';
 
-const RC_BASE = (import.meta.env.VITE_RC_API_BASE as string | undefined) ?? '/rc';
+/**
+ * Wo die Plattform-API liegt.
+ *
+ * <b>Der Rückfall war relativ, und genau daher kam der 405.</b> `/rc` löst
+ * gegen den Ursprung der Seite auf; auf recreatio.pl ist das GitHub Pages, ein
+ * Dateiserver, der auf JEDES POST mit 405 antwortet. Es war also nie eine API,
+ * die da geantwortet hat.
+ *
+ * Der Altbestand hatte dieses Problem nie, weil sein Rückfall ABSOLUT ist
+ * (`src/lib/api.ts`: `?? 'https://api.recreatio.pl'`). Ohne gesetzte
+ * Umgebungsvariable zeigt er trotzdem auf den richtigen Dienst — hier zeigte er
+ * auf den Dateiserver.
+ *
+ * Relativ bleibt es nur in der ENTWICKLUNG, und dort ist es richtig: der
+ * Entwicklungsserver leitet `/rc` an den lokalen Dienst weiter, damit beides
+ * unter demselben Ursprung liegt und das Sitzungsplätzchen überhaupt
+ * zurückkommt (siehe `vite.config.ts` und `RcCookiePolicy`).
+ *
+ * DOMAENENWECHSEL — der feste Name steht in `rcOrigins.ts`, zusammen mit der
+ * Liste dessen, was sich mit weiteren Domänen sonst noch ändert.
+ */
+const RC_BASE =
+  (import.meta.env.VITE_RC_API_BASE as string | undefined)
+  ?? (import.meta.env.DEV ? '/rc' : `${RC_API_ORIGIN}/rc`);
 
 /**
  * 15.6 — Die Formen kommen aus `rcApiTypes.ts`, und die Datei ist erzeugt.

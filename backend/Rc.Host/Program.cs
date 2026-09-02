@@ -16,6 +16,27 @@ using Rc.Api;
 // Umweg kaeme das SameSite=Lax-Cookie nie zurueck (siehe vite.config.ts).
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// DOMAENENWECHSEL — was hier NOCH FEHLT.
+//
+// Der Browser-Teil liegt auf recreatio.pl, dieser Dienst auf api.recreatio.pl.
+// Das ist ursprungsuebergreifend, und dafuer braucht es zweierlei:
+//
+//   1. Das Plaetzchen als SameSite=None; Secure. Das ist da — RcCookiePolicy
+//      setzt es so, sobald Rc:CrossSiteCookies gilt (Standard: wahr).
+//   2. CORS mit Access-Control-Allow-Credentials und einer AUSDRUECKLICHEN
+//      Ursprungsliste. Das ist NICHT da: dieser Dienst richtet kein CORS ein.
+//
+// Ohne (2) blockt der Browser die Anfrage, bevor der Dienst sie sieht. Der
+// Altbestand hat es (Recreatio.Api: AddRecreatioCors, "RecreatioWeb"); der
+// neue Teil noch nicht, weil er bisher nur hinter dem Entwicklungs-Umweg lief,
+// wo alles auf EINEM Ursprung liegt und CORS gar nicht entsteht.
+//
+// Wenn es kommt: die Ursprungsliste gehoert in die Konfiguration und nicht in
+// den Quelltext — mit mehreren Domaenen ist sie je Betrieb verschieden.
+// Zusammen mit rcOrigins.ts im Browser-Teil zu aendern.
+// ---------------------------------------------------------------------------
+
 var builder = WebApplication.CreateBuilder(args);
 
 // -- Verbindung --------------------------------------------------------------
