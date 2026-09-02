@@ -11,7 +11,7 @@ namespace Rc.Api;
 /// Der Anschlusspunkt der neuen Plattform.
 ///
 /// Sie laeuft NEBEN dem Altbestand (2.1): eigener Pfad <c>/rc</c>, eigene
-/// Datenbank, eigenes Schema. Kein gemeinsames Schema, keine geteilten
+/// Datenbank, getrennt ueber das Praefix rc_ auf jeder Tabelle. Keine geteilten
 /// Tabellen, <b>keine Zwischenschicht, die beide bedient</b>.
 ///
 /// Derselbe Prozess ist ausdruecklich erlaubt — 2.1 verbietet geteilte Daten,

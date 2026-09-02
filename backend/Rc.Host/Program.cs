@@ -50,15 +50,19 @@ const string LocalDb =
     "Server=(localdb)\\MSSQLLocalDB;Database=Recreatio_Rc;" +
     "Trusted_Connection=True;TrustServerCertificate=True;";
 
+// RcDb.Resolve statt eines eigenen Zugriffs: derselbe Weg wie im Betrieb —
+// erst Rc:ConnectionString, sonst die des Altbestands. Es ist DIESELBE
+// Datenbank; getrennt wird ueber das Praefix rc_ auf jeder Tabelle.
 var connection =
     Environment.GetEnvironmentVariable("RC_CONNECTION")
-    ?? builder.Configuration["Rc:ConnectionString"];
+    ?? Rc.Api.RcDb.Resolve(builder.Configuration);
 
 if (string.IsNullOrWhiteSpace(connection))
 {
     if (!builder.Environment.IsDevelopment())
         throw new InvalidOperationException(
-            "Rc:ConnectionString fehlt. Ausserhalb der Entwicklung gibt es keinen Ersatzwert.");
+            "Rc:ConnectionString fehlt und es gibt keine des Altbestands, aus der sie "
+            + "folgen koennte. Ausserhalb der Entwicklung gibt es keinen Ersatzwert.");
 
     connection = LocalDb;
 }

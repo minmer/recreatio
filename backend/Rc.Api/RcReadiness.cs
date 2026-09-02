@@ -71,9 +71,14 @@ public static class RcReadiness
 
     private static Check CheckConnectionString(IConfiguration config)
     {
-        var cs = config["Rc:ConnectionString"];
+        // Dieselbe Aufloesung wie im Betrieb (RcDb.Resolve): der eigene
+        // Schluessel, sonst der des Altbestands — dieselbe Datenbank, getrennt
+        // ueber das Praefix rc_. Laese die Pruefung nur den einen Schluessel,
+        // meldete sie einen Mangel, den es nicht gibt.
+        var cs = RcDb.Resolve(config);
         if (string.IsNullOrWhiteSpace(cs))
-            return new Check("Verbindungszeichenfolge", false, "Rc:ConnectionString fehlt.");
+            return new Check("Verbindungszeichenfolge", false,
+                $"Weder {RcDb.ConfigKey} noch {RcDb.FallbackKey} ist gesetzt.");
 
         // Der Altbestand hat einen Platzhalter ausgeliefert, der erst beim
         // ersten Entschluesseln auffiel. Platzhalter werden hier erkannt.
@@ -129,7 +134,7 @@ public static class RcReadiness
 
     private static async Task<Check> CheckDatabaseAsync(IConfiguration config)
     {
-        var cs = config["Rc:ConnectionString"];
+        var cs = RcDb.Resolve(config);
         if (string.IsNullOrWhiteSpace(cs))
             return new Check("Datenbank", false, "keine Verbindungszeichenfolge");
 
@@ -155,7 +160,7 @@ public static class RcReadiness
 
     private static async Task<Check> CheckSchemaVersionAsync(IConfiguration config)
     {
-        var cs = config["Rc:ConnectionString"];
+        var cs = RcDb.Resolve(config);
         if (string.IsNullOrWhiteSpace(cs))
             return new Check("Schemafassung", false, "keine Verbindungszeichenfolge");
 

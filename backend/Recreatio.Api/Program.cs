@@ -5,8 +5,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRecreatioApi(builder.Configuration, builder.Environment);
 
 // Die neue Plattform laeuft NEBEN dem Altbestand (Spezifikation 2.1): eigener
-// Pfad /rc, eigene Datenbank, eigenes Schema. Kein gemeinsames Schema, keine
-// geteilten Tabellen, keine Zwischenschicht, die beide bedient.
+// Pfad /rc, eigenes Anmeldeverfahren, eigene Tabellen. Dieselbe Datenbank:
+// getrennt wird ueber das Praefix rc_, das JEDE Tabelle des Neuaufbaus traegt
+// und KEINE des Altbestands. Keine geteilten Tabellen, keine Zwischenschicht,
+// die beide bedient.
 //
 // Derselbe Prozess ist ausdruecklich erlaubt — 2.1 verbietet geteilte Daten,
 // nicht geteilten Arbeitsspeicher. Der Wirt kennt beide Seiten; das ist
