@@ -251,10 +251,13 @@ export interface PublicCopy {
 
   readonly contact: {
     readonly title: string;
-    readonly lead: string;
     readonly email: string;
-    readonly address: Text;
+
+    /** Wer antwortet. Steht über der Anschrift, wie auf einem Briefumschlag. */
     readonly people: Text;
+
+    /** Strasse und Ort, durch einen Zeilenumbruch getrennt. */
+    readonly address: Text;
   };
 
   readonly osrodek: {

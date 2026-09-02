@@ -77,8 +77,19 @@ export function PublicHeader({
     <header className="pub-head">
       <a className="pub-skip" href="#pub-main">{copy.nav.skipToContent}</a>
 
+      {/*
+        Das Zeichen wechselt mit der Ansicht.
+
+        Die Kopfleiste steht auf `--paper`, und das ist in der dunklen Ansicht
+        dunkel — die dunkle Fassung des Zeichens stand dort auf ihresgleichen
+        und war schlicht nicht zu sehen. `<picture>` entscheidet das ohne
+        JavaScript und ohne einen zweiten, versteckten Abzug im Baum.
+      */}
       <a className="pub-brand" href={publicHref('front')}>
-        <img src="/logo_new.svg" alt={copy.meta.siteName} width="150" height="34" />
+        <picture>
+          <source srcSet="/logo_inv.svg" media="(prefers-color-scheme: dark)" />
+          <img src="/logo_new.svg" alt={copy.meta.siteName} width="150" height="34" />
+        </picture>
       </a>
 
       <button

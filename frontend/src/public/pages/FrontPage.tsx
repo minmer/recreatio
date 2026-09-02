@@ -266,6 +266,32 @@ const COAST_SLIDE = 150;
 const COAST_MIN = 0.0004;
 
 /**
+ * Der Magnet: wie schnell die nächste Blase den Auslauf an sich zieht.
+ *
+ * Das Gefälle aus COAST_STICK/COAST_SLIDE allein liess die Bewegung meistens
+ * bei einer Blase versickern — meistens genügt aber nicht. Wer sanft schiebt
+ * und loslässt, blieb dazwischen stehen, und dann ist keine Blase betont und
+ * keine ganz da.
+ *
+ * Deshalb zieht zusätzlich die nächstgelegene Blase, mit dieser Halbwertszeit.
+ * Es ist ein Sog und kein Einrasten: eine Ausgleichsbewegung, die immer
+ * gleichläufig ist und nie überschwingt, weil sie sich dem Ziel nur nähert.
+ * Wer weiterschieben will, hebt sie mit der nächsten Geste auf.
+ */
+const MAGNET_HALF = 150;
+
+/**
+ * Wie weit der Magnet in Fahrtrichtung vorausgreift.
+ *
+ * Ohne das läge die Grenze genau in der Mitte, und wer sich vorwärts bewegt,
+ * würde bis 0.49 immer wieder zurückgezogen. Mit dem Vorgriff kippt die
+ * Zuständigkeit schon bei knapp einem Drittel — vorwärts geht es leichter
+ * vorwärts. Mehr als das wäre zu gierig: dann risse schon ein kleiner Schubs
+ * bis zur nächsten Blase durch.
+ */
+const MAGNET_LEAD = 0.18;
+
+/**
  * So frisch muss die letzte Bewegung sein, damit überhaupt ausgerollt wird.
  *
  * Sonst rollte auch aus, wer die Hand eine Sekunde stillhält und dann hebt: die
@@ -741,6 +767,7 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
     let coasting = false;
     let vel = 0;
     let coastAt = 0;
+    let coastDir = 1;
 
     /** Der Zeitstempel des letzten Ereignisses. */
     let lastEvent = 0;
@@ -899,8 +926,14 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
          * ohnehin mit der Geschwindigkeit null, und noch etwas anzuhängen hiesse,
          * über den Rastpunkt hinauszuschiessen.
          */
-        if (!snapping && now - lastEvent < COAST_HAND && Math.abs(speed / stepPx) > COAST_MIN) {
+        /*
+         * Kein Mindesttempo mehr: auch wer ganz sanft schiebt und loslaesst,
+         * bekommt den Auslauf — sonst bliebe genau der zwischen zwei Blasen
+         * stehen, und der Magnet, der ihn holen soll, liefe nie an.
+         */
+        if (!snapping && now - lastEvent < COAST_HAND) {
           vel = speed / stepPx;
+          coastDir = Math.sign(speed) || 1;
           coastAt = now;
           coasting = true;
           frame = requestAnimationFrame(tick);
@@ -932,14 +965,28 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
 
       const { origin } = measure();
       const zone = zoneOf(target);
-      const next = Math.min(zone.to, Math.max(zone.at, target + vel * dt));
-      const stuck = next === target;
+      let next = Math.min(zone.to, Math.max(zone.at, target + vel * dt));
+
+      /*
+       * Und die nächste Blase zieht.
+       *
+       * Der Vorgriff in Fahrtrichtung entscheidet, WELCHE das ist: vorwärts
+       * wird schon ab knapp einem Drittel die nächste zuständig, nicht erst ab
+       * der Hälfte. Der Zug selbst nähert sich dem Ziel nur an — er kann es
+       * nicht überschreiten und deshalb auch nicht schwingen.
+       */
+      const aim = Math.min(zone.to, Math.max(zone.at,
+        Math.round(next + coastDir * MAGNET_LEAD)));
+      next += (aim - next) * (1 - Math.pow(0.5, dt / MAGNET_HALF));
+
+      const arrived = Math.abs(vel) < COAST_MIN && Math.abs(aim - next) < 0.004;
+      const edge = next === target && Math.abs(vel) >= COAST_MIN;
 
       target = next;
       window.scrollTo(0, origin + target * stepPx);
       paint();
 
-      if (stuck || Math.abs(vel) < COAST_MIN) { coasting = false; vel = 0; return; }
+      if (arrived || edge) { coasting = false; vel = 0; return; }
       frame = requestAnimationFrame(tick);
     };
 
@@ -1456,13 +1503,20 @@ export function FrontPage({ copy }: { copy: PublicCopy }) {
           <section className="rc-contact" aria-labelledby="rc-h4">
             <div className="rc-contact-in">
               <h2 className="rc-h2" id="rc-h4">{copy.contact.title}</h2>
-              <p className="rc-contact-lead">{copy.contact.lead}</p>
 
               <p className="rc-contact-mail">
                 <a href={`mailto:${copy.contact.email}`}>{copy.contact.email}</a>
               </p>
 
-              <PublicText value={copy.contact.address} copy={copy} as="div" />
+              {/*
+                Wer antwortet, und wohin man schreiben kann — in dieser
+                Reihenfolge, wie auf einem Briefumschlag. Der Name stand bis
+                jetzt zwar im Text, wurde aber nirgends ausgegeben.
+              */}
+              <address className="rc-contact-at">
+                <PublicText value={copy.contact.people} copy={copy} as="span" />
+                <PublicText value={copy.contact.address} copy={copy} as="span" />
+              </address>
 
               {/* Die ehrliche Zeile steht auch hier — sie ist das Letzte, was
                   jemand liest, und sie muss stimmen. */}

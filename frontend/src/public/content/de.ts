@@ -424,10 +424,9 @@ export const de: PublicCopy = {
 
   contact: {
     title: 'Kontakt',
-    lead: 'Es antwortet ein Mensch, kein Formular.',
-    email: 'kontakt@recreatio.pl',
-    address: { missing: 'Postanschrift und die Entscheidung, ob sie vor der Eröffnung öffentlich sein darf' },
-    people: { missing: 'Ansprechpartner und die Zustimmung, Namen zu nennen' }
+    email: 'mleczek_grzegorzki@outlook.com',
+    address: 'ul. Żuławskiego 3E\n34-600 Limanowa, Polen',
+    people: 'Pfr. Michał Mleczek'
   },
 
   osrodek: {
@@ -531,7 +530,7 @@ export const de: PublicCopy = {
       sentBody: 'Wir antworten auf dem angegebenen Weg.',
       failed:
         'Die Anfrage liess sich nicht senden. Bitte noch einmal versuchen oder an '
-        + 'kontakt@recreatio.pl schreiben.',
+        + 'mleczek_grzegorzki@outlook.com schreiben.',
       sealedNote:
         'Das Formular verschlüsselt im Browser, bevor etwas das Gerät verlässt. Lesen '
         + 'kann es nur, wer das Haus führt.',

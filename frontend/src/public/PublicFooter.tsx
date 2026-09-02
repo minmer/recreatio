@@ -19,8 +19,18 @@ import { publicHref } from './publicRoutes';
 export function PublicFooter({ copy }: { copy: PublicCopy }) {
   return (
     <footer className="pub-foot">
+      {/*
+        Hier wechselt das Zeichen GENAU ANDERSHERUM als in der Kopfleiste.
+
+        Der Balken ist der Gegensatz zur Seite: dunkel auf hellem Grund, hell
+        auf dunklem. Also braucht er in der hellen Ansicht die helle Fassung und
+        in der dunklen die dunkle — beide Male die umgekehrte von oben.
+      */}
       <div className="pub-foot-mark">
-        <img src="/logo_inv.svg" alt={copy.footer.logoAlt} width="132" height="30" />
+        <picture>
+          <source srcSet="/logo_new.svg" media="(prefers-color-scheme: dark)" />
+          <img src="/logo_inv.svg" alt={copy.footer.logoAlt} width="132" height="30" />
+        </picture>
         <span>{copy.footer.initiative}</span>
       </div>
 

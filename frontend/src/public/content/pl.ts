@@ -428,10 +428,9 @@ export const pl: PublicCopy = {
 
   contact: {
     title: 'Kontakt',
-    lead: 'Odpowiada człowiek, nie formularz.',
-    email: 'kontakt@recreatio.pl',
-    address: { missing: 'Adres pocztowy i decyzja, czy może być publikowany przed otwarciem' },
-    people: { missing: 'Osoby do kontaktu i zgoda na publikację nazwisk' }
+    email: 'mleczek_grzegorzki@outlook.com',
+    address: 'ul. Żuławskiego 3E\n34-600 Limanowa',
+    people: 'ks. Michał Mleczek'
   },
 
   osrodek: {
@@ -535,7 +534,7 @@ export const pl: PublicCopy = {
       sentBody: 'Odpiszemy na podany kontakt.',
       failed:
         'Nie udało się wysłać zapytania. Spróbuj ponownie albo napisz '
-        + 'na kontakt@recreatio.pl.',
+        + 'na mleczek_grzegorzki@outlook.com.',
       sealedNote:
         'Formularz szyfruje dane w przeglądarce, zanim wyjdą z urządzenia. Odczyta je '
         + 'tylko osoba prowadząca ośrodek.',

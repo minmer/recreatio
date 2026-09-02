@@ -417,10 +417,9 @@ export const en: PublicCopy = {
 
   contact: {
     title: 'Contact',
-    lead: 'A person answers, not a form.',
-    email: 'kontakt@recreatio.pl',
-    address: { missing: 'Postal address, and whether it may be published before opening' },
-    people: { missing: 'Contact people and consent for names to appear' }
+    email: 'mleczek_grzegorzki@outlook.com',
+    address: 'ul. Żuławskiego 3E\n34-600 Limanowa, Poland',
+    people: 'Fr. Michał Mleczek'
   },
 
   osrodek: {
@@ -523,7 +522,7 @@ export const en: PublicCopy = {
       sent: 'Enquiry sent.',
       sentBody: 'We will reply by the means you gave.',
       failed:
-        'The enquiry could not be sent. Please try again or write to kontakt@recreatio.pl.',
+        'The enquiry could not be sent. Please try again or write to mleczek_grzegorzki@outlook.com.',
       sealedNote:
         'The form encrypts in the browser before anything leaves the device. Only whoever '
         + 'runs the house can read it.',
