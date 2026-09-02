@@ -367,8 +367,9 @@ public static class RcAttachments
 
     // -- Kleinkram ------------------------------------------------------------
 
-    private static string StoreRoot(IConfiguration config) =>
-        config["Rc:FileStorePath"] ?? throw new InvalidOperationException("Rc:FileStorePath fehlt.");
+    // Aufgeloest gegen das Anwendungsverzeichnis, damit ein relativer Pfad
+    // nicht davon abhaengt, was gerade das aktuelle Verzeichnis ist (RcFileStore).
+    private static string StoreRoot(IConfiguration config) => RcFileStore.Root(config);
 
     /// <summary>
     /// Zwei Ebenen aus der Kennung. Zehntausend Dateien in einem Ordner sind

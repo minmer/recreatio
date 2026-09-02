@@ -114,7 +114,10 @@ public static class RcReadiness
         // 9.10.1: Anhaenge liegen verschluesselt im Dateisystem, nicht in der
         // Datenbank. Ohne beschreibbaren Pfad nimmt der Dienst Uploads an, die
         // er nicht ablegen kann.
-        var path = config["Rc:FileStorePath"];
+        // Dieselbe Aufloesung wie im Betrieb: sonst prueft die Pruefung einen
+        // anderen Ordner als den, in den spaeter geschrieben wird — und meldet
+        // gruen fuer eine Stelle, die niemand benutzt.
+        var path = RcFileStore.TryRoot(config);
         if (string.IsNullOrWhiteSpace(path))
             return new Check("Dateispeicher", false, "Rc:FileStorePath fehlt.");
 
