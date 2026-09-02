@@ -22,15 +22,30 @@ DECLARE @ok int = 0, @fail int = 0;
    ihre Anzahl. Eine Zahl hier war ein Fehler: sie schlug beim dritten Skript
    fehl, obwohl nichts kaputt war, und haette dazu verfuehrt, die Pruefung
    hochzuzaehlen statt hinzusehen. Ein Test, den man beim Erweitern routinemaessig
-   nachzieht, prueft bald nichts mehr.                                          */
-IF NOT EXISTS (
-    SELECT s.name
-    FROM (VALUES (N'rc_0001_kernel'), (N'rc_0002_chat'), (N'rc_0003_invitation'),
-                 (N'rc_0004_datakinds'), (N'rc_0005_recovery_contribution')) AS s(name)
-    WHERE NOT EXISTS (SELECT 1 FROM dbo.rc_schema_version v WHERE v.script_name = s.name))
+   nachzieht, prueft bald nichts mehr.
+
+   Und genau das ist dieser Liste dann doch passiert: sie blieb bei fuenf
+   stehen, waehrend zwoelf Skripte entstanden. Sieben davon hat sie nie
+   geprueft — bestanden hat sie trotzdem, und das ist die schlechteste Art zu
+   bestehen. Wer ein Skript hinzufuegt, traegt es HIER ein; ohne den Eintrag
+   prueft die Reihe es nicht.
+
+   Sie sagt jetzt auch, WELCHES fehlt. „Ein erwartetes Skript fehlt" liess den
+   Betreiber vor zwoelf Namen raten, von denen die Reihe genau einen meinte.   */
+DECLARE @missing nvarchar(max);
+
+SELECT @missing = STRING_AGG(s.name, N', ') WITHIN GROUP (ORDER BY s.name)
+FROM (VALUES (N'rc_0001_kernel'), (N'rc_0002_chat'), (N'rc_0003_invitation'),
+             (N'rc_0004_datakinds'), (N'rc_0005_recovery_contribution'),
+             (N'rc_0006_events'), (N'rc_0007_event_intake'), (N'rc_0008_parish'),
+             (N'rc_0009_graph'), (N'rc_0010_calendar'), (N'rc_0011_confirmation'),
+             (N'rc_0012_resource')) AS s(name)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.rc_schema_version v WHERE v.script_name = s.name);
+
+IF @missing IS NULL
     BEGIN SET @ok += 1; PRINT '  OK   15.4   Fassungsverzeichnis fuehrt jedes erwartete Skript'; END
 ELSE
-    BEGIN SET @fail += 1; PRINT '  FAIL 15.4   Fassungsverzeichnis: ein erwartetes Skript fehlt'; END
+    BEGIN SET @fail += 1; PRINT '  FAIL 15.4   Fassungsverzeichnis, es fehlen: ' + @missing; END
 
 /* Vorbereitung */
 DECLARE @area uniqueidentifier = NEWID();
