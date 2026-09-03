@@ -86,7 +86,24 @@ public enum RcField
     // verschluesselten Klumpen fuer alles (PayloadEnc); damit laesst sich der
     // Klumpen eines Kindes gegen den eines anderen tauschen, ohne dass etwas
     // auffaellt. Jedes Feld traegt deshalb sein eigenes Etikett.
+    /// <summary>
+    /// Der zusammengesetzte Name — nur noch fuer Kandidaten, die jemand von
+    /// innen eingetragen hat. Selbstanmeldungen fuellen
+    /// <see cref="CandidateGiven"/> und <see cref="CandidateSurname"/>.
+    /// </summary>
     CandidateName,
+
+    /*
+     * Vorname, Nachname und Adresse je fuer sich.
+     *
+     * Vorher trug ein Feld beide Namen und ein anderes Telefon UND Adresse.
+     * Zwei Angaben unter einem Etikett sind EINE Angabe: die Trennung waere
+     * danach Auslegungssache dessen, der sie liest, und eine Liste nach
+     * Nachnamen gaebe es nicht.
+     */
+    CandidateGiven,
+    CandidateSurname,
+    CandidateAddress,
     CandidateBorn,
     CandidateContact,
     CandidateSchool,
@@ -252,6 +269,9 @@ public readonly record struct RcAad
         RcField.GraphNodeValue          => "node_value",
         RcField.GraphEdgeNote           => "edge_note",
         RcField.CandidateName           => "candidate_name",
+        RcField.CandidateGiven          => "candidate_given",
+        RcField.CandidateSurname        => "candidate_surname",
+        RcField.CandidateAddress        => "candidate_address",
         RcField.CandidateBorn           => "candidate_born",
         RcField.CandidateContact        => "candidate_contact",
         RcField.CandidateSchool         => "candidate_school",

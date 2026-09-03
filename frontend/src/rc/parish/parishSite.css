@@ -825,11 +825,37 @@
   font-size: 0.9rem;
 }
 
-.ap-fields { display: grid; gap: 0.7rem; }
-.ap-field { display: grid; gap: 0.2rem; }
+/*
+ * Imię obok nazwiska, data obok szkoły — krótkie pola nie zajmują całej
+ * szerokości, bo wtedy formularz na sześć pytań wygląda na dwa razy dłuższy
+ * niż jest. Na telefonie kolumny same się składają do jednej.
+ */
+.ap-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.7rem;
+}
+
+.ap-field { display: grid; gap: 0.2rem; align-content: start; }
+
+/* Telefony i adres mają kilka wierszy — dzielone na pół byłyby nieczytelne. */
+.ap-field-wide { grid-column: 1 / -1; }
+
 .ap-field span { font-size: 0.86rem; font-weight: 600; }
 .ap-field em { font-weight: 400; font-style: normal; color: var(--ps-accent); font-size: 0.78rem; }
-.ap-field input { width: 100%; font: inherit; font-size: 0.95rem; padding: 0.4rem 0.5rem; }
+
+.ap-field input,
+.ap-field textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.4rem 0.5rem;
+}
+
+/* Pisze się w nich wierszami, więc nie kurczą się do jednej linii. */
+.ap-field textarea { resize: vertical; min-height: 3.2rem; line-height: 1.4; }
+
+.ap-field small { font-size: 0.78rem; line-height: 1.4; }
 
 /* Zgoda: pole obok tekstu, tekst prowadzi. */
 .ap-rodo {
@@ -853,9 +879,18 @@
 
 .ap-error { margin: 0; color: #9e2b25; font-size: 0.88rem; }
 
+/*
+ * Telefony i adres bywają wielowierszowe — tak zostały wpisane i tak się je
+ * czyta. Sklejone w jedną linię trzeba by rozdzielać wzrokiem.
+ */
+.ca-lines { white-space: pre-line; }
+
 /* -- Po wysłaniu ----------------------------------------------------------- */
 
 .ap-done { border-left: 3px solid var(--ps-accent); }
+
+/* Wydruk i portal stoją obok siebie — obie drogi są równie ważne. */
+.ap-after { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
 
 /*
  * Ostrzeżenie o linku jest najważniejszą rzeczą na tej stronie: serwer go nie
@@ -935,3 +970,70 @@
 .ca-link { margin-top: 0.1rem; }
 .ca-link-open { display: grid; gap: 0.5rem; margin-top: 0.3rem; }
 .ca-sms { display: flex; gap: 1rem; }
+
+/* -- Derselbe Zugang, in den Farben der Pfarrei ---------------------------- */
+
+/*
+ * Dasselbe Bauteil wie in der Werkstatt (`RcAccess`), nur zugerichtet: die
+ * Pfarrseite gehoert der Pfarrei und nicht der Plattform, also traegt der
+ * Zugang hier ihr Blau und nicht das Gruen der Werkstatt.
+ */
+.ps .rc-access { display: flex; align-items: center; }
+
+.ps .rc-access-in {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--ps-deep);
+  border-radius: 999px;
+  background: var(--ps-deep);
+  color: #fff;
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.ps .rc-access-in:hover { background: #1a2a3d; }
+
+/*
+ * Der angemeldete Zustand: eine Zeile, kein Kasten. `.rc-auth` bringt aus der
+ * Werkstatt einen Rahmen mit, der hier quer staende.
+ */
+.ps .rc-auth {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.ps .rc-auth-who { margin: 0; font-size: 0.8rem; color: var(--ps-muted); }
+
+/* Der Schluesselzustand als Punkt — hier zaehlt nur, DASS er stimmt. */
+.ps .rc-auth-ready,
+.ps .rc-auth-locked { margin: 0; font-size: 0; line-height: 0; }
+.ps .rc-auth-ready::before,
+.ps .rc-auth-locked::before {
+  content: '';
+  display: block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+}
+.ps .rc-auth-ready::before { background: #2f6b4f; }
+.ps .rc-auth-locked::before { background: var(--ps-accent); }
+
+.ps .rc-auth-actions { margin: 0; gap: 0.35rem; }
+
+/* Die Knoepfe „Zablokuj" und „Wyloguj" in den Farben der Seite. */
+.ps .rc-auth-actions .rc-btn {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--ps-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--ps-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.ps .rc-auth-actions .rc-btn:hover { border-color: var(--ps-accent); color: var(--ps-ink); }
+.ps .rc-auth-error { flex: 1 1 100%; margin: 0; color: #9e2b25; font-size: 0.8rem; }

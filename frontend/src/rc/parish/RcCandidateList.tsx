@@ -114,15 +114,17 @@ export function RcCandidateList({ groupId }: { groupId: string }) {
 
               {!sealed && (
                 <ul className="ps-rows ca-fields">
-                  {c.born !== null && c.born !== undefined && c.born !== '' && (
-                    <li><span>Urodzony</span><em>{c.born}</em></li>
-                  )}
-                  {c.contact !== null && c.contact !== undefined && c.contact !== '' && (
-                    <li><span>Kontakt</span><em>{c.contact}</em></li>
-                  )}
-                  {c.school !== null && c.school !== undefined && c.school !== '' && (
-                    <li><span>Szkoła</span><em>{c.school}</em></li>
-                  )}
+                  {row('Urodzony', c.born)}
+
+                  {/*
+                    Telefonów bywa kilka — własny i do rodzica. Sklejone w jeden
+                    wiersz nie dają się ani przeczytać, ani wybrać: każdy dostaje
+                    swój wiersz, tak jak został wpisany.
+                  */}
+                  {rows('Telefon', c.contact)}
+
+                  {rows('Adres', c.address)}
+                  {row('Szkoła', c.school)}
                 </ul>
               )}
 
@@ -224,6 +226,29 @@ function LinkRow({
       </div>
     </div>
   );
+}
+
+/** Ein Feld, das leer sein darf: leer heisst nicht angegeben, nicht "—". */
+function row(label: string, value: string | null | undefined) {
+  const text = (value ?? '').trim();
+  if (text === '') return null;
+  return <li key={label}><span>{label}</span><em>{text}</em></li>;
+}
+
+/**
+ * Ein Feld, das mehrere Zeilen tragen kann — Telefone, Anschrift.
+ *
+ * Jede Zeile bekommt ihre eigene Reihe. Zusammengezogen waeren zwei Nummern
+ * eine Zeichenkette, und man koennte sie weder lesen noch anrufen, ohne sie
+ * vorher von Hand zu trennen.
+ */
+function rows(label: string, value: string | null | undefined) {
+  const parts = (value ?? '').split('\n').map((one) => one.trim()).filter((one) => one !== '');
+  return parts.map((one, index) => (
+    <li key={`${label}-${index}`}>
+      <span>{index === 0 ? label : ''}</span><em>{one}</em>
+    </li>
+  ));
 }
 
 export default RcCandidateList;

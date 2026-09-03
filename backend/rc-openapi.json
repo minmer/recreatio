@@ -5105,6 +5105,18 @@
             "type": "string",
             "nullable": true
           },
+          "given": {
+            "type": "string",
+            "nullable": true
+          },
+          "surname": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
           "consentGiven": {
             "type": "boolean"
           },

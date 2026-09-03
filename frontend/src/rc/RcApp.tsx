@@ -19,6 +19,7 @@ import { runRcSelfTest, type RcTestReport } from './lib/rcSelfTest';
 import { RcChat, RcEventsSection, RcParishOutlet, RcGraphOutlet, RcCalendarOutlet, RcConfirmationOutlet } from './RcChat';
 import { RcAccountOutlet } from './RcAccount';
 import { RcSignInDrawer } from './RcSignInDrawer';
+import { RcAccess } from './RcAccess';
 import { RcParishSite } from './parish/RcParishSite';
 import { RcCandidatePortalPage } from './parish/RcCandidatePortal';
 import './parish/parishSite.css';
@@ -308,7 +309,15 @@ export function RcApp() {
           page={(address.tail[0] ?? 'start') as never}
           sub={address.tail[1] ?? null}
           signedIn={entry.kind === 'signed-in'}
-          onSignIn={() => setDrawerOpen(true)}
+          access={
+            <RcAccess
+              lang={lang}
+              entry={entry}
+              onEntry={setEntry}
+              onReady={setUnlocked}
+              onSignIn={() => setDrawerOpen(true)}
+            />
+          }
         />
         <RcSignInDrawer
           lang={lang}
@@ -364,17 +373,15 @@ export function RcApp() {
               Das FORMULAR bleibt, wo es war: solange die Schluessel fehlen,
               zeigt `RcSignInPage` ohnehin nur dieses eine Bild.
             */}
-            {entry.kind === 'signed-in'
-              ? <RcSignIn lang={lang} entry={entry} onEntry={setEntry} onReady={setUnlocked} />
-              : (
-                <button
-                  type="button"
-                  className="rc-btn"
-                  onClick={() => setDrawerOpen(true)}
-                >
-                  {t.auth.signIn}
-                </button>
-              )}
+            {/* Dasselbe Bauteil wie auf der Pfarrseite. Zwei Stellen, die
+                dasselbe tun sollen, tun mit der Zeit Verschiedenes. */}
+            <RcAccess
+              lang={lang}
+              entry={entry}
+              onEntry={setEntry}
+              onReady={setUnlocked}
+              onSignIn={() => setDrawerOpen(true)}
+            />
 
             {(['pl', 'de', 'en'] as const).map((l) => (
               <button

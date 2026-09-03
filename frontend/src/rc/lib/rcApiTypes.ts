@@ -4984,6 +4984,9 @@ export interface components {
             contact?: string | null;
             school?: string | null;
             baptism?: string | null;
+            given?: string | null;
+            surname?: string | null;
+            address?: string | null;
             consentGiven: boolean;
             paperReceived: boolean;
             quizPassed: boolean;

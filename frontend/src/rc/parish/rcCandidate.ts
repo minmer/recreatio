@@ -34,7 +34,7 @@ export type RcConfirmationForm = RcApi<'RcConfirmationFormResponse'>;
 export type RcCandidatePortal = RcApi<'RcCandidatePortalResponse'>;
 
 /** Die Felder einer Anmeldung. Die Namen sind die des Servers. */
-export const RC_APPLY_FIELDS = ['name', 'born', 'contact', 'school'] as const;
+export const RC_APPLY_FIELDS = ['given', 'surname', 'born', 'phone', 'address', 'school'] as const;
 export type RcApplyField = (typeof RC_APPLY_FIELDS)[number];
 
 /**
@@ -44,9 +44,15 @@ export type RcApplyField = (typeof RC_APPLY_FIELDS)[number];
  * stillschweigend anderes Etikett, und der Geheimtext ginge nie wieder auf.
  */
 const FIELD_LABEL: Record<RcApplyField, RcFieldName> = {
-  name: RcField.CandidateName,
+  given: RcField.CandidateGiven,
+  surname: RcField.CandidateSurname,
   born: RcField.CandidateBorn,
-  contact: RcField.CandidateContact,
+
+  // Mehrere Nummern, eine je Zeile — sie gehören derselben Person und werden
+  // zusammen gelesen.
+  phone: RcField.CandidateContact,
+
+  address: RcField.CandidateAddress,
   school: RcField.CandidateSchool
 };
 
@@ -167,6 +173,28 @@ export async function rcApply(
   );
 
   return { link: rcPortalLink(secret, sessionKey), secret, sessionKey };
+}
+
+/**
+ * Ein Geburtsdatum in der Form, in der es auf einem Formular steht.
+ *
+ * Das Datumsfeld des Browsers liefert `2011-04-02`. Auf Papier sieht das nach
+ * einer Nummer aus und nicht nach einem Datum — wer es abschreibt, vertauscht
+ * Tag und Monat. Umgekehrt gilt: was kein Datum ist, bleibt unverändert. Aus
+ * einer Zeile, die jemand von Hand geschrieben hat, wird hier nichts geraten.
+ */
+export function rcDay(raw: string): string {
+  const text = raw.trim();
+  const parts = text.split('-');
+  if (parts.length !== 3) return text;
+
+  const [year, month, day] = parts;
+  if (year.length !== 4 || month.length !== 2 || day.length !== 2) return text;
+
+  const digits = year + month + day;
+  for (const ch of digits) if (ch < '0' || ch > '9') return text;
+
+  return day + '.' + month + '.' + year;
 }
 
 // -- Das Portal ---------------------------------------------------------------

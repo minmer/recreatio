@@ -17,14 +17,23 @@
 
 import { rcRoles } from '../lib/rcChat';
 import { rcDataValues } from '../lib/rcPerson';
+import { rcPhones } from './rcPhone';
 
-/** Nazwy pól formularza zgłoszenia, na które przekładają się dane osobowe. */
+/**
+ * Nazwy pól formularza zgłoszenia, na które przekładają się dane osobowe.
+ *
+ * Jedno do jednego: profil trzyma imię osobno od nazwiska, a formularz też —
+ * więc nic nie trzeba sklejać ani później rozdzielać.
+ */
 const TO_APPLY: Record<string, string> = {
-  PersonGivenName: 'name',
-  PersonSurname: 'name',
-  PersonPhone: 'contact',
+  PersonGivenName: 'given',
+  PersonSurname: 'surname',
+  PersonPhone: 'phone',
   PersonBorn: 'born'
 };
+
+/** Pola, w których kilka wartości ma sens — każda w swoim wierszu. */
+const MANY = new Set(['phone']);
 
 export async function rcMyPersonFields(): Promise<Record<string, string>> {
   try {
@@ -34,28 +43,32 @@ export async function rcMyPersonFields(): Promise<Record<string, string>> {
 
     const values = await rcDataValues(person.roleId);
 
-    /*
-     * Imię i nazwisko trafiają do JEDNEGO pola formularza i muszą się w nim
-     * spotkać w dobrej kolejności. Zbieram je osobno, bo `values` przychodzi w
-     * kolejności zapisu, a nie czytania.
-     */
-    let given = '', surname = '';
     const out: Record<string, string> = {};
 
     for (const item of values.values ?? []) {
       const value = (item.value ?? '').trim();
       if (value === '') continue;
 
-      if (item.field === 'PersonGivenName') { given = value; continue; }
-      if (item.field === 'PersonSurname') { surname = value; continue; }
-
       const target = TO_APPLY[item.field ?? ''];
-      // Pierwszy wygrywa: telefonów może być kilka, a formularz ma jedno pole.
-      if (target !== undefined && out[target] === undefined) out[target] = value;
+      if (target === undefined) continue;
+
+      /*
+       * Telefonów bywa kilka — własny i do rodzica — i formularz przyjmuje je
+       * wszystkie, po jednym w wierszu. Wcześniej wygrywał pierwszy, a reszta
+       * przepadała po cichu: człowiek widział jeden numer i nie wiedział, że
+       * drugi w ogóle był.
+       */
+      if (MANY.has(target)) {
+        out[target] = out[target] === undefined ? value : `${out[target]}\n${value}`;
+        continue;
+      }
+
+      // Poza tym pierwszy wygrywa: jednego pola nie da się wypełnić dwa razy.
+      if (out[target] === undefined) out[target] = value;
     }
 
-    const full = [given, surname].filter((p) => p !== '').join(' ');
-    if (full !== '') out.name = full;
+    // Numery z profilu też przechodzą przez tę samą formę co wpisane ręcznie.
+    if (out.phone !== undefined) out.phone = rcPhones(out.phone).join('\n');
 
     return out;
   } catch {

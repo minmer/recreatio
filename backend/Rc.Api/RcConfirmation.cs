@@ -53,6 +53,9 @@ public static class RcConfirmation
     private static RcAad BornAad(Guid id) => Aad(id, RcField.CandidateBorn);
     private static RcAad ContactAad(Guid id) => Aad(id, RcField.CandidateContact);
     private static RcAad SchoolAad(Guid id) => Aad(id, RcField.CandidateSchool);
+    private static RcAad GivenAad(Guid id) => Aad(id, RcField.CandidateGiven);
+    private static RcAad SurnameAad(Guid id) => Aad(id, RcField.CandidateSurname);
+    private static RcAad AddressAad(Guid id) => Aad(id, RcField.CandidateAddress);
     private static RcAad BaptismAad(Guid id) => Aad(id, RcField.CandidateBaptism);
 
     private static RcAad Aad(Guid candidateId, RcField field) =>
@@ -248,8 +251,15 @@ public static class RcConfirmation
     public sealed record NoteView(string NoteId, string AuthorRoleId, string? Text,
         bool ForFamily, DateTimeOffset CreatedUtc, string? Unreadable);
 
+    /// <summary>
+    /// <c>Name</c> ist der ANZEIGENAME — zusammengesetzt, wenn die Anmeldung
+    /// von aussen kam, sonst das eingetragene Feld. <c>Given</c> und
+    /// <c>Surname</c> stehen daneben, weil eine Liste nach Nachnamen sie
+    /// einzeln braucht.
+    /// </summary>
     public sealed record CandidateView(string CandidateId, string? Name, string? Born,
         string? Contact, string? School, string? Baptism,
+        string? Given, string? Surname, string? Address,
         bool ConsentGiven, bool PaperReceived, bool QuizPassed,
         string Status, int Bookings, IReadOnlyList<NoteView> Notes, string? Unreadable);
 
@@ -290,25 +300,31 @@ public static class RcConfirmation
         await using var cmd = new SqlCommand("""
             SELECT c.id, c.epoch, c.name_sealed, c.born_sealed, c.contact_sealed,
                    c.school_sealed, c.baptism_sealed,
+                   c.given_sealed, c.surname_sealed, c.address_sealed,
                    c.consent_given, c.paper_received, c.quiz_passed, c.status,
                    (SELECT COUNT(*) FROM dbo.rc_meeting_booking b WHERE b.candidate_id = c.id)
             FROM dbo.rc_candidate c WHERE c.group_id = @group ORDER BY c.created_at;
             """, connection);
         cmd.Parameters.AddWithValue("@group", id);
 
-        var rows = new List<(Guid Id, int Epoch, byte[] Name, byte[]? Born, byte[]? Contact,
-            byte[]? School, byte[]? Baptism, bool Consent, bool Paper, bool Quiz, string Status, int Bookings)>();
+        var rows = new List<(Guid Id, int Epoch, byte[]? Name, byte[]? Born, byte[]? Contact,
+            byte[]? School, byte[]? Baptism, byte[]? Given, byte[]? Surname, byte[]? Address,
+            bool Consent, bool Paper, bool Quiz, string Status, int Bookings)>();
 
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
         {
             while (await reader.ReadAsync(ctx.RequestAborted))
-                rows.Add((reader.GetGuid(0), reader.GetInt32(1), (byte[])reader[2],
+                rows.Add((reader.GetGuid(0), reader.GetInt32(1),
+                    reader.IsDBNull(2) ? null : (byte[])reader[2],
                     reader.IsDBNull(3) ? null : (byte[])reader[3],
                     reader.IsDBNull(4) ? null : (byte[])reader[4],
                     reader.IsDBNull(5) ? null : (byte[])reader[5],
                     reader.IsDBNull(6) ? null : (byte[])reader[6],
-                    reader.GetBoolean(7), reader.GetBoolean(8), reader.GetBoolean(9),
-                    reader.GetString(10), reader.GetInt32(11)));
+                    reader.IsDBNull(7) ? null : (byte[])reader[7],
+                    reader.IsDBNull(8) ? null : (byte[])reader[8],
+                    reader.IsDBNull(9) ? null : (byte[])reader[9],
+                    reader.GetBoolean(10), reader.GetBoolean(11), reader.GetBoolean(12),
+                    reader.GetString(13), reader.GetInt32(14)));
         }
 
         var views = new List<CandidateView>();
@@ -316,6 +332,7 @@ public static class RcConfirmation
         {
             string? unreadable = null;
             string? name = null, born = null, contact = null, school = null, baptism = null;
+            string? given = null, surname = null, address = null;
             // Von aussen angemeldet: der Schluessel gehoert der Anmeldung.
 
             var key = row.Epoch == 0
@@ -336,10 +353,28 @@ public static class RcConfirmation
                 contact = OpenOrNull(key, ContactAad(row.Id), row.Contact, ref unreadable);
                 school = OpenOrNull(key, SchoolAad(row.Id), row.School, ref unreadable);
                 baptism = OpenOrNull(key, BaptismAad(row.Id), row.Baptism, ref unreadable);
+
+                given = OpenOrNull(key, GivenAad(row.Id), row.Given, ref unreadable);
+                surname = OpenOrNull(key, SurnameAad(row.Id), row.Surname, ref unreadable);
+                address = OpenOrNull(key, AddressAad(row.Id), row.Address, ref unreadable);
+
+                /*
+                 * DER ANZEIGENAME KOMMT AUS DEM, WAS DA IST.
+                 *
+                 * Von innen eingetragen: ein zusammengesetztes Feld. Selbst
+                 * angemeldet: zwei Teile. Beides muss in derselben Liste
+                 * nebeneinander stehen koennen, ohne dass die eine Haelfte
+                 * leer aussieht.
+                 */
+                name ??= string.Join(' ', new[] { given, surname }
+                    .Where(part => !string.IsNullOrWhiteSpace(part)));
+
+                if (name.Length == 0) name = null;
             }
 
             views.Add(new CandidateView(
                 RcId.ToText(row.Id), name, born, contact, school, baptism,
+                given, surname, address,
                 row.Consent, row.Paper, row.Quiz, row.Status, row.Bookings,
                 await NotesAsync(connection, row.Id, keys, ctx.RequestAborted), unreadable));
         }

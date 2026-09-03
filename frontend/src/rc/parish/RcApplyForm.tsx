@@ -22,24 +22,44 @@ import {
   type RcApplyField, type RcConfirmationForm
 } from './rcCandidate';
 import { RcRequestError } from '../lib/rcApi';
+import { rcPhones, RC_DEFAULT_DIAL } from './rcPhone';
+import { rcPrintApply, type RcPrintParish } from './rcPrintApply';
 
-/** Co pyta formularz — i jak to podpisać. */
-const LABELS: Record<RcApplyField, { label: string; hint: string; type: string }> = {
-  name: { label: 'Imię i nazwisko', hint: 'np. Jan Kowalski', type: 'text' },
-  born: { label: 'Data urodzenia', hint: '', type: 'date' },
-  contact: { label: 'Telefon i adres', hint: 'telefon, adres zamieszkania', type: 'text' },
-  school: { label: 'Szkoła i klasa', hint: 'np. SP nr 5, klasa 8a', type: 'text' }
+/**
+ * Co pyta formularz.
+ *
+ * <b>Każda rzecz w swoim polu.</b> Wcześniej imię i nazwisko dzieliły jedno, a
+ * telefon i adres drugie. Dwie rzeczy w jednym polu to jedna rzecz: nie da się
+ * ułożyć listy po nazwiskach ani wziąć adresu na kopertę.
+ *
+ * `kind` mówi, jak wygląda pole. `phones` przyjmuje kilka numerów, po jednym
+ * w wierszu — bo tak wygląda kontakt do nastolatka: jego własny i do rodzica.
+ */
+const LABELS: Record<RcApplyField, {
+  label: string;
+  hint: string;
+  kind: 'text' | 'date' | 'phones' | 'lines';
+  required?: boolean;
+}> = {
+  given: { label: 'Imię', hint: 'np. Jan', kind: 'text', required: true },
+  surname: { label: 'Nazwisko', hint: 'np. Kowalski', kind: 'text', required: true },
+  born: { label: 'Data urodzenia', hint: '', kind: 'date' },
+  phone: { label: 'Telefony', hint: ['501 234 567', '(rodzic) 601 111 222'].join('\n'), kind: 'phones' },
+  address: { label: 'Adres zamieszkania', hint: 'ul. …, 00-000 Miasto', kind: 'lines' },
+  school: { label: 'Szkoła i klasa', hint: 'np. SP nr 5, klasa 8a', kind: 'text' }
 };
 
 type Made = { link: string };
 
 export function RcApplyForm({
-  slug, signedIn, prefill
+  slug, signedIn, prefill, parish
 }: {
   slug: string;
   signedIn: boolean;
   /** Co już wiadomo o zalogowanym — imię, nazwisko, telefon. */
   prefill: Partial<Record<RcApplyField, string>>;
+  /** Kogo wydruk nazywa po imieniu. Puste pola zostają kropkowaną linią. */
+  parish: RcPrintParish;
 }) {
   const [form, setForm] = useState<RcConfirmationForm | null>(null);
   const [values, setValues] = useState<Partial<Record<RcApplyField, string>>>({});
@@ -88,11 +108,34 @@ export function RcApplyForm({
     );
   }
 
-  if (made !== null) return <Done link={made.link} copied={copied} onCopy={() => {
-    void navigator.clipboard?.writeText(made.link).then(() => setCopied(true)).catch(() => setCopied(false));
-  }} />;
+  if (made !== null) {
+    return (
+      <Done
+        link={made.link}
+        copied={copied}
+        onCopy={() => {
+          void navigator.clipboard?.writeText(made.link)
+            .then(() => setCopied(true))
+            .catch(() => setCopied(false));
+        }}
+        /*
+          Wydruk składa się z tego, co jest jeszcze w pamięci tej strony.
+          Serwer tych danych nie ma i nigdy nie miał — po odświeżeniu zostaje
+          droga przez portal, do którego prowadzi link obok.
+        */
+        onPrint={() => {
+          const ok = rcPrintApply(values, parish, form.groupName ?? '');
+          if (!ok) setError('Przeglądarka zablokowała nowe okno. Zezwól na nie i spróbuj jeszcze raz.');
+        }}
+        error={error}
+      />
+    );
+  }
 
-  const ready = (values.name ?? '').trim().length > 0 && rodo && !busy;
+  // Wystarczy jedna część nazwiska — są ludzie z jednym imieniem, a formularz,
+  // który ich odrzuca, odrzuca ich.
+  const named = (values.given ?? '').trim() !== '' || (values.surname ?? '').trim() !== '';
+  const ready = named && rodo && !busy;
 
   const send = async () => {
     if (!ready) return;
@@ -129,19 +172,51 @@ export function RcApplyForm({
       )}
 
       <div className="ap-fields">
-        {RC_APPLY_FIELDS.map((field) => (
-          <label className="ap-field" key={field}>
-            <span>{LABELS[field].label}{field === 'name' && <em> — wymagane</em>}</span>
-            <input
-              type={LABELS[field].type}
-              value={values[field] ?? ''}
-              placeholder={LABELS[field].hint}
-              disabled={busy}
-              autoComplete="off"
-              onChange={(e) => setValues({ ...values, [field]: e.target.value })}
-            />
-          </label>
-        ))}
+        {RC_APPLY_FIELDS.map((field) => {
+          const def = LABELS[field];
+          const value = values[field] ?? '';
+          const set = (v: string) => setValues({ ...values, [field]: v });
+
+          return (
+            <label className={`ap-field${def.kind === 'text' || def.kind === 'date' ? '' : ' ap-field-wide'}`} key={field}>
+              <span>
+                {def.label}
+                {def.required === true && <em> — wymagane</em>}
+              </span>
+
+              {def.kind === 'phones' || def.kind === 'lines' ? (
+                <textarea
+                  rows={def.kind === 'phones' ? 3 : 2}
+                  value={value}
+                  placeholder={def.hint}
+                  disabled={busy}
+                  onChange={(e) => set(e.target.value)}
+                  /*
+                    Numery porządkują się przy WYJŚCIU z pola, nie przy każdym
+                    znaku: poprawianie w trakcie pisania przestawia kursor i
+                    człowiek walczy z własnym polem.
+                  */
+                  onBlur={def.kind === 'phones' ? (e) => set(rcPhones(e.target.value).join('\n')) : undefined}
+                />
+              ) : (
+                <input
+                  type={def.kind}
+                  value={value}
+                  placeholder={def.hint}
+                  disabled={busy}
+                  autoComplete="off"
+                  onChange={(e) => set(e.target.value)}
+                />
+              )}
+
+              {def.kind === 'phones' && (
+                <small className="ps-muted">
+                  Jeden numer w wierszu. Brakujący kierunkowy {RC_DEFAULT_DIAL} dopiszemy sami.
+                </small>
+              )}
+            </label>
+          );
+        })}
       </div>
 
       {/*
@@ -177,7 +252,13 @@ export function RcApplyForm({
  * Dlatego ostrzeżenie jest ostre: zamknięcie tej strony bez zapisania linku i
  * bez podłączenia konta oznacza utratę dostępu do własnego zgłoszenia.
  */
-function Done({ link, copied, onCopy }: { link: string; copied: boolean; onCopy: () => void }) {
+function Done({ link, copied, onCopy, onPrint, error }: {
+  link: string;
+  copied: boolean;
+  onCopy: () => void;
+  onPrint: () => void;
+  error: string | null;
+}) {
   return (
     <article className="ps-card ap ap-done">
       <h2>Zgłoszenie przyjęte</h2>
@@ -198,7 +279,24 @@ function Done({ link, copied, onCopy }: { link: string; copied: boolean; onCopy:
         połącz zgłoszenie z kontem, wtedy link przestanie być potrzebny.
       </p>
 
-      <a className="ps-more" href={link}>Otwórz portal kandydata</a>
+      {/*
+        Zgoda rodzica musi trafić na papier — haczyk zaznaczony przez
+        nastolatka nie jest zgodą opiekuna. Dlatego wydruk stoi tu, a nie
+        dopiero gdzieś w portalu: teraz jest moment, w którym ktoś to zrobi.
+      */}
+      <div className="ap-after">
+        <button type="button" className="ps-signin" onClick={onPrint}>
+          Drukuj zgłoszenie i zgodę rodzica
+        </button>
+        <a className="ps-more" href={link}>Otwórz portal kandydata</a>
+      </div>
+
+      <p className="ps-muted">
+        Wydruk to trzy strony A5: zgłoszenie, oświadczenie rodzica do podpisu
+        i klauzula informacyjna. Podpisaną zgodę trzeba oddać w parafii.
+      </p>
+
+      {error !== null && <p className="ap-error">{error}</p>}
     </article>
   );
 }

@@ -40,7 +40,7 @@ import { rcMyPersonFields } from './rcPrefill';
 import { RC_EMPTY_SITE, rcPage, rcReadSite, type RcSite } from './rcSite';
 
 export function RcParishSite({
-  slug, page, sub, signedIn, onSignIn
+  slug, page, sub, signedIn, access
 }: {
   slug: string;
   /**
@@ -57,7 +57,16 @@ export function RcParishSite({
   sub: string | null;
   /** Ob überhaupt jemand angemeldet ist — sonst braucht es gar keine Rückfrage. */
   signedIn: boolean;
-  onSignIn: () => void;
+
+  /**
+   * Der Zugang, fertig gebaut.
+   *
+   * Er kommt VON AUSSEN und wird hier nicht zusammengesetzt: er braucht den
+   * Eintrittszustand und die Schublade, und beides gehoert der Anwendung. Eine
+   * Pfarrseite, die sich das selbst beschafft, waere eine zweite Stelle, an der
+   * Anmeldung stattfindet.
+   */
+  access: React.ReactNode;
 }) {
   const [parish, setParish] = useState<RcPublicParish | null>(null);
   const [missing, setMissing] = useState(false);
@@ -268,11 +277,7 @@ export function RcParishSite({
             </button>
           )}
 
-          {!signedIn && (
-            <button type="button" className="ps-signin" onClick={onSignIn}>
-              Zaloguj się
-            </button>
-          )}
+          {access}
         </div>
 
         <button
@@ -354,7 +359,22 @@ export function RcParishSite({
             ist, dann der Weg hinein. */}
         {page === 'sacrament-confirmation' && (
           <div className="ps-stack">
-            <RcApplyForm slug={slug} signedIn={signedIn} prefill={prefill} />
+            <RcApplyForm
+              slug={slug}
+              signedIn={signedIn}
+              prefill={prefill}
+              /*
+                Die Pfarrei geht mit, weil der Ausdruck sie beim Namen nennt.
+                Sie steht hier ohnehin schon — sie noch einmal zu holen hiesse,
+                zwei Quellen fuer dasselbe zu haben.
+              */
+              parish={{
+                name,
+                address: site.content['contact.address'] ?? '',
+                email: site.content['contact.email'] ?? '',
+                leader: site.content['sacrament.confirmation.who'] ?? ''
+              }}
+            />
           </div>
         )}
       </main>

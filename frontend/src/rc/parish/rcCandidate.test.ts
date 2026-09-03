@@ -19,7 +19,7 @@
 
 import { createHash, webcrypto } from 'node:crypto';
 
-import { rcPortalHash, rcNewPortalSecret, RC_APPLY_FIELDS } from './rcCandidate';
+import { rcDay, rcPortalHash, rcNewPortalSecret, RC_APPLY_FIELDS } from './rcCandidate';
 
 /*
  * Der Läufer übersetzt für node, und dort gibt es `crypto.subtle` nur über
@@ -101,7 +101,50 @@ ok('Verschiedene Geheimnisse, verschiedene Abdruecke',
  * der Server wegwirft, ohne etwas zu sagen — die Anmeldung ginge durch und
  * eine Angabe fehlte.
  */
-ok('Es sind vier Felder', [...RC_APPLY_FIELDS], ['name', 'born', 'contact', 'school']);
+ok('Es sind sechs Felder', [...RC_APPLY_FIELDS],
+  ['given', 'surname', 'born', 'phone', 'address', 'school']);
+
+/*
+ * Name und Anschrift stehen jeweils in ZWEI Feldern, nicht in einem.
+ *
+ * Zwei Dinge unter einem Etikett sind ein Ding: eine Liste nach Nachnamen
+ * laesst sich daraus nicht mehr sortieren, und eine Anschrift nicht mehr auf
+ * einen Umschlag schreiben, ohne sie von Hand auseinanderzunehmen.
+ */
+ok('Vorname und Nachname getrennt',
+  RC_APPLY_FIELDS.includes('given') && RC_APPLY_FIELDS.includes('surname'), true);
+ok('Telefon und Anschrift getrennt',
+  RC_APPLY_FIELDS.includes('phone') && RC_APPLY_FIELDS.includes('address'), true);
+
+/*
+ * Die alten Sammelfelder sind weg und duerfen nicht zurueckkehren.
+ *
+ * Ueber die breitere Sicht gefragt: der Typ kennt die alten Namen nicht mehr,
+ * und genau deshalb muss die LAUFENDE Liste gefragt werden — sonst prueft man
+ * nur, was der Uebersetzer ohnehin schon weiss.
+ */
+const gone = (name: string) => (RC_APPLY_FIELDS as readonly string[]).includes(name);
+ok('Kein gemeinsames Namensfeld mehr', gone('name'), false);
+ok('Kein gemeinsames Kontaktfeld mehr', gone('contact'), false);
+
+// -- Das Geburtsdatum ---------------------------------------------------------
+
+/*
+ * Auf Papier ist `2011-04-02` keine Hilfe: wer es abschreibt, vertauscht Tag
+ * und Monat, und man merkt es erst, wenn der Jahrgang nicht passt.
+ */
+ok('Aus der Maschinenform wird die Formularform', rcDay('2011-04-02'), '02.04.2011');
+ok('Leerraum am Rand faellt weg', rcDay('  2011-04-02  '), '02.04.2011');
+
+/*
+ * Was kein Datum ist, bleibt stehen. Geraten wird nichts — ein Feld, das
+ * jemand von Hand gefuellt hat, gehoert ihm und nicht dem Umformer.
+ */
+ok('Ein Wort bleibt ein Wort', rcDay('nie pamiętam'), 'nie pamiętam');
+ok('Zwei Teile sind kein Datum', rcDay('2011-04'), '2011-04');
+ok('Buchstaben darin machen es ungueltig', rcDay('20aa-04-02'), '20aa-04-02');
+ok('Einstellige Teile bleiben stehen', rcDay('2011-4-2'), '2011-4-2');
+ok('Leer bleibt leer', rcDay(''), '');
 
 // -- Ergebnis -----------------------------------------------------------------
 

@@ -2623,3 +2623,23 @@
 }
 .rc-check input { margin-top: 0.25rem; }
 .rc-check small { display: block; margin-top: 0.15rem; font-size: 0.76rem; }
+
+/* -- Der Zugang in der Kopfleiste der Werkstatt ---------------------------- */
+
+/*
+ * `RcAccess` traegt nur seine eigenen Marken; wie es aussieht, entscheidet der
+ * Ort. Hier ist es die Kopfleiste — dieselbe Zeile wie die Sprachwahl.
+ */
+.rc-top-right .rc-access { display: flex; align-items: center; }
+
+.rc-top-right .rc-access-in {
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--rc-accent);
+  border-radius: 6px;
+  background: var(--rc-accent);
+  color: var(--rc-accent-ink);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.rc-top-right .rc-access-in:hover { filter: brightness(1.1); }

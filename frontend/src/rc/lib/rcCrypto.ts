@@ -112,6 +112,9 @@ export const RcField = {
   // gegen den eines anderen Kindes tauschen, ohne dass etwas auffiele.
   // Dieselben Zeichenketten wie in RcAad.FieldName.
   CandidateName: 'candidate_name',
+  CandidateGiven: 'candidate_given',
+  CandidateSurname: 'candidate_surname',
+  CandidateAddress: 'candidate_address',
   CandidateBorn: 'candidate_born',
   CandidateContact: 'candidate_contact',
   CandidateSchool: 'candidate_school',

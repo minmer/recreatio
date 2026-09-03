@@ -211,8 +211,20 @@ public static class RcConfirmationIntake
         byte[]? Field(string name) =>
             sealedByField.TryGetValue(name, out var text) ? SafeBase64(text) : null;
 
-        var nameSealed = Field("name");
-        if (nameSealed is null)
+        /*
+         * WENIGSTENS EIN NAMENSTEIL.
+         *
+         * Vorher war das eine Feld `name` Pflicht. Jetzt sind es zwei — und
+         * beide zu verlangen waere zu streng: es gibt Menschen mit einem Namen,
+         * und ein Formular, das sie abweist, weist sie ab.
+         *
+         * Dieselbe Regel steht als Bedingung in der Datenbank
+         * (ck_rc_candidate_has_name), damit sie nicht nur hier gilt.
+         */
+        var givenSealed = Field("given");
+        var surnameSealed = Field("surname");
+
+        if (givenSealed is null && surnameSealed is null)
         {
             await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
                 RcErrorCodes.PermissionDenied, "Der Name fehlt.");
@@ -224,10 +236,12 @@ public static class RcConfirmationIntake
         {
             await using (var insert = new SqlCommand("""
                 INSERT INTO dbo.rc_candidate
-                    (id, group_id, epoch, name_sealed, born_sealed, contact_sealed, school_sealed,
+                    (id, group_id, epoch, given_sealed, surname_sealed, born_sealed,
+                     contact_sealed, address_sealed, school_sealed,
                      consent_given, paper_received, quiz_passed, status,
                      portal_token_hash, portal_token_wrapped, applied_at, created_at, updated_at)
-                VALUES (@id, @group, @epoch, @name, @born, @contact, @school,
+                VALUES (@id, @group, @epoch, @given, @surname, @born,
+                        @contact, @address, @school,
                         1, 0, 0, N'enrolled',
                         @token, @wrapped, @now, @now, @now);
                 """, connection, tx))
@@ -240,9 +254,14 @@ public static class RcConfirmationIntake
                 // sie sagt, welche Epoche galt, als die Anmeldung ankam.
                 insert.Parameters.AddWithValue("@epoch", intakeEpoch);
 
-                insert.Parameters.AddWithValue("@name", nameSealed);
+                insert.Parameters.AddWithValue("@given", (object?)givenSealed ?? DBNull.Value);
+                insert.Parameters.AddWithValue("@surname", (object?)surnameSealed ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@born", (object?)Field("born") ?? DBNull.Value);
-                insert.Parameters.AddWithValue("@contact", (object?)Field("contact") ?? DBNull.Value);
+
+                // Telefonnummern: mehrere, eine je Zeile, in EINEM Feld. Sie
+                // gehoeren derselben Person und werden zusammen gelesen.
+                insert.Parameters.AddWithValue("@contact", (object?)Field("phone") ?? DBNull.Value);
+                insert.Parameters.AddWithValue("@address", (object?)Field("address") ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@school", (object?)Field("school") ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@token", tokenHash);
                 insert.Parameters.AddWithValue("@wrapped", tokenWrapped);
@@ -1049,7 +1068,8 @@ public static class RcConfirmationIntake
 
         await using var cmd = new SqlCommand("""
             SELECT c.id, g.name, p.slug, c.status, c.paper_received, c.account_id,
-                   c.portal_revoked_at, c.name_sealed, c.born_sealed, c.contact_sealed, c.school_sealed
+                   c.portal_revoked_at, c.name_sealed, c.born_sealed, c.contact_sealed, c.school_sealed,
+                   c.given_sealed, c.surname_sealed, c.address_sealed
             FROM dbo.rc_candidate c
             JOIN dbo.rc_confirmation_group g ON g.id = c.group_id
             JOIN dbo.rc_parish p ON p.id = g.parish_id
@@ -1071,8 +1091,11 @@ public static class RcConfirmationIntake
 
         Add("name", 7);
         Add("born", 8);
-        Add("contact", 9);
+        Add("phone", 9);
         Add("school", 10);
+        Add("given", 11);
+        Add("surname", 12);
+        Add("address", 13);
 
         return new Found(
             reader.GetGuid(0), reader.GetString(1), reader.GetString(2),

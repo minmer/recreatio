@@ -16,17 +16,22 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-  rcBindCandidate, rcCandidatePortal, rcOpenCandidate, rcRevokeCandidate,
+  rcBindCandidate, rcCandidatePortal, rcDay, rcOpenCandidate, rcRevokeCandidate,
   RC_APPLY_FIELDS, type RcApplyField, type RcCandidatePortal as Portal
 } from './rcCandidate';
 import { rcFromBase64Url } from '../lib/rcBase64';
 import { RcRequestError } from '../lib/rcApi';
 import { rcPath } from '../lib/rcRoute';
+import { rcPublicParish } from './rcPublicParish';
+import { rcReadSite } from './rcSite';
+import { rcPrintApply, type RcPrintParish } from './rcPrintApply';
 
 const LABELS: Record<RcApplyField, string> = {
-  name: 'Imię i nazwisko',
+  given: 'Imię',
+  surname: 'Nazwisko',
   born: 'Data urodzenia',
-  contact: 'Telefon i adres',
+  phone: 'Telefony',
+  address: 'Adres',
   school: 'Szkoła i klasa'
 };
 
@@ -52,6 +57,16 @@ export function RcCandidatePortalPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /*
+   * WEN DER AUSDRUCK NENNT.
+   *
+   * Die Einwilligung der Eltern nennt eine Pfarrei beim Namen und mit ihrer
+   * Anschrift — die stehen nicht in der Anmeldung, sondern in dem, was die
+   * Pfarrei auf ihrer Seite eingetragen hat. Bleibt es leer, druckt das Blatt
+   * eine Linie zum Ausfuellen; erfunden wird nichts.
+   */
+  const [parish, setParish] = useState<RcPrintParish | null>(null);
+
   const load = useCallback(async () => {
     try {
       const found = await rcCandidatePortal(secret);
@@ -72,6 +87,31 @@ export function RcCandidatePortalPage({
   }, [secret, keyText]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const slug = portal?.parishSlug;
+    if (slug === undefined || slug === null || slug === '') return;
+
+    let alive = true;
+    void (async () => {
+      try {
+        const found = await rcPublicParish(slug);
+        const site = rcReadSite(found.modules);
+        if (!alive) return;
+        setParish({
+          name: found.name,
+          address: site.content['contact.address'] ?? '',
+          email: site.content['contact.email'] ?? '',
+          leader: site.content['sacrament.confirmation.who'] ?? ''
+        });
+      } catch {
+        // Ohne die Angaben der Pfarrei bleibt der Ausdruck moeglich — mit
+        // Linien statt Namen. Das ist besser als kein Blatt.
+        if (alive) setParish(null);
+      }
+    })();
+    return () => { alive = false; };
+  }, [portal?.parishSlug]);
 
   const act = async (what: 'bind' | 'revoke') => {
     setBusy(true);
@@ -154,9 +194,45 @@ export function RcCandidatePortalPage({
           <article className="ps-card">
             <h2>Twoje dane</h2>
             <ul className="ps-rows">
-              {known.map((f) => <li key={f}><span>{LABELS[f]}</span><em>{fields[f]}</em></li>)}
+              {known.map((f) => (
+                <li key={f}>
+                  <span>{LABELS[f]}</span>
+                  {/*
+                    Telefony i adres mają po kilka wierszy — tak zostały wpisane
+                    i tak się je czyta. Data wygląda jak na formularzu, a nie
+                    jak w bazie.
+                  */}
+                  <em className="ca-lines">{f === 'born' ? rcDay(fields[f] ?? '') : fields[f]}</em>
+                </li>
+              ))}
             </ul>
             <p className="ps-muted">Widzi je również osoba prowadząca przygotowanie.</p>
+
+            {/*
+              Wydruk składa się TUTAJ, z odszyfrowanych danych. Serwer ich nie
+              ma, więc nie mógłby go złożyć — a zgoda rodzica i tak musi trafić
+              na papier, bo haczyk zaznaczony przez nastolatka nie jest zgodą
+              opiekuna.
+            */}
+            <button
+              type="button"
+              className="ps-edit"
+              onClick={() => {
+                const ok = rcPrintApply(
+                  fields,
+                  parish ?? { name: portal.groupName ?? '', address: '', email: '', leader: '' },
+                  portal.groupName ?? ''
+                );
+                setError(ok ? null : 'Przeglądarka zablokowała nowe okno. Zezwól na nie i spróbuj jeszcze raz.');
+              }}
+            >
+              Drukuj zgłoszenie i zgodę rodzica
+            </button>
+
+            <p className="ps-muted">
+              Trzy strony A5: zgłoszenie, oświadczenie rodzica do podpisu
+              i klauzula informacyjna. Podpisaną zgodę trzeba oddać w parafii.
+            </p>
           </article>
         )}
 
