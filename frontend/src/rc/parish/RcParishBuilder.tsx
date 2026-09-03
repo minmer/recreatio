@@ -23,13 +23,14 @@ import {
   type CSSProperties, type PointerEvent as ReactPointerEvent
 } from 'react';
 import {
-  DndContext, DragOverlay, PointerSensor, pointerWithin, useDraggable, useDroppable,
-  useSensor, useSensors, type DragEndEvent, type DragStartEvent
+  DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable,
+  useSensor, useSensors,
+  type CollisionDetection, type DragEndEvent, type DragStartEvent
 } from '@dnd-kit/core';
 
 import {
   RC_BREAKPOINTS, RC_COLUMNS, RC_MIN_COL_SPAN, RC_MIN_ROW_SPAN,
-  rcCanPlace, rcCellWidth, rcFirstFreeCell, rcFrameFor, rcGrabOffset, rcPixelSize,
+  rcCanPlace, rcCellWidth, rcFirstFreeCell, rcFrameFor, rcHitAt, rcPixelSize,
   rcSnapColSpan, rcSnapRowSpan, rcValidCells, rcWithFrame,
   type RcBreakpoint, type RcFrame, type RcModule
 } from './rcLayout';
@@ -160,8 +161,6 @@ function LayoutTab({
     rows: number;
     label: string;
     size: { colSpan: number; rowSpan: number };
-    /** Wo der Zeiger im angefassten Ding sass — siehe `rcGrabOffset`. */
-    grab: { x: number; y: number };
   } | null>(null);
 
   /** Wie breit eine Rasterspalte gerade wirklich ist — gemessen, nicht geraten. */
@@ -170,6 +169,31 @@ function LayoutTab({
   const grid = useRef<HTMLDivElement>(null);
   const columns = RC_COLUMNS[breakpoint];
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  /*
+   * DAS ZIEL FOLGT DEM BAUSTEIN, NICHT DEM ZEIGER.
+   *
+   * `pointerWithin` fragt nach dem Mauszeiger. Wer einen Baustein an seiner
+   * rechten unteren Ecke anfasst, muss dann den ZEIGER auf die Zielzelle
+   * bringen, waehrend der Baustein weit links oberhalb davon schwebt — man
+   * zielt mit der Hand statt mit dem Ding.
+   *
+   * Hier entscheidet die linke obere Ecke des gezogenen Bausteins: er landet
+   * dort, wo man ihn sieht. Wie ein Blatt Papier, das man an der Ecke anfasst
+   * und trotzdem dorthin legt, wo das Blatt liegt.
+   */
+  const byCorner: CollisionDetection = useCallback(({ droppableContainers, collisionRect }) => {
+    const hit = rcHitAt(
+      { x: collisionRect.left, y: collisionRect.top },
+      droppableContainers
+        .filter((c) => c.rect.current !== null)
+        .map((c) => ({ id: String(c.id), rect: c.rect.current! }))
+    );
+
+    if (hit === null) return [];
+    const found = droppableContainers.find((c) => String(c.id) === hit);
+    return found === undefined ? [] : [{ id: found.id }];
+  }, []);
 
   const rows = useMemo(() => {
     if (drag !== null) return drag.rows;
@@ -188,23 +212,6 @@ function LayoutTab({
     const box = grid.current;
     if (box) setCellWidth(rcCellWidth(box.clientWidth, columns, GAP));
 
-    /*
-     * WO DER ZEIGER SASS.
-     *
-     * Die Zeichenschicht setzt die Vorschau an die linke obere Ecke des
-     * angefassten Dings; der Baustein landet aber in der Zelle UNTER DEM
-     * ZEIGER. Fasst man unten rechts an, liegen beide weit auseinander.
-     *
-     * Faellt der Versatz nicht zu ermitteln — ein Zug ohne Zeiger, etwa ueber
-     * die Tastatur —, bleibt er null. Dann sitzt die Vorschau wie bisher, und
-     * das ist fuer einen Tastaturzug auch richtig.
-     */
-    const activator = event.activatorEvent as Partial<PointerEvent> | undefined;
-    const start = event.active.rect.current.initial;
-
-    const grab = activator?.clientX !== undefined && activator.clientY !== undefined && start
-      ? rcGrabOffset({ x: activator.clientX, y: activator.clientY }, start)
-      : { x: 0, y: 0 };
 
     if (id.startsWith('palette:')) {
       const type = id.slice('palette:'.length);
@@ -213,7 +220,7 @@ function LayoutTab({
         colSpan: rcSnapColSpan(def?.colSpan ?? RC_MIN_COL_SPAN, columns),
         rowSpan: rcSnapRowSpan(def?.rowSpan ?? RC_MIN_ROW_SPAN)
       };
-      setDrag({ ...rcValidCells(modules, size, columns, breakpoint), label: rcModuleLabel(type), size, grab });
+      setDrag({ ...rcValidCells(modules, size, columns, breakpoint), label: rcModuleLabel(type), size });
       return;
     }
 
@@ -226,8 +233,7 @@ function LayoutTab({
     setDrag({
       ...rcValidCells(modules, size, columns, breakpoint, moduleId),
       label: rcModuleLabel(module.type),
-      size,
-      grab
+      size
     });
     setSelected(moduleId);
   }, [modules, columns, breakpoint]);
@@ -377,7 +383,7 @@ function LayoutTab({
 
       <DndContext
         sensors={sensors}
-        collisionDetection={pointerWithin}
+        collisionDetection={byCorner}
         onDragStart={onDragStart}
         onDragCancel={() => setDrag(null)}
         onDragEnd={onDragEnd}
@@ -434,7 +440,7 @@ function LayoutTab({
         */}
         <DragOverlay dropAnimation={null}>
           {drag !== null && (
-            <div className="pb-ghost" style={ghostStyle(drag.size, cellWidth, drag.grab)}>
+            <div className="pb-ghost" style={ghostStyle(drag.size, cellWidth)}>
               <span className="pb-item-name">{drag.label}</span>
               <span className="pb-item-size">{drag.size.colSpan}×{drag.size.rowSpan}</span>
             </div>
@@ -456,19 +462,22 @@ function LayoutTab({
  * offen: ein Kasten mit der Breite 0 waere unsichtbar, und dann saehe es aus,
  * als sei das Ziehen kaputt.
  */
-function ghostStyle(
-  size: { colSpan: number; rowSpan: number },
-  cellWidth: number,
-  grab: { x: number; y: number }
-): CSSProperties {
-  // Der Versatz gilt auch ohne Mass: die Vorschau soll unter dem Zeiger
-  // sitzen, selbst wenn ihre Groesse noch nicht feststeht.
-  const shift = `translate(${grab.x}px, ${grab.y}px)`;
-
-  if (cellWidth <= 0) return { transform: shift };
-
+/**
+ * Die Groesse der Vorschau in Pixeln.
+ *
+ * KEIN Versatz: die Vorschau haengt da, wo der Baustein angefasst wurde, und
+ * das Ziel folgt ihrer linken oberen Ecke (`byCorner`). Sie unter den Zeiger
+ * zu schieben war der falsche Weg — dann springt sie beim Anfassen weg, und
+ * man zielt weiter mit der Hand statt mit dem Ding.
+ *
+ * Solange noch nichts gemessen wurde (`cellWidth === 0`), bleibt die Breite
+ * offen: ein Kasten der Breite 0 waere unsichtbar, und dann saehe es aus, als
+ * sei das Ziehen kaputt.
+ */
+function ghostStyle(size: { colSpan: number; rowSpan: number }, cellWidth: number): CSSProperties {
+  if (cellWidth <= 0) return {};
   const { width, height } = rcPixelSize(size, cellWidth, ROW_H, GAP);
-  return { width: `${width}px`, height: `${height}px`, transform: shift };
+  return { width: `${width}px`, height: `${height}px` };
 }
 
 function Pill({ type, label }: { type: string; label: string }) {

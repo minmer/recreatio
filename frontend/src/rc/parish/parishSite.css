@@ -774,3 +774,41 @@
 /* Die Pille bleibt stehen, wo sie ist: sie ist eine Liste, keine Fracht.
    Die Fracht ist die Vorschau. */
 .pb-pill.is-dragging { opacity: 0.35; }
+
+/*
+ * Verweise, die wie Knöpfe aussehen.
+ *
+ * Menüpunkte, Reiter und „Więcej" sind jetzt <a href> und keine <button> mehr:
+ * nur ein echter Verweis lässt sich mit der mittleren Maustaste in einem neuen
+ * Reiter öffnen, als Lesezeichen ablegen und weitergeben. Das Aussehen bleibt,
+ * was es war — die Regeln unten holen nur zurück, was ein Anker mitbringt.
+ */
+.ps-link,
+.ps-sub-link,
+.ps-tab,
+.ps-more,
+.ps-brand {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ps-more { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Ein Anker ohne `href` ist kein Ziel — ein Menüpunkt ohne Seite soll auch
+   nicht so aussehen, als führe er irgendwohin. */
+.ps-link:not([href]),
+.ps-sub-link:not([href]) { cursor: default; opacity: 0.55; }
+
+/* Die Tastatur muss sehen, wo sie steht. Bei <button> war das eingebaut. */
+.ps-link:focus-visible,
+.ps-sub-link:focus-visible,
+.ps-tab:focus-visible,
+.ps-more:focus-visible,
+.ps-brand:focus-visible {
+  outline: 2px solid var(--ps-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Als Anker braucht der Reiter die Ausrichtung, die der Knopf mitbrachte. */
+.ps-tab { display: inline-block; }

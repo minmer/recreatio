@@ -38,9 +38,21 @@ import { RcParishHome } from './RcParishHome';
 import { RC_EMPTY_SITE, rcReadSite, type RcSite } from './rcSite';
 
 export function RcParishSite({
-  slug, signedIn, onSignIn
+  slug, page, sub, signedIn, onSignIn
 }: {
   slug: string;
+  /**
+   * Welche Unterseite — aus der ADRESSE und nicht aus einem Zustand.
+   *
+   * <b>Warum das der Unterschied ist:</b> ein Zustand im Speicher hat keine
+   * Adresse. Man kann ihn nicht mit der mittleren Maustaste in einem neuen
+   * Reiter öffnen, nicht als Lesezeichen ablegen, nicht jemandem schicken und
+   * nicht mit dem Zurück-Knopf verlassen. Vier gewohnte Handgriffe, die alle
+   * ins Leere gehen, weil die Navigation aus Knöpfen bestand.
+   */
+  page: RcPageId;
+  /** Das Segment danach — bei den Messen der Reiter. */
+  sub: string | null;
   /** Ob überhaupt jemand angemeldet ist — sonst braucht es gar keine Rückfrage. */
   signedIn: boolean;
   onSignIn: () => void;
@@ -58,7 +70,6 @@ export function RcParishSite({
   const [site, setSite] = useState<RcSite>(RC_EMPTY_SITE);
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
 
-  const [page, setPage] = useState<RcPageId>('start');
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -111,11 +122,27 @@ export function RcParishSite({
   const pageOf = (item: { id?: string; pageId?: string }): RcPageId | null =>
     (item.pageId ?? item.id ?? null) as RcPageId | null;
 
-  const go = (id: RcPageId) => {
-    setPage(id);
-    setOpenGroup(null);
-    setMenuOpen(false);
-  };
+  /**
+   * Die Adresse einer Unterseite.
+   *
+   * Die Startseite trägt KEIN Segment: `#/new/parish/grzegorzki` ist die
+   * Pfarrseite, nicht `…/start`. Zwei Adressen für dieselbe Seite wären zwei
+   * Seiten in jedem Verlauf und in jeder Statistik.
+   */
+  const at = (id: string): string =>
+    id === 'start' ? rcPath('parish', slug) : rcPath('parish', slug, id);
+
+  /** Nach einem Klick im Menü schliesst sich das Menü — die Adresse führt weiter. */
+  const close = () => { setOpenGroup(null); setMenuOpen(false); };
+
+  /*
+   * Der Reiter des Messplans steht im ZWEITEN Segment
+   * (`…/parish/grzegorzki/masses/confession`). Steht dort nichts oder etwas
+   * Unbekanntes, gilt die Sonntagstafel — eine Adresse aus einer alten
+   * Nachricht soll etwas zeigen und nicht eine Fehlermeldung.
+   */
+  const tab: RcMassTab =
+    RC_MASS_TABS.find((t) => t.toLowerCase() === (sub ?? '').toLowerCase()) ?? 'Sunday';
 
   if (missing) {
     return (
@@ -140,10 +167,10 @@ export function RcParishSite({
   return (
     <div className="ps" data-theme={parish.theme}>
       <header className="ps-head">
-        <button type="button" className="ps-brand" onClick={() => go('start')}>
+        <a className="ps-brand" href={at('start')} onClick={close}>
           <span className="ps-mark" aria-hidden="true">✝</span>
           <span className="ps-name">{name}</span>
-        </button>
+        </a>
 
         {/*
           DAS MENUE KOMMT AUS DEM DOKUMENT.
@@ -155,15 +182,17 @@ export function RcParishSite({
         <nav className={`ps-menu${menuOpen ? ' is-open' : ''}`} aria-label="Menu parafialne">
           {(site.menu.length > 0 ? site.menu : RC_PARISH_MENU).map((item) => {
             if (!item.children) {
+              const id = pageOf(item);
               return (
-                <button
+                <a
                   key={item.label}
-                  type="button"
-                  className={`ps-link${page === pageOf(item) ? ' is-active' : ''}`}
-                  onClick={() => { const id = pageOf(item); if (id !== null) go(id); }}
+                  className={`ps-link${page === id ? ' is-active' : ''}`}
+                  href={id === null ? undefined : at(id)}
+                  aria-current={page === id ? 'page' : undefined}
+                  onClick={close}
                 >
                   {item.label}
-                </button>
+                </a>
               );
             }
 
@@ -182,14 +211,15 @@ export function RcParishSite({
                 </button>
                 <div className="ps-sub">
                   {item.children.map((child) => (
-                    <button
+                    <a
                       key={pageOf(child) ?? child.label}
-                      type="button"
                       className={`ps-sub-link${page === pageOf(child) ? ' is-active' : ''}`}
-                      onClick={() => { const id = pageOf(child); if (id !== null) go(id); }}
+                      href={pageOf(child) === null ? undefined : at(pageOf(child) as string)}
+                      aria-current={page === pageOf(child) ? 'page' : undefined}
+                      onClick={close}
                     >
                       {child.label}
-                    </button>
+                    </a>
                   ))}
                 </div>
               </div>
@@ -280,13 +310,13 @@ export function RcParishSite({
             <RcParishHome
               site={site}
               mayEdit={mayEdit}
-              onGo={(id) => go(id as RcPageId)}
+              at={at}
             />
           </>
         )}
         {page === 'announcements' && <Announcements />}
         {page === 'intentions' && <Intentions />}
-        {page === 'masses' && <Masses />}
+        {page === 'masses' && <Masses tab={tab} at={at} />}
         {page === 'calendar' && <Calendar />}
         {page === 'clergy' && <Clergy />}
         {page === 'office' && <Office />}
@@ -345,23 +375,24 @@ function Intentions() {
   );
 }
 
-function Masses() {
-  const [tab, setTab] = useState<RcMassTab>('Sunday');
-
+function Masses({ tab, at }: { tab: RcMassTab; at: (id: string) => string }) {
   return (
     <Page title="Msze i nabożeństwa">
-      <div className="ps-tabs" role="tablist">
+      {/*
+        Auch die Reiter sind Verweise. Ein Reiter ist eine Sicht auf dieselbe
+        Seite und trotzdem etwas, das man weitergeben will: „schau dir die
+        Beichtzeiten an" ist eine Adresse und kein Klickweg.
+      */}
+      <div className="ps-tabs">
         {RC_MASS_TABS.map((t) => (
-          <button
+          <a
             key={t}
-            type="button"
-            role="tab"
-            aria-selected={tab === t}
             className={`ps-tab${tab === t ? ' is-active' : ''}`}
-            onClick={() => setTab(t)}
+            href={`${at('masses')}/${t.toLowerCase()}`}
+            aria-current={tab === t ? 'page' : undefined}
           >
             {RC_MASS_TAB_LABELS[t]}
-          </button>
+          </a>
         ))}
       </div>
 

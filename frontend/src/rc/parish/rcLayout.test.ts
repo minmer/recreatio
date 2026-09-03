@@ -11,7 +11,7 @@
 import {
   RC_COLUMNS, RC_COL_SPANS, RC_MAX_ROW_SPAN, RC_MIN_COL_SPAN,
   rcCanPlace, rcFirstFreeCell, rcFrameFor, rcSnapColSpan, rcSnapRowSpan,
-  rcCellWidth, rcGrabOffset, rcPixelSize, rcValidCells, rcWithFrame, type RcModule
+  rcCellWidth, rcHitAt, rcPixelSize, rcValidCells, rcWithFrame, type RcModule
 } from './rcLayout';
 
 let passed = 0;
@@ -183,29 +183,31 @@ ok(
   ok("Ueber alle Spalten passt es genau", Math.round(full), width - 2 * gap);
 }
 
-// -- Wo der Zeiger sass -------------------------------------------------------
+// -- Welcher Kasten unter einem Punkt liegt -----------------------------------
+
+const box = (id: string, left: number, top: number) =>
+  ({ id, rect: { left, top, width: 100, height: 80 } });
+const boxes = [box('a', 0, 0), box('b', 100, 0), box('c', 0, 80), box('d', 100, 80)];
+
+ok('Mitten in einem Kasten', rcHitAt({ x: 50, y: 40 }, boxes), 'a');
+ok('Im zweiten', rcHitAt({ x: 150, y: 40 }, boxes), 'b');
+ok('Im vierten', rcHitAt({ x: 150, y: 120 }, boxes), 'd');
+ok('Ausserhalb: keiner', rcHitAt({ x: 500, y: 500 }, boxes), null);
+ok('Ohne Kaesten: keiner', rcHitAt({ x: 50, y: 40 }, []), null);
 
 /*
- * Die Vorschau wird an die linke obere Ecke des ANGEFASSTEN Dings gesetzt, der
- * Baustein landet aber unter dem ZEIGER. Ohne diesen Versatz stimmen beide nur
- * dann ueberein, wenn man genau oben links anfasst — und weichen umso weiter
- * ab, je weiter unten rechts man greift.
+ * Auf einer Kante liegt der Punkt in ZWEI Kaesten. Ohne feste Regel wechselt
+ * die Wahl mit der Reihenfolge der Liste — und das fuehlt sich an wie Zufall.
+ * Es gewinnt der, dessen Mitte naeher liegt.
  */
-ok("Oben links angefasst: kein Versatz", rcGrabOffset({ x: 100, y: 50 }, { left: 100, top: 50 }), { x: 0, y: 0 });
+ok('Genau auf der Kante gewinnt der naechste', rcHitAt({ x: 100, y: 40 }, boxes), 'a');
+ok('Knapp dahinter der andere', rcHitAt({ x: 101, y: 40 }, boxes), 'b');
 
+/* Und die Wahl haengt NICHT an der Reihenfolge. */
 ok(
-  "Unten rechts angefasst: der ganze Kasten",
-  rcGrabOffset({ x: 220, y: 84 }, { left: 100, top: 50 }),
-  { x: 120, y: 34 }
-);
-
-ok("In der Mitte angefasst", rcGrabOffset({ x: 160, y: 67 }, { left: 100, top: 50 }), { x: 60, y: 17 });
-
-/* Der Versatz haengt nur an der Lage, nicht an der Groesse des Dings. */
-ok(
-  "Zwei gleich gegriffene Dinge ergeben denselben Versatz",
-  rcGrabOffset({ x: 310, y: 217 }, { left: 300, top: 200 }),
-  rcGrabOffset({ x: 10, y: 17 }, { left: 0, top: 0 })
+  'Umgedreht kommt dasselbe heraus',
+  rcHitAt({ x: 100, y: 40 }, [...boxes].reverse()),
+  rcHitAt({ x: 100, y: 40 }, boxes)
 );
 
 // -- Ergebnis -----------------------------------------------------------------

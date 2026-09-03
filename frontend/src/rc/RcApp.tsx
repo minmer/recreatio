@@ -250,8 +250,13 @@ export function RcApp() {
      */
     return (
       <>
+        {/* Die Unterseite steht in der ADRESSE und nicht in einem Zustand:
+            deshalb laesst sie sich weitergeben, mit der mittleren Maustaste in
+            einem neuen Reiter oeffnen und mit dem Zurueck-Knopf verlassen. */}
         <RcParishSite
           slug={address.slug}
+          page={(address.tail[0] ?? 'start') as never}
+          sub={address.tail[1] ?? null}
           signedIn={entry.kind === 'signed-in'}
           onSignIn={() => setDrawerOpen(true)}
         />

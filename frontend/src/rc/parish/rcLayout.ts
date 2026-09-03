@@ -258,25 +258,55 @@ export const rcPixelSize = (
   height: size.rowSpan * rowHeight + (size.rowSpan - 1) * gap
 });
 
+
 /**
- * Wo der Zeiger INNERHALB des angefassten Dings sass.
+ * Welcher Kasten einen Punkt enthält — und bei mehreren der nächstgelegene.
  *
- * <b>Warum das gebraucht wird.</b> Die Vorschau wird von der Zeichenschicht an
- * die linke obere Ecke des angefassten Dings gesetzt — der Baustein landet aber
- * in der Zelle UNTER DEM ZEIGER. Fasst man eine Palettenpille an ihrer rechten
- * unteren Ecke an, liegen beide weit auseinander, und die Vorschau steht links
- * oberhalb der Stelle, an der wirklich abgelegt wird.
+ * <b>Wozu das gebraucht wird.</b> Ein Baustein landet dort, wo seine LINKE
+ * OBERE ECKE liegt, und nicht dort, wo der Zeiger ist. Wer ein Blatt Papier an
+ * der rechten unteren Ecke anfasst, legt es trotzdem dorthin, wo das BLATT
+ * liegt — die Hand ist woanders, und das stört niemanden.
  *
- * Fasst man oben links an, fällt es kaum auf. Genau deshalb ist es ein Fehler,
- * den man beim Ausprobieren übersieht und beim Arbeiten dauernd trifft.
+ * Die eingebaute Zeigerprüfung fragt nach dem Zeiger. Damit muss man den
+ * Mauszeiger auf die Zielzelle bringen, während der Baustein weit daneben
+ * schwebt: man zielt mit der Hand statt mit dem Ding.
  *
- * Mit diesem Versatz verschoben, sitzt die linke obere Ecke der Vorschau unter
- * dem Zeiger — also da, wo der Baustein hinkommt.
+ * <b>Die Reihenfolge bei mehreren Treffern</b> entscheidet der Abstand zur
+ * Mitte. Auf einer Rasterkante liegt der Punkt in zwei Zellen, und ohne feste
+ * Regel wechselt die Wahl mit der Reihenfolge der Liste — das fühlt sich an
+ * wie Zufall.
  */
-export const rcGrabOffset = (
-  pointer: { x: number; y: number },
-  rect: { left: number; top: number }
-): { x: number; y: number } => ({
-  x: pointer.x - rect.left,
-  y: pointer.y - rect.top
-});
+export function rcHitAt(
+  point: { x: number; y: number },
+  boxes: readonly { id: string; rect: { left: number; top: number; width: number; height: number } }[]
+): string | null {
+  let best: { id: string; distance: number; left: number; top: number } | null = null;
+
+  for (const box of boxes) {
+    const { left, top, width, height } = box.rect;
+    if (point.x < left || point.x > left + width) continue;
+    if (point.y < top || point.y > top + height) continue;
+
+    const dx = point.x - (left + width / 2);
+    const dy = point.y - (top + height / 2);
+    const distance = dx * dx + dy * dy;
+
+    /*
+     * GENAU AUF DER KANTE sind zwei Abstaende gleich gross. Dann entscheidet
+     * die Lage: erst die linkere, dann die obere Zelle.
+     *
+     * Ohne diesen zweiten Vergleich gewaenne, wer zuerst in der Liste steht —
+     * und die Reihenfolge haengt daran, wie das Raster gezeichnet wurde. Beim
+     * Ziehen laege der Baustein dann mal links, mal rechts von der Kante, ohne
+     * dass sich etwas am Zeigen geaendert haette.
+     */
+    const better = best === null
+      || distance < best.distance
+      || (distance === best.distance
+          && (left < best.left || (left === best.left && top < best.top)));
+
+    if (better) best = { id: box.id, distance, left, top };
+  }
+
+  return best?.id ?? null;
+}

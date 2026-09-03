@@ -39,12 +39,13 @@ function useBreakpoint(): RcBreakpoint {
 }
 
 export function RcParishHome({
-  site, mayEdit, onGo
+  site, mayEdit, at
 }: {
   site: RcSite;
   /** Wer bearbeiten darf, sieht auch leere Bausteine — als Aufgabe. */
   mayEdit: boolean;
-  onGo: (pageId: string) => void;
+  /** Die Adresse einer Unterseite — damit „Więcej" ein Verweis ist und kein Knopf. */
+  at: (pageId: string) => string;
 }) {
   const breakpoint = useBreakpoint();
   const columns = RC_COLUMNS[breakpoint];
@@ -72,7 +73,7 @@ export function RcParishHome({
           breakpoint={breakpoint}
           site={site}
           mayEdit={mayEdit}
-          onGo={onGo}
+          at={at}
         />
       ))}
     </div>
@@ -80,14 +81,14 @@ export function RcParishHome({
 }
 
 function Block({
-  module, columns, breakpoint, site, mayEdit, onGo
+  module, columns, breakpoint, site, mayEdit, at
 }: {
   module: RcModule;
   columns: number;
   breakpoint: RcBreakpoint;
   site: RcSite;
   mayEdit: boolean;
-  onGo: (pageId: string) => void;
+  at: (pageId: string) => string;
 }) {
   const frame = rcFrameFor(module, breakpoint);
   const body = renderBody(module.type, site);
@@ -108,10 +109,10 @@ function Block({
 
       {body ?? <p className="ps-muted">Ten moduł nie ma jeszcze treści — uzupełnij ją w zakładce „Treść".</p>}
 
+      {/* Ein Verweis und kein Knopf: mit der mittleren Maustaste in einem
+          neuen Reiter, als Lesezeichen, zum Weitergeben. */}
       {LINKS[module.type] !== undefined && body !== null && (
-        <button type="button" className="ps-more" onClick={() => onGo(LINKS[module.type])}>
-          Więcej
-        </button>
+        <a className="ps-more" href={at(LINKS[module.type])}>Więcej</a>
       )}
     </article>
   );
