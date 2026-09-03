@@ -26,8 +26,8 @@ import { useEffect, useState } from 'react';
 
 import {
   RC_ANNOUNCEMENTS, RC_EVENTS, RC_EXCEPTIONS, RC_INTENTIONS, RC_MASSES,
-  RC_MASS_TABS, RC_MASS_TAB_LABELS, RC_OFFICE_HOURS, RC_PARISH_MENU, RC_PRIESTS,
-  RC_SACRAMENTS, type RcMassTab, type RcPageId
+  RC_MASS_TABS, RC_MASS_TAB_LABELS, RC_PARISH_MENU, RC_PRIESTS,
+  type RcMassTab, type RcPageId
 } from './rcParishMock';
 import { rcPublicParish, type RcPublicParish } from './rcPublicParish';
 import { rcMayAdminArea } from './rcParishRights';
@@ -37,7 +37,7 @@ import { rcSaveParishSite } from '../lib/rcParish';
 import { RcParishHome } from './RcParishHome';
 import { RcApplyForm } from './RcApplyForm';
 import { rcMyPersonFields } from './rcPrefill';
-import { RC_EMPTY_SITE, rcReadSite, type RcSite } from './rcSite';
+import { RC_EMPTY_SITE, rcPage, rcReadSite, type RcSite } from './rcSite';
 
 export function RcParishSite({
   slug, page, sub, signedIn, onSignIn
@@ -345,10 +345,10 @@ export function RcParishSite({
         {page === 'masses' && <Masses tab={tab} at={at} />}
         {page === 'calendar' && <Calendar />}
         {page === 'clergy' && <Clergy />}
-        {page === 'office' && <Office />}
-        {page === 'about' && <About parish={parish} />}
-        {page === 'contact' && <Contact parish={parish} />}
-        {page.startsWith('sacrament-') && <Sacrament id={page} />}
+        {page === 'office' && <Office site={site} mayEdit={mayEdit} />}
+        {page === 'about' && <About parish={parish} site={site} mayEdit={mayEdit} />}
+        {page === 'contact' && <Contact parish={parish} site={site} mayEdit={mayEdit} />}
+        {page.startsWith('sacrament-') && <Sacrament id={page} site={site} mayEdit={mayEdit} />}
 
         {/* Die Anmeldung steht UNTER dem Text der Firmungsseite: erst was es
             ist, dann der Weg hinein. */}
@@ -490,74 +490,229 @@ function Clergy() {
   );
 }
 
-function Office() {
+/**
+ * Kancelaria — aus dem Eingetragenen.
+ *
+ * Die Zeilen kommen als freier Text, eine je Zeile, in der Form
+ * „Poniedziałek — 9:00–11:00". Ein Formular mit sieben festen Feldern waere
+ * genauer und truege die Annahme, dass jede Pfarrei die Woche gleich einteilt.
+ */
+function Office({ site, mayEdit }: { site: RcSite; mayEdit: boolean }) {
+  const hours = lines(site, 'office.hours');
+  const note = (site.content['office.note'] ?? '').trim();
+
   return (
     <Page title="Kancelaria">
       <article className="ps-card">
-        <ul className="ps-rows">
-          {RC_OFFICE_HOURS.map((o) => (
-            <li key={o.day}>
-              <span>{o.day}</span>
-              <em>{o.hours}</em>
-            </li>
-          ))}
-        </ul>
-        <p className="ps-muted">W sprawach pogrzebu prosimy o kontakt o każdej porze.</p>
+        {hours.length > 0
+          ? <Lines rows={hours} />
+          : (
+            <p className="ps-muted">
+              {mayEdit
+                ? 'Godziny kancelarii nie zostały jeszcze wprowadzone — uzupełnij je w zakładce „Treść".'
+                : 'Godziny kancelarii pojawią się wkrótce.'}
+            </p>
+          )}
+
+        {note !== '' && <p className="ps-muted">{note}</p>}
       </article>
     </Page>
   );
 }
 
-function About({ parish }: { parish: RcPublicParish }) {
+/**
+ * „O parafii" — aus dem, was in der Karte „Treść" eingetragen wurde.
+ *
+ * <b>Was leer ist, erscheint nicht.</b> Eine Überschrift „Historia" über einer
+ * leeren Fläche sieht aus wie ein Fehler; ihr Fehlen sieht aus wie eine Seite,
+ * die noch wächst. Nur wer bearbeiten darf, sieht den Hinweis, dass hier etwas
+ * fehlt — der Besucher hat davon nichts.
+ */
+function About({
+  parish, site, mayEdit
+}: {
+  parish: RcPublicParish;
+  site: RcSite;
+  mayEdit: boolean;
+}) {
+  const at = (key: string) => (site.content[key] ?? '').trim();
+
+  const patron = at('about.patron');
+  const history = at('about.history');
+  const description = at('about.description');
+  const empty = patron === '' && history === '' && description === '';
+
   return (
-    <Page title={`O parafii`}>
+    <Page title="O parafii">
       <article className="ps-card">
         <h2>{parish.name}</h2>
+
         {parish.location !== null && parish.location !== undefined && parish.location !== '' && (
           <p className="ps-muted">{parish.location}</p>
         )}
-        <p>
-          Opis parafii nie został jeszcze wprowadzony. Można go dodać w trybie
-          edycji.
-        </p>
+
+        {patron !== '' && <p className="ps-lead">Patron: {patron}</p>}
+        {description !== '' && <Paragraphs text={description} />}
+
+        {history !== '' && (
+          <>
+            <h2>Historia</h2>
+            <Paragraphs text={history} />
+          </>
+        )}
+
+        {empty && (
+          <p className="ps-muted">
+            {mayEdit
+              ? 'Opis nie został jeszcze wprowadzony — uzupełnij go w trybie edycji, w zakładce „Treść".'
+              : 'Opis parafii pojawi się wkrótce.'}
+          </p>
+        )}
       </article>
     </Page>
   );
 }
 
-function Contact({ parish }: { parish: RcPublicParish }) {
+/**
+ * Freier Text in Absätze.
+ *
+ * Leerzeilen trennen — so schreibt man in ein Textfeld, und so soll es auch
+ * herauskommen. Ohne das stünde ein ganzer Lebenslauf einer Pfarrei als ein
+ * einziger Block da, und niemand läse ihn.
+ */
+function Paragraphs({ text }: { text: string }) {
+  const parts = text.split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p !== '');
+  return <>{parts.map((p, i) => <p key={i}>{p}</p>)}</>;
+}
+
+/**
+ * Kontakt.
+ *
+ * <b>Der Name kommt aus der Pfarrei, der Rest aus dem Eingetragenen.</b> Die
+ * Adresse steht in beidem — beim Anlegen als Ort, hier als Postanschrift. Was
+ * eingetragen wurde, gewinnt: es ist die genauere Angabe, und wer sie
+ * eingetragen hat, wollte etwas anderes sagen als beim Anlegen.
+ */
+function Contact({
+  parish, site, mayEdit
+}: {
+  parish: RcPublicParish;
+  site: RcSite;
+  mayEdit: boolean;
+}) {
+  const at = (key: string) => (site.content[key] ?? '').trim();
+
+  const address = at('contact.address') !== ''
+    ? at('contact.address')
+    : (parish.location ?? '');
+
+  const phone = at('contact.phone');
+  const email = at('contact.email');
+
   return (
     <Page title="Kontakt">
       <article className="ps-card">
         <ul className="ps-rows">
           <li><span>Parafia</span><em>{parish.name}</em></li>
-          {parish.location !== null && parish.location !== undefined && parish.location !== '' && (
-            <li><span>Adres</span><em>{parish.location}</em></li>
-          )}
-          <li><span>Kancelaria</span><em>zob. godziny dyżurów</em></li>
+          {address !== '' && <li><span>Adres</span><em>{address}</em></li>}
+          {phone !== '' && <li><span>Telefon</span><em>{phone}</em></li>}
+          {email !== '' && <li><span>E-mail</span><em>{email}</em></li>}
         </ul>
+
+        {phone === '' && email === '' && mayEdit && (
+          <p className="ps-muted">
+            Telefon i e-mail nie zostały jeszcze wprowadzone — uzupełnij je w
+            zakładce „Treść".
+          </p>
+        )}
       </article>
     </Page>
   );
 }
 
-function Sacrament({ id }: { id: string }) {
-  const s = RC_SACRAMENTS[id];
-  if (!s) {
+/**
+ * Eine Sakramentenseite — aus dem Eingetragenen.
+ *
+ * <b>Die drei Fragen sind immer dieselben:</b> wann und wie, was mitzubringen
+ * ist, an wen man sich wendet. Das ist keine Vereinfachung — es ist das, womit
+ * jemand kommt, und drei Absätze Fliesstext beantworten es schlechter.
+ *
+ * <b>Der Titel steht im Katalog</b> und nicht im eingetragenen Text: eine
+ * Unterseite, deren Überschrift sich mit dem Inhalt ändert, ist im Menü nicht
+ * mehr wiederzufinden.
+ */
+function Sacrament({
+  id, site, mayEdit
+}: {
+  id: string;
+  site: RcSite;
+  mayEdit: boolean;
+}) {
+  const page = rcPage(id);
+  if (page === undefined) {
     return <Page title="Sakramenty"><article className="ps-card"><p>Strona w budowie.</p></article></Page>;
   }
 
+  // Aus `sacrament-confirmation` wird `confirmation` — so heissen die Felder.
+  const name = id.slice('sacrament-'.length);
+  const at = (what: string) => (site.content[`sacrament.${name}.${what}`] ?? '').trim();
+
+  const lead = at('lead');
+  const bring = at('bring').split('\n').map((b) => b.trim()).filter((b) => b !== '');
+  const who = at('who');
+  const empty = lead === '' && bring.length === 0 && who === '';
+
   return (
-    <Page title={s.title}>
+    <Page title={page.label}>
       <article className="ps-card">
-        <p className="ps-lead">{s.lead}</p>
-        <h2>Co przygotować</h2>
-        <ul className="ps-bullets">
-          {s.bring.map((b) => <li key={b}>{b}</li>)}
-        </ul>
-        <p className="ps-muted">Kontakt: {s.who}</p>
+        {lead !== '' && <p className="ps-lead">{lead}</p>}
+
+        {bring.length > 0 && (
+          <>
+            <h2>Co przygotować</h2>
+            <ul className="ps-bullets">{bring.map((b) => <li key={b}>{b}</li>)}</ul>
+          </>
+        )}
+
+        {who !== '' && <p className="ps-muted">Kontakt: {who}</p>}
+
+        {empty && (
+          <p className="ps-muted">
+            {mayEdit
+              ? 'Ta strona nie ma jeszcze treści — uzupełnij ją w trybie edycji, w zakładce „Treść".'
+              : 'Szczegóły pojawią się wkrótce. W razie pytań prosimy o kontakt z kancelarią.'}
+          </p>
+        )}
       </article>
     </Page>
+  );
+}
+
+/** Freier Text, eine Sache je Zeile — Leerzeilen fallen weg. */
+function lines(site: RcSite, key: string): string[] {
+  return (site.content[key] ?? '').split('\n').map((l) => l.trim()).filter((l) => l !== '');
+}
+
+/**
+ * Zeilen der Form „Poniedziałek — 9:00–11:00".
+ *
+ * Der Gedankenstrich trennt die Sache von der Zeit. Fehlt er, steht die ganze
+ * Zeile links — besser, als eine Zeile zu verschlucken, die jemand anders
+ * gemeint hat.
+ */
+function Lines({ rows }: { rows: readonly string[] }) {
+  return (
+    <ul className="ps-rows">
+      {rows.map((row, i) => {
+        const cut = row.split(/s+[—–-]s+/);
+        return (
+          <li key={`${row}-${i}`}>
+            <span>{cut[0]}</span>
+            {cut.length > 1 && <em>{cut.slice(1).join(' — ')}</em>}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

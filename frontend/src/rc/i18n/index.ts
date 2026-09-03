@@ -661,6 +661,7 @@ const en: RcCopy = {
       'role.cycle': 'That would make two roles unlock each other.',
       'role.unreachable': 'That role is not available to you.',
       'session.revoked': 'That session has ended. Please sign in again.',
+      'session.not_signed_in': 'You are not signed in.',
       'session.expired': 'That session has expired. Please sign in again.',
       'session.unlock_required': 'Your key is not in memory. Please unlock.'
     },
@@ -1290,6 +1291,7 @@ const pl: RcCopy = {
       'role.cycle': 'To sprawiłoby, że dwie role otwierałyby się nawzajem.',
       'role.unreachable': 'Ta rola nie jest dla Ciebie dostępna.',
       'session.revoked': 'Ta sesja została zakończona. Zaloguj się ponownie.',
+      'session.not_signed_in': 'Nie jesteś zalogowany.',
       'session.expired': 'Ta sesja wygasła. Zaloguj się ponownie.',
       'session.unlock_required': 'Twojego klucza nie ma w pamięci. Odblokuj.'
     },
@@ -1952,6 +1954,7 @@ const de: RcCopy = {
       'role.cycle': 'Dabei würden zwei Rollen einander gegenseitig aufschließen.',
       'role.unreachable': 'Diese Rolle steht dir nicht zur Verfügung.',
       'session.revoked': 'Diese Sitzung wurde beendet. Bitte neu anmelden.',
+      'session.not_signed_in': 'Du bist nicht angemeldet.',
       'session.expired': 'Diese Sitzung ist abgelaufen. Bitte neu anmelden.',
       'session.unlock_required': 'Dein Schlüssel liegt nicht im Speicher. Bitte entsperren.'
     },

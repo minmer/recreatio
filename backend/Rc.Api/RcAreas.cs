@@ -627,9 +627,20 @@ public static class RcAreas
         return await cmd.ExecuteScalarAsync(ct) is Guid tenant ? tenant : Guid.Empty;
     }
 
+    /// <summary>
+    /// Hier ist gar keine Sitzung angekommen.
+    ///
+    /// <b>Nicht dasselbe wie „abgelaufen".</b> Abgelaufen sagt die
+    /// Sitzungspruefung selbst, mit eigenem Code — sie hat die Zeile in der
+    /// Datenbank gesehen. Hier ist nichts angekommen: kein Cookie, oder eines,
+    /// das sich nicht oeffnen liess.
+    ///
+    /// Beides trug frueher denselben Code, und von aussen war nicht zu sehen,
+    /// welches von beiden vorlag. Genau daran haengt aber, was zu tun ist.
+    /// </summary>
     internal static Task Unauthenticated(HttpContext ctx) =>
         RcResults.WriteErrorAsync(ctx, StatusCodes.Status401Unauthorized,
-            RcErrorCodes.SessionExpired, "Dafuer musst du angemeldet sein.");
+            RcErrorCodes.NotSignedIn, "Dafuer musst du angemeldet sein.");
 
     /// <summary>
     /// „Darfst du nicht" und „gibt es nicht" bekommen dieselbe Antwort. Sonst

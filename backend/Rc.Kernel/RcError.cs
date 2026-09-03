@@ -151,6 +151,22 @@ public static class RcErrorCodes
     /// Die erlaubten Namen stehen in den Einzelheiten der Antwort — wer eine
     /// Pfarrei anlegen darf, darf auch wissen, welche vorgesehen sind.
     /// </summary>
+    /// <summary>
+    /// Gar nicht angemeldet — kein Cookie, oder eines, das sich nicht mehr
+    /// oeffnen liess.
+    ///
+    /// <b>Warum das NICHT „abgelaufen" heisst.</b> Beides endete bisher unter
+    /// demselben Code, und von aussen liessen sie sich nicht unterscheiden:
+    /// eine Sitzung, die in der Datenbank abgelaufen ist, und ein Cookie, das
+    /// der Dienst nicht entschluesseln kann, weil beim Ausrollen die
+    /// Schutzschluessel verlorengingen.
+    ///
+    /// Die beiden verlangen verschiedene Antworten — im zweiten Fall hilft
+    /// neu anmelden, im ersten war man laengst draussen —, und wer sie nicht
+    /// auseinanderhalten kann, sucht die Ursache an der falschen Stelle.
+    /// </summary>
+    public const string NotSignedIn = "session.not_signed_in";
+
     public const string ConsentMissing = "consent.missing";
     public const string PortalRevoked = "portal.revoked";
     public const string ApplicationsClosed = "confirmation.applications_closed";
