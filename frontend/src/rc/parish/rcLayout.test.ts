@@ -11,7 +11,7 @@
 import {
   RC_COLUMNS, RC_COL_SPANS, RC_MAX_ROW_SPAN, RC_MIN_COL_SPAN,
   rcCanPlace, rcFirstFreeCell, rcFrameFor, rcSnapColSpan, rcSnapRowSpan,
-  rcValidCells, rcWithFrame, type RcModule
+  rcCellWidth, rcPixelSize, rcValidCells, rcWithFrame, type RcModule
 } from './rcLayout';
 
 let passed = 0;
@@ -144,6 +144,44 @@ ok('Die kleinste Breite ist zwei', RC_MIN_COL_SPAN, 2);
 
 /* Jede erlaubte Breite geht in sechs Spalten auf oder füllt sie. */
 ok('Alle Breiten passen in sechs Spalten', RC_COL_SPANS.every((s) => s <= 6), true);
+
+// -- Vom Raster in Pixel ------------------------------------------------------
+
+/*
+ * Die Abstaende sind hier der ganze Fehlerraum, und es sind ZWEI verschiedene
+ * Rechnungen: auf der Flaeche liegen columns + 1 Abstaende (die aeusseren
+ * zaehlen mit), in einem Baustein nur die inneren.
+ */
+
+/* 600 breit, 6 Spalten, 8 Abstand: 600 - 7*8 = 544, geteilt durch 6. */
+ok("Die Spaltenbreite zaehlt die aeusseren Abstaende mit", rcCellWidth(600, 6, 8), (600 - 56) / 6);
+ok("Ohne Spalten ist sie null", rcCellWidth(600, 0, 8), 0);
+ok("Ohne Abstand geht es glatt auf", rcCellWidth(600, 6, 0), 100);
+
+/* Ein Baustein ueber 3 Zellen traegt 2 innere Abstaende. */
+ok(
+  "Ein Baustein zaehlt nur die inneren Abstaende",
+  rcPixelSize({ colSpan: 3, rowSpan: 1 }, 100, 84, 8),
+  { width: 3 * 100 + 2 * 8, height: 84 }
+);
+
+ok(
+  "Und in der Hoehe genauso",
+  rcPixelSize({ colSpan: 1, rowSpan: 3 }, 100, 84, 8),
+  { width: 100, height: 3 * 84 + 2 * 8 }
+);
+
+/*
+ * Die Probe: ein Baustein ueber ALLE Spalten muss genau so breit sein wie die
+ * Flaeche ohne ihre beiden aeusseren Abstaende. Stimmt das nicht, steht die
+ * Vorschau am Rand daneben — und man sieht es erst beim Ziehen.
+ */
+{
+  const width = 600, columns = 6, gap = 8;
+  const cell = rcCellWidth(width, columns, gap);
+  const full = rcPixelSize({ colSpan: columns, rowSpan: 1 }, cell, 84, gap).width;
+  ok("Ueber alle Spalten passt es genau", Math.round(full), width - 2 * gap);
+}
 
 // -- Ergebnis -----------------------------------------------------------------
 

@@ -113,7 +113,9 @@ public static class RcPublicParish
             // ohne Schluessel oeffnet sie nichts.
             RcId.ToText(reader.GetGuid(4)),
             configured ? reader.GetString(5) : "classic",
-            configured && !reader.IsDBNull(6) ? reader.GetString(6) : "[]",
+            // Dieselbe leere Form wie beim Anlegen — nicht "[]": der Browser
+            // liest beide, aber zwei Vorgaben fuer dasselbe laufen auseinander.
+            configured && !reader.IsDBNull(6) ? reader.GetString(6) : RcParishSiteDocument.Empty,
             configured));
     }
 }

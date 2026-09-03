@@ -708,7 +708,15 @@ public static class RcParish
 
     /// <summary>Was die Vorgabe zeigt, solange niemand gewaehlt hat.</summary>
     private const string DefaultTheme = "classic";
-    private const string DefaultModules = """["masses","announcements","intentions","contact"]""";
+    /// <summary>
+    /// Was eine Pfarrei bekommt, die noch nichts eingerichtet hat.
+    ///
+    /// LEER und nicht vorbelegt: eine Startseite mit vier Bausteinen, die
+    /// niemand abgelegt hat, sieht aus wie ein Fehler — man loescht sie und
+    /// fragt sich, woher sie kam. Ein leeres Dokument sagt dagegen richtig,
+    /// dass hier noch nichts steht, und der Editor sagt, was zu tun ist.
+    /// </summary>
+    private const string DefaultModules = RcParishSiteDocument.Empty;
 
     public sealed record SaveSiteRequest(string? Theme, string? Modules);
 
@@ -763,10 +771,23 @@ public static class RcParish
         var theme = Trim(body.Theme, 40) ?? DefaultTheme;
         var modules = body.Modules ?? DefaultModules;
 
-        if (!LooksLikeJsonArray(modules))
+        /*
+         * Geprueft wird die FORM des Dokuments, nicht der Geschmack.
+         *
+         * Was hier hineingeht, wird spaeter OHNE Konto ausgeliefert. Ein
+         * Dienst, der beliebiges JSON annimmt, weil „der Browser schon das
+         * Richtige schickt", verlaesst sich auf einen Absender, den er nicht
+         * kennt: jeder mit einem Zertifikat auf diesem Bereich kann etwas
+         * anderes schicken.
+         *
+         * Die Meldung nennt, WAS nicht stimmt. „Ungueltig" allein liesse den
+         * Absender raten, und das ist bei einem Dokument mit vier Ebenen eine
+         * lange Suche.
+         */
+        if (RcParishSiteDocument.Fault(modules) is { } fault)
         {
             await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
-                RcErrorCodes.PermissionDenied, "Die Bausteine sind keine JSON-Liste.");
+                RcErrorCodes.ParishSiteMalformed, fault);
             return;
         }
 
@@ -791,24 +812,6 @@ public static class RcParish
             RcId.ToText(id), theme, modules, true));
     }
 
-    /// <summary>
-    /// Faengt den haeufigsten Fehler ab: irgendein Text statt einer Liste.
-    ///
-    /// <b>Das ist die schaerfste Pruefung, die es hier gibt</b> — die Datenbank
-    /// prueft DASSELBE und nicht mehr. ISJSON stand einmal in der Bedingung und
-    /// steht dort nicht mehr: die Funktion gibt es erst ab Kompatibilitaetsgrad
-    /// 130, und die Datenbank laeuft darunter.
-    ///
-    /// Wer also darauf baut, dass hinter dieser Stelle garantiert gueltiges
-    /// JSON liegt, baut auf nichts. Es liegt gueltiges JSON dort, weil der
-    /// Dienst den Wert selbst zusammensetzt — nicht, weil jemand ihn geprueft
-    /// haette.
-    /// </summary>
-    private static bool LooksLikeJsonArray(string text)
-    {
-        var trimmed = text.AsSpan().Trim();
-        return trimmed.Length >= 2 && trimmed[0] == '[' && trimmed[^1] == ']';
-    }
 
 
 }

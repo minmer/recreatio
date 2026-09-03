@@ -152,6 +152,7 @@ public static class RcErrorCodes
     /// Pfarrei anlegen darf, darf auch wissen, welche vorgesehen sind.
     /// </summary>
     public const string ParishNotFound = "parish.not_found";
+    public const string ParishSiteMalformed = "parish.site_malformed";
     public const string ParishSlugNotAllowed = "parish.slug_not_allowed";
 
     // Ablage

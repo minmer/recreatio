@@ -22,14 +22,32 @@ using Rc.Kernel;
 // von Konten und Sitzungen geleert — niemals auf die echte zeigen lassen.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// ZUERST, WAS OHNE DATENBANK GEPRUEFT WERDEN KANN.
+//
+// Reine Funktionen brauchen keinen Dienst und keine Datenbank. Sie hinter die
+// Verbindungspruefung zu stellen hiesse: wer keine Testdatenbank hat, prueft
+// gar nichts — und genau das war der Zustand, in dem die Dokumentpruefung
+// ungeprueft blieb.
+//
+// Der Lauf endet danach mit 0, wenn keine Verbindung da ist. Das ist kein
+// Erfolg des ganzen Laufs und sagt es auch.
+// ---------------------------------------------------------------------------
+
+var pure = new PureChecks();
+pure.Run();
+if (pure.Failed > 0) return 1;
+
 var connectionString = args.FirstOrDefault(a => !a.StartsWith("--"))
                     ?? Environment.GetEnvironmentVariable("RC_TEST_CONNECTION");
 
 if (string.IsNullOrWhiteSpace(connectionString))
 {
-    Console.Error.WriteLine("Keine Verbindungszeichenfolge. Argument oder RC_TEST_CONNECTION.");
-    return 2;
+    Console.WriteLine();
+    Console.WriteLine("Ohne RC_TEST_CONNECTION laufen nur die reinen Pruefungen.");
+    return 0;
 }
+
 
 if (!connectionString.Contains("_Test", StringComparison.OrdinalIgnoreCase))
 {
@@ -3304,5 +3322,84 @@ sealed class Runner
         Console.WriteLine();
         Console.WriteLine($"  {_pass} bestanden, {_fail} fehlgeschlagen");
         return _fail == 0 ? 0 : 1;
+    }
+}
+
+
+/// <summary>
+/// Was ohne Datenbank prueffbar ist.
+///
+/// Bisher gab es das nicht: jede Pruefung dieser Reihe sprach mit dem Dienst,
+/// also brauchte jede eine Datenbank. Eine reine Funktion so zu pruefen ist
+/// teurer als noetig — und sie bleibt ungeprueft, sobald niemand eine
+/// Testdatenbank zur Hand hat.
+/// </summary>
+sealed class PureChecks
+{
+    private int _pass;
+    public int Failed { get; private set; }
+
+    public void Run()
+    {
+        Console.WriteLine("Ohne Datenbank");
+
+        // -- Was durchgehen MUSS --------------------------------------------
+
+        Ok("Das leere Dokument ist gueltig", RcParishSiteDocument.Fault(RcParishSiteDocument.Empty) is null);
+
+        Ok("Ein gefuelltes Dokument ist gueltig", RcParishSiteDocument.Fault("""
+            {"modules":[{"id":"a","type":"masses","layouts":{"desktop":{"position":{"row":1,"col":1},"size":{"colSpan":3,"rowSpan":1}}}}],
+             "menu":[{"label":"Parafia","children":[{"label":"O parafii","pageId":"about"}]}],
+             "content":{"about.patron":"św. Grzegorz"}}
+            """) is null);
+
+        /*
+         * Die ALTE Form — eine blosse Liste von Bausteinnamen. Sie abzuweisen
+         * hiesse: eine Pfarrei, die vor der Umstellung gespeichert hat, kann
+         * ihre Seite nicht mehr sichern, ohne dass jemand die Zeile anfasst.
+         */
+        Ok("Die alte Liste bleibt gueltig", RcParishSiteDocument.Fault("""["masses","contact"]""") is null);
+
+        // Fehlende Teile sind kein Fehler: wer noch kein Menue hat, hat keins.
+        Ok("Ein Dokument ohne menu geht durch", RcParishSiteDocument.Fault("""{"modules":[]}""") is null);
+
+        // -- Was NICHT durchgehen darf --------------------------------------
+
+        Bad("Leerer Text", "");
+        Bad("Kein JSON", "das ist kein json");
+        Bad("Eine blosse Zahl", "42");
+        Bad("modules als Text", """{"modules":"masses"}""");
+        Bad("menu als Text", """{"menu":"Parafia"}""");
+        Bad("content als Liste", """{"content":[]}""");
+        Bad("Ein Baustein ohne Kennung", """{"modules":[{"type":"masses"}]}""");
+        Bad("Ein Baustein ohne Art", """{"modules":[{"id":"a"}]}""");
+        Bad("Ein Baustein als Text", """{"modules":["masses"]}""");
+        Bad("Ein Menuepunkt ohne Beschriftung", """{"menu":[{"pageId":"about"}]}""");
+        Bad("Ein Untermenuepunkt ohne Beschriftung", """{"menu":[{"label":"P","children":[{"pageId":"about"}]}]}""");
+        Bad("Eine Angabe, die kein Text ist", """{"content":{"a":5}}""");
+
+        /*
+         * Die Obergrenze. Ohne sie ist die Spalte nvarchar(max) ein Weg, die
+         * Datenbank vollzuschreiben — und der einzige Halt davor steht im
+         * Dienst.
+         */
+        Bad("Ein zu grosses Dokument", "{\"content\":{\"a\":\"" + new string('x', RcParishSiteDocument.MaxLength) + "\"}}");
+
+        // Die Meldung muss sagen, WAS nicht stimmt — sonst sucht der Absender
+        // in einem Dokument mit vier Ebenen von Hand.
+        var fault = RcParishSiteDocument.Fault("""{"modules":[{"id":"a"}]}""");
+        Ok("Die Meldung nennt die Ursache", fault is not null && fault.Contains("Art"));
+
+        Console.WriteLine($"  {_pass} bestanden, {Failed} fehlgeschlagen");
+        Console.WriteLine();
+    }
+
+    private void Bad(string name, string document)
+        => Ok(name + " wird abgewiesen", RcParishSiteDocument.Fault(document) is not null);
+
+    private void Ok(string name, bool held)
+    {
+        if (held) { _pass++; Console.WriteLine($"  OK   {name}"); }
+        else { Failed++; Console.WriteLine($"  FAIL {name}"); }
     }
 }

@@ -23,14 +23,14 @@ import {
   type CSSProperties, type PointerEvent as ReactPointerEvent
 } from 'react';
 import {
-  DndContext, PointerSensor, pointerWithin, useDraggable, useDroppable,
+  DndContext, DragOverlay, PointerSensor, pointerWithin, useDraggable, useDroppable,
   useSensor, useSensors, type DragEndEvent, type DragStartEvent
 } from '@dnd-kit/core';
 
 import {
   RC_BREAKPOINTS, RC_COLUMNS, RC_MIN_COL_SPAN, RC_MIN_ROW_SPAN,
-  rcCanPlace, rcFirstFreeCell, rcFrameFor, rcSnapColSpan, rcSnapRowSpan,
-  rcValidCells, rcWithFrame, type RcBreakpoint, type RcFrame, type RcModule
+  rcCanPlace, rcCellWidth, rcFirstFreeCell, rcFrameFor, rcPixelSize, rcSnapColSpan,
+  rcSnapRowSpan, rcValidCells, rcWithFrame, type RcBreakpoint, type RcFrame, type RcModule
 } from './rcLayout';
 import { rcCells, rcResized, type RcHandle } from './rcResize';
 import { RC_MODULE_CATALOG, rcModuleLabel } from './rcModules';
@@ -146,7 +146,23 @@ function LayoutTab({
   const [breakpoint, setBreakpoint] = useState<RcBreakpoint>('desktop');
   const [selected, setSelected] = useState<string | null>(null);
 
-  const [drag, setDrag] = useState<{ valid: Set<string>; rows: number } | null>(null);
+  /*
+   * Was gezogen wird — samt Beschriftung und Rastergroesse, damit die
+   * Vorschau in der WIRKLICHEN Groesse erscheint.
+   *
+   * Ohne das zog man aus der Palette eine kleine Pille, waehrend am Ziel ein
+   * Baustein ueber vier mal fuenf Zellen landete. Man sah nicht, was man legt,
+   * und musste es ablegen, um es zu erfahren.
+   */
+  const [drag, setDrag] = useState<{
+    valid: Set<string>;
+    rows: number;
+    label: string;
+    size: { colSpan: number; rowSpan: number };
+  } | null>(null);
+
+  /** Wie breit eine Rasterspalte gerade wirklich ist — gemessen, nicht geraten. */
+  const [cellWidth, setCellWidth] = useState(0);
 
   const grid = useRef<HTMLDivElement>(null);
   const columns = RC_COLUMNS[breakpoint];
@@ -164,13 +180,19 @@ function LayoutTab({
   const onDragStart = useCallback((event: DragStartEvent) => {
     const id = String(event.active.id);
 
+    // Die Spaltenbreite haengt an der wirklichen Breite der Flaeche, und die
+    // aendert sich mit dem Fenster. Deshalb bei jedem Zug neu gemessen.
+    const box = grid.current;
+    if (box) setCellWidth(rcCellWidth(box.clientWidth, columns, GAP));
+
     if (id.startsWith('palette:')) {
-      const def = RC_MODULE_CATALOG.find((m) => m.type === id.slice('palette:'.length));
+      const type = id.slice('palette:'.length);
+      const def = RC_MODULE_CATALOG.find((m) => m.type === type);
       const size = {
         colSpan: rcSnapColSpan(def?.colSpan ?? RC_MIN_COL_SPAN, columns),
         rowSpan: rcSnapRowSpan(def?.rowSpan ?? RC_MIN_ROW_SPAN)
       };
-      setDrag(rcValidCells(modules, size, columns, breakpoint));
+      setDrag({ ...rcValidCells(modules, size, columns, breakpoint), label: rcModuleLabel(type), size });
       return;
     }
 
@@ -178,8 +200,13 @@ function LayoutTab({
     const module = modules.find((m) => m.id === moduleId);
     if (!module) return;
 
+    const size = rcFrameFor(module, breakpoint).size;
     // Der bewegte Baustein steht sich selbst nicht im Weg.
-    setDrag(rcValidCells(modules, rcFrameFor(module, breakpoint).size, columns, breakpoint, moduleId));
+    setDrag({
+      ...rcValidCells(modules, size, columns, breakpoint, moduleId),
+      label: rcModuleLabel(module.type),
+      size
+    });
     setSelected(moduleId);
   }, [modules, columns, breakpoint]);
 
@@ -371,6 +398,23 @@ function LayoutTab({
             ))}
           </div>
         </div>
+
+        {/*
+          DIE VORSCHAU IN DER WIRKLICHEN GROESSE.
+
+          `dropAnimation={null}`: der Baustein liegt nach dem Ablegen schon an
+          seinem Platz im Raster. Eine Rueckflugbewegung zoege die Vorschau
+          danach noch einmal quer ueber den Bildschirm zu einer Stelle, an der
+          nichts mehr ist.
+        */}
+        <DragOverlay dropAnimation={null}>
+          {drag !== null && (
+            <div className="pb-ghost" style={ghostStyle(drag.size, cellWidth)}>
+              <span className="pb-item-name">{drag.label}</span>
+              <span className="pb-item-size">{drag.size.colSpan}×{drag.size.rowSpan}</span>
+            </div>
+          )}
+        </DragOverlay>
       </DndContext>
 
       {modules.length === 0 && (
@@ -378,6 +422,19 @@ function LayoutTab({
       )}
     </>
   );
+}
+
+/**
+ * Die Groesse der Vorschau in Pixeln.
+ *
+ * Solange noch nichts gemessen wurde (`cellWidth === 0`), bleibt die Breite
+ * offen: ein Kasten mit der Breite 0 waere unsichtbar, und dann saehe es aus,
+ * als sei das Ziehen kaputt.
+ */
+function ghostStyle(size: { colSpan: number; rowSpan: number }, cellWidth: number): CSSProperties {
+  if (cellWidth <= 0) return {};
+  const { width, height } = rcPixelSize(size, cellWidth, ROW_H, GAP);
+  return { width: `${width}px`, height: `${height}px` };
 }
 
 function Pill({ type, label }: { type: string; label: string }) {

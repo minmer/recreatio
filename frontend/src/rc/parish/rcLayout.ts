@@ -226,3 +226,34 @@ export const rcWithFrame = (
   ...module,
   layouts: { ...module.layouts, [breakpoint]: frame }
 });
+
+/* -- Vom Raster in Pixel ---------------------------------------------------- */
+
+/**
+ * Wie breit eine einzelne Spalte wirklich ist.
+ *
+ * Bei `columns` Spalten liegen `columns + 1` Abstände auf der Fläche: einer
+ * links, einer rechts, und die dazwischen. Rechnet man mit `columns - 1`
+ * (den inneren allein), kommt jede Spalte zu breit heraus, und die Vorschau
+ * steht am rechten Rand um mehrere Pixel daneben.
+ */
+export const rcCellWidth = (gridWidth: number, columns: number, gap: number): number =>
+  columns <= 0 ? 0 : (gridWidth - gap * (columns + 1)) / columns;
+
+/**
+ * Wie gross ein Baustein von dieser Rastergrösse in Pixeln ist.
+ *
+ * Zwischen `n` Zellen liegen `n - 1` Abstände — hier wirklich die inneren
+ * allein, denn die äusseren gehören schon zur Fläche und nicht zum Baustein.
+ * Das ist derselbe Gedanke wie oben mit dem anderen Ergebnis, und genau
+ * deshalb stehen beide getrennt da.
+ */
+export const rcPixelSize = (
+  size: { colSpan: number; rowSpan: number },
+  cellWidth: number,
+  rowHeight: number,
+  gap: number
+): { width: number; height: number } => ({
+  width: size.colSpan * cellWidth + (size.colSpan - 1) * gap,
+  height: size.rowSpan * rowHeight + (size.rowSpan - 1) * gap
+});

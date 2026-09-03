@@ -740,3 +740,37 @@
 @media (max-width: 860px) {
   .pb-menu { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* -- Die Vorschau beim Ziehen ---------------------------------------------- */
+
+/*
+ * Sie hat die WIRKLICHE Grösse des Bausteins, nicht die des Griffs, an dem
+ * gezogen wird. Vorher zog man aus der Palette eine kleine Pille, während am
+ * Ziel etwas über vier mal fünf Zellen landete — man musste ablegen, um zu
+ * erfahren, was man legt.
+ *
+ * Halbdurchsichtig und mit gestricheltem Rand: sie liegt noch nicht, sie
+ * schwebt. Ein voll gedeckter Kasten sähe aus, als sei er schon abgelegt.
+ */
+.pb-ghost {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.6rem 0.7rem;
+  border: 2px dashed var(--ps-accent);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.9);
+  box-shadow: 0 6px 20px var(--ps-shadow);
+  font-family: inherit;
+  cursor: grabbing;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Der Baustein an seinem alten Platz wird blasser, während die Vorschau
+   fährt — beide gleich kräftig sähen aus wie zwei Bausteine. */
+.pb-item.is-dragging { opacity: 0.25; }
+
+/* Die Pille bleibt stehen, wo sie ist: sie ist eine Liste, keine Fracht.
+   Die Fracht ist die Vorschau. */
+.pb-pill.is-dragging { opacity: 0.35; }
