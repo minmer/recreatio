@@ -3390,6 +3390,35 @@ sealed class PureChecks
         var fault = RcParishSiteDocument.Fault("""{"modules":[{"id":"a"}]}""");
         Ok("Die Meldung nennt die Ursache", fault is not null && fault.Contains("Art"));
 
+        // -- Der Abdruck des Portalzugangs ----------------------------------
+
+        /*
+         * EIN WERT, ZWEI SPRACHEN.
+         *
+         * Der Browser wuerfelt das Portalgeheimnis und schickt nur den Abdruck;
+         * der Dienst schlaegt damit nach. Beide muessen DASSELBE rechnen —
+         * SHA-256 ueber die UTF-8-Bytes der Zeichenkette.
+         *
+         * Ginge einer der beiden auf Base64-Bytes statt auf Text, oder auf
+         * UTF-16, kaeme ein anderer Abdruck heraus. Niemand saehe einen Fehler:
+         * die Anmeldung ginge durch, und der Link fuehrte danach ins Leere.
+         * Genau diese Sorte Verabredung ist im Anmeldeweg schon einmal
+         * auseinandergelaufen (RcRegistrations, WrapAad).
+         *
+         * Derselbe Wert steht in rcCandidate.test.ts. Aendert sich einer,
+         * scheitert eine der beiden Reihen.
+         */
+        const string vectorSecret = "rc-portal-testvektor-2026";
+        const string vectorHash = "qDpC0+r7lHRs8NybJBSe2YJSEJpfyWdxGQrRKu+deeM=";
+
+        Ok("Der Abdruck des Portalzugangs stimmt mit dem Browser ueberein",
+            Convert.ToBase64String(RcToken.HashSecret(vectorSecret)) == vectorHash);
+
+        // Leerraum am Rand darf nichts aendern — ein Link aus einer Nachricht
+        // bringt gern ein Leerzeichen mit.
+        Ok("Leerraum am Rand aendert den Abdruck nicht",
+            Convert.ToBase64String(RcToken.HashSecret("  " + vectorSecret + "  ")) == vectorHash);
+
         Console.WriteLine($"  {_pass} bestanden, {Failed} fehlgeschlagen");
         Console.WriteLine();
     }

@@ -107,6 +107,20 @@ export const RcField = {
   ParishDonationAmount: 'amount',
   ContactPhone: 'phone',
 
+  // Firmung — der empfindlichste Teil. Kandidaten sind Minderjaehrige, und
+  // jedes Feld traegt sein eigenes Etikett: ein einziger Klumpen liesse sich
+  // gegen den eines anderen Kindes tauschen, ohne dass etwas auffiele.
+  // Dieselben Zeichenketten wie in RcAad.FieldName.
+  CandidateName: 'candidate_name',
+  CandidateBorn: 'candidate_born',
+  CandidateContact: 'candidate_contact',
+  CandidateSchool: 'candidate_school',
+
+  // Das Portalgeheimnis reist an einem ANDEREN Platz als der
+  // Sitzungsschluessel — beide gehoeren derselben Anmeldung und sind zwei
+  // verschiedene Dinge.
+  InvitationRoleKey: 'invite_key',
+
   // Belegung. Je Feld ein eigenes Etikett — dieselben Zeichenketten wie in
   // `RcAad.FieldName`; weicht eine ab, geht die Anfrage nie wieder auf.
   EnquiryGroupName: 'enquiry_group_name',

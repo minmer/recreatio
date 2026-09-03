@@ -52,7 +52,7 @@ public static class RcToken
             throw new ArgumentOutOfRangeException(nameof(lifetime),
                 $"Ueber SMS verschickte Zugangslinks gelten mindestens {MinimumSmsLifetime.TotalDays} Tage (10.4).");
 
-        var secret = ToBase64Url(RandomNumberGenerator.GetBytes(SecretBytes));
+        var secret = NewSecret();
         var record = new RcTokenRecord
         {
             Id = RcId.NewId(now),
@@ -72,6 +72,21 @@ public static class RcToken
     /// und nichts vorzuberechnen. Eine langsame Ableitung wuerde hier nur jede
     /// Anfrage verteuern.
     /// </summary>
+    /// <summary>
+    /// Ein neues Geheimnis — nur die Zeichenkette, ohne Eintrag.
+    ///
+    /// <b>Wofuer es das getrennt gibt.</b> Nicht jedes Geheimnis gehoert in
+    /// <c>rc_token</c>. Der Portallink eines Firmkandidaten zum Beispiel haengt
+    /// an seiner eigenen Zeile: jene Tabelle ist fuer Einladungen, die jemand
+    /// AUSSTELLT, und verlangt eine ausstellende Rolle — bei einer
+    /// Selbstanmeldung gibt es keine.
+    ///
+    /// Gewuerfelt wird trotzdem HIER und nirgends sonst. Zwei Stellen, die
+    /// Geheimnisse erzeugen, sind zwei Stellen, an denen sich Laenge oder
+    /// Kodierung aendern koennen — und nur eine davon merkt es.
+    /// </summary>
+    public static string NewSecret() => ToBase64Url(RandomNumberGenerator.GetBytes(SecretBytes));
+
     public static byte[] HashSecret(string secret) => SHA256.HashData(Encoding.UTF8.GetBytes(secret.Trim()));
 
     /// <summary>

@@ -48,7 +48,18 @@ if (args.FirstOrDefault() == "secret")
     return 0;
 }
 
-var connectionString = args.FirstOrDefault(a => !a.StartsWith("--"))
+/*
+ * WELCHES NACHBESSERUNGSSKRIPT — zuerst, weil sein NAME sonst fuer die
+ * Verbindungszeichenfolge gehalten wird.
+ *
+ * Die Zeichenfolge ist schlicht das erste Argument ohne zwei Striche. Der
+ * Skriptname ist auch eines. Beim ersten Lauf ging deshalb der Name an
+ * SqlClient, und der meldete ein kaputtes Format — richtig, aber an einer
+ * Stelle, die mit der Ursache nichts zu tun hat.
+ */
+var repairName = args.SkipWhile(a => a != "--repair").Skip(1).FirstOrDefault();
+
+var connectionString = args.FirstOrDefault(a => !a.StartsWith("--") && a != repairName)
                     ?? Environment.GetEnvironmentVariable("RC_CONNECTION")
                     ?? FromUserSecrets();
 
@@ -61,6 +72,143 @@ if (string.IsNullOrWhiteSpace(connectionString))
     Console.Error.WriteLine(@"  dotnet user-secrets set ""ConnectionStrings:DefaultConnection"" ""<...>"" --project backend/Recreatio.Api");
     Console.Error.WriteLine(@"Beispiel: dotnet run --project Rc.Schema -- ""Server=(localdb)\MSSQLLocalDB;Database=Recreatio_Rc;Trusted_Connection=True;TrustServerCertificate=True""");
     return 2;
+}
+
+/*
+ * NACHSEHEN, WAS WIRKLICH DASTEHT.
+ *
+ * Das Fassungsverzeichnis sagt, welche Skripte gelaufen sind. Es sagt nicht,
+ * ob die Spalten, Tabellen und Bedingungen daraufhin auch da sind — und genau
+ * das ist die Frage, wenn jemand ein Skript von Hand nachgeschoben hat und
+ * eine Reihe Fehlermeldungen sieht.
+ *
+ * Ohne diesen Weg bleibt nur Raten oder ein zweites Werkzeug.
+ */
+/*
+ * EINEN NACHBESSERUNGSLAUF FAHREN.
+ *
+ * Nachbesserungsskripte heissen nicht `rc_0…` und wandern deshalb NICHT durch
+ * das Fassungsverzeichnis: sie sind wiederholbar und keine Fassung. Trotzdem
+ * sollen sie ohne zweites Werkzeug laufen koennen — wer eine Datenbank
+ * hinterherzieht, hat selten ein SQL-Fenster daneben offen.
+ *
+ * Aufruf:
+ *   dotnet run --project Rc.Schema -- --repair rc_repair_parish_confirmation
+ */
+if (args.Contains("--repair"))
+{
+    var wanted = repairName;
+    if (string.IsNullOrWhiteSpace(wanted))
+    {
+        Console.Error.WriteLine("Welches Skript? Beispiel: --repair rc_repair_parish_confirmation");
+        return 2;
+    }
+
+    var found = typeof(Program).Assembly.GetManifestResourceNames()
+        .FirstOrDefault(n => n.EndsWith($".{wanted}.sql", StringComparison.OrdinalIgnoreCase));
+
+    if (found is null)
+    {
+        Console.Error.WriteLine($"Kein Skript namens {wanted}.sql.");
+        return 2;
+    }
+
+    await using var stream = typeof(Program).Assembly.GetManifestResourceStream(found)!;
+    var sqlText = await new StreamReader(stream, Encoding.UTF8).ReadToEndAsync();
+
+    await using var repairConnection = new SqlConnection(connectionString);
+    try { await repairConnection.OpenAsync(); }
+    catch (SqlException e)
+    {
+        Console.Error.WriteLine($"Verbindung fehlgeschlagen: {e.Message}");
+        return 2;
+    }
+
+    Console.WriteLine($"Datenbank: {repairConnection.Database} auf {repairConnection.DataSource}");
+    Console.WriteLine();
+
+    /*
+     * Die PRINT-Zeilen des Skripts sind sein Bericht. Ohne diesen Anschluss
+     * liefe es stumm — und ein Nachbesserungslauf, der nichts sagt, laesst
+     * genau die Frage offen, wegen der man ihn gestartet hat.
+     */
+    repairConnection.InfoMessage += (_, e) => Console.WriteLine(e.Message);
+
+    /*
+     * KEINE gemeinsame Transaktion.
+     *
+     * Jeder Stapel steht fuer sich, und das ist hier richtig: das Skript ist
+     * wiederholbar. Bricht es in der Mitte ab, laesst man es noch einmal
+     * laufen — was schon getan ist, wird uebersprungen.
+     */
+    var batches = SplitBatches(sqlText);
+    foreach (var batch in batches)
+    {
+        await using var cmd = new SqlCommand(batch, repairConnection) { CommandTimeout = 120 };
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    Console.WriteLine();
+    Console.WriteLine($"Fertig ({batches.Count} Stapel).");
+    return 0;
+}
+
+if (args.Contains("--verify"))
+{
+    await using var check = new SqlConnection(connectionString);
+    try { await check.OpenAsync(); }
+    catch (SqlException e)
+    {
+        Console.Error.WriteLine($"Verbindung fehlgeschlagen: {e.Message}");
+        return 2;
+    }
+
+    Console.WriteLine($"Datenbank: {check.Database} auf {check.DataSource}");
+    Console.WriteLine();
+
+    var wanted = new (string What, string Sql)[]
+    {
+        ("rc_confirmation_group.intake_public_key",
+         "SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.rc_confirmation_group') AND name = 'intake_public_key'"),
+        ("rc_confirmation_group.applications_open",
+         "SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.rc_confirmation_group') AND name = 'applications_open'"),
+        ("rc_candidate.portal_token_hash",
+         "SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.rc_candidate') AND name = 'portal_token_hash'"),
+        ("rc_candidate.portal_token_wrapped",
+         "SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.rc_candidate') AND name = 'portal_token_wrapped'"),
+        ("rc_candidate.portal_revoked_at",
+         "SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.rc_candidate') AND name = 'portal_revoked_at'"),
+        ("rc_candidate.account_id",
+         "SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.rc_candidate') AND name = 'account_id'"),
+        ("rc_candidate_intake",
+         "SELECT 1 FROM sys.tables WHERE object_id = OBJECT_ID('dbo.rc_candidate_intake')"),
+        ("uq_rc_candidate_portal",
+         "SELECT 1 FROM sys.indexes WHERE name = 'uq_rc_candidate_portal'"),
+        ("ix_rc_candidate_account",
+         "SELECT 1 FROM sys.indexes WHERE name = 'ix_rc_candidate_account'"),
+        ("ck_rc_candidate_portal_revoke",
+         "SELECT 1 FROM sys.check_constraints WHERE name = 'ck_rc_candidate_portal_revoke'"),
+        ("ck_rc_parish_site_document",
+         "SELECT 1 FROM sys.check_constraints WHERE name = 'ck_rc_parish_site_document'"),
+        ("rc_parish_site",
+         "SELECT 1 FROM sys.tables WHERE object_id = OBJECT_ID('dbo.rc_parish_site')")
+    };
+
+    var missing = 0;
+    foreach (var (what, sql) in wanted)
+    {
+        await using var probe = new SqlCommand(sql, check);
+        var there = await probe.ExecuteScalarAsync() is not null;
+        if (there) Console.WriteLine($"  OK   {what}");
+        else { missing++; Console.WriteLine($"  FEHLT {what}"); }
+    }
+
+    Console.WriteLine();
+    Console.WriteLine(missing == 0
+        ? "Alles da."
+        : $"{missing} Stueck fehlen — die Fassung sagt etwas anderes als die Datenbank.");
+
+    return missing == 0 ? 0 : 1;
 }
 
 var scripts = LoadScripts();

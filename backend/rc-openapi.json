@@ -1031,6 +1031,201 @@
         }
       }
     },
+    "/rc/public/confirmation/{slug}": {
+      "get": {
+        "tags": [
+          "RcConfirmationIntake"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcConfirmationFormResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/public/confirmation/{slug}/apply": {
+      "post": {
+        "tags": [
+          "RcConfirmationIntake"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationIntakeApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCandidateAppliedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/public/candidate/{token}": {
+      "get": {
+        "tags": [
+          "RcConfirmationIntake"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCandidatePortalResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/public/candidate/{token}/bind": {
+      "post": {
+        "tags": [
+          "RcConfirmationIntake"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCandidateBoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/public/candidate/{token}/revoke": {
+      "post": {
+        "tags": [
+          "RcConfirmationIntake"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCandidateRevokedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/confirmation-groups/{id}/applications": {
+      "post": {
+        "tags": [
+          "RcConfirmationIntake"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationIntakeOpenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcApplicationsOpenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/consent/{key}": {
       "get": {
         "tags": [
@@ -4869,6 +5064,57 @@
         },
         "additionalProperties": false
       },
+      "ConfirmationIntakeApplyRequest": {
+        "required": [
+          "fields",
+          "rodoAccepted",
+          "sessionKeyWrapped"
+        ],
+        "type": "object",
+        "properties": {
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfirmationIntakeSealedField"
+            }
+          },
+          "sessionKeyWrapped": {
+            "type": "string"
+          },
+          "rodoAccepted": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationIntakeOpenRequest": {
+        "required": [
+          "open"
+        ],
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationIntakeSealedField": {
+        "required": [
+          "field",
+          "sealed"
+        ],
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "sealed": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "ConfirmationNoteView": {
         "required": [
           "authorRoleId",
@@ -6617,6 +6863,22 @@
         },
         "additionalProperties": false
       },
+      "RcApplicationsOpenResponse": {
+        "required": [
+          "groupId",
+          "open"
+        ],
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "open": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "RcAreaCreatedResponse": {
         "required": [
           "areaId",
@@ -6869,6 +7131,38 @@
         },
         "additionalProperties": false
       },
+      "RcCandidateAppliedResponse": {
+        "required": [
+          "candidateId",
+          "portalToken"
+        ],
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string"
+          },
+          "portalToken": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCandidateBoundResponse": {
+        "required": [
+          "bound",
+          "candidateId"
+        ],
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string"
+          },
+          "bound": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "RcCandidateCreatedResponse": {
         "required": [
           "candidateId",
@@ -6896,6 +7190,61 @@
             "type": "string"
           },
           "forFamily": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCandidatePortalResponse": {
+        "required": [
+          "bound",
+          "candidateId",
+          "fields",
+          "groupName",
+          "paperReceived",
+          "parishSlug",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string"
+          },
+          "groupName": {
+            "type": "string"
+          },
+          "parishSlug": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "paperReceived": {
+            "type": "boolean"
+          },
+          "bound": {
+            "type": "boolean"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfirmationIntakeSealedField"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCandidateRevokedResponse": {
+        "required": [
+          "candidateId",
+          "revoked"
+        ],
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string"
+          },
+          "revoked": {
             "type": "boolean"
           }
         },
@@ -6964,6 +7313,35 @@
             "items": {
               "$ref": "#/components/schemas/RolesCertificateView"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcConfirmationFormResponse": {
+        "required": [
+          "open"
+        ],
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "nullable": true
+          },
+          "groupName": {
+            "type": "string",
+            "nullable": true
+          },
+          "open": {
+            "type": "boolean"
+          },
+          "intakePublicKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "intakeEpoch": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -9841,6 +10219,9 @@
     },
     {
       "name": "RcConfirmation"
+    },
+    {
+      "name": "RcConfirmationIntake"
     },
     {
       "name": "RcConsent"

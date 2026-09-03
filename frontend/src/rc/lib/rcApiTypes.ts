@@ -1169,6 +1169,236 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/public/confirmation/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcConfirmationFormResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/public/confirmation/{slug}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfirmationIntakeApplyRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcCandidateAppliedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/public/candidate/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcCandidatePortalResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/public/candidate/{token}/bind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcCandidateBoundResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/public/candidate/{token}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcCandidateRevokedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/confirmation-groups/{id}/applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfirmationIntakeOpenRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcApplicationsOpenResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/consent/{key}": {
         parameters: {
             query?: never;
@@ -4643,6 +4873,18 @@ export interface components {
             /** Format: int32 */
             slots: number;
         };
+        ConfirmationIntakeApplyRequest: {
+            fields: components["schemas"]["ConfirmationIntakeSealedField"][];
+            sessionKeyWrapped: string;
+            rodoAccepted: boolean;
+        };
+        ConfirmationIntakeOpenRequest: {
+            open: boolean;
+        };
+        ConfirmationIntakeSealedField: {
+            field: string;
+            sealed: string;
+        };
         ConfirmationNoteView: {
             noteId: string;
             authorRoleId: string;
@@ -5116,6 +5358,10 @@ export interface components {
             nodes: components["schemas"]["AccountMapNodeView"][];
             edges: components["schemas"]["AccountMapEdgeView"][];
         };
+        RcApplicationsOpenResponse: {
+            groupId: string;
+            open: boolean;
+        };
         RcAreaCreatedResponse: {
             areaId: string;
             tenantId: string;
@@ -5185,6 +5431,14 @@ export interface components {
         RcCalendarsResponse: {
             calendars: components["schemas"]["CalendarCalendarSummary"][];
         };
+        RcCandidateAppliedResponse: {
+            candidateId: string;
+            portalToken: string;
+        };
+        RcCandidateBoundResponse: {
+            candidateId: string;
+            bound: boolean;
+        };
         RcCandidateCreatedResponse: {
             candidateId: string;
             name: string;
@@ -5192,6 +5446,19 @@ export interface components {
         RcCandidateNoteAddedResponse: {
             noteId: string;
             forFamily: boolean;
+        };
+        RcCandidatePortalResponse: {
+            candidateId: string;
+            groupName: string;
+            parishSlug: string;
+            status: string;
+            paperReceived: boolean;
+            bound: boolean;
+            fields: components["schemas"]["ConfirmationIntakeSealedField"][];
+        };
+        RcCandidateRevokedResponse: {
+            candidateId: string;
+            revoked: boolean;
         };
         RcCandidateWithdrawnResponse: {
             candidateId: string;
@@ -5208,6 +5475,14 @@ export interface components {
         };
         RcCertificatesResponse: {
             certificates: components["schemas"]["RolesCertificateView"][];
+        };
+        RcConfirmationFormResponse: {
+            groupId?: string | null;
+            groupName?: string | null;
+            open: boolean;
+            intakePublicKey?: string | null;
+            /** Format: int32 */
+            intakeEpoch?: number | null;
         };
         RcConfirmationGroupCreatedResponse: {
             groupId: string;

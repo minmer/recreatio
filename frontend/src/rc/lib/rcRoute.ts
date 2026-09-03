@@ -113,7 +113,20 @@ export const RC_PARTS = {
    * Eine Kennung sagt dort nichts. Wer den Namen sehen will, braucht den
    * Schlüssel, und den gibt die Adresse nicht her.
    */
-  person: { slugged: true, needsIdentity: true }
+  person: { slugged: true, needsIdentity: true },
+
+  /*
+   * Das Portal eines Firmkandidaten.
+   *
+   * OHNE Konto erreichbar — das ist der Punkt: wer sich angemeldet hat, hat
+   * meist keines. Der "Slug" ist das Portalgeheimnis, das Segment danach der
+   * Schluessel. Beide stehen hinter der Raute und gehen nie an den Server.
+   *
+   * Ein Geheimnis in der Adresse ist dasselbe Verfahren wie beim
+   * Einladungslink (3.12) und mit demselben Preis: wer den Link hat, kommt
+   * hinein. Er ist kein Ausweis, sondern ein Schluessel.
+   */
+  candidate: { slugged: true, needsIdentity: false }
 } as const satisfies Readonly<Record<string, RcPartDef>>;
 
 export type RcPart = keyof typeof RC_PARTS;
