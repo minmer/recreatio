@@ -34,7 +34,8 @@ import { rcMayAdminArea } from './rcParishRights';
 import { rcPath } from '../lib/rcRoute';
 import { RcParishBuilder } from './RcParishBuilder';
 import { rcSaveParishSite } from '../lib/rcParish';
-import type { RcModule } from './rcLayout';
+import { RcParishHome } from './RcParishHome';
+import { RC_EMPTY_SITE, rcReadSite, type RcSite } from './rcSite';
 
 export function RcParishSite({
   slug, signedIn, onSignIn
@@ -50,11 +51,11 @@ export function RcParishSite({
   const [editing, setEditing] = useState(false);
 
   /*
-   * Der Aufbau der Startseite. Er kommt als JSON-Text vom Dienst und wird hier
-   * einmal geoeffnet — ein kaputter Text macht die Seite nicht kaputt, er
-   * ergibt eine leere Liste.
+   * Das ganze Dokument: Aufbau, Menue und Inhalt. Es kommt als JSON-Text vom
+   * Dienst und wird hier einmal geoeffnet — ein kaputter Text macht die Seite
+   * nicht kaputt, er ergibt ein leeres Dokument.
    */
-  const [layout, setLayout] = useState<readonly RcModule[]>([]);
+  const [site, setSite] = useState<RcSite>(RC_EMPTY_SITE);
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
 
   const [page, setPage] = useState<RcPageId>('start');
@@ -68,7 +69,7 @@ export function RcParishSite({
         const found = await rcPublicParish(slug);
         if (!alive) return;
         setParish(found);
-        setLayout(readLayout(found.modules));
+        setSite(rcReadSite(found.modules));
       } catch {
         if (alive) setMissing(true);
       }
@@ -97,10 +98,18 @@ export function RcParishSite({
     if (parish === null) return;
     setSaving('saving');
     try {
-      await rcSaveParishSite(parish.parishId, parish.theme, layout);
+      await rcSaveParishSite(parish.parishId, parish.theme, site);
       setSaving('saved');
     } catch { setSaving('failed'); }
   };
+
+  /*
+   * Ein Menuepunkt nennt seine Seite als `pageId` — der eingebaute Rueckfall
+   * aus dem Altbestand nennt sie `id`. Beide Formen laufen durch dieselbe
+   * Leiste, also wird hier einmal uebersetzt statt an sechs Stellen geprueft.
+   */
+  const pageOf = (item: { id?: string; pageId?: string }): RcPageId | null =>
+    (item.pageId ?? item.id ?? null) as RcPageId | null;
 
   const go = (id: RcPageId) => {
     setPage(id);
@@ -136,22 +145,29 @@ export function RcParishSite({
           <span className="ps-name">{name}</span>
         </button>
 
+        {/*
+          DAS MENUE KOMMT AUS DEM DOKUMENT.
+
+          Solange niemand eines gebaut hat, steht das der alten Seite da — eine
+          Pfarrseite ohne Menue waere unbenutzbar, und ein leeres Menue sieht
+          aus wie ein Fehler. Sobald im Editor etwas gesetzt wird, gilt das.
+        */}
         <nav className={`ps-menu${menuOpen ? ' is-open' : ''}`} aria-label="Menu parafialne">
-          {RC_PARISH_MENU.map((item) => {
+          {(site.menu.length > 0 ? site.menu : RC_PARISH_MENU).map((item) => {
             if (!item.children) {
               return (
                 <button
                   key={item.label}
                   type="button"
-                  className={`ps-link${page === item.id ? ' is-active' : ''}`}
-                  onClick={() => item.id && go(item.id)}
+                  className={`ps-link${page === pageOf(item) ? ' is-active' : ''}`}
+                  onClick={() => { const id = pageOf(item); if (id !== null) go(id); }}
                 >
                   {item.label}
                 </button>
               );
             }
 
-            const active = item.children.some((c) => c.id === page);
+            const active = item.children.some((c) => pageOf(c) === page);
             const open = openGroup === item.label;
 
             return (
@@ -167,10 +183,10 @@ export function RcParishSite({
                 <div className="ps-sub">
                   {item.children.map((child) => (
                     <button
-                      key={child.id}
+                      key={pageOf(child) ?? child.label}
                       type="button"
-                      className={`ps-sub-link${page === child.id ? ' is-active' : ''}`}
-                      onClick={() => go(child.id)}
+                      className={`ps-sub-link${page === pageOf(child) ? ' is-active' : ''}`}
+                      onClick={() => { const id = pageOf(child); if (id !== null) go(id); }}
                     >
                       {child.label}
                     </button>
@@ -235,7 +251,7 @@ export function RcParishSite({
           </div>
 
           <div className="ps-editor-body">
-            <RcParishBuilder modules={layout} onChange={(next) => { setLayout(next); setSaving('idle'); }} />
+            <RcParishBuilder site={site} onChange={(next) => { setSite(next); setSaving('idle'); }} />
           </div>
         </div>
       )}
@@ -251,7 +267,23 @@ export function RcParishSite({
       </p>
 
       <main className="ps-main">
-        {page === 'start' && <Start parish={parish} onGo={go} />}
+        {page === 'start' && (
+          <>
+            <section className="ps-hero">
+              <h1>{parish.name}</h1>
+              {parish.location !== null && parish.location !== undefined && parish.location !== ''
+                ? <p>{parish.location}</p>
+                : null}
+            </section>
+
+            {/* Was der Editor gesetzt hat — und nichts sonst. */}
+            <RcParishHome
+              site={site}
+              mayEdit={mayEdit}
+              onGo={(id) => go(id as RcPageId)}
+            />
+          </>
+        )}
         {page === 'announcements' && <Announcements />}
         {page === 'intentions' && <Intentions />}
         {page === 'masses' && <Masses />}
@@ -273,100 +305,6 @@ export function RcParishSite({
 }
 
 /* -- Start ----------------------------------------------------------------- */
-
-/*
- * Das Raster der Startseite — sechs Spalten, wie im Altbestand. Die Breiten
- * heissen dort `one-third`, `one-half`, `two-thirds`, `full` und belegen 2, 3,
- * 4 und 6 Spalten. Genau diese Zahlen stehen hier, damit der Bausteineditor
- * nichts umrechnen muss, wenn er kommt.
- */
-function Start({ parish, onGo }: { parish: RcPublicParish; onGo: (id: RcPageId) => void }) {
-  const next = RC_INTENTIONS[0];
-
-  return (
-    <>
-      <section className="ps-hero">
-        <h1>{parish.name}</h1>
-        {parish.location !== null && parish.location !== undefined && parish.location !== ''
-          ? <p>{parish.location}</p>
-          : <p>Msze, intencje i ogłoszenia w jednym miejscu.</p>}
-      </section>
-
-      <div className="ps-grid">
-        <article className="ps-card ps-w-half">
-          <h2>Najbliższe intencje</h2>
-          <p className="ps-day">{next.day}</p>
-          <ul className="ps-rows">
-            {next.items.map((i) => (
-              <li key={i.time}>
-                <time>{i.time}</time>
-                <span>{i.text}</span>
-                <em>{i.priest}</em>
-              </li>
-            ))}
-          </ul>
-          <button type="button" className="ps-more" onClick={() => onGo('intentions')}>
-            Cały tydzień
-          </button>
-        </article>
-
-        <article className="ps-card ps-w-third">
-          <h2>Msze w niedzielę</h2>
-          <ul className="ps-rows">
-            {RC_MASSES.Sunday.map((m) => (
-              <li key={m.time}>
-                <time>{m.time}</time>
-                <span>{m.note}</span>
-              </li>
-            ))}
-          </ul>
-          <button type="button" className="ps-more" onClick={() => onGo('masses')}>
-            Pełny plan
-          </button>
-        </article>
-
-        <article className="ps-card ps-w-third">
-          <h2>Kancelaria</h2>
-          <ul className="ps-rows">
-            {RC_OFFICE_HOURS.map((o) => (
-              <li key={o.day}>
-                <span>{o.day}</span>
-                <em>{o.hours}</em>
-              </li>
-            ))}
-          </ul>
-          <button type="button" className="ps-more" onClick={() => onGo('office')}>
-            Kancelaria
-          </button>
-        </article>
-
-        <article className="ps-card ps-w-two-thirds">
-          <h2>Ogłoszenia</h2>
-          <ul className="ps-news">
-            {RC_ANNOUNCEMENTS.map((a) => (
-              <li key={a.id}>
-                <time>{a.date}</time>
-                <h3>{a.title}</h3>
-                <p>{a.excerpt}</p>
-              </li>
-            ))}
-          </ul>
-          <button type="button" className="ps-more" onClick={() => onGo('announcements')}>
-            Wszystkie ogłoszenia
-          </button>
-        </article>
-
-        <article className="ps-card ps-w-third">
-          <h2>Bierzmowanie</h2>
-          <p>Formacja, spotkania i zgłoszenia kandydatów.</p>
-          <button type="button" className="ps-more" onClick={() => onGo('sacrament-confirmation')}>
-            Przejdź
-          </button>
-        </article>
-      </div>
-    </>
-  );
-}
 
 /* -- Die einzelnen Seiten -------------------------------------------------- */
 
@@ -569,26 +507,3 @@ function Page({ title, children }: { title: string; children: React.ReactNode })
 }
 
 export default RcParishSite;
-
-/**
- * Den gespeicherten Aufbau lesen.
- *
- * Ein kaputter oder alter Text macht die Seite NICHT kaputt: er ergibt eine
- * leere Liste, und die Startseite zeigt ihre Vorgabe. Ein `JSON.parse`, das
- * durchschlägt, hiesse: ein Tippfehler in der Datenbank nimmt einer Pfarrei
- * ihre Website.
- */
-function readLayout(text: string | null | undefined): readonly RcModule[] {
-  if (text === null || text === undefined || text.trim() === '') return [];
-  try {
-    const parsed: unknown = JSON.parse(text);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (m): m is RcModule =>
-        typeof m === 'object' && m !== null
-        && typeof (m as RcModule).id === 'string'
-        && typeof (m as RcModule).type === 'string'
-        && typeof (m as RcModule).layouts === 'object'
-    );
-  } catch { return []; }
-}

@@ -70,7 +70,7 @@ export const rcParishSite = (parishId: string) =>
  * Verschlüsselt wird nichts davon: es beschreibt eine öffentliche Seite. Wer
  * sie sehen darf, darf auch wissen, wie sie aufgebaut ist.
  */
-export const rcSaveParishSite = (parishId: string, theme: string, modules: readonly unknown[]) =>
+export const rcSaveParishSite = (parishId: string, theme: string, modules: unknown) =>
   rcFetch<RcParishSite>(`/parishes/${parishId}/site`, {
     method: 'PUT',
     body: { theme, modules: JSON.stringify(modules) },

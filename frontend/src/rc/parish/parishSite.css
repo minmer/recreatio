@@ -525,3 +525,218 @@
 }
 .ps-save:disabled { opacity: 0.6; cursor: default; }
 .ps-save-bad { color: #9e2b25; font-size: 0.84rem; }
+
+/* -- Die Startseite, gezeichnet aus dem Aufbau ------------------------------ */
+
+/*
+ * Dasselbe Raster wie im Editor. `grid-auto-rows` statt fester Zeilen: die
+ * öffentliche Seite soll mit ihrem Inhalt wachsen dürfen, während der Editor
+ * feste Zellen braucht, um darauf zu zielen.
+ */
+.ps-live-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--ps-cols), minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.ps-empty-home {
+  padding: 2rem 1rem;
+  border: 1px dashed var(--ps-line);
+  border-radius: 10px;
+  text-align: center;
+}
+
+/* Ein Baustein ohne Inhalt — nur der Verwalter sieht ihn. */
+.ps-card-todo { border-style: dashed; background: rgba(165, 107, 47, 0.05); }
+
+/* -- Der Editor: Karten ---------------------------------------------------- */
+
+.pb-tabs { display: flex; gap: 0.3rem; border-bottom: 1px solid var(--ps-line); }
+
+.pb-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--ps-muted);
+  font: inherit;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+.pb-tab:hover { color: var(--ps-ink); }
+.pb-tab.is-active { border-bottom-color: var(--ps-accent); color: var(--ps-ink); font-weight: 600; }
+
+/* Wie viel noch fehlt — an der Karte, nicht darin. */
+.pb-badge {
+  min-width: 1.2rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: var(--ps-accent);
+  color: #fff;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Die Zeichenfläche wird wirklich schmaler — nicht nur spaltenärmer. */
+.pb-canvas { transition: max-width 200ms ease; }
+
+/* -- Die Griffe an den Kanten ---------------------------------------------- */
+
+/*
+ * Acht Griffe: vier Kanten, vier Ecken. Sie liegen AUF dem Rand und nicht
+ * daneben, sonst zieht man am Nachbarn. Nur am ausgewählten Baustein, sonst
+ * sähe die Seite aus wie ein Schaltpult.
+ */
+.pb-handle {
+  position: absolute;
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  background: var(--ps-accent);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.pb-item.is-selected .pb-handle { opacity: 0.85; }
+.pb-handle:hover { opacity: 1; }
+
+.pb-handle-top,
+.pb-handle-bottom { left: 25%; right: 25%; height: 5px; cursor: ns-resize; }
+.pb-handle-top { top: -2px; }
+.pb-handle-bottom { bottom: -2px; }
+
+.pb-handle-left,
+.pb-handle-right { top: 25%; bottom: 25%; width: 5px; cursor: ew-resize; }
+.pb-handle-left { left: -2px; }
+.pb-handle-right { right: -2px; }
+
+.pb-handle-top-left,
+.pb-handle-top-right,
+.pb-handle-bottom-left,
+.pb-handle-bottom-right { width: 10px; height: 10px; border-radius: 2px; }
+
+.pb-handle-top-left { top: -3px; left: -3px; cursor: nwse-resize; }
+.pb-handle-top-right { top: -3px; right: -3px; cursor: nesw-resize; }
+.pb-handle-bottom-left { bottom: -3px; left: -3px; cursor: nesw-resize; }
+.pb-handle-bottom-right { bottom: -3px; right: -3px; cursor: nwse-resize; }
+
+.pb-drop {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  z-index: 3;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 1px solid var(--ps-line);
+  border-radius: 4px;
+  background: var(--ps-bg);
+  color: var(--ps-muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.pb-drop:hover { border-color: #9e2b25; color: #9e2b25; }
+
+/* -- Karte 2: das Menü ------------------------------------------------------ */
+
+.pb-menu { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 20rem); gap: 1.4rem; }
+
+.pb-h { margin: 0 0 0.6rem; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ps-muted); }
+
+.pb-nodes { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+
+.pb-node {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--ps-line);
+  border-radius: 8px;
+  background: var(--ps-surface);
+}
+
+.pb-node-head { display: flex; align-items: center; gap: 0.4rem; }
+.pb-node-head input { flex: 1 1 8rem; min-width: 0; }
+.pb-node-kind { color: var(--ps-muted); font-size: 0.76rem; white-space: nowrap; }
+
+.pb-node-head button,
+.pb-drop-flat {
+  min-width: 1.6rem;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--ps-line);
+  border-radius: 4px;
+  background: var(--ps-bg);
+  color: var(--ps-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.pb-node-head button:disabled { opacity: 0.35; cursor: default; }
+.pb-drop-flat:hover { border-color: #9e2b25; color: #9e2b25; }
+
+.pb-children { list-style: none; margin: 0.45rem 0 0 1rem; padding: 0 0 0 0.8rem; border-left: 2px solid var(--ps-line); display: grid; gap: 0.3rem; }
+.pb-children li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.9rem; }
+.pb-muted { color: var(--ps-muted); font-size: 0.82rem; }
+
+.pb-add-group {
+  margin-top: 0.6rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px dashed var(--ps-line);
+  border-radius: 6px;
+  background: none;
+  color: var(--ps-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.pb-add-group:hover { border-style: solid; border-color: var(--ps-accent); color: var(--ps-ink); }
+
+.pb-page-group { margin-bottom: 0.9rem; }
+.pb-page-group-name { display: block; margin-bottom: 0.3rem; font-size: 0.74rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ps-muted); }
+
+.pb-page {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.45rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+}
+.pb-page span { flex: 1 1 auto; }
+.pb-page button, .pb-page select { font: inherit; font-size: 0.78rem; }
+
+/* Was schon im Menü steht, bleibt sichtbar und wird leiser — verschwände es,
+   wüsste niemand mehr, dass es die Seite gibt. */
+.pb-page.is-used { opacity: 0.5; }
+
+/* -- Karte 3: die Angaben --------------------------------------------------- */
+
+.pb-content { display: grid; gap: 1.2rem; }
+
+.pb-fieldset {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--ps-line);
+  border-radius: 8px;
+  background: var(--ps-surface);
+}
+
+.pb-field { display: grid; gap: 0.25rem; }
+.pb-field-label { display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.88rem; font-weight: 600; }
+.pb-field input, .pb-field textarea { width: 100%; font: inherit; font-size: 0.92rem; }
+.pb-field textarea { resize: vertical; }
+
+.pb-field-todo {
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 400;
+  color: var(--ps-accent);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 860px) {
+  .pb-menu { grid-template-columns: minmax(0, 1fr); }
+}
