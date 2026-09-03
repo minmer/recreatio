@@ -75,18 +75,44 @@ public static class RcParish
 
     // -- Anlegen --------------------------------------------------------------
 
-    public sealed record CreateParishRequest(string AreaId, string Slug, string Name, string? Location);
+    /// <summary>
+    /// <b>Die Person, nicht der Bereich.</b>
+    ///
+    /// Vorher stand hier eine Bereichskennung, und der Browser legte den
+    /// Bereich vorher selbst an — zwei Anfragen, zwischen denen es kein Zurueck
+    /// gibt. Scheiterte die zweite, blieb ein Bereich stehen, der zu nichts
+    /// gehoerte. Nach vier Anlaeufen standen vier gleichnamige herum.
+    /// </summary>
+    public sealed record CreateParishRequest(string PersonRoleId, string Slug, string Name, string? Location);
 
+    /// <summary>
+    /// Eine Pfarrei anlegen — mit allem, was dazugehoert, in EINER Transaktion.
+    ///
+    /// Es entstehen drei Dinge, und keines davon ergibt allein einen Sinn:
+    ///
+    /// <code>
+    ///   Bereich   traegt Schluessel, Epochen und Kette der Pfarrei
+    ///   Pfarrei   die Zeile selbst, mit Adresse und Namen
+    ///   Amt       die Rolle, die sie verwaltet — uebergebbar, ohne dass
+    ///             jemand sein Konto weitergeben muss
+    /// </code>
+    ///
+    /// <b>Warum das nicht der Browser macht.</b> Er hat es getan, in drei
+    /// Aufrufen, und zwischen zwei Anfragen gibt es kein Zurueck: brach der
+    /// zweite ab, blieb der erste stehen. Sichtbar wurde das als eine Liste
+    /// gleichnamiger Bereiche, die zu nichts gehoerten. Hier scheitert
+    /// entweder alles oder nichts.
+    /// </summary>
     private static async Task CreateAsync(
-        HttpContext ctx, RcDb db, RcPermissions permissions, CreateParishRequest body)
+        HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions, CreateParishRequest body)
     {
         var session = ctx.RcSession();
         if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
 
-        if (!Guid.TryParse(body.AreaId, out var areaId))
+        if (!Guid.TryParse(body.PersonRoleId, out var personRoleId))
         {
             await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
-                RcErrorCodes.PermissionDenied, "Das ist keine Bereichskennung.");
+                RcErrorCodes.IdMalformed, "Das ist keine Rollenkennung.");
             return;
         }
 
@@ -100,8 +126,18 @@ public static class RcParish
             return;
         }
 
-        var may = await permissions.CheckAsync(session.AccountId, RcScopeKind.Area, areaId,
-            RcCapability.Admin, ctx.RequestAborted);
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var tenantId = await RcAreas.TenantOfRoleAsync(connection, personRoleId, ctx.RequestAborted);
+        if (tenantId == Guid.Empty)
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status404NotFound,
+                RcErrorCodes.RoleNotFound, "Diese Rolle gibt es nicht.");
+            return;
+        }
+
+        var may = await permissions.CheckAsync(session.AccountId, RcScopeKind.Tenant, tenantId,
+            RcCapability.Certify, ctx.RequestAborted);
         if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
 
         // Die Adresse wird vorher entschieden, nicht hier erfunden. Die
@@ -109,10 +145,8 @@ public static class RcParish
         // Liste, aber ein Formular ist keine Schranke.
         //
         // ERST NACH der Berechtigungspruefung, und das ist kein Zufall: die
-        // Antwort nennt die vorgesehenen Namen. Wer den Bereich gar nicht
-        // verwaltet, soll sie nicht erfahren — er bekommt dieselbe Abfuhr wie
-        // fuer alles andere hier auch. Andernfalls waere dieser Zweig eine
-        // Auskunft an jeden, der raten will.
+        // Antwort nennt die vorgesehenen Namen. Wer hier gar nichts anlegen
+        // darf, soll sie nicht erfahren.
         if (!RcParishSlugs.IsAllowed(slug))
         {
             await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
@@ -126,36 +160,73 @@ public static class RcParish
             return;
         }
 
-        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        using var held = await masterKeys.OpenAsync(connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
 
-        var tenantId = await TenantOfAreaAsync(connection, areaId, ctx.RequestAborted);
-        if (tenantId == Guid.Empty) { await RcAreas.NotForYou(ctx); return; }
+        var personKey = await RcRoleAccess.RoleKeyAsync(
+            connection, session.AccountId, held.MasterKey, personRoleId, ctx.RequestAborted);
+
+        if (personKey is null) { await RcAreas.NotForYou(ctx); return; }
+
+        var identities = await RcRoleAccess.LoadIdentitiesAsync(connection, [personRoleId], ctx.RequestAborted);
+        if (!identities.TryGetValue(personRoleId, out var person))
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status404NotFound,
+                RcErrorCodes.RoleNotFound, "Diese Rolle gibt es nicht.");
+            return;
+        }
 
         var parishId = RcId.NewId();
-        await using var insert = new SqlCommand("""
-            INSERT INTO dbo.rc_parish (id, area_id, tenant_id, slug, name, location, created_at)
-            VALUES (@id, @area, @tenant, @slug, @name, @location, @now);
-            """, connection);
+        var now = DateTimeOffset.UtcNow;
 
-        insert.Parameters.AddWithValue("@id", parishId);
-        insert.Parameters.AddWithValue("@area", areaId);
-        insert.Parameters.AddWithValue("@tenant", tenantId);
-        insert.Parameters.AddWithValue("@slug", slug);
-        insert.Parameters.AddWithValue("@name", name);
-        insert.Parameters.Add("@location", System.Data.SqlDbType.NVarChar, 200).Value =
-            (object?)Trim(body.Location, 200) ?? DBNull.Value;
-        insert.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
-
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(
+            System.Data.IsolationLevel.Serializable, ctx.RequestAborted);
         try
         {
-            await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
+            /*
+             * DAS AMT — die Stelle, nicht der Mensch darauf.
+             *
+             * Ohne es haengt die Pfarrei allein an der Person, die sie angelegt
+             * hat: uebergeben liesse sie sich nur, indem man das Konto
+             * weitergibt, also gar nicht.
+             *
+             * Es entsteht VOR dem Bereich, damit es beim Schnitt der ersten
+             * Epoche schon dasteht und den Bereichsschluessel mitbekommt.
+             */
+            var officeId = await RcRoles.InsertHeldRoleAsync(connection, tx, personRoleId, personKey,
+                person, tenantId, RcRoleKinds.Office, name, ctx.RequestAborted);
+
+            var areaId = await RcAreas.InsertAreaAsync(connection, tx, personRoleId, personKey, person,
+                tenantId, name, false, ctx.RequestAborted, officeId);
+
+            await using (var insert = new SqlCommand("""
+                INSERT INTO dbo.rc_parish (id, area_id, tenant_id, slug, name, location, created_at)
+                VALUES (@id, @area, @tenant, @slug, @name, @location, @now);
+                """, connection, tx))
+            {
+                insert.Parameters.AddWithValue("@id", parishId);
+                insert.Parameters.AddWithValue("@area", areaId);
+                insert.Parameters.AddWithValue("@tenant", tenantId);
+                insert.Parameters.AddWithValue("@slug", slug);
+                insert.Parameters.AddWithValue("@name", name);
+                insert.Parameters.Add("@location", System.Data.SqlDbType.NVarChar, 200).Value =
+                    (object?)Trim(body.Location, 200) ?? DBNull.Value;
+                insert.Parameters.AddWithValue("@now", now);
+                await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
         }
         catch (SqlException e) when (e.Number is 2601 or 2627)
         {
+            await tx.RollbackAsync(ctx.RequestAborted);
             await RcResults.WriteErrorAsync(ctx, StatusCodes.Status409Conflict,
-                RcErrorCodes.PermissionDenied,
-                "Diese Adresse ist vergeben, oder an diesem Bereich haengt bereits eine Pfarrei.");
+                RcErrorCodes.PermissionDenied, "Diese Adresse ist vergeben.");
             return;
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
         }
 
         await RcResults.WriteJsonAsync(ctx, new RcParishCreatedResponse(
@@ -721,9 +792,17 @@ public static class RcParish
     }
 
     /// <summary>
-    /// Reicht als Vorpruefung: die Datenbank prueft mit ISJSON scharf nach.
-    /// Hier geht es nur darum, den haeufigsten Fehler — irgendein Text statt
-    /// einer Liste — mit einer verstaendlichen Meldung abzufangen.
+    /// Faengt den haeufigsten Fehler ab: irgendein Text statt einer Liste.
+    ///
+    /// <b>Das ist die schaerfste Pruefung, die es hier gibt</b> — die Datenbank
+    /// prueft DASSELBE und nicht mehr. ISJSON stand einmal in der Bedingung und
+    /// steht dort nicht mehr: die Funktion gibt es erst ab Kompatibilitaetsgrad
+    /// 130, und die Datenbank laeuft darunter.
+    ///
+    /// Wer also darauf baut, dass hinter dieser Stelle garantiert gueltiges
+    /// JSON liegt, baut auf nichts. Es liegt gueltiges JSON dort, weil der
+    /// Dienst den Wert selbst zusammensetzt — nicht, weil jemand ihn geprueft
+    /// haette.
     /// </summary>
     private static bool LooksLikeJsonArray(string text)
     {

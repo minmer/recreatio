@@ -4005,6 +4005,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/roles/{id}/name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RolesRenameRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcRoleRenamedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/certificates": {
         parameters: {
             query?: never;
@@ -4342,6 +4383,7 @@ export interface components {
             depth: number;
             hasKey: boolean;
             isAccount: boolean;
+            nodeType: string;
         };
         AreasAddMemberRequest: {
             roleId: string;
@@ -4391,6 +4433,7 @@ export interface components {
             passwordKey: string;
             passwordSalt: string;
             displayName?: string | null;
+            keepSignedIn?: boolean | null;
         };
         AuthSaltRequest: {
             username: string;
@@ -4399,6 +4442,7 @@ export interface components {
             username: string;
             passwordKey: string;
             deviceNote?: string | null;
+            keepSignedIn?: boolean | null;
         };
         CalendarAddItemRequest: {
             ownerRoleId: string;
@@ -4924,7 +4968,7 @@ export interface components {
             receivedOn?: string | null;
         };
         ParishCreateParishRequest: {
-            areaId: string;
+            personRoleId: string;
             slug: string;
             name: string;
             location?: string | null;
@@ -5374,6 +5418,7 @@ export interface components {
             sessionId?: string | null;
             keysHeld?: boolean | null;
             username?: string | null;
+            canOpen?: boolean | null;
         };
         RcMeetingBookedResponse: {
             slotId: string;
@@ -5586,6 +5631,10 @@ export interface components {
             kind: string;
             fingerprint: string;
         };
+        RcRoleRenamedResponse: {
+            roleId: string;
+            displayName: string;
+        };
         RcRolesResponse: {
             roles: components["schemas"]["RolesRoleView"][];
         };
@@ -5765,6 +5814,9 @@ export interface components {
             capability: string;
             /** Format: int32 */
             daysValid?: number | null;
+        };
+        RolesRenameRequest: {
+            displayName: string;
         };
         RolesRoleView: {
             roleId: string;

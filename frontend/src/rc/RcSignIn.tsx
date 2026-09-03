@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { rcCopy, rcFormat, type RcLang } from './i18n';
 import { RcRequestError } from './lib/rcApi';
-import { rcEntryCheck, type RcEntry } from './lib/rcBoot';
+import { rcEntryCheck, rcBrowserMemory, type RcEntry } from './lib/rcBoot';
 import {
   rcHasUnlockPiece,
   rcLock,
@@ -70,13 +70,24 @@ export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
    */
   const [signUp, setSignUp] = useState(false);
   const [personName, setPersonName] = useState('');
+
+  /*
+   * ANGEMELDET BLEIBEN.
+   *
+   * Vorgabe `false`, und das ist eine Entscheidung: was hier gespeichert
+   * wird, öffnet das Konto ohne Passwort, solange der Keks gilt. Auf einem
+   * geteilten Rechner ist das nicht, was jemand will, der nur kurz etwas
+   * nachsehen wollte. Wer es braucht, hakt es an — der Text daneben sagt,
+   * was es tut.
+   */
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
 
   /** Nach jeder Handlung neu fragen — und auf demselben Weg wie beim Eintritt. */
   const refresh = useCallback(async () => {
     onEntry({ kind: 'checking' });
-    onEntry(await rcEntryCheck(rcMe));
+    onEntry(await rcEntryCheck(rcMe, rcBrowserMemory, rcHasUnlockPiece, rcLogout));
   }, [onEntry]);
 
   /**
@@ -102,8 +113,8 @@ export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
         // Ohne dieses Warten malt der Browser den Zustand „deriving" nie.
         await new Promise((resolve) => setTimeout(resolve, 0));
 
-        if (mode === 'register') await rcRegister(username, password, personName);
-        else await rcUnlock(username, password, navigator.userAgent.slice(0, 128));
+        if (mode === 'register') await rcRegister(username, password, personName, keepSignedIn);
+        else await rcUnlock(username, password, navigator.userAgent.slice(0, 128), keepSignedIn);
 
         setPassword('');
         await refresh();
@@ -113,7 +124,7 @@ export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
         setPhase('idle');
       }
     },
-    [username, password, personName, refresh, t]
+    [username, password, personName, keepSignedIn, refresh, t]
   );
 
   const act = useCallback(
@@ -132,10 +143,32 @@ export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
     [refresh, t]
   );
 
-  // `keysHeld` kommt vom Server, `rcHasUnlockPiece` aus diesem Tab. Beides
-  // muss stimmen: der Server kann den Bund halten, während dieser Tab sein
-  // Öffnungsstück verloren hat — dann ist nichts zu lesen.
-  const ready = me?.signedIn === true && me.keysHeld === true && rcHasUnlockPiece();
+  /*
+   * WAS WIRKLICH GEBRAUCHT WIRD, IST DAS ÖFFNUNGSSTÜCK — NICHT `keysHeld`.
+   *
+   * Hier stand `me.keysHeld === true && rcHasUnlockPiece()`, und das hat
+   * Menschen ausgesperrt, die alles hatten, was nötig war. `keysHeld` sagt,
+   * ob der SERVER den Schlüsselbund noch zwischengespeichert hält. Er läuft
+   * nach kurzer Zeit ab — und danach stand hier „gesperrt", obwohl nichts
+   * gesperrt war.
+   *
+   * `RcMasterKey.OpenAsync` braucht den Zwischenspeicher nämlich gar nicht:
+   * fehlt er, baut der Server den Wurzelschlüssel aus dem Öffnungsstück und
+   * dem versiegelten Schlüssel in der Datenbank neu auf. Das ist derselbe Weg,
+   * den der sichere Modus immer geht. Es kostet Zeit und sonst nichts.
+   *
+   * `keysHeld` ist eine Auskunft über einen Zwischenspeicher und keine
+   * Bedingung. Was zählt: bin ich angemeldet, und habe ich das Öffnungsstück.
+   */
+  /*
+   * Zwei Wege zum Öffnungsstück, und der Browser sieht nur einen.
+   *
+   * `rcHasUnlockPiece()` liest den `sessionStorage` — der stirbt mit dem Tab.
+   * Wer „angemeldet bleiben" gewählt hat, trägt es stattdessen in einem
+   * `HttpOnly`-Keks, und den kann kein Skript sehen. Deshalb sagt der Server
+   * mit `canOpen`, ob dieser Anfrage eines beilag — egal auf welchem Weg.
+   */
+  const ready = me?.signedIn === true && (rcHasUnlockPiece() || me.canOpen === true);
 
   useEffect(() => { onReady?.(ready); }, [ready, onReady]);
 
@@ -233,6 +266,19 @@ export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
           disabled={busy}
           onChange={(e) => setPassword(e.target.value)}
         />
+      </label>
+
+      <label className="rc-check">
+        <input
+          type="checkbox"
+          checked={keepSignedIn}
+          disabled={busy}
+          onChange={(e) => setKeepSignedIn(e.target.checked)}
+        />
+        <span>
+          {t.keepSignedIn}
+          <small className="rc-note">{t.keepSignedInWhy}</small>
+        </span>
       </label>
 
       <div className="rc-auth-actions">

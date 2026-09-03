@@ -27,6 +27,9 @@ function ok(name: string, actual: unknown, expected: unknown): void {
 interface Who {
   readonly signedIn: boolean;
   readonly accountId?: string;
+
+  /** Ob dem Dienst bei dieser Anfrage ein Öffnungsstück beilag. */
+  readonly canOpen?: boolean | null;
 }
 
 /** Ein Merker im Speicher — `localStorage` gibt es hier nicht. */
@@ -161,6 +164,89 @@ await (async () => {
   ok('Und der Merker bleibt stehen', store.seen, true);
   ok('Beim naechsten Aufruf wird wieder gefragt',
     rcShouldCheckAtEntry(hints({ signedInBefore: store.signedInBefore() })), true);
+})();
+
+// -- Eine Sitzung ohne Weg zum Schlüssel -------------------------------------
+
+/*
+ * Der Fall, den es vorher nicht gab: angemeldet, aber nichts zu öffnen.
+ *
+ * Er entsteht ganz gewöhnlich — Tab geschlossen, `sessionStorage` fort, kein
+ * Keks, weil niemand „angemeldet bleiben" gewählt hat. Der Sitzungskeks gilt
+ * dann noch dreissig Tage, und die Werkstatt meldete an jeder Stelle
+ * „gesperrt", während die Kopfleiste behauptete, man sei angemeldet.
+ */
+
+await (async () => {
+  const { fetchWho } = counted({ signedIn: true, canOpen: false });
+  const store = memoryOf(true);
+  let signedOut = 0;
+
+  const entry = await rcEntryCheck(
+    fetchWho, store, () => false, async () => { signedOut++; }
+  );
+
+  ok('Ohne beide Wege wird abgemeldet', entry.kind, 'signed-out');
+  ok('Und der Dienst erfaehrt es', signedOut, 1);
+  ok('Der Merker faellt mit', store.seen, false);
+})();
+
+/* Der Keks allein genügt — der eigene Speicher darf leer sein. */
+await (async () => {
+  const { fetchWho } = counted({ signedIn: true, canOpen: true });
+  const store = memoryOf(true);
+  let signedOut = 0;
+
+  const entry = await rcEntryCheck(
+    fetchWho, store, () => false, async () => { signedOut++; }
+  );
+
+  ok('Mit Keks bleibt die Sitzung', entry.kind, 'signed-in');
+  ok('Und niemand wird abgemeldet', signedOut, 0);
+})();
+
+/* Und der eigene Speicher allein auch — dann fehlt nur der Keks. */
+await (async () => {
+  const { fetchWho } = counted({ signedIn: true, canOpen: false });
+  const store = memoryOf(true);
+  let signedOut = 0;
+
+  const entry = await rcEntryCheck(
+    fetchWho, store, () => true, async () => { signedOut++; }
+  );
+
+  ok('Mit eigenem Stueck bleibt die Sitzung', entry.kind, 'signed-in');
+  ok('Und niemand wird abgemeldet', signedOut, 0);
+})();
+
+/*
+ * Ein Fehlschlag beim Abmelden ändert den Zustand nicht: der Weg zum
+ * Schlüssel fehlt so oder so, und eine Ausnahme, die hier nach oben ginge,
+ * hinge den ganzen Eintritt auf.
+ */
+await (async () => {
+  const { fetchWho } = counted({ signedIn: true, canOpen: false });
+  const store = memoryOf(true);
+
+  const entry = await rcEntryCheck(
+    fetchWho, store, () => false,
+    async () => { throw new Error('Dienst nicht erreichbar'); }
+  );
+
+  ok('Auch ein misslungenes Abmelden endet abgemeldet', entry.kind, 'signed-out');
+})();
+
+/*
+ * Sagt der Dienst nichts über `canOpen`, wird NICHT abgemeldet. Ein
+ * fehlendes Feld ist keine Aussage — und eine ältere Fassung des Dienstes,
+ * die es nicht kennt, würde sonst jeden hinauswerfen.
+ */
+await (async () => {
+  const { fetchWho } = counted({ signedIn: true });
+  const store = memoryOf(true);
+
+  const entry = await rcEntryCheck(fetchWho, store, () => false, async () => {});
+  ok('Ohne Auskunft bleibt die Sitzung', entry.kind, 'signed-in');
 })();
 
 // -- Ergebnis -----------------------------------------------------------------

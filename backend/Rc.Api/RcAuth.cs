@@ -130,7 +130,9 @@ public static class RcAuth
 
     // -- Anlegen --------------------------------------------------------------
 
-    public sealed record RegisterRequest(string Username, string PasswordKey, string PasswordSalt, string? DisplayName);
+    public sealed record RegisterRequest(
+        string Username, string PasswordKey, string PasswordSalt, string? DisplayName,
+        bool? KeepSignedIn);
 
     /// <summary>
     /// <b>Anmelden kann sich jeder.</b> Ein Konto ist kein Zutritt: es ist ein
@@ -255,7 +257,8 @@ public static class RcAuth
 
         // Anlegen entsperrt sofort — sonst muesste der Browser denselben teuren
         // Lauf ein zweites Mal machen, nur um sich anzumelden.
-        var session = await StartSessionAsync(ctx, connection, accountId, masterKey, passwordKey, vault, 0);
+        var session = await StartSessionAsync(ctx, connection, accountId, masterKey, passwordKey, vault, 0,
+            deviceNote: null, keepSignedIn: body.KeepSignedIn == true);
         CryptographicOperations.ZeroMemory(masterKey);
 
         await RcResults.WriteJsonAsync(ctx, new RcRegisteredResponse(
@@ -265,7 +268,8 @@ public static class RcAuth
 
     // -- Entsperren -----------------------------------------------------------
 
-    public sealed record UnlockRequest(string Username, string PasswordKey, string? DeviceNote);
+    public sealed record UnlockRequest(
+        string Username, string PasswordKey, string? DeviceNote, bool? KeepSignedIn);
 
     private static async Task UnlockAsync(
         HttpContext ctx, RcDb db, RcKeyVault vault, RcLoginGuard guard, RcServerSecret secret, UnlockRequest body)
@@ -339,7 +343,8 @@ public static class RcAuth
 
         guard.RecordSuccess(username);
         var session = await StartSessionAsync(
-            ctx, connection, account.Id, masterKey, passwordKey, vault, account.CacheMode, body.DeviceNote);
+            ctx, connection, account.Id, masterKey, passwordKey, vault, account.CacheMode, body.DeviceNote,
+            body.KeepSignedIn == true);
         CryptographicOperations.ZeroMemory(masterKey);
 
         await RcResults.WriteJsonAsync(ctx, session);
@@ -368,6 +373,12 @@ public static class RcAuth
         }
 
         var forgotten = vault.Forget(RcId.ToText(session.SessionId));
+
+        // Sperren heisst sperren. Bliebe der Keks liegen, waere die naechste
+        // Anfrage sofort wieder offen — und der Knopf haette nichts getan,
+        // ausser es so aussehen zu lassen.
+        ctx.Response.Cookies.Delete(RcSessionMiddleware.KeepCookie, KeepOptions(ctx, null));
+
         await RcResults.WriteJsonAsync(ctx, new RcLockedResponse(true, forgotten));
     }
 
@@ -386,6 +397,7 @@ public static class RcAuth
             await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
         }
 
+        ctx.Response.Cookies.Delete(RcSessionMiddleware.KeepCookie, KeepOptions(ctx, null));
         await ctx.SignOutAsync(Scheme);
         await RcResults.WriteJsonAsync(ctx, new RcLoggedOutResponse(true));
     }
@@ -401,15 +413,21 @@ public static class RcAuth
 
         await RcResults.WriteJsonAsync(ctx, new RcMeResponse(
             true, RcId.ToText(session.AccountId), RcId.ToText(session.SessionId),
-            vault.Holds(RcId.ToText(session.SessionId)), session.Username));
+            vault.Holds(RcId.ToText(session.SessionId)), session.Username,
+            ctx.RcHasUnlockPiece()));
     }
 
     // -- Gemeinsames ----------------------------------------------------------
 
 
+    /// <param name="keepSignedIn">
+    /// Ob das Oeffnungsstueck den Tab ueberleben soll. Siehe den Keks weiter
+    /// unten — das ist die einzige Stelle, an der er entsteht.
+    /// </param>
     private static async Task<RcSessionStartedResponse> StartSessionAsync(
         HttpContext ctx, SqlConnection connection, Guid accountId,
-        byte[] masterKey, byte[] passwordKey, RcKeyVault vault, int cacheMode, string? deviceNote = null)
+        byte[] masterKey, byte[] passwordKey, RcKeyVault vault, int cacheMode,
+        string? deviceNote = null, bool keepSignedIn = false)
     {
         var sessionId = RcId.NewId();
         var now = DateTimeOffset.UtcNow;
@@ -449,11 +467,68 @@ public static class RcAuth
         await ctx.SignInAsync(Scheme, new ClaimsPrincipal(identity), new AuthenticationProperties
         {
             IsPersistent = true,
-            ExpiresUtc = expires
+            ExpiresUtc = expires,
+
+            // Ohne dieses Feld laeuft die Sitzung dreissig Tage nach dem
+            // Anmelden ab, auch wenn jemand taeglich da war. Mit ihm wandert
+            // die Frist mit — dreissig Tage OHNE Benutzung, nicht dreissig
+            // Tage insgesamt. Das ist, was Menschen erwarten, und was der
+            // Altbestand tat.
+            AllowRefresh = true
         });
+
+        /*
+         * ANGEMELDET BLEIBEN.
+         *
+         * Das Oeffnungsstueck liegt sonst im `sessionStorage` und stirbt mit
+         * dem Tab: die Sitzung laeuft dreissig Tage, aber beim naechsten
+         * Oeffnen steht trotzdem das Passwortfeld da. Fuer ein geteiltes
+         * Geraet ist das richtig, fuer das eigene Telefon eine Zumutung.
+         *
+         * Wer danach fragt, bekommt es als Keks — `HttpOnly`, also fuer kein
+         * Skript im Browser lesbar. Das ist strikt besser als `localStorage`,
+         * wo eine einzige Skriptluecke genuegt, um es mitzunehmen.
+         *
+         * Der Preis steht im Formular und nicht nur hier: wer diesen Keks hat,
+         * oeffnet das Konto ohne das Passwort zu kennen, bis er ablaeuft.
+         */
+        if (keepSignedIn)
+        {
+            ctx.Response.Cookies.Append(RcSessionMiddleware.KeepCookie,
+                RcBase64Url.Encode(passwordKey), KeepOptions(ctx, expires));
+        }
+        else
+        {
+            // Eine frueher getroffene Wahl gilt nicht fuer immer. Wer sich ohne
+            // das Haekchen anmeldet, soll den alten Keks los sein.
+            ctx.Response.Cookies.Delete(RcSessionMiddleware.KeepCookie, KeepOptions(ctx, null));
+        }
 
         return new RcSessionStartedResponse(RcId.ToText(accountId), RcId.ToText(sessionId), expires, cacheMode,
             (int)vault.IdleTimeout.TotalMinutes);
+    }
+
+    /// <summary>
+    /// Dieselbe Fremdseiten-Regel wie beim Sitzungskeks: die Werkstatt liegt
+    /// auf einer anderen Adresse als der Dienst, und ohne
+    /// <c>SameSite=None; Secure</c> schickt der Browser gar nichts mit.
+    ///
+    /// <c>expires: null</c> loescht — dann muessen Pfad und Regeln trotzdem
+    /// stimmen, sonst trifft das Loeschen einen anderen Keks als den gesetzten
+    /// und der alte bleibt liegen.
+    /// </summary>
+    private static CookieOptions KeepOptions(HttpContext ctx, DateTimeOffset? expires)
+    {
+        var policy = new RcCookiePolicy(ctx.RequestServices.GetRequiredService<IConfiguration>());
+        return new CookieOptions
+        {
+            HttpOnly = true,
+            SameSite = policy.SameSite,
+            Secure = policy.SecurePolicy != CookieSecurePolicy.None,
+            Path = "/",
+            Expires = expires,
+            IsEssential = true
+        };
     }
 
     private sealed record AccountRow(

@@ -2362,3 +2362,264 @@
 
 .rc-fine { font-size: 0.74rem; color: var(--rc-muted); }
 .rc-sub { margin: 1.2rem 0 0.2rem; font-size: 0.82rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--rc-muted); }
+
+/* -- Rolle umbenennen ------------------------------------------------------ */
+
+.rc-role-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+.rc-role-main { flex: 1 1 16rem; }
+
+/* Ein Amt hat keine eigene Seite — es sieht deshalb aus wie eine Zeile und
+   nicht wie ein Verweis, der ins Leere führte. */
+.rc-person-flat { cursor: default; }
+.rc-person-flat:hover { border-color: var(--rc-line); }
+
+.rc-rename {
+  flex: 1 1 100%;
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--rc-line);
+  border-left: 3px solid var(--rc-accent);
+  border-radius: 8px;
+  background: var(--rc-surface);
+}
+
+.rc-rename-name input { width: 100%; }
+
+/* Die Vorschau ist die eigentliche Auskunft dieses Formulars: sie zeigt, was
+   nach dem Sichern überall stehen wird. Deshalb eine Zeile für sich. */
+.rc-rename-preview {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0.15rem 0 0;
+}
+
+.rc-rename-acts { display: flex; gap: 0.5rem; }
+
+/* Das Amt an einer Pfarreizeile: eine Feststellung, wenn es da ist, ein
+   Angebot, wenn es fehlt. Beides ruhig — ein fehlendes Amt ist nachholbar
+   und kein Versäumnis. */
+.rc-office-has { margin: 0.25rem 0 0 0.2rem; }
+
+.rc-office-missing {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+  margin: 0.4rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px dashed var(--rc-line-2);
+  border-radius: 8px;
+}
+.rc-office-missing .rc-note { flex: 1 1 16rem; margin: 0; }
+
+/* -- Titel: mehrere, jeder fuer sich --------------------------------------- */
+
+.rc-titles { display: grid; gap: 0.4rem; }
+
+.rc-title-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* Ein Titel als Marke: der Text traegt, die Knoepfe daneben sind leise. Sie
+   duerfen nicht wie Teil des Titels aussehen — sonst liest jemand „ks. x". */
+.rc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.15rem 0.2rem 0.15rem 0.55rem;
+  border: 1px solid var(--rc-line-2);
+  border-radius: 999px;
+  background: var(--rc-surface-2);
+  font-size: 0.84rem;
+}
+
+.rc-chip-text { font-weight: 600; }
+
+.rc-chip-act {
+  min-width: 1.35rem;
+  padding: 0.05rem 0.2rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--rc-muted);
+  font: inherit;
+  line-height: 1.1;
+  cursor: pointer;
+}
+.rc-chip-act:hover:not(:disabled) { background: var(--rc-surface); color: var(--rc-ink); }
+.rc-chip-act:disabled { opacity: 0.3; cursor: default; }
+.rc-chip-drop:hover:not(:disabled) { color: var(--rc-alarm); }
+
+.rc-title-add { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.rc-title-add input { flex: 1 1 9rem; }
+
+.rc-title-hints { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+
+/* Vorschlaege sehen bewusst NICHT aus wie die Marken darueber: sie sind noch
+   nicht gesetzt, und ein gleiches Aussehen liesse sie gesetzt wirken. */
+.rc-hint {
+  padding: 0.1rem 0.5rem;
+  border: 1px dashed var(--rc-line-2);
+  border-radius: 999px;
+  background: none;
+  color: var(--rc-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.rc-hint:hover:not(:disabled) { border-style: solid; border-color: var(--rc-accent); color: var(--rc-ink); }
+
+/* Ein Bereich ist kein Rollenkasten: gedeckte Fläche statt weisser Grund, und
+   eine eigene Randfarbe. Er wird gehalten, er hält nichts. */
+.rc-flow .react-flow__node.rc-node-area {
+  border-left: 3px solid var(--rc-muted);
+  background: var(--rc-surface-2);
+}
+
+/* -- Der Anmeldezustand in der Kopfleiste ---------------------------------- */
+
+/*
+ * In der Kopfleiste ist `.rc-auth` kein Kasten mehr, sondern eine Zeile: kein
+ * Rahmen, kein Grund, und die Angaben nebeneinander statt untereinander. Der
+ * Kasten war richtig, solange das ein Abschnitt war; hier stünde er quer.
+ */
+.rc-top-right .rc-auth {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.rc-top-right .rc-auth-who { margin: 0; font-size: 0.78rem; color: var(--rc-muted); }
+
+/* Der Schlüsselzustand als Punkt: in der Kopfleiste zählt, DASS er stimmt. */
+.rc-top-right .rc-auth-ready,
+.rc-top-right .rc-auth-locked {
+  margin: 0;
+  font-size: 0;
+  line-height: 0;
+}
+.rc-top-right .rc-auth-ready::before,
+.rc-top-right .rc-auth-locked::before {
+  content: '';
+  display: block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+}
+.rc-top-right .rc-auth-ready::before { background: var(--rc-ok); }
+.rc-top-right .rc-auth-locked::before { background: var(--rc-warn); }
+
+.rc-top-right .rc-auth-actions { margin: 0; gap: 0.4rem; }
+.rc-top-right .rc-auth-error { flex: 1 1 100%; margin: 0; font-size: 0.78rem; }
+
+/* == Die Anmeldeschublade ================================================== */
+
+/*
+ * Der Grund verdeckt die Seite, statt sie zu verdrängen: die Schublade liegt
+ * DAVOR, und wer sie schliesst, steht wieder da, wo er stand. Genau darum ist
+ * es eine Schublade und keine eigene Seite.
+ */
+.rc-drawer-back {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(12, 16, 14, 0);
+  backdrop-filter: blur(0);
+  transition: background 320ms ease, backdrop-filter 320ms ease;
+}
+
+.rc-drawer-back.is-open {
+  background: rgba(12, 16, 14, 0.5);
+  backdrop-filter: blur(6px);
+}
+
+.rc-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  width: min(26rem, 100%);
+  height: 100%;
+  padding: 1.4rem 1.5rem 2rem;
+  overflow-y: auto;
+  background: var(--rc-surface);
+  border-left: 1px solid var(--rc-line);
+  box-shadow: -18px 0 48px rgba(0, 0, 0, 0.18);
+
+  transform: translateX(100%);
+  transition: transform 320ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.rc-drawer-back.is-open .rc-drawer { transform: translateX(0); }
+
+/*
+ * Wer Bewegung abbestellt hat, bekommt keine. Der Grund blendet trotzdem ein —
+ * ohne ihn erschiene die Schublade ohne Zusammenhang mitten auf der Seite.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .rc-drawer { transition: none; transform: none; }
+  .rc-drawer-back { transition: background 120ms linear; backdrop-filter: none; }
+}
+
+.rc-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--rc-line);
+}
+
+.rc-drawer-close {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--rc-muted);
+  font: inherit;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.rc-drawer-close:hover { border-color: var(--rc-line-2); color: var(--rc-ink); }
+
+/* In der Schublade steht das Formular untereinander und nicht als Zeile wie
+   oben in der Kopfleiste. */
+.rc-drawer .rc-auth {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+/* Das Häkchen: die Beschriftung trägt, die Begründung steht klein darunter. */
+.rc-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.15rem 0.55rem;
+  align-items: start;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.rc-check input { margin-top: 0.25rem; }
+.rc-check small { display: block; margin-top: 0.15rem; font-size: 0.76rem; }

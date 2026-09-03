@@ -59,6 +59,34 @@ export const rcCreateArea = (ownerRoleId: string, title: string) =>
     withUnlock: true
   });
 
+/**
+ * Eine Rolle in einen Bereich aufnehmen.
+ *
+ * <b>Das ist NICHT dasselbe wie ein Zertifikat auszustellen.</b> Ein Zertifikat
+ * allein gibt die Vollmacht und nicht den Schlüssel: die Rolle dürfte dann
+ * verwalten, könnte aber nichts lesen, weil der Bereichsschlüssel bei den
+ * Mitgliedern der laufenden Epoche liegt. Dieser Weg stellt das Zertifikat aus
+ * UND schneidet eine neue Epoche, in der die neue Rolle mitzählt.
+ *
+ * `grantHistory` entscheidet, ob der Neue auch das Alte lesen darf. Für ein
+ * Amt, das gerade erst entsteht, ist die Frage gegenstandslos — es gibt noch
+ * keine Vergangenheit.
+ */
+export const rcAddMember = (
+  areaId: string, roleId: string, capability?: string, grantHistory?: boolean
+) =>
+  rcFetch<RcApi<'RcMemberAddedResponse'>>(`/areas/${areaId}/members`, {
+    body: { roleId, capability, grantHistory },
+    withUnlock: true
+  });
+
+/** Den Anzeigenamen einer Rolle ändern. Er wirkt rückwirkend (9.13.2). */
+export const rcRenameRole = (roleId: string, displayName: string) =>
+  rcFetch<RcApi<'RcRoleRenamedResponse'>>(`/roles/${roleId}/name`, {
+    body: { displayName },
+    withUnlock: true
+  });
+
 export const rcMembers = (areaId: string) =>
   rcFetch<RcApi<'RcMembersResponse'>>(`/areas/${areaId}/members`, { withUnlock: true });
 

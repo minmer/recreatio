@@ -3741,6 +3741,46 @@
         }
       }
     },
+    "/rc/roles/{id}/name": {
+      "post": {
+        "tags": [
+          "RcRoles"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RolesRenameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcRoleRenamedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/certificates": {
       "get": {
         "tags": [
@@ -4084,7 +4124,8 @@
           "hasKey",
           "id",
           "isAccount",
-          "kind"
+          "kind",
+          "nodeType"
         ],
         "type": "object",
         "properties": {
@@ -4107,6 +4148,9 @@
           },
           "isAccount": {
             "type": "boolean"
+          },
+          "nodeType": {
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -4282,6 +4326,10 @@
           "displayName": {
             "type": "string",
             "nullable": true
+          },
+          "keepSignedIn": {
+            "type": "boolean",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -4313,6 +4361,10 @@
           },
           "deviceNote": {
             "type": "string",
+            "nullable": true
+          },
+          "keepSignedIn": {
+            "type": "boolean",
             "nullable": true
           }
         },
@@ -6220,13 +6272,13 @@
       },
       "ParishCreateParishRequest": {
         "required": [
-          "areaId",
           "name",
+          "personRoleId",
           "slug"
         ],
         "type": "object",
         "properties": {
-          "areaId": {
+          "personRoleId": {
             "type": "string"
           },
           "slug": {
@@ -7987,6 +8039,10 @@
           "username": {
             "type": "string",
             "nullable": true
+          },
+          "canOpen": {
+            "type": "boolean",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -8790,6 +8846,22 @@
         },
         "additionalProperties": false
       },
+      "RcRoleRenamedResponse": {
+        "required": [
+          "displayName",
+          "roleId"
+        ],
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "RcRolesResponse": {
         "required": [
           "roles"
@@ -9464,6 +9536,18 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RolesRenameRequest": {
+        "required": [
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string"
           }
         },
         "additionalProperties": false

@@ -66,9 +66,19 @@ export const rcSaveParishSite = (parishId: string, theme: string, modules: reado
     withUnlock: true
   });
 
-export const rcCreateParish = (areaId: string, slug: string, name: string, location?: string) =>
+/**
+ * EIN Aufruf. Bereich, Pfarrei und Amt entstehen auf dem Server, in einer
+ * Transaktion.
+ *
+ * Vorher waren es drei: Bereich anlegen, Pfarrei anlegen, Amt anlegen. Brach
+ * einer davon ab — ein nicht vorgesehener Name genuegte —, blieb stehen, was
+ * vorher gelaufen war. Sichtbar wurde das als vier gleichnamige Bereiche, die
+ * zu nichts gehoerten. Zwischen zwei Anfragen gibt es kein Zurueck; deshalb
+ * gehoert das, was zusammengehoert, in EINE.
+ */
+export const rcCreateParish = (personRoleId: string, slug: string, name: string, location?: string) =>
   rcFetch<RcApi<'RcParishCreatedResponse'>>('/parishes', {
-    body: { areaId, slug, name, location: location ?? null },
+    body: { personRoleId, slug, name, location: location ?? null },
     withUnlock: true
   });
 

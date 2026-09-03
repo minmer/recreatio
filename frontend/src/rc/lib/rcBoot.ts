@@ -114,9 +114,29 @@ export function rcShouldCheckAtEntry(hints: RcEntryHints): boolean {
  * Auskunft, und sie kommt immer vom Dienst. Der Unterschied zwischen den
  * beiden Wegen ist allein der Zeitpunkt.
  */
-export async function rcEntryCheck<TWho extends { readonly signedIn: boolean }>(
+/**
+ * Eine angemeldete Sitzung, zu der es KEIN Öffnungsstück gibt, ist nichts wert.
+ *
+ * So ein Zustand entsteht ganz gewöhnlich: der Tab wird geschlossen, der
+ * `sessionStorage` ist fort, und wer nicht „angemeldet bleiben" gewählt hat,
+ * hat auch keinen Keks. Der Sitzungskeks gilt trotzdem noch dreissig Tage.
+ *
+ * Vorher stand die Werkstatt dann da und meldete an jeder Stelle „gesperrt",
+ * mit einem Anmeldezustand in der Kopfleiste, der behauptete, man sei
+ * angemeldet. Beides stimmte, und zusammen ergaben sie eine Seite, auf der
+ * nichts geht und nichts erklärt, warum.
+ *
+ * Deshalb wird die Sitzung hier beendet, wenn sie nicht mehr zu öffnen ist:
+ * lieber ein sauberes Anmeldeformular als ein halber Zustand. Zwei Werte
+ * statt drei.
+ */
+export async function rcEntryCheck<TWho extends { readonly signedIn: boolean; readonly canOpen?: boolean | null }>(
   fetchWho: () => Promise<TWho>,
-  memory: RcMemory = rcBrowserMemory
+  memory: RcMemory = rcBrowserMemory,
+  /** Ob dieser Browser ein Öffnungsstück im eigenen Speicher hat. */
+  hasPiece: () => boolean = () => true,
+  /** Der Weg hinaus, wenn keiner von beiden da ist. */
+  signOut?: () => Promise<unknown>
 ): Promise<RcEntry<TWho>> {
   let who: TWho;
   try {
@@ -130,6 +150,23 @@ export async function rcEntryCheck<TWho extends { readonly signedIn: boolean }>(
   if (!who.signedIn) {
     // Aufräumen: ein Merker ohne Sitzung kostete sonst bei jedem weiteren
     // Aufruf eine Anfrage, deren Antwort feststeht.
+    memory.forget();
+    return { kind: 'signed-out' };
+  }
+
+  /*
+   * ZWEI WEGE ZUM SCHLÜSSEL, und keiner davon da.
+   *
+   * `canOpen` sagt, ob dem Dienst bei DIESER Anfrage eines beilag — aus
+   * dem Kopf oder aus dem Keks. `hasPiece()` fragt den eigenen Speicher.
+   * Fehlt beides, lässt sich der Wurzelschlüssel nicht mehr herstellen, und
+   * die Sitzung kann nichts mehr öffnen.
+   *
+   * Ein Fehlschlag beim Abmelden ändert daran nichts: der Zustand ist so
+   * oder so „abgemeldet", und der Dienst räumt die Sitzung beim Ablauf auf.
+   */
+  if (who.canOpen === false && !hasPiece()) {
+    try { await signOut?.(); } catch { /* Der Zustand steht trotzdem fest. */ }
     memory.forget();
     return { kind: 'signed-out' };
   }

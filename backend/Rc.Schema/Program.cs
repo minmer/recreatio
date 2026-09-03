@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 
 // ---------------------------------------------------------------------------
 // Migrationslauf (15.4)
@@ -25,10 +26,18 @@ using Microsoft.Data.SqlClient;
 //     seinen eigenen Erfolg meldet, meldet ihn auch nach einem Rollback.
 //
 // Aufruf:
+//   dotnet run --project Rc.Schema
+//   dotnet run --project Rc.Schema -- --dry-run
 //   dotnet run --project Rc.Schema -- "<Verbindungszeichenfolge>"
-//   dotnet run --project Rc.Schema -- "<...>" --dry-run
 //
-// Ohne Argument wird RC_CONNECTION aus der Umgebung genommen.
+// Ohne Argument wird gesucht, in dieser Reihenfolge:
+//   1. RC_CONNECTION aus der Umgebung
+//   2. Rc:ConnectionString                — dieselben Benutzergeheimnisse,
+//   3. ConnectionStrings:DefaultConnection  die auch der Dienst liest
+//
+// Punkt 2 und 3 sind DIESELBE Reihenfolge wie in RcDb.Resolve. Zwei Wege zu
+// derselben Datenbank, die verschieden entscheiden, waeren ein Lauf, der etwas
+// anderes wandert als das, was der Dienst danach liest.
 // ---------------------------------------------------------------------------
 
 // Ein Geheimnis erzeugen, ohne dass jemand "irgendein langer Text" eintippt.
@@ -40,13 +49,16 @@ if (args.FirstOrDefault() == "secret")
 }
 
 var connectionString = args.FirstOrDefault(a => !a.StartsWith("--"))
-                    ?? Environment.GetEnvironmentVariable("RC_CONNECTION");
+                    ?? Environment.GetEnvironmentVariable("RC_CONNECTION")
+                    ?? FromUserSecrets();
 
 var dryRun = args.Contains("--dry-run");
 
 if (string.IsNullOrWhiteSpace(connectionString))
 {
-    Console.Error.WriteLine("Keine Verbindungszeichenfolge. Als Argument uebergeben oder RC_CONNECTION setzen.");
+    Console.Error.WriteLine("Keine Verbindungszeichenfolge. Als Argument uebergeben, RC_CONNECTION setzen");
+    Console.Error.WriteLine("oder in den Benutzergeheimnissen hinterlegen:");
+    Console.Error.WriteLine(@"  dotnet user-secrets set ""ConnectionStrings:DefaultConnection"" ""<...>"" --project backend/Recreatio.Api");
     Console.Error.WriteLine(@"Beispiel: dotnet run --project Rc.Schema -- ""Server=(localdb)\MSSQLLocalDB;Database=Recreatio_Rc;Trusted_Connection=True;TrustServerCertificate=True""");
     return 2;
 }
@@ -122,6 +134,32 @@ Console.WriteLine(didWork ? "Fertig." : "Nichts zu tun — alles auf Stand.");
 return 0;
 
 // ---------------------------------------------------------------------------
+
+/// <summary>
+/// Die Verbindungszeichenfolge aus den Benutzergeheimnissen — denselben, die
+/// der Dienst liest (gleiche <c>UserSecretsId</c>).
+///
+/// NUR fuer die Entwicklung. Auf einem Server gibt es keine
+/// Benutzergeheimnisse; dort kommt die Zeichenfolge aus der Umgebung oder als
+/// Argument. Der Aufruf hier faellt dann still auf <c>null</c> zurueck, und die
+/// Meldung weiter oben sagt, was zu tun ist.
+/// </summary>
+static string? FromUserSecrets()
+{
+    var config = new ConfigurationBuilder()
+        .AddUserSecrets(typeof(Program).Assembly, optional: true)
+        .AddEnvironmentVariables()
+        .Build();
+
+    // Dieselbe Reihenfolge wie RcDb.Resolve: der eigene Schluessel schlaegt den
+    // gemeinsamen. Andersherum wanderte der Lauf woanders hin als der Dienst
+    // liest, sobald jemand den eigenen Schluessel setzt.
+    var explicitly = config["Rc:ConnectionString"];
+    if (!string.IsNullOrWhiteSpace(explicitly)) return explicitly;
+
+    var shared = config["ConnectionStrings:DefaultConnection"];
+    return string.IsNullOrWhiteSpace(shared) ? null : shared;
+}
 
 static List<(string Name, string Sql)> LoadScripts()
 {

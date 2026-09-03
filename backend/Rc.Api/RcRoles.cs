@@ -45,6 +45,7 @@ public static class RcRoles
         app.MapGet("/rc/roles", ListAsync).Produces<RcRolesResponse>();
         app.MapPost("/rc/roles", CreateAsync).Produces<RcRoleCreatedResponse>();
         app.MapPost("/rc/roles/{id:guid}/holders", AddHolderAsync).Produces<RcHolderAddedResponse>();
+        app.MapPost("/rc/roles/{id:guid}/name", RenameAsync).Produces<RcRoleRenamedResponse>();
         app.MapGet("/rc/certificates", ListCertificatesAsync).Produces<RcCertificatesResponse>();
         app.MapPost("/rc/certificates", IssueAsync).Produces<RcCertificateIssuedResponse>();
         app.MapPost("/rc/certificates/{id:guid}/revoke", RevokeAsync).Produces<RcRevokedResponse>();
@@ -90,6 +91,76 @@ public static class RcRoles
         }).ToList();
 
         await RcResults.WriteJsonAsync(ctx, new RcRolesResponse(views));
+    }
+
+    // -- Umbenennen -----------------------------------------------------------
+
+    public sealed record RenameRequest(string DisplayName);
+
+    /// <summary>
+    /// Den Anzeigenamen einer Rolle aendern.
+    ///
+    /// <b>Er wirkt RUECKWIRKEND</b> (9.13.2), und das ist keine Nachlaessigkeit,
+    /// sondern der Entwurf: der Name liegt EINMAL an der Rolle und nicht als
+    /// Kopie in jeder Nachricht, die sie je geschrieben hat. Wer heiratet,
+    /// heisst danach ueberall anders — auch ueber alten Beitraegen. Die
+    /// Alternative waere, den Namen bei jeder Verwendung mitzuschreiben; dann
+    /// stuende der alte Name fuer immer an tausend Stellen, und niemand
+    /// bekaeme ihn je wieder weg.
+    ///
+    /// <b>Derselbe Schluessel, dasselbe Etikett, dieselbe Fassung.</b> Anders
+    /// als bei einem Datenelement steigt hier keine Fassung: die AAD des
+    /// Anzeigenamens ist fest verdrahtet (<c>DisplayNameAad</c>, Fassung 1),
+    /// und jede Stelle, die ihn oeffnet, erwartet genau die. Eine steigende
+    /// Fassung muesste dort mitgelesen werden — sie steht aber nirgends in der
+    /// Zeile, also gaebe es nichts, woran man sie erkennt.
+    ///
+    /// <b>Wer den Schluessel hat, darf.</b> Kein zusaetzliches Zertifikat:
+    /// den Rollenschluessel zu halten heisst, im Namen dieser Rolle handeln zu
+    /// koennen — und ihren Namen zu setzen ist weniger als das.
+    /// </summary>
+    private static async Task RenameAsync(
+        HttpContext ctx, RcDb db, RcMasterKey masterKeys, Guid id, RenameRequest body)
+    {
+        var session = ctx.RcSession();
+        if (session is null) { await Unauthenticated(ctx); return; }
+
+        var name = body.DisplayName?.Trim() ?? "";
+        if (name.Length is 0 or > 200)
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                RcErrorCodes.PermissionDenied, "Der Name fehlt oder ist zu lang.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        using var held = await masterKeys.OpenAsync(connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
+
+        var roleKey = await RcRoleAccess.RoleKeyAsync(
+            connection, session.AccountId, held.MasterKey, id, ctx.RequestAborted);
+
+        if (roleKey is null)
+        {
+            // „Nicht erreichbar" und „gibt es nicht" bekommen dieselbe Antwort.
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status404NotFound,
+                RcErrorCodes.RoleNotFound, "Diese Rolle gibt es nicht.");
+            return;
+        }
+
+        await using var cmd = new SqlCommand(
+            "UPDATE dbo.rc_role SET display_name_sealed = @name WHERE id = @id AND revoked_at IS NULL;",
+            connection);
+        cmd.Parameters.AddWithValue("@name", SealDisplayName(id, roleKey, name));
+        cmd.Parameters.AddWithValue("@id", id);
+
+        if (await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 0)
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status404NotFound,
+                RcErrorCodes.RoleNotFound, "Diese Rolle gibt es nicht.");
+            return;
+        }
+
+        await RcResults.WriteJsonAsync(ctx, new RcRoleRenamedResponse(RcId.ToText(id), name));
     }
 
     // -- Anlegen --------------------------------------------------------------
@@ -601,6 +672,53 @@ public static class RcRoles
     }
 
     // -- Schreibhilfen ---------------------------------------------------------
+
+    /// <summary>
+    /// Eine Rolle, angelegt IN einer fremden Transaktion — Rolle, Kante und
+    /// Schluesselzuteilung.
+    ///
+    /// Herausgeloest aus demselben Grund wie <see cref="RcAreas.InsertAreaAsync"/>:
+    /// wer eine Pfarrei anlegt, legt auch ein Amt an, und das darf nicht
+    /// stehenbleiben, wenn die Pfarrei scheitert.
+    ///
+    /// Verwaltet KEINE Transaktion und faengt nichts ab. Der Aufrufer haelt
+    /// beides — und muss den Schluessel danach loeschen; er kommt hier nicht
+    /// heraus, weil ihn niemand ausserhalb braucht.
+    /// </summary>
+    internal static async Task<Guid> InsertHeldRoleAsync(
+        SqlConnection connection, SqlTransaction tx, Guid holderRoleId, byte[] holderKey,
+        RcRoleIdentity holder, Guid tenantId, string kind, string displayName, CancellationToken ct)
+    {
+        var newRoleId = RcId.NewId();
+        var newRoleKey = RcRoleKeys.NewRoleKey();
+        var created = RcRoleKeys.Create(newRoleId, newRoleKey);
+
+        using var holderSign = RcRoleKeys.OpenSignKey(holder, holderKey);
+
+        var edge = new RcRoleEdgeRecord
+        {
+            Id = RcId.NewId(),
+            FromRoleId = holderRoleId,
+            ToRoleId = newRoleId,
+            EdgeKind = RcEdgeKinds.Holds,
+            SignerRoleId = holderRoleId,
+            CreatedUtc = DateTimeOffset.UtcNow
+        };
+
+        var displayNameSealed = SealDisplayName(newRoleId, newRoleKey, displayName);
+        var grant = RcRoleKeys.GrantTo(holder.WrapPublicKey, newRoleId, newRoleKey);
+
+        // 3.14 — innerhalb der Transaktion, damit zwischen Pruefung und
+        // Einfuegen keine zweite Kante den Kreis schliessen kann.
+        await RcPermissions.AssertNoCycleAsync(connection, tx, holderRoleId, newRoleId, ct);
+
+        await InsertRoleAsync(connection, tx, created, tenantId, kind, displayNameSealed, ct);
+        await InsertEdgeAsync(connection, tx, edge, edge.Sign(holderSign), ct);
+        await InsertGrantAsync(connection, tx, holderRoleId, newRoleId, grant, holderRoleId, ct);
+
+        CryptographicOperations.ZeroMemory(newRoleKey);
+        return newRoleId;
+    }
 
     private static async Task InsertRoleAsync(
         SqlConnection connection, SqlTransaction? tx, RcRoleIdentity role, Guid tenantId,

@@ -50,3 +50,5 @@ public sealed record RcInvitationPeekResponse(
 public sealed record RcInvitationRedeemedResponse(string RoleId, string? EdgeId, bool AlreadyRedeemed);
 
 public sealed record RcInvitationsResponse(IReadOnlyList<RcInvitations.InvitationView> Invitations);
+
+public sealed record RcRoleRenamedResponse(string RoleId, string DisplayName);

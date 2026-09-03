@@ -100,7 +100,8 @@ export const rcSalt = (username: string) =>
 export async function rcRegister(
   username: string,
   password: string,
-  displayName?: string
+  displayName?: string,
+  keepSignedIn = false
 ): Promise<RcRegistered> {
   // Beim Anlegen bestimmt der Browser das Salz. Es ist nicht geheim — es soll
   // nur für jedes Konto ein anderes sein, damit eine vorberechnete Tabelle
@@ -114,7 +115,8 @@ export async function rcRegister(
       username,
       passwordKey: encoded,
       passwordSalt: rcToBase64Url(passwordSalt),
-      displayName: displayName?.trim() || undefined
+      displayName: displayName?.trim() || undefined,
+      keepSignedIn
     }
   });
 
@@ -123,17 +125,27 @@ export async function rcRegister(
   return session;
 }
 
+/**
+ * `keepSignedIn` legt das Öffnungsstück in einen `HttpOnly`-Keks,
+ * der den Tab überlebt — dreissig Tage, gleitend.
+ *
+ * Ohne das liegt es im `sessionStorage` und ist beim nächsten Öffnen des
+ * Browsers fort: die Sitzung läuft weiter, aber das Passwortfeld steht wieder
+ * da. Für ein geteiltes Gerät ist genau das richtig, für das eigene Telefon
+ * eine Zumutung — deshalb eine Frage und keine Vorgabe.
+ */
 export async function rcUnlock(
   username: string,
   password: string,
-  deviceNote?: string
+  deviceNote?: string,
+  keepSignedIn = false
 ): Promise<RcSessionStarted> {
   const { passwordSalt, argon2 } = await rcSalt(username);
   const passwordKey = await rcDerivePasswordKey(password, rcFromBase64Url(passwordSalt), argon2);
   const encoded = rcToBase64Url(passwordKey);
 
   const session = await rcFetch<RcSessionStarted>('/auth/unlock', {
-    body: { username, passwordKey: encoded, deviceNote }
+    body: { username, passwordKey: encoded, deviceNote, keepSignedIn }
   });
 
   // Erst NACH der Antwort ablegen. Ein Öffnungsstück im Speicher, zu dem es

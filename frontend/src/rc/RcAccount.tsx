@@ -28,6 +28,7 @@ import { rcAccountMap, type RcMapEdge, type RcMapNode } from './lib/rcPerson';
 import { RcRequestError } from './lib/rcApi';
 import { rcPath } from './lib/rcRoute';
 import { rcCopy, rcFormat, type RcLang } from './i18n';
+import { RcRoleName } from './RcRoleName';
 
 /** Ein Kasten. Breit genug für einen Namen, schmal genug für eine Reihe. */
 const NODE_W = 190;
@@ -94,20 +95,25 @@ export function RcAccountSection({
     [lang]
   );
 
-  useEffect(() => {
+  /*
+   * Der Graph wird nach jeder Umbenennung neu geholt.
+   *
+   * Den Namen im Speicher zu ersetzen waere schneller und hier falsch: was in
+   * der Zeichnung steht, soll das sein, was der Server nach dem Entsiegeln
+   * herausgibt. Sonst zeigte die Seite eine Aenderung an, die vielleicht nur
+   * halb angekommen ist.
+   */
+  const load = useCallback(async () => {
     if (!unlocked) return;
-    let alive = true;
-    void (async () => {
-      try {
-        const map = await rcAccountMap();
-        if (!alive) return;
-        setNodes(map.nodes ?? []);
-        setEdges(map.edges ?? []);
-        setLoaded(true);
-      } catch (e) { if (alive) onError(describe(e)); }
-    })();
-    return () => { alive = false; };
+    try {
+      const map = await rcAccountMap();
+      setNodes(map.nodes ?? []);
+      setEdges(map.edges ?? []);
+      setLoaded(true);
+    } catch (e) { onError(describe(e)); }
   }, [unlocked, describe, onError]);
+
+  useEffect(() => { void load(); }, [load]);
 
   const flowNodes: Node[] = useMemo(() => {
     const at = place(nodes);
@@ -142,7 +148,12 @@ export function RcAccountSection({
   if (!unlocked) return <p className="rc-note">{t.locked}</p>;
   if (!loaded) return <p className="rc-note">{t.loading}</p>;
 
-  const persons = nodes.filter((n) => n.kind === 'person');
+  /*
+   * Die Liste fuehrt ROLLEN. Ein Bereich steht in der Zeichnung, weil er
+   * erklaert, warum eine Rolle etwas lesen darf — aber er ist nichts, was man
+   * hier umbenennt oder oeffnet. Dafuer gibt es den Bereichsteil.
+   */
+  const mine = nodes.filter((n) => !n.isAccount && n.nodeType !== 'area');
 
   return (
     <div className="rc-panel">
@@ -170,15 +181,40 @@ export function RcAccountSection({
         einer Tastatur oder einem Vorleseprogramm arbeitet, kommt hier hinein
         und dort nicht.
       */}
-      <h5 className="rc-sub">{t.personsHeading}</h5>
-      {persons.length === 0 && <p className="rc-note">{t.noPersons}</p>}
+      <h5 className="rc-sub">{t.rolesHeading}</h5>
       <ul className="rc-person-list">
-        {persons.map((p) => (
-          <li key={p.id}>
-            <a className="rc-person-link" href={rcPath('person', p.id)}>
-              <span className="rc-person-name">{p.name ?? t.unnamed}</span>
-              <span className="rc-person-kind">{tr.kinds.person}</span>
-            </a>
+        {mine.map((n) => (
+          <li key={n.id} className="rc-role-row">
+            <div className="rc-role-main">
+              {/* Nur eine Person hat eine eigene Seite. Bei einem Amt fuehrte
+                  ein Verweis auf einen Steckbrief, den es nicht gibt. */}
+              {n.kind === 'person' ? (
+                <a className="rc-person-link" href={rcPath('person', n.id)}>
+                  <span className="rc-person-name">{n.name ?? t.unnamed}</span>
+                  <span className="rc-person-kind">{tr.kinds.person}</span>
+                </a>
+              ) : (
+                <span className="rc-person-link rc-person-flat">
+                  <span className="rc-person-name">{n.name ?? t.unnamed}</span>
+                  <span className="rc-person-kind">
+                    {tr.kinds[n.kind as keyof typeof tr.kinds] ?? n.kind}
+                  </span>
+                </span>
+              )}
+            </div>
+
+            {/* Umbenennen setzt den Rollenschluessel voraus — ohne ihn liesse
+                sich der Name nicht einmal lesen, geschweige denn neu
+                versiegeln. Der Knopf steht deshalb nur dort, wo er wirkt. */}
+            {n.hasKey !== false && (
+              <RcRoleName
+                lang={lang}
+                roleId={n.id}
+                current={n.name ?? null}
+                onDone={load}
+                onError={onError}
+              />
+            )}
           </li>
         ))}
       </ul>
@@ -203,7 +239,9 @@ function NodeBody({ node, lang }: { node: RcMapNode; lang: RcLang }) {
   return (
     <div className="rc-node-in">
       <span className="rc-node-kind">
-        {tr.kinds[node.kind as keyof typeof tr.kinds] ?? node.kind}
+        {node.nodeType === 'area'
+          ? t.areaNode
+          : (tr.kinds[node.kind as keyof typeof tr.kinds] ?? node.kind)}
       </span>
       <strong className="rc-node-name">{node.name ?? t.unnamed}</strong>
 

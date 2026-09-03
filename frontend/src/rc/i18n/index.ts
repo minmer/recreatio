@@ -77,6 +77,11 @@ export interface RcCopy {
     readonly personNameWhy: string;
     /** Der Rueckweg aus dem Anlegen ins Anmelden. */
     readonly haveAccount: string;
+    /** „Angemeldet bleiben" — und was es wirklich bedeutet. */
+    /** Der Schliessknopf der Anmeldeschublade. */
+    readonly close: string;
+    readonly keepSignedIn: string;
+    readonly keepSignedInWhy: string;
     readonly signedInAs: string;
     readonly keysHeld: string;
     readonly keysMissing: string;
@@ -301,6 +306,17 @@ export interface RcCopy {
 
     /** Der Name in der Adresse — und was gilt, wenn er nicht vorgesehen ist. */
     readonly slug: string;
+    /**
+     * Der Name des Amtes, das mit der Pfarrei entsteht.
+     *
+     * Es traegt den Namen der Pfarrei, weil ein Konto mehrere verwalten kann
+     * und „Administrator" allein dann viermal untereinander staende.
+     */
+    readonly officeName: string;
+    /** Das Amt einer Pfarrei: vorhanden, fehlend, nachholen. */
+    readonly officeIs: string;
+    readonly officeMissing: string;
+    readonly officeAdd: string;
     readonly slugUnknown: string;
     readonly slugAvailable: string;
     readonly slugShape: string;
@@ -482,10 +498,14 @@ export interface RcCopy {
     readonly locked: string;
     readonly loading: string;
     readonly accountNode: string;
+    /** Die Beschriftung eines Bereichskastens in der Zeichnung. */
+    readonly areaNode: string;
     readonly accountYou: string;
     readonly unnamed: string;
     readonly noKey: string;
     readonly personsHeading: string;
+    /** Die Liste unter der Zeichnung: Personen UND Aemter. */
+    readonly rolesHeading: string;
     readonly noPersons: string;
     readonly signInFirst: string;
     readonly signInDo: string;
@@ -504,6 +524,21 @@ export interface RcCopy {
       readonly inherits: string;
       readonly supervises: string;
     };
+
+    /** Das Umbenennen einer Rolle — samt Titel davor. */
+    readonly rename: string;
+    readonly titles: string;
+    readonly noTitles: string;
+    readonly titleHint: string;
+    readonly addTitle: string;
+    readonly removeTitle: string;
+    readonly moveLeft: string;
+    readonly moveRight: string;
+    readonly alias: string;
+    readonly preview: string;
+    readonly save: string;
+    readonly cancel: string;
+    readonly renameWarns: string;
   };
 
   /** Der Steckbrief einer Person — jede Angabe einzeln. */
@@ -602,6 +637,9 @@ const en: RcCopy = {
     personName: "Your name",
     personNameWhy: "This is the name you appear under — on a parish page, in a calendar, next to anything you administer. It is not the name you sign in with, and you can change it later.",
     haveAccount: "I already have an account",
+    close: "Close",
+    keepSignedIn: "Stay signed in",
+    keepSignedInWhy: "On this device, for 30 days. Anyone who can use this browser can then open your account without the password. Leave it off on a shared computer.",
     signedInAs: 'Signed in as {name}',
     keysHeld: 'Your key bundle is ready.',
     keysMissing: 'Locked — your key bundle is not in memory.',
@@ -875,6 +913,10 @@ const en: RcCopy = {
     make: 'Create',
 
     slug: 'Address name',
+    officeName: "{name} — administrator",
+    officeIs: "Administered by {name}",
+    officeMissing: "This parish has no office. It hangs on the person who created it, and can only be handed on by handing on the account.",
+    officeAdd: "Create the office",
     slugUnknown:
       'This address is not on the list and cannot be created. Addresses are settled in '
       + 'advance, because they are given out and printed — a parish cannot be renamed '
@@ -1084,10 +1126,12 @@ const en: RcCopy = {
     lead: "This account reaches {roles} roles. The drawing shows what hangs on what — a role is reachable because of the path, not on its own.",
     locked: "Unlock your keys to see your roles.",
     loading: "Reading the graph…",
+    areaNode: "Area",
     accountNode: "Account",
     accountYou: "You",
     unnamed: "Unnamed",
     noKey: "no key",
+    rolesHeading: "Roles you hold",
     personsHeading: "People",
     noPersons: "No person on this account yet.",
     signInFirst: "The tools need an account. Nothing below opens without one.",
@@ -1105,6 +1149,19 @@ const en: RcCopy = {
       inherits: "inherits from",
       supervises: "supervises",
     },
+    rename: "Rename",
+    titles: "Titles",
+    noTitles: "none yet",
+    titleHint: "e.g. ks., dr",
+    addTitle: "Add",
+    removeTitle: "Remove this title",
+    moveLeft: "Move left",
+    moveRight: "Move right",
+    alias: "Name",
+    preview: "Will read:",
+    save: "Save",
+    cancel: "Cancel",
+    renameWarns: "The name lives on the role, not in a copy inside everything it ever wrote. Changing it changes it everywhere, over old entries too.",
   },
   person: {
     heading: "Person",
@@ -1209,6 +1266,9 @@ const pl: RcCopy = {
     personName: "Twoje imię i nazwisko",
     personNameWhy: "Pod tą nazwą będziesz widoczny — na stronie parafii, w kalendarzu, przy wszystkim, czym zarządzasz. To nie jest login, i można ją później zmienić.",
     haveAccount: "Mam już konto",
+    close: "Zamknij",
+    keepSignedIn: "Pozostań zalogowany",
+    keepSignedInWhy: "Na tym urządzeniu, przez 30 dni. Każdy, kto ma dostęp do tej przeglądarki, otworzy wtedy twoje konto bez hasła. Na wspólnym komputerze zostaw wyłączone.",
     signedInAs: 'Zalogowano jako {name}',
     keysHeld: 'Twój pęk kluczy jest gotowy.',
     keysMissing: 'Zablokowane — pęku kluczy nie ma w pamięci.',
@@ -1517,6 +1577,10 @@ const pl: RcCopy = {
     make: 'Utwórz',
 
     slug: 'Nazwa w adresie',
+    officeName: "{name} — administrator",
+    officeIs: "Zarządza: {name}",
+    officeMissing: "Ta parafia nie ma urzędu. Wisi przy osobie, która ją założyła, i można ją przekazać tylko przekazując konto.",
+    officeAdd: "Utwórz urząd",
     slugUnknown:
       'Tej nazwy nie ma na liście i nie można jej utworzyć. Adresy ustalane są '
       + 'z góry, bo są rozdawane i drukowane — zmiana adresu parafii zepsułaby '
@@ -1733,10 +1797,12 @@ const pl: RcCopy = {
     lead: "To konto sięga {roles} ról. Rysunek pokazuje, co przy czym wisi — rola jest dostępna dzięki drodze, nie sama z siebie.",
     locked: "Odblokuj klucze, aby zobaczyć swoje role.",
     loading: "Wczytywanie grafu…",
+    areaNode: "Obszar",
     accountNode: "Konto",
     accountYou: "Ty",
     unnamed: "Bez nazwy",
     noKey: "brak klucza",
+    rolesHeading: "Twoje role",
     personsHeading: "Osoby",
     noPersons: "Na tym koncie nie ma jeszcze osoby.",
     signInFirst: "Narzędzia wymagają konta. Bez niego nic poniżej się nie otworzy.",
@@ -1754,6 +1820,19 @@ const pl: RcCopy = {
       inherits: "dziedziczy po",
       supervises: "nadzoruje",
     },
+    rename: "Zmień nazwę",
+    titles: "Tytuły",
+    noTitles: "jeszcze żadnego",
+    titleHint: "np. ks., dr",
+    addTitle: "Dodaj",
+    removeTitle: "Usuń ten tytuł",
+    moveLeft: "Przesuń w lewo",
+    moveRight: "Przesuń w prawo",
+    alias: "Nazwa",
+    preview: "Będzie widoczne:",
+    save: "Zapisz",
+    cancel: "Anuluj",
+    renameWarns: "Nazwa jest przy roli, a nie kopiowana do wszystkiego, co ta rola kiedykolwiek napisała. Zmiana działa wszędzie — także nad starymi wpisami.",
   },
   person: {
     heading: "Osoba",
@@ -1848,6 +1927,9 @@ const de: RcCopy = {
     personName: "Dein Name",
     personNameWhy: "Unter diesem Namen erscheinst du — auf einer Pfarrseite, in einem Kalender, neben allem, was du verwaltest. Es ist nicht der Anmeldename, und er laesst sich spaeter aendern.",
     haveAccount: "Ich habe schon ein Konto",
+    close: "Schliessen",
+    keepSignedIn: "Angemeldet bleiben",
+    keepSignedInWhy: "Auf diesem Geraet, dreissig Tage lang. Wer diesen Browser benutzen kann, oeffnet dein Konto dann ohne Passwort. Auf einem geteilten Rechner besser aus.",
     signedInAs: 'Angemeldet als {name}',
     keysHeld: 'Dein Schlüsselbund liegt bereit.',
     keysMissing: 'Gesperrt — der Schlüsselbund liegt nicht im Speicher.',
@@ -2122,6 +2204,10 @@ const de: RcCopy = {
     make: 'Anlegen',
 
     slug: 'Name in der Adresse',
+    officeName: "{name} — Verwaltung",
+    officeIs: "Verwaltet von {name}",
+    officeMissing: "Diese Pfarrei hat kein Amt. Sie haengt an der Person, die sie angelegt hat, und laesst sich nur weitergeben, indem man das Konto weitergibt.",
+    officeAdd: "Amt anlegen",
     slugUnknown:
       'Dieser Name steht nicht auf der Liste und kann nicht angelegt werden. Adressen '
       + 'werden vorher festgelegt, weil sie weitergegeben und gedruckt werden — eine '
@@ -2331,10 +2417,12 @@ const de: RcCopy = {
     lead: "Dieses Konto erreicht {roles} Rollen. Die Zeichnung zeigt, was woran haengt — eine Rolle ist erreichbar wegen des Weges, nicht von sich aus.",
     locked: "Schliess deine Schluessel auf, um deine Rollen zu sehen.",
     loading: "Der Graph wird gelesen…",
+    areaNode: "Bereich",
     accountNode: "Konto",
     accountYou: "Du",
     unnamed: "Ohne Namen",
     noKey: "kein Schluessel",
+    rolesHeading: "Deine Rollen",
     personsHeading: "Personen",
     noPersons: "An diesem Konto haengt noch keine Person.",
     signInFirst: "Die Werkzeuge brauchen ein Konto. Ohne eines geht unten nichts auf.",
@@ -2352,6 +2440,19 @@ const de: RcCopy = {
       inherits: "erbt von",
       supervises: "beaufsichtigt",
     },
+    rename: "Umbenennen",
+    titles: "Titel",
+    noTitles: "noch keiner",
+    titleHint: "z. B. ks., dr",
+    addTitle: "Anfuegen",
+    removeTitle: "Diesen Titel entfernen",
+    moveLeft: "Nach links",
+    moveRight: "Nach rechts",
+    alias: "Name",
+    preview: "Steht dann da:",
+    save: "Sichern",
+    cancel: "Abbrechen",
+    renameWarns: "Der Name liegt an der Rolle und nicht als Kopie in allem, was sie je geschrieben hat. Eine Aenderung wirkt ueberall — auch ueber alten Eintraegen.",
   },
   person: {
     heading: "Person",

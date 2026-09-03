@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { rcCopy, rcPlural, type RcLang, rcFormat } from './i18n';
-import { rcCreateArea, rcRoles } from './lib/rcChat';
+import { rcRoles } from './lib/rcChat';
 import {
   rcAddIntention, rcAddMass, rcAddOffering, rcCreateParish, rcIntentionSealed, rcIntentions,
   rcMasses, rcMassesByDay, rcParishes, rcSaveParishSite,
@@ -61,6 +61,7 @@ export function RcParishSection({
       const person = (roles.roles ?? []).find((r) => r.kind === 'person') ?? (roles.roles ?? [])[0];
       setPersonRoleId(person?.roleId ?? null);
       setPersonName(person?.displayName ?? null);
+
     }
     catch (e) { onError(describe(e)); }
   }, [unlocked, describe, onError]);
@@ -96,6 +97,7 @@ export function RcParishSection({
                 {parish.masses} × {t.plan}
               </span>
             </button>
+
           </li>
         ))}
       </ul>
@@ -193,16 +195,8 @@ function RcNewParish({
     if (!may) return;
     setBusy(true);
     try {
-      /*
-       * Der Bereich entsteht hier, nicht vorher und nicht von Hand.
-       *
-       * Er traegt den Namen der Pfarrei, damit er wiederzuerkennen ist, falls
-       * ihn spaeter doch einmal jemand sieht. Fuer den Menschen davor gibt es
-       * ihn nicht: er gibt einen Namen und eine Adresse an, und der Rest ist
-       * Verkabelung.
-       */
-      const area = await rcCreateArea(personRoleId, name.trim());
-      const created = await rcCreateParish(area.areaId ?? '', wanted, name, location.trim() || undefined);
+      const created = await rcCreateParish(personRoleId, wanted, name, location.trim() || undefined);
+
       setMade({ id: created.parishId ?? '', slug: created.slug ?? wanted, name: created.name ?? name });
     } catch (err) {
       onError(describe(err));

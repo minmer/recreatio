@@ -18,11 +18,12 @@ import { rcCopy, rcDetectLang, rcFormat, rcPlural, rcStoreLang, type RcLang } fr
 import { runRcSelfTest, type RcTestReport } from './lib/rcSelfTest';
 import { RcChat, RcEventsSection, RcParishOutlet, RcGraphOutlet, RcCalendarOutlet, RcConfirmationOutlet } from './RcChat';
 import { RcAccountOutlet } from './RcAccount';
+import { RcSignInDrawer } from './RcSignInDrawer';
 import { RcPersonOutlet } from './RcPerson';
 import { RcInviteBanner } from './RcInvite';
 import { RcSignInPage } from './RcSignInPage';
 import { rcEnter, rcEntryCheck, rcBrowserMemory, type RcEntry } from './lib/rcBoot';
-import { rcHasUnlockPiece, rcMe, type RcMe } from './lib/rcAuth';
+import { rcHasUnlockPiece, rcLogout, rcMe, type RcMe } from './lib/rcAuth';
 import { rcNeedsIdentity, rcParsePath, rcPath, type RcAddress, type RcPart } from './lib/rcRoute';
 import { RcSignIn } from './RcSignIn';
 import './styles/rc.css';
@@ -70,6 +71,16 @@ export function RcApp() {
   const [report, setReport] = useState<RcTestReport | null>(null);
   const [running, setRunning] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
+
+  /*
+   * Die Schublade steht neben der Seite und nicht an ihrer Stelle.
+   *
+   * Sie ist der Weg fuer jemanden, der schon irgendwo ist und ein Konto
+   * braucht, um weiterzukommen. Wer gar keine Schluessel hat, sieht
+   * ohnehin die ganze Seite (`RcSignInPage`) — dann ist die Anmeldung
+   * nicht eine Sache neben anderen, sondern die einzige.
+   */
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   /**
    * Die Adresse. Aus ihr folgt beides: WAS gezeigt wird und OB beim Eintritt
@@ -125,7 +136,7 @@ export function RcApp() {
 
     let alive = true;
     setEntry({ kind: 'checking' });
-    void rcEntryCheck(rcMe).then((result) => {
+    void rcEntryCheck(rcMe, rcBrowserMemory, rcHasUnlockPiece, rcLogout).then((result) => {
       if (alive) setEntry(result);
     });
 
@@ -245,6 +256,30 @@ export function RcApp() {
           </h1>
           <span className="rc-stage">{t.shell.stage}</span>
           <div className="rc-top-right">
+            {/*
+              WER ANGEMELDET IST, STEHT IN DER KOPFLEISTE.
+
+              Vorher war das ein eigener Abschnitt mit eigener Ueberschrift,
+              ganz oben in der Seite — vor allem, was jemand eigentlich sehen
+              wollte. Wer angemeldet ist, braucht davon zwei Dinge: wer er ist
+              und den Weg hinaus. Beides gehoert neben die Sprachwahl und nicht
+              in den Inhalt.
+
+              Das FORMULAR bleibt, wo es war: solange die Schluessel fehlen,
+              zeigt `RcSignInPage` ohnehin nur dieses eine Bild.
+            */}
+            {entry.kind === 'signed-in'
+              ? <RcSignIn lang={lang} entry={entry} onEntry={setEntry} onReady={setUnlocked} />
+              : (
+                <button
+                  type="button"
+                  className="rc-btn"
+                  onClick={() => setDrawerOpen(true)}
+                >
+                  {t.auth.signIn}
+                </button>
+              )}
+
             {(['pl', 'de', 'en'] as const).map((l) => (
               <button
                 key={l}
@@ -363,13 +398,6 @@ export function RcApp() {
           />
         )}
 
-        <section className="rc-section">
-          <h2 className="rc-h2">{t.auth.heading}</h2>
-          {/* Kein Schaustück mehr: dieses Formular spricht mit /rc/auth und
-              führt einen echten Argon2id-Lauf aus. Das Passwort verlässt das
-              Gerät nicht — nur der daraus abgeleitete Schlüssel. */}
-          <RcSignIn lang={lang} entry={entry} onEntry={setEntry} onReady={setUnlocked} />
-        </section>
 
         {shows('account') && (
         <section className="rc-section">
@@ -434,6 +462,16 @@ export function RcApp() {
           <RcConfirmationOutlet lang={lang} unlocked={unlocked} />
         </section>
         )}
+
+        {/* Ausserhalb der Abschnitte: sie legt sich ueber die ganze Seite. */}
+        <RcSignInDrawer
+          lang={lang}
+          entry={entry}
+          onEntry={setEntry}
+          onReady={setUnlocked}
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+        />
 
         <footer className="rc-foot">
           <span>{t.shell.legacyHint}</span>

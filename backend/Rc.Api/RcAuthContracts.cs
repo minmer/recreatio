@@ -47,9 +47,20 @@ public sealed record RcRegisteredResponse(
 /// 3.9 — Wer bin ich, und liegt mein Schluesselbund bereit. Beides zusammen,
 /// weil der Klient beides zusammen braucht, um zu entscheiden, was er anzeigt.
 /// </summary>
+/// <summary>
+/// <c>KeysHeld</c> ist eine Auskunft ueber den ZWISCHENSPEICHER des Servers und
+/// keine Bedingung: faellt er weg, baut <c>RcMasterKey.OpenAsync</c> den
+/// Schluessel aus dem Oeffnungsstueck neu auf.
+///
+/// <c>CanOpen</c> ist die Bedingung. Es sagt, ob dieser Anfrage ein
+/// Oeffnungsstueck beilag — aus dem Kopf oder aus dem Keks. Der Browser kann
+/// das nicht selbst feststellen: der Keks ist <c>HttpOnly</c> und fuer kein
+/// Skript sichtbar. Ohne diese Zeile haelt sich eine Oberflaeche fuer
+/// gesperrt, obwohl der Server jederzeit oeffnen koennte.
+/// </summary>
 public sealed record RcMeResponse(
     bool SignedIn, string? AccountId = null, string? SessionId = null, bool? KeysHeld = null,
-    string? Username = null);
+    string? Username = null, bool? CanOpen = null);
 
 public sealed record RcLockedResponse(bool Locked, bool HadKeys);
 

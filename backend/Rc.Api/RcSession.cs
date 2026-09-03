@@ -33,6 +33,13 @@ public sealed class RcSessionMiddleware(RequestDelegate next, IConfiguration con
     /// </summary>
     public const string UnlockHeader = "X-Rc-Unlock";
 
+    /// <summary>
+    /// Der Keks, der das Oeffnungsstueck ueber das Schliessen des Tabs
+    /// hinwegtraegt — nur gesetzt, wenn jemand „angemeldet bleiben" gewaehlt
+    /// hat. <c>HttpOnly</c>, damit kein Skript im Browser ihn lesen kann.
+    /// </summary>
+    public const string KeepCookie = "rc.keep";
+
     public const string ClaimAccountId = "rc.sub";
     public const string ClaimSessionId = "rc.sid";
 
@@ -161,6 +168,7 @@ public sealed class RcSessionMiddleware(RequestDelegate next, IConfiguration con
 /// </remarks>
 public sealed record RcRequestSession(Guid AccountId, Guid SessionId, string Username);
 
+
 public static class RcSessionExtensions
 {
     public static IApplicationBuilder UseRcSession(this IApplicationBuilder app) =>
@@ -181,7 +189,37 @@ public static class RcSessionExtensions
     /// eine Pruefung aus und waere in Wahrheit der Fehlerfall selbst.
     /// </summary>
     public static bool RcHasUnlockPiece(this HttpContext context) =>
-        !string.IsNullOrEmpty(context.Request.Headers[RcSessionMiddleware.UnlockHeader].ToString());
+        !string.IsNullOrEmpty(RawUnlockPiece(context));
+
+    /// <summary>
+    /// Das Oeffnungsstueck: erst aus dem Kopf, dann aus dem Keks.
+    ///
+    /// <b>Warum es zwei Wege gibt.</b> Der Kopf kommt aus dem
+    /// <c>sessionStorage</c> und stirbt mit dem Tab — richtig fuer ein
+    /// geteiltes Geraet, laestig fuer das eigene Telefon, auf dem man sich
+    /// dann bei jedem Oeffnen neu anmeldet, obwohl die Sitzung dreissig Tage
+    /// laeuft.
+    ///
+    /// Der Keks ist der zweite Weg, und er ist NUR da, wenn jemand darum
+    /// gebeten hat (<c>keepMeSignedIn</c>). Er ist <c>HttpOnly</c>: kein
+    /// Skript im Browser kommt daran, auch keines, das ueber eine Luecke
+    /// hineingelangt ist — anders als bei <c>localStorage</c>, wo genau das
+    /// der uebliche Weg ist, ein Konto zu uebernehmen.
+    ///
+    /// <b>Der Preis, offen gesagt:</b> wer den Keks hat, kann das Konto
+    /// oeffnen, ohne das Passwort zu kennen, bis er ablaeuft. Das ist, was
+    /// „angemeldet bleiben" bedeutet — auf jeder Seite, die es anbietet.
+    /// Deshalb ist es eine Frage und keine Vorgabe.
+    /// </summary>
+    private static string RawUnlockPiece(HttpContext context)
+    {
+        var header = context.Request.Headers[RcSessionMiddleware.UnlockHeader].ToString();
+        if (!string.IsNullOrEmpty(header)) return header;
+
+        return context.Request.Cookies.TryGetValue(RcSessionMiddleware.KeepCookie, out var kept)
+            ? kept ?? ""
+            : "";
+    }
 
     /// <summary>
     /// 3.9 Schicht 2 — Das Oeffnungsstueck aus dem eigenen Kopf. Es wird
@@ -190,7 +228,7 @@ public static class RcSessionExtensions
     /// </summary>
     public static byte[] RcUnlockPiece(this HttpContext context)
     {
-        var raw = context.Request.Headers[RcSessionMiddleware.UnlockHeader].ToString();
+        var raw = RawUnlockPiece(context);
         if (string.IsNullOrEmpty(raw))
             throw new RcUnlockRequiredException("Kein Oeffnungsstueck mitgeschickt.");
 

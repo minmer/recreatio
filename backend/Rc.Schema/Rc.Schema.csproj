@@ -7,10 +7,28 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RootNamespace>Rc.Schema</RootNamespace>
+
+    <!--
+      DIESELBE Kennung wie Recreatio.Api — und das ist Absicht, kein Versehen.
+
+      Der Migrationslauf spricht mit derselben Datenbank wie der Dienst. Eine
+      eigene Geheimniskennung hiesse: dieselbe Zeichenfolge an zwei Stellen
+      pflegen, und beim naechsten Passwortwechsel eine davon vergessen.
+
+      Wichtiger noch ist, was damit WEGFAELLT: das Eintippen. Bisher musste die
+      Zeichenfolge samt Passwort als Befehlszeilenargument uebergeben werden —
+      sie landete in der Verlaufsdatei der Konsole, und ein Semikolon darin hat
+      die Kommandozeile schon einmal zerlegt. Ein Geheimnis, das man von Hand
+      weiterreichen muss, wird irgendwann falsch weitergereicht.
+    -->
+    <UserSecretsId>4daf5463-ef25-42a2-b3b0-c2eb770951d9</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>

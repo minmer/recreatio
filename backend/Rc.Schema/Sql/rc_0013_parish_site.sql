@@ -32,10 +32,15 @@
    vergleicht oder verknuepft. Sie werden immer als GANZE Seite geladen und
    als ganze Seite gespeichert.
 
-   SQL Server prueft mit ISJSON, dass es wenigstens JSON ist. Was fuer ein
+   Eine Bedingung haelt fest, dass wenigstens eine LISTE dasteht. Was fuer ein
    Baustein gilt, entscheidet der Katalog im Browser; eine Liste erlaubter
    Namen hier zu fuehren hiesse, sie bei jedem neuen Baustein an zwei Stellen
    nachzuziehen.
+
+   ISJSON waere schaerfer und steht hier trotzdem nicht: die Funktion gibt es
+   erst ab Kompatibilitaetsgrad 130, und die Datenbank laeuft auf einem
+   gemeinsam genutzten Server darunter. Eine Bedingung, die den Lauf abbricht,
+   schuetzt nichts — sie verhindert nur, dass die Tabelle entsteht.
    =========================================================================== */
 
 SET QUOTED_IDENTIFIER ON;
@@ -66,9 +71,19 @@ CREATE TABLE dbo.rc_parish_site
     CONSTRAINT fk_rc_parish_site_parish FOREIGN KEY (parish_id)
         REFERENCES dbo.rc_parish (id),
 
-    /* Kein Prosatext in einer Spalte, die als JSON gelesen wird. Ohne diese
+    /* Kein Prosatext in einer Spalte, die als JSON gelesen wird. Ohne eine
        Bedingung faellt ein falscher Inhalt erst beim Lesen auf — im Browser,
-       bei jemandem, der nur die Seite ansehen wollte. */
-    CONSTRAINT ck_rc_parish_site_modules_json CHECK (ISJSON(modules) = 1)
+       bei jemandem, der nur die Seite ansehen wollte.
+
+       Das ist AUSDRUECKLICH keine JSON-Pruefung: eckige Klammern aussen sagen
+       nichts ueber das, was dazwischen steht. Sie fangen den Fall, der hier
+       wirklich vorkommt — ein Text, der versehentlich in dieser Spalte landet —
+       und nicht den, bei dem jemand absichtlich kaputtes JSON schreibt.
+
+       Gegen den zweiten hilft ohnehin nur der Dienst: er baut den Wert selbst
+       und liest ihn selbst. Eine Bedingung, die schaerfer AUSSIEHT als sie ist,
+       waere schlechter als eine, die ihre Grenze nennt. */
+    CONSTRAINT ck_rc_parish_site_modules_list CHECK
+        (LEFT(LTRIM(modules), 1) = N'[' AND RIGHT(RTRIM(modules), 1) = N']')
 );
 GO

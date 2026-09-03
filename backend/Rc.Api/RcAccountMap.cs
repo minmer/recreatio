@@ -35,9 +35,18 @@ public static class RcAccountMap
         app.MapGet("/rc/account/map", MapAsync).Produces<RcAccountMapResponse>();
     }
 
-    /// <summary>Ein Knoten. <c>kind</c> ist <c>account</c> oder eine Rollenart.</summary>
+    /// <summary>
+    /// Ein Knoten. <c>kind</c> ist <c>account</c>, <c>area</c> oder eine
+    /// Rollenart.
+    ///
+    /// <c>nodeType</c> trennt, was <c>kind</c> nicht trennen kann: ein Bereich
+    /// ist keine Rolle, auch wenn beide als Kasten erscheinen. Die Oberflaeche
+    /// darf an einem Bereich nicht dieselben Handgriffe anbieten wie an einer
+    /// Rolle — umbenennen zum Beispiel laeuft ueber einen anderen Weg.
+    /// </summary>
     public sealed record NodeView(
-        string Id, string Kind, string? Name, int Depth, bool HasKey, bool IsAccount);
+        string Id, string Kind, string? Name, int Depth, bool HasKey, bool IsAccount,
+        string NodeType = "role");
 
     /// <summary>
     /// Eine Kante. <c>relation</c> ist <c>holds</c>, <c>inherits</c> oder
@@ -84,10 +93,94 @@ public static class RcAccountMap
         }
 
         var edges = ids.Count == 0
-            ? []
+            ? new List<EdgeView>()
             : await LoadEdgesAsync(connection, session.AccountId, ids, ctx.RequestAborted);
 
+        /*
+         * DIE BEREICHE GEHOEREN DAZU.
+         *
+         * Ein Bereich haengt an Rollen — jede mit einem Zertifikat darauf ist
+         * Mitglied. Fehlten sie in der Zeichnung, waere die Auskunft
+         * unvollstaendig an genau der Stelle, an der jemand nachsieht: „warum
+         * kann diese Rolle das lesen?" wird von einem Bereich beantwortet, und
+         * von nichts sonst.
+         *
+         * Die Kante geht von der ROLLE zum Bereich und nennt die Vollmacht.
+         * Andersherum stuende der Bereich als Ursprung da, und er ist keiner:
+         * er verleiht nichts, er wird gehalten.
+         */
+        if (ids.Count > 0)
+        {
+            var (areaNodes, areaEdges) = await LoadAreasAsync(
+                connection, session.AccountId, held.MasterKey, ids, reachable, ctx.RequestAborted);
+            nodes.AddRange(areaNodes);
+            edges.AddRange(areaEdges);
+        }
+
         await RcResults.WriteJsonAsync(ctx, new RcAccountMapResponse(nodes, edges));
+    }
+
+    /// <summary>
+    /// Die Bereiche, an denen die erreichbaren Rollen haengen.
+    ///
+    /// <b>Der Titel ist verschluesselt</b> und liegt unter dem Epochenschluessel
+    /// (9.13). Er wird geoeffnet, wo das geht; wo nicht, bleibt der Kasten
+    /// namenlos stehen. Dass ein Bereich DA ist, gehoert zur Auskunft — auch
+    /// wenn dieses Konto seinen Namen nicht lesen kann.
+    ///
+    /// <b>Die Tiefe</b> ist die des naechstgelegenen Mitglieds plus eins: ein
+    /// Bereich steht rechts von den Rollen, die ihn halten.
+    /// </summary>
+    private static async Task<(List<NodeView> Nodes, List<EdgeView> Edges)> LoadAreasAsync(
+        SqlConnection connection, Guid accountId, byte[] masterKey, IReadOnlyList<Guid> roleIds,
+        IReadOnlyList<RcReachableRole> reachable, CancellationToken ct)
+    {
+        var names = string.Join(", ", roleIds.Select((_, i) => $"@r{i}"));
+        await using var cmd = new SqlCommand($"""
+            SELECT DISTINCT c.scope_id, c.subject_role_id, c.capability
+            FROM dbo.rc_certificate c
+            WHERE c.scope_kind = @scopeKind
+              AND c.revoked_at IS NULL
+              AND c.expires_at > @now
+              AND c.subject_role_id IN ({names});
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@scopeKind", (int)RcScopeKind.Area);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+        for (var i = 0; i < roleIds.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", roleIds[i]);
+
+        var links = new List<(Guid AreaId, Guid RoleId, int Capability)>();
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+                links.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetInt32(2)));
+        }
+
+        if (links.Count == 0) return ([], []);
+
+        var depthOf = reachable.ToDictionary(r => r.RoleId, r => r.Depth);
+        var areaIds = links.Select(l => l.AreaId).Distinct().ToList();
+        var titles = await RcAreas.OpenTitlesAsync(connection, accountId, masterKey, areaIds, ct);
+
+        var nodes = areaIds.Select(areaId =>
+        {
+            var deepest = links.Where(l => l.AreaId == areaId)
+                .Select(l => depthOf.TryGetValue(l.RoleId, out var d) ? d : 0)
+                .DefaultIfEmpty(0)
+                .Min();
+
+            titles.TryGetValue(areaId, out var title);
+            return new NodeView(RcId.ToText(areaId), "area", title, deepest + 1,
+                title is not null, false, "area");
+        }).ToList();
+
+        var edges = links.Select(l => new EdgeView(
+            $"{RcId.ToText(l.RoleId)}-{RcId.ToText(l.AreaId)}-{l.Capability}",
+            RcId.ToText(l.RoleId),
+            RcId.ToText(l.AreaId),
+            RcCapabilities.ToText((RcCapability)l.Capability))).ToList();
+
+        return (nodes, edges);
     }
 
     /// <summary>
