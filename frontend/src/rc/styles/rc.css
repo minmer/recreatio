@@ -2151,3 +2151,22 @@
 .rc-tile[aria-pressed="false"] .rc-tile-mark { color: var(--rc-muted); }
 
 .rc-swatch:disabled, .rc-tile:disabled { opacity: 0.5; cursor: default; }
+
+/*
+   Ein leerer Zustand, der weiterfuehrt.
+
+   Nicht bloss die Feststellung, dass hier nichts ist — sondern der naechste
+   Schritt, und ein Weg dorthin. Ein Hinweis, der auf einen anderen Teil der
+   Plattform verweist, ohne dorthin zu fuehren, laesst den Menschen davor
+   suchen.
+*/
+.rc-empty {
+  display: grid;
+  justify-items: start;
+  gap: 0.7rem;
+  padding: 0.9rem 1rem;
+  border: 1px dashed var(--rc-line-2);
+  background: var(--rc-surface-2);
+}
+
+.rc-empty .rc-note { margin: 0; max-width: 42ch; }

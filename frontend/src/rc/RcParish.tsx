@@ -21,6 +21,7 @@ import {
   rcMasses, rcMassesByDay, rcParishes, rcSaveParishSite,
   type RcIntention, type RcMass, type RcParish
 } from './lib/rcParish';
+import { rcPath } from './lib/rcRoute';
 import { rcIsAllowedSlug, rcIsSlug, rcAllowedSlugs } from './lib/rcSlugs';
 import { useRcError } from './RcThreads';
 
@@ -63,7 +64,27 @@ export function RcParishSection({
 
   return (
     <div className="rc-panel">
-      {list.length === 0 && <p className="rc-note">{t.none}</p>}
+      {list.length === 0 && usable.length > 0 && <p className="rc-note">{t.none}</p>}
+
+      {/*
+        DIE SACKGASSE, die hier vorher war.
+
+        Ohne einen Bereich, den man beglaubigen darf, erschien das Formular
+        einfach nicht — und daneben stand „eine Pfarrei haengt an einem Bereich,
+        leg sie dort an". Wo „dort" ist, stand nirgends, und der Weg dahin
+        fuehrt in einen ANDEREN Teil der Plattform. Wer die Reihenfolge nicht
+        kennt, sieht eine Seite, auf der nichts zu tun ist, und haelt sie fuer
+        kaputt.
+
+        Ein leerer Zustand muss sagen, was als Naechstes zu tun ist — und wenn
+        das anderswo geschieht, dorthin fuehren.
+      */}
+      {usable.length === 0 && (
+        <div className="rc-empty">
+          <p className="rc-note">{t.needArea}</p>
+          <a className="rc-btn rc-btn-quiet" href={rcPath('chat')}>{t.toAreas}</a>
+        </div>
+      )}
 
       <ul className="rc-event-list">
         {list.map((parish) => (

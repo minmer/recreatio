@@ -300,6 +300,10 @@ export interface RcCopy {
     readonly slugAvailable: string;
     readonly slugShape: string;
     /** Der zweistufige Weg: erst wer sie ist, dann wie ihre Seite aussieht. */
+    /** Der leere Zustand, wenn noch kein Bereich da ist — mit dem Weg dorthin. */
+    readonly needArea: string;
+    readonly toAreas: string;
+
     readonly stepOne: string;
     readonly stepTwo: string;
     readonly nameLead: string;
@@ -791,7 +795,9 @@ const en: RcCopy = {
   },
   parish: {
     heading: 'Parish',
-    none: 'No parish yet. A parish hangs on an area — make one there.',
+    none: "No parish yet.",
+    needArea: "A parish hangs on an area — it takes its keys, members and certificates from there. You do not have one yet, and areas are made in a different part.",
+    toAreas: "Go to areas",
     create: 'New parish',
     name: 'Name',
     location: 'Where',
@@ -1369,7 +1375,9 @@ const pl: RcCopy = {
   },
   parish: {
     heading: 'Parafia',
-    none: 'Nie ma jeszcze parafii. Parafia wisi przy obszarze — załóż ją tam.',
+    none: "Nie ma jeszcze parafii.",
+    needArea: "Parafia wisi przy obszarze — stamtąd bierze klucze, członków i certyfikaty. Nie masz jeszcze żadnego, a obszary zakłada się w innej części.",
+    toAreas: "Przejdź do obszarów",
     create: 'Nowa parafia',
     name: 'Nazwa',
     location: 'Gdzie',
@@ -1910,7 +1918,9 @@ const de: RcCopy = {
   },
   parish: {
     heading: 'Pfarrei',
-    none: 'Noch keine Pfarrei. Eine haengt an einem Bereich — leg sie dort an.',
+    none: "Noch keine Pfarrei.",
+    needArea: "Eine Pfarrei haengt an einem Bereich — von dort kommen Schluessel, Mitglieder und Zertifikate. Du hast noch keinen, und Bereiche entstehen in einem anderen Teil.",
+    toAreas: "Zu den Bereichen",
     create: 'Neue Pfarrei',
     name: 'Name',
     location: 'Wo',
