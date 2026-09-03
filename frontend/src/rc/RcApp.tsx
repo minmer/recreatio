@@ -21,7 +21,7 @@ import { RcAccountOutlet } from './RcAccount';
 import { RcSignInDrawer } from './RcSignInDrawer';
 import { RcParishSite } from './parish/RcParishSite';
 import './parish/parishSite.css';
-import { RC_PARISH_PUBLIC } from './parish/rcParishPublic';
+
 import { RcPersonOutlet } from './RcPerson';
 import { RcInviteBanner } from './RcInvite';
 import { RcSignInPage } from './RcSignInPage';
@@ -241,10 +241,30 @@ export function RcApp() {
    * die braucht Schluessel wie alles andere in der Werkstatt.
    */
   if (address.part === 'parish' && address.slug !== null) {
-    const known = RC_PARISH_PUBLIC[address.slug];
-    if (known !== undefined) {
-      return <RcParishSite name={known.name} />;
-    }
+    /*
+     * Die Anmeldeschublade fährt AUF der Pfarrseite herein.
+     *
+     * Wer den Messplan pflegen will, soll sich anmelden können, ohne die Seite
+     * zu verlassen — sonst geht er den Umweg über die Werkstatt und findet von
+     * dort nicht zurück.
+     */
+    return (
+      <>
+        <RcParishSite
+          slug={address.slug}
+          signedIn={entry.kind === 'signed-in'}
+          onSignIn={() => setDrawerOpen(true)}
+        />
+        <RcSignInDrawer
+          lang={lang}
+          entry={entry}
+          onEntry={setEntry}
+          onReady={setUnlocked}
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+        />
+      </>
+    );
   }
 
   if (!unlocked) {

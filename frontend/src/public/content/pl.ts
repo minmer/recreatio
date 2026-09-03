@@ -591,88 +591,43 @@ export const pl: PublicCopy = {
   },
 
   tools: {
-    title: 'Narzędzia',
-    lead:
-      'Wszystko, co powstaje w REcreatio, i gdzie tego szukać. Każde narzędzie działa '
-      + 'osobno dla każdej wspólnoty — parafia, grupa czy rocznik ma własny adres '
-      + 'i własne dane.',
-
-    addressTitle: 'Jak zbudowany jest adres',
-    address:
-      'Najpierw część, potem nazwa: /parish/jan, a nie /jan. Dzięki temu dwie różne '
-      + 'wspólnoty mogą nazywać się tak samo, a przeglądarka wie z samego adresu, czy '
-      + 'musi kogoś rozpoznać, zanim cokolwiek pokaże.',
-    slug: 'nazwa',
-
-    signIn: "Narzędzia działają na koncie. Bez niego otworzą się, ale pozostaną puste: to, co w środku, jest zapieczętowane, a klucz powstaje z twojego hasła.",
-    signInDo: "Zaloguj się lub załóż konto",
-
-    liveTitle: "Już dostępne",
-    liveLead: "Te strony są online i nie wymagają konta. Każdy może je czytać.",
-
-    openLabel: 'Bez klucza',
-    embedded: 'Bez własnego adresu — wstawiane w cudzą stronę.',
-
+    title: "Narzędzia",
+    lead: "REcreatio buduje dla siebie narzędzia, które są jej potrzebne — ale udostępnia je także innym.",
+    noneYet: "Jeszcze nic tu nie działa.",
+    embedded: "Część innego narzędzia.",
     items: [
       {
-        name: 'Parafia',
-        part: 'parish',
-        body:
-          'Plan Mszy, intencje i ofiary. Plan wisi w gablocie i tak samo działa tutaj; '
-          + 'reszta jest zamknięta.',
-        open: 'Plan Mszy widać bez konta.'
+        name: "Parafia",
+        body: "Pełnoprawna strona internetowa dla parafii — msze, intencje, ogłoszenia, kancelaria i przygotowanie do bierzmowania.",
+        part: "parish",
+        make: "Stwórz własną parafię"
       },
       {
-        name: 'Wydarzenia',
-        part: 'event',
-        body:
-          'Rekolekcje, pielgrzymki i wyprawy: ogłoszenie, szczegóły i zapisy. Kto '
-          + 'prowadzi, buduje wydarzenie sam.',
-        open: 'Ogłoszenie widać bez konta.'
+        name: "Wydarzenia",
+        body: "Strona internetowa służąca do organizowania wydarzeń — zapisy, program, uczestnicy i komunikacja.",
+        part: "event",
+        make: "Stwórz własne wydarzenie"
       },
       {
-        name: 'Cogita',
-        part: 'cogita',
-        body:
-          'Środowisko do nauki: teksty, storyboardy, zbiory i powtórki, powiązane w graf '
-          + 'wiedzy.',
-        open: 'Nic — potrzebny jest klucz.'
+        name: "Cogita",
+        body: "Środowisko do pracy z wiedzą: notatki powiązane w graf, powtórki i wspólne opracowania.",
+        part: "cogita",
+        make: "Stwórz własną przestrzeń"
       },
       {
-        name: 'Kalendarz',
-        part: 'calendar',
-        body:
-          'Terminy, zadania i powtórzenia. Czas jest jawny, treść nie: widać, że ktoś '
-          + 'jest zajęty, nie widać czym.',
-        open: 'Zajętość terminu, bez treści.'
+        name: "Kalendarz",
+        body: "Wspólny kalendarz dla grupy — terminy, dyżury i cykliczne spotkania.",
+        part: "calendar",
+        make: "Stwórz własny kalendarz"
       },
       {
-        name: 'Czat',
-        part: 'chat',
-        body:
-          'Rozmowa w grupie, z epokami: kto dołącza dziś, nie czyta tego, co było '
-          + 'wcześniej, chyba że ktoś świadomie mu to otworzy.',
-        open: 'Nic — potrzebny jest klucz.'
-      },
-      {
-        name: 'Bierzmowanie',
-        part: 'confirmation',
-        body: 'Rocznik, kandydaci, spotkania i obecności. Prowadzone przez katechetę.',
-        open: 'Nic — potrzebny jest klucz.'
-      },
-      {
-        name: 'Obłożenie i zapytania',
-        part: null,
-        body:
-          'Wolne i zajęte terminy sal i domów, oraz formularz zapytania. Wstawiane '
-          + 'w stronę — tak jak na stronie ośrodka tutaj.',
-        open: 'Wolne i zajęte widać bez konta; treść zapytania szyfruje przeglądarka.'
+        name: "Rozmowy",
+        body: "Zaszyfrowane rozmowy i decyzje w obrębie jednego obszaru.",
+        part: "chat",
+        make: "Stwórz własny obszar"
       }
     ],
-
-    note:
-      'Narzędzia powstają razem z platformą i są na różnych etapach. Adresy są już '
-      + 'ustalone i nie będą się zmieniać.'
+    note: "Części są w bardzo różnym stopniu gotowe. To spis tego, co powstaje, a nie oferta."
   },
 
   notFound: {

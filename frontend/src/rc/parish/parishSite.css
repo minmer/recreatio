@@ -323,3 +323,52 @@
   .ps-rows li { grid-template-columns: 4.5rem minmax(0, 1fr); }
   .ps-rows em { grid-column: 2; }
 }
+
+/* -- Zugang: anmelden und bearbeiten --------------------------------------- */
+
+/*
+ * Zwei Knöpfe, die es nur für zwei verschiedene Menschen gibt: „Zaloguj się"
+ * für den, der noch draussen ist, „Edytuj stronę" für den, der hier verwalten
+ * darf. Nie beide gleichzeitig — wer angemeldet ist, braucht den ersten nicht,
+ * und wer nicht verwalten darf, sieht den zweiten gar nicht.
+ */
+.ps-access { display: flex; align-items: center; gap: 0.5rem; }
+
+.ps-signin {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--ps-deep);
+  border-radius: 999px;
+  background: var(--ps-deep);
+  color: #fff;
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.ps-signin:hover { background: #1a2a3d; }
+
+.ps-edit {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--ps-accent);
+  border-radius: 999px;
+  background: none;
+  color: var(--ps-accent);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.ps-edit:hover { background: rgba(165, 107, 47, 0.1); }
+.ps-edit.is-on { background: var(--ps-accent); color: #fff; }
+
+/* Der Bearbeitungsmodus ist ein ZUSTAND der ganzen Seite und sagt das auch. */
+.ps-editing {
+  margin: 0;
+  padding: 0.55rem clamp(1rem, 5vw, 3rem);
+  background: rgba(165, 107, 47, 0.12);
+  border-bottom: 1px solid var(--ps-accent);
+  color: #6d4415;
+  font-size: 0.86rem;
+}
+
+@media (max-width: 640px) {
+  .ps-access { order: 3; }
+}

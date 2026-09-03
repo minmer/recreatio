@@ -37,3 +37,14 @@ public sealed record RcOfferingCreatedResponse(string OfferingId, string Currenc
 /// Merkmal, an dem er erkennen koennte, dass er noch aussteht.
 /// </summary>
 public sealed record RcParishSiteResponse(string ParishId, string Theme, string Modules, bool Configured);
+
+public sealed record RcPublicParishesResponse(IReadOnlyList<RcPublicParish.PublicParishView> Parishes);
+
+/// <summary>
+/// Eine Pfarrei, wie sie ohne Konto zu sehen ist. <c>configured</c> sagt, ob
+/// die Startseite schon eingerichtet wurde — ohne diese Auskunft koennte die
+/// Oberflaeche einen leeren Aufbau nicht von einem gewaehlten unterscheiden.
+/// </summary>
+public sealed record RcPublicParishResponse(
+    string ParishId, string Slug, string Name, string? Location, string AreaId,
+    string Theme, string Modules, bool Configured);

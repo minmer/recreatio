@@ -587,88 +587,43 @@ export const de: PublicCopy = {
   },
 
   tools: {
-    title: 'Werkzeuge',
-    lead:
-      'Alles, was in REcreatio entsteht, und wo es zu finden ist. Jedes Werkzeug läuft '
-      + 'für jede Gemeinschaft getrennt — eine Pfarrei, eine Gruppe, ein Jahrgang hat '
-      + 'ihre eigene Adresse und ihre eigenen Daten.',
-
-    addressTitle: 'Wie eine Adresse gebaut ist',
-    address:
-      'Erst der Teil, dann der Name: /parish/jan, nicht /jan. So dürfen zwei '
-      + 'Gemeinschaften gleich heissen, und der Browser weiss schon aus der Adresse, ob '
-      + 'er jemanden erkennen muss, bevor er etwas zeigt.',
-    slug: 'name',
-
-    signIn: "Die Werkzeuge laufen auf einem Konto. Ohne eines gehen sie auf, bleiben aber leer: was darin liegt, ist versiegelt, und der Schlüssel entsteht aus deinem Passwort.",
-    signInDo: "Anmelden oder Konto anlegen",
-
-    liveTitle: "Schon offen",
-    liveLead: "Diese Seiten sind erreichbar und brauchen kein Konto. Jeder darf sie lesen.",
-
-    openLabel: 'Ohne Schlüssel',
-    embedded: 'Ohne eigene Adresse — wird in eine fremde Seite eingesetzt.',
-
+    title: "Werkzeuge",
+    lead: "REcreatio baut Werkzeuge, die es selbst braucht — und gibt sie auch anderen.",
+    noneYet: "Hier laeuft noch nichts.",
+    embedded: "Teil eines anderen Werkzeugs.",
     items: [
       {
-        name: 'Pfarrei',
-        part: 'parish',
-        body:
-          'Messplan, Intentionen und Gaben. Der Plan hängt im Schaukasten und tut es '
-          + 'hier genauso; der Rest ist verschlossen.',
-        open: 'Der Messplan ist ohne Konto zu sehen.'
+        name: "Pfarrei",
+        body: "Eine vollwertige Website fuer eine Pfarrei — Messen, Intentionen, Ankuendigungen, Kanzlei und die Firmvorbereitung.",
+        part: "parish",
+        make: "Eigene Pfarrei anlegen"
       },
       {
-        name: 'Veranstaltungen',
-        part: 'event',
-        body:
-          'Exerzitien, Wallfahrten und Fahrten: Ankündigung, Einzelheiten und Anmeldung. '
-          + 'Wer sie leitet, baut sie selbst.',
-        open: 'Die Ankündigung ist ohne Konto zu sehen.'
+        name: "Veranstaltungen",
+        body: "Eine Website zum Organisieren von Veranstaltungen — Anmeldung, Programm, Teilnehmer und Nachrichten.",
+        part: "event",
+        make: "Eigene Veranstaltung anlegen"
       },
       {
-        name: 'Cogita',
-        part: 'cogita',
-        body:
-          'Die Lernumgebung: Texte, Storyboards, Sammlungen und Wiederholung, verbunden '
-          + 'zu einem Wissensgraphen.',
-        open: 'Nichts — es braucht einen Schlüssel.'
+        name: "Cogita",
+        body: "Eine Umgebung fuer Wissen: Notizen als Graph verbunden, Wiederholungen und gemeinsame Ausarbeitungen.",
+        part: "cogita",
+        make: "Eigenen Raum anlegen"
       },
       {
-        name: 'Kalender',
-        part: 'calendar',
-        body:
-          'Termine, Aufgaben und Wiederholungen. Die Zeit ist offen, der Inhalt nicht: '
-          + 'man sieht, dass jemand belegt ist, nicht womit.',
-        open: 'Belegt oder frei, ohne den Inhalt.'
+        name: "Kalender",
+        body: "Ein gemeinsamer Kalender fuer eine Gruppe — Termine, Dienste und wiederkehrende Treffen.",
+        part: "calendar",
+        make: "Eigenen Kalender anlegen"
       },
       {
-        name: 'Nachrichten',
-        part: 'chat',
-        body:
-          'Das Gespräch in der Gruppe, mit Epochen: wer heute dazukommt, liest nicht, '
-          + 'was vorher stand — es sei denn, jemand öffnet es ihm eigens.',
-        open: 'Nichts — es braucht einen Schlüssel.'
-      },
-      {
-        name: 'Firmung',
-        part: 'confirmation',
-        body: 'Jahrgang, Kandidaten, Treffen und Anwesenheit. Geführt von der Katechese.',
-        open: 'Nichts — es braucht einen Schlüssel.'
-      },
-      {
-        name: 'Belegung und Anfragen',
-        part: null,
-        body:
-          'Freie und belegte Zeiten von Räumen und Häusern, dazu das Anfrageformular. '
-          + 'Wird in eine Seite eingesetzt — so wie hier beim Haus.',
-        open: 'Frei und belegt ohne Konto; die Anfrage verschlüsselt der Browser.'
+        name: "Gespraeche",
+        body: "Verschluesselte Gespraeche und Entscheidungen innerhalb eines Bereichs.",
+        part: "chat",
+        make: "Eigenen Bereich anlegen"
       }
     ],
-
-    note:
-      'Die Werkzeuge entstehen mit der Plattform und sind verschieden weit. Die '
-      + 'Adressen stehen bereits fest und ändern sich nicht mehr.'
+    note: "Die Teile sind unterschiedlich weit. Das ist eine Auskunft darueber, was entsteht, und kein Angebot."
   },
 
   notFound: {

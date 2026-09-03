@@ -1,121 +1,110 @@
 /**
- * „Narzędzia" — das Verzeichnis dessen, was gebaut wird.
+ * „Narzędzia" — was REcreatio baut und wer es benutzen darf.
  *
- * <b>Diese Seite ist ein Nachschlagewerk, keine Haltung.</b> Warum die
- * Werkzeuge so gebaut sind, steht auf der Sicherheitsseite; hier steht, WELCHE
- * es gibt, wo sie liegen und was ohne Schlüssel davon zu sehen ist. Die beiden
- * Seiten verweisen aufeinander und wiederholen sich nicht.
+ * <b>Die Seite hat drei Sätze pro Werkzeug und nicht drei Absätze.</b> Wer
+ * hierherkommt, will wissen, was es gibt und ob etwas davon schon läuft. Eine
+ * Begründung, warum die Werkzeuge so gebaut sind, steht auf der
+ * Sicherheitsseite; hier wäre sie im Weg.
  *
- * <b>Die Adressen werden nicht getippt, sondern gebaut.</b> `rcPath` und
- * `RC_HASH_BASE` stammen aus derselben Datei, die auch die Plattform benutzt —
- * steht dort eines Tages `#` statt `#/new`, ändert sich diese Seite von selbst
- * mit. Eine Liste von Adressen, die als Text danebensteht, ist genau die Art
- * Angabe, die still veraltet.
+ * <b>Die fertigen Instanzen stehen unter ihrem Werkzeug</b>, mit dem Namen, den
+ * sie wirklich tragen — geholt vom Dienst und nicht aus einer Liste in dieser
+ * Datei. Eine gepflegte Liste läuft auseinander, und zwar unbemerkt: sie sieht
+ * richtig aus, während sie es nicht mehr ist.
  *
- * <b>Der Stand gehört dazu.</b> Ein Verzeichnis ohne die Zeile, dass die Teile
- * verschieden weit sind, liest sich als Angebot. Es ist aber eine Auskunft
- * darüber, was entsteht.
+ * <b>Bierzmowanie ist kein eigenes Werkzeug.</b> Es ist ein Teil der Pfarrei —
+ * ein eigener Punkt daneben liesse es wie eine zweite Einrichtung aussehen,
+ * die man getrennt anlegt.
  */
+
+import { useEffect, useState } from 'react';
 
 import type { PublicCopy } from '../content';
 import { RC_HASH_BASE, rcPath } from '../../rc/lib/rcRoute';
-import { rcPublicParishes } from '../../rc/parish/rcParishPublic';
 import { publicHref } from '../publicRoutes';
+import { rcPublicParishes, type RcPublicParishView } from '../../rc/parish/rcPublicParish';
 
 export function ToolsPage({ copy }: { copy: PublicCopy }) {
   const t = copy.tools;
+
+  /*
+   * Die Pfarrseiten kommen vom Dienst. Schweigt er, bleibt die Liste leer und
+   * der Rest der Seite steht trotzdem — ein Verzeichnis von Werkzeugen ist
+   * auch ohne laufende Instanzen eine Auskunft.
+   */
+  const [parishes, setParishes] = useState<readonly RcPublicParishView[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const answer = await rcPublicParishes();
+        if (alive) setParishes(answer.parishes ?? []);
+      } catch { /* Die Liste bleibt leer; die Seite sagt es selbst. */ }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   return (
     <article className="pub-page pub-wide">
       <h1 className="pub-h1">{t.title}</h1>
       <p className="pub-lead">{t.lead}</p>
 
-      {/*
-        ZUERST DAS KONTO, DANN DIE LISTE.
-
-        Vorher stand hier ein Verzeichnis von Werkzeugen und nirgends, dass
-        keines davon ohne Konto etwas zeigt. Wer einer der Adressen folgte,
-        landete auf einer Seite, die richtig aussieht und leer ist — und das
-        liest sich als Fehler, nicht als Grenze.
-
-        Der Hinweis steht deshalb VOR den Werkzeugen und nicht als Fussnote
-        darunter: er ist die Voraussetzung fuer alles, was folgt.
-      */}
-      <aside className="pub-signin">
-        <p className="pub-p">{t.signIn}</p>
-        {/*
-          Das Ziel ist die Kontouebersicht und nicht „die Anmeldeseite": eine
-          eigene Adresse dafuer gibt es nicht. Solange die Schluessel fehlen,
-          zeigt JEDE Adresse der Werkstatt das Anmeldeformular — und danach
-          steht man dort, wo man hinwollte. Ein Umweg ueber eine Startseite
-          waere ein Schritt, den niemand gewollt hat.
-        */}
-        <a className="pub-btn" href={rcPath('account')}>{t.signInDo}</a>
-      </aside>
-
-      <section className="pub-sec">
-        <h2 className="pub-h2">{t.addressTitle}</h2>
-        <p className="pub-p">{t.address}</p>
-      </section>
-
       <div className="pub-tools">
         {t.items.map((tool) => {
-          /*
-           * Ein Werkzeug ohne eigenen Teil hat keine Adresse — und bekommt
-           * deshalb auch keinen Verweis, der ins Leere zeigte. Stattdessen
-           * steht dort, was stattdessen gilt.
-           */
-          const part = tool.part;
-          const home = part === null ? null : rcPath(part);
-          const shown = part === null ? null : `${RC_HASH_BASE}/${part}/${t.slug}`;
+          const instances = tool.part === 'parish'
+            ? parishes.map((p) => ({
+                key: p.slug,
+                name: p.name,
+                note: p.location ?? '',
+                href: rcPath('parish', p.slug),
+                at: `${RC_HASH_BASE}/parish/${p.slug}`
+              }))
+            : [];
 
           return (
             <section className="pub-tool" key={tool.name}>
-              <h3 className="pub-h3">
-                {home === null ? tool.name : <a href={home}>{tool.name}</a>}
-              </h3>
+              <h2 className="pub-tool-name">{tool.name}</h2>
+              <p className="pub-tool-body">{tool.body}</p>
 
-              <p className="pub-p">{tool.body}</p>
+              {/*
+                Die fertigen Instanzen. Sie stehen unter ihrem Werkzeug und
+                nicht in einem eigenen Abschnitt: „was gibt es davon schon"
+                ist eine Frage ZU diesem Werkzeug.
+              */}
+              {instances.length > 0 && (
+                <ul className="pub-instances">
+                  {instances.map((i) => (
+                    <li key={i.key}>
+                      <a className="pub-instance" href={i.href}>
+                        <span className="pub-instance-name">{i.name}</span>
+                        {i.note !== '' && <span className="pub-instance-note">{i.note}</span>}
+                        <code>{i.at}</code>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-              {shown === null
-                ? <p className="pub-tool-at" data-kind="none">{t.embedded}</p>
-                : <p className="pub-tool-at"><code>{shown}</code></p>}
+              {instances.length === 0 && tool.part !== null && (
+                <p className="pub-instances-none">{t.noneYet}</p>
+              )}
 
+              {/*
+                Der Weg zum eigenen. Er führt in die Werkstatt; wer dort keine
+                Schlüssel hat, sieht zuerst das Anmeldeformular und danach die
+                Stelle, an der er anlegt.
+              */}
+              {tool.part !== null && (
+                <a className="pub-btn pub-tool-make" href={rcPath(tool.part)}>
+                  {tool.make}
+                </a>
+              )}
 
-              <p className="pub-tool-open">
-                <span className="pub-tool-tag">{t.openLabel}</span>
-                {tool.open}
-              </p>
+              {tool.part === null && <p className="pub-tool-at" data-kind="none">{t.embedded}</p>}
             </section>
           );
         })}
       </div>
-
-      {/*
-        WAS ES SCHON GIBT — mit dem amtlichen Namen.
-
-        Ein Verzeichnis von Werkzeugen sagt, was gebaut wird. Es sagt nicht,
-        dass es schon eine Seite gibt, die man aufrufen kann. Wer seine eigene
-        Pfarrei sucht, sucht ihren NAMEN und nicht das Wort „Parafia" — und
-        findet ihn sonst nicht, obwohl die Seite fertig dasteht.
-      */}
-      <section className="pub-sec">
-        <h2 className="pub-h2">{t.liveTitle}</h2>
-        <p className="pub-p">{t.liveLead}</p>
-
-        <ul className="pub-live">
-          {rcPublicParishes().map((parish) => (
-            <li key={parish.slug}>
-              <a className="pub-live-link" href={rcPath('parish', parish.slug)}>
-                <span className="pub-live-name">{parish.name}</span>
-                <span className="pub-live-place">{parish.place}</span>
-                <span className="pub-live-lead">{parish.lead}</span>
-                <code>{`${RC_HASH_BASE}/parish/${parish.slug}`}</code>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </section>
 
       <p className="pub-note">{t.note}</p>
 

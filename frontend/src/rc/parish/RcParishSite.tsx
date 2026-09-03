@@ -1,35 +1,84 @@
 /**
- * Die öffentliche Pfarrseite — das, was jemand sieht, der `#/new/parish/…`
- * aufruft, ohne angemeldet zu sein.
+ * Die öffentliche Pfarrseite.
  *
- * <b>Übernommen aus `pages/parish/ParishPage.tsx`</b>, und zwar der Aufbau, der
- * dort schon steht: klebende Kopfleiste mit Zeichen und Namen, zweistufiges
- * Menü mit Untermenüs, darunter der Inhalt der gewählten Seite. Die Farben und
- * Abstände kommen aus `styles/parish.css`.
+ * <b>Alles, was hier steht, kommt aus der angelegten Pfarrei.</b> Vorher stand
+ * hier ein erfundener Name und eine fest eingebaute Liste — die Seite sah
+ * richtig aus und war es nicht. Name, Ort und die Gestaltung der Startseite
+ * holt jetzt `/rc/public/parishes/{slug}`, ohne Konto, weil eine Pfarrseite
+ * ohne Konto lesbar sein muss.
  *
- * <b>Warum die Seite ohne Konto etwas zeigt.</b> Eine Pfarrseite, die nach dem
- * Passwort fragt, bevor sie den Messplan zeigt, ist keine Pfarrseite. Was
- * öffentlich ist, muss öffentlich sein — und was dahinter versiegelt liegt,
- * entscheidet das Modul, nicht diese Datei.
+ * <b>Der Aufbau stammt aus `pages/parish/ParishPage.tsx`</b>: klebende
+ * Kopfleiste, zweistufiges Menü, darunter der Inhalt. Die Farben aus
+ * `styles/parish.css`.
  *
- * <b>Die Daten sind Schaudaten</b> (`rcParishMock.ts`), und das steht auch auf
- * der Seite. Sie hier hereinzuholen ist keine Notlösung, sondern der einzige
- * Weg, an einer Seite ohne Inhalt zu erkennen, ob sie richtig ist.
+ * <b>Wer verwalten darf, sieht den Bearbeitungsschalter.</b> Er wird nicht
+ * geraten: die Seite fragt `/rc/permissions/check` nach `admin` auf dem Bereich
+ * der Pfarrei. Ein Schalter, der erscheint und dann nichts tut, ist schlimmer
+ * als keiner.
+ *
+ * <b>Was noch Schaudaten sind, steht auf der Seite.</b> Messplan, Intentionen
+ * und Ankündigungen kommen noch aus `rcParishMock.ts` — die echten liegen
+ * hinter Endpunkten, die je Pfarrei erst gefüllt werden müssen. Der Name tut
+ * es nicht mehr, und das ist der Unterschied, auf den es ankam.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   RC_ANNOUNCEMENTS, RC_EVENTS, RC_EXCEPTIONS, RC_INTENTIONS, RC_MASSES,
   RC_MASS_TABS, RC_MASS_TAB_LABELS, RC_OFFICE_HOURS, RC_PARISH_MENU, RC_PRIESTS,
   RC_SACRAMENTS, type RcMassTab, type RcPageId
 } from './rcParishMock';
+import { rcPublicParish, type RcPublicParish } from './rcPublicParish';
+import { rcMayAdminArea } from './rcParishRights';
 import { rcPath } from '../lib/rcRoute';
 
-export function RcParishSite({ name }: { name: string }) {
+export function RcParishSite({
+  slug, signedIn, onSignIn
+}: {
+  slug: string;
+  /** Ob überhaupt jemand angemeldet ist — sonst braucht es gar keine Rückfrage. */
+  signedIn: boolean;
+  onSignIn: () => void;
+}) {
+  const [parish, setParish] = useState<RcPublicParish | null>(null);
+  const [missing, setMissing] = useState(false);
+  const [mayEdit, setMayEdit] = useState(false);
+  const [editing, setEditing] = useState(false);
+
   const [page, setPage] = useState<RcPageId>('start');
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const found = await rcPublicParish(slug);
+        if (alive) setParish(found);
+      } catch {
+        if (alive) setMissing(true);
+      }
+    })();
+    return () => { alive = false; };
+  }, [slug]);
+
+  /*
+   * Darf der Angemeldete hier verwalten?
+   *
+   * Erst wenn beides feststeht — jemand ist angemeldet UND die Pfarrei ist
+   * geladen —, denn die Frage braucht den Bereich. Wer nicht angemeldet ist,
+   * wird gar nicht erst gefragt: die Antwort steht fest.
+   */
+  useEffect(() => {
+    if (!signedIn || parish === null) { setMayEdit(false); return; }
+    let alive = true;
+    void (async () => {
+      const may = await rcMayAdminArea(parish.areaId);
+      if (alive) setMayEdit(may);
+    })();
+    return () => { alive = false; };
+  }, [signedIn, parish]);
 
   const go = (id: RcPageId) => {
     setPage(id);
@@ -37,8 +86,28 @@ export function RcParishSite({ name }: { name: string }) {
     setMenuOpen(false);
   };
 
+  if (missing) {
+    return (
+      <div className="ps">
+        <main className="ps-main">
+          <h1 className="ps-title">Nie znaleziono parafii</h1>
+          <article className="ps-card">
+            <p>Pod adresem <code>{slug}</code> nie ma jeszcze strony parafii.</p>
+            <a className="ps-more" href={rcPath('parish')}>Wróć do listy</a>
+          </article>
+        </main>
+      </div>
+    );
+  }
+
+  if (parish === null) {
+    return <div className="ps"><main className="ps-main"><p className="ps-muted">Wczytywanie…</p></main></div>;
+  }
+
+  const name = parish.name;
+
   return (
-    <div className="ps">
+    <div className="ps" data-theme={parish.theme}>
       <header className="ps-head">
         <button type="button" className="ps-brand" onClick={() => go('start')}>
           <span className="ps-mark" aria-hidden="true">✝</span>
@@ -90,6 +159,33 @@ export function RcParishSite({ name }: { name: string }) {
           })}
         </nav>
 
+        {/*
+          DER ZUGANG STEHT OBEN RECHTS.
+
+          Eine Pfarrseite wird von zwei Sorten Menschen benutzt: von denen, die
+          den Messplan lesen, und von denen, die ihn pflegen. Die zweiten müssen
+          hier hineinkommen, ohne die Seite zu verlassen — sonst gehen sie den
+          Umweg über die Werkstatt und finden von dort nicht zurück.
+        */}
+        <div className="ps-access">
+          {mayEdit && (
+            <button
+              type="button"
+              className={`ps-edit${editing ? ' is-on' : ''}`}
+              aria-pressed={editing}
+              onClick={() => setEditing((v) => !v)}
+            >
+              {editing ? 'Zakończ edycję' : 'Edytuj stronę'}
+            </button>
+          )}
+
+          {!signedIn && (
+            <button type="button" className="ps-signin" onClick={onSignIn}>
+              Zaloguj się
+            </button>
+          )}
+        </div>
+
         <button
           type="button"
           className="ps-burger"
@@ -101,27 +197,33 @@ export function RcParishSite({ name }: { name: string }) {
         </button>
       </header>
 
-      {/*
-        DASS ES SCHAUDATEN SIND, STEHT AUF DER SEITE.
+      {editing && (
+        <p className="ps-editing" role="status">
+          Tryb edycji. Układ modułów jeszcze nie jest gotowy — na razie widzisz
+          stronę tak, jak widzą ją odwiedzający.
+        </p>
+      )}
 
-        Eine Seite mit erfundenen Messzeiten, die aussieht wie eine echte, ist
-        eine Falle: irgendwann kommt jemand um sieben zur Kirche. Der Hinweis
-        steht deshalb oben und nicht im Fuss.
+      {/*
+        Was noch Schaudaten sind, steht als Warnung da: eine Seite mit
+        wymyślonymi godzinami mszy, die aussieht wie eine echte, schickt
+        irgendwann jemanden um siebenter Stunde in die Kirche.
       */}
       <p className="ps-mock" role="status">
-        Dane pokazowe — strona w budowie. Godziny i intencje są przykładowe.
+        Godziny mszy, intencje i ogłoszenia są przykładowe — te dane nie zostały
+        jeszcze wprowadzone dla tej parafii.
       </p>
 
       <main className="ps-main">
-        {page === 'start' && <Start onGo={go} />}
+        {page === 'start' && <Start parish={parish} onGo={go} />}
         {page === 'announcements' && <Announcements />}
         {page === 'intentions' && <Intentions />}
         {page === 'masses' && <Masses />}
         {page === 'calendar' && <Calendar />}
         {page === 'clergy' && <Clergy />}
         {page === 'office' && <Office />}
-        {page === 'about' && <About name={name} />}
-        {page === 'contact' && <Contact />}
+        {page === 'about' && <About parish={parish} />}
+        {page === 'contact' && <Contact parish={parish} />}
         {page.startsWith('sacrament-') && <Sacrament id={page} />}
       </main>
 
@@ -137,22 +239,21 @@ export function RcParishSite({ name }: { name: string }) {
 /* -- Start ----------------------------------------------------------------- */
 
 /*
- * Die Startseite ist die einzige, die ein RASTER hat: die anderen tragen eine
- * Sache und brauchen keins. Genau dieses Raster wird später der Modulbereich —
- * die Kacheln hier stehen an denselben Plätzen wie die Bausteine der alten
- * Seite (`one-half`, `one-third`, `two-thirds`).
+ * Das Raster der Startseite — sechs Spalten, wie im Altbestand. Die Breiten
+ * heissen dort `one-third`, `one-half`, `two-thirds`, `full` und belegen 2, 3,
+ * 4 und 6 Spalten. Genau diese Zahlen stehen hier, damit der Bausteineditor
+ * nichts umrechnen muss, wenn er kommt.
  */
-function Start({ onGo }: { onGo: (id: RcPageId) => void }) {
+function Start({ parish, onGo }: { parish: RcPublicParish; onGo: (id: RcPageId) => void }) {
   const next = RC_INTENTIONS[0];
 
   return (
     <>
       <section className="ps-hero">
-        <h1>Witamy w parafii</h1>
-        <p>
-          Msze, intencje i ogłoszenia w jednym miejscu. Kancelaria czynna od poniedziałku
-          do piątku.
-        </p>
+        <h1>{parish.name}</h1>
+        {parish.location !== null && parish.location !== undefined && parish.location !== ''
+          ? <p>{parish.location}</p>
+          : <p>Msze, intencje i ogłoszenia w jednym miejscu.</p>}
       </section>
 
       <div className="ps-grid">
@@ -198,6 +299,9 @@ function Start({ onGo }: { onGo: (id: RcPageId) => void }) {
               </li>
             ))}
           </ul>
+          <button type="button" className="ps-more" onClick={() => onGo('office')}>
+            Kancelaria
+          </button>
         </article>
 
         <article className="ps-card ps-w-two-thirds">
@@ -213,6 +317,14 @@ function Start({ onGo }: { onGo: (id: RcPageId) => void }) {
           </ul>
           <button type="button" className="ps-more" onClick={() => onGo('announcements')}>
             Wszystkie ogłoszenia
+          </button>
+        </article>
+
+        <article className="ps-card ps-w-third">
+          <h2>Bierzmowanie</h2>
+          <p>Formacja, spotkania i zgłoszenia kandydatów.</p>
+          <button type="button" className="ps-more" onClick={() => onGo('sacrament-confirmation')}>
+            Przejdź
           </button>
         </article>
       </div>
@@ -291,7 +403,6 @@ function Masses() {
         </ul>
       </article>
 
-      {/* Die Ausnahmen sind der Grund, warum jemand den Plan überhaupt liest. */}
       <article className="ps-card ps-card-note">
         <h2>Zmiany i wyjątki</h2>
         <ul className="ps-rows">
@@ -352,34 +463,38 @@ function Office() {
             </li>
           ))}
         </ul>
-        <p className="ps-muted">
-          W sprawach pogrzebu prosimy o kontakt o każdej porze.
-        </p>
+        <p className="ps-muted">W sprawach pogrzebu prosimy o kontakt o każdej porze.</p>
       </article>
     </Page>
   );
 }
 
-function About({ name }: { name: string }) {
+function About({ parish }: { parish: RcPublicParish }) {
   return (
-    <Page title={`O parafii ${name}`}>
+    <Page title={`O parafii`}>
       <article className="ps-card">
+        <h2>{parish.name}</h2>
+        {parish.location !== null && parish.location !== undefined && parish.location !== '' && (
+          <p className="ps-muted">{parish.location}</p>
+        )}
         <p>
-          Parafia obejmuje swoim zasięgiem część miasta i kilka okolicznych ulic.
-          Kościół parafialny jest otwarty codziennie od 6:30 do wieczornej Mszy.
+          Opis parafii nie został jeszcze wprowadzony. Można go dodać w trybie
+          edycji.
         </p>
-        <p className="ps-muted">Ten opis jest przykładowy.</p>
       </article>
     </Page>
   );
 }
 
-function Contact() {
+function Contact({ parish }: { parish: RcPublicParish }) {
   return (
     <Page title="Kontakt">
       <article className="ps-card">
         <ul className="ps-rows">
-          <li><span>Adres</span><em>ul. Żuławskiego 3E, 34-600 Limanowa</em></li>
+          <li><span>Parafia</span><em>{parish.name}</em></li>
+          {parish.location !== null && parish.location !== undefined && parish.location !== '' && (
+            <li><span>Adres</span><em>{parish.location}</em></li>
+          )}
           <li><span>Kancelaria</span><em>zob. godziny dyżurów</em></li>
         </ul>
       </article>
@@ -389,7 +504,9 @@ function Contact() {
 
 function Sacrament({ id }: { id: string }) {
   const s = RC_SACRAMENTS[id];
-  if (!s) return <Page title="Sakramenty"><article className="ps-card"><p>Strona w budowie.</p></article></Page>;
+  if (!s) {
+    return <Page title="Sakramenty"><article className="ps-card"><p>Strona w budowie.</p></article></Page>;
+  }
 
   return (
     <Page title={s.title}>

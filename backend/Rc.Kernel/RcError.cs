@@ -151,6 +151,7 @@ public static class RcErrorCodes
     /// Die erlaubten Namen stehen in den Einzelheiten der Antwort — wer eine
     /// Pfarrei anlegen darf, darf auch wissen, welche vorgesehen sind.
     /// </summary>
+    public const string ParishNotFound = "parish.not_found";
     public const string ParishSlugNotAllowed = "parish.slug_not_allowed";
 
     // Ablage

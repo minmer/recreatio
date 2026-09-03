@@ -3277,6 +3277,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/public/parishes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcPublicParishesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/public/parishes/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcPublicParishResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/recovery/shares": {
         parameters: {
             query?: never;
@@ -5030,6 +5102,13 @@ export interface components {
             roleId: string;
             choice: string;
         };
+        PublicParishPublicParishView: {
+            slug: string;
+            name: string;
+            location?: string | null;
+            /** Format: int32 */
+            masses: number;
+        };
         RcAccessLogResponse: {
             accesses: components["schemas"]["DataItemsAccessEntry"][];
         };
@@ -5537,6 +5616,19 @@ export interface components {
         };
         RcPollsResponse: {
             polls: components["schemas"]["PollsPollView"][];
+        };
+        RcPublicParishResponse: {
+            parishId: string;
+            slug: string;
+            name: string;
+            location?: string | null;
+            areaId: string;
+            theme: string;
+            modules: string;
+            configured: boolean;
+        };
+        RcPublicParishesResponse: {
+            parishes: components["schemas"]["PublicParishPublicParishView"][];
         };
         RcRangeSegmentsResponse: {
             nodeId: string;

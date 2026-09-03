@@ -101,6 +101,7 @@ public static class RcPlatform
         app.MapRcEvents();
         app.MapRcRegistrations();
         app.MapRcParish();
+        app.MapRcPublicParish();
         app.MapRcGraph();
         app.MapRcCalendar();
         app.MapRcConfirmation();

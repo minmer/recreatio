@@ -579,88 +579,43 @@ export const en: PublicCopy = {
   },
 
   tools: {
-    title: 'Tools',
-    lead:
-      'Everything being built in REcreatio, and where to find it. Each tool runs '
-      + 'separately for each community — a parish, a group, a confirmation year has its '
-      + 'own address and its own data.',
-
-    addressTitle: 'How an address is built',
-    address:
-      'The part first, then the name: /parish/jan, not /jan. That way two communities '
-      + 'may share a name, and the browser knows from the address alone whether it must '
-      + 'recognise someone before showing anything.',
-    slug: 'name',
-
-    signIn: "The tools run on an account. Without one they open, but stay empty: what lies inside is sealed, and the key is derived from your password.",
-    signInDo: "Sign in or create an account",
-
-    liveTitle: "Already open",
-    liveLead: "These pages are online and need no account. Anyone can read them.",
-
-    openLabel: 'Without a key',
-    embedded: 'No address of its own — it is placed inside another page.',
-
+    title: "Tools",
+    lead: "REcreatio builds the tools it needs for itself — and shares them with others.",
+    noneYet: "Nothing running here yet.",
+    embedded: "Part of another tool.",
     items: [
       {
-        name: 'Parish',
-        part: 'parish',
-        body:
-          'Mass schedule, intentions and offerings. The schedule hangs in the noticeboard '
-          + 'and does the same here; the rest is sealed.',
-        open: 'The mass schedule is visible without an account.'
+        name: "Parish",
+        body: "A full website for a parish — masses, intentions, announcements, the office, and confirmation preparation.",
+        part: "parish",
+        make: "Create your own parish"
       },
       {
-        name: 'Events',
-        part: 'event',
-        body:
-          'Retreats, pilgrimages and expeditions: the announcement, the details and '
-          + 'sign-up. Whoever leads one builds it themselves.',
-        open: 'The announcement is visible without an account.'
+        name: "Events",
+        body: "A website for organising events — sign-ups, programme, participants and messages.",
+        part: "event",
+        make: "Create your own event"
       },
       {
-        name: 'Cogita',
-        part: 'cogita',
-        body:
-          'The learning environment: texts, storyboards, collections and repetition, tied '
-          + 'together into a knowledge graph.',
-        open: 'Nothing — a key is needed.'
+        name: "Cogita",
+        body: "A place to work with knowledge: notes linked into a graph, revision, and shared write-ups.",
+        part: "cogita",
+        make: "Create your own space"
       },
       {
-        name: 'Calendar',
-        part: 'calendar',
-        body:
-          'Dates, tasks and repetitions. The time is open, the content is not: you can '
-          + 'see that someone is busy, not what with.',
-        open: 'Busy or free, without the content.'
+        name: "Calendar",
+        body: "A shared calendar for a group — dates, duties and recurring meetings.",
+        part: "calendar",
+        make: "Create your own calendar"
       },
       {
-        name: 'Chat',
-        part: 'chat',
-        body:
-          'Conversation in a group, with epochs: whoever joins today does not read what '
-          + 'came before, unless someone deliberately opens it to them.',
-        open: 'Nothing — a key is needed.'
-      },
-      {
-        name: 'Confirmation',
-        part: 'confirmation',
-        body: 'The year, candidates, meetings and attendance. Run by the catechist.',
-        open: 'Nothing — a key is needed.'
-      },
-      {
-        name: 'Occupancy and enquiries',
-        part: null,
-        body:
-          'Free and taken times for rooms and houses, plus the enquiry form. Placed into '
-          + 'a page — as on the house page here.',
-        open: 'Free and taken without an account; the enquiry is encrypted in the browser.'
+        name: "Conversations",
+        body: "Encrypted conversations and decisions inside one area.",
+        part: "chat",
+        make: "Create your own area"
       }
     ],
-
-    note:
-      'The tools are being built along with the platform and are at different stages. '
-      + 'The addresses are already settled and will not change.'
+    note: "The parts are at very different stages. This is a record of what is being built, not an offer."
   },
 
   notFound: {

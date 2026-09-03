@@ -3088,6 +3088,54 @@
         }
       }
     },
+    "/rc/public/parishes": {
+      "get": {
+        "tags": [
+          "RcPublicParish"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcPublicParishesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/public/parishes/{slug}": {
+      "get": {
+        "tags": [
+          "RcPublicParish"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcPublicParishResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/recovery/shares": {
       "post": {
         "tags": [
@@ -6507,6 +6555,31 @@
         },
         "additionalProperties": false
       },
+      "PublicParishPublicParishView": {
+        "required": [
+          "masses",
+          "name",
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "masses": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "RcAccessLogResponse": {
         "required": [
           "accesses"
@@ -8495,6 +8568,61 @@
         },
         "additionalProperties": false
       },
+      "RcPublicParishResponse": {
+        "required": [
+          "areaId",
+          "configured",
+          "modules",
+          "name",
+          "parishId",
+          "slug",
+          "theme"
+        ],
+        "type": "object",
+        "properties": {
+          "parishId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "theme": {
+            "type": "string"
+          },
+          "modules": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcPublicParishesResponse": {
+        "required": [
+          "parishes"
+        ],
+        "type": "object",
+        "properties": {
+          "parishes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicParishPublicParishView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "RcRangeSegmentsResponse": {
         "required": [
           "nodeId",
@@ -9746,6 +9874,9 @@
     },
     {
       "name": "RcPolls"
+    },
+    {
+      "name": "RcPublicParish"
     },
     {
       "name": "RcRecovery"

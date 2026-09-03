@@ -60,8 +60,15 @@ export interface ToolCopy {
   readonly body: string;
   readonly part: RcPart | null;
 
-  /** Was ohne Schlüssel zu sehen ist. Ein Satz, keine Einstufung. */
-  readonly open: string;
+  /**
+   * Der Knopf, der zum eigenen führt — und zwar mit dem Wort für DIESE Sache.
+   *
+   * „Erstelle deine eigene Instanz" ist keine Sprache, die jemand spricht. Wer
+   * eine Pfarrseite will, sucht „Pfarrei"; wer eine Veranstaltung plant, sucht
+   * „Veranstaltung". Deshalb steht der Satz beim Werkzeug und nicht als eine
+   * Vorlage mit einem Platzhalter darin.
+   */
+  readonly make: string;
 }
 
 /**
@@ -362,14 +369,9 @@ export interface PublicCopy {
     readonly title: string;
     readonly lead: string;
 
-    readonly addressTitle: string;
-    readonly address: string;
-    /** Der Platzhalter im Adressbeispiel — „nazwa", „Name", „name". */
-    readonly slug: string;
 
-    /** Die Ueberschrift ueber dem, was schon oeffentlich erreichbar ist. */
-    readonly liveTitle: string;
-    readonly liveLead: string;
+    /** Wenn es von einem Werkzeug noch keine fertige Instanz gibt. */
+    readonly noneYet: string;
 
     readonly items: readonly ToolCopy[];
     /**
@@ -383,10 +385,7 @@ export interface PublicCopy {
      * Der Satz ist so geschrieben, dass er auch für Angemeldete stimmt: er
      * sagt, was die Werkzeuge brauchen, nicht was der Leser versäumt hat.
      */
-    readonly signIn: string;
-    readonly signInDo: string;
 
-    readonly openLabel: string;
     readonly embedded: string;
 
     /** Der Stand. Ohne ihn liest sich das Verzeichnis als Angebot. */
