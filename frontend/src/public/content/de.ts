@@ -601,7 +601,6 @@ export const de: PublicCopy = {
     slug: 'name',
 
     openLabel: 'Ohne Schlüssel',
-    instances: 'Es gibt schon',
     embedded: 'Ohne eigene Adresse — wird in eine fremde Seite eingesetzt.',
 
     items: [

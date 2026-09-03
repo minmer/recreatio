@@ -7,7 +7,7 @@
  * wird. Beides fällt erst auf, wenn jemand einen Link verschickt hat.
  */
 
-import { rcIsSlug, rcKnownSlugs, rcIsKnownSlug, RC_KNOWN_SLUGS } from './rcSlugs';
+import { rcIsSlug, rcAllowedSlugs, rcIsAllowedSlug, RC_ALLOWED_SLUGS } from './rcSlugs';
 
 let passed = 0;
 const failures: string[] = [];
@@ -51,10 +51,10 @@ for (const [word, why] of bad) {
 
 // -- Die Liste ----------------------------------------------------------------
 
-ok('Grzegorzki ist eine bekannte Pfarrei', rcIsKnownSlug('parish', 'grzegorzki'), true);
-ok('Eine unbekannte Pfarrei ist unbekannt', rcIsKnownSlug('parish', 'jan'), false);
-ok('Ein Teil ohne Eintrag hat keine Namen', rcKnownSlugs('account'), []);
-ok('Ein Teil mit leerem Eintrag ebenso', rcKnownSlugs('event'), []);
+ok('Grzegorzki darf angelegt werden', rcIsAllowedSlug('parish', 'grzegorzki'), true);
+ok('Ein nicht vorgesehener Name darf nicht', rcIsAllowedSlug('parish', 'jan'), false);
+ok('Ein Teil ohne Eintrag hat keine Namen', rcAllowedSlugs('account'), []);
+ok('Ein Teil mit leerem Eintrag ebenso', rcAllowedSlugs('event'), []);
 
 /*
  * Die wichtigste Zusicherung der Datei: JEDER eingetragene Name muss die Form
@@ -63,7 +63,7 @@ ok('Ein Teil mit leerem Eintrag ebenso', rcKnownSlugs('event'), []);
  */
 {
   const wrong: string[] = [];
-  for (const [part, slugs] of Object.entries(RC_KNOWN_SLUGS)) {
+  for (const [part, slugs] of Object.entries(RC_ALLOWED_SLUGS)) {
     for (const slug of slugs as readonly string[]) {
       if (!rcIsSlug(slug)) wrong.push(`${part}/${slug}`);
     }
@@ -74,7 +74,7 @@ ok('Ein Teil mit leerem Eintrag ebenso', rcKnownSlugs('event'), []);
 /* Und keiner doppelt — zwei gleiche Einträge wären zwei Verweise auf eines. */
 {
   const twice: string[] = [];
-  for (const [part, slugs] of Object.entries(RC_KNOWN_SLUGS)) {
+  for (const [part, slugs] of Object.entries(RC_ALLOWED_SLUGS)) {
     const list = slugs as readonly string[];
     if (new Set(list).size !== list.length) twice.push(part);
   }
@@ -87,7 +87,7 @@ ok('Ein Teil mit leerem Eintrag ebenso', rcKnownSlugs('event'), []);
  */
 ok(
   'Einladungen stehen nicht in der Liste',
-  Object.prototype.hasOwnProperty.call(RC_KNOWN_SLUGS, 'invite'),
+  Object.prototype.hasOwnProperty.call(RC_ALLOWED_SLUGS, 'invite'),
   false
 );
 

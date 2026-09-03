@@ -370,8 +370,6 @@ export interface PublicCopy {
     readonly items: readonly ToolCopy[];
     readonly openLabel: string;
     readonly embedded: string;
-    /** Vor der Aufzaehlung dessen, was es schon gibt. */
-    readonly instances: string;
 
     /** Der Stand. Ohne ihn liest sich das Verzeichnis als Angebot. */
     readonly note: string;

@@ -21,7 +21,7 @@ import {
   rcMasses, rcMassesByDay, rcParishes, rcSaveParishSite,
   type RcIntention, type RcMass, type RcParish
 } from './lib/rcParish';
-import { rcIsKnownSlug, rcIsSlug, rcKnownSlugs } from './lib/rcSlugs';
+import { rcIsAllowedSlug, rcIsSlug, rcAllowedSlugs } from './lib/rcSlugs';
 import { useRcError } from './RcThreads';
 
 export function RcParishSection({
@@ -157,9 +157,9 @@ function RcNewParish({
   const guess = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   const wanted = (slug === '' ? guess : slug).trim();
 
-  const known = rcKnownSlugs('parish');
+  const known = rcAllowedSlugs('parish');
   const shaped = wanted === '' || rcIsSlug(wanted);
-  const listed = wanted !== '' && rcIsKnownSlug('parish', wanted);
+  const listed = wanted !== '' && rcIsAllowedSlug('parish', wanted);
   const may = listed && !busy && name.trim().length > 0;
 
   const create = async () => {

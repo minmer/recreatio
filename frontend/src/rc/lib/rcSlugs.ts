@@ -22,8 +22,12 @@
  * ---------------------------------------------------------------------------
  * WARUM ES EINE LISTE GIBT
  *
- * <b>Sie ist eine Auskunft, keine Schranke.</b> Was hier steht, ist bekannt
- * und darf öffentlich verlinkt werden — nicht mehr und nicht weniger. Der
+ * <b>Sie sagt, was ERLAUBT ist — nicht, was EXISTIERT.</b> Und das ist keine
+ * Wortklauberei: die Liste stand einmal auf der oeffentlichen Seite unter der
+ * Ueberschrift „gibt es schon", und dort behauptete sie von einer Pfarrei,
+ * die noch niemand angelegt hatte, sie sei vorhanden. Was wirklich existiert,
+ * weiss allein die Datenbank; diese Liste weiss nur, welche Namen vergeben
+ * werden duerfen. Der
  * Adressleser weist NICHTS zurück, was hier fehlt: die Dinge selbst stehen in
  * der Datenbank, nicht im Programm, und eine Pfarrei, die morgen dazukommt,
  * soll nicht auf eine neue Fassung der Seite warten müssen.
@@ -63,13 +67,17 @@ export function rcIsSlug(word: string): boolean {
 }
 
 /**
- * Was schon benannt ist.
+ * Welche Namen vergeben werden duerfen.
  *
- * Ein leeres Feld heisst „noch keines", nicht „keines möglich". Die Teile ohne
+ * NICHT, welche es gibt. Ein Eintrag hier heisst: dieser Name ist vorgesehen,
+ * und wer die Berechtigung hat, darf eine Pfarrei darauf anlegen. Ob das
+ * jemand getan hat, steht in der Datenbank.
+ *
+ * Ein leeres Feld heisst „noch keiner vorgesehen", nicht „keiner moeglich". Die Teile ohne
  * eigenen Eintrag (`workshop`, `account`, …) benennen gar keine einzelnen
  * Dinge — das steht in `RC_PARTS` und wird hier nicht wiederholt.
  */
-export const RC_KNOWN_SLUGS = {
+export const RC_ALLOWED_SLUGS = {
   parish: ['grzegorzki'],
   event: [],
   cogita: [],
@@ -78,13 +86,13 @@ export const RC_KNOWN_SLUGS = {
   confirmation: []
 } as const satisfies Readonly<Partial<Record<RcPart, readonly string[]>>>;
 
-/** Die bekannten Namen eines Teils — leer, wenn keiner benannt ist. */
-export function rcKnownSlugs(part: RcPart): readonly string[] {
-  const table: Readonly<Record<string, readonly string[] | undefined>> = RC_KNOWN_SLUGS;
+/** Die erlaubten Namen eines Teils — leer, wenn keiner vorgesehen ist. */
+export function rcAllowedSlugs(part: RcPart): readonly string[] {
+  const table: Readonly<Record<string, readonly string[] | undefined>> = RC_ALLOWED_SLUGS;
   return table[part] ?? [];
 }
 
-/** Ist dieser Name in diesem Teil bekannt? */
-export function rcIsKnownSlug(part: RcPart, slug: string): boolean {
-  return rcKnownSlugs(part).includes(slug);
+/** Darf in diesem Teil ein Ding mit diesem Namen angelegt werden? */
+export function rcIsAllowedSlug(part: RcPart, slug: string): boolean {
+  return rcAllowedSlugs(part).includes(slug);
 }

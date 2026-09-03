@@ -19,7 +19,6 @@
 
 import type { PublicCopy } from '../content';
 import { RC_HASH_BASE, rcPath } from '../../rc/lib/rcRoute';
-import { rcKnownSlugs } from '../../rc/lib/rcSlugs';
 import { publicHref } from '../publicRoutes';
 
 export function ToolsPage({ copy }: { copy: PublicCopy }) {
@@ -46,14 +45,6 @@ export function ToolsPage({ copy }: { copy: PublicCopy }) {
           const home = part === null ? null : rcPath(part);
           const shown = part === null ? null : `${RC_HASH_BASE}/${part}/${t.slug}`;
 
-          /*
-           * Was es davon schon GIBT. Ein Muster allein sagt nur, wie eine
-           * Adresse gebaut waere; erst ein wirklicher Name sagt, dass es das
-           * Ding gibt. Die Liste steht in rcSlugs und nicht im Text: sie
-           * gehoert zu den Adressen und wird nicht uebersetzt.
-           */
-          const known = part === null ? [] : rcKnownSlugs(part);
-
           return (
             <section className="pub-tool" key={tool.name}>
               <h3 className="pub-h3">
@@ -66,17 +57,6 @@ export function ToolsPage({ copy }: { copy: PublicCopy }) {
                 ? <p className="pub-tool-at" data-kind="none">{t.embedded}</p>
                 : <p className="pub-tool-at"><code>{shown}</code></p>}
 
-              {part !== null && known.length > 0 && (
-                <p className="pub-tool-open">
-                  <span className="pub-tool-tag">{t.instances}</span>
-                  {known.map((slug, at) => (
-                    <span key={slug}>
-                      {at > 0 && ', '}
-                      <a href={rcPath(part, slug)}><code>{slug}</code></a>
-                    </span>
-                  ))}
-                </p>
-              )}
 
               <p className="pub-tool-open">
                 <span className="pub-tool-tag">{t.openLabel}</span>

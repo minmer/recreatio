@@ -605,7 +605,6 @@ export const pl: PublicCopy = {
     slug: 'nazwa',
 
     openLabel: 'Bez klucza',
-    instances: 'Już istnieje',
     embedded: 'Bez własnego adresu — wstawiane w cudzą stronę.',
 
     items: [
