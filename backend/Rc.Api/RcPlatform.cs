@@ -28,6 +28,10 @@ public static class RcPlatform
 {
     public static IServiceCollection AddRcPlatform(this IServiceCollection services, IConfiguration config)
     {
+        // Ohne CORS wirft der Browser das Anmeldecookie weg, und jeder
+        // Aufruf danach ist 401 — ohne dass irgendwo ein Fehler steht.
+        services.AddRcCors(config);
+
         // 2.4 — Jeder Schluessel-Cache hat Ablauf UND Groessenbegrenzung.
         // Der Altbestand hatte ein unbegrenztes Woerterbuch ohne beides.
         var idle = TimeSpan.FromMinutes(config.GetValue("Rc:KeyVaultIdleMinutes", 15));
@@ -62,10 +66,13 @@ public static class RcPlatform
     /// <summary>
     /// Reihenfolge ist hier keine Geschmacksfrage:
     ///
-    ///   0. Ausnahmen — aussen, sonst faengt sie niemand (15.7).
-    ///   1. Sitzung — der Widerruf muss vor allem anderen greifen (P0-2).
-    ///   2. CSRF    — vor jedem Endpunkt, als Standardverhalten (P0-4).
-    ///   3. Endpunkte.
+    ///   0. CORS    — ganz aussen. Eine Vorabfrage (OPTIONS) muss beantwortet
+    ///                werden, BEVOR CSRF sie abweist: sie traegt keinen
+    ///                Schutzwert und kann keinen tragen.
+    ///   1. Ausnahmen — sonst faengt sie niemand (15.7).
+    ///   2. Sitzung — der Widerruf muss vor allem anderen greifen (P0-2).
+    ///   3. CSRF    — vor jedem Endpunkt, als Standardverhalten (P0-4).
+    ///   4. Endpunkte.
     ///
     /// Stuende CSRF vor der Sitzungspruefung, koennte eine widerrufene Sitzung
     /// noch eine Fehlermeldung ueber den Schutzwert bekommen — und damit
@@ -77,6 +84,21 @@ public static class RcPlatform
             ctx => ctx.Request.Path.StartsWithSegments("/rc"),
             branch =>
             {
+                /*
+                 * ZUERST CORS, und zwar aus zwei Gruenden.
+                 *
+                 * Die Vorabfrage (OPTIONS) traegt keinen CSRF-Schutzwert und
+                 * kann keinen tragen — stuende CSRF davor, wiese sie jede
+                 * Vorabfrage ab, und kein geschuetzter Aufruf kaeme je durch.
+                 *
+                 * Und eine Antwort ohne `Access-Control-Allow-Credentials`
+                 * laesst den Browser das `Set-Cookie` der Anmeldung wegwerfen.
+                 * Das sieht aus wie eine gelungene Anmeldung, gefolgt von
+                 * lauter 401 — ohne dass irgendwo ein Fehler auf die Ursache
+                 * zeigt.
+                 */
+                branch.UseCors(RcCors.PolicyName);
+
                 branch.UseRcExceptions();
                 branch.UseRcSession();
                 branch.UseRcCsrf();

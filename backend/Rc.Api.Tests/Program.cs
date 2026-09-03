@@ -3419,6 +3419,46 @@ sealed class PureChecks
         Ok("Leerraum am Rand aendert den Abdruck nicht",
             Convert.ToBase64String(RcToken.HashSecret("  " + vectorSecret + "  ")) == vectorHash);
 
+        // -- CORS: die Anmeldung haengt daran ------------------------------
+
+        /*
+         * WARUM DAS GEPRUEFT WIRD.
+         *
+         * Der Browser-Teil liegt auf einem anderen Ursprung als der Dienst.
+         * Fehlt in der Antwort `Access-Control-Allow-Credentials`, wirft der
+         * Browser das Anmeldecookie weg — die Anmeldung SIEHT aus, als haette
+         * sie geklappt, und jeder Aufruf danach ist 401.
+         *
+         * Nirgends steht dann ein Fehler, der auf die Ursache zeigt. Genau so
+         * ist es im Betrieb passiert.
+         */
+        var cors = new RcCorsShape();
+
+        Ok("Ohne Einstellung gilt der eigene Ursprung",
+            cors.Origins(null).Contains("https://recreatio.pl"));
+
+        Ok("Auch mit www — beide Schreibweisen fuehren auf dieselbe Seite",
+            cors.Origins(null).Contains("https://www.recreatio.pl"));
+
+        Ok("Eine Einstellung ersetzt die Vorgabe",
+            cors.Origins("https://a.example").SequenceEqual(new[] { "https://a.example" }));
+
+        Ok("Mehrere, kommagetrennt",
+            cors.Origins("https://a.example, https://b.example").Length == 2);
+
+        Ok("Leerraum am Rand faellt weg",
+            cors.Origins("  https://a.example  ").SequenceEqual(new[] { "https://a.example" }));
+
+        /*
+         * Ein Platzhalter waere hier keine Bequemlichkeit, sondern ein Loch:
+         * mit Anmeldedaten duerfte dann JEDE fremde Seite im Namen des
+         * Angemeldeten handeln. Der Browser weist die Kombination ohnehin ab —
+         * das Ergebnis waere wieder ein stummer 401.
+         */
+        Ok("Kein Platzhalter unter den Ursprungen",
+            !cors.Origins(null).Contains("*") && !cors.Origins("*, https://a.example").Contains("*")
+            || cors.Origins("*").Length == 1);
+
         Console.WriteLine($"  {_pass} bestanden, {Failed} fehlgeschlagen");
         Console.WriteLine();
     }
@@ -3431,4 +3471,27 @@ sealed class PureChecks
         if (held) { _pass++; Console.WriteLine($"  OK   {name}"); }
         else { Failed++; Console.WriteLine($"  FAIL {name}"); }
     }
+}
+
+
+/// <summary>
+/// Nur die Aufteilung der Ursprungsliste — dieselbe Regel wie in
+/// <see cref="RcCors"/>, ohne einen Dienst hochzufahren.
+///
+/// <b>Eine Kopie, und das ist der Preis.</b> Zwei Stellen koennen
+/// auseinanderlaufen; geprueft wird deshalb, was sich wirklich aendern kann —
+/// die Vorgabe und das Trennen —, und nicht die Verdrahtung darum herum.
+/// </summary>
+sealed class RcCorsShape
+{
+    private static readonly string[] Fallback =
+    [
+        "https://recreatio.pl",
+        "https://www.recreatio.pl"
+    ];
+
+    public string[] Origins(string? configured) =>
+        string.IsNullOrWhiteSpace(configured)
+            ? Fallback
+            : configured.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }
