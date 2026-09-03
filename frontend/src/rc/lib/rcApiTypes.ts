@@ -2978,6 +2978,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/parishes/{id}/site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcParishSiteResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ParishSaveSiteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcParishSiteResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/areas/{id}/polls": {
         parameters: {
             query?: never;
@@ -3446,6 +3508,297 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["RcRegistrationWithdrawnResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcResourcesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ResourceCreateResourceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcResourceCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/resources/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcResourceView"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/resources/{slug}/free-busy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcFreeBusyResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/resources/{slug}/enquiries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ResourceSendEnquiryRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEnquirySentResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/resources/{id}/enquiries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEnquiriesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/resources/{id}/holds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ResourceAddHoldRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcHoldCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/holds/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcHoldConfirmedResponse"];
                     };
                 };
             };
@@ -4484,6 +4837,10 @@ export interface components {
             /** Format: int32 */
             masses: number;
         };
+        ParishSaveSiteRequest: {
+            theme?: string | null;
+            modules?: string | null;
+        };
         PollsCreatePollRequest: {
             question: string;
             mode?: string | null;
@@ -4545,6 +4902,11 @@ export interface components {
         };
         RcAttachmentsResponse: {
             attachments: components["schemas"]["AttachmentsAttachmentView"][];
+        };
+        RcBusyPeriodView: {
+            from: string;
+            to: string;
+            state: string;
         };
         RcCacheModeResponse: {
             /** Format: int32 */
@@ -4692,6 +5054,29 @@ export interface components {
             edgeId: string;
             state: string;
         };
+        RcEnquiriesResponse: {
+            enquiries: components["schemas"]["RcEnquiryView"][];
+        };
+        RcEnquirySentResponse: {
+            enquiryId: string;
+            received: boolean;
+        };
+        RcEnquiryView: {
+            enquiryId: string;
+            from: string;
+            to: string;
+            /** Format: int32 */
+            people?: number | null;
+            state: string;
+            /** Format: date-time */
+            receivedUtc: string;
+            groupName?: string | null;
+            contactPerson?: string | null;
+            contact?: string | null;
+            groupKind?: string | null;
+            note?: string | null;
+            unreadable?: string | null;
+        };
         RcEventCreatedResponse: {
             eventId: string;
             slug: string;
@@ -4746,6 +5131,11 @@ export interface components {
             messages: components["schemas"]["MessagesMessageView"][];
             readableEpochs: number[];
         };
+        RcFreeBusyResponse: {
+            resourceId: string;
+            timeZone: string;
+            periods: components["schemas"]["RcBusyPeriodView"][];
+        };
         RcGraphSearchResponse: {
             hits: components["schemas"]["GraphSearchHit"][];
             serverSide: boolean;
@@ -4758,6 +5148,16 @@ export interface components {
         RcHealthResponse: {
             healthy: boolean;
             checks: components["schemas"]["RcHealthCheck"][];
+        };
+        RcHoldConfirmedResponse: {
+            holdId: string;
+            state: string;
+        };
+        RcHoldCreatedResponse: {
+            holdId: string;
+            state: string;
+            /** Format: date-time */
+            expiresUtc?: string | null;
         };
         RcHolderAddedResponse: {
             edgeId?: string | null;
@@ -4926,6 +5326,12 @@ export interface components {
             slug: string;
             name: string;
         };
+        RcParishSiteResponse: {
+            parishId: string;
+            theme: string;
+            modules: string;
+            configured: boolean;
+        };
         RcParishesResponse: {
             parishes: components["schemas"]["ParishParishSummary"][];
         };
@@ -5018,6 +5424,22 @@ export interface components {
         };
         RcRegistrationsResponse: {
             registrations: components["schemas"]["RegistrationsRegistrationView"][];
+        };
+        RcResourceCreatedResponse: {
+            resourceId: string;
+            slug: string;
+        };
+        RcResourceView: {
+            resourceId: string;
+            slug: string;
+            title: string;
+            timeZone: string;
+            /** Format: int32 */
+            capacity?: number | null;
+            intakePublicKey?: string | null;
+        };
+        RcResourcesResponse: {
+            resources: components["schemas"]["RcResourceView"][];
         };
         RcRevokedResponse: {
             revoked: boolean;
@@ -5148,6 +5570,35 @@ export interface components {
         };
         RegistrationsWithdrawRequest: {
             claim?: string | null;
+        };
+        ResourceAddHoldRequest: {
+            from: string;
+            to: string;
+            state?: string | null;
+            /** Format: int32 */
+            holdDays?: number | null;
+        };
+        ResourceCreateResourceRequest: {
+            areaId: string;
+            slug: string;
+            title: string;
+            timeZone?: string | null;
+            /** Format: int32 */
+            capacity?: number | null;
+            isPublic?: boolean | null;
+        };
+        ResourceSendEnquiryRequest: {
+            enquiryId: string;
+            from: string;
+            to: string;
+            /** Format: int32 */
+            people?: number | null;
+            sessionKeyWrapped: string;
+            groupNameSealed: string;
+            contactPersonSealed?: string | null;
+            contactSealed: string;
+            groupKindSealed?: string | null;
+            noteSealed?: string | null;
         };
         RolesAddHolderRequest: {
             holderRoleId: string;

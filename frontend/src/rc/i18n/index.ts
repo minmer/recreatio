@@ -299,6 +299,22 @@ export interface RcCopy {
     readonly slugUnknown: string;
     readonly slugAvailable: string;
     readonly slugShape: string;
+    /** Der zweistufige Weg: erst wer sie ist, dann wie ihre Seite aussieht. */
+    readonly stepOne: string;
+    readonly stepTwo: string;
+    readonly nameLead: string;
+    readonly lookTitle: string;
+    readonly lookLead: string;
+    readonly finish: string;
+    readonly later: string;
+
+    readonly theme: string;
+    readonly themes: Readonly<Record<string, string>>;
+    readonly modules: string;
+    readonly modulesLead: string;
+    readonly moduleNames: Readonly<Record<string, string>>;
+
+
 
     readonly plan: string;
     readonly noMasses: string;
@@ -788,6 +804,20 @@ const en: RcCopy = {
       + 'without breaking every link to it.',
     slugAvailable: 'Available',
     slugShape: 'Lowercase letters, digits and hyphens between them.',
+
+    stepOne: "Step 1 of 2",
+    stepTwo: "Step 2 of 2",
+    nameLead: "The name can be changed later. The address cannot — it gets handed out, printed and linked to.",
+    lookTitle: "How the page looks",
+    lookLead: "All of this can be changed at any time.",
+    finish: "Save and finish",
+    later: "Decide later",
+
+    theme: "Colour",
+    themes: {"classic":"Classic","warm":"Warm","stone":"Stone","night":"Night"},
+    modules: "Blocks on the front page",
+    modulesLead: "Pick what belongs there. The order follows the order you pick.",
+    moduleNames: {"masses":"Mass times","announcements":"Announcements","intentions":"Intentions","calendar":"Calendar","news":"News","groups":"Groups","events":"Events","sacraments":"Sacraments","hours":"Office hours","contact":"Contact","gallery":"Gallery","sticky":"Notice"},
 
     plan: 'Mass schedule',
     noMasses: 'Nothing scheduled.',
@@ -1353,6 +1383,20 @@ const pl: RcCopy = {
     slugAvailable: 'Dostępne',
     slugShape: 'Małe litery, cyfry i myślniki pomiędzy nimi.',
 
+    stepOne: "Krok 1 z 2",
+    stepTwo: "Krok 2 z 2",
+    nameLead: "Nazwę można później zmienić. Adresu nie — jest rozdawany, drukowany i linkowany.",
+    lookTitle: "Jak wygląda strona",
+    lookLead: "To wszystko można zmienić w każdej chwili.",
+    finish: "Zapisz i zakończ",
+    later: "Zdecyduj później",
+
+    theme: "Kolor",
+    themes: {"classic":"Klasyczny","warm":"Ciepły","stone":"Kamień","night":"Noc"},
+    modules: "Elementy strony głównej",
+    modulesLead: "Wybierz, co ma tam być. Kolejność wynika z kolejności wyboru.",
+    moduleNames: {"masses":"Msze","announcements":"Ogłoszenia","intentions":"Intencje","calendar":"Kalendarz","news":"Aktualności","groups":"Grupy","events":"Wydarzenia","sacraments":"Sakramenty","hours":"Godziny kancelarii","contact":"Kontakt","gallery":"Galeria","sticky":"Komunikat"},
+
     plan: 'Plan mszy',
     noMasses: 'Nic nie zaplanowano.',
     addMass: 'Dodaj mszę',
@@ -1879,6 +1923,20 @@ const de: RcCopy = {
       + 'Pfarrei umzubenennen zerbraeche jeden Verweis auf sie.',
     slugAvailable: 'Vorgesehen',
     slugShape: 'Kleine Buchstaben, Ziffern und Bindestriche dazwischen.',
+
+    stepOne: "Schritt 1 von 2",
+    stepTwo: "Schritt 2 von 2",
+    nameLead: "Der Name laesst sich spaeter aendern. Die Adresse nicht — sie wird weitergegeben, gedruckt und verlinkt.",
+    lookTitle: "Wie die Seite aussieht",
+    lookLead: "All das ist jederzeit anders zu haben.",
+    finish: "Speichern und fertig",
+    later: "Spaeter entscheiden",
+
+    theme: "Farbe",
+    themes: {"classic":"Klassisch","warm":"Warm","stone":"Stein","night":"Nacht"},
+    modules: "Bausteine der Startseite",
+    modulesLead: "Waehle, was dorthin gehoert. Die Reihenfolge folgt der Wahl.",
+    moduleNames: {"masses":"Messplan","announcements":"Ankuendigungen","intentions":"Intentionen","calendar":"Kalender","news":"Neues","groups":"Gruppen","events":"Veranstaltungen","sacraments":"Sakramente","hours":"Kanzlei","contact":"Kontakt","gallery":"Bilder","sticky":"Aushang"},
 
     plan: 'Messplan',
     noMasses: 'Nichts angesetzt.',

@@ -46,6 +46,26 @@ export const rcIntentions = (parishId: string) =>
 
 // -- Anlegen ------------------------------------------------------------------
 
+export type RcParishSite = RcApi<'RcParishSiteResponse'>;
+
+/**
+ * Was die Pfarrei auf ihrer Startseite zeigt.
+ *
+ * Ohne Konto lesbar — es ist die öffentliche Seite. Das Feld `configured` ist
+ * falsch, solange niemand gewählt hat; daran erkennt der zweite Schritt des
+ * Anlegens, dass er noch aussteht.
+ */
+export const rcParishSite = (parishId: string) =>
+  rcFetch<RcParishSite>(`/parishes/${parishId}/site`);
+
+/** Die Bausteine gehen als JSON-Liste hinaus — der Server deutet sie nicht. */
+export const rcSaveParishSite = (parishId: string, theme: string, modules: readonly string[]) =>
+  rcFetch<RcParishSite>(`/parishes/${parishId}/site`, {
+    method: 'PUT',
+    body: { theme, modules: JSON.stringify(modules) },
+    withUnlock: true
+  });
+
 export const rcCreateParish = (areaId: string, slug: string, name: string, location?: string) =>
   rcFetch<RcApi<'RcParishCreatedResponse'>>('/parishes', {
     body: { areaId, slug, name, location: location ?? null },

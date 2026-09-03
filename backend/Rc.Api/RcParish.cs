@@ -48,6 +48,11 @@ public static class RcParish
         app.MapPost("/rc/parishes/{id:guid}/intentions", AddIntentionAsync).Produces<RcIntentionCreatedResponse>();
         app.MapGet("/rc/parishes/{id:guid}/intentions", IntentionsAsync).Produces<RcIntentionsResponse>();
         app.MapPost("/rc/intentions/{id:guid}/offerings", AddOfferingAsync).Produces<RcOfferingCreatedResponse>();
+
+        // Die Startseite der Pfarrei. Lesen ohne Konto — es ist die
+        // oeffentliche Seite; schreiben nur, wer den Bereich verwaltet.
+        app.MapGet("/rc/parishes/{id:guid}/site", SiteAsync).Produces<RcParishSiteResponse>();
+        app.MapPut("/rc/parishes/{id:guid}/site", SaveSiteAsync).Produces<RcParishSiteResponse>();
     }
 
     // -- AAD ------------------------------------------------------------------
@@ -628,4 +633,103 @@ public static class RcParish
         try { return Encoding.UTF8.GetString(RcCrypto.Open(key, aad, blob)); }
         catch (RcDecryptException e) { reason ??= e.Code; return null; }
     }
+    // -- Die Startseite -------------------------------------------------------
+
+    /// <summary>Was die Vorgabe zeigt, solange niemand gewaehlt hat.</summary>
+    private const string DefaultTheme = "classic";
+    private const string DefaultModules = """["masses","announcements","intentions","contact"]""";
+
+    public sealed record SaveSiteRequest(string? Theme, string? Modules);
+
+    /// <summary>
+    /// Ohne Konto lesbar, wie der Messplan. Gibt es noch keine Zeile, kommt die
+    /// Vorgabe zurueck — mit <c>Configured = false</c>, damit der zweite Schritt
+    /// des Anlegens weiss, dass er noch aussteht.
+    /// </summary>
+    private static async Task SiteAsync(HttpContext ctx, RcDb db, Guid id)
+    {
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        await using var cmd = new SqlCommand(
+            "SELECT theme, modules FROM dbo.rc_parish_site WHERE parish_id = @parish;", connection);
+        cmd.Parameters.AddWithValue("@parish", id);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+
+        if (await reader.ReadAsync(ctx.RequestAborted))
+        {
+            await RcResults.WriteJsonAsync(ctx, new RcParishSiteResponse(
+                RcId.ToText(id), reader.GetString(0), reader.GetString(1), true));
+            return;
+        }
+
+        await RcResults.WriteJsonAsync(ctx, new RcParishSiteResponse(
+            RcId.ToText(id), DefaultTheme, DefaultModules, false));
+    }
+
+    /// <summary>
+    /// Speichern. Eine Zeile je Pfarrei, also einfuegen ODER ersetzen.
+    ///
+    /// Geprueft wird, dass <c>Modules</c> ueberhaupt JSON ist — die Datenbank
+    /// tut es auch (ck_rc_parish_site_modules_json), aber ein sauberer Fehler
+    /// ist besser als eine Bedingungsverletzung, die als 500 herauskommt.
+    /// </summary>
+    private static async Task SaveSiteAsync(
+        HttpContext ctx, RcDb db, RcPermissions permissions, Guid id, SaveSiteRequest body)
+    {
+        var session = ctx.RcSession();
+        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var areaId = await AreaOfParishAsync(connection, id, ctx.RequestAborted);
+        if (areaId == Guid.Empty) { await RcAreas.NotForYou(ctx); return; }
+
+        var may = await permissions.CheckAsync(session.AccountId, RcScopeKind.Area, areaId,
+            RcCapability.Admin, ctx.RequestAborted);
+        if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
+
+        var theme = Trim(body.Theme, 40) ?? DefaultTheme;
+        var modules = body.Modules ?? DefaultModules;
+
+        if (!LooksLikeJsonArray(modules))
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                RcErrorCodes.PermissionDenied, "Die Bausteine sind keine JSON-Liste.");
+            return;
+        }
+
+        await using var cmd = new SqlCommand("""
+            UPDATE dbo.rc_parish_site
+               SET theme = @theme, modules = @modules, updated_at = @now
+             WHERE parish_id = @parish;
+
+            IF @@ROWCOUNT = 0
+                INSERT INTO dbo.rc_parish_site (parish_id, theme, modules, updated_at)
+                VALUES (@parish, @theme, @modules, @now);
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@parish", id);
+        cmd.Parameters.AddWithValue("@theme", theme);
+        cmd.Parameters.AddWithValue("@modules", modules);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+
+        await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await RcResults.WriteJsonAsync(ctx, new RcParishSiteResponse(
+            RcId.ToText(id), theme, modules, true));
+    }
+
+    /// <summary>
+    /// Reicht als Vorpruefung: die Datenbank prueft mit ISJSON scharf nach.
+    /// Hier geht es nur darum, den haeufigsten Fehler — irgendein Text statt
+    /// einer Liste — mit einer verstaendlichen Meldung abzufangen.
+    /// </summary>
+    private static bool LooksLikeJsonArray(string text)
+    {
+        var trimmed = text.AsSpan().Trim();
+        return trimmed.Length >= 2 && trimmed[0] == '[' && trimmed[^1] == ']';
+    }
+
+
 }

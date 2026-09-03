@@ -18,7 +18,7 @@ import { rcCopy, rcPlural, type RcLang } from './i18n';
 import type { RcArea } from './lib/rcChat';
 import {
   rcAddIntention, rcAddMass, rcAddOffering, rcCreateParish, rcIntentionSealed, rcIntentions,
-  rcMasses, rcMassesByDay, rcParishes,
+  rcMasses, rcMassesByDay, rcParishes, rcSaveParishSite,
   type RcIntention, type RcMass, type RcParish
 } from './lib/rcParish';
 import { rcIsKnownSlug, rcIsSlug, rcKnownSlugs } from './lib/rcSlugs';
@@ -88,6 +88,41 @@ export function RcParishSection({
   );
 }
 
+/**
+ * Der Katalog der Bausteine.
+ *
+ * Uebernommen aus dem Altbestand (`pages/parish/ParishPage.tsx`), weil er sich
+ * dort bewaehrt hat und weil eine Pfarrei, die umzieht, dieselben Bausteine
+ * wiederfinden soll. Die Beschriftungen kommen aus der Sprachschicht; hier
+ * steht nur, WAS es gibt.
+ */
+const PARISH_MODULES = [
+  'masses', 'announcements', 'intentions', 'calendar',
+  'news', 'groups', 'events', 'sacraments',
+  'hours', 'contact', 'gallery', 'sticky'
+] as const;
+
+/** Die Farbklaenge. Wie die Bausteine: nur die Namen, die Farben stehen im Stilblatt. */
+const PARISH_THEMES = ['classic', 'warm', 'stone', 'night'] as const;
+
+/**
+ * Eine Pfarrei anlegen — in ZWEI Schritten, und die Trennung ist der Punkt.
+ *
+ * <b>Erster Schritt: wer sie ist.</b> Name und Adresse. Die Adresse wird hier
+ * vergeben und ist danach nicht mehr zu aendern — sie wird weitergegeben,
+ * gedruckt, verlinkt. Deshalb steht auf diesem Schritt nichts anderes: keine
+ * Farbwahl, keine Bausteine, nichts, was von der einen Entscheidung ablenkt,
+ * die wirklich endgueltig ist.
+ *
+ * <b>Zweiter Schritt: wie ihre Seite aussieht.</b> Farbe und Bausteine. Alles
+ * daran ist jederzeit anders zu haben, und genau deshalb gehoert es nicht in
+ * denselben Schritt: ein Formular, in dem Endgueltiges und Beilaeufiges
+ * nebeneinander stehen, laesst beides gleich wichtig aussehen.
+ *
+ * Die Pfarrei entsteht schon nach dem ersten Schritt. Wer den zweiten
+ * abbricht, hat keine halbe Pfarrei, sondern eine mit den Vorgaben — und die
+ * Frage bleibt offen, bis jemand sie beantwortet (`configured`).
+ */
 function RcNewParish({
   lang, areas, onDone, onError
 }: {
@@ -105,17 +140,19 @@ function RcNewParish({
   const [slug, setSlug] = useState('');
   const [busy, setBusy] = useState(false);
 
+  /** Nach dem ersten Schritt: die angelegte Pfarrei. Solange null, Schritt eins. */
+  const [made, setMade] = useState<{ id: string; slug: string; name: string } | null>(null);
+
+  const [theme, setTheme] = useState<string>('classic');
+  const [chosen, setChosen] = useState<readonly string[]>(
+    ['masses', 'announcements', 'intentions', 'contact']
+  );
+
   /*
-   * DER NAME IN DER ADRESSE IST EIN EIGENES FELD — und nicht mehr aus dem
-   * Namen abgeleitet.
-   *
-   * Die Ableitung war für polnische Namen unbrauchbar: „Grzegórzki" wurde zu
-   * `grzeg-rzki`, weil jedes diakritische Zeichen durch einen Bindestrich
-   * ersetzt wurde. Wer den Namen richtig schreibt, bekam die falsche Adresse —
-   * und zwar lautlos.
-   *
-   * Der Vorschlag aus dem Namen bleibt als Starthilfe; er lässt sich
-   * überschreiben, und er entscheidet nichts.
+   * Der Vorschlag aus dem Namen bleibt eine Starthilfe; er entscheidet nichts.
+   * Abgeleitet wurde frueher fest, und fuer polnische Namen war das unbrauchbar:
+   * „Grzegorzki" wurde zu `grzeg-rzki`, weil jedes diakritische Zeichen durch
+   * einen Bindestrich ersetzt wurde.
    */
   const guess = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   const wanted = (slug === '' ? guess : slug).trim();
@@ -123,91 +160,182 @@ function RcNewParish({
   const known = rcKnownSlugs('parish');
   const shaped = wanted === '' || rcIsSlug(wanted);
   const listed = wanted !== '' && rcIsKnownSlug('parish', wanted);
-
-  /*
-   * <b>Die Liste ist hier eine Schranke</b>, anders als beim Lesen einer
-   * Adresse. Eine Pfarrei anzulegen heisst, eine öffentliche Adresse zu
-   * vergeben, die danach weitergegeben und gedruckt wird; sie hinterher zu
-   * ändern zerbräche jeden Verweis. Deshalb wird der Name vorher entschieden
-   * und in `rcSlugs` eingetragen, nicht hier im Formular erfunden.
-   */
   const may = listed && !busy && name.trim().length > 0;
+
+  const create = async () => {
+    if (!may) return;
+    setBusy(true);
+    try {
+      const created = await rcCreateParish(areaId, wanted, name, location.trim() || undefined);
+      setMade({ id: created.parishId ?? '', slug: created.slug ?? wanted, name: created.name ?? name });
+    } catch (err) {
+      onError(describe(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = async () => {
+    if (made === null || busy) return;
+    setBusy(true);
+    try {
+      await rcSaveParishSite(made.id, theme, chosen);
+      setMade(null); setName(''); setLocation(''); setSlug('');
+      await onDone();
+    } catch (err) {
+      onError(describe(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggle = (module: string) =>
+    setChosen((current) =>
+      current.includes(module) ? current.filter((m) => m !== module) : [...current, module]);
+
+  // -- Schritt 2 --------------------------------------------------------------
+
+  if (made !== null) {
+    return (
+      <section className="rc-make" data-step="2">
+        <header className="rc-make-head">
+          <span className="rc-make-count">{t.stepTwo}</span>
+          <h5 className="rc-make-title">{t.lookTitle}</h5>
+          <p className="rc-make-lead">{t.lookLead}</p>
+
+          {/* Was im ersten Schritt entschieden wurde, steht weiter da — aber als
+              Tatsache, nicht als Feld. Es ist nicht mehr zu aendern. */}
+          <p className="rc-make-done">
+            <strong>{made.name}</strong> <code>/{made.slug}</code>
+          </p>
+        </header>
+
+        <div className="rc-make-body">
+          <fieldset className="rc-pick">
+            <legend>{t.theme}</legend>
+            <div className="rc-pick-row">
+              {PARISH_THEMES.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className="rc-swatch"
+                  data-theme={option}
+                  aria-pressed={theme === option}
+                  disabled={busy}
+                  onClick={() => setTheme(option)}
+                >
+                  {t.themes[option]}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="rc-pick">
+            <legend>{t.modules}</legend>
+            <p className="rc-note">{t.modulesLead}</p>
+            <div className="rc-pick-grid">
+              {PARISH_MODULES.map((module) => (
+                <button
+                  key={module}
+                  type="button"
+                  className="rc-tile"
+                  aria-pressed={chosen.includes(module)}
+                  disabled={busy}
+                  onClick={() => toggle(module)}
+                >
+                  <span className="rc-tile-name">{t.moduleNames[module]}</span>
+                  <span className="rc-tile-mark" aria-hidden="true">
+                    {chosen.includes(module) ? '✓' : '+'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+
+        <footer className="rc-make-foot">
+          <button type="button" className="rc-btn" disabled={busy} onClick={() => void save()}>
+            {t.finish}
+          </button>
+          {/* Ueberspringen ist kein Abbruch: die Pfarrei steht schon. */}
+          <button
+            type="button"
+            className="rc-btn rc-btn-quiet"
+            disabled={busy}
+            onClick={() => { setMade(null); void onDone(); }}
+          >
+            {t.later}
+          </button>
+        </footer>
+      </section>
+    );
+  }
+
+  // -- Schritt 1 --------------------------------------------------------------
 
   return (
     <form
-      className="rc-new-event"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (!may) return;
-        setBusy(true);
-        try {
-          await rcCreateParish(areaId, wanted, name, location.trim() || undefined);
-          setName(''); setLocation(''); setSlug('');
-          await onDone();
-        } catch (err) {
-          onError(describe(err));
-        } finally {
-          setBusy(false);
-        }
-      }}
+      className="rc-make"
+      data-step="1"
+      onSubmit={(e) => { e.preventDefault(); void create(); }}
     >
-      <h5 className="rc-chat-h">{t.create}</h5>
+      <header className="rc-make-head">
+        <span className="rc-make-count">{t.stepOne}</span>
+        <h5 className="rc-make-title">{t.create}</h5>
+        <p className="rc-make-lead">{t.nameLead}</p>
+      </header>
 
-      {areas.length > 1 && (
-        <label className="rc-inline-field">
-          <span>{rcCopy[lang].chat.areas}</span>
-          <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-            {areas.map((a) => (
-              <option key={a.areaId} value={a.areaId}>{a.title ?? a.areaId.slice(0, 8)}</option>
-            ))}
-          </select>
+      <div className="rc-make-body">
+        {areas.length > 1 && (
+          <label className="rc-inline-field">
+            <span>{rcCopy[lang].chat.areas}</span>
+            <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
+              {areas.map((a) => (
+                <option key={a.areaId} value={a.areaId}>{a.title ?? a.areaId.slice(0, 8)}</option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        <label className="rc-field">
+          <span>{t.name}</span>
+          <input type="text" value={name} disabled={busy} onChange={(e) => setName(e.target.value)} />
         </label>
-      )}
 
-      <label className="rc-field">
-        <span>{t.name}</span>
-        <input type="text" value={name} disabled={busy} onChange={(e) => setName(e.target.value)} />
-      </label>
+        <label className="rc-field">
+          <span>{t.location}</span>
+          <input type="text" value={location} disabled={busy} onChange={(e) => setLocation(e.target.value)} />
+        </label>
 
-      <label className="rc-field">
-        <span>{t.location}</span>
-        <input type="text" value={location} disabled={busy} onChange={(e) => setLocation(e.target.value)} />
-      </label>
-
-      <label className="rc-field">
-        <span>{t.slug}</span>
-        <input
-          type="text"
-          value={slug === '' ? guess : slug}
-          disabled={busy}
-          spellCheck={false}
-          autoCapitalize="none"
-          onChange={(e) => setSlug(e.target.value.trim().toLowerCase())}
-        />
-      </label>
-
-      {/*
-        Der Einwand steht, SOBALD etwas dasteht — nicht erst nach dem Absenden.
-        Ein Formular, das erst beim Klick sagt, dass es nichts tun wird, hat
-        jemanden umsonst tippen lassen.
-      */}
-      {wanted !== '' && !shaped && <p className="rc-auth-error">{t.slugShape}</p>}
-
-      {wanted !== '' && shaped && !listed && (
-        <p className="rc-auth-error">
-          {t.slugUnknown}
-          {known.length > 0 && (
-            <>
-              {' '}
-              {t.slugAvailable}: {known.join(', ')}.
-            </>
+        <label className="rc-field">
+          <span>{t.slug}</span>
+          <input
+            type="text"
+            value={slug === '' ? guess : slug}
+            disabled={busy}
+            spellCheck={false}
+            autoCapitalize="none"
+            onChange={(e) => setSlug(e.target.value.trim().toLowerCase())}
+          />
+          {/* Die Adresse, wie sie danach dasteht — bevor sie endgueltig ist. */}
+          {wanted !== '' && shaped && (
+            <span className="rc-make-preview"><code>/parish/{wanted}</code></span>
           )}
-        </p>
-      )}
+        </label>
 
-      <button type="submit" className="rc-btn" disabled={!may}>
-        {t.make}
-      </button>
+        {wanted !== '' && !shaped && <p className="rc-auth-error">{t.slugShape}</p>}
+
+        {wanted !== '' && shaped && !listed && (
+          <p className="rc-auth-error">
+            {t.slugUnknown}
+            {known.length > 0 && <> {t.slugAvailable}: {known.join(', ')}.</>}
+          </p>
+        )}
+      </div>
+
+      <footer className="rc-make-foot">
+        <button type="submit" className="rc-btn" disabled={!may}>{t.make}</button>
+      </footer>
     </form>
   );
 }

@@ -1991,3 +1991,163 @@
   .rc-gate { align-items: start; }
   .rc-gate-in { gap: 1.1rem; }
 }
+
+/* -- Eine Pfarrei anlegen: zwei Schritte, zwei Gesichter -------------------- */
+
+/*
+   Die beiden Schritte sollen sich UNTERSCHEIDEN, und zwar sofort.
+
+   Sie tun Verschiedenes: der erste vergibt eine Adresse, die danach nicht mehr
+   zu aendern ist; der zweite waehlt aus, was sich jederzeit wieder aendern
+   laesst. Saehen beide gleich aus, saehe auch die Tragweite gleich aus.
+
+   Also: Schritt eins schmal, ruhig, mit Feldern — ein Formular, das man
+   ausfuellt. Schritt zwei breit, mit Flaechen zum Antippen — eine Auswahl, die
+   man trifft. Und ein farbiger Streifen an der Kante, der beim Wechsel die
+   Seite wechselt: das Einzige, was das Auge am Sprung sicher bemerkt.
+*/
+
+.rc-make {
+  border: 1px solid var(--rc-line);
+  background: var(--rc-surface);
+  display: grid;
+  gap: 0;
+  margin-top: 1rem;
+}
+
+.rc-make[data-step="1"] { max-width: 30rem; border-left: 3px solid var(--rc-accent); }
+.rc-make[data-step="2"] { max-width: none; border-left: 3px solid var(--rc-ok, var(--rc-accent)); }
+
+.rc-make-head {
+  padding: 1rem 1.25rem 0.85rem;
+  border-bottom: 1px solid var(--rc-line);
+  display: grid;
+  gap: 0.3rem;
+}
+
+/* „Schritt 1 von 2" — klein, aber es beantwortet die erste Frage, die jemand
+   vor einem mehrteiligen Formular hat: wie lange noch. */
+.rc-make-count {
+  font-family: var(--rc-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rc-muted);
+}
+
+.rc-make-title { margin: 0; font-size: 1.05rem; font-weight: 600; }
+.rc-make-lead { margin: 0; font-size: 0.88rem; color: var(--rc-ink-2); }
+
+/* Was schon entschieden IST, steht als Tatsache da — nicht als Feld. */
+.rc-make-done {
+  margin: 0.4rem 0 0;
+  font-size: 0.92rem;
+  padding: 0.45rem 0.6rem;
+  background: var(--rc-surface-2);
+  border-left: 2px solid var(--rc-accent);
+}
+
+.rc-make-done code { font-family: var(--rc-mono); color: var(--rc-muted); }
+
+.rc-make-body { padding: 1rem 1.25rem; display: grid; gap: 0.85rem; }
+
+.rc-make-foot {
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid var(--rc-line);
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Die Adresse, wie sie danach dasteht. Sie zu zeigen, BEVOR sie endgueltig
+   ist, ist der ganze Zweck dieser Zeile. */
+.rc-make-preview {
+  font-family: var(--rc-mono);
+  font-size: 0.78rem;
+  color: var(--rc-muted);
+  margin-top: 0.25rem;
+}
+
+/* -- Auswahl: Farbe und Bausteine ------------------------------------------ */
+
+.rc-pick { border: 0; padding: 0; margin: 0; display: grid; gap: 0.5rem; }
+
+.rc-pick legend {
+  padding: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--rc-ink);
+}
+
+.rc-pick-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.rc-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+.rc-swatch {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--rc-line-2);
+  background: var(--rc-surface-2);
+  color: var(--rc-ink);
+  cursor: pointer;
+}
+
+/*
+   Der Farbklang wird GEZEIGT, nicht nur benannt. Ein Streifen in der Farbe,
+   die er meint — sonst waehlt man zwischen vier Woertern.
+*/
+.rc-swatch::before {
+  content: '';
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-right: 0.45rem;
+  vertical-align: -1px;
+  background: var(--rc-swatch, var(--rc-accent));
+}
+
+.rc-swatch[data-theme="classic"] { --rc-swatch: #2f5d46; }
+.rc-swatch[data-theme="warm"]    { --rc-swatch: #b4703a; }
+.rc-swatch[data-theme="stone"]   { --rc-swatch: #7c8479; }
+.rc-swatch[data-theme="night"]   { --rc-swatch: #23324a; }
+
+.rc-swatch[aria-pressed="true"] {
+  border-color: var(--rc-accent);
+  background: var(--rc-surface);
+  box-shadow: inset 0 0 0 1px var(--rc-accent);
+}
+
+/* Ein Baustein ist eine Flaeche, kein Kaestchen: er steht fuer eine Flaeche
+   auf der spaeteren Seite, und so soll er sich auch anfuehlen. */
+.rc-tile {
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: left;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--rc-line-2);
+  background: var(--rc-surface-2);
+  color: var(--rc-ink-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.rc-tile[aria-pressed="true"] {
+  border-color: var(--rc-accent);
+  background: var(--rc-surface);
+  color: var(--rc-ink);
+  box-shadow: inset 0 0 0 1px var(--rc-accent);
+}
+
+.rc-tile-mark { font-family: var(--rc-mono); color: var(--rc-accent); }
+.rc-tile[aria-pressed="false"] .rc-tile-mark { color: var(--rc-muted); }
+
+.rc-swatch:disabled, .rc-tile:disabled { opacity: 0.5; cursor: default; }
