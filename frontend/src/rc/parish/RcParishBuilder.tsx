@@ -29,8 +29,9 @@ import {
 
 import {
   RC_BREAKPOINTS, RC_COLUMNS, RC_MIN_COL_SPAN, RC_MIN_ROW_SPAN,
-  rcCanPlace, rcCellWidth, rcFirstFreeCell, rcFrameFor, rcPixelSize, rcSnapColSpan,
-  rcSnapRowSpan, rcValidCells, rcWithFrame, type RcBreakpoint, type RcFrame, type RcModule
+  rcCanPlace, rcCellWidth, rcFirstFreeCell, rcFrameFor, rcGrabOffset, rcPixelSize,
+  rcSnapColSpan, rcSnapRowSpan, rcValidCells, rcWithFrame,
+  type RcBreakpoint, type RcFrame, type RcModule
 } from './rcLayout';
 import { rcCells, rcResized, type RcHandle } from './rcResize';
 import { RC_MODULE_CATALOG, rcModuleLabel } from './rcModules';
@@ -159,6 +160,8 @@ function LayoutTab({
     rows: number;
     label: string;
     size: { colSpan: number; rowSpan: number };
+    /** Wo der Zeiger im angefassten Ding sass — siehe `rcGrabOffset`. */
+    grab: { x: number; y: number };
   } | null>(null);
 
   /** Wie breit eine Rasterspalte gerade wirklich ist — gemessen, nicht geraten. */
@@ -185,6 +188,24 @@ function LayoutTab({
     const box = grid.current;
     if (box) setCellWidth(rcCellWidth(box.clientWidth, columns, GAP));
 
+    /*
+     * WO DER ZEIGER SASS.
+     *
+     * Die Zeichenschicht setzt die Vorschau an die linke obere Ecke des
+     * angefassten Dings; der Baustein landet aber in der Zelle UNTER DEM
+     * ZEIGER. Fasst man unten rechts an, liegen beide weit auseinander.
+     *
+     * Faellt der Versatz nicht zu ermitteln — ein Zug ohne Zeiger, etwa ueber
+     * die Tastatur —, bleibt er null. Dann sitzt die Vorschau wie bisher, und
+     * das ist fuer einen Tastaturzug auch richtig.
+     */
+    const activator = event.activatorEvent as Partial<PointerEvent> | undefined;
+    const start = event.active.rect.current.initial;
+
+    const grab = activator?.clientX !== undefined && activator.clientY !== undefined && start
+      ? rcGrabOffset({ x: activator.clientX, y: activator.clientY }, start)
+      : { x: 0, y: 0 };
+
     if (id.startsWith('palette:')) {
       const type = id.slice('palette:'.length);
       const def = RC_MODULE_CATALOG.find((m) => m.type === type);
@@ -192,7 +213,7 @@ function LayoutTab({
         colSpan: rcSnapColSpan(def?.colSpan ?? RC_MIN_COL_SPAN, columns),
         rowSpan: rcSnapRowSpan(def?.rowSpan ?? RC_MIN_ROW_SPAN)
       };
-      setDrag({ ...rcValidCells(modules, size, columns, breakpoint), label: rcModuleLabel(type), size });
+      setDrag({ ...rcValidCells(modules, size, columns, breakpoint), label: rcModuleLabel(type), size, grab });
       return;
     }
 
@@ -205,7 +226,8 @@ function LayoutTab({
     setDrag({
       ...rcValidCells(modules, size, columns, breakpoint, moduleId),
       label: rcModuleLabel(module.type),
-      size
+      size,
+      grab
     });
     setSelected(moduleId);
   }, [modules, columns, breakpoint]);
@@ -290,7 +312,10 @@ function LayoutTab({
 
     // Die Zellbreite wird gemessen und nicht angenommen: sie hängt an der
     // wirklichen Breite der Zeichenfläche, die sich mit dem Fenster ändert.
-    const cellW = (box.clientWidth - GAP * (columns + 1)) / columns;
+    // Dieselbe Rechnung wie fuer die Vorschau, und aus derselben Quelle:
+    // zweimal von Hand geschrieben laufen sie irgendwann auseinander, und
+    // dann zieht die Kante anders, als die Vorschau angezeigt hat.
+    const cellW = rcCellWidth(box.clientWidth, columns, GAP);
     const cellH = ROW_H + GAP;
 
     const target = event.currentTarget;
@@ -409,7 +434,7 @@ function LayoutTab({
         */}
         <DragOverlay dropAnimation={null}>
           {drag !== null && (
-            <div className="pb-ghost" style={ghostStyle(drag.size, cellWidth)}>
+            <div className="pb-ghost" style={ghostStyle(drag.size, cellWidth, drag.grab)}>
               <span className="pb-item-name">{drag.label}</span>
               <span className="pb-item-size">{drag.size.colSpan}×{drag.size.rowSpan}</span>
             </div>
@@ -431,10 +456,19 @@ function LayoutTab({
  * offen: ein Kasten mit der Breite 0 waere unsichtbar, und dann saehe es aus,
  * als sei das Ziehen kaputt.
  */
-function ghostStyle(size: { colSpan: number; rowSpan: number }, cellWidth: number): CSSProperties {
-  if (cellWidth <= 0) return {};
+function ghostStyle(
+  size: { colSpan: number; rowSpan: number },
+  cellWidth: number,
+  grab: { x: number; y: number }
+): CSSProperties {
+  // Der Versatz gilt auch ohne Mass: die Vorschau soll unter dem Zeiger
+  // sitzen, selbst wenn ihre Groesse noch nicht feststeht.
+  const shift = `translate(${grab.x}px, ${grab.y}px)`;
+
+  if (cellWidth <= 0) return { transform: shift };
+
   const { width, height } = rcPixelSize(size, cellWidth, ROW_H, GAP);
-  return { width: `${width}px`, height: `${height}px` };
+  return { width: `${width}px`, height: `${height}px`, transform: shift };
 }
 
 function Pill({ type, label }: { type: string; label: string }) {

@@ -257,3 +257,26 @@ export const rcPixelSize = (
   width: size.colSpan * cellWidth + (size.colSpan - 1) * gap,
   height: size.rowSpan * rowHeight + (size.rowSpan - 1) * gap
 });
+
+/**
+ * Wo der Zeiger INNERHALB des angefassten Dings sass.
+ *
+ * <b>Warum das gebraucht wird.</b> Die Vorschau wird von der Zeichenschicht an
+ * die linke obere Ecke des angefassten Dings gesetzt — der Baustein landet aber
+ * in der Zelle UNTER DEM ZEIGER. Fasst man eine Palettenpille an ihrer rechten
+ * unteren Ecke an, liegen beide weit auseinander, und die Vorschau steht links
+ * oberhalb der Stelle, an der wirklich abgelegt wird.
+ *
+ * Fasst man oben links an, fällt es kaum auf. Genau deshalb ist es ein Fehler,
+ * den man beim Ausprobieren übersieht und beim Arbeiten dauernd trifft.
+ *
+ * Mit diesem Versatz verschoben, sitzt die linke obere Ecke der Vorschau unter
+ * dem Zeiger — also da, wo der Baustein hinkommt.
+ */
+export const rcGrabOffset = (
+  pointer: { x: number; y: number },
+  rect: { left: number; top: number }
+): { x: number; y: number } => ({
+  x: pointer.x - rect.left,
+  y: pointer.y - rect.top
+});
