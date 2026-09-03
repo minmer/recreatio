@@ -59,7 +59,18 @@ export const rcParishSite = (parishId: string) =>
   rcFetch<RcParishSite>(`/parishes/${parishId}/site`);
 
 /** Die Bausteine gehen als JSON-Liste hinaus — der Server deutet sie nicht. */
-export const rcSaveParishSite = (parishId: string, theme: string, modules: readonly string[]) =>
+/**
+ * Den Aufbau der Startseite sichern.
+ *
+ * <b>`modules` trug einmal nur NAMEN</b> — eine flache Liste, welcher Baustein
+ * vorkommt. Damit liess sich keine Seite gestalten: es fehlte, wo ein Baustein
+ * steht und wie gross er ist. Jetzt geht die ganze Anordnung mit, je
+ * Bildschirmgrösse eine eigene.
+ *
+ * Verschlüsselt wird nichts davon: es beschreibt eine öffentliche Seite. Wer
+ * sie sehen darf, darf auch wissen, wie sie aufgebaut ist.
+ */
+export const rcSaveParishSite = (parishId: string, theme: string, modules: readonly unknown[]) =>
   rcFetch<RcParishSite>(`/parishes/${parishId}/site`, {
     method: 'PUT',
     body: { theme, modules: JSON.stringify(modules) },

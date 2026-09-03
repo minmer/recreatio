@@ -2035,28 +2035,52 @@
 
 .pub-signin .pub-p { flex: 1 1 18rem; margin: 0; }
 
-/*
- * Was schon offen ist — mit dem amtlichen Namen voran.
- *
- * Kein Kachelraster: es ist eine Liste von Orten, und der NAME ist das, wonach
- * jemand sucht. Er steht deshalb gross und zuerst, die Adresse klein zuletzt.
- */
-.pub-live { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; gap: 0.7rem; }
 
-.pub-live-link {
+/* -- Fertige Instanzen unter ihrem Werkzeug -------------------------------- */
+
+.pub-tool-name {
+  margin: 0 0 0.3rem;
+  font-family: var(--serif, Georgia, serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.pub-tool-body { margin: 0 0 0.9rem; color: var(--ink-soft); }
+
+.pub-instances { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: 0.5rem; }
+
+/*
+ * Eine Instanz ist EIN Ding mit drei Zeilen — Name, Ort, Adresse. Ohne
+ * `display: grid` fliessen sie zu einem einzigen unterstrichenen Wortband
+ * zusammen: „św. Kazimierza KrólewiczaKraków-Grzegórzki#/new/parish/…".
+ * Genau das war zu sehen, und es lag daran, dass diese Regeln unter alten
+ * Klassennamen standen und nie griffen.
+ */
+.pub-instance {
   display: grid;
-  gap: 0.15rem;
-  padding: 1rem 1.2rem;
+  gap: 0.1rem;
+  padding: 0.8rem 1rem;
   border: 1px solid var(--line);
   border-left: 3px solid var(--accent);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--paper-2);
-  text-decoration: none;
   color: inherit;
+  text-decoration: none;
 }
-.pub-live-link:hover { border-color: var(--accent); background: var(--accent-soft); }
+.pub-instance:hover { border-color: var(--accent); background: var(--accent-soft); }
 
-.pub-live-name { font-size: 1.05rem; font-weight: 600; }
-.pub-live-place { font-size: 0.82rem; color: var(--ink-faint); letter-spacing: 0.03em; }
-.pub-live-lead { margin-top: 0.2rem; color: var(--ink-soft); font-size: 0.92rem; }
-.pub-live-link code { margin-top: 0.3rem; font-size: 0.78rem; color: var(--ink-faint); }
+.pub-instance-name { font-size: 1rem; font-weight: 600; }
+.pub-instance-note { font-size: 0.82rem; color: var(--ink-faint); }
+
+.pub-instance code {
+  margin-top: 0.25rem;
+  font-size: 0.76rem;
+  color: var(--ink-faint);
+  overflow-wrap: anywhere;
+}
+
+.pub-instances-none { margin: 0 0 1rem; color: var(--ink-faint); font-size: 0.88rem; }
+
+/* Der Weg zum eigenen steht am Fuss des Werkzeugs und nicht mittendrin. */
+.pub-tool-make { display: inline-block; margin-top: 0.2rem; }

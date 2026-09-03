@@ -32,6 +32,9 @@ import {
 import { rcPublicParish, type RcPublicParish } from './rcPublicParish';
 import { rcMayAdminArea } from './rcParishRights';
 import { rcPath } from '../lib/rcRoute';
+import { RcParishBuilder } from './RcParishBuilder';
+import { rcSaveParishSite } from '../lib/rcParish';
+import type { RcModule } from './rcLayout';
 
 export function RcParishSite({
   slug, signedIn, onSignIn
@@ -46,6 +49,14 @@ export function RcParishSite({
   const [mayEdit, setMayEdit] = useState(false);
   const [editing, setEditing] = useState(false);
 
+  /*
+   * Der Aufbau der Startseite. Er kommt als JSON-Text vom Dienst und wird hier
+   * einmal geoeffnet — ein kaputter Text macht die Seite nicht kaputt, er
+   * ergibt eine leere Liste.
+   */
+  const [layout, setLayout] = useState<readonly RcModule[]>([]);
+  const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+
   const [page, setPage] = useState<RcPageId>('start');
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -55,7 +66,9 @@ export function RcParishSite({
     void (async () => {
       try {
         const found = await rcPublicParish(slug);
-        if (alive) setParish(found);
+        if (!alive) return;
+        setParish(found);
+        setLayout(readLayout(found.modules));
       } catch {
         if (alive) setMissing(true);
       }
@@ -79,6 +92,15 @@ export function RcParishSite({
     })();
     return () => { alive = false; };
   }, [signedIn, parish]);
+
+  const save = async () => {
+    if (parish === null) return;
+    setSaving('saving');
+    try {
+      await rcSaveParishSite(parish.parishId, parish.theme, layout);
+      setSaving('saved');
+    } catch { setSaving('failed'); }
+  };
 
   const go = (id: RcPageId) => {
     setPage(id);
@@ -198,10 +220,24 @@ export function RcParishSite({
       </header>
 
       {editing && (
-        <p className="ps-editing" role="status">
-          Tryb edycji. Układ modułów jeszcze nie jest gotowy — na razie widzisz
-          stronę tak, jak widzą ją odwiedzający.
-        </p>
+        <div className="ps-editor">
+          <div className="ps-editing" role="status">
+            <span>Tryb edycji — układ strony głównej.</span>
+            <button
+              type="button"
+              className="ps-save"
+              disabled={saving === 'saving'}
+              onClick={() => void save()}
+            >
+              {saving === 'saving' ? 'Zapisywanie…' : saving === 'saved' ? 'Zapisano' : 'Zapisz układ'}
+            </button>
+            {saving === 'failed' && <span className="ps-save-bad">Nie udało się zapisać.</span>}
+          </div>
+
+          <div className="ps-editor-body">
+            <RcParishBuilder modules={layout} onChange={(next) => { setLayout(next); setSaving('idle'); }} />
+          </div>
+        </div>
       )}
 
       {/*
@@ -533,3 +569,26 @@ function Page({ title, children }: { title: string; children: React.ReactNode })
 }
 
 export default RcParishSite;
+
+/**
+ * Den gespeicherten Aufbau lesen.
+ *
+ * Ein kaputter oder alter Text macht die Seite NICHT kaputt: er ergibt eine
+ * leere Liste, und die Startseite zeigt ihre Vorgabe. Ein `JSON.parse`, das
+ * durchschlägt, hiesse: ein Tippfehler in der Datenbank nimmt einer Pfarrei
+ * ihre Website.
+ */
+function readLayout(text: string | null | undefined): readonly RcModule[] {
+  if (text === null || text === undefined || text.trim() === '') return [];
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (m): m is RcModule =>
+        typeof m === 'object' && m !== null
+        && typeof (m as RcModule).id === 'string'
+        && typeof (m as RcModule).type === 'string'
+        && typeof (m as RcModule).layouts === 'object'
+    );
+  } catch { return []; }
+}

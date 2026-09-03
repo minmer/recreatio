@@ -372,3 +372,156 @@
 @media (max-width: 640px) {
   .ps-access { order: 3; }
 }
+
+/* == Der Bausteineditor ==================================================== */
+
+.pb { display: grid; gap: 0.9rem; }
+
+.pb-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.7rem 1.2rem;
+}
+
+.pb-views { display: flex; gap: 0.3rem; }
+
+/*
+ * Die Bildschirmgrösse ist ein Schalter und keine Fenstergrösse: wer die
+ * Telefonansicht einrichtet, soll nicht sein Fenster verkleinern müssen.
+ * Die Spaltenzahl steht dabei — sie erklärt, warum dort weniger hineinpasst.
+ */
+.pb-view {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--ps-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--ps-muted);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.pb-view.is-active { background: var(--ps-deep); border-color: var(--ps-deep); color: #fff; }
+.pb-view-cols { font-size: 0.72rem; opacity: 0.75; font-variant-numeric: tabular-nums; }
+
+.pb-hint { margin: 0; color: var(--ps-muted); font-size: 0.85rem; }
+
+.pb-palette { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+.pb-pill {
+  padding: 0.35rem 0.75rem;
+  border: 1px dashed var(--ps-line);
+  border-radius: 6px;
+  background: var(--ps-surface);
+  color: var(--ps-ink);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: grab;
+  touch-action: none;
+}
+.pb-pill:hover { border-style: solid; border-color: var(--ps-accent); }
+.pb-pill.is-dragging { opacity: 0.4; cursor: grabbing; }
+
+.pb-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--pb-cols), minmax(0, 1fr));
+  grid-auto-rows: var(--pb-row-h);
+  gap: var(--pb-gap);
+  padding: var(--pb-gap);
+  border: 1px solid var(--ps-line);
+  border-radius: 10px;
+  background: var(--ps-bg);
+}
+
+/*
+ * Die Zellen sind nur beim Ziehen sichtbar. Ein Raster, das immer durchscheint,
+ * lenkt vom Inhalt ab; eines, das erst beim Ziehen erscheint, beantwortet genau
+ * dann die Frage, die man dann hat: wohin darf das?
+ */
+.pb-cell { border-radius: 6px; }
+.pb-cell.is-live { border: 1px dashed rgba(30, 27, 22, 0.12); }
+.pb-cell.is-open { border-color: var(--ps-accent); background: rgba(165, 107, 47, 0.07); }
+.pb-cell.is-over { background: rgba(165, 107, 47, 0.22); }
+
+.pb-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--ps-line);
+  border-radius: 8px;
+  background: var(--ps-surface);
+  box-shadow: 0 1px 4px var(--ps-shadow);
+  cursor: grab;
+  touch-action: none;
+  overflow: hidden;
+}
+.pb-item.is-selected { border-color: var(--ps-accent); box-shadow: 0 0 0 2px rgba(165, 107, 47, 0.25); }
+.pb-item.is-dragging { opacity: 0.45; cursor: grabbing; }
+
+.pb-item-name { font-weight: 600; font-size: 0.92rem; }
+.pb-item-size { color: var(--ps-muted); font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+
+/* Die Griffe erscheinen erst bei Auswahl — sonst stünden auf jedem Baustein
+   fünf Knöpfe, und die Seite sähe aus wie ein Schaltpult. */
+.pb-handles { display: flex; gap: 0.2rem; margin-top: auto; }
+
+.pb-handles button {
+  min-width: 1.6rem;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--ps-line);
+  border-radius: 4px;
+  background: var(--ps-bg);
+  color: var(--ps-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.pb-handles button:hover { border-color: var(--ps-accent); color: var(--ps-ink); }
+.pb-drop:hover { border-color: #9e2b25 !important; color: #9e2b25 !important; }
+
+.pb-empty {
+  margin: 0;
+  padding: 1rem;
+  border: 1px dashed var(--ps-line);
+  border-radius: 8px;
+  color: var(--ps-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* Der Editor legt sich zwischen Kopfleiste und Seite — man sieht beim
+   Umstellen weiter, wie die Seite darunter aussieht. */
+.ps-editor { border-bottom: 1px solid var(--ps-accent); background: rgba(165, 107, 47, 0.06); }
+
+.ps-editing {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  margin: 0;
+  padding: 0.6rem clamp(1rem, 5vw, 3rem);
+  border-bottom: 1px solid rgba(165, 107, 47, 0.3);
+  color: #6d4415;
+  font-size: 0.88rem;
+}
+
+.ps-editor-body { padding: 0.9rem clamp(1rem, 5vw, 3rem) 1.4rem; }
+
+.ps-save {
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--ps-accent);
+  border-radius: 999px;
+  background: var(--ps-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.ps-save:disabled { opacity: 0.6; cursor: default; }
+.ps-save-bad { color: #9e2b25; font-size: 0.84rem; }
