@@ -367,6 +367,10 @@ export interface PublicCopy {
     /** Der Platzhalter im Adressbeispiel — „nazwa", „Name", „name". */
     readonly slug: string;
 
+    /** Die Ueberschrift ueber dem, was schon oeffentlich erreichbar ist. */
+    readonly liveTitle: string;
+    readonly liveLead: string;
+
     readonly items: readonly ToolCopy[];
     /**
      * Der Hinweis, dass die Werkzeuge ein Konto brauchen.

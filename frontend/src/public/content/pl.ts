@@ -607,6 +607,9 @@ export const pl: PublicCopy = {
     signIn: "Narzędzia działają na koncie. Bez niego otworzą się, ale pozostaną puste: to, co w środku, jest zapieczętowane, a klucz powstaje z twojego hasła.",
     signInDo: "Zaloguj się lub załóż konto",
 
+    liveTitle: "Już dostępne",
+    liveLead: "Te strony są online i nie wymagają konta. Każdy może je czytać.",
+
     openLabel: 'Bez klucza',
     embedded: 'Bez własnego adresu — wstawiane w cudzą stronę.',
 

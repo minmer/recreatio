@@ -1,0 +1,325 @@
+/*
+ * Die öffentliche Pfarrseite.
+ *
+ * Farben und Abstände aus `styles/parish.css` des Altbestands — warmes Papier,
+ * gebrannter Ocker als Akzent, ein tiefes Blau für das Zweite. Das ist NICHT
+ * die Palette der Werkstatt: eine Pfarrseite gehört der Pfarrei und nicht der
+ * Plattform, auf der sie läuft.
+ *
+ * Deshalb steht sie auch in einer eigenen Datei und nicht in `rc.css`. Wer
+ * später eine zweite Farbstimmung einbaut, ändert hier und nirgends sonst.
+ */
+
+.ps {
+  --ps-bg: #f6f1e8;
+  --ps-surface: #fffdf8;
+  --ps-ink: #1e1b16;
+  --ps-muted: #514a40;
+  --ps-accent: #a56b2f;
+  --ps-deep: #22344c;
+  --ps-line: rgba(30, 27, 22, 0.12);
+  --ps-shadow: rgba(20, 16, 12, 0.1);
+
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--ps-bg);
+  color: var(--ps-ink);
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  line-height: 1.6;
+}
+
+/*
+ * Die Pfarrseite bleibt hell, auch wenn das Gerät dunkel steht.
+ *
+ * Das ist eine Entscheidung und keine Auslassung: sie ist die Seite EINER
+ * Pfarrei, kein Werkzeug der Plattform, und ihr Papier gehört zu ihrem Bild.
+ * Eine dunkle Fassung wäre eine zweite Gestaltung — die kann kommen, wenn
+ * jemand sie will, aber nicht als Nebenwirkung.
+ */
+
+/* -- Kopfleiste ------------------------------------------------------------ */
+
+.ps-head {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.9rem clamp(1rem, 5vw, 3rem);
+  background: rgba(255, 253, 248, 0.94);
+  border-bottom: 1px solid var(--ps-line);
+  backdrop-filter: blur(12px);
+}
+
+.ps-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ps-mark { color: var(--ps-accent); font-size: 1.3rem; }
+.ps-name { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; }
+
+.ps-menu { display: flex; flex-wrap: wrap; gap: 0.15rem; margin-left: auto; }
+
+.ps-link {
+  padding: 0.4rem 0.7rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ps-muted);
+  font: inherit;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+.ps-link:hover { background: rgba(165, 107, 47, 0.1); color: var(--ps-ink); }
+.ps-link.is-active { color: var(--ps-accent); font-weight: 600; }
+
+.ps-group { position: relative; }
+.ps-group.is-active > .ps-link { color: var(--ps-accent); font-weight: 600; }
+
+/* Das Untermenü hängt unter seinem Punkt und schiebt die Leiste nicht auf. */
+.ps-sub {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  display: none;
+  min-width: 12rem;
+  padding: 0.35rem;
+  background: var(--ps-surface);
+  border: 1px solid var(--ps-line);
+  border-radius: 6px;
+  box-shadow: 0 12px 28px var(--ps-shadow);
+}
+.ps-group.is-open .ps-sub { display: grid; }
+
+.ps-sub-link {
+  padding: 0.4rem 0.6rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ps-muted);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+.ps-sub-link:hover { background: rgba(165, 107, 47, 0.1); color: var(--ps-ink); }
+.ps-sub-link.is-active { color: var(--ps-accent); font-weight: 600; }
+
+.ps-burger {
+  display: none;
+  margin-left: auto;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--ps-line);
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+/* -- Der Hinweis auf die Schaudaten ---------------------------------------- */
+
+.ps-mock {
+  margin: 0;
+  padding: 0.5rem clamp(1rem, 5vw, 3rem);
+  background: #fdf4e6;
+  border-bottom: 1px solid #e0bd82;
+  color: #8a5200;
+  font-size: 0.84rem;
+}
+
+/* -- Inhalt ---------------------------------------------------------------- */
+
+.ps-main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 5vw, 3rem) 4rem;
+}
+
+.ps-hero { margin-bottom: 2rem; }
+.ps-hero h1 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.9rem, 4.5vw, 2.7rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.ps-hero p { max-width: 38rem; margin: 0; color: var(--ps-muted); }
+
+.ps-title {
+  margin: 0 0 1.4rem;
+  font-size: clamp(1.6rem, 3.5vw, 2.1rem);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.ps-stack { display: grid; gap: 1rem; }
+
+/*
+ * Das Raster der Startseite — sechs Spalten, wie im Altbestand.
+ *
+ * Die Breiten heissen dort `one-third`, `one-half`, `two-thirds`, `full` und
+ * belegen 2, 3, 4 und 6 Spalten. Genau diese Zahlen stehen hier: wenn der
+ * Bausteineditor kommt, muss er nichts umrechnen.
+ */
+.ps-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.ps-w-third      { grid-column: span 2; }
+.ps-w-half       { grid-column: span 3; }
+.ps-w-two-thirds { grid-column: span 4; }
+.ps-w-full       { grid-column: span 6; }
+
+.ps-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.2rem 1.3rem;
+  background: var(--ps-surface);
+  border: 1px solid var(--ps-line);
+  border-radius: 10px;
+  box-shadow: 0 2px 10px var(--ps-shadow);
+}
+
+.ps-card h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.ps-card p { margin: 0; }
+.ps-card-note { border-left: 3px solid var(--ps-accent); }
+
+.ps-lead { color: var(--ps-muted); font-size: 1.02rem; }
+.ps-muted { color: var(--ps-muted); font-size: 0.88rem; }
+.ps-role { margin: 0; color: var(--ps-accent); font-size: 0.85rem; letter-spacing: 0.03em; text-transform: uppercase; }
+.ps-day { margin: 0; color: var(--ps-muted); font-size: 0.88rem; }
+
+/* Zeilen mit Zeit vorn: die Ziffern stehen untereinander, sonst liest sich
+   kein Messplan. */
+.ps-rows { display: grid; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
+
+.ps-rows li {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+  gap: 0.3rem 0.8rem;
+  align-items: baseline;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--ps-line);
+  font-size: 0.94rem;
+}
+.ps-rows li:last-child { border-bottom: 0; padding-bottom: 0; }
+
+.ps-rows time { font-variant-numeric: tabular-nums; font-weight: 600; }
+.ps-rows em { color: var(--ps-muted); font-size: 0.85rem; font-style: normal; }
+
+.ps-news { display: grid; gap: 1rem; margin: 0; padding: 0; list-style: none; }
+.ps-news li { display: grid; gap: 0.2rem; }
+.ps-news time { color: var(--ps-accent); font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; }
+.ps-news h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+.ps-news p { margin: 0; color: var(--ps-muted); font-size: 0.94rem; }
+
+.ps-news-full li {
+  padding: 1.1rem 1.2rem;
+  background: var(--ps-surface);
+  border: 1px solid var(--ps-line);
+  border-radius: 10px;
+}
+
+.ps-bullets { margin: 0; padding-left: 1.2rem; color: var(--ps-muted); }
+.ps-bullets li { margin-bottom: 0.25rem; }
+
+.ps-more {
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ps-accent);
+  font: inherit;
+  font-size: 0.88rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.ps-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+
+.ps-tab {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--ps-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--ps-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.ps-tab.is-active { background: var(--ps-deep); border-color: var(--ps-deep); color: #fff; }
+
+.ps-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.4rem;
+  padding: 1.4rem clamp(1rem, 5vw, 3rem) 2.5rem;
+  border-top: 1px solid var(--ps-line);
+  color: var(--ps-muted);
+  font-size: 0.86rem;
+}
+.ps-foot a { color: var(--ps-muted); }
+
+/* -- Schmale Geräte -------------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .ps-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ps-w-third      { grid-column: span 2; }
+  .ps-w-half       { grid-column: span 4; }
+  .ps-w-two-thirds { grid-column: span 4; }
+  .ps-w-full       { grid-column: span 4; }
+}
+
+@media (max-width: 640px) {
+  .ps-burger { display: block; }
+
+  /* Das Menü klappt unter die Leiste, statt sie zu sprengen. */
+  .ps-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0.5rem;
+    background: var(--ps-surface);
+    border-bottom: 1px solid var(--ps-line);
+  }
+  .ps-menu.is-open { display: flex; }
+  .ps-head { position: relative; }
+
+  .ps-link { text-align: left; }
+  .ps-sub { position: static; display: grid; box-shadow: none; border: 0; padding-left: 1rem; }
+  .ps-group .ps-sub { display: none; }
+  .ps-group.is-open .ps-sub { display: grid; }
+
+  .ps-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ps-w-third, .ps-w-half, .ps-w-two-thirds, .ps-w-full { grid-column: span 2; }
+
+  .ps-rows li { grid-template-columns: 4.5rem minmax(0, 1fr); }
+  .ps-rows em { grid-column: 2; }
+}

@@ -19,6 +19,9 @@ import { runRcSelfTest, type RcTestReport } from './lib/rcSelfTest';
 import { RcChat, RcEventsSection, RcParishOutlet, RcGraphOutlet, RcCalendarOutlet, RcConfirmationOutlet } from './RcChat';
 import { RcAccountOutlet } from './RcAccount';
 import { RcSignInDrawer } from './RcSignInDrawer';
+import { RcParishSite } from './parish/RcParishSite';
+import './parish/parishSite.css';
+import { RC_PARISH_PUBLIC } from './parish/rcParishPublic';
 import { RcPersonOutlet } from './RcPerson';
 import { RcInviteBanner } from './RcInvite';
 import { RcSignInPage } from './RcSignInPage';
@@ -226,6 +229,24 @@ export function RcApp() {
    * Der Einladungsbanner wandert MIT: wer über einen Link kommt, soll vorher
    * wissen, wohin er führt — das war schon immer so und bleibt es.
    */
+  /*
+   * DIE OEFFENTLICHE PFARRSEITE STEHT VOR ALLEM ANDEREN.
+   *
+   * Vor der Anmeldeseite, vor der Werkstatt, vor allem. Wer
+   * `#/new/parish/grzegorzki` aufruft, will den Messplan sehen und nicht ein
+   * Anmeldeformular — eine Pfarrseite, die nach dem Passwort fragt, bevor sie
+   * die Gottesdienstzeiten zeigt, ist keine Pfarrseite.
+   *
+   * Ohne Namen in der Adresse (`#/new/parish`) bleibt es die Verwaltung, und
+   * die braucht Schluessel wie alles andere in der Werkstatt.
+   */
+  if (address.part === 'parish' && address.slug !== null) {
+    const known = RC_PARISH_PUBLIC[address.slug];
+    if (known !== undefined) {
+      return <RcParishSite name={known.name} />;
+    }
+  }
+
   if (!unlocked) {
     return (
       <div className="rc-root">

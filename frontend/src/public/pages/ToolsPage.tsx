@@ -19,6 +19,7 @@
 
 import type { PublicCopy } from '../content';
 import { RC_HASH_BASE, rcPath } from '../../rc/lib/rcRoute';
+import { rcPublicParishes } from '../../rc/parish/rcParishPublic';
 import { publicHref } from '../publicRoutes';
 
 export function ToolsPage({ copy }: { copy: PublicCopy }) {
@@ -89,6 +90,32 @@ export function ToolsPage({ copy }: { copy: PublicCopy }) {
           );
         })}
       </div>
+
+      {/*
+        WAS ES SCHON GIBT — mit dem amtlichen Namen.
+
+        Ein Verzeichnis von Werkzeugen sagt, was gebaut wird. Es sagt nicht,
+        dass es schon eine Seite gibt, die man aufrufen kann. Wer seine eigene
+        Pfarrei sucht, sucht ihren NAMEN und nicht das Wort „Parafia" — und
+        findet ihn sonst nicht, obwohl die Seite fertig dasteht.
+      */}
+      <section className="pub-sec">
+        <h2 className="pub-h2">{t.liveTitle}</h2>
+        <p className="pub-p">{t.liveLead}</p>
+
+        <ul className="pub-live">
+          {rcPublicParishes().map((parish) => (
+            <li key={parish.slug}>
+              <a className="pub-live-link" href={rcPath('parish', parish.slug)}>
+                <span className="pub-live-name">{parish.name}</span>
+                <span className="pub-live-place">{parish.place}</span>
+                <span className="pub-live-lead">{parish.lead}</span>
+                <code>{`${RC_HASH_BASE}/parish/${parish.slug}`}</code>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <p className="pub-note">{t.note}</p>
 

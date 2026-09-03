@@ -603,6 +603,9 @@ export const de: PublicCopy = {
     signIn: "Die Werkzeuge laufen auf einem Konto. Ohne eines gehen sie auf, bleiben aber leer: was darin liegt, ist versiegelt, und der Schlüssel entsteht aus deinem Passwort.",
     signInDo: "Anmelden oder Konto anlegen",
 
+    liveTitle: "Schon offen",
+    liveLead: "Diese Seiten sind erreichbar und brauchen kein Konto. Jeder darf sie lesen.",
+
     openLabel: 'Ohne Schlüssel',
     embedded: 'Ohne eigene Adresse — wird in eine fremde Seite eingesetzt.',
 

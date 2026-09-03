@@ -145,15 +145,15 @@ public static class RcAccountMap
               AND c.subject_role_id IN ({names});
             """, connection);
 
-        cmd.Parameters.AddWithValue("@scopeKind", (int)RcScopeKind.Area);
+        cmd.Parameters.AddWithValue("@scopeKind", RcCapabilities.ScopeText(RcScopeKind.Area));
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
         for (var i = 0; i < roleIds.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", roleIds[i]);
 
-        var links = new List<(Guid AreaId, Guid RoleId, int Capability)>();
+        var links = new List<(Guid AreaId, Guid RoleId, string Capability)>();
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
             while (await reader.ReadAsync(ct))
-                links.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetInt32(2)));
+                links.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2)));
         }
 
         if (links.Count == 0) return ([], []);
@@ -178,7 +178,7 @@ public static class RcAccountMap
             $"{RcId.ToText(l.RoleId)}-{RcId.ToText(l.AreaId)}-{l.Capability}",
             RcId.ToText(l.RoleId),
             RcId.ToText(l.AreaId),
-            RcCapabilities.ToText((RcCapability)l.Capability))).ToList();
+            l.Capability)).ToList();
 
         return (nodes, edges);
     }

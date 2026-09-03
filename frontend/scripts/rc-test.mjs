@@ -15,11 +15,29 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const ROOT = new URL('../src/rc/lib/', import.meta.url);
+const ROOT = new URL('../src/rc/', import.meta.url);
 
-const entries = (await readdir(ROOT))
-  .filter((name) => name.endsWith('.test.ts'))
-  .map((name) => new URL(name, ROOT).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+/*
+ * UNTERORDNER ZAEHLEN MIT.
+ *
+ * Vorher wurde nur src/rc/lib durchsucht. Eine Pruefreihe neben dem Bauteil,
+ * das sie prueft, lief damit nie - sie lag da und niemand erfuhr, ob sie
+ * bestand. Eine Pruefung, die stillschweigend nicht laeuft, ist schlechter
+ * als keine: sie erzeugt Zuversicht ohne Deckung.
+ */
+const walk = async (dir) => {
+  const found = [];
+  for (const item of await readdir(dir, { withFileTypes: true })) {
+    const at = new URL(item.name + (item.isDirectory() ? '/' : ''), dir);
+    if (item.isDirectory()) found.push(...(await walk(at)));
+    else if (item.name.endsWith('.test.ts')) {
+      found.push(at.pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+    }
+  }
+  return found;
+};
+
+const entries = (await walk(ROOT)).sort();
 
 if (entries.length === 0) {
   console.error('Keine Prüfreihen gefunden.');
