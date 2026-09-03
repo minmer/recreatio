@@ -604,6 +604,9 @@ export const pl: PublicCopy = {
       + 'musi kogoś rozpoznać, zanim cokolwiek pokaże.',
     slug: 'nazwa',
 
+    signIn: "Narzędzia działają na koncie. Bez niego otworzą się, ale pozostaną puste: to, co w środku, jest zapieczętowane, a klucz powstaje z twojego hasła.",
+    signInDo: "Zaloguj się lub załóż konto",
+
     openLabel: 'Bez klucza',
     embedded: 'Bez własnego adresu — wstawiane w cudzą stronę.',
 

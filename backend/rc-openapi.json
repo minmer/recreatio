@@ -44,6 +44,25 @@
         }
       }
     },
+    "/rc/account/map": {
+      "get": {
+        "tags": [
+          "RcAccountMap"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcAccountMapResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/areas": {
       "get": {
         "tags": [
@@ -1193,6 +1212,74 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RcDataItemResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcDataItems"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataItemsUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcDataItemUpdatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/data/values": {
+      "get": {
+        "tags": [
+          "RcDataItems"
+        ],
+        "parameters": [
+          {
+            "name": "roleId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcDataValuesResponse"
                 }
               }
             }
@@ -3967,6 +4054,63 @@
   },
   "components": {
     "schemas": {
+      "AccountMapEdgeView": {
+        "required": [
+          "from",
+          "id",
+          "relation",
+          "to"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AccountMapNodeView": {
+        "required": [
+          "depth",
+          "hasKey",
+          "id",
+          "isAccount",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "depth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hasKey": {
+            "type": "boolean"
+          },
+          "isAccount": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "AreasAddMemberRequest": {
         "required": [
           "roleId"
@@ -4846,6 +4990,38 @@
         },
         "additionalProperties": false
       },
+      "DataItemsDataValueView": {
+        "required": [
+          "dataClass",
+          "dataItemId",
+          "field",
+          "needsPurpose",
+          "readable"
+        ],
+        "type": "object",
+        "properties": {
+          "dataItemId": {
+            "type": "string"
+          },
+          "dataClass": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          },
+          "readable": {
+            "type": "boolean"
+          },
+          "needsPurpose": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "DataItemsDestroyRequest": {
         "type": "object",
         "properties": {
@@ -4863,6 +5039,18 @@
         "type": "object",
         "properties": {
           "toRoleId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataItemsUpdateRequest": {
+        "required": [
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
             "type": "string"
           }
         },
@@ -6282,6 +6470,28 @@
         },
         "additionalProperties": false
       },
+      "RcAccountMapResponse": {
+        "required": [
+          "edges",
+          "nodes"
+        ],
+        "type": "object",
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountMapNodeView"
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountMapEdgeView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "RcAreaCreatedResponse": {
         "required": [
           "areaId",
@@ -6862,6 +7072,23 @@
         },
         "additionalProperties": false
       },
+      "RcDataItemUpdatedResponse": {
+        "required": [
+          "dataItemId",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "dataItemId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "RcDataItemsResponse": {
         "required": [
           "items"
@@ -6893,6 +7120,21 @@
           },
           "alreadyShared": {
             "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcDataValuesResponse": {
+        "required": [
+          "values"
+        ],
+        "type": "object",
+        "properties": {
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataItemsDataValueView"
+            }
           }
         },
         "additionalProperties": false
@@ -7740,6 +7982,10 @@
           },
           "keysHeld": {
             "type": "boolean",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
             "nullable": true
           }
         },
@@ -9365,6 +9611,9 @@
   "tags": [
     {
       "name": "Rc.OpenApi"
+    },
+    {
+      "name": "RcAccountMap"
     },
     {
       "name": "RcAreas"

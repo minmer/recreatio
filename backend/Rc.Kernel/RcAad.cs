@@ -93,6 +93,26 @@ public enum RcField
     CandidateBaptism,
     CandidateNote,
 
+    // Die Person
+    //
+    // Der Steckbrief eines Menschen. JEDES Feld ein eigenes Etikett — und das
+    // ist hier nicht Formsache, sondern der ganze Zweck: Vorname, Nachname,
+    // Telefon und Geburtstag sind EINZELN verschluesselt und EINZELN
+    // freigebbar. Wer eine Telefonnummer bekommen soll, bekommt genau die und
+    // nicht den Geburtstag dazu.
+    //
+    // Trugen zwei davon dasselbe Etikett, fiele genau das zusammen: der
+    // Geheimtext des einen ginge am Platz des anderen auf, und eine Freigabe
+    // waere nicht mehr die Freigabe EINER Angabe.
+    //
+    // Klasse durchgehend personal (12.9) — also protokollpflichtig. Ein
+    // Geburtsdatum ist keine besondere Kategorie nach Art. 9, aber es ist auch
+    // nichts, dessen Abruf spurlos bleiben darf.
+    PersonGivenName,
+    PersonSurname,
+    PersonPhone,
+    PersonBorn,
+
     // Pfarrei
     //
     // Die Intention ist der Fall, an dem sich die Feldnamen bewaehren: EINE
@@ -248,6 +268,11 @@ public readonly record struct RcAad
         RcField.ParishDonorName         => "donor_name",
         RcField.ParishDonationAmount    => "amount",
         RcField.ContactPhone            => "phone",
+
+        RcField.PersonGivenName         => "given_name",
+        RcField.PersonSurname           => "surname",
+        RcField.PersonPhone             => "person_phone",
+        RcField.PersonBorn              => "born",
         RcField.EnquiryGroupName        => "enquiry_group_name",
         RcField.EnquiryContactPerson    => "enquiry_contact_person",
         RcField.EnquiryContact          => "enquiry_contact",

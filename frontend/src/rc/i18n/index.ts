@@ -72,6 +72,11 @@ export interface RcCopy {
     /** Während Argon2id läuft. Eine Sekunde ohne Rückmeldung sieht kaputt aus. */
     readonly deriving: string;
     readonly derivingWhy: string;
+    /** Der Name der PERSON, die mit dem Konto entsteht — nicht der Anmeldename. */
+    readonly personName: string;
+    readonly personNameWhy: string;
+    /** Der Rueckweg aus dem Anlegen ins Anmelden. */
+    readonly haveAccount: string;
     readonly signedInAs: string;
     readonly keysHeld: string;
     readonly keysMissing: string;
@@ -300,10 +305,8 @@ export interface RcCopy {
     readonly slugAvailable: string;
     readonly slugShape: string;
     /** Der zweistufige Weg: erst wer sie ist, dann wie ihre Seite aussieht. */
-    /** Der leere Zustand, wenn noch kein Bereich da ist — mit dem Weg dorthin. */
-    readonly needArea: string;
-    readonly toAreas: string;
-
+    /** Wer die Pfarrei verwaltet — mit Namen, nicht nur „jemand". */
+    readonly adminIs: string;
     readonly stepOne: string;
     readonly stepTwo: string;
     readonly nameLead: string;
@@ -472,6 +475,73 @@ export interface RcCopy {
     readonly booked: string;
     readonly pick: string;
   };
+  /** Die Übersicht über das eigene Konto: Rollen, Kanten, Personen. */
+  readonly account: {
+    readonly heading: string;
+    readonly lead: string;
+    readonly locked: string;
+    readonly loading: string;
+    readonly accountNode: string;
+    readonly accountYou: string;
+    readonly unnamed: string;
+    readonly noKey: string;
+    readonly personsHeading: string;
+    readonly noPersons: string;
+    readonly signInFirst: string;
+    readonly signInDo: string;
+  };
+
+  /** Die Vokabeln des Rollengraphen: Arten und Kantenarten. */
+  readonly roles: {
+    readonly kinds: {
+      readonly person: string;
+      readonly group: string;
+      readonly office: string;
+      readonly service: string;
+    };
+    readonly relations: {
+      readonly holds: string;
+      readonly inherits: string;
+      readonly supervises: string;
+    };
+  };
+
+  /** Der Steckbrief einer Person — jede Angabe einzeln. */
+  readonly person: {
+    readonly heading: string;
+    readonly lead: string;
+    readonly locked: string;
+    readonly loading: string;
+    readonly unnamed: string;
+    readonly noRole: string;
+    readonly toAccount: string;
+    readonly fields: {
+      readonly PersonGivenName: string;
+      readonly PersonSurname: string;
+      readonly PersonPhone: string;
+      readonly PersonBorn: string;
+    };
+    /** Die leere Zeile unter einem Feld, das sich wiederholen darf. */
+    readonly addAnother: string;
+    readonly add: string;
+    readonly change: string;
+    readonly save: string;
+    readonly cancel: string;
+    readonly sealed: string;
+    readonly share: string;
+    readonly shareWhat: string;
+    readonly shareTo: string;
+    readonly shareToHint: string;
+    readonly shareDo: string;
+    readonly destroy: string;
+    readonly destroyReason: string;
+    readonly showLog: string;
+    readonly logHeading: string;
+    readonly logEmpty: string;
+    readonly logHide: string;
+    readonly logNote: string;
+  };
+
   readonly status: {
     readonly heading: string;
     readonly done: string;
@@ -529,6 +599,9 @@ const en: RcCopy = {
     deriving: 'Deriving your key…',
     derivingWhy:
       'This takes about a second on purpose. Anyone guessing your password pays the same second, every guess.',
+    personName: "Your name",
+    personNameWhy: "This is the name you appear under — on a parish page, in a calendar, next to anything you administer. It is not the name you sign in with, and you can change it later.",
+    haveAccount: "I already have an account",
     signedInAs: 'Signed in as {name}',
     keysHeld: 'Your key bundle is ready.',
     keysMissing: 'Locked — your key bundle is not in memory.',
@@ -796,8 +869,6 @@ const en: RcCopy = {
   parish: {
     heading: 'Parish',
     none: "No parish yet.",
-    needArea: "A parish hangs on an area — it takes its keys, members and certificates from there. You do not have one yet, and areas are made in a different part.",
-    toAreas: "Go to areas",
     create: 'New parish',
     name: 'Name',
     location: 'Where',
@@ -811,6 +882,7 @@ const en: RcCopy = {
     slugAvailable: 'Available',
     slugShape: 'Lowercase letters, digits and hyphens between them.',
 
+    adminIs: "{name} will administer this parish.",
     stepOne: "Step 1 of 2",
     stepTwo: "Step 2 of 2",
     nameLead: "The name can be changed later. The address cannot — it gets handed out, printed and linked to.",
@@ -1007,6 +1079,66 @@ const en: RcCopy = {
     booked: 'booked',
     pick: 'Who for'
   },
+  account: {
+    heading: "Your account",
+    lead: "This account reaches {roles} roles. The drawing shows what hangs on what — a role is reachable because of the path, not on its own.",
+    locked: "Unlock your keys to see your roles.",
+    loading: "Reading the graph…",
+    accountNode: "Account",
+    accountYou: "You",
+    unnamed: "Unnamed",
+    noKey: "no key",
+    personsHeading: "People",
+    noPersons: "No person on this account yet.",
+    signInFirst: "The tools need an account. Nothing below opens without one.",
+    signInDo: "Sign in",
+  },
+  roles: {
+    kinds: {
+      person: "Person",
+      group: "Group",
+      office: "Office",
+      service: "Service",
+    },
+    relations: {
+      holds: "holds",
+      inherits: "inherits from",
+      supervises: "supervises",
+    },
+  },
+  person: {
+    heading: "Person",
+    lead: "Each entry is encrypted on its own and can be shared on its own. Sharing a phone number shares the phone number — nothing beside it.",
+    locked: "Unlock your keys to see these entries.",
+    loading: "Opening the entries…",
+    unnamed: "Unnamed",
+    noRole: "This address names no person.",
+    toAccount: "To your account",
+    fields: {
+      PersonGivenName: "First name",
+      PersonSurname: "Surname",
+      PersonPhone: "Phone",
+      PersonBorn: "Date of birth",
+    },
+    addAnother: "Another number",
+    add: "Add",
+    change: "Change",
+    save: "Save",
+    cancel: "Cancel",
+    sealed: "Stored, but not yours to read.",
+    share: "Share",
+    shareWhat: "The other role gets the key to this one entry. Not to the others, and not to the person.",
+    shareTo: "Role",
+    shareToHint: "Role id",
+    shareDo: "Give the key",
+    destroy: "Destroy",
+    destroyReason: "Removed by the owner",
+    showLog: "Who read this",
+    logHeading: "Reads",
+    logEmpty: "Not read yet.",
+    logHide: "Hide",
+    logNote: "Every read of these entries is recorded — including your own. A log that skips the common case answers nothing later.",
+  },
   status: {
     heading: 'What stands so far',
     done: 'built and verified',
@@ -1074,6 +1206,9 @@ const pl: RcCopy = {
     deriving: 'Wyliczanie Twojego klucza…',
     derivingWhy:
       'To celowo trwa około sekundy. Ktoś, kto zgaduje Twoje hasło, płaci tę samą sekundę przy każdej próbie.',
+    personName: "Twoje imię i nazwisko",
+    personNameWhy: "Pod tą nazwą będziesz widoczny — na stronie parafii, w kalendarzu, przy wszystkim, czym zarządzasz. To nie jest login, i można ją później zmienić.",
+    haveAccount: "Mam już konto",
     signedInAs: 'Zalogowano jako {name}',
     keysHeld: 'Twój pęk kluczy jest gotowy.',
     keysMissing: 'Zablokowane — pęku kluczy nie ma w pamięci.',
@@ -1376,8 +1511,6 @@ const pl: RcCopy = {
   parish: {
     heading: 'Parafia',
     none: "Nie ma jeszcze parafii.",
-    needArea: "Parafia wisi przy obszarze — stamtąd bierze klucze, członków i certyfikaty. Nie masz jeszcze żadnego, a obszary zakłada się w innej części.",
-    toAreas: "Przejdź do obszarów",
     create: 'Nowa parafia',
     name: 'Nazwa',
     location: 'Gdzie',
@@ -1391,6 +1524,7 @@ const pl: RcCopy = {
     slugAvailable: 'Dostępne',
     slugShape: 'Małe litery, cyfry i myślniki pomiędzy nimi.',
 
+    adminIs: "Parafią będzie zarządzać: {name}.",
     stepOne: "Krok 1 z 2",
     stepTwo: "Krok 2 z 2",
     nameLead: "Nazwę można później zmienić. Adresu nie — jest rozdawany, drukowany i linkowany.",
@@ -1594,6 +1728,66 @@ const pl: RcCopy = {
     booked: 'zajęte',
     pick: 'Dla kogo'
   },
+  account: {
+    heading: "Twoje konto",
+    lead: "To konto sięga {roles} ról. Rysunek pokazuje, co przy czym wisi — rola jest dostępna dzięki drodze, nie sama z siebie.",
+    locked: "Odblokuj klucze, aby zobaczyć swoje role.",
+    loading: "Wczytywanie grafu…",
+    accountNode: "Konto",
+    accountYou: "Ty",
+    unnamed: "Bez nazwy",
+    noKey: "brak klucza",
+    personsHeading: "Osoby",
+    noPersons: "Na tym koncie nie ma jeszcze osoby.",
+    signInFirst: "Narzędzia wymagają konta. Bez niego nic poniżej się nie otworzy.",
+    signInDo: "Zaloguj się",
+  },
+  roles: {
+    kinds: {
+      person: "Osoba",
+      group: "Grupa",
+      office: "Urząd",
+      service: "Usługa",
+    },
+    relations: {
+      holds: "trzyma",
+      inherits: "dziedziczy po",
+      supervises: "nadzoruje",
+    },
+  },
+  person: {
+    heading: "Osoba",
+    lead: "Każdy wpis jest szyfrowany osobno i osobno udostępniany. Udostępnienie numeru telefonu udostępnia numer telefonu — i nic obok.",
+    locked: "Odblokuj klucze, aby zobaczyć te wpisy.",
+    loading: "Otwieranie wpisów…",
+    unnamed: "Bez nazwy",
+    noRole: "Ten adres nie wskazuje żadnej osoby.",
+    toAccount: "Do konta",
+    fields: {
+      PersonGivenName: "Imię",
+      PersonSurname: "Nazwisko",
+      PersonPhone: "Telefon",
+      PersonBorn: "Data urodzenia",
+    },
+    addAnother: "Kolejny numer",
+    add: "Dodaj",
+    change: "Zmień",
+    save: "Zapisz",
+    cancel: "Anuluj",
+    sealed: "Zapisane, ale nie do odczytu przez ciebie.",
+    share: "Udostępnij",
+    shareWhat: "Druga rola dostaje klucz do tego jednego wpisu. Nie do pozostałych i nie do osoby.",
+    shareTo: "Rola",
+    shareToHint: "Identyfikator roli",
+    shareDo: "Przekaż klucz",
+    destroy: "Zniszcz",
+    destroyReason: "Usunięte przez właściciela",
+    showLog: "Kto to czytał",
+    logHeading: "Odczyty",
+    logEmpty: "Jeszcze nie czytane.",
+    logHide: "Ukryj",
+    logNote: "Każdy odczyt tych wpisów jest zapisywany — także twój. Rejestr, który pomija najczęstszy przypadek, nie odpowiada później na nic.",
+  },
   status: {
     heading: 'Co już stoi',
     done: 'zbudowane i sprawdzone',
@@ -1651,6 +1845,9 @@ const de: RcCopy = {
     deriving: 'Dein Schlüssel wird berechnet…',
     derivingWhy:
       'Das dauert absichtlich etwa eine Sekunde. Wer dein Passwort errät, zahlt dieselbe Sekunde — bei jedem Versuch.',
+    personName: "Dein Name",
+    personNameWhy: "Unter diesem Namen erscheinst du — auf einer Pfarrseite, in einem Kalender, neben allem, was du verwaltest. Es ist nicht der Anmeldename, und er laesst sich spaeter aendern.",
+    haveAccount: "Ich habe schon ein Konto",
     signedInAs: 'Angemeldet als {name}',
     keysHeld: 'Dein Schlüsselbund liegt bereit.',
     keysMissing: 'Gesperrt — der Schlüsselbund liegt nicht im Speicher.',
@@ -1919,8 +2116,6 @@ const de: RcCopy = {
   parish: {
     heading: 'Pfarrei',
     none: "Noch keine Pfarrei.",
-    needArea: "Eine Pfarrei haengt an einem Bereich — von dort kommen Schluessel, Mitglieder und Zertifikate. Du hast noch keinen, und Bereiche entstehen in einem anderen Teil.",
-    toAreas: "Zu den Bereichen",
     create: 'Neue Pfarrei',
     name: 'Name',
     location: 'Wo',
@@ -1934,6 +2129,7 @@ const de: RcCopy = {
     slugAvailable: 'Vorgesehen',
     slugShape: 'Kleine Buchstaben, Ziffern und Bindestriche dazwischen.',
 
+    adminIs: "{name} verwaltet diese Pfarrei.",
     stepOne: "Schritt 1 von 2",
     stepTwo: "Schritt 2 von 2",
     nameLead: "Der Name laesst sich spaeter aendern. Die Adresse nicht — sie wird weitergegeben, gedruckt und verlinkt.",
@@ -2129,6 +2325,66 @@ const de: RcCopy = {
     book: 'Platz belegen',
     booked: 'belegt',
     pick: 'Für wen'
+  },
+  account: {
+    heading: "Dein Konto",
+    lead: "Dieses Konto erreicht {roles} Rollen. Die Zeichnung zeigt, was woran haengt — eine Rolle ist erreichbar wegen des Weges, nicht von sich aus.",
+    locked: "Schliess deine Schluessel auf, um deine Rollen zu sehen.",
+    loading: "Der Graph wird gelesen…",
+    accountNode: "Konto",
+    accountYou: "Du",
+    unnamed: "Ohne Namen",
+    noKey: "kein Schluessel",
+    personsHeading: "Personen",
+    noPersons: "An diesem Konto haengt noch keine Person.",
+    signInFirst: "Die Werkzeuge brauchen ein Konto. Ohne eines geht unten nichts auf.",
+    signInDo: "Anmelden",
+  },
+  roles: {
+    kinds: {
+      person: "Person",
+      group: "Gruppe",
+      office: "Amt",
+      service: "Dienst",
+    },
+    relations: {
+      holds: "haelt",
+      inherits: "erbt von",
+      supervises: "beaufsichtigt",
+    },
+  },
+  person: {
+    heading: "Person",
+    lead: "Jede Angabe ist einzeln verschluesselt und einzeln freigebbar. Wer eine Telefonnummer bekommt, bekommt die Telefonnummer — und nichts daneben.",
+    locked: "Schliess deine Schluessel auf, um diese Angaben zu sehen.",
+    loading: "Die Angaben werden geoeffnet…",
+    unnamed: "Ohne Namen",
+    noRole: "Diese Adresse nennt keine Person.",
+    toAccount: "Zum Konto",
+    fields: {
+      PersonGivenName: "Vorname",
+      PersonSurname: "Nachname",
+      PersonPhone: "Telefon",
+      PersonBorn: "Geburtsdatum",
+    },
+    addAnother: "Noch eine Nummer",
+    add: "Eintragen",
+    change: "Aendern",
+    save: "Sichern",
+    cancel: "Abbrechen",
+    sealed: "Hinterlegt, aber nicht fuer dich lesbar.",
+    share: "Freigeben",
+    shareWhat: "Die andere Rolle bekommt den Schluessel zu DIESER einen Angabe. Nicht zu den anderen und nicht zur Person.",
+    shareTo: "Rolle",
+    shareToHint: "Rollenkennung",
+    shareDo: "Schluessel geben",
+    destroy: "Vernichten",
+    destroyReason: "Vom Eigentuemer entfernt",
+    showLog: "Wer hat gelesen",
+    logHeading: "Zugriffe",
+    logEmpty: "Noch nicht gelesen.",
+    logHide: "Zuklappen",
+    logNote: "Jeder Blick auf diese Angaben wird eingetragen — auch dein eigener. Ein Protokoll, das den haeufigsten Fall auslaesst, beantwortet spaeter nichts.",
   },
   status: {
     heading: 'Was bisher steht',

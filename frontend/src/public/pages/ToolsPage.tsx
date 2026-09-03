@@ -29,6 +29,29 @@ export function ToolsPage({ copy }: { copy: PublicCopy }) {
       <h1 className="pub-h1">{t.title}</h1>
       <p className="pub-lead">{t.lead}</p>
 
+      {/*
+        ZUERST DAS KONTO, DANN DIE LISTE.
+
+        Vorher stand hier ein Verzeichnis von Werkzeugen und nirgends, dass
+        keines davon ohne Konto etwas zeigt. Wer einer der Adressen folgte,
+        landete auf einer Seite, die richtig aussieht und leer ist — und das
+        liest sich als Fehler, nicht als Grenze.
+
+        Der Hinweis steht deshalb VOR den Werkzeugen und nicht als Fussnote
+        darunter: er ist die Voraussetzung fuer alles, was folgt.
+      */}
+      <aside className="pub-signin">
+        <p className="pub-p">{t.signIn}</p>
+        {/*
+          Das Ziel ist die Kontouebersicht und nicht „die Anmeldeseite": eine
+          eigene Adresse dafuer gibt es nicht. Solange die Schluessel fehlen,
+          zeigt JEDE Adresse der Werkstatt das Anmeldeformular — und danach
+          steht man dort, wo man hinwollte. Ein Umweg ueber eine Startseite
+          waere ein Schritt, den niemand gewollt hat.
+        */}
+        <a className="pub-btn" href={rcPath('account')}>{t.signInDo}</a>
+      </aside>
+
       <section className="pub-sec">
         <h2 className="pub-h2">{t.addressTitle}</h2>
         <p className="pub-p">{t.address}</p>

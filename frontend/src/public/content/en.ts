@@ -592,6 +592,9 @@ export const en: PublicCopy = {
       + 'recognise someone before showing anything.',
     slug: 'name',
 
+    signIn: "The tools run on an account. Without one they open, but stay empty: what lies inside is sealed, and the key is derived from your password.",
+    signInDo: "Sign in or create an account",
+
     openLabel: 'Without a key',
     embedded: 'No address of its own — it is placed inside another page.',
 

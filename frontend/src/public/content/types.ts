@@ -368,6 +368,20 @@ export interface PublicCopy {
     readonly slug: string;
 
     readonly items: readonly ToolCopy[];
+    /**
+     * Der Hinweis, dass die Werkzeuge ein Konto brauchen.
+     *
+     * Er steht UNBEDINGT da und nicht nur für Abgemeldete: diese Seite gehört
+     * zum öffentlichen Teil und fragt den Server nicht nach einer Sitzung. Ein
+     * Hinweis, der mal da ist und mal nicht, verlangte genau diese Frage — und
+     * damit einen Netzaufruf auf einer Seite, die ohne einen auskommt.
+     *
+     * Der Satz ist so geschrieben, dass er auch für Angemeldete stimmt: er
+     * sagt, was die Werkzeuge brauchen, nicht was der Leser versäumt hat.
+     */
+    readonly signIn: string;
+    readonly signInDo: string;
+
     readonly openLabel: string;
     readonly embedded: string;
 

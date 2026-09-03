@@ -586,22 +586,19 @@ function RcNewArea({
 
 export default RcChat;
 
-/** Die Pfarrei, mit denselben Bereichen wie die Veranstaltungen. */
+/**
+ * Die Pfarrei. Sie laedt KEINE Bereiche mehr.
+ *
+ * Ein Bereich ist Verkabelung — Schluessel, Epochen, Kette. Wer eine Pfarrei
+ * einrichtet, soll davon nichts wissen muessen; der Abschnitt holt sich die
+ * persoenliche Rolle selbst und legt den Bereich beim Anlegen an.
+ */
 export function RcParishOutlet({ lang, unlocked }: { lang: RcLang; unlocked: boolean }) {
-  const [areas, setAreas] = useState<readonly RcArea[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!unlocked) return;
-    void (async () => {
-      try { setAreas((await rcAreas()).areas ?? []); }
-      catch { /* Die Ansicht sagt es selbst. */ }
-    })();
-  }, [unlocked]);
 
   return (
     <>
-      <RcParishSection lang={lang} areas={areas} unlocked={unlocked} onError={setError} />
+      <RcParishSection lang={lang} unlocked={unlocked} onError={setError} />
       {error !== null && <p className="rc-auth-error rc-chat-error">{error}</p>}
     </>
   );

@@ -17,6 +17,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { rcCopy, rcDetectLang, rcFormat, rcPlural, rcStoreLang, type RcLang } from './i18n';
 import { runRcSelfTest, type RcTestReport } from './lib/rcSelfTest';
 import { RcChat, RcEventsSection, RcParishOutlet, RcGraphOutlet, RcCalendarOutlet, RcConfirmationOutlet } from './RcChat';
+import { RcAccountOutlet } from './RcAccount';
+import { RcPersonOutlet } from './RcPerson';
 import { RcInviteBanner } from './RcInvite';
 import { RcSignInPage } from './RcSignInPage';
 import { rcEnter, rcEntryCheck, rcBrowserMemory, type RcEntry } from './lib/rcBoot';
@@ -192,6 +194,7 @@ export function RcApp() {
   const parts = useMemo(
     () =>
       [
+        ['account', t.account.heading],
         ['chat', t.chat.areas],
         ['event', t.events.heading],
         ['parish', t.parish.heading],
@@ -367,6 +370,28 @@ export function RcApp() {
               Gerät nicht — nur der daraus abgeleitete Schlüssel. */}
           <RcSignIn lang={lang} entry={entry} onEntry={setEntry} onReady={setUnlocked} />
         </section>
+
+        {shows('account') && (
+        <section className="rc-section">
+          <h2 className="rc-h2">{t.account.heading}</h2>
+          <RcAccountOutlet lang={lang} unlocked={unlocked} />
+        </section>
+        )}
+
+        {/*
+          Die Person hat KEINEN Platz auf der Startseite.
+
+          `shows` laesst jeden Teil auch bei `home` durch — das ist fuer die
+          Werkzeuge richtig, die man nebeneinander sehen will. Ein Steckbrief
+          ohne Rollenkennung waere dort aber nur eine Zeile „diese Adresse nennt
+          keine Person". Deshalb hier die Adresse selbst und nicht `shows`.
+        */}
+        {address.part === 'person' && (
+        <section className="rc-section">
+          <h2 className="rc-h2">{t.person.heading}</h2>
+          <RcPersonOutlet lang={lang} roleId={address.slug} unlocked={unlocked} />
+        </section>
+        )}
 
         {shows('chat') && (
         <section className="rc-section">

@@ -48,7 +48,8 @@ public sealed record RcRegisteredResponse(
 /// weil der Klient beides zusammen braucht, um zu entscheiden, was er anzeigt.
 /// </summary>
 public sealed record RcMeResponse(
-    bool SignedIn, string? AccountId = null, string? SessionId = null, bool? KeysHeld = null);
+    bool SignedIn, string? AccountId = null, string? SessionId = null, bool? KeysHeld = null,
+    string? Username = null);
 
 public sealed record RcLockedResponse(bool Locked, bool HadKeys);
 

@@ -55,6 +55,21 @@ export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
   const me = entry.kind === 'signed-in' ? entry.who : null;
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+
+  /*
+   * ZWEI WEGE, EIN FORMULAR.
+   *
+   * Vorher lagen Anmelden und Anlegen als gleichwertige Knoepfe nebeneinander,
+   * und Anlegen fragte nichts weiter. Genau deshalb hatte die Person, die dabei
+   * entsteht, nie einen Namen: es gab keine Stelle, an der jemand danach
+   * gefragt haette. Der Server nahm den Anmeldenamen und niemand erfuhr davon.
+   *
+   * `signUp` macht aus dem zweiten Knopf einen Umschalter. Das ist ein Klick
+   * mehr fuer etwas, das man einmal im Leben tut — und dafuer traegt die Person
+   * von Anfang an den Namen, unter dem sie danach ueberall auftaucht.
+   */
+  const [signUp, setSignUp] = useState(false);
+  const [personName, setPersonName] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -87,7 +102,7 @@ export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
         // Ohne dieses Warten malt der Browser den Zustand „deriving" nie.
         await new Promise((resolve) => setTimeout(resolve, 0));
 
-        if (mode === 'register') await rcRegister(username, password);
+        if (mode === 'register') await rcRegister(username, password, personName);
         else await rcUnlock(username, password, navigator.userAgent.slice(0, 128));
 
         setPassword('');
@@ -98,7 +113,7 @@ export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
         setPhase('idle');
       }
     },
-    [username, password, refresh, t]
+    [username, password, personName, refresh, t]
   );
 
   const act = useCallback(
@@ -128,7 +143,20 @@ export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
 
     return (
       <div className="rc-auth">
-        <p className="rc-auth-who">{rcFormat(t.signedInAs, { name: me.accountId ?? '' })}</p>
+        {/*
+          Hier stand die KONTOKENNUNG — „Zalogowano jako 01a0640a-0379-73af…".
+          Das ist keine Auskunft, sondern eine Zumutung: es beantwortet die
+          Frage „wer bin ich hier" mit einer Zahl, die niemand wiedererkennt.
+
+          Der Anmeldename kommt aus der Sitzung und steht immer zur Verfuegung.
+          Der Anzeigename der Person liegt versiegelt an ihrer Rolle und ist
+          ohne Schluesselbund NICHT lesbar — deshalb steht hier der
+          Anmeldename und nicht der Anzeigename: er ist der, den es in beiden
+          Zustaenden wirklich gibt.
+        */}
+        <p className="rc-auth-who">
+          {rcFormat(t.signedInAs, { name: me.username ?? me.accountId ?? '' })}
+        </p>
         <p className={ready ? 'rc-auth-ready' : 'rc-auth-locked'}>
           {ready ? t.keysHeld : t.keysMissing}
         </p>
@@ -168,9 +196,23 @@ export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
       onPointerDown={wake}
       onSubmit={(e) => {
         e.preventDefault();
-        if (canSubmit) void submit('unlock');
+        if (canSubmit) void submit(signUp ? 'register' : 'unlock');
       }}
     >
+      {signUp && (
+        <label className="rc-field">
+          <span>{t.personName}</span>
+          <input
+            type="text"
+            autoComplete="name"
+            value={personName}
+            disabled={busy}
+            onChange={(e) => setPersonName(e.target.value)}
+          />
+          <small className="rc-note">{t.personNameWhy}</small>
+        </label>
+      )}
+
       <label className="rc-field">
         <span>{t.username}</span>
         <input
@@ -186,7 +228,7 @@ export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
         <span>{t.password}</span>
         <input
           type="password"
-          autoComplete="current-password"
+          autoComplete={signUp ? 'new-password' : 'current-password'}
           value={password}
           disabled={busy}
           onChange={(e) => setPassword(e.target.value)}
@@ -195,15 +237,19 @@ export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
 
       <div className="rc-auth-actions">
         <button type="submit" className="rc-btn" disabled={!canSubmit}>
-          {phase === 'deriving' ? t.deriving : phase === 'sending' ? t.working : t.signIn}
+          {phase === 'deriving'
+            ? t.deriving
+            : phase === 'sending'
+              ? t.working
+              : signUp ? t.createAccount : t.signIn}
         </button>
         <button
           type="button"
           className="rc-btn rc-btn-quiet"
-          disabled={!canSubmit}
-          onClick={() => void submit('register')}
+          disabled={busy}
+          onClick={() => { setSignUp(!signUp); setError(null); }}
         >
-          {t.createAccount}
+          {signUp ? t.haveAccount : t.createAccount}
         </button>
       </div>
 

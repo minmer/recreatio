@@ -2038,6 +2038,17 @@
 .rc-make-title { margin: 0; font-size: 1.05rem; font-weight: 600; }
 .rc-make-lead { margin: 0; font-size: 0.88rem; color: var(--rc-ink-2); }
 
+/* Wer verwaltet: eine Feststellung, kein Hinweis — deshalb etwas fester als
+   der Vorspann darueber und mit einer ruhigen Marke am Rand statt eines
+   Kastens, der wie eine Warnung aussaehe. */
+.rc-make-who {
+  margin: 0.55rem 0 0;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--rc-accent, currentColor);
+  font-size: 0.85rem;
+  color: var(--rc-ink);
+}
+
 /* Was schon entschieden IST, steht als Tatsache da — nicht als Feld. */
 .rc-make-done {
   margin: 0.4rem 0 0;
@@ -2170,3 +2181,184 @@
 }
 
 .rc-empty .rc-note { margin: 0; max-width: 42ch; }
+
+
+/* == Kontoübersicht und Person ============================================ */
+
+/*
+ * Die Zeichnung braucht eine feste Höhe.
+ *
+ * React Flow misst seinen Behälter und zeichnet hinein; ein Behälter, der sich
+ * nach dem Inhalt richtet, hat keine Höhe, bevor gezeichnet wurde, und der
+ * Graph bleibt unsichtbar. Deshalb eine Höhe in Sichtfeldeinheiten mit einer
+ * Untergrenze — auf einem hohen Bildschirm mehr Platz, auf einem Telefon
+ * wenigstens so viel, dass drei Ebenen nebeneinander passen.
+ */
+.rc-flow {
+  height: clamp(280px, 46vh, 560px);
+  margin: 0.9rem 0 1.4rem;
+  border: 1px solid var(--rc-line);
+  border-radius: 10px;
+  background: var(--rc-surface);
+  overflow: hidden;
+}
+
+/* React Flow bringt eigene Farben mit, die von einem hellen Grund ausgehen.
+   Die Marken hier setzen sie auf die der Werkstatt — sonst steht im dunklen
+   Modus ein weisses Rechteck in der Seite. */
+.rc-flow .react-flow__background { background: var(--rc-surface); }
+.rc-flow .react-flow__controls-button {
+  background: var(--rc-surface);
+  border-bottom: 1px solid var(--rc-line);
+  fill: var(--rc-ink);
+}
+.rc-flow .react-flow__controls-button:hover { background: var(--rc-surface-2); }
+.rc-flow .react-flow__edge-text { fill: var(--rc-muted); font-size: 10px; }
+.rc-flow .react-flow__edge-textbg { fill: var(--rc-surface); }
+.rc-flow .react-flow__edge-path { stroke: var(--rc-line-2); }
+.rc-flow .react-flow__arrowhead * { fill: var(--rc-line-2); stroke: none; }
+
+.rc-flow .react-flow__node {
+  padding: 0;
+  border: 1px solid var(--rc-line-2);
+  border-radius: 8px;
+  background: var(--rc-surface);
+  color: var(--rc-ink);
+  font-family: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  box-shadow: none;
+}
+
+.rc-node-in {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding: 0.5rem 0.65rem;
+}
+
+.rc-node-kind {
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--rc-muted);
+}
+
+.rc-node-name {
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+/* Die Art der Rolle als schmale Marke am Rand. Eine Füllung würde mit dem
+   Zustand „kein Schlüssel" um dieselbe Fläche streiten. */
+.rc-flow .react-flow__node.rc-node-person  { border-left: 3px solid var(--rc-accent); }
+.rc-flow .react-flow__node.rc-node-group   { border-left: 3px solid var(--rc-ok); }
+.rc-flow .react-flow__node.rc-node-office  { border-left: 3px solid var(--rc-warn); }
+.rc-flow .react-flow__node.rc-node-service { border-left: 3px solid var(--rc-line-2); }
+.rc-flow .react-flow__node.rc-node-account { border-left: 3px solid var(--rc-ink); }
+
+/* Erreichbar, aber nicht lesbar: gestrichelt. Nicht blass — blass hiesse
+   „unwichtig", und das ist es nicht; es ist eine Grenze. */
+.rc-flow .react-flow__node.rc-node-nokey { border-style: dashed; }
+
+.rc-node-nokey-mark {
+  font-size: 0.66rem;
+  color: var(--rc-warn);
+}
+
+.rc-person-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.4rem; }
+
+.rc-person-link {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--rc-line);
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+}
+.rc-person-link:hover { border-color: var(--rc-accent); }
+.rc-person-name { font-weight: 600; }
+.rc-person-kind { font-size: 0.72rem; color: var(--rc-muted); }
+
+/* -- Der Steckbrief ------------------------------------------------------- */
+
+.rc-person-head { margin-bottom: 0.9rem; }
+.rc-person-title { margin: 0 0 0.2rem; font-size: 1.05rem; }
+
+.rc-fields { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+
+.rc-field-row {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rc-line);
+  border-radius: 8px;
+  background: var(--rc-surface);
+}
+
+/* Der Zustand einer Angabe steht am linken Rand: eingetragen, fehlend,
+   versiegelt. Drei Zustände, drei Marken — und keine Legende nötig. */
+.rc-field-row[data-state="set"]     { border-left: 3px solid var(--rc-accent); }
+.rc-field-row[data-state="missing"] { border-left: 3px solid var(--rc-line-2); }
+.rc-field-row[data-state="sealed"]  { border-left: 3px solid var(--rc-warn); }
+
+.rc-field-main {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
+}
+
+.rc-field-label {
+  min-width: 8.5rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rc-muted);
+}
+
+.rc-field-value {
+  flex: 1 1 auto;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.rc-field-sealed { flex: 1 1 auto; color: var(--rc-warn); font-size: 0.85rem; }
+
+.rc-field-edit { display: flex; flex: 1 1 14rem; flex-wrap: wrap; gap: 0.4rem; }
+.rc-field-edit input { flex: 1 1 9rem; }
+
+.rc-field-acts { display: flex; flex-wrap: wrap; gap: 0.9rem; margin-top: 0.45rem; }
+
+/* Handlungen an einer einzelnen Angabe sind keine Hauptknöpfe: sie stehen
+   neben dem Wert und nicht über ihm. */
+.rc-link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.76rem;
+  color: var(--rc-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.rc-link-btn:hover { color: var(--rc-ink); }
+.rc-link-danger:hover { color: var(--rc-alarm); }
+
+.rc-field-share,
+.rc-field-log {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--rc-line);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.rc-field-log ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+.rc-field-log li { display: flex; gap: 0.7rem; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+
+.rc-fine { font-size: 0.74rem; color: var(--rc-muted); }
+.rc-sub { margin: 1.2rem 0 0.2rem; font-size: 0.82rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--rc-muted); }

@@ -600,6 +600,9 @@ export const de: PublicCopy = {
       + 'er jemanden erkennen muss, bevor er etwas zeigt.',
     slug: 'name',
 
+    signIn: "Die Werkzeuge laufen auf einem Konto. Ohne eines gehen sie auf, bleiben aber leer: was darin liegt, ist versiegelt, und der Schlüssel entsteht aus deinem Passwort.",
+    signInDo: "Anmelden oder Konto anlegen",
+
     openLabel: 'Ohne Schlüssel',
     embedded: 'Ohne eigene Adresse — wird in eine fremde Seite eingesetzt.',
 

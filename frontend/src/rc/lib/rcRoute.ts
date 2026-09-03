@@ -99,7 +99,21 @@ export const RC_PARTS = {
   cogita: { slugged: true, needsIdentity: true },
   calendar: { slugged: true, needsIdentity: true },
   confirmation: { slugged: true, needsIdentity: true },
-  account: { slugged: false, needsIdentity: true }
+  account: { slugged: false, needsIdentity: true },
+
+  /*
+   * Die Person. Der „Slug" ist hier die Kennung ihrer Rolle.
+   *
+   * Das ist kein hübscher Name, und das ist Absicht: der Name einer Person
+   * liegt verschlüsselt an ihrer Rolle. Stünde er in der Adresse, stünde er im
+   * Verlauf des Browsers, im Verweis der nächsten Seite und im Protokoll jedes
+   * Zwischenservers — also im Klartext an genau den Stellen, an denen die
+   * Verschlüsselung ihn gerade nicht hat.
+   *
+   * Eine Kennung sagt dort nichts. Wer den Namen sehen will, braucht den
+   * Schlüssel, und den gibt die Adresse nicht her.
+   */
+  person: { slugged: true, needsIdentity: true }
 } as const satisfies Readonly<Record<string, RcPartDef>>;
 
 export type RcPart = keyof typeof RC_PARTS;

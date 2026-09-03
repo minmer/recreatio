@@ -87,7 +87,8 @@ public sealed class RcSessionMiddleware(RequestDelegate next, IConfiguration con
             return;
         }
 
-        context.Items[nameof(RcRequestSession)] = new RcRequestSession(accountId.Value, sessionId.Value);
+        context.Items[nameof(RcRequestSession)] =
+            new RcRequestSession(accountId.Value, sessionId.Value, state.Username);
         await TouchAsync(sessionId.Value);
         await next(context);
     }
@@ -114,7 +115,9 @@ public sealed class RcSessionMiddleware(RequestDelegate next, IConfiguration con
         await using var c = new SqlConnection(cs);
         await c.OpenAsync();
         await using var cmd = new SqlCommand(
-            "SELECT account_id, expires_at, revoked_at FROM dbo.rc_session WHERE id = @id;", c);
+            "SELECT s.account_id, s.expires_at, s.revoked_at, a.username " +
+            "FROM dbo.rc_session s JOIN dbo.rc_account a ON a.id = s.account_id " +
+            "WHERE s.id = @id;", c);
         cmd.Parameters.AddWithValue("@id", sessionId);
 
         await using var reader = await cmd.ExecuteReaderAsync();
@@ -123,7 +126,8 @@ public sealed class RcSessionMiddleware(RequestDelegate next, IConfiguration con
         return new SessionState(
             reader.GetGuid(0),
             reader.GetDateTimeOffset(1),
-            reader.IsDBNull(2) ? null : reader.GetDateTimeOffset(2));
+            reader.IsDBNull(2) ? null : reader.GetDateTimeOffset(2),
+            reader.GetString(3));
     }
 
     private async Task TouchAsync(Guid sessionId)
@@ -144,11 +148,18 @@ public sealed class RcSessionMiddleware(RequestDelegate next, IConfiguration con
         await cmd.ExecuteNonQueryAsync();
     }
 
-    private sealed record SessionState(Guid AccountId, DateTimeOffset ExpiresUtc, DateTimeOffset? RevokedUtc);
+    private sealed record SessionState(
+        Guid AccountId, DateTimeOffset ExpiresUtc, DateTimeOffset? RevokedUtc, string Username);
 }
 
 /// <summary>Was eine Anfrage ueber ihre Sitzung weiss. Mehr braucht kein Modul.</summary>
-public sealed record RcRequestSession(Guid AccountId, Guid SessionId);
+/// <remarks>
+/// <c>Username</c> ist der ANMELDENAME, nicht der Anzeigename. Der Anzeigename
+/// liegt versiegelt an der persoenlichen Rolle und ist ohne Schluesselbund nicht
+/// lesbar (9.13.2) — bei verschlossenem Bund ist dies das Einzige, was die
+/// Oberflaeche ueberhaupt sagen kann, wer hier angemeldet ist.
+/// </remarks>
+public sealed record RcRequestSession(Guid AccountId, Guid SessionId, string Username);
 
 public static class RcSessionExtensions
 {

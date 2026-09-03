@@ -401,7 +401,7 @@ public static class RcAuth
 
         await RcResults.WriteJsonAsync(ctx, new RcMeResponse(
             true, RcId.ToText(session.AccountId), RcId.ToText(session.SessionId),
-            vault.Holds(RcId.ToText(session.SessionId))));
+            vault.Holds(RcId.ToText(session.SessionId)), session.Username));
     }
 
     // -- Gemeinsames ----------------------------------------------------------

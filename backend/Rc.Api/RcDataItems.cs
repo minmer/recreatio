@@ -70,6 +70,8 @@ public static class RcDataItems
         app.MapPost("/rc/data", CreateAsync).Produces<RcDataItemCreatedResponse>();
         app.MapGet("/rc/data", ListAsync).Produces<RcDataItemsResponse>();
         app.MapGet("/rc/data/{id:guid}", ReadAsync).Produces<RcDataItemResponse>();
+        app.MapGet("/rc/data/values", ReadAllAsync).Produces<RcDataValuesResponse>();
+        app.MapPost("/rc/data/{id:guid}", UpdateAsync).Produces<RcDataItemUpdatedResponse>();
         app.MapPost("/rc/data/{id:guid}/share", ShareAsync).Produces<RcDataSharedResponse>();
         app.MapPost("/rc/data/{id:guid}/destroy", DestroyAsync).Produces<RcDataDestroyedResponse>();
         app.MapGet("/rc/data/{id:guid}/access-log", AccessLogAsync).Produces<RcAccessLogResponse>();
@@ -272,6 +274,110 @@ public static class RcDataItems
         }
     }
 
+    /// <summary>
+    /// Alle Angaben EINER Rolle auf einmal — und jede einzeln protokolliert.
+    ///
+    /// <b>Warum es das gibt.</b> Ein Steckbrief besteht aus vier Angaben, und
+    /// vier Anfragen fuer eine Seite sind vier Rundgaenge und vier Gelegenheiten
+    /// fuer einen halb geladenen Zustand. <c>/rc/data</c> allein hilft nicht: es
+    /// nennt die Etiketten, nicht die Werte.
+    ///
+    /// <b>Was hier NICHT gespart wird: das Protokoll.</b> Jede gelesene Angabe
+    /// bekommt ihren eigenen Eintrag, genau wie beim einzelnen Lesen. Eine
+    /// Sammelabfrage, die einen Sammeleintrag schriebe, waere ein Weg, das
+    /// Protokoll zu verduennen, indem man anders fragt — und damit kein
+    /// Protokoll mehr.
+    ///
+    /// <b>Besondere Kategorien bleiben aussen vor.</b> <c>special</c> verlangt
+    /// einen Zweck JE Angabe (Art. 9); ein Zweck fuer einen ganzen Schwung
+    /// waere keiner. Solche Elemente erscheinen hier ohne Wert und mit
+    /// <c>needsPurpose</c> — wer sie will, holt sie einzeln und sagt wozu.
+    /// Dasselbe gilt fuer <c>secret</c>: das laesst sich ohnehin nur einzeln
+    /// holen, und auch nur vom Eigentuemer.
+    /// </summary>
+    private static async Task ReadAllAsync(
+        HttpContext ctx, RcDb db, RcMasterKey masterKeys, Guid roleId)
+    {
+        var session = ctx.RcSession();
+        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        using var held = await masterKeys.OpenAsync(connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
+
+        // Erst die Rolle, dann die Elemente. Ohne diese Pruefung verriete die
+        // Antwort, WELCHE Angaben an einer beliebigen fremden Rolle haengen —
+        // die Werte blieben zwar verschlossen, aber „diese Rolle hat einen
+        // Geburtstag hinterlegt" ist selbst schon eine Auskunft.
+        if (await RcRoleAccess.RoleKeyAsync(connection, session.AccountId, held.MasterKey, roleId, ctx.RequestAborted) is null)
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status403Forbidden,
+                RcErrorCodes.RoleUnreachable, "Diese Rolle steht dir nicht zur Verfuegung.");
+            return;
+        }
+
+        var mine = await RcRoleAccess.AllRoleKeysAsync(connection, session.AccountId, held.MasterKey, ctx.RequestAborted);
+
+        await using var cmd = new SqlCommand("""
+            SELECT id FROM dbo.rc_data_item
+            WHERE owner_role_id = @role AND destroyed_at IS NULL ORDER BY seq;
+            """, connection);
+        cmd.Parameters.AddWithValue("@role", roleId);
+
+        var ids = new List<Guid>();
+        await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
+            while (await reader.ReadAsync(ctx.RequestAborted)) ids.Add(reader.GetGuid(0));
+
+        var values = new List<DataValueView>();
+        foreach (var id in ids)
+        {
+            var item = await LoadAsync(connection, id, ctx.RequestAborted);
+            if (item is null) continue;
+
+            var (itemKey, viaRoleId) = await OpenItemKeyAsync(connection, id, mine, ctx.RequestAborted);
+
+            // Kein Schluessel heisst hier NICHT „Fehler": in derselben Rolle
+            // koennen Angaben liegen, die jemand anders freigegeben hat und
+            // dieses Konto nicht lesen darf. Sie erscheinen ohne Wert.
+            if (itemKey is null)
+            {
+                values.Add(new DataValueView(
+                    RcId.ToText(id), item.DataClass, item.Field.ToString(), null, false, false));
+                continue;
+            }
+
+            if (RequiresPurpose(item.DataClass))
+            {
+                values.Add(new DataValueView(
+                    RcId.ToText(id), item.DataClass, item.Field.ToString(), null, true, true));
+                continue;
+            }
+
+            if (RequiresLog(item.DataClass))
+                await LogAsync(connection, id, viaRoleId, null, ctx.RequestAborted);
+
+            var aad = RcAad.Create(item.Module, item.ObjectType, id, item.Field, item.Version);
+            string? value = null;
+            try { value = Encoding.UTF8.GetString(RcCrypto.Open(itemKey, aad, item.SealedValue)); }
+            catch (RcDecryptException) { /* Eine Angabe, die nicht aufgeht, verschweigt nicht die anderen. */ }
+
+            values.Add(new DataValueView(
+                RcId.ToText(id), item.DataClass, item.Field.ToString(), value,
+                true, false));
+        }
+
+        await RcResults.WriteJsonAsync(ctx, new RcDataValuesResponse(values));
+    }
+
+    /// <summary>
+    /// <c>value</c> ist <c>null</c>, wenn nicht gelesen werden konnte oder
+    /// durfte. <c>readable</c> unterscheidet die beiden Faelle vom leeren Text:
+    /// eine Angabe, die es gibt und die leer IST, ist etwas anderes als eine,
+    /// die verschlossen bleibt.
+    /// </summary>
+    public sealed record DataValueView(
+        string DataItemId, string DataClass, string Field, string? Value,
+        bool Readable, bool NeedsPurpose);
+
     public sealed record DataItemView(
         string DataItemId, string OwnerRoleId, string DataClass, string Field,
         bool Destroyed, DateTimeOffset UpdatedAt);
@@ -308,6 +414,80 @@ public static class RcDataItems
         }
 
         await RcResults.WriteJsonAsync(ctx, new RcDataItemsResponse(views));
+    }
+
+    // -- Aendern --------------------------------------------------------------
+
+    public sealed record UpdateRequest(string Value);
+
+    /// <summary>
+    /// Einen Wert ersetzen. DERSELBE Elementschluessel, DIESELBEN Zuteilungen,
+    /// die Fassung eins hoeher.
+    ///
+    /// <b>Warum die Freigaben bleiben.</b> Wer eine Telefonnummer freigegeben
+    /// hat, hat die ANGABE freigegeben und nicht eine Ziffernfolge. Erloeschte
+    /// die Freigabe beim Aendern, waere die Wirkung heimtueckisch: der andere
+    /// saehe weiter eine Nummer, naemlich die alte, und niemand erfuehre, dass
+    /// sie nicht mehr gilt. Wer die Freigabe beenden will, nimmt sie zurueck —
+    /// das ist eine eigene Handlung mit einer eigenen Absicht.
+    ///
+    /// <b>Warum die Fassung steigt</b> (3.13): die AAD traegt sie mit. Bliebe
+    /// sie stehen, liesse sich ein alter Geheimtext an die Stelle des neuen
+    /// setzen, und er ginge auf. Mit steigender Fassung nicht.
+    ///
+    /// <b>Nur der Eigentuemer.</b> Wem die Angabe freigegeben wurde, der darf
+    /// lesen — nicht schreiben. Eine Freigabe, die auch das Aendern erlaubte,
+    /// waere die Uebergabe der Angabe und nicht ihre Mitteilung.
+    /// </summary>
+    private static async Task UpdateAsync(
+        HttpContext ctx, RcDb db, RcMasterKey masterKeys, Guid id, UpdateRequest body)
+    {
+        var session = ctx.RcSession();
+        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var item = await LoadAsync(connection, id, ctx.RequestAborted);
+        if (item is null) { await NotFound(ctx); return; }
+
+        if (item.DestroyedUtc is not null)
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status410Gone,
+                RcErrorCodes.CryptoMissingKey,
+                "Diese Angabe wurde geloescht: der Schluessel dazu ist vernichtet.");
+            return;
+        }
+
+        using var held = await masterKeys.OpenAsync(connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
+
+        // Der Eigentuemer ist die Rolle in owner_role_id — nicht jeder, der
+        // irgendeine Zuteilung auf das Element haelt.
+        if (await RcRoleAccess.RoleKeyAsync(
+                connection, session.AccountId, held.MasterKey, item.OwnerRoleId, ctx.RequestAborted) is null)
+        {
+            await NotFound(ctx);
+            return;
+        }
+
+        var mine = await RcRoleAccess.AllRoleKeysAsync(connection, session.AccountId, held.MasterKey, ctx.RequestAborted);
+        var (itemKey, _) = await OpenItemKeyAsync(connection, id, mine, ctx.RequestAborted);
+        if (itemKey is null) { await NotFound(ctx); return; }
+
+        var version = item.Version + 1;
+        var aad = RcAad.Create(item.Module, item.ObjectType, id, item.Field, version);
+        var sealedValue = RcCrypto.Seal(itemKey, aad, Encoding.UTF8.GetBytes(body.Value ?? string.Empty));
+
+        await using var cmd = new SqlCommand("""
+            UPDATE dbo.rc_data_item
+            SET value_sealed = @value, aad_version = @version, updated_at = @now
+            WHERE id = @id AND destroyed_at IS NULL;
+            """, connection);
+        cmd.Parameters.AddWithValue("@value", sealedValue);
+        cmd.Parameters.AddWithValue("@version", version);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+        cmd.Parameters.AddWithValue("@id", id);
+        await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await RcResults.WriteJsonAsync(ctx, new RcDataItemUpdatedResponse(RcId.ToText(id), version));
     }
 
     // -- Freigeben ------------------------------------------------------------

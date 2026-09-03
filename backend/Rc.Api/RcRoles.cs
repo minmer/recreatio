@@ -706,13 +706,13 @@ public static class RcRoles
     private static byte[] SealDisplayName(Guid roleId, byte[] roleKey, string name) =>
         RcCrypto.Seal(roleKey, DisplayNameAad(roleId), System.Text.Encoding.UTF8.GetBytes(name.Trim()));
 
-    private static string OpenDisplayName(Guid roleId, byte[] roleKey, byte[] sealedName) =>
+    internal static string OpenDisplayName(Guid roleId, byte[] roleKey, byte[] sealedName) =>
         System.Text.Encoding.UTF8.GetString(RcCrypto.Open(roleKey, DisplayNameAad(roleId), sealedName));
 
     private static RcAad DisplayNameAad(Guid roleId) =>
         RcAad.Create("kernel", "role", roleId, RcField.RoleDisplayName, 1);
 
-    private static async Task<Dictionary<Guid, byte[]>> LoadDisplayNamesAsync(
+    internal static async Task<Dictionary<Guid, byte[]>> LoadDisplayNamesAsync(
         SqlConnection connection, IReadOnlyList<Guid> roleIds, CancellationToken ct)
     {
         if (roleIds.Count == 0) return [];

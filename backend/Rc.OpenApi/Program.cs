@@ -10,13 +10,21 @@ using Rc.Api;
 // zusammengesetzt ist.
 //
 // Aufruf:
-//   dotnet run --project Rc.OpenApi -- ../rc-openapi.json
+//   dotnet run --project Rc.OpenApi
 //
 // Danach im Browser-Teil:
 //   npm run api:types
 // ---------------------------------------------------------------------------
 
-var target = args.FirstOrDefault() ?? "rc-openapi.json";
+// DIE VORGABE MUSS DORTHIN ZEIGEN, WO DER BROWSER-TEIL LIEST.
+//
+// Vorher war sie `rc-openapi.json` — also relativ zum Projektordner, waehrend
+// `npm run api:types` `backend/rc-openapi.json` liest. Der Aufruf ohne Argument
+// schrieb damit eine zweite Datei daneben, meldete Erfolg, und die Typen im
+// Browser-Teil blieben stehen. Ein Fehlschlag, der wie ein Gelingen aussieht,
+// ist teurer als einer, der kracht.
+var target = args.FirstOrDefault()
+    ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "rc-openapi.json");
 
 // Platzhalterwerte: die Beschreibung entsteht aus den Endpunkten, nicht aus
 // Daten. Der Dienst darf hier gar keine Datenbank erreichen — er soll es auch

@@ -85,7 +85,23 @@ export async function rcDerivePasswordKey(
 export const rcSalt = (username: string) =>
   rcFetch<RcSaltResponse>('/auth/salt', { body: { username } });
 
-export async function rcRegister(username: string, password: string): Promise<RcRegistered> {
+/**
+ * `displayName` ist der Name der PERSON — nicht der Anmeldename.
+ *
+ * Ein Konto bekommt beim Anlegen eine persoenliche Rolle, und diese Rolle ist
+ * es, die spaeter eine Pfarrei verwaltet. Ihr Name steht auf allem, was sie
+ * tut. Bleibt das Feld leer, nimmt der Server den Anmeldenamen — was
+ * funktioniert, aber niemandem gefaellt, der `mmleczek` heisst und
+ * „ks. Michal Mleczek" gemeint hat.
+ *
+ * Der Name liegt versiegelt an der Rolle (9.13.2): der Server sieht ihn beim
+ * Anlegen einmal und danach nie wieder ohne Schluessel.
+ */
+export async function rcRegister(
+  username: string,
+  password: string,
+  displayName?: string
+): Promise<RcRegistered> {
   // Beim Anlegen bestimmt der Browser das Salz. Es ist nicht geheim — es soll
   // nur für jedes Konto ein anderes sein, damit eine vorberechnete Tabelle
   // nicht gegen alle gleichzeitig hilft.
@@ -94,7 +110,12 @@ export async function rcRegister(username: string, password: string): Promise<Rc
   const encoded = rcToBase64Url(passwordKey);
 
   const session = await rcFetch<RcRegistered>('/auth/register', {
-    body: { username, passwordKey: encoded, passwordSalt: rcToBase64Url(passwordSalt) }
+    body: {
+      username,
+      passwordKey: encoded,
+      passwordSalt: rcToBase64Url(passwordSalt),
+      displayName: displayName?.trim() || undefined
+    }
   });
 
   rcSetUnlockPiece(encoded);

@@ -14,22 +14,20 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { rcCopy, rcPlural, type RcLang } from './i18n';
-import type { RcArea } from './lib/rcChat';
+import { rcCopy, rcPlural, type RcLang, rcFormat } from './i18n';
+import { rcCreateArea, rcRoles } from './lib/rcChat';
 import {
   rcAddIntention, rcAddMass, rcAddOffering, rcCreateParish, rcIntentionSealed, rcIntentions,
   rcMasses, rcMassesByDay, rcParishes, rcSaveParishSite,
   type RcIntention, type RcMass, type RcParish
 } from './lib/rcParish';
-import { rcPath } from './lib/rcRoute';
 import { rcIsAllowedSlug, rcIsSlug, rcAllowedSlugs } from './lib/rcSlugs';
 import { useRcError } from './RcThreads';
 
 export function RcParishSection({
-  lang, areas, unlocked, onError
+  lang, unlocked, onError
 }: {
   lang: RcLang;
-  areas: readonly RcArea[];
   unlocked: boolean;
   onError: (message: string) => void;
 }) {
@@ -39,9 +37,31 @@ export function RcParishSection({
   const [list, setList] = useState<readonly RcParish[]>([]);
   const [open, setOpen] = useState<RcParish | null>(null);
 
+  /*
+   * DIE PERSON, nicht der Bereich.
+   *
+   * Ein Konto bekommt beim Anlegen eine persoenliche Rolle (`kind === 'person'`)
+   * samt Zertifikaten fuer admin und certify. Das ist alles, was zum Anlegen
+   * einer Pfarrei noetig ist — und deshalb ist es auch das Einzige, was hier
+   * geladen wird.
+   *
+   * Der Bereich, an dem die Pfarrei haengt, wird beim Anlegen im Hintergrund
+   * erzeugt. Er traegt Schluessel, Epochen und Kette; das sind Bauteile und
+   * keine Begriffe, die jemand kennen muss, um eine Pfarrei einzurichten.
+   */
+  const [personRoleId, setPersonRoleId] = useState<string | null>(null);
+  const [personName, setPersonName] = useState<string | null>(null);
+
   const refresh = useCallback(async () => {
     if (!unlocked) return;
-    try { setList((await rcParishes()).parishes ?? []); }
+    try {
+      const [parishes, roles] = await Promise.all([rcParishes(), rcRoles()]);
+      setList(parishes.parishes ?? []);
+
+      const person = (roles.roles ?? []).find((r) => r.kind === 'person') ?? (roles.roles ?? [])[0];
+      setPersonRoleId(person?.roleId ?? null);
+      setPersonName(person?.displayName ?? null);
+    }
     catch (e) { onError(describe(e)); }
   }, [unlocked, describe, onError]);
 
@@ -60,31 +80,9 @@ export function RcParishSection({
     );
   }
 
-  const usable = areas.filter((a) => a.canCertify);
-
   return (
     <div className="rc-panel">
-      {list.length === 0 && usable.length > 0 && <p className="rc-note">{t.none}</p>}
-
-      {/*
-        DIE SACKGASSE, die hier vorher war.
-
-        Ohne einen Bereich, den man beglaubigen darf, erschien das Formular
-        einfach nicht — und daneben stand „eine Pfarrei haengt an einem Bereich,
-        leg sie dort an". Wo „dort" ist, stand nirgends, und der Weg dahin
-        fuehrt in einen ANDEREN Teil der Plattform. Wer die Reihenfolge nicht
-        kennt, sieht eine Seite, auf der nichts zu tun ist, und haelt sie fuer
-        kaputt.
-
-        Ein leerer Zustand muss sagen, was als Naechstes zu tun ist — und wenn
-        das anderswo geschieht, dorthin fuehren.
-      */}
-      {usable.length === 0 && (
-        <div className="rc-empty">
-          <p className="rc-note">{t.needArea}</p>
-          <a className="rc-btn rc-btn-quiet" href={rcPath('chat')}>{t.toAreas}</a>
-        </div>
-      )}
+      {list.length === 0 && <p className="rc-note">{t.none}</p>}
 
       <ul className="rc-event-list">
         {list.map((parish) => (
@@ -102,8 +100,14 @@ export function RcParishSection({
         ))}
       </ul>
 
-      {usable.length > 0 && (
-        <RcNewParish lang={lang} areas={usable} onDone={refresh} onError={onError} />
+      {personRoleId !== null && (
+        <RcNewParish
+          lang={lang}
+          personRoleId={personRoleId}
+          personName={personName}
+          onDone={refresh}
+          onError={onError}
+        />
       )}
     </div>
   );
@@ -145,17 +149,19 @@ const PARISH_THEMES = ['classic', 'warm', 'stone', 'night'] as const;
  * Frage bleibt offen, bis jemand sie beantwortet (`configured`).
  */
 function RcNewParish({
-  lang, areas, onDone, onError
+  lang, personRoleId, personName, onDone, onError
 }: {
   lang: RcLang;
-  areas: readonly RcArea[];
+  /** Die persoenliche Rolle. Sie wird die Verwalterin der Pfarrei. */
+  personRoleId: string;
+  /** Ihr Name — damit hier steht, WER das wird, und nicht nur DASS es jemand wird. */
+  personName: string | null;
   onDone: () => Promise<void>;
   onError: (message: string) => void;
 }) {
   const t = rcCopy[lang].parish;
   const describe = useRcError(lang);
 
-  const [areaId, setAreaId] = useState(areas[0]?.areaId ?? '');
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [slug, setSlug] = useState('');
@@ -187,7 +193,16 @@ function RcNewParish({
     if (!may) return;
     setBusy(true);
     try {
-      const created = await rcCreateParish(areaId, wanted, name, location.trim() || undefined);
+      /*
+       * Der Bereich entsteht hier, nicht vorher und nicht von Hand.
+       *
+       * Er traegt den Namen der Pfarrei, damit er wiederzuerkennen ist, falls
+       * ihn spaeter doch einmal jemand sieht. Fuer den Menschen davor gibt es
+       * ihn nicht: er gibt einen Namen und eine Adresse an, und der Rest ist
+       * Verkabelung.
+       */
+      const area = await rcCreateArea(personRoleId, name.trim());
+      const created = await rcCreateParish(area.areaId ?? '', wanted, name, location.trim() || undefined);
       setMade({ id: created.parishId ?? '', slug: created.slug ?? wanted, name: created.name ?? name });
     } catch (err) {
       onError(describe(err));
@@ -304,20 +319,21 @@ function RcNewParish({
         <span className="rc-make-count">{t.stepOne}</span>
         <h5 className="rc-make-title">{t.create}</h5>
         <p className="rc-make-lead">{t.nameLead}</p>
+
+        {/*
+          WER das verwaltet, mit Namen.
+
+          Die Pfarrei bekommt eine Verwalterin — die persoenliche Rolle des
+          Kontos. Das geschieht ohnehin; die Frage ist nur, ob es jemand
+          erfaehrt. Ungenannt bleibt es eine Zuordnung, die irgendwo im
+          Hintergrund passiert und die niemand nachpruefen kann.
+        */}
+        {personName !== null && (
+          <p className="rc-make-who">{rcFormat(t.adminIs, { name: personName })}</p>
+        )}
       </header>
 
       <div className="rc-make-body">
-        {areas.length > 1 && (
-          <label className="rc-inline-field">
-            <span>{rcCopy[lang].chat.areas}</span>
-            <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-              {areas.map((a) => (
-                <option key={a.areaId} value={a.areaId}>{a.title ?? a.areaId.slice(0, 8)}</option>
-              ))}
-            </select>
-          </label>
-        )}
-
         <label className="rc-field">
           <span>{t.name}</span>
           <input type="text" value={name} disabled={busy} onChange={(e) => setName(e.target.value)} />

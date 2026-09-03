@@ -74,6 +74,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/account/map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcAccountMapResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/areas": {
         parameters: {
             query?: never;
@@ -1336,6 +1371,68 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["RcDataItemResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DataItemsUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcDataItemUpdatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/data/values": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    roleId: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcDataValuesResponse"];
                     };
                 };
             };
@@ -4231,6 +4328,21 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccountMapEdgeView: {
+            id: string;
+            from: string;
+            to: string;
+            relation: string;
+        };
+        AccountMapNodeView: {
+            id: string;
+            kind: string;
+            name?: string | null;
+            /** Format: int32 */
+            depth: number;
+            hasKey: boolean;
+            isAccount: boolean;
+        };
         AreasAddMemberRequest: {
             roleId: string;
             capability?: string | null;
@@ -4477,11 +4589,22 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        DataItemsDataValueView: {
+            dataItemId: string;
+            dataClass: string;
+            field: string;
+            value?: string | null;
+            readable: boolean;
+            needsPurpose: boolean;
+        };
         DataItemsDestroyRequest: {
             reason?: string | null;
         };
         DataItemsShareRequest: {
             toRoleId: string;
+        };
+        DataItemsUpdateRequest: {
+            value: string;
         };
         DecisionsCreateDecisionRequest: {
             roleId: string;
@@ -4866,6 +4989,10 @@ export interface components {
         RcAccessLogResponse: {
             accesses: components["schemas"]["DataItemsAccessEntry"][];
         };
+        RcAccountMapResponse: {
+            nodes: components["schemas"]["AccountMapNodeView"][];
+            edges: components["schemas"]["AccountMapEdgeView"][];
+        };
         RcAreaCreatedResponse: {
             areaId: string;
             tenantId: string;
@@ -5020,6 +5147,11 @@ export interface components {
             value: string;
             logged: boolean;
         };
+        RcDataItemUpdatedResponse: {
+            dataItemId: string;
+            /** Format: int32 */
+            version: number;
+        };
         RcDataItemsResponse: {
             items: components["schemas"]["DataItemsDataItemView"][];
         };
@@ -5027,6 +5159,9 @@ export interface components {
             dataItemId: string;
             toRoleId?: string | null;
             alreadyShared: boolean;
+        };
+        RcDataValuesResponse: {
+            values: components["schemas"]["DataItemsDataValueView"][];
         };
         RcDecisionCreatedResponse: {
             decisionId: string;
@@ -5238,6 +5373,7 @@ export interface components {
             accountId?: string | null;
             sessionId?: string | null;
             keysHeld?: boolean | null;
+            username?: string | null;
         };
         RcMeetingBookedResponse: {
             slotId: string;

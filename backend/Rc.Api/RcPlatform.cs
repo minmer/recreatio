@@ -86,6 +86,7 @@ public static class RcPlatform
         app.MapRcCsrfToken();
         app.MapRcAuth();
         app.MapRcRoles();
+        app.MapRcAccountMap();
         app.MapRcInvitations();
         app.MapRcAreas();
         app.MapRcMessages();

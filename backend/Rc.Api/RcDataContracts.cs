@@ -72,3 +72,15 @@ public sealed record RcContributionResponse(
 /// </summary>
 public sealed record RcRecoveryCompletedResponse(
     string RequestId, DateTimeOffset CompletedAt, string OneTimeSecret, string Notice);
+
+/// <summary>
+/// Die Uebersicht: Knoten und Kanten. Getrennt und nicht verschachtelt, weil
+/// eine Zeichenschicht genau das erwartet — und weil ein Baum die Wahrheit
+/// nicht abbilden koennte: eine Rolle kann an ZWEI Stellen haengen.
+/// </summary>
+public sealed record RcAccountMapResponse(
+    IReadOnlyList<RcAccountMap.NodeView> Nodes, IReadOnlyList<RcAccountMap.EdgeView> Edges);
+
+public sealed record RcDataValuesResponse(IReadOnlyList<RcDataItems.DataValueView> Values);
+
+public sealed record RcDataItemUpdatedResponse(string DataItemId, int Version);
