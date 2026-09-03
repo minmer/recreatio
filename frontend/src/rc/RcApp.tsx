@@ -28,6 +28,7 @@ import { RcInviteBanner } from './RcInvite';
 import { RcSignInPage } from './RcSignInPage';
 import { rcEnter, rcEntryCheck, rcBrowserMemory, type RcEntry } from './lib/rcBoot';
 import { rcHasUnlockPiece, rcLogout, rcMe, type RcMe } from './lib/rcAuth';
+import { rcOnSessionGone } from './lib/rcApi';
 import { rcNeedsIdentity, rcParsePath, rcPath, type RcAddress, type RcPart } from './lib/rcRoute';
 import { RcSignIn } from './RcSignIn';
 import './styles/rc.css';
@@ -85,6 +86,26 @@ export function RcApp() {
    * nicht eine Sache neben anderen, sondern die einzige.
    */
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  /*
+   * WENN DIE SITZUNG FORT IST, GEHT DIE ANWENDUNG HINAUS.
+   *
+   * Ohne das sass man vor einer Werkstatt, in der jeder Handgriff scheiterte,
+   * waehrend die Kopfleiste weiter „angemeldet" sagte. Nichts wies darauf hin,
+   * dass nur Abmelden und neu Anmelden hilft — darauf muss man erst kommen.
+   *
+   * Ausgeloest wird es zentral in `rcApi`: es gibt Dutzende Aufrufer, und
+   * einer vergisst es immer.
+   */
+  useEffect(() => {
+    rcOnSessionGone(() => {
+      setUnlocked(false);
+      setEntry({ kind: 'signed-out' });
+    });
+
+    // Beim Abraeumen abmelden: sonst hielte ein alter Baum den Zeiger fest.
+    return () => rcOnSessionGone(null);
+  }, []);
 
   /**
    * Die Adresse. Aus ihr folgt beides: WAS gezeigt wird und OB beim Eintritt

@@ -175,8 +175,67 @@ export async function rcRaw(path: string, options: RcFetchOptions = {}): Promise
     return retry;
   }
 
-  if (!response.ok) throw await toError(response);
+  if (!response.ok) {
+    const failure = await toError(response);
+
+    /*
+     * EINE SITZUNG, DIE NICHT MEHR GILT, MUSS AUCH HIER ENDEN.
+     *
+     * Vorher fing jeder Aufrufer den Fehler ab, zeigte eine Meldung — und die
+     * Anwendung hielt sich weiter für angemeldet. Man sass vor einer Werkstatt,
+     * in der jeder Handgriff scheiterte, und nichts sagte, dass man draussen
+     * ist. Erst Abmelden und neu Anmelden half, und darauf muss man erst
+     * einmal kommen.
+     *
+     * Der Fall ist nicht selten: nach einem Ausrollen, das die Schutzschluessel
+     * der Cookies verliert, ist JEDES vorher ausgestellte Cookie unlesbar. Der
+     * Browser schickt es weiter, der Dienst kann nichts damit anfangen.
+     *
+     * Das gehoert HIERHER und nicht in die Aufrufer: es gibt Dutzende, und
+     * einer vergisst es immer.
+     */
+    if (failure.status === 401 && SESSION_GONE.has(failure.code)) rcSessionGone();
+
+    throw failure;
+  }
   return response;
+}
+
+/**
+ * Welche Fehler heissen „diese Sitzung gilt nicht mehr".
+ *
+ * NICHT jeder 401: eine fehlende Berechtigung ist etwas anderes als eine
+ * abgelaufene Sitzung, und wer bei jedem `403` abgemeldet wuerde, floege aus
+ * der Anwendung, weil er einmal irgendwo nicht hindurfte.
+ */
+const SESSION_GONE: ReadonlySet<string> = new Set([
+  'session.not_signed_in',
+  'session.expired',
+  'session.revoked'
+]);
+
+/**
+ * Wer erfahren will, dass die Sitzung fort ist.
+ *
+ * Ein einzelner Empfänger und keine Liste: es gibt genau eine Anwendung, und
+ * eine Liste waere eine Gelegenheit, Anmeldungen zu vergessen, die niemand
+ * mehr abmeldet.
+ */
+let onSessionGone: (() => void) | null = null;
+
+export function rcOnSessionGone(handler: (() => void) | null): void {
+  onSessionGone = handler;
+}
+
+/**
+ * Aufraeumen und Bescheid geben.
+ *
+ * Das Öffnungsstück fliegt IMMER weg, auch wenn niemand zuhört: ein Stück ohne
+ * Sitzung öffnet nichts und bleibt sonst liegen, bis der Tab zugeht.
+ */
+function rcSessionGone(): void {
+  rcSetUnlockPiece(null);
+  onSessionGone?.();
 }
 
 export async function rcFetch<T>(path: string, options: RcFetchOptions = {}): Promise<T> {
