@@ -192,8 +192,12 @@ public static class RcParish
              * Es entsteht VOR dem Bereich, damit es beim Schnitt der ersten
              * Epoche schon dasteht und den Bereichsschluessel mitbekommt.
              */
-            var officeId = await RcRoles.InsertHeldRoleAsync(connection, tx, personRoleId, personKey,
+            var (officeId, officeKey) = await RcRoles.InsertHeldRoleAsync(connection, tx, personRoleId, personKey,
                 person, tenantId, RcRoleKinds.Office, name, ctx.RequestAborted);
+
+            // Die Pfarrei versiegelt hier nichts unter dem Amtsschluessel — er
+            // wird sofort geloescht statt bis zum Ende der Anfrage zu liegen.
+            System.Security.Cryptography.CryptographicOperations.ZeroMemory(officeKey);
 
             var areaId = await RcAreas.InsertAreaAsync(connection, tx, personRoleId, personKey, person,
                 tenantId, name, false, ctx.RequestAborted, officeId);

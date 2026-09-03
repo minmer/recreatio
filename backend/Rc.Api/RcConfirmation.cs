@@ -204,7 +204,6 @@ public static class RcConfirmation
         using var held = await masterKeys.OpenAsync(connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
         var keys = await RcAreaKeys.EpochKeysAsync(connection, session.AccountId, held.MasterKey,
             group.AreaId, ctx.RequestAborted);
-
         if (keys.Count == 0)
         {
             await RcResults.WriteErrorAsync(ctx, StatusCodes.Status403Forbidden,
@@ -272,6 +271,22 @@ public static class RcConfirmation
         var keys = await RcAreaKeys.EpochKeysAsync(connection, session.AccountId, held.MasterKey,
             group.AreaId, ctx.RequestAborted);
 
+        /*
+         * DIE SELBSTANMELDUNGEN LIEGEN ANDERS.
+         *
+         * Wer sich von aussen anmeldet, hat keinen Epochenschluessel. Seine
+         * Felder liegen unter einem Sitzungsschluessel, der unter dem
+         * oeffentlichen Annahmeschluessel der Gruppe verpackt ist — und dessen
+         * privater Teil gehoert der AMTSROLLE, nicht dem Bereich.
+         *
+         * Deshalb zwei Wege im selben Durchgang: `epoch > 0` heisst von innen
+         * eingetragen, `epoch = 0` heisst von aussen angemeldet. Wer die
+         * Amtsrolle nicht haelt, sieht die zweiten als unlesbar — und sieht,
+         * DASS sie da sind.
+         */
+        var sessionKeys = await RcConfirmationIntake.SessionKeysAsync(
+            connection, session.AccountId, held.MasterKey, id, ctx.RequestAborted);
+
         await using var cmd = new SqlCommand("""
             SELECT c.id, c.epoch, c.name_sealed, c.born_sealed, c.contact_sealed,
                    c.school_sealed, c.baptism_sealed,
@@ -301,8 +316,13 @@ public static class RcConfirmation
         {
             string? unreadable = null;
             string? name = null, born = null, contact = null, school = null, baptism = null;
+            // Von aussen angemeldet: der Schluessel gehoert der Anmeldung.
 
-            if (!keys.TryGetValue(row.Epoch, out var key))
+            var key = row.Epoch == 0
+                ? (sessionKeys.TryGetValue(row.Id, out var own) ? own : null)
+                : (keys.TryGetValue(row.Epoch, out var epochKey) ? epochKey : null);
+
+            if (key is null)
             {
                 // 15.9 — Der Kandidat faellt NICHT aus der Liste. Dass jemand
                 // da ist, den man nicht lesen kann, ist eine Auskunft; ein Loch

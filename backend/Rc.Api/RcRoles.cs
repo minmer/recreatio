@@ -685,7 +685,21 @@ public static class RcRoles
     /// beides — und muss den Schluessel danach loeschen; er kommt hier nicht
     /// heraus, weil ihn niemand ausserhalb braucht.
     /// </summary>
-    internal static async Task<Guid> InsertHeldRoleAsync(
+    /// <returns>
+    /// Die Kennung der neuen Rolle UND ihren Schluessel.
+    ///
+    /// <b>Der Schluessel geht mit hinaus</b>, weil der Aufrufer manchmal sofort
+    /// etwas darunter versiegeln muss — den Annahmeschluessel eines Firmjahrs
+    /// zum Beispiel. Ihn hier zu loeschen und danach ueber den Rollengraphen
+    /// wieder zu holen ginge in derselben Transaktion nicht: der Lauf sieht nur
+    /// Festgeschriebenes.
+    ///
+    /// <b>Der Aufrufer loescht ihn.</b> Wer ihn nicht braucht, ruft
+    /// <c>CryptographicOperations.ZeroMemory</c> sofort — ein Rollenschluessel,
+    /// der laenger im Arbeitsspeicher liegt als noetig, ist ein Rollenschluessel
+    /// in einem Absturzabbild.
+    /// </returns>
+    internal static async Task<(Guid RoleId, byte[] RoleKey)> InsertHeldRoleAsync(
         SqlConnection connection, SqlTransaction tx, Guid holderRoleId, byte[] holderKey,
         RcRoleIdentity holder, Guid tenantId, string kind, string displayName, CancellationToken ct)
     {
@@ -716,8 +730,7 @@ public static class RcRoles
         await InsertEdgeAsync(connection, tx, edge, edge.Sign(holderSign), ct);
         await InsertGrantAsync(connection, tx, holderRoleId, newRoleId, grant, holderRoleId, ct);
 
-        CryptographicOperations.ZeroMemory(newRoleKey);
-        return newRoleId;
+        return (newRoleId, newRoleKey);
     }
 
     private static async Task InsertRoleAsync(

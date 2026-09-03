@@ -210,3 +210,16 @@ export async function rcOpenCandidate(
 
   return out;
 }
+
+/**
+ * Der Portallink aus einem Geheimnis allein — OHNE Schlüssel.
+ *
+ * <b>Für die Pfarrei, die ihn verschickt.</b> Sie kennt den Sitzungsschlüssel
+ * des Kandidaten nicht und soll ihn nicht kennen: sie liest die Daten über
+ * ihre eigene Amtsrolle, nicht über diesen Link.
+ *
+ * Der Kandidat kommt damit an seinen Stand und kann sein Konto verbinden. Die
+ * eigenen Angaben sieht er über diesen Weg nicht — dafür braucht es den Link
+ * mit Schlüssel, den er nach dem Absenden bekommen hat.
+ */
+export const rcPortalLinkFromSecret = (secret: string): string => rcPath('candidate', secret);

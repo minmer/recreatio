@@ -35,6 +35,8 @@ import { rcPath } from '../lib/rcRoute';
 import { RcParishBuilder } from './RcParishBuilder';
 import { rcSaveParishSite } from '../lib/rcParish';
 import { RcParishHome } from './RcParishHome';
+import { RcApplyForm } from './RcApplyForm';
+import { rcMyPersonFields } from './rcPrefill';
 import { RC_EMPTY_SITE, rcReadSite, type RcSite } from './rcSite';
 
 export function RcParishSite({
@@ -69,6 +71,25 @@ export function RcParishSite({
    */
   const [site, setSite] = useState<RcSite>(RC_EMPTY_SITE);
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+
+  /*
+   * Was von dem, der zusieht, schon bekannt ist.
+   *
+   * Nur wenn jemand angemeldet UND aufgeschlossen ist — die Angaben liegen
+   * verschluesselt an seiner persoenlichen Rolle, und ohne Schluessel gibt es
+   * sie nicht zu lesen.
+   */
+  const [prefill, setPrefill] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!signedIn) { setPrefill({}); return; }
+    let alive = true;
+    void (async () => {
+      const found = await rcMyPersonFields();
+      if (alive) setPrefill(found);
+    })();
+    return () => { alive = false; };
+  }, [signedIn]);
 
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -281,7 +302,12 @@ export function RcParishSite({
           </div>
 
           <div className="ps-editor-body">
-            <RcParishBuilder site={site} onChange={(next) => { setSite(next); setSaving('idle'); }} />
+            <RcParishBuilder
+              site={site}
+              onChange={(next) => { setSite(next); setSaving('idle'); }}
+              parishId={parish.parishId}
+              slug={slug}
+            />
           </div>
         </div>
       )}
@@ -323,6 +349,14 @@ export function RcParishSite({
         {page === 'about' && <About parish={parish} />}
         {page === 'contact' && <Contact parish={parish} />}
         {page.startsWith('sacrament-') && <Sacrament id={page} />}
+
+        {/* Die Anmeldung steht UNTER dem Text der Firmungsseite: erst was es
+            ist, dann der Weg hinein. */}
+        {page === 'sacrament-confirmation' && (
+          <div className="ps-stack">
+            <RcApplyForm slug={slug} signedIn={signedIn} prefill={prefill} />
+          </div>
+        )}
       </main>
 
       <footer className="ps-foot">

@@ -40,6 +40,7 @@ import {
   RC_PAGES, rcMenuPages, rcMissingCount, rcNeededFields, rcPage,
   type RcMenuNode, type RcSite
 } from './rcSite';
+import { RcConfirmationTab } from './RcConfirmationTab';
 
 const ROW_H = 84;
 const GAP = 8;
@@ -69,13 +70,16 @@ const HANDLES: readonly RcHandle[] = [
   'bottom-left', 'bottom', 'bottom-right'
 ];
 
-type Tab = 'layout' | 'menu' | 'content';
+type Tab = 'layout' | 'menu' | 'content' | 'confirmation';
 
 export function RcParishBuilder({
-  site, onChange
+  site, onChange, parishId, slug
 }: {
   site: RcSite;
   onChange: (next: RcSite) => void;
+  /** Fuer die Firmung: sie haengt an der Pfarrei, nicht am Dokument. */
+  parishId: string;
+  slug: string;
 }) {
   const [tab, setTab] = useState<Tab>('layout');
   const missing = rcMissingCount(site);
@@ -103,6 +107,11 @@ export function RcParishBuilder({
           onChange={(content) => onChange({ ...site, content })}
         />
       )}
+
+      {/* Die Firmung wird NICHT im Dokument gespeichert: sie hat einen eigenen
+          Bereich, eine eigene Rolle und einen eigenen Schluessel. Sie hier
+          hineinzuschreiben hiesse, all das an einer Textspalte aufzuhaengen. */}
+      {tab === 'confirmation' && <RcConfirmationTab parishId={parishId} slug={slug} />}
     </div>
   );
 }
@@ -111,7 +120,8 @@ function Tabs({ tab, onTab, missing }: { tab: Tab; onTab: (t: Tab) => void; miss
   const items: readonly { id: Tab; label: string }[] = [
     { id: 'layout', label: 'Układ' },
     { id: 'menu', label: 'Menu' },
-    { id: 'content', label: 'Treść' }
+    { id: 'content', label: 'Treść' },
+    { id: 'confirmation', label: 'Bierzmowanie' }
   ];
 
   return (

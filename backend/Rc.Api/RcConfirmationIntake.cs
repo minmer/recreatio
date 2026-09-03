@@ -49,6 +49,10 @@ public static class RcConfirmationIntake
         app.MapPost("/rc/public/candidate/{token}/bind", BindAsync).Produces<RcCandidateBoundResponse>();
         app.MapPost("/rc/public/candidate/{token}/revoke", RevokeAsync).Produces<RcCandidateRevokedResponse>();
         app.MapPost("/rc/confirmation-groups/{id:guid}/applications", OpenAsync).Produces<RcApplicationsOpenResponse>();
+        app.MapPost("/rc/parishes/{id:guid}/confirmation", SetUpAsync).Produces<RcConfirmationSetUpResponse>();
+        app.MapGet("/rc/parishes/{id:guid}/confirmation", ReadSetUpAsync).Produces<RcConfirmationSetUpResponse>();
+        app.MapGet("/rc/confirmation-groups/{id:guid}/links", LinksAsync).Produces<RcCandidateLinksResponse>();
+        app.MapPost("/rc/candidates/{id:guid}/progress", ProgressAsync).Produces<RcCandidateProgressResponse>();
     }
 
     private static RcAad IntakeAad(Guid groupId) =>
@@ -419,7 +423,14 @@ public static class RcConfirmationIntake
 
     // -- Das Formular oeffnen -------------------------------------------------
 
-    public sealed record OpenRequest(bool Open);
+    /// <param name="LeaderRoleId">
+    /// Die persoenliche Rolle dessen, der das Firmjahr fuehrt. Unter IHR
+    /// entsteht die Amtsrolle, der der Annahmeschluessel gehoert.
+    ///
+    /// Fehlt sie beim ersten Oeffnen, wird nicht geraten: es gibt keine
+    /// vernuenftige Vorgabe fuer „wer fuehrt das hier".
+    /// </param>
+    public sealed record OpenRequest(bool Open, string? LeaderRoleId);
 
     /// <summary>
     /// Anmeldungen zulassen oder schliessen.
@@ -438,67 +449,582 @@ public static class RcConfirmationIntake
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         Guid areaId;
+        Guid tenantId;
         bool hasKey;
+        string groupName;
         await using (var find = new SqlCommand(
-            "SELECT area_id, CASE WHEN intake_public_key IS NULL THEN 0 ELSE 1 END " +
-            "FROM dbo.rc_confirmation_group WHERE id = @id;", connection))
+            "SELECT area_id, tenant_id, name, CASE WHEN intake_public_key IS NULL THEN 0 ELSE 1 END " +
+            "FROM dbo.rc_confirmation_group g " +
+            "JOIN dbo.rc_area a ON a.id = g.area_id WHERE g.id = @id;", connection))
         {
             find.Parameters.AddWithValue("@id", id);
             await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
             if (!await reader.ReadAsync(ctx.RequestAborted)) { await NotFound(ctx); return; }
             areaId = reader.GetGuid(0);
-            hasKey = reader.GetInt32(1) == 1;
+            tenantId = reader.GetGuid(1);
+            groupName = reader.GetString(2);
+            hasKey = reader.GetInt32(3) == 1;
         }
 
         var may = await permissions.CheckAsync(session.AccountId, RcScopeKind.Area, areaId,
             RcCapability.Admin, ctx.RequestAborted);
         if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
 
-        byte[]? intakePublic = null;
-        byte[]? intakeSealed = null;
-        int? intakeEpoch = null;
-
-        if (body.Open && !hasKey)
+        /*
+         * NUR OFFEN ODER ZU — der Schluessel steht schon.
+         */
+        if (!body.Open || hasKey)
         {
-            using var held = await masterKeys.OpenAsync(connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
-            var keys = await RcAreaKeys.EpochKeysAsync(connection, session.AccountId, held.MasterKey,
-                areaId, ctx.RequestAborted);
+            await using var flip = new SqlCommand(
+                "UPDATE dbo.rc_confirmation_group SET applications_open = @open WHERE id = @id;", connection);
+            flip.Parameters.AddWithValue("@open", body.Open);
+            flip.Parameters.AddWithValue("@id", id);
+            await flip.ExecuteNonQueryAsync(ctx.RequestAborted);
 
-            if (keys.Count == 0)
+            await RcResults.WriteJsonAsync(ctx, new RcApplicationsOpenResponse(
+                RcId.ToText(id), body.Open, null));
+            return;
+        }
+
+        /*
+         * DAS ERSTE OEFFNEN: DER SCHLUESSEL BEKOMMT EINEN EIGENTUEMER.
+         *
+         * Er gehoert NICHT dem Bereich, sondern einer Rolle — der Person, die
+         * das Firmjahr fuehrt. Der Unterschied ist die ganze Absicht: „den
+         * Bereich lesen duerfen" bekommt jemand, um an einem Messplan zu
+         * arbeiten; die Anmeldungen der Kinder zu oeffnen ist etwas anderes.
+         *
+         * Die Rolle laesst sich weitergeben wie jede andere
+         * (POST /rc/roles/{id}/holders). Das ist der Unterschied zwischen
+         * „niemand sonst kann es" und „nur wer es bekommen hat" — das Erste
+         * waere eine Sackgasse, sobald jemand krank wird.
+         */
+        if (!Guid.TryParse(body.LeaderRoleId, out var leaderPersonRoleId))
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                RcErrorCodes.IdMalformed,
+                "Beim ersten Oeffnen muss dastehen, wer das Firmjahr fuehrt.");
+            return;
+        }
+
+        using var opened = await masterKeys.OpenAsync(connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
+
+        var leaderKey = await RcRoleAccess.RoleKeyAsync(
+            connection, session.AccountId, opened.MasterKey, leaderPersonRoleId, ctx.RequestAborted);
+
+        if (leaderKey is null) { await RcAreas.NotForYou(ctx); return; }
+
+        var identities = await RcRoleAccess.LoadIdentitiesAsync(
+            connection, [leaderPersonRoleId], ctx.RequestAborted);
+
+        if (!identities.TryGetValue(leaderPersonRoleId, out var leaderPerson))
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status404NotFound,
+                RcErrorCodes.RoleNotFound, "Diese Rolle gibt es nicht.");
+            return;
+        }
+
+        Guid officeId;
+        await using (var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted))
+        {
+            try
             {
-                await RcResults.WriteErrorAsync(ctx, StatusCodes.Status403Forbidden,
-                    RcErrorCodes.CryptoMissingEpoch, "Du hast keinen Schluessel fuer diesen Bereich.");
-                return;
+                byte[] officeKey;
+                (officeId, officeKey) = await RcRoles.InsertHeldRoleAsync(
+                    connection, tx, leaderPersonRoleId, leaderKey, leaderPerson, tenantId,
+                    RcRoleKinds.Office, groupName, ctx.RequestAborted);
+
+                try
+                {
+                    using var intake = RSA.Create(4096);
+
+                    await using var write = new SqlCommand("""
+                        UPDATE dbo.rc_confirmation_group
+                        SET applications_open = 1, leader_role_id = @leader,
+                            intake_public_key = @pub, intake_private_sealed = @sealed, intake_epoch = 0
+                        WHERE id = @id;
+                        """, connection, tx);
+
+                    write.Parameters.AddWithValue("@leader", officeId);
+                    write.Parameters.AddWithValue("@pub", intake.ExportSubjectPublicKeyInfo());
+
+                    // Versiegelt unter dem AMTSSCHLUESSEL. intake_epoch = 0
+                    // sagt: dieser Schluessel haengt nicht mehr an einer Epoche
+                    // des Bereichs — ein Epochenschnitt macht ihn nicht
+                    // unbrauchbar, und niemand muss raten, unter welcher er lag.
+                    write.Parameters.AddWithValue("@sealed",
+                        RcCrypto.Seal(officeKey, IntakeAad(id), intake.ExportPkcs8PrivateKey()));
+
+                    write.Parameters.AddWithValue("@id", id);
+                    await write.ExecuteNonQueryAsync(ctx.RequestAborted);
+                }
+                finally
+                {
+                    System.Security.Cryptography.CryptographicOperations.ZeroMemory(officeKey);
+                }
+
+                await tx.CommitAsync(ctx.RequestAborted);
             }
-
-            intakeEpoch = keys.Keys.Max();
-            using var intake = RSA.Create(4096);
-            intakePublic = intake.ExportSubjectPublicKeyInfo();
-            intakeSealed = RcCrypto.Seal(keys[intakeEpoch.Value], IntakeAad(id), intake.ExportPkcs8PrivateKey());
+            catch
+            {
+                await tx.RollbackAsync(ctx.RequestAborted);
+                throw;
+            }
         }
-
-        await using var cmd = new SqlCommand(
-            intakePublic is null
-                ? "UPDATE dbo.rc_confirmation_group SET applications_open = @open WHERE id = @id;"
-                : """
-                  UPDATE dbo.rc_confirmation_group
-                  SET applications_open = @open, intake_public_key = @pub,
-                      intake_private_sealed = @sealed, intake_epoch = @epoch
-                  WHERE id = @id;
-                  """, connection);
-
-        cmd.Parameters.AddWithValue("@open", body.Open);
-        cmd.Parameters.AddWithValue("@id", id);
-        if (intakePublic is not null)
-        {
-            cmd.Parameters.AddWithValue("@pub", intakePublic);
-            cmd.Parameters.AddWithValue("@sealed", intakeSealed!);
-            cmd.Parameters.AddWithValue("@epoch", intakeEpoch!.Value);
-        }
-        await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
 
         await RcResults.WriteJsonAsync(ctx, new RcApplicationsOpenResponse(
-            RcId.ToText(id), body.Open));
+            RcId.ToText(id), true, RcId.ToText(officeId)));
+    }
+
+    // -- Einrichten -----------------------------------------------------------
+
+    public sealed record SetUpRequest(string PersonRoleId, string? Name);
+
+    /// <summary>
+    /// Ein Firmjahr einrichten — Bereich, Gruppe, Amtsrolle und
+    /// Annahmeschluessel in EINER Transaktion.
+    ///
+    /// <b>Warum nicht der Browser das zusammensetzt.</b> Es waeren vier
+    /// Aufrufe, und zwischen zwei Anfragen gibt es kein Zurueck: brach der
+    /// zweite ab, blieb ein Bereich stehen, der zu nichts gehoert. Genau das
+    /// ist bei der Pfarrei schon passiert und als Liste gleichnamiger Bereiche
+    /// sichtbar geworden.
+    ///
+    /// <b>Der eigene Bereich ist Absicht.</b> Die Akten der Kinder haengen
+    /// nicht am Bereich der Pfarrei: wer den Messplan pflegt, bekommt damit
+    /// keinen Zugang zu ihnen.
+    ///
+    /// <b>Wer einrichtet, fuehrt zunaechst.</b> Die Amtsrolle entsteht unter
+    /// seiner persoenlichen Rolle. Weitergeben geht danach wie bei jeder
+    /// anderen Rolle — das ist der Unterschied zwischen „nur ich" und „ich,
+    /// bis ich jemanden dazunehme".
+    /// </summary>
+    private static async Task SetUpAsync(
+        HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions,
+        Guid id, SetUpRequest body)
+    {
+        var session = ctx.RcSession();
+        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        if (!Guid.TryParse(body.PersonRoleId, out var personRoleId))
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                RcErrorCodes.IdMalformed, "Das ist keine Rollenkennung.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        Guid parishArea;
+        string parishName;
+        await using (var find = new SqlCommand(
+            "SELECT area_id, name FROM dbo.rc_parish WHERE id = @id;", connection))
+        {
+            find.Parameters.AddWithValue("@id", id);
+            await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
+            if (!await reader.ReadAsync(ctx.RequestAborted)) { await NotFound(ctx); return; }
+            parishArea = reader.GetGuid(0);
+            parishName = reader.GetString(1);
+        }
+
+        // Einrichten darf, wer die Pfarrei verwaltet.
+        var may = await permissions.CheckAsync(session.AccountId, RcScopeKind.Area, parishArea,
+            RcCapability.Admin, ctx.RequestAborted);
+        if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
+
+        // Zweimal einrichten ist kein Fehler — es ist ein Wunsch, der schon
+        // erfuellt ist. Die bestehende Einrichtung kommt zurueck.
+        var already = await SetUpOfAsync(connection, id, ctx.RequestAborted);
+        if (already is not null)
+        {
+            await RcResults.WriteJsonAsync(ctx, already);
+            return;
+        }
+
+        using var held = await masterKeys.OpenAsync(connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
+
+        var personKey = await RcRoleAccess.RoleKeyAsync(
+            connection, session.AccountId, held.MasterKey, personRoleId, ctx.RequestAborted);
+        if (personKey is null) { await RcAreas.NotForYou(ctx); return; }
+
+        var identities = await RcRoleAccess.LoadIdentitiesAsync(connection, [personRoleId], ctx.RequestAborted);
+        if (!identities.TryGetValue(personRoleId, out var person))
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status404NotFound,
+                RcErrorCodes.RoleNotFound, "Diese Rolle gibt es nicht.");
+            return;
+        }
+
+        var tenantId = await RcAreas.TenantOfRoleAsync(connection, personRoleId, ctx.RequestAborted);
+        if (tenantId == Guid.Empty)
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status404NotFound,
+                RcErrorCodes.RoleNotFound, "Diese Rolle gibt es nicht.");
+            return;
+        }
+
+        var name = Trim(body.Name, 120) ?? $"Bierzmowanie — {parishName}";
+        var groupId = RcId.NewId();
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(
+            System.Data.IsolationLevel.Serializable, ctx.RequestAborted);
+        try
+        {
+            // Die Amtsrolle ZUERST: sie kommt in den Bereich, bevor dessen
+            // erste Epoche geschnitten wird, und bekommt damit den Schluessel.
+            var (officeId, officeKey) = await RcRoles.InsertHeldRoleAsync(
+                connection, tx, personRoleId, personKey, person, tenantId,
+                RcRoleKinds.Office, name, ctx.RequestAborted);
+
+            try
+            {
+                var areaId = await RcAreas.InsertAreaAsync(connection, tx, personRoleId, personKey,
+                    person, tenantId, name, false, ctx.RequestAborted, officeId);
+
+                using var intake = RSA.Create(4096);
+
+                await using (var insert = new SqlCommand("""
+                    INSERT INTO dbo.rc_confirmation_group
+                        (id, parish_id, area_id, name, lifecycle, created_at,
+                         leader_role_id, intake_public_key, intake_private_sealed,
+                         intake_epoch, applications_open)
+                    VALUES (@id, @parish, @area, @name, N'preparing', @now,
+                            @leader, @pub, @sealed, 0, 0);
+                    """, connection, tx))
+                {
+                    insert.Parameters.AddWithValue("@id", groupId);
+                    insert.Parameters.AddWithValue("@parish", id);
+                    insert.Parameters.AddWithValue("@area", areaId);
+                    insert.Parameters.AddWithValue("@name", name);
+                    insert.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+                    insert.Parameters.AddWithValue("@leader", officeId);
+                    insert.Parameters.AddWithValue("@pub", intake.ExportSubjectPublicKeyInfo());
+
+                    // Unter dem AMTSSCHLUESSEL, nicht unter der Epoche des
+                    // Bereichs: wer den Bereich lesen darf, oeffnet damit noch
+                    // keine Anmeldung.
+                    insert.Parameters.AddWithValue("@sealed",
+                        RcCrypto.Seal(officeKey, IntakeAad(groupId), intake.ExportPkcs8PrivateKey()));
+
+                    await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
+                }
+            }
+            finally
+            {
+                System.Security.Cryptography.CryptographicOperations.ZeroMemory(officeKey);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        var made = await SetUpOfAsync(connection, id, ctx.RequestAborted);
+        await RcResults.WriteJsonAsync(ctx, made!, StatusCodes.Status201Created);
+    }
+
+    /// <summary>Was fuer diese Pfarrei eingerichtet ist — oder nichts.</summary>
+    private static async Task ReadSetUpAsync(HttpContext ctx, RcDb db, Guid id)
+    {
+        var session = ctx.RcSession();
+        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var found = await SetUpOfAsync(connection, id, ctx.RequestAborted);
+
+        await RcResults.WriteJsonAsync(ctx,
+            found ?? new RcConfirmationSetUpResponse(null, null, null, null, false));
+    }
+
+    private static async Task<RcConfirmationSetUpResponse?> SetUpOfAsync(
+        SqlConnection connection, Guid parishId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("""
+            SELECT TOP 1 id, area_id, name, leader_role_id, applications_open
+            FROM dbo.rc_confirmation_group
+            WHERE parish_id = @parish AND lifecycle <> N'closed'
+            ORDER BY created_at DESC;
+            """, connection);
+        cmd.Parameters.AddWithValue("@parish", parishId);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return null;
+
+        return new RcConfirmationSetUpResponse(
+            RcId.ToText(reader.GetGuid(0)),
+            RcId.ToText(reader.GetGuid(1)),
+            reader.GetString(2),
+            reader.IsDBNull(3) ? null : RcId.ToText(reader.GetGuid(3)),
+            reader.GetBoolean(4));
+    }
+
+    private static string? Trim(string? text, int max)
+    {
+        var t = text?.Trim();
+        return string.IsNullOrEmpty(t) ? null : (t.Length > max ? t[..max] : t);
+    }
+
+    // -- Die Portallinks fuer die Pfarrei -------------------------------------
+
+    /// <summary>
+    /// Die Portalgeheimnisse aller Selbstanmeldungen — damit die Pfarrei den
+    /// Link noch einmal herstellen und per SMS schicken kann.
+    ///
+    /// <b>Hier packt der Dienst aus, und das ist eine Abweichung, die dasteht.</b>
+    /// Beim Anmelden hat er das Geheimnis nie gehabt: der Browser hat es
+    /// gewuerfelt und nur den Abdruck geschickt. Auf DIESEM Weg entsiegelt er
+    /// es — fuer die Dauer einer Anfrage, im Auftrag dessen, der die Amtsrolle
+    /// haelt.
+    ///
+    /// Anders geht es nicht: die Rollenschluessel liegen im Schluesselspeicher
+    /// des Dienstes und nicht im Browser. Wer den Link ohne diese Abweichung
+    /// haben will, muesste die Rollenschluessel herausgeben — und das waere
+    /// die groessere.
+    ///
+    /// Es ist dieselbe Abweichung wie beim Lesen der Kandidatenfelder
+    /// (<c>CandidatesAsync</c>): der Dienst oeffnet fuer den Schluesselhalter,
+    /// waehrend dieser fragt, und behaelt nichts.
+    /// </summary>
+    private static async Task LinksAsync(
+        HttpContext ctx, RcDb db, RcMasterKey masterKeys, Guid id)
+    {
+        var session = ctx.RcSession();
+        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        using var held = await masterKeys.OpenAsync(connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
+
+        var rsa = await IntakeKeyAsync(connection, session.AccountId, held.MasterKey, id, ctx.RequestAborted);
+        if (rsa is null)
+        {
+            // Wer die Amtsrolle nicht haelt, bekommt keine Links — und eine
+            // leere Liste sagt genau das, ohne zu verraten, wie viele es gibt.
+            await RcResults.WriteJsonAsync(ctx, new RcCandidateLinksResponse([]));
+            return;
+        }
+
+        using (rsa)
+        {
+            await using var cmd = new SqlCommand("""
+                SELECT id, portal_token_wrapped, portal_revoked_at
+                FROM dbo.rc_candidate
+                WHERE group_id = @group AND portal_token_wrapped IS NOT NULL
+                ORDER BY created_at;
+                """, connection);
+            cmd.Parameters.AddWithValue("@group", id);
+
+            var links = new List<CandidateLink>();
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                var candidateId = reader.GetGuid(0);
+                var revoked = !reader.IsDBNull(2);
+
+                if (revoked)
+                {
+                    // Ein abgeschalteter Link wird NICHT herausgegeben. Ihn
+                    // trotzdem zu zeigen hiesse, dass „abschalten" nur die
+                    // Anzeige betrifft.
+                    links.Add(new CandidateLink(RcId.ToText(candidateId), null, true));
+                    continue;
+                }
+
+                try
+                {
+                    var secret = System.Text.Encoding.UTF8.GetString(
+                        rsa.Decrypt((byte[])reader[1], RSAEncryptionPadding.OaepSHA256));
+                    links.Add(new CandidateLink(RcId.ToText(candidateId), secret, false));
+                }
+                catch (CryptographicException)
+                {
+                    links.Add(new CandidateLink(RcId.ToText(candidateId), null, false));
+                }
+            }
+
+            await RcResults.WriteJsonAsync(ctx, new RcCandidateLinksResponse(links));
+        }
+    }
+
+    public sealed record CandidateLink(string CandidateId, string? Secret, bool Revoked);
+
+    // -- Der Stand eines Kandidaten -------------------------------------------
+
+    public sealed record ProgressRequest(bool? PaperReceived, bool? QuizPassed);
+
+    /// <summary>
+    /// Was noch fehlt, abhaken.
+    ///
+    /// <b>Diese Merker sind Klartext</b> — sie betreffen den VORGANG und nicht
+    /// die Person. Ohne sie liesse sich nicht zaehlen, von wem noch etwas
+    /// aussteht, ohne jeden Datensatz zu entschluesseln.
+    ///
+    /// <b>Was nicht mitgeschickt wird, bleibt stehen.</b> Zwei Haken in einem
+    /// Formular, von denen einer versehentlich zurueckgesetzt wird, weil das
+    /// andere Feld leer war, ist ein Fehler, den niemand bemerkt.
+    /// </summary>
+    private static async Task ProgressAsync(
+        HttpContext ctx, RcDb db, RcPermissions permissions, Guid id, ProgressRequest body)
+    {
+        var session = ctx.RcSession();
+        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        Guid areaId;
+        await using (var find = new SqlCommand(
+            "SELECT g.area_id FROM dbo.rc_candidate c " +
+            "JOIN dbo.rc_confirmation_group g ON g.id = c.group_id WHERE c.id = @id;", connection))
+        {
+            find.Parameters.AddWithValue("@id", id);
+            if (await find.ExecuteScalarAsync(ctx.RequestAborted) is not Guid found) { await NotFound(ctx); return; }
+            areaId = found;
+        }
+
+        var may = await permissions.CheckAsync(session.AccountId, RcScopeKind.Area, areaId,
+            RcCapability.Write, ctx.RequestAborted);
+        if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
+
+        await using var cmd = new SqlCommand("""
+            UPDATE dbo.rc_candidate
+            SET paper_received = COALESCE(@paper, paper_received),
+                quiz_passed    = COALESCE(@quiz, quiz_passed),
+                updated_at     = @now
+            WHERE id = @id;
+            """, connection);
+
+        cmd.Parameters.Add("@paper", System.Data.SqlDbType.Bit).Value =
+            (object?)body.PaperReceived ?? DBNull.Value;
+        cmd.Parameters.Add("@quiz", System.Data.SqlDbType.Bit).Value =
+            (object?)body.QuizPassed ?? DBNull.Value;
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+        cmd.Parameters.AddWithValue("@id", id);
+
+        await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await RcResults.WriteJsonAsync(ctx, new RcCandidateProgressResponse(RcId.ToText(id), true));
+    }
+
+    // -- Die Anmeldungen lesen ------------------------------------------------
+
+    /// <summary>
+    /// Die Sitzungsschluessel aller Selbstanmeldungen einer Gruppe.
+    ///
+    /// <b>Der Weg dorthin hat drei Stufen</b>, und jede kann zu Recht
+    /// scheitern:
+    ///
+    /// <code>
+    ///   1. Amtsrolle erreichbar?    sonst leer — wer sie nicht haelt, liest nicht
+    ///   2. privaten Annahme-        entsiegelt unter dem Amtsschluessel
+    ///      schluessel oeffnen
+    ///   3. je Anmeldung den         RSA-OAEP, mit demselben Platz, den der
+    ///      Sitzungsschluessel          Browser beim Verpacken benutzt hat
+    ///      auspacken
+    /// </code>
+    ///
+    /// <b>Ein leeres Ergebnis ist kein Fehler.</b> Es heisst: dieses Konto
+    /// haelt die Amtsrolle nicht. Die Kandidaten bleiben in der Liste und
+    /// stehen als unlesbar da — dass jemand angemeldet ist, gehoert zur
+    /// Auskunft, auch wenn seine Angaben es nicht tun.
+    /// </summary>
+    /// <summary>
+    /// Der private Annahmeschluessel einer Gruppe — oder <c>null</c>.
+    ///
+    /// <c>null</c> heisst immer dasselbe und nie einen Fehler: diese Gruppe
+    /// nimmt nichts an, oder dieses Konto haelt die Amtsrolle nicht. Beide
+    /// Faelle enden bei „du liest hier nichts", und sie zu unterscheiden waere
+    /// eine Auskunft ueber fremde Rollen.
+    ///
+    /// <b>Der Aufrufer entsorgt.</b> Ein RSA-Schluessel, der laenger lebt als
+    /// die Anfrage, ist ein RSA-Schluessel in einem Absturzabbild.
+    /// </summary>
+    private static async Task<RSA?> IntakeKeyAsync(
+        SqlConnection connection, Guid accountId, byte[] masterKey, Guid groupId, CancellationToken ct)
+    {
+        Guid leaderRoleId;
+        byte[] intakeSealed;
+
+        await using (var cmd = new SqlCommand(
+            "SELECT leader_role_id, intake_private_sealed FROM dbo.rc_confirmation_group WHERE id = @id;",
+            connection))
+        {
+            cmd.Parameters.AddWithValue("@id", groupId);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct)) return null;
+            if (reader.IsDBNull(0) || reader.IsDBNull(1)) return null;
+
+            leaderRoleId = reader.GetGuid(0);
+            intakeSealed = (byte[])reader[1];
+        }
+
+        var leaderKey = await RcRoleAccess.RoleKeyAsync(connection, accountId, masterKey, leaderRoleId, ct);
+        if (leaderKey is null) return null;
+
+        byte[] privateKey;
+        try { privateKey = RcCrypto.Open(leaderKey, IntakeAad(groupId), intakeSealed); }
+        catch (RcDecryptException) { return null; }
+
+        var rsa = RSA.Create();
+        try { rsa.ImportPkcs8PrivateKey(privateKey, out _); }
+        catch { rsa.Dispose(); return null; }
+        finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(privateKey); }
+
+        return rsa;
+    }
+
+    internal static async Task<Dictionary<Guid, byte[]>> SessionKeysAsync(
+        SqlConnection connection, Guid accountId, byte[] masterKey, Guid groupId, CancellationToken ct)
+    {
+        var found = new Dictionary<Guid, byte[]>();
+
+        Guid leaderRoleId;
+        byte[] intakeSealed;
+        await using (var cmd = new SqlCommand(
+            "SELECT leader_role_id, intake_private_sealed FROM dbo.rc_confirmation_group WHERE id = @id;",
+            connection))
+        {
+            cmd.Parameters.AddWithValue("@id", groupId);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct)) return found;
+            if (reader.IsDBNull(0) || reader.IsDBNull(1)) return found;
+
+            leaderRoleId = reader.GetGuid(0);
+            intakeSealed = (byte[])reader[1];
+        }
+
+        var rsa = await IntakeKeyAsync(connection, accountId, masterKey, groupId, ct);
+        if (rsa is null) return found;
+        using var _ = rsa;
+
+        await using var keys = new SqlCommand("""
+            SELECT i.candidate_id, i.session_key_wrapped
+            FROM dbo.rc_candidate_intake i
+            JOIN dbo.rc_candidate c ON c.id = i.candidate_id
+            WHERE c.group_id = @group;
+            """, connection);
+        keys.Parameters.AddWithValue("@group", groupId);
+
+        await using var rows = await keys.ExecuteReaderAsync(ct);
+        while (await rows.ReadAsync(ct))
+        {
+            var candidateId = rows.GetGuid(0);
+            try
+            {
+                // Derselbe Platz wie beim Verpacken im Browser. Ein anderer
+                // ergaebe hier eine Ausnahme statt eines falschen Schluessels —
+                // das ist die freundlichere Sorte Fehler.
+                found[candidateId] = rsa.Decrypt((byte[])rows[1], RSAEncryptionPadding.OaepSHA256);
+            }
+            catch (CryptographicException)
+            {
+                // Eine Anmeldung, die nicht aufgeht, verschweigt die anderen
+                // nicht. Sie erscheint als unlesbar.
+            }
+        }
+
+        return found;
     }
 
     // -- Gemeinsames ----------------------------------------------------------

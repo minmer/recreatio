@@ -1226,6 +1226,144 @@
         }
       }
     },
+    "/rc/parishes/{id}/confirmation": {
+      "post": {
+        "tags": [
+          "RcConfirmationIntake"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationIntakeSetUpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcConfirmationSetUpResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "RcConfirmationIntake"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcConfirmationSetUpResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/confirmation-groups/{id}/links": {
+      "get": {
+        "tags": [
+          "RcConfirmationIntake"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCandidateLinksResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/candidates/{id}/progress": {
+      "post": {
+        "tags": [
+          "RcConfirmationIntake"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationIntakeProgressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcCandidateProgressResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/consent/{key}": {
       "get": {
         "tags": [
@@ -5067,6 +5205,8 @@
       "ConfirmationIntakeApplyRequest": {
         "required": [
           "fields",
+          "portalTokenHash",
+          "portalTokenWrapped",
           "rodoAccepted",
           "sessionKeyWrapped"
         ],
@@ -5083,6 +5223,32 @@
           },
           "rodoAccepted": {
             "type": "boolean"
+          },
+          "portalTokenHash": {
+            "type": "string"
+          },
+          "portalTokenWrapped": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationIntakeCandidateLink": {
+        "required": [
+          "candidateId",
+          "revoked"
+        ],
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string",
+            "nullable": true
+          },
+          "revoked": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -5095,6 +5261,24 @@
         "properties": {
           "open": {
             "type": "boolean"
+          },
+          "leaderRoleId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationIntakeProgressRequest": {
+        "type": "object",
+        "properties": {
+          "paperReceived": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "quizPassed": {
+            "type": "boolean",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -5111,6 +5295,22 @@
           },
           "sealed": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationIntakeSetUpRequest": {
+        "required": [
+          "personRoleId"
+        ],
+        "type": "object",
+        "properties": {
+          "personRoleId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -6875,6 +7075,10 @@
           },
           "open": {
             "type": "boolean"
+          },
+          "leaderRoleId": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -7133,15 +7337,11 @@
       },
       "RcCandidateAppliedResponse": {
         "required": [
-          "candidateId",
-          "portalToken"
+          "candidateId"
         ],
         "type": "object",
         "properties": {
           "candidateId": {
-            "type": "string"
-          },
-          "portalToken": {
             "type": "string"
           }
         },
@@ -7175,6 +7375,21 @@
           },
           "name": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCandidateLinksResponse": {
+        "required": [
+          "links"
+        ],
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfirmationIntakeCandidateLink"
+            }
           }
         },
         "additionalProperties": false
@@ -7230,6 +7445,22 @@
             "items": {
               "$ref": "#/components/schemas/ConfirmationIntakeSealedField"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcCandidateProgressResponse": {
+        "required": [
+          "candidateId",
+          "saved"
+        ],
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string"
+          },
+          "saved": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -7373,6 +7604,34 @@
             "items": {
               "$ref": "#/components/schemas/ConfirmationGroupSummary"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcConfirmationSetUpResponse": {
+        "required": [
+          "open"
+        ],
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "nullable": true
+          },
+          "areaId": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "leaderRoleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "open": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

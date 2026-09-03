@@ -20,6 +20,7 @@ import { RcChat, RcEventsSection, RcParishOutlet, RcGraphOutlet, RcCalendarOutle
 import { RcAccountOutlet } from './RcAccount';
 import { RcSignInDrawer } from './RcSignInDrawer';
 import { RcParishSite } from './parish/RcParishSite';
+import { RcCandidatePortalPage } from './parish/RcCandidatePortal';
 import './parish/parishSite.css';
 
 import { RcPersonOutlet } from './RcPerson';
@@ -240,6 +241,34 @@ export function RcApp() {
    * Ohne Namen in der Adresse (`#/new/parish`) bleibt es die Verwaltung, und
    * die braucht Schluessel wie alles andere in der Werkstatt.
    */
+  /*
+   * DAS PORTAL EINES FIRMKANDIDATEN — vor allem anderen.
+   *
+   * Es braucht KEIN Konto: wer sich angemeldet hat, hat meist keines. Der
+   * Slug ist das Portalgeheimnis, das Segment danach der Schluessel. Beide
+   * stehen hinter der Raute und gehen nie an den Server.
+   */
+  if (address.part === 'candidate' && address.slug !== null) {
+    return (
+      <>
+        <RcCandidatePortalPage
+          secret={address.slug}
+          keyText={address.tail[0] ?? null}
+          signedIn={entry.kind === 'signed-in'}
+          onSignIn={() => setDrawerOpen(true)}
+        />
+        <RcSignInDrawer
+          lang={lang}
+          entry={entry}
+          onEntry={setEntry}
+          onReady={setUnlocked}
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+        />
+      </>
+    );
+  }
+
   if (address.part === 'parish' && address.slug !== null) {
     /*
      * Die Anmeldeschublade fährt AUF der Pfarrseite herein.

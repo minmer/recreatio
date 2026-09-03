@@ -67,4 +67,29 @@ public sealed record RcCandidateRevokedResponse(string CandidateId, bool Revoked
 
 public sealed record RcCandidateBoundResponse(string CandidateId, bool Bound);
 
-public sealed record RcApplicationsOpenResponse(string GroupId, bool Open);
+/// <summary>
+/// <c>LeaderRoleId</c> ist die Amtsrolle, der der Annahmeschluessel gehoert —
+/// beim ersten Oeffnen entstanden. Sie laesst sich weitergeben wie jede andere
+/// Rolle; wer sie haelt, liest die Anmeldungen.
+/// </summary>
+public sealed record RcApplicationsOpenResponse(string GroupId, bool Open, string? LeaderRoleId);
+
+/// <summary>
+/// Was fuer eine Pfarrei eingerichtet ist. Alles <c>null</c> heisst: noch
+/// nichts — und die Oberflaeche zeigt dann, was zu tun ist, statt eines leeren
+/// Kastens.
+/// </summary>
+public sealed record RcConfirmationSetUpResponse(
+    string? GroupId, string? AreaId, string? Name, string? LeaderRoleId, bool Open);
+
+/// <summary>
+/// Die Portalgeheimnisse — nur fuer den, der die Amtsrolle haelt.
+///
+/// <c>Secret</c> ist <c>null</c>, wenn der Link abgeschaltet wurde
+/// (<c>Revoked</c>) oder sich nicht auspacken liess. Eine leere Liste heisst:
+/// dieses Konto haelt die Rolle nicht.
+/// </summary>
+public sealed record RcCandidateLinksResponse(
+    IReadOnlyList<RcConfirmationIntake.CandidateLink> Links);
+
+public sealed record RcCandidateProgressResponse(string CandidateId, bool Saved);
