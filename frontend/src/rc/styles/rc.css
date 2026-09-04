@@ -11,7 +11,20 @@
    ins Gehege kommen, solange beide nebeneinander laufen (2.1).
    =========================================================================== */
 
-.rc-root {
+/*
+ * DIE SCHUBLADE STEHT NICHT IMMER IN DER WERKSTATT.
+ *
+ * Seit die Anmeldung auch auf einer Pfarrseite aufgeht, haengt sie ausserhalb
+ * von `.rc-root` — und dort loeste sich jedes `var(--rc-…)` in nichts auf:
+ * kein Grund, keine Linie, nur Text auf der verschwommenen Seite darunter.
+ *
+ * Die Marken stehen deshalb hier fuer beide. Was NUR die Werkstatt angeht —
+ * ihr Grund, ihre Schrift, ihre Hoehe — steht darunter fuer sich: gaebe man
+ * der Schublade auch das, bekaeme ihr Hintergrund Papierfarbe und waere kein
+ * Hintergrund mehr, sondern eine zweite Seite.
+ */
+.rc-root,
+.rc-drawer-back {
   /* Papier und Tinte. Ein Grau mit leichter Neigung zum Akzent liest sich als
      gewählt; ein reines Mittelgrau liest sich als vergessen. */
   --rc-paper: #f7f7f5;
@@ -35,7 +48,10 @@
 
   --rc-radius: 2px;
   --rc-gap: 1rem;
+}
 
+/* Nur die Werkstatt selbst — nicht die Schublade darueber. */
+.rc-root {
   color: var(--rc-ink);
   background: var(--rc-paper);
   font-family: var(--rc-sans);
@@ -43,7 +59,8 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .rc-root:not([data-rc-theme="light"]) {
+  .rc-root:not([data-rc-theme="light"]),
+  .rc-drawer-back:not([data-rc-theme="light"]) {
     --rc-paper: #121412;
     --rc-surface: #191c19;
     --rc-surface-2: #1f231f;
@@ -60,7 +77,8 @@
   }
 }
 
-.rc-root[data-rc-theme="dark"] {
+.rc-root[data-rc-theme="dark"],
+.rc-drawer-back[data-rc-theme="dark"] {
   --rc-paper: #121412;
   --rc-surface: #191c19;
   --rc-surface-2: #1f231f;
@@ -2553,6 +2571,14 @@
 }
 
 .rc-drawer {
+  /*
+    Tinte und Schrift ausdruecklich. Unter der Schublade liegt womoeglich eine
+    Pfarrseite mit eigener Schrift — geerbt saehe die Anmeldung dort jedes Mal
+    anders aus als in der Werkstatt.
+  */
+  color: var(--rc-ink);
+  font-family: var(--rc-sans);
+
   display: flex;
   flex-direction: column;
   gap: 1.1rem;

@@ -92,6 +92,31 @@ export function RcSignInDrawer({
     return () => { document.body.style.overflow = before; };
   }, [open]);
 
+  /*
+   * NACH DEM ANMELDEN GEHT DIE SCHUBLADE VON SELBST ZU.
+   *
+   * Wer sich anmeldet, will weiter — nicht lesen, dass es geklappt hat. Die
+   * Kopfleiste dahinter zeigt den Namen ohnehin; ein zweiter Hinweis, den man
+   * erst wegklicken muss, ist ein Schritt zu viel.
+   *
+   * Nur beim UEBERGANG, nicht beim Oeffnen: wer die Schublade aufmacht,
+   * waehrend er schon angemeldet ist, will an "Sperren" und "Abmelden" — sie
+   * ihm vor der Nase zuzuziehen waere das Gegenteil von hilfreich.
+   */
+  const wasReady = useRef(false);
+
+  const handleReady = useCallback((ready: boolean) => {
+    onReady?.(ready);
+
+    if (open && ready && !wasReady.current) {
+      // Einen Augenblick stehen lassen: ein Fenster, das im selben Lidschlag
+      // verschwindet, in dem die Taste losgelassen wird, wirkt wie ein Fehler.
+      window.setTimeout(onClose, 240);
+    }
+
+    wasReady.current = ready;
+  }, [open, onClose, onReady]);
+
   const stop = useCallback((e: React.MouseEvent) => e.stopPropagation(), []);
 
   if (!mounted) return null;
@@ -99,6 +124,7 @@ export function RcSignInDrawer({
   return (
     <div
       className={`rc-drawer-back${active ? ' is-open' : ''}`}
+      data-rc-theme={document.querySelector('.rc-root')?.getAttribute('data-rc-theme') ?? undefined}
       onClick={onClose}
       role="presentation"
     >
@@ -131,7 +157,7 @@ export function RcSignInDrawer({
           </button>
         </header>
 
-        <RcSignIn lang={lang} entry={entry} onEntry={onEntry} onReady={onReady} />
+        <RcSignIn lang={lang} entry={entry} onEntry={onEntry} onReady={handleReady} />
       </div>
     </div>
   );
