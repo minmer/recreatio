@@ -1109,11 +1109,25 @@ public static class RcConfirmationIntake
     /// <c>null</c> und nicht Ausnahme: ein falsch kodiertes Feld ist eine
     /// schlechte Anmeldung, kein Fehler des Dienstes.
     /// </summary>
-    private static byte[]? SafeBase64(string? text)
+    /// <summary>
+    /// Was vom Browser kommt, in Bytes zurueckverwandeln.
+    ///
+    /// <b>BASE64URL, nicht gewoehnliches Base64.</b> Der Browser verschliesst
+    /// mit <c>rcToBase64Url</c> — also mit <c>-</c> und <c>_</c> und ohne
+    /// Fuellzeichen. <see cref="Convert.FromBase64String"/> kennt diese
+    /// Schreibweise nicht und wirft; hier stand genau das, und deshalb kam
+    /// jede Anmeldung als 400 zurueck: der verpackte Zugang liess sich nicht
+    /// lesen, obwohl er in Ordnung war.
+    ///
+    /// <see cref="RcBase64Url"/> nimmt BEIDE Schreibweisen an — die Umkehrung
+    /// ist eindeutig. Das ist auch der Grund, warum es diese Klasse gibt: es
+    /// gab schon drei handgeschriebene Fassungen der Kodierung, und dies war
+    /// die vierte.
+    /// </summary>
+    internal static byte[]? SafeBase64(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
-        try { return Convert.FromBase64String(text.Trim()); }
-        catch (FormatException) { return null; }
+        return RcBase64Url.TryDecode(text.Trim(), out var bytes) ? bytes : null;
     }
 
     private static Task NotFound(HttpContext ctx) =>

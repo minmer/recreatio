@@ -3343,6 +3343,45 @@ sealed class PureChecks
     {
         Console.WriteLine("Ohne Datenbank");
 
+        // -- Was der Browser schickt, muss der Dienst lesen ------------------
+
+        /*
+         * DIE ANMELDUNG KAM ALS 400 ZURUECK, UND ZWAR JEDE.
+         *
+         * Der Browser verschliesst mit Base64URL — mit `-` und `_` und ohne
+         * Fuellzeichen. Hier stand `Convert.FromBase64String`, das diese
+         * Schreibweise nicht kennt und wirft; der verpackte Zugang galt damit
+         * als unbrauchbar, obwohl er in Ordnung war.
+         *
+         * Der Fehler war von aussen nicht zu sehen: die Meldung sagte, der
+         * Zugang fehle. Deshalb steht hier die WIRKLICHE Schreibweise des
+         * Browsers und nicht eine erfundene.
+         */
+        Ok("Base64URL mit - und _ wird gelesen",
+            RcConfirmationIntake.SafeBase64("q80-_w") is { Length: 4 });
+
+        Ok("Ohne Fuellzeichen wird gelesen",
+            RcConfirmationIntake.SafeBase64("YQ") is { Length: 1 });
+
+        /* Gewoehnliches Base64 bleibt lesbar — der Abdruck kommt so herein. */
+        Ok("Gewoehnliches Base64 wird weiterhin gelesen",
+            RcConfirmationIntake.SafeBase64("q80A/w==") is { Length: 4 });
+
+        /*
+         * Ein SHA-256-Abdruck, wie der Browser ihn schickt: 32 Byte. Die
+         * Laengenpruefung im Dienst haengt daran — decodiert er falsch, ist
+         * die Laenge falsch, und die Anmeldung faellt durch.
+         */
+        Ok("Ein Abdruck bleibt 32 Byte lang",
+            RcConfirmationIntake.SafeBase64(
+                Convert.ToBase64String(new byte[32]).Replace('+', '-').Replace('/', '_').TrimEnd('='))
+                is { Length: 32 });
+
+        // Was wirklich unbrauchbar ist, bleibt unbrauchbar.
+        Ok("Leeres bleibt nichts", RcConfirmationIntake.SafeBase64("") is null);
+        Ok("Leerraum bleibt nichts", RcConfirmationIntake.SafeBase64("   ") is null);
+        Ok("Kein Base64 bleibt nichts", RcConfirmationIntake.SafeBase64("!!!!") is null);
+
         // -- Was durchgehen MUSS --------------------------------------------
 
         Ok("Das leere Dokument ist gueltig", RcParishSiteDocument.Fault(RcParishSiteDocument.Empty) is null);
