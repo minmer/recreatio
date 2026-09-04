@@ -22,6 +22,8 @@ import {
 import { rcFromBase64Url } from '../lib/rcBase64';
 import { RcRequestError } from '../lib/rcApi';
 import { rcPath } from '../lib/rcRoute';
+import { RcPersonPicker, usePersons, useActivePerson } from '../RcPersonPicker';
+import { rcMe } from '../lib/rcAuth';
 import { rcPublicParish } from './rcPublicParish';
 import { rcReadSite } from './rcSite';
 import { rcPrintApply, type RcPrintParish } from './rcPrintApply';
@@ -56,6 +58,30 @@ export function RcCandidatePortalPage({
   const [missing, setMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /*
+   * ZU WEM diese Anmeldung gehoeren soll.
+   *
+   * Ein Elternteil mit zwei Kindern oeffnet zwei solcher Links. Ohne Wahl
+   * landeten beide bei derselben Person — und weil die Angaben trotzdem
+   * aufgingen, faende es niemand heraus.
+   */
+  const [accountId, setAccountId] = useState('');
+
+  useEffect(() => {
+    if (!signedIn) { setAccountId(''); return; }
+    let alive = true;
+    void (async () => {
+      try {
+        const who = await rcMe();
+        if (alive) setAccountId(who.accountId ?? '');
+      } catch { if (alive) setAccountId(''); }
+    })();
+    return () => { alive = false; };
+  }, [signedIn]);
+
+  const persons = usePersons(signedIn);
+  const activePerson = useActivePerson(accountId, persons);
 
   /*
    * WEN DER AUSDRUCK NENNT.
@@ -127,7 +153,7 @@ export function RcCandidatePortalPage({
           setError('Ten adres nie zawiera klucza. Otwórz pełny link, który dostałeś po wysłaniu.');
           return;
         }
-        await rcBindCandidate(secret, rcFromBase64Url(keyText));
+        await rcBindCandidate(secret, rcFromBase64Url(keyText), activePerson);
       }
       else await rcRevokeCandidate(secret);
       await load();
@@ -258,6 +284,21 @@ export function RcCandidatePortalPage({
                 Bez jednego i drugiego nie ma drogi powrotnej — nikt, także
                 parafia, nie odtworzy tego linku.
               </p>
+              {signedIn && persons.length > 1 && (
+                <>
+                  <p>
+                    To zgłoszenie zostanie przypisane do wybranej osoby. Sprawdź,
+                    czy to ta właściwa — później zmienia się to tylko przez parafię.
+                  </p>
+                  <RcPersonPicker
+                    accountId={accountId}
+                    persons={persons}
+                    active={activePerson}
+                    className="ps-person-pick"
+                  />
+                </>
+              )}
+
               {signedIn ? (
                 <button type="button" className="ps-signin" disabled={busy} onClick={() => void act('bind')}>
                   {busy ? 'Łączenie…' : 'Połącz z moim kontem'}

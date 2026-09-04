@@ -5065,6 +5065,7 @@ export interface components {
         };
         ConfirmationIntakeBindRequest: {
             sessionKey?: string | null;
+            personRoleId?: string | null;
         };
         ConfirmationIntakeCandidateLink: {
             candidateId: string;
@@ -5085,6 +5086,7 @@ export interface components {
             address?: string | null;
             school?: string | null;
             unreadable?: string | null;
+            personRoleId: string;
         };
         ConfirmationIntakeOpenRequest: {
             open: boolean;

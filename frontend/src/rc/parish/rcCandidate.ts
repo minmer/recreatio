@@ -223,10 +223,24 @@ export const rcCandidatePortal = (secret: string) =>
  * Er kommt aus der Adresse dieses Fensters und geht genau einmal hinaus, um
  * unter dem öffentlichen Schlüssel der Personenrolle verpackt zu werden.
  */
-export const rcBindCandidate = (secret: string, sessionKey: Uint8Array) =>
+export const rcBindCandidate = (
+  secret: string, sessionKey: Uint8Array, personRoleId: string | null
+) =>
   rcFetch<RcApi<'RcCandidateBoundResponse'>>(
     `/public/candidate/${encodeURIComponent(secret)}/bind`,
-    { body: { sessionKey: rcToBase64Url(sessionKey) }, withUnlock: true });
+    {
+      body: {
+        sessionKey: rcToBase64Url(sessionKey),
+        /*
+         * ZU WEM die Anmeldung gehört. Ein Konto kann mehrere Personen tragen
+         * — zwei Geschwister im selben Jahrgang sind der Normalfall. Ohne
+         * diese Angabe nähme der Dienst die älteste Rolle, und die Anmeldung
+         * des zweiten Kindes läge beim ersten, ohne dass es jemand sähe.
+         */
+        personRoleId
+      },
+      withUnlock: true
+    });
 
 /**
  * Die eigenen Anmeldungen — der Weg ins Portal ohne Link.

@@ -1037,3 +1037,28 @@
 }
 .ps .rc-auth-actions .rc-btn:hover { border-color: var(--ps-accent); color: var(--ps-ink); }
 .ps .rc-auth-error { flex: 1 1 100%; margin: 0; color: #9e2b25; font-size: 0.8rem; }
+
+/* -- Jako kto otwarta jest strona ----------------------------------------- */
+
+/*
+ * Stoi nad zgłoszeniem, bo tu widać skutek wyboru: czyj zgłoszenie się
+ * pokazuje i za kogo składa się nowe. Wybór, którego skutek widać dopiero
+ * dwa kliknięcia dalej, bywa robiony na oślep.
+ */
+.ps-person-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.ps-person-pick > span { color: var(--ps-muted, #6b6257); }
+
+.ps-person-pick select {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  background: #fff;
+}

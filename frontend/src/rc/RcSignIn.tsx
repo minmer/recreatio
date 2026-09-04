@@ -16,6 +16,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { RcPersonPicker, usePersons, useActivePerson } from './RcPersonPicker';
 import { rcCopy, rcFormat, type RcLang } from './i18n';
 import { RcRequestError } from './lib/rcApi';
 import { rcEntryCheck, rcBrowserMemory, type RcEntry } from './lib/rcBoot';
@@ -49,6 +50,16 @@ export interface RcSignInProps {
 }
 
 export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
+  /*
+   * Die Personen des Kontos. Sie kosten eine Abfrage und lohnen sie nur, wenn
+   * jemand angemeldet ist — bei mehr als einer entscheidet die Wahl, wessen
+   * Anmeldung eine Pfarrseite spaeter zeigt.
+   */
+  const signedInNow = entry.kind === 'signed-in' && entry.who?.signedIn === true;
+  const persons = usePersons(signedInNow);
+  const active = useActivePerson(
+    (entry.kind === 'signed-in' ? entry.who?.accountId : null) ?? '', persons);
+
   const t = rcCopy[lang].auth;
   const tr = rcCopy[lang].route;
 
@@ -193,6 +204,22 @@ export function RcSignIn({ lang, entry, onEntry, onReady }: RcSignInProps) {
         <p className={ready ? 'rc-auth-ready' : 'rc-auth-locked'}>
           {ready ? t.keysHeld : t.keysMissing}
         </p>
+
+        {/*
+          WER MAN GERADE IST — dort, wo auch „Abmelden" steht.
+
+          Nur bei mehr als einer Person; sonst ist es keine Wahl. Ohne
+          Schluesselbund erscheint sie ebenfalls nicht: die Namen liegen
+          versiegelt an den Rollen, und eine Liste aus Kennungen waere keine
+          Hilfe, sondern eine Zumutung.
+        */}
+        {ready && (
+          <RcPersonPicker
+            accountId={me.accountId ?? ''}
+            persons={persons}
+            active={active}
+          />
+        )}
         <div className="rc-auth-actions">
           <button
             type="button"

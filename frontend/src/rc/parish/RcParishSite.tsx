@@ -36,6 +36,9 @@ import { RcParishBuilder } from './RcParishBuilder';
 import { rcSaveParishSite } from '../lib/rcParish';
 import { RcParishHome } from './RcParishHome';
 import { RcApplyForm } from './RcApplyForm';
+import { RcMyApplication, useMineHere } from './RcMyApplication';
+import { RcPersonPicker, usePersons, useActivePerson } from '../RcPersonPicker';
+import { rcMe } from '../lib/rcAuth';
 import { rcMyPersonFields } from './rcPrefill';
 import { RC_EMPTY_SITE, rcPage, rcReadSite, type RcSite } from './rcSite';
 
@@ -99,6 +102,37 @@ export function RcParishSite({
     })();
     return () => { alive = false; };
   }, [signedIn]);
+
+  /*
+   * Die eigene Anmeldung in DIESER Pfarrei — falls es eine gibt und das Konto
+   * sie aufmachen kann.
+   */
+  /*
+   * ALS WEN diese Seite offen ist.
+   *
+   * Auf der Firmungsseite hat das eine sichtbare Folge: wessen Anmeldung
+   * dasteht und fuer wen eine neue gilt. Deshalb steht die Wahl auch HIER und
+   * nicht nur in der Anmeldeschublade — eine Wahl, deren Wirkung man erst
+   * zwei Klicks spaeter bemerkt, wird falsch getroffen.
+   */
+  const [accountId, setAccountId] = useState('');
+
+  useEffect(() => {
+    if (!signedIn) { setAccountId(''); return; }
+    let alive = true;
+    void (async () => {
+      try {
+        const who = await rcMe();
+        if (alive) setAccountId(who.accountId ?? '');
+      } catch { if (alive) setAccountId(''); }
+    })();
+    return () => { alive = false; };
+  }, [signedIn]);
+
+  const persons = usePersons(signedIn);
+  const activePerson = useActivePerson(accountId, persons);
+
+  const mine = useMineHere(slug, signedIn, activePerson);
 
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -193,6 +227,20 @@ export function RcParishSite({
   }
 
   const name = parish.name;
+
+  /*
+   * Wen der Ausdruck beim Namen nennt.
+   *
+   * Steht einmal da und wird an zwei Stellen gebraucht — im Formular und in
+   * der eigenen Anmeldung. Zweimal geschrieben liefen die beiden Blaetter
+   * irgendwann auseinander, und niemand saehe, welches das richtige ist.
+   */
+  const forPrint = {
+    name,
+    address: site.content['contact.address'] ?? '',
+    email: site.content['contact.email'] ?? '',
+    leader: site.content['sacrament.confirmation.who'] ?? ''
+  };
 
   return (
     <div className="ps" data-theme={parish.theme}>
@@ -359,22 +407,79 @@ export function RcParishSite({
             ist, dann der Weg hinein. */}
         {page === 'sacrament-confirmation' && (
           <div className="ps-stack">
-            <RcApplyForm
-              slug={slug}
-              signedIn={signedIn}
-              prefill={prefill}
-              /*
-                Die Pfarrei geht mit, weil der Ausdruck sie beim Namen nennt.
-                Sie steht hier ohnehin schon — sie noch einmal zu holen hiesse,
-                zwei Quellen fuer dasselbe zu haben.
-              */
-              parish={{
-                name,
-                address: site.content['contact.address'] ?? '',
-                email: site.content['contact.email'] ?? '',
-                leader: site.content['sacrament.confirmation.who'] ?? ''
-              }}
+            {/*
+              WER SCHON GEMELDET IST, SIEHT SEINE MELDUNG — NICHT EIN LEERES
+              FORMULAR.
+
+              Ein leeres Formular neben einer bestehenden Anmeldung ist eine
+              Einladung, sich ein zweites Mal zu melden; die zweite muss die
+              Pfarrei danach von Hand erkennen und wegraeumen. Und gesucht wird
+              die eigene Anmeldung genau HIER — auf der Seite, auf der man sie
+              abgegeben hat, nicht in der Uebersicht des Kontos.
+            */}
+            {/*
+              Bei mehreren Personen steht die Wahl ueber der Anmeldung: sie
+              entscheidet, wessen Zettel man sieht und fuer wen ein neuer gilt.
+            */}
+            <RcPersonPicker
+              accountId={accountId}
+              persons={persons}
+              active={activePerson}
+              className="ps-person-pick"
             />
+
+            {mine.state === 'found' ? (
+              <>
+                <RcMyApplication candidate={mine.candidate} parish={forPrint} />
+                {mine.others > 0 && (
+                  <p className="ps-muted">
+                    Na tym koncie jest tu jeszcze {mine.others === 1 ? 'jedno zgłoszenie' : `zgłoszeń: ${mine.others}`}.
+                    Przełącz osobę powyżej, aby je zobaczyć.
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                {/*
+                  „Kann ich nicht nachsehen" ist nicht „hast du nicht". Bei
+                  gesperrten Schluesseln steht der Hinweis ueber dem Formular,
+                  statt stillschweigend zum zweiten Zettel zu raten.
+                */}
+                {/*
+                  Die gewaehlte Person hat hier nichts — eine andere auf
+                  demselben Konto schon. Das gehoert gesagt, bevor jemand zum
+                  zweiten Mal denselben Zettel ausfuellt.
+                */}
+                {mine.state === 'none' && mine.others > 0 && (
+                  <article className="ps-card ps-card-note">
+                    <h2>Zgłoszenie na tym koncie</h2>
+                    <p>
+                      Wybrana osoba nie ma tu zgłoszenia, ale inna osoba z tego
+                      konta ma. Przełącz osobę powyżej — albo wypełnij formularz,
+                      jeśli zgłaszasz kogoś jeszcze.
+                    </p>
+                  </article>
+                )}
+
+                {mine.state === 'locked' && (
+                  <article className="ps-card ps-card-note">
+                    <h2>Masz już zgłoszenie?</h2>
+                    <p>
+                      Nie możemy tego teraz sprawdzić — odblokuj konto hasłem.
+                      Jeśli zgłaszałeś się już w tej parafii, nie wysyłaj
+                      formularza drugi raz.
+                    </p>
+                  </article>
+                )}
+
+                <RcApplyForm
+                  slug={slug}
+                  signedIn={signedIn}
+                  prefill={prefill}
+                  parish={forPrint}
+                />
+              </>
+            )}
           </div>
         )}
       </main>

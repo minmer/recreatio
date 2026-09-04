@@ -444,14 +444,23 @@ public static class RcConfirmationIntake
     /// oeffentliche Schluessel nicht, und ihm einen dafuer herauszugeben waere
     /// ein Muster, das es sonst nirgends gibt.
     /// </summary>
-    public sealed record BindRequest(string? SessionKey);
+    public sealed record BindRequest(string? SessionKey, string? PersonRoleId);
 
     /// <summary>Eine eigene Anmeldung, mit geoeffneten Angaben.</summary>
     public sealed record MyCandidateView(
         string CandidateId, string GroupName, string ParishSlug, string Status,
         bool PaperReceived, bool QuizPassed,
         string? Given, string? Surname, string? Born, string? Contact,
-        string? Address, string? School, string? Unreadable);
+        string? Address, string? School, string? Unreadable,
+        /*
+         * WESSEN Anmeldung das ist.
+         *
+         * Ein Konto kann mehrere Personen tragen — zwei Geschwister im selben
+         * Jahrgang sind der Normalfall, nicht der Sonderfall. Ohne diese
+         * Angabe waeren beide Anmeldungen eine Liste ohne Ordnung, und die
+         * Oberflaeche muesste raten, welche zu wem gehoert.
+         */
+        string PersonRoleId);
 
     public sealed record RcMyCandidatesResponse(IReadOnlyList<MyCandidateView> Candidates);
 
@@ -511,8 +520,19 @@ public static class RcConfirmationIntake
         using var held = await masterKeys.OpenAsync(
             connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
 
-        var personRoleId = await PersonRoleAsync(
-            connection, session.AccountId, ctx.RequestAborted);
+        /*
+         * WELCHE PERSON — gesagt, nicht geraten.
+         *
+         * Vorher nahm der Dienst immer die aelteste Personenrolle des Kontos.
+         * Bei einem Konto mit zwei Kindern hiess das: die Anmeldung des
+         * zweiten landete beim ersten, und niemand haette es je gesehen —
+         * die Angaben gingen ja auf.
+         *
+         * Ohne Angabe bleibt es bei der aeltesten. Das ist richtig, solange es
+         * nur eine gibt, und das ist der haeufige Fall.
+         */
+        var personRoleId = await ChosenPersonAsync(
+            connection, session.AccountId, body.PersonRoleId, ctx.RequestAborted);
 
         if (personRoleId is null)
         {
@@ -1307,6 +1327,46 @@ public static class RcConfirmationIntake
     /// unmittelbar am Konto haengt und eine Person ist. Gibt es mehrere,
     /// gewinnt die aelteste — sie ist die, die beim Anlegen entstand.
     /// </summary>
+    /// <summary>
+    /// Die Personenrolle, mit der verbunden werden soll.
+    ///
+    /// <b>Genannt schlaegt geraten</b> — aber nur, wenn das Konto sie auch
+    /// haelt. Eine fremde Kennung anzunehmen hiesse, den Schluessel einer
+    /// Anmeldung an eine Rolle zu geben, die dem Anfragenden nicht gehoert;
+    /// das waere kein Verbinden, sondern ein Verschenken.
+    /// </summary>
+    private static async Task<Guid?> ChosenPersonAsync(
+        SqlConnection connection, Guid accountId, string? wanted, CancellationToken ct)
+    {
+        if (Guid.TryParse(wanted, out var asked))
+        {
+            await using var check = new SqlCommand("""
+                SELECT TOP 1 e.to_role_id
+                FROM dbo.rc_role_edge e
+                JOIN dbo.rc_role r ON r.id = e.to_role_id AND r.revoked_at IS NULL
+                WHERE e.from_account_id = @account
+                  AND e.to_role_id = @role
+                  AND e.revoked_at IS NULL
+                  AND (e.expires_at IS NULL OR e.expires_at > @now)
+                  AND r.kind = @person;
+                """, connection);
+
+            check.Parameters.AddWithValue("@account", accountId);
+            check.Parameters.AddWithValue("@role", asked);
+            check.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            check.Parameters.AddWithValue("@person", RcRoleKinds.Person);
+
+            if (await check.ExecuteScalarAsync(ct) is Guid held) return held;
+
+            // Genannt, aber nicht gehalten: NICHT stillschweigend auf die
+            // aelteste ausweichen. Das waere die falsche Person, und zwar
+            // unbemerkt.
+            return null;
+        }
+
+        return await PersonRoleAsync(connection, accountId, ct);
+    }
+
     private static async Task<Guid?> PersonRoleAsync(
         SqlConnection connection, Guid accountId, CancellationToken ct)
     {
@@ -1479,7 +1539,8 @@ public static class RcConfirmationIntake
             views.Add(new MyCandidateView(
                 RcId.ToText(row.Id), row.Group, row.Slug, row.Status, row.Paper, row.Quiz,
                 Open(0), Open(1), Open(2), Open(3), Open(4), Open(5),
-                key is null ? RcErrorCodes.CryptoMissingEpoch : null));
+                key is null ? RcErrorCodes.CryptoMissingEpoch : null,
+                RcId.ToText(row.RoleId)));
         }
 
         await RcResults.WriteJsonAsync(ctx, new RcMyCandidatesResponse(views));

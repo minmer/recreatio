@@ -2706,3 +2706,26 @@
 
 /* Adres bywa wielowierszowy — wiersz wpisany to wiersz pokazany. */
 .rc-mine-lines { white-space: pre-line; }
+
+/* -- Als wen die Seite offen ist ------------------------------------------ */
+
+/*
+ * Erscheint nur bei mehr als einer Person. Steht dicht bei „Sperren" und
+ * „Abmelden", weil es zur selben Frage gehoert: wer bin ich hier gerade.
+ */
+.rc-person-pick {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.86rem;
+}
+
+.rc-person-pick > span { color: var(--rc-muted); }
+
+.rc-person-pick select {
+  font: inherit;
+  padding: 0.35rem 0.4rem;
+  color: var(--rc-ink);
+  background: var(--rc-surface);
+  border: 1px solid var(--rc-line);
+  border-radius: var(--rc-radius);
+}

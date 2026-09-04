@@ -5284,6 +5284,10 @@
           "sessionKey": {
             "type": "string",
             "nullable": true
+          },
+          "personRoleId": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -5314,6 +5318,7 @@
           "groupName",
           "paperReceived",
           "parishSlug",
+          "personRoleId",
           "quizPassed",
           "status"
         ],
@@ -5364,6 +5369,9 @@
           "unreadable": {
             "type": "string",
             "nullable": true
+          },
+          "personRoleId": {
+            "type": "string"
           }
         },
         "additionalProperties": false
