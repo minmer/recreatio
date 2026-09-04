@@ -3343,6 +3343,35 @@ sealed class PureChecks
     {
         Console.WriteLine("Ohne Datenbank");
 
+        // -- Die beiden Plaetze, an denen der Browser verpackt ---------------
+
+        /*
+         * DIESELBEN ZEICHENKETTEN STEHEN IM BROWSER (rcCandidate.test.ts).
+         *
+         * Der Sitzungsschluessel und das Portalgeheimnis werden dort unter
+         * genau diesen beiden Etiketten verpackt. Weicht eine Seite ab, geht
+         * die Huelle nicht auf — und niemand sieht einen Fehler, sondern nur
+         * einen Kandidaten, den man nicht lesen kann.
+         *
+         * Deshalb steht das Ergebnis hier als Literal und nicht als zweiter
+         * Aufruf derselben Funktion: eine Pruefung, die dieselbe Rechnung noch
+         * einmal anstellt, prueft nichts.
+         */
+        var vector = Guid.Parse("0192f0a1-1111-7222-8333-444455556666");
+
+        Ok("Der Platz des Sitzungsschluessels",
+            RcConfirmationIntake.SessionKeyAad(vector).Text
+            == "confirmation:candidate:0192f0a1-1111-7222-8333-444455556666:intake_key:1");
+
+        Ok("Der Platz des Portalgeheimnisses",
+            RcConfirmationIntake.PortalSecretAad(vector).Text
+            == "confirmation:candidate:0192f0a1-1111-7222-8333-444455556666:invite_key:1");
+
+        /* Zwei Dinge, zwei Plaetze — sonst waeren es fuer die Krypto eines. */
+        Ok("Und sie sind verschieden",
+            RcConfirmationIntake.SessionKeyAad(vector).Text
+            != RcConfirmationIntake.PortalSecretAad(vector).Text);
+
         // -- Was der Browser schickt, muss der Dienst lesen ------------------
 
         /*

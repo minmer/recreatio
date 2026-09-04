@@ -5017,6 +5017,7 @@ export interface components {
             slots: number;
         };
         ConfirmationIntakeApplyRequest: {
+            candidateId?: string | null;
             fields: components["schemas"]["ConfirmationIntakeSealedField"][];
             sessionKeyWrapped: string;
             rodoAccepted: boolean;

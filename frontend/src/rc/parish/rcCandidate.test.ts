@@ -20,6 +20,7 @@
 import { createHash, webcrypto } from 'node:crypto';
 
 import { rcDay, rcPortalHash, rcNewPortalSecret, RC_APPLY_FIELDS } from './rcCandidate';
+import { rcAad, RcField } from '../lib/rcCrypto';
 
 /*
  * Der Läufer übersetzt für node, und dort gibt es `crypto.subtle` nur über
@@ -126,6 +127,35 @@ ok('Telefon und Anschrift getrennt',
 const gone = (name: string) => (RC_APPLY_FIELDS as readonly string[]).includes(name);
 ok('Kein gemeinsames Namensfeld mehr', gone('name'), false);
 ok('Kein gemeinsames Kontaktfeld mehr', gone('contact'), false);
+
+// -- Wo der Browser verpackt ---------------------------------------------------
+
+/*
+ * DIESELBEN ZEICHENKETTEN STEHEN IM DIENST (Rc.Api.Tests/Program.cs).
+ *
+ * Der Sitzungsschluessel und das Portalgeheimnis werden hier unter genau
+ * diesen beiden Etiketten verpackt, und der Dienst packt unter denselben aus.
+ * Weicht eine Seite ab, geht die Huelle nicht auf — und das sieht niemand als
+ * Fehler, sondern nur als einen Kandidaten, den man nicht lesen kann. Genau
+ * das ist passiert, als der Dienst eine EIGENE Kennung wuerfelte statt der,
+ * unter der hier versiegelt wurde.
+ *
+ * Das Ergebnis steht als Literal da und nicht als zweiter Aufruf derselben
+ * Funktion: eine Pruefung, die dieselbe Rechnung noch einmal anstellt, prueft
+ * nichts.
+ */
+const vector = '0192f0a1-1111-7222-8333-444455556666';
+
+const aadText = (a: ReturnType<typeof rcAad>) =>
+  `${a.module}:${a.objectType}:${a.objectId}:${a.field}:${a.version}`;
+
+ok('Der Platz des Sitzungsschluessels',
+  aadText(rcAad('confirmation', 'candidate', vector, RcField.EventIntakeKey, 1)),
+  'confirmation:candidate:0192f0a1-1111-7222-8333-444455556666:intake_key:1');
+
+ok('Der Platz des Portalgeheimnisses',
+  aadText(rcAad('confirmation', 'candidate', vector, RcField.InvitationRoleKey, 1)),
+  'confirmation:candidate:0192f0a1-1111-7222-8333-444455556666:invite_key:1');
 
 // -- Das Geburtsdatum ---------------------------------------------------------
 

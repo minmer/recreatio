@@ -5224,6 +5224,10 @@
         ],
         "type": "object",
         "properties": {
+          "candidateId": {
+            "type": "string",
+            "nullable": true
+          },
           "fields": {
             "type": "array",
             "items": {

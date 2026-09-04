@@ -58,6 +58,20 @@ public static class RcConfirmationIntake
     private static RcAad IntakeAad(Guid groupId) =>
         RcAad.Create("confirmation", "group", groupId, RcField.EventIntakeKey, 1);
 
+    /*
+     * ZWEI PLAETZE, DIESELBE KENNUNG.
+     *
+     * Genau diese beiden Zeichenketten baut auch der Browser (`rcApply`), und
+     * beide tragen die Kennung DES KANDIDATEN. Stehen sie hier anders, geht
+     * keine Huelle auf — und zwar lautlos: der Dienst sieht eine Ausnahme, die
+     * Pfarrei ein "zapieczetowane", und niemand erfaehrt, warum.
+     */
+    internal static RcAad SessionKeyAad(Guid candidateId) =>
+        RcAad.Create("confirmation", "candidate", candidateId, RcField.EventIntakeKey, 1);
+
+    internal static RcAad PortalSecretAad(Guid candidateId) =>
+        RcAad.Create("confirmation", "candidate", candidateId, RcField.InvitationRoleKey, 1);
+
     // -- Das Formular ---------------------------------------------------------
 
     /// <summary>
@@ -113,7 +127,7 @@ public static class RcConfirmationIntake
     /// der Gruppe — damit die Pfarrei den Link herstellen und verschicken kann.
     /// </param>
     public sealed record ApplyRequest(
-        IReadOnlyList<SealedField> Fields, string SessionKeyWrapped, bool RodoAccepted,
+        string? CandidateId, IReadOnlyList<SealedField> Fields, string SessionKeyWrapped, bool RodoAccepted,
         string PortalTokenHash, string PortalTokenWrapped);
 
     /// <summary>
@@ -226,7 +240,25 @@ public static class RcConfirmationIntake
             return;
         }
 
-        var candidateId = RcId.NewId();
+        /*
+         * DIE KENNUNG WIRD NICHT HIER GEWUERFELT.
+         *
+         * Sie kommt aus dem Browser, weil sie dort schon gebraucht wurde: in
+         * jeder AAD, bevor irgendetwas gesendet wurde. Eine eigene zu wuerfeln
+         * hiesse, die Zeile unter einem anderen Namen abzulegen als den, unter
+         * dem ihr Inhalt verschlossen ist — und genau das war der Fehler, an
+         * dem sowohl das Portal als auch die Pfarrliste blind wurden.
+         *
+         * Dass der Anmeldende sie selbst waehlt, ist unbedenklich: sie ist
+         * kein Geheimnis, und eine schon vergebene laesst der Primaerschluessel
+         * nicht ein zweites Mal zu.
+         */
+        if (!Guid.TryParse(body.CandidateId, out var candidateId) || candidateId == Guid.Empty)
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                RcErrorCodes.IdMalformed, "Der Anmeldung fehlt ihre Kennung.");
+            return;
+        }
         var now = DateTimeOffset.UtcNow;
 
         var sealedByField = body.Fields.ToDictionary(f => f.Field, f => f.Sealed);
@@ -274,7 +306,23 @@ public static class RcConfirmationIntake
                 // Die Felder liegen NICHT unter der Epoche des Bereichs, sondern
                 // unter dem Sitzungsschluessel. Die Zahl steht hier trotzdem —
                 // sie sagt, welche Epoche galt, als die Anmeldung ankam.
-                insert.Parameters.AddWithValue("@epoch", intakeEpoch);
+                /*
+                 * NULL, UND ZWAR ABSICHTLICH.
+                 *
+                 * `rc_candidate.epoch` sagt, welcher BEREICHSschluessel die
+                 * Felder verschlossen hat. Eine Anmeldung von aussen hat
+                 * keinen: sie liegt unter einem Sitzungsschluessel, der der
+                 * Amtsrolle gehoert. Die Null heisst hier „zu keiner Epoche",
+                 * und die Leseseite kennt sie so.
+                 *
+                 * Hier stand `intakeEpoch`. Das ist eine Zahl aus einem
+                 * ANDEREN Zaehlwerk — der Fassung des Annahmeschluessels, die
+                 * eine Zeile weiter unten an ihrem eigenen Platz steht. Unter
+                 * einem Etikett zwei Dinge zu fuehren heisst, dass beim Lesen
+                 * das falsche genommen wird: die Pfarrei haette jede
+                 * Selbstanmeldung als „unlesbar" vor sich gehabt.
+                 */
+                insert.Parameters.AddWithValue("@epoch", 0);
 
                 insert.Parameters.AddWithValue("@given", (object?)givenSealed ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@surname", (object?)surnameSealed ?? DBNull.Value);
@@ -875,11 +923,20 @@ public static class RcConfirmationIntake
 
                 try
                 {
+                    /*
+                     * MIT DEM GEMEINSAMEN HELFER, NICHT MIT ROHEM RSA.
+                     *
+                     * Der Browser legt `Kopf || RSA-OAEP(AAD-Abdruck || Inhalt)`
+                     * ab. Hier stand `rsa.Decrypt` auf den ganzen Blob: das
+                     * ueberliest den Kopf, prueft die AAD nicht und gaebe, wenn
+                     * es denn aufginge, den Abdruck mit heraus. Es ging nie auf
+                     * — die Pfarrei sah "Linku nie udalo sie odtworzyc".
+                     */
                     var secret = System.Text.Encoding.UTF8.GetString(
-                        rsa.Decrypt((byte[])reader[1], RSAEncryptionPadding.OaepSHA256));
+                        RcCrypto.UnwrapKey(rsa, PortalSecretAad(candidateId), (byte[])reader[1]));
                     links.Add(new CandidateLink(RcId.ToText(candidateId), secret, false));
                 }
-                catch (CryptographicException)
+                catch (RcDecryptException)
                 {
                     links.Add(new CandidateLink(RcId.ToText(candidateId), null, false));
                 }
@@ -1056,9 +1113,10 @@ public static class RcConfirmationIntake
                 // Derselbe Platz wie beim Verpacken im Browser. Ein anderer
                 // ergaebe hier eine Ausnahme statt eines falschen Schluessels —
                 // das ist die freundlichere Sorte Fehler.
-                found[candidateId] = rsa.Decrypt((byte[])rows[1], RSAEncryptionPadding.OaepSHA256);
+                found[candidateId] = RcCrypto.UnwrapKey(
+                    rsa, SessionKeyAad(candidateId), (byte[])rows[1]);
             }
-            catch (CryptographicException)
+            catch (RcDecryptException)
             {
                 // Eine Anmeldung, die nicht aufgeht, verschweigt die anderen
                 // nicht. Sie erscheint als unlesbar.

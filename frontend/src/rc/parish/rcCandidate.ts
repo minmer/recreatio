@@ -163,6 +163,16 @@ export async function rcApply(
     `/public/confirmation/${encodeURIComponent(slug)}/apply`,
     {
       body: {
+        /*
+         * DIE KENNUNG GEHT MIT, UND SIE MUSS DIE ZEILE WERDEN.
+         *
+         * Sie steckt in jeder AAD dieser Anmeldung — in den Feldern, in der
+         * Hülle des Sitzungsschlüssels, in der des Portalgeheimnisses. Würfelte
+         * der Dienst seine eigene, stünde in der Zeile eine andere Kennung als
+         * in den Siegeln, und nichts davon ginge je wieder auf: weder für die
+         * Pfarrei noch für den Angemeldeten selbst.
+         */
+        candidateId,
         fields,
         sessionKeyWrapped: rcToBase64Url(sessionKeyWrapped),
         rodoAccepted: true,

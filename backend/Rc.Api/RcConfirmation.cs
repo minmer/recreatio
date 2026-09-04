@@ -333,10 +333,22 @@ public static class RcConfirmation
             string? unreadable = null;
             string? name = null, born = null, contact = null, school = null, baptism = null;
             string? given = null, surname = null, address = null;
-            // Von aussen angemeldet: der Schluessel gehoert der Anmeldung.
-
-            var key = row.Epoch == 0
-                ? (sessionKeys.TryGetValue(row.Id, out var own) ? own : null)
+            /*
+             * WER EINE ANMELDEZEILE HAT, WIRD MIT IHREM SCHLUESSEL GELESEN.
+             *
+             * Vorher entschied die Zahl in `epoch`: 0 hiess „von aussen".
+             * Damit lag dieselbe Auskunft an zwei Stellen — in der Zahl und in
+             * `rc_candidate_intake` —, und als die Anmeldung dort eine andere
+             * Zahl hinterliess, widersprachen sie sich stumm. Die Felder
+             * wurden dann mit einem Bereichsschluessel aufgemacht, der sie nie
+             * verschlossen hatte, und die Pfarrei sah „zapieczętowane".
+             *
+             * Jetzt entscheidet das, was wirklich zaehlt: gibt es einen
+             * Sitzungsschluessel fuer diesen Kandidaten. Wer keinen hat, wurde
+             * von innen eingetragen und wird ueber seine Epoche gelesen.
+             */
+            var key = sessionKeys.TryGetValue(row.Id, out var own)
+                ? own
                 : (keys.TryGetValue(row.Epoch, out var epochKey) ? epochKey : null);
 
             if (key is null)
