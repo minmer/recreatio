@@ -49,6 +49,35 @@ const LABELS: Record<RcApplyField, {
   school: { label: 'Szkoła i klasa', hint: 'np. SP nr 5, klasa 8a', kind: 'text' }
 };
 
+/**
+ * Co powiedzieć, kiedy serwer odmówi.
+ *
+ * <b>„Spróbuj jeszcze raz" bywa złą radą.</b> Odpowiedź 400 znaczy, że serwer
+ * zrozumiał żądanie i je odrzucił — powtórzone wyjdzie tak samo. Człowiek
+ * klika w kółko, formularz milczy, a parafia nigdy się nie dowiada, że nikt
+ * się nie zgłosił, bo nie mógł. Dlatego zdanie o powtarzaniu pada tylko tam,
+ * gdzie powtórzenie ma sens.
+ *
+ * Treści serwera nie pokazujemy wprost: są po niemiecku i pisane dla nas, nie
+ * dla piętnastolatka przy telefonie. Tłumaczy się kod, nie zdanie.
+ */
+const SEND_ERROR: Record<string, string> = {
+  'consent.missing':
+    'Bez zaznaczenia zgody nie możemy przyjąć zgłoszenia.',
+
+  'confirmation.applications_closed':
+    'Zgłoszenia zostały w międzyczasie zamknięte. Zapytaj w kancelarii parafialnej.',
+
+  /*
+   * Ten kod niesie tu wszystko, czego serwer nie przyjął w danych: brak imienia,
+   * puste zgłoszenie, zły klucz dostępu. Kandydat nie naprawi żadnego z nich —
+   * i nie należy mu wmawiać, że naprawi.
+   */
+  'permission.denied':
+    'Serwer odrzucił zgłoszenie. Powtarzanie nic nie zmieni — daj proszę znać '
+    + 'parafii, że formularz nie przechodzi.'
+};
+
 type Made = { link: string };
 
 export function RcApplyForm({
@@ -152,9 +181,18 @@ export function RcApplyForm({
       const result = await rcApply(slug, form, values, candidateId);
       setMade({ link: `${window.location.origin}/${result.link}` });
     } catch (e) {
-      setError(e instanceof RcRequestError
-        ? 'Nie udało się wysłać zgłoszenia. Spróbuj jeszcze raz.'
-        : 'Coś poszło nie tak przy szyfrowaniu. Zgłoszenie nie zostało wysłane.');
+      if (!(e instanceof RcRequestError)) {
+        setError('Coś poszło nie tak przy szyfrowaniu. Zgłoszenie nie zostało wysłane.');
+        return;
+      }
+
+      /*
+       * Rozróżnienie, które naprawdę coś znaczy: 5xx i zerwane połączenie mijają
+       * same, 4xx nie mija nigdy.
+       */
+      setError(SEND_ERROR[e.code] ?? (e.status >= 500
+        ? 'Serwer chwilowo nie odpowiada. Spróbuj za chwilę jeszcze raz.'
+        : 'Nie udało się wysłać zgłoszenia. Daj znać parafii, jeśli powtórzy się to przy kolejnej próbie.'));
     } finally { setBusy(false); }
   };
 
