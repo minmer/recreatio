@@ -1302,7 +1302,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfirmationIntakeBindRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -1315,6 +1319,41 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/my/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConfirmationIntakeRcMyCandidatesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5024,10 +5063,28 @@ export interface components {
             portalTokenHash: string;
             portalTokenWrapped: string;
         };
+        ConfirmationIntakeBindRequest: {
+            sessionKey?: string | null;
+        };
         ConfirmationIntakeCandidateLink: {
             candidateId: string;
             secret?: string | null;
             revoked: boolean;
+        };
+        ConfirmationIntakeMyCandidateView: {
+            candidateId: string;
+            groupName: string;
+            parishSlug: string;
+            status: string;
+            paperReceived: boolean;
+            quizPassed: boolean;
+            given?: string | null;
+            surname?: string | null;
+            born?: string | null;
+            contact?: string | null;
+            address?: string | null;
+            school?: string | null;
+            unreadable?: string | null;
         };
         ConfirmationIntakeOpenRequest: {
             open: boolean;
@@ -5036,6 +5093,9 @@ export interface components {
         ConfirmationIntakeProgressRequest: {
             paperReceived?: boolean | null;
             quizPassed?: boolean | null;
+        };
+        ConfirmationIntakeRcMyCandidatesResponse: {
+            candidates: components["schemas"]["ConfirmationIntakeMyCandidateView"][];
         };
         ConfirmationIntakeSealedField: {
             field: string;

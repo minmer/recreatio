@@ -117,7 +117,18 @@ export function RcCandidatePortalPage({
     setBusy(true);
     setError(null);
     try {
-      if (what === 'bind') await rcBindCandidate(secret);
+      if (what === 'bind') {
+        /*
+          Verbinden geht nur MIT dem Schlüssel aus der Adresse. Ohne ihn wäre
+          es eine Zeile, die ein Konto nennt, das nichts aufmachen kann — und
+          der Knopf daneben schaltete danach den letzten Weg ab.
+        */
+        if (keyText === null) {
+          setError('Ten adres nie zawiera klucza. Otwórz pełny link, który dostałeś po wysłaniu.');
+          return;
+        }
+        await rcBindCandidate(secret, rcFromBase64Url(keyText));
+      }
       else await rcRevokeCandidate(secret);
       await load();
     } catch (e) {

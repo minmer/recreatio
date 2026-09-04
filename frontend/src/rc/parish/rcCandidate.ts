@@ -212,9 +212,33 @@ export function rcDay(raw: string): string {
 export const rcCandidatePortal = (secret: string) =>
   rcFetch<RcCandidatePortal>(`/public/candidate/${encodeURIComponent(secret)}`);
 
-export const rcBindCandidate = (secret: string) =>
+/**
+ * Die Anmeldung mit dem Konto verbinden.
+ *
+ * <b>Der Schlüssel geht mit.</b> Ohne ihn merkte sich die Zeile nur, WEM die
+ * Anmeldung gehört — und das Konto könnte trotzdem nichts öffnen. Genau so war
+ * es vorher: „połącz z kontem" tat nichts, was man später gebraucht hätte, und
+ * der Knopf „Link wyłącz" daneben hätte den einzigen Weg zugemacht.
+ *
+ * Er kommt aus der Adresse dieses Fensters und geht genau einmal hinaus, um
+ * unter dem öffentlichen Schlüssel der Personenrolle verpackt zu werden.
+ */
+export const rcBindCandidate = (secret: string, sessionKey: Uint8Array) =>
   rcFetch<RcApi<'RcCandidateBoundResponse'>>(
-    `/public/candidate/${encodeURIComponent(secret)}/bind`, { body: {}, withUnlock: true });
+    `/public/candidate/${encodeURIComponent(secret)}/bind`,
+    { body: { sessionKey: rcToBase64Url(sessionKey) }, withUnlock: true });
+
+/**
+ * Die eigenen Anmeldungen — der Weg ins Portal ohne Link.
+ *
+ * Der Dienst öffnet sie über die Rollen des angemeldeten Kontos. Wer keine
+ * verbundene Anmeldung hat, bekommt eine leere Liste und keinen Fehler: nichts
+ * zu haben ist kein Fehler.
+ */
+export const rcMyCandidates = () =>
+  rcFetch<RcApi<'ConfirmationIntakeRcMyCandidatesResponse'>>('/my/candidates', { withUnlock: true });
+
+export type RcMyCandidate = RcApi<'ConfirmationIntakeMyCandidateView'>;
 
 export const rcRevokeCandidate = (secret: string) =>
   rcFetch<RcApi<'RcCandidateRevokedResponse'>>(

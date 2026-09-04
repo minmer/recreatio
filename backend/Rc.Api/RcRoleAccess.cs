@@ -263,4 +263,13 @@ public static class RcGrantKinds
     public const string RoleKey = "role_key";
 
     public const string Recovery = "recovery";
+
+    /// <summary>
+    /// Der Sitzungsschluessel einer SELBSTANMELDUNG, zugeteilt an die
+    /// Personenrolle dessen, der sich angemeldet hat (rc_0019).
+    ///
+    /// <c>key_ref</c> ist die Kennung des Kandidaten, <c>key_epoch</c> bleibt
+    /// leer: eine Anmeldung von aussen gehoert zu keiner Bereichsepoche.
+    /// </summary>
+    public const string CandidateKey = "candidate_key";
 }

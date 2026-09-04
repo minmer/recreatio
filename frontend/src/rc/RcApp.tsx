@@ -24,6 +24,7 @@ import { RcParishSite } from './parish/RcParishSite';
 import { RcCandidatePortalPage } from './parish/RcCandidatePortal';
 import './parish/parishSite.css';
 
+import { RcMyCandidates } from './parish/RcMyCandidates';
 import { RcPersonOutlet } from './RcPerson';
 import { RcInviteBanner } from './RcInvite';
 import { RcSignInPage } from './RcSignInPage';
@@ -517,6 +518,19 @@ export function RcApp() {
           ohne Rollenkennung waere dort aber nur eine Zeile „diese Adresse nennt
           keine Person". Deshalb hier die Adresse selbst und nicht `shows`.
         */}
+        {/*
+          Wlasne zgloszenia stoja przy koncie, bo tam ich sie szuka.
+
+          Portal spod linku zostaje dla tych, ktorzy konta nie maja — a to
+          wiekszosc kandydatow. To jest druga droga, nie zamiana.
+        */}
+        {(address.part === 'home' || address.part === 'person') && (
+        <section className="rc-section">
+          <h2 className="rc-h2">Moje zgłoszenia</h2>
+          <RcMyCandidates unlocked={unlocked} />
+        </section>
+        )}
+
         {address.part === 'person' && (
         <section className="rc-section">
           <h2 className="rc-h2">{t.person.heading}</h2>

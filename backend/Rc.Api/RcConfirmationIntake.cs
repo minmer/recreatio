@@ -47,6 +47,15 @@ public static class RcConfirmationIntake
         app.MapPost("/rc/public/confirmation/{slug}/apply", ApplyAsync).Produces<RcCandidateAppliedResponse>();
         app.MapGet("/rc/public/candidate/{token}", PortalAsync).Produces<RcCandidatePortalResponse>();
         app.MapPost("/rc/public/candidate/{token}/bind", BindAsync).Produces<RcCandidateBoundResponse>();
+
+        /*
+         * Die eigenen Anmeldungen — ohne Link, ueber das Konto.
+         *
+         * Nicht unter /public: hier wird ein Konto gebraucht, und zwar ein
+         * aufgeschlossenes. Der Weg ueber den Link bleibt daneben bestehen,
+         * fuer alle, die kein Konto haben — das sind die meisten.
+         */
+        app.MapGet("/rc/my/candidates", MineAsync).Produces<RcMyCandidatesResponse>();
         app.MapPost("/rc/public/candidate/{token}/revoke", RevokeAsync).Produces<RcCandidateRevokedResponse>();
         app.MapPost("/rc/confirmation-groups/{id:guid}/applications", OpenAsync).Produces<RcApplicationsOpenResponse>();
         app.MapPost("/rc/parishes/{id:guid}/confirmation", SetUpAsync).Produces<RcConfirmationSetUpResponse>();
@@ -421,7 +430,30 @@ public static class RcConfirmationIntake
             found.Fields));
     }
 
-    public sealed record BindRequest(string? Unused);
+    /// <summary>
+    /// Was das Verbinden braucht.
+    ///
+    /// <b>Der Sitzungsschluessel geht mit.</b> Er steht im Link, den der
+    /// Browser gerade offen hat — und nur dort. Ohne ihn merkte sich die Zeile
+    /// zwar das Konto, aber das Konto koennte nichts oeffnen; genau so war es
+    /// vorher, und "verbinde mit deinem Konto" war eine leere Geste.
+    ///
+    /// <b>Verpackt wird auf dem Dienst</b>, unter dem oeffentlichen Schluessel
+    /// der Personenrolle. Das ist derselbe Weg wie beim Teilen eines
+    /// Datenelements (<c>RcDataItems.GrantAsync</c>): der Browser kennt fremde
+    /// oeffentliche Schluessel nicht, und ihm einen dafuer herauszugeben waere
+    /// ein Muster, das es sonst nirgends gibt.
+    /// </summary>
+    public sealed record BindRequest(string? SessionKey);
+
+    /// <summary>Eine eigene Anmeldung, mit geoeffneten Angaben.</summary>
+    public sealed record MyCandidateView(
+        string CandidateId, string GroupName, string ParishSlug, string Status,
+        bool PaperReceived, bool QuizPassed,
+        string? Given, string? Surname, string? Born, string? Contact,
+        string? Address, string? School, string? Unreadable);
+
+    public sealed record RcMyCandidatesResponse(IReadOnlyList<MyCandidateView> Candidates);
 
     /// <summary>
     /// Den Portallink mit dem angemeldeten Konto verbinden.
@@ -434,10 +466,27 @@ public static class RcConfirmationIntake
     /// Ein anderes Konto wird abgewiesen: eine Anmeldung gehoert einem
     /// Menschen, und der Link ist kein Weg, sie jemandem wegzunehmen.
     /// </summary>
-    private static async Task BindAsync(HttpContext ctx, RcDb db, string token)
+    private static async Task BindAsync(
+        HttpContext ctx, RcDb db, RcMasterKey masterKeys, string token, BindRequest body)
     {
         var session = ctx.RcSession();
         if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        /*
+         * OHNE SCHLUESSEL WAERE DAS VERBINDEN EIN VERSPRECHEN OHNE DECKUNG.
+         *
+         * Er kommt aus dem Link, den dieser Browser gerade offen hat. Fehlt er,
+         * wird nicht verbunden: eine Zeile, die ein Konto nennt, das nichts
+         * oeffnen kann, sieht aus wie Zugang und ist keiner.
+         */
+        var sessionKey = SafeBase64(body.SessionKey);
+        if (sessionKey is null || sessionKey.Length != RcCrypto.KeySize)
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                RcErrorCodes.PermissionDenied,
+                "Zum Verbinden fehlt der Schluessel aus dem Link.");
+            return;
+        }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
@@ -452,13 +501,51 @@ public static class RcConfirmationIntake
             return;
         }
 
-        await using var cmd = new SqlCommand(
-            "UPDATE dbo.rc_candidate SET account_id = @account, updated_at = @now WHERE id = @id;",
-            connection);
-        cmd.Parameters.AddWithValue("@account", session.AccountId);
-        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
-        cmd.Parameters.AddWithValue("@id", found.CandidateId);
-        await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+        /*
+         * Die Personenrolle des Kontos ist die Empfaengerin.
+         *
+         * Nicht das Konto selbst: Schluessel gehoeren hier immer einer ROLLE.
+         * Wer spaeter seine Anmeldung jemandem zeigen will, teilt sie ueber
+         * dieselbe Zuteilung weiter, statt seinen Link herumzureichen.
+         */
+        using var held = await masterKeys.OpenAsync(
+            connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
+
+        var personRoleId = await PersonRoleAsync(
+            connection, session.AccountId, ctx.RequestAborted);
+
+        if (personRoleId is null)
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status409Conflict,
+                RcErrorCodes.PermissionDenied,
+                "Diesem Konto fehlt eine Personenrolle, an die der Schluessel gehen koennte.");
+            return;
+        }
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+        try
+        {
+            await using (var cmd = new SqlCommand(
+                "UPDATE dbo.rc_candidate SET account_id = @account, updated_at = @now WHERE id = @id;",
+                connection, tx))
+            {
+                cmd.Parameters.AddWithValue("@account", session.AccountId);
+                cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+                cmd.Parameters.AddWithValue("@id", found.CandidateId);
+                await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await GrantCandidateKeyAsync(
+                connection, tx, personRoleId.Value, found.CandidateId, sessionKey,
+                ctx.RequestAborted);
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
 
         await RcResults.WriteJsonAsync(ctx, new RcCandidateBoundResponse(
             RcId.ToText(found.CandidateId), true));
@@ -1209,6 +1296,208 @@ public static class RcConfirmationIntake
         if (string.IsNullOrWhiteSpace(text)) return null;
         return RcBase64Url.TryDecode(text.Trim(), out var bytes) ? bytes : null;
     }
+
+
+    // -- Der Weg ueber das Konto ----------------------------------------------
+
+    /// <summary>
+    /// Die Personenrolle eines Kontos.
+    ///
+    /// Dieselbe Kante wie in <see cref="RcRoleAccess"/>: was am Graphen
+    /// unmittelbar am Konto haengt und eine Person ist. Gibt es mehrere,
+    /// gewinnt die aelteste — sie ist die, die beim Anlegen entstand.
+    /// </summary>
+    private static async Task<Guid?> PersonRoleAsync(
+        SqlConnection connection, Guid accountId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("""
+            SELECT TOP 1 e.to_role_id
+            FROM dbo.rc_role_edge e
+            JOIN dbo.rc_role r ON r.id = e.to_role_id AND r.revoked_at IS NULL
+            WHERE e.from_account_id = @account
+              AND e.revoked_at IS NULL
+              AND (e.expires_at IS NULL OR e.expires_at > @now)
+              AND r.kind = @person
+            ORDER BY r.created_at;
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@account", accountId);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+        cmd.Parameters.AddWithValue("@person", RcRoleKinds.Person);
+
+        var found = await cmd.ExecuteScalarAsync(ct);
+        return found is Guid id ? id : null;
+    }
+
+    /// <summary>
+    /// Den Sitzungsschluessel einer Anmeldung einer Rolle zuteilen.
+    ///
+    /// <b>Zweimal Verbinden legt nicht zwei Huellen an.</b> Ein Doppelklick
+    /// oder ein zweites Oeffnen desselben Links ist keine zweite Zuteilung —
+    /// und zwei Huellen desselben Schluessels waeren zwei Wahrheiten, von
+    /// denen die Leseseite eine nach Zufall naehme. Die Datenbank haelt das
+    /// ebenfalls fest (uq_rc_role_key_grant_candidate); hier steht es, damit
+    /// der zweite Versuch nicht als Fehler beim Menschen ankommt.
+    /// </summary>
+    private static async Task GrantCandidateKeyAsync(
+        SqlConnection connection, SqlTransaction tx, Guid roleId, Guid candidateId,
+        byte[] sessionKey, CancellationToken ct)
+    {
+        byte[]? wrapPublicKey = null;
+        await using (var look = new SqlCommand(
+            "SELECT wrap_public_key FROM dbo.rc_role WHERE id = @role;", connection, tx))
+        {
+            look.Parameters.AddWithValue("@role", roleId);
+            if (await look.ExecuteScalarAsync(ct) is byte[] found) wrapPublicKey = found;
+        }
+
+        if (wrapPublicKey is null) return;
+
+        await using (var already = new SqlCommand("""
+            SELECT TOP 1 1 FROM dbo.rc_role_key_grant
+            WHERE role_id = @role AND key_kind = @kind AND key_ref = @candidate
+              AND destroyed_at IS NULL;
+            """, connection, tx))
+        {
+            already.Parameters.AddWithValue("@role", roleId);
+            already.Parameters.AddWithValue("@kind", RcGrantKinds.CandidateKey);
+            already.Parameters.AddWithValue("@candidate", candidateId);
+            if (await already.ExecuteScalarAsync(ct) is not null) return;
+        }
+
+        using var rsa = RSA.Create();
+        rsa.ImportSubjectPublicKeyInfo(wrapPublicKey, out _);
+
+        await using var cmd = new SqlCommand("""
+            INSERT INTO dbo.rc_role_key_grant
+                (id, role_id, key_kind, key_ref, sealed_blob, granted_by_role_id, granted_at)
+            VALUES (@id, @role, @kind, @candidate, @blob, @role, @now);
+            """, connection, tx);
+
+        cmd.Parameters.AddWithValue("@id", RcId.NewId());
+        cmd.Parameters.AddWithValue("@role", roleId);
+        cmd.Parameters.AddWithValue("@kind", RcGrantKinds.CandidateKey);
+        cmd.Parameters.AddWithValue("@candidate", candidateId);
+        cmd.Parameters.AddWithValue(
+            "@blob", RcCrypto.WrapKey(rsa, SessionKeyAad(candidateId), sessionKey));
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    /// <summary>
+    /// Die eigenen Anmeldungen — der Weg ins Portal ohne Link.
+    ///
+    /// <b>Gelesen wird ueber die Rollen des Kontos</b>, nicht ueber
+    /// <c>account_id</c>. Die Spalte sagt, WEM die Anmeldung gehoert; sie sagt
+    /// nichts darueber, wer sie aufmachen kann. Nur die Zuteilung sagt das,
+    /// und nur sie traegt den Schluessel.
+    ///
+    /// Eine Anmeldung, deren Huelle nicht aufgeht, faellt NICHT aus der Liste:
+    /// dass sie da ist, gehoert zur Auskunft (15.9).
+    /// </summary>
+    private static async Task MineAsync(HttpContext ctx, RcDb db, RcMasterKey masterKeys)
+    {
+        var session = ctx.RcSession();
+        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        using var held = await masterKeys.OpenAsync(
+            connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
+        var mine = await RcRoleAccess.AllRoleKeysAsync(
+            connection, session.AccountId, held.MasterKey, ctx.RequestAborted);
+
+        var views = new List<MyCandidateView>();
+        if (mine.Count == 0)
+        {
+            await RcResults.WriteJsonAsync(ctx, new RcMyCandidatesResponse(views));
+            return;
+        }
+
+        var names = string.Join(", ", mine.Keys.Select((_, i) => $"@r{i}"));
+        await using var cmd = new SqlCommand($"""
+            SELECT g.role_id, g.sealed_blob, c.id, gr.name, p.slug, c.status,
+                   c.paper_received, c.quiz_passed,
+                   c.given_sealed, c.surname_sealed, c.born_sealed,
+                   c.contact_sealed, c.address_sealed, c.school_sealed
+            FROM dbo.rc_role_key_grant g
+            JOIN dbo.rc_candidate c ON c.id = g.key_ref
+            JOIN dbo.rc_confirmation_group gr ON gr.id = c.group_id
+            JOIN dbo.rc_parish p ON p.id = gr.parish_id
+            WHERE g.key_kind = @kind AND g.destroyed_at IS NULL
+              AND g.role_id IN ({names})
+            ORDER BY c.created_at DESC;
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@kind", RcGrantKinds.CandidateKey);
+        var i = 0;
+        foreach (var roleId in mine.Keys) cmd.Parameters.AddWithValue($"@r{i++}", roleId);
+
+        var rows = new List<(Guid RoleId, byte[] Blob, Guid Id, string Group, string Slug,
+            string Status, bool Paper, bool Quiz, byte[]?[] Fields)>();
+
+        await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
+        {
+            while (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                byte[]? At(int column) => reader.IsDBNull(column) ? null : (byte[])reader[column];
+                rows.Add((reader.GetGuid(0), (byte[])reader[1], reader.GetGuid(2),
+                    reader.GetString(3), reader.GetString(4), reader.GetString(5),
+                    reader.GetBoolean(6), reader.GetBoolean(7),
+                    [At(8), At(9), At(10), At(11), At(12), At(13)]));
+            }
+        }
+
+        var identities = await RcRoleAccess.LoadIdentitiesAsync(
+            connection, rows.Select(r => r.RoleId).Distinct().ToList(), ctx.RequestAborted);
+
+        foreach (var row in rows)
+        {
+            byte[]? key = null;
+            if (identities.TryGetValue(row.RoleId, out var identity))
+            {
+                try
+                {
+                    using var wrapKey = RcRoleKeys.OpenWrapKey(identity, mine[row.RoleId]);
+                    key = RcCrypto.UnwrapKey(wrapKey, SessionKeyAad(row.Id), row.Blob);
+                }
+                catch (RcDecryptException) { key = null; }
+            }
+
+            string? Open(int which)
+            {
+                var blob = row.Fields[which];
+                if (key is null || blob is null) return null;
+                try
+                {
+                    return System.Text.Encoding.UTF8.GetString(RcCrypto.Open(
+                        key, FieldAad(row.Id, FieldOf(which)), blob));
+                }
+                catch (RcDecryptException) { return null; }
+            }
+
+            views.Add(new MyCandidateView(
+                RcId.ToText(row.Id), row.Group, row.Slug, row.Status, row.Paper, row.Quiz,
+                Open(0), Open(1), Open(2), Open(3), Open(4), Open(5),
+                key is null ? RcErrorCodes.CryptoMissingEpoch : null));
+        }
+
+        await RcResults.WriteJsonAsync(ctx, new RcMyCandidatesResponse(views));
+    }
+
+    /// <summary>Die Etiketten der sechs Felder, in der Reihenfolge der Abfrage.</summary>
+    private static RcField FieldOf(int which) => which switch
+    {
+        0 => RcField.CandidateGiven,
+        1 => RcField.CandidateSurname,
+        2 => RcField.CandidateBorn,
+        3 => RcField.CandidateContact,
+        4 => RcField.CandidateAddress,
+        _ => RcField.CandidateSchool
+    };
+
+    private static RcAad FieldAad(Guid candidateId, RcField field) =>
+        RcAad.Create("confirmation", "candidate", candidateId, field, 1);
 
     private static Task NotFound(HttpContext ctx) =>
         RcResults.WriteErrorAsync(ctx, StatusCodes.Status404NotFound,

@@ -1143,6 +1143,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationIntakeBindRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -1150,6 +1160,25 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RcCandidateBoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/my/candidates": {
+      "get": {
+        "tags": [
+          "RcConfirmationIntake"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmationIntakeRcMyCandidatesResponse"
                 }
               }
             }
@@ -5249,6 +5278,16 @@
         },
         "additionalProperties": false
       },
+      "ConfirmationIntakeBindRequest": {
+        "type": "object",
+        "properties": {
+          "sessionKey": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "ConfirmationIntakeCandidateLink": {
         "required": [
           "candidateId",
@@ -5265,6 +5304,66 @@
           },
           "revoked": {
             "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationIntakeMyCandidateView": {
+        "required": [
+          "candidateId",
+          "groupName",
+          "paperReceived",
+          "parishSlug",
+          "quizPassed",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string"
+          },
+          "groupName": {
+            "type": "string"
+          },
+          "parishSlug": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "paperReceived": {
+            "type": "boolean"
+          },
+          "quizPassed": {
+            "type": "boolean"
+          },
+          "given": {
+            "type": "string",
+            "nullable": true
+          },
+          "surname": {
+            "type": "string",
+            "nullable": true
+          },
+          "born": {
+            "type": "string",
+            "nullable": true
+          },
+          "contact": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "school": {
+            "type": "string",
+            "nullable": true
+          },
+          "unreadable": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -5295,6 +5394,21 @@
           "quizPassed": {
             "type": "boolean",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmationIntakeRcMyCandidatesResponse": {
+        "required": [
+          "candidates"
+        ],
+        "type": "object",
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfirmationIntakeMyCandidateView"
+            }
           }
         },
         "additionalProperties": false
