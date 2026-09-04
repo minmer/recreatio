@@ -204,6 +204,28 @@ public static class RcConfirmationIntake
             return;
         }
 
+        /*
+         * OHNE SITZUNGSSCHLUESSEL WIRD NICHTS GESPEICHERT.
+         *
+         * Hier stand `SafeBase64(...) ?? []` — direkt am INSERT. Liess sich der
+         * Schluessel nicht lesen, ging ein leerer Blob in die Zeile: die
+         * Anmeldung galt als angenommen, der Kandidat bekam seinen Link, und
+         * die Daten waren fuer immer zu. Niemand haette es gemerkt, bis jemand
+         * sie zum ersten Mal oeffnen wollte — und dann waere nicht mehr
+         * herauszufinden gewesen, woran es lag.
+         *
+         * Eine Anmeldung, die nicht gelesen werden kann, ist keine Anmeldung.
+         * Lieber jetzt abweisen als spaeter schweigen.
+         */
+        var sessionKeyWrapped = SafeBase64(body.SessionKeyWrapped);
+        if (sessionKeyWrapped is null || sessionKeyWrapped.Length == 0)
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                RcErrorCodes.PermissionDenied,
+                "Der Schluessel der Anmeldung fehlt oder ist unbrauchbar.");
+            return;
+        }
+
         var candidateId = RcId.NewId();
         var now = DateTimeOffset.UtcNow;
 
@@ -276,7 +298,7 @@ public static class RcConfirmationIntake
                 """, connection, tx))
             {
                 intake.Parameters.AddWithValue("@id", candidateId);
-                intake.Parameters.AddWithValue("@key", SafeBase64(body.SessionKeyWrapped) ?? []);
+                intake.Parameters.AddWithValue("@key", sessionKeyWrapped);
                 intake.Parameters.AddWithValue("@epoch", intakeEpoch);
                 intake.Parameters.AddWithValue("@now", now);
                 await intake.ExecuteNonQueryAsync(ctx.RequestAborted);
