@@ -2841,6 +2841,175 @@
         }
       }
     },
+    "/rc/calendar-items/{id}/occurrences/{at}/intentions": {
+      "get": {
+        "tags": [
+          "RcMass"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "at",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MassRcIntentionsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcMass"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "at",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MassAddRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MassRcIntentionCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/mass-intentions/{id}": {
+      "post": {
+        "tags": [
+          "RcMass"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MassUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MassRcIntentionUpdatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/public/parishes/{slug}/masses": {
+      "get": {
+        "tags": [
+          "RcMass"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MassRcPublicMassesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/areas/{id}/messages": {
       "get": {
         "tags": [
@@ -6699,6 +6868,261 @@
         },
         "additionalProperties": false
       },
+      "MassAddRequest": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "giver": {
+            "type": "string",
+            "nullable": true
+          },
+          "offering": {
+            "type": "string",
+            "nullable": true
+          },
+          "ordinal": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "celebrantRoleId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MassIntentionView": {
+        "required": [
+          "intentionId",
+          "kind",
+          "ordinal",
+          "status",
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "intentionId": {
+            "type": "string"
+          },
+          "ordinal": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "text": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "giver": {
+            "type": "string",
+            "nullable": true
+          },
+          "offering": {
+            "type": "string",
+            "nullable": true
+          },
+          "unreadable": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string"
+          },
+          "celebrantRoleId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MassPublicIntentionView": {
+        "required": [
+          "kind",
+          "ordinal",
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "text": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MassPublicMassView": {
+        "required": [
+          "endsUtc",
+          "intentions",
+          "itemId",
+          "startsUtc",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "intentions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MassPublicIntentionView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "MassRcIntentionCreatedResponse": {
+        "required": [
+          "intentionId",
+          "ordinal"
+        ],
+        "type": "object",
+        "properties": {
+          "intentionId": {
+            "type": "string"
+          },
+          "ordinal": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MassRcIntentionUpdatedResponse": {
+        "required": [
+          "intentionId",
+          "updated"
+        ],
+        "type": "object",
+        "properties": {
+          "intentionId": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MassRcIntentionsResponse": {
+        "required": [
+          "intentions",
+          "itemId",
+          "occurrenceUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "occurrenceUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "intentions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MassIntentionView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "MassRcPublicMassesResponse": {
+        "required": [
+          "fromUtc",
+          "masses",
+          "slug",
+          "timeZone",
+          "toUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "fromUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "toUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "masses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MassPublicMassView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "MassUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "ordinal": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "celebrantRoleId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "MessagesEditRequest": {
         "required": [
           "body"
@@ -7354,8 +7778,11 @@
       "RcBusyPeriodView": {
         "required": [
           "from",
+          "fromUtc",
+          "source",
           "state",
-          "to"
+          "to",
+          "toUtc"
         ],
         "type": "object",
         "properties": {
@@ -7366,6 +7793,17 @@
             "type": "string"
           },
           "state": {
+            "type": "string"
+          },
+          "fromUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "toUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
             "type": "string"
           }
         },
@@ -10643,6 +11081,9 @@
     },
     {
       "name": "RcLedgerEndpoints"
+    },
+    {
+      "name": "RcMass"
     },
     {
       "name": "RcMessages"

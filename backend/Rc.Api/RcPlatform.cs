@@ -126,6 +126,9 @@ public static class RcPlatform
         app.MapRcPublicParish();
         app.MapRcGraph();
         app.MapRcCalendar();
+
+        // Messen sind Kalendereintraege; nur die Intentionen sind eigen.
+        app.MapRcMass();
         app.MapRcConfirmation();
         app.MapRcConfirmationIntake();
         app.MapRcResource();

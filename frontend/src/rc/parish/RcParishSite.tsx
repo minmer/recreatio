@@ -25,7 +25,7 @@
 import { useEffect, useState } from 'react';
 
 import {
-  RC_ANNOUNCEMENTS, RC_EVENTS, RC_EXCEPTIONS, RC_INTENTIONS, RC_MASSES,
+  RC_ANNOUNCEMENTS, RC_EVENTS, RC_INTENTIONS,
   RC_MASS_TABS, RC_MASS_TAB_LABELS, RC_PARISH_MENU, RC_PRIESTS,
   type RcMassTab, type RcPageId
 } from './rcParishMock';
@@ -37,6 +37,9 @@ import { rcSaveParishSite } from '../lib/rcParish';
 import { RcParishHome } from './RcParishHome';
 import { RcApplyForm } from './RcApplyForm';
 import { RcMyApplication, useMineHere } from './RcMyApplication';
+import { RcMassWidget } from './RcMassWidget';
+import { RcMassOffice } from './RcMassOffice';
+import { RcPriestMasses } from './RcPriestMasses';
 import { RcPersonPicker, usePersons, useActivePerson } from '../RcPersonPicker';
 import { rcMe } from '../lib/rcAuth';
 import { rcMyPersonFields } from './rcPrefill';
@@ -390,12 +393,15 @@ export function RcParishSite({
               site={site}
               mayEdit={mayEdit}
               at={at}
+              /* Der Messplan im Baustein kommt vom Dienst, nicht aus dem
+                 Dokument — dafuer braucht er die Kennung der Pfarrei. */
+              slug={slug}
             />
           </>
         )}
         {page === 'announcements' && <Announcements />}
         {page === 'intentions' && <Intentions />}
-        {page === 'masses' && <Masses tab={tab} at={at} />}
+        {page === 'masses' && <Masses tab={tab} at={at} slug={slug} mayEdit={mayEdit} />}
         {page === 'calendar' && <Calendar />}
         {page === 'clergy' && <Clergy />}
         {page === 'office' && <Office site={site} mayEdit={mayEdit} />}
@@ -534,9 +540,43 @@ function Intentions() {
   );
 }
 
-function Masses({ tab, at }: { tab: RcMassTab; at: (id: string) => string }) {
+function Masses({
+  tab, at, slug, mayEdit
+}: {
+  tab: RcMassTab;
+  at: (id: string) => string;
+  slug: string;
+  /** Wer die Pfarrei verwaltet, sieht die Kanzlei und den Dienstplan. */
+  mayEdit: boolean;
+}) {
+  /*
+   * DREI SICHTEN AUF DASSELBE.
+   *
+   * Der Aushang beantwortet „wann ist Messe", der Dienstplan „was habe ich zu
+   * halten", die Kanzlei „was ist am Donnerstag angenommen". Dasselbe Material,
+   * drei verschiedene erste Zeilen — deshalb drei Ansichten und nicht eine mit
+   * Schaltern.
+   */
+  const [view, setView] = useState<'plan' | 'priest' | 'office'>('plan');
+
   return (
     <Page title="Msze i nabożeństwa">
+      {mayEdit && (
+        <div className="ps-tabs">
+          <button type="button" className={`ps-tab${view === 'plan' ? ' is-active' : ''}`}
+            onClick={() => setView('plan')}>Plan</button>
+          <button type="button" className={`ps-tab${view === 'priest' ? ' is-active' : ''}`}
+            onClick={() => setView('priest')}>Do odprawienia</button>
+          <button type="button" className={`ps-tab${view === 'office' ? ' is-active' : ''}`}
+            onClick={() => setView('office')}>Kancelaria</button>
+        </div>
+      )}
+
+      {mayEdit && view === 'priest' && <RcPriestMasses slug={slug} />}
+      {mayEdit && view === 'office' && <RcMassOffice slug={slug} />}
+
+      {view === 'plan' && (
+      <>
       {/*
         Auch die Reiter sind Verweise. Ein Reiter ist eine Sicht auf dieselbe
         Seite und trotzdem etwas, das man weitergeben will: „schau dir die
@@ -555,29 +595,32 @@ function Masses({ tab, at }: { tab: RcMassTab; at: (id: string) => string }) {
         ))}
       </div>
 
+      {/*
+        HIER STANDEN ERFUNDENE ZEITEN.
+
+        `RC_MASSES` war eine Beispieltabelle — sie sah aus wie ein Messplan und
+        war keiner. Wer danach in die Kirche ging, ging zu einer Stunde, die
+        sich jemand ausgedacht hatte.
+
+        Jetzt steht hier der Plan aus dem Kalender, in seiner groessten Gestalt:
+        mehrere Tage mit ihren Intentionen.
+      */}
       <article className="ps-card">
-        <ul className="ps-rows">
-          {RC_MASSES[tab].map((m) => (
-            <li key={m.time + m.place}>
-              <time>{m.time}</time>
-              <span>{m.place}</span>
-              <em>{m.note}</em>
-            </li>
-          ))}
-        </ul>
+        <RcMassWidget slug={slug} colSpan={6} rowSpan={12} />
       </article>
 
-      <article className="ps-card ps-card-note">
-        <h2>Zmiany i wyjątki</h2>
-        <ul className="ps-rows">
-          {RC_EXCEPTIONS.map((e) => (
-            <li key={e.date}>
-              <span>{e.date}</span>
-              <em>{e.detail}</em>
-            </li>
-          ))}
-        </ul>
-      </article>
+      </>
+      )}
+
+      {/*
+        HIER STAND EINE ZWEITE ERFUNDENE LISTE.
+
+        Sie war nicht nur ausgedacht, sondern ueberfluessig: Absagen und
+        Verschiebungen einzelner Vorkommen fuehrt der Kalender selbst
+        (rc_calendar_exception), und der Plan darueber zeigt sie bereits — eine
+        abgesagte Messe steht dort gar nicht erst. Eine zweite Liste daneben
+        koennte nur widersprechen.
+      */}
     </Page>
   );
 }

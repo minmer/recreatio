@@ -164,6 +164,10 @@ public enum RcField
     // das Bemerkungsfeld schieben — lautlos und ohne Fehlermeldung.
     EnquiryGroupName,
     EnquiryContactPerson,
+
+    /// <summary>Wer eine Messintention gegeben hat — und was (rc_0020).</summary>
+    MassIntentionGiver,
+    MassIntentionOffering,
     EnquiryContact,
     EnquiryGroupKind,
     EnquiryNote,
@@ -295,6 +299,8 @@ public readonly record struct RcAad
         RcField.PersonBorn              => "born",
         RcField.EnquiryGroupName        => "enquiry_group_name",
         RcField.EnquiryContactPerson    => "enquiry_contact_person",
+        RcField.MassIntentionGiver      => "mass_intention_giver",
+        RcField.MassIntentionOffering   => "mass_intention_offering",
         RcField.EnquiryContact          => "enquiry_contact",
         RcField.EnquiryGroupKind        => "enquiry_group_kind",
         RcField.EnquiryNote             => "enquiry_note",

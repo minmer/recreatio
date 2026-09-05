@@ -180,13 +180,15 @@ public static class RcResource
 
     private sealed record Row(
         Guid Id, Guid AreaId, string Slug, string Title, string Zone,
-        int? Capacity, bool IsPublic, byte[]? IntakePublic);
+        int? Capacity, bool IsPublic, byte[]? IntakePublic,
+        // Die Stunde, zu der ein Tag fuer diese Sache wechselt (rc_0021).
+        int ChangeoverHour);
 
     private static async Task<Row?> LoadAsync(
         SqlConnection connection, string slug, CancellationToken token)
     {
         await using var cmd = new SqlCommand("""
-            SELECT id, area_id, slug, title, time_zone, capacity, is_public, intake_public_key
+            SELECT id, area_id, slug, title, time_zone, capacity, is_public, intake_public_key, changeover_hour
             FROM dbo.rc_resource WHERE slug = @slug;
             """, connection);
         cmd.Parameters.AddWithValue("@slug", slug);
@@ -199,14 +201,15 @@ public static class RcResource
             reader.GetString(4),
             reader.IsDBNull(5) ? null : reader.GetInt32(5),
             reader.GetBoolean(6),
-            reader.IsDBNull(7) ? null : (byte[])reader[7]);
+            reader.IsDBNull(7) ? null : (byte[])reader[7],
+            reader.IsDBNull(8) ? 18 : reader.GetByte(8));
     }
 
     private static async Task<Row?> LoadByIdAsync(
         SqlConnection connection, Guid id, CancellationToken token)
     {
         await using var cmd = new SqlCommand("""
-            SELECT id, area_id, slug, title, time_zone, capacity, is_public, intake_public_key
+            SELECT id, area_id, slug, title, time_zone, capacity, is_public, intake_public_key, changeover_hour
             FROM dbo.rc_resource WHERE id = @id;
             """, connection);
         cmd.Parameters.AddWithValue("@id", id);
@@ -219,7 +222,8 @@ public static class RcResource
             reader.GetString(4),
             reader.IsDBNull(5) ? null : reader.GetInt32(5),
             reader.GetBoolean(6),
-            reader.IsDBNull(7) ? null : (byte[])reader[7]);
+            reader.IsDBNull(7) ? null : (byte[])reader[7],
+            reader.IsDBNull(8) ? 18 : reader.GetByte(8));
     }
 
     private static async Task ViewAsync(HttpContext ctx, RcDb db, string slug)
@@ -284,31 +288,87 @@ public static class RcResource
         if (row is null || !row.IsPublic) { await RcAreas.NotForYou(ctx); return; }
 
         await using var cmd = new SqlCommand("""
-            SELECT from_date, to_date, state
+            /*
+                HALBOFFEN: [from_at, to_at).
+
+                Vorher stand hier `from_date <= @to AND to_date >= @from` — an
+                beiden Enden einschliessend. Wer am 5. um 18 Uhr abreiste,
+                blockierte damit den, der am 5. um 18 Uhr anreiste: eine
+                gueltige Buchung wurde abgewiesen, und niemand konnte sehen,
+                warum.
+
+                Dazu die Kalendereintraege, die diese Sache beanspruchen. Eine
+                Messe belegt die Kirche, eine Gruppe den Saal — dieselbe Frage,
+                also dieselbe Antwort. Abgesagtes zaehlt nicht mit.
+            */
+            SELECT from_at, to_at, state, N'hold' AS source
             FROM dbo.rc_resource_hold
             WHERE resource_id = @id
-              AND from_date <= @to AND to_date >= @from
+              AND from_at < @to AND to_at > @from
               AND (state = 'confirmed' OR expires_at > @now)
-            ORDER BY from_date;
+
+            UNION ALL
+
+            SELECT i.starts_at, i.ends_at, N'confirmed', N'calendar'
+            FROM dbo.rc_calendar_item i
+            WHERE i.resource_id = @id
+              AND i.starts_at < @to AND i.ends_at > @from
+              AND i.status <> N'cancelled'
+              AND i.repeat_kind = N'none'
+
+            ORDER BY 1;
             """, connection);
 
         cmd.Parameters.AddWithValue("@id", row.Id);
-        cmd.Parameters.Add("@from", System.Data.SqlDbType.Date).Value = fromDay.ToDateTime(TimeOnly.MinValue);
-        cmd.Parameters.Add("@to", System.Data.SqlDbType.Date).Value = toDay.ToDateTime(TimeOnly.MinValue);
+        cmd.Parameters.Add("@from", System.Data.SqlDbType.DateTimeOffset).Value =
+            new DateTimeOffset(fromDay.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        cmd.Parameters.Add("@to", System.Data.SqlDbType.DateTimeOffset).Value =
+            new DateTimeOffset(toDay.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
 
         var periods = new List<RcBusyPeriodView>();
         await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
         while (await reader.ReadAsync(ctx.RequestAborted))
         {
+            var fromAt = reader.GetDateTimeOffset(0);
+            var toAt = reader.GetDateTimeOffset(1);
+
+            /*
+             * Der Tag bleibt stehen, die Uhrzeit kommt dazu.
+             *
+             * Wer bisher nur die Tage gelesen hat, liest sie weiter — und wer
+             * genauer hinsehen muss, weil eine Messe eine Stunde dauert und
+             * kein Tag, findet daneben den Zeitpunkt. Die alten Felder
+             * wegzunehmen haette jede Anzeige zerbrochen, die es schon gibt.
+             */
             periods.Add(new RcBusyPeriodView(
-                DateOnly.FromDateTime(reader.GetDateTime(0)).ToString("yyyy-MM-dd"),
-                DateOnly.FromDateTime(reader.GetDateTime(1)).ToString("yyyy-MM-dd"),
-                reader.GetString(2)));
+                DateOnly.FromDateTime(fromAt.UtcDateTime).ToString("yyyy-MM-dd"),
+                DateOnly.FromDateTime(toAt.UtcDateTime).ToString("yyyy-MM-dd"),
+                reader.GetString(2),
+                fromAt, toAt, reader.GetString(3)));
         }
 
         await RcResults.WriteJsonAsync(ctx, new RcFreeBusyResponse(
             RcId.ToText(row.Id), row.Zone, periods));
+    }
+
+    /// <summary>
+    /// Der Zeitpunkt, an dem ein Tag fuer diese Sache beginnt oder endet.
+    ///
+    /// In der Zone der Sache gerechnet und dann als Zeitpunkt festgehalten:
+    /// 18 Uhr ist 18 Uhr vor Ort, im Sommer wie im Winter. Wer stattdessen eine
+    /// feste Verschiebung nimmt, verschiebt jede Buchung zweimal im Jahr um
+    /// eine Stunde — und merkt es an dem Tag, an dem eine Gruppe eine Stunde zu
+    /// frueh vor der Tuer steht.
+    /// </summary>
+    private static DateTimeOffset Changeover(DateOnly day, int hour, string zoneName)
+    {
+        var local = day.ToDateTime(new TimeOnly(Math.Clamp(hour, 0, 23), 0));
+        var zone = RcCalendar.TryZone(zoneName, out var found) && found is not null
+            ? found
+            : TimeZoneInfo.Utc;
+
+        return new DateTimeOffset(local, zone.GetUtcOffset(local));
     }
 
     // -- Zeitraeume -----------------------------------------------------------
@@ -345,18 +405,50 @@ public static class RcResource
             RcCapability.Write, ctx.RequestAborted);
         if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
 
+        /*
+         * EIN TAG IST EINE UHRZEIT.
+         *
+         * „Vom 5. bis zum 8." heisst in einem Gaestehaus: ab dem 5. um 18 Uhr
+         * bis zum 8. um 18 Uhr. Die Stunde steht an der Sache (changeover_hour),
+         * weil nicht jedes Haus um 18 Uhr wechselt.
+         *
+         * Erst dadurch laesst sich eine Uebernachtung mit einer Messe in
+         * derselben Rechnung fuehren — und erst dadurch stimmt die Rechnung:
+         * vorher blockierte, wer am 5. abreiste, den, der am 5. anreiste.
+         */
+        var fromAt = Changeover(fromDay, row.ChangeoverHour, row.Zone);
+        var toAt = Changeover(toDay, row.ChangeoverHour, row.Zone);
+
+        if (toAt <= fromAt)
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                RcErrorCodes.PermissionDenied,
+                "Ein Aufenthalt braucht mindestens eine Nacht.");
+            return;
+        }
+
         // Ein bereits BESTAETIGTER Zeitraum wird nicht zweimal vergeben. Eine
         // Vormerkung darf sich mit einer anderen ueberschneiden — genau dafuer
         // ist sie da: zwei Gruppen fragen, eine bekommt den Zuschlag.
+        //
+        // HALBOFFEN [from, to): Ankunft zur Wechselstunde stoesst nicht mit der
+        // Abreise zur selben Stunde zusammen. Ein Kalendereintrag, der dieselbe
+        // Sache beansprucht, zaehlt mit — die Kirche ist waehrend der Messe
+        // belegt, ob das nun jemand gebucht hat oder nicht.
         await using var clash = new SqlCommand("""
-            SELECT COUNT(*) FROM dbo.rc_resource_hold
-            WHERE resource_id = @id AND state = 'confirmed'
-              AND from_date <= @to AND to_date >= @from;
+            SELECT
+                (SELECT COUNT(*) FROM dbo.rc_resource_hold
+                 WHERE resource_id = @id AND state = 'confirmed'
+                   AND from_at < @to AND to_at > @from)
+              + (SELECT COUNT(*) FROM dbo.rc_calendar_item
+                 WHERE resource_id = @id AND status <> N'cancelled'
+                   AND repeat_kind = N'none'
+                   AND starts_at < @to AND ends_at > @from);
             """, connection);
 
         clash.Parameters.AddWithValue("@id", id);
-        clash.Parameters.Add("@from", System.Data.SqlDbType.Date).Value = fromDay.ToDateTime(TimeOnly.MinValue);
-        clash.Parameters.Add("@to", System.Data.SqlDbType.Date).Value = toDay.ToDateTime(TimeOnly.MinValue);
+        clash.Parameters.Add("@from", System.Data.SqlDbType.DateTimeOffset).Value = fromAt;
+        clash.Parameters.Add("@to", System.Data.SqlDbType.DateTimeOffset).Value = toAt;
 
         if ((int)(await clash.ExecuteScalarAsync(ctx.RequestAborted))! > 0)
         {
@@ -373,14 +465,25 @@ public static class RcResource
 
         await using var insert = new SqlCommand("""
             INSERT INTO dbo.rc_resource_hold
-                (id, resource_id, from_date, to_date, state, expires_at, created_at, updated_at)
-            VALUES (@id, @resource, @from, @to, @state, @expires, @now, @now);
+                (id, resource_id, from_date, to_date, from_at, to_at,
+                 state, expires_at, created_at, updated_at)
+            VALUES (@id, @resource, @fromDay, @toDay, @from, @to,
+                    @state, @expires, @now, @now);
             """, connection);
 
         insert.Parameters.AddWithValue("@id", holdId);
         insert.Parameters.AddWithValue("@resource", id);
-        insert.Parameters.Add("@from", System.Data.SqlDbType.Date).Value = fromDay.ToDateTime(TimeOnly.MinValue);
-        insert.Parameters.Add("@to", System.Data.SqlDbType.Date).Value = toDay.ToDateTime(TimeOnly.MinValue);
+        /*
+         * Die Tage bleiben stehen, NEBEN den Zeitpunkten. Sie sind das, was ein
+         * Mensch sagt und liest — „vom 5. bis zum 8." —, die Zeitpunkte das,
+         * womit gerechnet wird. Nur die Zeitpunkte zu speichern hiesse, den Tag
+         * bei jeder Anzeige aus einer Stunde zurueckzurechnen; nur die Tage,
+         * dass die Rechnung wieder falsch wird.
+         */
+        insert.Parameters.Add("@fromDay", System.Data.SqlDbType.Date).Value = fromDay.ToDateTime(TimeOnly.MinValue);
+        insert.Parameters.Add("@toDay", System.Data.SqlDbType.Date).Value = toDay.ToDateTime(TimeOnly.MinValue);
+        insert.Parameters.Add("@from", System.Data.SqlDbType.DateTimeOffset).Value = fromAt;
+        insert.Parameters.Add("@to", System.Data.SqlDbType.DateTimeOffset).Value = toAt;
         insert.Parameters.AddWithValue("@state", state);
         insert.Parameters.Add("@expires", System.Data.SqlDbType.DateTimeOffset).Value =
             (object?)expires ?? DBNull.Value;

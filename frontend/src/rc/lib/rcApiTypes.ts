@@ -3095,6 +3095,151 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/calendar-items/{id}/occurrences/{at}/intentions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    at: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MassRcIntentionsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    at: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MassAddRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MassRcIntentionCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/mass-intentions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MassUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MassRcIntentionUpdatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/public/parishes/{slug}/masses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MassRcPublicMassesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/areas/{id}/messages": {
         parameters: {
             query?: never;
@@ -5444,6 +5589,76 @@ export interface components {
             headSequence: number;
             headHash: string;
         };
+        MassAddRequest: {
+            text?: string | null;
+            giver?: string | null;
+            offering?: string | null;
+            /** Format: int32 */
+            ordinal?: number | null;
+            kind?: string | null;
+            celebrantRoleId?: string | null;
+        };
+        MassIntentionView: {
+            intentionId: string;
+            /** Format: int32 */
+            ordinal: number;
+            text: string;
+            status: string;
+            giver?: string | null;
+            offering?: string | null;
+            unreadable?: string | null;
+            kind: string;
+            celebrantRoleId?: string | null;
+        };
+        MassPublicIntentionView: {
+            /** Format: int32 */
+            ordinal: number;
+            text: string;
+            kind: string;
+        };
+        MassPublicMassView: {
+            itemId: string;
+            /** Format: date-time */
+            startsUtc: string;
+            /** Format: date-time */
+            endsUtc: string;
+            title?: string | null;
+            location?: string | null;
+            status: string;
+            intentions: components["schemas"]["MassPublicIntentionView"][];
+        };
+        MassRcIntentionCreatedResponse: {
+            intentionId: string;
+            /** Format: int32 */
+            ordinal: number;
+        };
+        MassRcIntentionUpdatedResponse: {
+            intentionId: string;
+            updated: boolean;
+        };
+        MassRcIntentionsResponse: {
+            itemId: string;
+            /** Format: date-time */
+            occurrenceUtc: string;
+            intentions: components["schemas"]["MassIntentionView"][];
+        };
+        MassRcPublicMassesResponse: {
+            slug: string;
+            timeZone: string;
+            /** Format: date-time */
+            fromUtc: string;
+            /** Format: date-time */
+            toUtc: string;
+            masses: components["schemas"]["MassPublicMassView"][];
+        };
+        MassUpdateRequest: {
+            text?: string | null;
+            status?: string | null;
+            /** Format: int32 */
+            ordinal?: number | null;
+            kind?: string | null;
+            celebrantRoleId?: string | null;
+        };
         MessagesEditRequest: {
             body: string;
         };
@@ -5626,6 +5841,11 @@ export interface components {
             from: string;
             to: string;
             state: string;
+            /** Format: date-time */
+            fromUtc: string;
+            /** Format: date-time */
+            toUtc: string;
+            source: string;
         };
         RcCacheModeResponse: {
             /** Format: int32 */

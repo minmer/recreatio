@@ -28,7 +28,26 @@ public sealed record RcResourceView(
 public sealed record RcResourcesResponse(IReadOnlyList<RcResourceView> Resources);
 
 /// <summary>Ein belegter Zeitraum — Anfang, Ende, Zustand. Mehr gibt es nicht.</summary>
-public sealed record RcBusyPeriodView(string From, string To, string State);
+/// <summary>
+/// Ein belegter Zeitraum.
+///
+/// <b>Mit Uhrzeit, nicht nur mit Tag.</b> „Der 5. bis der 8." heisst in einem
+/// Gaestehaus: ab dem 5. um 18 Uhr bis zum 8. um 18 Uhr. Ein Tag IST eine
+/// Uhrzeit, nur mit einer stillschweigenden Vereinbarung darueber, wann er
+/// beginnt — und solange die stillschweigend blieb, liess sich eine Messe von
+/// 18 bis 19 Uhr nicht in derselben Rechnung fuehren wie ein Aufenthalt.
+///
+/// <c>From</c> und <c>To</c> sind halboffen: <c>[From, To)</c>. Wer um 18 Uhr
+/// abreist, blockiert den nicht, der um 18 Uhr anreist.
+///
+/// <c>Source</c> sagt, WOHER die Belegung kommt — eine Buchung oder ein
+/// Kalendereintrag, der diese Sache beansprucht. Ohne das stuende in der
+/// Uebersicht eines Pfarrsaals „belegt" ohne jeden Anhalt, ob da eine Gruppe
+/// gebucht hat oder eine Messe angesetzt ist.
+/// </summary>
+public sealed record RcBusyPeriodView(
+    string From, string To, string State,
+    DateTimeOffset FromUtc, DateTimeOffset ToUtc, string Source);
 
 public sealed record RcFreeBusyResponse(
     string ResourceId,

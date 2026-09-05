@@ -18,6 +18,7 @@
 
 import { useMemo, type CSSProperties } from 'react';
 
+import { RcMassWidget } from './RcMassWidget';
 import { RC_COLUMNS, rcFrameFor, rcSnapColSpan, rcSnapRowSpan, type RcBreakpoint, type RcModule } from './rcLayout';
 import { rcModuleLabel } from './rcModules';
 import type { RcSite } from './rcSite';
@@ -39,9 +40,11 @@ function useBreakpoint(): RcBreakpoint {
 }
 
 export function RcParishHome({
-  site, mayEdit, at
+  site, mayEdit, at, slug
 }: {
   site: RcSite;
+  /** Welche Pfarrei — der Messplan kommt vom Dienst und nicht aus dem Dokument. */
+  slug: string;
   /** Wer bearbeiten darf, sieht auch leere Bausteine — als Aufgabe. */
   mayEdit: boolean;
   /** Die Adresse einer Unterseite — damit „Więcej" ein Verweis ist und kein Knopf. */
@@ -74,6 +77,7 @@ export function RcParishHome({
           site={site}
           mayEdit={mayEdit}
           at={at}
+          slug={slug}
         />
       ))}
     </div>
@@ -81,9 +85,10 @@ export function RcParishHome({
 }
 
 function Block({
-  module, columns, breakpoint, site, mayEdit, at
+  module, columns, breakpoint, site, mayEdit, at, slug
 }: {
   module: RcModule;
+  slug: string;
   columns: number;
   breakpoint: RcBreakpoint;
   site: RcSite;
@@ -91,7 +96,16 @@ function Block({
   at: (pageId: string) => string;
 }) {
   const frame = rcFrameFor(module, breakpoint);
-  const body = renderBody(module.type, site);
+
+  /*
+   * DIE GROESSE GEHT MIT IN DEN INHALT.
+   *
+   * Ein Baustein, der seine eigene Groesse nicht kennt, kann nur EINE Gestalt
+   * haben — und muss sie dann abschneiden, wenn der Platz nicht reicht. Ein
+   * abgeschnittener Messplan sieht vollstaendig aus und ist es nicht: wer „7:00,
+   * 9:00" liest, kommt um neun und erfaehrt nie, dass es auch achtzehn Uhr gab.
+   */
+  const body = renderBody(module.type, site, slug, frame.size);
 
   // Ein leerer Baustein bleibt für den Verwalter stehen und verschwindet für
   // den Besucher: der eine soll ihn füllen, dem anderen sagt er nichts.
@@ -137,7 +151,10 @@ const LINKS: Record<string, string> = {
  * <c>null</c> heisst: dazu ist nichts eingetragen. Die Entscheidung, was dann
  * geschieht, trifft der Aufrufer — hier steht nur die Auskunft.
  */
-function renderBody(type: string, site: RcSite): React.ReactNode | null {
+function renderBody(
+  type: string, site: RcSite, slug: string,
+  size: { readonly colSpan: number; readonly rowSpan: number }
+): React.ReactNode | null {
   const value = (key: string) => (site.content[key] ?? '').trim();
   const lines = (key: string) =>
     value(key).split('\n').map((l) => l.trim()).filter((l) => l !== '');
@@ -148,10 +165,37 @@ function renderBody(type: string, site: RcSite): React.ReactNode | null {
       return rows.length === 0 ? null : <Rows rows={rows} />;
     }
 
-    case 'masses': {
-      const rows = lines('masses.sunday');
-      return rows.length === 0 ? null : <Rows rows={rows} />;
-    }
+    /*
+     * DER MESSPLAN KOMMT JETZT AUS DEM KALENDER.
+     *
+     * Hier standen die von Hand eingetragenen Zeilen („7:00 — cicha"). Die
+     * bleiben als Rueckfall stehen: eine Pfarrei, die ihre Messen noch nicht
+     * als Termine angelegt hat, verliert ihre Seite nicht — sie zeigt weiter,
+     * was jemand hingeschrieben hat.
+     *
+     * Sobald es Termine gibt, gewinnen sie. Zwei Quellen fuer dieselbe Auskunft
+     * laufen sonst auseinander, und die abgetippte ist die, die niemand
+     * nachfuehrt.
+     */
+    case 'masses':
+      return (
+        <RcMassWidget
+          slug={slug}
+          colSpan={size.colSpan}
+          rowSpan={size.rowSpan}
+          fallback={lines('masses.sunday')}
+        />
+      );
+
+    case 'intentions':
+      return (
+        <RcMassWidget
+          slug={slug}
+          colSpan={size.colSpan}
+          rowSpan={size.rowSpan}
+          onlyIntentions
+        />
+      );
 
     case 'contact': {
       const parts = [
@@ -185,7 +229,6 @@ function renderBody(type: string, site: RcSite): React.ReactNode | null {
      * angelegt werden können, gibt es hier nichts zu zeigen, und das ist die
      * ehrliche Antwort.
      */
-    case 'intentions':
     case 'news':
     case 'announcements':
     case 'calendar':

@@ -1062,3 +1062,127 @@
   border-radius: 6px;
   background: #fff;
 }
+
+/* -- Plan mszy: pięć postaci -------------------------------------------- */
+
+/*
+ * Każda postać ma własny układ, bo każda odpowiada na inne pytanie. Pasek
+ * pyta „o której", słupek „jakie są", karta „co dziś czytają". Jeden układ
+ * skalowany do pięciu wielkości odpowiadałby na żadne.
+ */
+
+.ms-when {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ps-muted, #6b6257);
+}
+
+/* Najbliższa msza: godzina jest tu całą treścią, więc jest duża. */
+.ms-next { display: grid; gap: 0.15rem; margin: 0; }
+.ms-hour { font-size: 1.6rem; line-height: 1.1; }
+
+/* Pasek: godziny obok siebie, oddzielone kropką. */
+.ms-strip { display: grid; gap: 0.3rem; }
+.ms-hours { display: flex; flex-wrap: wrap; gap: 0.5rem; list-style: none; margin: 0; padding: 0; }
+.ms-hours li { font-weight: 600; }
+.ms-hours li + li::before { content: "·"; margin-right: 0.5rem; opacity: 0.45; font-weight: 400; }
+
+/* Słupek: godzina i nazwa, jedna pod drugą. */
+.ms-col { display: grid; gap: 0.3rem; }
+.ms-col .ms-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+.ms-col .ms-rows li { display: flex; gap: 0.5rem; align-items: baseline; font-size: 0.9rem; }
+
+/* Dzień i kilka dni: msze z intencjami. */
+.ms-day, .ms-days { display: grid; gap: 0.5rem; }
+.ms-days section { display: grid; gap: 0.3rem; }
+.ms-days h4 { margin: 0; }
+
+.ms-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; }
+
+.ms-mass-head { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: baseline; }
+.ms-mass-head strong { font-size: 1.02rem; }
+
+/* Koniec mszy — potrzebny przy zajętości, więc widoczny, ale drugorzędny. */
+.ms-till { font-size: 0.78rem; color: var(--ps-muted, #6b6257); }
+.ms-title { font-size: 0.88rem; }
+
+.ms-ints { list-style: none; margin: 0.1rem 0 0 0.9rem; padding: 0; display: grid; gap: 0.15rem; }
+.ms-ints li { font-size: 0.88rem; line-height: 1.35; }
+.ms-ints em, .ms-int-when em { font-style: normal; font-size: 0.76rem; opacity: 0.7; }
+
+/* Kafelek intencji: treść z przodu, czas drobnym drukiem. */
+.ms-int-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.ms-int-list li { display: grid; gap: 0.1rem; }
+.ms-int-text { font-size: 0.92rem; line-height: 1.35; }
+.ms-int-when { font-size: 0.76rem; color: var(--ps-muted, #6b6257); }
+
+/* -- Kancelaria ---------------------------------------------------------- */
+
+.mo { gap: 0.9rem; }
+.mo-day { display: flex; gap: 0.5rem; align-items: center; font-size: 0.9rem; }
+.mo-day input { font: inherit; padding: 0.35rem 0.5rem; }
+
+.mo-mass { gap: 0.6rem; }
+.mo-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+.mo-head strong { font-size: 1.1rem; }
+.mo-day-label { margin-left: auto; font-size: 0.78rem; color: var(--ps-muted, #6b6257); }
+
+/*
+ * Ilu kapłanów potrzeba. To jedyny powód, dla którego rozróżnienie na
+ * pojedynczą i zbiorową w ogóle istnieje — więc nie jest drobnym drukiem.
+ */
+.mo-need, .pr-need {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid var(--ps-accent, #8a5200);
+  background: rgba(138, 82, 0, 0.07);
+  font-size: 0.86rem;
+}
+
+.mo-ints { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+
+.mo-int {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+/* Wycofana zostaje w liście — że była, to też informacja. */
+.mo-int[data-cancelled="true"] { opacity: 0.5; text-decoration: line-through; }
+
+.mo-int-text { flex: 1 1 12rem; }
+.mo-int-kind { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; }
+.mo-int-giver, .mo-int-offering { font-size: 0.82rem; color: var(--ps-muted, #6b6257); }
+
+.mo-add { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.6rem; }
+.mo-field { display: grid; gap: 0.2rem; font-size: 0.86rem; }
+.mo-field input, .mo-field select { font: inherit; padding: 0.4rem 0.5rem; }
+.mo-wide { grid-column: 1 / -1; }
+.mo-note { grid-column: 1 / -1; margin: 0; font-size: 0.8rem; }
+
+/* -- Do odprawienia ------------------------------------------------------ */
+
+.pr-plan { display: grid; gap: 1rem; }
+.pr-day { display: grid; gap: 0.4rem; }
+.pr-when { margin: 0; font-size: 0.95rem; }
+.pr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+
+/*
+ * Godzina w osobnej kolumnie: kapłan czyta ten plan rano i szuka w nim
+ * czasu, nie treści. Na telefonie kolumny składają się w wiersze.
+ */
+.pr-mass { display: grid; grid-template-columns: minmax(4.5rem, auto) minmax(0, 1fr); gap: 0.7rem; }
+.pr-time { display: grid; }
+.pr-time strong { font-size: 1.05rem; }
+.pr-what { display: grid; gap: 0.25rem; }
+.pr-what p { margin: 0; }
+.pr-kind { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; }
+.pr-ints { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; font-size: 0.9rem; }
+
+@media (max-width: 30rem) {
+  .pr-mass { grid-template-columns: 1fr; gap: 0.2rem; }
+}
