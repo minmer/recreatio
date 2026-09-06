@@ -9,7 +9,7 @@
  */
 
 import {
-  RC_SUNDAY_MASK, RC_WEEKDAYS_MASK, RC_WEEKDAY_BITS, rcBitOf, rcRepeatLabel
+  RC_SUNDAY_MASK, RC_WEEKDAYS_MASK, RC_WEEKDAY_BITS, rcBitOf, rcDefaultUntil, rcRepeatLabel
 } from './rcMassPlan';
 
 let passed = 0;
@@ -82,11 +82,33 @@ ok('Eine Reihe an drei Tagen',
   rcRepeatLabel({ ...once, repeat: 'weekly', weekdays: 1 + 4 + 16, until: '2026-12-24' }),
   'w pn, śr, pt o 18:00, do 2026-12-24');
 
-ok('Ohne Ende steht, dass es keines gibt',
+/*
+ * OHNE ENDE STEHT NICHT „bez końca" — DENN DAS GIBT ES NICHT.
+ *
+ * Der Kalender verlangt fuer jede Wiederholung ein Ende (ck_rc_item_repeat_end),
+ * und der Dienst weist eine ohne mit 400 ab. Der Text hat das eine Weile
+ * versprochen: „w nd o 18:00, bez końca". Wer darauf klickte, bekam einen
+ * Fehler, den er sich nicht erklaeren konnte.
+ *
+ * Ein Text, der etwas zusagt, was das System nicht haelt, ist schlimmer als
+ * gar keiner.
+ */
+ok('Ohne Ende sagt der Text, dass es fehlt',
   rcRepeatLabel({ ...once, repeat: 'weekly', weekdays: 64 }),
-  'w nd o 18:00, bez końca');
+  'w nd o 18:00, brakuje daty końca');
 
-ok('Taeglich', rcRepeatLabel({ ...once, repeat: 'daily' }), 'codziennie o 18:00, bez końca');
+ok('Taeglich ebenso',
+  rcRepeatLabel({ ...once, repeat: 'daily' }),
+  'codziennie o 18:00, brakuje daty końca');
+
+ok('Mit Ende steht das Ende',
+  rcRepeatLabel({ ...once, repeat: 'daily', until: '2026-12-31' }),
+  'codziennie o 18:00, do 2026-12-31');
+
+/* Die Vorgabe ist das Jahresende — der Punkt, an dem ein Plan ohnehin neu entsteht. */
+ok('Das vorgeschlagene Ende ist das Jahresende', rcDefaultUntil('2026-09-08'), '2026-12-31');
+ok('Auch im Dezember noch dasselbe Jahr', rcDefaultUntil('2026-12-24'), '2026-12-31');
+ok('Aus Unsinn wird kein Datum', rcDefaultUntil('kein datum'), '');
 
 /*
  * Eine woechentliche Reihe ohne gewaehlte Tage ist kein Fehler — dann gilt der
@@ -94,8 +116,8 @@ ok('Taeglich', rcRepeatLabel({ ...once, repeat: 'daily' }), 'codziennie o 18:00,
  * zeigen, bei der niemand weiss, ob er etwas vergessen hat.
  */
 ok('Ohne gewaehlte Tage sagt es der Text',
-  rcRepeatLabel({ ...once, repeat: 'weekly', weekdays: 0 }),
-  'w dniu pierwszej mszy o 18:00, bez końca');
+  rcRepeatLabel({ ...once, repeat: 'weekly', weekdays: 0, until: '2026-12-31' }),
+  'w dniu pierwszej mszy o 18:00, do 2026-12-31');
 
 // -- Ergebnis -----------------------------------------------------------------
 

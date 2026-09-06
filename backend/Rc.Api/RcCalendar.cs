@@ -27,6 +27,20 @@ namespace Rc.Api;
 /// </summary>
 public static class RcCalendar
 {
+    /// <summary>
+    /// Was ein Eintrag sein kann.
+    ///
+    /// <b>`mass` steht hier, weil eine Messe ein Kalendereintrag IST.</b> Sie
+    /// hat keine eigene Tabelle und soll keine haben: Zeit, Wiederholung und
+    /// Ausnahmen kann der Kalender bereits. Nur die Intentionen sind eigen
+    /// (<see cref="RcMass"/>), und die haengen am Vorkommen.
+    ///
+    /// Der Typ ist die einzige verlaessliche Art, eine Messe wiederzufinden.
+    /// Sie am Titel zu erkennen hiesse: an einem Text, den jemand jederzeit
+    /// anders schreibt.
+    /// </summary>
+    public static readonly string[] ItemTypes = ["appointment", "task", RcMass.ItemType];
+
     public static readonly string[] Visibilities = ["private", "area", "public"];
     public static readonly string[] Statuses = ["planned", "confirmed", "cancelled", "completed"];
     public static readonly string[] TaskStates = ["todo", "doing", "done", "cancelled"];
@@ -187,10 +201,11 @@ public static class RcCalendar
         }
 
         var itemType = body.ItemType?.Trim().ToLowerInvariant() ?? "appointment";
-        if (itemType is not ("appointment" or "task"))
+        if (!ItemTypes.Contains(itemType))
         {
             await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
-                RcErrorCodes.PermissionDenied, "Es gibt Termine und Aufgaben, sonst nichts.");
+                RcErrorCodes.PermissionDenied,
+                "Diesen Eintragstyp gibt es nicht: " + string.Join(", ", ItemTypes) + ".");
             return;
         }
 

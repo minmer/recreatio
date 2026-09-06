@@ -15,7 +15,7 @@ import { useEffect, useState } from 'react';
 
 import {
   RC_MASS_MINUTES, RC_SUNDAY_MASK, RC_WEEKDAYS_MASK, RC_WEEKDAY_BITS,
-  rcAddMass, rcParishCalendar, rcRepeatLabel, type RcNewMass
+  rcAddMass, rcDefaultUntil, rcParishCalendar, rcRepeatLabel, type RcNewMass
 } from './rcMassPlan';
 import { rcPublicMasses, rcHour, rcDayLabel } from './rcMass';
 import { rcPublicParish } from './rcPublicParish';
@@ -61,6 +61,21 @@ export function RcMassTab({ slug }: { slug: string }) {
 
   const set = <K extends keyof RcNewMass>(key: K, value: RcNewMass[K]) =>
     setDraft({ ...draft, [key]: value });
+
+  /*
+   * WER EINE SERIE WAEHLT, BEKOMMT SOFORT EIN ENDE DAZU.
+   *
+   * Der Kalender verlangt eines — eine Wiederholung ohne Ende laesst er nicht
+   * zu. Das leere Feld erst stehen zu lassen und beim Speichern abzuweisen
+   * waere eine Falle: man haette alles ausgefuellt und bekaeme ein 400 fuer
+   * etwas, wonach nie gefragt wurde.
+   */
+  const setRepeat = (repeat: RcNewMass['repeat']) =>
+    setDraft({
+      ...draft,
+      repeat,
+      until: repeat === 'none' || draft.until !== '' ? draft.until : rcDefaultUntil(draft.date)
+    });
 
   const toggleDay = (bit: number) =>
     set('weekdays', (draft.weekdays & bit) !== 0 ? draft.weekdays & ~bit : draft.weekdays | bit);
@@ -131,7 +146,7 @@ export function RcMassTab({ slug }: { slug: string }) {
             <input
               type="radio"
               checked={draft.repeat === 'none'}
-              onChange={() => set('repeat', 'none')}
+              onChange={() => setRepeat('none')}
             />
             <span>Jedna msza</span>
           </label>
@@ -140,7 +155,7 @@ export function RcMassTab({ slug }: { slug: string }) {
             <input
               type="radio"
               checked={draft.repeat === 'weekly'}
-              onChange={() => set('repeat', 'weekly')}
+              onChange={() => setRepeat('weekly')}
             />
             <span>Co tydzień</span>
           </label>
@@ -149,7 +164,7 @@ export function RcMassTab({ slug }: { slug: string }) {
             <input
               type="radio"
               checked={draft.repeat === 'daily'}
-              onChange={() => set('repeat', 'daily')}
+              onChange={() => setRepeat('daily')}
             />
             <span>Codziennie</span>
           </label>
@@ -184,8 +199,14 @@ export function RcMassTab({ slug }: { slug: string }) {
 
         {draft.repeat !== 'none' && (
           <label className="mo-field">
-            <span>Do dnia — puste znaczy bez końca</span>
-            <input type="date" value={draft.until} onChange={(e) => set('until', e.target.value)} />
+            {/* Wymagane: kalendarz nie przyjmuje serii bez końca. */}
+            <span>Do dnia — wymagane przy serii</span>
+            <input
+              type="date"
+              value={draft.until}
+              min={draft.date}
+              onChange={(e) => set('until', e.target.value)}
+            />
           </label>
         )}
       </div>
@@ -197,7 +218,12 @@ export function RcMassTab({ slug }: { slug: string }) {
       */}
       <p className="mt-summary">{rcRepeatLabel(draft)}</p>
 
-      <button type="button" className="rc-btn" disabled={busy} onClick={() => void save()}>
+      <button
+        type="button"
+        className="rc-btn"
+        disabled={busy || (draft.repeat !== 'none' && draft.until === '')}
+        onClick={() => void save()}
+      >
         {busy ? 'Zakładanie…' : 'Załóż mszę'}
       </button>
 

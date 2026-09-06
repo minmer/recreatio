@@ -43,6 +43,19 @@ export function rcBitOf(date: Date): number {
   return day === 0 ? RC_SUNDAY_MASK : 1 << (day - 1);
 }
 
+/**
+ * Do kiedy sięga seria, jeśli nikt nie powiedział inaczej — koniec roku.
+ *
+ * <b>Seria MUSI mieć koniec.</b> Kalendarz tego wymaga i ma rację: powtórzenie
+ * bez końca nigdy nie da się wyliczyć w całości, a plan „aż do odwołania"
+ * zostaje po latach nieaktualny i nikt tego nie zauważa. Koniec roku to
+ * naturalny moment, w którym parafia i tak układa plan na nowo.
+ */
+export function rcDefaultUntil(from: string): string {
+  const year = Number(from.slice(0, 4));
+  return Number.isFinite(year) && year > 0 ? `${year}-12-31` : '';
+}
+
 /** Ile trwa msza, jeśli nikt nie powiedział inaczej. */
 export const RC_MASS_MINUTES = 45;
 
@@ -73,7 +86,7 @@ export type RcNewMass = {
   readonly repeat: 'none' | 'weekly' | 'daily';
   /** Maska dni tygodnia przy `weekly`. */
   readonly weekdays: number;
-  /** Ostatni dzień okresu, albo puste — bez końca. */
+  /** Ostatni dzień okresu. Przy serii wymagany — patrz `rcDefaultUntil`. */
   readonly until: string;
 };
 
@@ -130,6 +143,11 @@ export function rcRepeatLabel(mass: RcNewMass): string {
     : `w ${RC_WEEKDAY_BITS.filter((d) => (mass.weekdays & d.bit) !== 0)
         .map((d) => d.label).join(', ') || 'dniu pierwszej mszy'}`;
 
-  const till = mass.until === '' ? 'bez końca' : `do ${mass.until}`;
+  /*
+   * „bez końca" tu NIE STOI, bo tego nie da się założyć: kalendarz wymaga
+   * końca serii. Obietnica, której system nie dotrzyma, jest gorsza niż jej
+   * brak — człowiek klika i dostaje 400, którego nie umie sobie wytłumaczyć.
+   */
+  const till = mass.until === '' ? 'brakuje daty końca' : `do ${mass.until}`;
   return `${days} o ${mass.time}, ${till}`;
 }
