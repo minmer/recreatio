@@ -30,7 +30,7 @@
  * tygodnia zepchnęłoby poza kartkę.
  */
 
-import { rcByDay, rcDayKey, rcHour, type RcPublicMass } from './rcMass';
+import { rcByDay, rcDayKey, rcHour, rcMassesOnly, type RcPublicMass } from './rcMass';
 
 const WEEKDAYS = [
   'niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'
@@ -154,7 +154,7 @@ function collectiveSheets(masses: readonly RcPublicMass[]): string {
 export function rcIntentionsSheetHtml(
   masses: readonly RcPublicMass[], from: Date, to: Date
 ): string {
-  const days = rcByDay(masses.filter((m) => m.status !== 'cancelled'))
+  const days = rcByDay(rcMassesOnly(masses).filter((m) => m.status !== 'cancelled'))
     .map((group) => {
       const rows = group.masses.map((mass) => `
         <div class="mass">
@@ -315,7 +315,7 @@ export function rcIntentionsSheetHtml(
   ${days}
 </div>
 
-${collectiveSheets(masses.filter((m) => m.status !== 'cancelled'))}
+${collectiveSheets(rcMassesOnly(masses).filter((m) => m.status !== 'cancelled'))}
 
 <script>window.addEventListener('load', function () { window.print(); });</script>
 </body>

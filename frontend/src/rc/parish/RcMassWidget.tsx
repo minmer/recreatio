@@ -19,7 +19,7 @@
 import { useEffect, useState } from 'react';
 
 import {
-  rcByDay, rcDayLabel, rcHour, rcPublicMasses,
+  rcByDay, rcConfessionsOnly, rcDayLabel, rcHour, rcMassesOnly, rcPublicMasses,
   type RcPublicMass, type RcPublicMasses as Plan
 } from './rcMass';
 import { rcMassDays, rcMassShape, rcShowsIntentions, type RcMassShape } from './rcMassShape';
@@ -72,18 +72,67 @@ export function RcMassWidget({
   // „wczytywanie…", które przy trzech kafelkach naraz miga trzy razy.
   if (plan === null || failed) return <Fallback rows={fallback} />;
 
-  const masses = (plan.masses ?? []).filter((m) => m.status !== 'cancelled');
-  if (masses.length === 0) return <Fallback rows={fallback} />;
+  const services = (plan.masses ?? []).filter((m) => m.status !== 'cancelled');
+
+  /*
+   * MSZE I SPOWIEDŹ PRZYCHODZĄ RAZEM, ALE NIE STOJĄ RAZEM.
+   *
+   * To ten sam rodzaj wpisu — powtarzający się, jawny czas w kościele — więc
+   * jedno zapytanie. Ale kto patrzy na kafelek „Msze", szuka godziny mszy;
+   * spowiedź wmieszana między nie kazałaby czytać każdej linii, żeby sprawdzić,
+   * czy to msza.
+   */
+  const masses = rcMassesOnly(services);
+  const confessions = rcConfessionsOnly(services);
+
+  if (masses.length === 0 && confessions.length === 0) return <Fallback rows={fallback} />;
 
   if (onlyIntentions === true) return <Intentions masses={masses} shape={shape} />;
 
+  /*
+   * Spowiedź dochodzi dopiero tam, gdzie jest na nią miejsce. W pasku na dwa
+   * pola mieści się jedna godzina — dopisanie do niej drugiej linii znaczyłoby,
+   * że nie mieści się żadna.
+   */
+  const withConfession = (body: React.ReactNode) => (
+    <>
+      {body}
+      {confessions.length > 0 && <Confessions masses={confessions} />}
+    </>
+  );
+
   switch (shape) {
-    case 'next': return <Next masses={masses} />;
+    case 'next': return <Next masses={masses.length > 0 ? masses : confessions} />;
     case 'hours': return <Hours masses={masses} />;
-    case 'list': return <Column masses={masses} />;
-    case 'today': return <Today masses={masses} />;
-    default: return <Days masses={masses} days={days} />;
+    case 'list': return withConfession(<Column masses={masses} />);
+    case 'today': return withConfession(<Today masses={masses} />);
+    default: return withConfession(<Days masses={masses} days={days} />);
   }
+}
+
+/**
+ * Godziny spowiedzi — osobno, pod mszami.
+ *
+ * Kto szuka spowiedzi, szuka jej jako osobnej rzeczy, a nie jako jednej z
+ * pozycji planu mszy. Dlatego własny nagłówek, a nie wiersz między godzinami.
+ */
+function Confessions({ masses }: { masses: readonly RcPublicMass[] }) {
+  const [first] = rcByDay(masses);
+  if (first === undefined) return null;
+
+  return (
+    <div className="ms-conf">
+      <h4 className="ms-when">Spowiedź</h4>
+      <ul className="ms-rows">
+        {first.masses.map((mass) => (
+          <li key={mass.startsUtc}>
+            <strong>{rcHour(mass.startsUtc)}–{rcHour(mass.endsUtc)}</strong>
+            {(mass.title ?? '') !== '' && <span>{mass.title}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 /** Co pokazać, zanim msze staną się terminami. */

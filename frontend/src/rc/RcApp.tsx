@@ -25,6 +25,8 @@ import { RcCandidatePortalPage } from './parish/RcCandidatePortal';
 import './parish/parishSite.css';
 
 import { RcMyCandidates } from './parish/RcMyCandidates';
+import { RcEventSite } from './events/RcEventSite';
+import './events/eventSite.css';
 import { RcPersonOutlet } from './RcPerson';
 import { RcInviteBanner } from './RcInvite';
 import { RcSignInPage } from './RcSignInPage';
@@ -279,6 +281,39 @@ export function RcApp() {
           keyText={address.tail[0] ?? null}
           signedIn={entry.kind === 'signed-in'}
           onSignIn={() => setDrawerOpen(true)}
+        />
+        <RcSignInDrawer
+          lang={lang}
+          entry={entry}
+          onEntry={setEntry}
+          onReady={setUnlocked}
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+        />
+      </>
+    );
+  }
+
+  /*
+   * DIE VERANSTALTUNGSSEITE — mit dem Teil IN DER ADRESSE.
+   *
+   * `#/new/event/recreatio/3` oeffnet den dritten Teil. Damit ist er das, was
+   * ein Teil sein muss: etwas, das sich in einem neuen Reiter oeffnen, als
+   * Lesezeichen ablegen, verschicken und mit „zurueck" verlassen laesst.
+   *
+   * Dieselbe Anmeldeschublade wie auf der Pfarrseite: wer eine Veranstaltung
+   * pflegt, soll sich anmelden koennen, ohne die Seite zu verlassen.
+   */
+  if (address.part === 'event' && address.slug !== null) {
+    const tail = address.tail[0] ?? '';
+    const at = /^[0-9]+$/.test(tail) ? Number(tail) : null;
+
+    return (
+      <>
+        <RcEventSite
+          slug={address.slug}
+          at={at}
+          signedIn={entry.kind === 'signed-in'}
         />
         <RcSignInDrawer
           lang={lang}

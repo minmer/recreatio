@@ -168,6 +168,19 @@ public enum RcField
     /// <summary>Wer eine Messintention gegeben hat — und was (rc_0020).</summary>
     MassIntentionGiver,
     MassIntentionOffering,
+
+    /// <summary>
+    /// Wer besucht wird und wo (rc_0023).
+    ///
+    /// Dass jemand zu Hause besucht wird, heisst: er kommt nicht heraus. Das
+    /// ist eine Auskunft ueber Gesundheit und darueber, dass unter dieser
+    /// Anschrift jemand Wehrloses wohnt — beides gehoert versiegelt.
+    /// </summary>
+    SickPersonName,
+    SickPersonAddress,
+    SickPersonPhone,
+    SickPersonNote,
+    SickVisitNote,
     EnquiryContact,
     EnquiryGroupKind,
     EnquiryNote,
@@ -301,6 +314,11 @@ public readonly record struct RcAad
         RcField.EnquiryContactPerson    => "enquiry_contact_person",
         RcField.MassIntentionGiver      => "mass_intention_giver",
         RcField.MassIntentionOffering   => "mass_intention_offering",
+        RcField.SickPersonName          => "sick_person_name",
+        RcField.SickPersonAddress       => "sick_person_address",
+        RcField.SickPersonPhone         => "sick_person_phone",
+        RcField.SickPersonNote          => "sick_person_note",
+        RcField.SickVisitNote           => "sick_visit_note",
         RcField.EnquiryContact          => "enquiry_contact",
         RcField.EnquiryGroupKind        => "enquiry_group_kind",
         RcField.EnquiryNote             => "enquiry_note",

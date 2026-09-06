@@ -40,7 +40,8 @@ public static class RcCalendar
     /// Sie am Titel zu erkennen hiesse: an einem Text, den jemand jederzeit
     /// anders schreibt.
     /// </summary>
-    public static readonly string[] ItemTypes = ["appointment", "task", RcMass.ItemType];
+    public static readonly string[] ItemTypes =
+        ["appointment", "task", RcMass.ItemType, RcMass.Confession, RcSick.ItemType];
 
     public static readonly string[] Visibilities = ["private", "area", "public"];
     public static readonly string[] Statuses = ["planned", "confirmed", "cancelled", "completed"];

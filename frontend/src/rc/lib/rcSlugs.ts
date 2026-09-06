@@ -79,7 +79,16 @@ export function rcIsSlug(word: string): boolean {
  */
 export const RC_ALLOWED_SLUGS = {
   parish: ['grzegorzki'],
-  event: [],
+
+  /*
+   * „recreatio" ist die Veranstaltungsseite des Hauses selbst.
+   *
+   * Sie traegt denselben Namen wie das Werkzeug — und das ist keine Kollision,
+   * sondern der Punkt: REcreatio baut diese Werkzeuge fuer sich und stellt sie
+   * daneben anderen zur Verfuegung. Die eigene Veranstaltung ist das erste
+   * Stueck, an dem sich zeigt, ob das Werkzeug taugt.
+   */
+  event: ['recreatio'],
   cogita: [],
   calendar: [],
   chat: [],

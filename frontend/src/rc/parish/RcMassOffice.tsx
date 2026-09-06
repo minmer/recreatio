@@ -21,7 +21,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import {
   RC_INTENTION_KINDS, RC_KIND_LABEL, rcAddIntention, rcDayLabel, rcHour,
-  rcIntentions, rcPublicMasses, rcUpdateIntention,
+  rcIntentions, rcMassesOnly, rcPublicMasses, rcUpdateIntention,
   type RcIntention, type RcIntentionKind, type RcPublicMass
 } from './rcMass';
 import { RcRequestError } from '../lib/rcApi';
@@ -60,7 +60,9 @@ export function RcMassOffice({ slug }: { slug: string }) {
       to.setDate(to.getDate() + 1);
 
       const found = await rcPublicMasses(slug, from, to);
-      setMasses((found.masses ?? []).filter((m) => m.status !== 'cancelled'));
+
+      // Tylko msze — spowiedź nie przyjmuje intencji.
+      setMasses(rcMassesOnly(found.masses ?? []).filter((m) => m.status !== 'cancelled'));
       setFailed(false);
     } catch {
       setFailed(true);

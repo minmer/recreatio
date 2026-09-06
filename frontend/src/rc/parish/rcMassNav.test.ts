@@ -30,7 +30,7 @@ function ok(name: string, actual: unknown, expected: unknown): void {
  * rechnet in Ortszeit, und beides muss zusammenpassen.
  */
 const mass = (startsUtc: string) => ({
-  itemId: 'i', startsUtc, endsUtc: startsUtc,
+  itemId: 'i', startsUtc, endsUtc: startsUtc, itemType: 'mass',
   title: null, location: null, status: 'confirmed', intentions: []
 });
 

@@ -72,6 +72,7 @@ for (const day of ['07', '08', '09', '10', '11', '12', '13']) {
 // -- Was der Mensch liest -----------------------------------------------------
 
 const once = {
+  kind: 'mass' as const,
   date: '2026-09-08', time: '18:00', minutes: 45, titlePublic: '',
   repeat: 'none' as const, weekdays: 0, until: ''
 };

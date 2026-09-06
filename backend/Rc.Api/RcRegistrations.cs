@@ -39,6 +39,17 @@ public static class RcRegistrations
         app.MapGet("/rc/event-parts/{id:guid}/registrations", ListAsync)
             .Produces<RcRegistrationsResponse>();
 
+        /*
+         * Der eigene Beleg — ohne Konto, wie das Einsenden selbst.
+         *
+         * Damit entfaellt das ganze Zugangssystem der alten Seite: dort vergab
+         * die Veranstaltung eigene Token und band Seiten daran. Den Beleg gibt
+         * es hier laengst, und er traegt genau so weit, wie er soll — bis zur
+         * eigenen Anmeldung und keinen Schritt weiter.
+         */
+        app.MapPost("/rc/registrations/claim", ClaimAsync)
+            .Produces<RcRegistrationClaimResponse>();
+
         app.MapPost("/rc/registrations/{id:guid}/withdraw", WithdrawAsync)
             .Produces<RcRegistrationWithdrawnResponse>();
     }
@@ -453,6 +464,123 @@ public static class RcRegistrations
         }
 
         await RcResults.WriteJsonAsync(ctx, new RcRegistrationsResponse(views));
+    }
+
+    // -- Der eigene Beleg -----------------------------------------------------
+
+    public sealed record ClaimRequest(string? Claim);
+
+    public sealed record ClaimedAnswer(string FieldId, string Label, string Sealed);
+
+    public sealed record RcRegistrationClaimResponse(
+        string RegistrationId, string EventSlug, string EventTitle, string PartTitle,
+        DateTimeOffset SubmittedUtc, bool Withdrawn,
+        IReadOnlyList<ClaimedAnswer> Answers);
+
+    /// <summary>
+    /// Die eigene Anmeldung zurueckholen — mit dem Beleg, ohne Konto.
+    ///
+    /// <b>Das ist der „individuelle Link" der alten Seite, und er braucht kein
+    /// eigenes Zugangssystem.</b> Dort vergab die Veranstaltung eigene Token
+    /// und band Seiten daran. Hier gibt es den Beleg bereits: er entsteht beim
+    /// Einsenden, und der Dienst speichert nur seinen SHA-256. Wer die ganze
+    /// Tabelle besitzt, findet damit keine Anmeldung; wer den Beleg hat, findet
+    /// genau seine.
+    ///
+    /// <b>Der Dienst gibt Geheimtext heraus und sonst nichts.</b> Die Antworten
+    /// sind unter dem Sitzungsschluessel versiegelt, den der Browser beim
+    /// Einsenden gewuerfelt hat; der steht hinter der Raute im Link und war nie
+    /// hier. Dass dieser Weg ohne Konto geht, kostet also nichts an Schutz —
+    /// er reicht Verschlossenes weiter.
+    ///
+    /// <b>Die Beschriftungen gehen mit.</b> Ohne sie stuenden dort
+    /// entschluesselte Werte ohne Frage dazu: „Jan", „2", „tak". Die Frage ist
+    /// oeffentlich — sie steht auf dem Formular, das jeder sehen darf.
+    ///
+    /// POST und nicht GET: der Beleg gehoert nicht in eine Adresszeile, die in
+    /// Zugriffsprotokollen und im Verlauf landet.
+    /// </summary>
+    private static async Task ClaimAsync(HttpContext ctx, RcDb db, ClaimRequest body)
+    {
+        var claim = (body.Claim ?? string.Empty).Trim();
+        if (claim.Length is 0 or > 200)
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                RcErrorCodes.PermissionDenied, "Ohne Beleg gibt es nichts zu zeigen.");
+            return;
+        }
+
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(claim));
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        Guid registrationId = Guid.Empty;
+        string slug = "", eventTitle = "", partTitle = "";
+        DateTimeOffset submitted = default;
+        var withdrawn = false;
+
+        await using (var cmd = new SqlCommand("""
+            SELECT r.id, e.slug, e.title, r.submitted_at, r.withdrawn_at, p.title
+            FROM dbo.rc_event_registration r
+            JOIN dbo.rc_event e ON e.id = r.event_id
+            LEFT JOIN dbo.rc_event_part p ON p.id = r.part_id
+            WHERE r.claim_hash = @hash;
+            """, connection))
+        {
+            cmd.Parameters.Add("@hash", System.Data.SqlDbType.VarBinary, 32).Value = hash;
+
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            if (!await reader.ReadAsync(ctx.RequestAborted))
+            {
+                /*
+                 * 404 und kein Hinweis darauf, ob der Beleg falsch ist oder die
+                 * Anmeldung fort. Beides zu unterscheiden hiesse, mit geratenen
+                 * Belegen die Tabelle abfragen zu koennen.
+                 */
+                await RcResults.WriteErrorAsync(ctx, StatusCodes.Status404NotFound,
+                    RcErrorCodes.NotFoundOrNoAccess, "Zu diesem Beleg gibt es nichts.");
+                return;
+            }
+
+            registrationId = reader.GetGuid(0);
+            slug = reader.GetString(1);
+            eventTitle = reader.GetString(2);
+            submitted = reader.GetDateTimeOffset(3);
+            withdrawn = !reader.IsDBNull(4);
+            partTitle = reader.IsDBNull(5) ? "" : reader.GetString(5);
+        }
+
+        var answers = new List<ClaimedAnswer>();
+
+        /*
+         * Eine zurueckgenommene Anmeldung traegt keine Werte mehr (12.3.2): die
+         * Zeile bleibt, damit die Zahlen stimmen, der Inhalt ist vernichtet.
+         * Danach zu fragen waere eine Abfrage, deren Antwort feststeht.
+         */
+        if (!withdrawn)
+        {
+            await using var cmd = new SqlCommand("""
+                SELECT f.id, f.label, v.value_sealed
+                FROM dbo.rc_event_registration_value v
+                JOIN dbo.rc_event_field f ON f.id = v.field_id
+                WHERE v.registration_id = @id AND v.value_sealed IS NOT NULL
+                ORDER BY f.sort_order, f.seq;
+                """, connection);
+
+            cmd.Parameters.AddWithValue("@id", registrationId);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                answers.Add(new ClaimedAnswer(
+                    RcId.ToText(reader.GetGuid(0)), reader.GetString(1),
+                    RcBase64Url.Encode((byte[])reader[2])));
+            }
+        }
+
+        await RcResults.WriteJsonAsync(ctx, new RcRegistrationClaimResponse(
+            RcId.ToText(registrationId), slug, eventTitle, partTitle,
+            submitted, withdrawn, answers));
     }
 
     // -- Zuruecknehmen --------------------------------------------------------

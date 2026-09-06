@@ -77,7 +77,7 @@ const mass = (
   startsUtc: string, ...texts: string[]
 ) => ({
   itemId: 'i', startsUtc, endsUtc: startsUtc, title: null, location: null,
-  status: 'confirmed',
+  status: 'confirmed', itemType: 'mass',
   intentions: texts.map((text, i) => ({ ordinal: i, text, kind: 'single' }))
 });
 
@@ -159,7 +159,7 @@ ok('Eine abgesagte Messe faellt weg', cancelled.includes('† Ktoś'), false);
  */
 const withCollective = (startsUtc: string, title: string | null, ...texts: string[]) => ({
   itemId: 'i', startsUtc, endsUtc: startsUtc, title, location: null,
-  status: 'confirmed',
+  status: 'confirmed', itemType: 'mass',
   intentions: texts.map((text, i) => ({ ordinal: i, text, kind: 'collective' }))
 });
 
@@ -216,7 +216,7 @@ ok('Und keine erfundene Novene', unnamed.includes('nowenn'), false);
 const both = rcIntentionsSheetHtml(
   [{
     itemId: 'i', startsUtc: '2026-09-02T16:00:00', endsUtc: '2026-09-02T16:00:00',
-    title: 'Msza św. nowennowa', location: null, status: 'confirmed',
+    title: 'Msza św. nowennowa', location: null, status: 'confirmed', itemType: 'mass',
     intentions: [
       { ordinal: 0, text: '† Pojedyncza', kind: 'single' },
       { ordinal: 1, text: '† Zbiorowa', kind: 'collective' }
@@ -230,6 +230,39 @@ ok('Die zusammengelegte steht hinten', both.includes('<li>† Zbiorowa</li>'), t
 
 /* Eine Messe OHNE zusammengelegte bekommt auch keine zweite Seite. */
 ok('Kein leeres zweites Blatt', html.includes('class="sheet collective"'), false);
+
+// -- Die Beichte gehoert nicht auf dieses Blatt ------------------------------
+
+/*
+ * DER AUSHANG HEISST „INTENCJE MSZALNE".
+ *
+ * Beichtzeiten sind derselbe Gebilde-Typ wie Messen — wiederkehrend,
+ * oeffentlich, in der Kirche — und kommen deshalb aus derselben Abfrage. Sie
+ * haben aber keine Intentionen, und auf einem Blatt der Messintentionen stuende
+ * eine Beichtzeit als Zeile ohne Inhalt zwischen den Messen.
+ *
+ * Das faellt beim Bauen nicht auf: es sieht aus wie eine Messe, zu der noch
+ * niemand etwas angenommen hat.
+ */
+const withConfession = rcIntentionsSheetHtml(
+  [
+    mass('2026-08-31T05:00:00', '† Stanisław Czekaj'),
+    {
+      itemId: 'c', startsUtc: '2026-08-31T16:00:00', endsUtc: '2026-08-31T16:45:00',
+      title: 'Spowiedź', location: null, status: 'confirmed',
+      itemType: 'confession', intentions: []
+    }
+  ],
+  new Date('2026-08-31T00:00:00'), new Date('2026-09-06T00:00:00'));
+
+ok('Die Messe steht auf dem Blatt',
+  withConfession.includes('† Stanisław Czekaj'), true);
+
+ok('Die Beichtzeit nicht', withConfession.includes('Spowiedź'), false);
+
+/* Und ihre Uhrzeit auch nicht — sonst stuende dort eine leere Zeile. */
+ok('Auch nicht als leere Zeile',
+  withConfession.split('class="mass"').length - 1, 1);
 
 // -- Ergebnis -----------------------------------------------------------------
 

@@ -4015,6 +4015,35 @@
         }
       }
     },
+    "/rc/registrations/claim": {
+      "post": {
+        "tags": [
+          "RcRegistrations"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationsClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationsRcRegistrationClaimResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/registrations/{id}/withdraw": {
       "post": {
         "tags": [
@@ -4553,6 +4582,269 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RcPermissionCheckResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/areas/{id}/sick-groups": {
+      "get": {
+        "tags": [
+          "RcSick"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SickRcSickGroupsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcSick"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SickAddGroupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SickRcSickGroupCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/sick-groups/{id}": {
+      "post": {
+        "tags": [
+          "RcSick"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SickUpdateGroupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SickRcSickGroupUpdatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/sick-groups/{id}/people": {
+      "get": {
+        "tags": [
+          "RcSick"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "at",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SickRcSickPeopleResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcSick"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SickAddPersonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SickRcSickPersonCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/sick-people/{id}": {
+      "post": {
+        "tags": [
+          "RcSick"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SickUpdatePersonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SickRcSickPersonUpdatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/sick-people/{id}/visits": {
+      "post": {
+        "tags": [
+          "RcSick"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SickRecordVisitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SickRcSickVisitRecordedResponse"
                 }
               }
             }
@@ -7068,6 +7360,7 @@
           "endsUtc",
           "intentions",
           "itemId",
+          "itemType",
           "startsUtc",
           "status"
         ],
@@ -7100,6 +7393,9 @@
             "items": {
               "$ref": "#/components/schemas/MassPublicIntentionView"
             }
+          },
+          "itemType": {
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -10699,6 +10995,76 @@
         },
         "additionalProperties": false
       },
+      "RegistrationsClaimRequest": {
+        "type": "object",
+        "properties": {
+          "claim": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegistrationsClaimedAnswer": {
+        "required": [
+          "fieldId",
+          "label",
+          "sealed"
+        ],
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "sealed": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegistrationsRcRegistrationClaimResponse": {
+        "required": [
+          "answers",
+          "eventSlug",
+          "eventTitle",
+          "partTitle",
+          "registrationId",
+          "submittedUtc",
+          "withdrawn"
+        ],
+        "type": "object",
+        "properties": {
+          "registrationId": {
+            "type": "string"
+          },
+          "eventSlug": {
+            "type": "string"
+          },
+          "eventTitle": {
+            "type": "string"
+          },
+          "partTitle": {
+            "type": "string"
+          },
+          "submittedUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "withdrawn": {
+            "type": "boolean"
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistrationsClaimedAnswer"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "RegistrationsRegistrationView": {
         "required": [
           "answers",
@@ -11060,6 +11426,373 @@
         },
         "additionalProperties": false
       },
+      "SickAddGroupRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "priestRoleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "itemId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickAddPersonRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "ordinal": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickGroupView": {
+        "required": [
+          "activePeople",
+          "ended",
+          "groupId",
+          "kind",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "priestRoleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "itemId": {
+            "type": "string",
+            "nullable": true
+          },
+          "ended": {
+            "type": "boolean"
+          },
+          "activePeople": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickPersonView": {
+        "required": [
+          "ordinal",
+          "personId",
+          "status",
+          "visit"
+        ],
+        "type": "object",
+        "properties": {
+          "personId": {
+            "type": "string"
+          },
+          "ordinal": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "unreadable": {
+            "type": "string",
+            "nullable": true
+          },
+          "visit": {
+            "$ref": "#/components/schemas/SickVisitView"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickRcSickGroupCreatedResponse": {
+        "required": [
+          "groupId",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickRcSickGroupUpdatedResponse": {
+        "required": [
+          "groupId",
+          "updated"
+        ],
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickRcSickGroupsResponse": {
+        "required": [
+          "groups"
+        ],
+        "type": "object",
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SickGroupView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickRcSickPeopleResponse": {
+        "required": [
+          "groupId",
+          "people"
+        ],
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "occurrenceUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SickPersonView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickRcSickPersonCreatedResponse": {
+        "required": [
+          "ordinal",
+          "personId"
+        ],
+        "type": "object",
+        "properties": {
+          "personId": {
+            "type": "string"
+          },
+          "ordinal": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickRcSickPersonUpdatedResponse": {
+        "required": [
+          "personId",
+          "updated"
+        ],
+        "type": "object",
+        "properties": {
+          "personId": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickRcSickVisitRecordedResponse": {
+        "required": [
+          "state",
+          "visitId"
+        ],
+        "type": "object",
+        "properties": {
+          "visitId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickRecordVisitRequest": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurrenceUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "communion": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "confession": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "anointing": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickUpdateGroupRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "priestRoleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "itemId": {
+            "type": "string",
+            "nullable": true
+          },
+          "ended": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickUpdatePersonRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "ordinal": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SickVisitView": {
+        "required": [
+          "anointing",
+          "communion",
+          "confession",
+          "state",
+          "visitId"
+        ],
+        "type": "object",
+        "properties": {
+          "visitId": {
+            "type": "string"
+          },
+          "communion": {
+            "type": "boolean"
+          },
+          "confession": {
+            "type": "boolean"
+          },
+          "anointing": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "TopicsAssignRequest": {
         "required": [
           "messageIds"
@@ -11242,6 +11975,9 @@
     },
     {
       "name": "RcRoles"
+    },
+    {
+      "name": "RcSick"
     },
     {
       "name": "RcTopics"

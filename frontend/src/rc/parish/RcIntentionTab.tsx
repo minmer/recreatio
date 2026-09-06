@@ -32,7 +32,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   RC_KIND_LABEL, rcAddIntention, rcDayKey, rcDayLabel, rcFirstOnOrAfter, rcHour,
-  rcIntentions, rcPositionInDay, rcPublicMasses, rcUpdateIntention,
+  rcIntentions, rcMassesOnly, rcPositionInDay, rcPublicMasses, rcUpdateIntention,
   type RcIntention, type RcIntentionKind, type RcPublicMass
 } from './rcMass';
 import { RcRequestError } from '../lib/rcApi';
@@ -61,7 +61,13 @@ export function RcIntentionTab({ slug }: { slug: string }) {
       end.setDate(end.getDate() + WINDOW_DAYS);
 
       const found = await rcPublicMasses(slug, start, end);
-      const list = (found.masses ?? []).filter((m) => m.status !== 'cancelled');
+
+      /*
+        Tylko msze. Spowiedź nie ma intencji, więc pokazanie jej tutaj byłoby
+        zaproszeniem do wpisania czegoś, czego nie ma gdzie przeczytać — a przy
+        Ctrl+Enter trafiłoby się w nią po drodze, nie chcąc.
+      */
+      const list = rcMassesOnly(found.masses ?? []).filter((m) => m.status !== 'cancelled');
       setMasses(list);
       setAt((current) => Math.min(current, Math.max(0, list.length - 1)));
     } catch {

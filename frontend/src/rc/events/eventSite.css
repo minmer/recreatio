@@ -1,0 +1,184 @@
+/*
+  Strona wydarzenia — własny arkusz, jak przy parafii.
+
+  <b>Dlaczego nie klasy warsztatu.</b> Warsztat (`rc-*`) jest narzędziem
+  budowniczego; wydarzenie jest afiszem. Komponent z klasami warsztatu wygląda
+  tu jak tekst bez oprawy — tak samo wyglądała szuflada logowania, zanim
+  dostała swoje barwy.
+
+  <b>Barwy są zmiennymi, bo wydarzenie je nadpisuje.</b> Tło i tinta idą z
+  warstw części (`rcLayerStyle`) prosto do `style` elementu; wszystko poniżej
+  musi więc czytać z `currentColor` albo z tych zmiennych, inaczej rajd rowerowy
+  dostanie czarny tekst na własnym granatowym tle.
+*/
+
+.ev {
+  --ev-ink: #16181c;
+  --ev-muted: #5f636b;
+  --ev-line: rgba(0, 0, 0, 0.14);
+  --ev-paper: #fbfaf8;
+
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+
+  color: var(--ev-ink);
+  background: var(--ev-paper);
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  line-height: 1.5;
+
+  /* Zmiana tła części nie powinna migać przy przejściu między nimi. */
+  transition: background 260ms ease, color 260ms ease;
+}
+
+/*
+  Gdy wydarzenie nada własne tło, linie i tekst poboczny liczą się od AKTUALNEJ
+  tinty, a nie od czerni. Bez tego jasny tekst na ciemnym tle sąsiaduje z
+  liniami, których nie widać.
+*/
+.ev[style*="background"] {
+  --ev-muted: currentColor;
+  --ev-line: currentColor;
+}
+
+.ev[style*="background"] .ev-muted { opacity: 0.75; }
+.ev[style*="background"] .ev-tab { border-color: currentColor; }
+
+/* -- Oprawa ---------------------------------------------------------------- */
+
+.ev-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1.2rem;
+  border-bottom: 1px solid var(--ev-line);
+}
+
+.ev-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ev-mark { font-size: 0.85rem; opacity: 0.6; }
+.ev-name { font-size: 1.05rem; letter-spacing: 0.01em; }
+
+.ev-main {
+  flex: 1 1 auto;
+  width: min(46rem, 100%);
+  margin: 0 auto;
+  padding: 1.4rem 1.2rem 2.4rem;
+  display: grid;
+  gap: 1.2rem;
+  align-content: start;
+}
+
+.ev-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  border-top: 1px solid var(--ev-line);
+  font-size: 0.85rem;
+}
+
+.ev-foot a { color: inherit; }
+
+/* -- Menu części ----------------------------------------------------------- */
+
+/*
+  Odnośniki, nie przyciski — środkowy przycisk myszy ma otwierać nową kartę.
+  Przewijalne w poziomie, bo wydarzenie o dziesięciu częściach na telefonie
+  inaczej się nie mieści, a zawijanie w trzy rzędy zjada pół ekranu.
+*/
+.ev-menu {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+  scrollbar-width: thin;
+}
+
+.ev-tab {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 999px;
+  color: inherit;
+  text-decoration: none;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.ev-tab.is-active { background: currentColor; }
+
+/*
+  Aktywna zakładka: tło w kolorze pisma, więc pismo musi zmienić się na kolor
+  tła — inaczej znika samo w sobie.
+*/
+.ev-tab.is-active { color: var(--ev-paper); }
+.ev[style*="background"] .ev-tab.is-active { color: transparent; }
+.ev[style*="background"] .ev-tab.is-active { -webkit-text-fill-color: initial; mix-blend-mode: difference; }
+
+/* -- Część ----------------------------------------------------------------- */
+
+.ev-part { display: grid; gap: 0.8rem; }
+
+.ev-title {
+  margin: 0;
+  font-size: clamp(1.6rem, 5vw, 2.4rem);
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.ev-intro { display: grid; gap: 0.7rem; }
+.ev-intro p { margin: 0; }
+
+.ev-muted { color: var(--ev-muted); }
+
+.ev-part-sealed { opacity: 0.85; }
+
+/* -- Pola formularza ------------------------------------------------------- */
+
+.ev-fields {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.7rem;
+}
+
+.ev-fields li {
+  display: grid;
+  gap: 0.15rem;
+  grid-column: 1 / -1;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 8px;
+}
+
+/* Pole na pół szerokości zajmuje jedną kolumnę, nie cały rząd. */
+.ev-fields .ev-half { grid-column: auto; }
+
+.ev-label { font-weight: 600; font-size: 0.92rem; }
+.ev-label em { font-style: normal; font-weight: 400; font-size: 0.78rem; opacity: 0.75; }
+.ev-help, .ev-options { font-size: 0.82rem; color: var(--ev-muted); }
+
+/* -- Dalej i wstecz -------------------------------------------------------- */
+
+.ev-steps {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--ev-line);
+}
+
+.ev-step { color: inherit; text-decoration: none; font-size: 0.92rem; }
+.ev-step:hover { text-decoration: underline; }
+
+/* „Dalej" samo w sobie ma stać po prawej, także gdy „wstecz" nie ma. */
+.ev-step-next { margin-left: auto; }

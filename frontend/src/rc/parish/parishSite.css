@@ -1326,3 +1326,23 @@
   font-size: 0.84rem;
   cursor: pointer;
 }
+
+/* -- Godziny spowiedzi ---------------------------------------------------- */
+
+/*
+ * Pod mszami, ale z własnym nagłówkiem: kto szuka spowiedzi, szuka jej jako
+ * osobnej rzeczy. Wmieszana między godziny mszy kazałaby czytać każdą linię,
+ * żeby sprawdzić, czym jest.
+ */
+.ms-conf {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.ms-conf h4 { margin: 0; }
+
+/* Rodzaj wpisu w liście edytora — drobne, ale musi dać się odróżnić. */
+.mt-kind { font-style: normal; font-size: 0.78rem; opacity: 0.7; }

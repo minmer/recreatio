@@ -54,7 +54,14 @@ for (const [word, why] of bad) {
 ok('Grzegorzki darf angelegt werden', rcIsAllowedSlug('parish', 'grzegorzki'), true);
 ok('Ein nicht vorgesehener Name darf nicht', rcIsAllowedSlug('parish', 'jan'), false);
 ok('Ein Teil ohne Eintrag hat keine Namen', rcAllowedSlugs('account'), []);
-ok('Ein Teil mit leerem Eintrag ebenso', rcAllowedSlugs('event'), []);
+/*
+ * Ein leerer Eintrag heisst „noch keiner vorgesehen`, nicht „keiner moeglich`.
+ * Hier stand `event` — bis die eigene Veranstaltung vorgesehen wurde. Der Fall
+ * bleibt geprueft, nur an einem Teil, der wirklich noch leer ist.
+ */
+ok('Ein Teil mit leerem Eintrag ebenso', rcAllowedSlugs('cogita'), []);
+
+ok('Die Veranstaltung hat jetzt einen', rcAllowedSlugs('event'), ['recreatio']);
 
 /*
  * Die wichtigste Zusicherung der Datei: JEDER eingetragene Name muss die Form
@@ -90,6 +97,22 @@ ok(
   Object.prototype.hasOwnProperty.call(RC_ALLOWED_SLUGS, 'invite'),
   false
 );
+
+/*
+ * Die Veranstaltungsseite des Hauses.
+ *
+ * Sie steht hier als Literal und nicht als Verweis auf die Liste: eine
+ * Pruefung, die dieselbe Tabelle noch einmal liest, prueft nichts. Faellt der
+ * Eintrag heraus, laesst sich die eigene Veranstaltung nicht mehr anlegen —
+ * und das faellt sonst erst dem auf, der es versucht.
+ */
+ok('recreatio ist als Veranstaltung vorgesehen', rcIsAllowedSlug('event', 'recreatio'), true);
+
+/* Und es bleibt ein gueltiger Name in einer Adresse. */
+ok('Und es ist ein gueltiger Name', rcIsSlug('recreatio'), true);
+
+/* Was nicht vorgesehen ist, bleibt es auch. */
+ok('Erfundenes bleibt draussen', rcIsAllowedSlug('event', 'irgendwas'), false);
 
 // -- Ergebnis -----------------------------------------------------------------
 

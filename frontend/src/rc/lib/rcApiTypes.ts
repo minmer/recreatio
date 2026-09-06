@@ -4282,6 +4282,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/registrations/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RegistrationsClaimRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RegistrationsRcRegistrationClaimResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/registrations/{id}/withdraw": {
         parameters: {
             query?: never;
@@ -4882,6 +4921,255 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/areas/{id}/sick-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SickRcSickGroupsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SickAddGroupRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SickRcSickGroupCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/sick-groups/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SickUpdateGroupRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SickRcSickGroupUpdatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/sick-groups/{id}/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    at?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SickRcSickPeopleResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SickAddPersonRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SickRcSickPersonCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/sick-people/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SickUpdatePersonRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SickRcSickPersonUpdatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/sick-people/{id}/visits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SickRecordVisitRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SickRcSickVisitRecordedResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -5714,6 +6002,7 @@ export interface components {
             location?: string | null;
             status: string;
             intentions: components["schemas"]["MassPublicIntentionView"][];
+            itemType: string;
         };
         MassRcIntentionCreatedResponse: {
             intentionId: string;
@@ -6652,6 +6941,24 @@ export interface components {
             value?: string | null;
             dataClass: string;
         };
+        RegistrationsClaimRequest: {
+            claim?: string | null;
+        };
+        RegistrationsClaimedAnswer: {
+            fieldId: string;
+            label: string;
+            sealed: string;
+        };
+        RegistrationsRcRegistrationClaimResponse: {
+            registrationId: string;
+            eventSlug: string;
+            eventTitle: string;
+            partTitle: string;
+            /** Format: date-time */
+            submittedUtc: string;
+            withdrawn: boolean;
+            answers: components["schemas"]["RegistrationsClaimedAnswer"][];
+        };
         RegistrationsRegistrationView: {
             registrationId: string;
             /** Format: date-time */
@@ -6746,6 +7053,104 @@ export interface components {
             depth: number;
             displayName?: string | null;
             hasKey: boolean;
+        };
+        SickAddGroupRequest: {
+            name?: string | null;
+            kind?: string | null;
+            priestRoleId?: string | null;
+            itemId?: string | null;
+        };
+        SickAddPersonRequest: {
+            name?: string | null;
+            address?: string | null;
+            phone?: string | null;
+            note?: string | null;
+            /** Format: int32 */
+            ordinal?: number | null;
+        };
+        SickGroupView: {
+            groupId: string;
+            name: string;
+            kind: string;
+            priestRoleId?: string | null;
+            itemId?: string | null;
+            ended: boolean;
+            /** Format: int32 */
+            activePeople: number;
+        };
+        SickPersonView: {
+            personId: string;
+            /** Format: int32 */
+            ordinal: number;
+            status: string;
+            name?: string | null;
+            address?: string | null;
+            phone?: string | null;
+            note?: string | null;
+            unreadable?: string | null;
+            visit: components["schemas"]["SickVisitView"];
+        };
+        SickRcSickGroupCreatedResponse: {
+            groupId: string;
+            name: string;
+        };
+        SickRcSickGroupUpdatedResponse: {
+            groupId: string;
+            updated: boolean;
+        };
+        SickRcSickGroupsResponse: {
+            groups: components["schemas"]["SickGroupView"][];
+        };
+        SickRcSickPeopleResponse: {
+            groupId: string;
+            /** Format: date-time */
+            occurrenceUtc?: string | null;
+            people: components["schemas"]["SickPersonView"][];
+        };
+        SickRcSickPersonCreatedResponse: {
+            personId: string;
+            /** Format: int32 */
+            ordinal: number;
+        };
+        SickRcSickPersonUpdatedResponse: {
+            personId: string;
+            updated: boolean;
+        };
+        SickRcSickVisitRecordedResponse: {
+            visitId: string;
+            state: string;
+        };
+        SickRecordVisitRequest: {
+            itemId?: string | null;
+            /** Format: date-time */
+            occurrenceUtc?: string | null;
+            communion?: boolean | null;
+            confession?: boolean | null;
+            anointing?: boolean | null;
+            state?: string | null;
+            note?: string | null;
+        };
+        SickUpdateGroupRequest: {
+            name?: string | null;
+            priestRoleId?: string | null;
+            itemId?: string | null;
+            ended?: boolean | null;
+        };
+        SickUpdatePersonRequest: {
+            name?: string | null;
+            address?: string | null;
+            phone?: string | null;
+            note?: string | null;
+            status?: string | null;
+            /** Format: int32 */
+            ordinal?: number | null;
+        };
+        SickVisitView: {
+            visitId: string;
+            communion: boolean;
+            confession: boolean;
+            anointing: boolean;
+            state: string;
         };
         TopicsAssignRequest: {
             messageIds: string[];

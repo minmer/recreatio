@@ -52,9 +52,10 @@ export interface RcItemOptions {
    * `mass` kam mit den Messen dazu: eine Messe IST ein Kalendereintrag, und
    * der oeffentliche Messplan liest genau nach diesem Typ. Ohne ihn muesste
    * er Messen an ihrem Titel erkennen — an einem Text also, den jemand
-   * jederzeit anders schreibt.
+   * jederzeit anders schreibt. Dasselbe gilt fuer die Beichtzeit und den
+   * Krankenbesuch: gleiche Bauart, andere Bedeutung.
    */
-  readonly itemType?: 'appointment' | 'task' | 'mass';
+  readonly itemType?: 'appointment' | 'task' | 'mass' | 'confession' | 'sick_round';
   readonly allDay?: boolean;
   readonly titlePublic?: string;
   readonly visibility?: RcVisibility;

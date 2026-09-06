@@ -15,7 +15,8 @@ import { useEffect, useState } from 'react';
 
 import {
   RC_MASS_MINUTES, RC_SUNDAY_MASK, RC_WEEKDAYS_MASK, RC_WEEKDAY_BITS,
-  rcAddMass, rcDefaultUntil, rcParishCalendar, rcRepeatLabel, type RcNewMass
+  RC_SERVICE_LABEL, rcAddMass, rcDefaultUntil, rcParishCalendar, rcRepeatLabel,
+  type RcNewMass, type RcServiceKind
 } from './rcMassPlan';
 import { rcPublicMasses, rcHour, rcDayLabel, type RcPublicMass } from './rcMass';
 import { rcCancelItem, rcCancelOccurrence, rcDeleteItem } from '../lib/rcCalendar';
@@ -24,6 +25,7 @@ import { rcPublicParish } from './rcPublicParish';
 import { rcRoles } from '../lib/rcChat';
 
 const EMPTY: RcNewMass = {
+  kind: 'mass',
   date: new Date().toISOString().slice(0, 10),
   time: '18:00',
   minutes: RC_MASS_MINUTES,
@@ -105,11 +107,28 @@ export function RcMassTab({ slug }: { slug: string }) {
   return (
     <div className="mt">
       <p className="rc-note">
-        Msza jest wpisem kalendarza. Jeden wpis powtarzający się daje msze na
-        wszystkie wybrane dni — każdą można potem osobno przesunąć albo odwołać.
+        Msza i spowiedź są wpisami kalendarza. Jeden wpis powtarzający się daje
+        je na wszystkie wybrane dni — każdy można potem osobno przesunąć albo
+        odwołać. Spowiedź nie przyjmuje intencji i nie wchodzi na arkusz do
+        gabloty.
       </p>
 
       <div className="mt-form">
+        {/*
+          Msza czy spowiedź — pierwsze pytanie, bo od niego zależy reszta:
+          spowiedź nie przyjmuje intencji i nie trafia na arkusz do gabloty.
+        */}
+        <label className="mo-field">
+          <span>Co zakładasz</span>
+          <select
+            value={draft.kind}
+            onChange={(e) => set('kind', e.target.value as RcServiceKind)}
+          >
+            <option value="mass">{RC_SERVICE_LABEL.mass}</option>
+            <option value="confession">{RC_SERVICE_LABEL.confession}</option>
+          </select>
+        </label>
+
         <label className="mo-field">
           <span>Pierwszy dzień</span>
           <input type="date" value={draft.date} onChange={(e) => set('date', e.target.value)} />
@@ -226,7 +245,7 @@ export function RcMassTab({ slug }: { slug: string }) {
         disabled={busy || (draft.repeat !== 'none' && draft.until === '')}
         onClick={() => void save()}
       >
-        {busy ? 'Zakładanie…' : 'Załóż mszę'}
+        {busy ? 'Zakładanie…' : `Załóż: ${RC_SERVICE_LABEL[draft.kind].toLowerCase()}`}
       </button>
 
       {done !== null && <p className="rc-note">Założono: {done}</p>}
@@ -303,6 +322,7 @@ function Upcoming({ slug, reload, roleId }: { slug: string; reload: number; role
           <li key={m.startsUtc} className="mt-row">
             <span>
               {rcDayLabel(m.startsUtc)} {rcHour(m.startsUtc)}–{rcHour(m.endsUtc)}
+              {m.itemType === 'confession' && <em className="mt-kind"> spowiedź</em>}
               {(m.title ?? '') === '' ? '' : ` · ${m.title}`}
             </span>
 

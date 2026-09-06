@@ -103,6 +103,29 @@ export const rcUpdateIntention = (
   rcFetch<RcApi<'MassRcIntentionUpdatedResponse'>>(
     `/mass-intentions/${encodeURIComponent(intentionId)}`, { body, withUnlock: true });
 
+/* -- Msza czy spowiedź ----------------------------------------------------- */
+
+/**
+ * Rodzaje wpisów, które wydaje plan publiczny.
+ *
+ * Spowiedź jest tym samym co msza — powtarzającym się, jawnym czasem w
+ * kościele — z jedną różnicą: NIE MA INTENCJI. Nie „zwykle nie ma", tylko nie
+ * ma, bo nie ma czego czytać na głos.
+ *
+ * Dlatego rozróżnia się po typie, a nie po tytule: tytuł to tekst, który ktoś
+ * jutro napisze inaczej, i wtedy spowiedź stanęłaby w arkuszu między mszami.
+ */
+export const RC_MASS = 'mass';
+export const RC_CONFESSION = 'confession';
+
+/** Same msze — do intencji, do arkusza, do kancelarii. */
+export const rcMassesOnly = (masses: readonly RcPublicMass[]) =>
+  masses.filter((m) => m.itemType !== RC_CONFESSION);
+
+/** Same godziny spowiedzi. */
+export const rcConfessionsOnly = (masses: readonly RcPublicMass[]) =>
+  masses.filter((m) => m.itemType === RC_CONFESSION);
+
 /* -- Godzina i dzień ------------------------------------------------------- */
 
 /**

@@ -74,7 +74,18 @@ export async function rcParishCalendar(areaId: string, title: string): Promise<s
   return made.calendarId;
 }
 
+/**
+ * Was angelegt wird: eine Messe oder eine Beichtzeit.
+ *
+ * Dasselbe Gebilde — wiederkehrend, oeffentlich, in der Kirche —, ein
+ * Unterschied: die Beichte hat keine Intentionen. Deshalb steht die Art im
+ * Eintrag und nicht im Titel; ein Titel ist Text, den jemand morgen anders
+ * schreibt, und dann stuende die Beichte zwischen den Messen im Aushang.
+ */
+export type RcServiceKind = 'mass' | 'confession';
+
 export type RcNewMass = {
+  readonly kind: RcServiceKind;
   /** Dzień pierwszej mszy, „2026-09-08". */
   readonly date: string;
   /** Godzina, „18:00". */
@@ -121,7 +132,7 @@ export async function rcAddMass(
 
   const made = await rcAddItem(
     calendarId, ownerRoleId, starts.toISOString(), ends.toISOString(), {
-      itemType: 'mass',
+      itemType: mass.kind,
       visibility: 'public',
       status: 'confirmed',
       titlePublic: mass.titlePublic.trim() === '' ? undefined : mass.titlePublic.trim(),
@@ -133,6 +144,12 @@ export async function rcAddMass(
 
   return made.itemId;
 }
+
+/** Jak nazywa się to, co się zakłada. */
+export const RC_SERVICE_LABEL: Record<RcServiceKind, string> = {
+  mass: 'Msza',
+  confession: 'Spowiedź'
+};
 
 /** Podpis serii, tak jak czyta ją człowiek: „w pn, śr, pt o 18:00 do 24 grudnia". */
 export function rcRepeatLabel(mass: RcNewMass): string {

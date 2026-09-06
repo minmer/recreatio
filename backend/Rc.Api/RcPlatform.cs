@@ -129,6 +129,9 @@ public static class RcPlatform
 
         // Messen sind Kalendereintraege; nur die Intentionen sind eigen.
         app.MapRcMass();
+
+        // Odwiedziny chorych — trasy, osoby, wizyty. Bez drogi publicznej.
+        app.MapRcSick();
         app.MapRcConfirmation();
         app.MapRcConfirmationIntake();
         app.MapRcResource();

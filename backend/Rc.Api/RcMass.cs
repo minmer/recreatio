@@ -37,6 +37,23 @@ public static class RcMass
     /// <summary>Der Eintragstyp, der eine Messe von einem Termin unterscheidet.</summary>
     public const string ItemType = "mass";
 
+    /// <summary>
+    /// Die Beichtzeit — dasselbe Gebilde, mit EINEM Unterschied.
+    ///
+    /// Ein wiederkehrender, oeffentlicher Zeitraum in der Kirche, der die Kirche
+    /// belegt: dafuer gibt es den Kalender, und ein zweites Modul waere eine
+    /// zweite Fassung derselben Sache.
+    ///
+    /// <b>Beichtzeiten haben keine Intentionen.</b> Nicht „meistens keine" —
+    /// gar keine, denn es wird nichts vorgelesen. Deshalb muss der Typ
+    /// unterscheidbar sein: eine Oberflaeche, die zur Beichte eine Intention
+    /// anbietet, fragt nach etwas, das es nicht gibt.
+    /// </summary>
+    public const string Confession = "confession";
+
+    /// <summary>Was der oeffentliche Plan herausgibt — Messen UND Beichtzeiten.</summary>
+    public static readonly string[] PublicTypes = [ItemType, Confession];
+
     public static readonly string[] Statuses = ["accepted", "cancelled", "celebrated"];
 
     /// <summary>
@@ -451,10 +468,19 @@ public static class RcMass
     /// </summary>
     public sealed record PublicIntentionView(int Ordinal, string Text, string Kind);
 
+    /// <summary>
+    /// Ein oeffentlicher Gottesdienst — Messe oder Beichtzeit.
+    ///
+    /// <c>ItemType</c> trennt beide. Ohne dieses Feld muesste die Oberflaeche
+    /// sie am Titel auseinanderhalten, also an einem Text, den jemand jederzeit
+    /// anders schreibt — und die Beichte stuende dann zwischen den Messen im
+    /// Aushang.
+    /// </summary>
     public sealed record PublicMassView(
         string ItemId, DateTimeOffset StartsUtc, DateTimeOffset EndsUtc,
         string? Title, string? Location, string Status,
-        IReadOnlyList<PublicIntentionView> Intentions);
+        IReadOnlyList<PublicIntentionView> Intentions,
+        string ItemType);
 
     public sealed record RcPublicMassesResponse(
         string Slug, string TimeZone, DateTimeOffset FromUtc, DateTimeOffset ToUtc,
@@ -494,18 +520,19 @@ public static class RcMass
         await using (var cmd = new SqlCommand("""
             SELECT i.id, i.starts_at, i.ends_at, i.title_public, i.status,
                    i.repeat_kind, i.repeat_every, i.repeat_weekdays,
-                   i.repeat_until, i.repeat_count, c.time_zone
+                   i.repeat_until, i.repeat_count, c.time_zone, i.item_type
             FROM dbo.rc_calendar_item i
             JOIN dbo.rc_calendar c ON c.id = i.calendar_id
             JOIN dbo.rc_parish p ON p.area_id = c.area_id
             WHERE p.slug = @slug
-              AND i.item_type = @type
+              AND i.item_type IN (@mass, @confession)
               AND i.visibility = N'public'
               AND i.status <> N'cancelled';
             """, connection))
         {
             cmd.Parameters.AddWithValue("@slug", slug);
-            cmd.Parameters.AddWithValue("@type", ItemType);
+            cmd.Parameters.AddWithValue("@mass", ItemType);
+            cmd.Parameters.AddWithValue("@confession", Confession);
 
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
             while (await reader.ReadAsync(ctx.RequestAborted))
@@ -517,7 +544,8 @@ public static class RcMass
                     reader.GetString(5), reader.GetInt32(6),
                     reader.IsDBNull(7) ? (byte?)null : reader.GetByte(7),
                     reader.IsDBNull(8) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(8),
-                    reader.IsDBNull(9) ? (int?)null : reader.GetInt32(9)));
+                    reader.IsDBNull(9) ? (int?)null : reader.GetInt32(9),
+                    reader.GetString(11)));
             }
         }
 
@@ -543,12 +571,20 @@ public static class RcMass
 
             foreach (var occurrence in occurrences)
             {
-                var intentions = await PublicIntentionsAsync(
-                    connection, row.Id, occurrence.OriginalStart, ctx.RequestAborted);
+                /*
+                 * Nach Intentionen wird nur bei MESSEN gefragt. Bei einer
+                 * Beichtzeit gaebe es nichts zu holen, und die Abfrage waere
+                 * eine Frage, deren Antwort feststeht — je Vorkommen, das ganze
+                 * Fenster hindurch.
+                 */
+                var intentions = row.ItemType == ItemType
+                    ? await PublicIntentionsAsync(
+                        connection, row.Id, occurrence.OriginalStart, ctx.RequestAborted)
+                    : [];
 
                 masses.Add(new PublicMassView(
                     RcId.ToText(row.Id), occurrence.Start, occurrence.End,
-                    row.TitlePublic, null, row.Status, intentions));
+                    row.TitlePublic, null, row.Status, intentions, row.ItemType));
             }
         }
 
@@ -584,7 +620,7 @@ public static class RcMass
     private sealed record ItemRow(
         Guid Id, DateTimeOffset StartsAt, DateTimeOffset EndsAt, string? TitlePublic, string Status,
         string RepeatKind, int RepeatEvery, byte? RepeatWeekdays,
-        DateTimeOffset? RepeatUntil, int? RepeatCount);
+        DateTimeOffset? RepeatUntil, int? RepeatCount, string ItemType);
 
     private static async Task<IReadOnlyList<RcRecurrence.Exception>> LoadExceptionsAsync(
         SqlConnection connection, Guid itemId, CancellationToken ct)
