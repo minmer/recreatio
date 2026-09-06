@@ -24,23 +24,23 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { rcCopy, rcFormat, rcPlural, type RcLang } from './i18n';
-import type { RcArea, RcRole } from './lib/rcChat';
+import type { RcRole } from './lib/rcChat';
 import {
-  RC_PART_KINDS, rcAddPage, rcAddPart, rcCreateEvent, rcEvent, rcEvents,
+  RC_PART_KINDS, rcAddPage, rcAddPart, rcEvent, rcEvents,
   rcMissingRequired, rcPublishEvent, rcRegistrations, rcSubmitAsMember, rcSubmitRegistration,
   rcTakesRegistrations, rcWithdrawRegistration,
   type RcEvent, type RcEventField, type RcEventPart, type RcEventView, type RcPartKind,
   type RcRegistration
 } from './lib/rcEvents';
 import { useRcError } from './RcThreads';
+import { RcFoundEvent } from './events/RcFoundEvent';
 
 // -- Die Übersicht ------------------------------------------------------------
 
 export function RcEventList({
-  lang, areas, roles, unlocked, onError
+  lang, roles, unlocked, onError
 }: {
   lang: RcLang;
-  areas: readonly RcArea[];
   roles: readonly RcRole[];
   unlocked: boolean;
   onError: (message: string) => void;
@@ -73,11 +73,6 @@ export function RcEventList({
     );
   }
 
-  // Eine Veranstaltung haengt an einem Bereich, den man verwalten darf. Ohne
-  // einen solchen gibt es nichts anzulegen — und einen Knopf zu zeigen, der
-  // zuverlaessig mit einer Absage endet, waere schlechter als keiner.
-  const usable = areas.filter((a) => a.canCertify);
-
   return (
     <div className="rc-panel">
       {list.length === 0 && <p className="rc-note">{t.none}</p>}
@@ -99,88 +94,15 @@ export function RcEventList({
         ))}
       </ul>
 
-      {usable.length > 0 && (
-        <RcNewEvent lang={lang} areas={usable} onDone={refresh} onError={onError} />
-      )}
+      {/*
+        Das Formular steht immer da. Es haengt an keinem Bereich mehr: der
+        Bereich entsteht MIT der Veranstaltung, in einem Aufruf, samt Schluesseln
+        und Verwaltungsrolle. Vorher hing hier ein Formular, das einen Bereich
+        auswaehlen liess und die Klausel nicht kannte — und ohne Verantwortlichen
+        und Anschrift darf eine Veranstaltung keine Anmeldung entgegennehmen.
+      */}
+      <RcFoundEvent lang={lang} roles={roles} onFounded={() => { void refresh(); }} />
     </div>
-  );
-}
-
-function RcNewEvent({
-  lang, areas, onDone, onError
-}: {
-  lang: RcLang;
-  areas: readonly RcArea[];
-  onDone: () => Promise<void>;
-  onError: (message: string) => void;
-}) {
-  const t = rcCopy[lang].events;
-  const describe = useRcError(lang);
-
-  const [areaId, setAreaId] = useState(areas[0]?.areaId ?? '');
-  const [title, setTitle] = useState('');
-  const [slug, setSlug] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  // Die Adresse folgt dem Titel, solange niemand sie von Hand angefasst hat.
-  // Danach nicht mehr: eine Adresse, die sich unter der Hand ändert, während
-  // man am Titel feilt, ist der schnellste Weg zu einem toten Link.
-  const [touched, setTouched] = useState(false);
-
-  const suggest = (raw: string) =>
-    raw.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-
-  return (
-    <form
-      className="rc-new-event"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (title.trim().length === 0 || busy) return;
-        setBusy(true);
-        try {
-          await rcCreateEvent(areaId, touched ? slug : suggest(title), title);
-          setTitle(''); setSlug(''); setTouched(false);
-          await onDone();
-        } catch (err) {
-          onError(describe(err));
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      <h5 className="rc-chat-h">{t.create}</h5>
-
-      {areas.length > 1 && (
-        <label className="rc-inline-field">
-          <span>{rcCopy[lang].chat.areas}</span>
-          <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-            {areas.map((a) => (
-              <option key={a.areaId} value={a.areaId}>{a.title ?? a.areaId.slice(0, 8)}</option>
-            ))}
-          </select>
-        </label>
-      )}
-
-      <label className="rc-field">
-        <span>{t.eventTitle}</span>
-        <input type="text" value={title} disabled={busy} onChange={(e) => setTitle(e.target.value)} />
-      </label>
-
-      <label className="rc-field">
-        <span>{t.address}</span>
-        <input
-          type="text"
-          value={touched ? slug : suggest(title)}
-          disabled={busy}
-          onChange={(e) => { setTouched(true); setSlug(e.target.value); }}
-        />
-      </label>
-      <p className="rc-note rc-hint">{t.addressHint}</p>
-
-      <button type="submit" className="rc-btn" disabled={busy || title.trim().length === 0}>
-        {t.make}
-      </button>
-    </form>
   );
 }
 

@@ -148,24 +148,22 @@ export function RcChat({ lang, unlocked }: { lang: RcLang; unlocked: boolean }) 
 /**
  * Veranstaltungen stehen NEBEN den Bereichen, nicht darin.
  *
- * Eine Veranstaltung haengt zwar an einem Bereich, aber wer sie sucht, sucht
- * sie nicht ueber den Bereich — er sucht das Pfarrfest, nicht die Gruppe, die
- * es vorbereitet. Sie als Reiter in einen einzelnen Bereich zu haengen hiesse,
+ * Wer eine Veranstaltung sucht, sucht das Pfarrfest — nicht die Gruppe, die es
+ * vorbereitet. Sie als Reiter in einen einzelnen Bereich zu haengen hiesse,
  * dass man erst wissen muss, wer sie macht, um sie zu finden.
+ *
+ * <b>Nur die Rollen werden geladen, keine Bereiche.</b> Eine Veranstaltung
+ * bringt ihren Bereich selbst mit; gefragt wird allein, als WER man gruendet.
  */
 export function RcEventsSection({ lang, unlocked }: { lang: RcLang; unlocked: boolean }) {
   const [roles, setRoles] = useState<readonly RcRole[]>([]);
-  const [areas, setAreas] = useState<readonly RcArea[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!unlocked) return;
     void (async () => {
-      try {
-        const [r, a] = await Promise.all([rcRoles(), rcAreas()]);
-        setRoles(r.roles ?? []);
-        setAreas(a.areas ?? []);
-      } catch {
+      try { setRoles((await rcRoles()).roles ?? []); }
+      catch {
         // Die Liste bleibt leer; die Veranstaltungsansicht sagt es selbst.
       }
     })();
@@ -173,7 +171,7 @@ export function RcEventsSection({ lang, unlocked }: { lang: RcLang; unlocked: bo
 
   return (
     <>
-      <RcEventList lang={lang} areas={areas} roles={roles} unlocked={unlocked} onError={setError} />
+      <RcEventList lang={lang} roles={roles} unlocked={unlocked} onError={setError} />
       {error !== null && <p className="rc-auth-error rc-chat-error">{error}</p>}
     </>
   );

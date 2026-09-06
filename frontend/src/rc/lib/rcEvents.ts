@@ -83,21 +83,18 @@ export const rcFoundEvent = (body: {
 export const rcEvent = (slug: string) =>
   rcFetch<RcEventView>(`/events/${encodeURIComponent(slug)}`, { withUnlock: true });
 
-// -- Anlegen ------------------------------------------------------------------
+/*
+  KEIN `rcCreateEvent` MEHR.
 
-export const rcCreateEvent = (
-  areaId: string, slug: string, title: string,
-  options: { startsUtc?: string; endsUtc?: string; isPublic?: boolean } = {}
-) =>
-  rcFetch<RcApi<'RcEventCreatedResponse'>>('/events', {
-    body: {
-      areaId, slug, title,
-      startsUtc: options.startsUtc ?? null,
-      endsUtc: options.endsUtc ?? null,
-      isPublic: options.isPublic ?? true
-    },
-    withUnlock: true
-  });
+  `POST /rc/events` gibt es im Server weiter — es haengt eine Veranstaltung an
+  einen BESTEHENDEN Bereich und fragt dabei nach keinem Verantwortlichen und
+  keiner Anschrift. Genau das war der Weg, ueber den hier ein Formular stand,
+  das eine Veranstaltung ohne Klausel entstehen liess.
+
+  Aus dem Browser fuehrt deshalb nur noch eine Tuer: `rcFoundEvent`. Sie legt
+  Bereich, Amt und Schluessel in einem Zug an und verlangt Name und Anschrift
+  des Verantwortlichen, bevor irgendetwas entsteht.
+*/
 
 export const rcAddPage = (eventId: string, slug: string, title: string, sortOrder?: number) =>
   rcFetch<RcApi<'RcEventPageCreatedResponse'>>(`/events/${eventId}/pages`, {

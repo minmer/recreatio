@@ -265,6 +265,25 @@ export interface RcCopy {
     readonly address: string;
     readonly addressHint: string;
     readonly make: string;
+    readonly found: {
+      readonly lead: string;
+      readonly as: string;
+      readonly by: string;
+      readonly kinds: Readonly<Record<string, string>>;
+      readonly slugBad: string;
+      readonly stays: string;
+      readonly rodo: string;
+      readonly rodoWhy: string;
+      readonly rodoName: string;
+      readonly rodoAddress: string;
+      readonly rodoEmail: string;
+      readonly go: string;
+      readonly going: string;
+      readonly done: string;
+      readonly open: string;
+      readonly taken: string;
+      readonly failed: string;
+    };
     readonly states: Readonly<Record<string, string>>;
     readonly publish: string;
     readonly archive: string;
@@ -858,12 +877,31 @@ const en: RcCopy = {
   },
   events: {
     heading: 'Events',
-    none: 'No events yet. An event hangs on an area — make one there.',
+    none: 'No events yet.',
     create: 'New event',
     eventTitle: 'What is it called?',
     address: 'Address',
     addressHint: 'This is what goes in the link. Letters, digits and dashes.',
     make: 'Create',
+    found: {
+      lead: "The area, its keys and an admin role come into being with the event. None of it has to be set up separately.",
+      as: "Founding as",
+      by: "Organised by",
+      kinds: { person: "person", office: "office — a parish, say", group: "community", service: "service" },
+      slugBad: "Lower-case letters, digits and dashes — a dash only in the middle.",
+      stays: "The address is public and it stays — it goes on the poster and into messages, and changing it breaks every one of those links.",
+      rodo: "Data controller",
+      rodoWhy: "The event takes sign-ups, so it has to say who answers for the data and at what address. Without that the notice is incomplete — and so is any consent gathered under it.",
+      rodoName: "Name — as it is to stand in the notice",
+      rodoAddress: "Address",
+      rodoEmail: "E-mail for data matters — access, correction, deletion",
+      go: "Found the event",
+      going: "Founding…",
+      done: "The event is founded. It got an area of its own with its own keys, and an admin role — passable on, without handing anybody an account.",
+      open: "Open the event",
+      taken: "That address is taken. Pick another one.",
+      failed: "The event could not be founded."
+    },
     states: { draft: 'draft', published: 'published', archived: 'archived' },
     publish: 'Publish',
     archive: 'Archive',
@@ -1523,12 +1561,31 @@ const pl: RcCopy = {
   },
   events: {
     heading: 'Wydarzenia',
-    none: 'Nie ma jeszcze wydarzeń. Wydarzenie wisi przy obszarze — załóż je tam.',
+    none: 'Nie ma jeszcze wydarzeń.',
     create: 'Nowe wydarzenie',
     eventTitle: 'Jak się nazywa?',
     address: 'Adres',
     addressHint: 'To trafia do linku. Litery, cyfry i myślniki.',
     make: 'Utwórz',
+    found: {
+      lead: "Obszar, klucze i rola administracyjna powstają same, razem z wydarzeniem. Nic z tego nie trzeba zakładać osobno.",
+      as: "Zakładam jako",
+      by: "Organizuje",
+      kinds: { person: "osoba", office: "urząd — np. parafia", group: "wspólnota", service: "służba" },
+      slugBad: "Małe litery, cyfry i myślniki — myślnik tylko w środku.",
+      stays: "Adres jest publiczny i zostaje — trafia na plakat i do wiadomości, a zmiana zrywa każdy taki odnośnik.",
+      rodo: "Administrator danych",
+      rodoWhy: "Wydarzenie przyjmuje zgłoszenia, więc musi powiedzieć, kto odpowiada za dane i pod jakim adresem. Bez tego klauzula jest niepełna — a zgoda zebrana pod niepełną klauzulą też.",
+      rodoName: "Nazwa — tak, jak ma stać w klauzuli",
+      rodoAddress: "Adres",
+      rodoEmail: "E-mail do spraw danych — wgląd, sprostowanie, usunięcie",
+      go: "Załóż wydarzenie",
+      going: "Zakładanie…",
+      done: "Wydarzenie założone. Powstał osobny obszar z własnymi kluczami i rola administracyjna — przekazywalna, bez oddawania komukolwiek konta.",
+      open: "Otwórz wydarzenie",
+      taken: "Ten adres jest już zajęty. Wybierz inny.",
+      failed: "Nie udało się założyć wydarzenia."
+    },
     states: { draft: 'szkic', published: 'opublikowane', archived: 'zarchiwizowane' },
     publish: 'Opublikuj',
     archive: 'Zarchiwizuj',
@@ -2151,12 +2208,31 @@ const de: RcCopy = {
   },
   events: {
     heading: 'Veranstaltungen',
-    none: 'Noch keine Veranstaltungen. Eine haengt an einem Bereich — leg sie dort an.',
+    none: 'Noch keine Veranstaltungen.',
     create: 'Neue Veranstaltung',
     eventTitle: 'Wie heisst sie?',
     address: 'Adresse',
     addressHint: 'Das steht im Link. Buchstaben, Ziffern und Striche.',
     make: 'Anlegen',
+    found: {
+      lead: "Bereich, Schlüssel und Verwaltungsrolle entstehen mit der Veranstaltung. Nichts davon muss man vorher anlegen.",
+      as: "Ich lege an als",
+      by: "Veranstalter",
+      kinds: { person: "Person", office: "Amt — etwa eine Pfarrei", group: "Gemeinschaft", service: "Dienst" },
+      slugBad: "Kleinbuchstaben, Ziffern und Bindestriche — ein Bindestrich nur in der Mitte.",
+      stays: "Die Adresse ist öffentlich und bleibt — sie steht auf dem Plakat und in Nachrichten, und eine Änderung reisst jeden solchen Link ab.",
+      rodo: "Verantwortlicher für die Daten",
+      rodoWhy: "Die Veranstaltung nimmt Anmeldungen entgegen, also muss sie sagen, wer für die Daten einsteht und unter welcher Anschrift. Ohne das ist der Hinweis unvollständig — und eine darunter eingeholte Einwilligung auch.",
+      rodoName: "Name — so, wie er im Hinweis stehen soll",
+      rodoAddress: "Anschrift",
+      rodoEmail: "E-Mail für Datenfragen — Auskunft, Berichtigung, Löschung",
+      go: "Veranstaltung anlegen",
+      going: "Wird angelegt…",
+      done: "Die Veranstaltung steht. Sie hat einen eigenen Bereich mit eigenen Schlüsseln bekommen und eine Verwaltungsrolle — weitergebbar, ohne jemandem ein Konto zu überlassen.",
+      open: "Veranstaltung öffnen",
+      taken: "Diese Adresse ist schon vergeben. Nimm eine andere.",
+      failed: "Die Veranstaltung liess sich nicht anlegen."
+    },
     states: { draft: 'Entwurf', published: 'veröffentlicht', archived: 'archiviert' },
     publish: 'Veröffentlichen',
     archive: 'Archivieren',

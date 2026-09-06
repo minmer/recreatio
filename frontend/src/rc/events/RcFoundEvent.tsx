@@ -1,45 +1,77 @@
 /**
- * Założenie wydarzenia — jeden formularz, jedno wywołanie.
+ * Eine Veranstaltung gruenden — ein Formular, ein Aufruf.
  *
- * <b>Wszystko powstaje razem albo nic.</b> Obszar (klucze, epoki, łańcuch), rola
- * administracyjna i sam wpis idą w JEDNEJ transakcji po stronie serwera.
- * Przeglądarka robiła to kiedyś przy parafiach w trzech krokach — i między
- * dwoma żądaniami nie ma odwrotu: gdy drugie padło, pierwsze zostawało. Widać
- * to było jako listę jednakowo nazwanych obszarów, które do niczego nie
- * należały.
+ * <b>Alles entsteht zusammen oder gar nichts.</b> Bereich (Schluessel, Epochen,
+ * Kette), Verwaltungsrolle und der Eintrag selbst gehen in EINER
+ * serialisierbaren Transaktion durch den Server. Der Browser hat das bei den
+ * Pfarreien einmal in drei Schritten getan, und zwischen zwei Anfragen gibt es
+ * kein Zurueck: brach die zweite ab, blieb die erste stehen. Sichtbar wurde das
+ * als Liste gleichnamiger Bereiche, die zu nichts gehoerten.
  *
- * <b>Adres administratora danych jest wymagany, nie „miły".</b> Wydarzenie
- * zbiera zgłoszenia; formularz przyjmujący dane osobowe musi powiedzieć, KTO je
- * przetwarza i pod jakim adresem. Dopisanie tego później znaczyłoby: formularz,
- * który już przyjmuje, zanim ktokolwiek może powiedzieć, kto odpowiada.
+ * <b>Die Anschrift des Verantwortlichen ist Pflicht, nicht Zierde.</b> Eine
+ * Veranstaltung nimmt Anmeldungen entgegen; ein Formular, das personenbezogene
+ * Daten aufnimmt, muss sagen, WER sie verarbeitet und unter welcher Anschrift.
+ * Das nachzureichen hiesse: ein Formular, das schon annimmt, bevor jemand sagen
+ * kann, wer einsteht.
  *
- * <b>Osobny obszar, nawet gdy organizuje parafia.</b> Inaczej pomocnicy przy
- * wydarzeniu dostaliby klucz epoki parafii — a z nim kandydatów do bierzmowania
- * i listę chorych. Kto zbiera zapisy na festyn, nie ma tam czego szukać.
+ * <b>Ein eigener Bereich, auch wenn eine Pfarrei veranstaltet.</b> Sonst bekaeme,
+ * wer beim Pfarrfest die Anmeldungen fuehrt, den Epochenschluessel der Pfarrei —
+ * und mit ihm die Firmkandidaten und die Krankenliste.
+ *
+ * <b>Die Rollen kommen von oben.</b> Der Werkstattrahmen hat sie schon geladen;
+ * sie hier ein zweites Mal zu holen hiesse, denselben Aufruf zweimal zu stellen
+ * und danach zwei Wahrheiten zu haben, sobald eine davon aelter ist.
  */
 
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 
+import { rcCopy, type RcLang } from '../i18n';
+import type { RcRole } from '../lib/rcChat';
 import { rcFoundEvent } from '../lib/rcEvents';
-import { rcRoles } from '../lib/rcChat';
-import { rcIsSlug, rcAllowedSlugs } from '../lib/rcSlugs';
+import { rcFoundReady, rcSlugComplaint } from './rcFound';
 import { rcPath } from '../lib/rcRoute';
 import { RcRequestError } from '../lib/rcApi';
+import { useRcError } from '../RcThreads';
 
-/** Jak nazwać rodzaj roli organizatora — to, co niesie sama rola. */
-const KIND_LABEL: Record<string, string> = {
-  person: 'osoba',
-  office: 'urząd — np. parafia',
-  group: 'wspólnota',
-  service: 'służba'
-};
+export function RcFoundEvent({
+  lang, roles, onFounded
+}: {
+  lang: RcLang;
+  roles: readonly RcRole[];
+  onFounded: (slug: string) => void;
+}) {
+  const t = rcCopy[lang].events;
+  const f = t.found;
+  const describe = useRcError(lang);
 
-type Role = { readonly roleId: string; readonly kind: string; readonly name: string };
+  /*
+   * Nur Rollen mit Schluessel. Eine Rolle, die man im Graphen sieht, aber nicht
+   * aufschliessen kann, taugt nicht als gruendende: der Server braucht ihren
+   * Schluessel, um den Bereichsschluessel darunter zu verschliessen — und
+   * abgelehnt wuerde erst nach dem Absenden.
+   */
+  const mine = useMemo(
+    () => roles.filter((r) => r.hasKey).map((r) => ({
+      roleId: r.roleId,
+      kind: r.kind,
+      name: (r.displayName ?? '').trim() === '' ? r.roleId.slice(0, 8) : (r.displayName ?? '')
+    })),
+    [roles]
+  );
 
-export function RcFoundEvent({ onFounded }: { onFounded?: (slug: string) => void }) {
-  const [roles, setRoles] = useState<readonly Role[]>([]);
-  const [founder, setFounder] = useState('');
-  const [organizer, setOrganizer] = useState('');
+  /*
+   * Die persoenliche Rolle gruendet ueblicherweise: sie darf es meistens, und
+   * sie bleibt beim Konto, wenn ein Amt an jemand anderen uebergeht.
+   */
+  const preferred = useMemo(
+    () => mine.find((r) => r.kind === 'person')?.roleId ?? mine[0]?.roleId ?? '',
+    [mine]
+  );
+
+  const [founderRaw, setFounder] = useState('');
+  const [organizerRaw, setOrganizer] = useState('');
+  const founder = founderRaw === '' ? preferred : founderRaw;
+  const organizer = organizerRaw === '' ? founder : organizerRaw;
 
   const [slug, setSlug] = useState('');
   const [title, setTitle] = useState('');
@@ -51,42 +83,12 @@ export function RcFoundEvent({ onFounded }: { onFounded?: (slug: string) => void
   const [error, setError] = useState<string | null>(null);
   const [made, setMade] = useState<string | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-    void (async () => {
-      try {
-        const found = await rcRoles();
-        if (!alive) return;
+  const draft = {
+    founderRoleId: founder, slug, title,
+    organizerName: name, organizerAddress: address
+  };
 
-        const mine = (found.roles ?? [])
-          .filter((r) => r.hasKey)
-          .map((r) => ({
-            roleId: r.roleId,
-            kind: r.kind,
-            name: (r.displayName ?? '').trim() === '' ? r.roleId : (r.displayName ?? '')
-          }));
-
-        setRoles(mine);
-
-        /*
-         * Rola osobista jako zakładająca — to ona zwykle ma prawo zakładać, i
-         * ona zostaje przy koncie, gdy urząd przejdzie na kogoś innego.
-         */
-        const person = mine.find((r) => r.kind === 'person');
-        if (person !== undefined) {
-          setFounder(person.roleId);
-          setOrganizer(person.roleId);
-        }
-      } catch { if (alive) setRoles([]); }
-    })();
-    return () => { alive = false; };
-  }, []);
-
-  const allowed = rcAllowedSlugs('event');
-  const slugOk = slug === '' || rcIsSlug(slug);
-
-  const ready = founder !== '' && slugOk && slug !== ''
-    && title.trim() !== '' && name.trim() !== '' && address.trim() !== '' && !busy;
+  const ready = rcFoundReady(draft) && !busy;
 
   const send = async () => {
     if (!ready) return;
@@ -104,140 +106,121 @@ export function RcFoundEvent({ onFounded }: { onFounded?: (slug: string) => void
       });
 
       setMade(done.slug);
-      onFounded?.(done.slug);
+      onFounded(done.slug);
     } catch (e) {
-      setError(e instanceof RcRequestError
-        ? e.error.message
-        : 'Nie udało się założyć wydarzenia.');
+      /*
+       * Die vergebene Adresse kommt als `permission_denied` mit 409 zurueck.
+       * Den allgemeinen Satz dazu zu zeigen hiesse „du darfst nicht" — und das
+       * ist falsch: man darf, die Adresse ist nur schon weg.
+       */
+      setError(e instanceof RcRequestError && e.status === 409 ? f.taken : describe(e));
     } finally { setBusy(false); }
   };
 
   if (made !== null) {
     return (
       <div className="fe-done">
-        <p className="rc-note">
-          Wydarzenie założone. Powstał osobny obszar z własnymi kluczami i rola
-          administracyjna — przekazywalna, bez oddawania komukolwiek konta.
-        </p>
-        <a className="rc-btn" href={`${rcPath('event', made)}`}>Otwórz wydarzenie</a>
+        <p className="rc-note">{f.done}</p>
+        <a className="rc-btn" href={rcPath('event', made)}>{f.open}</a>
       </div>
     );
   }
 
   return (
     <div className="fe">
-      <p className="rc-note">
-        Obszar, klucze i rola administracyjna powstają same, razem z wydarzeniem.
-        Nic z tego nie trzeba zakładać osobno.
-      </p>
+      <h5 className="rc-chat-h">{t.create}</h5>
+      <p className="rc-note">{f.lead}</p>
 
       <div className="fe-form">
         <label className="mo-field">
-          <span>Zakładam jako</span>
-          <select value={founder} onChange={(e) => setFounder(e.target.value)}>
-            <option value="">—</option>
-            {roles.map((r) => (
+          <span>{f.as}</span>
+          <select value={founder} disabled={busy} onChange={(e) => setFounder(e.target.value)}>
+            {mine.map((r) => (
               <option key={r.roleId} value={r.roleId}>
-                {r.name} ({KIND_LABEL[r.kind] ?? r.kind})
+                {r.name} ({f.kinds[r.kind] ?? r.kind})
               </option>
             ))}
           </select>
         </label>
 
         {/*
-          Organizator bywa kimś innym niż zakładający: sekretarka zakłada
-          wydarzenie parafii. Rodzaj — osoba, parafia, wspólnota — niesie sama
-          rola, więc nie pyta się o niego drugi raz.
+          Der Veranstalter ist oft jemand anderes als der Gruendende: die
+          Sekretaerin legt die Veranstaltung der Pfarrei an. Was fuer eine Art
+          Veranstalter das ist — Person, Amt, Gemeinschaft — traegt die Rolle
+          selbst; danach wird also nicht ein zweites Mal gefragt.
         */}
         <label className="mo-field">
-          <span>Organizuje</span>
-          <select value={organizer} onChange={(e) => setOrganizer(e.target.value)}>
-            {roles.map((r) => (
+          <span>{f.by}</span>
+          <select value={organizer} disabled={busy} onChange={(e) => setOrganizer(e.target.value)}>
+            {mine.map((r) => (
               <option key={r.roleId} value={r.roleId}>
-                {r.name} ({KIND_LABEL[r.kind] ?? r.kind})
+                {r.name} ({f.kinds[r.kind] ?? r.kind})
               </option>
             ))}
           </select>
         </label>
 
-        <label className="mo-field">
-          <span>Tytuł</span>
+        <label className="mo-field fe-wide">
+          <span>{t.eventTitle}</span>
           <input
             type="text"
             value={title}
             maxLength={200}
-            placeholder="Festyn parafialny 2026"
+            disabled={busy}
             onChange={(e) => setTitle(e.target.value)}
           />
         </label>
 
-        <label className="mo-field">
-          <span>Adres w sieci</span>
+        <label className="mo-field fe-wide">
+          <span>{t.address}</span>
           <input
             type="text"
             value={slug}
-            maxLength={80}
-            placeholder="festyn-2026"
+            maxLength={48}
+            disabled={busy}
             onChange={(e) => setSlug(e.target.value.toLowerCase())}
           />
         </label>
 
-        {/*
-          Adres jest publiczny i zostaje na zawsze: trafia na plakat, do SMS-a,
-          na drzwi. Zmiana zrywa każdy z tych odnośników.
-        */}
-        {!slugOk && (
-          <p className="ap-error fe-wide">
-            Małe litery, cyfry i myślniki — myślnik tylko w środku.
-          </p>
-        )}
+        {rcSlugComplaint(slug) && <p className="ap-error fe-wide">{f.slugBad}</p>}
 
-        {allowed.length > 0 && (
-          <p className="ps-muted fe-wide">
-            Przewidziane adresy: {allowed.join(', ')}. Adres jest publiczny i
-            zostaje — trafia na plakat i do wiadomości, a zmiana zrywa każdy taki
-            odnośnik.
-          </p>
-        )}
+        <p className="ps-muted fe-wide">{t.addressHint} {f.stays}</p>
       </div>
 
       <fieldset className="fe-rodo">
-        <legend>Administrator danych</legend>
+        <legend>{f.rodo}</legend>
 
-        <p className="ps-muted">
-          Wydarzenie przyjmuje zgłoszenia, więc musi powiedzieć, kto odpowiada za
-          dane i pod jakim adresem. Bez tego klauzula jest niepełna — a zgoda
-          zebrana pod niepełną klauzulą też.
-        </p>
+        <p className="ps-muted">{f.rodoWhy}</p>
 
         <label className="mo-field fe-wide">
-          <span>Nazwa — tak, jak ma stać w klauzuli</span>
+          <span>{f.rodoName}</span>
           <input
             type="text"
             value={name}
             maxLength={200}
-            placeholder="Parafia św. Kazimierza Królewicza w Krakowie"
+            disabled={busy}
             onChange={(e) => setName(e.target.value)}
           />
         </label>
 
         <label className="mo-field fe-wide">
-          <span>Adres</span>
+          <span>{f.rodoAddress}</span>
           <input
             type="text"
             value={address}
             maxLength={400}
-            placeholder="ul. …, 00-000 Miasto"
+            disabled={busy}
             onChange={(e) => setAddress(e.target.value)}
           />
         </label>
 
         <label className="mo-field fe-wide">
-          <span>E-mail do spraw danych — wgląd, sprostowanie, usunięcie</span>
+          <span>{f.rodoEmail}</span>
           <input
             type="email"
             value={email}
             maxLength={200}
+            disabled={busy}
             onChange={(e) => setEmail(e.target.value)}
           />
         </label>
@@ -246,7 +229,7 @@ export function RcFoundEvent({ onFounded }: { onFounded?: (slug: string) => void
       {error !== null && <p className="ap-error">{error}</p>}
 
       <button type="button" className="rc-btn" disabled={!ready} onClick={() => void send()}>
-        {busy ? 'Zakładanie…' : 'Załóż wydarzenie'}
+        {busy ? f.going : f.go}
       </button>
     </div>
   );
