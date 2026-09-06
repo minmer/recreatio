@@ -214,6 +214,7 @@ public static class RcEventCollections
                 insert.Parameters.AddWithValue("@office", officeId);
                 insert.Parameters.AddWithValue("@slug", slug);
                 insert.Parameters.AddWithValue("@title", title);
+                insert.Parameters.AddWithValue("@now", now);
                 insert.Parameters.AddWithValue("@organizer", organizerRoleId);
                 insert.Parameters.AddWithValue("@orgName", organizerName);
                 insert.Parameters.AddWithValue("@orgAddress", organizerAddress);
