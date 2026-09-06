@@ -345,7 +345,7 @@ public static class RcAttachments
             reader.GetString(3), (byte[])reader[4], (byte[])reader[5]);
     }
 
-    private static async Task<(long Used, long Quota)> QuotaAsync(
+    internal static async Task<(long Used, long Quota)> QuotaAsync(
         SqlConnection connection, Guid accountId, CancellationToken ct)
     {
         await using var cmd = new SqlCommand("""
@@ -369,13 +369,13 @@ public static class RcAttachments
 
     // Aufgeloest gegen das Anwendungsverzeichnis, damit ein relativer Pfad
     // nicht davon abhaengt, was gerade das aktuelle Verzeichnis ist (RcFileStore).
-    private static string StoreRoot(IConfiguration config) => RcFileStore.Root(config);
+    internal static string StoreRoot(IConfiguration config) => RcFileStore.Root(config);
 
     /// <summary>
     /// Zwei Ebenen aus der Kennung. Zehntausend Dateien in einem Ordner sind
     /// auf manchen Dateisystemen langsam und in jedem Werkzeug unbrauchbar.
     /// </summary>
-    private static string RelativePath(Guid attachmentId)
+    internal static string RelativePath(Guid attachmentId)
     {
         var text = RcId.ToText(attachmentId).Replace("-", "");
         return Path.Combine(text[..2], text[2..4], text + FileExtension);
@@ -386,7 +386,7 @@ public static class RcAttachments
     /// nicht vor. Trotzdem wird er beschnitten: er landet spaeter in einem
     /// Kopf und im Dateidialog des Empfaengers.
     /// </summary>
-    private static string SafeName(string? name)
+    internal static string SafeName(string? name)
     {
         var trimmed = Path.GetFileName(name?.Trim() ?? "");
         if (string.IsNullOrEmpty(trimmed)) return "anhang";
@@ -412,9 +412,9 @@ public static class RcAttachments
         catch (UnauthorizedAccessException) { }
     }
 
-    private static RcAad ContentAad(Guid attachmentId) =>
+    internal static RcAad ContentAad(Guid attachmentId) =>
         RcAad.Create("chat", "attachment", attachmentId, RcField.AttachmentContent, 1);
 
-    private static RcAad NameAad(Guid attachmentId) =>
+    internal static RcAad NameAad(Guid attachmentId) =>
         RcAad.Create("chat", "attachment", attachmentId, RcField.AttachmentFileName, 1);
 }

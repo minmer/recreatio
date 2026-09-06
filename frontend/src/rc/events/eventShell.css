@@ -4892,3 +4892,91 @@
 .ev-form-label { font-weight: 600; font-size: 0.92rem; }
 .ev-form-label em { font-style: normal; font-weight: 400; font-size: 0.78rem; opacity: 0.75; }
 .ev-form-help, .ev-form-options { font-size: 0.82rem; color: var(--ev-muted); }
+
+/* -- Edytor: strony, części, pola ----------------------------------------- */
+
+/*
+  Edytor mieszka wewnątrz warsztatu, nie na stronie wydarzenia — ale korzysta z
+  tych samych zmiennych barw, bo pokazuje te same części. Własny prefiks
+  (`ee-`), żeby nic tu nie zderzyło się z regułami samej strony.
+*/
+.ee { display: grid; gap: 1rem; }
+
+.ee-pages { display: grid; gap: 0.6rem; }
+.ee-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.ee-tab-wrap { display: inline-flex; align-items: center; gap: 0.15rem; }
+
+.ee-tab {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ee-tab.is-active { background: var(--ev-surface-3); }
+.ee-hidden-mark { font-style: normal; font-size: 0.78rem; opacity: 0.7; }
+
+/* Strzałki zamiast uchwytów: na telefonie uchwytu się nie trafia. */
+.ee-move {
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.ee-move:disabled { opacity: 0.3; cursor: default; }
+
+.ee-add { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.ee-add input, .ee-add select { font: inherit; padding: 0.35rem 0.5rem; }
+
+.ee-page { display: grid; gap: 0.8rem; }
+.ee-page-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.ee-page-head input[type="text"] { flex: 1 1 12rem; font: inherit; padding: 0.35rem 0.5rem; }
+
+.ee-check { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.88rem; }
+
+/* Kasowanie wygląda jak kasowanie — i nigdy jak następny przycisk w rzędzie. */
+.ee-danger {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #9e2b25;
+  border-radius: 6px;
+  background: none;
+  color: #d4736c;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ee-danger:disabled { opacity: 0.4; cursor: default; }
+
+.ee-parts { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+
+.ee-part {
+  border: 1px solid var(--ev-line);
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+}
+
+.ee-part-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.ee-part-n { opacity: 0.5; font-variant-numeric: tabular-nums; }
+.ee-part-kind { font-weight: 600; font-size: 0.88rem; }
+.ee-part-label { flex: 1 1 auto; opacity: 0.8; font-size: 0.88rem; }
+.ee-seal { font-size: 0.85rem; }
+
+.ee-part-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.6rem;
+  padding-top: 0.6rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--ev-line);
+}
+
+.ee-wide { grid-column: 1 / -1; }
+.ee-part-editor { grid-column: 1 / -1; }
+.ee-part-foot { display: flex; gap: 0.5rem; justify-content: space-between; }

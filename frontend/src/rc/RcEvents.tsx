@@ -37,6 +37,7 @@ import type { RcApi } from './lib/rcApi';
 import { useRcError } from './RcThreads';
 import { RcFoundEvent } from './events/RcFoundEvent';
 import { rcIsSlug } from './lib/rcSlugs';
+import { RcEventEditor } from './events/RcEventEditor';
 
 type RcCollection = RcApi<'RcEventCollectionsResponse'>['collections'][number];
 type RcCollectionView = RcApi<'RcEventCollectionViewResponse'>;
@@ -363,6 +364,10 @@ export function RcEventDetail({
           {t.states[view.lifecycle] ?? view.lifecycle}
         </span>
       </header>
+
+      {view.mayRead && (
+        <RcEventEditor lang={lang} collection={collection} slug={slug} onError={onError} />
+      )}
 
       {/* Ein Entwurf ist nicht öffentlich. Das gehört als Warnung hierher und
           nicht in einen kleinen Zustandsvermerk: wer die Seite fertig baut und

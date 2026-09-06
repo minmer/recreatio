@@ -2383,6 +2383,1009 @@
         }
       }
     },
+    "/rc/events/{id}/update": {
+      "post": {
+        "tags": [
+          "RcEventEditing"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventEditingUpdateEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventUpdatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-pages/{id}/update": {
+      "post": {
+        "tags": [
+          "RcEventEditing"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventEditingUpdatePageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventPageUpdatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-pages/{id}/delete": {
+      "post": {
+        "tags": [
+          "RcEventEditing"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventDeletedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/events/{id}/pages/reorder": {
+      "post": {
+        "tags": [
+          "RcEventEditing"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RcReorderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventReorderedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-parts/{id}/delete": {
+      "post": {
+        "tags": [
+          "RcEventEditing"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventDeletedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-pages/{id}/parts/reorder": {
+      "post": {
+        "tags": [
+          "RcEventEditing"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RcReorderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventReorderedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-fields/{id}/update": {
+      "post": {
+        "tags": [
+          "RcEventEditing"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventEditingUpdateFieldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventFieldUpdatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-fields/{id}/delete": {
+      "post": {
+        "tags": [
+          "RcEventEditing"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventDeletedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-parts/{id}/fields/reorder": {
+      "post": {
+        "tags": [
+          "RcEventEditing"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RcReorderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventReorderedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-parts/{id}/photos": {
+      "post": {
+        "tags": [
+          "RcEventMedia"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "file"
+                ],
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "caption": {
+                    "type": "string"
+                  },
+                  "uploaderName": {
+                    "type": "string"
+                  },
+                  "width": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "height": {
+                    "type": "integer",
+                    "format": "int32"
+                  }
+                }
+              },
+              "encoding": {
+                "file": {
+                  "style": "form"
+                },
+                "caption": {
+                  "style": "form"
+                },
+                "uploaderName": {
+                  "style": "form"
+                },
+                "width": {
+                  "style": "form"
+                },
+                "height": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventPhotoUploadedResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "RcEventMedia"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventPhotosResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-photos/{id}/delete": {
+      "post": {
+        "tags": [
+          "RcEventMedia"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventDeletedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/events/{id}/documents": {
+      "post": {
+        "tags": [
+          "RcEventMedia"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "file"
+                ],
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                }
+              },
+              "encoding": {
+                "file": {
+                  "style": "form"
+                },
+                "label": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventDocumentUploadedResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "RcEventMedia"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventDocumentsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-documents/{id}/delete": {
+      "post": {
+        "tags": [
+          "RcEventMedia"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventDeletedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-media/{id}/content": {
+      "get": {
+        "tags": [
+          "RcEventMedia"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rc/event-parts/{id}/roster": {
+      "get": {
+        "tags": [
+          "RcEventParticipation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventRosterResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcEventParticipation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventParticipationMarkRosterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventRosterMarkedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-parts/{id}/progress": {
+      "post": {
+        "tags": [
+          "RcEventParticipation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventParticipationProgressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventProgressResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-parts/{id}/progress/set": {
+      "post": {
+        "tags": [
+          "RcEventParticipation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventParticipationProgressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventProgressResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-parts/{id}/card": {
+      "post": {
+        "tags": [
+          "RcEventParticipation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventParticipationSubmitCardRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventCardSubmittedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-parts/{id}/cards": {
+      "get": {
+        "tags": [
+          "RcEventParticipation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventCardsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-parts/{id}/topics": {
+      "get": {
+        "tags": [
+          "RcEventParticipation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventTopicsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcEventParticipation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventParticipationAskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventTopicCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-topics/{id}": {
+      "get": {
+        "tags": [
+          "RcEventParticipation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventTopicResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-topics/{id}/messages": {
+      "post": {
+        "tags": [
+          "RcEventParticipation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventParticipationReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventTopicRepliedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-topics/{id}/moderate": {
+      "post": {
+        "tags": [
+          "RcEventParticipation"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventParticipationModerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventTopicModeratedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/events": {
       "get": {
         "tags": [
@@ -6990,6 +7993,429 @@
         },
         "additionalProperties": false
       },
+      "EventEditingUpdateEventRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "audience": {
+            "type": "string",
+            "nullable": true
+          },
+          "placesJson": {
+            "type": "string",
+            "nullable": true
+          },
+          "thumbnailUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "dateLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "isPublic": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventEditingUpdateFieldRequest": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "helpText": {
+            "type": "string",
+            "nullable": true
+          },
+          "isRequired": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "isHalfWidth": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "optionsJson": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventEditingUpdatePageRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "menuLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "isVisible": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventMediaDocumentView": {
+        "required": [
+          "byteSize",
+          "createdUtc",
+          "documentId",
+          "mediaId"
+        ],
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string"
+          },
+          "mediaId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "byteSize": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventMediaPhotoView": {
+        "required": [
+          "createdUtc",
+          "height",
+          "mediaId",
+          "photoId",
+          "width"
+        ],
+        "type": "object",
+        "properties": {
+          "photoId": {
+            "type": "string"
+          },
+          "mediaId": {
+            "type": "string"
+          },
+          "uploaderName": {
+            "type": "string",
+            "nullable": true
+          },
+          "caption": {
+            "type": "string",
+            "nullable": true
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "height": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventParticipationAskRequest": {
+        "type": "object",
+        "properties": {
+          "claim": {
+            "type": "string",
+            "nullable": true
+          },
+          "authorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "body": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventParticipationCardView": {
+        "required": [
+          "cardId",
+          "epoch",
+          "isMinor",
+          "signerRole",
+          "submittedUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "cardId": {
+            "type": "string"
+          },
+          "isMinor": {
+            "type": "boolean"
+          },
+          "signerRole": {
+            "type": "string"
+          },
+          "clauseText": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataSealed": {
+            "type": "string",
+            "nullable": true
+          },
+          "consentsSealed": {
+            "type": "string",
+            "nullable": true
+          },
+          "sessionKeyWrapped": {
+            "type": "string",
+            "nullable": true
+          },
+          "epoch": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "submittedUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventParticipationMarkRosterRequest": {
+        "type": "object",
+        "properties": {
+          "rowKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          },
+          "by": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventParticipationModerateRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventParticipationProgressRequest": {
+        "type": "object",
+        "properties": {
+          "claim": {
+            "type": "string",
+            "nullable": true
+          },
+          "itemKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "done": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventParticipationReplyRequest": {
+        "type": "object",
+        "properties": {
+          "claim": {
+            "type": "string",
+            "nullable": true
+          },
+          "authorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "body": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventParticipationRosterCell": {
+        "required": [
+          "code",
+          "rowKey"
+        ],
+        "type": "object",
+        "properties": {
+          "rowKey": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedBy": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventParticipationSubmitCardRequest": {
+        "type": "object",
+        "properties": {
+          "claim": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataSealed": {
+            "type": "string",
+            "nullable": true
+          },
+          "consentsSealed": {
+            "type": "string",
+            "nullable": true
+          },
+          "sessionKeyWrapped": {
+            "type": "string",
+            "nullable": true
+          },
+          "clauseText": {
+            "type": "string",
+            "nullable": true
+          },
+          "isMinor": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "signerRole": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventParticipationTopicMessageView": {
+        "required": [
+          "authorName",
+          "body",
+          "createdUtc",
+          "isOfficial",
+          "messageId"
+        ],
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string"
+          },
+          "authorName": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "isOfficial": {
+            "type": "boolean"
+          },
+          "createdUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventParticipationTopicView": {
+        "required": [
+          "authorName",
+          "createdUtc",
+          "lastMessageUtc",
+          "messageCount",
+          "status",
+          "title",
+          "topicId"
+        ],
+        "type": "object",
+        "properties": {
+          "topicId": {
+            "type": "string"
+          },
+          "authorName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "messageCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastMessageUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
       "EventsAddFieldRequest": {
         "required": [
           "kind",
@@ -9548,6 +10974,38 @@
         },
         "additionalProperties": false
       },
+      "RcEventCardSubmittedResponse": {
+        "required": [
+          "cardId",
+          "submittedUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "cardId": {
+            "type": "string"
+          },
+          "submittedUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventCardsResponse": {
+        "required": [
+          "cards"
+        ],
+        "type": "object",
+        "properties": {
+          "cards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventParticipationCardView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "RcEventCollectionFoundedResponse": {
         "required": [
           "areaId",
@@ -9654,6 +11112,58 @@
         },
         "additionalProperties": false
       },
+      "RcEventDeletedResponse": {
+        "required": [
+          "deleted",
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "deleted": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventDocumentUploadedResponse": {
+        "required": [
+          "byteSize",
+          "documentId",
+          "mediaId"
+        ],
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string"
+          },
+          "mediaId": {
+            "type": "string"
+          },
+          "byteSize": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventDocumentsResponse": {
+        "required": [
+          "documents"
+        ],
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventMediaDocumentView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "RcEventFieldCreatedResponse": {
         "required": [
           "dataClass",
@@ -9674,6 +11184,22 @@
           },
           "dataClass": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventFieldUpdatedResponse": {
+        "required": [
+          "fieldId",
+          "updated"
+        ],
+        "type": "object",
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -9722,6 +11248,22 @@
         },
         "additionalProperties": false
       },
+      "RcEventPageUpdatedResponse": {
+        "required": [
+          "pageId",
+          "updated"
+        ],
+        "type": "object",
+        "properties": {
+          "pageId": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "RcEventPartCreatedResponse": {
         "required": [
           "isPublic",
@@ -9763,6 +11305,52 @@
         },
         "additionalProperties": false
       },
+      "RcEventPhotoUploadedResponse": {
+        "required": [
+          "mediaId",
+          "photoId"
+        ],
+        "type": "object",
+        "properties": {
+          "photoId": {
+            "type": "string"
+          },
+          "mediaId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventPhotosResponse": {
+        "required": [
+          "photos"
+        ],
+        "type": "object",
+        "properties": {
+          "photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventMediaPhotoView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventProgressResponse": {
+        "required": [
+          "done"
+        ],
+        "type": "object",
+        "properties": {
+          "done": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "RcEventPublishedResponse": {
         "required": [
           "eventId",
@@ -9775,6 +11363,156 @@
           },
           "lifecycle": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventReorderedResponse": {
+        "required": [
+          "ordered"
+        ],
+        "type": "object",
+        "properties": {
+          "ordered": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventRosterMarkedResponse": {
+        "required": [
+          "code",
+          "rowKey"
+        ],
+        "type": "object",
+        "properties": {
+          "rowKey": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventRosterResponse": {
+        "required": [
+          "cells"
+        ],
+        "type": "object",
+        "properties": {
+          "cells": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventParticipationRosterCell"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventTopicCreatedResponse": {
+        "required": [
+          "topicId"
+        ],
+        "type": "object",
+        "properties": {
+          "topicId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventTopicModeratedResponse": {
+        "required": [
+          "status",
+          "topicId"
+        ],
+        "type": "object",
+        "properties": {
+          "topicId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventTopicRepliedResponse": {
+        "required": [
+          "posted",
+          "topicId"
+        ],
+        "type": "object",
+        "properties": {
+          "topicId": {
+            "type": "string"
+          },
+          "posted": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventTopicResponse": {
+        "required": [
+          "messages",
+          "status",
+          "title",
+          "topicId"
+        ],
+        "type": "object",
+        "properties": {
+          "topicId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventParticipationTopicMessageView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventTopicsResponse": {
+        "required": [
+          "topics"
+        ],
+        "type": "object",
+        "properties": {
+          "topics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventParticipationTopicView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventUpdatedResponse": {
+        "required": [
+          "eventId",
+          "updated"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -11107,6 +12845,19 @@
             "items": {
               "$ref": "#/components/schemas/RegistrationsRegistrationView"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcReorderRequest": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -12536,6 +14287,15 @@
     },
     {
       "name": "RcEventCollections"
+    },
+    {
+      "name": "RcEventEditing"
+    },
+    {
+      "name": "RcEventMedia"
+    },
+    {
+      "name": "RcEventParticipation"
     },
     {
       "name": "RcEvents"

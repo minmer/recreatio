@@ -109,3 +109,70 @@ public sealed record RcEventCollectionViewResponse(
     IReadOnlyList<RcEventCollections.CollectionEvent> Events);
 
 public sealed record RcEventCollectionPublishedResponse(string CollectionId, string Lifecycle);
+
+/* ---------------------------------------------------------------------------
+   Bearbeiten des Bauplans — umbenennen, umsortieren, entfernen.
+   --------------------------------------------------------------------------- */
+
+/// <summary>
+/// Die neue Reihenfolge, VOLLSTAENDIG.
+///
+/// Nicht „schiebe dieses eine hoch": zwei Leute, die gleichzeitig schieben,
+/// erzeugten damit eine Reihenfolge, die keiner von beiden wollte. Die Liste
+/// sagt, wie es nachher aussieht, und wer sie schickt, hat den Stand gesehen.
+/// </summary>
+public sealed record RcReorderRequest(IReadOnlyList<string>? Ids);
+
+public sealed record RcEventReorderedResponse(int Ordered);
+
+public sealed record RcEventDeletedResponse(string Id, bool Deleted);
+
+public sealed record RcEventUpdatedResponse(string EventId, bool Updated);
+
+public sealed record RcEventPageUpdatedResponse(string PageId, bool Updated);
+
+public sealed record RcEventFieldUpdatedResponse(string FieldId, bool Updated);
+
+/* ---------------------------------------------------------------------------
+   Bilder und Dateien. Die Bytes liegen im Anhang; hier steht, was sie in einer
+   Galerie oder Dateiliste ausmacht.
+   --------------------------------------------------------------------------- */
+
+public sealed record RcEventPhotoUploadedResponse(string PhotoId, string MediaId);
+
+public sealed record RcEventPhotosResponse(IReadOnlyList<RcEventMedia.PhotoView> Photos);
+
+public sealed record RcEventDocumentUploadedResponse(string DocumentId, string MediaId, long ByteSize);
+
+public sealed record RcEventDocumentsResponse(IReadOnlyList<RcEventMedia.DocumentView> Documents);
+
+/* ---------------------------------------------------------------------------
+   Was Teilnehmer beitragen. Wer sie sind, sagt der Beleg ihrer Anmeldung —
+   Begruendung in RcEventParticipation.
+   --------------------------------------------------------------------------- */
+
+public sealed record RcEventRosterResponse(IReadOnlyList<RcEventParticipation.RosterCell> Cells);
+
+public sealed record RcEventRosterMarkedResponse(string RowKey, string Code, string? Value);
+
+public sealed record RcEventProgressResponse(IReadOnlyList<string> Done);
+
+public sealed record RcEventCardSubmittedResponse(string CardId, DateTimeOffset SubmittedUtc);
+
+/// <summary>
+/// Die Karten liegen VERSIEGELT hier. Geoeffnet wird im Browser dessen, der den
+/// Epochenschluessel hat — der Dienst kann es nicht, und das ist die Zusage.
+/// </summary>
+public sealed record RcEventCardsResponse(IReadOnlyList<RcEventParticipation.CardView> Cards);
+
+public sealed record RcEventTopicsResponse(IReadOnlyList<RcEventParticipation.TopicView> Topics);
+
+public sealed record RcEventTopicCreatedResponse(string TopicId);
+
+public sealed record RcEventTopicResponse(
+    string TopicId, string Title, string Status,
+    IReadOnlyList<RcEventParticipation.TopicMessageView> Messages);
+
+public sealed record RcEventTopicRepliedResponse(string TopicId, bool Posted);
+
+public sealed record RcEventTopicModeratedResponse(string TopicId, string Status);
