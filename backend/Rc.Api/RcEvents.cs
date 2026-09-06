@@ -53,22 +53,24 @@ public static class RcEvents
 
     public static void MapRcEvents(this IEndpointRouteBuilder app)
     {
+        /*
+         * Die flache Liste ueber alle Sammlungen hinweg — was DIESES Konto an
+         * Veranstaltungen sehen darf. Jede Zeile nennt ihre Sammlung mit, sonst
+         * liesse sich aus ihr kein Verweis bauen: die Adresse ist zweiteilig.
+         */
         app.MapGet("/rc/events", ListAsync).Produces<RcEventsResponse>();
-        app.MapPost("/rc/events", CreateAsync).Produces<RcEventCreatedResponse>();
 
         /*
-         * Gruenden — mit eigenem Bereich, eigenem Amt und allen Schluesseln.
+         * Gegruendet wird die SAMMLUNG (RcEventCollections), und in ihr entsteht
+         * die Veranstaltung. Einen zweiten Weg gibt es nicht: er fuehrte an der
+         * Klausel vorbei, die am Veranstalter haengt.
          *
-         * Das ist der Weg des Formulars. `POST /rc/events` bleibt daneben und
-         * meint etwas anderes: eine Veranstaltung an einen BESTEHENDEN Bereich
-         * haengen, den man ohnehin schon verwaltet.
+         * Ohne Konto lesbar, WENN die Veranstaltung veroeffentlicht und
+         * oeffentlich ist. Das ist der ganze Zweck des Moduls: eine Seite, die
+         * man verschicken kann.
          */
-        app.MapPost("/rc/events/found", FoundAsync).Produces<RcEventFoundedResponse>();
-
-        // Ohne Konto lesbar, WENN die Veranstaltung veroeffentlicht und
-        // oeffentlich ist. Das ist der ganze Zweck des Moduls: eine Seite, die
-        // man verschicken kann.
-        app.MapGet("/rc/events/{slug}", ReadAsync).Produces<RcEventViewResponse>();
+        app.MapGet("/rc/event-collections/{collection}/events/{slug}", ReadAsync)
+            .Produces<RcEventViewResponse>();
 
         app.MapPost("/rc/events/{id:guid}/pages", AddPageAsync).Produces<RcEventPageCreatedResponse>();
         app.MapPost("/rc/events/{id:guid}/publish", PublishAsync).Produces<RcEventPublishedResponse>();
@@ -100,363 +102,19 @@ public static class RcEvents
     internal static RcAad IntakeAad(Guid eventId) =>
         RcAad.Create("events", "event", eventId, RcField.EventIntakeKey, 1);
 
-    // -- Gruenden -------------------------------------------------------------
+    /*
+      HIER STAND DAS GRUENDEN.
 
-    /// <summary>
-    /// Was beim Gruenden gefragt wird — und warum gerade das.
-    ///
-    /// <paramref name="OrganizerRoleId"/> ist die Rolle, die veranstaltet:
-    /// eine Person, eine Pfarrei, eine Gemeinschaft. WELCHE Art es ist, sagt
-    /// die Rolle selbst (<c>rc_role.kind</c>) — das hier noch einmal zu fragen
-    /// hiesse, dieselbe Auskunft an zwei Stellen zu fuehren.
-    ///
-    /// <paramref name="OrganizerName"/> und <paramref name="OrganizerAddress"/>
-    /// stehen daneben, weil der Name der Rolle VERSIEGELT ist. Die
-    /// Informationsklausel wird von Leuten ohne Konto gelesen; sie kann keinen
-    /// Schluessel haben.
-    /// </summary>
-    public sealed record FoundEventRequest(
-        string? FounderRoleId, string? OrganizerRoleId,
-        string? Slug, string? Title,
-        string? OrganizerName, string? OrganizerAddress, string? OrganizerEmail,
-        DateTimeOffset? StartsUtc, DateTimeOffset? EndsUtc);
+      Es ist nach RcEventCollections gezogen, samt dem alten POST /rc/events.
+      Der Grund ist nicht Ordnung, sondern eine Ebene, die gefehlt hat: eine
+      Veranstaltung entsteht nicht mehr fuer sich, sondern IN einer Sammlung,
+      und die Sammlung traegt die Adresse, den Veranstalter und die Klausel.
 
-    /// <summary>
-    /// Eine Veranstaltung gruenden — Bereich, Amt, Schluessel und Zeile in EINER
-    /// Transaktion.
-    ///
-    /// <code>
-    ///   Bereich   traegt Schluessel, Epochen und Kette der Veranstaltung
-    ///   Amt       die Rolle, die sie verwaltet — uebergebbar, ohne dass
-    ///             jemand sein Konto weiterreichen muss
-    ///   Zeile     die Veranstaltung selbst, mit Adresse und Klausel
-    /// </code>
-    ///
-    /// <b>Ein EIGENER Bereich, auch wenn eine Pfarrei veranstaltet.</b> Sonst
-    /// bekaemen die Helfer der Veranstaltung den Epochenschluessel der Pfarrei —
-    /// und damit deren Firmkandidaten und Krankenliste. Wer beim Pfarrfest
-    /// Anmeldungen einsammelt, hat dort nichts zu suchen.
-    ///
-    /// <b>Warum nicht der Browser.</b> Er hat es bei den Pfarreien getan, in
-    /// drei Aufrufen, und zwischen zwei Anfragen gibt es kein Zurueck: brach
-    /// der zweite ab, blieb der erste stehen. Sichtbar wurde das als eine Liste
-    /// gleichnamiger Bereiche, die zu nichts gehoerten.
-    /// </summary>
-    private static async Task FoundAsync(
-        HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions,
-        FoundEventRequest body)
-    {
-        var session = ctx.RcSession();
-        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
-
-        if (!Guid.TryParse(body.FounderRoleId, out var founderRoleId))
-        {
-            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
-                RcErrorCodes.IdMalformed, "Das ist keine Rollenkennung.");
-            return;
-        }
-
-        var slug = Slugify(body.Slug);
-        var title = body.Title?.Trim() ?? "";
-
-        if (slug.Length is 0 or > 80 || title.Length is 0 or > 200)
-        {
-            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
-                RcErrorCodes.PermissionDenied, "Adresse oder Titel fehlen.");
-            return;
-        }
-
-        /*
-         * DIE KLAUSEL BRAUCHT EINEN NAMEN UND EINE ANSCHRIFT.
-         *
-         * Eine Veranstaltung sammelt Anmeldungen. Ein Formular, das
-         * personenbezogene Daten aufnimmt, muss sagen, WER sie verarbeitet und
-         * unter welcher Anschrift — sonst ist die Klausel unvollstaendig und
-         * die darunter erteilte Zustimmung auch.
-         *
-         * Das spaeter nachzutragen hiesse: ein Formular, das schon annimmt,
-         * bevor jemand sagen kann, wer verantwortlich ist.
-         */
-        var organizerName = (body.OrganizerName ?? string.Empty).Trim();
-        var organizerAddress = (body.OrganizerAddress ?? string.Empty).Trim();
-
-        if (organizerName.Length is 0 or > 200 || organizerAddress.Length is 0 or > 400)
-        {
-            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
-                RcErrorCodes.PermissionDenied,
-                "Ohne Veranstalter und Anschrift laesst sich keine Anmeldung entgegennehmen.");
-            return;
-        }
-
-        await using var connection = await db.OpenAsync(ctx.RequestAborted);
-
-        var tenantId = await RcAreas.TenantOfRoleAsync(connection, founderRoleId, ctx.RequestAborted);
-        if (tenantId == Guid.Empty)
-        {
-            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status404NotFound,
-                RcErrorCodes.RoleNotFound, "Diese Rolle gibt es nicht.");
-            return;
-        }
-
-        var may = await permissions.CheckAsync(session.AccountId, RcScopeKind.Tenant, tenantId,
-            RcCapability.Certify, ctx.RequestAborted);
-        if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
-
-        await using (var taken = new SqlCommand(
-            "SELECT TOP 1 1 FROM dbo.rc_event WHERE slug = @slug;", connection))
-        {
-            taken.Parameters.AddWithValue("@slug", slug);
-            if (await taken.ExecuteScalarAsync(ctx.RequestAborted) is not null)
-            {
-                await RcResults.WriteErrorAsync(ctx, StatusCodes.Status409Conflict,
-                    RcErrorCodes.PermissionDenied, "Diese Adresse ist schon vergeben.");
-                return;
-            }
-        }
-
-        using var held = await masterKeys.OpenAsync(
-            connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
-
-        var founderKey = await RcRoleAccess.RoleKeyAsync(
-            connection, session.AccountId, held.MasterKey, founderRoleId, ctx.RequestAborted);
-
-        if (founderKey is null) { await RcAreas.NotForYou(ctx); return; }
-
-        var identities = await RcRoleAccess.LoadIdentitiesAsync(
-            connection, [founderRoleId], ctx.RequestAborted);
-
-        if (!identities.TryGetValue(founderRoleId, out var founder))
-        {
-            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status404NotFound,
-                RcErrorCodes.RoleNotFound, "Diese Rolle gibt es nicht.");
-            return;
-        }
-
-        // Ohne genannte Veranstalterrolle gilt die gruendende. Der haeufige Fall:
-        // jemand richtet eine Veranstaltung fuer sich selbst aus.
-        Guid organizerRoleId = Guid.TryParse(body.OrganizerRoleId, out var named)
-            ? named : founderRoleId;
-
-        var eventId = RcId.NewId();
-        var now = DateTimeOffset.UtcNow;
-
-        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(
-            System.Data.IsolationLevel.Serializable, ctx.RequestAborted);
-        try
-        {
-            /*
-             * DAS AMT ZUERST — vor dem Bereich, damit es beim Schnitt der
-             * ersten Epoche schon dasteht und deren Schluessel mitbekommt.
-             * Danach angelegt, muesste er ihm nachtraeglich zugeteilt werden.
-             */
-            var (officeId, officeKey) = await RcRoles.InsertHeldRoleAsync(
-                connection, tx, founderRoleId, founderKey, founder, tenantId,
-                RcRoleKinds.Office, title, ctx.RequestAborted);
-
-            // Hier wird nichts unter dem Amtsschluessel versiegelt — also weg
-            // damit, statt ihn bis zum Ende der Anfrage liegen zu lassen.
-            System.Security.Cryptography.CryptographicOperations.ZeroMemory(officeKey);
-
-            var (areaId, epochKey) = await RcAreas.InsertAreaAsync(
-                connection, tx, founderRoleId, founderKey, founder, tenantId, title,
-                false, ctx.RequestAborted, officeId);
-
-            /*
-             * Der Annahmeschluessel entsteht MIT der Veranstaltung, nicht beim
-             * ersten Formular — sonst haette man ein Formular, das noch nichts
-             * annehmen kann.
-             *
-             * Sein privater Teil liegt unter dem Epochenschluessel des eben
-             * angelegten Bereichs, den InsertAreaAsync mitgibt. Ihn hier zu
-             * ERFRAGEN ginge nicht: EpochKeysAsync kennt keine Transaktion,
-             * und ausserhalb dieser gibt es den Bereich noch nicht.
-             */
-            var intakeEpoch = 1;
-            byte[] intakePublic, intakeSealed;
-
-            using (var intake = System.Security.Cryptography.RSA.Create(4096))
-            {
-                intakePublic = intake.ExportSubjectPublicKeyInfo();
-                intakeSealed = RcCrypto.Seal(
-                    epochKey, IntakeAad(eventId), intake.ExportPkcs8PrivateKey());
-            }
-
-            System.Security.Cryptography.CryptographicOperations.ZeroMemory(epochKey);
-
-            await using (var insert = new SqlCommand("""
-                INSERT INTO dbo.rc_event
-                    (id, area_id, tenant_id, slug, title, lifecycle, is_public,
-                     starts_at, ends_at, created_at,
-                     intake_public_key, intake_private_sealed, intake_epoch,
-                     organizer_role_id, organizer_name, organizer_address, organizer_email)
-                VALUES (@id, @area, @tenant, @slug, @title, N'draft', 0,
-                        @starts, @ends, @now,
-                        @intakePub, @intakeSealed, @intakeEpoch,
-                        @organizer, @orgName, @orgAddress, @orgEmail);
-                """, connection, tx))
-            {
-                insert.Parameters.AddWithValue("@id", eventId);
-                insert.Parameters.AddWithValue("@area", areaId);
-                insert.Parameters.AddWithValue("@tenant", tenantId);
-                insert.Parameters.AddWithValue("@slug", slug);
-                insert.Parameters.AddWithValue("@title", title);
-                insert.Parameters.Add("@starts", System.Data.SqlDbType.DateTimeOffset).Value =
-                    (object?)body.StartsUtc ?? DBNull.Value;
-                insert.Parameters.Add("@ends", System.Data.SqlDbType.DateTimeOffset).Value =
-                    (object?)body.EndsUtc ?? DBNull.Value;
-                insert.Parameters.AddWithValue("@now", now);
-                insert.Parameters.AddWithValue("@intakePub", intakePublic);
-                insert.Parameters.AddWithValue("@intakeSealed", intakeSealed);
-                insert.Parameters.AddWithValue("@intakeEpoch", intakeEpoch);
-                insert.Parameters.AddWithValue("@organizer", organizerRoleId);
-                insert.Parameters.AddWithValue("@orgName", organizerName);
-                insert.Parameters.AddWithValue("@orgAddress", organizerAddress);
-
-                var email = (body.OrganizerEmail ?? string.Empty).Trim();
-                insert.Parameters.Add("@orgEmail", System.Data.SqlDbType.NVarChar, 200).Value =
-                    email.Length == 0 ? DBNull.Value : email;
-
-                await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
-            }
-
-            await tx.CommitAsync(ctx.RequestAborted);
-
-            await RcResults.WriteJsonAsync(ctx, new RcEventFoundedResponse(
-                RcId.ToText(eventId), RcId.ToText(areaId), RcId.ToText(officeId), slug),
-                StatusCodes.Status201Created);
-        }
-        catch
-        {
-            await tx.RollbackAsync(ctx.RequestAborted);
-            throw;
-        }
-    }
-
-    // -- Anlegen --------------------------------------------------------------
-
-    public sealed record CreateEventRequest(string AreaId, string Slug, string Title,
-        DateTimeOffset? StartsUtc, DateTimeOffset? EndsUtc, bool? IsPublic);
-
-    /// <summary>
-    /// Eine Veranstaltung entsteht AN einem bestehenden Bereich. Sie legt keinen
-    /// an: wer eine Veranstaltung vorbereitet, hat schon einen Ort, an dem er
-    /// darueber redet — und beides in einem Zug zu erzeugen naehme ihm die
-    /// Wahl, welcher das ist.
-    /// </summary>
-    private static async Task CreateAsync(
-        HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions, CreateEventRequest body)
-    {
-        var session = ctx.RcSession();
-        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
-
-        if (!Guid.TryParse(body.AreaId, out var areaId))
-        {
-            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
-                RcErrorCodes.PermissionDenied, "Das ist keine Bereichskennung.");
-            return;
-        }
-
-        var slug = Slugify(body.Slug);
-        if (slug.Length is 0 or > 80)
-        {
-            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
-                RcErrorCodes.PermissionDenied, "Diese Adresse ist leer oder zu lang.");
-            return;
-        }
-
-        var title = body.Title?.Trim() ?? "";
-        if (title.Length is 0 or > 200)
-        {
-            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
-                RcErrorCodes.PermissionDenied, "Dieser Titel ist leer oder zu lang.");
-            return;
-        }
-
-        // 3.6 — Die Berechtigung kommt aus dem Kernel und wird nicht hier
-        // nachgebaut. Wer den Bereich verwalten darf, darf die Veranstaltung
-        // daran anlegen.
-        var may = await permissions.CheckAsync(session.AccountId, RcScopeKind.Area, areaId,
-            RcCapability.Admin, ctx.RequestAborted);
-        if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
-
-        await using var connection = await db.OpenAsync(ctx.RequestAborted);
-
-        var tenantId = await TenantOfAreaAsync(connection, areaId, ctx.RequestAborted);
-        if (tenantId == Guid.Empty) { await RcAreas.NotForYou(ctx); return; }
-
-        var eventId = RcId.NewId();
-        var now = DateTimeOffset.UtcNow;
-
-        // Der Annahmeschluessel entsteht MIT der Veranstaltung, nicht beim
-        // ersten Formular. Sonst haette man ein Formular, das noch nichts
-        // annehmen kann, und muesste sich merken, das nachzuholen.
-        //
-        // Der private Teil liegt unter dem Epochenschluessel des Bereichs: wer
-        // dort keinen hat, kann keine Anmeldung lesen — auch der Betreiber
-        // nicht.
-        byte[] intakePublic, intakeSealed;
-        int intakeEpoch;
-        {
-            using var held = await masterKeys.OpenAsync(connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
-            var keys = await RcAreaKeys.EpochKeysAsync(connection, session.AccountId, held.MasterKey,
-                areaId, ctx.RequestAborted);
-
-            if (keys.Count == 0)
-            {
-                await RcResults.WriteErrorAsync(ctx, StatusCodes.Status403Forbidden,
-                    RcErrorCodes.CryptoMissingEpoch, "Du hast keinen Schluessel fuer diesen Bereich.");
-                return;
-            }
-
-            intakeEpoch = keys.Keys.Max();
-
-            using var intake = System.Security.Cryptography.RSA.Create(4096);
-            intakePublic = intake.ExportSubjectPublicKeyInfo();
-            intakeSealed = RcCrypto.Seal(keys[intakeEpoch], IntakeAad(eventId), intake.ExportPkcs8PrivateKey());
-        }
-
-        await using var insert = new SqlCommand("""
-            INSERT INTO dbo.rc_event
-                (id, area_id, tenant_id, slug, title, lifecycle, is_public, starts_at, ends_at, created_at,
-                 intake_public_key, intake_private_sealed, intake_epoch)
-            VALUES (@id, @area, @tenant, @slug, @title, @life, @public, @starts, @ends, @now,
-                    @intakePub, @intakeSealed, @intakeEpoch);
-            """, connection);
-
-        insert.Parameters.AddWithValue("@id", eventId);
-        insert.Parameters.AddWithValue("@area", areaId);
-        insert.Parameters.AddWithValue("@tenant", tenantId);
-        insert.Parameters.AddWithValue("@slug", slug);
-        insert.Parameters.AddWithValue("@title", title);
-        insert.Parameters.AddWithValue("@life", LifecycleDraft);
-        insert.Parameters.AddWithValue("@public", body.IsPublic ?? true);
-        insert.Parameters.Add("@starts", System.Data.SqlDbType.DateTimeOffset).Value =
-            (object?)body.StartsUtc ?? DBNull.Value;
-        insert.Parameters.Add("@ends", System.Data.SqlDbType.DateTimeOffset).Value =
-            (object?)body.EndsUtc ?? DBNull.Value;
-        insert.Parameters.AddWithValue("@now", now);
-        insert.Parameters.AddWithValue("@intakePub", intakePublic);
-        insert.Parameters.AddWithValue("@intakeSealed", intakeSealed);
-        insert.Parameters.AddWithValue("@intakeEpoch", intakeEpoch);
-
-        try
-        {
-            await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
-        }
-        catch (SqlException e) when (e.Number is 2601 or 2627)
-        {
-            // Zwei Veranstaltungen an einem Bereich, oder zwei mit derselben
-            // Adresse. Beides faengt die Datenbank ab; hier wird daraus eine
-            // Meldung, mit der jemand etwas anfangen kann.
-            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status409Conflict,
-                RcErrorCodes.PermissionDenied,
-                "Diese Adresse ist vergeben, oder an diesem Bereich haengt bereits eine Veranstaltung.");
-            return;
-        }
-
-        await RcResults.WriteJsonAsync(ctx, new RcEventCreatedResponse(
-            RcId.ToText(eventId), slug, title, LifecycleDraft), StatusCodes.Status201Created);
-    }
+      POST /rc/events haengte eine Veranstaltung an einen BESTEHENDEN Bereich
+      und fragte dabei nach keinem Verantwortlichen. Es kann nicht bleiben:
+      rc_event.collection_id ist seit rc_0027 Pflicht, und eine Veranstaltung
+      ohne Sammlung haette keine Adresse, unter der man sie findet.
+    */
 
     /// <summary>
     /// Aus einem Titel eine Adresse machen. Kleinbuchstaben, Ziffern, Striche.
@@ -853,7 +511,14 @@ public static class RcEvents
 
     // -- Lesen ----------------------------------------------------------------
 
-    public sealed record EventSummary(string EventId, string AreaId, string Slug, string Title,
+    /// <summary>
+    /// <c>CollectionSlug</c> steht mit dabei, weil die Adresse zweiteilig ist:
+    /// <c>/event/recreatio/kal26</c>. Ohne ihn traegt eine Zeile dieser Liste
+    /// nicht genug, um einen Verweis auf sich selbst zu bauen — und das faellt
+    /// erst auf, wenn jemand darauf klickt.
+    /// </summary>
+    public sealed record EventSummary(string EventId, string AreaId, string CollectionSlug,
+        string Slug, string Title,
         string Lifecycle, bool IsPublic, DateTimeOffset? StartsUtc, DateTimeOffset? EndsUtc, int Pages);
 
     private static async Task ListAsync(HttpContext ctx, RcDb db, RcPermissions permissions)
@@ -864,10 +529,11 @@ public static class RcEvents
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         await using var cmd = new SqlCommand("""
-            SELECT e.id, e.area_id, e.slug, e.title, e.lifecycle, e.is_public,
+            SELECT e.id, e.area_id, c.slug, e.slug, e.title, e.lifecycle, e.is_public,
                    e.starts_at, e.ends_at,
                    (SELECT COUNT(*) FROM dbo.rc_event_page p WHERE p.event_id = e.id)
             FROM dbo.rc_event e
+            JOIN dbo.rc_event_collection c ON c.id = e.collection_id
             ORDER BY e.created_at DESC;
             """, connection);
 
@@ -878,10 +544,11 @@ public static class RcEvents
             {
                 views.Add(new EventSummary(
                     RcId.ToText(reader.GetGuid(0)), RcId.ToText(reader.GetGuid(1)),
-                    reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetBoolean(5),
-                    reader.IsDBNull(6) ? null : reader.GetDateTimeOffset(6),
+                    reader.GetString(2), reader.GetString(3), reader.GetString(4),
+                    reader.GetString(5), reader.GetBoolean(6),
                     reader.IsDBNull(7) ? null : reader.GetDateTimeOffset(7),
-                    reader.GetInt32(8)));
+                    reader.IsDBNull(8) ? null : reader.GetDateTimeOffset(8),
+                    reader.GetInt32(9)));
             }
         }
 
@@ -923,14 +590,27 @@ public static class RcEvents
     /// etwas fehlt.
     /// </summary>
     private static async Task ReadAsync(
-        HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions, string slug)
+        HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions,
+        string collection, string slug)
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
+        /*
+         * BEIDE TEILE DER ADRESSE ZAEHLEN.
+         *
+         * Der Name der Veranstaltung ist nur innerhalb ihrer Sammlung eindeutig;
+         * ihn allein zu suchen traefe irgendein "festyn-2026" — womoeglich das
+         * einer fremden Pfarrei. Der Verbund ist hier also keine Bequemlichkeit,
+         * sondern die Bedingung dafuer, dass die Antwort die gemeinte Zeile ist.
+         */
         await using var head = new SqlCommand("""
-            SELECT id, area_id, slug, title, lifecycle, is_public, starts_at, ends_at, intake_public_key
-            FROM dbo.rc_event WHERE slug = @slug;
+            SELECT e.id, e.area_id, e.slug, e.title, e.lifecycle, e.is_public,
+                   e.starts_at, e.ends_at, e.intake_public_key
+            FROM dbo.rc_event e
+            JOIN dbo.rc_event_collection c ON c.id = e.collection_id
+            WHERE c.slug = @collection AND e.slug = @slug;
             """, connection);
+        head.Parameters.AddWithValue("@collection", collection);
         head.Parameters.AddWithValue("@slug", slug);
 
         Guid eventId = Guid.Empty, areaId = Guid.Empty;
@@ -973,7 +653,7 @@ public static class RcEvents
         var pages = await ReadPagesAsync(connection, eventId, mayRead, keys, ctx.RequestAborted);
 
         await RcResults.WriteJsonAsync(ctx, new RcEventViewResponse(
-            RcId.ToText(eventId), RcId.ToText(areaId), slug, title, lifecycle, isPublic,
+            RcId.ToText(eventId), RcId.ToText(areaId), collection, slug, title, lifecycle, isPublic,
             starts, ends, mayRead, pages,
             // Der oeffentliche Annahmeschluessel reist mit dem Formular. Er ist
             // oeffentlich — genau dafuer ist er da.

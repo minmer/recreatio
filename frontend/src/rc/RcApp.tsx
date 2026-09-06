@@ -26,6 +26,7 @@ import './parish/parishSite.css';
 
 import { RcMyCandidates } from './parish/RcMyCandidates';
 import { RcEventSite } from './events/RcEventSite';
+import { RcEventCatalogue } from './events/RcEventCatalogue';
 import './events/eventSite.css';
 import { RcPersonOutlet } from './RcPerson';
 import { RcInviteBanner } from './RcInvite';
@@ -295,26 +296,41 @@ export function RcApp() {
   }
 
   /*
-   * DIE VERANSTALTUNGSSEITE — mit dem Teil IN DER ADRESSE.
+   * DIE VERANSTALTUNGSSEITE — ZWEITEILIG, mit dem Teil IN DER ADRESSE.
    *
-   * `#/new/event/recreatio/3` oeffnet den dritten Teil. Damit ist er das, was
-   * ein Teil sein muss: etwas, das sich in einem neuen Reiter oeffnen, als
-   * Lesezeichen ablegen, verschicken und mit „zurueck" verlassen laesst.
+   *   #/new/event/recreatio            der Katalog der Seite
+   *   #/new/event/recreatio/kal26      eine Veranstaltung darin
+   *   #/new/event/recreatio/kal26/3    ihr dritter Teil
+   *
+   * <b>Warum der Name zweiteilig ist.</b> Die Seite eines Veranstalters
+   * nennt sich global eindeutig, die einzelne Veranstaltung nur INNERHALB
+   * ihrer Seite — sonst verbrauchte die erste Pfarrei mit einem
+   * „festyn-2026" den Namen fuer alle.
+   *
+   * Der Teil steht weiter in der Adresse und ist damit das, was ein Teil
+   * sein muss: etwas, das sich in einem neuen Reiter oeffnen, als Lesezeichen
+   * ablegen, verschicken und mit „zurueck" verlassen laesst.
    *
    * Dieselbe Anmeldeschublade wie auf der Pfarrseite: wer eine Veranstaltung
    * pflegt, soll sich anmelden koennen, ohne die Seite zu verlassen.
    */
   if (address.part === 'event' && address.slug !== null) {
-    const tail = address.tail[0] ?? '';
-    const at = /^[0-9]+$/.test(tail) ? Number(tail) : null;
+    const event = address.tail[0] ?? null;
+    const nth = address.tail[1] ?? '';
+    const at = /^[0-9]+$/.test(nth) ? Number(nth) : null;
 
     return (
       <>
-        <RcEventSite
-          slug={address.slug}
-          at={at}
-          signedIn={entry.kind === 'signed-in'}
-        />
+        {event === null
+          ? <RcEventCatalogue slug={address.slug} signedIn={entry.kind === 'signed-in'} />
+          : (
+            <RcEventSite
+              collection={address.slug}
+              slug={event}
+              at={at}
+              signedIn={entry.kind === 'signed-in'}
+            />
+          )}
         <RcSignInDrawer
           lang={lang}
           entry={entry}

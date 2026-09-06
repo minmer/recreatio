@@ -26,17 +26,34 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { rcCopy, rcFormat, rcPlural, type RcLang } from './i18n';
 import type { RcRole } from './lib/rcChat';
 import {
-  RC_PART_KINDS, rcAddPage, rcAddPart, rcEvent, rcEvents,
+  RC_PART_KINDS, rcAddEvent, rcAddPage, rcAddPart, rcEvent, rcEventCollection,
+  rcEventCollections,
   rcMissingRequired, rcPublishEvent, rcRegistrations, rcSubmitAsMember, rcSubmitRegistration,
-  rcTakesRegistrations, rcWithdrawRegistration,
-  type RcEvent, type RcEventField, type RcEventPart, type RcEventView, type RcPartKind,
+  rcPublishCollection, rcTakesRegistrations, rcWithdrawRegistration,
+  type RcEventField, type RcEventPart, type RcEventView, type RcPartKind,
   type RcRegistration
 } from './lib/rcEvents';
+import type { RcApi } from './lib/rcApi';
 import { useRcError } from './RcThreads';
 import { RcFoundEvent } from './events/RcFoundEvent';
+import { rcIsSlug } from './lib/rcSlugs';
+
+type RcCollection = RcApi<'RcEventCollectionsResponse'>['collections'][number];
+type RcCollectionView = RcApi<'RcEventCollectionViewResponse'>;
 
 // -- Die Übersicht ------------------------------------------------------------
 
+/**
+ * Die Uebersicht — SAMMLUNGEN, nicht einzelne Veranstaltungen.
+ *
+ * <b>Warum diese Ebene ueberhaupt da ist.</b> Vorher stand hier eine flache
+ * Liste von Veranstaltungen, und jede trug ihre eigene Adresse, ihr eigenes
+ * Amt und ihre eigene Klausel nach RODO. Wer zwei Feste ausrichtete, tippte
+ * die Anschrift des Verantwortlichen zweimal — und bekam zwei Verwaltungen
+ * fuer denselben Veranstalter.
+ *
+ * Jetzt liegt oben die Seite des Veranstalters, darin die Feste.
+ */
 export function RcEventList({
   lang, roles, unlocked, onError
 }: {
@@ -46,14 +63,15 @@ export function RcEventList({
   onError: (message: string) => void;
 }) {
   const t = rcCopy[lang].events;
+  const c = t.collection;
   const describe = useRcError(lang);
 
-  const [list, setList] = useState<readonly RcEvent[]>([]);
+  const [list, setList] = useState<readonly RcCollection[]>([]);
   const [open, setOpen] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!unlocked) return;
-    try { setList((await rcEvents()).events ?? []); }
+    try { setList((await rcEventCollections()).collections ?? []); }
     catch (e) { onError(describe(e)); }
   }, [unlocked, describe, onError]);
 
@@ -63,7 +81,7 @@ export function RcEventList({
 
   if (open !== null) {
     return (
-      <RcEventDetail
+      <RcCollectionPanel
         lang={lang}
         slug={open}
         roles={roles}
@@ -75,19 +93,19 @@ export function RcEventList({
 
   return (
     <div className="rc-panel">
-      {list.length === 0 && <p className="rc-note">{t.none}</p>}
+      {list.length === 0 && <p className="rc-note">{c.none}</p>}
 
       <ul className="rc-event-list">
-        {list.map((event) => (
-          <li key={event.eventId} className="rc-event-row" data-state={event.lifecycle}>
-            <button type="button" className="rc-event-open" onClick={() => setOpen(event.slug)}>
-              <span className="rc-event-title">{event.title}</span>
+        {list.map((one) => (
+          <li key={one.collectionId} className="rc-event-row" data-state={one.lifecycle}>
+            <button type="button" className="rc-event-open" onClick={() => setOpen(one.slug)}>
+              <span className="rc-event-title">{one.title}</span>
               <span className="rc-event-meta">
-                <code>/{event.slug}</code>
+                <code>/{one.slug}</code>
                 {' · '}
-                {t.states[event.lifecycle] ?? event.lifecycle}
+                {t.states[one.lifecycle] ?? one.lifecycle}
                 {' · '}
-                {rcPlural(lang, t.pages, event.pages)}
+                {rcPlural(lang, c.events, one.events)}
               </span>
             </button>
           </li>
@@ -96,22 +114,224 @@ export function RcEventList({
 
       {/*
         Das Formular steht immer da. Es haengt an keinem Bereich mehr: der
-        Bereich entsteht MIT der Veranstaltung, in einem Aufruf, samt Schluesseln
-        und Verwaltungsrolle. Vorher hing hier ein Formular, das einen Bereich
-        auswaehlen liess und die Klausel nicht kannte — und ohne Verantwortlichen
-        und Anschrift darf eine Veranstaltung keine Anmeldung entgegennehmen.
+        Bereich entsteht MIT der Seite, in einem Aufruf, samt Schluesseln und
+        Verwaltungsrolle. Vorher hing hier ein Formular, das einen Bereich
+        auswaehlen liess und die Klausel nicht kannte — und ohne
+        Verantwortlichen und Anschrift darf nichts davon eine Anmeldung
+        entgegennehmen.
       */}
       <RcFoundEvent lang={lang} roles={roles} onFounded={() => { void refresh(); }} />
     </div>
   );
 }
 
-// -- Eine Veranstaltung -------------------------------------------------------
+// -- Eine Sammlung ------------------------------------------------------------
 
-export function RcEventDetail({
+/**
+ * Der Katalog einer Seite und das, was man daran tut.
+ *
+ * <b>Der Verantwortliche steht sichtbar dabei.</b> Er gilt fuer ALLES, was
+ * hier drunter Anmeldungen entgegennimmt; wer eine Veranstaltung hinzufuegt,
+ * soll wissen, unter wessen Klausel sie sammelt — und nicht erst, wenn jemand
+ * danach fragt.
+ */
+function RcCollectionPanel({
   lang, slug, roles, onBack, onError
 }: {
   lang: RcLang;
+  slug: string;
+  roles: readonly RcRole[];
+  onBack: () => void;
+  onError: (message: string) => void;
+}) {
+  const t = rcCopy[lang].events;
+  const c = t.collection;
+  const describe = useRcError(lang);
+
+  const [view, setView] = useState<RcCollectionView | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try { setView(await rcEventCollection(slug)); }
+    catch (e) { onError(describe(e)); }
+  }, [slug, describe, onError]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  if (open !== null) {
+    return (
+      <RcEventDetail
+        lang={lang}
+        collection={slug}
+        slug={open}
+        roles={roles}
+        onBack={() => { setOpen(null); void refresh(); }}
+        onError={onError}
+      />
+    );
+  }
+
+  if (view === null) return <p className="rc-note">{rcCopy[lang].chat.loading}</p>;
+
+  const events = view.events ?? [];
+
+  return (
+    <div className="rc-panel">
+      <header className="rc-event-head">
+        <button type="button" className="rc-link" onClick={onBack}>←</button>
+        <h3>{view.title}</h3>
+        <span className="rc-event-state" data-state={view.lifecycle}>
+          {t.states[view.lifecycle] ?? view.lifecycle}
+        </span>
+      </header>
+
+      <p className="rc-note">
+        <code>/{view.slug}</code>
+        {view.organizerName !== null && view.organizerName !== undefined && (
+          <>{' · '}{c.organizer}: {view.organizerName}</>
+        )}
+      </p>
+
+      {/* Ein Entwurf ist nicht oeffentlich — als Warnung, nicht als Vermerk. */}
+      {view.lifecycle === 'draft' && view.mayRead && (
+        <div className="rc-draft-warning">
+          <p>{t.draftWarning}</p>
+          <button
+            type="button"
+            className="rc-btn"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              void rcPublishCollection(view.collectionId)
+                .then(refresh)
+                .catch((e) => onError(describe(e)))
+                .finally(() => setBusy(false));
+            }}
+          >
+            {t.publish}
+          </button>
+        </div>
+      )}
+
+      {events.length === 0 && (
+        <p className="rc-note">{view.mayRead ? c.empty : c.emptyPublic}</p>
+      )}
+
+      <ul className="rc-event-list">
+        {events.map((one) => (
+          <li key={one.eventId} className="rc-event-row" data-state={one.lifecycle}>
+            <button type="button" className="rc-event-open" onClick={() => setOpen(one.slug)}>
+              <span className="rc-event-title">{one.title}</span>
+              <span className="rc-event-meta">
+                <code>/{view.slug}/{one.slug}</code>
+                {' · '}
+                {t.states[one.lifecycle] ?? one.lifecycle}
+                {' · '}
+                {rcPlural(lang, t.pages, one.pages)}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {view.mayRead && (
+        <RcAddEvent
+          lang={lang}
+          collectionId={view.collectionId}
+          taken={events.map((one) => one.slug)}
+          onAdded={refresh}
+          onError={onError}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Eine Veranstaltung in die Sammlung stellen.
+ *
+ * <b>Nach dem Verantwortlichen wird hier NICHT gefragt.</b> Er steht an der
+ * Sammlung und gilt fuer alles darunter — ihn je Fest zu erfragen hiesse,
+ * dieselbe Auskunft an zwei Stellen zu fuehren, und irgendwann widersprechen
+ * sich die beiden.
+ *
+ * <b>Der schon vergebene Name faellt beim Tippen auf</b>, nicht erst nach dem
+ * Absenden. Der Server weist ihn ohnehin ab; die Schranke ist dort, hier steht
+ * die Freundlichkeit.
+ */
+function RcAddEvent({
+  lang, collectionId, taken, onAdded, onError
+}: {
+  lang: RcLang;
+  collectionId: string;
+  taken: readonly string[];
+  onAdded: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const t = rcCopy[lang].events;
+  const c = t.collection;
+  const describe = useRcError(lang);
+
+  const [title, setTitle] = useState('');
+  const [slug, setSlug] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const clash = slug !== '' && taken.includes(slug);
+  const shape = slug === '' || rcIsSlug(slug);
+  const ready = !busy && title.trim() !== '' && slug !== '' && shape && !clash;
+
+  return (
+    <form
+      className="rc-new-event"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (!ready) return;
+        setBusy(true);
+        try {
+          await rcAddEvent(collectionId, { slug, title: title.trim() });
+          setTitle(''); setSlug('');
+          await onAdded();
+        } catch (err) {
+          onError(describe(err));
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <h5 className="rc-chat-h">{c.addEvent}</h5>
+
+      <label className="rc-field">
+        <span>{t.eventTitle}</span>
+        <input type="text" value={title} maxLength={200} disabled={busy}
+          onChange={(e) => setTitle(e.target.value)} />
+      </label>
+
+      <label className="rc-field">
+        <span>{t.address}</span>
+        <input type="text" value={slug} maxLength={48} disabled={busy}
+          onChange={(e) => setSlug(e.target.value.toLowerCase())} />
+      </label>
+
+      {!shape && <p className="ap-error">{t.found.slugBad}</p>}
+      {clash && <p className="ap-error">{t.found.taken}</p>}
+      <p className="rc-note rc-hint">{t.addressHint}</p>
+
+      <button type="submit" className="rc-btn" disabled={!ready}>
+        {busy ? c.adding : c.add}
+      </button>
+    </form>
+  );
+}
+
+// -- Eine Veranstaltung -------------------------------------------------------
+
+export function RcEventDetail({
+  lang, collection, slug, roles, onBack, onError
+}: {
+  lang: RcLang;
+  /** Die Sammlung. Ohne sie ist der Name der Veranstaltung nicht eindeutig. */
+  collection: string;
   slug: string;
   roles: readonly RcRole[];
   onBack: () => void;
@@ -124,9 +344,9 @@ export function RcEventDetail({
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
-    try { setView(await rcEvent(slug)); }
+    try { setView(await rcEvent(collection, slug)); }
     catch (e) { onError(describe(e)); }
-  }, [slug, describe, onError]);
+  }, [collection, slug, describe, onError]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 

@@ -120,6 +120,7 @@ public static class RcPlatform
         app.MapRcAttachments();
         app.MapRcDataItems();
         app.MapRcConsent();
+        app.MapRcEventCollections();
         app.MapRcEvents();
         app.MapRcRegistrations();
         app.MapRcParish();

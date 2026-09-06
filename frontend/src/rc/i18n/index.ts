@@ -284,6 +284,20 @@ export interface RcCopy {
       readonly taken: string;
       readonly failed: string;
     };
+    readonly collection: {
+      readonly none: string;
+      readonly heading: string;
+      readonly events: RcPlural;
+      readonly open: string;
+      readonly back: string;
+      readonly addEvent: string;
+      readonly adding: string;
+      readonly add: string;
+      readonly empty: string;
+      readonly emptyPublic: string;
+      readonly organizer: string;
+      readonly noOffice: string;
+    };
     readonly states: Readonly<Record<string, string>>;
     readonly publish: string;
     readonly archive: string;
@@ -884,23 +898,37 @@ const en: RcCopy = {
     addressHint: 'This is what goes in the link. Letters, digits and dashes.',
     make: 'Create',
     found: {
-      lead: "The area, its keys and an admin role come into being with the event. None of it has to be set up separately.",
+      lead: "One page for everything you organise: the area, its keys and an admin role come into being with it, and every event goes inside. None of it has to be set up separately.",
       as: "Founding as",
       by: "Organised by",
       kinds: { person: "person", office: "office — a parish, say", group: "community", service: "service" },
       slugBad: "Lower-case letters, digits and dashes — a dash only in the middle.",
       stays: "The address is public and it stays — it goes on the poster and into messages, and changing it breaks every one of those links.",
       rodo: "Data controller",
-      rodoWhy: "The event takes sign-ups, so it has to say who answers for the data and at what address. Without that the notice is incomplete — and so is any consent gathered under it.",
+      rodoWhy: "Every event on this page takes sign-ups, so it has to say who answers for the data and at what address. Asked once here, not at each event: the controller is the organiser, not the single festival.",
       rodoName: "Name — as it is to stand in the notice",
       rodoAddress: "Address",
       rodoEmail: "E-mail for data matters — access, correction, deletion",
-      go: "Found the event",
+      go: "Found the page",
       going: "Founding…",
-      done: "The event is founded. It got an area of its own with its own keys, and an admin role — passable on, without handing anybody an account.",
-      open: "Open the event",
+      done: "The page is founded. It got an area of its own with its own keys, and an admin role — passable on, without handing anybody an account. Now put your events in it.",
+      open: "Open the page",
       taken: "That address is taken. Pick another one.",
-      failed: "The event could not be founded."
+      failed: "The page could not be founded."
+    },
+    collection: {
+      none: "No event pages yet.",
+      heading: "Event page",
+      events: { one: "{n} event", other: "{n} events" },
+      open: "Open",
+      back: "Back to the list",
+      addEvent: "Add an event",
+      adding: "Adding…",
+      add: "Add",
+      empty: "Nothing here yet. Add the first event.",
+      emptyPublic: "Nothing announced here yet.",
+      organizer: "Organised by",
+      noOffice: "This page has no admin role, so nothing can be added to it. It came across in the move; found it again to carry it on."
     },
     states: { draft: 'draft', published: 'published', archived: 'archived' },
     publish: 'Publish',
@@ -1568,23 +1596,37 @@ const pl: RcCopy = {
     addressHint: 'To trafia do linku. Litery, cyfry i myślniki.',
     make: 'Utwórz',
     found: {
-      lead: "Obszar, klucze i rola administracyjna powstają same, razem z wydarzeniem. Nic z tego nie trzeba zakładać osobno.",
+      lead: "Jedna strona na wszystko, co organizujesz: obszar, klucze i rola administracyjna powstają razem z nią, a każde wydarzenie wchodzi do środka. Nic z tego nie trzeba zakładać osobno.",
       as: "Zakładam jako",
       by: "Organizuje",
       kinds: { person: "osoba", office: "urząd — np. parafia", group: "wspólnota", service: "służba" },
       slugBad: "Małe litery, cyfry i myślniki — myślnik tylko w środku.",
       stays: "Adres jest publiczny i zostaje — trafia na plakat i do wiadomości, a zmiana zrywa każdy taki odnośnik.",
       rodo: "Administrator danych",
-      rodoWhy: "Wydarzenie przyjmuje zgłoszenia, więc musi powiedzieć, kto odpowiada za dane i pod jakim adresem. Bez tego klauzula jest niepełna — a zgoda zebrana pod niepełną klauzulą też.",
+      rodoWhy: "Każde wydarzenie na tej stronie przyjmuje zgłoszenia, więc musi powiedzieć, kto odpowiada za dane i pod jakim adresem. Pytamy raz tutaj, nie przy każdym wydarzeniu: administratorem jest organizator, nie pojedynczy festyn.",
       rodoName: "Nazwa — tak, jak ma stać w klauzuli",
       rodoAddress: "Adres",
       rodoEmail: "E-mail do spraw danych — wgląd, sprostowanie, usunięcie",
-      go: "Załóż wydarzenie",
+      go: "Załóż stronę",
       going: "Zakładanie…",
-      done: "Wydarzenie założone. Powstał osobny obszar z własnymi kluczami i rola administracyjna — przekazywalna, bez oddawania komukolwiek konta.",
-      open: "Otwórz wydarzenie",
+      done: "Strona założona. Powstał osobny obszar z własnymi kluczami i rola administracyjna — przekazywalna, bez oddawania komukolwiek konta. Teraz wstaw do niej wydarzenia.",
+      open: "Otwórz stronę",
       taken: "Ten adres jest już zajęty. Wybierz inny.",
-      failed: "Nie udało się założyć wydarzenia."
+      failed: "Nie udało się założyć strony."
+    },
+    collection: {
+      none: "Nie ma jeszcze stron wydarzeń.",
+      heading: "Strona wydarzeń",
+      events: { one: "{n} wydarzenie", few: "{n} wydarzenia", many: "{n} wydarzeń", other: "{n} wydarzeń" },
+      open: "Otwórz",
+      back: "Wróć do listy",
+      addEvent: "Dodaj wydarzenie",
+      adding: "Dodawanie…",
+      add: "Dodaj",
+      empty: "Jeszcze tu pusto. Dodaj pierwsze wydarzenie.",
+      emptyPublic: "Nie zapowiedziano tu jeszcze niczego.",
+      organizer: "Organizuje",
+      noOffice: "Ta strona nie ma roli administracyjnej, więc nic się do niej nie doda. Przeszła tak przy przenosinach — załóż ją na nowo, żeby prowadzić ją dalej."
     },
     states: { draft: 'szkic', published: 'opublikowane', archived: 'zarchiwizowane' },
     publish: 'Opublikuj',
@@ -2215,23 +2257,37 @@ const de: RcCopy = {
     addressHint: 'Das steht im Link. Buchstaben, Ziffern und Striche.',
     make: 'Anlegen',
     found: {
-      lead: "Bereich, Schlüssel und Verwaltungsrolle entstehen mit der Veranstaltung. Nichts davon muss man vorher anlegen.",
+      lead: "Eine Seite für alles, was du ausrichtest: Bereich, Schlüssel und Verwaltungsrolle entstehen mit ihr, und jede Veranstaltung kommt hinein. Nichts davon muss man vorher anlegen.",
       as: "Ich lege an als",
       by: "Veranstalter",
       kinds: { person: "Person", office: "Amt — etwa eine Pfarrei", group: "Gemeinschaft", service: "Dienst" },
       slugBad: "Kleinbuchstaben, Ziffern und Bindestriche — ein Bindestrich nur in der Mitte.",
       stays: "Die Adresse ist öffentlich und bleibt — sie steht auf dem Plakat und in Nachrichten, und eine Änderung reisst jeden solchen Link ab.",
       rodo: "Verantwortlicher für die Daten",
-      rodoWhy: "Die Veranstaltung nimmt Anmeldungen entgegen, also muss sie sagen, wer für die Daten einsteht und unter welcher Anschrift. Ohne das ist der Hinweis unvollständig — und eine darunter eingeholte Einwilligung auch.",
+      rodoWhy: "Jede Veranstaltung auf dieser Seite nimmt Anmeldungen entgegen, also muss sie sagen, wer für die Daten einsteht und unter welcher Anschrift. Einmal hier gefragt und nicht bei jeder Veranstaltung: verantwortlich ist der Veranstalter, nicht das einzelne Fest.",
       rodoName: "Name — so, wie er im Hinweis stehen soll",
       rodoAddress: "Anschrift",
       rodoEmail: "E-Mail für Datenfragen — Auskunft, Berichtigung, Löschung",
-      go: "Veranstaltung anlegen",
+      go: "Seite anlegen",
       going: "Wird angelegt…",
-      done: "Die Veranstaltung steht. Sie hat einen eigenen Bereich mit eigenen Schlüsseln bekommen und eine Verwaltungsrolle — weitergebbar, ohne jemandem ein Konto zu überlassen.",
-      open: "Veranstaltung öffnen",
+      done: "Die Seite steht. Sie hat einen eigenen Bereich mit eigenen Schlüsseln bekommen und eine Verwaltungsrolle — weitergebbar, ohne jemandem ein Konto zu überlassen. Jetzt kommen die Veranstaltungen hinein.",
+      open: "Seite öffnen",
       taken: "Diese Adresse ist schon vergeben. Nimm eine andere.",
-      failed: "Die Veranstaltung liess sich nicht anlegen."
+      failed: "Die Seite liess sich nicht anlegen."
+    },
+    collection: {
+      none: "Noch keine Veranstaltungsseiten.",
+      heading: "Veranstaltungsseite",
+      events: { one: "{n} Veranstaltung", other: "{n} Veranstaltungen" },
+      open: "Öffnen",
+      back: "Zurück zur Liste",
+      addEvent: "Veranstaltung hinzufügen",
+      adding: "Wird hinzugefügt…",
+      add: "Hinzufügen",
+      empty: "Hier ist noch nichts. Leg die erste Veranstaltung an.",
+      emptyPublic: "Hier ist noch nichts angekündigt.",
+      organizer: "Veranstalter",
+      noOffice: "Diese Seite hat keine Verwaltungsrolle, es lässt sich also nichts hinzufügen. So kam sie beim Umzug an — leg sie neu an, um sie fortzuführen."
     },
     states: { draft: 'Entwurf', published: 'veröffentlicht', archived: 'archiviert' },
     publish: 'Veröffentlichen',

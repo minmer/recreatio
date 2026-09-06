@@ -1,5 +1,5 @@
 /**
- * Eine Veranstaltung gruenden — ein Formular, ein Aufruf.
+ * Eine Veranstaltungsseite gruenden — ein Formular, ein Aufruf.
  *
  * <b>Alles entsteht zusammen oder gar nichts.</b> Bereich (Schluessel, Epochen,
  * Kette), Verwaltungsrolle und der Eintrag selbst gehen in EINER
@@ -18,6 +18,13 @@
  * wer beim Pfarrfest die Anmeldungen fuehrt, den Epochenschluessel der Pfarrei —
  * und mit ihm die Firmkandidaten und die Krankenliste.
  *
+ * <b>Was hier entsteht, ist die SEITE, nicht ein Fest.</b> Sie traegt die
+ * Adresse, den Verantwortlichen und das Amt; die einzelnen Veranstaltungen
+ * kommen danach hinein und bekommen dort je einen eigenen Bereich. Vorher war
+ * das eine Ebene: wer „recreatio" anlegte, bekam eine Veranstaltung dieses
+ * Namens — und beim naechsten Fest denselben Vorgang noch einmal, mitsamt
+ * zweiter Klausel.
+ *
  * <b>Die Rollen kommen von oben.</b> Der Werkstattrahmen hat sie schon geladen;
  * sie hier ein zweites Mal zu holen hiesse, denselben Aufruf zweimal zu stellen
  * und danach zwei Wahrheiten zu haben, sobald eine davon aelter ist.
@@ -27,7 +34,7 @@ import { useMemo, useState } from 'react';
 
 import { rcCopy, type RcLang } from '../i18n';
 import type { RcRole } from '../lib/rcChat';
-import { rcFoundEvent } from '../lib/rcEvents';
+import { rcFoundEventCollection } from '../lib/rcEvents';
 import { rcFoundReady, rcSlugComplaint } from './rcFound';
 import { rcPath } from '../lib/rcRoute';
 import { RcRequestError } from '../lib/rcApi';
@@ -95,7 +102,7 @@ export function RcFoundEvent({
     setBusy(true);
     setError(null);
     try {
-      const done = await rcFoundEvent({
+      const done = await rcFoundEventCollection({
         founderRoleId: founder,
         organizerRoleId: organizer === '' ? null : organizer,
         slug,

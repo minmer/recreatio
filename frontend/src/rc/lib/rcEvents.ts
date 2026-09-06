@@ -53,21 +53,40 @@ export type RcDataClass = (typeof RC_DATA_CLASSES)[number];
 
 export const rcEvents = () => rcFetch<RcApi<'RcEventsResponse'>>('/events', { withUnlock: true });
 
+// -- Die Sammlung -------------------------------------------------------------
+
 /**
- * Eine Veranstaltung ansehen. OHNE Konto lesbar, wenn sie veröffentlicht und
- * öffentlich ist — das ist der Zweck des ganzen Moduls.
+ * Die Sammlungen, die dieses Konto sehen darf.
  *
- * `withUnlock` wird trotzdem mitgeschickt: liegt ein Schlüssel bereit, kommen
- * die internen Teile mit. Liegt keiner bereit, ist das kein Fehler.
+ * Eine Sammlung ist der Veranstaltungsteil eines Veranstalters: sie traegt die
+ * Adresse, den Verantwortlichen fuer die Daten und das Amt, das alles darunter
+ * verwaltet. Die einzelne Veranstaltung liegt DARIN.
  */
+export const rcEventCollections = () =>
+  rcFetch<RcApi<'RcEventCollectionsResponse'>>('/event-collections', { withUnlock: true });
+
 /**
- * Wydarzenie założone od zera — obszar, rola administracyjna, klucze i wpis.
+ * Der Katalog einer Sammlung. OHNE Konto lesbar, wenn sie veroeffentlicht ist —
+ * das ist der Zweck des ganzen Moduls: eine Seite, die man verschicken kann.
  *
- * Jedno wywołanie, bo po stronie serwera to jedna transakcja. Trzy osobne
- * kroki z przeglądarki zostawiały przy parafiach obszary-sieroty: między
- * dwoma żądaniami nie ma odwrotu.
+ * `withUnlock` reist trotzdem mit: liegt ein Schluessel bereit, stehen auch die
+ * Entwuerfe in der Liste. Liegt keiner bereit, ist das kein Fehler.
  */
-export const rcFoundEvent = (body: {
+export const rcEventCollection = (slug: string) =>
+  rcFetch<RcApi<'RcEventCollectionViewResponse'>>(
+    `/event-collections/${encodeURIComponent(slug)}`, { withUnlock: true });
+
+/**
+ * Eine Sammlung gruenden — Bereich, Amt, Schluessel und Eintrag auf einmal.
+ *
+ * Ein Aufruf, weil es serverseitig EINE Transaktion ist. Drei Schritte aus dem
+ * Browser hinterliessen bei den Pfarreien Bereiche ohne Besitzer: zwischen zwei
+ * Anfragen gibt es kein Zurueck.
+ *
+ * Name und Anschrift des Verantwortlichen sind Pflicht, nicht Zierde: unter
+ * dieser Sammlung nimmt spaeter jede Veranstaltung Anmeldungen entgegen.
+ */
+export const rcFoundEventCollection = (body: {
   founderRoleId: string;
   organizerRoleId?: string | null;
   slug: string;
@@ -75,26 +94,45 @@ export const rcFoundEvent = (body: {
   organizerName: string;
   organizerAddress: string;
   organizerEmail?: string;
-  startsUtc?: string | null;
-  endsUtc?: string | null;
 }) =>
-  rcFetch<RcApi<'RcEventFoundedResponse'>>('/events/found', { body, withUnlock: true });
+  rcFetch<RcApi<'RcEventCollectionFoundedResponse'>>(
+    '/event-collections', { body, withUnlock: true });
 
-export const rcEvent = (slug: string) =>
-  rcFetch<RcEventView>(`/events/${encodeURIComponent(slug)}`, { withUnlock: true });
+/**
+ * Eine Veranstaltung in eine Sammlung stellen.
+ *
+ * Sie bekommt einen EIGENEN Bereich mit eigenen Schluesseln — sonst oeffnete,
+ * wer beim einen Fest die Anmeldungen fuehrt, auch die des naechsten. Nach dem
+ * Verantwortlichen wird nicht noch einmal gefragt: er steht an der Sammlung.
+ */
+export const rcAddEvent = (
+  collectionId: string,
+  body: { slug: string; title: string; startsUtc?: string | null; endsUtc?: string | null }
+) =>
+  rcFetch<RcApi<'RcEventFoundedResponse'>>(
+    `/event-collections/${collectionId}/events`, { body, withUnlock: true });
 
-/*
-  KEIN `rcCreateEvent` MEHR.
+export const rcPublishCollection = (collectionId: string, archive = false) =>
+  rcFetch<RcApi<'RcEventCollectionPublishedResponse'>>(
+    `/event-collections/${collectionId}/publish`, { body: { archive }, withUnlock: true });
 
-  `POST /rc/events` gibt es im Server weiter — es haengt eine Veranstaltung an
-  einen BESTEHENDEN Bereich und fragt dabei nach keinem Verantwortlichen und
-  keiner Anschrift. Genau das war der Weg, ueber den hier ein Formular stand,
-  das eine Veranstaltung ohne Klausel entstehen liess.
+// -- Die einzelne Veranstaltung ----------------------------------------------
 
-  Aus dem Browser fuehrt deshalb nur noch eine Tuer: `rcFoundEvent`. Sie legt
-  Bereich, Amt und Schluessel in einem Zug an und verlangt Name und Anschrift
-  des Verantwortlichen, bevor irgendetwas entsteht.
-*/
+/**
+ * Eine Veranstaltung ansehen. OHNE Konto lesbar, wenn sie veröffentlicht und
+ * öffentlich ist — das ist der Zweck des ganzen Moduls.
+ *
+ * <b>Beide Teile der Adresse zaehlen.</b> Der Name der Veranstaltung ist nur
+ * innerhalb ihrer Sammlung eindeutig; ihn allein zu schicken traefe irgendein
+ * „festyn-2026" — womoeglich das einer fremden Pfarrei.
+ *
+ * `withUnlock` wird trotzdem mitgeschickt: liegt ein Schlüssel bereit, kommen
+ * die internen Teile mit. Liegt keiner bereit, ist das kein Fehler.
+ */
+export const rcEvent = (collection: string, slug: string) =>
+  rcFetch<RcEventView>(
+    `/event-collections/${encodeURIComponent(collection)}/events/${encodeURIComponent(slug)}`,
+    { withUnlock: true });
 
 export const rcAddPage = (eventId: string, slug: string, title: string, sortOrder?: number) =>
   rcFetch<RcApi<'RcEventPageCreatedResponse'>>(`/events/${eventId}/pages`, {

@@ -4,7 +4,8 @@
  * <b>Wzorowana na starym module wydarzeń, bo tamten jest dobrze zrobiony.</b>
  * Trzy rzeczy stamtąd są tu przeniesione świadomie:
  *
- * <b>1. Część ma adres.</b> `#/new/event/recreatio/3` otwiera trzecią część.
+ * <b>1. Część ma adres.</b> `#/new/event/recreatio/kal26/3` otwiera trzecią
+ * część wydarzenia "kal26" ze strony "recreatio".
  * Menu i strzałki są PRAWDZIWYMI odnośnikami, nie przyciskami — dzięki temu
  * środkowy przycisk myszy otwiera je w nowej karcie, da się je wysłać komuś i
  * da się z nich wrócić „wstecz". Cztery odruchy, które przy przyciskach idą w
@@ -29,8 +30,16 @@ import { RcEventPart } from './RcEventPart';
 import { rcLayerStyle, rcPartsOf, type RcPartView } from './rcEventLayers';
 
 export function RcEventSite({
-  slug, at, signedIn
+  collection, slug, at, signedIn
 }: {
+  /**
+   * Strona wydarzeń, w której to wydarzenie leży.
+   *
+   * Nazwa wydarzenia jest jednoznaczna TYLKO w obrębie swojej strony — dwie
+   * parafie mogą mieć "festyn-2026". Bez tego członu odpowiedź trafiłaby
+   * w cudze zgłoszenia.
+   */
+  collection: string;
   slug: string;
   /**
    * Która część — Z ADRESU, nie ze stanu.
@@ -42,6 +51,8 @@ export function RcEventSite({
   at: number | null;
   signedIn: boolean;
 }) {
+  const home = rcPath('event', collection);
+
   const [event, setEvent] = useState<RcEventView | null>(null);
   const [missing, setMissing] = useState(false);
 
@@ -49,18 +60,18 @@ export function RcEventSite({
     let alive = true;
     void (async () => {
       try {
-        const found = await rcEvent(slug);
+        const found = await rcEvent(collection, slug);
         if (alive) setEvent(found);
       } catch {
         if (alive) setMissing(true);
       }
     })();
     return () => { alive = false; };
-  }, [slug]);
+  }, [collection, slug]);
 
   if (missing) {
     return (
-      <Shell title="Nie znaleziono">
+      <Shell title="Nie znaleziono" home={home}>
         <p className="ev-muted">
           Pod tym adresem nie ma wydarzenia. Sprawdź, czy odnośnik jest w całości.
         </p>
@@ -68,13 +79,13 @@ export function RcEventSite({
     );
   }
 
-  if (event === null) return <Shell title=""><p className="ev-muted">Wczytywanie…</p></Shell>;
+  if (event === null) return <Shell title="" home={home}><p className="ev-muted">Wczytywanie…</p></Shell>;
 
   const parts = rcPartsOf(event);
 
   if (parts.length === 0) {
     return (
-      <Shell title={event.title ?? ''}>
+      <Shell title={event.title ?? ''} home={home}>
         <p className="ev-muted">
           {signedIn
             ? 'To wydarzenie nie ma jeszcze żadnej części. Dodaj je w edytorze.'
@@ -91,10 +102,10 @@ export function RcEventSite({
   const index = at === null || at < 0 || at >= parts.length ? 0 : at;
   const part = parts[index];
 
-  const href = (n: number) => `${rcPath('event', slug)}/${n}`;
+  const href = (n: number) => `${rcPath('event', collection, slug)}/${n}`;
 
   return (
-    <Shell title={event.title ?? ''} style={rcLayerStyle(part)}>
+    <Shell title={event.title ?? ''} style={rcLayerStyle(part)} home={home}>
       {/*
         Menu części — odnośniki, nie przyciski. Etykieta bierze się z części
         („menuLabel"), bo tytuł bywa długi, a w menu ma się zmieścić.
@@ -131,17 +142,23 @@ export function RcEventSite({
 }
 
 /** Oprawa: nagłówek wydarzenia i stopka. Nie wie nic o żadnej części. */
+/*
+  `home` to adres KATALOGU tej strony wydarzeń, a nie gołego `#/new/event`,
+  pod którym nie ma nic. Odnośnik prowadzący donikąd jest gorszy niż jego brak:
+  wygląda na wyjście.
+*/
 function Shell({
-  title, children, style
+  title, children, style, home
 }: {
   title: string;
   children: React.ReactNode;
   style?: React.CSSProperties;
+  home: string;
 }) {
   return (
     <div className="ev" style={style}>
       <header className="ev-head">
-        <a className="ev-brand" href={rcPath('event')}>
+        <a className="ev-brand" href={home}>
           <span className="ev-mark" aria-hidden="true">◆</span>
           <span className="ev-name">{title === '' ? 'Wydarzenie' : title}</span>
         </a>
@@ -150,7 +167,7 @@ function Shell({
       <main className="ev-main">{children}</main>
 
       <footer className="ev-foot">
-        <a href={rcPath('event')}>Wszystkie wydarzenia</a>
+        <a href={home}>Wszystkie wydarzenia</a>
         <a href="https://recreatio.pl">recreatio.pl</a>
       </footer>
     </div>

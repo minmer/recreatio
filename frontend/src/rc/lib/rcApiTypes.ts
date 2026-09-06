@@ -2424,6 +2424,183 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/event-collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventCollectionsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventCollectionsFoundCollectionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventCollectionFoundedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/event-collections/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventCollectionViewResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/event-collections/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventCollectionsAddEventRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventFoundedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/event-collections/{id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventCollectionsPublishCollectionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventCollectionPublishedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/events": {
         parameters: {
             query?: never;
@@ -2452,76 +2629,14 @@ export interface paths {
             };
         };
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["EventsCreateEventRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RcEventCreatedResponse"];
-                    };
-                };
-            };
-        };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/rc/events/found": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["EventsFoundEventRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RcEventFoundedResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/rc/events/{slug}": {
+    "/rc/event-collections/{collection}/events/{slug}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2533,6 +2648,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    collection: string;
                     slug: string;
                 };
                 cookie?: never;
@@ -5927,6 +6043,50 @@ export interface components {
             /** Format: date-time */
             lastReadAt: string;
         };
+        EventCollectionsAddEventRequest: {
+            slug?: string | null;
+            title?: string | null;
+            /** Format: date-time */
+            startsUtc?: string | null;
+            /** Format: date-time */
+            endsUtc?: string | null;
+        };
+        EventCollectionsCollectionEvent: {
+            eventId: string;
+            areaId: string;
+            slug: string;
+            title: string;
+            lifecycle: string;
+            isPublic: boolean;
+            /** Format: date-time */
+            startsUtc?: string | null;
+            /** Format: date-time */
+            endsUtc?: string | null;
+            /** Format: int32 */
+            pages: number;
+        };
+        EventCollectionsCollectionSummary: {
+            collectionId: string;
+            areaId: string;
+            slug: string;
+            title: string;
+            lifecycle: string;
+            organizerName?: string | null;
+            /** Format: int32 */
+            events: number;
+        };
+        EventCollectionsFoundCollectionRequest: {
+            founderRoleId?: string | null;
+            organizerRoleId?: string | null;
+            slug?: string | null;
+            title?: string | null;
+            organizerName?: string | null;
+            organizerAddress?: string | null;
+            organizerEmail?: string | null;
+        };
+        EventCollectionsPublishCollectionRequest: {
+            archive?: boolean | null;
+        };
         EventsAddFieldRequest: {
             kind: string;
             label: string;
@@ -5953,19 +6113,10 @@ export interface components {
             /** Format: int32 */
             sortOrder?: number | null;
         };
-        EventsCreateEventRequest: {
-            areaId: string;
-            slug: string;
-            title: string;
-            /** Format: date-time */
-            startsUtc?: string | null;
-            /** Format: date-time */
-            endsUtc?: string | null;
-            isPublic?: boolean | null;
-        };
         EventsEventSummary: {
             eventId: string;
             areaId: string;
+            collectionSlug: string;
             slug: string;
             title: string;
             lifecycle: string;
@@ -5987,19 +6138,6 @@ export interface components {
             isHalfWidth: boolean;
             identityRole: string;
             dataClass: string;
-        };
-        EventsFoundEventRequest: {
-            founderRoleId?: string | null;
-            organizerRoleId?: string | null;
-            slug?: string | null;
-            title?: string | null;
-            organizerName?: string | null;
-            organizerAddress?: string | null;
-            organizerEmail?: string | null;
-            /** Format: date-time */
-            startsUtc?: string | null;
-            /** Format: date-time */
-            endsUtc?: string | null;
         };
         EventsPageView: {
             pageId: string;
@@ -6628,11 +6766,30 @@ export interface components {
             note?: string | null;
             unreadable?: string | null;
         };
-        RcEventCreatedResponse: {
-            eventId: string;
+        RcEventCollectionFoundedResponse: {
+            collectionId: string;
+            areaId: string;
+            officeRoleId: string;
+            slug: string;
+        };
+        RcEventCollectionPublishedResponse: {
+            collectionId: string;
+            lifecycle: string;
+        };
+        RcEventCollectionViewResponse: {
+            collectionId: string;
+            areaId: string;
             slug: string;
             title: string;
             lifecycle: string;
+            organizerName?: string | null;
+            organizerAddress?: string | null;
+            organizerEmail?: string | null;
+            mayRead: boolean;
+            events: components["schemas"]["EventCollectionsCollectionEvent"][];
+        };
+        RcEventCollectionsResponse: {
+            collections: components["schemas"]["EventCollectionsCollectionSummary"][];
         };
         RcEventFieldCreatedResponse: {
             fieldId: string;
@@ -6669,6 +6826,7 @@ export interface components {
         RcEventViewResponse: {
             eventId: string;
             areaId: string;
+            collectionSlug: string;
             slug: string;
             title: string;
             lifecycle: string;

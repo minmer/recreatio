@@ -1714,56 +1714,98 @@ await t.OkAsync("9.x   Wer durchgehend dabei war, liest alle Epochen", async () 
 // In einem EIGENEN Bereich, damit die Kettenpruefungen weiter oben ihre
 // Eintraege genau abzaehlen koennen.
 
-var eventArea = (await ReadAsync(await http.PostAsJsonAsync("/rc/areas", new
+// Gegruendet wird die SAMMLUNG. Sie bringt Bereich, Amt und Schluessel selbst
+// mit — es gibt keinen Weg mehr, eine Veranstaltung an einen vorhandenen
+// Bereich zu haengen, weil dabei niemand nach dem Verantwortlichen fuer die
+// Daten gefragt wuerde.
+var collectionCreated = await http.PostAsJsonAsync("/rc/event-collections", new
 {
-    ownerRoleId = personalRoleId,
-    title = "Vorbereitung Pfarrfest"
-}))).GetProperty("areaId").GetString()!;
+    founderRoleId = personalRoleId,
+    slug = "Pfarrfeste!",
+    title = "Pfarrfeste",
+    organizerName = "Pfarrei St. Kasimir",
+    organizerAddress = "Musterweg 1, 00-000 Musterstadt"
+});
 
-var eventCreated = await http.PostAsJsonAsync("/rc/events", new
+var collectionId = "";
+await t.OkAsync("14.x  Eine Sammlung entsteht mit eigenem Bereich und Amt", async () =>
 {
-    areaId = eventArea,
+    if (collectionCreated.StatusCode != HttpStatusCode.Created) return false;
+    var json = await ReadAsync(collectionCreated);
+    collectionId = json.GetProperty("collectionId").GetString()!;
+
+    // Die Adresse wird gezogen, nicht uebernommen: Grossbuchstaben,
+    // Leerzeichen und Satzzeichen haben in einer Adresse nichts verloren.
+    return Text(json, "slug") == "pfarrfeste"
+        && json.GetProperty("areaId").GetString()!.Length > 0
+        && json.GetProperty("officeRoleId").GetString()!.Length > 0;
+});
+
+// OHNE VERANTWORTLICHEN GEHT NICHTS.
+//
+// Unter der Sammlung nimmt spaeter jede Veranstaltung Anmeldungen entgegen.
+// Faellt diese Pruefung, entsteht wieder ein Formular, das personenbezogene
+// Daten annimmt, ohne dass irgendwo steht, wer dafuer einsteht.
+await t.OkAsync("14.x  Eine Sammlung ohne Anschrift wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync("/rc/event-collections", new
+    {
+        founderRoleId = personalRoleId, slug = "ohne-klausel", title = "Ohne",
+        organizerName = "Jemand", organizerAddress = "   "
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+// Die Adresse der Sammlung steht allein im Link, ist also global eindeutig.
+await t.OkAsync("14.x  Eine zweite Sammlung gleichen Namens wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync("/rc/event-collections", new
+    {
+        founderRoleId = personalRoleId, slug = "pfarrfeste", title = "Nochmal",
+        organizerName = "Pfarrei St. Kasimir", organizerAddress = "Musterweg 1"
+    })).StatusCode == HttpStatusCode.Conflict);
+
+// Eine leere Adresse ist keine. Sie faellt sonst erst auf, wenn niemand die
+// Seite mehr aufrufen kann.
+await t.OkAsync("14.x  Eine Adresse aus lauter Satzzeichen wird abgewiesen", async () =>
+    (await http.PostAsJsonAsync("/rc/event-collections", new
+    {
+        founderRoleId = personalRoleId, slug = "!!! ???", title = "Leer",
+        organizerName = "Jemand", organizerAddress = "Musterweg 1"
+    })).StatusCode == HttpStatusCode.BadRequest);
+
+var eventCreated = await http.PostAsJsonAsync($"/rc/event-collections/{collectionId}/events", new
+{
     slug = "Pfarrfest 2026!",
     title = "Pfarrfest"
 });
 
 var eventId = "";
-await t.OkAsync("14.x  Eine Veranstaltung entsteht an einem Bereich", async () =>
+await t.OkAsync("14.x  Eine Veranstaltung entsteht in der Sammlung", async () =>
 {
     if (eventCreated.StatusCode != HttpStatusCode.Created) return false;
     var json = await ReadAsync(eventCreated);
     eventId = json.GetProperty("eventId").GetString()!;
 
-    // Die Adresse wird gezogen, nicht uebernommen: Grossbuchstaben,
-    // Leerzeichen und Satzzeichen haben in einer Adresse nichts verloren.
+    // Eigener Bereich, eigenes Amt — sonst oeffnete, wer beim einen Fest die
+    // Anmeldungen fuehrt, auch die des naechsten.
     return Text(json, "slug") == "pfarrfest-2026"
-        && Text(json, "lifecycle") == "draft";
+        && json.GetProperty("areaId").GetString()!.Length > 0
+        && json.GetProperty("officeRoleId").GetString()!.Length > 0;
 });
 
-// Ein Bereich traegt hoechstens eine. Zwei waeren zwei Oeffentlichkeiten
-// hinter demselben Schluessel — und beim Entfernen eines Mitglieds wuesste
-// niemand mehr, welche gemeint war.
-await t.OkAsync("14.x  Ein zweiter Anlauf am selben Bereich wird abgewiesen", async () =>
-    (await http.PostAsJsonAsync("/rc/events", new
+// Innerhalb der Sammlung ist der Name eindeutig — global nicht, damit nicht
+// die erste Pfarrei mit einem "festyn-2026" den Namen fuer alle verbraucht.
+await t.OkAsync("14.x  Zwei gleiche Adressen in einer Sammlung gehen nicht", async () =>
+    (await http.PostAsJsonAsync($"/rc/event-collections/{collectionId}/events", new
     {
-        areaId = eventArea, slug = "noch-eins", title = "Noch eins"
+        slug = "pfarrfest-2026", title = "Nochmal"
     })).StatusCode == HttpStatusCode.Conflict);
 
-// 3.6 — Die Berechtigung kommt aus dem Kernel. Bruno hat auf DIESEM Bereich
-// nichts, also gibt es die Veranstaltung fuer ihn nicht.
-await t.OkAsync("3.6   Wer den Bereich nicht verwaltet, legt dort nichts an", async () =>
-    (await bruno.PostAsJsonAsync("/rc/events", new
+// 3.6 — Die Berechtigung IST der Schluessel des Amtes: wer ihn nicht
+// aufschliessen kann, kann das Amt der neuen Veranstaltung nicht darunter
+// verschliessen. Bruno hat ihn nicht.
+await t.OkAsync("3.6   Wer das Amt der Sammlung nicht hat, stellt nichts hinein", async () =>
+    (await bruno.PostAsJsonAsync($"/rc/event-collections/{collectionId}/events", new
     {
-        areaId = eventArea, slug = "fremd", title = "Fremd"
+        slug = "fremd", title = "Fremd"
     })).StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden);
-
-// Eine leere Adresse ist keine. Sie faellt sonst erst auf, wenn niemand die
-// Seite mehr aufrufen kann.
-await t.OkAsync("14.x  Eine Adresse aus lauter Satzzeichen wird abgewiesen", async () =>
-    (await http.PostAsJsonAsync("/rc/events", new
-    {
-        areaId = eventArea, slug = "!!! ???", title = "Leer"
-    })).StatusCode == HttpStatusCode.BadRequest);
 
 var pageCreated = await http.PostAsJsonAsync($"/rc/events/{eventId}/pages", new
 {
@@ -1865,7 +1907,8 @@ await t.OkAsync("14.x  Eine Auswahl ohne Moeglichkeiten wird abgewiesen", async 
 // -- Ein Entwurf ist fuer Fremde nicht da -------------------------------------
 
 await t.OkAsync("14.x  Ein Entwurf sieht fuer Fremde aus, als gaebe es ihn nicht", async () =>
-    (await bruno.GetAsync("/rc/events/pfarrfest-2026")).StatusCode == HttpStatusCode.NotFound);
+    (await bruno.GetAsync("/rc/event-collections/pfarrfeste/events/pfarrfest-2026"))
+        .StatusCode == HttpStatusCode.NotFound);
 
 await t.OkAsync("14.x  Ein Entwurf nimmt keine Anmeldungen entgegen", async () =>
     (await http.PostAsJsonAsync($"/rc/event-parts/{formPartId}/registrations", new
@@ -1877,7 +1920,8 @@ await t.OkAsync("14.x  Ein Entwurf nimmt keine Anmeldungen entgegen", async () =
 await http.PostAsJsonAsync($"/rc/events/{eventId}/publish", new { });
 
 await t.OkAsync("14.x  Nach dem Veroeffentlichen erreicht sie auch ein Fremder", async () =>
-    (await bruno.GetAsync("/rc/events/pfarrfest-2026")).StatusCode == HttpStatusCode.OK);
+    (await bruno.GetAsync("/rc/event-collections/pfarrfeste/events/pfarrfest-2026"))
+        .StatusCode == HttpStatusCode.OK);
 
 // -- Anmeldungen: die Regeln gelten im DIENST ---------------------------------
 

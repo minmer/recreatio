@@ -11,8 +11,6 @@ namespace Rc.Api;
 
 // -- Anlegen ------------------------------------------------------------------
 
-public sealed record RcEventCreatedResponse(string EventId, string Slug, string Title, string Lifecycle);
-
 public sealed record RcEventPageCreatedResponse(string PageId, string Slug, string Title);
 
 public sealed record RcEventPartCreatedResponse(string PartId, string Kind, bool IsPublic, int SortOrder);
@@ -46,7 +44,7 @@ public sealed record RcEventFoundedResponse(
     string EventId, string AreaId, string OfficeRoleId, string Slug);
 
 public sealed record RcEventViewResponse(
-    string EventId, string AreaId, string Slug, string Title, string Lifecycle, bool IsPublic,
+    string EventId, string AreaId, string CollectionSlug, string Slug, string Title, string Lifecycle, bool IsPublic,
     DateTimeOffset? StartsUtc, DateTimeOffset? EndsUtc, bool MayRead,
     IReadOnlyList<RcEvents.PageView> Pages,
     string? IntakePublicKey);
@@ -68,3 +66,46 @@ public sealed record RcRegistrationSubmittedResponse(
 public sealed record RcRegistrationsResponse(IReadOnlyList<RcRegistrations.RegistrationView> Registrations);
 
 public sealed record RcRegistrationWithdrawnResponse(string RegistrationId, int ValuesDestroyed);
+
+/* ---------------------------------------------------------------------------
+   Die Sammlung ueber den Veranstaltungen.
+
+   Sie traegt die Adresse, den Veranstalter, die Klausel und das Amt; die
+   einzelne Veranstaltung traegt ihren eigenen Bereich und ihre eigenen
+   Schluessel. Warum die Grenze dort liegt, steht in RcEventCollections.
+   --------------------------------------------------------------------------- */
+
+public sealed record RcEventCollectionsResponse(
+    IReadOnlyList<RcEventCollections.CollectionSummary> Collections);
+
+/// <summary>
+/// Was beim Gruenden entstanden ist.
+///
+/// Alle drei Kennungen gehen zurueck, weil der Browser sie sofort braucht: die
+/// Adresse fuer den Verweis, das Amt fuer die naechste Zuteilung, den Bereich
+/// fuer alles, was daran haengt. Sie hinterher zu suchen hiesse, drei Abfragen
+/// fuer etwas zu stellen, das der Dienst gerade in der Hand hatte.
+/// </summary>
+public sealed record RcEventCollectionFoundedResponse(
+    string CollectionId, string AreaId, string OfficeRoleId, string Slug);
+
+/// <summary>
+/// Der Katalog.
+///
+/// <c>organizerName</c> und <c>organizerAddress</c> stehen im Klartext und
+/// gehen auch an Fremde: die Klausel nach RODO ist zum Lesen da, bevor
+/// irgendjemand ein Konto hat. Es ist dieselbe Grenze wie bei
+/// <c>title_public</c> gegen <c>title_sealed</c> an der Messe.
+///
+/// <c>mayRead</c> heisst: der Leser gehoert dazu. Davon haengt ab, ob die
+/// Entwuerfe ueberhaupt in der Liste stehen — und die Oberflaeche braucht es,
+/// um „hier ist nichts weiter" von „du siehst nur den oeffentlichen Teil" zu
+/// unterscheiden.
+/// </summary>
+public sealed record RcEventCollectionViewResponse(
+    string CollectionId, string AreaId, string Slug, string Title, string Lifecycle,
+    string? OrganizerName, string? OrganizerAddress, string? OrganizerEmail,
+    bool MayRead,
+    IReadOnlyList<RcEventCollections.CollectionEvent> Events);
+
+public sealed record RcEventCollectionPublishedResponse(string CollectionId, string Lifecycle);

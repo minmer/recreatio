@@ -2228,10 +2228,10 @@
         }
       }
     },
-    "/rc/events": {
+    "/rc/event-collections": {
       "get": {
         "tags": [
-          "RcEvents"
+          "RcEventCollections"
         ],
         "responses": {
           "200": {
@@ -2239,7 +2239,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RcEventsResponse"
+                  "$ref": "#/components/schemas/RcEventCollectionsResponse"
                 }
               }
             }
@@ -2248,13 +2248,13 @@
       },
       "post": {
         "tags": [
-          "RcEvents"
+          "RcEventCollections"
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EventsCreateEventRequest"
+                "$ref": "#/components/schemas/EventCollectionsFoundCollectionRequest"
               }
             }
           },
@@ -2266,7 +2266,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RcEventCreatedResponse"
+                  "$ref": "#/components/schemas/RcEventCollectionFoundedResponse"
                 }
               }
             }
@@ -2274,16 +2274,56 @@
         }
       }
     },
-    "/rc/events/found": {
+    "/rc/event-collections/{slug}": {
+      "get": {
+        "tags": [
+          "RcEventCollections"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventCollectionViewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-collections/{id}/events": {
       "post": {
         "tags": [
-          "RcEvents"
+          "RcEventCollections"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EventsFoundEventRequest"
+                "$ref": "#/components/schemas/EventCollectionsAddEventRequest"
               }
             }
           },
@@ -2303,12 +2343,79 @@
         }
       }
     },
-    "/rc/events/{slug}": {
+    "/rc/event-collections/{id}/publish": {
+      "post": {
+        "tags": [
+          "RcEventCollections"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventCollectionsPublishCollectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventCollectionPublishedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/events": {
+      "get": {
+        "tags": [
+          "RcEvents"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-collections/{collection}/events/{slug}": {
       "get": {
         "tags": [
           "RcEvents"
         ],
         "parameters": [
+          {
+            "name": "collection",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "slug",
             "in": "path",
@@ -6731,6 +6838,158 @@
         },
         "additionalProperties": false
       },
+      "EventCollectionsAddEventRequest": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventCollectionsCollectionEvent": {
+        "required": [
+          "areaId",
+          "eventId",
+          "isPublic",
+          "lifecycle",
+          "pages",
+          "slug",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string"
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "isPublic": {
+            "type": "boolean"
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "pages": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventCollectionsCollectionSummary": {
+        "required": [
+          "areaId",
+          "collectionId",
+          "events",
+          "lifecycle",
+          "slug",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "collectionId": {
+            "type": "string"
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "organizerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "events": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventCollectionsFoundCollectionRequest": {
+        "type": "object",
+        "properties": {
+          "founderRoleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "organizerRoleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "slug": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "organizerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "organizerAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "organizerEmail": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventCollectionsPublishCollectionRequest": {
+        "type": "object",
+        "properties": {
+          "archive": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "EventsAddFieldRequest": {
         "required": [
           "kind",
@@ -6832,43 +7091,10 @@
         },
         "additionalProperties": false
       },
-      "EventsCreateEventRequest": {
-        "required": [
-          "areaId",
-          "slug",
-          "title"
-        ],
-        "type": "object",
-        "properties": {
-          "areaId": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "startsUtc": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "endsUtc": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "isPublic": {
-            "type": "boolean",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
       "EventsEventSummary": {
         "required": [
           "areaId",
+          "collectionSlug",
           "eventId",
           "isPublic",
           "lifecycle",
@@ -6882,6 +7108,9 @@
             "type": "string"
           },
           "areaId": {
+            "type": "string"
+          },
+          "collectionSlug": {
             "type": "string"
           },
           "slug": {
@@ -6956,50 +7185,6 @@
           },
           "dataClass": {
             "type": "string"
-          }
-        },
-        "additionalProperties": false
-      },
-      "EventsFoundEventRequest": {
-        "type": "object",
-        "properties": {
-          "founderRoleId": {
-            "type": "string",
-            "nullable": true
-          },
-          "organizerRoleId": {
-            "type": "string",
-            "nullable": true
-          },
-          "slug": {
-            "type": "string",
-            "nullable": true
-          },
-          "title": {
-            "type": "string",
-            "nullable": true
-          },
-          "organizerName": {
-            "type": "string",
-            "nullable": true
-          },
-          "organizerAddress": {
-            "type": "string",
-            "nullable": true
-          },
-          "organizerEmail": {
-            "type": "string",
-            "nullable": true
-          },
-          "startsUtc": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "endsUtc": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
           }
         },
         "additionalProperties": false
@@ -9363,16 +9548,62 @@
         },
         "additionalProperties": false
       },
-      "RcEventCreatedResponse": {
+      "RcEventCollectionFoundedResponse": {
         "required": [
-          "eventId",
+          "areaId",
+          "collectionId",
+          "officeRoleId",
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "collectionId": {
+            "type": "string"
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "officeRoleId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventCollectionPublishedResponse": {
+        "required": [
+          "collectionId",
+          "lifecycle"
+        ],
+        "type": "object",
+        "properties": {
+          "collectionId": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventCollectionViewResponse": {
+        "required": [
+          "areaId",
+          "collectionId",
+          "events",
           "lifecycle",
+          "mayRead",
           "slug",
           "title"
         ],
         "type": "object",
         "properties": {
-          "eventId": {
+          "collectionId": {
+            "type": "string"
+          },
+          "areaId": {
             "type": "string"
           },
           "slug": {
@@ -9383,6 +9614,42 @@
           },
           "lifecycle": {
             "type": "string"
+          },
+          "organizerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "organizerAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "organizerEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "mayRead": {
+            "type": "boolean"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventCollectionsCollectionEvent"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventCollectionsResponse": {
+        "required": [
+          "collections"
+        ],
+        "type": "object",
+        "properties": {
+          "collections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventCollectionsCollectionSummary"
+            }
           }
         },
         "additionalProperties": false
@@ -9515,6 +9782,7 @@
       "RcEventViewResponse": {
         "required": [
           "areaId",
+          "collectionSlug",
           "eventId",
           "isPublic",
           "lifecycle",
@@ -9529,6 +9797,9 @@
             "type": "string"
           },
           "areaId": {
+            "type": "string"
+          },
+          "collectionSlug": {
             "type": "string"
           },
           "slug": {
@@ -12262,6 +12533,9 @@
     },
     {
       "name": "RcEngagement"
+    },
+    {
+      "name": "RcEventCollections"
     },
     {
       "name": "RcEvents"
