@@ -271,7 +271,6 @@ export interface RcCopy {
       readonly by: string;
       readonly kinds: Readonly<Record<string, string>>;
       readonly slugBad: string;
-      readonly stays: string;
       readonly rodo: string;
       readonly rodoWhy: string;
       readonly rodoName: string;
@@ -282,6 +281,17 @@ export interface RcCopy {
       readonly done: string;
       readonly open: string;
       readonly taken: string;
+      readonly title: string;
+      readonly next: string;
+      readonly stepWho: string;
+      readonly stepPage: string;
+      readonly stepRodo: string;
+      readonly alone: string;
+      readonly pageName: string;
+      readonly pageNameHint: string;
+      readonly web: string;
+      readonly webHint: string;
+      readonly preview: string;
       readonly failed: string;
     };
     readonly collection: {
@@ -903,7 +913,6 @@ const en: RcCopy = {
       by: "Organised by",
       kinds: { person: "person", office: "office — a parish, say", group: "community", service: "service" },
       slugBad: "Lower-case letters, digits and dashes — a dash only in the middle.",
-      stays: "The address is public and it stays — it goes on the poster and into messages, and changing it breaks every one of those links.",
       rodo: "Data controller",
       rodoWhy: "Every event on this page takes sign-ups, so it has to say who answers for the data and at what address. Asked once here, not at each event: the controller is the organiser, not the single festival.",
       rodoName: "Name — as it is to stand in the notice",
@@ -914,6 +923,17 @@ const en: RcCopy = {
       done: "The page is founded. It got an area of its own with its own keys, and an admin role — passable on, without handing anybody an account. Now put your events in it.",
       open: "Open the page",
       taken: "That address is taken. Pick another one.",
+      title: "New event page",
+      next: "After that you put the individual events inside it — each with its own address, its own keys and its own sign-up form.",
+      stepWho: "1 · Who is putting it on",
+      stepPage: "2 · What the page is called and where it lives",
+      stepRodo: "3 · Who answers for the data",
+      alone: "You are creating this as {who} — the only role you hold a key for.",
+      pageName: "What should the page be called?",
+      pageNameHint: "The heading over the whole thing. Not the name of a single event.",
+      web: "Web address",
+      webHint: "Lower-case letters, digits and dashes. This goes in the link, it is public, and it stays: change it later and every poster and message pointing here goes dead.",
+      preview: "The page will be at:",
       failed: "The page could not be founded."
     },
     collection: {
@@ -1601,7 +1621,6 @@ const pl: RcCopy = {
       by: "Organizuje",
       kinds: { person: "osoba", office: "urząd — np. parafia", group: "wspólnota", service: "służba" },
       slugBad: "Małe litery, cyfry i myślniki — myślnik tylko w środku.",
-      stays: "Adres jest publiczny i zostaje — trafia na plakat i do wiadomości, a zmiana zrywa każdy taki odnośnik.",
       rodo: "Administrator danych",
       rodoWhy: "Każde wydarzenie na tej stronie przyjmuje zgłoszenia, więc musi powiedzieć, kto odpowiada za dane i pod jakim adresem. Pytamy raz tutaj, nie przy każdym wydarzeniu: administratorem jest organizator, nie pojedynczy festyn.",
       rodoName: "Nazwa — tak, jak ma stać w klauzuli",
@@ -1612,6 +1631,17 @@ const pl: RcCopy = {
       done: "Strona założona. Powstał osobny obszar z własnymi kluczami i rola administracyjna — przekazywalna, bez oddawania komukolwiek konta. Teraz wstaw do niej wydarzenia.",
       open: "Otwórz stronę",
       taken: "Ten adres jest już zajęty. Wybierz inny.",
+      title: "Nowa strona wydarzeń",
+      next: "Potem wstawiasz do niej poszczególne wydarzenia — każde z własnym adresem, własnymi kluczami i własnym formularzem zapisu.",
+      stepWho: "1 · Kto organizuje",
+      stepPage: "2 · Jak się nazywa i gdzie stoi",
+      stepRodo: "3 · Kto odpowiada za dane",
+      alone: "Zakładasz jako {who} — to jedyna rola, do której masz klucz.",
+      pageName: "Jak ma się nazywać strona?",
+      pageNameHint: "Nagłówek nad całością. Nie nazwa pojedynczego wydarzenia.",
+      web: "Adres w sieci",
+      webHint: "Małe litery, cyfry i myślniki. To trafia do linku, jest publiczne i zostaje: zmiana zrywa każdy plakat i każdą wiadomość, która tu prowadzi.",
+      preview: "Strona stanie pod adresem:",
       failed: "Nie udało się założyć strony."
     },
     collection: {
@@ -2262,7 +2292,6 @@ const de: RcCopy = {
       by: "Veranstalter",
       kinds: { person: "Person", office: "Amt — etwa eine Pfarrei", group: "Gemeinschaft", service: "Dienst" },
       slugBad: "Kleinbuchstaben, Ziffern und Bindestriche — ein Bindestrich nur in der Mitte.",
-      stays: "Die Adresse ist öffentlich und bleibt — sie steht auf dem Plakat und in Nachrichten, und eine Änderung reisst jeden solchen Link ab.",
       rodo: "Verantwortlicher für die Daten",
       rodoWhy: "Jede Veranstaltung auf dieser Seite nimmt Anmeldungen entgegen, also muss sie sagen, wer für die Daten einsteht und unter welcher Anschrift. Einmal hier gefragt und nicht bei jeder Veranstaltung: verantwortlich ist der Veranstalter, nicht das einzelne Fest.",
       rodoName: "Name — so, wie er im Hinweis stehen soll",
@@ -2273,6 +2302,17 @@ const de: RcCopy = {
       done: "Die Seite steht. Sie hat einen eigenen Bereich mit eigenen Schlüsseln bekommen und eine Verwaltungsrolle — weitergebbar, ohne jemandem ein Konto zu überlassen. Jetzt kommen die Veranstaltungen hinein.",
       open: "Seite öffnen",
       taken: "Diese Adresse ist schon vergeben. Nimm eine andere.",
+      title: "Neue Veranstaltungsseite",
+      next: "Danach stellst du die einzelnen Veranstaltungen hinein — jede mit eigener Adresse, eigenen Schlüsseln und eigenem Anmeldeformular.",
+      stepWho: "1 · Wer richtet aus",
+      stepPage: "2 · Wie die Seite heisst und wo sie steht",
+      stepRodo: "3 · Wer für die Daten einsteht",
+      alone: "Du legst an als {who} — die einzige Rolle, zu der du einen Schlüssel hast.",
+      pageName: "Wie soll die Seite heissen?",
+      pageNameHint: "Die Überschrift über dem Ganzen. Nicht der Name einer einzelnen Veranstaltung.",
+      web: "Adresse im Netz",
+      webHint: "Kleinbuchstaben, Ziffern und Striche. Das steht im Link, ist öffentlich und bleibt: eine Änderung reisst jedes Plakat und jede Nachricht ab, die hierher zeigt.",
+      preview: "Die Seite steht dann unter:",
       failed: "Die Seite liess sich nicht anlegen."
     },
     collection: {
