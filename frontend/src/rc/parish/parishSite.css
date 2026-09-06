@@ -1186,3 +1186,83 @@
 @media (max-width: 30rem) {
   .pr-mass { grid-template-columns: 1fr; gap: 0.2rem; }
 }
+
+/* -- Edytor: zakładanie mszy --------------------------------------------- */
+
+.mt, .it { display: grid; gap: 0.8rem; }
+.mt-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.6rem; }
+
+.mt-repeat { display: flex; flex-wrap: wrap; gap: 1rem; border: 0; margin: 0; padding: 0; }
+.mt-repeat legend { padding: 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; }
+.mt-repeat label { display: flex; gap: 0.35rem; align-items: center; font-size: 0.9rem; }
+
+.mt-days { display: grid; gap: 0.45rem; }
+.mt-day-row { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+
+/*
+ * Dni tygodnia jako przełączniki, nie lista wyboru: siedem rzeczy, z których
+ * bierze się kilka, czyta się szybciej jako rząd niż jako rozwijana lista.
+ */
+.mt-day {
+  min-width: 2.6rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.mt-day.is-on { background: var(--ps-deep, #22344c); border-color: var(--ps-deep, #22344c); color: #fff; }
+
+.mt-quick { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.mt-quick button {
+  padding: 0.25rem 0.6rem;
+  border: 1px dashed rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+/*
+ * Co się właściwie założy — zdaniem, nie polami. Kto czyta zdanie, zauważy
+ * pomyłkę; kto patrzy na siedem przycisków, nie zauważy.
+ */
+.mt-summary {
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border-left: 3px solid var(--ps-deep, #22344c);
+  background: rgba(34, 52, 76, 0.06);
+  font-size: 0.9rem;
+}
+
+.mt-upcoming { display: grid; gap: 0.4rem; margin-top: 0.6rem; }
+
+/* -- Edytor: szybkie wpisywanie intencji --------------------------------- */
+
+.it-top { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: end; }
+.it-mass { display: grid; gap: 0.5rem; padding: 0.8rem 1rem; border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 8px; }
+
+/*
+ * Pole wpisu jest duże i pierwsze w kolejności tabulacji — to tutaj spędza
+ * się cały czas przy przepisywaniu dwudziestu intencji z kartki.
+ */
+.it-entry { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.it-entry input { flex: 1 1 16rem; font: inherit; font-size: 1rem; padding: 0.5rem 0.6rem; }
+.it-entry select { font: inherit; padding: 0.5rem; }
+
+/* Zmiana treści w miejscu — bez otwierania drugiego formularza. */
+.it-edit { flex: 1 1 12rem; font: inherit; padding: 0.3rem 0.4rem; border: 1px solid transparent; background: none; }
+.it-edit:hover:not(:disabled), .it-edit:focus { border-color: rgba(0, 0, 0, 0.2); background: #fff; }
+
+.it-keys { margin: 0; font-size: 0.82rem; color: var(--ps-muted, #6b6257); display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.it-keys kbd {
+  padding: 0.05rem 0.35rem;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: #fff;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.78rem;
+}

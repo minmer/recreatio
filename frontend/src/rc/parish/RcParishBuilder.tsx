@@ -41,6 +41,8 @@ import {
   type RcMenuNode, type RcSite
 } from './rcSite';
 import { RcConfirmationTab } from './RcConfirmationTab';
+import { RcMassTab } from './RcMassTab';
+import { RcIntentionTab } from './RcIntentionTab';
 
 const ROW_H = 84;
 const GAP = 8;
@@ -70,7 +72,7 @@ const HANDLES: readonly RcHandle[] = [
   'bottom-left', 'bottom', 'bottom-right'
 ];
 
-type Tab = 'layout' | 'menu' | 'content' | 'confirmation';
+type Tab = 'layout' | 'menu' | 'content' | 'masses' | 'intentions' | 'confirmation';
 
 export function RcParishBuilder({
   site, onChange, parishId, slug
@@ -111,6 +113,8 @@ export function RcParishBuilder({
       {/* Die Firmung wird NICHT im Dokument gespeichert: sie hat einen eigenen
           Bereich, eine eigene Rolle und einen eigenen Schluessel. Sie hier
           hineinzuschreiben hiesse, all das an einer Textspalte aufzuhaengen. */}
+      {tab === 'masses' && <RcMassTab slug={slug} />}
+      {tab === 'intentions' && <RcIntentionTab slug={slug} />}
       {tab === 'confirmation' && <RcConfirmationTab parishId={parishId} slug={slug} />}
     </div>
   );
@@ -121,6 +125,14 @@ function Tabs({ tab, onTab, missing }: { tab: Tab; onTab: (t: Tab) => void; miss
     { id: 'layout', label: 'Układ' },
     { id: 'menu', label: 'Menu' },
     { id: 'content', label: 'Treść' },
+
+    /*
+      Msze stehen VOR den Intentionen, weil das die Reihenfolge der Arbeit ist:
+      ohne angelegte Messe gibt es nichts, woran eine Intention haengen koennte
+      — und der Intentionenreiter sagt genau das, wenn der Tag leer ist.
+    */
+    { id: 'masses', label: 'Msze' },
+    { id: 'intentions', label: 'Intencje' },
     { id: 'confirmation', label: 'Bierzmowanie' }
   ];
 

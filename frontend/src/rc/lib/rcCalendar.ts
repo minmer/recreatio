@@ -46,7 +46,15 @@ export const rcCreateCalendar = (areaId: string, title: string, timeZone?: strin
 // -- Eintraege ----------------------------------------------------------------
 
 export interface RcItemOptions {
-  readonly itemType?: 'appointment' | 'task';
+  /**
+   * Was fuer ein Eintrag.
+   *
+   * `mass` kam mit den Messen dazu: eine Messe IST ein Kalendereintrag, und
+   * der oeffentliche Messplan liest genau nach diesem Typ. Ohne ihn muesste
+   * er Messen an ihrem Titel erkennen — an einem Text also, den jemand
+   * jederzeit anders schreibt.
+   */
+  readonly itemType?: 'appointment' | 'task' | 'mass';
   readonly allDay?: boolean;
   readonly titlePublic?: string;
   readonly visibility?: RcVisibility;
