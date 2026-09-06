@@ -149,6 +149,46 @@ export function rcDayLabel(iso: string, today: Date = new Date()): string {
   return `${WEEKDAYS[at.getDay()]}, ${at.getDate()} ${MONTHS[at.getMonth()]}`;
 }
 
+/**
+ * Pierwsza msza tego dnia albo któregoś z następnych.
+ *
+ * <b>Po co „albo następnych".</b> Kancelaria przepisuje intencje z kartki
+ * ciągiem — a kartka nie kończy się razem z dniem. Po ostatniej mszy wtorku
+ * ma iść pierwsza msza środy, nawet jeśli we wtorek było ich siedem, a w
+ * środę jest jedna. Zatrzymanie się na granicy dnia znaczyłoby: sięgnij po
+ * mysz i przestaw datę — czyli dokładnie to, czego ten tryb ma oszczędzić.
+ *
+ * Zwraca `-1`, gdy w całym oknie nie ma już nic. To nie jest błąd, tylko
+ * koniec: ktoś doszedł do końca tego, co wczytano.
+ */
+export function rcFirstOnOrAfter(
+  masses: readonly RcPublicMass[], dayKey: string
+): number {
+  for (let i = 0; i < masses.length; i += 1) {
+    if (rcDayKey(masses[i].startsUtc) >= dayKey) return i;
+  }
+  return -1;
+}
+
+/**
+ * Która to msza w swoim dniu — „2 z 7".
+ *
+ * Liczone w obrębie DNIA, nie całego okna. „14 z 96" nie mówi nikomu nic;
+ * „2 z 7" mówi, ile jeszcze zostało do końca dnia, który się właśnie
+ * przepisuje.
+ */
+export function rcPositionInDay(
+  masses: readonly RcPublicMass[], index: number
+): { readonly at: number; readonly of: number } {
+  if (index < 0 || index >= masses.length) return { at: 0, of: 0 };
+
+  const day = rcDayKey(masses[index].startsUtc);
+  const sameDay = masses.filter((m) => rcDayKey(m.startsUtc) === day);
+  const before = masses.slice(0, index).filter((m) => rcDayKey(m.startsUtc) === day);
+
+  return { at: before.length + 1, of: sameDay.length };
+}
+
 /** Msze zgrupowane po dniach, w kolejności, w jakiej następują. */
 export function rcByDay(
   masses: readonly RcPublicMass[]

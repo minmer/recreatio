@@ -10,12 +10,17 @@
  *
  * <code>
  *   Enter        — zapisz i pisz następną intencję DO TEJ SAMEJ mszy
- *   Ctrl+Enter   — zapisz i przejdź do NASTĘPNEJ mszy tego dnia
+ *   Ctrl+Enter   — zapisz i przejdź do NASTĘPNEJ mszy — a po ostatniej
+ *                  mszy dnia do pierwszej mszy następnego dnia
  *   Escape       — porzuć to, co wpisane, i nie zapisuj
  * </code>
  *
  * Kursor sam ląduje w kolejnym polu. Ręka nie opuszcza klawiatury od pierwszej
- * intencji do ostatniej.
+ * intencji do ostatniej — także wtedy, gdy kartka obejmuje cały tydzień.
+ *
+ * <b>Dlatego wczytywane są dwa tygodnie naraz, nie jeden dzień.</b> Stos
+ * karteczek nie kończy się razem z dniem. Zatrzymanie się na granicy dnia
+ * wyglądałoby tak, jakby plan się skończył — a znaczyłoby: sięgnij po mysz.
  *
  * <b>Zapis jest natychmiastowy, nie „na koniec".</b> Formularz zbierający
  * dwadzieścia intencji i wysyłający je razem gubi wszystkie, gdy przy
@@ -26,56 +31,114 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
-  RC_KIND_LABEL, rcAddIntention, rcDayLabel, rcHour, rcIntentions,
-  rcPublicMasses, rcUpdateIntention,
+  RC_KIND_LABEL, rcAddIntention, rcDayKey, rcDayLabel, rcFirstOnOrAfter, rcHour,
+  rcIntentions, rcPositionInDay, rcPublicMasses, rcUpdateIntention,
   type RcIntention, type RcIntentionKind, type RcPublicMass
 } from './rcMass';
 import { RcRequestError } from '../lib/rcApi';
+import { rcPrintIntentions, rcSheetWeek } from './rcPrintIntentions';
+
+/**
+ * Wie weit voraus geladen wird.
+ *
+ * <b>Nicht ein Tag, sondern zwei Wochen.</b> Ein Stapel Zettel endet nicht mit
+ * dem Tag; wer die letzte Messe des Sonntags abgetippt hat, will an die erste
+ * des Montags — ohne die Maus. Laedt die Ansicht nur einen Tag, ist an der
+ * Tagesgrenze Schluss, und es sieht aus, als sei der Plan zu Ende.
+ */
+const WINDOW_DAYS = 14;
 
 export function RcIntentionTab({ slug }: { slug: string }) {
-  const [day, setDay] = useState(() => new Date().toISOString().slice(0, 10));
+  const [from, setFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [masses, setMasses] = useState<readonly RcPublicMass[]>([]);
   const [at, setAt] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const from = new Date(`${day}T00:00:00`);
-      const to = new Date(from);
-      to.setDate(to.getDate() + 1);
+      const start = new Date(`${from}T00:00:00`);
+      const end = new Date(start);
+      end.setDate(end.getDate() + WINDOW_DAYS);
 
-      const found = await rcPublicMasses(slug, from, to);
+      const found = await rcPublicMasses(slug, start, end);
       const list = (found.masses ?? []).filter((m) => m.status !== 'cancelled');
       setMasses(list);
       setAt((current) => Math.min(current, Math.max(0, list.length - 1)));
     } catch {
       setMasses([]);
     }
-  }, [slug, day]);
+  }, [slug, from]);
 
   useEffect(() => { void load(); }, [load]);
 
   const mass = masses[at];
+
+  /*
+   * Das Datumsfeld zeigt den Tag der GERADE bearbeiteten Messe, nicht den
+   * Anfang des Fensters. Sonst stuende dort noch Sonntag, waehrend man laengst
+   * den Montag eintraegt — und man traegt in dem Glauben ein, es sei noch
+   * Sonntag.
+   */
+  const shownDay = mass === undefined ? from : rcDayKey(mass.startsUtc);
+
+  /*
+   * DER AUSHANG WIRD FUER EINE WOCHE GEDRUCKT, NICHT FUER DAS FENSTER.
+   *
+   * Montag bis Sonntag — so haengt das Blatt im Schaukasten, und so ist es
+   * gewachsen: der Sonntag ist der Gipfel der Woche, nicht ihr Anfang. Das
+   * Ladefenster ist mit vierzehn Tagen absichtlich groesser; wer eintraegt,
+   * arbeitet weiter voraus als wer liest.
+   */
+  const [week, setWeek] = useState(() => rcSheetWeek(new Date()));
+  const [printFailed, setPrintFailed] = useState(false);
+
+  const print = async () => {
+    setPrintFailed(false);
+    try {
+      const start = new Date(`${week.from}T00:00:00`);
+      const end = new Date(`${week.to}T23:59:59`);
+
+      /*
+       * Frisch geholt und nicht aus dem Fenster genommen: das Blatt geht an
+       * die Wand und soll den Stand von jetzt zeigen, nicht den von vorhin.
+       */
+      const found = await rcPublicMasses(slug, start, end);
+      if (!rcPrintIntentions(found.masses ?? [], start, end)) setPrintFailed(true);
+    } catch {
+      setPrintFailed(true);
+    }
+  };
+
+  /* Ein gewaehlter Tag springt auf dessen erste Messe — oder auf die naechste danach. */
+  const goToDay = (wanted: string) => {
+    const found = rcFirstOnOrAfter(masses, wanted);
+    if (found >= 0) { setAt(found); return; }
+
+    // Ausserhalb des Fensters: neu laden und vorn anfangen.
+    setFrom(wanted);
+    setAt(0);
+  };
 
   return (
     <div className="it">
       <div className="it-top">
         <label className="mo-field">
           <span>Dzień</span>
-          <input
-            type="date"
-            value={day}
-            onChange={(e) => { setDay(e.target.value); setAt(0); }}
-          />
+          <input type="date" value={shownDay} onChange={(e) => goToDay(e.target.value)} />
         </label>
 
         {masses.length > 0 && (
           <label className="mo-field">
             <span>Msza</span>
+            {/*
+              Wszystkie msze okna, nie tylko tego dnia — bo Ctrl+Enter i tak
+              wychodzi poza dzień, a lista, która się z tym nie zgadza, myli.
+            */}
             <select value={at} onChange={(e) => setAt(Number(e.target.value))}>
               {masses.map((m, index) => (
                 <option key={m.startsUtc} value={index}>
-                  {rcHour(m.startsUtc)}{(m.title ?? '') === '' ? '' : ` — ${m.title}`}
+                  {rcDayLabel(m.startsUtc)} {rcHour(m.startsUtc)}
+                  {(m.title ?? '') === '' ? '' : ` — ${m.title}`}
                 </option>
               ))}
             </select>
@@ -85,8 +148,9 @@ export function RcIntentionTab({ slug }: { slug: string }) {
 
       {masses.length === 0 && (
         <p className="rc-note">
-          Tego dnia nie ma mszy w planie. Załóż ją w zakładce „Msze" — jeden wpis
-          powtarzający się wystarcza na cały okres.
+          Przez najbliższe dwa tygodnie od tego dnia nie ma żadnej mszy w planie.
+          Załóż ją w zakładce „Msze" — jeden wpis powtarzający się wystarcza na
+          cały okres.
         </p>
       )}
 
@@ -94,7 +158,13 @@ export function RcIntentionTab({ slug }: { slug: string }) {
         <MassEntry
           key={mass.startsUtc}
           mass={mass}
-          position={`${at + 1} z ${masses.length}`}
+          position={positionLabel(masses, at)}
+          /*
+            „Weiter" endet erst am Rand des FENSTERS, nicht am Rand des Tages.
+            Nach der letzten Messe des Sonntags kommt die erste des Montags —
+            und ein Tag ohne Messe wird dabei uebersprungen, weil er keine
+            Station ist, an der jemand halten wollte.
+          */
           hasNext={at + 1 < masses.length}
           onNextMass={() => setAt((n) => Math.min(n + 1, masses.length - 1))}
           onError={setError}
@@ -103,13 +173,67 @@ export function RcIntentionTab({ slug }: { slug: string }) {
 
       {error !== null && <p className="ap-error">{error}</p>}
 
+      <section className="it-sheet">
+        <h3 className="rc-h2">Wydruk do gabloty</h3>
+
+        <div className="it-sheet-row">
+          <label className="mo-field">
+            <span>Od</span>
+            <input
+              type="date"
+              value={week.from}
+              onChange={(e) => setWeek({ ...week, from: e.target.value })}
+            />
+          </label>
+
+          <label className="mo-field">
+            <span>Do</span>
+            <input
+              type="date"
+              value={week.to}
+              onChange={(e) => setWeek({ ...week, to: e.target.value })}
+            />
+          </label>
+
+          <button type="button" className="rc-btn" onClick={() => void print()}>
+            Drukuj intencje (A4)
+          </button>
+
+          {/* Domyślnie bieżący tydzień; następny jest o jedno kliknięcie. */}
+          <button
+            type="button"
+            className="mt-quick-one"
+            onClick={() => {
+              const next = new Date(`${week.from}T00:00:00`);
+              next.setDate(next.getDate() + 7);
+              setWeek(rcSheetWeek(next));
+            }}
+          >
+            następny tydzień
+          </button>
+        </div>
+
+        {printFailed && (
+          <p className="ap-error">
+            Nie udało się otworzyć wydruku — przeglądarka mogła zablokować nowe okno.
+          </p>
+        )}
+      </section>
+
       <p className="it-keys">
         <kbd>Enter</kbd> zapisuje i zostaje przy tej mszy ·
-        <kbd>Ctrl</kbd>+<kbd>Enter</kbd> zapisuje i przechodzi do następnej ·
+        <kbd>Ctrl</kbd>+<kbd>Enter</kbd> zapisuje i przechodzi do następnej —
+        także na następny dzień ·
         <kbd>Esc</kbd> czyści pole
       </p>
     </div>
   );
+}
+
+/** „2 z 7" — liczone w dniu, bo tyle zostało do końca tego dnia. */
+function positionLabel(masses: readonly RcPublicMass[], at: number): string {
+  const where = rcPositionInDay(masses, at);
+  return `${where.at} z ${where.of}`;
 }
 
 /* -- Jedna msza z jej intencjami ------------------------------------------- */

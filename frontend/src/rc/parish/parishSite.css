@@ -1301,3 +1301,28 @@
 
 .mt-drop:hover:not(:disabled) { background: rgba(158, 43, 37, 0.08); }
 .mt-drop:disabled { opacity: 0.5; cursor: default; }
+
+/* -- Wydruk intencji do gabloty ------------------------------------------ */
+
+.it-sheet {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.it-sheet-row { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: end; }
+
+/*
+ * „Następny tydzień" to skrót, nie polecenie — kancelaria drukuje najczęściej
+ * tydzień naprzód, ale nie zawsze. Dlatego stoi obok pól dat, a nie zamiast.
+ */
+.mt-quick-one {
+  padding: 0.35rem 0.7rem;
+  border: 1px dashed rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
