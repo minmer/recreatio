@@ -27,6 +27,16 @@ import './parish/parishSite.css';
 import { RcMyCandidates } from './parish/RcMyCandidates';
 import { RcEventSite } from './events/RcEventSite';
 import { RcEventCatalogue } from './events/RcEventCatalogue';
+/*
+  Das grosse Blatt zuerst, das kleine danach.
+
+  `eventShell.css` ist aus dem alten Veranstaltungsmodul uebernommen und traegt
+  die ganze Huelle: Taefelchen, Spur, Folien, Teile. `eventSite.css` ist das
+  kleine Blatt fuer den Katalog und das Gruendungsformular; es benennt seine
+  Klassen `.evp-*`, weil beide sonst um `.ev` straeitten — das grosse ist dunkel,
+  das kleine hell, und wer gewinnt, entschiede die Reihenfolge der Importe.
+*/
+import './events/eventShell.css';
 import './events/eventSite.css';
 import { RcPersonOutlet } from './RcPerson';
 import { RcInviteBanner } from './RcInvite';

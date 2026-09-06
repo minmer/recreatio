@@ -12,7 +12,7 @@
   dostanie czarny tekst na własnym granatowym tle.
 */
 
-.ev {
+.evp {
   --ev-ink: #16181c;
   --ev-muted: #5f636b;
   --ev-line: rgba(0, 0, 0, 0.14);
@@ -36,17 +36,17 @@
   tinty, a nie od czerni. Bez tego jasny tekst na ciemnym tle sąsiaduje z
   liniami, których nie widać.
 */
-.ev[style*="background"] {
+.evp[style*="background"] {
   --ev-muted: currentColor;
   --ev-line: currentColor;
 }
 
-.ev[style*="background"] .ev-muted { opacity: 0.75; }
-.ev[style*="background"] .ev-tab { border-color: currentColor; }
+.evp[style*="background"] .evp-muted { opacity: 0.75; }
+.evp[style*="background"] .evp-tab { border-color: currentColor; }
 
 /* -- Oprawa ---------------------------------------------------------------- */
 
-.ev-head {
+.evp-head {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -54,7 +54,7 @@
   border-bottom: 1px solid var(--ev-line);
 }
 
-.ev-brand {
+.evp-brand {
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
@@ -62,10 +62,10 @@
   text-decoration: none;
 }
 
-.ev-mark { font-size: 0.85rem; opacity: 0.6; }
-.ev-name { font-size: 1.05rem; letter-spacing: 0.01em; }
+.evp-mark { font-size: 0.85rem; opacity: 0.6; }
+.evp-name { font-size: 1.05rem; letter-spacing: 0.01em; }
 
-.ev-main {
+.evp-main {
   flex: 1 1 auto;
   width: min(46rem, 100%);
   margin: 0 auto;
@@ -75,7 +75,7 @@
   align-content: start;
 }
 
-.ev-foot {
+.evp-foot {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
@@ -84,7 +84,7 @@
   font-size: 0.85rem;
 }
 
-.ev-foot a { color: inherit; }
+.evp-foot a { color: inherit; }
 
 /* -- Menu części ----------------------------------------------------------- */
 
@@ -93,7 +93,7 @@
   Przewijalne w poziomie, bo wydarzenie o dziesięciu częściach na telefonie
   inaczej się nie mieści, a zawijanie w trzy rzędy zjada pół ekranu.
 */
-.ev-menu {
+.evp-menu {
   display: flex;
   gap: 0.4rem;
   overflow-x: auto;
@@ -101,7 +101,7 @@
   scrollbar-width: thin;
 }
 
-.ev-tab {
+.evp-tab {
   flex: 0 0 auto;
   padding: 0.3rem 0.75rem;
   border: 1px solid var(--ev-line);
@@ -112,37 +112,37 @@
   white-space: nowrap;
 }
 
-.ev-tab.is-active { background: currentColor; }
+.evp-tab.is-active { background: currentColor; }
 
 /*
   Aktywna zakładka: tło w kolorze pisma, więc pismo musi zmienić się na kolor
   tła — inaczej znika samo w sobie.
 */
-.ev-tab.is-active { color: var(--ev-paper); }
-.ev[style*="background"] .ev-tab.is-active { color: transparent; }
-.ev[style*="background"] .ev-tab.is-active { -webkit-text-fill-color: initial; mix-blend-mode: difference; }
+.evp-tab.is-active { color: var(--ev-paper); }
+.evp[style*="background"] .evp-tab.is-active { color: transparent; }
+.evp[style*="background"] .evp-tab.is-active { -webkit-text-fill-color: initial; mix-blend-mode: difference; }
 
 /* -- Część ----------------------------------------------------------------- */
 
-.ev-part { display: grid; gap: 0.8rem; }
+.evp-part { display: grid; gap: 0.8rem; }
 
-.ev-title {
+.evp-title {
   margin: 0;
   font-size: clamp(1.6rem, 5vw, 2.4rem);
   line-height: 1.15;
   text-wrap: balance;
 }
 
-.ev-intro { display: grid; gap: 0.7rem; }
-.ev-intro p { margin: 0; }
+.evp-intro { display: grid; gap: 0.7rem; }
+.evp-intro p { margin: 0; }
 
-.ev-muted { color: var(--ev-muted); }
+.evp-muted { color: var(--ev-muted); }
 
-.ev-part-sealed { opacity: 0.85; }
+.evp-part-sealed { opacity: 0.85; }
 
 /* -- Pola formularza ------------------------------------------------------- */
 
-.ev-fields {
+.evp-fields {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -151,7 +151,7 @@
   gap: 0.7rem;
 }
 
-.ev-fields li {
+.evp-fields li {
   display: grid;
   gap: 0.15rem;
   grid-column: 1 / -1;
@@ -161,15 +161,15 @@
 }
 
 /* Pole na pół szerokości zajmuje jedną kolumnę, nie cały rząd. */
-.ev-fields .ev-half { grid-column: auto; }
+.evp-fields .evp-half { grid-column: auto; }
 
-.ev-label { font-weight: 600; font-size: 0.92rem; }
-.ev-label em { font-style: normal; font-weight: 400; font-size: 0.78rem; opacity: 0.75; }
-.ev-help, .ev-options { font-size: 0.82rem; color: var(--ev-muted); }
+.evp-label { font-weight: 600; font-size: 0.92rem; }
+.evp-label em { font-style: normal; font-weight: 400; font-size: 0.78rem; opacity: 0.75; }
+.evp-help, .evp-options { font-size: 0.82rem; color: var(--ev-muted); }
 
 /* -- Dalej i wstecz -------------------------------------------------------- */
 
-.ev-steps {
+.evp-steps {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
@@ -177,11 +177,11 @@
   border-top: 1px solid var(--ev-line);
 }
 
-.ev-step { color: inherit; text-decoration: none; font-size: 0.92rem; }
-.ev-step:hover { text-decoration: underline; }
+.evp-step { color: inherit; text-decoration: none; font-size: 0.92rem; }
+.evp-step:hover { text-decoration: underline; }
 
 /* „Dalej" samo w sobie ma stać po prawej, także gdy „wstecz" nie ma. */
-.ev-step-next { margin-left: auto; }
+.evp-step-next { margin-left: auto; }
 
 /* -- Zakładanie wydarzenia ------------------------------------------------ */
 
@@ -214,9 +214,9 @@
   Wiersz katalogu jest ODNOŚNIKIEM, nie przyciskiem — tak jak menu części, i z
   tego samego powodu: środkowy przycisk myszy ma otwierać nową kartę.
 */
-.ev-cat { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.evp-cat { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
 
-.ev-cat-open {
+.evp-cat-open {
   display: grid;
   gap: 0.2rem;
   padding: 0.7rem 0.9rem;
@@ -226,11 +226,11 @@
   text-decoration: none;
 }
 
-.ev-cat-open:hover { border-color: currentColor; }
+.evp-cat-open:hover { border-color: currentColor; }
 
-.ev-cat-title { font-size: 1.05rem; }
+.evp-cat-title { font-size: 1.05rem; }
 
-.ev-cat-meta {
+.evp-cat-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
@@ -239,7 +239,7 @@
 }
 
 /* Szkic ma się rzucać w oczy: kto go rozsyła, rozsyła zamknięte drzwi. */
-.ev-cat-draft {
+.evp-cat-draft {
   padding: 0 0.4rem;
   border: 1px solid currentColor;
   border-radius: 999px;
@@ -250,7 +250,7 @@
   Klauzula stoi na dole, oddzielona linią — jest osobnym zobowiązaniem, a nie
   kolejnym akapitem strony.
 */
-.ev-rodo {
+.evp-rodo {
   margin-top: 0.6rem;
   padding-top: 0.9rem;
   border-top: 1px solid var(--ev-line);
@@ -258,9 +258,9 @@
   color: var(--ev-muted);
 }
 
-.ev-rodo-h { margin: 0 0 0.3rem; font-size: 0.9rem; font-weight: 600; }
-.ev-rodo p { margin: 0 0 0.2rem; }
-.ev-rodo a { color: inherit; }
+.evp-rodo-h { margin: 0 0 0.3rem; font-size: 0.9rem; font-weight: 600; }
+.evp-rodo p { margin: 0 0 0.2rem; }
+.evp-rodo a { color: inherit; }
 
 /* -- Formularz zakładania: trzy kroki ------------------------------------- */
 

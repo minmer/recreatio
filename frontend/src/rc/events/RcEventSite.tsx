@@ -1,33 +1,43 @@
 /**
  * Strona wydarzenia — publiczna, złożona z części.
  *
- * <b>Wzorowana na starym module wydarzeń, bo tamten jest dobrze zrobiony.</b>
- * Trzy rzeczy stamtąd są tu przeniesione świadomie:
+ * <b>Cała oprawa i cała logika przewijania są przeniesione ze starego modułu
+ * wydarzeń</b>, bo tam są dobrze zrobione. Ten plik jest już tylko tłumaczem:
+ * pobiera wydarzenie z rc, przekłada je na kształty, których oczekuje `EventShell`
+ * (`shellTypes.ts`), i podaje adresy.
+ *
+ * Trzy rzeczy stamtąd zostają nietknięte, bo o nie właśnie chodziło:
  *
  * <b>1. Część ma adres.</b> `#/new/event/recreatio/kal26/3` otwiera trzecią
- * część wydarzenia "kal26" ze strony "recreatio".
- * Menu i strzałki są PRAWDZIWYMI odnośnikami, nie przyciskami — dzięki temu
- * środkowy przycisk myszy otwiera je w nowej karcie, da się je wysłać komuś i
- * da się z nich wrócić „wstecz". Cztery odruchy, które przy przyciskach idą w
- * próżnię.
+ * część. Menu i strzałki są PRAWDZIWYMI odnośnikami, nie przyciskami — dzięki
+ * temu środkowy przycisk myszy otwiera je w nowej karcie, da się je wysłać
+ * komuś i da się z nich wrócić „wstecz". Adres podąża za czytanym miejscem
+ * (`replaceState`), więc skopiowany link wskazuje to, co widać.
  *
- * <b>2. Części są kolejnymi ekranami, nie akapitami.</b> Wydarzenie czyta się
- * na telefonie, w drodze: tytuł, potem najważniejsze liczby, potem plan. Jedna
- * długa strona zmusza do przewijania w poszukiwaniu tego, po co się przyszło.
+ * <b>2. Części są kolejnymi ekranami na jednej taśmie</b>, przesuwanej
+ * transformacją — nie osobnymi stronami. Stąd cały `useSlideScroll`: pomiar
+ * wysokości, przyciąganie do slajdu, klawiatura, dotyk.
  *
- * <b>3. Wygląd niesie samo wydarzenie</b> — tło i barwy idą z jego warstw, a
+ * <b>3. Wygląd niesie samo wydarzenie</b> — tło i barwy idą z warstw części, a
  * nie z arkusza platformy. Rajd rowerowy nie ma wyglądać jak rekolekcje.
  *
- * <b>Czego tu nie ma.</b> Edytora. Ten plik tylko czyta — kto ma prawa, wchodzi
- * w edycję osobnym wejściem, tak jak przy parafii.
+ * <b>Czego tu jeszcze nie ma.</b> Strona w adresie. Wydarzenie o kilku stronach
+ * przełącza je przyciskiem, a nie odnośnikiem: `#/new/event/c/e/3` znaczy dziś
+ * „trzecia część", a slug strony bywa samą liczbą („2026") — więc dołożenie
+ * członu na stronę uczyniłoby stary adres dwuznacznym. Zmiana wymaga decyzji o
+ * kształcie adresu, nie kolejnej sztuczki przy odczycie.
+ *
+ * <b>Czego tu nie ma z założenia.</b> Edytora. Ten plik tylko czyta — kto ma
+ * prawa, wchodzi w edycję osobnym wejściem, tak jak przy parafii.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { rcEvent, type RcEventView } from '../lib/rcEvents';
 import { rcPath } from '../lib/rcRoute';
-import { RcEventPart } from './RcEventPart';
-import { rcLayerStyle, rcPartsOf, type RcPartView } from './rcEventLayers';
+import { EventShell } from './shell/EventShell';
+import { rcShellPage, rcShellPages, rcShellSite } from './shell/shellTypes';
+import type { RcPartView } from './rcEventLayers';
 
 export function RcEventSite({
   collection, slug, at, signedIn
@@ -36,8 +46,8 @@ export function RcEventSite({
    * Strona wydarzeń, w której to wydarzenie leży.
    *
    * Nazwa wydarzenia jest jednoznaczna TYLKO w obrębie swojej strony — dwie
-   * parafie mogą mieć "festyn-2026". Bez tego członu odpowiedź trafiłaby
-   * w cudze zgłoszenia.
+   * parafie mogą mieć „festyn-2026". Bez tego członu odpowiedź trafiłaby w
+   * cudze zgłoszenia.
    */
   collection: string;
   slug: string;
@@ -55,6 +65,7 @@ export function RcEventSite({
 
   const [event, setEvent] = useState<RcEventView | null>(null);
   const [missing, setMissing] = useState(false);
+  const [openPage, setOpenPage] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -69,104 +80,104 @@ export function RcEventSite({
     return () => { alive = false; };
   }, [collection, slug]);
 
+  /*
+   * Widoczne strony w swojej kolejności. Niewidoczne stoją w odpowiedzi, bo
+   * potrzebuje ich edytor; w przełączniku byłyby drzwiami, które nie otwierają.
+   */
+  const pages = useMemo(
+    () => [...(event?.pages ?? [])]
+      .filter((p) => p.isVisible !== false)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.pageId.localeCompare(b.pageId)),
+    [event]
+  );
+
   if (missing) {
     return (
       <Shell title="Nie znaleziono" home={home}>
-        <p className="ev-muted">
+        <p className="evp-muted">
           Pod tym adresem nie ma wydarzenia. Sprawdź, czy odnośnik jest w całości.
         </p>
       </Shell>
     );
   }
 
-  if (event === null) return <Shell title="" home={home}><p className="ev-muted">Wczytywanie…</p></Shell>;
+  if (event === null) return <Shell title="" home={home}><p className="evp-muted">Wczytywanie…</p></Shell>;
 
-  const parts = rcPartsOf(event);
-
-  if (parts.length === 0) {
+  if (pages.length === 0) {
     return (
       <Shell title={event.title ?? ''} home={home}>
-        <p className="ev-muted">
+        <p className="evp-muted">
           {signedIn
-            ? 'To wydarzenie nie ma jeszcze żadnej części. Dodaj je w edytorze.'
+            ? 'To wydarzenie nie ma jeszcze żadnej strony. Dodaj ją w edytorze.'
             : 'To wydarzenie nie ma jeszcze treści.'}
         </p>
       </Shell>
     );
   }
 
-  /*
-   * Adres spoza zakresu nie jest błędem — bywa, że część usunięto, a odnośnik
-   * został w czyjejś wiadomości. Wtedy pierwsza część, a nie pusty ekran.
-   */
-  const index = at === null || at < 0 || at >= parts.length ? 0 : at;
-  const part = parts[index];
+  const page = pages.find((p) => p.slug === openPage) ?? pages[0];
 
-  const href = (n: number) => `${rcPath('event', collection, slug)}/${n}`;
+  /*
+   * Niewidoczna część znika, tak jak niewidoczna strona. Numer w adresie liczy
+   * się PO tym odsianiu — inaczej ukrycie jednej części przesunęłoby każdy
+   * odnośnik pod nią, a to widać dopiero wtedy, gdy ktoś w niego kliknie.
+   */
+  const visible: RcPartView[] = [...(page.parts ?? [])]
+    .filter((part) => part.isVisible !== false)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.partId.localeCompare(b.partId));
+
+  if (visible.length === 0) {
+    return (
+      <Shell title={event.title ?? ''} home={home}>
+        <p className="evp-muted">
+          {signedIn
+            ? 'Ta strona nie ma jeszcze żadnej części. Dodaj je w edytorze.'
+            : 'Ta strona nie ma jeszcze treści.'}
+        </p>
+      </Shell>
+    );
+  }
 
   return (
-    <Shell title={event.title ?? ''} style={rcLayerStyle(part)} home={home}>
-      {/*
-        Menu części — odnośniki, nie przyciski. Etykieta bierze się z części
-        („menuLabel"), bo tytuł bywa długi, a w menu ma się zmieścić.
-      */}
-      <nav className="ev-menu" aria-label="Części">
-        {parts.map((one, n) => (
-          <a
-            key={one.partId}
-            className={`ev-tab${n === index ? ' is-active' : ''}`}
-            href={href(n)}
-            aria-current={n === index ? 'page' : undefined}
-          >
-            {(one.menuLabel ?? '').trim() === ''
-              ? (one.title ?? '').trim() || `Część ${n + 1}`
-              : one.menuLabel}
-          </a>
-        ))}
-      </nav>
-
-      <RcEventPart part={part} />
-
-      {/*
-        Dalej i wstecz — też odnośnikami. Kto czyta w drodze, przechodzi
-        kciukiem, a nie przez menu.
-      */}
-      <nav className="ev-steps">
-        {index > 0 && <a className="ev-step" href={href(index - 1)}>← wstecz</a>}
-        {index + 1 < parts.length && (
-          <a className="ev-step ev-step-next" href={href(index + 1)}>dalej →</a>
-        )}
-      </nav>
-    </Shell>
+    <EventShell
+      site={rcShellSite(event)}
+      page={{ ...rcShellPage(page), parts: visible }}
+      mayRead={event.mayRead}
+      availablePages={rcShellPages(event)}
+      onSelectPage={(pageSlug) => setOpenPage(pageSlug)}
+      initialPartIndex={at}
+      partHref={(n) => `${rcPath('event', collection, slug)}/${n}`}
+    />
   );
 }
 
-/** Oprawa: nagłówek wydarzenia i stopka. Nie wie nic o żadnej części. */
 /*
-  `home` to adres KATALOGU tej strony wydarzeń, a nie gołego `#/new/event`,
-  pod którym nie ma nic. Odnośnik prowadzący donikąd jest gorszy niż jego brak:
+  Oprawa dla stanów, w których nie ma czego pokazać — brak wydarzenia,
+  wczytywanie, pusta strona. Pełne wydarzenie nosi `EventShell`.
+
+  `home` to adres KATALOGU tej strony wydarzeń, a nie gołego `#/new/event`, pod
+  którym nie ma nic. Odnośnik prowadzący donikąd jest gorszy niż jego brak:
   wygląda na wyjście.
 */
 function Shell({
-  title, children, style, home
+  title, children, home
 }: {
   title: string;
   children: React.ReactNode;
-  style?: React.CSSProperties;
   home: string;
 }) {
   return (
-    <div className="ev" style={style}>
-      <header className="ev-head">
-        <a className="ev-brand" href={home}>
-          <span className="ev-mark" aria-hidden="true">◆</span>
-          <span className="ev-name">{title === '' ? 'Wydarzenie' : title}</span>
+    <div className="evp">
+      <header className="evp-head">
+        <a className="evp-brand" href={home}>
+          <span className="evp-mark" aria-hidden="true">◆</span>
+          <span className="evp-name">{title === '' ? 'Wydarzenie' : title}</span>
         </a>
       </header>
 
-      <main className="ev-main">{children}</main>
+      <main className="evp-main">{children}</main>
 
-      <footer className="ev-foot">
+      <footer className="evp-foot">
         <a href={home}>Wszystkie wydarzenia</a>
         <a href="https://recreatio.pl">recreatio.pl</a>
       </footer>
@@ -174,5 +185,4 @@ function Shell({
   );
 }
 
-export type { RcPartView };
 export default RcEventSite;

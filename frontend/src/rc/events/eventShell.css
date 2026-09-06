@@ -1,0 +1,4894 @@
+/* ============================================================
+   Event — composable events
+   .ev    reader shell (layered slides)
+   .eve   editor primitives shared by every part
+   .eva   builder panel
+   ============================================================ */
+
+/* An event is either dark or light, chosen in the builder and stored with the
+   event. The four colours below arrive as inline custom properties from the
+   stored theme; everything derived from them — borders, panels, form fields,
+   chrome — is a token here, redefined once under `.ev.is-light`. Nothing in the
+   reader may hard-code a colour, or one of the two modes breaks. */
+.ev {
+  --ev-accent: #4c7dd6;
+  --ev-ink: #eef2f8;
+  --ev-ground: #080d15;
+  --ev-muted: #a3b2c9;
+  --ev-line: rgba(163, 178, 201, 0.22);
+  --ev-line-2: rgba(163, 178, 201, 0.42);
+
+  /* Panels lifted off the ground, in three steps. */
+  --ev-surface: rgba(255, 255, 255, 0.04);
+  --ev-surface-2: rgba(255, 255, 255, 0.06);
+  --ev-surface-3: rgba(255, 255, 255, 0.11);
+  /* Sunk into it: form fields and other inputs. */
+  --ev-field: rgba(0, 0, 0, 0.38);
+  --ev-option: #0d1420;
+  /* Header, footer and the map's own furniture. */
+  --ev-chrome: rgba(6, 10, 18, 0.94);
+  --ev-chrome-2: rgba(8, 13, 21, 0.92);
+  /* Text that sits on the accent, and the ring/casing that keeps map marks
+     legible over any tile. */
+  --ev-on-accent: #fff;
+  --ev-halo: #fff;
+  --ev-shade: rgba(0, 0, 0, 0.6);
+  /* Message colours: readable on their own tinted panel, in either mode. */
+  --ev-bad: #f6a8b0;
+  --ev-good: #9fe6bf;
+
+  --ev-measure: 760px;
+
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 60px minmax(0, 1fr) calc(48px + env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+  background: var(--ev-ground);
+  color: var(--ev-ink);
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+}
+
+/* The light mode. Only the derived tokens change: the four stored colours
+   arrive inline, and the builder swaps them for this mode's defaults when the
+   organizer switches. */
+.ev.is-light {
+  --ev-line: rgba(22, 32, 46, 0.14);
+  --ev-line-2: rgba(22, 32, 46, 0.28);
+
+  --ev-surface: rgba(22, 32, 46, 0.045);
+  --ev-surface-2: rgba(22, 32, 46, 0.075);
+  --ev-surface-3: rgba(22, 32, 46, 0.12);
+  --ev-field: rgba(255, 255, 255, 0.92);
+  --ev-option: #ffffff;
+  --ev-chrome: rgba(255, 255, 255, 0.94);
+  --ev-chrome-2: rgba(255, 255, 255, 0.95);
+  --ev-shade: rgba(22, 32, 46, 0.22);
+  --ev-bad: #8d1f2c;
+  --ev-good: #135c38;
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+
+.ev-header {
+  grid-row: 1;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0 clamp(0.8rem, 4vw, 2rem);
+  background: var(--ev-chrome);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--ev-line);
+  min-width: 0;
+}
+
+.ev.is-internal .ev-header {
+  border-bottom-color: var(--ev-accent);
+}
+
+.ev-brand {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.ev-brand img {
+  width: 118px;
+  height: auto;
+}
+
+/* Page switcher: only rendered when a link opens more than one page. */
+.ev-pages {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  padding: 0.2rem;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ev-pages::-webkit-scrollbar {
+  display: none;
+}
+
+.ev-pages button,
+.ev-pages a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  padding: 0.26rem 0.75rem;
+  background: transparent;
+  color: var(--ev-muted);
+  font: inherit;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ev-pages button.active,
+.ev-pages a.active {
+  background: var(--ev-accent);
+  color: var(--ev-on-accent);
+}
+
+.ev-page-mark {
+  font-size: 0.5em;
+  opacity: 0.8;
+}
+
+.ev-parts {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ev-parts::-webkit-scrollbar {
+  display: none;
+}
+
+.ev-parts button,
+.ev-parts a {
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.28rem 0.75rem;
+  background: transparent;
+  color: var(--ev-muted);
+  font: inherit;
+  font-size: 0.84rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease;
+}
+
+.ev-parts button:hover,
+.ev-parts a:hover {
+  color: var(--ev-ink);
+  border-color: var(--ev-line);
+}
+
+.ev-parts button.active,
+.ev-parts a.active {
+  color: var(--ev-ink);
+  border-color: var(--ev-accent);
+}
+
+.ev-header-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  line-height: 1.25;
+}
+
+.ev-header-title {
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.ev-header-tag {
+  font-size: 0.7rem;
+  color: var(--ev-accent);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ── Viewport, track, layers ─────────────────────────────── */
+
+.ev-viewport {
+  grid-row: 2;
+  position: relative;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+.ev-track {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  will-change: transform;
+}
+
+.ev-slide {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Automatic shading, one pass per slide: lighter at the top, darker towards the
+   bottom. It sits at z-index 1 — above the gradient, image and big-text layers,
+   which are all z-index auto, and below the content layer at 2 — so it shades
+   the decoration without ever dulling the text.
+
+   White and black washes rather than themed colours, so it works the same
+   whatever palette an event sets. The darker foot also parts one slide from the
+   next, since a slide's dark bottom meets the following slide's light top. */
+.ev-slide::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.02) 20%,
+    rgba(0, 0, 0, 0.08) 55%,
+    rgba(0, 0, 0, 0.32) 100%
+  );
+}
+
+/* Same idea on a light ground, but a black wash that deep would read as grime.
+   Half the strength is enough to part one slide from the next. */
+.ev.is-light .ev-slide::after {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.28) 0%,
+    rgba(255, 255, 255, 0.08) 20%,
+    rgba(0, 0, 0, 0.03) 55%,
+    rgba(0, 0, 0, 0.13) 100%
+  );
+}
+
+/* Full width; the shell sets height and transform from the layer's speed. */
+.ev-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* Pinned to the viewport; the text inside it does the travelling. */
+.ev-layer--bigtext {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.ev-bigtext {
+  width: min(1320px, 100%);
+  padding: 0 clamp(1rem, 6vw, 5rem);
+  display: grid;
+  gap: 0.05rem;
+  will-change: transform;
+}
+
+.ev-bigtext span {
+  display: block;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 700;
+  font-size: clamp(3.2rem, 15vw, 11rem);
+  line-height: 0.86;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ev-ink);
+}
+
+/* Content rides at speed 1: no transform, height equal to the slide. */
+.ev-content-layer {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 0 clamp(1rem, 5vw, 3rem);
+}
+
+.ev-content {
+  width: 100%;
+  max-width: var(--ev-measure);
+  /* Auto margins centre short content without ever clipping tall content. */
+  margin-block: auto;
+  padding: clamp(2rem, 6vh, 4.5rem) 0;
+  display: grid;
+  gap: 1.1rem;
+  align-content: center;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.ev-part-head {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.ev-part-head h2 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(1.7rem, 4vw, 2.6rem);
+  font-weight: 600;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+.ev-part-head p {
+  margin: 0;
+  color: var(--ev-muted);
+  line-height: 1.65;
+}
+
+/* ── Shared primitives ───────────────────────────────────── */
+
+.ev-cta,
+.ev-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 0.54rem 1.3rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.ev-cta {
+  border: 1px solid transparent;
+  background: var(--ev-accent);
+  color: var(--ev-on-accent);
+}
+
+.ev-cta:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.ev-cta:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ev-ghost {
+  border: 1px solid var(--ev-line-2);
+  background: var(--ev-surface);
+  color: var(--ev-ink);
+}
+
+.ev-ghost:hover {
+  background: var(--ev-surface-3);
+}
+
+.ev-note {
+  margin: 0;
+  border: 1px solid var(--ev-line);
+  border-radius: 8px;
+  padding: 0.58rem 0.9rem;
+  background: var(--ev-surface);
+  color: var(--ev-muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.ev-callout {
+  margin: 0;
+  border-left: 3px solid var(--ev-accent);
+  border-radius: 0 8px 8px 0;
+  padding: 0.58rem 1rem;
+  background: var(--ev-surface-2);
+  font-weight: 600;
+}
+
+.ev-error,
+.ev-success {
+  margin: 0;
+  border-radius: 8px;
+  padding: 0.54rem 0.85rem;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.ev-error {
+  border: 1px solid rgba(220, 80, 96, 0.42);
+  background: rgba(160, 40, 52, 0.22);
+  color: var(--ev-bad);
+}
+
+.ev-success {
+  border: 1px solid rgba(80, 200, 130, 0.42);
+  background: rgba(30, 130, 80, 0.22);
+  color: var(--ev-good);
+}
+
+.ev-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: 0.6rem;
+}
+
+.ev-card-grid article {
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  padding: 0.8rem 0.95rem;
+  background: var(--ev-surface);
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.ev-card-grid h3 {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ev-muted);
+}
+
+.ev-card-grid p {
+  margin: 0;
+}
+
+.ev-card-grid a {
+  color: var(--ev-ink);
+  text-underline-offset: 2px;
+}
+
+/* ── Title part ──────────────────────────────────────────── */
+
+.ev-title {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.ev-badge {
+  margin: 0;
+  width: fit-content;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.22rem 0.8rem;
+  font-size: 0.76rem;
+  letter-spacing: 0.07em;
+  color: var(--ev-muted);
+}
+
+.ev-title h1 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(2.2rem, 6.5vw, 4.4rem);
+  font-weight: 600;
+  line-height: 1.06;
+  text-wrap: balance;
+}
+
+.ev-title h1 span {
+  display: block;
+  margin-top: 0.45rem;
+  font-size: clamp(1.05rem, 2.4vw, 1.7rem);
+  font-weight: 400;
+  color: var(--ev-muted);
+}
+
+.ev-title p {
+  margin: 0;
+  line-height: 1.7;
+  color: var(--ev-muted);
+}
+
+.ev-title small {
+  color: var(--ev-muted);
+  opacity: 0.8;
+  font-size: 0.85rem;
+}
+
+.ev-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+/* ── Short infos ─────────────────────────────────────────── */
+
+.ev-shortinfos-grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+  gap: 0.6rem;
+}
+
+.ev-shortinfos-grid > div {
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
+  background: var(--ev-surface);
+  min-width: 0;
+}
+
+.ev-shortinfos-grid dt {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ev-muted);
+}
+
+.ev-shortinfos-grid dd {
+  margin: 0.25rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.ev-shortinfos-grid p {
+  margin: 0.2rem 0 0;
+  color: var(--ev-muted);
+  font-size: 0.84rem;
+}
+
+/* ── Costs and donations ─────────────────────────────────── */
+
+.ev-costs {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.ev-costs-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.ev-costs-summary article {
+  display: grid;
+  align-content: start;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 12px;
+  background: var(--ev-surface);
+}
+
+.ev-costs-summary article.is-donations {
+  border-color: color-mix(in srgb, var(--ev-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--ev-accent) 10%, transparent);
+}
+
+.ev-costs-summary span,
+.ev-costs-table thead th {
+  color: var(--ev-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The headline figure of a summary card. Per person where there is a head
+   count, because that is the number a reader is actually looking for. */
+.ev-costs-summary .ev-costs-lead {
+  overflow-wrap: anywhere;
+  font-size: clamp(1rem, 2.3vw, 1.4rem);
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.ev-costs-summary .ev-costs-lead.is-person {
+  color: var(--ev-accent);
+}
+
+.ev-costs-summary article.is-person {
+  border-color: color-mix(in srgb, var(--ev-accent) 40%, var(--ev-line));
+}
+
+.ev-costs-summary .ev-costs-sub,
+.ev-costs-count {
+  color: var(--ev-muted);
+  font-size: 0.8rem;
+}
+
+.ev-costs-count {
+  margin: 0;
+}
+
+.ev-costs-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+}
+
+.ev-costs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.ev-costs-table th,
+.ev-costs-table td {
+  padding: 0.58rem 0.72rem;
+  border-bottom: 1px solid var(--ev-line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ev-costs-table th:first-child,
+.ev-costs-table td:first-child {
+  text-align: left;
+  white-space: normal;
+}
+
+/* Each amount is two stacked lines: the per-person figure, then the total. */
+.ev-costs-table .ev-costs-lead,
+.ev-costs-table .ev-costs-sub {
+  display: block;
+}
+
+.ev-costs-table .ev-costs-lead {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.ev-costs-table .ev-costs-lead.is-person {
+  color: var(--ev-accent);
+  font-size: 1.02em;
+}
+
+/* The context line may wrap rather than widening the table on a phone. */
+.ev-costs-table .ev-costs-sub {
+  color: var(--ev-muted);
+  font-size: 0.76em;
+  font-variant-numeric: tabular-nums;
+  white-space: normal;
+}
+
+.ev-costs-table tbody tr:last-child th,
+.ev-costs-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.ev-costs-table tfoot th,
+.ev-costs-table tfoot td {
+  border-top: 1px solid var(--ev-line-2);
+  border-bottom: 0;
+  background: var(--ev-surface);
+}
+
+.ev-costs-table tfoot th {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ev-muted);
+}
+
+.ev-costs-donations {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.ev-costs-donations > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.58rem 0.72rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 9px;
+  background: var(--ev-surface);
+}
+
+.ev-costs-donations dt {
+  color: var(--ev-muted);
+}
+
+.ev-costs-donations dd {
+  margin: 0;
+  font-weight: 650;
+  text-align: right;
+}
+
+@media (max-width: 700px) {
+  .ev-costs-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Prose ───────────────────────────────────────────────── */
+
+.ev-prose {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.ev-prose p {
+  margin: 0;
+  line-height: 1.72;
+}
+
+.ev-prose ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.38rem;
+}
+
+/* ── Plan ────────────────────────────────────────────────── */
+
+.ev-plan {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.ev-plan-group {
+  border: 1px solid var(--ev-line);
+  border-radius: 12px;
+  padding: 0.95rem 1.05rem;
+  background: var(--ev-surface);
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.ev-plan-group header {
+  display: grid;
+  gap: 0.18rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--ev-line);
+}
+
+.ev-plan-group h3 {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ev-accent);
+}
+
+.ev-plan-group header p {
+  margin: 0;
+  color: var(--ev-muted);
+  font-size: 0.88rem;
+}
+
+.ev-plan-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ev-plan-rows li {
+  display: grid;
+  grid-template-columns: minmax(3.4rem, auto) 1fr;
+  gap: 0.85rem;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.ev-plan-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ev-muted);
+  white-space: nowrap;
+}
+
+.ev-plan-body {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.ev-plan-body em {
+  font-style: normal;
+  color: var(--ev-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+/* ── FAQ ─────────────────────────────────────────────────── */
+
+.ev-faq {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.ev-faq-item {
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  background: var(--ev-surface);
+  overflow: hidden;
+  transition: border-color 200ms ease, background-color 200ms ease;
+}
+
+.ev-faq-item.is-open {
+  border-color: var(--ev-line-2);
+}
+
+.ev-faq-question {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.68rem 0.9rem;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.94rem;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Drawn rather than typed, so the two strokes can rotate into each other
+   instead of one glyph being swapped for another. */
+.ev-faq-mark {
+  position: relative;
+  flex-shrink: 0;
+  width: 1.4em;
+  height: 1.4em;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 50%;
+  transition: border-color 240ms ease, transform 240ms ease;
+}
+
+.ev-faq-mark::before,
+.ev-faq-mark::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.62em;
+  height: 1.5px;
+  background: var(--ev-muted);
+  transform: translate(-50%, -50%);
+  transition: transform 240ms ease, background-color 240ms ease, opacity 240ms ease;
+}
+
+.ev-faq-mark::after {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.ev-faq-item.is-open .ev-faq-mark {
+  border-color: var(--ev-accent);
+  transform: rotate(180deg);
+}
+
+.ev-faq-item.is-open .ev-faq-mark::before,
+.ev-faq-item.is-open .ev-faq-mark::after {
+  background: var(--ev-accent);
+}
+
+/* The vertical stroke folds away, leaving the minus. */
+.ev-faq-item.is-open .ev-faq-mark::after {
+  transform: translate(-50%, -50%) rotate(0deg);
+  opacity: 0;
+}
+
+/*
+ * The open/close animation. A grid row from 0fr to 1fr eases between nothing
+ * and the answer's natural height, which is what <details> cannot do: it hides
+ * its children outright, so there is no height to animate from and no way to
+ * know the target height without measuring.
+ *
+ * visibility is held back until the row has finished collapsing, so the text
+ * stays on screen while it folds away instead of vanishing at the first frame,
+ * and is properly gone — untabbable, unread by screen readers — once closed.
+ */
+.ev-faq-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition: grid-template-rows 280ms cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 280ms;
+}
+
+.ev-faq-item.is-open .ev-faq-panel {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition: grid-template-rows 280ms cubic-bezier(0.4, 0, 0.2, 1), visibility 0s;
+}
+
+.ev-faq-panel-inner {
+  overflow: hidden;
+}
+
+.ev-faq-panel p {
+  margin: 0;
+  padding: 0 0.9rem 0.8rem;
+  color: var(--ev-muted);
+  line-height: 1.68;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ev-faq-panel,
+  .ev-faq-item.is-open .ev-faq-panel {
+    transition-duration: 0.01ms;
+  }
+
+  .ev-faq-mark,
+  .ev-faq-mark::before,
+  .ev-faq-mark::after {
+    transition-duration: 0.01ms;
+  }
+}
+
+/* ── Contact ─────────────────────────────────────────────── */
+
+.ev-contact {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.ev-contact-organizer {
+  margin: 0;
+  line-height: 1.7;
+}
+
+/* ── People ──────────────────────────────────────────────── */
+
+.ev-people-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 0.6rem;
+}
+
+.ev-people-grid article {
+  display: flex;
+  gap: 0.75rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  padding: 0.75rem 0.85rem;
+  background: var(--ev-surface);
+  min-width: 0;
+}
+
+.ev-person-avatar {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ev-accent);
+  color: var(--ev-on-accent);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.ev-person-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ev-person-body {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.ev-person-role {
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ev-accent);
+}
+
+.ev-person-body h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.ev-person-body p {
+  margin: 0;
+  color: var(--ev-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.ev-person-contact a {
+  color: var(--ev-ink);
+}
+
+/* ── Files ───────────────────────────────────────────────── */
+
+.ev-file-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.ev-file-list a {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  padding: 0.6rem 0.85rem;
+  background: var(--ev-surface);
+  color: var(--ev-ink);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.ev-file-list a:hover {
+  border-color: var(--ev-accent);
+}
+
+.ev-file-icon {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 50%;
+  color: var(--ev-accent);
+}
+
+.ev-file-body {
+  display: grid;
+  gap: 0.1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.ev-file-body em {
+  font-style: normal;
+  color: var(--ev-muted);
+  font-size: 0.84rem;
+}
+
+.ev-file-size {
+  flex-shrink: 0;
+  color: var(--ev-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Memes: the gallery's pictures, with a line under them ─ */
+
+.ev-memes {
+  display: grid;
+  gap: 0.9rem;
+}
+
+/* The maker, full screen: framing a photograph inside a scrolling slide is a
+   fight nobody wins on a phone. */
+.ev-meme-maker {
+  display: grid;
+  align-content: start;
+  gap: 0.7rem;
+  width: min(46rem, 100%);
+  height: 100%;
+  margin: 0 auto;
+  padding: max(3.2rem, env(safe-area-inset-top, 0px)) 1rem max(1rem, env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+}
+
+.ev-meme-maker h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.ev-meme-picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(130px, 100%), 1fr));
+  gap: 0.5rem;
+}
+
+.ev-meme-picks button {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.ev-meme-picks button:hover {
+  border-color: var(--ev-accent);
+}
+
+.ev-meme-picks img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+/* The frame over the picture: drag it to move, drag the corner to resize. */
+.ev-meme-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #000;
+  overflow: hidden;
+}
+
+/* Shrink-wrapped to the picture, so a percentage of this box is a percentage of
+   the photograph — which is what makes the drawn frame land where the finger
+   went down. Letterboxing inside a larger element was what put the crop off. */
+.ev-meme-canvas {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
+  touch-action: none;
+  user-select: none;
+}
+
+.ev-meme-canvas[data-arming='true'] {
+  cursor: crosshair;
+}
+
+.ev-meme-canvas[data-cropping='true'] {
+  cursor: move;
+}
+
+.ev-meme-canvas img {
+  display: block;
+  max-width: 100%;
+  max-height: 52vh;
+  width: auto;
+  height: auto;
+}
+
+.ev-meme-canvas[data-cropping='true'] img {
+  opacity: 0.6;
+}
+
+.ev-meme-crop {
+  position: absolute;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  /* Drawn, never listened to: the frame works out for itself which corner a
+     press took hold of, so a handle can never swallow the gesture meant for the
+     box — which is exactly how the first version stopped working. */
+  pointer-events: none;
+}
+
+.ev-meme-arming {
+  position: absolute;
+  left: 50%;
+  bottom: 1rem;
+  margin: 0;
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  background: rgba(0, 0, 0, 0.68);
+  color: #fff;
+  font-size: 0.84rem;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.ev-meme-state {
+  align-self: center;
+  margin-right: auto;
+  color: var(--ev-muted);
+  font-size: 0.82rem;
+}
+
+.ev-meme-grip {
+  position: absolute;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--ev-accent);
+  pointer-events: none;
+}
+
+.ev-meme-grip.is-nw { left: -0.7rem; top: -0.7rem; }
+.ev-meme-grip.is-ne { right: -0.7rem; top: -0.7rem; }
+.ev-meme-grip.is-sw { left: -0.7rem; bottom: -0.7rem; }
+.ev-meme-grip.is-se { right: -0.7rem; bottom: -0.7rem; }
+
+/* What the black band will look like, at the size it will look like it. */
+.ev-meme-strip {
+  margin: 0;
+  border-radius: 6px;
+  padding: 0.7rem 1rem;
+  background: #000;
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+}
+
+.ev-meme-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+/* ── Gallery: carousel and full-screen viewer ─────────────── */
+
+.ev-carousel {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ev-carousel-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: min(52vh, 420px);
+  overflow: hidden;
+  /* The finger belongs to the ring here, not to the page. */
+  touch-action: pan-y;
+}
+
+/* Every picture sits in the middle and is pushed aside by its offset, so the
+   ring is one rule rather than five. */
+.ev-carousel-slot {
+  position: absolute;
+  width: min(62%, 30rem);
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease, filter 320ms ease;
+}
+
+.ev-carousel-slot img {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 12px 32px var(--ev-shade);
+}
+
+/* A meme is shown whole: its caption is a black band along the bottom edge, and
+   cropping to fill the slot would cut off the point of it. The shadow follows
+   the picture's own shape rather than the slot's, or a portrait meme would sit
+   inside a rectangle of shadow it does not fill. */
+.ev-carousel-slot[data-fit='contain'] img {
+  object-fit: contain;
+  border-radius: 0;
+  box-shadow: none;
+  filter: drop-shadow(0 10px 24px var(--ev-shade));
+}
+
+.ev-carousel-slot[data-offset='0'] {
+  z-index: 3;
+  transform: translateX(0) scale(1);
+  opacity: 1;
+}
+
+.ev-carousel-slot[data-offset='-1'],
+.ev-carousel-slot[data-offset='1'] {
+  z-index: 2;
+  opacity: 0.55;
+  filter: saturate(0.8);
+}
+
+.ev-carousel-slot[data-offset='-1'] {
+  transform: translateX(-46%) scale(0.82);
+}
+
+.ev-carousel-slot[data-offset='1'] {
+  transform: translateX(46%) scale(0.82);
+}
+
+.ev-carousel-slot[data-offset='-2'],
+.ev-carousel-slot[data-offset='2'] {
+  z-index: 1;
+  opacity: 0.26;
+  filter: saturate(0.6);
+}
+
+.ev-carousel-slot[data-offset='-2'] {
+  transform: translateX(-80%) scale(0.66);
+}
+
+.ev-carousel-slot[data-offset='2'] {
+  transform: translateX(80%) scale(0.66);
+}
+
+.ev-carousel-step {
+  z-index: 4;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 50%;
+  background: var(--ev-chrome);
+  color: var(--ev-ink);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ev-carousel-step:hover {
+  background: var(--ev-surface-3);
+}
+
+.ev-carousel-caption {
+  grid-column: 1 / -1;
+  margin: 0;
+  min-height: 1.4em;
+  color: var(--ev-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.ev-carousel-caption span {
+  opacity: 0.75;
+}
+
+/* Over the front picture, not under the carousel: below the slide the line can
+   sit past the bottom edge of a phone, which is the one place a hint is no use
+   at all. It takes no layout space and swallows no clicks, so the picture
+   underneath still opens on the tap that was aimed at it. */
+.ev-carousel-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 0.9rem;
+  z-index: 4;
+  max-width: min(88%, 26rem);
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 0.42rem 1rem;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 0.84rem;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition: opacity 420ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.ev-carousel-hint[data-show='true'] {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* Somebody who asked for less movement gets the words without the travel. */
+@media (prefers-reduced-motion: reduce) {
+  .ev-carousel-hint {
+    transform: translate(-50%, 0);
+    transition: opacity 200ms ease;
+  }
+}
+
+.ev-gallery-invite {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+  border: 1px dashed var(--ev-line-2);
+  border-radius: 12px;
+  padding: 0.9rem;
+  text-align: center;
+}
+
+.ev-gallery-invite p {
+  margin: 0;
+}
+
+.ev-gallery-invite small {
+  color: var(--ev-muted);
+  font-size: 0.8rem;
+}
+
+/* The opened gallery.
+   
+   The picture takes the entire layer in both orientations and everything else
+   floats over it. Rows of their own cost a portrait photograph a third of its
+   height and a phone held sideways nearly all of it — which is the one thing a
+   full-screen viewer must not do. The chrome carries a scrim and a shadow
+   instead, so it stays legible over a white sky and a black cassock alike, and
+   it fades away a few seconds after the last movement. */
+.ev-viewer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.ev-viewer-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  /* The finger zooms and pans here; the browser must not also scroll the page
+     underneath, or a pinch turns into a page zoom. */
+  touch-action: none;
+  cursor: zoom-in;
+}
+
+/* Room for the furniture rather than under it.
+   
+   A photograph is happy behind a counter in one corner; a meme is not, because
+   its caption is a black band along the bottom edge and the credit line lands
+   squarely on the words. So where the picture asks for it, the stage is inset
+   while the chrome is up — and takes the space back the moment it fades, which
+   is why the padding is worth animating. */
+.ev-viewer[data-reserve='true'][data-chrome='true'] .ev-viewer-stage {
+  padding-top: 3.6rem;
+  padding-bottom: 7.5rem;
+}
+
+.ev-viewer[data-reserve='true'] .ev-viewer-stage {
+  transition: padding 260ms ease;
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  /* No thumbnail strip down here, so less to keep clear of. */
+  .ev-viewer[data-reserve='true'][data-chrome='true'] .ev-viewer-stage {
+    padding-top: 2.6rem;
+    padding-bottom: 4.2rem;
+  }
+}
+
+.ev-viewer-stage[data-zoomed='true'] {
+  cursor: grab;
+}
+
+.ev-viewer-stage[data-zoomed='true']:active {
+  cursor: grabbing;
+}
+
+.ev-viewer-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.ev-viewer-stage[data-zoomed='false'] img {
+  transition: transform 180ms ease-out;
+}
+
+/* Chrome: over the picture, and out of the way when nothing is happening. */
+.ev-viewer-top,
+.ev-viewer-foot,
+.ev-viewer-step {
+  z-index: 2;
+  transition: opacity 260ms ease, transform 260ms ease;
+}
+
+.ev-viewer[data-chrome='false'] .ev-viewer-top,
+.ev-viewer[data-chrome='false'] .ev-viewer-foot,
+.ev-viewer[data-chrome='false'] .ev-viewer-step {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ev-viewer[data-chrome='false'] .ev-viewer-top {
+  transform: translateY(-0.5rem);
+}
+
+.ev-viewer[data-chrome='false'] .ev-viewer-foot {
+  transform: translateY(0.5rem);
+}
+
+.ev-viewer-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  /* Clear of the close button, which the layer puts in the top right. */
+  padding: max(0.7rem, env(safe-area-inset-top, 0px)) 4rem 2.5rem
+    max(0.9rem, env(safe-area-inset-left, 0px));
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.ev-viewer-foot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  gap: 0.3rem;
+  padding: 2.5rem 0 max(0.5rem, env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
+}
+
+.ev-viewer-caption {
+  display: grid;
+  gap: 0.1rem;
+  margin: 0;
+  padding: 0 1rem;
+  text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+.ev-viewer-caption span {
+  color: var(--ev-muted);
+  font-size: 0.82rem;
+}
+
+.ev-viewer-count {
+  color: var(--ev-ink);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.ev-viewer-zoom {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.ev-viewer-zoom button {
+  min-width: 2.4rem;
+  border: 0;
+  padding: 0.25rem 0.5rem;
+  background: none;
+  color: var(--ev-ink);
+  font: inherit;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.ev-viewer-zoom button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.ev-viewer-zoom button:disabled {
+  color: var(--ev-muted);
+  cursor: default;
+}
+
+/* Half off the edge: two thirds of an arrow is plenty to aim at, and the third
+   that is missing is picture the reader gets to keep. It slides fully in when
+   pointed at or reached by keyboard. */
+.ev-viewer-step {
+  position: absolute;
+  top: 50%;
+  width: 3.4rem;
+  height: 3.4rem;
+  margin-top: -1.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.42);
+  color: #fff;
+  font-size: 1.9rem;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(3px);
+  transition: opacity 260ms ease, transform 200ms ease, background-color 200ms ease;
+}
+
+.ev-viewer-step.is-back {
+  left: max(0px, env(safe-area-inset-left, 0px));
+  transform: translateX(-42%);
+}
+
+.ev-viewer-step.is-next {
+  right: max(0px, env(safe-area-inset-right, 0px));
+  transform: translateX(42%);
+}
+
+.ev-viewer-step.is-back:hover,
+.ev-viewer-step.is-back:focus-visible,
+.ev-viewer-step.is-next:hover,
+.ev-viewer-step.is-next:focus-visible {
+  transform: translateX(0);
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.ev-viewer-strip {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.2rem 0.8rem 0.4rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.ev-viewer-strip button {
+  flex: none;
+  width: 4.2rem;
+  height: 3rem;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+.ev-viewer-strip button[data-active='true'] {
+  border-color: var(--ev-accent);
+  opacity: 1;
+}
+
+.ev-viewer-strip img {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.ev-viewer-preload {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* A phone on its side has about 350px of height for everything. The strip is
+   the first thing to go: it is a convenience, and here it would take a third of
+   the photograph. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .ev-viewer-strip {
+    display: none;
+  }
+
+  .ev-viewer-top {
+    padding-bottom: 1.4rem;
+  }
+
+  .ev-viewer-foot {
+    padding-top: 1.4rem;
+  }
+
+  .ev-viewer-caption {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .ev-carousel-slot {
+    width: min(78%, 22rem);
+  }
+
+  .ev-viewer-step {
+    width: 2.9rem;
+    height: 2.9rem;
+    margin-top: -1.45rem;
+    font-size: 1.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ev-viewer-top,
+  .ev-viewer-foot,
+  .ev-viewer-step {
+    transition: opacity 150ms ease;
+  }
+}
+
+/* ── Map ─────────────────────────────────────────────────── */
+
+.ev-map {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.ev-map-canvas {
+  position: relative;
+  overflow: hidden;
+  /* White, not the page's dark ground: tiles that have not arrived yet read as
+     blank paper rather than as a hole punched in the layout. */
+  background: #ffffff;
+  user-select: none;
+}
+
+/* Preview: paints the route, takes no gestures. The page scrolls over it.
+   No ground of its own — the half-faded tiles are meant to sit on the slide's
+   own background, not on a white card. The full-screen map keeps the white. */
+.ev-map-canvas.is-preview {
+  background: transparent;
+  /* Tracks the width so the box keeps a sane shape from phone to desktop. */
+  aspect-ratio: 4 / 3;
+  min-height: 240px;
+  max-height: min(60vh, 460px);
+  border: 1px solid var(--ev-line-2);
+  border-radius: 12px;
+  touch-action: auto;
+}
+
+@media (min-width: 700px) {
+  .ev-map-canvas.is-preview {
+    aspect-ratio: 16 / 9;
+  }
+}
+
+/* Full screen: the map owns every gesture. */
+.ev-map-canvas.is-full {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.ev-map-canvas.is-full:active {
+  cursor: grabbing;
+}
+
+/* Portalled to document.body, so it sits outside `.ev` and inherits none of
+   the event palette. The live tokens are copied onto this element inline when
+   the map opens; these are the floor if that lookup ever finds no host. */
+.ev-map-overlay {
+  --ev-accent: #4c7dd6;
+  --ev-ink: #eef2f8;
+  --ev-ground: #080d15;
+  --ev-muted: #a3b2c9;
+  --ev-line: rgba(163, 178, 201, 0.22);
+  --ev-line-2: rgba(163, 178, 201, 0.42);
+  --ev-chrome-2: rgba(8, 13, 21, 0.92);
+  --ev-on-accent: #fff;
+  --ev-halo: #fff;
+  --ev-shade: rgba(0, 0, 0, 0.6);
+
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: var(--ev-ground);
+  color: var(--ev-ink);
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+}
+
+/* Covers the preview so a click anywhere opens the map; the label only
+   surfaces on hover or keyboard focus so it does not sit over the route. */
+.ev-map-open {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 0.9rem;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+  font: inherit;
+}
+
+.ev-map-open span {
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.34rem 0.95rem;
+  background: var(--ev-chrome-2);
+  color: var(--ev-ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+  opacity: 0.9;
+  transition: opacity 160ms ease, background-color 160ms ease;
+}
+
+.ev-map-open:hover span,
+.ev-map-open:focus-visible span {
+  opacity: 1;
+  background: var(--ev-accent);
+  border-color: transparent;
+  color: var(--ev-on-accent);
+}
+
+.ev-map-close {
+  position: absolute;
+  top: max(0.7rem, env(safe-area-inset-top, 0px));
+  right: 0.7rem;
+  z-index: 4;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 50%;
+  background: var(--ev-chrome-2);
+  color: var(--ev-ink);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ev-map-close:hover {
+  background: var(--ev-accent);
+  border-color: transparent;
+  color: var(--ev-on-accent);
+}
+
+.ev-map-tiles {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Size comes from the element's own style — it tracks the fractional zoom. */
+.ev-map-tiles img {
+  position: absolute;
+  pointer-events: none;
+  /* Barely touched. The tiles used to be darkened to sit against a dark canvas;
+     on white that made every not-yet-loaded gap flash brighter than the map
+     around it. Markers carry their own white ring and shadow, so they read
+     against a light map without help. */
+  filter: saturate(0.95) contrast(1.02);
+}
+
+/* Closed, the preview is a diagram: the map drops to grey and fades back into
+   the white canvas, so the route is the only thing carrying colour. Pointing at
+   it brings the map back, which also says the picture is live before it is
+   clicked. Full screen is never greyed. */
+.ev-map-canvas.is-preview .ev-map-tiles img {
+  /* Inverted as well as greyed: roads come out light on a dark ground, which is
+     what lets the map read against the slide instead of over it. */
+  filter: grayscale(1) contrast(1.6) brightness(1.04) invert();
+  transition: filter 300ms ease;
+}
+
+/* The fade sits on the whole layer, not the individual tiles: a lower-zoom tile
+   still standing in for one that has not arrived would otherwise show through
+   the tile drawn over it. */
+.ev-map-canvas.is-preview .ev-map-tiles {
+  opacity: 0.25;
+  transition: opacity 300ms ease;
+}
+
+.ev-map-canvas.is-preview:hover .ev-map-tiles img,
+.ev-map-canvas.is-preview:focus-within .ev-map-tiles img {
+  filter: saturate(1.02) contrast(1.02);
+}
+
+.ev-map-canvas.is-preview:hover .ev-map-tiles,
+.ev-map-canvas.is-preview:focus-within .ev-map-tiles {
+  opacity: 1;
+}
+
+/* A light event has a light ground, so inverting would put dark land on it and
+   turn the preview into a grey smear. Greyed and faded is enough there. */
+.ev.is-light .ev-map-canvas.is-preview .ev-map-tiles img {
+  filter: grayscale(1) contrast(1.1);
+}
+
+.ev.is-light .ev-map-canvas.is-preview .ev-map-tiles {
+  opacity: 0.45;
+}
+
+/* No hover on a touch screen, and a tap goes straight to full screen — so the
+   preview would stay a ghost for good. Lift it to something legible instead. */
+@media (hover: none) {
+  .ev-map-canvas.is-preview .ev-map-tiles {
+    opacity: 0.45;
+  }
+
+  .ev.is-light .ev-map-canvas.is-preview .ev-map-tiles {
+    opacity: 0.62;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ev-map-canvas.is-preview .ev-map-tiles,
+  .ev-map-canvas.is-preview .ev-map-tiles img {
+    transition-duration: 0.01ms;
+  }
+}
+
+.ev-map-track,
+.ev-map-markers {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* No width/height attributes on the SVG: user space is CSS pixels, so the
+   polyline can never be scaled or clipped against a stale measurement. */
+.ev-map-track {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.ev-map-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.ev-map-dot {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--ev-halo);
+  background: var(--ev-accent);
+  box-shadow: 0 1px 6px var(--ev-shade);
+}
+
+.ev-map-marker.is-stop .ev-map-dot {
+  width: 17px;
+  height: 17px;
+  border-width: 3px;
+}
+
+/* Positioned from the point's own coordinates, since it is a sibling of the
+   markers rather than a child of one — it holds a link, and an anchor inside a
+   button is neither valid nor reliably clickable. */
+.ev-map-tip {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, calc(-100% - 16px));
+  display: grid;
+  gap: 0.12rem;
+  width: max-content;
+  max-width: 220px;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 8px;
+  padding: 0.42rem 0.6rem;
+  background: var(--ev-chrome-2);
+  color: var(--ev-ink);
+  text-align: left;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  pointer-events: auto;
+}
+
+.ev-map-tip-link {
+  margin-top: 0.18rem;
+  color: var(--ev-accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ev-map-tip-link:hover,
+.ev-map-tip-link:focus-visible {
+  text-decoration: underline;
+}
+
+.ev-map-tip em {
+  font-style: normal;
+  color: var(--ev-muted);
+}
+
+.ev-map-tip small {
+  color: var(--ev-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+
+/* Sits clear of the close button in the corner. */
+.ev-map-controls {
+  position: absolute;
+  top: calc(max(0.7rem, env(safe-area-inset-top, 0px)) + 52px);
+  right: 0.7rem;
+  z-index: 4;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.ev-map-controls button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 8px;
+  background: var(--ev-chrome-2);
+  color: var(--ev-ink);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ev-map-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Transient readout naming what was just zoomed on. */
+.ev-map-hint {
+  position: absolute;
+  left: 50%;
+  top: max(0.8rem, env(safe-area-inset-top, 0px));
+  transform: translateX(-50%);
+  z-index: 4;
+  margin: 0;
+  max-width: min(76vw, 460px);
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.3rem 0.9rem;
+  background: var(--ev-chrome-2);
+  color: var(--ev-ink);
+  font-size: 0.82rem;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Above the preview's click overlay — the licence link has to stay usable. */
+.ev-map-attribution {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  padding: 0.14rem 0.45rem;
+  background: var(--ev-chrome-2);
+  color: var(--ev-muted);
+  font-size: 0.68rem;
+  text-decoration: none;
+}
+
+.ev-map-legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.ev-map-legend button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--ev-ink);
+  font: inherit;
+  font-size: 0.92rem;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.ev-map-legend-dot,
+.ev-map-legend-stop {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ev-accent);
+}
+
+.ev-map-legend-stop {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ev-halo);
+}
+
+.ev-map-legend p {
+  margin: 0 0 0 1.4rem;
+  color: var(--ev-muted);
+  font-size: 0.85rem;
+}
+
+/* Indented to the label above it, so the point reads as one block. */
+.ev-map-legend-link {
+  display: inline-block;
+  margin-left: 1.4rem;
+  color: var(--ev-accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ev-map-legend-link:hover,
+.ev-map-legend-link:focus-visible {
+  text-decoration: underline;
+}
+
+/* ── Form ────────────────────────────────────────────────── */
+
+.ev-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.ev-form > * {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.ev-field {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.ev-field.is-half {
+  grid-column: span 1;
+}
+
+.ev-field-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ev-muted);
+}
+
+.ev-field-label em {
+  color: var(--ev-accent);
+  font-style: normal;
+}
+
+.ev-form input:not([type='checkbox']),
+.ev-form select,
+.ev-form textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 8px;
+  padding: 0.52rem 0.7rem;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--ev-ink);
+  background: var(--ev-field);
+  outline: none;
+  text-overflow: ellipsis;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.ev-form input:focus,
+.ev-form select:focus,
+.ev-form textarea:focus {
+  border-color: var(--ev-accent);
+  box-shadow: 0 0 0 3px rgba(76, 125, 214, 0.25);
+}
+
+/* The native dropdown paints its own list, so it needs an opaque colour of its
+   own — the translucent field token would let the page show through. */
+.ev-form option {
+  background: var(--ev-option);
+  color: var(--ev-ink);
+}
+
+.ev-form textarea {
+  resize: vertical;
+}
+
+.ev-form small {
+  color: var(--ev-muted);
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.ev-fieldset {
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  padding: 0.8rem 0.95rem;
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.ev-fieldset legend {
+  padding: 0 0.4rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ev-muted);
+}
+
+.ev-check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+  gap: 0.35rem 0.9rem;
+}
+
+/* The global stylesheet carries a bare `label { color: var(--muted) }` for the
+   light theme. An element selector beats inheritance, so every label in here
+   has to state its own colour or it silently turns near-black on near-black. */
+.ev label,
+.ev-map-overlay label {
+  color: inherit;
+}
+
+.ev-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  line-height: 1.5;
+  cursor: pointer;
+  min-width: 0;
+  color: var(--ev-ink);
+}
+
+.ev-check-row input[type='checkbox'] {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.2rem;
+  accent-color: var(--ev-accent);
+  cursor: pointer;
+}
+
+.ev-check-row span {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+/* ── Own submission and participant card ─────────────────── */
+
+.ev-own,
+.ev-card-form {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.ev-own-meta {
+  margin: 0;
+  color: var(--ev-muted);
+  font-size: 0.82rem;
+}
+
+/* The card's sections lay their own fields out, so the outer form's two-column
+   grid must not also apply to them. */
+.ev-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.ev-card-grid > .ev-field {
+  grid-column: 1 / -1;
+}
+
+.ev-card-grid > .ev-field.is-half {
+  grid-column: span 1;
+}
+
+.ev-card-age {
+  margin: 0;
+  border-left: 3px solid var(--ev-line-2);
+  padding-left: 0.8rem;
+  color: var(--ev-muted);
+  font-size: 0.9rem;
+}
+
+.ev-card-age.is-minor {
+  border-left-color: var(--ev-accent);
+  color: var(--ev-ink);
+}
+
+/* The information clause is shown, not linked: it has to be in front of the
+   person before they tick anything. Scrolls rather than swallowing the page. */
+.ev-clause {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  padding: 0.8rem 0.95rem;
+  background: var(--ev-surface);
+  color: var(--ev-muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.ev-clause p {
+  margin: 0 0 0.5rem;
+}
+
+.ev-clause p:first-child {
+  color: var(--ev-ink);
+  font-weight: 700;
+}
+
+.ev-clause p:last-child {
+  margin-bottom: 0;
+}
+
+/* Says the part nobody reads twice: clicking does not finish a minor's card. */
+.ev-paper-note {
+  margin: 0;
+  border: 1px solid var(--ev-accent);
+  border-left-width: 4px;
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  background: color-mix(in srgb, var(--ev-accent) 12%, transparent);
+  line-height: 1.55;
+}
+
+/* A yes/no question, with the explanation appearing only after "tak". */
+.ev-question {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--ev-line);
+}
+
+.ev-question:last-of-type {
+  border-bottom: 0;
+}
+
+.ev-question > p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.ev-question-choice {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ev-question-choice label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.22rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.ev-question-choice input {
+  accent-color: var(--ev-accent);
+}
+
+.ev-question-choice label:has(input:checked) {
+  border-color: var(--ev-accent);
+  background: color-mix(in srgb, var(--ev-accent) 14%, transparent);
+}
+
+/* A consent is a heading plus the wording being agreed to. */
+.ev-check-row strong {
+  font-size: 0.92rem;
+}
+
+.ev-check-row small {
+  color: var(--ev-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .ev-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ev-card-grid > .ev-field.is-half {
+    grid-column: 1 / -1;
+  }
+}
+
+.ev-consent {
+  margin: 0;
+  color: var(--ev-muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+/* ── What one person still has to do ─────────────────────── */
+
+.ev-todo {
+  display: grid;
+  gap: 0.7rem;
+  max-width: var(--ev-measure);
+}
+
+.ev-todo-verdict {
+  margin: 0;
+  border-left: 3px solid var(--ev-accent);
+  border-radius: 0 8px 8px 0;
+  padding: 0.5rem 0.9rem;
+  background: var(--ev-surface-2);
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.ev-todo-verdict.is-done {
+  border-left-color: var(--ev-good);
+}
+
+.ev-todo-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ev-todo-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  background: var(--ev-surface);
+}
+
+/* Done fades back; what is left keeps the reader's eye. */
+.ev-todo-list li[data-done='true'] {
+  border-color: transparent;
+  background: none;
+  opacity: 0.72;
+}
+
+.ev-todo-mark {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ev-surface-3);
+  font-size: 0.86rem;
+}
+
+.ev-todo-list li[data-done='true'] .ev-todo-mark {
+  background: rgba(80, 200, 130, 0.22);
+  color: var(--ev-good);
+}
+
+.ev-todo-body {
+  display: grid;
+  flex: 1;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.ev-todo-body em {
+  color: var(--ev-muted);
+  font-size: 0.86rem;
+  font-style: normal;
+  line-height: 1.5;
+}
+
+.ev-todo-state {
+  flex: none;
+}
+
+.ev-todo-state .ev-cta,
+.ev-todo-state .ev-ghost {
+  padding: 0.36rem 0.9rem;
+  font-size: 0.84rem;
+}
+
+.ev-todo-word {
+  color: var(--ev-muted);
+  font-size: 0.82rem;
+}
+
+.ev-todo-foot {
+  margin: 0;
+  color: var(--ev-muted);
+  font-size: 0.8rem;
+}
+
+/* ── Roster: the participant list ────────────────────────── */
+
+.ev-roster {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.ev-roster-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ev-roster-search {
+  flex: 1 1 14rem;
+  min-width: 0;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  background: var(--ev-field);
+  color: var(--ev-ink);
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.ev-roster-search:focus {
+  outline: none;
+  border-color: var(--ev-accent);
+}
+
+.ev-roster-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ev-roster-preset {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.42rem 0.85rem;
+  background: var(--ev-surface);
+  color: var(--ev-ink);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.ev-roster-preset:hover {
+  background: var(--ev-surface-3);
+}
+
+.ev-roster-preset.is-on {
+  border-color: transparent;
+  background: var(--ev-accent);
+  color: var(--ev-on-accent);
+}
+
+/* The live count. It is the point of the button, so it keeps its own pill
+   rather than hiding in the label. */
+.ev-roster-badge {
+  border-radius: 999px;
+  padding: 0.05rem 0.44rem;
+  background: var(--ev-surface-3);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-roster-preset.is-on .ev-roster-badge {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.ev-roster-picker > summary {
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.42rem 0.85rem;
+  background: var(--ev-surface);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ev-roster-picker > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ev-roster-picker-body {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  background: var(--ev-surface);
+}
+
+.ev-roster-picker-body .eve-check {
+  font-size: 0.88rem;
+}
+
+.ev-roster-count {
+  margin: 0;
+  color: var(--ev-muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A wide list scrolls inside its own box; the page must not go sideways. */
+.ev-roster-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  background: var(--ev-surface);
+}
+
+.ev-roster-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.ev-roster-table th,
+.ev-roster-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.ev-roster-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 1px solid var(--ev-line-2);
+  background: var(--ev-chrome);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ev-roster-sort {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--ev-muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ev-roster-sort:hover {
+  color: var(--ev-ink);
+}
+
+.ev-roster-table tbody tr + tr td {
+  border-top: 1px solid var(--ev-line);
+}
+
+.ev-roster-table tbody tr:hover td {
+  background: var(--ev-surface-2);
+}
+
+.ev-roster-table tbody tr.is-open td {
+  background: var(--ev-surface-3);
+}
+
+.ev-roster-more-head {
+  width: 1%;
+}
+
+.ev-roster-more-cell {
+  text-align: right;
+}
+
+.ev-roster-more {
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  background: none;
+  color: var(--ev-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.ev-roster-more:hover {
+  color: var(--ev-ink);
+  background: var(--ev-surface-3);
+}
+
+/* The hidden columns for one person, opened under their row. */
+.ev-roster-detail td {
+  border-top: 0 !important;
+  background: var(--ev-surface-2);
+  white-space: normal;
+}
+
+.ev-roster-detail dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 0.5rem 1.2rem;
+  margin: 0;
+}
+
+.ev-roster-detail dt {
+  color: var(--ev-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ev-roster-detail dd {
+  margin: 0.1rem 0 0;
+}
+
+.ev-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A number in the table is a call, an address is a mail. */
+.ev-roster-tel {
+  color: var(--ev-accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ev-roster-tel:hover {
+  text-decoration: underline;
+}
+
+/* The tick column, and the organizer's way out of the browser. */
+.ev-roster-pick-cell {
+  width: 1%;
+  padding-right: 0.35rem !important;
+}
+
+.ev-roster-export {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ev-roster-export .ev-roster-count {
+  flex-basis: 100%;
+}
+
+/* A number and, while a message is being written, the SMS beside it. */
+.ev-roster-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ev-roster-sms-go {
+  border: 1px solid var(--ev-accent);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  color: var(--ev-accent);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+}
+
+.ev-roster-sms-go:hover {
+  background: var(--ev-accent);
+  color: var(--ev-on-accent);
+}
+
+/* Already handed to the phone during this pass down the list. Colour plus a
+   tick, so the difference survives a screen in sunlight and eyes that do not
+   separate blue from grey. */
+.ev-roster-sms-go.is-sent {
+  border-color: var(--ev-line);
+  background: var(--ev-surface-3);
+  color: var(--ev-muted);
+}
+
+.ev-roster-sms-go.is-sent:hover {
+  background: var(--ev-surface-3);
+  color: var(--ev-ink);
+}
+
+/* The message itself: written once, under the list. */
+.ev-roster-sms-bar {
+  display: grid;
+  justify-items: start;
+  gap: 0.6rem;
+}
+
+.ev-roster-preview {
+  margin: 0;
+  border-left: 3px solid var(--ev-line-2);
+  padding: 0.3rem 0.7rem;
+  color: var(--ev-muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.ev-roster-preview span {
+  display: block;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* The organizer's own columns: written in the table, saved as they are set. */
+.ev-roster-mark-cell {
+  white-space: nowrap;
+}
+
+.ev-roster-check {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--ev-accent);
+  cursor: pointer;
+}
+
+.ev-roster-mark {
+  min-width: 5rem;
+  max-width: 11rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 6px;
+  padding: 0.25rem 0.45rem;
+  background: var(--ev-field);
+  color: var(--ev-ink);
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+.ev-roster-mark:focus {
+  outline: none;
+  border-color: var(--ev-accent);
+}
+
+.ev-roster-mark:disabled,
+.ev-roster-check:disabled {
+  opacity: 0.5;
+}
+
+/* Writing one message to one person, under their row. */
+.ev-roster-sms {
+  display: grid;
+  gap: 0.55rem;
+  max-width: 44rem;
+}
+
+.ev-roster-sms-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.ev-roster-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.ev-roster-chip {
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  background: var(--ev-surface);
+  color: var(--ev-ink);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.ev-roster-chip:hover {
+  background: var(--ev-surface-3);
+}
+
+.ev-roster-chip.is-field {
+  color: var(--ev-muted);
+  font-size: 0.78rem;
+}
+
+.ev-roster-sms-text {
+  width: 100%;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  background: var(--ev-field);
+  color: var(--ev-ink);
+  font: inherit;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.ev-roster-sms-text:focus {
+  outline: none;
+  border-color: var(--ev-accent);
+}
+
+.ev-roster-sms-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* The builder's column picker, one button per column. */
+.eve-chiprow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* ── Individual-link banner ──────────────────────────────── */
+
+.ev-link-card {
+  border: 1px solid var(--ev-accent);
+  border-radius: 14px;
+  padding: 1rem 1.15rem;
+  background: rgba(76, 125, 214, 0.12);
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.ev-link-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.ev-link-eyebrow {
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ev-accent);
+}
+
+.ev-link-head h2 {
+  margin: 0.12rem 0 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(1.4rem, 3.4vw, 2rem);
+  font-weight: 600;
+}
+
+.ev-chip {
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.18rem 0.7rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ev-link-note {
+  margin: 0;
+  border-left: 3px solid var(--ev-accent);
+  padding-left: 0.8rem;
+  line-height: 1.6;
+}
+
+.ev-link-assignments {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 0.5rem;
+}
+
+.ev-link-assignments > div {
+  border: 1px solid var(--ev-line);
+  border-radius: 8px;
+  padding: 0.48rem 0.68rem;
+  background: var(--ev-surface-2);
+  min-width: 0;
+}
+
+.ev-link-assignments dt {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ev-muted);
+}
+
+.ev-link-assignments dd {
+  margin: 0.18rem 0 0;
+  overflow-wrap: break-word;
+}
+
+.ev-switching {
+  opacity: 0.72;
+  transition: opacity 140ms ease;
+}
+
+/* ── Footer ──────────────────────────────────────────────── */
+
+.ev-footer {
+  grid-row: 3;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 clamp(0.8rem, 4vw, 2rem);
+  background: var(--ev-chrome);
+  border-top: 1px solid var(--ev-line);
+  font-size: 0.8rem;
+  color: var(--ev-muted);
+}
+
+.ev-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.ev-progress {
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-footer .ev-ghost,
+.ev-footer .ev-cta {
+  padding: 0.28rem 0.75rem;
+  font-size: 0.78rem;
+}
+
+.ev-edit {
+  white-space: nowrap;
+}
+
+/* ── Standalone states ───────────────────────────────────── */
+
+.ev-standalone {
+  --ev-line-2: rgba(163, 178, 201, 0.42);
+  --ev-ink: #eef2f8;
+  min-height: 100vh;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 0.8rem;
+  padding: clamp(1.5rem, 8vw, 5rem);
+  background: #080d15;
+  color: #eef2f8;
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+}
+
+.ev-standalone h1 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-weight: 600;
+}
+
+.ev-standalone p {
+  margin: 0;
+  color: #a3b2c9;
+}
+
+/* ── Reader responsive ───────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .ev {
+    grid-template-rows: 52px minmax(0, 1fr) calc(44px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .ev-header-meta {
+    display: none;
+  }
+
+  .ev-brand img {
+    width: 96px;
+  }
+
+  .ev-form {
+    grid-template-columns: 1fr;
+  }
+
+  .ev-field.is-half {
+    grid-column: 1 / -1;
+  }
+
+  .ev-plan-rows li {
+    grid-template-columns: 1fr;
+    gap: 0.12rem;
+  }
+}
+
+/* ============================================================
+   Editor primitives (.eve) — used inside every part's editor
+   ============================================================ */
+
+.eve-row {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.eve-row > span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--a-muted, #9fb0c8);
+}
+
+.eve-row input,
+.eve-row select,
+.eve-row textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--a-line-2, rgba(150, 170, 200, 0.4));
+  border-radius: 8px;
+  padding: 0.44rem 0.62rem;
+  font-family: inherit;
+  font-size: 0.94rem;
+  color: #e8eef7;
+  background: rgba(0, 0, 0, 0.35);
+  outline: none;
+}
+
+.eve-row input:focus,
+.eve-row select:focus,
+.eve-row textarea:focus {
+  border-color: var(--a-accent, #4c7dd6);
+}
+
+.eve-row textarea {
+  resize: vertical;
+}
+
+.eve-row small {
+  color: var(--a-muted, #9fb0c8);
+  font-size: 0.76rem;
+}
+
+.eve-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #e8eef7;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.eve-check input[type='checkbox'] {
+  width: auto;
+  accent-color: var(--a-accent, #4c7dd6);
+}
+
+.eve-group {
+  border: 1px solid var(--a-line, rgba(150, 170, 200, 0.2));
+  border-radius: 10px;
+  padding: 0.75rem 0.85rem;
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.eve-group legend {
+  padding: 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--a-muted, #9fb0c8);
+}
+
+.eve-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.eve-item {
+  border: 1px solid var(--a-line, rgba(150, 170, 200, 0.2));
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  min-width: 0;
+}
+
+.eve-item > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--a-line, rgba(150, 170, 200, 0.2));
+  min-width: 0;
+}
+
+.eve-item > header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eve-item-tools {
+  display: flex;
+  gap: 0.22rem;
+  flex-shrink: 0;
+}
+
+.eve-item-tools button {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--a-line-2, rgba(150, 170, 200, 0.4));
+  border-radius: 6px;
+  background: transparent;
+  color: #e8eef7;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.eve-item-tools button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.eve-remove {
+  border-color: rgba(220, 90, 105, 0.5) !important;
+  color: #f0a2ab !important;
+}
+
+.eve-item-body {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  min-width: 0;
+}
+
+.eve-add {
+  width: fit-content;
+  border: 1px dashed var(--a-line-2, rgba(150, 170, 200, 0.4));
+  border-radius: 8px;
+  padding: 0.4rem 0.9rem;
+  background: transparent;
+  color: #e8eef7;
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.eve-add:hover {
+  border-style: solid;
+  border-color: var(--a-accent, #4c7dd6);
+}
+
+.eve-hint {
+  margin: 0;
+  color: var(--a-muted, #9fb0c8);
+  font-size: 0.86rem;
+}
+
+.eve-warn {
+  margin: 0;
+  border: 1px solid rgba(230, 180, 80, 0.45);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  background: rgba(150, 110, 30, 0.18);
+  color: #f0cf94;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.eve-error {
+  margin: 0;
+  border: 1px solid rgba(220, 80, 96, 0.42);
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  background: rgba(160, 40, 52, 0.2);
+  color: #f6a8b0;
+  font-size: 0.86rem;
+}
+
+/* ============================================================
+   Builder panel (.eva)
+   ============================================================ */
+
+.eva {
+  --a-line: rgba(150, 170, 200, 0.2);
+  --a-line-2: rgba(150, 170, 200, 0.4);
+  --a-muted: #9fb0c8;
+  --a-accent: #4c7dd6;
+
+  min-height: 100vh;
+  padding: clamp(0.9rem, 4vw, 2.5rem);
+  background: #0b1018;
+  color: #e8eef7;
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.eva-head h1 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 600;
+}
+
+.eva-head p {
+  margin: 0.35rem 0 0;
+  color: var(--a-muted);
+  max-width: 68ch;
+  line-height: 1.6;
+}
+
+.eva-panel {
+  border: 1px solid var(--a-line);
+  border-radius: 12px;
+  padding: clamp(0.85rem, 2.4vw, 1.35rem);
+  background: rgba(255, 255, 255, 0.03);
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.eva-panel > header {
+  display: grid;
+  gap: 0.22rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--a-line);
+}
+
+.eva-panel h3 {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--a-muted);
+}
+
+.eva-panel header p {
+  margin: 0;
+  color: var(--a-muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.eva-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 0.6rem;
+}
+
+.eva-cta,
+.eva-ghost,
+.eva-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 0.44rem 1rem;
+  font: inherit;
+  font-size: 0.87rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  width: fit-content;
+}
+
+.eva-cta {
+  border: 1px solid transparent;
+  background: var(--a-accent);
+  color: #fff;
+}
+
+.eva-ghost {
+  border: 1px solid var(--a-line-2);
+  background: transparent;
+  color: #e8eef7;
+}
+
+.eva-danger {
+  border: 1px solid rgba(220, 90, 105, 0.5);
+  background: transparent;
+  color: #f0a2ab;
+}
+
+.eva-cta:disabled,
+.eva-ghost:disabled,
+.eva-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.eva-actions {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.eva-actions button:not(.eva-cta):not(.eva-danger) {
+  border: 1px solid var(--a-line-2);
+  border-radius: 8px;
+  padding: 0.44rem 0.9rem;
+  background: transparent;
+  color: #e8eef7;
+  font: inherit;
+  font-size: 0.87rem;
+  cursor: pointer;
+}
+
+.eva-hint {
+  margin: 0;
+  color: var(--a-muted);
+  font-size: 0.88rem;
+}
+
+.eva-error {
+  margin: 0;
+  border: 1px solid rgba(220, 80, 96, 0.42);
+  border-radius: 8px;
+  padding: 0.48rem 0.78rem;
+  background: rgba(160, 40, 52, 0.2);
+  color: #f6a8b0;
+  font-size: 0.88rem;
+}
+
+.eva-sub {
+  color: var(--a-muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.eva-internal {
+  margin: 0;
+  border-left: 2px solid rgba(230, 180, 80, 0.7);
+  padding-left: 0.55rem;
+  color: #e2c88f;
+  font-size: 0.82rem;
+}
+
+.eva-pill {
+  border: 1px solid var(--a-line-2);
+  border-radius: 999px;
+  padding: 0.08rem 0.6rem;
+  font-size: 0.72rem;
+  color: var(--a-muted);
+  white-space: nowrap;
+}
+
+.eva-pill.is-live {
+  border-color: rgba(80, 200, 130, 0.6);
+  color: #9fe6bf;
+}
+
+.eva-tag {
+  border: 1px solid var(--a-line-2);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  font-size: 0.68rem;
+  color: var(--a-muted);
+}
+
+.eva-tag.is-dirty {
+  border-color: rgba(230, 180, 80, 0.6);
+  color: #f0cf94;
+}
+
+.eva-editor {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.eva-editor-head {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.eva-tabs {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.eva-tabs button {
+  border: 1px solid var(--a-line-2);
+  border-radius: 999px;
+  padding: 0.34rem 0.9rem;
+  background: transparent;
+  color: var(--a-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.eva-tabs button.active {
+  background: var(--a-accent);
+  border-color: transparent;
+  color: #fff;
+}
+
+.eva-page-tabs {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.eva-page-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--a-line-2);
+  border-radius: 8px;
+  padding: 0.4rem 0.8rem;
+  background: transparent;
+  color: #e8eef7;
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.eva-page-tabs button.active {
+  border-color: var(--a-accent);
+  background: rgba(76, 125, 214, 0.16);
+}
+
+.eva-page-mark {
+  color: var(--a-accent);
+  font-size: 0.5em;
+}
+
+.eva-add-page {
+  border-style: dashed !important;
+  color: var(--a-muted) !important;
+}
+
+.eva-add-part {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.eva-add-part select {
+  flex: 1;
+  min-width: 220px;
+  border: 1px solid var(--a-line-2);
+  border-radius: 8px;
+  padding: 0.44rem 0.62rem;
+  background: rgba(0, 0, 0, 0.35);
+  color: #e8eef7;
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.eva select option,
+.eva-add-part select option {
+  background: #101825;
+  color: #e8eef7;
+}
+
+.eva-part-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.eva-part {
+  border: 1px solid var(--a-line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.eva-part.is-hidden {
+  opacity: 0.62;
+}
+
+.eva-part-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  min-width: 0;
+}
+
+.eva-part-toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: none;
+  background: none;
+  padding: 0;
+  color: #e8eef7;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.eva-kind {
+  flex-shrink: 0;
+  border: 1px solid var(--a-line-2);
+  border-radius: 999px;
+  padding: 0.08rem 0.55rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--a-muted);
+}
+
+.eva-part-tools {
+  display: flex;
+  gap: 0.22rem;
+  flex-shrink: 0;
+}
+
+.eva-part-tools button {
+  width: 27px;
+  height: 27px;
+  border: 1px solid var(--a-line-2);
+  border-radius: 6px;
+  background: transparent;
+  color: #e8eef7;
+  cursor: pointer;
+}
+
+.eva-part-tools button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.eva-part-body {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.7rem;
+  border-top: 1px solid var(--a-line);
+  min-width: 0;
+}
+
+/* Dark / light switch for the whole event. */
+.eva-modes {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+  padding: 0.2rem;
+  border: 1px solid var(--a-line-2);
+  border-radius: 999px;
+}
+
+.eva-modes button {
+  border: none;
+  border-radius: 999px;
+  padding: 0.3rem 0.95rem;
+  background: transparent;
+  color: var(--a-muted);
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.eva-modes button.active {
+  background: var(--a-accent, #4c7dd6);
+  color: #fff;
+}
+
+.eva-colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
+  gap: 0.5rem;
+}
+
+.eva-colors label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.74rem;
+  color: var(--a-muted);
+}
+
+.eva-colors input[type='color'] {
+  width: 100%;
+  height: 34px;
+  border: 1px solid var(--a-line-2);
+  border-radius: 6px;
+  background: transparent;
+  padding: 2px;
+  cursor: pointer;
+}
+
+.eva-site-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.eva-site-list button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  border: 1px solid var(--a-line);
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  background: rgba(0, 0, 0, 0.25);
+  color: #e8eef7;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.eva-site-list button:hover {
+  border-color: var(--a-accent);
+}
+
+/* ── Access panel ────────────────────────────────────────── */
+
+.eva-access {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.eva-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--a-line);
+  border-radius: 8px;
+}
+
+.eva-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.eva-table-wrap th {
+  border-bottom: 1px solid var(--a-line-2);
+  padding: 0.42rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  color: var(--a-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.eva-table-wrap td {
+  border-bottom: 1px solid var(--a-line);
+  padding: 0.42rem 0.5rem;
+  vertical-align: top;
+}
+
+/* Set aside, not gone: still readable, but plainly out of the running. */
+.eva-table-wrap tr.is-hidden {
+  opacity: 0.5;
+}
+
+.eva-table-wrap tr.is-hidden strong {
+  text-decoration: line-through;
+}
+
+.eva-answers {
+  margin: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.eva-answers dt {
+  color: var(--a-muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.eva-answers dd {
+  margin: 0 0 0.25rem;
+  overflow-wrap: break-word;
+}
+
+.eva-inline-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.eva-inline-form input {
+  flex: 1;
+  min-width: 180px;
+  border: 1px solid var(--a-line-2);
+  border-radius: 8px;
+  padding: 0.44rem 0.62rem;
+  background: rgba(0, 0, 0, 0.35);
+  color: #e8eef7;
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.eva-link-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.eva-link {
+  border: 1px solid var(--a-line);
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  background: rgba(0, 0, 0, 0.25);
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.eva-link > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.eva-link-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.eva-grants {
+  display: flex;
+  gap: 0.5rem 1rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--a-line);
+  border-radius: 8px;
+}
+
+.eva-link-row {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.eva-linkbox {
+  flex: 1;
+  min-width: 200px;
+  border: 1px solid var(--a-line-2);
+  border-radius: 8px;
+  padding: 0.36rem 0.55rem;
+  background: rgba(0, 0, 0, 0.4);
+  color: #e8eef7;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.76rem;
+}
+
+.eva-link-row button {
+  border: 1px solid var(--a-line-2);
+  border-radius: 8px;
+  padding: 0.36rem 0.75rem;
+  background: transparent;
+  color: #e8eef7;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* ── Import and dictionary ───────────────────────────────── */
+
+.eva-dictionary {
+  margin: 0;
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--a-line);
+  border-radius: 8px;
+  padding: 0.8rem 0.9rem;
+  background: rgba(0, 0, 0, 0.42);
+  color: #cdd8e8;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  tab-size: 2;
+}
+
+.eva-json {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  tab-size: 2;
+}
+
+.eva-import-result {
+  display: grid;
+  gap: 0.4rem;
+  border: 1px solid rgba(80, 200, 130, 0.4);
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  background: rgba(30, 130, 80, 0.16);
+}
+
+.eva-import-result p {
+  margin: 0;
+  color: #9fe6bf;
+  font-size: 0.9rem;
+}
+
+.eva-import-result .eva-sub {
+  color: #e2c88f;
+}
+
+.eva-warnings {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 0.22rem;
+  color: #e2c88f;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.eva-link-details {
+  display: grid;
+  gap: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--a-line);
+}
+
+/* ── Map: several tracks ─────────────────────────────────── */
+
+.ev-map-tracks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+}
+
+.ev-map-tracks li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+  min-width: 0;
+}
+
+.ev-map-tracks em {
+  font-style: normal;
+  color: var(--ev-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+}
+
+.ev-map-track-swatch {
+  flex-shrink: 0;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+/* ── Wrappers that had no rule of their own ──────────────── */
+/* Each part's outer element sets the rhythm between its own pieces, the way
+   .ev-prose and .ev-contact already did. Without these the children sat flush
+   against each other. */
+
+.ev-shortinfos,
+.ev-gallery,
+.ev-people,
+.ev-files {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+/* Space under the personal-link card, above the first part. */
+.ev-banner {
+  margin-bottom: 0.4rem;
+}
+
+/* Stacked actions inside a table cell: hide / delete / grant. */
+.eva-actions-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+
+.eva-actions-cell button:not(.eva-cta):not(.eva-danger) {
+  border: 1px solid var(--a-line-2);
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  background: transparent;
+  color: #e8eef7;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.eva-actions-cell .eva-cta,
+.eva-actions-cell .eva-danger {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+}
+
+/* The event's file library, in the builder. */
+.eva-docs {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.eva-doc-list {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eva-doc-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 8px;
+  padding: 0.3rem 0.5rem;
+  background: var(--ev-surface);
+}
+
+.eva-doc-list li.is-picked {
+  border-color: var(--ev-accent);
+}
+
+.eva-doc-pick {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.eva-doc-pick strong {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eva-doc-pick span {
+  color: var(--ev-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+/* ── Background image upload ─────────────────────────────── */
+
+.eva-images {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.eva-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 0.4rem;
+}
+
+.eva-image {
+  position: relative;
+  aspect-ratio: 4 / 3;
+}
+
+.eva-image > button:first-child {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 2px solid var(--a-line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.eva-image.is-picked > button:first-child {
+  border-color: var(--a-accent);
+}
+
+.eva-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.eva-image-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(220, 90, 105, 0.6);
+  border-radius: 50%;
+  background: #16202e;
+  color: #f0a2ab;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* The menu entries are real links so ctrl-click opens a tab; they must not
+   pick up the underline every other link in the shell carries. */
+.ev-pages a,
+.ev-parts a {
+  text-decoration: none;
+}
+/* ============================================================
+   The printable consent
+
+   Hidden on screen. On paper it is the only thing on the sheet: the reader's
+   page is a transformed, fixed-position track, so printing that would give one
+   clipped screenshot. Laid out to hold a whole consent on one side of A4 —
+   nobody prints three pages per participant, and a form that runs over is a
+   form that arrives incomplete.
+   ============================================================ */
+
+.ev-print-doc {
+  display: none;
+}
+
+@media print {
+  /* The app paints a full-viewport gradient and pins the reader's page with
+     position: fixed. Left alone, that background is a full-page element the
+     printer honours — it spills onto a second sheet even with everything else
+     hidden. Strip the page back to plain paper first. */
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    background-image: none !important;
+    overflow: visible !important;
+  }
+
+  body > * {
+    display: none !important;
+  }
+
+  body > .ev-print-doc {
+    display: block !important;
+    /* Never taller than the sheet: a stray millimetre of overflow is a whole
+       extra page, and that page is always blank. */
+    max-height: 100%;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #000;
+    font-family: 'Source Sans 3', system-ui, sans-serif;
+    font-size: 8.6pt;
+    line-height: 1.3;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 11mm 12mm;
+  }
+
+  /* ── Header: four lines, no more ── */
+  .ev-print-doc h1 {
+    margin: 0;
+    font-size: 13pt;
+    line-height: 1.15;
+  }
+
+  .ev-print-event,
+  .ev-print-org,
+  .ev-print-kind {
+    margin: 0.1em 0 0;
+  }
+
+  .ev-print-org,
+  .ev-print-kind {
+    font-size: 7.6pt;
+    color: #333;
+  }
+
+  .ev-print-doc header {
+    padding-bottom: 0.35em;
+    border-bottom: 1.2pt solid #000;
+    margin-bottom: 0.5em;
+  }
+
+  /* ── Two columns, so the data half does not run down the page ── */
+  .ev-print-body {
+    columns: 2;
+    column-gap: 7mm;
+    column-fill: balance;
+  }
+
+  .ev-print-body > section {
+    break-inside: avoid;
+    margin-bottom: 0.55em;
+  }
+
+  .ev-print-doc h2 {
+    margin: 0 0 0.15em;
+    font-size: 7.4pt;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    border-bottom: 0.5pt solid #999;
+  }
+
+  .ev-print-doc dl {
+    margin: 0;
+  }
+
+  /* Label above value rather than beside it: inside a narrow column a
+     side-by-side pair wraps into a ragged mess. */
+  .ev-print-doc dt {
+    color: #444;
+    font-size: 7.2pt;
+    line-height: 1.25;
+  }
+
+  .ev-print-doc dd {
+    margin: 0 0 0.28em;
+    font-weight: 600;
+  }
+
+  .ev-print-doc ul {
+    margin: 0;
+    padding-left: 0.95em;
+  }
+
+  .ev-print-doc li {
+    margin-bottom: 0.22em;
+    text-align: justify;
+  }
+
+  .ev-print-doc li b {
+    font-weight: 700;
+  }
+
+  /* ── Small print at the foot ── */
+  .ev-print-clause {
+    margin-top: 0.4em;
+    padding-top: 0.35em;
+    border-top: 0.5pt solid #999;
+    font-size: 6.2pt;
+    line-height: 1.25;
+    color: #222;
+    text-align: justify;
+    columns: 2;
+    column-gap: 6mm;
+    break-inside: avoid;
+  }
+
+  .ev-print-clause p {
+    margin: 0 0 0.2em;
+  }
+
+  .ev-print-clause p:first-child {
+    font-weight: 700;
+    break-after: avoid;
+  }
+
+  .ev-print-doc footer {
+    padding-top: 0.5em;
+    break-inside: avoid;
+    break-after: avoid;
+  }
+
+  /* Trailing margins on the last element are enough to tip the sheet over. */
+  .ev-print-doc > :last-child,
+  .ev-print-signatures span {
+    margin-bottom: 0 !important;
+  }
+
+  .ev-print-trace {
+    margin: 0 0 2.2em;
+    font-size: 6.8pt;
+    color: #333;
+  }
+
+  /* Two ruled lines side by side — the only part meant to stay empty. */
+  .ev-print-signatures {
+    display: grid;
+    grid-template-columns: 38% 1fr;
+    gap: 6mm;
+    font-size: 6.8pt;
+    color: #444;
+  }
+
+  .ev-print-signatures span {
+    border-top: 0.5pt solid #000;
+    padding-top: 0.2em;
+  }
+}
+
+/* The one-tap SMS beside a link, styled as the row's other buttons. */
+.eva-sms {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--a-line-2);
+  border-radius: 8px;
+  padding: 0.36rem 0.75rem;
+  color: #e8eef7;
+  font-size: 0.82rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.eva-sms:hover {
+  border-color: var(--a-accent, #4c7dd6);
+}
+
+/* ============================================================
+   Builder: folded sections
+   ============================================================ */
+
+.eva-fold {
+  border: 1px solid var(--a-line, rgba(150, 170, 200, 0.2));
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.eva-fold > summary {
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--a-muted, #9fb0c8);
+  list-style: none;
+}
+
+.eva-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.eva-fold > summary::before {
+  content: '▸ ';
+  display: inline-block;
+  transition: transform 160ms ease;
+}
+
+.eva-fold[open] > summary::before {
+  content: '▾ ';
+}
+
+.eva-fold-body {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.2rem 0.7rem 0.7rem;
+  min-width: 0;
+}
+
+/* ============================================================
+   Topics: questions between participants
+   ============================================================ */
+
+.ev-topics {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.ev-topic-new {
+  display: grid;
+  gap: 0.6rem;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 12px;
+  padding: 0.85rem;
+  background: var(--ev-surface);
+}
+
+.ev-topic-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.ev-topic-list button {
+  width: 100%;
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  padding: 0.65rem 0.8rem;
+  background: var(--ev-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.ev-topic-list button:hover {
+  border-color: var(--ev-accent);
+  transform: translateX(2px);
+}
+
+.ev-topic-title {
+  font-weight: 650;
+}
+
+.ev-topic-meta {
+  color: var(--ev-muted);
+  font-size: 0.8rem;
+}
+
+/* ============================================================
+   The full-screen layer, and how it arrives
+   ============================================================ */
+
+.ev-layer-full {
+  position: fixed;
+  inset: 0;
+  /* inset alone resolves against the layout viewport, which on a phone extends
+     behind the browser toolbar — the bottom of a full-screen picture then sits
+     under it. dvh is the height actually on screen at this moment; the vh line
+     above it is what older engines fall back to. */
+  height: 100vh;
+  height: 100dvh;
+  z-index: 120;
+  background: var(--ev-ground, #080d15);
+  color: var(--ev-ink, #eef2f8);
+  font-family: 'Source Sans 3', system-ui, sans-serif;
+
+  /* Two states, so there is something to transition between: it arrives from
+     slightly below and slightly small, which reads as the panel coming forward
+     rather than the page being replaced.
+
+     This rule is also the closed state, so its timing is the one that governs
+     the way out — 180ms, quicker than the way in. An arrival is worth watching;
+     a departure is in the way of whatever comes next. Keep it in step with
+     EXIT_MS in Fullscreen.tsx, which decides when the layer unmounts. */
+  opacity: 0;
+  transform: translateY(1.2rem) scale(0.985);
+  transition: opacity 150ms ease, transform 180ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+.ev-layer-full.is-open {
+  opacity: 1;
+  transform: none;
+  transition: opacity 220ms ease, transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.ev-layer-close {
+  position: absolute;
+  top: max(0.7rem, env(safe-area-inset-top, 0px));
+  right: 0.7rem;
+  z-index: 4;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 50%;
+  background: var(--ev-chrome-2);
+  color: var(--ev-ink);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ev-layer-close:hover {
+  background: var(--ev-accent);
+  border-color: transparent;
+  color: var(--ev-on-accent);
+}
+
+/* The map's own overlay predates this layer and keeps its markup; the arrival
+   is the same, so it plays the same animation. */
+.ev-map-overlay {
+  animation: ev-layer-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes ev-layer-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.2rem) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ev-thread {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: clamp(1rem, 4vw, 2rem) clamp(0.8rem, 4vw, 1.6rem) max(0.9rem, env(safe-area-inset-bottom, 0px));
+}
+
+.ev-thread > header {
+  padding-right: 3.2rem;
+  border-bottom: 1px solid var(--ev-line);
+  padding-bottom: 0.6rem;
+}
+
+.ev-thread h2 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(1.3rem, 3.4vw, 1.9rem);
+  font-weight: 600;
+}
+
+.ev-thread > header p {
+  margin: 0.2rem 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: var(--ev-muted);
+  font-size: 0.84rem;
+}
+
+.ev-thread-remove {
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  background: transparent;
+  color: var(--ev-muted);
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.ev-thread-messages {
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  padding-right: 0.2rem;
+}
+
+.ev-message {
+  border: 1px solid var(--ev-line);
+  border-radius: 12px;
+  padding: 0.6rem 0.8rem;
+  background: var(--ev-surface);
+  max-width: 88%;
+}
+
+/* Your own messages lean to the other side, the way every messaging app does —
+   it is the fastest way to see who said what without reading the names. */
+.ev-message.is-mine {
+  margin-left: auto;
+  border-color: var(--ev-accent);
+  background: color-mix(in srgb, var(--ev-accent) 14%, transparent);
+}
+
+.ev-message > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-bottom: 0.15rem;
+}
+
+.ev-message strong {
+  font-size: 0.86rem;
+}
+
+.ev-message time {
+  color: var(--ev-muted);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-message p {
+  margin: 0;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.ev-thread-compose {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.ev-thread-compose textarea {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  background: var(--ev-field);
+  color: var(--ev-ink);
+  font: inherit;
+  resize: none;
+  outline: none;
+}
+
+.ev-thread-compose textarea:focus {
+  border-color: var(--ev-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ev-layer-full,
+  .ev-map-overlay {
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+  }
+}
+
+/* Topic status: closed still reads, it just cannot be written in. */
+.ev-topic-badge {
+  margin-left: 0.45rem;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.02rem 0.5rem;
+  color: var(--ev-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.ev-topic-list button.is-closed .ev-topic-title {
+  color: var(--ev-muted);
+}
+
+.ev-thread-tool {
+  border: 1px solid var(--ev-line-2);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  background: transparent;
+  color: var(--ev-muted);
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ev-thread-tool:hover {
+  border-color: var(--ev-accent);
+  color: var(--ev-ink);
+}
+
+.ev-thread-tool.is-danger:hover {
+  border-color: var(--ev-bad);
+  color: var(--ev-bad);
+}
+
+.ev-thread > header p {
+  flex-wrap: wrap;
+}
+
+.ev-thread-rename {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ev-thread-rename input {
+  flex: 1;
+  min-width: 12rem;
+  border: 1px solid var(--ev-line-2);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  background: var(--ev-field);
+  color: var(--ev-ink);
+  font: inherit;
+  outline: none;
+}
+
+.ev-thread-closed {
+  margin: 0;
+  border: 1px dashed var(--ev-line-2);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  color: var(--ev-muted);
+  text-align: center;
+  font-size: 0.88rem;
+}
+
+/* The map's overlay leaves the same way the shared layer does. Its arrival is
+   an animation rather than a transition, so the departure is one too. */
+.ev-map-overlay.is-closing {
+  animation: ev-layer-out 180ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@keyframes ev-layer-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(1.2rem) scale(0.985);
+  }
+}
+
+/* ============================================================
+   Admin: one row per person
+   ============================================================ */
+
+.eva-people {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.eva-people > li {
+  border: 1px solid var(--a-line, rgba(150, 170, 200, 0.2));
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  min-width: 0;
+}
+
+/* Set aside, not gone: still readable, plainly out of the running. */
+.eva-people > li.is-hidden {
+  opacity: 0.55;
+}
+
+.eva-people > li.is-hidden strong {
+  text-decoration: line-through;
+}
+
+.eva-person-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.75rem;
+  min-width: 0;
+}
+
+.eva-person-head > strong {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The number an organizer reaches for on the day, one tap from a call. */
+.eva-phone {
+  color: #e8eef7;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 1px dashed var(--a-line-2, rgba(150, 170, 200, 0.4));
+}
+
+.eva-phone:hover {
+  border-bottom-color: var(--a-accent, #4c7dd6);
+}
+
+.eva-person-tags {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.eva-more {
+  flex-shrink: 0;
+  border: 1px solid var(--a-line-2, rgba(150, 170, 200, 0.4));
+  border-radius: 999px;
+  padding: 0.26rem 0.9rem;
+  background: transparent;
+  color: #e8eef7;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.eva-more:hover {
+  border-color: var(--a-accent, #4c7dd6);
+}
+
+.eva-person-body {
+  display: grid;
+  gap: 0.9rem;
+  padding: 0.2rem 0.75rem 0.85rem;
+  border-top: 1px solid var(--a-line, rgba(150, 170, 200, 0.2));
+  min-width: 0;
+}
+
+.eva-person-body > section {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.eva-person-body h4 {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--a-muted, #9fb0c8);
+}
+
+.eva-person-body h4 .eva-sub {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* -- Formularz zapisu: pytania, zanim ktoś cokolwiek wpisze --------------- */
+
+/*
+  Własne nazwy klas (`ev-form-*`), a nie `ev-fields`/`ev-label`: te ostatnie
+  należały do dawnego, prostego widoku części i znaczyłyby tu co innego. Dwie
+  reguły o tej samej nazwie i różnym znaczeniu to najkrótsza droga do tego, by
+  poprawka w jednym miejscu zepsuła drugie.
+*/
+.ev-form-fields {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.7rem;
+}
+
+.ev-form-fields li {
+  display: grid;
+  gap: 0.15rem;
+  grid-column: 1 / -1;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 8px;
+}
+
+/* Pole na pół szerokości zajmuje jedną kolumnę, nie cały rząd. */
+.ev-form-fields .ev-form-half { grid-column: auto; }
+
+.ev-form-label { font-weight: 600; font-size: 0.92rem; }
+.ev-form-label em { font-style: normal; font-weight: 400; font-size: 0.78rem; opacity: 0.75; }
+.ev-form-help, .ev-form-options { font-size: 0.82rem; color: var(--ev-muted); }

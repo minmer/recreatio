@@ -60,44 +60,44 @@ export function RcEventCatalogue({ slug, signedIn }: { slug: string; signedIn: b
   if (missing) {
     return (
       <Shell title="Nie znaleziono">
-        <p className="ev-muted">
+        <p className="evp-muted">
           Pod tym adresem nie ma strony wydarzeń. Sprawdź, czy odnośnik jest w całości.
         </p>
       </Shell>
     );
   }
 
-  if (view === null) return <Shell title=""><p className="ev-muted">Wczytywanie…</p></Shell>;
+  if (view === null) return <Shell title=""><p className="evp-muted">Wczytywanie…</p></Shell>;
 
   const events = view.events ?? [];
 
   return (
     <Shell title={view.title}>
-      <h1 className="ev-title">{view.title}</h1>
+      <h1 className="evp-title">{view.title}</h1>
 
       {events.length === 0 && (
-        <p className="ev-muted">
+        <p className="evp-muted">
           {signedIn
             ? 'Ta strona nie ma jeszcze żadnego wydarzenia. Dodaj je w edytorze.'
             : 'Nie zapowiedziano tu jeszcze niczego.'}
         </p>
       )}
 
-      <ul className="ev-cat">
+      <ul className="evp-cat">
         {events.map((one) => {
           const date = when(one.startsUtc, one.endsUtc);
           return (
-            <li key={one.eventId} className="ev-cat-row">
-              <a className="ev-cat-open" href={rcPath('event', view.slug, one.slug)}>
-                <span className="ev-cat-title">{one.title}</span>
-                <span className="ev-cat-meta">
+            <li key={one.eventId} className="evp-cat-row">
+              <a className="evp-cat-open" href={rcPath('event', view.slug, one.slug)}>
+                <span className="evp-cat-title">{one.title}</span>
+                <span className="evp-cat-meta">
                   {date !== null && <span>{date}</span>}
                   {/*
                     Szkic widzą tylko swoi — i widzą, ŻE to szkic. Bez tego
                     ktoś rozesłałby odnośnik do strony, której nikt nie otworzy.
                   */}
                   {one.lifecycle !== 'published' && (
-                    <span className="ev-cat-draft">{one.lifecycle === 'draft' ? 'szkic' : 'archiwum'}</span>
+                    <span className="evp-cat-draft">{one.lifecycle === 'draft' ? 'szkic' : 'archiwum'}</span>
                   )}
                 </span>
               </a>
@@ -111,8 +111,8 @@ export function RcEventCatalogue({ slug, signedIn }: { slug: string; signedIn: b
         co pod nią zbiera zgłoszenia.
       */}
       {(view.organizerName ?? '') !== '' && (
-        <section className="ev-rodo">
-          <h2 className="ev-rodo-h">Administrator danych</h2>
+        <section className="evp-rodo">
+          <h2 className="evp-rodo-h">Administrator danych</h2>
           <p>
             {view.organizerName}
             {(view.organizerAddress ?? '') !== '' && <>, {view.organizerAddress}</>}
@@ -136,17 +136,17 @@ function Shell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="ev">
-      <header className="ev-head">
-        <span className="ev-brand">
-          <span className="ev-mark" aria-hidden="true">◆</span>
-          <span className="ev-name">{title === '' ? 'Wydarzenia' : title}</span>
+    <div className="evp">
+      <header className="evp-head">
+        <span className="evp-brand">
+          <span className="evp-mark" aria-hidden="true">◆</span>
+          <span className="evp-name">{title === '' ? 'Wydarzenia' : title}</span>
         </span>
       </header>
 
-      <main className="ev-main">{children}</main>
+      <main className="evp-main">{children}</main>
 
-      <footer className="ev-foot">
+      <footer className="evp-foot">
         <a href="https://recreatio.pl">recreatio.pl</a>
       </footer>
     </div>
