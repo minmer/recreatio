@@ -107,16 +107,60 @@ export const rcOccurrences = (calendarId: string, fromUtc: string, toUtc: string
  * in der Reihe. Er bleibt auch nach einer Verschiebung stehen; verlöre er ihn,
  * liesse sich die Verschiebung nie wieder aufheben.
  */
+/**
+ * Eine ganze Reihe absagen — oder wieder aufnehmen.
+ *
+ * <b>Absagen ist nicht Loeschen.</b> Der Eintrag bleibt stehen und faellt nur
+ * aus dem oeffentlichen Plan. Was daran haengt, bleibt lesbar, und wer
+ * nachsieht, warum am Donnerstag nichts war, findet eine Antwort statt einer
+ * Luecke.
+ */
+/**
+ * Ein Vorkommen als Adressteil — IMMER in UTC mit „Z", nie mit „+00:00".
+ *
+ * <b>Warum das kein Schoenheitsfehler ist.</b> Der Dienst gibt Zeitpunkte als
+ * `2026-09-06T06:00:00+00:00` heraus. Steht das so in einem Pfad, wird das
+ * Pluszeichen zu `%2B` — und IIS weist die Anfrage dann mit 404 ab, BEVOR die
+ * Anwendung sie sieht. Kein Protokolleintrag, keine CORS-Kopfzeile, nur ein
+ * Fehler im Browser, der nach einem Zugriffsproblem aussieht und keines ist.
+ *
+ * Nachgemessen: derselbe Pfad mit Doppelpunkten und „Z" kommt an (401), mit
+ * `%2B` nicht (404).
+ *
+ * Derselbe Augenblick, andere Schreibweise — der Dienst liest beide und
+ * vergleicht ohnehin nach Zeitpunkt, nicht nach Zeichenkette.
+ */
+export function rcOccurrenceKey(iso: string): string {
+  const at = new Date(iso);
+  return Number.isNaN(at.getTime()) ? iso : at.toISOString();
+}
+
+export const rcCancelItem = (itemId: string, restore = false) =>
+  rcFetch<RcApi<'RcItemCancelledResponse'>>(
+    `/calendar-items/${itemId}/cancel`,
+    { body: { restore }, withUnlock: true });
+
+/**
+ * Einen Eintrag wirklich wegwerfen — fuer den Irrtum.
+ *
+ * Der Dienst weist es mit 409 ab, wenn noch etwas daran haengt. Das ist keine
+ * Stoerung, sondern die Antwort: dann gehoert die Reihe abgesagt, nicht
+ * geloescht.
+ */
+export const rcDeleteItem = (itemId: string) =>
+  rcFetch<RcApi<'RcItemDeletedResponse'>>(
+    `/calendar-items/${itemId}`, { method: 'DELETE', withUnlock: true });
+
 export const rcCancelOccurrence = (itemId: string, originalStartUtc: string) =>
   rcFetch<RcApi<'RcOccurrenceChangedResponse'>>(
-    `/calendar-items/${itemId}/occurrences/${encodeURIComponent(originalStartUtc)}/cancel`,
+    `/calendar-items/${itemId}/occurrences/${encodeURIComponent(rcOccurrenceKey(originalStartUtc))}/cancel`,
     { method: 'POST', withUnlock: true });
 
 export const rcMoveOccurrence = (
   itemId: string, originalStartUtc: string, newStartUtc: string, newEndUtc: string
 ) =>
   rcFetch<RcApi<'RcOccurrenceChangedResponse'>>(
-    `/calendar-items/${itemId}/occurrences/${encodeURIComponent(originalStartUtc)}/move`,
+    `/calendar-items/${itemId}/occurrences/${encodeURIComponent(rcOccurrenceKey(originalStartUtc))}/move`,
     { body: { newStartUtc, newEndUtc }, withUnlock: true });
 
 // -- Was die Oberfläche wissen muss ------------------------------------------

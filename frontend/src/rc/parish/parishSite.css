@@ -1266,3 +1266,38 @@
   font-family: ui-monospace, Consolas, monospace;
   font-size: 0.78rem;
 }
+
+/* -- Zdejmowanie mszy z planu -------------------------------------------- */
+
+.mt-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; }
+
+.mt-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+.mt-row > span { flex: 1 1 14rem; }
+
+/*
+ * Odwołanie jest czynnością rzadką i nieodwracalną w skutkach dla tego, kto
+ * przyjdzie pod zamknięty kościół. Nie wygląda więc jak przycisk główny —
+ * ale też nie chowa się, bo szukanie ukrytego przycisku kończy się kliknięciem
+ * w ten obok.
+ */
+.mt-drop {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid rgba(158, 43, 37, 0.35);
+  border-radius: 6px;
+  background: none;
+  color: #9e2b25;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.mt-drop:hover:not(:disabled) { background: rgba(158, 43, 37, 0.08); }
+.mt-drop:disabled { opacity: 0.5; cursor: default; }

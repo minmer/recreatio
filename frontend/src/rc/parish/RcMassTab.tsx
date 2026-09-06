@@ -17,7 +17,9 @@ import {
   RC_MASS_MINUTES, RC_SUNDAY_MASK, RC_WEEKDAYS_MASK, RC_WEEKDAY_BITS,
   rcAddMass, rcDefaultUntil, rcParishCalendar, rcRepeatLabel, type RcNewMass
 } from './rcMassPlan';
-import { rcPublicMasses, rcHour, rcDayLabel } from './rcMass';
+import { rcPublicMasses, rcHour, rcDayLabel, type RcPublicMass } from './rcMass';
+import { rcCancelItem, rcCancelOccurrence, rcDeleteItem } from '../lib/rcCalendar';
+import { RcRequestError } from '../lib/rcApi';
 import { rcPublicParish } from './rcPublicParish';
 import { rcRoles } from '../lib/rcChat';
 
@@ -242,7 +244,10 @@ export function RcMassTab({ slug }: { slug: string }) {
  * gablocie jak dwie msze o tej samej godzinie.
  */
 function Upcoming({ slug, reload }: { slug: string; reload: number }) {
-  const [masses, setMasses] = useState<readonly { key: string; text: string }[]>([]);
+  const [masses, setMasses] = useState<readonly RcPublicMass[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [again, setAgain] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -253,26 +258,111 @@ function Upcoming({ slug, reload }: { slug: string; reload: number }) {
         to.setDate(to.getDate() + 14);
 
         const found = await rcPublicMasses(slug, from, to);
-        if (!alive) return;
-
-        setMasses((found.masses ?? []).map((m) => ({
-          key: m.startsUtc,
-          text: `${rcDayLabel(m.startsUtc)} ${rcHour(m.startsUtc)}–${rcHour(m.endsUtc)}`
-            + ((m.title ?? '') === '' ? '' : ` · ${m.title}`)
-        })));
+        if (alive) setMasses(found.masses ?? []);
       } catch { if (alive) setMasses([]); }
     })();
     return () => { alive = false; };
-  }, [slug, reload]);
+  }, [slug, reload, again]);
 
   if (masses.length === 0) return null;
+
+  /*
+   * ZWEI VERSCHIEDENE DINGE, ZWEI VERSCHIEDENE KNOEPFE.
+   *
+   * „Dieser Dienstag faellt aus" und „ab jetzt gar nicht mehr" sind nicht
+   * dasselbe, und eine Oberflaeche, die beides unter „Loeschen" fuehrt, laesst
+   * jemanden versehentlich ein ganzes Jahr absagen. Deshalb steht die Absage
+   * eines Vorkommens bei der Zeile, die Absage der Reihe darunter.
+   */
+  const series = [...new Map(masses.map((m) => [m.itemId, m])).values()];
+
+  const run = async (key: string, what: () => Promise<unknown>, said: string) => {
+    setBusy(key);
+    setNote(null);
+    try {
+      await what();
+      setNote(said);
+      setAgain((n) => n + 1);
+    } catch (e) {
+      /*
+        409 heisst: an der Reihe haengt noch etwas. Das ist keine Stoerung,
+        sondern die Antwort — und der Dienst sagt sie besser als wir.
+      */
+      setNote(e instanceof RcRequestError && e.status === 409
+        ? e.error.message
+        : 'Nie udało się.');
+    } finally { setBusy(null); }
+  };
 
   return (
     <section className="mt-upcoming">
       <h3 className="rc-h2">Najbliższe dwa tygodnie</h3>
-      <ul className="ps-rows">
-        {masses.map((m) => <li key={m.key}><span>{m.text}</span></li>)}
+
+      <ul className="mt-list">
+        {masses.map((m) => (
+          <li key={m.startsUtc} className="mt-row">
+            <span>
+              {rcDayLabel(m.startsUtc)} {rcHour(m.startsUtc)}–{rcHour(m.endsUtc)}
+              {(m.title ?? '') === '' ? '' : ` · ${m.title}`}
+            </span>
+
+            <button
+              type="button"
+              className="mt-drop"
+              disabled={busy !== null}
+              onClick={() => void run(
+                m.startsUtc,
+                () => rcCancelOccurrence(m.itemId, m.startsUtc),
+                'Odwołano tę jedną mszę.')}
+            >
+              odwołaj tę
+            </button>
+          </li>
+        ))}
       </ul>
+
+      <h3 className="rc-h2">Serie</h3>
+      <p className="ps-muted">
+        Odwołanie serii zdejmuje ją z planu, ale zostawia ślad. Usunąć da się
+        tylko taką, do której nikt nie przyjął jeszcze intencji.
+      </p>
+
+      <ul className="mt-list">
+        {series.map((m) => (
+          <li key={m.itemId} className="mt-row">
+            <span>
+              {rcHour(m.startsUtc)}
+              {(m.title ?? '') === '' ? '' : ` · ${m.title}`}
+            </span>
+
+            <button
+              type="button"
+              className="mt-drop"
+              disabled={busy !== null}
+              onClick={() => void run(
+                m.itemId,
+                () => rcCancelItem(m.itemId),
+                'Odwołano całą serię. Można ją przywrócić.')}
+            >
+              odwołaj serię
+            </button>
+
+            <button
+              type="button"
+              className="mt-drop"
+              disabled={busy !== null}
+              onClick={() => void run(
+                m.itemId,
+                () => rcDeleteItem(m.itemId),
+                'Usunięto.')}
+            >
+              usuń
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {note !== null && <p className="rc-note">{note}</p>}
     </section>
   );
 }

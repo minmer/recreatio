@@ -17,6 +17,7 @@
 
 import { rcFetch } from '../lib/rcApi';
 import type { RcApi } from '../lib/rcApi';
+import { rcOccurrenceKey } from '../lib/rcCalendar';
 
 export type RcPublicMasses = RcApi<'MassRcPublicMassesResponse'>;
 export type RcPublicMass = RcApi<'MassPublicMassView'>;
@@ -60,10 +61,17 @@ export const rcPublicMasses = (slug: string, from?: Date, to?: Date) => {
     `/public/parishes/${encodeURIComponent(slug)}/masses${tail === '' ? '' : `?${tail}`}`);
 };
 
-/** Intencje jednej mszy — widok kancelarii, z ofiarodawcą. */
+/**
+ * Intencje jednej mszy — widok kancelarii, z ofiarodawcą.
+ *
+ * Adres wystąpienia przechodzi przez `rcOccurrenceKey`: znak plus ze strefy
+ * `+00:00` kończy w ścieżce jako `%2B`, a to IIS odrzuca zanim aplikacja to
+ * zobaczy — 404 bez śladu w logu.
+ */
 export const rcIntentions = (itemId: string, occurrenceAt: string) =>
   rcFetch<RcIntentions>(
-    `/calendar-items/${encodeURIComponent(itemId)}/occurrences/${encodeURIComponent(occurrenceAt)}/intentions`,
+    `/calendar-items/${encodeURIComponent(itemId)}`
+    + `/occurrences/${encodeURIComponent(rcOccurrenceKey(occurrenceAt))}/intentions`,
     { withUnlock: true });
 
 export const rcAddIntention = (
@@ -78,7 +86,8 @@ export const rcAddIntention = (
   }
 ) =>
   rcFetch<RcApi<'MassRcIntentionCreatedResponse'>>(
-    `/calendar-items/${encodeURIComponent(itemId)}/occurrences/${encodeURIComponent(occurrenceAt)}/intentions`,
+    `/calendar-items/${encodeURIComponent(itemId)}`
+    + `/occurrences/${encodeURIComponent(rcOccurrenceKey(occurrenceAt))}/intentions`,
     { body, withUnlock: true });
 
 export const rcUpdateIntention = (

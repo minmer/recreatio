@@ -739,6 +739,75 @@
         }
       }
     },
+    "/rc/calendar-items/{id}/cancel": {
+      "post": {
+        "tags": [
+          "RcCalendar"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarCancelItemRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcItemCancelledResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/calendar-items/{id}": {
+      "delete": {
+        "tags": [
+          "RcCalendar"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcItemDeletedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/confirmation-groups": {
       "get": {
         "tags": [
@@ -5060,6 +5129,16 @@
         },
         "additionalProperties": false
       },
+      "CalendarCancelItemRequest": {
+        "type": "object",
+        "properties": {
+          "restore": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "CalendarCreateCalendarRequest": {
         "required": [
           "areaId",
@@ -9150,6 +9229,42 @@
             "items": {
               "$ref": "#/components/schemas/InvitationsInvitationView"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcItemCancelledResponse": {
+        "required": [
+          "changed",
+          "itemId",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "changed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcItemDeletedResponse": {
+        "required": [
+          "deleted",
+          "itemId"
+        ],
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "deleted": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

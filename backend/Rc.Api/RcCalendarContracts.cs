@@ -27,5 +27,9 @@ public sealed record RcCalendarItemsResponse(
     DateTimeOffset FromUtc, DateTimeOffset ToUtc,
     IReadOnlyList<RcCalendar.OccurrenceView> Occurrences);
 
+public sealed record RcItemCancelledResponse(string ItemId, string Status, bool Changed);
+
+public sealed record RcItemDeletedResponse(string ItemId, bool Deleted);
+
 public sealed record RcOccurrenceChangedResponse(
     string ItemId, DateTimeOffset OccurrenceUtc, string Kind);

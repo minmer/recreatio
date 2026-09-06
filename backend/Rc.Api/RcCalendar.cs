@@ -57,6 +57,26 @@ public static class RcCalendar
             .Produces<RcOccurrenceChangedResponse>();
         app.MapPost("/rc/calendar-items/{id:guid}/occurrences/{at}/move", MoveOccurrenceAsync)
             .Produces<RcOccurrenceChangedResponse>();
+
+        /*
+         * ZWEI ARTEN, EINE MESSE WEGZUNEHMEN — und sie sind nicht dasselbe.
+         *
+         * Ein VORKOMMEN absagen heisst: dieser Dienstag faellt aus, die Reihe
+         * bleibt (das koennen die Ausnahmen oben schon).
+         *
+         * Die REIHE absagen heisst: ab jetzt gar nicht mehr. Sie bleibt
+         * trotzdem stehen — abgesagt, nicht fort. Was daran haengt, bleibt
+         * lesbar, und wer nachsieht, warum am Donnerstag nichts war, findet
+         * eine Antwort statt einer Luecke.
+         *
+         * LOESCHEN gibt es daneben, aber nur fuer den Irrtum: ein Eintrag, an
+         * dem noch etwas haengt, laesst sich nicht loeschen.
+         */
+        app.MapPost("/rc/calendar-items/{id:guid}/cancel", CancelItemAsync)
+            .Produces<RcItemCancelledResponse>();
+
+        app.MapDelete("/rc/calendar-items/{id:guid}", DeleteItemAsync)
+            .Produces<RcItemDeletedResponse>();
     }
 
     private static RcAad TitleAad(Guid itemId) =>
@@ -483,6 +503,134 @@ public static class RcCalendar
     // -- Ausnahmen ------------------------------------------------------------
 
     public sealed record MoveRequest(DateTimeOffset NewStartUtc, DateTimeOffset NewEndUtc);
+
+    /// <summary>Absagen — oder wieder aufnehmen, wenn <c>Restore</c> dasteht.</summary>
+    public sealed record CancelItemRequest(bool? Restore);
+
+    /// <summary>
+    /// Eine ganze Reihe absagen, ohne sie wegzuwerfen.
+    ///
+    /// <b>Warum nicht loeschen.</b> Was an dem Eintrag haengt — Intentionen,
+    /// Ausnahmen — bliebe sonst ohne Anker zurueck. Und selbst wenn nichts
+    /// daran haengt: dass am Donnerstag eine Messe war und jetzt keine mehr
+    /// ist, ist eine Auskunft. Eine geloeschte Zeile hinterlaesst keine.
+    ///
+    /// Der oeffentliche Plan liest ohnehin nur, was nicht abgesagt ist — die
+    /// Reihe verschwindet also sofort aus der Gablota, ohne dass ihre
+    /// Geschichte verschwindet.
+    /// </summary>
+    private static async Task CancelItemAsync(
+        HttpContext ctx, RcDb db, RcPermissions permissions, Guid id, CancelItemRequest? body)
+    {
+        var session = ctx.RcSession();
+        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var areaId = await AreaOfItemAsync(connection, id, ctx.RequestAborted);
+        if (areaId is null) { await RcAreas.NotForYou(ctx); return; }
+
+        var may = await permissions.CheckAsync(session.AccountId, RcScopeKind.Area, areaId.Value,
+            RcCapability.Write, ctx.RequestAborted);
+        if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
+
+        /*
+         * Zurueck auf `confirmed` und nicht auf `planned`: eine Messe, die
+         * schon einmal im Plan stand, ist kein Entwurf mehr.
+         */
+        var restore = body?.Restore == true;
+        var status = restore ? "confirmed" : "cancelled";
+
+        await using var cmd = new SqlCommand(
+            "UPDATE dbo.rc_calendar_item SET status = @status, updated_at = @now WHERE id = @id;",
+            connection);
+
+        cmd.Parameters.AddWithValue("@status", status);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+        cmd.Parameters.AddWithValue("@id", id);
+
+        var changed = await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await RcResults.WriteJsonAsync(ctx, new RcItemCancelledResponse(
+            RcId.ToText(id), status, changed > 0));
+    }
+
+    /// <summary>
+    /// Einen Eintrag wirklich loeschen — fuer den Irrtum, nicht fuer die Absage.
+    ///
+    /// <b>Nur, wenn nichts daran haengt.</b> Eine Messe, zu der Intentionen
+    /// angenommen wurden, laesst sich nicht wegwerfen: die Intentionen zeigen
+    /// auf sie, und die Datenbank weist es ab. Statt eines 500 mit
+    /// „Fremdschluesselverletzung" kommt hier ein Satz, der sagt, was zu tun
+    /// ist — absagen statt loeschen.
+    ///
+    /// Die Ausnahmen der Reihe gehen mit. Sie beschreiben Vorkommen DIESES
+    /// Eintrags und haben ohne ihn keine Bedeutung.
+    /// </summary>
+    private static async Task DeleteItemAsync(
+        HttpContext ctx, RcDb db, RcPermissions permissions, Guid id)
+    {
+        var session = ctx.RcSession();
+        if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var areaId = await AreaOfItemAsync(connection, id, ctx.RequestAborted);
+        if (areaId is null) { await RcAreas.NotForYou(ctx); return; }
+
+        var may = await permissions.CheckAsync(session.AccountId, RcScopeKind.Area, areaId.Value,
+            RcCapability.Write, ctx.RequestAborted);
+        if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+        try
+        {
+            await using (var drop = new SqlCommand(
+                "DELETE FROM dbo.rc_calendar_exception WHERE item_id = @id;", connection, tx))
+            {
+                drop.Parameters.AddWithValue("@id", id);
+                await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await using (var cmd = new SqlCommand(
+                "DELETE FROM dbo.rc_calendar_item WHERE id = @id;", connection, tx))
+            {
+                cmd.Parameters.AddWithValue("@id", id);
+                await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch (SqlException e) when (e.Number is 547)
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status409Conflict,
+                RcErrorCodes.PermissionDenied,
+                "An diesem Eintrag haengt noch etwas — zum Beispiel angenommene "
+                + "Intentionen. Sage ihn ab, statt ihn zu loeschen.");
+            return;
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        await RcResults.WriteJsonAsync(ctx, new RcItemDeletedResponse(RcId.ToText(id), true));
+    }
+
+    private static async Task<Guid?> AreaOfItemAsync(
+        SqlConnection connection, Guid itemId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("""
+            SELECT c.area_id FROM dbo.rc_calendar_item i
+            JOIN dbo.rc_calendar c ON c.id = i.calendar_id
+            WHERE i.id = @id;
+            """, connection);
+        cmd.Parameters.AddWithValue("@id", itemId);
+        return await cmd.ExecuteScalarAsync(ct) is Guid found ? found : null;
+    }
 
     private static Task CancelOccurrenceAsync(
         HttpContext ctx, RcDb db, RcPermissions permissions, Guid id, string at) =>
