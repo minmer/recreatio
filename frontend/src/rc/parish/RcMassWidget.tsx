@@ -128,6 +128,10 @@ function Confessions({ masses }: { masses: readonly RcPublicMass[] }) {
           <li key={mass.startsUtc}>
             <strong>{rcHour(mass.startsUtc)}–{rcHour(mass.endsUtc)}</strong>
             {(mass.title ?? '') !== '' && <span>{mass.title}</span>}
+            {/* Kto spowiada — tylko jeśli parafia oznaczyła to jako jawne. */}
+            {(mass.duties ?? []).length > 0 && (
+              <span className="ms-duty">{(mass.duties ?? []).join(", ")}</span>
+            )}
           </li>
         ))}
       </ul>

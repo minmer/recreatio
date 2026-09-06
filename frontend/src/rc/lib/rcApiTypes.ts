@@ -2158,6 +2158,105 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/calendar-items/{id}/duties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DutyRcDutiesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DutyAddDutyRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DutyRcDutyAddedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/duties/{id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DutyRcDutyRemovedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/messages/{id}/reaction": {
         parameters: {
             query?: never;
@@ -2373,6 +2472,45 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["RcEventCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/events/found": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventsFoundEventRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventFoundedResponse"];
                     };
                 };
             };
@@ -5734,6 +5872,39 @@ export interface components {
             /** Format: date-time */
             at: string;
         };
+        DutyAddDutyRequest: {
+            name?: string | null;
+            /** Format: date-time */
+            occurrenceUtc?: string | null;
+            roleId?: string | null;
+            /** Format: int32 */
+            sortOrder?: number | null;
+            note?: string | null;
+            isPublic?: boolean | null;
+        };
+        DutyDutyView: {
+            dutyId: string;
+            /** Format: date-time */
+            occurrenceUtc?: string | null;
+            name: string;
+            roleId?: string | null;
+            /** Format: int32 */
+            sortOrder: number;
+            note?: string | null;
+            isPublic: boolean;
+        };
+        DutyRcDutiesResponse: {
+            itemId: string;
+            duties: components["schemas"]["DutyDutyView"][];
+        };
+        DutyRcDutyAddedResponse: {
+            dutyId: string;
+            name: string;
+        };
+        DutyRcDutyRemovedResponse: {
+            dutyId: string;
+            removed: boolean;
+        };
         EngagementDraftRequest: {
             roleId: string;
             body: string;
@@ -5816,6 +5987,19 @@ export interface components {
             isHalfWidth: boolean;
             identityRole: string;
             dataClass: string;
+        };
+        EventsFoundEventRequest: {
+            founderRoleId?: string | null;
+            organizerRoleId?: string | null;
+            slug?: string | null;
+            title?: string | null;
+            organizerName?: string | null;
+            organizerAddress?: string | null;
+            organizerEmail?: string | null;
+            /** Format: date-time */
+            startsUtc?: string | null;
+            /** Format: date-time */
+            endsUtc?: string | null;
         };
         EventsPageView: {
             pageId: string;
@@ -6003,6 +6187,7 @@ export interface components {
             status: string;
             intentions: components["schemas"]["MassPublicIntentionView"][];
             itemType: string;
+            duties: string[];
         };
         MassRcIntentionCreatedResponse: {
             intentionId: string;
@@ -6454,6 +6639,12 @@ export interface components {
             kind: string;
             label: string;
             dataClass: string;
+        };
+        RcEventFoundedResponse: {
+            eventId: string;
+            areaId: string;
+            officeRoleId: string;
+            slug: string;
         };
         RcEventPageCreatedResponse: {
             pageId: string;

@@ -1945,6 +1945,104 @@
         }
       }
     },
+    "/rc/calendar-items/{id}/duties": {
+      "get": {
+        "tags": [
+          "RcDuty"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DutyRcDutiesResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcDuty"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DutyAddDutyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DutyRcDutyAddedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/duties/{id}/remove": {
+      "post": {
+        "tags": [
+          "RcDuty"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DutyRcDutyRemovedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/messages/{id}/reaction": {
       "post": {
         "tags": [
@@ -2169,6 +2267,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RcEventCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/events/found": {
+      "post": {
+        "tags": [
+          "RcEvents"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventsFoundEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventFoundedResponse"
                 }
               }
             }
@@ -6407,6 +6534,127 @@
         },
         "additionalProperties": false
       },
+      "DutyAddDutyRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurrenceUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "roleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "isPublic": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DutyDutyView": {
+        "required": [
+          "dutyId",
+          "isPublic",
+          "name",
+          "sortOrder"
+        ],
+        "type": "object",
+        "properties": {
+          "dutyId": {
+            "type": "string"
+          },
+          "occurrenceUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "roleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "isPublic": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DutyRcDutiesResponse": {
+        "required": [
+          "duties",
+          "itemId"
+        ],
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "duties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DutyDutyView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DutyRcDutyAddedResponse": {
+        "required": [
+          "dutyId",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "dutyId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DutyRcDutyRemovedResponse": {
+        "required": [
+          "dutyId",
+          "removed"
+        ],
+        "type": "object",
+        "properties": {
+          "dutyId": {
+            "type": "string"
+          },
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "EngagementDraftRequest": {
         "required": [
           "body",
@@ -6708,6 +6956,50 @@
           },
           "dataClass": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventsFoundEventRequest": {
+        "type": "object",
+        "properties": {
+          "founderRoleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "organizerRoleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "slug": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "organizerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "organizerAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "organizerEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -7357,6 +7649,7 @@
       },
       "MassPublicMassView": {
         "required": [
+          "duties",
           "endsUtc",
           "intentions",
           "itemId",
@@ -7396,6 +7689,12 @@
           },
           "itemType": {
             "type": "string"
+          },
+          "duties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false
@@ -9107,6 +9406,30 @@
             "type": "string"
           },
           "dataClass": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventFoundedResponse": {
+        "required": [
+          "areaId",
+          "eventId",
+          "officeRoleId",
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string"
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "officeRoleId": {
+            "type": "string"
+          },
+          "slug": {
             "type": "string"
           }
         },
@@ -11933,6 +12256,9 @@
     },
     {
       "name": "RcDecisions"
+    },
+    {
+      "name": "RcDuty"
     },
     {
       "name": "RcEngagement"

@@ -77,7 +77,7 @@ const mass = (
   startsUtc: string, ...texts: string[]
 ) => ({
   itemId: 'i', startsUtc, endsUtc: startsUtc, title: null, location: null,
-  status: 'confirmed', itemType: 'mass',
+  status: 'confirmed', itemType: 'mass', duties: [],
   intentions: texts.map((text, i) => ({ ordinal: i, text, kind: 'single' }))
 });
 
@@ -159,7 +159,7 @@ ok('Eine abgesagte Messe faellt weg', cancelled.includes('† Ktoś'), false);
  */
 const withCollective = (startsUtc: string, title: string | null, ...texts: string[]) => ({
   itemId: 'i', startsUtc, endsUtc: startsUtc, title, location: null,
-  status: 'confirmed', itemType: 'mass',
+  status: 'confirmed', itemType: 'mass', duties: [],
   intentions: texts.map((text, i) => ({ ordinal: i, text, kind: 'collective' }))
 });
 
@@ -216,7 +216,7 @@ ok('Und keine erfundene Novene', unnamed.includes('nowenn'), false);
 const both = rcIntentionsSheetHtml(
   [{
     itemId: 'i', startsUtc: '2026-09-02T16:00:00', endsUtc: '2026-09-02T16:00:00',
-    title: 'Msza św. nowennowa', location: null, status: 'confirmed', itemType: 'mass',
+    title: 'Msza św. nowennowa', location: null, status: 'confirmed', itemType: 'mass', duties: [],
     intentions: [
       { ordinal: 0, text: '† Pojedyncza', kind: 'single' },
       { ordinal: 1, text: '† Zbiorowa', kind: 'collective' }
@@ -250,7 +250,7 @@ const withConfession = rcIntentionsSheetHtml(
     {
       itemId: 'c', startsUtc: '2026-08-31T16:00:00', endsUtc: '2026-08-31T16:45:00',
       title: 'Spowiedź', location: null, status: 'confirmed',
-      itemType: 'confession', intentions: []
+      itemType: 'confession', intentions: [], duties: []
     }
   ],
   new Date('2026-08-31T00:00:00'), new Date('2026-09-06T00:00:00'));

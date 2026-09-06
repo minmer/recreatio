@@ -1346,3 +1346,14 @@
 
 /* Rodzaj wpisu w liście edytora — drobne, ale musi dać się odróżnić. */
 .mt-kind { font-style: normal; font-size: 0.78rem; opacity: 0.7; }
+
+/* Wyjątek w grafiku dyżurów — dzień, dla którego wpisano kogoś innego. */
+.cf-day {
+  display: grid;
+  gap: 0.2rem;
+  padding-left: 0.7rem;
+  border-left: 2px solid var(--ps-accent, #8a5200);
+}
+
+/* Kto spowiada — w gablocie, drobnym drukiem obok godziny. */
+.ms-duty { font-size: 0.82rem; color: var(--ps-muted, #6b6257); }

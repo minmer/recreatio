@@ -480,7 +480,15 @@ public static class RcMass
         string ItemId, DateTimeOffset StartsUtc, DateTimeOffset EndsUtc,
         string? Title, string? Location, string Status,
         IReadOnlyList<PublicIntentionView> Intentions,
-        string ItemType);
+        string ItemType,
+        /*
+         * Kto dyżuruje — TYLKO to, co parafia oznaczyła jako jawne.
+         *
+         * Grafik wewnętrzny zostaje wewnątrz. Bez tego pola „w gablocie" przy
+         * dyżurze byłoby zaznaczeniem, które niczego nie robi — a to gorsze niż
+         * brak pola: obiecuje coś, czego nie ma.
+         */
+        IReadOnlyList<string> Duties);
 
     public sealed record RcPublicMassesResponse(
         string Slug, string TimeZone, DateTimeOffset FromUtc, DateTimeOffset ToUtc,
@@ -569,6 +577,12 @@ public static class RcMass
             var occurrences = RcRecurrence.Expand(
                 row.StartsAt, row.EndsAt, rule, zone, start, end, exceptions);
 
+            // Einmal je Eintrag geholt, nicht je Vorkommen: der Plan einer Woche
+            // hat dieselben Diensthabenden, und eine Abfrage je Messe waere bei
+            // vierzig Messen vierzig Abfragen fuer dieselbe Antwort.
+            var (standing, byOccurrence) = await RcDuty.PublicDutiesAsync(
+                connection, row.Id, ctx.RequestAborted);
+
             foreach (var occurrence in occurrences)
             {
                 /*
@@ -582,9 +596,19 @@ public static class RcMass
                         connection, row.Id, occurrence.OriginalStart, ctx.RequestAborted)
                     : [];
 
+                /*
+                 * Ausnahme ERSETZT den stehenden Plan — dieselbe Regel wie im
+                 * Browser (rcDutyAt). Wer eine Vertretung eintraegt, will den
+                 * stehenden Diensthabenden an dem Tag los, nicht daneben.
+                 */
+                var duties = byOccurrence.TryGetValue(occurrence.OriginalStart, out var own)
+                    ? own
+                    : standing;
+
                 masses.Add(new PublicMassView(
                     RcId.ToText(row.Id), occurrence.Start, occurrence.End,
-                    row.TitlePublic, null, row.Status, intentions, row.ItemType));
+                    row.TitlePublic, null, row.Status, intentions, row.ItemType,
+                    duties));
             }
         }
 

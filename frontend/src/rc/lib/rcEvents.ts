@@ -60,6 +60,26 @@ export const rcEvents = () => rcFetch<RcApi<'RcEventsResponse'>>('/events', { wi
  * `withUnlock` wird trotzdem mitgeschickt: liegt ein Schlüssel bereit, kommen
  * die internen Teile mit. Liegt keiner bereit, ist das kein Fehler.
  */
+/**
+ * Wydarzenie założone od zera — obszar, rola administracyjna, klucze i wpis.
+ *
+ * Jedno wywołanie, bo po stronie serwera to jedna transakcja. Trzy osobne
+ * kroki z przeglądarki zostawiały przy parafiach obszary-sieroty: między
+ * dwoma żądaniami nie ma odwrotu.
+ */
+export const rcFoundEvent = (body: {
+  founderRoleId: string;
+  organizerRoleId?: string | null;
+  slug: string;
+  title: string;
+  organizerName: string;
+  organizerAddress: string;
+  organizerEmail?: string;
+  startsUtc?: string | null;
+  endsUtc?: string | null;
+}) =>
+  rcFetch<RcApi<'RcEventFoundedResponse'>>('/events/found', { body, withUnlock: true });
+
 export const rcEvent = (slug: string) =>
   rcFetch<RcEventView>(`/events/${encodeURIComponent(slug)}`, { withUnlock: true });
 

@@ -199,8 +199,12 @@ public static class RcParish
             // wird sofort geloescht statt bis zum Ende der Anfrage zu liegen.
             System.Security.Cryptography.CryptographicOperations.ZeroMemory(officeKey);
 
-            var areaId = await RcAreas.InsertAreaAsync(connection, tx, personRoleId, personKey, person,
+            var (areaId, areaEpochKey) = await RcAreas.InsertAreaAsync(
+                connection, tx, personRoleId, personKey, person,
                 tenantId, name, false, ctx.RequestAborted, officeId);
+
+            // Die Pfarrei versiegelt beim Anlegen nichts damit.
+            System.Security.Cryptography.CryptographicOperations.ZeroMemory(areaEpochKey);
 
             await using (var insert = new SqlCommand("""
                 INSERT INTO dbo.rc_parish (id, area_id, tenant_id, slug, name, location, created_at)

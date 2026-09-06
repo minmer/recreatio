@@ -182,3 +182,28 @@
 
 /* „Dalej" samo w sobie ma stać po prawej, także gdy „wstecz" nie ma. */
 .ev-step-next { margin-left: auto; }
+
+/* -- Zakładanie wydarzenia ------------------------------------------------ */
+
+.fe { display: grid; gap: 1rem; }
+.fe-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.7rem; }
+.fe-wide { grid-column: 1 / -1; }
+
+/*
+ * Klauzula stoi w ramce, bo jest osobnym zobowiązaniem, a nie kolejnym
+ * polem: kto ją wypełnia, deklaruje odpowiedzialność za cudze dane.
+ */
+.fe-rodo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--ev-line, rgba(0, 0, 0, 0.14));
+  border-radius: 8px;
+}
+
+.fe-rodo legend { padding: 0 0.4rem; font-size: 0.86rem; font-weight: 600; }
+.fe-rodo > p { grid-column: 1 / -1; margin: 0; font-size: 0.85rem; }
+
+.fe-done { display: grid; gap: 0.8rem; justify-items: start; }

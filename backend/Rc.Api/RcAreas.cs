@@ -112,8 +112,13 @@ public static class RcAreas
         {
             try
             {
-                areaId = await InsertAreaAsync(connection, tx, ownerRoleId, ownerKey, owner,
+                var made = await InsertAreaAsync(connection, tx, ownerRoleId, ownerKey, owner,
                     tenantId, title, body.IsPublic == true, ctx.RequestAborted);
+
+                areaId = made.AreaId;
+
+                // Hier wird nichts unter dem Epochenschluessel versiegelt.
+                System.Security.Cryptography.CryptographicOperations.ZeroMemory(made.EpochKey);
                 await tx.CommitAsync(ctx.RequestAborted);
             }
             catch
@@ -153,7 +158,20 @@ public static class RcAreas
     /// zweite Epoche zu schneiden — zwei Schluessel und zwei Kettenzeilen fuer
     /// einen Bereich, der eine Sekunde alt ist.
     /// </param>
-    internal static async Task<Guid> InsertAreaAsync(
+    /// <summary>
+    /// Einen Bereich anlegen — und den Schluessel seiner ersten Epoche
+    /// zurueckgeben.
+    ///
+    /// <b>Warum der Schluessel mit herauskommt.</b> Wer einen Bereich gruendet,
+    /// braucht ihn oft im selben Atemzug: eine Veranstaltung versiegelt damit
+    /// ihren Annahmeschluessel. Ihn hinterher zu holen ginge nicht, denn
+    /// <see cref="RcAreaKeys.EpochKeysAsync"/> kennt keine Transaktion — und
+    /// ausserhalb der Transaktion gibt es den Bereich noch nicht.
+    ///
+    /// Wer ihn nicht braucht, ueberschreibt ihn: ein Schluessel, der laenger
+    /// herumliegt als noetig, ist ein Schluessel zu viel.
+    /// </summary>
+    internal static async Task<(Guid AreaId, byte[] EpochKey)> InsertAreaAsync(
         SqlConnection connection, SqlTransaction tx, Guid ownerRoleId, byte[] ownerKey,
         RcRoleIdentity owner, Guid tenantId, string title, bool isPublic, CancellationToken ct,
         Guid? alsoAdmin = null)
@@ -237,7 +255,7 @@ public static class RcAreas
             CryptographicOperations.ZeroMemory(epochKey);
         }
 
-        return areaId;
+        return (areaId, epochKey);
     }
 
     // -- Anzeigen -------------------------------------------------------------

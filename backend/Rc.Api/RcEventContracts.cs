@@ -34,6 +34,17 @@ public sealed record RcEventsResponse(IReadOnlyList<RcEvents.EventSummary> Event
 /// den oeffentlichen Teil" auszusprechen. Ohne dieses Feld saehe beides gleich
 /// aus, und der Leser hielte das Bruchstueck fuer das Ganze.
 /// </summary>
+/// <summary>
+/// Was beim Gruenden entstanden ist.
+///
+/// Alle drei Kennungen gehen zurueck, weil der Browser sie sofort braucht:
+/// die Adresse fuer den Verweis, das Amt fuer die naechste Zuteilung, den
+/// Bereich fuer alles, was daran haengt. Sie hinterher zu suchen hiesse, drei
+/// Abfragen fuer etwas zu stellen, das der Dienst gerade in der Hand hatte.
+/// </summary>
+public sealed record RcEventFoundedResponse(
+    string EventId, string AreaId, string OfficeRoleId, string Slug);
+
 public sealed record RcEventViewResponse(
     string EventId, string AreaId, string Slug, string Title, string Lifecycle, bool IsPublic,
     DateTimeOffset? StartsUtc, DateTimeOffset? EndsUtc, bool MayRead,

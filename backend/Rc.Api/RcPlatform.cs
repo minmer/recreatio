@@ -132,6 +132,9 @@ public static class RcPlatform
 
         // Odwiedziny chorych — trasy, osoby, wizyty. Bez drogi publicznej.
         app.MapRcSick();
+
+        // Dyżury: kto spowiada, kto celebruje, kto jedzie do chorych.
+        app.MapRcDuty();
         app.MapRcConfirmation();
         app.MapRcConfirmationIntake();
         app.MapRcResource();

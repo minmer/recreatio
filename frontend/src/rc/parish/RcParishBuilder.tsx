@@ -43,6 +43,7 @@ import {
 import { RcConfirmationTab } from './RcConfirmationTab';
 import { RcMassTab } from './RcMassTab';
 import { RcIntentionTab } from './RcIntentionTab';
+import { RcConfessionTab } from './RcConfessionTab';
 
 const ROW_H = 84;
 const GAP = 8;
@@ -72,7 +73,7 @@ const HANDLES: readonly RcHandle[] = [
   'bottom-left', 'bottom', 'bottom-right'
 ];
 
-type Tab = 'layout' | 'menu' | 'content' | 'masses' | 'intentions' | 'confirmation';
+type Tab = 'layout' | 'menu' | 'content' | 'masses' | 'intentions' | 'confession' | 'confirmation';
 
 export function RcParishBuilder({
   site, onChange, parishId, slug
@@ -115,6 +116,7 @@ export function RcParishBuilder({
           hineinzuschreiben hiesse, all das an einer Textspalte aufzuhaengen. */}
       {tab === 'masses' && <RcMassTab slug={slug} />}
       {tab === 'intentions' && <RcIntentionTab slug={slug} />}
+      {tab === 'confession' && <RcConfessionTab slug={slug} />}
       {tab === 'confirmation' && <RcConfirmationTab parishId={parishId} slug={slug} />}
     </div>
   );
@@ -133,6 +135,15 @@ function Tabs({ tab, onTab, missing }: { tab: Tab; onTab: (t: Tab) => void; miss
     */
     { id: 'masses', label: 'Msze' },
     { id: 'intentions', label: 'Intencje' },
+
+    /*
+      Spowiedź steht neben den Messen und nicht in ihnen. Beides sind
+      Kalendereintraege derselben Bauart — aber die Messordnung steht jahrelang,
+      und die Beichtzeiten aendern sich vor Weihnachten woechentlich. Ein
+      Umschalter im Messformular hiesse: jedes Mal zuerst umstellen, und wer es
+      vergisst, legt eine Messe an.
+    */
+    { id: 'confession', label: 'Spowiedź' },
     { id: 'confirmation', label: 'Bierzmowanie' }
   ];
 
