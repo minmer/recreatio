@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -75,7 +76,13 @@ public static class RcCalendar
         app.MapPost("/rc/calendar-items/{id:guid}/cancel", CancelItemAsync)
             .Produces<RcItemCancelledResponse>();
 
-        app.MapDelete("/rc/calendar-items/{id:guid}", DeleteItemAsync)
+        /*
+         * POST und nicht DELETE, weil ein Koerper mitgeht: die Kette braucht
+         * einen Urheber, und DELETE mit Koerper ist ein Weg, den Zwischenstellen
+         * gern kuerzen. Nach dem, was das Pluszeichen im Pfad angerichtet hat,
+         * ist das kein theoretischer Einwand.
+         */
+        app.MapPost("/rc/calendar-items/{id:guid}/delete", DeleteItemAsync)
             .Produces<RcItemDeletedResponse>();
     }
 
@@ -504,6 +511,9 @@ public static class RcCalendar
 
     public sealed record MoveRequest(DateTimeOffset NewStartUtc, DateTimeOffset NewEndUtc);
 
+    /// <summary>Wer loescht. Die Kette kennt keinen Vorgang ohne Urheber.</summary>
+    public sealed record DeleteItemRequest(string? RoleId);
+
     /// <summary>Absagen — oder wieder aufnehmen, wenn <c>Restore</c> dasteht.</summary>
     public sealed record CancelItemRequest(bool? Restore);
 
@@ -556,22 +566,43 @@ public static class RcCalendar
     }
 
     /// <summary>
-    /// Einen Eintrag wirklich loeschen — fuer den Irrtum, nicht fuer die Absage.
+    /// Einen Eintrag wirklich loeschen — und in der Kette einen Beleg dafuer.
     ///
     /// <b>Nur, wenn nichts daran haengt.</b> Eine Messe, zu der Intentionen
     /// angenommen wurden, laesst sich nicht wegwerfen: die Intentionen zeigen
     /// auf sie, und die Datenbank weist es ab. Statt eines 500 mit
-    /// „Fremdschluesselverletzung" kommt hier ein Satz, der sagt, was zu tun
-    /// ist — absagen statt loeschen.
+    /// „Fremdschluesselverletzung" kommt hier ein Satz, der sagt, was zu tun ist
+    /// — absagen statt loeschen.
     ///
-    /// Die Ausnahmen der Reihe gehen mit. Sie beschreiben Vorkommen DIESES
-    /// Eintrags und haben ohne ihn keine Bedeutung.
+    /// <b>Die Zeile verschwindet, der Vorgang nicht.</b> Eine geloeschte Zeile
+    /// hinterlaesst von sich aus keine Spur, dass sie je da war; „geloescht"
+    /// bliebe eine Behauptung. Deshalb geht dem Loeschen ein Ketteneintrag
+    /// voraus, der festhaelt, WAS wegfiel und WER es wegnahm.
+    ///
+    /// In den Beleg geht nur, was ohnehin oeffentlich war: Kennung, Art,
+    /// Beginn, Wiederholung und der Aushangtitel. Der versiegelte Titel bleibt
+    /// draussen — ein Beleg, der Geheimtext im Klartext wiederholt, hebt die
+    /// Verschluesselung auf, die er bezeugen soll.
+    ///
+    /// <b>Beides oder keines.</b> Der Eintrag und die Loeschung laufen in
+    /// EINER Transaktion. Scheitert die Loeschung an einer Intention, faellt
+    /// der Beleg mit zurueck: ein Beleg ueber ein Loeschen, das nicht
+    /// stattfand, waere schlimmer als gar keiner.
     /// </summary>
     private static async Task DeleteItemAsync(
-        HttpContext ctx, RcDb db, RcPermissions permissions, Guid id)
+        HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions,
+        RcLedger ledger, Guid id, DeleteItemRequest? body)
     {
         var session = ctx.RcSession();
         if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
+
+        if (!Guid.TryParse(body?.RoleId, out var roleId))
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                RcErrorCodes.IdMalformed,
+                "Zum Loeschen muss dastehen, wer es tut — die Kette braucht einen Urheber.");
+            return;
+        }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
@@ -582,9 +613,37 @@ public static class RcCalendar
             RcCapability.Write, ctx.RequestAborted);
         if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
 
-        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+        // Was wegfaellt, muss VOR dem Loeschen gelesen werden — danach steht es
+        // nirgends mehr, und der Beleg waere leer.
+        var gone = await ItemFactsAsync(connection, id, ctx.RequestAborted);
+        if (gone is null) { await RcAreas.NotForYou(ctx); return; }
+
+        using var held = await masterKeys.OpenAsync(
+            connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
+
+        var chain = await ChainAsync(connection, session, held.MasterKey, areaId.Value, roleId,
+            ctx.RequestAborted);
+
+        if (chain.Error is not null) { await chain.Error(ctx); return; }
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(
+            System.Data.IsolationLevel.Serializable, ctx.RequestAborted);
         try
         {
+            await ledger.AppendAsync(connection, tx, chain.LedgerId,
+                RcJson.O(
+                    ("kind", RcJson.S("calendar.item.deleted")),
+                    ("itemId", RcJson.G(id)),
+                    ("itemType", RcJson.S(gone.ItemType)),
+                    ("startsUtc", RcJson.S(gone.StartsAt.ToString("O"))),
+                    ("repeatKind", RcJson.S(gone.RepeatKind)),
+                    ("titlePublic", RcJson.S(gone.TitlePublic ?? ""))),
+                id, chain.TenantId, "calendar",
+                chain.Signer!, chain.SignKey!, session.AccountId, RcId.NewId(),
+                ctx.RequestAborted);
+
+            // Die Ausnahmen gehen mit: sie beschreiben Vorkommen DIESES
+            // Eintrags und haben ohne ihn keine Bedeutung.
             await using (var drop = new SqlCommand(
                 "DELETE FROM dbo.rc_calendar_exception WHERE item_id = @id;", connection, tx))
             {
@@ -618,6 +677,74 @@ public static class RcCalendar
         }
 
         await RcResults.WriteJsonAsync(ctx, new RcItemDeletedResponse(RcId.ToText(id), true));
+    }
+
+    /// <summary>Was in den Beleg gehoert — alles davon ohnehin oeffentlich.</summary>
+    private sealed record ItemFacts(
+        string ItemType, DateTimeOffset StartsAt, string RepeatKind, string? TitlePublic);
+
+    private static async Task<ItemFacts?> ItemFactsAsync(
+        SqlConnection connection, Guid itemId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand(
+            "SELECT item_type, starts_at, repeat_kind, title_public FROM dbo.rc_calendar_item WHERE id = @id;",
+            connection);
+        cmd.Parameters.AddWithValue("@id", itemId);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return null;
+
+        return new ItemFacts(
+            reader.GetString(0), reader.GetDateTimeOffset(1), reader.GetString(2),
+            reader.IsDBNull(3) ? null : reader.GetString(3));
+    }
+
+    private sealed record Chain(
+        Guid LedgerId, Guid TenantId, RcRoleIdentity? Signer, RSA? SignKey,
+        Func<HttpContext, Task>? Error);
+
+    /// <summary>
+    /// Kette, Traegerschaft und Signierschluessel — dasselbe Muster wie bei den
+    /// Entscheidungen (<see cref="RcDecisions"/>).
+    /// </summary>
+    private static async Task<Chain> ChainAsync(
+        SqlConnection connection, RcRequestSession session, byte[] masterKey,
+        Guid areaId, Guid roleId, CancellationToken ct)
+    {
+        Guid ledgerId = Guid.Empty, tenantId = Guid.Empty;
+
+        await using (var cmd = new SqlCommand(
+            "SELECT ledger_id, tenant_id FROM dbo.rc_area WHERE id = @id;", connection))
+        {
+            cmd.Parameters.AddWithValue("@id", areaId);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                ledgerId = reader.GetGuid(0);
+                tenantId = reader.GetGuid(1);
+            }
+        }
+
+        if (ledgerId == Guid.Empty)
+            return new Chain(default, default, null, null, RcAreas.NotForYou);
+
+        var roleKey = await RcRoleAccess.RoleKeyAsync(connection, session.AccountId, masterKey, roleId, ct);
+        if (roleKey is null)
+        {
+            return new Chain(default, default, null, null, c => RcResults.WriteErrorAsync(
+                c, StatusCodes.Status403Forbidden, RcErrorCodes.RoleUnreachable,
+                "Unter diesem Namen kannst du hier nicht handeln."));
+        }
+
+        var identities = await RcRoleAccess.LoadIdentitiesAsync(connection, [roleId], ct);
+        if (!identities.TryGetValue(roleId, out var signer))
+        {
+            return new Chain(default, default, null, null, c => RcResults.WriteErrorAsync(
+                c, StatusCodes.Status404NotFound, RcErrorCodes.RoleNotFound,
+                "Diese Rolle gibt es nicht."));
+        }
+
+        return new Chain(ledgerId, tenantId, signer, RcRoleKeys.OpenSignKey(signer, roleKey), null);
     }
 
     private static async Task<Guid?> AreaOfItemAsync(

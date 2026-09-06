@@ -146,10 +146,14 @@ export const rcCancelItem = (itemId: string, restore = false) =>
  * Der Dienst weist es mit 409 ab, wenn noch etwas daran haengt. Das ist keine
  * Stoerung, sondern die Antwort: dann gehoert die Reihe abgesagt, nicht
  * geloescht.
+ *
+ * <b>Die Zeile verschwindet, der Vorgang nicht.</b> Vor dem Loeschen legt der
+ * Dienst einen Ketteneintrag an: was wegfiel und wer es wegnahm. Deshalb geht
+ * eine Rolle mit — eine Kette ohne Urheber ist keine.
  */
-export const rcDeleteItem = (itemId: string) =>
+export const rcDeleteItem = (itemId: string, roleId: string) =>
   rcFetch<RcApi<'RcItemDeletedResponse'>>(
-    `/calendar-items/${itemId}`, { method: 'DELETE', withUnlock: true });
+    `/calendar-items/${itemId}/delete`, { body: { roleId }, withUnlock: true });
 
 export const rcCancelOccurrence = (itemId: string, originalStartUtc: string) =>
   rcFetch<RcApi<'RcOccurrenceChangedResponse'>>(

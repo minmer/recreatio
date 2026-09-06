@@ -778,8 +778,8 @@
         }
       }
     },
-    "/rc/calendar-items/{id}": {
-      "delete": {
+    "/rc/calendar-items/{id}/delete": {
+      "post": {
         "tags": [
           "RcCalendar"
         ],
@@ -794,6 +794,15 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarDeleteItemRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -5153,6 +5162,16 @@
             "type": "string"
           },
           "timeZone": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CalendarDeleteItemRequest": {
+        "type": "object",
+        "properties": {
+          "roleId": {
             "type": "string",
             "nullable": true
           }

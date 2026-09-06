@@ -909,7 +909,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/rc/calendar-items/{id}": {
+    "/rc/calendar-items/{id}/delete": {
         parameters: {
             query?: never;
             header?: never;
@@ -918,8 +918,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
-        delete: {
+        post: {
             parameters: {
                 query?: never;
                 header?: never;
@@ -928,7 +927,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CalendarDeleteItemRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -941,6 +944,7 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5188,6 +5192,9 @@ export interface components {
             areaId: string;
             title: string;
             timeZone?: string | null;
+        };
+        CalendarDeleteItemRequest: {
+            roleId?: string | null;
         };
         CalendarMoveRequest: {
             /** Format: date-time */

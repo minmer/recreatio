@@ -232,7 +232,7 @@ export function RcMassTab({ slug }: { slug: string }) {
       {done !== null && <p className="rc-note">Założono: {done}</p>}
       {error !== null && <p className="ap-error">{error}</p>}
 
-      <Upcoming slug={slug} reload={preview} />
+      <Upcoming slug={slug} reload={preview} roleId={roleId} />
     </div>
   );
 }
@@ -243,7 +243,7 @@ export function RcMassTab({ slug }: { slug: string }) {
  * Bez tego zakładanie odbywa się na ślepo — a msza założona dwa razy wygląda w
  * gablocie jak dwie msze o tej samej godzinie.
  */
-function Upcoming({ slug, reload }: { slug: string; reload: number }) {
+function Upcoming({ slug, reload, roleId }: { slug: string; reload: number; roleId: string | null }) {
   const [masses, setMasses] = useState<readonly RcPublicMass[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -323,8 +323,9 @@ function Upcoming({ slug, reload }: { slug: string; reload: number }) {
 
       <h3 className="rc-h2">Serie</h3>
       <p className="ps-muted">
-        Odwołanie serii zdejmuje ją z planu, ale zostawia ślad. Usunąć da się
-        tylko taką, do której nikt nie przyjął jeszcze intencji.
+        Odwołanie serii zdejmuje ją z planu, ale wpis zostaje — widać, że była.
+        Usunąć naprawdę da się tylko taką, do której nikt nie przyjął jeszcze
+        intencji; w łańcuchu i tak zostaje ślad, kto i co usunął.
       </p>
 
       <ul className="mt-list">
@@ -347,17 +348,24 @@ function Upcoming({ slug, reload }: { slug: string; reload: number }) {
               odwołaj serię
             </button>
 
-            <button
-              type="button"
-              className="mt-drop"
-              disabled={busy !== null}
-              onClick={() => void run(
-                m.itemId,
-                () => rcDeleteItem(m.itemId),
-                'Usunięto.')}
-            >
-              usuń
-            </button>
+            {/*
+              Ohne Rolle kein Loeschen — die Kette kennt keinen Vorgang ohne
+              Urheber. Den Knopf trotzdem anzubieten hiesse, ihn anzubieten und
+              dann mit einem 400 zu antworten; besser, er ist gar nicht erst da.
+            */}
+            {roleId !== null && (
+              <button
+                type="button"
+                className="mt-drop"
+                disabled={busy !== null}
+                onClick={() => void run(
+                  m.itemId,
+                  () => rcDeleteItem(m.itemId, roleId),
+                  'Usunięto. W łańcuchu został ślad.')}
+              >
+                usuń
+              </button>
+            )}
           </li>
         ))}
       </ul>
