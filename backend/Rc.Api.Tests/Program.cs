@@ -3343,6 +3343,78 @@ sealed class PureChecks
     {
         Console.WriteLine("Ohne Datenbank");
 
+        // -- Zeitzonen ------------------------------------------------------
+
+        /*
+         * EUROPE/WARSAW MUSS AUFGEHEN, UND ZWAR OHNE ICU.
+         *
+         * Der Dienst laeuft auf einem gemeinsam genutzten IIS. Dort steht .NET
+         * haeufig im NLS-Modus, und dann gibt `TryConvertIanaIdToWindowsId`
+         * schlicht `false` zurueck — ohne Ausnahme, ohne Meldung. Auf dem
+         * Entwicklungsrechner faellt das nie auf, weil dort ICU liegt.
+         *
+         * Genau daran scheiterte jedes Anlegen eines Kalenders: 400, „Diese
+         * Zeitzone kennt der Dienst nicht", fuer die einzige Zone, unter der
+         * dieser Dienst ueberhaupt laeuft.
+         *
+         * Diese Pruefung sagt NICHT, ob ICU da ist — sie sagt, dass das Ergebnis
+         * nicht davon abhaengt.
+         */
+        Ok("Europe/Warsaw loest sich auf",
+            RcCalendar.TryZone("Europe/Warsaw", out var warsaw) && warsaw is not null);
+
+        /* Und es ist wirklich Mitteleuropa: im Januar eine Stunde vor UTC. */
+        Ok("Und es ist Mitteleuropa",
+            warsaw is not null
+            && warsaw.GetUtcOffset(new DateTime(2026, 1, 15, 12, 0, 0, DateTimeKind.Unspecified))
+               == TimeSpan.FromHours(1));
+
+        /* Im Juli zwei — sonst waere es eine feste Verschiebung und keine Zone. */
+        Ok("Mit Sommerzeit",
+            warsaw is not null
+            && warsaw.GetUtcOffset(new DateTime(2026, 7, 15, 12, 0, 0, DateTimeKind.Unspecified))
+               == TimeSpan.FromHours(2));
+
+        // Der Windows-Name geht ebenso — er ist der Weg ohne jede Umrechnung.
+        Ok("Der Windows-Name auch",
+            RcCalendar.TryZone("Central European Standard Time", out var win) && win is not null);
+
+        Ok("UTC ebenfalls", RcCalendar.TryZone("UTC", out var utc) && utc is not null);
+
+        // Was es nicht gibt, gibt es nicht — sonst waere die Pruefung wertlos.
+        Ok("Erfundenes bleibt unbekannt", !RcCalendar.TryZone("Europe/Atlantis", out _));
+        Ok("Leeres auch", !RcCalendar.TryZone("", out _));
+
+        /*
+         * DIESE PRUEFUNG FAENGT DEN FEHLER WIRKLICH.
+         *
+         * Die drei darueber laufen hier durch, WEIL auf diesem Rechner ICU
+         * liegt — sie waeren auch vor der Behebung gruen gewesen und haetten
+         * nichts verhindert. Eine Pruefung, die den Fehler nicht sehen kann,
+         * erzeugt Zuversicht ohne Deckung.
+         *
+         * Deshalb hier der Weg OHNE die Umrechnung: die Tabelle selbst muss
+         * Europe/Warsaw kennen, und der Name, auf den sie zeigt, muss sich
+         * ohne jede Umrechnung aufloesen lassen. Nimmt jemand die Tabelle
+         * heraus, faellt das hier auf und nicht erst im Betrieb.
+         */
+        Ok("Die Tabelle kennt Europe/Warsaw ohne ICU",
+            RcCalendar.Fallback.TryGetValue("Europe/Warsaw", out var direct)
+            && direct == "Central European Standard Time");
+
+        Ok("Und dieser Name loest sich ohne Umrechnung auf",
+            TimeZoneInfo.FindSystemTimeZoneById(
+                RcCalendar.Fallback["Europe/Warsaw"]) is not null);
+
+        /* Jeder Eintrag der Tabelle muss auf einen Namen zeigen, den es gibt. */
+        var broken = 0;
+        foreach (var (iana, windows) in RcCalendar.Fallback)
+        {
+            try { _ = TimeZoneInfo.FindSystemTimeZoneById(windows); }
+            catch (TimeZoneNotFoundException) { broken++; Console.WriteLine($"       {iana} -> {windows}"); }
+        }
+        Ok("Kein Eintrag zeigt ins Leere", broken == 0);
+
         // -- Die beiden Plaetze, an denen der Browser verpackt ---------------
 
         /*

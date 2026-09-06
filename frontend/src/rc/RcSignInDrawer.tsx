@@ -71,8 +71,29 @@ export function RcSignInDrawer({
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
 
-    const first = panel.current?.querySelector<HTMLElement>('input, button');
-    first?.focus();
+    /*
+     * DER KURSOR GEHOERT IN DAS ERSTE FELD, NICHT AUF DEN ERSTEN KNOPF.
+     *
+     * Hier stand `querySelector('input, button')` — und das nimmt, was im
+     * Dokument zuerst kommt. Zuerst kommt aber das Kreuz zum Schliessen, weil
+     * es oben in der Kopfzeile steht. Wer die Schublade aufzog und lostippte,
+     * schrieb ins Leere; wer Enter drueckte, schloss sie wieder.
+     *
+     * Gesucht wird deshalb das erste Feld, in das man etwas HINEINSCHREIBT.
+     * Haekchen und Schalter zaehlen nicht dazu: „angemeldet bleiben" ist keine
+     * Stelle, an der jemand zu tippen beginnt.
+     *
+     * Beim Anmelden ist das der Benutzername, beim Anlegen eines Kontos der
+     * Name — in beiden Faellen das oberste Feld, ohne dass hier eines davon
+     * beim Namen genannt werden muesste.
+     *
+     * Gibt es kein solches Feld, ist man bereits angemeldet: dann steht dort
+     * „Sperren" und „Abmelden", und der erste Knopf ist die richtige Stelle.
+     */
+    const typing = panel.current?.querySelector<HTMLElement>(
+      'input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])');
+
+    (typing ?? panel.current?.querySelector<HTMLElement>('button'))?.focus();
 
     return () => {
       window.removeEventListener('keydown', onKey);

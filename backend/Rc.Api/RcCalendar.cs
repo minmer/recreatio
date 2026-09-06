@@ -587,6 +587,24 @@ public static class RcCalendar
     /// Zeitzonen heissen unter Windows anders als unter Linux. Der Dienst soll
     /// auf beidem laufen, also werden beide Namen versucht.
     /// </summary>
+    /// <summary>
+    /// IANA-Namen und ihre Windows-Entsprechung — fuer den Fall ohne ICU.
+    ///
+    /// Nur die Zonen, in denen dieser Dienst wirklich steht, samt UTC als
+    /// Rueckfall. Eine vollstaendige Tabelle waere eine zweite Fassung der
+    /// Zeitzonendatenbank, die niemand pflegt.
+    /// </summary>
+    internal static readonly Dictionary<string, string> Fallback = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Europe/Warsaw"] = "Central European Standard Time",
+        ["Europe/Berlin"] = "W. Europe Standard Time",
+        ["Europe/Vienna"] = "W. Europe Standard Time",
+        ["Europe/Prague"] = "Central Europe Standard Time",
+        ["Europe/Bratislava"] = "Central Europe Standard Time",
+        ["Etc/UTC"] = "UTC",
+        ["UTC"] = "UTC"
+    };
+
     public static bool TryZone(string id, out TimeZoneInfo? zone)
     {
         try { zone = TimeZoneInfo.FindSystemTimeZoneById(id); return true; }
@@ -603,6 +621,27 @@ public static class RcCalendar
         if (TimeZoneInfo.TryConvertWindowsIdToIanaId(id, out var iana) && iana is not null)
         {
             try { zone = TimeZoneInfo.FindSystemTimeZoneById(iana); return true; }
+            catch (TimeZoneNotFoundException) { }
+        }
+
+        /*
+         * DER LETZTE WEG, WENN DIE UMRECHNUNG SELBST NICHT DA IST.
+         *
+         * `TryConvertIanaIdToWindowsId` braucht ICU. Auf einem gemeinsam
+         * genutzten IIS laeuft .NET haeufig im NLS-Modus, und dann gibt die
+         * Umrechnung schlicht `false` zurueck — ohne Ausnahme, ohne Meldung.
+         *
+         * Auf dem Entwicklungsrechner faellt das nie auf, weil dort ICU liegt.
+         * Im Betrieb schlug jedes Anlegen eines Kalenders mit „Diese Zeitzone
+         * kennt der Dienst nicht" fehl — und die Zeitzone war Europe/Warsaw,
+         * also die einzige, unter der dieser Dienst ueberhaupt laeuft.
+         *
+         * Deshalb hier die paar Namen von Hand. Keine Tabelle der Welt: nur
+         * das, was gebraucht wird, und darum auch nachpruefbar.
+         */
+        if (Fallback.TryGetValue(id, out var known))
+        {
+            try { zone = TimeZoneInfo.FindSystemTimeZoneById(known); return true; }
             catch (TimeZoneNotFoundException) { }
         }
 
