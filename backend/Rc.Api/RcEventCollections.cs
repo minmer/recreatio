@@ -61,6 +61,19 @@ public static class RcEventCollections
             .Produces<RcEventCollectionPublishedResponse>();
     }
 
+    /// <summary>
+    /// Woerter, die in einer Adresse etwas TUN und deshalb nichts benennen.
+    ///
+    /// <c>…/recreatio/new</c> legt eine Veranstaltung an, <c>…/kal26/edit</c>
+    /// oeffnet den Herausgeber. Hiesse eine Veranstaltung „new", zeigte ihre
+    /// eigene Adresse auf das Formular, mit dem man sie anlegt — sie waere
+    /// unerreichbar, und niemand saehe, woran es liegt.
+    ///
+    /// Dieselbe Liste steht im Browser (<c>RC_RESERVED_SLUGS</c>); dort warnt
+    /// sie beim Tippen, hier weist sie ab. Beide gehoeren zusammen geaendert.
+    /// </summary>
+    private static readonly string[] Reserved = ["new", "edit"];
+
     private const string LifecyclePublished = "published";
     private const string LifecycleArchived = "archived";
 
@@ -270,6 +283,14 @@ public static class RcEventCollections
         {
             await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
                 RcErrorCodes.PermissionDenied, "Adresse oder Titel fehlen.");
+            return;
+        }
+
+        if (Reserved.Contains(slug))
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status409Conflict,
+                RcErrorCodes.PermissionDenied,
+                $"\"{slug}\" ist in einer Adresse eine Handlung, kein Name — such einen anderen.");
             return;
         }
 

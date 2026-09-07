@@ -61,7 +61,39 @@ const SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
  */
 const MAX = 48;
 
-/** Taugt das Wort als Name in einer Adresse? */
+/**
+ * Woerter, die in einer Adresse etwas TUN und deshalb nichts benennen duerfen.
+ *
+ * <b>Warum es diese Liste gibt.</b> Die Adresse einer Veranstaltung hat hinten
+ * Platz fuer Handlungen: `…/recreatio/new` legt eine an, `…/recreatio/kal26/edit`
+ * oeffnet den Herausgeber. Hiesse eine Veranstaltung „new", zeigte ihre eigene
+ * Adresse auf das Formular, mit dem man sie anlegt — sie waere unerreichbar,
+ * und niemand saehe, woran es liegt.
+ *
+ * <b>An der Stelle des TEILS braucht es das nicht</b>, denn dort steht eine
+ * Zahl: eine Position, kein Name. Nur wo echte Namen stehen, muessen die
+ * Handlungswoerter herausgehalten werden.
+ *
+ * <b>Der Server hat dieselbe Liste</b> (`RcEventCollections.Reserved`), und
+ * DORT ist sie die Schranke. Diese hier ist die Freundlichkeit: sie warnt beim
+ * Tippen, statt absenden und ablehnen zu lassen. Laufen sie auseinander, ist
+ * das kein stiller Fehler — der Dienst weist ab und nennt den Grund.
+ */
+export const RC_RESERVED_SLUGS = ['new', 'edit'] as const;
+
+/** Ist das Wort fuer eine Handlung reserviert? */
+export function rcIsReservedSlug(word: string): boolean {
+  return (RC_RESERVED_SLUGS as readonly string[]).includes(word);
+}
+
+/**
+ * Taugt das Wort als Name in einer Adresse?
+ *
+ * Prueft die FORM, nicht die Belegung. Ob es schon vergeben oder reserviert
+ * ist, sind zwei andere Fragen mit zwei anderen Antworten — und wer sie hier
+ * mit hineinnaehme, koennte einem Benutzer nicht mehr sagen, welche davon
+ * gerade das Problem ist.
+ */
 export function rcIsSlug(word: string): boolean {
   return word.length > 0 && word.length <= MAX && SHAPE.test(word);
 }

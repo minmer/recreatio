@@ -25,8 +25,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { rcAddEvent, rcEventCollection } from '../lib/rcEvents';
-import { rcIsSlug } from '../lib/rcSlugs';
+import { rcEventCollection } from '../lib/rcEvents';
 import type { RcApi } from '../lib/rcApi';
 import { rcPath } from '../lib/rcRoute';
 import {
@@ -45,7 +44,6 @@ export function RcEventCatalogue({ slug }: { slug: string }) {
   const [view, setView] = useState<RcCollectionView | null>(null);
   const [missing, setMissing] = useState(false);
   const [query, setQuery] = useState<RcCatalogueQuery>(RC_CATALOGUE_ALL);
-  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -99,7 +97,7 @@ export function RcEventCatalogue({ slug }: { slug: string }) {
       mayAdd={view.mayRead}
       when={query.when}
       onWhen={(next) => set('when', next)}
-      onAdd={() => setAdding(true)}
+      newHref={rcPath('event', view.slug, 'new')}
     >
       <div className="ec-filters">
         <input
@@ -161,22 +159,13 @@ export function RcEventCatalogue({ slug }: { slug: string }) {
         <span className="ec-count" aria-live="polite">{shown.length}</span>
       </div>
 
-      {adding && (
-        <NewEvent
-          collectionId={view.collectionId}
-          collectionSlug={view.slug}
-          taken={events.map((one) => one.slug)}
-          onClose={() => setAdding(false)}
-        />
-      )}
-
       {/*
         Der Rat richtet sich nach dem, was der Leser TUN kann — nicht danach,
         ob er angemeldet ist. Einem angemeldeten Fremden zu sagen, er solle es
         im Herausgeber anlegen, waere ein Hinweis auf eine Tuer, die fuer ihn
         nicht aufgeht.
       */}
-      {events.length === 0 && !adding && (
+      {events.length === 0 && (
         <p className="ec-note">
           {view.mayRead
             ? 'Ta strona nie ma jeszcze żadnego wydarzenia — dodaj pierwsze przyciskiem u góry.'
@@ -266,7 +255,7 @@ export function RcEventCatalogue({ slug }: { slug: string }) {
  * dass etwas kaputt ist.
  */
 function Shell({
-  title, eyebrow, children, mayAdd = false, when = 'all', onWhen, onAdd
+  title, eyebrow, children, mayAdd = false, when = 'all', onWhen, newHref
 }: {
   title: string;
   eyebrow?: string;
@@ -274,7 +263,8 @@ function Shell({
   mayAdd?: boolean;
   when?: RcCatalogueQuery['when'];
   onWhen?: (when: RcCatalogueQuery['when']) => void;
-  onAdd?: () => void;
+  /** Wohin „+ Nowe wydarzenie" fuehrt. */
+  newHref?: string;
 }) {
   const showingPast = when === 'past';
 
@@ -296,10 +286,10 @@ function Shell({
 
           <span className="ec-spacer" />
 
-          {mayAdd && onAdd !== undefined ? (
-            <button type="button" className="ec-new" onClick={onAdd}>
+          {mayAdd && newHref !== undefined ? (
+            <a className="ec-new" href={newHref}>
               + Nowe wydarzenie
-            </button>
+            </a>
           ) : (
             <a className="ec-signin" href={rcPath('workshop')}>Zaloguj się</a>
           )}
@@ -315,82 +305,3 @@ function Shell({
 }
 
 export default RcEventCatalogue;
-
-/**
- * Eine Veranstaltung in diese Seite stellen.
- *
- * <b>Nach dem Verantwortlichen wird NICHT gefragt.</b> Er steht an der Seite
- * und gilt fuer alles darunter; ihn je Fest zu erfragen hiesse, dieselbe
- * Auskunft an zwei Stellen zu fuehren, und irgendwann widersprechen sie sich.
- *
- * <b>Danach geht es sofort in den Herausgeber.</b> Eine gerade angelegte
- * Veranstaltung ist leer — sie im Katalog als graue Kachel stehen zu lassen
- * hiesse, den naechsten Schritt zu verstecken.
- */
-function NewEvent({
-  collectionId, collectionSlug, taken, onClose
-}: {
-  collectionId: string;
-  collectionSlug: string;
-  taken: readonly string[];
-  onClose: () => void;
-}) {
-  const [title, setTitle] = useState('');
-  const [slug, setSlug] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const clash = slug !== '' && taken.includes(slug);
-  const shape = slug === '' || rcIsSlug(slug);
-  const ready = !busy && title.trim() !== '' && slug !== '' && shape && !clash;
-
-  return (
-    <form
-      className="ec-new-form"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (!ready) return;
-        setBusy(true);
-        try {
-          await rcAddEvent(collectionId, { slug, title: title.trim() });
-          window.location.hash = rcPath('event', collectionSlug, slug, 'edit').slice(1);
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'Nie udało się dodać wydarzenia.');
-          setBusy(false);
-        }
-      }}
-    >
-      <h2 className="ec-new-h">Nowe wydarzenie</h2>
-
-      <label className="ec-field">
-        <span>Nazwa</span>
-        <input type="text" value={title} maxLength={200} disabled={busy}
-          placeholder="Rowerowa Częstochowa 2026"
-          onChange={(e) => setTitle(e.target.value)} />
-      </label>
-
-      <label className="ec-field">
-        <span>Adres w sieci</span>
-        <span className="ec-url">
-          <span className="ec-url-fixed">…/{collectionSlug}/</span>
-          <input type="text" value={slug} maxLength={48} disabled={busy}
-            placeholder="rowerowa26"
-            onChange={(e) => setSlug(e.target.value.toLowerCase())} />
-        </span>
-      </label>
-
-      {!shape && <p className="ap-error">Małe litery, cyfry i myślniki — myślnik tylko w środku.</p>}
-      {clash && <p className="ap-error">Ten adres jest już zajęty w tej stronie.</p>}
-      {error !== null && <p className="ap-error">{error}</p>}
-
-      <div className="ec-new-actions">
-        <button type="submit" className="ec-new" disabled={!ready}>
-          {busy ? 'Dodawanie…' : 'Dodaj i otwórz edytor'}
-        </button>
-        <button type="button" className="ec-signin" disabled={busy} onClick={onClose}>
-          Anuluj
-        </button>
-      </div>
-    </form>
-  );
-}

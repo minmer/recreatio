@@ -28,6 +28,7 @@ import { RcMyCandidates } from './parish/RcMyCandidates';
 import { RcEventSite } from './events/RcEventSite';
 import { RcEventCatalogue } from './events/RcEventCatalogue';
 import { RcEventWorkbench } from './events/RcEventWorkbench';
+import { RcEventCreator } from './events/RcEventCreator';
 /*
   Das grosse Blatt zuerst, das kleine danach.
 
@@ -342,7 +343,17 @@ export function RcApp() {
 
     return (
       <>
-        {event === null
+        {/*
+          `…/recreatio/new` legt an, `…/recreatio/kal26/edit` gibt heraus.
+
+          Beide Woerter stehen an der Stelle eines NAMENS, koennen also mit
+          einem kollidieren — deshalb sind sie reserviert (RC_RESERVED_SLUGS),
+          auf beiden Seiten. Bei der Zaehlung der Teile braucht es das nicht:
+          dort steht eine Zahl, und Zahlen benennen hier nichts.
+        */}
+        {event === 'new'
+          ? <RcEventCreator collection={address.slug} />
+          : event === null
           ? <RcEventCatalogue slug={address.slug} />
           : editing ? (
             <RcEventWorkbench

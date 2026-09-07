@@ -14,6 +14,7 @@
  */
 
 import { rcParsePath, rcPath } from '../lib/rcRoute';
+import { rcIsReservedSlug, rcIsSlug } from '../lib/rcSlugs';
 
 let passed = 0;
 const failures: string[] = [];
@@ -71,6 +72,25 @@ ok('Ein Teil ist kein Herausgeber', read('#/new/event/recreatio/kal26/0').editin
 /* Gross geschrieben ist es NICHT der Herausgeber — die Adresse ist genau. */
 ok('EDIT ist nicht edit', read('#/new/event/recreatio/kal26/EDIT'),
   { collection: 'recreatio', event: 'EDIT'.length > 0 ? 'kal26' : null, editing: false, at: null });
+
+// -- Der Kreator --------------------------------------------------------------
+
+/*
+ * `new` steht an der Stelle eines NAMENS und kann deshalb mit einem
+ * kollidieren — anders als `edit`, das dort steht, wo sonst eine Zahl ist.
+ * Deshalb ist es reserviert (RC_RESERVED_SLUGS), auf beiden Seiten.
+ */
+ok('Kreator', rcPath('event', 'recreatio', 'new'), '#/new/event/recreatio/new');
+
+ok('Kreator gelesen', read('#/new/event/recreatio/new'),
+  { collection: 'recreatio', event: 'new', editing: false, at: null });
+
+ok('„new" ist reserviert', rcIsReservedSlug('new'), true);
+ok('„edit" ist reserviert', rcIsReservedSlug('edit'), true);
+ok('Ein gewoehnlicher Name nicht', rcIsReservedSlug('kal26'), false);
+
+/* Die Form bleibt eine EIGENE Frage: „new" ist wohlgeformt und trotzdem tabu. */
+ok('Reserviert heisst nicht formlos', rcIsSlug('new'), true);
 
 // -- Hin und zurueck ----------------------------------------------------------
 

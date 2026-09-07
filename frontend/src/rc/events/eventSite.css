@@ -484,3 +484,136 @@ button.ec-home { cursor: pointer; }
 
 .ec-new-actions { display: flex; gap: 0.5rem; align-items: center; }
 .ec-new-actions .ec-signin { background: none; cursor: pointer; }
+
+/* -- Kreator wydarzeń ------------------------------------------------------ */
+
+/*
+  Kreator jest CIEMNY, choć katalog jest jasny — i to nie jest niekonsekwencja.
+  Katalog to afisz: należy do wydarzenia i do tych, którzy je czytają. Kreator
+  to warsztat: należy do tego, kto buduje, i wygląda jak reszta narzędzi.
+*/
+.ek {
+  min-height: 100dvh;
+  padding: 2rem 1.5rem 4rem;
+  background: #0b1017;
+  color: #e6ebf2;
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.ek-inner { max-width: 62rem; margin: 0 auto; }
+
+.ek-back {
+  display: inline-block;
+  margin-bottom: 1rem;
+  color: #8fb4ff;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.ek-h1 {
+  margin: 0 0 0.4rem;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: clamp(1.9rem, 4vw, 2.6rem);
+  font-weight: 400;
+}
+
+.ek-lead { margin: 0 0 1.6rem; max-width: 40rem; color: #9fb0c6; line-height: 1.5; }
+
+.ek-card {
+  padding: 1.1rem 1.3rem 1.3rem;
+  margin-bottom: 1.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.ek-h2 {
+  margin: 0 0 0.3rem;
+  font-size: 0.76rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: #9fb0c6;
+}
+
+.ek-note { margin: 0 0 0.9rem; color: #9fb0c6; font-size: 0.9rem; }
+
+.ek-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.9rem; margin-bottom: 0.9rem; }
+
+.ek-field { display: grid; gap: 0.3rem; font-size: 0.76rem; letter-spacing: 0.09em; text-transform: uppercase; color: #9fb0c6; }
+
+.ek-field input, .ek-field textarea {
+  font: inherit;
+  font-size: 0.95rem;
+  letter-spacing: normal;
+  text-transform: none;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: #070b11;
+  color: #e6ebf2;
+}
+
+.ek-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+
+.ek-go {
+  padding: 0.6rem 1.1rem;
+  border: 0;
+  border-radius: 8px;
+  background: #4a7ef0;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ek-go:disabled { opacity: 0.4; cursor: default; }
+
+.ek-ghost {
+  padding: 0.6rem 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ek-import { display: grid; gap: 0.8rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+
+/* Co zostanie pominięte, stoi PRZED wgraniem — nie po. */
+.ek-skipped {
+  padding: 0.7rem 0.9rem;
+  border: 1px solid #b8863b;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.ek-skipped p { margin: 0 0 0.3rem; }
+.ek-skipped ul { margin: 0; padding-left: 1.1rem; }
+
+/* -- Lista wydarzeń -------------------------------------------------------- */
+
+.ek-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+
+.ek-row-open {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 9px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ek-row-open:hover { border-color: rgba(255, 255, 255, 0.2); }
+
+.ek-row-title { font-weight: 600; }
+.ek-row-slug { color: #7f8ea3; font-size: 0.85rem; }
+.ek-row-meta { color: #7f8ea3; font-size: 0.85rem; }
+
+.ek-pill { padding: 0.08rem 0.6rem; border: 1px solid currentColor; border-radius: 999px; font-size: 0.76rem; }
+.ek-published { color: #6cc48a; }
+.ek-draft { color: #b8a05a; }
+.ek-archived { color: #7f8ea3; }
