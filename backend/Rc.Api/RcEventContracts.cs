@@ -43,11 +43,25 @@ public sealed record RcEventsResponse(IReadOnlyList<RcEvents.EventSummary> Event
 public sealed record RcEventFoundedResponse(
     string EventId, string AreaId, string OfficeRoleId, string Slug);
 
+/// <summary>
+/// <c>Subtitle</c> und <c>Summary</c> sind ZWEI Dinge, und das ist kein
+/// Versehen: das Motto steht AUF der Seite unter dem Titel, der Anriss auf der
+/// KATALOGKARTE, wo wenig Platz ist und ein anderer Ton passt. Ein Feld fuer
+/// beides hiesse entweder ein zu langes Motto auf der Karte oder ein zu duerrer
+/// Karteitext auf der Seite.
+///
+/// Die Katalogfelder stehen am ENDE und haben Vorgaben: der Weg ueber den
+/// persoenlichen Zugang liefert sie nicht — ein Teilnehmer braucht sie nicht,
+/// und was nicht mitgeschickt wird, kann auch nicht durchsickern.
+/// </summary>
 public sealed record RcEventViewResponse(
     string EventId, string AreaId, string CollectionSlug, string Slug, string Title, string Lifecycle, bool IsPublic,
     DateTimeOffset? StartsUtc, DateTimeOffset? EndsUtc, bool MayRead,
     IReadOnlyList<RcEvents.PageView> Pages,
-    string? IntakePublicKey);
+    string? IntakePublicKey,
+    string? Subtitle = null, string? Summary = null, string? Category = null,
+    string? Audience = null, string? PlacesJson = null, string? ThumbnailUrl = null,
+    string? DateLabel = null, string? ThemeJson = null);
 
 // -- Anmeldungen --------------------------------------------------------------
 
@@ -176,3 +190,40 @@ public sealed record RcEventTopicResponse(
 public sealed record RcEventTopicRepliedResponse(string TopicId, bool Posted);
 
 public sealed record RcEventTopicModeratedResponse(string TopicId, string Status);
+
+/* ---------------------------------------------------------------------------
+   Der persoenliche Zugang. Begruendung in RcEventAccess.
+   --------------------------------------------------------------------------- */
+
+/// <summary>
+/// Die persoenliche Angabe: „Twoja grupa: 3", „Zbiórka: 7:40, brama B".
+///
+/// Damit sagt EINE Seite jedem Leser etwas anderes, ohne dass es je Leser eine
+/// Fassung braucht.
+/// </summary>
+public sealed record RcEventAccessNote(string Label, string Value);
+
+/// <summary>
+/// <c>Token</c> kommt EINMAL zurueck und wird nirgends gespeichert — nur sein
+/// Abdruck. Wer es verliert, bekommt ein neues; wer die Tabelle hat, bekommt
+/// keins. Dieselbe Regel wie beim Anmeldebeleg.
+/// </summary>
+public sealed record RcEventAccessGrantedResponse(string AccessId, string Token);
+
+public sealed record RcEventAccessListResponse(
+    IReadOnlyList<RcEventAccess.AccessView> Access);
+
+public sealed record RcEventAccessUpdatedResponse(string AccessId, bool Updated);
+
+/// <summary>
+/// Was ein Leser mit Link sieht.
+///
+/// <c>FirstOpen</c> heisst: dies ist das erste Mal. Der Veranstalter erfaehrt
+/// damit, dass die Nummer, an die er geschickt hat, den Menschen erreicht — der
+/// Leser sieht es nicht als Meldung, aber die Oberflaeche kann ihn begruessen
+/// statt ihn wie einen Wiederkehrer zu behandeln.
+/// </summary>
+public sealed record RcEventAccessViewResponse(
+    string RecipientName, string? PersonalNote, bool FirstOpen,
+    IReadOnlyList<RcEventAccessNote> Notes,
+    RcEventViewResponse Event);

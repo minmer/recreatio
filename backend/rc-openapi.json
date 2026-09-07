@@ -2228,6 +2228,213 @@
         }
       }
     },
+    "/rc/event-access/{token}": {
+      "get": {
+        "tags": [
+          "RcEventAccess"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventAccessViewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/events/{id}/access": {
+      "get": {
+        "tags": [
+          "RcEventAccess"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventAccessListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcEventAccess"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventAccessGrantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventAccessGrantedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-access/{id}/update": {
+      "post": {
+        "tags": [
+          "RcEventAccess"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventAccessUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventAccessUpdatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-access/{id}/status": {
+      "post": {
+        "tags": [
+          "RcEventAccess"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventAccessStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventAccessUpdatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/event-access/{id}/delete": {
+      "post": {
+        "tags": [
+          "RcEventAccess"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcEventDeletedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/event-collections": {
       "get": {
         "tags": [
@@ -7864,6 +8071,153 @@
         },
         "additionalProperties": false
       },
+      "EventAccessAccessView": {
+        "required": [
+          "accessId",
+          "contactVerified",
+          "createdUtc",
+          "notes",
+          "pageIds",
+          "recipientName",
+          "status",
+          "viewCount"
+        ],
+        "type": "object",
+        "properties": {
+          "accessId": {
+            "type": "string"
+          },
+          "recipientName": {
+            "type": "string"
+          },
+          "recipientContact": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "personalNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "internalNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "contactVerified": {
+            "type": "boolean"
+          },
+          "viewCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastViewedUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "pageIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RcEventAccessNote"
+            }
+          },
+          "createdUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventAccessGrantRequest": {
+        "type": "object",
+        "properties": {
+          "recipientName": {
+            "type": "string",
+            "nullable": true
+          },
+          "recipientContact": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "personalNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "internalNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RcEventAccessNote"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventAccessStatusRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventAccessUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "recipientName": {
+            "type": "string",
+            "nullable": true
+          },
+          "recipientContact": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "personalNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "internalNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RcEventAccessNote"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "EventCollectionsAddEventRequest": {
         "type": "object",
         "properties": {
@@ -8057,6 +8411,10 @@
             "type": "string",
             "nullable": true
           },
+          "subtitle": {
+            "type": "string",
+            "nullable": true
+          },
           "summary": {
             "type": "string",
             "nullable": true
@@ -8093,6 +8451,10 @@
           },
           "isPublic": {
             "type": "boolean",
+            "nullable": true
+          },
+          "themeJson": {
+            "type": "string",
             "nullable": true
           }
         },
@@ -8137,6 +8499,14 @@
           },
           "isVisible": {
             "type": "boolean",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
             "nullable": true
           }
         },
@@ -8532,6 +8902,14 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "menuLabel": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -8674,6 +9052,7 @@
       "EventsPageView": {
         "required": [
           "isVisible",
+          "kind",
           "pageId",
           "parts",
           "slug",
@@ -8697,6 +9076,17 @@
           },
           "isVisible": {
             "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "menuLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
           },
           "parts": {
             "type": "array",
@@ -11030,6 +11420,100 @@
         },
         "additionalProperties": false
       },
+      "RcEventAccessGrantedResponse": {
+        "required": [
+          "accessId",
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "accessId": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventAccessListResponse": {
+        "required": [
+          "access"
+        ],
+        "type": "object",
+        "properties": {
+          "access": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventAccessAccessView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventAccessNote": {
+        "required": [
+          "label",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventAccessUpdatedResponse": {
+        "required": [
+          "accessId",
+          "updated"
+        ],
+        "type": "object",
+        "properties": {
+          "accessId": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcEventAccessViewResponse": {
+        "required": [
+          "event",
+          "firstOpen",
+          "notes",
+          "recipientName"
+        ],
+        "type": "object",
+        "properties": {
+          "recipientName": {
+            "type": "string"
+          },
+          "personalNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "firstOpen": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RcEventAccessNote"
+            }
+          },
+          "event": {
+            "$ref": "#/components/schemas/RcEventViewResponse"
+          }
+        },
+        "additionalProperties": false
+      },
       "RcEventCardSubmittedResponse": {
         "required": [
           "cardId",
@@ -11628,6 +12112,38 @@
             }
           },
           "intakePublicKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "subtitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "audience": {
+            "type": "string",
+            "nullable": true
+          },
+          "placesJson": {
+            "type": "string",
+            "nullable": true
+          },
+          "thumbnailUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "dateLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "themeJson": {
             "type": "string",
             "nullable": true
           }
@@ -14340,6 +14856,9 @@
     },
     {
       "name": "RcEngagement"
+    },
+    {
+      "name": "RcEventAccess"
     },
     {
       "name": "RcEventCollections"

@@ -93,6 +93,24 @@ export const RC_PARTS = {
   // ist — sonst liest er, wohin es führt, und stösst danach an eine Wand.
   invite: { slugged: true, needsIdentity: true },
 
+  /*
+   * Der persoenliche Zugang zu einer Veranstaltung.
+   *
+   * <b>Der „Slug" ist das Token</b>, und damit steht hier — anders als sonst
+   * (3.12) — ein Geheimnis in der Adresse. Das ist eine bewusste Abweichung:
+   * ein solcher Link wird per SMS verschickt, und ein Geheimnis, das man erst
+   * abtippen muesste, wird stattdessen aus der Nachricht kopiert, in der es
+   * ohnehin steht. Der Preis steht in der Oberflaeche: wer den Link hat, kommt
+   * hinein.
+   *
+   * <b>Eigener Teil und nicht unter `event`</b>, damit die Adresse kurz bleibt
+   * — sie muss in eine SMS passen — und damit kein Veranstaltungsname je mit
+   * dem Wort kollidieren kann.
+   *
+   * Ohne Konto erreichbar: das ist der ganze Zweck.
+   */
+  access: { slugged: true, needsIdentity: false },
+
   // -- Die Werkstatt: alles, was ohne Schlüssel leer wäre -------------------
   workshop: { slugged: false, needsIdentity: true },
   chat: { slugged: true, needsIdentity: true },

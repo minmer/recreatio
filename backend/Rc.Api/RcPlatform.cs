@@ -125,6 +125,7 @@ public static class RcPlatform
         app.MapRcEventEditing();
         app.MapRcEventMedia();
         app.MapRcEventParticipation();
+        app.MapRcEventAccess();
         app.MapRcRegistrations();
         app.MapRcParish();
         app.MapRcPublicParish();

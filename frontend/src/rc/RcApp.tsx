@@ -29,6 +29,7 @@ import { RcEventSite } from './events/RcEventSite';
 import { RcEventCatalogue } from './events/RcEventCatalogue';
 import { RcEventWorkbench } from './events/RcEventWorkbench';
 import { RcEventCreator } from './events/RcEventCreator';
+import { RcEventAccessView } from './events/RcEventAccessView';
 /*
   Das grosse Blatt zuerst, das kleine danach.
 
@@ -326,6 +327,24 @@ export function RcApp() {
    * Dieselbe Anmeldeschublade wie auf der Pfarrseite: wer eine Veranstaltung
    * pflegt, soll sich anmelden koennen, ohne die Seite zu verlassen.
    */
+  /*
+   * DER PERSOENLICHE ZUGANG — .
+   *
+   * Ohne Konto, ohne Schluesselbund: das Token traegt den Epochenschluessel
+   * verschlossen mit sich, und der Dienst macht ihn fuer die Dauer der Anfrage
+   * auf. Kurz gehalten, weil die Adresse in eine SMS passen muss.
+   */
+  if (address.part === 'access' && address.slug !== null) {
+    const nth = address.tail[0] ?? '';
+
+    return (
+      <RcEventAccessView
+        token={address.slug}
+        at={/^[0-9]+$/.test(nth) ? Number(nth) : null}
+      />
+    );
+  }
+
   if (address.part === 'event' && address.slug !== null) {
     const event = address.tail[0] ?? null;
     const nth = address.tail[1] ?? '';

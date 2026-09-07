@@ -5107,3 +5107,123 @@
 /* Zapieczętowane: powód stoi, a wiersz zostaje. */
 .ew-sealed { margin: 0; font-size: 0.85rem; opacity: 0.7; }
 .ew-sealed code { font-size: 0.8rem; opacity: 0.8; }
+
+/* -- Strona osobista uczestnika ------------------------------------------- */
+
+/*
+  To, co ten link mówi TEMU odbiorcy. Stoi nad treścią, bo po to przyszedł —
+  a nie pod nią, gdzie trzeba by go szukać.
+*/
+.ev-personal {
+  padding: 0.8rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+  background: var(--ev-surface, rgba(255, 255, 255, 0.04));
+}
+
+.ev-personal-who { margin: 0 0 0.3rem; font-weight: 600; }
+.ev-personal-note { margin: 0 0 0.5rem; font-size: 0.92rem; }
+
+.ev-personal-notes { margin: 0; display: grid; gap: 0.25rem; }
+.ev-personal-notes > div { display: grid; grid-template-columns: minmax(7rem, 12rem) 1fr; gap: 0.6rem; }
+.ev-personal-notes dt { font-size: 0.84rem; opacity: 0.7; }
+.ev-personal-notes dd { margin: 0; font-size: 0.92rem; }
+
+/* -- Dostęp osobisty: wydawanie i prowadzenie ------------------------------ */
+
+/*
+  Token stoi raz i z ostrzeżeniem. Serwis trzyma tylko odcisk — nie da się go
+  odtworzyć, więc ekran nie może go pokazać mimochodem.
+*/
+.ew-token {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #b8863b;
+  border-radius: 10px;
+}
+
+.ew-token p { margin: 0; font-size: 0.9rem; }
+.ew-token code { word-break: break-all; font-size: 0.85rem; opacity: 0.9; }
+.ew-token-actions { display: flex; gap: 0.5rem; }
+
+.ew-grant { display: grid; gap: 0.8rem; margin-bottom: 1.2rem; }
+
+.ew-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 9px;
+}
+
+.ew-pick legend { padding: 0 0.4rem; font-size: 0.8rem; opacity: 0.75; }
+
+.ew-note-row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; width: 100%; }
+.ew-note-row input { font: inherit; font-size: 0.9rem; padding: 0.35rem 0.5rem; flex: 1 1 8rem; }
+
+.ew-access { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+
+.ew-access-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 9px;
+}
+
+/* Wycofany zostaje w liście — przygaszony, ale widoczny. */
+.ew-access-row[data-revoked="true"] { opacity: 0.5; }
+
+.ew-access-name { font-weight: 600; }
+.ew-access-contact { font-size: 0.85rem; opacity: 0.7; }
+.ew-access-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; font-size: 0.82rem; opacity: 0.75; }
+.ew-access-actions { margin-left: auto; display: flex; gap: 0.6rem; align-items: center; }
+
+/* „Dotarło" znaczy co innego niż licznik wejść — i wygląda inaczej. */
+.ew-ok { color: #6cc48a; }
+
+/* -- Edytor: to, czego stary moduł nie miał ------------------------------- */
+
+/*
+  Reszta klas `eva-*` przyszła razem z arkuszem starego modułu — układ jest ten
+  sam celowo: kto siada do nowego edytora, ma trafiać ręką w to samo miejsce.
+  Poniżej tylko to, co dołożyliśmy.
+*/
+
+/* Strzałki przy zakładce strony: stary moduł nie przestawiał kolejności stron. */
+.eva-page-tab { display: inline-flex; align-items: center; gap: 0.15rem; }
+
+.eva-nudge {
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.eva-nudge:disabled { opacity: 0.3; cursor: default; }
+
+/* Co odpadnie przy imporcie — stoi PRZED wgraniem, nie po. */
+.eva-skipped {
+  padding: 0.6rem 0.8rem;
+  margin: 0.6rem 0;
+  border: 1px solid #b8863b;
+  border-radius: 8px;
+  font-size: 0.86rem;
+}
+
+.eva-skipped p { margin: 0 0 0.3rem; }
+.eva-skipped ul { margin: 0; padding-left: 1.1rem; }
+
+/* „Niezapisane" ma być widać, gdy edytor jest zwinięty. */
+.eva-tag.is-dirty { border-color: #b8863b; color: #d9a441; }

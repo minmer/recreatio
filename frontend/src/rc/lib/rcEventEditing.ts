@@ -26,6 +26,8 @@ export const rcUpdateEvent = (
   eventId: string,
   body: {
     title: string;
+    /** Das Motto AUF der Seite — nicht der Anriss auf der Karte. */
+    subtitle?: string | null;
     summary?: string | null;
     category?: string | null;
     audience?: string | null;
@@ -35,6 +37,8 @@ export const rcUpdateEvent = (
     startsUtc?: string | null;
     endsUtc?: string | null;
     isPublic?: boolean;
+    /** Das Aussehen: Modus und vier Farben. */
+    themeJson?: string | null;
   }
 ) =>
   rcFetch<RcApi<'RcEventUpdatedResponse'>>(`/events/${eventId}/update`, { body, withUnlock: true });
@@ -293,3 +297,67 @@ export async function rcClaimRegistration(claim: string) {
     return null;
   }
 }
+
+// -- Der persoenliche Zugang --------------------------------------------------
+
+export type RcAccessView = RcApi<'RcEventAccessViewResponse'>;
+export type RcAccessRow = RcApi<'RcEventAccessListResponse'>['access'][number];
+export type RcAccessNote = { label: string; value: string };
+
+/**
+ * Was dieser Link oeffnet.
+ *
+ * <b>Das Token steht in der ADRESSE</b> — bewusst, anders als der Anmeldebeleg:
+ * ein solcher Link wird per SMS verschickt, und ein Geheimnis, das man erst
+ * abtippen muesste, wird stattdessen aus der Nachricht kopiert, in der es
+ * ohnehin steht. Der Preis steht in der Oberflaeche: wer den Link hat, kommt
+ * hinein.
+ */
+export const rcEventAccess = (token: string) =>
+  rcFetch<RcApi<'RcEventAccessViewResponse'>>(`/event-access/${encodeURIComponent(token)}`);
+
+export const rcEventAccessList = (eventId: string) =>
+  rcFetch<RcApi<'RcEventAccessListResponse'>>(`/events/${eventId}/access`, { withUnlock: true });
+
+/**
+ * Einen Zugang ausstellen.
+ *
+ * <b>Das Token kommt EINMAL zurueck</b> und wird nirgends gespeichert — nur
+ * sein Abdruck. Wer es verliert, bekommt ein neues; wer die Tabelle hat,
+ * bekommt keins. Die Oberflaeche muss es deshalb sofort zeigen und sagen, dass
+ * es nicht wiederkommt.
+ */
+export const rcGrantAccess = (
+  eventId: string,
+  body: {
+    recipientName: string;
+    recipientContact?: string | null;
+    pageIds?: readonly string[];
+    personalNote?: string | null;
+    internalNote?: string | null;
+    notes?: readonly RcAccessNote[];
+  }
+) => rcFetch<RcApi<'RcEventAccessGrantedResponse'>>(`/events/${eventId}/access`,
+  { body, withUnlock: true });
+
+export const rcUpdateAccess = (
+  accessId: string,
+  body: {
+    recipientName?: string | null;
+    recipientContact?: string | null;
+    pageIds?: readonly string[];
+    personalNote?: string | null;
+    internalNote?: string | null;
+    notes?: readonly RcAccessNote[];
+  }
+) => rcFetch<RcApi<'RcEventAccessUpdatedResponse'>>(`/event-access/${accessId}/update`,
+  { body, withUnlock: true });
+
+/** Zurueckgenommen, nicht geloescht — wer schon geoeffnet hat, bleibt in der Liste. */
+export const rcAccessStatus = (accessId: string, status: 'active' | 'revoked') =>
+  rcFetch<RcApi<'RcEventAccessUpdatedResponse'>>(`/event-access/${accessId}/status`,
+    { body: { status }, withUnlock: true });
+
+export const rcDeleteAccess = (accessId: string) =>
+  rcFetch<RcApi<'RcEventDeletedResponse'>>(`/event-access/${accessId}/delete`,
+    { body: {}, withUnlock: true });

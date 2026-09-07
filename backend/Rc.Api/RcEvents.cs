@@ -42,7 +42,22 @@ public static class RcEvents
     public static readonly string[] PartKinds =
     [
         "title", "shortinfos", "text", "plan", "map", "faq",
-        "form", "costs", "contact", "gallery", "files", "people"
+        "form", "costs", "contact", "gallery", "files", "people",
+
+        /*
+         * NUR HINTER EINEM BELEG SINNVOLL: diese fuenf handeln von den Daten
+         * des Lesers selbst — seine Anmeldung, seine Karte, seine Haken, seine
+         * Fragen — oder von der Liste, die die Verwaltung fuehrt.
+         *
+         * Sie standen hier NICHT, waehrend der Browser sie laengst anbot: der
+         * Herausgeber zeigte sie im Menue „Teil hinzufuegen", und der Dienst
+         * wies sie ab. Eine Art, die auf einer Seite existiert und auf der
+         * anderen nicht, sieht wie ein Fehler des Benutzers aus.
+         */
+        "registration", "card", "checklist", "roster", "topics",
+
+        // Bilder aus der Galerie, mit Aufschrift darunter.
+        "meme"
     ];
 
     public static readonly string[] FieldKinds =
@@ -149,7 +164,19 @@ public static class RcEvents
 
     // -- Seiten und Teile -----------------------------------------------------
 
-    public sealed record AddPageRequest(string Slug, string Title, int? SortOrder);
+    /// <summary>
+    /// <paramref name="Kind"/> ist ABSICHT, keine Ableitung.
+    ///
+    /// Ob eine Seite oeffentlich oder intern ist, liesse sich auch daran
+    /// ablesen, ob alle ihre Teile versiegelt sind — als ANZEIGE stimmt das,
+    /// als Absicht nicht: eine noch leere interne Seite haette dann als
+    /// oeffentlich gegolten, und die erste Zuteilung waere ins Leere
+    /// gegangen, ohne dass jemand sieht warum.
+    ///
+    /// Ohne Angabe entsteht eine oeffentliche: das ist der haeufige Fall.
+    /// </summary>
+    public sealed record AddPageRequest(
+        string Slug, string Title, int? SortOrder, string? Kind, string? MenuLabel);
 
     private static async Task AddPageAsync(
         HttpContext ctx, RcDb db, RcPermissions permissions, Guid id, AddPageRequest body)
@@ -176,9 +203,10 @@ public static class RcEvents
 
         var pageId = RcId.NewId();
         await using var insert = new SqlCommand("""
-            INSERT INTO dbo.rc_event_page (id, event_id, sort_order, slug, title, created_at)
+            INSERT INTO dbo.rc_event_page
+                (id, event_id, sort_order, slug, title, kind, menu_label, created_at)
             VALUES (@id, @event, @sort,
-                    @slug, @title, @now);
+                    @slug, @title, @kind, @menu, @now);
             """, connection);
 
         insert.Parameters.AddWithValue("@id", pageId);
@@ -186,6 +214,16 @@ public static class RcEvents
         insert.Parameters.AddWithValue("@sort", body.SortOrder ?? await NextPageOrderAsync(connection, id, ctx.RequestAborted));
         insert.Parameters.AddWithValue("@slug", slug);
         insert.Parameters.AddWithValue("@title", title);
+
+        // Ohne Angabe entsteht eine oeffentliche Seite: das ist der haeufige
+        // Fall, und eine versehentlich interne faende niemand wieder.
+        var kind = (body.Kind ?? string.Empty).Trim();
+        insert.Parameters.AddWithValue("@kind", kind == "internal" ? "internal" : "public");
+
+        var menu = (body.MenuLabel ?? string.Empty).Trim();
+        insert.Parameters.Add("@menu", System.Data.SqlDbType.NVarChar, 60).Value =
+            menu.Length == 0 ? DBNull.Value : (menu.Length > 60 ? menu[..60] : menu);
+
         insert.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
 
         try
@@ -574,8 +612,15 @@ public static class RcEvents
         IReadOnlyList<string> Options, bool IsRequired, bool IsHalfWidth,
         string IdentityRole, string DataClass);
 
+    /// <summary>
+    /// <c>Kind</c> — „public" oder „internal" — ist ABSICHT, keine Ableitung
+    /// aus den Teilen. Eine noch leere interne Seite waere sonst als oeffentlich
+    /// durchgegangen, und die erste Zuteilung eines persoenlichen Zugangs waere
+    /// ins Leere gelaufen, ohne dass jemand sieht warum.
+    /// </summary>
     public sealed record PageView(string PageId, string Slug, string Title, int SortOrder,
-        bool IsVisible, IReadOnlyList<PartView> Parts);
+        bool IsVisible, string Kind, string? MenuLabel, string? Description,
+        IReadOnlyList<PartView> Parts);
 
     /// <summary>
     /// Die Veranstaltung, wie ein Leser sie sieht.
@@ -605,7 +650,9 @@ public static class RcEvents
          */
         await using var head = new SqlCommand("""
             SELECT e.id, e.area_id, e.slug, e.title, e.lifecycle, e.is_public,
-                   e.starts_at, e.ends_at, e.intake_public_key
+                   e.starts_at, e.ends_at, e.intake_public_key,
+                   e.subtitle, e.summary, e.category, e.audience, e.places_json,
+                   e.thumbnail_url, e.date_label, e.theme_json
             FROM dbo.rc_event e
             JOIN dbo.rc_event_collection c ON c.id = e.collection_id
             WHERE c.slug = @collection AND e.slug = @slug;
@@ -618,6 +665,8 @@ public static class RcEvents
         bool isPublic = false;
         DateTimeOffset? starts = null, ends = null;
         byte[]? intakePublicKey = null;
+        string? subtitle = null, summary = null, category = null, audience = null;
+        string? placesJson = null, thumbnailUrl = null, dateLabel = null, themeJson = null;
 
         await using (var reader = await head.ExecuteReaderAsync(ctx.RequestAborted))
         {
@@ -630,6 +679,15 @@ public static class RcEvents
             starts = reader.IsDBNull(6) ? null : reader.GetDateTimeOffset(6);
             ends = reader.IsDBNull(7) ? null : reader.GetDateTimeOffset(7);
             intakePublicKey = reader.IsDBNull(8) ? null : (byte[])reader[8];
+
+            subtitle = reader.IsDBNull(9) ? null : reader.GetString(9);
+            summary = reader.IsDBNull(10) ? null : reader.GetString(10);
+            category = reader.IsDBNull(11) ? null : reader.GetString(11);
+            audience = reader.IsDBNull(12) ? null : reader.GetString(12);
+            placesJson = reader.IsDBNull(13) ? null : reader.GetString(13);
+            thumbnailUrl = reader.IsDBNull(14) ? null : reader.GetString(14);
+            dateLabel = reader.IsDBNull(15) ? null : reader.GetString(15);
+            themeJson = reader.IsDBNull(16) ? null : reader.GetString(16);
         }
 
         var session = ctx.RcSession();
@@ -657,17 +715,107 @@ public static class RcEvents
             starts, ends, mayRead, pages,
             // Der oeffentliche Annahmeschluessel reist mit dem Formular. Er ist
             // oeffentlich — genau dafuer ist er da.
-            intakePublicKey is null ? null : RcBase64Url.Encode(intakePublicKey)));
+            intakePublicKey is null ? null : RcBase64Url.Encode(intakePublicKey),
+            subtitle, summary, category, audience, placesJson, thumbnailUrl,
+            dateLabel, themeJson));
+    }
+
+    /// <summary>
+    /// Die Veranstaltung, wie ein Leser MIT PERSOENLICHEM LINK sie sieht.
+    ///
+    /// <b>Zwei Unterschiede zum Mitglied, und beide sind Absicht.</b>
+    ///
+    /// Der Schluesselbund traegt GENAU EINE Epoche — die, unter der der
+    /// Zugang ausgestellt wurde. Schneidet der Bereich spaeter eine neue,
+    /// oeffnet dieser Link weiterhin, was zu seiner Zeit gehoerte, und nichts
+    /// von dem, was danach kam.
+    ///
+    /// Und die Auswahl der Seiten ist eine LISTE, keine Berechtigung: die
+    /// oeffentliche Seite plus die zugeteilten. Was nicht zugeteilt ist,
+    /// steht nicht in der Antwort — nicht „gesperrt", sondern gar nicht.
+    /// Gefiltert wird hier und nicht im Browser: was nicht mitgeschickt
+    /// wird, kann auch nicht durchsickern.
+    /// </summary>
+    internal static async Task<RcEventViewResponse?> ReadForAccessAsync(
+        SqlConnection connection, Guid eventId, IReadOnlyList<Guid> grantedPages,
+        int epoch, byte[] epochKey, CancellationToken ct)
+    {
+        Guid areaId;
+        string slug, title, lifecycle, collectionSlug;
+        bool isPublic;
+        DateTimeOffset? starts, ends;
+        byte[]? intakePublicKey;
+        string? subtitle, themeJson;
+
+        await using (var head = new SqlCommand("""
+            SELECT e.id, e.area_id, e.slug, e.title, e.lifecycle, e.is_public,
+                   e.starts_at, e.ends_at, e.intake_public_key, c.slug,
+                   e.subtitle, e.theme_json
+            FROM dbo.rc_event e
+            JOIN dbo.rc_event_collection c ON c.id = e.collection_id
+            WHERE e.id = @id;
+            """, connection))
+        {
+            head.Parameters.AddWithValue("@id", eventId);
+            await using var reader = await head.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct)) return null;
+
+            areaId = reader.GetGuid(1);
+            slug = reader.GetString(2);
+            title = reader.GetString(3);
+            lifecycle = reader.GetString(4);
+            isPublic = reader.GetBoolean(5);
+            starts = reader.IsDBNull(6) ? null : reader.GetDateTimeOffset(6);
+            ends = reader.IsDBNull(7) ? null : reader.GetDateTimeOffset(7);
+            intakePublicKey = reader.IsDBNull(8) ? null : (byte[])reader[8];
+            collectionSlug = reader.GetString(9);
+            subtitle = reader.IsDBNull(10) ? null : reader.GetString(10);
+            themeJson = reader.IsDBNull(11) ? null : reader.GetString(11);
+        }
+
+        var keys = new Dictionary<int, byte[]> { [epoch] = epochKey };
+        var pages = await ReadPagesAsync(connection, eventId, true, keys, ct);
+
+        /*
+         * Die oeffentliche Seite kommt IMMER mit. Sonst haette der
+         * Empfaenger keinen Weg zu dem, was alle sehen, ausser einer zweiten
+         * Adresse, die ihm niemand geschickt hat.
+         */
+        var open = new HashSet<string>(grantedPages.Select(RcId.ToText));
+
+        var kinds = new Dictionary<string, string>();
+        await using (var cmd = new SqlCommand(
+            "SELECT id, ISNULL(kind, N'public') FROM dbo.rc_event_page WHERE event_id = @id;",
+            connection))
+        {
+            cmd.Parameters.AddWithValue("@id", eventId);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                kinds[RcId.ToText(reader.GetGuid(0))] = reader.GetString(1);
+        }
+
+        var allowed = pages
+            .Where(page => kinds.GetValueOrDefault(page.PageId, "public") == "public"
+                        || open.Contains(page.PageId))
+            .ToList();
+
+        return new RcEventViewResponse(
+            RcId.ToText(eventId), RcId.ToText(areaId), collectionSlug, slug, title,
+            lifecycle, isPublic, starts, ends, true, allowed,
+            intakePublicKey is null ? null : RcBase64Url.Encode(intakePublicKey),
+            subtitle, null, null, null, null, null, null, themeJson);
     }
 
     private static async Task<List<PageView>> ReadPagesAsync(
         SqlConnection connection, Guid eventId, bool mayRead,
         IReadOnlyDictionary<int, byte[]> keys, CancellationToken ct)
     {
-        var pages = new List<(Guid Id, string Slug, string Title, int Sort, bool Visible)>();
+        var pages = new List<(Guid Id, string Slug, string Title, int Sort, bool Visible,
+            string Kind, string? Menu, string? Description)>();
 
         await using (var cmd = new SqlCommand("""
-            SELECT id, slug, title, sort_order, is_visible
+            SELECT id, slug, title, sort_order, is_visible,
+                   ISNULL(kind, N'public'), menu_label, description
             FROM dbo.rc_event_page WHERE event_id = @event ORDER BY sort_order, seq;
             """, connection))
         {
@@ -675,7 +823,9 @@ public static class RcEvents
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
                 pages.Add((reader.GetGuid(0), reader.GetString(1), reader.GetString(2),
-                    reader.GetInt32(3), reader.GetBoolean(4)));
+                    reader.GetInt32(3), reader.GetBoolean(4), reader.GetString(5),
+                    reader.IsDBNull(6) ? null : reader.GetString(6),
+                    reader.IsDBNull(7) ? null : reader.GetString(7)));
         }
 
         var result = new List<PageView>();
@@ -683,7 +833,8 @@ public static class RcEvents
         {
             if (!page.Visible && !mayRead) continue;
             result.Add(new PageView(RcId.ToText(page.Id), page.Slug, page.Title, page.Sort,
-                page.Visible, await ReadPartsAsync(connection, page.Id, mayRead, keys, ct)));
+                page.Visible, page.Kind, page.Menu, page.Description,
+                await ReadPartsAsync(connection, page.Id, mayRead, keys, ct)));
         }
         return result;
     }

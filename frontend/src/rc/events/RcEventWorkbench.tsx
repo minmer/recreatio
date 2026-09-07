@@ -29,6 +29,9 @@ import { rcPath } from '../lib/rcRoute';
 import { useRcError } from '../RcThreads';
 import { RcEventEditor } from './RcEventEditor';
 import { RcEventRegistrations } from './RcEventRegistrations';
+import { RcEventAccessPanel } from './RcEventAccessPanel';
+import { AreaRow, LinesRow, SelectRow, TextRow } from './parts/editorKit';
+import { DEFAULT_THEMES, parseTheme, type Theme, type ThemeMode } from './shell/layers';
 
 type Tab = 'parts' | 'signups' | 'settings';
 
@@ -136,11 +139,14 @@ export function RcEventWorkbench({
       {error !== null && <p className="ap-error">{error}</p>}
 
       {tab === 'parts' && (
-        <RcEventEditor lang='pl' collection={collection} slug={slug} onError={setError} />
+        <RcEventEditor collection={collection} slug={slug} onError={setError} />
       )}
 
       {tab === 'signups' && (
-        <RcEventRegistrations view={view} onError={setError} />
+        <>
+          <RcEventRegistrations view={view} onError={setError} />
+          <RcEventAccessPanel view={view} onError={setError} />
+        </>
       )}
 
       {tab === 'settings' && (
@@ -190,11 +196,17 @@ function Tabs({
 }
 
 /**
- * Termin, Katalogfelder, Sichtbarkeit.
+ * Ustawienia wydarzenia — te same pola co w starym module.
  *
- * <b>Die Adresse steht nicht dabei</b>, und das ist Absicht: sie ist
- * oeffentlich und bleibt. Sie hier neben dem Titel aenderbar zu machen hiesse,
- * dass ein Tippfehler zur Gelegenheit wird, jedes Plakat abzureissen.
+ * <b>Podtytuł i zajawka to DWIE rzeczy.</b> Podtytuł stoi na stronie, pod
+ * tytułem („Pielgrzymka rowerowa z Krakowa do Częstochowy"); zajawka stoi na
+ * kafelku katalogu, gdzie miejsca jest mało i ton jest inny. Jedno pole na
+ * oba znaczyłoby: albo za długie motto na kafelku, albo za suchy tekst na
+ * stronie.
+ *
+ * <b>Adresu tu nie ma.</b> Jest publiczny i zostaje: stoi na plakacie, w
+ * wiadomości, na drzwiach. Zrobienie go edytowalnym obok tytułu znaczyłoby,
+ * że literówka staje się okazją do zerwania każdego z tych odnośników.
  */
 function Settings({
   view, onSave
@@ -203,108 +215,131 @@ function Settings({
   onSave: (body: Parameters<typeof rcUpdateEvent>[1]) => void;
 }) {
   const [title, setTitle] = useState(view.title);
-  const [summary, setSummary] = useState('');
-  const [category, setCategory] = useState('');
-  const [audience, setAudience] = useState('');
-  const [places, setPlaces] = useState('');
-  const [dateLabel, setDateLabel] = useState('');
+  const [subtitle, setSubtitle] = useState(view.subtitle ?? '');
+  const [summary, setSummary] = useState(view.summary ?? '');
+  const [category, setCategory] = useState(view.category ?? '');
+  const [audience, setAudience] = useState(view.audience ?? '');
+  const [places, setPlaces] = useState<string[]>(() => readPlaces(view.placesJson));
+  const [thumbnailUrl, setThumbnailUrl] = useState(view.thumbnailUrl ?? '');
+  const [dateLabel, setDateLabel] = useState(view.dateLabel ?? '');
   const [starts, setStarts] = useState(view.startsUtc?.slice(0, 10) ?? '');
   const [ends, setEnds] = useState(view.endsUtc?.slice(0, 10) ?? '');
+  const [theme, setTheme] = useState<Theme>(() => parseTheme(view.themeJson ?? null));
+
+  /*
+   * Ponowne wczytanie, gdy kopia z serwera zmieni się pod spodem. Bez tego
+   * następny zapis wysłałby stan sprzed tamtej zmiany i po cichu ją cofnął.
+   */
+  useEffect(() => {
+    setTitle(view.title);
+    setSubtitle(view.subtitle ?? '');
+    setSummary(view.summary ?? '');
+    setCategory(view.category ?? '');
+    setAudience(view.audience ?? '');
+    setPlaces(readPlaces(view.placesJson));
+    setThumbnailUrl(view.thumbnailUrl ?? '');
+    setDateLabel(view.dateLabel ?? '');
+    setStarts(view.startsUtc?.slice(0, 10) ?? '');
+    setEnds(view.endsUtc?.slice(0, 10) ?? '');
+    setTheme(parseTheme(view.themeJson ?? null));
+  }, [view]);
 
   const day = (text: string) => (text.trim() === '' ? null : `${text}T00:00:00Z`);
 
+  /*
+   * Przełączenie trybu bierze CAŁY zestaw barw, nie sam tryb. Ciemny gradient
+   * pod jasnym wydarzeniem cofnąłby tryb już przy pierwszej części.
+   */
+  const switchMode = (mode: ThemeMode) => setTheme({ ...DEFAULT_THEMES[mode], mode });
+
   return (
-    <section className="ew-panel">
-      <h2 className="ew-h2">Ustawienia wydarzenia</h2>
+    <section className="eva-panel">
+      <header><h3>Ustawienia wydarzenia</h3></header>
 
-      <div className="ew-form">
-        <label className="mo-field ew-wide">
-          <span>Tytuł</span>
-          <input type="text" value={title} maxLength={200}
-            onChange={(e) => setTitle(e.target.value)} />
-        </label>
-
-        <label className="mo-field ew-wide">
-          <span>Zajawka do katalogu</span>
-          <input type="text" value={summary} maxLength={400}
-            placeholder="Pielgrzymka rowerowa z Krakowa do Częstochowy"
-            onChange={(e) => setSummary(e.target.value)} />
-          <em className="fe-hint">Krótkie zdanie na kafelku. Nie podtytuł na stronie.</em>
-        </label>
-
-        <label className="mo-field">
-          <span>Początek</span>
-          <input type="date" value={starts} onChange={(e) => setStarts(e.target.value)} />
-        </label>
-
-        <label className="mo-field">
-          <span>Koniec</span>
-          <input type="date" value={ends} onChange={(e) => setEnds(e.target.value)} />
-        </label>
-
-        <label className="mo-field ew-wide">
-          <span>Termin słownie</span>
-          <input type="text" value={dateLabel} maxLength={120}
-            placeholder="Adwent 2026"
-            onChange={(e) => setDateLabel(e.target.value)} />
-          <em className="fe-hint">
-            Zastępuje daty w katalogu, gdy powiedzą mniej niż nazwa okresu.
-          </em>
-        </label>
-
-        {/*
-          Grupa i miejsca budują filtry katalogu. Wolny tekst — nowa rodzina
-          wydarzeń nie ma czekać na zmianę w programie; katalog składa listę z
-          tego, co zastanie.
-        */}
-        <label className="mo-field">
-          <span>Grupa</span>
-          <input type="text" value={category} maxLength={80}
-            placeholder="Pielgrzymka rowerowa"
-            onChange={(e) => setCategory(e.target.value)} />
-        </label>
-
-        <label className="mo-field">
-          <span>Dla kogo</span>
-          <input type="text" value={audience} maxLength={160}
-            placeholder="Młodzież 16–30"
-            onChange={(e) => setAudience(e.target.value)} />
-        </label>
-
-        <label className="mo-field ew-wide">
-          <span>Miejsca</span>
-          <input type="text" value={places}
-            placeholder="Kraków, Częstochowa"
-            onChange={(e) => setPlaces(e.target.value)} />
-          <em className="fe-hint">Po przecinku, w kolejności trasy.</em>
-        </label>
+      <div className="eva-grid">
+        <TextRow label="Tytuł" value={title} onChange={setTitle} />
+        <TextRow label="Podtytuł" value={subtitle} onChange={setSubtitle}
+          hint="Hasło na samej stronie wydarzenia." />
       </div>
 
-      <button
-        type="button"
-        className="rc-btn"
-        onClick={() => onSave({
-          title: title.trim(),
-          summary: summary.trim() || null,
-          category: category.trim() || null,
-          audience: audience.trim() || null,
-          /*
-            Die Orte gehen als JSON-Liste. Aus „Kraków, Częstochowa" wird
-            `["Kraków","Częstochowa"]` — der Katalog siebt danach, und aus einem
-            Fliesstext liesse sich das nur raten.
-          */
-          placesJson: places.trim() === ''
-            ? null
-            : JSON.stringify(places.split(',').map((one) => one.trim()).filter((one) => one !== '')),
-          dateLabel: dateLabel.trim() || null,
-          startsUtc: day(starts),
-          endsUtc: day(ends)
-        })}
-      >
-        Zapisz ustawienia
-      </button>
+      <AreaRow label="Krótki opis" rows={2} value={summary} onChange={setSummary}
+        hint="Na kafelku w katalogu. To nie jest podtytuł." />
+
+      <div className="eva-grid">
+        <TextRow label="Grupa wydarzeń" value={category} onChange={setCategory}
+          hint={'Np. „Pielgrzymka rowerowa" — katalog buduje z tego filtr.'} />
+        <TextRow label="Dla kogo" value={audience} onChange={setAudience}
+          hint={'Np. „Młodzież 16–30".'} />
+      </div>
+
+      <LinesRow label="Miejsca" rows={3} values={places} onChange={setPlaces}
+        hint="Po jednym w wierszu, w kolejności trasy. Katalog filtruje po nich." />
+
+      <div className="eva-grid">
+        <TextRow label="Początek (RRRR-MM-DD)" value={starts} onChange={setStarts} />
+        <TextRow label="Koniec (RRRR-MM-DD)" value={ends} onChange={setEnds} />
+      </div>
+
+      <TextRow label="Termin słownie" value={dateLabel} onChange={setDateLabel}
+        hint="Zastępuje daty w katalogu, gdy powiedzą mniej niż nazwa okresu." />
+
+      <TextRow label="Miniatura (adres)" value={thumbnailUrl} onChange={setThumbnailUrl} />
+
+      <details className="eva-fold">
+        <summary>Barwy wydarzenia</summary>
+        <div className="eva-fold-body">
+          <SelectRow<ThemeMode>
+            label="Tryb"
+            value={theme.mode}
+            options={[{ value: 'dark', label: 'Ciemny' }, { value: 'light', label: 'Jasny' }]}
+            onChange={switchMode}
+          />
+          <div className="eva-grid">
+            <TextRow label="Akcent" value={theme.accent}
+              onChange={(accent) => setTheme({ ...theme, accent })} />
+            <TextRow label="Tło" value={theme.ground}
+              onChange={(ground) => setTheme({ ...theme, ground })} />
+            <TextRow label="Tekst" value={theme.ink}
+              onChange={(ink) => setTheme({ ...theme, ink })} />
+            <TextRow label="Tekst poboczny" value={theme.muted}
+              onChange={(muted) => setTheme({ ...theme, muted })} />
+          </div>
+        </div>
+      </details>
+
+      <div className="eva-actions">
+        <button
+          type="button"
+          className="eva-cta"
+          disabled={title.trim() === ''}
+          onClick={() => onSave({
+            title: title.trim(),
+            subtitle: subtitle.trim() || null,
+            summary: summary.trim() || null,
+            category: category.trim() || null,
+            audience: audience.trim() || null,
+            placesJson: places.length === 0 ? null : JSON.stringify(places),
+            thumbnailUrl: thumbnailUrl.trim() || null,
+            dateLabel: dateLabel.trim() || null,
+            startsUtc: day(starts),
+            endsUtc: day(ends),
+            themeJson: JSON.stringify(theme)
+          })}
+        >
+          Zapisz ustawienia
+        </button>
+      </div>
     </section>
   );
 }
 
-export default RcEventWorkbench;
+/** Kaputte Ortsangabe kostet die Orte, nicht das Formular. */
+function readPlaces(placesJson: string | null | undefined): string[] {
+  if (placesJson === null || placesJson === undefined || placesJson.trim() === '') return [];
+  try {
+    const parsed: unknown = JSON.parse(placesJson);
+    return Array.isArray(parsed)
+      ? parsed.filter((one): one is string => typeof one === 'string')
+      : [];
+  } catch { return []; }
+}

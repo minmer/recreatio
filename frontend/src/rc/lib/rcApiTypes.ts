@@ -2424,6 +2424,224 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/event-access/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventAccessViewResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/events/{id}/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventAccessListResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventAccessGrantRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventAccessGrantedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/event-access/{id}/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventAccessUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventAccessUpdatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/event-access/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventAccessStatusRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventAccessUpdatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/event-access/{id}/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcEventDeletedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/event-collections": {
         parameters: {
             query?: never;
@@ -7084,6 +7302,42 @@ export interface components {
             /** Format: date-time */
             lastReadAt: string;
         };
+        EventAccessAccessView: {
+            accessId: string;
+            recipientName: string;
+            recipientContact?: string | null;
+            status: string;
+            personalNote?: string | null;
+            internalNote?: string | null;
+            contactVerified: boolean;
+            /** Format: int32 */
+            viewCount: number;
+            /** Format: date-time */
+            lastViewedUtc?: string | null;
+            pageIds: string[];
+            notes: components["schemas"]["RcEventAccessNote"][];
+            /** Format: date-time */
+            createdUtc: string;
+        };
+        EventAccessGrantRequest: {
+            recipientName?: string | null;
+            recipientContact?: string | null;
+            pageIds?: string[] | null;
+            personalNote?: string | null;
+            internalNote?: string | null;
+            notes?: components["schemas"]["RcEventAccessNote"][] | null;
+        };
+        EventAccessStatusRequest: {
+            status?: string | null;
+        };
+        EventAccessUpdateRequest: {
+            recipientName?: string | null;
+            recipientContact?: string | null;
+            pageIds?: string[] | null;
+            personalNote?: string | null;
+            internalNote?: string | null;
+            notes?: components["schemas"]["RcEventAccessNote"][] | null;
+        };
         EventCollectionsAddEventRequest: {
             slug?: string | null;
             title?: string | null;
@@ -7140,6 +7394,7 @@ export interface components {
         };
         EventEditingUpdateEventRequest: {
             title?: string | null;
+            subtitle?: string | null;
             summary?: string | null;
             category?: string | null;
             audience?: string | null;
@@ -7151,6 +7406,7 @@ export interface components {
             /** Format: date-time */
             endsUtc?: string | null;
             isPublic?: boolean | null;
+            themeJson?: string | null;
         };
         EventEditingUpdateFieldRequest: {
             label?: string | null;
@@ -7163,6 +7419,8 @@ export interface components {
             title?: string | null;
             menuLabel?: string | null;
             isVisible?: boolean | null;
+            kind?: string | null;
+            description?: string | null;
         };
         EventMediaDocumentView: {
             documentId: string;
@@ -7272,6 +7530,8 @@ export interface components {
             title: string;
             /** Format: int32 */
             sortOrder?: number | null;
+            kind?: string | null;
+            menuLabel?: string | null;
         };
         EventsAddPartRequest: {
             kind: string;
@@ -7316,6 +7576,9 @@ export interface components {
             /** Format: int32 */
             sortOrder: number;
             isVisible: boolean;
+            kind: string;
+            menuLabel?: string | null;
+            description?: string | null;
             parts: components["schemas"]["EventsPartView"][];
         };
         EventsPartView: {
@@ -7936,6 +8199,28 @@ export interface components {
             note?: string | null;
             unreadable?: string | null;
         };
+        RcEventAccessGrantedResponse: {
+            accessId: string;
+            token: string;
+        };
+        RcEventAccessListResponse: {
+            access: components["schemas"]["EventAccessAccessView"][];
+        };
+        RcEventAccessNote: {
+            label: string;
+            value: string;
+        };
+        RcEventAccessUpdatedResponse: {
+            accessId: string;
+            updated: boolean;
+        };
+        RcEventAccessViewResponse: {
+            recipientName: string;
+            personalNote?: string | null;
+            firstOpen: boolean;
+            notes: components["schemas"]["RcEventAccessNote"][];
+            event: components["schemas"]["RcEventViewResponse"];
+        };
         RcEventCardSubmittedResponse: {
             cardId: string;
             /** Format: date-time */
@@ -8083,6 +8368,14 @@ export interface components {
             mayRead: boolean;
             pages: components["schemas"]["EventsPageView"][];
             intakePublicKey?: string | null;
+            subtitle?: string | null;
+            summary?: string | null;
+            category?: string | null;
+            audience?: string | null;
+            placesJson?: string | null;
+            thumbnailUrl?: string | null;
+            dateLabel?: string | null;
+            themeJson?: string | null;
         };
         RcEventsResponse: {
             events: components["schemas"]["EventsEventSummary"][];

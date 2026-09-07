@@ -57,10 +57,18 @@ public static class RcEventEditing
 
     // -- Die Veranstaltung selbst ---------------------------------------------
 
+    /// <summary>
+    /// <paramref name="Subtitle"/> und <paramref name="Summary"/> sind ZWEI
+    /// Dinge, und das ist kein Versehen: das Motto steht AUF der Seite unter
+    /// dem Titel, der Anriss auf der KATALOGKARTE, wo wenig Platz ist und ein
+    /// anderer Ton passt. Ein Feld fuer beides hiesse: entweder auf der Karte
+    /// ein zu langes Motto oder auf der Seite ein zu duerrer Karteitext.
+    /// </summary>
     public sealed record UpdateEventRequest(
-        string? Title, string? Summary, string? Category, string? Audience,
+        string? Title, string? Subtitle, string? Summary, string? Category, string? Audience,
         string? PlacesJson, string? ThumbnailUrl, string? DateLabel,
-        DateTimeOffset? StartsUtc, DateTimeOffset? EndsUtc, bool? IsPublic);
+        DateTimeOffset? StartsUtc, DateTimeOffset? EndsUtc, bool? IsPublic,
+        string? ThemeJson);
 
     /// <summary>
     /// Titel, Zeitraum und die Felder, nach denen der Katalog siebt.
@@ -103,16 +111,18 @@ public static class RcEventEditing
 
         await using var update = new SqlCommand("""
             UPDATE dbo.rc_event
-               SET title = @title, summary = @summary, category = @category,
+               SET title = @title, subtitle = @subtitle,
+                   summary = @summary, category = @category,
                    audience = @audience, places_json = @places,
                    thumbnail_url = @thumb, date_label = @dateLabel,
                    starts_at = @starts, ends_at = @ends,
-                   is_public = @public
+                   is_public = @public, theme_json = @theme
              WHERE id = @id;
             """, connection);
 
         update.Parameters.AddWithValue("@id", id);
         update.Parameters.AddWithValue("@title", title);
+        Text(update, "@subtitle", body.Subtitle, 300);
         Text(update, "@summary", body.Summary, 400);
         Text(update, "@category", body.Category, 80);
         Text(update, "@audience", body.Audience, 160);
@@ -126,6 +136,12 @@ public static class RcEventEditing
             (object?)body.EndsUtc ?? DBNull.Value;
         update.Parameters.AddWithValue("@public", body.IsPublic ?? true);
 
+        // Das Aussehen der Veranstaltung. Kaputtes JSON kostet die Farben,
+        // nicht die Seite: `parseTheme` faellt auf die Vorgabe zurueck.
+        var theme = (body.ThemeJson ?? string.Empty).Trim();
+        update.Parameters.Add("@theme", System.Data.SqlDbType.NVarChar, -1).Value =
+            theme.Length == 0 ? DBNull.Value : theme;
+
         await update.ExecuteNonQueryAsync(ctx.RequestAborted);
 
         await RcResults.WriteJsonAsync(ctx, new RcEventUpdatedResponse(RcId.ToText(id), true));
@@ -133,7 +149,8 @@ public static class RcEventEditing
 
     // -- Seiten ---------------------------------------------------------------
 
-    public sealed record UpdatePageRequest(string? Title, string? MenuLabel, bool? IsVisible);
+    public sealed record UpdatePageRequest(
+        string? Title, string? MenuLabel, bool? IsVisible, string? Kind, string? Description);
 
     private static async Task UpdatePageAsync(
         HttpContext ctx, RcDb db, RcPermissions permissions, Guid id, UpdatePageRequest body)
@@ -155,13 +172,37 @@ public static class RcEventEditing
             return;
         }
 
-        await using var update = new SqlCommand(
-            "UPDATE dbo.rc_event_page SET title = @title, is_visible = @visible WHERE id = @id;",
-            connection);
+        /*
+         * Die ART wird nur geaendert, wenn eine dasteht.
+         *
+         * Sie beim Umbenennen stillschweigend auf „oeffentlich" zu setzen —
+         * weil das Feld im Formular leer blieb — machte aus einer internen
+         * Seite eine offene, und niemand haette es an der Oberflaeche
+         * gesehen. Deshalb ISNULL statt Ueberschreiben.
+         */
+        var kind = (body.Kind ?? string.Empty).Trim();
+        if (kind.Length > 0 && kind is not ("public" or "internal"))
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                RcErrorCodes.PermissionDenied, "Diese Art von Seite gibt es nicht.");
+            return;
+        }
+
+        await using var update = new SqlCommand("""
+            UPDATE dbo.rc_event_page
+               SET title = @title, is_visible = @visible,
+                   menu_label = @menu, description = @description,
+                   kind = ISNULL(@kind, kind)
+             WHERE id = @id;
+            """, connection);
 
         update.Parameters.AddWithValue("@id", id);
         update.Parameters.AddWithValue("@title", title);
         update.Parameters.AddWithValue("@visible", body.IsVisible ?? true);
+        update.Parameters.Add("@kind", System.Data.SqlDbType.NVarChar, 16).Value =
+            kind.Length == 0 ? DBNull.Value : kind;
+        Text(update, "@menu", body.MenuLabel, 60);
+        Text(update, "@description", body.Description, 600);
         await update.ExecuteNonQueryAsync(ctx.RequestAborted);
 
         await RcResults.WriteJsonAsync(ctx, new RcEventPageUpdatedResponse(RcId.ToText(id), true));

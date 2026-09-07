@@ -134,9 +134,25 @@ export const rcEvent = (collection: string, slug: string) =>
     `/event-collections/${encodeURIComponent(collection)}/events/${encodeURIComponent(slug)}`,
     { withUnlock: true });
 
-export const rcAddPage = (eventId: string, slug: string, title: string, sortOrder?: number) =>
+/**
+ * Eine Seite anlegen.
+ *
+ * <b>`kind` ist ABSICHT, keine Ableitung.</b> Eine noch leere interne Seite
+ * gaebe sich sonst als oeffentlich aus — es liegt ja nichts Versiegeltes
+ * darauf —, und die erste Zuteilung eines persoenlichen Zugangs liefe ins
+ * Leere, ohne dass jemand sieht warum.
+ */
+export const rcAddPage = (
+  eventId: string, slug: string, title: string,
+  extra: { sortOrder?: number; kind?: 'public' | 'internal'; menuLabel?: string } = {}
+) =>
   rcFetch<RcApi<'RcEventPageCreatedResponse'>>(`/events/${eventId}/pages`, {
-    body: { slug, title, sortOrder: sortOrder ?? null },
+    body: {
+      slug, title,
+      sortOrder: extra.sortOrder ?? null,
+      kind: extra.kind ?? null,
+      menuLabel: extra.menuLabel ?? null
+    },
     withUnlock: true
   });
 
