@@ -352,15 +352,21 @@ export function RcApp() {
           dort steht eine Zahl, und Zahlen benennen hier nichts.
         */}
         {event === 'new'
-          ? <RcEventCreator collection={address.slug} />
+          ? (
+            <RcEventCreator
+              collection={address.slug}
+              unlocked={unlocked}
+              onSignIn={() => setDrawerOpen(true)}
+            />
+          )
           : event === null
           ? <RcEventCatalogue slug={address.slug} />
           : editing ? (
             <RcEventWorkbench
-              lang={lang}
               collection={address.slug}
               slug={event}
               unlocked={unlocked}
+              onSignIn={() => setDrawerOpen(true)}
             />
           ) : (
             <RcEventSite

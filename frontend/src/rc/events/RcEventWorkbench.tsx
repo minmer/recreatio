@@ -23,7 +23,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { rcCopy, type RcLang } from '../i18n';
 import { rcEvent, rcPublishEvent, type RcEventView } from '../lib/rcEvents';
 import { rcUpdateEvent } from '../lib/rcEventEditing';
 import { rcPath } from '../lib/rcRoute';
@@ -34,15 +33,15 @@ import { RcEventRegistrations } from './RcEventRegistrations';
 type Tab = 'parts' | 'signups' | 'settings';
 
 export function RcEventWorkbench({
-  lang, collection, slug, unlocked
+  collection, slug, unlocked, onSignIn
 }: {
-  lang: RcLang;
   collection: string;
   slug: string;
   unlocked: boolean;
+  /** Die Anmeldeschublade oeffnen. Ohne sie waere „gesperrt" eine Sackgasse. */
+  onSignIn: () => void;
 }) {
-  const t = rcCopy[lang].events;
-  const describe = useRcError(lang);
+  const describe = useRcError('pl');
 
   const [view, setView] = useState<RcEventView | null>(null);
   const [tab, setTab] = useState<Tab>('parts');
@@ -55,16 +54,40 @@ export function RcEventWorkbench({
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  /*
+   * GESPERRT IST KEINE SACKGASSE.
+   *
+   * Der Herausgeber liest den Bereich der Veranstaltung, und der ist
+   * verschlossen, bis das Konto aufgeschlossen wurde. Das nur
+   * FESTZUSTELLEN — „zum Lesen entsperren" — laesst den Leser auf einer
+   * schwarzen Seite ohne Knopf zurueck: er hat die Zeile in der Liste
+   * angeklickt, sie hat ihn hierher gebracht, und hier hoert es auf.
+   *
+   * Also steht der Weg dabei, und der Weg zurueck auch.
+   */
   if (!unlocked) {
     return (
       <div className="ew">
-        <p className="ec-note">{rcCopy[lang].chat.locked}</p>
+        <header className="ew-head">
+          <a className="ew-back" href={rcPath('event', collection)}>← Katalog</a>
+        </header>
+
+        <section className="ew-panel">
+          <h2 className="ew-h2">Zamknięte</h2>
+          <p className="ec-note">
+            Edytor czyta obszar wydarzenia, a ten jest zamknięty, dopóki nie
+            odblokujesz konta swoim kluczem.
+          </p>
+          <button type="button" className="rc-btn" onClick={onSignIn}>
+            Odblokuj
+          </button>
+        </section>
       </div>
     );
   }
 
   if (view === null) {
-    return <div className="ew"><p className="ec-note">{rcCopy[lang].chat.loading}</p></div>;
+    return <div className="ew"><p className="ec-note">Wczytywanie…</p></div>;
   }
 
   /*
@@ -98,14 +121,14 @@ export function RcEventWorkbench({
       {/* Ein Entwurf ist nicht oeffentlich — als Warnung, nicht als Vermerk. */}
       {view.lifecycle === 'draft' && (
         <div className="ew-draft">
-          <p>{t.draftWarning}</p>
+          <p>Szkic nie jest publiczny. Nikt z zewnątrz go nie otworzy i nie przyjmuje zapisów.</p>
           <button
             type="button"
             className="rc-btn"
             onClick={() => void rcPublishEvent(view.eventId).then(refresh)
               .catch((e: unknown) => setError(describe(e)))}
           >
-            {t.publish}
+            Opublikuj
           </button>
         </div>
       )}
@@ -113,7 +136,7 @@ export function RcEventWorkbench({
       {error !== null && <p className="ap-error">{error}</p>}
 
       {tab === 'parts' && (
-        <RcEventEditor lang={lang} collection={collection} slug={slug} onError={setError} />
+        <RcEventEditor lang='pl' collection={collection} slug={slug} onError={setError} />
       )}
 
       {tab === 'signups' && (

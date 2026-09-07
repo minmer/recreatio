@@ -28,7 +28,14 @@ import { rcWhen } from './rcCatalogue';
 
 type RcCollectionView = RcApi<'RcEventCollectionViewResponse'>;
 
-export function RcEventCreator({ collection }: { collection: string }) {
+export function RcEventCreator({
+  collection, unlocked, onSignIn
+}: {
+  collection: string;
+  unlocked: boolean;
+  /** Die Anmeldeschublade oeffnen. Ohne sie waere „gesperrt" eine Sackgasse. */
+  onSignIn: () => void;
+}) {
   const [view, setView] = useState<RcCollectionView | null>(null);
   const [missing, setMissing] = useState(false);
 
@@ -38,6 +45,31 @@ export function RcEventCreator({ collection }: { collection: string }) {
   }, [collection]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  /*
+   * GESPERRT IST KEINE SACKGASSE — und auch keine fehlende Seite.
+   *
+   * Ohne aufgeschlossenes Konto antwortet der Dienst nicht mit dem Katalog,
+   * und das sah hier bisher aus wie „diese Seite gibt es nicht". Zwei ganz
+   * verschiedene Lagen, dieselbe Meldung: wer sie las, suchte den Fehler in
+   * seinem Link statt an seinem Schluessel.
+   */
+  if (!unlocked) {
+    return (
+      <Shell>
+        <a className="ek-back" href={rcPath('event', collection)}>← Katalog</a>
+        <h1 className="ek-h1">Kreator wydarzeń</h1>
+        <section className="ek-card">
+          <h2 className="ek-h2">Zamknięte</h2>
+          <p className="ek-note">
+            Zakładanie wydarzeń czyta obszar tej strony, a ten jest zamknięty,
+            dopóki nie odblokujesz konta swoim kluczem.
+          </p>
+          <button type="button" className="ek-go" onClick={onSignIn}>Odblokuj</button>
+        </section>
+      </Shell>
+    );
+  }
 
   if (missing) {
     return <Shell><p className="ek-note">Pod tym adresem nie ma strony wydarzeń.</p></Shell>;
