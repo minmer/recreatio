@@ -273,6 +273,7 @@ public static class RcEventParticipation
     // -- Teilnehmerkarte ------------------------------------------------------
 
     public sealed record SubmitCardRequest(
+        string? CardId,
         string? Claim, string? DataSealed, string? ConsentsSealed, string? SessionKeyWrapped,
         string? ClauseText, bool? IsMinor, string? SignerRole);
 
@@ -349,7 +350,23 @@ public static class RcEventParticipation
             return;
         }
 
-        var cardId = RcId.NewId();
+        /*
+         * DIE KENNUNG KOMMT AUS DEM BROWSER.
+         *
+         * Sie steht im Etikett (AAD), unter dem die Karte verschlossen wurde.
+         * Wuerfelte der Dienst hier eine eigene, passte sein Etikett nicht zu
+         * dem, unter dem versiegelt wurde — und die Karte liesse sich nie mehr
+         * oeffnen. Genau dieser Fehler ist bei den Firmkandidaten schon einmal
+         * passiert: beide Seiten waren fuer sich schluessig, und nichts ging
+         * auf.
+         */
+        if (!Guid.TryParse(body.CardId, out var cardId))
+        {
+            await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                RcErrorCodes.IdMalformed, "Die Karte hat keine brauchbare Kennung.");
+            return;
+        }
+
         var now = DateTimeOffset.UtcNow;
 
         await using (var insert = new SqlCommand("""
@@ -384,20 +401,34 @@ public static class RcEventParticipation
             new RcEventCardSubmittedResponse(RcId.ToText(cardId), now), StatusCodes.Status201Created);
     }
 
+    /// <summary>
+    /// Eine Karte, GEOEFFNET.
+    ///
+    /// <c>unreadable</c> steht dort, wo sie sich nicht aufmachen liess — sie
+    /// faellt dann NICHT aus der Liste (15.9). Sie still zu unterschlagen
+    /// hiesse, dass niemand merkt, dass jemand eine abgegeben hat.
+    /// </summary>
     public sealed record CardView(
         string CardId, bool IsMinor, string SignerRole, string? ClauseText,
-        string? DataSealed, string? ConsentsSealed, string? SessionKeyWrapped,
-        int Epoch, DateTimeOffset SubmittedUtc);
+        string? DataJson, string? ConsentsJson, string? Unreadable,
+        DateTimeOffset SubmittedUtc);
 
     /// <summary>
-    /// Die Karten — VERSIEGELT, wie sie liegen.
+    /// Die Karten dieses Teils.
     ///
-    /// Geoeffnet wird im Browser dessen, der den Epochenschluessel hat; derselbe
-    /// Weg wie bei den Antworten einer Anmeldung. Der Dienst kann es nicht, und
-    /// das ist keine Bequemlichkeit, sondern die Zusage.
+    /// <b>Geoeffnet wird HIER, mit dem Amtsschluessel des Lesers.</b> Ein
+    /// frueherer Entwurf gab sie versiegelt heraus und schrieb dazu, der
+    /// Browser mache sie auf. Das konnte er nicht: der private
+    /// Annahmeschluessel liegt beim Dienst, und der Teilnehmer, der die Karte
+    /// abgegeben hat, hat ihn erst recht nicht. Die Karten waeren fuer immer
+    /// zu gewesen — bemerkt erst, wenn jemand die erste hatte lesen wollen.
+    ///
+    /// <b>Und WER sie oeffnen darf, entscheidet das AMT, nicht der Bereich.</b>
+    /// Hier stehen Ernaehrung, Unvertraeglichkeit, Medikamente. Wer zum
+    /// Bereich gehoert, weil er beim Aufbau hilft, hat damit nichts zu tun.
     /// </summary>
     private static async Task ListCardsAsync(
-        HttpContext ctx, RcDb db, RcPermissions permissions, Guid id)
+        HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions, Guid id)
     {
         var session = ctx.RcSession();
         if (session is null) { await RcAreas.Unauthenticated(ctx); return; }
@@ -411,10 +442,18 @@ public static class RcEventParticipation
             owner.Value.AreaId, RcCapability.Read, ctx.RequestAborted);
         if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
 
-        var views = new List<CardView>();
+        using var held = await masterKeys.OpenAsync(
+            connection, session, ctx.RcUnlockPiece(), ctx.RequestAborted);
+
+        using var intake = await RcRegistrations.OpenEventIntakeAsync(
+            connection, owner.Value.EventId, session.AccountId, held.MasterKey, ctx.RequestAborted);
+
+        var rows = new List<(Guid Id, bool Minor, string Signer, string? Clause,
+            byte[] Data, byte[]? Consents, byte[]? Wrapped, DateTimeOffset At)>();
+
         await using (var cmd = new SqlCommand("""
             SELECT id, is_minor, signer_role, clause_text, data_sealed, consents_sealed,
-                   session_key_wrapped, epoch, submitted_at
+                   session_key_wrapped, submitted_at
             FROM dbo.rc_event_card WHERE part_id = @id
             ORDER BY submitted_at DESC;
             """, connection))
@@ -423,18 +462,64 @@ public static class RcEventParticipation
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
             while (await reader.ReadAsync(ctx.RequestAborted))
             {
-                views.Add(new CardView(
-                    RcId.ToText(reader.GetGuid(0)), reader.GetBoolean(1), reader.GetString(2),
+                rows.Add((reader.GetGuid(0), reader.GetBoolean(1), reader.GetString(2),
                     reader.IsDBNull(3) ? null : reader.GetString(3),
-                    RcBase64Url.Encode((byte[])reader[4]),
-                    reader.IsDBNull(5) ? null : RcBase64Url.Encode((byte[])reader[5]),
-                    reader.IsDBNull(6) ? null : RcBase64Url.Encode((byte[])reader[6]),
-                    reader.GetInt32(7), reader.GetDateTimeOffset(8)));
+                    (byte[])reader[4],
+                    reader.IsDBNull(5) ? null : (byte[])reader[5],
+                    reader.IsDBNull(6) ? null : (byte[])reader[6],
+                    reader.GetDateTimeOffset(7)));
             }
+        }
+
+        var views = new List<CardView>();
+        foreach (var row in rows)
+        {
+            string? unreadable = null;
+            string? data = null, consents = null;
+
+            if (intake is null || row.Wrapped is null)
+            {
+                unreadable = RcErrorCodes.CryptoMissingKey;
+            }
+            else
+            {
+                try
+                {
+                    var key = RcCrypto.UnwrapKey(intake, CardWrapAad(row.Id), row.Wrapped);
+                    var aad = CardAad(row.Id);
+
+                    data = Encoding.UTF8.GetString(RcCrypto.Open(key, aad, row.Data));
+                    if (row.Consents is not null)
+                        consents = Encoding.UTF8.GetString(RcCrypto.Open(key, aad, row.Consents));
+                }
+                catch (RcDecryptException e)
+                {
+                    unreadable = e.Code;
+                }
+            }
+
+            views.Add(new CardView(
+                RcId.ToText(row.Id), row.Minor, row.Signer, row.Clause,
+                data, consents, unreadable, row.At));
         }
 
         await RcResults.WriteJsonAsync(ctx, new RcEventCardsResponse(views));
     }
+
+    /*
+      DIE ETIKETTEN DER KARTE.
+
+      Sie muessen bitgenau denen entsprechen, die der Browser beim Verschliessen
+      benutzt (`rcSealCard`). Inhalt und Schluessel liegen dabei an
+      VERSCHIEDENEN Plaetzen — derselbe Unterschied, an dem die erste Fassung
+      der Anmeldung gescheitert ist: beide Seiten waren fuer sich schluessig,
+      und nichts ging auf.
+    */
+    private static RcAad CardAad(Guid cardId) =>
+        RcAad.Create("events", "card", cardId, RcField.EventAnswer, 1);
+
+    private static RcAad CardWrapAad(Guid cardId) =>
+        RcAad.Create("events", "card", cardId, RcField.EventIntakeKey, 1);
 
     // -- Fragen ---------------------------------------------------------------
 

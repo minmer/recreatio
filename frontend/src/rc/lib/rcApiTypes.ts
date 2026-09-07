@@ -3204,6 +3204,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/event-photos/{id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/event-parts/{id}/roster": {
         parameters: {
             query?: never;
@@ -7151,11 +7186,9 @@ export interface components {
             isMinor: boolean;
             signerRole: string;
             clauseText?: string | null;
-            dataSealed?: string | null;
-            consentsSealed?: string | null;
-            sessionKeyWrapped?: string | null;
-            /** Format: int32 */
-            epoch: number;
+            dataJson?: string | null;
+            consentsJson?: string | null;
+            unreadable?: string | null;
             /** Format: date-time */
             submittedUtc: string;
         };
@@ -7185,6 +7218,7 @@ export interface components {
             updatedBy?: string | null;
         };
         EventParticipationSubmitCardRequest: {
+            cardId?: string | null;
             claim?: string | null;
             dataSealed?: string | null;
             consentsSealed?: string | null;

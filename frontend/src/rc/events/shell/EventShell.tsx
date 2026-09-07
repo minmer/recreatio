@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import type { ShellPage as EventPage, ShellPageRef as EventPageRef, ShellSite as EventSiteHeader } from './shellTypes';
 import { getPartModule } from '../parts/registry';
 import { partAnchor } from './anchors';
+import { RcEventAdminContext } from './useIsEventAdmin';
 import { parseLayers, parseTheme, type Layer } from './layers';
 
 import { useSlideScroll } from './useSlideScroll';
@@ -45,6 +46,9 @@ export function EventShell({
   site,
   page,
   mayRead,
+  claim,
+  onClaim,
+  intakePublicKey,
   availablePages,
   onSelectPage,
   banner,
@@ -55,8 +59,14 @@ export function EventShell({
 }: {
   site: EventSiteHeader;
   page: EventPage;
-  /** Gehoert der Leser dazu? Ersetzt den accessToken des alten Moduls. */
+  /** Gehoert der Leser zur Verwaltung? */
   mayRead: boolean;
+  /** Der Beleg der Anmeldung, mit dem sich ein Teilnehmer ausweist. */
+  claim: string | null;
+  /** Ihn setzen oder zuruecknehmen. Ohne das gaebe es keinen Weg hinein. */
+  onClaim?: (claim: string | null) => void;
+  /** Womit ein Teilnehmer ohne Konto verschliesst. */
+  intakePublicKey: string | null;
   /** Empty on the public page; the switcher only appears when there is a choice. */
   availablePages: EventPageRef[];
   onSelectPage?: (pageSlug: string) => void;
@@ -229,6 +239,7 @@ export function EventShell({
   };
 
   return (
+    <RcEventAdminContext.Provider value={mayRead}>
     <div
       className={`ev ${theme.mode === 'light' ? 'is-light' : 'is-dark'} ${
         page.kind === 'internal' ? 'is-internal' : ''
@@ -305,6 +316,7 @@ export function EventShell({
 
         <div className="ev-header-meta">
           <span className="ev-header-title">{site.title}</span>
+          <ClaimBar claim={claim} onClaim={onClaim} />
           {page.kind === 'internal' ? <span className="ev-header-tag">{page.menuLabel}</span> : null}
         </div>
       </header>
@@ -433,6 +445,8 @@ export function EventShell({
                           siteDateLabel: site.dateLabel,
                           sitePlaces: site.places,
                           mayRead,
+                          claim,
+                          intakePublicKey,
                           part
                         }}
                       />
@@ -464,5 +478,76 @@ export function EventShell({
         </div>
       </footer>
     </div>
+    </RcEventAdminContext.Provider>
+  );
+}
+
+/**
+ * Der Belegbalken: wie sich ein Teilnehmer ohne Konto ausweist.
+ *
+ * <b>Warum das hier steht und nicht in jedem Teil.</b> Checkliste,
+ * Teilnehmerkarte und Fragen brauchen denselben Beleg. Jeder Teil, der ihn
+ * selbst erfragte, hiesse: dreimal abschreiben — und beim dritten Mal kopiert
+ * ihn jemand aus der Nachricht, in der er steht, und die liegt dann offen.
+ *
+ * <b>Er wird nicht angezeigt, wenn er da ist.</b> Ein Feld mit dem Beleg darin
+ * waere ein Geheimnis auf dem Bildschirm, den auch der Nachbar sieht. Sichtbar
+ * ist nur, DASS jemand sich ausgewiesen hat — und der Weg zurueck.
+ */
+function ClaimBar({
+  claim, onClaim
+}: {
+  claim: string | null;
+  onClaim?: (claim: string | null) => void;
+}) {
+  const [typing, setTyping] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  if (onClaim === undefined) return null;
+
+  if (claim !== null) {
+    return (
+      <span className="ev-claim">
+        <span className="ev-claim-on">rozpoznano zgłoszenie</span>
+        <button type="button" className="ev-claim-off" onClick={() => onClaim(null)}>
+          zapomnij
+        </button>
+      </span>
+    );
+  }
+
+  if (!typing) {
+    return (
+      <button type="button" className="ev-claim-open" onClick={() => setTyping(true)}>
+        Mam zgłoszenie
+      </button>
+    );
+  }
+
+  return (
+    <form
+      className="ev-claim"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (draft.trim() === '') return;
+        onClaim(draft.trim());
+        setDraft('');
+        setTyping(false);
+      }}
+    >
+      {/*
+        `password`, bo to jest hasło w każdym istotnym sensie: kto je ma, wchodzi.
+        Autouzupełnianie wyłączone — przeglądarka nie ma tego zapamiętywać na
+        komputerze, który bywa wspólny.
+      */}
+      <input
+        type="password"
+        value={draft}
+        autoComplete="off"
+        placeholder="dowód ze zgłoszenia"
+        onChange={(event) => setDraft(event.target.value)}
+      />
+      <button type="submit" className="ev-claim-go">Otwórz</button>
+    </form>
   );
 }

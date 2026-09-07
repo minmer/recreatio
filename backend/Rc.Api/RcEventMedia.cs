@@ -54,6 +54,11 @@ public static class RcEventMedia
         // Der Inhalt liegt hinter EINER Adresse fuer beides: ein Bild und eine
         // Datei unterscheiden sich hier durch nichts als ihre Zeile.
         app.MapGet("/rc/event-media/{id:guid}/content", DownloadAsync);
+
+        // Dasselbe ueber die Kennung des BILDES. Die Galerie kennt seine Zeile,
+        // nicht seinen Anhang — und ein Umweg ueber eine Liste, nur um eine
+        // zweite Kennung zu holen, waere eine Abfrage je Kachel.
+        app.MapGet("/rc/event-photos/{id:guid}/content", DownloadPhotoAsync);
     }
 
     // -- Bilder ---------------------------------------------------------------
@@ -291,6 +296,26 @@ public static class RcEventMedia
     /// Erste gibt es hier nicht, und so zu tun, als gaebe es ein Drittes, waere
     /// die Art von Halbheit, die spaeter als Datenleck auffaellt.
     /// </summary>
+    /// <summary>Der Inhalt eines Bildes, ueber die Kennung seiner Zeile.</summary>
+    private static async Task DownloadPhotoAsync(
+        HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions,
+        IConfiguration config, Guid id)
+    {
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        await using var cmd = new SqlCommand(
+            "SELECT attachment_id FROM dbo.rc_event_photo WHERE id = @id;", connection);
+        cmd.Parameters.AddWithValue("@id", id);
+
+        if (await cmd.ExecuteScalarAsync(ctx.RequestAborted) is not Guid attachmentId)
+        {
+            await RcAreas.NotForYou(ctx);
+            return;
+        }
+
+        await DownloadAsync(ctx, db, masterKeys, permissions, config, attachmentId);
+    }
+
     private static async Task DownloadAsync(
         HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions,
         IConfiguration config, Guid id)
@@ -355,14 +380,21 @@ public static class RcEventMedia
         var plain = RcCrypto.Open(epochKey, RcAttachments.ContentAad(attachmentId), sealedContent);
 
         /*
-         * IMMER als Anhang und IMMER als octet-stream.
+         * DER INHALTSTYP KOMMT VOM DIENST, NIE VOM HOCHLADENDEN.
          *
-         * Der Inhaltstyp kaeme sonst vom Hochladenden, und ein als Bild
-         * angekuendigtes HTML fuehrt der Browser im Ursprung dieser Seite aus.
-         * Die Anzeige im Browser kostet das — der Preis ist es wert.
+         * Wuerde er uebernommen, koennte ein als Bild angekuendigtes HTML im
+         * Ursprung dieser Seite ausgefuehrt werden und alles lesen, was hier
+         * steht. Deshalb wird in die ersten Bytes gesehen: was zweifelsfrei ein
+         * Bild ist, geht als Bild heraus und darf in einem <img> stehen — alles
+         * andere als Anhang, den der Browser nur ablegt.
+         *
+         *  bleibt in beiden Faellen: der Browser soll auch nicht auf
+         * eigene Faust etwas anderes daraus machen.
          */
-        ctx.Response.ContentType = "application/octet-stream";
-        ctx.Response.Headers.ContentDisposition = "attachment";
+        var imageType = SniffImage(plain);
+
+        ctx.Response.ContentType = imageType ?? "application/octet-stream";
+        ctx.Response.Headers.ContentDisposition = imageType is null ? "attachment" : "inline";
         ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
         await ctx.Response.Body.WriteAsync(plain, ctx.RequestAborted);
     }
@@ -554,6 +586,30 @@ public static class RcEventMedia
 
         await RcAreas.NotForYou(ctx);
         return false;
+    }
+
+    /// <summary>
+    /// Ist das zweifelsfrei ein Bild? Dann welcher Art.
+    ///
+    /// <b>Nur die vier, die jeder Browser ohne Umschweife zeichnet.</b> Kein
+    /// SVG: das ist ein Dokument mit Skripten darin und waere genau das Loch,
+    /// gegen das diese Pruefung steht.
+    /// </summary>
+    private static string? SniffImage(byte[] data)
+    {
+        static bool Starts(byte[] d, params byte[] magic) =>
+            d.Length >= magic.Length && d.AsSpan(0, magic.Length).SequenceEqual(magic);
+
+        if (Starts(data, 0x89, 0x50, 0x4E, 0x47)) return "image/png";
+        if (Starts(data, 0xFF, 0xD8, 0xFF)) return "image/jpeg";
+        if (Starts(data, 0x47, 0x49, 0x46, 0x38)) return "image/gif";
+
+        // WebP: "RIFF" .... "WEBP"
+        if (data.Length >= 12 && Starts(data, 0x52, 0x49, 0x46, 0x46)
+            && data[8] == 0x57 && data[9] == 0x45 && data[10] == 0x42 && data[11] == 0x50)
+            return "image/webp";
+
+        return null;
     }
 
     private static async Task<int> CurrentEpochAsync(

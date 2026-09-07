@@ -34,6 +34,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { rcEvent, type RcEventView } from '../lib/rcEvents';
+import { rcReadClaim, rcWriteClaim } from './shell/rcClaim';
 import { rcPath } from '../lib/rcRoute';
 import { EventShell } from './shell/EventShell';
 import { rcShellPage, rcShellPages, rcShellSite } from './shell/shellTypes';
@@ -66,6 +67,13 @@ export function RcEventSite({
   const [event, setEvent] = useState<RcEventView | null>(null);
   const [missing, setMissing] = useState(false);
   const [openPage, setOpenPage] = useState<string | null>(null);
+
+  /*
+   * Der Beleg der Anmeldung. Er gilt fuer die Dauer der Karte und steht
+   * NICHT in der Adresse — dort landete er im Verlauf des Browsers, im
+   * Verweis der naechsten Seite und im Protokoll jedes Zwischenservers.
+   */
+  const [claim, setClaim] = useState<string | null>(() => rcReadClaim(collection, slug));
 
   useEffect(() => {
     let alive = true;
@@ -143,6 +151,9 @@ export function RcEventSite({
       site={rcShellSite(event)}
       page={{ ...rcShellPage(page), parts: visible }}
       mayRead={event.mayRead}
+      claim={claim}
+      intakePublicKey={event.intakePublicKey ?? null}
+      onClaim={(next) => { rcWriteClaim(collection, slug, next); setClaim(next); }}
       availablePages={rcShellPages(event)}
       onSelectPage={(pageSlug) => setOpenPage(pageSlug)}
       initialPartIndex={at}

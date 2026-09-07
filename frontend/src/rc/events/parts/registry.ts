@@ -33,17 +33,24 @@
  */
 
 import type { PartModule } from './contracts';
+import { checklistPart } from './ChecklistPart';
 import { contactPart } from './ContactPart';
 import { costsPart } from './CostsPart';
 import { faqPart } from './FaqPart';
 import { filesPart } from './FilesPart';
 import { formPart } from './FormPart';
+import { galleryPart } from './GalleryPart';
+import { memePart } from './MemePart';
 import { mapPart } from './MapPart';
 import { peoplePart } from './PeoplePart';
+import { participantCardPart } from './ParticipantCardPart';
 import { planPart } from './PlanPart';
+import { registrationPart } from './RegistrationPart';
+import { rosterPart } from './RosterPart';
 import { shortInfosPart } from './ShortInfosPart';
 import { textPart } from './TextPart';
 import { titlePart } from './TitlePart';
+import { topicsPart } from './TopicsPart';
 
 export const PART_MODULES: PartModule[] = [
   titlePart,
@@ -56,7 +63,20 @@ export const PART_MODULES: PartModule[] = [
   faqPart,
   peoplePart,
   filesPart,
-  contactPart
+  galleryPart,
+  memePart,
+  contactPart,
+
+  /*
+    Nur hinter einem BELEG sinnvoll: diese fuenf handeln von den Daten des
+    Lesers selbst. Ohne ausgewiesenen Teilnehmer sagen sie das und zeigen
+    nichts — sie stehen deshalb am Ende der Liste, nicht mittendrin.
+  */
+  registrationPart,
+  participantCardPart,
+  checklistPart,
+  rosterPart,
+  topicsPart
 ];
 
 const BY_KIND = new Map<string, PartModule>(PART_MODULES.map((module) => [module.kind, module]));

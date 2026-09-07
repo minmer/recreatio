@@ -46,10 +46,41 @@ export type PartContext = {
   siteDateLabel: string | null;
   sitePlaces: string[];
   /**
-   * Gehoert der Leser dazu? Ersetzt den `accessToken` des alten Moduls: dort
-   * entschied ein Geheimnis in der Adresse, hier der Schluessel des Bereichs.
+   * Gehoert der Leser zur VERWALTUNG? Ersetzt die Haelfte des `accessToken`,
+   * die im alten Modul „darf aendern" hiess: dort entschied ein Geheimnis in
+   * der Adresse, hier der Schluessel des Bereichs.
    */
   mayRead: boolean;
+
+  /**
+   * Der Beleg der Anmeldung — die andere Haelfte des alten `accessToken`.
+   *
+   * <b>So weist sich ein Teilnehmer OHNE Konto aus.</b> Er hat ihn beim
+   * Anmelden einmal bekommen, und mit ihm kann er seine Anmeldung auch
+   * zuruecknehmen. Ein zweites Geheimnis daneben zu stellen hiesse zwei
+   * Sperren zu pflegen, und beim naechsten Umbau vergisst jemand die zweite.
+   *
+   * <b>Er steht NICHT in der Adresse</b>, anders als der Link des alten
+   * Moduls. Dort stuende er im Verlauf des Browsers, im Verweis der naechsten
+   * Seite und im Protokoll jedes Zwischenservers. Er wird einmal eingegeben
+   * und haelt, solange die Karte offen ist.
+   *
+   * `null` heisst: niemand hat sich ausgewiesen. Teile, die davon leben,
+   * sagen es dann und zeigen nicht einfach nichts.
+   */
+  claim: string | null;
+
+  /**
+   * Der oeffentliche Annahmeschluessel der Veranstaltung, base64url.
+   *
+   * Damit verschliesst der Browser, was ein Teilnehmer OHNE Konto abgibt —
+   * Anmeldung wie Teilnehmerkarte. Der Dienst legt danach Bytes ab, die er
+   * nicht oeffnen kann; das ist die ganze Zusage, und sie faellt, wenn hier
+   * jemand Klartext schickt.
+   *
+   * `null` heisst: diese Veranstaltung nimmt nichts entgegen.
+   */
+  intakePublicKey: string | null;
   part: EventPart;
 };
 

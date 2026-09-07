@@ -343,38 +343,56 @@ public static class RcEventCollections
                 connection, tx, officeRoleId, officeKey, office, tenantId,
                 RcRoleKinds.Office, title, ctx.RequestAborted);
 
-            System.Security.Cryptography.CryptographicOperations.ZeroMemory(eventOfficeKey);
-
             var (areaId, epochKey) = await RcAreas.InsertAreaAsync(
                 connection, tx, officeRoleId, officeKey, office, tenantId, title,
                 false, ctx.RequestAborted, eventOfficeId);
 
+            // Unter dem Epochenschluessel wird hier nichts mehr versiegelt.
+            System.Security.Cryptography.CryptographicOperations.ZeroMemory(epochKey);
+
             /*
+             * DER ANNAHMESCHLUESSEL GEHOERT DEM AMT, NICHT DEM BEREICH.
+             *
+             * Ein Anmeldeformular arbeitet mit einem Paar: den OEFFENTLICHEN
+             * Teil bekommt jeder, der sich anmeldet — damit verschliesst er
+             * seine Antworten. Der PRIVATE Teil oeffnet sie wieder und gehoert
+             * dem, der die Veranstaltung fuehrt.
+             *
+             * Laege er unter dem Epochenschluessel des Bereichs, koennte jeder
+             * Helfer, den man zum Vorbereiten hinzubittet, saemtliche
+             * Anmeldungen lesen — Namen, Ernaehrung, Unvertraeglichkeiten.
+             * Niemand muesste ihm etwas geben; es folgte aus der
+             * Mitgliedschaft. Genau so war es hier, bis rc_0031.
+             *
+             * `intake_epoch = 0` sagt: dieser Schluessel haengt an keiner
+             * Epoche. Ein Epochenschnitt macht ihn nicht unbrauchbar, und
+             * niemand muss raten, unter welcher er lag. Dieselbe Verabredung
+             * wie im Firmmodul, wo sie von Anfang an richtig war.
+             *
              * Der Annahmeschluessel entsteht MIT der Veranstaltung, nicht beim
              * ersten Formular — sonst haette man ein Formular, das noch nichts
-             * annehmen kann. Sein privater Teil liegt unter dem Epochenschluessel
-             * des eben angelegten Bereichs, den InsertAreaAsync mitgibt: ihn
-             * hier zu ERFRAGEN ginge nicht, denn ausserhalb dieser Transaktion
-             * gibt es den Bereich noch nicht.
+             * annehmen kann.
              */
-            const int intakeEpoch = 1;
+            const int intakeEpoch = 0;
             byte[] intakePublic, intakeSealed;
 
             using (var intake = System.Security.Cryptography.RSA.Create(4096))
             {
                 intakePublic = intake.ExportSubjectPublicKeyInfo();
                 intakeSealed = RcCrypto.Seal(
-                    epochKey, RcEvents.IntakeAad(eventId), intake.ExportPkcs8PrivateKey());
+                    eventOfficeKey, RcEvents.IntakeAad(eventId), intake.ExportPkcs8PrivateKey());
             }
 
-            System.Security.Cryptography.CryptographicOperations.ZeroMemory(epochKey);
+            System.Security.Cryptography.CryptographicOperations.ZeroMemory(eventOfficeKey);
 
             await using (var insert = new SqlCommand("""
                 INSERT INTO dbo.rc_event
-                    (id, collection_id, area_id, tenant_id, slug, title, lifecycle, is_public,
+                    (id, collection_id, area_id, tenant_id, office_role_id,
+                     slug, title, lifecycle, is_public,
                      starts_at, ends_at, created_at,
                      intake_public_key, intake_private_sealed, intake_epoch)
-                VALUES (@id, @collection, @area, @tenant, @slug, @title, N'draft', 0,
+                VALUES (@id, @collection, @area, @tenant, @office,
+                        @slug, @title, N'draft', 0,
                         @starts, @ends, @now,
                         @intakePub, @intakeSealed, @intakeEpoch);
                 """, connection, tx))
@@ -383,6 +401,7 @@ public static class RcEventCollections
                 insert.Parameters.AddWithValue("@collection", id);
                 insert.Parameters.AddWithValue("@area", areaId);
                 insert.Parameters.AddWithValue("@tenant", tenantId);
+                insert.Parameters.AddWithValue("@office", eventOfficeId);
                 insert.Parameters.AddWithValue("@slug", slug);
                 insert.Parameters.AddWithValue("@title", title);
                 insert.Parameters.Add("@starts", System.Data.SqlDbType.DateTimeOffset).Value =

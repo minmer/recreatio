@@ -9,6 +9,8 @@
  */
 
 import { rcFetch, type RcApi } from './rcApi';
+import { RcField, newSymmetricKey, rcAad, seal, wrapKey } from './rcCrypto';
+import { rcFromBase64Url, rcToBase64Url } from './rcBase64';
 
 // -- Bauplan ------------------------------------------------------------------
 
@@ -187,6 +189,7 @@ export type RcEventCard = RcApi<'RcEventCardsResponse'>['cards'][number];
 export const rcSubmitCard = (
   partId: string,
   body: {
+    cardId: string;
     claim: string;
     dataSealed: string;
     consentsSealed?: string | null;
@@ -227,3 +230,66 @@ export const rcReplyTopic = (
 export const rcModerateTopic = (topicId: string, status: 'open' | 'answered' | 'hidden') =>
   rcFetch<RcApi<'RcEventTopicModeratedResponse'>>(`/event-topics/${topicId}/moderate`,
     { body: { status }, withUnlock: true });
+
+/**
+ * Eine Teilnehmerkarte im Browser verschliessen.
+ *
+ * <b>Dasselbe Verfahren wie bei einer Anmeldung von aussen</b>
+ * (`rcSubmitRegistration`), und bewusst dieselben Etiketten: ein
+ * Sitzungsschluessel wird gewuerfelt, Karte und Einwilligungen werden damit
+ * verschlossen, und der Schluessel wird mit dem oeffentlichen Annahmeschluessel
+ * der Veranstaltung verpackt.
+ *
+ * <b>Die Kennung kommt von HIER und geht mit.</b> Sie steht im Etikett, unter
+ * dem versiegelt wurde. Liesse der Dienst sich eine eigene einfallen, passte
+ * sein Etikett nicht zu diesem — und die Karte waere fuer immer zu. Genau das
+ * ist bei den Firmkandidaten schon einmal passiert: beide Seiten waren fuer
+ * sich schluessig, und nichts ging auf.
+ *
+ * <b>Der Schluessel liegt an einem ANDEREN Platz als der Inhalt.</b> Er gehoert
+ * derselben Karte, ist aber ein Schluessel und keine Angabe — dieselbe
+ * Unterscheidung, an der die erste Fassung der Anmeldung gescheitert ist.
+ */
+export async function rcSealCard(
+  cardId: string,
+  intakePublicKeyBase64Url: string,
+  parts: { data: string; consents?: string | null }
+): Promise<{ dataSealed: string; consentsSealed: string | null; sessionKeyWrapped: string }> {
+  const sessionKey = newSymmetricKey();
+  const contentAad = rcAad('events', 'card', cardId, RcField.EventAnswer, 1);
+  const wrapAad = rcAad('events', 'card', cardId, RcField.EventIntakeKey, 1);
+
+  const bytes = (text: string) => new TextEncoder().encode(text);
+
+  const dataSealed = rcToBase64Url(await seal(sessionKey, contentAad, bytes(parts.data)));
+
+  const consents = (parts.consents ?? '').trim();
+  const consentsSealed = consents === ''
+    ? null
+    : rcToBase64Url(await seal(sessionKey, contentAad, bytes(consents)));
+
+  const wrapped = await wrapKey(rcFromBase64Url(intakePublicKeyBase64Url), wrapAad, sessionKey);
+
+  return { dataSealed, consentsSealed, sessionKeyWrapped: rcToBase64Url(wrapped) };
+}
+
+/**
+ * Die eigene Anmeldung ueber ihren Beleg finden.
+ *
+ * POST, obwohl es ein Lesen ist: der Beleg reist im Rumpf. In einer Adresse
+ * stuende er im Verlauf des Browsers und im Protokoll jedes Zwischenservers.
+ */
+export async function rcClaimRegistration(claim: string) {
+  try {
+    return await rcFetch<RcApi<'RegistrationsRcRegistrationClaimResponse'>>(
+      '/registrations/claim', { body: { claim } });
+  } catch {
+    /*
+     * Ein falscher Beleg ist kein Fehler der Seite, sondern eine Auskunft:
+     * dazu gibt es nichts. Der Dienst antwortet auf „falsch" und „gibt es
+     * nicht" mit derselben 404 — alles andere waere ein Orakel, an dem sich
+     * Belege erraten liessen.
+     */
+    return null;
+  }
+}

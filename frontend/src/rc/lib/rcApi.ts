@@ -44,6 +44,16 @@ const RC_BASE =
   ?? (import.meta.env.DEV ? '/rc' : `${RC_API_ORIGIN}/rc`);
 
 /**
+ * Dieselbe Grundlage, fuer die Faelle, die NICHT durch `rcFetch` gehen.
+ *
+ * Der Inhalt eines Bildes wird mit `fetch` geholt und zu einer Objekt-Adresse
+ * gemacht (RcMedia); dafuer braucht der Aufrufer die Grundlage selbst. Sie ein
+ * zweites Mal zusammenzusetzen hiesse, den Domaenenwechsel an zwei Stellen zu
+ * pflegen — und die zweite waere die vergessene.
+ */
+export const rcApiBase = (): string => RC_BASE;
+
+/**
  * 15.6 — Die Formen kommen aus `rcApiTypes.ts`, und die Datei ist erzeugt.
  *
  * Vorher stand jede Antwortform zweimal da: einmal als Datensatz in C#, einmal

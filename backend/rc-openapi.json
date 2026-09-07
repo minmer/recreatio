@@ -2990,6 +2990,29 @@
         }
       }
     },
+    "/rc/event-photos/{id}/content": {
+      "get": {
+        "tags": [
+          "RcEventMedia"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/rc/event-parts/{id}/roster": {
       "get": {
         "tags": [
@@ -8179,7 +8202,6 @@
       "EventParticipationCardView": {
         "required": [
           "cardId",
-          "epoch",
           "isMinor",
           "signerRole",
           "submittedUtc"
@@ -8199,21 +8221,17 @@
             "type": "string",
             "nullable": true
           },
-          "dataSealed": {
+          "dataJson": {
             "type": "string",
             "nullable": true
           },
-          "consentsSealed": {
+          "consentsJson": {
             "type": "string",
             "nullable": true
           },
-          "sessionKeyWrapped": {
+          "unreadable": {
             "type": "string",
             "nullable": true
-          },
-          "epoch": {
-            "type": "integer",
-            "format": "int32"
           },
           "submittedUtc": {
             "type": "string",
@@ -8317,6 +8335,10 @@
       "EventParticipationSubmitCardRequest": {
         "type": "object",
         "properties": {
+          "cardId": {
+            "type": "string",
+            "nullable": true
+          },
           "claim": {
             "type": "string",
             "nullable": true

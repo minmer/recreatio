@@ -375,10 +375,18 @@ public static class RcRegistrations
 
         var fields = await LoadFieldsAsync(connection, id, ctx.RequestAborted);
 
-        // Der private Annahmeschluessel. Er liegt selbst unter einem
-        // Epochenschluessel — wer den nicht hat, kann auch die Anmeldungen von
-        // aussen nicht oeffnen, und das ist richtig so.
-        using var intake = await OpenIntakeAsync(connection, part.EventId, keys, ctx.RequestAborted);
+        /*
+         * Der private Annahmeschluessel — das, was die Antworten wieder
+         * aufmacht. Er gehoert dem AMT der Veranstaltung, nicht dem Bereich:
+         * sonst laese jeder Helfer, den man zum Vorbereiten hinzubittet,
+         * saemtliche Anmeldungen mit.
+         *
+         * Wer das Amt nicht aufschliessen kann, bekommt die Liste trotzdem —
+         * aber ohne Antworten. Das ist die ehrlichere Auskunft als ein
+         * Fehler: es gibt Anmeldungen, du kannst sie nur nicht lesen.
+         */
+        using var intake = await OpenIntakeAsync(
+            connection, part.EventId, keys, session.AccountId, held.MasterKey, ctx.RequestAborted);
 
         await using var cmd = new SqlCommand("""
             SELECT r.id, r.epoch, r.submitted_at, r.withdrawn_at, r.submitter_role_id, r.session_key_wrapped
@@ -711,28 +719,72 @@ public static class RcRegistrations
     /// dieser Leser die von aussen eingegangenen Anmeldungen nicht sehen kann.
     /// Die Liste zeigt sie trotzdem, als unlesbar.
     /// </summary>
+    /// <summary>
+    /// Den privaten Annahmeschluessel oeffnen.
+    ///
+    /// <b>Zwei Wege, und welcher gilt, sagt <c>intake_epoch</c>.</b>
+    ///
+    /// <code>
+    ///   = 0   unter dem AMTSSCHLUESSEL der Veranstaltung   (seit rc_0031)
+    ///   &gt; 0   unter dem Epochenschluessel dieser Epoche   (davor)
+    /// </code>
+    ///
+    /// Der zweite Weg ist der alte und war ein Fehler: wer zum Bereich
+    /// gehoert, hat dessen Epochenschluessel — also konnte jeder Helfer alle
+    /// Anmeldungen lesen, ohne dass ihm jemand etwas gegeben haette. Er bleibt
+    /// stehen, weil ein Skript nicht umschluesseln kann: dafuer braeuchte es
+    /// den Schluessel, und den zu haben ist genau das, was hier verhindert
+    /// wird. Vorhandene Veranstaltungen behalten ihren Wert; neue stehen auf 0.
+    ///
+    /// <c>null</c> heisst: dieser Leser kommt an die Antworten nicht heran.
+    /// Kein Fehler — die Liste kommt trotzdem, nur ohne Inhalt.
+    /// </summary>
+    /// <summary>Fuer Aufrufer ohne Epochenschluessel — nur ueber das Amt.</summary>
+    internal static Task<RSA?> OpenEventIntakeAsync(
+        SqlConnection connection, Guid eventId, Guid accountId, byte[] masterKey, CancellationToken ct) =>
+        OpenIntakeAsync(connection, eventId, new Dictionary<int, byte[]>(), accountId, masterKey, ct);
+
     private static async Task<RSA?> OpenIntakeAsync(
-        SqlConnection connection, Guid eventId, IReadOnlyDictionary<int, byte[]> keys, CancellationToken ct)
+        SqlConnection connection, Guid eventId, IReadOnlyDictionary<int, byte[]> keys,
+        Guid accountId, byte[] masterKey, CancellationToken ct)
     {
         await using var cmd = new SqlCommand(
-            "SELECT intake_private_sealed, intake_epoch FROM dbo.rc_event WHERE id = @id;", connection);
+            "SELECT intake_private_sealed, intake_epoch, office_role_id " +
+            "FROM dbo.rc_event WHERE id = @id;", connection);
         cmd.Parameters.AddWithValue("@id", eventId);
 
         byte[]? sealedKey = null;
-        int epoch = 0;
+        var epoch = 0;
+        Guid? officeRoleId = null;
 
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
             if (!await reader.ReadAsync(ct) || reader.IsDBNull(0)) return null;
             sealedKey = (byte[])reader[0];
             epoch = reader.GetInt32(1);
+            officeRoleId = reader.IsDBNull(2) ? null : reader.GetGuid(2);
         }
 
-        if (!keys.TryGetValue(epoch, out var epochKey)) return null;
+        byte[]? opener;
+
+        if (epoch == 0)
+        {
+            // Der Amtsschluessel. Wer ihn nicht aufschliessen kann, fuehrt
+            // diese Veranstaltung nicht — und liest ihre Anmeldungen nicht.
+            if (officeRoleId is null) return null;
+            opener = await RcRoleAccess.RoleKeyAsync(
+                connection, accountId, masterKey, officeRoleId.Value, ct);
+        }
+        else
+        {
+            opener = keys.TryGetValue(epoch, out var epochKey) ? epochKey : null;
+        }
+
+        if (opener is null) return null;
 
         try
         {
-            var pkcs8 = RcCrypto.Open(epochKey, RcEvents.IntakeAad(eventId), sealedKey);
+            var pkcs8 = RcCrypto.Open(opener, RcEvents.IntakeAad(eventId), sealedKey);
             var rsa = RSA.Create();
             rsa.ImportPkcs8PrivateKey(pkcs8, out _);
             return rsa;
