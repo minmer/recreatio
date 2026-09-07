@@ -423,3 +423,64 @@
 .ec-rodo-h { margin: 0 0 0.3rem; font-size: 0.9rem; font-weight: 600; }
 .ec-rodo p { margin: 0 0 0.2rem; }
 .ec-rodo a { color: inherit; }
+
+/* -- Katalog zalogowanego: co można zrobić -------------------------------- */
+
+/*
+  Zalogowanemu znika „Zaloguj się", a pojawia się to, co da się ZROBIĆ. Przycisk
+  logowania dla kogoś zalogowanego nie jest ofertą, tylko pytaniem, na które już
+  padła odpowiedź — i zajmuje miejsce, gdzie powinno stać następne działanie.
+*/
+.ec-new {
+  padding: 0.55rem 1.2rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #1f2a3a;
+  color: #fff;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ec-new:disabled { opacity: 0.45; cursor: default; }
+
+/* Przycisk w rzędzie nagłówka wygląda jak odnośnik obok — bo robi to samo. */
+button.ec-home { cursor: pointer; }
+
+.ec-new-form {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.6rem;
+  border: 1px solid var(--ec-line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.ec-new-h { margin: 0; font-size: 1rem; font-weight: 600; }
+
+.ec-field { display: grid; gap: 0.25rem; font-size: 0.88rem; }
+.ec-field input { font: inherit; padding: 0.5rem 0.7rem; border: 1px solid var(--ec-line); border-radius: 8px; }
+
+/*
+  Stały początek adresu PRZED polem — tak samo jak przy zakładaniu strony. Na
+  jedno spojrzenie widać, że wpisuje się kawałek linku, a nie nazwę.
+*/
+.ec-url { display: flex; align-items: stretch; border: 1px solid var(--ec-line); border-radius: 8px; overflow: hidden; }
+
+.ec-url-fixed {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.6rem;
+  border-right: 1px solid var(--ec-line);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  opacity: 0.6;
+}
+
+.ec-url input { flex: 1 1 auto; min-width: 6rem; border: 0; border-radius: 0; }
+
+.ec-new-actions { display: flex; gap: 0.5rem; align-items: center; }
+.ec-new-actions .ec-signin { background: none; cursor: pointer; }

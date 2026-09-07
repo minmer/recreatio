@@ -23,12 +23,20 @@ export type RcCatalogueQuery = {
   readonly category: string;
   readonly place: string;
   readonly sort: 'soonest' | 'latest' | 'title';
-  /** Nur was noch bevorsteht — gemessen an einem uebergebenen Heute. */
-  readonly upcomingOnly: boolean;
+
+  /**
+   * Welcher Zeitraum — EINE Achse, nicht zwei Schalter.
+   *
+   * Der Kopf bietet „Poprzednie wydarzenia", die Filterzeile „Nadchodzące".
+   * Waeren das zwei unabhaengige Angaben, liessen sie sich in einen Zustand
+   * bringen, den niemand gemeint hat — „nur bevorstehend" UND „nur vergangen"
+   * —, und der Katalog waere dann leer, ohne dass irgendetwas kaputt ist.
+   */
+  readonly when: 'all' | 'upcoming' | 'past';
 };
 
 export const RC_CATALOGUE_ALL: RcCatalogueQuery = {
-  text: '', category: '', place: '', sort: 'soonest', upcomingOnly: false
+  text: '', category: '', place: '', sort: 'soonest', when: 'all'
 };
 
 /**
@@ -134,9 +142,22 @@ export function rcCatalogue(
 
     if (query.place !== '' && !rcPlacesOf(event).includes(query.place)) return false;
 
-    if (query.upcomingOnly) {
+    /*
+     * DAS ENDE ZAEHLT, NICHT DER ANFANG.
+     *
+     * Eine zweitaegige Fahrt, die gestern begonnen hat, laeuft heute noch. Sie
+     * aus „bevorstehend" zu werfen hiesse, sie genau denen zu verbergen, die
+     * gerade unterwegs sind — und sie zugleich unter „vergangen" zu zeigen
+     * hiesse, sie fuer beendet zu erklaeren, waehrend sie faehrt.
+     *
+     * Ohne Datum gilt sie als bevorstehend und NICHT als vergangen:
+     * „irgendwann" ist keine Vergangenheit.
+     */
+    if (query.when !== 'all') {
       const ends = endsAt(event);
-      if (ends !== null && ends < now) return false;
+      const over = ends !== null && ends < now;
+      if (query.when === 'upcoming' && over) return false;
+      if (query.when === 'past' && !over) return false;
     }
 
     return true;

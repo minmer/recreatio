@@ -343,7 +343,7 @@ export function RcApp() {
     return (
       <>
         {event === null
-          ? <RcEventCatalogue slug={address.slug} signedIn={entry.kind === 'signed-in'} />
+          ? <RcEventCatalogue slug={address.slug} />
           : editing ? (
             <RcEventWorkbench
               lang={lang}

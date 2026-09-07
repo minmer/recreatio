@@ -25,7 +25,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { rcEventCollection } from '../lib/rcEvents';
+import { rcAddEvent, rcEventCollection } from '../lib/rcEvents';
+import { rcIsSlug } from '../lib/rcSlugs';
 import type { RcApi } from '../lib/rcApi';
 import { rcPath } from '../lib/rcRoute';
 import {
@@ -35,10 +36,16 @@ import {
 
 type RcCollectionView = RcApi<'RcEventCollectionViewResponse'>;
 
-export function RcEventCatalogue({ slug, signedIn }: { slug: string; signedIn: boolean }) {
+/**
+ * <b>`signedIn` steht hier NICHT mehr.</b> Es sagte „hat ein Konto"; was hier
+ * zaehlt, ist „fuehrt diese Seite" — und das beantwortet `mayRead` aus der
+ * Antwort des Dienstes, der es ohnehin schon geprueft hat.
+ */
+export function RcEventCatalogue({ slug }: { slug: string }) {
   const [view, setView] = useState<RcCollectionView | null>(null);
   const [missing, setMissing] = useState(false);
   const [query, setQuery] = useState<RcCatalogueQuery>(RC_CATALOGUE_ALL);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -80,7 +87,20 @@ export function RcEventCatalogue({ slug, signedIn }: { slug: string; signedIn: b
     setQuery((old) => ({ ...old, [key]: value }));
 
   return (
-    <Shell title={view.title} eyebrow={view.slug}>
+    <Shell
+      title={view.title}
+      eyebrow={view.slug}
+      /*
+        Anlegen darf, wer die Seite fuehrt — `mayRead` sagt genau das: der
+        Dienst hat schon geprueft, ob dieser Leser dazugehoert. Einen Knopf
+        zu zeigen, der zuverlaessig mit einer Absage endet, waere schlechter
+        als keiner.
+      */
+      mayAdd={view.mayRead}
+      when={query.when}
+      onWhen={(next) => set('when', next)}
+      onAdd={() => setAdding(true)}
+    >
       <div className="ec-filters">
         <input
           className="ec-search"
@@ -119,11 +139,17 @@ export function RcEventCatalogue({ slug, signedIn }: { slug: string; signedIn: b
           <option value="title">Nazwa</option>
         </select>
 
+        {/*
+          Derselbe Schalter wie „Poprzednie wydarzenia" im Kopf, nur von der
+          anderen Seite. EINE Achse: sonst liesse sich „nur bevorstehend" UND
+          „nur vergangen" zugleich setzen, und der Katalog waere leer, ohne
+          dass etwas kaputt ist.
+        */}
         <button
           type="button"
-          className={`ec-toggle${query.upcomingOnly ? ' is-on' : ''}`}
-          aria-pressed={query.upcomingOnly}
-          onClick={() => set('upcomingOnly', !query.upcomingOnly)}
+          className={`ec-toggle${query.when === 'upcoming' ? ' is-on' : ''}`}
+          aria-pressed={query.when === 'upcoming'}
+          onClick={() => set('when', query.when === 'upcoming' ? 'all' : 'upcoming')}
         >
           Nadchodzące
         </button>
@@ -135,10 +161,25 @@ export function RcEventCatalogue({ slug, signedIn }: { slug: string; signedIn: b
         <span className="ec-count" aria-live="polite">{shown.length}</span>
       </div>
 
-      {events.length === 0 && (
+      {adding && (
+        <NewEvent
+          collectionId={view.collectionId}
+          collectionSlug={view.slug}
+          taken={events.map((one) => one.slug)}
+          onClose={() => setAdding(false)}
+        />
+      )}
+
+      {/*
+        Der Rat richtet sich nach dem, was der Leser TUN kann — nicht danach,
+        ob er angemeldet ist. Einem angemeldeten Fremden zu sagen, er solle es
+        im Herausgeber anlegen, waere ein Hinweis auf eine Tuer, die fuer ihn
+        nicht aufgeht.
+      */}
+      {events.length === 0 && !adding && (
         <p className="ec-note">
-          {signedIn
-            ? 'Ta strona nie ma jeszcze żadnego wydarzenia. Dodaj je w edytorze.'
+          {view.mayRead
+            ? 'Ta strona nie ma jeszcze żadnego wydarzenia — dodaj pierwsze przyciskiem u góry.'
             : 'Nie zapowiedziano tu jeszcze niczego.'}
         </p>
       )}
@@ -211,20 +252,57 @@ export function RcEventCatalogue({ slug, signedIn }: { slug: string; signedIn: b
   );
 }
 
+/**
+ * Der Rahmen des Katalogs — und der Kopf, der sich mit der Anmeldung aendert.
+ *
+ * <b>Angemeldet verschwindet „Zaloguj się" und es erscheint, was man TUN
+ * kann.</b> Ein Anmeldeknopf fuer jemanden, der angemeldet ist, ist kein
+ * Angebot, sondern eine Frage, die schon beantwortet ist — und er nimmt den
+ * Platz weg, an dem der Weg zur naechsten Handlung stehen sollte.
+ *
+ * <b>„Poprzednie wydarzenia" ist kein zweiter Schalter neben „Nadchodzące",
+ * sondern dieselbe Achse.</b> Zwei unabhaengige Angaben liessen sich in einen
+ * Zustand bringen, den niemand gemeint hat, und der Katalog waere leer, ohne
+ * dass etwas kaputt ist.
+ */
 function Shell({
-  title, eyebrow, children
+  title, eyebrow, children, mayAdd = false, when = 'all', onWhen, onAdd
 }: {
   title: string;
   eyebrow?: string;
   children: React.ReactNode;
+  mayAdd?: boolean;
+  when?: RcCatalogueQuery['when'];
+  onWhen?: (when: RcCatalogueQuery['when']) => void;
+  onAdd?: () => void;
 }) {
+  const showingPast = when === 'past';
+
   return (
     <div className="ec">
       <div className="ec-sheet">
         <header className="ec-head">
           <a className="ec-home" href={rcPath('home')}>Start</a>
+
+          {mayAdd && onWhen !== undefined && (
+            <button
+              type="button"
+              className="ec-home"
+              onClick={() => onWhen(showingPast ? 'upcoming' : 'past')}
+            >
+              {showingPast ? 'Nadchodzące wydarzenia' : 'Poprzednie wydarzenia'}
+            </button>
+          )}
+
           <span className="ec-spacer" />
-          <a className="ec-signin" href={rcPath('workshop')}>Zaloguj się</a>
+
+          {mayAdd && onAdd !== undefined ? (
+            <button type="button" className="ec-new" onClick={onAdd}>
+              + Nowe wydarzenie
+            </button>
+          ) : (
+            <a className="ec-signin" href={rcPath('workshop')}>Zaloguj się</a>
+          )}
         </header>
 
         {eyebrow !== undefined && <p className="ec-eyebrow">{eyebrow}</p>}
@@ -237,3 +315,82 @@ function Shell({
 }
 
 export default RcEventCatalogue;
+
+/**
+ * Eine Veranstaltung in diese Seite stellen.
+ *
+ * <b>Nach dem Verantwortlichen wird NICHT gefragt.</b> Er steht an der Seite
+ * und gilt fuer alles darunter; ihn je Fest zu erfragen hiesse, dieselbe
+ * Auskunft an zwei Stellen zu fuehren, und irgendwann widersprechen sie sich.
+ *
+ * <b>Danach geht es sofort in den Herausgeber.</b> Eine gerade angelegte
+ * Veranstaltung ist leer — sie im Katalog als graue Kachel stehen zu lassen
+ * hiesse, den naechsten Schritt zu verstecken.
+ */
+function NewEvent({
+  collectionId, collectionSlug, taken, onClose
+}: {
+  collectionId: string;
+  collectionSlug: string;
+  taken: readonly string[];
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [slug, setSlug] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const clash = slug !== '' && taken.includes(slug);
+  const shape = slug === '' || rcIsSlug(slug);
+  const ready = !busy && title.trim() !== '' && slug !== '' && shape && !clash;
+
+  return (
+    <form
+      className="ec-new-form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (!ready) return;
+        setBusy(true);
+        try {
+          await rcAddEvent(collectionId, { slug, title: title.trim() });
+          window.location.hash = rcPath('event', collectionSlug, slug, 'edit').slice(1);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Nie udało się dodać wydarzenia.');
+          setBusy(false);
+        }
+      }}
+    >
+      <h2 className="ec-new-h">Nowe wydarzenie</h2>
+
+      <label className="ec-field">
+        <span>Nazwa</span>
+        <input type="text" value={title} maxLength={200} disabled={busy}
+          placeholder="Rowerowa Częstochowa 2026"
+          onChange={(e) => setTitle(e.target.value)} />
+      </label>
+
+      <label className="ec-field">
+        <span>Adres w sieci</span>
+        <span className="ec-url">
+          <span className="ec-url-fixed">…/{collectionSlug}/</span>
+          <input type="text" value={slug} maxLength={48} disabled={busy}
+            placeholder="rowerowa26"
+            onChange={(e) => setSlug(e.target.value.toLowerCase())} />
+        </span>
+      </label>
+
+      {!shape && <p className="ap-error">Małe litery, cyfry i myślniki — myślnik tylko w środku.</p>}
+      {clash && <p className="ap-error">Ten adres jest już zajęty w tej stronie.</p>}
+      {error !== null && <p className="ap-error">{error}</p>}
+
+      <div className="ec-new-actions">
+        <button type="submit" className="ec-new" disabled={!ready}>
+          {busy ? 'Dodawanie…' : 'Dodaj i otwórz edytor'}
+        </button>
+        <button type="button" className="ec-signin" disabled={busy} onClick={onClose}>
+          Anuluj
+        </button>
+      </div>
+    </form>
+  );
+}

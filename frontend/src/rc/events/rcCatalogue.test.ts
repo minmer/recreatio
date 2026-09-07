@@ -82,15 +82,29 @@ ok('Nach Titel', slugs(rcCatalogue(all, { ...RC_CATALOGUE_ALL, sort: 'title' }, 
  * sind — und niemand von ihnen wuerde vermuten, dass sie im Katalog fehlt.
  */
 ok('Laufende Fahrt bleibt bevorstehend',
-  slugs(rcCatalogue([rower], { ...RC_CATALOGUE_ALL, upcomingOnly: true }, AUG_29)),
+  slugs(rcCatalogue([rower], { ...RC_CATALOGUE_ALL, when: 'upcoming' }, AUG_29)),
   ['rowerowa26']);
 
+/* Und umgekehrt: „Poprzednie" zeigt genau das, was „Nadchodzące" verbirgt. */
+ok('Laufende Fahrt ist NICHT vergangen',
+  slugs(rcCatalogue([rower], { ...RC_CATALOGUE_ALL, when: 'past' }, AUG_29)),
+  []);
+
+ok('Vergangene ist vergangen',
+  slugs(rcCatalogue([rower], { ...RC_CATALOGUE_ALL, when: 'past' }, SEP_10)),
+  ['rowerowa26']);
+
+/* Ohne Datum ist nicht vergangen — „irgendwann" ist keine Vergangenheit. */
+ok('Ohne Datum faellt aus Vergangenem heraus',
+  slugs(rcCatalogue([kiedys], { ...RC_CATALOGUE_ALL, when: 'past' }, SEP_10)),
+  []);
+
 ok('Vergangene faellt weg',
-  slugs(rcCatalogue([rower], { ...RC_CATALOGUE_ALL, upcomingOnly: true }, SEP_10)),
+  slugs(rcCatalogue([rower], { ...RC_CATALOGUE_ALL, when: 'upcoming' }, SEP_10)),
   []);
 
 ok('Ohne Datum gilt als bevorstehend',
-  slugs(rcCatalogue([kiedys], { ...RC_CATALOGUE_ALL, upcomingOnly: true }, SEP_10)),
+  slugs(rcCatalogue([kiedys], { ...RC_CATALOGUE_ALL, when: 'upcoming' }, SEP_10)),
   ['kiedys']);
 
 // -- Suche --------------------------------------------------------------------
