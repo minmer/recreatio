@@ -37,7 +37,7 @@ import type { RcApi } from './lib/rcApi';
 import { useRcError } from './RcThreads';
 import { RcFoundEvent } from './events/RcFoundEvent';
 import { rcIsSlug } from './lib/rcSlugs';
-import { RcEventEditor } from './events/RcEventEditor';
+import { rcPath } from './lib/rcRoute';
 
 type RcCollection = RcApi<'RcEventCollectionsResponse'>['collections'][number];
 type RcCollectionView = RcApi<'RcEventCollectionViewResponse'>;
@@ -365,8 +365,20 @@ export function RcEventDetail({
         </span>
       </header>
 
+      {/*
+        DER HERAUSGEBER STEHT NICHT HIER, SONDERN UNTER EIGENER ADRESSE.
+
+        Er stand einmal als Block an dieser Stelle, und das hatte zwei Kosten:
+        wer daran arbeitete, konnte niemandem sagen WO — die Werkstattliste hat
+        keine Adresse je Veranstaltung —, und dieselbe Ansicht haette es zweimal
+        gegeben, sobald die oeffentliche Seite ihren eigenen Weg hinein bekam.
+      */}
       {view.mayRead && (
-        <RcEventEditor lang={lang} collection={collection} slug={slug} onError={onError} />
+        <p className="rc-note">
+          <a className="rc-btn" href={rcPath('event', collection, slug, 'edit')}>
+            Otwórz edytor
+          </a>
+        </p>
       )}
 
       {/* Ein Entwurf ist nicht öffentlich. Das gehört als Warnung hierher und

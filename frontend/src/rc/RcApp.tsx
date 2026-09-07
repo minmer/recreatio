@@ -27,6 +27,7 @@ import './parish/parishSite.css';
 import { RcMyCandidates } from './parish/RcMyCandidates';
 import { RcEventSite } from './events/RcEventSite';
 import { RcEventCatalogue } from './events/RcEventCatalogue';
+import { RcEventWorkbench } from './events/RcEventWorkbench';
 /*
   Das grosse Blatt zuerst, das kleine danach.
 
@@ -327,13 +328,30 @@ export function RcApp() {
   if (address.part === 'event' && address.slug !== null) {
     const event = address.tail[0] ?? null;
     const nth = address.tail[1] ?? '';
+
+    /*
+      `…/kal26/edit` fuehrt in den Herausgeber.
+
+      Eindeutig, weil an dieser Stelle sonst eine ZAHL steht — der Teil. Ein
+      Teil namens „edit" gibt es nicht: die Zaehlung ist eine Position, kein
+      Name. Der Herausgeber hat damit eine eigene Adresse und laesst sich
+      verschicken, als Lesezeichen ablegen und mit „zurueck" verlassen.
+    */
+    const editing = nth === 'edit';
     const at = /^[0-9]+$/.test(nth) ? Number(nth) : null;
 
     return (
       <>
         {event === null
           ? <RcEventCatalogue slug={address.slug} signedIn={entry.kind === 'signed-in'} />
-          : (
+          : editing ? (
+            <RcEventWorkbench
+              lang={lang}
+              collection={address.slug}
+              slug={event}
+              unlocked={unlocked}
+            />
+          ) : (
             <RcEventSite
               collection={address.slug}
               slug={event}

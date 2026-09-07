@@ -435,9 +435,20 @@ public static class RcEventCollections
         string CollectionId, string AreaId, string Slug, string Title, string Lifecycle,
         string? OrganizerName, int Events);
 
+    /// <summary>
+    /// Eine Veranstaltung, wie sie im Katalog steht.
+    ///
+    /// <b>Die Katalogfelder sind STRUKTURIERT und nicht Teil eines Abschnitts.</b>
+    /// Der Katalog siebt und sortiert danach; aus einem Textabschnitt liesse
+    /// sich das nur raten. `Places` kommt als JSON-Liste, weil ein Weg mehrere
+    /// Orte hat und die Reihenfolge dabei etwas bedeutet.
+    /// </summary>
     public sealed record CollectionEvent(
         string EventId, string AreaId, string Slug, string Title, string Lifecycle, bool IsPublic,
-        DateTimeOffset? StartsUtc, DateTimeOffset? EndsUtc, int Pages);
+        DateTimeOffset? StartsUtc, DateTimeOffset? EndsUtc, int Pages,
+        string? Summary, string? Category, string? Audience,
+        string? PlacesJson, string? ThumbnailUrl, string? DateLabel,
+        int Parts, int Registrations);
 
     private static async Task ListAsync(HttpContext ctx, RcDb db, RcPermissions permissions)
     {
@@ -535,7 +546,16 @@ public static class RcEventCollections
         await using (var cmd = new SqlCommand("""
             SELECT e.id, e.area_id, e.slug, e.title, e.lifecycle, e.is_public,
                    e.starts_at, e.ends_at,
-                   (SELECT COUNT(*) FROM dbo.rc_event_page p WHERE p.event_id = e.id)
+                   (SELECT COUNT(*) FROM dbo.rc_event_page p WHERE p.event_id = e.id),
+                   e.summary, e.category, e.audience, e.places_json,
+                   e.thumbnail_url, e.date_label,
+                   (SELECT COUNT(*) FROM dbo.rc_event_part t
+                     JOIN dbo.rc_event_page g ON g.id = t.page_id
+                    WHERE g.event_id = e.id),
+                   (SELECT COUNT(*) FROM dbo.rc_event_registration r
+                     JOIN dbo.rc_event_part t ON t.id = r.part_id
+                     JOIN dbo.rc_event_page g ON g.id = t.page_id
+                    WHERE g.event_id = e.id AND r.withdrawn_at IS NULL)
             FROM dbo.rc_event e
             WHERE e.collection_id = @collection
               AND (@mayRead = 1 OR (e.lifecycle = N'published' AND e.is_public = 1))
@@ -556,7 +576,14 @@ public static class RcEventCollections
                     reader.GetBoolean(5),
                     reader.IsDBNull(6) ? null : reader.GetDateTimeOffset(6),
                     reader.IsDBNull(7) ? null : reader.GetDateTimeOffset(7),
-                    reader.GetInt32(8)));
+                    reader.GetInt32(8),
+                    reader.IsDBNull(9) ? null : reader.GetString(9),
+                    reader.IsDBNull(10) ? null : reader.GetString(10),
+                    reader.IsDBNull(11) ? null : reader.GetString(11),
+                    reader.IsDBNull(12) ? null : reader.GetString(12),
+                    reader.IsDBNull(13) ? null : reader.GetString(13),
+                    reader.IsDBNull(14) ? null : reader.GetString(14),
+                    reader.GetInt32(15), reader.GetInt32(16)));
             }
         }
 

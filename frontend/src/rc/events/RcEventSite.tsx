@@ -158,6 +158,12 @@ export function RcEventSite({
       onSelectPage={(pageSlug) => setOpenPage(pageSlug)}
       initialPartIndex={at}
       partHref={(n) => `${rcPath('event', collection, slug)}/${n}`}
+      /*
+        Der Weg in den Herausgeber steht auf der Seite selbst — dort, wo man
+        merkt, dass etwas fehlt. Ihn nur in der Werkstatt zu haben hiesse: erst
+        den Fehler sehen, dann ihn woanders suchen.
+      */
+      adminEditHref={event.mayRead ? rcPath('event', collection, slug, 'edit') : null}
     />
   );
 }

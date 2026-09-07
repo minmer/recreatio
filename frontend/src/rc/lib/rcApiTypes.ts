@@ -7105,6 +7105,16 @@ export interface components {
             endsUtc?: string | null;
             /** Format: int32 */
             pages: number;
+            summary?: string | null;
+            category?: string | null;
+            audience?: string | null;
+            placesJson?: string | null;
+            thumbnailUrl?: string | null;
+            dateLabel?: string | null;
+            /** Format: int32 */
+            parts: number;
+            /** Format: int32 */
+            registrations: number;
         };
         EventCollectionsCollectionSummary: {
             collectionId: string;

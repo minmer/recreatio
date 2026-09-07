@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import type { ShellPage as EventPage, ShellPageRef as EventPageRef, ShellSite as EventSiteHeader } from './shellTypes';
 import { getPartModule } from '../parts/registry';
 import { partAnchor } from './anchors';
+import { rcPath } from '../../lib/rcRoute';
 import { RcEventAdminContext } from './useIsEventAdmin';
 import { parseLayers, parseTheme, type Layer } from './layers';
 
@@ -472,7 +473,7 @@ export function EventShell({
               Edytuj
             </a>
           ) : null}
-          <a className="ev-ghost" href="/#/event">
+          <a className="ev-ghost" href={rcPath('event', site.collectionSlug)}>
             Wydarzenia
           </a>
         </div>

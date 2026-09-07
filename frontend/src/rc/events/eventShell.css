@@ -4980,3 +4980,130 @@
 .ee-wide { grid-column: 1 / -1; }
 .ee-part-editor { grid-column: 1 / -1; }
 .ee-part-foot { display: flex; gap: 0.5rem; justify-content: space-between; }
+
+/* -- Warsztat wydarzenia: zakładki, ustawienia, zgłoszenia ---------------- */
+
+/*
+  Warsztat mieszka pod własnym adresem (`…/kal26/edit`) i dziedziczy ciemne
+  barwy strony wydarzenia — bo pokazuje te same części. Własny prefiks (`ew-`),
+  żeby nic tu nie zderzyło się z regułami samej strony ani edytora części.
+*/
+.ew {
+  min-height: 100dvh;
+  padding: 1.2rem 1.4rem 3rem;
+  background: var(--ev-ground, #080d15);
+  color: var(--ev-ink, #eef2f8);
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.ew-head { display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center; margin-bottom: 1rem; }
+.ew-title { margin: 0; font-size: 1.15rem; font-weight: 600; flex: 1 1 auto; }
+
+.ew-back, .ew-preview {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+  font-size: 0.88rem;
+}
+
+.ew-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1.2rem; }
+
+.ew-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.95rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--ev-surface, rgba(255, 255, 255, 0.04));
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.ew-tab.is-active { background: #3b6cd4; color: #fff; }
+.ew-badge { font-size: 0.76rem; opacity: 0.75; font-variant-numeric: tabular-nums; }
+
+.ew-panel {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.ew-h2 { margin: 0 0 0.8rem; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.7; }
+
+.ew-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.7rem; margin-bottom: 0.9rem; }
+.ew-wide { grid-column: 1 / -1; }
+
+.ew-draft {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.7rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #b8863b;
+  border-radius: 10px;
+}
+
+.ew-draft p { margin: 0; flex: 1 1 18rem; font-size: 0.9rem; }
+
+/* -- Zgłoszenia ------------------------------------------------------------ */
+
+.ew-subtabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.9rem; }
+
+.ew-subtab {
+  display: grid;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ew-subtab.is-active { background: var(--ev-surface-3, rgba(255, 255, 255, 0.11)); }
+.ew-subtab-page { font-style: normal; font-size: 0.75rem; opacity: 0.6; }
+
+.ew-signups { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+
+.ew-signup {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--ev-line);
+  border-radius: 10px;
+}
+
+/* Wycofane zostaje w liście — przygaszone, ale widoczne. */
+.ew-signup[data-withdrawn="true"] { opacity: 0.55; }
+
+.ew-signup-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  font-size: 0.82rem;
+  opacity: 0.75;
+  margin-bottom: 0.4rem;
+}
+
+.ew-tag {
+  padding: 0.05rem 0.45rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.74rem;
+}
+
+.ew-answers { margin: 0; display: grid; gap: 0.3rem; }
+.ew-answers > div { display: grid; grid-template-columns: minmax(8rem, 14rem) 1fr; gap: 0.6rem; }
+.ew-answers dt { font-size: 0.84rem; opacity: 0.7; }
+.ew-answers dd { margin: 0; font-size: 0.9rem; }
+
+/* Zapieczętowane: powód stoi, a wiersz zostaje. */
+.ew-sealed { margin: 0; font-size: 0.85rem; opacity: 0.7; }
+.ew-sealed code { font-size: 0.8rem; opacity: 0.8; }
