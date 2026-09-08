@@ -21,7 +21,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { rcAgenda, type RcAgendaView } from '../lib/rcAgenda';
 import { rcPath } from '../lib/rcRoute';
 import {
-  rcDayLabel, rcFilterKinds, rcGroupByDay, rcKindLabel, rcKindsIn, rcLocalDay, rcTimeOf
+  rcDayLabel, rcFilterKinds, rcGroupByDay, rcHrefOf, rcKindLabel, rcKindsIn, rcLocalDay,
+  rcSealed, rcTimeOf
 } from './rcAgenda';
 
 /** Ile dni pokazujemy naraz — i dlaczego akurat tyle. */
@@ -179,7 +180,7 @@ export function RcAgendaPage({
                       wolny. Zamknięta jest treść, nie godzina.
                     */}
                     <span className="ag-title">
-                      {one.unreadable !== null
+                      {rcSealed(one)
                         ? <em className="ag-sealed">zapieczętowane</em>
                         : (one.title ?? rcKindLabel(one.kind))}
                     </span>
@@ -192,8 +193,8 @@ export function RcAgendaPage({
                     </span>
                   </span>
 
-                  {one.href !== null && (
-                    <a className="ag-go" href={one.href}>otwórz</a>
+                  {rcHrefOf(one) !== null && (
+                    <a className="ag-go" href={rcHrefOf(one) ?? undefined}>otwórz</a>
                   )}
                 </li>
               ))}

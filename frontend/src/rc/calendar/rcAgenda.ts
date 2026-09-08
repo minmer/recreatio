@@ -63,6 +63,39 @@ export function rcLocalDay(iso: string, timeZone?: string): string {
   }
 }
 
+/**
+ * IST DIE ZEILE VERSIEGELT?
+ *
+ * <b>Warum das eine Funktion ist und kein Vergleich an Ort und Stelle.</b>
+ * Der Dienst schreibt Felder, die nichts enthalten, GAR NICHT (`RcResults`
+ * laesst leere Felder weg). Eine lesbare Zeile kommt also ohne `unreadable`
+ * an — nicht mit `null`. Wer auf `!== null` prueft, bekommt fuer `undefined`
+ * ein Ja und erklaert jede lesbare Zeile fuer versiegelt.
+ *
+ * Genau das ist passiert: der Plan zeigte „zapieczętowane" in JEDER Zeile,
+ * obwohl der Leser alle Schluessel hielt. Es sah aus wie ein Rechteproblem
+ * und war eine fehlende Fallunterscheidung — die teuerste Art von Fehler,
+ * weil man an der falschen Stelle sucht.
+ *
+ * Der Vergleich steht deshalb EINMAL hier, gedeckt von einer Pruefung, die
+ * das Feld auch wirklich weglaesst.
+ */
+export function rcSealed(entry: RcAgendaEntry): boolean {
+  return (entry.unreadable ?? null) !== null;
+}
+
+/**
+ * Wohin die Zeile fuehrt — oder nirgends.
+ *
+ * Derselbe Grund wie bei `rcSealed`, dieselbe Falle: ein fehlendes `href`
+ * ist `undefined`, und `href !== null` haette einen Verweis gezeigt, der
+ * nirgendwohin geht. Ein Knopf, der nichts tut, ist schlimmer als keiner.
+ */
+export function rcHrefOf(entry: RcAgendaEntry): string | null {
+  const href = (entry.href ?? '').trim();
+  return href === '' ? null : href;
+}
+
 /** Die Uhrzeit, wie sie in der Zeile steht. Ganztaegiges hat keine. */
 export function rcTimeOf(entry: RcAgendaEntry, timeZone?: string): string | null {
   if (entry.allDay) return null;

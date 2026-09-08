@@ -9,8 +9,8 @@
  */
 
 import {
-  rcDayLabel, rcFilterKinds, rcGroupByDay, rcKindLabel, rcKindsIn, rcLocalDay, rcTimeOf,
-  type RcAgendaEntry
+  rcDayLabel, rcFilterKinds, rcGroupByDay, rcHrefOf, rcKindLabel, rcKindsIn, rcLocalDay,
+  rcSealed, rcTimeOf, type RcAgendaEntry
 } from './rcAgenda';
 
 let passed = 0;
@@ -126,6 +126,50 @@ ok('Im laufenden Jahr ohne Jahr',
   rcDayLabel('2026-08-28', '2026-01-01').includes('2026'), false);
 ok('Im anderen Jahr mit Jahr',
   rcDayLabel('2027-08-28', '2026-01-01').includes('2027'), true);
+
+// -- Versiegelt oder nicht ----------------------------------------------------
+//
+// DIE ZEILEN, DIE HIER GEFEHLT HABEN.
+//
+// Der Plan zeigte JEDE Zeile als „zapieczętowane", obwohl der Leser alle
+// Schluessel hielt — und diese Reihe war gruen. Sie war es, weil der Bauer
+// oben `unreadable: null` SETZT. Der Dienst tut das nicht: leere Felder
+// schreibt er gar nicht erst. Eine Pruefung, die den Erfolgsfall anders baut
+// als der Dienst ihn schickt, prueft den Erfolgsfall nicht.
+//
+// Darum steht hier eine Zeile, wie sie WIRKLICH ankommt — ohne die Felder.
+
+const asSent = JSON.parse(JSON.stringify({
+  kind: 'mass',
+  sourceId: 'c1',
+  sourceTitle: 'Parafia',
+  startsUtc: '2026-08-28T16:00:00Z',
+  endsUtc: '2026-08-28T16:45:00Z',
+  allDay: false,
+  title: 'Msza',
+  status: 'confirmed',
+  mine: true
+  /* kein `unreadable`, kein `href`, kein `location` — genau wie vom Dienst. */
+})) as RcAgendaEntry;
+
+ok('Eine lesbare Zeile ist NICHT versiegelt', rcSealed(asSent), false);
+ok('Fehlendes Feld ist kein Verweis', rcHrefOf(asSent), null);
+
+/* Und der Fall, um den es geht, bleibt erkannt. */
+ok('Ohne Schluessel versiegelt',
+  rcSealed(entry({ startsUtc: '2026-08-28T16:00:00Z', unreadable: 'crypto.missing_epoch' })),
+  true);
+
+ok('Ausdruecklich null ist offen',
+  rcSealed(entry({ startsUtc: '2026-08-28T16:00:00Z', unreadable: null })), false);
+
+ok('Ein Verweis kommt durch',
+  rcHrefOf(entry({ startsUtc: '2026-08-28T16:00:00Z', href: '#/e/rowerowa26' })),
+  '#/e/rowerowa26');
+
+/* Leerer Text ist kein Ziel — ein Knopf, der nichts tut, ist schlimmer als keiner. */
+ok('Leerer Verweis zaehlt nicht',
+  rcHrefOf(entry({ startsUtc: '2026-08-28T16:00:00Z', href: '   ' })), null);
 
 // -- Ergebnis -----------------------------------------------------------------
 
