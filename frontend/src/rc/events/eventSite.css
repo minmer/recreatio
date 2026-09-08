@@ -617,3 +617,18 @@ button.ec-home { cursor: pointer; }
 .ek-published { color: #6cc48a; }
 .ek-draft { color: #b8a05a; }
 .ek-archived { color: #7f8ea3; }
+
+/*
+  Powód, dla którego przycisk jest szary.
+
+  Bez niego wygląda na zepsuty program — a podgląd obok melduje „3 strony, 14
+  części", więc wszystko zdaje się gotowe. Brakowało tylko adresu, i nigdzie
+  tego nie było widać.
+*/
+.ek-blocker {
+  margin: 0 0 0.7rem;
+  padding: 0.5rem 0.8rem;
+  border-left: 3px solid #b8863b;
+  color: #d9a441;
+  font-size: 0.88rem;
+}
