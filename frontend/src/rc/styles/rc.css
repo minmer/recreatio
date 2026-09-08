@@ -2729,3 +2729,105 @@
   border: 1px solid var(--rc-line);
   border-radius: var(--rc-radius);
 }
+
+/* -- Terminarz: wszystko na jednej liście --------------------------------- */
+
+/*
+  Plan czyta się z góry na dół, jak dzień. Dlatego kolumna czasu jest STAŁEJ
+  szerokości i wyrównana do prawej: godziny stoją wtedy w jednej linii i widać
+  odstępy między nimi, nie długość napisów obok.
+*/
+.ag { display: grid; gap: 1rem; margin-bottom: 2rem; }
+
+.ag-h1 { margin: 0; font-size: 1.4rem; font-weight: 600; }
+.ag-lead { margin: 0.2rem 0 0; opacity: 0.75; font-size: 0.9rem; }
+.ag-note { margin: 0; opacity: 0.7; font-size: 0.9rem; }
+
+.ag-controls { display: flex; flex-wrap: wrap; gap: 0.9rem; align-items: center; }
+.ag-spans, .ag-kinds { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+
+.ag-span, .ag-kind {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--rc-line, rgba(0, 0, 0, 0.16));
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.ag-span.is-on, .ag-kind.is-on { background: var(--rc-ink, #16181c); color: var(--rc-paper, #fff); }
+
+.ag-days { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.1rem; }
+
+.ag-day-h {
+  margin: 0 0 0.4rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: capitalize;
+}
+
+.ag-today {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--rc-accent, #2f6f4f);
+  color: #fff;
+  font-size: 0.72rem;
+  text-transform: none;
+}
+
+.ag-entries { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+
+.ag-entry {
+  display: grid;
+  grid-template-columns: 4.2rem 0.5rem 1fr auto;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+}
+
+.ag-entry:hover { background: var(--rc-surface, rgba(0, 0, 0, 0.03)); }
+
+/* Godziny w jednej linii — cyfry o równej szerokości. */
+.ag-time {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+}
+
+.ag-allday { font-size: 0.78rem; opacity: 0.7; }
+
+/*
+  Kropka niesie rodzaj kolorem, ale NIE tylko kolorem: nazwa rodzaju stoi obok
+  w wierszu. Kto nie odróżnia barw, czyta to samo.
+*/
+.ag-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; opacity: 0.55; }
+
+.ag-mass { color: #7a5cc4; }
+.ag-confession { color: #3f7fb8; }
+.ag-sick_round { color: #b8663f; }
+.ag-event { color: #2f8f5b; }
+.ag-task { color: #8a8f98; }
+.ag-appointment { color: #4a6fa5; }
+
+.ag-what { display: grid; gap: 0.1rem; min-width: 0; }
+.ag-title { font-size: 0.95rem; }
+
+.ag-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  opacity: 0.7;
+}
+
+/* Zapieczętowane NIE znika z listy: dzień jest zajęty, choć treść zamknięta. */
+.ag-sealed { font-style: italic; opacity: 0.75; }
+
+.ag-off { text-decoration: line-through; }
+.ag-go { font-size: 0.82rem; white-space: nowrap; }
+.ag-foot { margin: 0; font-size: 0.85rem; }

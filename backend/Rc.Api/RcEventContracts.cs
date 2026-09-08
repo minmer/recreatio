@@ -227,3 +227,12 @@ public sealed record RcEventAccessViewResponse(
     string RecipientName, string? PersonalNote, bool FirstOpen,
     IReadOnlyList<RcEventAccessNote> Notes,
     RcEventViewResponse Event);
+
+/* ---------------------------------------------------------------------------
+   Der Terminplan — alles, was ein Konto in einem Zeitraum vor sich hat.
+   Begruendung in RcAgenda.
+   --------------------------------------------------------------------------- */
+
+public sealed record RcAgendaResponse(
+    DateTimeOffset FromUtc, DateTimeOffset ToUtc,
+    IReadOnlyList<RcAgenda.Entry> Entries);

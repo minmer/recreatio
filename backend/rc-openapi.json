@@ -63,6 +63,43 @@
         }
       }
     },
+    "/rc/agenda": {
+      "get": {
+        "tags": [
+          "RcAgenda"
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcAgendaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/areas": {
       "get": {
         "tags": [
@@ -6571,6 +6608,64 @@
         },
         "additionalProperties": false
       },
+      "AgendaEntry": {
+        "required": [
+          "allDay",
+          "endsUtc",
+          "kind",
+          "mine",
+          "sourceId",
+          "sourceTitle",
+          "startsUtc",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "sourceTitle": {
+            "type": "string"
+          },
+          "startsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "allDay": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "mine": {
+            "type": "boolean"
+          },
+          "unreadable": {
+            "type": "string",
+            "nullable": true
+          },
+          "href": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "AreasAddMemberRequest": {
         "required": [
           "roleId"
@@ -10370,6 +10465,31 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AccountMapEdgeView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcAgendaResponse": {
+        "required": [
+          "entries",
+          "fromUtc",
+          "toUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "fromUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "toUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgendaEntry"
             }
           }
         },
@@ -14823,6 +14943,9 @@
     },
     {
       "name": "RcAccountMap"
+    },
+    {
+      "name": "RcAgenda"
     },
     {
       "name": "RcAreas"

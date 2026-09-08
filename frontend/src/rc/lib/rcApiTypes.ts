@@ -109,6 +109,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/agenda": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcAgendaResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/areas": {
         parameters: {
             query?: never;
@@ -6894,6 +6932,22 @@ export interface components {
             isAccount: boolean;
             nodeType: string;
         };
+        AgendaEntry: {
+            kind: string;
+            sourceId: string;
+            sourceTitle: string;
+            /** Format: date-time */
+            startsUtc: string;
+            /** Format: date-time */
+            endsUtc: string;
+            allDay: boolean;
+            title?: string | null;
+            location?: string | null;
+            status: string;
+            mine: boolean;
+            unreadable?: string | null;
+            href?: string | null;
+        };
         AreasAddMemberRequest: {
             roleId: string;
             capability?: string | null;
@@ -7927,6 +7981,13 @@ export interface components {
         RcAccountMapResponse: {
             nodes: components["schemas"]["AccountMapNodeView"][];
             edges: components["schemas"]["AccountMapEdgeView"][];
+        };
+        RcAgendaResponse: {
+            /** Format: date-time */
+            fromUtc: string;
+            /** Format: date-time */
+            toUtc: string;
+            entries: components["schemas"]["AgendaEntry"][];
         };
         RcApplicationsOpenResponse: {
             groupId: string;

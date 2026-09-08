@@ -19,7 +19,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { rcAddEvent, rcAddPage, rcAddPart, rcEventCollection, type RcPartKind } from '../lib/rcEvents';
+import {
+  rcAddEvent, rcAddField, rcAddPage, rcAddPart, rcEventCollection,
+  type RcFieldKind, type RcPartKind
+} from '../lib/rcEvents';
+import { rcUpdateEvent } from '../lib/rcEventEditing';
 import { rcIsReservedSlug, rcIsSlug } from '../lib/rcSlugs';
 import { rcPath } from '../lib/rcRoute';
 import type { RcApi } from '../lib/rcApi';
@@ -160,12 +164,56 @@ function NewEvent({
   const [importing, setImporting] = useState(false);
   const [json, setJson] = useState('');
 
+  /*
+   * Was aus der Datei schon eingetragen wurde. Ohne das schriebe der
+   * Vorschlag bei jedem Tastendruck zurueck, was der Benutzer gerade
+   * geaendert hat — er koennte die Adresse nicht mehr korrigieren.
+   */
+  const [tookFromFile, setTookFromFile] = useState<string | null>(null);
+
   const plan = useMemo(() => (json.trim() === '' ? null : rcReadImport(json)), [json]);
+
+  /*
+   * DIE DATEI FUELLT DIE LEEREN FELDER.
+   *
+   * Sie traegt Adresse und Titel; sie zu ignorieren hiess, beides abtippen
+   * zu muessen, obwohl es danebensteht — und der Knopf blieb grau, ohne zu
+   * sagen warum. Gefuellt wird nur, was LEER ist: was jemand selbst
+   * geschrieben hat, ueberschreibt keine Datei.
+   */
+  useEffect(() => {
+    if (plan === null || !plan.ok) return;
+
+    const fromFile = plan.plan.head.slug ?? '';
+    if (fromFile === tookFromFile) return;
+
+    setTookFromFile(fromFile);
+    if (slug === '' && fromFile !== '') setSlug(fromFile);
+    if (title.trim() === '') setTitle(plan.plan.title);
+  }, [plan, slug, title, tookFromFile]);
 
   const reserved = rcIsReservedSlug(slug);
   const clash = slug !== '' && taken.includes(slug);
   const shape = slug === '' || rcIsSlug(slug);
   const ready = busy === null && title.trim() !== '' && slug !== '' && shape && !clash && !reserved;
+
+  /*
+   * WARUM DER KNOPF GRAU IST.
+   *
+   * Ein Knopf, der nicht geht und nicht sagt warum, sieht aus wie ein
+   * kaputtes Programm. Er war es hier nicht — es fehlte die Adresse —, aber
+   * das war von aussen nicht zu erkennen: die Vorschau daneben meldete
+   * „3 Seiten, 14 Teile", also schien alles bereit.
+   */
+  const blocker =
+    busy !== null ? null
+    : title.trim() === '' && slug === '' ? 'Wpisz nazwę i adres powyżej.'
+    : title.trim() === '' ? 'Wpisz nazwę powyżej.'
+    : slug === '' ? 'Wpisz adres (slug) powyżej.'
+    : !shape ? 'Adres: małe litery, cyfry i myślniki.'
+    : clash ? 'Ten adres jest już zajęty na tej stronie.'
+    : reserved ? `„${slug}" w adresie oznacza działanie, nie nazwę.`
+    : null;
 
   /** Anlegen und hineingehen. Eine leere Veranstaltung ist kein Ziel. */
   const create = async (built?: RcImportPlan) => {
@@ -179,18 +227,67 @@ function NewEvent({
       });
 
       if (built !== undefined) {
+        /*
+         * ZUERST DER KOPF.
+         *
+         * Untertitel, Katalogfelder und Aussehen gehoeren der Veranstaltung
+         * selbst, nicht ihren Seiten. Sie zuletzt zu schreiben hiesse: bricht
+         * es zwischendurch ab, steht eine Veranstaltung mit allen Abschnitten
+         * da, die im Katalog aussieht wie eine leere.
+         */
+        const head = built.head;
+
+        await rcUpdateEvent(made.eventId, {
+          title: built.title,
+          subtitle: head.subtitle,
+          summary: head.summary,
+          category: head.category,
+          audience: head.audience,
+          placesJson: head.places.length === 0 ? null : JSON.stringify(head.places),
+          thumbnailUrl: head.thumbnailUrl,
+          dateLabel: head.dateLabel,
+          startsUtc: head.startDate === null ? null : `${head.startDate}T00:00:00Z`,
+          endsUtc: head.endDate === null ? null : `${head.endDate}T00:00:00Z`,
+          themeJson: head.themeJson
+        });
+
         for (const [index, page] of built.pages.entries()) {
           setBusy(`Strona ${index + 1} z ${built.pages.length}…`);
-          const madePage = await rcAddPage(made.eventId, page.slug, page.title);
+
+          /*
+           * Die ART der Seite geht MIT. Ohne sie entstuende jede Seite als
+           * oeffentlich — und die beiden internen Seiten der Vorlage laegen
+           * offen, ohne dass jemand es sieht.
+           */
+          const madePage = await rcAddPage(made.eventId, page.slug, page.title, {
+            kind: page.kind,
+            menuLabel: page.menuLabel ?? undefined
+          });
 
           for (const part of page.parts) {
-            await rcAddPart(madePage.pageId, part.kind as RcPartKind, {
+            const madePart = await rcAddPart(madePage.pageId, part.kind as RcPartKind, {
               isPublic: part.isPublic,
               menuLabel: part.menuLabel ?? undefined,
               title: part.title ?? undefined,
               intro: part.intro ?? undefined,
               configJson: part.configJson ?? undefined
             });
+
+            /*
+             * Die Felder eines Formulars sind EIGENE ZEILEN, keine
+             * Einstellung — sie entstehen deshalb einzeln und nach dem Teil,
+             * zu dem sie gehoeren. Vergisst man sie, entsteht ein Formular
+             * ohne Fragen: es sieht fertig aus und nimmt nichts entgegen.
+             */
+            for (const field of part.fields) {
+              await rcAddField(madePart.partId, field.kind as RcFieldKind, field.label, {
+                helpText: field.helpText ?? undefined,
+                options: field.options ?? undefined,
+                isRequired: field.isRequired,
+                isHalfWidth: field.isHalfWidth,
+                identityRole: field.identityRole
+              });
+            }
           }
         }
       }
@@ -239,6 +336,15 @@ function NewEvent({
 
       {error !== null && <p className="ap-error">{error}</p>}
 
+      {/*
+        EIN GRAUER KNOPF MUSS SAGEN, WARUM.
+
+        Ohne das sieht er wie ein kaputtes Programm aus — und die Vorschau
+        daneben meldete „3 Seiten, 14 Teile", also schien alles bereit. Es
+        fehlte nur die Adresse, und das stand nirgends.
+      */}
+      {blocker !== null && <p className="ek-blocker">{blocker}</p>}
+
       <div className="ek-actions">
         <button type="button" className="ek-go" disabled={!ready} onClick={() => void create()}>
           {busy ?? 'Utwórz puste wydarzenie'}
@@ -265,8 +371,9 @@ function NewEvent({
             <>
               <p className="ek-note">
                 {plan.plan.title} — {rcImportSize(plan.plan).pages} stron,{' '}
-                {rcImportSize(plan.plan).parts} części.
-                {' '}Adres i tak bierzemy z pola powyżej.
+                {rcImportSize(plan.plan).parts} części,{' '}
+                {rcImportSize(plan.plan).fields} pól formularza.
+                {' '}Nazwę i adres wpisaliśmy w pola powyżej — możesz je jeszcze zmienić.
               </p>
 
               {/*

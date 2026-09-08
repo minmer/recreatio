@@ -378,6 +378,30 @@ public static class RcCalendar
         string? TitlePublic, string? Title, string? Location, string? Notes,
         string? TaskState, bool Mine, string? Unreadable);
 
+    /// <summary>
+    /// Die Vorkommen EINES Kalenders im Fenster — geteilt mit dem Terminplan.
+    ///
+    /// <b>Warum das eine eigene Methode ist.</b> Der Plan (<see cref="RcAgenda"/>)
+    /// braucht dieselbe Rechnung ueber alle Kalender hinweg: Ausbreitung der
+    /// Reihe, Ausnahmen, Sichtbarkeit, Entsiegelung. Sie dort abzuschreiben
+    /// hiesse zwei Wege zu derselben Frage, und weil Termine stimmen oder
+    /// nicht stimmen, faellt eine Abweichung erst auf, wenn jemand zu spaet
+    /// kommt.
+    ///
+    /// <paramref name="mine"/> kommt von aussen, weil der Aufruf durch den
+    /// Rollengraphen laeuft: je Kalender wiederholt, wuerde der Plan mit
+    /// jedem Bereich langsamer.
+    /// </summary>
+    internal static async Task<List<OccurrenceView>> ExpandForAgendaAsync(
+        SqlConnection connection, Guid calendarId, string zoneId,
+        DateTimeOffset start, DateTimeOffset end,
+        IReadOnlyDictionary<int, byte[]> keys, IReadOnlySet<Guid> mine,
+        CancellationToken ct)
+    {
+        var zone = TryZone(zoneId, out var found) ? found! : TimeZoneInfo.Utc;
+        return await ExpandAsync(connection, calendarId, zone, start, end, keys, mine, ct);
+    }
+
     private static async Task ItemsAsync(
         HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions,
         Guid id, DateTimeOffset? from, DateTimeOffset? to)
@@ -416,6 +440,24 @@ public static class RcCalendar
         var mine = (await RcRoleAccess.AllRoleKeysAsync(
             connection, session.AccountId, held.MasterKey, ctx.RequestAborted)).Keys.ToHashSet();
 
+        var views = await ExpandAsync(connection, id, calendar.Zone, start, end, keys, mine,
+            ctx.RequestAborted);
+
+        views.Sort((a, b) => a.StartsUtc.CompareTo(b.StartsUtc));
+
+        await RcResults.WriteJsonAsync(ctx, new RcCalendarItemsResponse(
+            RcId.ToText(id), calendar.TimeZone, start, end, views));
+    }
+
+    /// <summary>Die eigentliche Rechnung. Ein Weg, zwei Aufrufer.</summary>
+    private static async Task<List<OccurrenceView>> ExpandAsync(
+        SqlConnection connection, Guid calendarId, TimeZoneInfo zone,
+        DateTimeOffset start, DateTimeOffset end,
+        IReadOnlyDictionary<int, byte[]> keys, IReadOnlySet<Guid> mine,
+        CancellationToken ct)
+    {
+        var views = new List<OccurrenceView>();
+
         // Nur was ueberhaupt hineinragen KANN: eine Reihe, die vor dem Fenster
         // endet, wird gar nicht erst ausgerechnet.
         await using var cmd = new SqlCommand("""
@@ -432,14 +474,14 @@ public static class RcCalendar
             ORDER BY starts_at;
             """, connection);
 
-        cmd.Parameters.AddWithValue("@cal", id);
+        cmd.Parameters.AddWithValue("@cal", calendarId);
         cmd.Parameters.AddWithValue("@from", start);
         cmd.Parameters.AddWithValue("@to", end);
 
         var rows = new List<ItemRow>();
-        await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
-            while (await reader.ReadAsync(ctx.RequestAborted))
+            while (await reader.ReadAsync(ct))
                 rows.Add(new ItemRow(
                     reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2),
                     reader.GetDateTimeOffset(3), reader.GetDateTimeOffset(4), reader.GetBoolean(5),
@@ -456,7 +498,6 @@ public static class RcCalendar
                     reader.IsDBNull(18) ? null : reader.GetString(18)));
         }
 
-        var views = new List<OccurrenceView>();
         foreach (var row in rows)
         {
             var isMine = mine.Contains(row.OwnerRoleId);
@@ -467,12 +508,12 @@ public static class RcCalendar
             // waere schon eine Auskunft ueber den Tag.
             if (row.Visibility == "private" && !isMine) continue;
 
-            var exceptions = await LoadExceptionsAsync(connection, row.Id, ctx.RequestAborted);
+            var exceptions = await LoadExceptionsAsync(connection, row.Id, ct);
 
             var rule = new RcRecurrence.Rule(row.RepeatKind, row.RepeatEvery, row.RepeatWeekdays,
                 row.RepeatUntil, row.RepeatCount);
 
-            var occurrences = RcRecurrence.Expand(row.StartsAt, row.EndsAt, rule, calendar.Zone,
+            var occurrences = RcRecurrence.Expand(row.StartsAt, row.EndsAt, rule, zone,
                 start, end, exceptions);
 
             string? title = null, location = null, notes = null, unreadable = null;
@@ -502,10 +543,8 @@ public static class RcCalendar
             }
         }
 
-        views.Sort((a, b) => a.StartsUtc.CompareTo(b.StartsUtc));
 
-        await RcResults.WriteJsonAsync(ctx, new RcCalendarItemsResponse(
-            RcId.ToText(id), calendar.TimeZone, start, end, views));
+        return views;
     }
 
     // -- Ausnahmen ------------------------------------------------------------

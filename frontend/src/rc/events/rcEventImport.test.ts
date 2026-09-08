@@ -42,8 +42,11 @@ const whole = read({
 ok('Gelesen', whole.ok, true);
 if (whole.ok) {
   ok('Titel', whole.plan.title, 'Rowerowa Częstochowa 2026');
-  ok('Umfang', rcImportSize(whole.plan), { pages: 1, parts: 2 });
+  ok('Umfang', rcImportSize(whole.plan), { pages: 1, parts: 2, fields: 0 });
   ok('Nichts uebergangen', whole.plan.skipped, []);
+
+  /* Ohne `slug` in der Datei gibt es keinen Vorschlag — und das ist kein Fehler. */
+  ok('Ohne Adresse kein Vorschlag', whole.plan.head.slug, null);
   ok('Standard ist oeffentlich', whole.plan.pages[0].parts[0].isPublic, true);
 }
 
@@ -79,8 +82,14 @@ const asString = read({
   title: 'X',
   pages: [{ slug: 's', title: 'S', parts: [{ kind: 'text', configJson: '{"blocks":[]}' }] }]
 });
+/*
+  Der Leser gibt die Einstellung EINHEITLICH formatiert zurueck: er muss sie
+  ohnehin oeffnen, um die Schichten hineinzulegen. Verglichen wird darum der
+  Inhalt und nicht die Schreibweise — sonst pruefte diese Zeile die Einrueckung.
+*/
 ok('Einstellung als Text',
-  asString.ok ? asString.plan.pages[0].parts[0].configJson : null, '{"blocks":[]}');
+  asString.ok ? JSON.parse(asString.plan.pages[0].parts[0].configJson ?? 'null') : null,
+  { blocks: [] });
 
 // -- Was uebergangen wird, wird GEMELDET --------------------------------------
 
@@ -120,6 +129,28 @@ const sealed = read({
 });
 ok('isPublic false wird uebernommen',
   sealed.ok ? sealed.plan.pages[0].parts[0].isPublic : null, false);
+
+/*
+ * DIE SEITE KANN NUR VERSIEGELN, NIE OEFFNEN.
+ *
+ * Auf einer internen Seite hilft es nichts, wenn die Datei „oeffentlich" sagt:
+ * der Inhalt laege sonst im Klartext, und die Adresse allein genuegte zum
+ * Lesen. Umgekehrt gilt es nicht — ein einzelner versiegelter Abschnitt auf
+ * einer oeffentlichen Seite ist erlaubt und bleibt versiegelt.
+ */
+const internalPage = read({
+  title: 'X',
+  pages: [{
+    kind: 'internal', slug: 's', title: 'S',
+    parts: [{ kind: 'text', isPublic: true }]
+  }]
+});
+
+ok('Interne Seite ueberstimmt „oeffentlich"',
+  internalPage.ok ? internalPage.plan.pages[0].parts[0].isPublic : null, false);
+
+ok('Und die Seite weiss, was sie ist',
+  internalPage.ok ? internalPage.plan.pages[0].kind : null, 'internal');
 
 // -- Ergebnis -----------------------------------------------------------------
 

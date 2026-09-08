@@ -30,6 +30,7 @@ import { RcEventCatalogue } from './events/RcEventCatalogue';
 import { RcEventWorkbench } from './events/RcEventWorkbench';
 import { RcEventCreator } from './events/RcEventCreator';
 import { RcEventAccessView } from './events/RcEventAccessView';
+import { RcAgendaPage } from './calendar/RcAgendaPage';
 /*
   Das grosse Blatt zuerst, das kleine danach.
 
@@ -683,6 +684,15 @@ export function RcApp() {
 
         {shows('calendar') && (
         <section className="rc-section">
+          {/*
+            DER PLAN STEHT UEBER DEN KALENDERN.
+
+            Er ist die Antwort auf „was habe ich vor" — die Kalender sind, wo es
+            herkommt. Wer den Tag sehen will, soll nicht erst waehlen muessen,
+            in welchem Bereich er ihn sucht.
+          */}
+          <RcAgendaPage unlocked={unlocked} onSignIn={() => setDrawerOpen(true)} />
+
           <h2 className="rc-h2">{t.cal.heading}</h2>
           <RcCalendarOutlet lang={lang} unlocked={unlocked} />
         </section>
