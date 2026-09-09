@@ -5063,6 +5063,171 @@
         }
       }
     },
+    "/rc/parishes/{id}/groups": {
+      "get": {
+        "tags": [
+          "RcParishGroups"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcParishGroupsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcParishGroups"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParishGroupsCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcParishGroupCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/groups/{id}": {
+      "get": {
+        "tags": [
+          "RcParishGroups"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcParishGroupResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RcParishGroups"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParishGroupsSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcParishGroupSavedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rc/public/parishes/{slug}/groups": {
+      "get": {
+        "tags": [
+          "RcParishGroups"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcPublicParishGroupsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rc/areas/{id}/polls": {
       "get": {
         "tags": [
@@ -6959,6 +7124,10 @@
           "taskState": {
             "type": "string",
             "nullable": true
+          },
+          "topicId": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -7119,6 +7288,10 @@
             "type": "boolean"
           },
           "unreadable": {
+            "type": "string",
+            "nullable": true
+          },
+          "topicId": {
             "type": "string",
             "nullable": true
           }
@@ -10195,6 +10368,76 @@
         },
         "additionalProperties": false
       },
+      "ParishGroupsCreateRequest": {
+        "required": [
+          "name",
+          "personRoleId",
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "personRoleId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "meets": {
+            "type": "string",
+            "nullable": true
+          },
+          "isPublic": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ParishGroupsSaveRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "meets": {
+            "type": "string",
+            "nullable": true
+          },
+          "isPublic": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "clearNote": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "lifecycle": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "ParishIntentionView": {
         "required": [
           "intentionId",
@@ -13105,6 +13348,203 @@
         },
         "additionalProperties": false
       },
+      "RcParishGroupCreatedResponse": {
+        "required": [
+          "groupId",
+          "name",
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcParishGroupResponse": {
+        "required": [
+          "areaId",
+          "calendarId",
+          "groupId",
+          "isPublic",
+          "lifecycle",
+          "mayAdmin",
+          "memberRoleId",
+          "members",
+          "mine",
+          "name",
+          "parishId",
+          "parishSlug",
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "parishId": {
+            "type": "string"
+          },
+          "parishSlug": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "meets": {
+            "type": "string",
+            "nullable": true
+          },
+          "isPublic": {
+            "type": "boolean"
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "calendarId": {
+            "type": "string"
+          },
+          "memberRoleId": {
+            "type": "string"
+          },
+          "members": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "mine": {
+            "type": "boolean"
+          },
+          "mayAdmin": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "noteUnreadable": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcParishGroupSavedResponse": {
+        "required": [
+          "groupId",
+          "name",
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcParishGroupView": {
+        "required": [
+          "areaId",
+          "calendarId",
+          "groupId",
+          "isPublic",
+          "lifecycle",
+          "mayAdmin",
+          "memberRoleId",
+          "members",
+          "mine",
+          "name",
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "meets": {
+            "type": "string",
+            "nullable": true
+          },
+          "isPublic": {
+            "type": "boolean"
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "areaId": {
+            "type": "string"
+          },
+          "calendarId": {
+            "type": "string"
+          },
+          "memberRoleId": {
+            "type": "string"
+          },
+          "members": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "mine": {
+            "type": "boolean"
+          },
+          "mayAdmin": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcParishGroupsResponse": {
+        "required": [
+          "groups",
+          "parishId"
+        ],
+        "type": "object",
+        "properties": {
+          "parishId": {
+            "type": "string"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RcParishGroupView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "RcParishSiteResponse": {
         "required": [
           "configured",
@@ -13230,6 +13670,49 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PollsPollView"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcPublicParishGroupView": {
+        "required": [
+          "name",
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "meets": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcPublicParishGroupsResponse": {
+        "required": [
+          "groups",
+          "parishSlug"
+        ],
+        "type": "object",
+        "properties": {
+          "parishSlug": {
+            "type": "string"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RcPublicParishGroupView"
             }
           }
         },
@@ -15015,6 +15498,9 @@
     },
     {
       "name": "RcParish"
+    },
+    {
+      "name": "RcParishGroups"
     },
     {
       "name": "RcPolls"

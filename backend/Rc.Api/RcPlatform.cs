@@ -130,6 +130,10 @@ public static class RcPlatform
         app.MapRcRegistrations();
         app.MapRcParish();
         app.MapRcPublicParish();
+
+        // Gruppen der Pfarrei. Sie liegen NACH der Pfarrei, weil sie an ihr
+        // haengen — und vor dem Kalender, weil ihre Termine dessen sind.
+        app.MapRcParishGroups();
         app.MapRcGraph();
         app.MapRcCalendar();
 

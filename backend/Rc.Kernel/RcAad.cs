@@ -186,7 +186,19 @@ public enum RcField
     EnquiryNote,
 
     /// <summary>Der verpackte Sitzungsschluessel einer Anfrage von aussen.</summary>
-    EnquiryIntakeKey
+    EnquiryIntakeKey,
+
+    /// <summary>
+    /// Was eine Pfarrgruppe INTERN ueber sich aufschreibt (rc_0035).
+    ///
+    /// Ein eigenes Etikett und nicht etwa <see cref="AreaTitle"/>, obwohl beide
+    /// am selben Bereich haengen und unter demselben Epochenschluessel liegen.
+    /// Trugen sie dasselbe, liesse sich der Geheimtext der Notiz an den Platz
+    /// des Bereichstitels schieben — die Huelle ginge auf, und in der Liste der
+    /// Bereiche stuende ploetzlich, wer den Sakristeischluessel hat. Genau
+    /// diesen Tausch schliesst 3.13 aus, und er kostet nur eine Zeile.
+    /// </summary>
+    ParishGroupNote
 }
 
 /// <summary>
@@ -323,6 +335,7 @@ public readonly record struct RcAad
         RcField.EnquiryGroupKind        => "enquiry_group_kind",
         RcField.EnquiryNote             => "enquiry_note",
         RcField.EnquiryIntakeKey        => "enquiry_intake_key",
+        RcField.ParishGroupNote         => "parish_group_note",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

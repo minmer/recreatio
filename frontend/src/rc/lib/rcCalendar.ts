@@ -69,6 +69,19 @@ export interface RcItemOptions {
   readonly repeatUntil?: string;
   readonly repeatCount?: number;
   readonly taskState?: RcTaskState;
+
+  /**
+   * Das Gespraech, aus dem dieser Eintrag entstand (rc_0035).
+   *
+   * Aus „koennte jemand die Alben buegeln?" wird eine Aufgabe — und dann
+   * ist die Aufgabe hier und das Gespraech dort. Wer sie spaeter liest,
+   * sieht drei Worte ohne den Zusammenhang, der sie erklaert.
+   *
+   * Das Thema muss im SELBEN Bereich liegen wie der Kalender; der Dienst
+   * prueft das und sagt es, statt einen Verweis anzulegen, der beim Leser
+   * als „zapieczętowane" ankommt.
+   */
+  readonly topicId?: string;
 }
 
 export const rcAddItem = (
@@ -91,7 +104,8 @@ export const rcAddItem = (
       repeatWeekdays: options.repeatWeekdays ?? null,
       repeatUntil: options.repeatUntil ?? null,
       repeatCount: options.repeatCount ?? null,
-      taskState: options.taskState ?? null
+      taskState: options.taskState ?? null,
+      topicId: options.topicId ?? null
     },
     withUnlock: true
   });

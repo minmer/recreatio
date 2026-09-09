@@ -33,6 +33,8 @@ import { rcPublicParish, type RcPublicParish } from './rcPublicParish';
 import { rcMayAdminArea } from './rcParishRights';
 import { rcPath } from '../lib/rcRoute';
 import { RcParishBuilder } from './RcParishBuilder';
+import { RcGroupsTab } from './RcGroupsTab';
+import { RcGroupPage } from './RcGroupPage';
 import { rcSaveParishSite } from '../lib/rcParish';
 import { RcParishHome } from './RcParishHome';
 import { RcApplyForm } from './RcApplyForm';
@@ -138,6 +140,15 @@ export function RcParishSite({
   const mine = useMineHere(slug, signedIn, activePerson);
 
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+
+  /*
+   * Fehler aus der Gruppenansicht.
+   *
+   * Chat und Kalender melden nach AUSSEN, statt selbst eine Meldung zu
+   * zeichnen: sie stehen an mehreren Stellen der Plattform und wissen
+   * nicht, wo dort Platz dafuer ist. Auf dieser Seite ist er hier.
+   */
+  const [groupError, setGroupError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -404,6 +415,33 @@ export function RcParishSite({
         {page === 'masses' && <Masses tab={tab} at={at} slug={slug} mayEdit={mayEdit} />}
         {page === 'calendar' && <Calendar />}
         {page === 'clergy' && <Clergy />}
+
+        {/*
+          WSPOLNOTY — lista albo jedna z nich.
+
+          Nazwa wspolnoty stoi w DRUGIM segmencie, tak samo jak zakladka
+          planu mszy (`…/masses/confession`). Adres jednej wspolnoty jest
+          wiec adresem, ktory da sie przekazac — a nie stanem w pamieci,
+          ktorego nie otworzy sie w nowej karcie.
+        */}
+        {page === 'community' && (sub === null || sub === ''
+          ? <RcGroupsTab
+              parishId={parish.parishId}
+              parishSlug={slug}
+              parishAreaId={parish.areaId}
+              signedIn={signedIn}
+              at={at}
+            />
+          : <RcGroupPage
+              parishId={parish.parishId}
+              groupSlug={sub}
+              signedIn={signedIn}
+              lang="pl"
+              at={at}
+              onError={setGroupError}
+            />)}
+
+        {groupError !== null && <p className="ap-error">{groupError}</p>}
         {page === 'office' && <Office site={site} mayEdit={mayEdit} />}
         {page === 'about' && <About parish={parish} site={site} mayEdit={mayEdit} />}
         {page === 'contact' && <Contact parish={parish} site={site} mayEdit={mayEdit} />}

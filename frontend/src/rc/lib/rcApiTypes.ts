@@ -5324,6 +5324,167 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rc/parishes/{id}/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcParishGroupsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ParishGroupsCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcParishGroupCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/groups/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcParishGroupResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ParishGroupsSaveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcParishGroupSavedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rc/public/parishes/{slug}/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RcPublicParishGroupsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rc/areas/{id}/polls": {
         parameters: {
             query?: never;
@@ -7031,6 +7192,7 @@ export interface components {
             /** Format: int32 */
             repeatCount?: number | null;
             taskState?: string | null;
+            topicId?: string | null;
         };
         CalendarCalendarSummary: {
             calendarId: string;
@@ -7077,6 +7239,7 @@ export interface components {
             taskState?: string | null;
             mine: boolean;
             unreadable?: string | null;
+            topicId?: string | null;
         };
         ConfirmationAddCandidateRequest: {
             name: string;
@@ -7911,6 +8074,24 @@ export interface components {
             name: string;
             location?: string | null;
         };
+        ParishGroupsCreateRequest: {
+            personRoleId: string;
+            slug: string;
+            name: string;
+            summary?: string | null;
+            meets?: string | null;
+            isPublic?: boolean | null;
+            note?: string | null;
+        };
+        ParishGroupsSaveRequest: {
+            name?: string | null;
+            summary?: string | null;
+            meets?: string | null;
+            isPublic?: boolean | null;
+            note?: string | null;
+            clearNote?: boolean | null;
+            lifecycle?: string | null;
+        };
         ParishIntentionView: {
             intentionId: string;
             massId?: string | null;
@@ -8651,6 +8832,56 @@ export interface components {
             slug: string;
             name: string;
         };
+        RcParishGroupCreatedResponse: {
+            groupId: string;
+            slug: string;
+            name: string;
+        };
+        RcParishGroupResponse: {
+            groupId: string;
+            parishId: string;
+            parishSlug: string;
+            slug: string;
+            name: string;
+            summary?: string | null;
+            meets?: string | null;
+            isPublic: boolean;
+            lifecycle: string;
+            areaId: string;
+            calendarId: string;
+            memberRoleId: string;
+            /** Format: int32 */
+            members: number;
+            mine: boolean;
+            mayAdmin: boolean;
+            note?: string | null;
+            noteUnreadable?: string | null;
+        };
+        RcParishGroupSavedResponse: {
+            groupId: string;
+            slug: string;
+            name: string;
+        };
+        RcParishGroupView: {
+            groupId: string;
+            slug: string;
+            name: string;
+            summary?: string | null;
+            meets?: string | null;
+            isPublic: boolean;
+            lifecycle: string;
+            areaId: string;
+            calendarId: string;
+            memberRoleId: string;
+            /** Format: int32 */
+            members: number;
+            mine: boolean;
+            mayAdmin: boolean;
+        };
+        RcParishGroupsResponse: {
+            parishId: string;
+            groups: components["schemas"]["RcParishGroupView"][];
+        };
         RcParishSiteResponse: {
             parishId: string;
             theme: string;
@@ -8681,6 +8912,16 @@ export interface components {
         };
         RcPollsResponse: {
             polls: components["schemas"]["PollsPollView"][];
+        };
+        RcPublicParishGroupView: {
+            slug: string;
+            name: string;
+            summary?: string | null;
+            meets?: string | null;
+        };
+        RcPublicParishGroupsResponse: {
+            parishSlug: string;
+            groups: components["schemas"]["RcPublicParishGroupView"][];
         };
         RcPublicParishResponse: {
             parishId: string;

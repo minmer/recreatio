@@ -1,0 +1,310 @@
+/* =========================================================================
+   Wspólnoty — grupy parafialne (rc_0035)
+
+   Osobny plik, a nie dopisek do `parishSite.css`: tamten ma już 1300 wierszy
+   i opisuje gablotę parafii. Wspólnota to drzwi, nie gablota — inne reguły,
+   inne pytania, i łatwiej je znaleźć, gdy stoją osobno.
+
+   DWIE WIDOCZNOŚCI MAJĄ DWA KOLORY, i to nie jest ozdoba. Podpowiedź pod
+   polem „w gablocie" idzie kolorem akcentu, pod polem zapieczętowanym —
+   głębokim i z kłódką. Kto pisze, ma zobaczyć różnicę kątem oka, zanim
+   przeczyta zdanie: pierwsze zdanie, które trafi nie w to pole, co trzeba,
+   jest tym, którego się już nie zbierze.
+
+   Zmienne (`--ps-*`) pochodzą z `parishSite.css` — ten plik ich nie definiuje
+   na nowo. Dwa zestawy kolorów dla jednej strony rozjeżdżają się przy
+   pierwszej zmianie motywu.
+   ========================================================================= */
+
+.wg, .wg-one { display: grid; gap: 1rem; }
+
+.wg-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.wg-block {
+  margin: 0.6rem 0 0;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ps-muted, #514a40);
+}
+
+.wg-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+}
+
+.wg-card {
+  background: var(--ps-surface, #fffdf8);
+  border: 1px solid var(--ps-line, rgba(30, 27, 22, 0.12));
+  border-radius: 0.6rem;
+  padding: 0.8rem 0.9rem;
+  display: grid;
+  gap: 0.3rem;
+  align-content: start;
+}
+
+/* Do której należysz — pasek z boku, nie inne tło: karta ma zostać czytelna. */
+.wg-card.is-mine { border-left: 3px solid var(--ps-accent, #a56b2f); }
+
+.wg-name { margin: 0; font-size: 1.02rem; }
+.wg-name a { color: inherit; text-decoration: none; }
+.wg-name a:hover { color: var(--ps-accent, #a56b2f); text-decoration: underline; }
+
+.wg-summary { margin: 0; color: var(--ps-muted, #514a40); font-size: 0.9rem; }
+.wg-meets { margin: 0; font-size: 0.9rem; }
+
+.wg-meta {
+  margin: 0.2rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  color: var(--ps-muted, #514a40);
+}
+
+.wg-mine, .wg-admin, .wg-hidden, .wg-archived {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--ps-line, rgba(30, 27, 22, 0.12));
+}
+
+.wg-mine { color: var(--ps-accent, #a56b2f); border-color: rgba(165, 107, 47, 0.4); }
+.wg-admin { color: var(--ps-deep, #22344c); border-color: rgba(34, 52, 76, 0.35); }
+.wg-hidden, .wg-archived { opacity: 0.75; }
+
+.wg-foot { margin-top: 0.4rem; }
+
+/* -- Jedna wspólnota ----------------------------------------------------- */
+
+.wg-one-head { display: grid; gap: 0.3rem; }
+.wg-crumb { margin: 0; font-size: 0.82rem; }
+
+/*
+   Kto stoi na zewnątrz, czyta CO ZROBIĆ — nie „brak dostępu". Ślepy zaułek
+   przy drzwiach, w których nikt nie zawinił, jest usterką obsługi.
+*/
+.wg-outside {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  border-radius: 0.6rem;
+  border: 1px dashed var(--ps-line, rgba(30, 27, 22, 0.12));
+  background: var(--ps-surface, #fffdf8);
+  color: var(--ps-muted, #514a40);
+}
+
+.wg-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  border-bottom: 1px solid var(--ps-line, rgba(30, 27, 22, 0.12));
+  padding-bottom: 0.4rem;
+}
+
+.wg-tab {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ps-muted, #514a40);
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.4rem 0.4rem 0 0;
+}
+
+.wg-tab:hover { background: rgba(165, 107, 47, 0.1); color: var(--ps-ink, #1e1b16); }
+
+.wg-tab.is-on {
+  color: var(--ps-accent, #a56b2f);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--ps-accent, #a56b2f);
+}
+
+/* -- Informacje ---------------------------------------------------------- */
+
+.wg-info { display: grid; gap: 0.8rem; justify-items: start; }
+
+.wg-panel {
+  background: var(--ps-surface, #fffdf8);
+  border: 1px solid var(--ps-line, rgba(30, 27, 22, 0.12));
+  border-radius: 0.6rem;
+  padding: 0.8rem 0.9rem;
+  width: 100%;
+}
+
+.wg-panel h2 { margin: 0 0 0.2rem; font-size: 1rem; }
+
+/* Panel wewnętrzny nosi kolor pieczęci — widać go, zanim się przeczyta. */
+.wg-panel-sealed { border-left: 3px solid var(--ps-deep, #22344c); }
+
+.wg-dl { margin: 0.5rem 0 0; display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 0.9rem; }
+.wg-dl dt { color: var(--ps-muted, #514a40); font-size: 0.85rem; }
+.wg-dl dd { margin: 0; }
+
+.wg-note { margin: 0.4rem 0 0; white-space: pre-wrap; }
+
+/* Jest tu tekst, którego nie otworzysz — a to nie to samo, co puste pole. */
+.wg-sealed {
+  margin: 0.4rem 0 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.4rem;
+  background: rgba(34, 52, 76, 0.07);
+  color: var(--ps-deep, #22344c);
+  font-size: 0.9rem;
+}
+
+.wg-sealed-inline { color: var(--ps-deep, #22344c); opacity: 0.8; }
+
+/* -- Formularze ---------------------------------------------------------- */
+
+.wg-new {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  background: var(--ps-surface, #fffdf8);
+  border: 1px solid var(--ps-line, rgba(30, 27, 22, 0.12));
+  border-radius: 0.6rem;
+  padding: 0.9rem;
+}
+
+.wg-new h2 { margin: 0; grid-column: 1 / -1; font-size: 1rem; }
+
+.wg-field { display: grid; gap: 0.25rem; font-size: 0.9rem; }
+.wg-field > span { color: var(--ps-muted, #514a40); font-size: 0.82rem; }
+.wg-wide { grid-column: 1 / -1; }
+
+.wg-field input, .wg-field textarea, .wg-field select {
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--ps-line, rgba(30, 27, 22, 0.12));
+  border-radius: 0.35rem;
+  background: #fff;
+  color: var(--ps-ink, #1e1b16);
+}
+
+.wg-field textarea { resize: vertical; }
+.wg-field input:disabled, .wg-field textarea:disabled { background: rgba(30, 27, 22, 0.05); }
+
+.wg-check {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.5rem;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.wg-check .wg-hint { grid-column: 2; }
+
+.wg-hint { font-style: normal; font-size: 0.78rem; color: var(--ps-muted, #514a40); }
+
+/*
+   TE DWA KOLORY NIOSĄ CAŁĄ RÓŻNICĘ.
+
+   Akcent = wisi w gablocie, przeczyta to każdy.
+   Głęboki z kłódką = zapieczętowane kluczem wspólnoty.
+*/
+.wg-hint-open { color: var(--ps-accent, #a56b2f); }
+.wg-hint-sealed { color: var(--ps-deep, #22344c); }
+.wg-hint-sealed::before { content: "\01F512\00A0"; }
+.wg-hint-blocked { color: #8a2b12; }
+
+.wg-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+/* Szary przycisk MUSI powiedzieć dlaczego — inaczej wygląda jak awaria. */
+.wg-blocker { font-size: 0.82rem; color: #8a2b12; }
+
+/* -- Zadania ------------------------------------------------------------- */
+
+.wg-tasks { display: grid; gap: 0.7rem; }
+
+.wg-task-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+
+.wg-task {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6rem;
+  align-items: start;
+  background: var(--ps-surface, #fffdf8);
+  border: 1px solid var(--ps-line, rgba(30, 27, 22, 0.12));
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.wg-task-state {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  margin-top: 0.35rem;
+  border: 2px solid var(--ps-accent, #a56b2f);
+}
+
+.wg-task-state.is-doing { background: var(--ps-accent, #a56b2f); opacity: 0.5; }
+.wg-task-state.is-done { background: var(--ps-accent, #a56b2f); }
+.wg-task-state.is-cancelled { border-color: var(--ps-muted, #514a40); opacity: 0.4; }
+
+.wg-task-body { display: grid; gap: 0.15rem; }
+
+.wg-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--ps-muted, #514a40);
+}
+
+/* Skąd się to wzięło — bez tego zadanie to trzy słowa bez kontekstu. */
+.wg-task-topic { font-style: italic; }
+
+/* -- Osoby --------------------------------------------------------------- */
+
+.wg-people { display: grid; gap: 0.7rem; justify-items: start; }
+.wg-count { margin: 0; }
+
+/*
+   Link niesie klucz. Ostrzeżenie stoi na tym samym ekranie co przycisk —
+   nie w dokumentacji, której nikt nie czyta przed kliknięciem.
+*/
+.wg-warn {
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.5rem;
+  background: rgba(138, 43, 18, 0.08);
+  border-left: 3px solid #8a2b12;
+  font-size: 0.9rem;
+}
+
+.wg-link { display: grid; gap: 0.5rem; justify-items: start; width: 100%; }
+
+/*
+   Adres łamie się w każdym miejscu, bo musi. Link zaproszenia jest długi, a
+   ucięty link wygląda jak cały — i nie działa.
+*/
+.wg-link-text {
+  display: block;
+  width: 100%;
+  overflow-wrap: anywhere;
+  background: rgba(30, 27, 22, 0.06);
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.4rem;
+  font-size: 0.85rem;
+}
+
+/* -- Kafelek na stronie głównej ------------------------------------------ */
+
+.wg-widget .wg-widget-name a { color: inherit; text-decoration: none; }
+.wg-widget .wg-widget-name a:hover { color: var(--ps-accent, #a56b2f); text-decoration: underline; }

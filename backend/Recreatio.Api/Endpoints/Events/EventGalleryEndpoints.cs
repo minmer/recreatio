@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts;
 using Recreatio.Api.Data;
 using Recreatio.Api.Data.Events;
+using Recreatio.Api.Services.Events;
 
 namespace Recreatio.Api.Endpoints.Events;
 
@@ -98,17 +99,54 @@ public static partial class EventEndpoints
             Guid photoId,
             HttpContext context,
             RecreatioDbContext dbContext,
+            IConfiguration config,
             CancellationToken ct) =>
         {
+            /*
+             * ONLY THE COLUMNS NEEDED TO DECIDE - NOT THE BYTES.
+             *
+             * Loading the whole row would drag Data along for every
+             * photograph already on disk, which is the cost this move
+             * exists to remove. The bytes are read below, and only in the
+             * one case that still needs them.
+             */
             var photo = await dbContext.EventGalleryPhotos.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == photoId, ct);
+                .Where(x => x.Id == photoId)
+                .Select(x => new { x.ContentType, x.StoragePath })
+                .FirstOrDefaultAsync(ct);
             if (photo is null) return Results.NotFound();
 
             // Immutable, like every other uploaded byte here: an edit adds a new
             // picture rather than replacing one at an address already shared.
             context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
             context.Response.Headers.XContentTypeOptions = "nosniff";
-            return Results.File(photo.Data, photo.ContentType);
+
+            if (photo.StoragePath is not null)
+            {
+                var stream = EventPhotoStore.OpenRead(config, photo.StoragePath);
+
+                /*
+                 * A path that points at nothing is a photograph that is
+                 * gone: the row said it had moved, so the column was
+                 * emptied. Reporting it missing is the honest answer -
+                 * quietly falling back to an empty column would send a
+                 * zero-byte image, and a broken picture reads as a browser
+                 * problem rather than as a lost file.
+                 */
+                if (stream is null) return Results.NotFound();
+
+                // Streamed, not buffered: the bytes go from disk to socket
+                // without the whole photograph passing through memory.
+                return Results.File(stream, photo.ContentType);
+            }
+
+            // Still in the row - until the move has caught up with it.
+            var bytes = await dbContext.EventGalleryPhotos.AsNoTracking()
+                .Where(x => x.Id == photoId)
+                .Select(x => x.Data)
+                .FirstOrDefaultAsync(ct);
+
+            return bytes is null ? Results.NotFound() : Results.File(bytes, photo.ContentType);
         });
 
         group.MapPost("/link/{token}/parts/{partId:guid}/photos", async (
@@ -116,6 +154,7 @@ public static partial class EventEndpoints
             Guid partId,
             HttpRequest request,
             RecreatioDbContext dbContext,
+            IConfiguration config,
             CancellationToken ct) =>
         {
             var link = await dbContext.EventAccessLinks.AsNoTracking()
@@ -174,9 +213,32 @@ public static partial class EventEndpoints
             // actually begins with.
             if (!LooksLikeImage(bytes)) return Results.BadRequest(new { error = "Plik nie wygląda na obraz." });
 
+            var photoId = Guid.NewGuid();
+
+            /*
+             * STRAIGHT TO DISK - the row never holds the bytes at all.
+             *
+             * Written and verified BEFORE the row is inserted: if the disk
+             * refuses, nothing was recorded and the sender is told the
+             * upload failed. The other order would leave a row pointing at
+             * a file that does not exist, which reads as a lost photograph
+             * rather than as a failed upload.
+             */
+            byte[] storedHash;
+            string storedPath;
+            try
+            {
+                storedPath = EventPhotoStore.RelativePathFor(photoId);
+                storedHash = await EventPhotoStore.WriteAsync(config, photoId, bytes, ct);
+            }
+            catch (IOException)
+            {
+                return Results.Problem("Nie udalo sie zapisac zdjecia. Sprobuj ponownie.");
+            }
+
             var photo = new EventGalleryPhoto
             {
-                Id = Guid.NewGuid(),
+                Id = photoId,
                 SiteId = link.SiteId,
                 PartId = part.Id,
                 AccessLinkId = link.Id,
@@ -186,7 +248,12 @@ public static partial class EventEndpoints
                 ByteSize = bytes.Length,
                 Width = ReadDimension(form["width"], 0),
                 Height = ReadDimension(form["height"], 0),
-                Data = bytes,
+                // The bytes are on disk; the row carries only where they
+                // are and which they are, so a corrupted file can be told
+                // apart from a wrong one.
+                Data = null,
+                StoragePath = storedPath,
+                ContentSha256 = storedHash,
                 Caption = NormalizeShort(form["caption"], 300),
                 CreatedUtc = DateTimeOffset.UtcNow
             };
@@ -212,6 +279,7 @@ public static partial class EventEndpoints
             string token,
             Guid photoId,
             RecreatioDbContext dbContext,
+            IConfiguration config,
             CancellationToken ct) =>
         {
             var link = await dbContext.EventAccessLinks.AsNoTracking()
@@ -224,16 +292,118 @@ public static partial class EventEndpoints
             // find, and saying which of the two it is tells them nothing useful.
             if (photo is null) return Results.NotFound();
 
+            /*
+             * THE ROW GOES FIRST, THE FILE AFTER.
+             *
+             * If the delete fails the file stays behind as wasted space,
+             * and that is the harmless direction. The other way round -
+             * file gone, row still there - is a photograph that is listed,
+             * clicked, and answers 404. One of these costs a few hundred
+             * kilobytes; the other looks like a bug to everybody who sees
+             * it.
+             */
+            var goneFrom = photo.StoragePath;
+
             dbContext.EventGalleryPhotos.Remove(photo);
             await dbContext.SaveChangesAsync(ct);
+            EventPhotoStore.TryDelete(config, goneFrom);
 
             return Results.Ok(new { deleted = true });
         });
+
+        /*
+         * WIE WEIT DER UMZUG IST.
+         *
+         * Ein Wartungslauf, der still im Hintergrund arbeitet, ist ein
+         * Wartungslauf, von dem niemand weiss, ob er je gelaufen ist. Diese
+         * Auskunft ist die einzige Stelle, an der sich das nachsehen laesst,
+         * ohne in die Datenbank zu schauen — und sie sagt beides: was noch
+         * drinliegt und woran der letzte Lauf gescheitert ist.
+         *
+         * Nur fuer den Verwalter: „wie viele Fotos hat diese Seite" ist keine
+         * Auskunft fuer Vorbeikommende.
+         */
+        group.MapGet("/admin/photo-storage", async (
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            GalleryPhotoOffload offload,
+            IConfiguration config,
+            CancellationToken ct) =>
+        {
+            if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
+
+            // Bevor die Zahlen: geht Schreiben ueberhaupt. Ein Zaehler, der
+            // nicht sinkt, und daneben die Auskunft warum, ist eine Diagnose;
+            // ohne sie ist es ein Raetsel.
+            var store = EventPhotoStore.Probe(config);
+
+            var inDatabase = await dbContext.EventGalleryPhotos.AsNoTracking()
+                .Where(x => x.StoragePath == null && x.Data != null)
+                .CountAsync(ct);
+
+            var onDisk = await dbContext.EventGalleryPhotos.AsNoTracking()
+                .Where(x => x.StoragePath != null)
+                .CountAsync(ct);
+
+            // Die Summe der Groessen kommt aus `ByteSize` und NICHT aus
+            // DATALENGTH(Data): das haette die Bytes gelesen, um sie zu zaehlen.
+            var bytesOnDisk = await dbContext.EventGalleryPhotos.AsNoTracking()
+                .Where(x => x.StoragePath != null)
+                .SumAsync(x => (long?)x.ByteSize, ct) ?? 0;
+
+            var last = offload.Last;
+
+            return Results.Ok(new
+            {
+                inDatabase,
+                onDisk,
+                megabytesOnDisk = Math.Round(bytesOnDisk / 1048576.0, 1),
+                store = new
+                {
+                    // `enabled = false` ist der haeufigste Grund dafuer,
+                    // dass `inDatabase` nicht sinkt - und ohne diese Zeile
+                    // der am schwersten zu erratende.
+                    enabled = EventPhotoStore.OffloadEnabled(config),
+                    writable = store.Writable,
+                    root = store.Root,
+                    problem = store.Problem
+                },
+                lastRun = new
+                {
+                    last.StartedUtc,
+                    last.FinishedUtc,
+                    last.Moved,
+                    last.Failed,
+                    last.LastError
+                }
+            });
+        }).RequireAuthorization();
+
+        /*
+         * Den Umzug von Hand anstossen.
+         *
+         * Der Regelweg ist die Anmeldung des Verwalters. Diesen Knopf gibt es
+         * trotzdem: wenn ein Lauf an einer vollen Platte gescheitert ist, will
+         * man ihn nach dem Aufraeumen wiederholen koennen, ohne sich ab- und
+         * wieder anzumelden.
+         */
+        group.MapPost("/admin/photo-storage/run", async (
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            GalleryPhotoOffload offload,
+            CancellationToken ct) =>
+        {
+            if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
+
+            var progress = await offload.RunAsync(ct);
+            return Results.Ok(progress);
+        }).RequireAuthorization();
 
         group.MapDelete("/admin/photos/{photoId:guid}", async (
             Guid photoId,
             HttpContext context,
             RecreatioDbContext dbContext,
+            IConfiguration config,
             CancellationToken ct) =>
         {
             if (!await IsAdminAsync(context, dbContext, ct)) return Results.Forbid();
@@ -241,8 +411,12 @@ public static partial class EventEndpoints
             var photo = await dbContext.EventGalleryPhotos.FirstOrDefaultAsync(x => x.Id == photoId, ct);
             if (photo is null) return Results.NotFound();
 
+            // Same order and same reason as above.
+            var goneFrom = photo.StoragePath;
+
             dbContext.EventGalleryPhotos.Remove(photo);
             await dbContext.SaveChangesAsync(ct);
+            EventPhotoStore.TryDelete(config, goneFrom);
 
             return Results.Ok(new { deleted = true });
         }).RequireAuthorization();

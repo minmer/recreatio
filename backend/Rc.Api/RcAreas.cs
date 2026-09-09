@@ -158,6 +158,17 @@ public static class RcAreas
     /// zweite Epoche zu schneiden — zwei Schluessel und zwei Kettenzeilen fuer
     /// einen Bereich, der eine Sekunde alt ist.
     /// </param>
+    /// <param name="alsoWrite">
+    /// Dasselbe, aber mit <c>write</c> statt <c>admin</c> — bei einer
+    /// Pfarrgruppe (rc_0035) die Rolle, die „Mitglied" bedeutet.
+    ///
+    /// <b>Warum eine eigene Stufe und nicht einfach <paramref name="alsoAdmin"/>.</b>
+    /// Ein Gruppenmitglied soll schreiben und lesen — nicht die Gruppe
+    /// umbenennen, nicht Leute hinauswerfen, nicht den Bereich verwalten. Waere
+    /// die Mitgliedsrolle Verwalterin, waere es jeder, der je einen
+    /// Beitrittslink eingeloest hat: die Stufe reist mit dem Schluessel, und
+    /// der reist mit dem Link.
+    /// </param>
     /// <summary>
     /// Einen Bereich anlegen — und den Schluessel seiner ersten Epoche
     /// zurueckgeben.
@@ -174,7 +185,7 @@ public static class RcAreas
     internal static async Task<(Guid AreaId, byte[] EpochKey)> InsertAreaAsync(
         SqlConnection connection, SqlTransaction tx, Guid ownerRoleId, byte[] ownerKey,
         RcRoleIdentity owner, Guid tenantId, string title, bool isPublic, CancellationToken ct,
-        Guid? alsoAdmin = null)
+        Guid? alsoAdmin = null, Guid? alsoWrite = null)
     {
         var areaId = RcId.NewId();
         var now = DateTimeOffset.UtcNow;
@@ -225,18 +236,20 @@ public static class RcAreas
             await RcRoles.InsertCertificateAsync(connection, tx, certificate, certificate.Sign(ownerSign), ct);
         }
 
-        // Die zweite Rolle bekommt ihr Zertifikat VOR dem Schnitt, aus
+        // Die weiteren Rollen bekommen ihr Zertifikat VOR dem Schnitt, aus
         // demselben Grund wie der Eigentuemer: MembersAsync liest genau diese
         // Zeilen, und wer dann nicht dasteht, bekommt keinen Schluessel.
-        if (alsoAdmin is Guid second && second != ownerRoleId)
+        foreach (var (roleId, capability) in Extra(alsoAdmin, alsoWrite))
         {
+            if (roleId == ownerRoleId) continue;
+
             var certificate = new RcCertificateRecord
             {
                 Id = RcId.NewId(),
-                SubjectRoleId = second,
+                SubjectRoleId = roleId,
                 ScopeKind = RcScopeKind.Area,
                 ScopeId = areaId,
-                Capability = RcCapability.Admin,
+                Capability = capability,
                 IssuedByRoleId = ownerRoleId,
                 IssuedUtc = now,
                 ExpiresUtc = now + MembershipLife
@@ -250,12 +263,45 @@ public static class RcAreas
             await RcAreaKeys.CutEpochAsync(connection, tx, areaId, RcAreaKeys.ReasonInitial,
                 members, ownerRoleId, epochKey, ct);
         }
-        finally
+        catch
         {
+            /*
+             * NUR IM FEHLERFALL LOESCHEN — hier stand ein `finally`.
+             *
+             * Damit wurde der Schluessel geloescht und DANN zurueckgegeben:
+             * der Aufrufer bekam lauter Nullen. Kein Aufruf ist daran
+             * gescheitert, weil bis jetzt jeder ihn sofort selbst geloescht
+             * hat — aber genau das versprach der Kommentar oben ja nicht.
+             * Wer als Erster geglaubt haette, was dort steht, haette unter
+             * einem festen, allgemein bekannten Schluessel versiegelt, und es
+             * haette ausgesehen wie eine gueltige Versiegelung.
+             *
+             * Ein Fehler beim Schnitt heisst: die Transaktion faellt zurueck,
+             * niemand bekommt den Schluessel, und dann soll er auch nicht
+             * herumliegen.
+             */
             CryptographicOperations.ZeroMemory(epochKey);
+            throw;
         }
 
+        // Ab hier gehoert er dem Aufrufer — samt der Pflicht, ihn zu loeschen.
         return (areaId, epochKey);
+    }
+
+    /// <summary>
+    /// Die mitgegebenen Rollen mit ihrer Stufe, ohne die nicht gesetzten.
+    ///
+    /// Steht als eigene Funktion da, damit die Schleife oben eine Schleife ist
+    /// und keine zwei fast gleichen Bloecke: zwei Bloecke, die dasselbe tun,
+    /// laufen beim naechsten Zusatz auseinander, und dann bekommt die eine
+    /// Rolle ihr Zertifikat vor dem Schnitt und die andere danach — also gar
+    /// keinen Schluessel.
+    /// </summary>
+    private static IEnumerable<(Guid RoleId, RcCapability Capability)> Extra(
+        Guid? alsoAdmin, Guid? alsoWrite)
+    {
+        if (alsoAdmin is Guid admin) yield return (admin, RcCapability.Admin);
+        if (alsoWrite is Guid writer) yield return (writer, RcCapability.Write);
     }
 
     // -- Anzeigen -------------------------------------------------------------

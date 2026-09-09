@@ -44,7 +44,41 @@ public sealed class EventGalleryPhoto
 
     public int Height { get; set; }
 
-    public byte[] Data { get; set; } = [];
+    /// <summary>
+    /// The bytes, while they are still here.
+    ///
+    /// <c>null</c> once the photograph has moved to disk, which is where
+    /// every new one goes. Kept as a column because emptying it costs
+    /// nothing and because it is the way back for as long as anything is
+    /// still stored this way.
+    /// </summary>
+    public byte[]? Data { get; set; }
+
+    /// <summary>
+    /// Where the bytes are, relative to the photo store's root.
+    ///
+    /// <para>
+    /// <c>null</c> means they are still in <see cref="Data"/>. Exactly one
+    /// of the two is set; which one decides where the serving endpoint
+    /// reads from.
+    /// </para>
+    ///
+    /// <para>
+    /// Relative rather than absolute so that moving to another host is a
+    /// settings change and not an update of every row.
+    /// </para>
+    /// </summary>
+    [MaxLength(400)]
+    public string? StoragePath { get; set; }
+
+    /// <summary>
+    /// SHA-256 of the stored bytes.
+    ///
+    /// Written before the row is emptied and checked afterwards. Without
+    /// it the proof that the move succeeded would be a comparison of file
+    /// sizes — which a half-written file passes precisely when it must not.
+    /// </summary>
+    public byte[]? ContentSha256 { get; set; }
 
     /// <summary>What the sender wrote under it, if anything.</summary>
     [MaxLength(300)]

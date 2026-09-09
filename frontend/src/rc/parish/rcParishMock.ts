@@ -22,6 +22,19 @@ export type RcPageId =
   | 'announcements' | 'intentions' | 'masses' | 'calendar'
   | 'sacrament-baptism' | 'sacrament-communion' | 'sacrament-confirmation'
   | 'sacrament-marriage' | 'sacrament-funeral' | 'sacrament-sick'
+
+  /*
+   * WSPOLNOTY.
+   *
+   * Sie stand von Anfang an im Seitenkatalog (`RC_PAGES` in `rcSite.ts`) —
+   * mit einem Feld fuer eine von Hand getippte Liste. In DIESER Aufzaehlung
+   * fehlte sie, und damit war sie unerreichbar: der Router vergleicht gegen
+   * `RcPageId`, und ein Wort, das hier nicht steht, kommt nie an.
+   *
+   * Ein Menuepunkt, der ins Leere fuehrt, sieht aus wie eine kaputte Seite
+   * — nicht wie eine fehlende Zeile.
+   */
+  | 'community'
   | 'contact';
 
 export type RcMenuItem = {
@@ -61,6 +74,13 @@ export const RC_PARISH_MENU: readonly RcMenuItem[] = [
     ]
   },
   { label: 'Bierzmowanie', id: 'sacrament-confirmation' },
+
+  /*
+   * Wspolnoty stehen im EINGEBAUTEN Menue und nicht erst, wenn jemand sie
+   * im Editor hinzufuegt. Eine Pfarrei ohne Gruppen gibt es nicht; sie
+   * erst suchen zu muessen hiesse, dass die meisten sie nie finden.
+   */
+  { label: 'Wspólnoty', id: 'community' },
   { label: 'Kontakt', id: 'contact' }
 ];
 

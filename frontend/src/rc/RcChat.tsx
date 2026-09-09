@@ -179,7 +179,17 @@ export function RcEventsSection({ lang, unlocked }: { lang: RcLang; unlocked: bo
 
 // -- Ein Bereich --------------------------------------------------------------
 
-function RcAreaView({
+/**
+ * Der Chat EINES Bereichs — Nachrichten, Themen, Abstimmungen, Leute.
+ *
+ * <b>Ausgefuehrt, weil eine Pfarrgruppe (rc_0035) genau diesen Chat ist.</b>
+ * Eine Gruppe hat ihren eigenen Bereich; ihr Gespraech ist kein zweites
+ * Nachrichtenwesen, sondern dieses hier mit einer anderen Bereichskennung.
+ * Ein zweiter Aufbau daneben waere ein zweiter Lesepfad fuer dieselben
+ * versiegelten Daten — und der zweite ist immer der, den beim naechsten
+ * Sicherheitsbefund niemand mitprueft.
+ */
+export function RcAreaView({
   lang, area, roles, onError
 }: {
   lang: RcLang;

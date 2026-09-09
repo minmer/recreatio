@@ -18,6 +18,7 @@
 
 import { useMemo, type CSSProperties } from 'react';
 
+import { RcGroupsWidget } from './RcGroupsWidget';
 import { RcMassWidget } from './RcMassWidget';
 import { RC_COLUMNS, rcFrameFor, rcSnapColSpan, rcSnapRowSpan, type RcBreakpoint, type RcModule } from './rcLayout';
 import { rcModuleLabel } from './rcModules';
@@ -105,7 +106,7 @@ function Block({
    * abgeschnittener Messplan sieht vollstaendig aus und ist es nicht: wer „7:00,
    * 9:00" liest, kommt um neun und erfaehrt nie, dass es auch achtzehn Uhr gab.
    */
-  const body = renderBody(module.type, site, slug, frame.size);
+  const body = renderBody(module.type, site, slug, frame.size, at);
 
   // Ein leerer Baustein bleibt für den Verwalter stehen und verschwindet für
   // den Besucher: der eine soll ihn füllen, dem anderen sagt er nichts.
@@ -153,7 +154,8 @@ const LINKS: Record<string, string> = {
  */
 function renderBody(
   type: string, site: RcSite, slug: string,
-  size: { readonly colSpan: number; readonly rowSpan: number }
+  size: { readonly colSpan: number; readonly rowSpan: number },
+  at: (pageId: string) => string
 ): React.ReactNode | null {
   const value = (key: string) => (site.content[key] ?? '').trim();
   const lines = (key: string) =>
@@ -218,10 +220,22 @@ function renderBody(
       return text === '' ? null : <p>{text}</p>;
     }
 
-    case 'groups': {
-      const rows = lines('community.list');
-      return rows.length === 0 ? null : <Rows rows={rows} />;
-    }
+    /*
+     * DIE GRUPPEN KOMMEN JETZT AUS DER DATENBANK.
+     *
+     * Hier standen die von Hand eingetragenen Zeilen. Sie bleiben als
+     * Rueckfall — dieselbe Loesung wie beim Messplan daneben, und aus
+     * demselben Grund: eine Pfarrei, die ihre Gruppen noch nicht angelegt
+     * hat, verliert ihre Seite nicht.
+     */
+    case 'groups':
+      return (
+        <RcGroupsWidget
+          slug={slug}
+          fallback={lines('community.list')}
+          href={at('community')}
+        />
+      );
 
     /*
      * Diese Bausteine zeigen Dinge, die es je Pfarrei erst geben muss —

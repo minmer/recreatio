@@ -6,6 +6,7 @@ using Recreatio.Api.Crypto;
 using Recreatio.Api.Data;
 using Recreatio.Api.Security;
 using Recreatio.Api.Services;
+using Recreatio.Api.Services.Events;
 
 namespace Recreatio.Api.Endpoints;
 
@@ -51,7 +52,7 @@ public static class AuthEndpoints
             return Results.Ok(response);
         }).RequireRateLimiting("auth");
 
-        group.MapPost("/login", async (LoginRequest request, IAuthService authService, ICsrfService csrfService, HttpContext context, CancellationToken ct) =>
+        group.MapPost("/login", async (LoginRequest request, IAuthService authService, ICsrfService csrfService, HttpContext context, RecreatioDbContext dbContext, GalleryPhotoOffload offload, CancellationToken ct) =>
         {
             if (!csrfService.Validate(context))
             {
@@ -63,6 +64,41 @@ public static class AuthEndpoints
                 var response = await authService.LoginAsync(request, ct);
                 await EndpointHelpers.SignInAsync(context, response.UserId, response.SessionId, response.SecureMode, request.RememberMe, request.H3Base64);
                 csrfService.IssueToken(context);
+
+                /*
+                 * THE ONE-OFF MOVE OF THE GALLERY OUT OF THE DATABASE.
+                 *
+                 * 61 MB of photographs are in `events.EventGalleryPhotos.Data`,
+                 * in a data file that is 0.2 MB short of a hard 250 MB ceiling.
+                 * When that ceiling is reached every write fails, not just
+                 * uploads. This is what empties it.
+                 *
+                 * It runs on the administrator's sign-in because that is when
+                 * the person who would want to know about it is present — and
+                 * because it ENDS: once the last photograph has moved, the
+                 * check below is a single indexed count that finds nothing.
+                 *
+                 * It does NOT run inside this request. `RequestRun` returns at
+                 * once and the work happens behind it; 61 MB of copying is not
+                 * something to make somebody wait for, least of all the one
+                 * person who can fix anything that goes wrong.
+                 *
+                 * Nothing here can fail the login: the check is wrapped, and a
+                 * maintenance job is never a reason to refuse a session.
+                 */
+                try
+                {
+                    if (await GalleryOffloadTrigger.ShouldRunForAsync(dbContext, response.UserId, ct))
+                    {
+                        offload.RequestRun();
+                    }
+                }
+                catch (Exception)
+                {
+                    // Deliberately swallowed. Logged inside the service when it
+                    // actually runs; here it must not touch the response.
+                }
+
                 return Results.Ok(new { response.UserId, response.SessionId, response.SecureMode });
             }
             catch (InvalidOperationException ex)

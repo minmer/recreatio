@@ -243,6 +243,21 @@ public static class ServiceCollectionExtensions
         });
         services.AddHostedService<CalendarReminderDispatcherHostedService>();
         services.AddHostedService<GameRetentionCleanupHostedService>();
+
+        /*
+         * Der Umzug der Galerie aus der Datenbank auf die Platte.
+         *
+         * SINGLETON, und das ist die ganze Absperrung: der Dienst haelt das
+         * Schloss, das verhindert, dass zwei gleichzeitige Anmeldungen zwei
+         * Laeufe starten. Waere er scoped, haette jede Anfrage ihr eigenes
+         * Schloss — also keines.
+         *
+         * Der Hintergrunddienst danach stoesst denselben Lauf kurz nach dem
+         * Start an, damit ein Neustart nicht darauf wartet, dass sich jemand
+         * anmeldet.
+         */
+        services.AddSingleton<Services.Events.GalleryPhotoOffload>();
+        services.AddHostedService<Services.Events.GalleryPhotoOffloadHostedService>();
         services.AddSingleton<IEncryptedBlobStore, EncryptedBlobStore>();
         services.AddHttpClient<IPythonSandboxClient, PythonSandboxClient>();
         services.AddHttpClient<IBookLookupService, BookLookupService>();

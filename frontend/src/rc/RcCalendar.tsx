@@ -167,7 +167,16 @@ function RcNewCalendar({
 
 // -- Ein Kalender -------------------------------------------------------------
 
-function RcCalendarDetail({
+/**
+ * Ein Kalender mit seinen Vorkommen — Termine UND Aufgaben.
+ *
+ * <b>Ausgefuehrt fuer die Pfarrgruppen (rc_0035).</b> Der Kalender einer
+ * Gruppe ist keine eigene Bauart: er ist dieser, mit der Kennung des
+ * Gruppenkalenders. Ihn nachzubauen hiesse, die Ausbreitung der Reihen und
+ * die Entsiegelung ein zweites Mal zu schreiben — und Termine, die
+ * auseinanderlaufen, merkt man erst, wenn jemand zu spaet kommt.
+ */
+export function RcCalendarDetail({
   lang, calendar, roles, onBack, onError
 }: {
   lang: RcLang;

@@ -24,6 +24,10 @@ import { RcParishSite } from './parish/RcParishSite';
 import { RcCandidatePortalPage } from './parish/RcCandidatePortal';
 import './parish/parishSite.css';
 
+// Die Gruppen der Pfarrei. Nach `parishSite.css`, weil sie deren Farbwerte
+// (`--ps-*`) benutzen — vorher stuenden sie vor ihrer eigenen Grundlage.
+import './parish/parishGroups.css';
+
 import { RcMyCandidates } from './parish/RcMyCandidates';
 import { RcEventSite } from './events/RcEventSite';
 import { RcEventCatalogue } from './events/RcEventCatalogue';

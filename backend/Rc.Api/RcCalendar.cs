@@ -205,7 +205,18 @@ public static class RcCalendar
         string? Title, string? Location, string? Notes,
         string? RepeatKind, int? RepeatEvery, int? RepeatWeekdays,
         DateTimeOffset? RepeatUntil, int? RepeatCount,
-        string? TaskState);
+        string? TaskState,
+
+        /// <summary>
+        /// Das Gespraech, aus dem dieser Eintrag entstand (rc_0035).
+        ///
+        /// Der Regelfall ist <c>null</c>: die allermeisten Termine
+        /// entstehen nicht aus einem Gespraech. Steht hier etwas, muss es
+        /// ein Thema DESSELBEN Bereichs sein — sonst stuende in der
+        /// Aufgabenliste ein Verweis auf etwas, das der Leser nie
+        /// aufbekommt.
+        /// </summary>
+        string? TopicId);
 
     private static async Task AddItemAsync(
         HttpContext ctx, RcDb db, RcMasterKey masterKeys, RcPermissions permissions,
@@ -270,6 +281,40 @@ public static class RcCalendar
             RcCapability.Write, ctx.RequestAborted);
         if (!may.Allowed) { await RcAreas.NotForYou(ctx); return; }
 
+        /*
+         * DAS THEMA MUSS IM SELBEN BEREICH LIEGEN (rc_0035).
+         *
+         * Die Fremdschluesselbedingung prueft nur, DASS es das Thema gibt —
+         * nicht, dass der Leser der Aufgabe es je aufbekommt. Ein Thema aus
+         * einem fremden Bereich liegt unter einem fremden Epochenschluessel;
+         * in der Aufgabenliste stuende dann ein Verweis „aus dem Gespraech:
+         * zapieczetowane", und niemand koennte sagen, ob das ein Rechtefehler
+         * ist oder ein Versehen beim Anlegen.
+         *
+         * Hier ist es ein Versehen beim Anlegen, und hier laesst es sich noch
+         * sagen.
+         */
+        Guid? topicId = null;
+        if (!string.IsNullOrWhiteSpace(body.TopicId))
+        {
+            if (!Guid.TryParse(body.TopicId, out var parsedTopic))
+            {
+                await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                    RcErrorCodes.IdMalformed, "Das ist keine Themenkennung.");
+                return;
+            }
+
+            if (!await TopicIsInAreaAsync(connection, parsedTopic, calendar.AreaId, ctx.RequestAborted))
+            {
+                await RcResults.WriteErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                    RcErrorCodes.NotFoundOrNoAccess,
+                    "Dieses Thema gehoert nicht zu diesem Kalender.");
+                return;
+            }
+
+            topicId = parsedTopic;
+        }
+
         var itemId = RcId.NewId();
         var now = DateTimeOffset.UtcNow;
 
@@ -309,12 +354,12 @@ public static class RcCalendar
                  starts_at, ends_at, all_day, title_public, visibility, status,
                  epoch, title_sealed, location_sealed, notes_sealed,
                  repeat_kind, repeat_every, repeat_weekdays, repeat_until, repeat_count,
-                 task_state, created_at, updated_at)
+                 task_state, topic_id, created_at, updated_at)
             VALUES (@id, @cal, @owner, @type,
                     @starts, @ends, @allday, @public, @vis, @status,
                     @epoch, @titleS, @locS, @notesS,
                     @rkind, @revery, @rdays, @runtil, @rcount,
-                    @task, @now, @now);
+                    @task, @topic, @now, @now);
             """, connection);
 
         insert.Parameters.AddWithValue("@id", itemId);
@@ -347,6 +392,8 @@ public static class RcCalendar
 
         insert.Parameters.Add("@task", System.Data.SqlDbType.NVarChar, 16).Value =
             itemType == "task" ? (body.TaskState?.Trim().ToLowerInvariant() ?? "todo") : DBNull.Value;
+        insert.Parameters.Add("@topic", System.Data.SqlDbType.UniqueIdentifier).Value =
+            (object?)topicId ?? DBNull.Value;
         insert.Parameters.AddWithValue("@now", now);
 
         await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
@@ -376,7 +423,10 @@ public static class RcCalendar
         string ItemId, DateTimeOffset OriginalStartUtc, DateTimeOffset StartsUtc, DateTimeOffset EndsUtc,
         bool Moved, bool AllDay, string ItemType, string Visibility, string Status,
         string? TitlePublic, string? Title, string? Location, string? Notes,
-        string? TaskState, bool Mine, string? Unreadable);
+        string? TaskState, bool Mine, string? Unreadable,
+
+        /// <summary>Das Thema, aus dem der Eintrag entstand — oder nichts.</summary>
+        string? TopicId);
 
     /// <summary>
     /// Die Vorkommen EINES Kalenders im Fenster — geteilt mit dem Terminplan.
@@ -465,7 +515,7 @@ public static class RcCalendar
                    title_public, visibility, status,
                    epoch, title_sealed, location_sealed, notes_sealed,
                    repeat_kind, repeat_every, repeat_weekdays, repeat_until, repeat_count,
-                   task_state
+                   task_state, topic_id
             FROM dbo.rc_calendar_item
             WHERE calendar_id = @cal
               AND (repeat_kind <> 'none' OR ends_at >= @from)
@@ -495,7 +545,8 @@ public static class RcCalendar
                     reader.IsDBNull(15) ? null : reader.GetByte(15),
                     reader.IsDBNull(16) ? null : reader.GetDateTimeOffset(16),
                     reader.IsDBNull(17) ? null : reader.GetInt32(17),
-                    reader.IsDBNull(18) ? null : reader.GetString(18)));
+                    reader.IsDBNull(18) ? null : reader.GetString(18),
+                    reader.IsDBNull(19) ? null : reader.GetGuid(19)));
         }
 
         foreach (var row in rows)
@@ -539,7 +590,8 @@ public static class RcCalendar
                 views.Add(new OccurrenceView(
                     RcId.ToText(row.Id), occurrence.OriginalStart, occurrence.Start, occurrence.End,
                     occurrence.Moved, row.AllDay, row.ItemType, row.Visibility, row.Status,
-                    row.TitlePublic, title, location, notes, row.TaskState, isMine, unreadable));
+                    row.TitlePublic, title, location, notes, row.TaskState, isMine, unreadable,
+                    row.TopicId is null ? null : RcId.ToText(row.TopicId.Value)));
             }
         }
 
@@ -889,7 +941,27 @@ public static class RcCalendar
         string? TitlePublic, string Visibility, string Status,
         int? Epoch, byte[]? TitleSealed, byte[]? LocationSealed, byte[]? NotesSealed,
         string RepeatKind, int RepeatEvery, byte? RepeatWeekdays,
-        DateTimeOffset? RepeatUntil, int? RepeatCount, string? TaskState);
+        DateTimeOffset? RepeatUntil, int? RepeatCount, string? TaskState,
+        Guid? TopicId);
+
+    /// <summary>
+    /// Gehoert dieses Thema in diesen Bereich?
+    ///
+    /// Beantwortet die Frage in EINER Abfrage statt in zweien („gibt es das
+    /// Thema" und dann „welcher Bereich"): zwei Abfragen haetten zwei
+    /// Fehlermeldungen, und die erste — „dieses Thema gibt es nicht" — waere
+    /// die Auskunft, dass es in einem anderen Bereich sehr wohl eines gibt.
+    /// </summary>
+    private static async Task<bool> TopicIsInAreaAsync(
+        SqlConnection connection, Guid topicId, Guid areaId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand(
+            "SELECT COUNT(*) FROM dbo.rc_topic WHERE id = @topic AND area_id = @area;", connection);
+        cmd.Parameters.AddWithValue("@topic", topicId);
+        cmd.Parameters.AddWithValue("@area", areaId);
+
+        return (int)(await cmd.ExecuteScalarAsync(ct) ?? 0) > 0;
+    }
 
     private sealed record CalendarRow(Guid Id, Guid AreaId, string TimeZone, TimeZoneInfo Zone);
 
