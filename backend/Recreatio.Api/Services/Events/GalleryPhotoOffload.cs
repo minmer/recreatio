@@ -80,12 +80,42 @@ public sealed class GalleryPhotoOffload
         this.logger = logger;
     }
 
-    /// <summary>What the last run did, for the status endpoint.</summary>
+    /// <summary>
+    /// What happened. <paramref name="State"/> is the field that matters.
+    ///
+    /// <para>
+    /// <b>Why it exists.</b> Without it this record answers "0 moved, 0
+    /// failed, no error" to four completely different situations: nothing
+    /// to do, switched off here, another run already going, and a run that
+    /// genuinely moved nothing. The caller gets 200 OK and a page of
+    /// zeroes, and has no way to tell which. That is a failure wearing the
+    /// costume of a success, and it cost somebody a round-trip to ask what
+    /// their own response meant.
+    /// </para>
+    /// </summary>
+    /// <param name="State">
+    /// <c>never-run</c> nothing has run in this process yet;
+    /// <c>disabled</c> this installation may not move photographs
+    /// (<c>Events:PhotoOffload</c> is not <c>true</c>);
+    /// <c>busy</c> a run was already going, these are its figures so far;
+    /// <c>ran</c> a pass actually completed - read the numbers.
+    /// </param>
+    /// <param name="Remaining">
+    /// How many are still in the database. <c>-1</c> means NOT COUNTED,
+    /// which is not the same as zero - and telling those two apart is the
+    /// whole reason it is not simply 0.
+    /// </param>
     public sealed record Progress(
         DateTimeOffset? StartedUtc, DateTimeOffset? FinishedUtc,
-        int Moved, int Failed, int Remaining, long BytesMoved, string? LastError);
+        int Moved, int Failed, int Remaining, long BytesMoved, string? LastError,
+        string State);
 
-    private volatile Progress last = new(null, null, 0, 0, -1, 0, null);
+    public const string StateNeverRun = "never-run";
+    public const string StateDisabled = "disabled";
+    public const string StateBusy = "busy";
+    public const string StateRan = "ran";
+
+    private volatile Progress last = new(null, null, 0, 0, -1, 0, null, StateNeverRun);
 
     public Progress Last => last;
 
@@ -115,8 +145,9 @@ public sealed class GalleryPhotoOffload
     public async Task<Progress> RunAsync(CancellationToken ct)
     {
         // Already running: report what that run has done so far rather than
-        // queueing a second one behind it.
-        if (!await gate.WaitAsync(0, ct)) return last;
+        // queueing a second one behind it. Says so, rather than handing back
+        // figures that look like the result of THIS call.
+        if (!await gate.WaitAsync(0, ct)) return last with { State = StateBusy };
 
         try
         {
@@ -139,7 +170,17 @@ public sealed class GalleryPhotoOffload
                 logger.LogDebug(
                     "Gallery photo offload is switched off here ({Key} is not true).",
                     EventPhotoStore.OffloadKey);
-                return last;
+
+                /*
+                 * SAYS SO, LOUDLY.
+                 *
+                 * This is the single most likely reason for "I pressed it
+                 * and nothing happened", because the switch is off by
+                 * default and has to be set on the server on purpose. A
+                 * caller who gets zeroes here must be able to read why
+                 * without going to look at the source.
+                 */
+                return last with { State = StateDisabled, LastError = EventPhotoStore.OffloadKey + " is not true" };
             }
 
             var started = DateTimeOffset.UtcNow;
@@ -186,7 +227,7 @@ public sealed class GalleryPhotoOffload
             var remaining = await db.EventGalleryPhotos.AsNoTracking()
                 .CountAsync(x => x.StoragePath == null && x.Data != null, ct);
 
-            last = new Progress(started, DateTimeOffset.UtcNow, moved, failed, remaining, bytes, lastError);
+            last = new Progress(started, DateTimeOffset.UtcNow, moved, failed, remaining, bytes, lastError, StateRan);
 
             if (moved > 0)
             {
