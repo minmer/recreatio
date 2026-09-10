@@ -1,41 +1,30 @@
 /**
- * Die Grenze zwischen dem Altbestand und dem Neubau.
+ * Die Grenze zwischen Altbestand und Neubau — die einzige Stelle, die beide
+ * kennt.
  *
- * <b>Was hier steht, ist die einzige Stelle, die BEIDE kennt.</b> Alles unter
- * `src/legacy/` ist der Stand, der heute recreatio.pl bedient; alles unter
- * `src/workspace/` ist das, was ihn ersetzt. Sie teilen keinen Zustand, keinen
- * Speicher und kein Stilblatt — nur diese Datei und das `<div id="root">`.
+ * Alles unter `src/legacy/` bedient heute recreatio.pl; alles unter
+ * `src/app/` ersetzt es. Sie teilen keinen Zustand, keinen Speicher und kein
+ * Stilblatt — nur diese Datei und das `<div id="root">`.
  *
- * <b>Warum die Weiche hier liegt und nicht in einem Bauteil.</b> Ein Zweig
- * innerhalb einer React-Komponente zoege den jeweils anderen Zweig mit in den
- * Speicher: die alten Stilblaetter kaemen mit, und der Neubau erbte Regeln, die
- * er nicht kennt. Beide Seiten werden deshalb per `import()` geholt, und nur
- * die, die gerade gebraucht wird.
+ * Beide Seiten werden per `import()` geholt, damit die alten Stilblätter nicht
+ * mitkommen, wenn der Neubau geladen wird: eine geerbte Regel, die man nicht
+ * kennt, ist schwerer zu finden als eine fehlende.
  *
- * <b>Der Altbestand mountet sich SELBST.</b> `legacy/main.tsx` legt seine
- * eigene Wurzel an, sobald es geladen wird — deshalb wird hier im alten Fall
- * keine zweite angelegt. Zwei Wurzeln auf demselben Knoten waeren kein Absturz,
- * sondern zwei Anwendungen, die sich gegenseitig ueberschreiben.
+ * Der Altbestand mountet sich SELBST, sobald er geladen ist — deshalb wird
+ * hier für ihn keine zweite Wurzel angelegt.
  */
 
-const NEW_BASE = '#/workspace';
+const BASE = '#/workspace';
 
-/** Gehoert diese Adresse dem Neubau? */
 const isNew = (): boolean => {
   const hash = window.location.hash;
-  return hash === NEW_BASE || hash.startsWith(`${NEW_BASE}/`);
+  return hash === BASE || hash.startsWith(`${BASE}/`);
 };
 
 /*
- * DIE GRENZE WIRD MIT EINEM NEULADEN UEBERQUERT.
- *
- * Sie steht VOR dem ersten `import()`, damit sie auch dann greift, wenn gerade
- * der Altbestand laeuft: dessen eigene Weiche kennt `#/workspace` nicht und
- * hielte es fuer eine seiner Adressen — der Neubau kaeme nie zum Vorschein.
- *
- * Ein Neuladen an dieser Stelle ist Absicht und kein Behelf: Alt und Neu teilen
- * weder Sitzung noch Speicher, und ein Wechsel ohne Neuladen erzeugte genau die
- * Vermischung, die der Umbau gerade abschafft.
+ * Die Grenze wird mit einem Neuladen überquert, und der Horcher steht VOR dem
+ * ersten `import()`: die Weiche des Altbestands kennt `#/workspace` nicht und
+ * hielte es für eine seiner Adressen — der Neubau käme nie zum Vorschein.
  */
 let wasNew = isNew();
 window.addEventListener('hashchange', () => {
@@ -47,12 +36,11 @@ window.addEventListener('hashchange', () => {
 
 async function mount(): Promise<void> {
   if (isNew()) {
-    const { mountWorkspace } = await import('./workspace/mount');
-    mountWorkspace(document.getElementById('root')!);
+    const { mountApp } = await import('./app/mount');
+    mountApp(document.getElementById('root')!);
     return;
   }
 
-  // Er legt seine Wurzel selbst an — hier wird nur geladen.
   await import('./legacy/main');
 }
 

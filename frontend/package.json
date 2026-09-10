@@ -11,7 +11,7 @@
     "rc:test": "node scripts/rc-test.mjs",
     "rc:check": "tsc -p tsconfig.rc.json --noEmit && node scripts/rc-test.mjs && node scripts/rc-sql-params.mjs",
     "rc:sql": "node scripts/rc-sql-params.mjs",
-    "ws:check": "tsc -p tsconfig.workspace.json --noEmit",
+    "app:check": "tsc -p tsconfig.app.json --noEmit",
     "rc:walk": "node scripts/rc-walk.mjs",
     "rc:vector": "node scripts/rc-wrap-vector.mjs",
     "events:check": "node scripts/events-add-check.mjs && node scripts/events-image-check.mjs",
