@@ -14,8 +14,8 @@
  */
 
 import {
-  rcGroupBlocker, rcGroupSlug, rcGroupStance, rcMemberCount, rcNoteState, rcSortGroups,
-  type RcGroup
+  rcGroupBlocker, rcGroupSlug, rcGroupStance, rcMemberCount, rcNoteState,
+  rcPublicInfoMissing, rcSortGroups, type RcGroup
 } from './rcGroups';
 
 let passed = 0;
@@ -112,7 +112,7 @@ ok('Versiegelt schlaegt Text',
 
 ok('Ein Mitglied',
   rcGroupStance({ mine: true, mayAdmin: false }),
-  { member: true, admin: false, inside: true, mayInvite: false });
+  { member: true, admin: false, leading: false, inside: true, mayHandOver: false, mayInvite: false });
 
 /*
  * DER PFARRVERWALTER GEHOERT ZU KEINER GRUPPE.
@@ -124,11 +124,32 @@ ok('Ein Mitglied',
  */
 ok('Der Verwalter ist kein Mitglied',
   rcGroupStance({ mine: false, mayAdmin: true }),
-  { member: false, admin: true, inside: true, mayInvite: true });
+  { member: false, admin: true, leading: false, inside: true, mayHandOver: true, mayInvite: true });
 
 ok('Ein Fremder bleibt draussen',
   rcGroupStance({ mine: false, mayAdmin: false }),
-  { member: false, admin: false, inside: false, mayInvite: false });
+  { member: false, admin: false, leading: false, inside: false, mayHandOver: false, mayInvite: false });
+
+/*
+ * DAS AMT IST NICHT DIE BERECHTIGUNG (rc_0037).
+ *
+ * Der Pfarrverwalter DARF jede Gruppe aendern und FUEHRT keine. Faellt
+ * `leading` mit `admin` zusammen, stehen in seinem „prowadzę" zwanzig
+ * fremde Gruppen — und die Ueberschrift ist eine Luege.
+ */
+ok('Verwalten ist nicht fuehren',
+  rcGroupStance({ mine: false, mayAdmin: true, leading: false }).leading, false);
+
+ok('Wer das Amt haelt, fuehrt',
+  rcGroupStance({ mine: true, mayAdmin: true, leading: true }).leading, true);
+
+/*
+ * `leading` FEHLT in der Antwort, wenn es falsch ist — der Dienst schreibt
+ * leere Felder nicht. `undefined` muss hier `false` heissen und nicht
+ * „wahr, weil gesetzt".
+ */
+ok('Fehlendes Feld heisst: fuehrst du nicht',
+  rcGroupStance({ mine: true, mayAdmin: false }).leading, false);
 
 /*
  * EINLADEN KANN NUR DER VERWALTER.
@@ -139,6 +160,41 @@ ok('Ein Fremder bleibt draussen',
  */
 ok('Ein Mitglied laedt nicht ein',
   rcGroupStance({ mine: true, mayAdmin: false }).mayInvite, false);
+
+// -- Was fuer die Pfarrseite noch fehlt ---------------------------------------
+//
+// Eine Gruppe ist in einer halben Minute angelegt: Name, Adresse, fertig.
+// Anriss und Treffzeit sind freiwillig — und bleiben deshalb leer. Im
+// Schaukasten haengt dann ein Name, und wer eine Gruppe sucht, erfaehrt
+// nichts.
+
+ok('Frisch angelegt fehlt beides',
+  rcPublicInfoMissing({ isPublic: true }), ['opis', 'godziny spotkań']);
+
+ok('Nur der Anriss fehlt',
+  rcPublicInfoMissing({ summary: null, meets: 'soboty 10:00', isPublic: true }), ['opis']);
+
+ok('Nur die Zeit fehlt',
+  rcPublicInfoMissing({ summary: 'Dla chłopców', meets: '', isPublic: true }),
+  ['godziny spotkań']);
+
+ok('Vollstaendig',
+  rcPublicInfoMissing({ summary: 'Dla chłopców', meets: 'soboty 10:00', isPublic: true }), []);
+
+/* Leerzeichen sind kein Anriss. */
+ok('Nur Leerzeichen zaehlt nicht',
+  rcPublicInfoMissing({ summary: '   ', meets: '  ', isPublic: true }),
+  ['opis', 'godziny spotkań']);
+
+/*
+ * WER NICHT AUSHAENGT, DEM FEHLT NICHTS.
+ *
+ * Eine Gruppe von der Seite zu nehmen ist eine Entscheidung. Sie danach
+ * anzumahnen, sie sei unvollstaendig, ist ein Vorwurf fuer etwas, das
+ * jemand absichtlich getan hat.
+ */
+ok('Nicht auf der Seite: nichts zu ergaenzen',
+  rcPublicInfoMissing({ isPublic: false }), []);
 
 // -- Die Liste ----------------------------------------------------------------
 
@@ -152,9 +208,11 @@ const group = (over: Partial<RcGroup> & { slug: string }): RcGroup => ({
   areaId: 'a',
   calendarId: 'c',
   memberRoleId: 'r',
+  leaderRoleId: 'l',
   members: 3,
   mine: false,
   mayAdmin: false,
+  leading: false,
   ...over
 } as RcGroup);
 

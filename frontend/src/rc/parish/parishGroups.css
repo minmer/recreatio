@@ -308,3 +308,84 @@
 
 .wg-widget .wg-widget-name a { color: inherit; text-decoration: none; }
 .wg-widget .wg-widget-name a:hover { color: var(--ps-accent, #a56b2f); text-decoration: underline; }
+
+
+/* =========================================================================
+   Karta „Wspólnoty" w edytorze parafii + przekazanie urzędu (rc_0037)
+   ========================================================================= */
+
+/*
+   Kontener karty w edytorze. NAZWA MUSI SIĘ RÓŻNIĆ od `.wg-admin`, który jest
+   plakietką „zarządzasz" przy wspólnocie: ta sama klasa dałaby plakietce
+   `display: grid`, a kontenerowi obwódkę pigułki. Kolizja w kaskadzie nie
+   wygląda na błąd — wygląda na dziwny wygląd.
+*/
+.wg-manage { display: grid; gap: 0.7rem; justify-items: start; }
+
+/* Ile wspólnot ma dziurę w gablocie — zbiorczo, bo przy dwunastu wierszach
+   pojedynczych braków się nie widzi. */
+.wg-manage-warn {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.45rem;
+  background: rgba(165, 107, 47, 0.1);
+  border-left: 3px solid var(--ps-accent, #a56b2f);
+  font-size: 0.88rem;
+}
+
+.wg-manage-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; width: 100%; }
+
+.wg-manage-row {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--ps-line, rgba(30, 27, 22, 0.12));
+  border-radius: 0.5rem;
+  background: var(--ps-surface, #fffdf8);
+}
+
+.wg-manage-name { display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
+.wg-manage-name a { color: inherit; text-decoration: none; font-weight: 600; }
+.wg-manage-name a:hover { color: var(--ps-accent, #a56b2f); text-decoration: underline; }
+
+/* Adres drobnym drukiem: wisi w odnośnikach, więc warto go widzieć. */
+.wg-manage-slug { font-style: normal; font-size: 0.78rem; opacity: 0.6; }
+
+.wg-manage-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--ps-muted, #514a40);
+}
+
+/* CO uzupełnić, nie „uzupełnij dane". */
+.wg-manage-todo { font-size: 0.82rem; color: #8a2b12; }
+.wg-manage-todo a { color: inherit; }
+
+/* -- Przekazanie prowadzenia --------------------------------------------- */
+
+/*
+   Stoi WYRAŹNIE osobno od zaproszenia i niżej. To dwie różne rzeczy pod dwoma
+   przyciskami obok siebie byłyby zaproszeniem do pomyłki, której nie da się
+   cofnąć: link z urzędem oddany komuś, kto miał tylko dołączyć.
+*/
+.wg-handover {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
+  width: 100%;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 2px solid var(--ps-line, rgba(30, 27, 22, 0.12));
+}
+
+.wg-confirm {
+  display: grid;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(138, 43, 18, 0.35);
+  background: rgba(138, 43, 18, 0.05);
+}

@@ -33,8 +33,8 @@ public sealed record RcParishGroupCreatedResponse(string GroupId, string Slug, s
 public sealed record RcParishGroupView(
     string GroupId, string Slug, string Name,
     string? Summary, string? Meets, bool IsPublic, string Lifecycle,
-    string AreaId, string CalendarId, string MemberRoleId,
-    int Members, bool Mine, bool MayAdmin);
+    string AreaId, string CalendarId, string MemberRoleId, string LeaderRoleId,
+    int Members, bool Mine, bool MayAdmin, bool Leading);
 
 public sealed record RcParishGroupsResponse(string ParishId, IReadOnlyList<RcParishGroupView> Groups);
 
@@ -51,11 +51,25 @@ public sealed record RcParishGroupsResponse(string ParishId, IReadOnlyList<RcPar
 /// aufbekommst" verlangen verschiedene Antworten, und wer sie verwechselt,
 /// schreibt die Notiz eines anderen einfach neu.
 /// </param>
+/// <param name="LeaderRoleId">
+/// Das Amt, das diese Gruppe fuehrt (rc_0037). Es steht hier, weil der
+/// Uebergabelink daran haengt — ein geratenes Amt vergibt Schluessel an der
+/// Gruppe vorbei.
+/// </param>
+/// <param name="Leading">
+/// Ob der Fragende dieses Amt HAELT.
+///
+/// Nicht dasselbe wie <c>MayAdmin</c>: der Pfarrverwalter darf die Gruppe
+/// verwalten, ohne sie zu fuehren. Die Oberflaeche braucht beides — „du
+/// fuehrst das hier" ist eine andere Auskunft als „du darfst hier etwas
+/// aendern", und wer sie zusammenwirft, schreibt einer Pfarrkanzlei
+/// zwanzig Gruppen ins eigene Verzeichnis.
+/// </param>
 public sealed record RcParishGroupResponse(
     string GroupId, string ParishId, string ParishSlug, string Slug, string Name,
     string? Summary, string? Meets, bool IsPublic, string Lifecycle,
-    string AreaId, string CalendarId, string MemberRoleId,
-    int Members, bool Mine, bool MayAdmin,
+    string AreaId, string CalendarId, string MemberRoleId, string LeaderRoleId,
+    int Members, bool Mine, bool MayAdmin, bool Leading,
     string? Note, string? NoteUnreadable);
 
 public sealed record RcParishGroupSavedResponse(string GroupId, string Slug, string Name);

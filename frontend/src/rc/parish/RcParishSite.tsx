@@ -373,6 +373,7 @@ export function RcParishSite({
               site={site}
               onChange={(next) => { setSite(next); setSaving('idle'); }}
               parishId={parish.parishId}
+              parishAreaId={parish.areaId}
               slug={slug}
             />
           </div>

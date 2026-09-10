@@ -13374,6 +13374,8 @@
           "calendarId",
           "groupId",
           "isPublic",
+          "leaderRoleId",
+          "leading",
           "lifecycle",
           "mayAdmin",
           "memberRoleId",
@@ -13424,6 +13426,9 @@
           "memberRoleId": {
             "type": "string"
           },
+          "leaderRoleId": {
+            "type": "string"
+          },
           "members": {
             "type": "integer",
             "format": "int32"
@@ -13432,6 +13437,9 @@
             "type": "boolean"
           },
           "mayAdmin": {
+            "type": "boolean"
+          },
+          "leading": {
             "type": "boolean"
           },
           "note": {
@@ -13471,6 +13479,8 @@
           "calendarId",
           "groupId",
           "isPublic",
+          "leaderRoleId",
+          "leading",
           "lifecycle",
           "mayAdmin",
           "memberRoleId",
@@ -13513,6 +13523,9 @@
           "memberRoleId": {
             "type": "string"
           },
+          "leaderRoleId": {
+            "type": "string"
+          },
           "members": {
             "type": "integer",
             "format": "int32"
@@ -13521,6 +13534,9 @@
             "type": "boolean"
           },
           "mayAdmin": {
+            "type": "boolean"
+          },
+          "leading": {
             "type": "boolean"
           }
         },

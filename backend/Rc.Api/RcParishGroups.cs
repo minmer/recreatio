@@ -21,8 +21,22 @@ namespace Rc.Api;
 ///   rc_parish_group
 ///     ├── area_id        → Chat (rc_message), Themen (rc_topic), Mitglieder
 ///     ├── calendar_id    → Termine UND Aufgaben (rc_calendar_item)
-///     └── member_role_id → der Beitrittslink (rc_invitation)
+///     ├── member_role_id → der Beitrittslink   (write auf den Bereich)
+///     └── leader_role_id → das AMT der Gruppe  (admin auf den Bereich)
 /// </code>
+///
+/// <b>Wer was darf — ohne Beschoenigung.</b>
+/// <code>
+///   Amt der Gruppe      admin   Aushang aendern, Gespraech, Kalender
+///   Mitgliedsrolle      write   Gespraech, Kalender, Aufgaben
+///   Gruender (Person)   admin   dasselbe wie das Amt
+/// </code>
+/// Die dritte Zeile ist eine Entscheidung, keine Nachlaessigkeit:
+/// <see cref="RcAreas.InsertAreaAsync"/> gibt dem Anlegenden <c>admin</c> auf
+/// seinen eigenen Bereich, und daran haengt, dass eine Pfarrei eine Gruppe
+/// wieder einsammeln kann, deren Leiter nicht mehr auftaucht. Der Preis ist,
+/// dass der Pfarrverwalter mitlesen KANN. Wer den Messplan pflegt, kann es
+/// nicht — wer die Gruppe angelegt hat, schon.
 ///
 /// <b>Was hier NICHT steht, ist die Haelfte des Entwurfs.</b> Es gibt kein
 /// eigenes Nachrichtenformat, keine Gruppenaufgabentabelle und keinen
@@ -187,9 +201,33 @@ public static class RcParishGroups
             // weg damit, statt ihn bis zum Ende der Anfrage liegen zu lassen.
             CryptographicOperations.ZeroMemory(memberKey);
 
+            /*
+             * DAS AMT — die Stelle, nicht der Mensch darauf (rc_0037).
+             *
+             * Ohne es haengt die Fuehrung der Gruppe an der PERSON, die sie
+             * angelegt hat: weitergeben liesse sie sich nur, indem man ihr
+             * Konto weitergibt, also gar nicht. Genau so war es bis rc_0037,
+             * und genau diesen Fehler vermeidet die Pfarrei selbst seit
+             * ihrem ersten Tag (RcParish.CreateAsync).
+             *
+             * Die Schola fuehrt nicht die Pfarrkanzlei. Wer sie fuehrt, soll
+             * ihren Aushang selbst pflegen koennen — wann sie probt, wen sie
+             * sucht — ohne dafuer Verwalter der ganzen Pfarrei zu werden.
+             *
+             * Es entsteht VOR dem Bereich, damit es beim Schnitt der ersten
+             * Epoche schon dasteht und den Schluessel mitbekommt. Danach
+             * aufgenommen hiesse: sofort eine zweite Epoche schneiden.
+             */
+            var (leaderRoleId, leaderKey) = await RcRoles.InsertHeldRoleAsync(
+                connection, tx, personRoleId, personKey, person, parish.TenantId,
+                RcRoleKinds.Office, name, ctx.RequestAborted);
+
+            // Auch darunter wird hier nichts versiegelt.
+            CryptographicOperations.ZeroMemory(leaderKey);
+
             var (areaId, epochKey) = await RcAreas.InsertAreaAsync(
                 connection, tx, personRoleId, personKey, person, parish.TenantId, name,
-                false, ctx.RequestAborted, alsoWrite: memberRoleId);
+                false, ctx.RequestAborted, alsoAdmin: leaderRoleId, alsoWrite: memberRoleId);
 
             try
             {
@@ -248,11 +286,11 @@ public static class RcParishGroups
 
                 await using (var insert = new SqlCommand("""
                     INSERT INTO dbo.rc_parish_group
-                        (id, parish_id, tenant_id, area_id, member_role_id, calendar_id,
-                         slug, name, summary, meets, is_public,
+                        (id, parish_id, tenant_id, area_id, member_role_id, leader_role_id,
+                         calendar_id, slug, name, summary, meets, is_public,
                          note_sealed, note_epoch, lifecycle, created_at)
-                    VALUES (@id, @parish, @tenant, @area, @member, @calendar,
-                            @slug, @name, @summary, @meets, @public,
+                    VALUES (@id, @parish, @tenant, @area, @member, @leader,
+                            @calendar, @slug, @name, @summary, @meets, @public,
                             @note, @noteEpoch, N'active', @now);
                     """, connection, tx))
                 {
@@ -261,6 +299,7 @@ public static class RcParishGroups
                     insert.Parameters.AddWithValue("@tenant", parish.TenantId);
                     insert.Parameters.AddWithValue("@area", areaId);
                     insert.Parameters.AddWithValue("@member", memberRoleId);
+                    insert.Parameters.AddWithValue("@leader", leaderRoleId);
                     insert.Parameters.AddWithValue("@calendar", calendarId);
                     insert.Parameters.AddWithValue("@slug", slug);
                     insert.Parameters.AddWithValue("@name", name);
@@ -351,7 +390,9 @@ public static class RcParishGroups
                 RcId.ToText(row.GroupId), row.Slug, row.Name,
                 row.Summary, row.Meets, row.IsPublic, row.Lifecycle,
                 RcId.ToText(row.AreaId), RcId.ToText(row.CalendarId), RcId.ToText(row.MemberRoleId),
-                row.Members, roleKeys.ContainsKey(row.MemberRoleId), mayAdmin.Allowed));
+                RcId.ToText(row.LeaderRoleId),
+                row.Members, roleKeys.ContainsKey(row.MemberRoleId), mayAdmin.Allowed,
+                roleKeys.ContainsKey(row.LeaderRoleId)));
         }
 
         await RcResults.WriteJsonAsync(ctx, new RcParishGroupsResponse(RcId.ToText(id), groups));
@@ -425,7 +466,9 @@ public static class RcParishGroups
             RcId.ToText(row.GroupId), RcId.ToText(row.ParishId), row.ParishSlug, row.Slug, row.Name,
             row.Summary, row.Meets, row.IsPublic, row.Lifecycle,
             RcId.ToText(row.AreaId), RcId.ToText(row.CalendarId), RcId.ToText(row.MemberRoleId),
-            row.Members, mine, mayAdmin.Allowed, note, unreadable));
+            RcId.ToText(row.LeaderRoleId),
+            row.Members, mine, mayAdmin.Allowed, roleKeys.ContainsKey(row.LeaderRoleId),
+            note, unreadable));
     }
 
     // -- Aendern --------------------------------------------------------------
@@ -592,7 +635,7 @@ public static class RcParishGroups
 
     private sealed record Row(
         Guid GroupId, Guid ParishId, string ParishSlug, Guid TenantId,
-        Guid AreaId, Guid MemberRoleId, Guid CalendarId,
+        Guid AreaId, Guid MemberRoleId, Guid LeaderRoleId, Guid CalendarId,
         string Slug, string Name, string? Summary, string? Meets, bool IsPublic,
         byte[]? NoteSealed, int? NoteEpoch, string Lifecycle, int Members);
 
@@ -610,7 +653,7 @@ public static class RcParishGroups
     {
         await using var cmd = new SqlCommand($"""
             SELECT g.id, g.parish_id, p.slug, g.tenant_id,
-                   g.area_id, g.member_role_id, g.calendar_id,
+                   g.area_id, g.member_role_id, g.leader_role_id, g.calendar_id,
                    g.slug, g.name, g.summary, g.meets, g.is_public,
                    g.note_sealed, g.note_epoch, g.lifecycle,
 
@@ -644,15 +687,15 @@ public static class RcParishGroups
         {
             rows.Add(new Row(
                 reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetGuid(3),
-                reader.GetGuid(4), reader.GetGuid(5), reader.GetGuid(6),
-                reader.GetString(7), reader.GetString(8),
-                reader.IsDBNull(9) ? null : reader.GetString(9),
+                reader.GetGuid(4), reader.GetGuid(5), reader.GetGuid(6), reader.GetGuid(7),
+                reader.GetString(8), reader.GetString(9),
                 reader.IsDBNull(10) ? null : reader.GetString(10),
-                reader.GetBoolean(11),
-                reader.IsDBNull(12) ? null : (byte[])reader[12],
-                reader.IsDBNull(13) ? null : reader.GetInt32(13),
-                reader.GetString(14),
-                reader.GetInt32(15)));
+                reader.IsDBNull(11) ? null : reader.GetString(11),
+                reader.GetBoolean(12),
+                reader.IsDBNull(13) ? null : (byte[])reader[13],
+                reader.IsDBNull(14) ? null : reader.GetInt32(14),
+                reader.GetString(15),
+                reader.GetInt32(16)));
         }
 
         return rows;

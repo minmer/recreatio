@@ -41,6 +41,7 @@ import {
   type RcMenuNode, type RcSite
 } from './rcSite';
 import { RcConfirmationTab } from './RcConfirmationTab';
+import { RcGroupsAdminTab } from './RcGroupsAdminTab';
 import { RcMassTab } from './RcMassTab';
 import { RcIntentionTab } from './RcIntentionTab';
 import { RcConfessionTab } from './RcConfessionTab';
@@ -73,15 +74,25 @@ const HANDLES: readonly RcHandle[] = [
   'bottom-left', 'bottom', 'bottom-right'
 ];
 
-type Tab = 'layout' | 'menu' | 'content' | 'masses' | 'intentions' | 'confession' | 'confirmation';
+type Tab = 'layout' | 'menu' | 'content' | 'masses' | 'intentions' | 'confession'
+  | 'confirmation' | 'groups';
 
 export function RcParishBuilder({
-  site, onChange, parishId, slug
+  site, onChange, parishId, parishAreaId, slug
 }: {
   site: RcSite;
   onChange: (next: RcSite) => void;
   /** Fuer die Firmung: sie haengt an der Pfarrei, nicht am Dokument. */
   parishId: string;
+
+  /**
+   * Der Bereich der Pfarrei — fuer die Gruppen.
+   *
+   * Er beantwortet die eine Frage, die aus den Gruppen selbst nicht folgt:
+   * darf dieser Mensch hier ueberhaupt eine gruenden? Bei einer Pfarrei
+   * ohne Gruppen gibt es niemanden, den man das fragen koennte.
+   */
+  parishAreaId: string;
   slug: string;
 }) {
   const [tab, setTab] = useState<Tab>('layout');
@@ -118,6 +129,16 @@ export function RcParishBuilder({
       {tab === 'intentions' && <RcIntentionTab slug={slug} />}
       {tab === 'confession' && <RcConfessionTab slug={slug} />}
       {tab === 'confirmation' && <RcConfirmationTab parishId={parishId} slug={slug} />}
+
+      {/*
+        Wspólnoty werden — wie die Firmung — NICHT im Dokument gespeichert.
+        Jede hat ihren eigenen Bereich, ihren Kalender, ihre Rollen und ihre
+        Schluessel. Sie in die Textspalte zu schreiben hiesse, all das an
+        einer Zeichenkette aufzuhaengen.
+      */}
+      {tab === 'groups' && (
+        <RcGroupsAdminTab parishId={parishId} parishAreaId={parishAreaId} slug={slug} />
+      )}
     </div>
   );
 }
@@ -144,7 +165,14 @@ function Tabs({ tab, onTab, missing }: { tab: Tab; onTab: (t: Tab) => void; miss
       vergisst, legt eine Messe an.
     */
     { id: 'confession', label: 'Spowiedź' },
-    { id: 'confirmation', label: 'Bierzmowanie' }
+    { id: 'confirmation', label: 'Bierzmowanie' },
+
+    /*
+      Wspólnoty stehen am Ende, weil sie am seltensten angefasst werden: eine
+      Gruppe gruendet man einmal, den Messplan pflegt man jede Woche. Die
+      Reihenfolge der Reiter ist die Reihenfolge der Arbeit.
+    */
+    { id: 'groups', label: 'Wspólnoty' }
   ];
 
   return (

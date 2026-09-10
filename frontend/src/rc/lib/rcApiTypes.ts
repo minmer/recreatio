@@ -8850,10 +8850,12 @@ export interface components {
             areaId: string;
             calendarId: string;
             memberRoleId: string;
+            leaderRoleId: string;
             /** Format: int32 */
             members: number;
             mine: boolean;
             mayAdmin: boolean;
+            leading: boolean;
             note?: string | null;
             noteUnreadable?: string | null;
         };
@@ -8873,10 +8875,12 @@ export interface components {
             areaId: string;
             calendarId: string;
             memberRoleId: string;
+            leaderRoleId: string;
             /** Format: int32 */
             members: number;
             mine: boolean;
             mayAdmin: boolean;
+            leading: boolean;
         };
         RcParishGroupsResponse: {
             parishId: string;

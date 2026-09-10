@@ -249,7 +249,13 @@ function Block({
  * erste Satz, der in das falsche wandert, ist der, den man nicht mehr
  * einsammeln kann.
  */
-function RcNewGroupForm({
+/**
+ * Ausgefuehrt, weil die Gruendung an ZWEI Stellen steht: auf der Seite
+ * „Wspólnoty" und im Bearbeitungsmodus der Pfarrei. Zwei Formulare fuer
+ * dieselbe Sache laufen auseinander — und das eine, das dann die Notiz nicht
+ * mehr entgegennimmt, faellt niemandem auf, weil es ja das andere gibt.
+ */
+export function RcNewGroupForm({
   parishId, taken, onCancel, onDone
 }: {
   parishId: string;

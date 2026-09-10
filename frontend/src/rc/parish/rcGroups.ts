@@ -175,20 +175,47 @@ export function rcNoteState(group: {
 export type RcGroupStance = {
   readonly member: boolean;
   readonly admin: boolean;
+
+  /**
+   * Czy trzyma URZĄD wspólnoty (rc_0037).
+   *
+   * To NIE to samo co `admin`: zarządca parafii może zmieniać wspólnotę,
+   * nie prowadząc jej. Zlanie tych dwóch rzeczy wpisałoby kancelarii
+   * dwadzieścia cudzych wspólnot do „prowadzę".
+   */
+  readonly leading: boolean;
+
   /** Czy w ogóle otworzy wnętrze: czat, kalendarz, zadania. */
   readonly inside: boolean;
   /** Czy może zapraszać — link niesie klucz, więc to nie jest drobiazg. */
   readonly mayInvite: boolean;
+
+  /**
+   * Czy może PRZEKAZAĆ prowadzenie.
+   *
+   * Link z urzędem oddaje całą wspólnotę — kto go otworzy, prowadzi ją.
+   * Dlatego może go wystawić tylko ten, kto już nią zarządza.
+   */
+  readonly mayHandOver: boolean;
 };
 
 export function rcGroupStance(group: {
   readonly mine: boolean;
   readonly mayAdmin: boolean;
+  readonly leading?: boolean;
 }): RcGroupStance {
   return {
     member: group.mine,
     admin: group.mayAdmin,
+
+    /*
+     * Pole `leading` bywa w odpowiedzi NIEOBECNE, nie `false` — usługa nie
+     * wypisuje pustych pól. `?? false` jest tu jedyną poprawną lekturą.
+     */
+    leading: group.leading ?? false,
+
     inside: group.mine || group.mayAdmin,
+    mayHandOver: group.mayAdmin,
 
     /*
      * ZAPRASZA TYLKO ZARZĄDCA.
@@ -199,6 +226,34 @@ export function rcGroupStance(group: {
      */
     mayInvite: group.mayAdmin
   };
+}
+
+/**
+ * Czego brakuje wspólnocie, żeby wyglądała na stronie parafii.
+ *
+ * <b>Po co to liczyć osobno.</b> Wspólnota zakłada się w pół minuty: nazwa,
+ * adres, gotowe. Opis i godzina spotkań są nieobowiązkowe — i właśnie
+ * dlatego zostają puste. W gablocie wisi wtedy sama nazwa, co dla kogoś, kto
+ * szuka wspólnoty, nie jest żadną informacją.
+ *
+ * Zwraca NAZWY pól, nie liczbę: „uzupełnij 2 rzeczy" każe szukać, „brakuje
+ * opisu i godzin" mówi, co zrobić.
+ *
+ * Wspólnota schowana ze strony (`isPublic === false`) niczego nie potrzebuje
+ * — nie wisi nigdzie, więc nie ma czego uzupełniać. Zgłaszanie jej braków
+ * byłoby wyrzutem za decyzję, którą ktoś podjął świadomie.
+ */
+export function rcPublicInfoMissing(group: {
+  readonly summary?: string | null;
+  readonly meets?: string | null;
+  readonly isPublic: boolean;
+}): readonly string[] {
+  if (!group.isPublic) return [];
+
+  const missing: string[] = [];
+  if ((group.summary ?? '').trim() === '') missing.push('opis');
+  if ((group.meets ?? '').trim() === '') missing.push('godziny spotkań');
+  return missing;
 }
 
 /**

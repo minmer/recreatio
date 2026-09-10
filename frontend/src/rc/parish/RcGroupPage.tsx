@@ -30,7 +30,7 @@ import { RcCalendarDetail } from '../RcCalendar';
 import type { RcLang } from '../i18n';
 import {
   rcGroup, rcGroups, rcGroupStance, rcMemberCount, rcNoteState, rcSaveGroup,
-  type RcGroupOne
+  type RcGroupOne, type RcGroupStance
 } from './rcGroups';
 
 type Tab = 'info' | 'calendar' | 'chat' | 'tasks' | 'people';
@@ -221,9 +221,7 @@ export function RcGroupPage({
             <RcGroupTasks group={group} roles={roles} onError={onError} />
           )}
 
-          {tab === 'people' && (
-            <RcGroupPeople group={group} mayInvite={stance.mayInvite} />
-          )}
+          {tab === 'people' && <RcGroupPeople group={group} stance={stance} />}
         </>
       )}
     </section>
@@ -679,7 +677,7 @@ function RcNewTask({
  * Gruppe seit ihrer Epoche geschrieben hat. Das gehört auf denselben
  * Bildschirm wie der Knopf.
  */
-function RcGroupPeople({ group, mayInvite }: { group: RcGroupOne; mayInvite: boolean }) {
+function RcGroupPeople({ group, stance }: { group: RcGroupOne; stance: RcGroupStance }) {
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -710,17 +708,21 @@ function RcGroupPeople({ group, mayInvite }: { group: RcGroupOne; mayInvite: boo
 
   return (
     <div className="wg-people">
-      <p className="wg-count">{rcMemberCount(group.members)} we wspólnocie.</p>
+      <p className="wg-count">
+        {rcMemberCount(group.members)} we wspólnocie.
+        {stance.leading && <span className="wg-mine">prowadzisz tę wspólnotę</span>}
+      </p>
 
-      {!mayInvite && (
+      {!stance.mayInvite && (
         <p className="ps-muted">
           Zapraszać może osoba, która zarządza wspólnotą — link niesie klucz,
           więc nie jest to drobiazg.
         </p>
       )}
 
-      {mayInvite && (
+      {stance.mayInvite && (
         <>
+          <h3 className="wg-block">Zaproszenie do wspólnoty</h3>
           <p className="wg-warn">
             Link niesie klucz tej wspólnoty. Kto go otworzy, przeczyta wszystko,
             co napisano tu od jego epoki — i wspólnota dopisze się do jego konta.
@@ -754,7 +756,119 @@ function RcGroupPeople({ group, mayInvite }: { group: RcGroupOne; mayInvite: boo
           )}
         </>
       )}
+
+      {stance.mayHandOver && <RcHandOver group={group} />}
     </div>
+  );
+}
+
+/**
+ * Przekazanie PROWADZENIA — urząd wspólnoty (rc_0037).
+ *
+ * <b>To nie jest większe zaproszenie. To coś innego.</b> Zaproszenie dodaje
+ * człowieka do wspólnoty. Ten link oddaje urząd: kto go otworzy, będzie
+ * zmieniał opis w gablocie, zapraszał, zamykał. O to właśnie chodzi —
+ * ministrantami kieruje ich opiekun, a nie kancelaria — ale pomylenie tych
+ * dwóch linków to oddanie wspólnoty komuś, kto miał tylko do niej dołączyć.
+ *
+ * Dlatego stoją osobno, mają inne kolory i inne słowa, a ten wymaga
+ * potwierdzenia. Jeden przycisk z rozwijaną listą byłby o jedno kliknięcie
+ * krótszy i o jedną pomyłkę tańszy — dla nas, nie dla nich.
+ *
+ * <b>Urzędu się nie odbiera przez wystawienie linku.</b> Kto go trzymał,
+ * trzyma dalej: rola zostaje przy nim, dopóki ktoś jej nie odbierze osobno.
+ * Ten link DODAJE osobę prowadzącą, nie zamienia jej — i lepiej to napisać
+ * niż pozwolić komuś sądzić, że przekazał i odszedł.
+ */
+function RcHandOver({ group }: { group: RcGroupOne }) {
+  const [link, setLink] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const make = async () => {
+    setBusy(true);
+    setFailed(null);
+    try {
+      const made = await rcCreateInvitation(group.leaderRoleId, {
+        label: `${group.name} — prowadzenie`,
+        daysValid: 30,
+
+        /*
+         * JEDEN RAZ. Urząd nie jest czymś, co się rozsyła — link, który
+         * otworzy dwoje ludzi, daje wspólnocie dwoje prowadzących, o czym
+         * żadne z nich nie wie.
+         */
+        maxUses: 1
+      });
+      setLink(rcInviteLink(made.secret));
+      setAsking(false);
+    } catch {
+      setFailed('Nie udało się utworzyć linku.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="wg-handover">
+      <h3 className="wg-block">Przekazanie prowadzenia</h3>
+
+      <p className="ps-muted">
+        Wspólnotą kieruje jej urząd — nie kancelaria. Ten link oddaje go
+        osobie prowadzącej: będzie zmieniać opis i godziny w gablocie,
+        zapraszać i porządkować, nie stając się zarządcą parafii.
+      </p>
+
+      {!asking && link === null && (
+        <button type="button" className="rc-btn rc-btn-quiet" onClick={() => setAsking(true)}>
+          Przekaż prowadzenie
+        </button>
+      )}
+
+      {asking && (
+        <div className="wg-confirm">
+          <p className="wg-warn">
+            Kto otworzy ten link, zacznie prowadzić „{group.name}": zobaczy
+            rozmowę i kalendarz, zmieni to, co wisi na stronie parafii, i
+            będzie zapraszał kolejne osoby. To NIE to samo co zaproszenie do
+            wspólnoty.
+          </p>
+          <p className="ps-muted">
+            Twoje własne prowadzenie zostaje — ten link dodaje osobę, nie
+            zastępuje Ciebie.
+          </p>
+          <div className="wg-actions">
+            <button type="button" className="rc-btn" disabled={busy} onClick={() => void make()}>
+              {busy ? 'Tworzenie…' : 'Rozumiem, utwórz link'}
+            </button>
+            <button type="button" className="rc-btn rc-btn-quiet" onClick={() => setAsking(false)}>
+              Anuluj
+            </button>
+          </div>
+        </div>
+      )}
+
+      {failed !== null && <p className="ap-error">{failed}</p>}
+
+      {link !== null && (
+        <div className="wg-link">
+          <p className="wg-warn">
+            Link do PROWADZENIA — pokazujemy go raz. Wyślij go tylko tej
+            osobie, która ma prowadzić tę wspólnotę.
+          </p>
+          <code className="wg-link-text">{link}</code>
+          <button
+            type="button"
+            className="rc-btn rc-btn-quiet"
+            onClick={() => { void navigator.clipboard?.writeText(link); setCopied(true); }}
+          >
+            {copied ? 'Skopiowano' : 'Kopiuj'}
+          </button>
+        </div>
+      )}
+    </section>
   );
 }
 
