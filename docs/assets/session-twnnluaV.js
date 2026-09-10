@@ -1,1 +1,0 @@
-async function e(){return!1}export{e as whoIsThere};

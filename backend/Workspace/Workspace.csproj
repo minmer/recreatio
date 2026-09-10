@@ -25,7 +25,20 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Rc.Kernel\Rc.Kernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Die Skripte reisen IM Programm mit. Ein Migrationslauf, der seine Dateien
+      erst im Dateisystem suchen muss, wendet auf dem Zielrechner etwas anderes
+      an als auf dem Entwicklungsrechner.
+    -->
+    <EmbeddedResource Include="Sql\*.sql" />
   </ItemGroup>
 
 </Project>

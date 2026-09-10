@@ -66,6 +66,10 @@ public static partial class EventEndpoints
         MapImageEndpoints(group);
         MapDocumentEndpoints(group);
         MapGalleryEndpoints(group);
+
+        // Die ganze Galerie am Stueck — vor jedem Umbau die einzige
+        // Sicherung, die jemand wirklich durchhaelt.
+        MapGalleryDownloadEndpoints(group);
     }
 
     // ── Public ───────────────────────────────────────────────────────────────

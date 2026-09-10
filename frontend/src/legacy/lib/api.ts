@@ -8524,6 +8524,22 @@ export function eventPhotoUrl(photoId: string): string {
   return `${apiBase}/events/photos/${photoId}`;
 }
 
+/**
+ * Die ganze Galerie als EIN Paket.
+ *
+ * <b>Ein Verweis und kein `fetch`.</b> Der Browser laedt die Datei selbst:
+ * er zeigt sie in seiner Liste, kennt den Fortschritt und kann fortsetzen.
+ * Ueber `fetch` muesste erst alles in den Speicher — bei einundsechzig
+ * Megabyte auf einem Telefon genau der Absturz, den dieser Weg vermeidet.
+ *
+ * Das Zugangswort geht mit, weil eine interne Seite es auch beim Ansehen
+ * verlangt: der Sammeldownload prueft genauso streng wie die Ansicht.
+ */
+export function eventGalleryZipUrl(slug: string, partId: string, token: string | null): string {
+  const query = token ? `?token=${encodeURIComponent(token)}` : '';
+  return `${apiBase}/events/site/${encodeURIComponent(slug)}/parts/${partId}/photos.zip${query}`;
+}
+
 export function getEventGallery(slug: string, partId: string, token: string | null) {
   const query = token ? `?token=${encodeURIComponent(token)}` : '';
   return request<EventGallery>(

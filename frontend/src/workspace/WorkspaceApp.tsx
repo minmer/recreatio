@@ -3,22 +3,24 @@
  *
  * <b>Wo sie steht.</b> `recreatio.pl/#/workspace`. Nicht mehr unter `#/new`:
  * der Neubau ist kein Parallelbau neben dem Altbestand mehr, sondern die
- * Plattform. Der Altbestand liegt daneben, bis er abgeschaltet wird.
+ * Plattform.
  *
- * <b>Was sie heute kann.</b> Die Adresse auflösen und die Anmeldung verlangen.
- * Mehr nicht, und das ist Absicht: Datenbank und Dienst des Neubaus entstehen
- * gerade erst. Eine Oberfläche, die Kacheln zeigt, hinter denen nichts liegt,
- * ist schwerer zu korrigieren als eine, die noch keine hat.
+ * <b>Die Anmeldung steht ZUERST</b>, und zwar als Formular und nicht als
+ * Hinweis darauf, dass man sich anmelden könnte. An ihr hängt, was vor dem
+ * ersten Bild geladen wird; nachträglich davorgeschoben wäre sie eine Prüfung
+ * an der Oberfläche statt einer Grenze.
  *
- * <b>Warum die Anmeldung trotzdem schon steht.</b> Sie ist keine Verzierung,
- * die man später davorschiebt: an ihr hängt, wer diese Seite überhaupt bauen
- * darf, und sie entscheidet, was vor dem ersten Bild geladen wird. Nachträglich
- * eingezogen wäre sie eine Prüfung an der Oberfläche statt einer Grenze.
+ * <b>Drei Zustände, nicht zwei.</b> `null` heisst „noch nicht nachgesehen",
+ * und das ist nicht dasselbe wie „niemand". Wer die beiden zusammenwirft,
+ * lässt bei jedem Laden kurz das Anmeldeformular aufblitzen, bevor der
+ * angemeldete Zustand nachkommt — es sieht aus, als wäre man hinausgeflogen.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { needsIdentity, parsePath, path, type Address } from './routes';
+import { signOut, whoIsThere, type Who } from './session';
+import { SignIn } from './SignIn';
 
 export function WorkspaceApp() {
   const [address, setAddress] = useState<Address>(() => parsePath(window.location.hash));
@@ -29,27 +31,15 @@ export function WorkspaceApp() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  /*
-   * WER HIER IST — noch ungefragt.
-   *
-   * `null` heisst „noch nicht nachgesehen", `false` heisst „niemand". Die
-   * beiden auseinanderzuhalten ist der Unterschied zwischen einer Seite, die
-   * kurz „nicht angemeldet" aufblitzen lässt, und einer, die wartet, bis sie
-   * es weiss.
-   */
-  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  /** `undefined` = noch nicht nachgesehen, `null` = niemand. */
+  const [who, setWho] = useState<Who | null | undefined>(undefined);
 
-  useEffect(() => {
-    if (!needsIdentity(address)) { setSignedIn(false); return; }
-
-    let alive = true;
-    void (async () => {
-      const { whoIsThere } = await import('./session');
-      const who = await whoIsThere();
-      if (alive) setSignedIn(who);
-    })();
-    return () => { alive = false; };
+  const look = useCallback(async () => {
+    if (!needsIdentity(address)) { setWho(null); return; }
+    setWho(await whoIsThere());
   }, [address]);
+
+  useEffect(() => { void look(); }, [look]);
 
   /*
    * Eine Adresse, der der Teil fehlt (`#/schola`). Sie wird NICHT
@@ -63,63 +53,60 @@ export function WorkspaceApp() {
         <p className="wk-lede">
           Nic nie nazywa się samo <code>{address.stray}</code>. Każdy adres
           podaje najpierw część, potem rzecz — na przykład{' '}
-          <code>{path('workspace')}</code>. W linku, którym przyszedłeś, części
-          zabrakło.
+          <code>{path('workspace')}</code>.
         </p>
         <p><a className="wk-link" href={path('workspace')}>Przejdź do warsztatu</a></p>
       </Shell>
     );
   }
 
-  if (signedIn === null) {
+  if (who === undefined) {
     return <Shell><p className="wk-lede">Sprawdzanie…</p></Shell>;
   }
 
-  if (!signedIn) {
-    return (
-      <Shell>
-        <h1 className="wk-h1">Warsztat</h1>
-        {/*
-          WARUM DIESE SEITE GERADE JETZT DASTEHT.
-
-          Wer eine Adresse aufgerufen hat und stattdessen eine Aufforderung zum
-          Anmelden sieht, hat zwei Fragen: was mit seiner Adresse passiert ist,
-          und ob er danach dorthin zurückkommt. Beide werden beantwortet,
-          statt ihn raten zu lassen.
-        */}
-        <p className="wk-note">
-          Warsztat jest tym, do czego masz klucze — bez zalogowania nie ma tu
-          czego pokazać. Po zalogowaniu wrócisz dokładnie tutaj.
-        </p>
-        <p className="wk-lede">
-          Logowanie do nowej platformy powstaje razem z jej usługą. Na razie
-          konta prowadzi poprzednia wersja.
-        </p>
-      </Shell>
-    );
+  if (who === null) {
+    return <Shell><SignIn onDone={setWho} /></Shell>;
   }
 
   return (
-    <Shell>
+    <Shell
+      who={who}
+      onSignOut={() => { void signOut().then(() => setWho(null)); }}
+    >
       <h1 className="wk-h1">Warsztat</h1>
       <p className="wk-lede">
         Tu jest to, do czego masz klucze. Strony organizacji są dla wszystkich —
         warsztat jest Twój, i dlatego wygląda inaczej u każdego.
       </p>
       <p className="wk-note">
-        Wnętrze — Twoje organizacje, wspólnoty i zgłoszenia — powstaje. Adres i
-        logowanie już stoją; reszta dochodzi na tym fundamencie.
+        Wnętrze — Twoje organizacje, wspólnoty i zgłoszenia — powstaje. Adres,
+        konto i logowanie już stoją; reszta dochodzi na tym fundamencie.
       </p>
     </Shell>
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({
+  children, who, onSignOut
+}: {
+  children: React.ReactNode;
+  who?: Who;
+  onSignOut?: () => void;
+}) {
   return (
     <div className="wk-root">
       <header className="wk-top">
         <span className="wk-brand">REcreatio</span>
         <span className="wk-stage">Neubau</span>
+
+        {who !== undefined && (
+          <span className="wk-who">
+            {who.loginId}
+            {onSignOut !== undefined && (
+              <button type="button" className="wk-link-btn" onClick={onSignOut}>Wyloguj</button>
+            )}
+          </span>
+        )}
       </header>
       <main className="wk-main">{children}</main>
     </div>

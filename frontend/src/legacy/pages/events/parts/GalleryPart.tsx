@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   deleteEventPhoto,
   deleteOwnEventPhoto,
+  eventGalleryZipUrl,
   eventPhotoUrl,
   getEventGallery,
   uploadEventPhoto,
@@ -325,6 +326,30 @@ function Gallery({
       />
 
       {invite}
+
+      {/*
+        DIE GANZE GALERIE HERUNTERLADEN.
+
+        Hundertfünf Bilder einzeln anzuklicken ist keine Sicherung, sondern
+        eine Nachmittagsbeschäftigung — und wer abbricht, weiss hinterher
+        nicht, bei welchem. Der Verweis führt an eine Adresse, die der Server
+        strömend packt; der Browser lädt sie wie jede andere Datei.
+
+        Er steht nur da, wenn es etwas zu holen gibt: ein Knopf, der eine
+        leere Datei liefert, sieht aus wie ein Fehler.
+      */}
+      {pictures.length > 0 ? (
+        <p className="ev-gallery-save">
+          <a
+            className="ev-ghost"
+            href={eventGalleryZipUrl(slug, partId, token)}
+            download
+          >
+            Pobierz wszystkie ({pictures.length})
+          </a>
+        </p>
+      ) : null}
+
       {error ? <p className="ev-error">{error}</p> : null}
 
       {openAt >= 0 ? (

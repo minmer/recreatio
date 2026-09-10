@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import {
   deleteEventPhoto,
   deleteOwnEventPhoto,
+  eventGalleryZipUrl,
   eventPhotoUrl,
   getEventAdminSite,
   getEventGallery,
@@ -207,6 +208,25 @@ function Memes({
           </small>
         )}
       </div>
+
+      {/*
+        DIE FERTIGEN MEME HERUNTERLADEN.
+
+        Sie sind kein Abfallprodukt der Galerie: sie wurden gemacht, mit
+        Zuschnitt und Untertitel, und sie liegen in derselben Tabelle, die
+        beim Umbau verschwindet. Wer die Galerie sichert und die Meme
+        vergisst, sichert die Rohstoffe und wirft das Ergebnis weg.
+
+        `partId` und nicht `sourceId`: geholt wird, was HIER entstanden
+        ist — die Quellgalerie hat ihren eigenen Knopf.
+      */}
+      {memes.length > 0 ? (
+        <p className="ev-gallery-save">
+          <a className="ev-ghost" href={eventGalleryZipUrl(slug, partId, token)} download>
+            Pobierz wszystkie memy ({memes.length})
+          </a>
+        </p>
+      ) : null}
 
       {error ? <p className="ev-error">{error}</p> : null}
 
