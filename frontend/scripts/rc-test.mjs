@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const ROOT = new URL('../src/rc/', import.meta.url);
+const ROOT = new URL('../src/legacy/rc/', import.meta.url);
 
 /*
  * UNTERORDNER ZAEHLEN MIT.

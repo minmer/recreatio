@@ -13,7 +13,7 @@
  * ohne Browser keine Sitzung hält, und ein `sessionStorage`, weil das
  * Öffnungsstück dort liegt.
  *
- *   dotnet run --project ../backend/Rc.Host      (in einem anderen Fenster)
+ *   dotnet run --project ../backend/legacy/Rc.Host   (in einem anderen Fenster)
  *   npm run rc:walk
  */
 
@@ -41,7 +41,7 @@ try {
   }
 } catch {
   console.error(`Kein Dienst unter ${BASE}.`);
-  console.error('  dotnet run --project ../backend/Rc.Host');
+  console.error('  dotnet run --project ../backend/legacy/Rc.Host');
   process.exit(1);
 }
 

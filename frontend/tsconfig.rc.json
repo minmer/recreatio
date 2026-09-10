@@ -13,5 +13,5 @@
  */
 {
   "extends": "./tsconfig.json",
-  "include": ["src/rc", "src/vite-env.d.ts"]
+  "include": ["src/legacy/rc", "src/vite-env.d.ts"]
 }

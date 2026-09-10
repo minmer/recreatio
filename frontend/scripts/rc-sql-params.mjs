@@ -23,7 +23,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const ROOT = process.argv[2] ?? '../backend/Rc.Api';
+const ROOT = process.argv[2] ?? '../backend/legacy/Rc.Api';
 
 /*
  * `@@ROWCOUNT`, `@@IDENTITY` und Verwandte sind T-SQL-GLOBALE und keine

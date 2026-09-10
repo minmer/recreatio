@@ -1,0 +1,96 @@
+/* ===========================================================================
+   Der Arbeitsplatz — das erste Stilblatt des Neubaus.
+
+   Es erbt NICHTS vom Altbestand. Dessen Blaetter werden per `import()` geholt
+   und kommen nur mit, wenn eine alte Adresse geladen wird; wer `#/workspace`
+   oeffnet, bekommt genau diese Datei und sonst keine. Das ist der Grund fuer
+   die Weiche in `main.tsx` — eine geerbte Regel, die man nicht kennt, ist
+   schwerer zu finden als eine fehlende.
+
+   Vollstaendig eigene Werte, keine `--rc-*` und keine `--ps-*`.
+   =========================================================================== */
+
+:root {
+  --wk-ground: #f7f5f1;
+  --wk-surface: #ffffff;
+  --wk-ink: #1a1815;
+  --wk-muted: #5b554c;
+  --wk-line: #dcd7cd;
+  --wk-accent: #7a5a2e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --wk-ground: #16140f;
+    --wk-surface: #1f1c16;
+    --wk-ink: #f0ebe0;
+    --wk-muted: #b0a695;
+    --wk-line: #353027;
+    --wk-accent: #d3a25e;
+  }
+}
+
+.wk-root {
+  min-height: 100vh;
+  background: var(--wk-ground);
+  color: var(--wk-ink);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.wk-top {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  padding: 1rem 1.4rem;
+  border-bottom: 1px solid var(--wk-line);
+}
+
+.wk-brand { font-weight: 600; letter-spacing: 0.01em; }
+
+/* Solange der Neubau nicht traegt, steht das an der Kopfleiste — nicht in
+   einer Fussnote, die niemand liest. */
+.wk-stage {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--wk-accent);
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+}
+
+.wk-main {
+  max-width: 40rem;
+  padding: 2.4rem 1.4rem 4rem;
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.wk-h1 { margin: 0; font-size: 1.8rem; line-height: 1.2; font-weight: 600; }
+.wk-lede { margin: 0; color: var(--wk-muted); }
+
+.wk-note {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-left: 3px solid var(--wk-accent);
+  background: var(--wk-surface);
+  border-radius: 0 3px 3px 0;
+  font-size: 0.94rem;
+}
+
+.wk-link { color: var(--wk-accent); }
+.wk-link:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+
+code {
+  font-family: ui-monospace, "Cascadia Mono", "IBM Plex Mono", monospace;
+  font-size: 0.88em;
+  background: var(--wk-surface);
+  border: 1px solid var(--wk-line);
+  border-radius: 2px;
+  padding: 0.05rem 0.3rem;
+}

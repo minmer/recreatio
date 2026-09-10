@@ -8,5 +8,5 @@
  */
 {
   "extends": "./tsconfig.json",
-  "include": ["src/public", "src/rc", "src/vite-env.d.ts"]
+  "include": ["src/legacy/public", "src/legacy/rc", "src/vite-env.d.ts"]
 }

@@ -5,19 +5,21 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "backend", "backend", "{1AE8ACA6-933B-BF2A-3671-3E2EAC007D16}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Recreatio.Api", "backend\Recreatio.Api\Recreatio.Api.csproj", "{DB4477EB-A99F-1290-CE62-6897329B38E4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Recreatio.Api", "backend\legacy\Recreatio.Api\Recreatio.Api.csproj", "{DB4477EB-A99F-1290-CE62-6897329B38E4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rc.Kernel", "backend\Rc.Kernel\Rc.Kernel.csproj", "{03E6DCED-8877-44BE-BDE6-D11FF853F89D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rc.Kernel.Tests", "backend\Rc.Kernel.Tests\Rc.Kernel.Tests.csproj", "{3173F217-A604-4F77-BFC8-2554035F3263}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rc.Schema", "backend\Rc.Schema\Rc.Schema.csproj", "{2EBF2A5B-C7CA-45D7-9082-EFE6FCC37AB1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rc.Schema", "backend\legacy\Rc.Schema\Rc.Schema.csproj", "{2EBF2A5B-C7CA-45D7-9082-EFE6FCC37AB1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rc.Api", "backend\Rc.Api\Rc.Api.csproj", "{C558A118-3216-4B64-B841-64B21F9098C2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rc.Api", "backend\legacy\Rc.Api\Rc.Api.csproj", "{C558A118-3216-4B64-B841-64B21F9098C2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rc.Api.Tests", "backend\Rc.Api.Tests\Rc.Api.Tests.csproj", "{B8F36F2C-9332-4F09-AA53-806666BDB743}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rc.Api.Tests", "backend\legacy\Rc.Api.Tests\Rc.Api.Tests.csproj", "{B8F36F2C-9332-4F09-AA53-806666BDB743}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rc.OpenApi", "backend\Rc.OpenApi\Rc.OpenApi.csproj", "{9FF7D14A-678E-45ED-94D9-986718C0C4DB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rc.OpenApi", "backend\legacy\Rc.OpenApi\Rc.OpenApi.csproj", "{9FF7D14A-678E-45ED-94D9-986718C0C4DB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Workspace", "backend\Workspace\Workspace.csproj", "{2578CC9A-BE62-4F05-953A-FA2CAADC4C57}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -113,6 +115,18 @@ Global
 		{9FF7D14A-678E-45ED-94D9-986718C0C4DB}.Release|x64.Build.0 = Release|Any CPU
 		{9FF7D14A-678E-45ED-94D9-986718C0C4DB}.Release|x86.ActiveCfg = Release|Any CPU
 		{9FF7D14A-678E-45ED-94D9-986718C0C4DB}.Release|x86.Build.0 = Release|Any CPU
+		{2578CC9A-BE62-4F05-953A-FA2CAADC4C57}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2578CC9A-BE62-4F05-953A-FA2CAADC4C57}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2578CC9A-BE62-4F05-953A-FA2CAADC4C57}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{2578CC9A-BE62-4F05-953A-FA2CAADC4C57}.Debug|x64.Build.0 = Debug|Any CPU
+		{2578CC9A-BE62-4F05-953A-FA2CAADC4C57}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2578CC9A-BE62-4F05-953A-FA2CAADC4C57}.Debug|x86.Build.0 = Debug|Any CPU
+		{2578CC9A-BE62-4F05-953A-FA2CAADC4C57}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2578CC9A-BE62-4F05-953A-FA2CAADC4C57}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2578CC9A-BE62-4F05-953A-FA2CAADC4C57}.Release|x64.ActiveCfg = Release|Any CPU
+		{2578CC9A-BE62-4F05-953A-FA2CAADC4C57}.Release|x64.Build.0 = Release|Any CPU
+		{2578CC9A-BE62-4F05-953A-FA2CAADC4C57}.Release|x86.ActiveCfg = Release|Any CPU
+		{2578CC9A-BE62-4F05-953A-FA2CAADC4C57}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -125,6 +139,7 @@ Global
 		{C558A118-3216-4B64-B841-64B21F9098C2} = {1AE8ACA6-933B-BF2A-3671-3E2EAC007D16}
 		{B8F36F2C-9332-4F09-AA53-806666BDB743} = {1AE8ACA6-933B-BF2A-3671-3E2EAC007D16}
 		{9FF7D14A-678E-45ED-94D9-986718C0C4DB} = {1AE8ACA6-933B-BF2A-3671-3E2EAC007D16}
+		{2578CC9A-BE62-4F05-953A-FA2CAADC4C57} = {1AE8ACA6-933B-BF2A-3671-3E2EAC007D16}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {16A7D20C-FA1B-49D3-8E76-433551FAC336}

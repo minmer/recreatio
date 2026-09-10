@@ -41,9 +41,9 @@ export default defineConfig({
             }
             return 'vendor';
           }
-          if (id.includes('/src/pages/parish/')) return 'parish';
-          if (id.includes('/src/pages/cogita/') || id.includes('/src/cogita/')) return 'cogita';
-          if (id.includes('/src/pages/HomePage') || id.includes('/src/components/') || id.includes('/src/lib/')) {
+          if (id.includes('/src/legacy/pages/parish/')) return 'parish';
+          if (id.includes('/src/legacy/pages/cogita/') || id.includes('/src/legacy/cogita/')) return 'cogita';
+          if (id.includes('/src/legacy/pages/HomePage') || id.includes('/src/legacy/components/') || id.includes('/src/legacy/lib/')) {
             return 'recreatio-core';
           }
           return undefined;
