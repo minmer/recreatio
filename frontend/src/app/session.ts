@@ -13,8 +13,17 @@
 
 import { argon2id } from 'hash-wasm';
 
-/** Wo der Dienst liegt. Eine Stelle, nicht zwanzig Aufrufe. */
-const API = (import.meta.env.VITE_WORKSPACE_API ?? '').replace(/\/+$/, '');
+/**
+ * Wo der Dienst liegt.
+ *
+ * In der Entwicklung `/api` auf demselben Ursprung — der Entwicklungsserver
+ * leitet es an `backend/Api` weiter (vite.config.ts), und das Sitzungskeks
+ * kommt ohne CORS zurück.
+ *
+ * Beim Bau MUSS `VITE_APP_API` gesetzt sein. Ein relativer Pfad landete auf
+ * recreatio.pl bei GitHub Pages, und das antwortet auf jedes POST mit 405.
+ */
+const API = (import.meta.env.VITE_APP_API ?? (import.meta.env.DEV ? '/api' : '')).replace(/\/+$/, '');
 
 /** Muss mit `RcPassword` im Kernel übereinstimmen. */
 const ARGON = { memoryKiB: 64 * 1024, iterations: 3, parallelism: 1, outputBytes: 32 } as const;
@@ -72,9 +81,16 @@ async function derivePasswordKey(password: string, salt: Uint8Array): Promise<Ui
 /** Die Antwort des Dienstes, oder eine Meldung, die man zeigen kann. */
 export class WorkspaceError extends Error {}
 
+/** In der Entwicklung ist die Ursache fast immer, dass der Dienst nicht läuft. */
+const UNREACHABLE = import.meta.env.DEV
+  ? 'Usługa nie odpowiada. Uruchom ją: dotnet run --project backend/Api'
+  : 'Nie udało się połączyć z usługą.';
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (API === '') {
-    throw new WorkspaceError('Usługa nowej platformy nie jest jeszcze podłączona.');
+    // Nur in einem Produktionsbau erreichbar: dort ist nichts voreingestellt.
+    throw new WorkspaceError(
+      'Usługa nowej platformy nie jest podłączona — przy budowaniu brakuje VITE_APP_API.');
   }
 
   let response: Response;
@@ -87,15 +103,19 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init
     });
   } catch {
-    throw new WorkspaceError('Nie udało się połączyć z usługą.');
+    throw new WorkspaceError(UNREACHABLE);
   }
 
   if (!response.ok) {
     const said = await response.json().catch(() => null);
-    const message = said !== null && typeof said === 'object' && 'error' in said
-      ? String((said as { error: unknown }).error)
-      : 'Nie udało się.';
-    throw new WorkspaceError(message);
+
+    if (said !== null && typeof said === 'object' && 'error' in said) {
+      throw new WorkspaceError(String((said as { error: unknown }).error));
+    }
+
+    // Keine Antwort des Dienstes, sondern des Weiterleiters: der Dienst läuft
+    // nicht. Ein nacktes „Nie udało się." liesse raten, woran es liegt.
+    throw new WorkspaceError(response.status >= 500 ? UNREACHABLE : 'Nie udało się.');
   }
 
   return (await response.json()) as T;

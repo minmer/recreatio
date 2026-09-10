@@ -37,7 +37,7 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
     : loginId.trim() === '' ? 'Wpisz nazwę konta.'
     : password === '' ? 'Wpisz hasło.'
     : mode === 'new' && loginId.trim().length < 3 ? 'Nazwa konta: co najmniej 3 znaki.'
-    : mode === 'new' && password.length < 10 ? 'Hasło: co najmniej 10 znaków.'
+    : mode === 'new' && password.length < 8 ? 'Hasło: co najmniej 8 znaków.'
     : null;
 
   const go = async () => {

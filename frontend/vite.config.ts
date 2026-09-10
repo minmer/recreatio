@@ -15,6 +15,15 @@ export default defineConfig({
       '/rc': {
         target: process.env.VITE_RC_API_ORIGIN ?? 'http://localhost:5292',
         changeOrigin: false
+      },
+
+      // Der Neubau (backend/Api), aus demselben Grund: ein Ursprung, kein CORS,
+      // und das Sitzungskeks kommt zurück. Seine Routen liegen an der Wurzel,
+      // deshalb wird /api abgeschnitten.
+      '/api': {
+        target: process.env.VITE_APP_API_ORIGIN ?? 'http://localhost:50994',
+        changeOrigin: false,
+        rewrite: (path) => path.replace(/^\/api/, '')
       }
     }
   },
