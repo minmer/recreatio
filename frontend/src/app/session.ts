@@ -16,17 +16,19 @@ import { argon2id } from 'hash-wasm';
 /**
  * Wo der Dienst liegt.
  *
- * In der Entwicklung `/api` auf demselben Ursprung — der Entwicklungsserver
- * leitet es an `backend/Api` weiter (vite.config.ts), und das Sitzungskeks
- * kommt ohne CORS zurück.
+ * Im Betrieb api.recreatio.pl. In der Entwicklung `/api` auf demselben
+ * Ursprung — der Entwicklungsserver leitet es an `backend/Api` weiter
+ * (vite.config.ts), und das Sitzungskeks kommt ohne CORS zurück.
  *
- * Beim Bau MUSS `VITE_APP_API` gesetzt sein. Ein relativer Pfad landete auf
- * recreatio.pl bei GitHub Pages, und das antwortet auf jedes POST mit 405.
+ * `VITE_APP_API` überschreibt beides. Nie relativ im Bau: recreatio.pl ist
+ * GitHub Pages und antwortet auf jedes POST mit 405.
  */
-const API = (import.meta.env.VITE_APP_API ?? (import.meta.env.DEV ? '/api' : '')).replace(/\/+$/, '');
+const API = (
+  import.meta.env.VITE_APP_API || (import.meta.env.DEV ? '/api' : 'https://api.recreatio.pl')
+).replace(/\/+$/, '');
 
-/** Muss mit `RcPassword` im Kernel übereinstimmen. */
-const ARGON = { memoryKiB: 64 * 1024, iterations: 3, parallelism: 1, outputBytes: 32 } as const;
+/** Muss mit `Password` im Kernel übereinstimmen. */
+const ARGON = { memoryKiB: 64 * 1024, iterations: 3, parallelism: 1, outputBytes: 32, saltBytes: 16 } as const;
 
 export interface Who {
   readonly accountId: string;
@@ -87,12 +89,6 @@ const UNREACHABLE = import.meta.env.DEV
   : 'Nie udało się połączyć z usługą.';
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  if (API === '') {
-    // Nur in einem Produktionsbau erreichbar: dort ist nichts voreingestellt.
-    throw new WorkspaceError(
-      'Usługa nowej platformy nie jest podłączona — przy budowaniu brakuje VITE_APP_API.');
-  }
-
   let response: Response;
   try {
     response = await fetch(`${API}${path}`, {
@@ -159,24 +155,22 @@ export async function signIn(loginId: string, password: string): Promise<Who> {
 /**
  * Ein Konto anlegen.
  *
- * Das Salz entsteht hier NICHT — der Dienst legt es an und versiegelt den
- * Hauptschlüssel damit. Der Browser schickt nur den abgeleiteten Schlüssel.
+ * Das Salz entsteht HIER, zufällig, und reist mit dem Schlüssel: der Dienst
+ * speichert genau das, womit gerechnet wurde. Jedes andere — ein vom Dienst
+ * gewürfeltes, das Scheinsalz von `/auth/salt` — ergäbe bei der nächsten
+ * Anmeldung einen anderen Schlüssel, und die scheiterte, immer.
  */
 export async function register(loginId: string, password: string): Promise<Who> {
-  /*
-   * Beim Anlegen gibt es noch kein Salz am Konto. Geholt wird trotzdem eines:
-   * der Dienst gibt für einen unbekannten Namen ein festes, abgeleitetes
-   * zurück — sonst wäre diese Adresse eine Liste aller vorhandenen Konten.
-   */
-  const { passwordSaltBase64Url } = await call<{ passwordSaltBase64Url: string }>(
-    `/auth/salt?loginId=${encodeURIComponent(loginId)}`
-  );
-
-  const key = await derivePasswordKey(password, fromBase64Url(passwordSaltBase64Url));
+  const salt = crypto.getRandomValues(new Uint8Array(ARGON.saltBytes));
+  const key = await derivePasswordKey(password, salt);
 
   return call<Who>('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ loginId, passwordKeyBase64Url: toBase64Url(key) })
+    body: JSON.stringify({
+      loginId,
+      passwordSaltBase64Url: toBase64Url(salt),
+      passwordKeyBase64Url: toBase64Url(key)
+    })
   });
 }
 

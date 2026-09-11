@@ -43,7 +43,7 @@ public static class Auth
         app.MapGet("/session", SessionAsync);
     }
 
-    public sealed record RegisterRequest(string LoginId, string PasswordKeyBase64Url);
+    public sealed record RegisterRequest(string LoginId, string PasswordSaltBase64Url, string PasswordKeyBase64Url);
     public sealed record LoginRequest(string LoginId, string PasswordKeyBase64Url);
 
     /// <summary>
@@ -90,7 +90,18 @@ public static class Auth
             return;
         }
 
-        if (!TryKey(body.PasswordKeyBase64Url, out var passwordKey))
+        /*
+         * Das Salz kommt vom Browser, weil er damit gerechnet hat. Ein hier
+         * gewürfeltes wäre ein anderes — die nächste Anmeldung rechnete mit dem
+         * gespeicherten und scheiterte, immer.
+         */
+        if (!TryDecode(body.PasswordSaltBase64Url, Password.SaltBytes, out var passwordSalt))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna sól hasła.");
+            return;
+        }
+
+        if (!TryDecode(body.PasswordKeyBase64Url, Password.OutputBytes, out var passwordKey))
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny klucz hasła.");
             return;
@@ -105,7 +116,7 @@ public static class Auth
             var masterKey = Crypto.NewSymmetricKey();
             try
             {
-                var secrets = AccountSecrets.Create(accountId, passwordKey, masterKey, Password.NewSalt());
+                var secrets = AccountSecrets.Create(accountId, passwordKey, masterKey, passwordSalt);
 
                 await using var connection = await db.OpenAsync(ctx.RequestAborted);
                 await using var insert = new SqlCommand("""
@@ -153,7 +164,7 @@ public static class Auth
     {
         var name = Normalise(body.LoginId);
 
-        if (!TryKey(body.PasswordKeyBase64Url, out var passwordKey))
+        if (!TryDecode(body.PasswordKeyBase64Url, Password.OutputBytes, out var passwordKey))
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny klucz hasła.");
             return;
@@ -317,17 +328,17 @@ public static class Auth
     private static string Normalise(string? loginId) =>
         (loginId ?? string.Empty).Trim().ToLowerInvariant();
 
-    private static bool TryKey(string? encoded, out byte[] key)
+    private static bool TryDecode(string? encoded, int length, out byte[] bytes)
     {
-        key = [];
+        bytes = [];
         if (string.IsNullOrWhiteSpace(encoded)) return false;
 
         try
         {
-            var bytes = Base64Url.Decode(encoded);
-            if (bytes.Length != Password.OutputBytes) return false;
+            var decoded = Base64Url.Decode(encoded);
+            if (decoded.Length != length) return false;
 
-            key = bytes;
+            bytes = decoded;
             return true;
         }
         catch (FormatException)
