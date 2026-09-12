@@ -18,9 +18,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { needsIdentity, parsePath, path, type Address } from './routes';
+import { needsIdentity, parsePath, path, spotOf, type Address } from './routes';
 import { signOut, whoIsThere, type Who } from './session';
 import { SignIn } from './SignIn';
+import { Workspace } from './Workspace';
 
 export function App() {
   const [address, setAddress] = useState<Address>(() => parsePath(window.location.hash));
@@ -71,26 +72,21 @@ export function App() {
   return (
     <Shell
       who={who}
+      wide
       onSignOut={() => { void signOut().then(() => setWho(null)); }}
     >
-      <h1 className="wk-h1">Warsztat</h1>
-      <p className="wk-lede">
-        Tu jest to, do czego masz klucze. Strony organizacji są dla wszystkich —
-        warsztat jest Twój, i dlatego wygląda inaczej u każdego.
-      </p>
-      <p className="wk-note">
-        Wnętrze — Twoje organizacje, wspólnoty i zgłoszenia — powstaje. Adres,
-        konto i logowanie już stoją; reszta dochodzi na tym fundamencie.
-      </p>
+      <Workspace spot={spotOf(address)} />
     </Shell>
   );
 }
 
 function Shell({
-  children, who, onSignOut
+  children, who, wide = false, onSignOut
 }: {
   children: React.ReactNode;
   who?: Who;
+  /** Die Kacheln brauchen zwei Spalten; ein Text braucht eine Zeilenlänge. */
+  wide?: boolean;
   onSignOut?: () => void;
 }) {
   return (
@@ -108,7 +104,7 @@ function Shell({
           </span>
         )}
       </header>
-      <main className="wk-main">{children}</main>
+      <main className={wide ? 'wk-main wk-main-wide' : 'wk-main'}>{children}</main>
     </div>
   );
 }

@@ -42,7 +42,10 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
 
   const go = async () => {
     // „Liczenie" und nicht „Wczytywanie": es rechnet wirklich, und zwar hier.
-    setBusy(mode === 'in' ? 'Liczenie klucza…' : 'Zakładanie konta…');
+    // Beim Anlegen entsteht zusätzlich die persönliche Rolle — zwei
+    // RSA-4096-Paare am Dienst. Das dauert spürbar länger als eine Anmeldung,
+    // und wer das nicht liest, hält es für einen Hänger.
+    setBusy(mode === 'in' ? 'Liczenie klucza…' : 'Zakładanie konta i kluczy…');
     setFailed(null);
 
     try {
@@ -102,6 +105,19 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
       </p>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
+
+      {/*
+        Anmelden dauert eine Sekunde, Anlegen fünfzehn: am Dienst entstehen
+        dabei zwei RSA-4096-Paare für die persönliche Rolle. Eine Oberfläche,
+        die das verschweigt, sieht in genau diesen fünfzehn Sekunden kaputt aus
+        — und wer dann neu lädt, steht mitten im Anlegen.
+      */}
+      {busy !== null && mode === 'new' && (
+        <p className="wk-hint">
+          Powstają klucze Twojej roli — to potrwa kilkanaście sekund. Nie
+          odświeżaj strony.
+        </p>
+      )}
 
       <div className="wk-actions">
         <button type="submit" className="wk-btn" disabled={blocker !== null || busy !== null}>

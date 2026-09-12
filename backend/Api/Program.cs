@@ -26,6 +26,18 @@ if (args.Length > 0 && args[0].Equals("migrate", StringComparison.OrdinalIgnoreC
     return await Migrate.RunAsync(Db.Resolve(builder.Configuration), dryRun, dropLegacy);
 }
 
+/*
+ * Das Adressregister wird am Server gefüllt, nicht aus der Oberfläche: ein
+ * Eintrag IST die Erlaubnis, eine Adresse zu übernehmen.
+ *
+ *   dotnet run --project backend/Api -- slug add <pfad> ["wofuer"]
+ *   dotnet run --project backend/Api -- slug list
+ */
+if (args.Length > 0 && args[0].Equals("slug", StringComparison.OrdinalIgnoreCase))
+{
+    return await Slug.AdminAsync(Db.Resolve(builder.Configuration), args);
+}
+
 builder.Services.AddSingleton<Db>();
 
 /*
@@ -70,6 +82,8 @@ app.MapGet("/health", () =>
 });
 
 Auth.Map(app);
+Workspace.Map(app);
+Slug.Map(app);
 
 app.Run();
 return 0;

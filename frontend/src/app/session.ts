@@ -88,7 +88,15 @@ const UNREACHABLE = import.meta.env.DEV
   ? 'Usługa nie odpowiada. Uruchom ją: dotnet run --project backend/Api'
   : 'Nie udało się połączyć z usługą.';
 
-async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+/**
+ * Der eine Weg zum Dienst.
+ *
+ * Auch für alles ausserhalb der Anmeldung: `credentials`, die Fehlerform des
+ * Dienstes (`{error}`) und die Unterscheidung „Dienst antwortet nicht" von
+ * „Dienst sagt nein" stehen hier EINMAL. Ein zweiter `fetch` daneben hätte
+ * seine eigene Meinung zu allen dreien.
+ */
+export async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API}${path}`, {

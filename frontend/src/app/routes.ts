@@ -133,3 +133,44 @@ export function path(route: Route, slug?: string | null, ...tail: readonly strin
 export function needsIdentity(address: Address): boolean {
   return ROUTES[address.route].needsIdentity;
 }
+
+/* -- Die Ansichten des Arbeitsplatzes ---------------------------------------
+ *
+ * Eine Kachel, die sich öffnet, ist eine ADRESSE und kein Zustand im Speicher:
+ * `#/workspace/pages` lässt sich verschicken, neu laden und mit dem Zurück-Pfeil
+ * des Browsers verlassen. Als `useState` wäre der Zurück-Pfeil des Browsers die
+ * Abmeldung — er verliesse den Arbeitsplatz statt die Kachel.
+ *
+ * Der Pfeil in der Ansicht führt deshalb auf `#/workspace` und nicht auf
+ * `history.back()`: wer über einen Link hereinkommt, hat kein Zurück.
+ */
+export const VIEWS = {
+  calendar: 'Kalendarz',
+  chat: 'Rozmowy',
+  pages: 'Strony',
+  roles: 'Role'
+} as const;
+
+export type View = keyof typeof VIEWS;
+
+/** Wo im Arbeitsplatz wir stehen. */
+export type Spot =
+  | { readonly kind: 'tiles' }
+  | { readonly kind: 'view'; readonly view: View }
+  | { readonly kind: 'stray'; readonly word: string };
+
+export function spotOf(address: Address): Spot {
+  const first = address.tail[0];
+  if (first === undefined) return { kind: 'tiles' };
+
+  // `hasOwnProperty` und nicht `in`: sonst wäre `#/workspace/constructor` eine Ansicht.
+  return Object.prototype.hasOwnProperty.call(VIEWS, first)
+    ? { kind: 'view', view: first as View }
+    : { kind: 'stray', word: first };
+}
+
+/** Die Adresse einer Ansicht. */
+export const viewPath = (view: View): string => path('workspace', null, view);
+
+/** Die Adresse der Kacheln — das Ziel jedes Zurück-Pfeils. */
+export const tilesPath = (): string => path('workspace');
