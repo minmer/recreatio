@@ -88,7 +88,7 @@ public static class Page
     /// dabei herauskommt, ist ohnehin öffentlich.
     /// </para>
     /// </summary>
-    private static async Task SiteAsync(HttpContext ctx, Db db, string? host)
+    private static async Task SiteAsync(HttpContext ctx, Db db, string? host, string? path)
     {
         var name = (host ?? string.Empty).Trim().ToLowerInvariant();
 
@@ -105,21 +105,57 @@ public static class Page
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        string path;
-        await using (var find = new SqlCommand("SELECT path FROM app.slug WHERE host = @host;", connection))
+        string root;
+        await using (var find = new SqlCommand(
+            "SELECT path, alias_of FROM app.slug WHERE host = @host;", connection))
         {
             find.Parameters.AddWithValue("@host", name);
 
-            if (await find.ExecuteScalarAsync(ctx.RequestAborted) is not string found)
+            await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
+
+            if (!await reader.ReadAsync(ctx.RequestAborted))
             {
                 await Fail(ctx, StatusCodes.Status404NotFound, "Ta domena nie prowadzi do żadnej strony.");
                 return;
             }
 
-            path = found;
+            /*
+             * Zeigt der Name auf einen Alias, ist die WURZEL sein Ziel: dort
+             * liegt der Inhalt, und dort hängen die lokalen Routen. Ein Alias
+             * hat keinen eigenen Unterbau.
+             */
+            root = reader.IsDBNull(1) ? reader.GetString(0) : reader.GetString(1);
         }
 
-        await WritePageAsync(ctx, connection, path);
+        /*
+         * DIE UNTERROUTEN SIND LOKAL. Unter cogita.pl heisst `cogita/kursy`
+         * schlicht `#/kursy`.
+         *
+         * Sonst müsste jeder Verweis auf der Seite wissen, unter welchem Namen
+         * sie gerade ausgeliefert wird — derselbe Link wäre auf recreatio.pl
+         * richtig und auf cogita.pl falsch, und eine Seite, die unter zwei Namen
+         * steht, hätte zwei Sorten Links, von denen immer eine bricht.
+         */
+        var local = Slug.Normalise(path);
+
+        if (local != Slug.Home && !Slug.IsWellFormed(local))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Pod tym adresem nie ma jeszcze strony.");
+            return;
+        }
+
+        var wanted =
+            local == Slug.Home ? root
+            : root == Slug.Home ? local
+            : $"{root}/{local}";
+
+        if (wanted.Length > Slug.MaxPathLength)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Pod tym adresem nie ma jeszcze strony.");
+            return;
+        }
+
+        await WritePageAsync(ctx, connection, wanted);
     }
 
     /// <summary>

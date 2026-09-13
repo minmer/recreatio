@@ -46,7 +46,12 @@ public static class Workspace
             {
                 path = p.Path,
                 roleId = Ids.ToText(p.RoleId),
-                claimedAt = p.ClaimedAt
+                claimedAt = p.ClaimedAt,
+
+                // Ein zweiter Weg hierher — oder keiner. Die Oberfläche zeigt
+                // beides an derselben Zeile, sonst müsste sie zweimal fragen.
+                aliasOf = p.AliasOf,
+                host = p.Host
             })
         });
     }
@@ -94,10 +99,11 @@ public static class Workspace
     }
 
     /// <summary>Die Adressen, die diese Rollen führen.</summary>
-    private static async Task<List<(string Path, Guid RoleId, DateTimeOffset ClaimedAt)>> PagesOfAsync(
+    private static async Task<List<(string Path, Guid RoleId, DateTimeOffset ClaimedAt,
+        string? AliasOf, string? Host)>> PagesOfAsync(
         SqlConnection connection, List<RoleRow> roles, CancellationToken ct)
     {
-        var pages = new List<(string, Guid, DateTimeOffset)>();
+        var pages = new List<(string, Guid, DateTimeOffset, string?, string?)>();
 
         // Ohne Rollen gibt es nichts zu fragen. Ein `IN ()` ohne Werte wäre
         // ausserdem kein gültiges SQL.
@@ -106,7 +112,7 @@ public static class Workspace
         var names = string.Join(", ", roles.Select((_, i) => $"@r{i}"));
 
         await using var cmd = new SqlCommand(
-            $"SELECT path, claimed_by_role_id, claimed_at FROM app.slug "
+            $"SELECT path, claimed_by_role_id, claimed_at, alias_of, host FROM app.slug "
             + $"WHERE claimed_by_role_id IN ({names}) ORDER BY path;", connection);
 
         for (var i = 0; i < roles.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", roles[i].Id);
@@ -114,7 +120,9 @@ public static class Workspace
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            pages.Add((reader.GetString(0), reader.GetGuid(1), reader.GetDateTimeOffset(2)));
+            pages.Add((reader.GetString(0), reader.GetGuid(1), reader.GetDateTimeOffset(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.IsDBNull(4) ? null : reader.GetString(4)));
         }
 
         return pages;

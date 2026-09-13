@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { foreignHost, needsIdentity, parsePath, path, spotOf, type Address } from './routes';
+import { foreignHost, localPath, needsIdentity, parsePath, path, spotOf, type Address } from './routes';
 import { signOut, whoIsThere, type Who } from './session';
 import { PublicPage } from './PublicPage';
 import { SignIn } from './SignIn';
@@ -27,8 +27,18 @@ import { Workspace } from './Workspace';
 export function App() {
   const [address, setAddress] = useState<Address>(() => parsePath(window.location.hash));
 
+  /*
+   * Die Raute im Rohzustand. Unter einer eigenen Domain heisst sie etwas
+   * anderes als hier (`localPath`), und `address` wäre dort eine Fehldeutung:
+   * `#/kursy` ist dann kein Teil und keine Seite, sondern ein lokaler Pfad.
+   */
+  const [hash, setHash] = useState<string>(() => window.location.hash);
+
   useEffect(() => {
-    const onHash = () => setAddress(parsePath(window.location.hash));
+    const onHash = () => {
+      setAddress(parsePath(window.location.hash));
+      setHash(window.location.hash);
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -70,7 +80,7 @@ export function App() {
    */
   const domain = foreignHost();
   if (domain !== null) {
-    return <Shell><PublicPage host={domain} /></Shell>;
+    return <Shell><PublicPage host={domain} local={localPath(hash)} /></Shell>;
   }
 
   /*

@@ -18,16 +18,52 @@ import { fromBase64Url, toBase64Url } from './crypto';
 /**
  * Wo der Dienst liegt.
  *
- * Im Betrieb api.recreatio.pl. In der Entwicklung `/api` auf demselben
- * Ursprung — der Entwicklungsserver leitet es an `backend/Api` weiter
- * (vite.config.ts), und das Sitzungskeks kommt ohne CORS zurück.
+ * <b>Die Regel: der Dienst einer Seite heisst `api.` + ihr eigener Name.</b>
+ * recreatio.pl fragt api.recreatio.pl, parish.pl fragt api.parish.pl.
  *
- * `VITE_APP_API` überschreibt beides. Nie relativ im Bau: recreatio.pl ist
- * GitHub Pages und antwortet auf jedes POST mit 405.
+ * Das ist keine Ordnungsliebe, sondern die Bedingung dafür, dass man sich auf
+ * einer eigenen Domain ANMELDEN kann: nur so ist das Sitzungskeks dort ein
+ * eigenes und kein fremdes — und fremde Kekse blockieren Safari und Firefox
+ * heute schon. Ein gemeinsamer Dienst unter EINEM Namen könnte öffentliche
+ * Seiten ausliefern, aber niemanden anmelden.
+ *
+ * <b>Abgeleitet wird zur Laufzeit, nicht beim Bauen.</b> Stünde der Name im
+ * Bündel, bräuchte jede Domain ihren eigenen Bau — und zwei Bündel derselben
+ * Quelle laufen auseinander, sobald eines davon einmal vergessen wird. So
+ * liefert EIN Bau jede Domain.
+ *
+ * `www.` fällt weg: www.recreatio.pl und recreatio.pl sind dieselbe Seite und
+ * fragen denselben Dienst.
+ *
+ * `VITE_APP_API` schlägt weiterhin alles. Dafür gibt es zwei Fälle: eine
+ * Domain, die bloss öffentliche Seiten zeigt und den gemeinsamen Dienst
+ * mitbenutzt — und der Tag, an dem Dienst und Seite unter einem Ursprung
+ * liegen (`/api`), wo es weder CORS noch fremde Kekse gibt.
  */
-const API = (
-  import.meta.env.VITE_APP_API || (import.meta.env.DEV ? '/api' : 'https://api.recreatio.pl')
-).replace(/\/+$/, '');
+function serviceOrigin(): string {
+  const set = import.meta.env.VITE_APP_API;
+  if (set) return set;
+
+  // In der Entwicklung leitet der Entwicklungsserver `/api` weiter
+  // (vite.config.ts): ein Ursprung, kein CORS, das Keks kommt zurück.
+  if (import.meta.env.DEV) return '/api';
+
+  // Ohne Fenster gibt es keinen eigenen Namen, von dem abzuleiten wäre.
+  if (typeof window === 'undefined') return 'https://api.recreatio.pl';
+
+  const host = window.location.hostname.toLowerCase().replace(/^www\./, '');
+
+  /*
+   * Ein gebautes Bündel, das lokal geöffnet wird (`vite preview`): `DEV` ist
+   * dort falsch, und `https://api.localhost` gibt es nicht. Dieselbe Antwort
+   * wie in der Entwicklung ist hier die einzige brauchbare.
+   */
+  if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return '/api';
+
+  return `https://api.${host}`;
+}
+
+const API = serviceOrigin().replace(/\/+$/, '');
 
 /** Muss mit `Password` im Kernel übereinstimmen. */
 const ARGON = { memoryKiB: 64 * 1024, iterations: 3, parallelism: 1, outputBytes: 32, saltBytes: 16 } as const;

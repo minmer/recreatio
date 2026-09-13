@@ -204,9 +204,47 @@ export function path(route: Route, slug?: string | null, ...tail: readonly strin
   return `#/${words.join('/')}`;
 }
 
+/**
+ * Die Form eines Pfades im Register — dieselbe wie `ck_slug_path` und
+ * `Slug.Shape()` im Dienst.
+ *
+ * Steht hier und nicht in einer Ansicht: zwei Fassungen derselben Prüfung laufen
+ * auseinander, und die lockerere gewinnt dann still, bis die Datenbank ablehnt.
+ */
+export const PATH_SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
+
 /** Die Adresse einer öffentlichen Seite. */
 export const pagePath = (path: string): string =>
   `#/${path.split('/').map(encodeURIComponent).join('/')}`;
+
+/**
+ * Der Pfad unter einer EIGENEN Domain — und zwar der lokale.
+ *
+ * <b>Unter cogita.pl heisst `cogita/kursy` schlicht `#/kursy`.</b> Welche
+ * Wurzel dieser Name bedeutet, weiss nur das Register; der Browser schickt
+ * deshalb bloss das Stück hinter der Raute mit und lässt den Dienst davorsetzen.
+ *
+ * Der Grund ist nicht Schönheit, sondern Haltbarkeit: schrieben die Verweise
+ * einer Seite den ganzen Pfad, wäre derselbe Link auf recreatio.pl richtig und
+ * auf cogita.pl falsch — eine Seite unter zwei Namen hätte zwei Sorten Links,
+ * von denen immer eine bricht.
+ *
+ * `parsePath` taugt hier nicht: dort ist das erste Wort ein Teil oder eine
+ * Seite, hier ist es der Anfang eines lokalen Pfades.
+ */
+export function localPath(hash: string): string {
+  const marker = hash.indexOf('#');
+  const afterHash = marker >= 0 ? hash.slice(marker + 1) : hash;
+
+  // Alles ab `?` oder `&` gehört nicht mehr zum Pfad.
+  return afterHash.split(/[?&]/)[0]
+    .split('/')
+    .filter((raw) => raw.length > 0)
+    .map((raw) => {
+      try { return decodeURIComponent(raw); } catch { return raw; }
+    })
+    .join('/');
+}
 
 /** Muss vor dem ersten Bild bekannt sein, wer hier ist? */
 export function needsIdentity(address: Address): boolean {
@@ -231,6 +269,7 @@ export const VIEWS = {
   calendar: 'Kalendarz',
   chat: 'Rozmowy',
   pages: 'Strony',
+  addresses: 'Adresy i domeny',
   roles: 'Role'
 } as const;
 

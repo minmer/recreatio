@@ -29,6 +29,15 @@ public static partial class Slug
     public static void Map(WebApplication app)
     {
         app.MapPost("/workspace/slug/claim", ClaimAsync);
+
+        /*
+         * Alias und Domain sind KEINE neuen Adressen, sondern zweite Wege zu
+         * einer, die man schon führt. Deshalb dürfen sie aus dem Browser kommen,
+         * obwohl das Register am Server gefüllt wird: sie geben niemandem
+         * Reichweite, die er nicht schon hat.
+         */
+        app.MapPost("/workspace/alias", AliasAsync);
+        app.MapPost("/workspace/domain", DomainAsync);
     }
 
     public sealed record ClaimRequest(string Path, string Code, string RoleId);
@@ -123,7 +132,23 @@ public static partial class Slug
             if (await reader.ReadAsync(ctx.RequestAborted))
             {
                 slugId = reader.GetGuid(0);
-                codeHash = (byte[])reader[1];
+
+                /*
+                 * KEIN CODE IST EIN GÜLTIGER ZUSTAND, seit 0012: eine lokale
+                 * Route und ein Alias entstehen VON OBEN und tragen deshalb
+                 * NULL. Hier stand ein blanker Cast, und der warf auf so einer
+                 * Zeile InvalidCastException — aus der wurde eine 500.
+                 *
+                 * Das war nicht bloss ein Absturz, sondern ein Leck: diese
+                 * Stelle antwortet auf „gibt es nicht" und „Code stimmt nicht"
+                 * absichtlich dasselbe, damit sich das Register nicht nach
+                 * freien Adressen abfragen lässt. Eine 500 unterscheidet sich
+                 * von beidem — der Absturz selbst verriet, dass die Zeile da ist.
+                 *
+                 * Mit NULL läuft es in die Prüfung unten und wird zu genau der
+                 * einen, nichtssagenden Antwort.
+                 */
+                codeHash = reader.IsDBNull(1) ? null : (byte[])reader[1];
                 claimedBy = reader.IsDBNull(2) ? null : reader.GetGuid(2);
             }
         }
@@ -149,17 +174,26 @@ public static partial class Slug
         }
 
         /*
-         * Wer `schola` führt, führt `schola/proby`. Eine Unteradresse an eine
-         * fremde Rolle zu geben hiesse, in ein fremdes Haus eine Tür zu setzen.
+         * LIEGT DARÜBER SCHON EINE ÜBERNOMMENE ADRESSE, ist hier nichts mehr zu
+         * übernehmen — auch nicht für den, der sie führt. Was unter einer Wurzel
+         * liegt, ist ihre lokale Route: der Führende öffnet sie im Arbeitsplatz,
+         * ohne Code, und gibt sie mit einem Zertifikat weiter.
+         *
+         * Vorher wurde hier nur eine FREMDE Adresse darüber abgewehrt. Damit
+         * konnte der Führende von `parish` neben seiner lokalen Route ein
+         * zweites, mit Code übernommenes `parish/grzegorzki` stellen — zwei
+         * Verantwortliche für eine Adresszeile, und welche Seite erscheint,
+         * entschiede die Reihenfolge der Zeilen.
          */
         var ancestors = Ancestors(path);
         if (ancestors.Count > 0)
         {
             var held = await LongestClaimedAsync(connection, ancestors, ctx.RequestAborted);
-            if (held is not null && !mine.Any(r => r.Id == held.Value.RoleId))
+            if (held is not null)
             {
-                await Fail(ctx, StatusCodes.Status409Conflict,
-                    $"Adres nadrzędny „{held.Value.Path}” należy do kogoś innego.");
+                await Fail(ctx, StatusCodes.Status409Conflict, mine.Any(r => r.Id == held.Value.RoleId)
+                    ? $"Adres „{Show(held.Value.Path)}” już prowadzisz — trasy pod nim otwierasz w warsztacie, bez kodu."
+                    : $"Adres nadrzędny „{Show(held.Value.Path)}” należy do kogoś innego.");
                 return;
             }
         }
@@ -226,6 +260,234 @@ public static partial class Slug
         if (!await reader.ReadAsync(ct)) return null;
 
         return (reader.GetString(0), reader.GetGuid(1));
+    }
+
+    /* -- Zweite Wege zu einer Adresse, die man führt ------------------------- */
+
+    public sealed record AliasRequest(string Path, string Target, string RoleId);
+
+    /// <summary>
+    /// Einen Alias erklären — aus dem Browser.
+    ///
+    /// <para>
+    /// <b>Warum das hier erlaubt ist, obwohl das Register am Server gefüllt
+    /// wird.</b> Ein Eintrag mit Code IST die Erlaubnis, eine Adresse zu
+    /// übernehmen — und genau die entsteht hier nicht: die Zeile trägt keinen
+    /// Code und ist von Anfang an vergeben, an eine Rolle, die das ZIEL schon
+    /// führt. Wer sie anlegt, bekommt nichts, was er nicht schon hatte.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Der Alias liegt im eigenen Haus.</b> Er entsteht unter einer Wurzel,
+    /// die derselbe Mensch führt — nie als neues Wort auf oberster Ebene. Sonst
+    /// wäre das hier der Weg, sich <c>recreatio.pl/&lt;wort&gt;</c> zu nehmen,
+    /// und der oberste Namensraum gehört nicht dem, der zuerst tippt.
+    /// </para>
+    /// </summary>
+    private static async Task AliasAsync(HttpContext ctx, Db db, AliasRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var path = Normalise(body.Path);
+        var target = Normalise(body.Target);
+
+        if (!IsWellFormed(path) || IsReserved(path) || !IsWellFormed(target))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                "Adres: małe litery, cyfry i myślniki; części oddziel ukośnikiem.");
+            return;
+        }
+
+        if (path == target)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Alias nie może wskazywać na siebie.");
+            return;
+        }
+
+        /*
+         * Ein Alias auf oberster Ebene wäre ein neues Wort im gemeinsamen
+         * Namensraum. Das vergibt der Server mit einem Code, nicht dieser Ruf.
+         */
+        if (!path.Contains('/'))
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden,
+                "Alias zakładasz pod adresem, który już prowadzisz — nazwy najwyższego poziomu wydaje serwer.");
+            return;
+        }
+
+        if (!Guid.TryParse(body.RoleId, out var roleId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna rola.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        if (!mine.Any(r => r.Id == roleId))
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "To nie jest Twoja rola.");
+            return;
+        }
+
+        /*
+         * Das Ziel muss es geben und selbst kein Alias sein. Eine Kette liesse
+         * sich im Kreis legen, und wer sie aufruft, liefe ihn mit.
+         */
+        await using (var find = new SqlCommand(
+            "SELECT alias_of FROM app.slug WHERE path = @p;", connection))
+        {
+            find.Parameters.AddWithValue("@p", target);
+            var found = await find.ExecuteScalarAsync(ctx.RequestAborted);
+
+            if (found is null)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+                return;
+            }
+
+            if (found is not DBNull)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "To jest już alias. Łańcuchów nie ma — wskaż adres, na którym leży treść.");
+                return;
+            }
+        }
+
+        // Am ZIEL: nur wer es weitergeben darf, darf einen zweiten Weg dorthin
+        // legen. Und am ELTERNPFAD: dort entsteht die neue Zeile.
+        var onTarget = await Access.OfAsync(connection, who.Value.AccountId, target, ctx.RequestAborted);
+        if (!onTarget.MayCertify)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
+            return;
+        }
+
+        var parent = string.Join('/', path.Split('/')[..^1]);
+        var onParent = await Access.OfAsync(connection, who.Value.AccountId, parent, ctx.RequestAborted);
+
+        if (!onParent.MayCertify)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden,
+                $"Nie prowadzisz adresu „{Show(parent)}”, więc nie założysz tam aliasu.");
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        await using var insert = new SqlCommand("""
+            INSERT INTO app.slug
+                (id, path, claim_code_sha256, alias_of, claimed_by_role_id, claimed_by_account_id,
+                 claimed_at, created_at)
+            VALUES (@id, @path, NULL, @alias, @role, @account, @now, @now);
+            """, connection);
+
+        insert.Parameters.AddWithValue("@id", Ids.NewId());
+        insert.Parameters.AddWithValue("@path", path);
+        insert.Parameters.AddWithValue("@alias", target);
+        insert.Parameters.AddWithValue("@role", roleId);
+        insert.Parameters.AddWithValue("@account", who.Value.AccountId);
+        insert.Parameters.AddWithValue("@now", now);
+
+        try
+        {
+            await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+        catch (SqlException e) when (e.Number is 2601 or 2627)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, "Ten adres już istnieje.");
+            return;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            path,
+            aliasOf = target,
+            roleId = Ids.ToText(roleId),
+            claimedAt = now
+        });
+    }
+
+    public sealed record DomainRequest(string Path, string? Host);
+
+    /// <summary>
+    /// Eine eigene Domain an eine Adresse hängen, die man führt — oder sie
+    /// abnehmen (<c>Host</c> leer).
+    ///
+    /// <para>
+    /// <b>Das ist Betrieb und kein Recht.</b> Der Name gibt niemandem Zugang; er
+    /// zeigt einen zweiten Weg auf eine Seite, die ohnehin öffentlich ist. Was
+    /// fehlt, steht nicht in der Datenbank: DNS, die Oberfläche unter diesem
+    /// Namen, und der Name in <c>Api:Origins</c>. Die Oberfläche sagt es.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Ein Name gehört genau einer Adresse.</b> Sonst entschiede die
+    /// Reihenfolge der Zeilen, welche Seite er zeigt — deshalb der eindeutige
+    /// Index (0016) und hier die klare Antwort darauf.
+    /// </para>
+    /// </summary>
+    private static async Task DomainAsync(HttpContext ctx, Db db, DomainRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var path = Normalise(body.Path);
+
+        if (!IsWellFormed(path))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "To nie jest adres.");
+            return;
+        }
+
+        var host = (body.Host ?? string.Empty).Trim().ToLowerInvariant();
+        var clear = host.Length == 0 || host == "-";
+
+        if (!clear && !IsHostName(host))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                "To nie jest nazwa domeny: małe litery, z kropką, bez http:// i bez ścieżki.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
+
+        if (grip.OwnerRoleId is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nikt jeszcze nie przejął.");
+            return;
+        }
+
+        if (!grip.MayCertify)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
+            return;
+        }
+
+        await using var cmd = new SqlCommand(
+            "UPDATE app.slug SET host = @host WHERE path = @path;", connection);
+
+        cmd.Parameters.AddWithValue("@host", clear ? DBNull.Value : host);
+        cmd.Parameters.AddWithValue("@path", path);
+
+        try
+        {
+            if (await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 0)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+                return;
+            }
+        }
+        catch (SqlException e) when (e.Number is 2601 or 2627)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, "Ta domena wskazuje już inny adres.");
+            return;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { path, host = clear ? null : host });
     }
 
     private static Task Fail(HttpContext ctx, int status, string message)
@@ -388,6 +650,25 @@ public static partial class Slug
         if (IsReserved(path))
         {
             Console.Error.WriteLine("  XX   \"workspace\" gehoert dem Arbeitsplatz selbst.");
+            return 1;
+        }
+
+        /*
+         * EIN CODE GEHÖRT EINER WURZEL. Was unter einer übernommenen Adresse
+         * liegt, öffnet der, der sie führt — dort heisst es lokale Route und
+         * braucht kein Geheimnis (Access.OpenAsync).
+         *
+         * Gäbe es beide Wege, entstünde zweimal dieselbe Adresse: einmal von
+         * oben geöffnet, einmal mit Code übernommen. Welche Seite erschiene,
+         * entschiede die Reihenfolge der Zeilen. Dieselbe Regel steht als
+         * ck_slug_root_code in der Datenbank (0017).
+         */
+        if (path.Contains('/'))
+        {
+            Console.Error.WriteLine(
+                $"  XX   \"{path}\" ist eine Unteradresse - Codes gibt es nur fuer Wurzeln.");
+            Console.Error.WriteLine(
+                "       Was unter einer Adresse liegt, oeffnet ihr Fuehrender selbst, im Arbeitsplatz.");
             return 1;
         }
 

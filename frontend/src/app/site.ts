@@ -14,5 +14,8 @@
 import type { PageContent } from './page';
 import { call } from './session';
 
-export const loadSite = (host: string): Promise<PageContent> =>
-  call<PageContent>(`/site?host=${encodeURIComponent(host)}`);
+export const loadSite = (host: string, path = ''): Promise<PageContent> =>
+  call<PageContent>(
+    `/site?host=${encodeURIComponent(host)}`
+    + (path === '' ? '' : `&path=${encodeURIComponent(path)}`)
+  );

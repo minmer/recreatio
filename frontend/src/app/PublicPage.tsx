@@ -24,7 +24,7 @@ import { loadSite } from './site';
  * Beides endet bei derselben Antwort; welcher Weg es war, sieht man ihr nicht
  * an, und das ist richtig so.
  */
-export function PublicPage({ path, host }: { path?: string; host?: string }) {
+export function PublicPage({ path, host, local }: { path?: string; host?: string; local?: string }) {
   const [page, setPage] = useState<PageContent | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -34,7 +34,9 @@ export function PublicPage({ path, host }: { path?: string; host?: string }) {
     let alive = true;
     setPage(undefined);
 
-    (host !== undefined ? loadSite(host) : loadPage(path ?? ''))
+    // Unter einer eigenen Domain ist der Pfad LOKAL: was die Wurzel ist, setzt
+    // der Dienst davor (`routes.localPath`).
+    (host !== undefined ? loadSite(host, local ?? '') : loadPage(path ?? ''))
       .then((found) => { if (alive) setPage(found); })
       .catch((e) => {
         if (!alive) return;
@@ -43,7 +45,7 @@ export function PublicPage({ path, host }: { path?: string; host?: string }) {
       });
 
     return () => { alive = false; };
-  }, [path, host]);
+  }, [path, host, local]);
 
   if (page === undefined) return <p className="wk-lede">Wczytywanie…</p>;
 

@@ -16,7 +16,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { pagePath, tilesPath, viewPath, VIEWS, type Spot, type View } from './routes';
+import { pagePath, PATH_SHAPE, tilesPath, viewPath, VIEWS, type Spot, type View } from './routes';
+import { Addresses } from './Addresses';
 import { PageEditor } from './PageEditor';
 import { RoleGraph } from './RoleGraph';
 import { WorkspaceError, type Who } from './session';
@@ -117,6 +118,13 @@ function Tiles({ desk }: { desk: Desk }) {
           )}
         </Tile>
 
+        <Tile
+          view="addresses"
+          count={desk.pages.filter((page) => page.aliasOf !== null || page.host !== null).length}
+        >
+          <p className="wk-empty">Drugie wejście na stronę: alias albo własna domena.</p>
+        </Tile>
+
         <Tile view="roles" count={desk.roles.length}>
           <ul className="wk-tile-lines">
             {desk.roles.map((role) => <li key={role.id}>{roleName(role)}</li>)}
@@ -152,6 +160,7 @@ function Inside({ view, desk, who, onChanged }: {
   onChanged: () => void;
 }) {
   if (view === 'pages') return <Pages desk={desk} who={who} onClaimed={onChanged} />;
+  if (view === 'addresses') return <Addresses desk={desk} onChanged={onChanged} />;
   if (view === 'roles') return <RoleGraph who={who} />;
 
   /*
@@ -169,9 +178,6 @@ function Inside({ view, desk, who, onChanged }: {
 }
 
 /* -- Strony: übernehmen, nicht anlegen ------------------------------------- */
-
-/** Dieselbe Form wie `ck_slug_path` und `Slug.Shape()` im Dienst. */
-const SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
 
 function Pages({ desk, who, onClaimed }: { desk: Desk; who: Who; onClaimed: () => void }) {
   const [editing, setEditing] = useState<string | null>(null);
@@ -202,7 +208,7 @@ function Pages({ desk, who, onClaimed }: { desk: Desk; who: Who; onClaimed: () =
     busy ? null
     : desk.roles.length === 0 ? 'Nie masz roli, która mogłaby przejąć adres.'
     : typed === '' ? 'Wpisz adres.'
-    : !isRoot && !SHAPE.test(path) ? 'Adres: małe litery, cyfry i myślniki; części oddziel ukośnikiem.'
+    : !isRoot && !PATH_SHAPE.test(path) ? 'Adres: małe litery, cyfry i myślniki; części oddziel ukośnikiem.'
     : path === 'workspace' || path.startsWith('workspace/') ? 'Adres „workspace” należy do samego warsztatu.'
     : code.trim() === '' ? 'Wpisz kod adresu.'
     : roleId === '' ? 'Wybierz rolę.'
