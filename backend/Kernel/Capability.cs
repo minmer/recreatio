@@ -83,15 +83,27 @@ public static class Capabilities
         held.Any(h => Covers(h, needed));
 
     /// <summary>
-    /// Der Geltungsbereich eines Zertifikats. <c>area</c> ist der Regelfall,
-    /// <c>tenant</c> und <c>module</c> sind die groben Kellen fuer
-    /// Traegerschaft und Modulverwaltung.
+    /// Der Geltungsbereich eines Zertifikats.
+    ///
+    /// <para>
+    /// <b>Dieselben Woerter wie in der Datenbank</b> (<c>ck_certificate_scope</c>).
+    /// Vorher stand hier <c>tenant</c> und <c>module</c>, die Tabelle liess aber
+    /// nur <c>area</c> und <c>body</c> zu: ein Zertifikat mit dem einen
+    /// Geltungsbereich waere beim Schreiben abgelehnt worden, und der
+    /// Geltungsbereich geht in die UNTERSCHRIFT ein — auseinanderlaufen duerfen
+    /// die beiden Listen deshalb nie.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>slug</c> ist der Zugang zu einer Adresse: wer eine Seite aendern oder
+    /// Unterseiten oeffnen darf, ohne sie selbst zu fuehren.
+    /// </para>
     /// </summary>
     public static string ScopeText(ScopeKind kind) => kind switch
     {
         ScopeKind.Area => "area",
-        ScopeKind.Tenant => "tenant",
-        ScopeKind.Module => "module",
+        ScopeKind.Body => "body",
+        ScopeKind.Slug => "slug",
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 
@@ -100,8 +112,8 @@ public static class Capabilities
         switch (text)
         {
             case "area": kind = ScopeKind.Area; return true;
-            case "tenant": kind = ScopeKind.Tenant; return true;
-            case "module": kind = ScopeKind.Module; return true;
+            case "body": kind = ScopeKind.Body; return true;
+            case "slug": kind = ScopeKind.Slug; return true;
             default: kind = default; return false;
         }
     }
@@ -110,8 +122,8 @@ public static class Capabilities
 public enum ScopeKind
 {
     Area = 1,
-    Tenant = 2,
-    Module = 3
+    Body = 2,
+    Slug = 3
 }
 
 /// <summary>

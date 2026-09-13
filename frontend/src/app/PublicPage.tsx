@@ -13,7 +13,8 @@
 
 import { useEffect, useState } from 'react';
 
-import { loadPage, type PageContent } from './page';
+import { loadPage, toDraft, type PageContent } from './page';
+import { PageParts } from './PageParts';
 import { WorkspaceError } from './session';
 
 export function PublicPage({ path }: { path: string }) {
@@ -48,11 +49,13 @@ export function PublicPage({ path }: { path: string }) {
     );
   }
 
+  const parts = page.parts.map(toDraft);
+
   /*
    * Übernommen, aber noch nichts geschrieben. Das ist ein eigener Zustand und
    * kein Fehler: jemand hat die Adresse, und er hat sie noch nicht gefüllt.
    */
-  if (page.title === null) {
+  if (page.title === null && parts.length === 0) {
     return (
       <>
         <h1 className="wk-h1">recreatio.pl/{page.path}</h1>
@@ -63,8 +66,10 @@ export function PublicPage({ path }: { path: string }) {
 
   return (
     <>
-      <h1 className="wk-h1">{page.title}</h1>
+      {page.title !== null && <h1 className="wk-h1">{page.title}</h1>}
       {page.lead !== null && <p className="wk-lede wk-page-lead">{page.lead}</p>}
+
+      <PageParts parts={parts} />
     </>
   );
 }

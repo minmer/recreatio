@@ -151,7 +151,7 @@ function Inside({ view, desk, who, onChanged }: {
   who: Who;
   onChanged: () => void;
 }) {
-  if (view === 'pages') return <Pages desk={desk} onClaimed={onChanged} />;
+  if (view === 'pages') return <Pages desk={desk} who={who} onClaimed={onChanged} />;
   if (view === 'roles') return <RoleGraph who={who} />;
 
   /*
@@ -173,7 +173,7 @@ function Inside({ view, desk, who, onChanged }: {
 /** Dieselbe Form wie `ck_slug_path` und `Slug.Shape()` im Dienst. */
 const SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
 
-function Pages({ desk, onClaimed }: { desk: Desk; onClaimed: () => void }) {
+function Pages({ desk, who, onClaimed }: { desk: Desk; who: Who; onClaimed: () => void }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [wanted, setWanted] = useState('');
   const [code, setCode] = useState('');
@@ -246,7 +246,7 @@ function Pages({ desk, onClaimed }: { desk: Desk; onClaimed: () => void }) {
         </ul>
       )}
 
-      {editing !== null && <PageEditor path={editing} />}
+      {editing !== null && <PageEditor path={editing} who={who} />}
 
       <h2 className="wk-h2">Przejmij adres</h2>
 
@@ -306,9 +306,9 @@ function Pages({ desk, onClaimed }: { desk: Desk; onClaimed: () => void }) {
  */
 function roleName(role: RoleCard): string {
   if (role.isPersonal) return 'Twoja rola osobista';
-  if (role.kind === 'office') return 'Urząd';
-  if (role.kind === 'member') return 'Członkostwo';
-  return 'Rola';
+  if (role.kind === 'role') return 'Rola';
+  if (role.kind === 'group') return 'Grupa';
+  return 'Osoba';
 }
 
 function roleOf(desk: Desk, roleId: string): string {

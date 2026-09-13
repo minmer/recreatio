@@ -24,19 +24,28 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { openMasterKey, Ring, type SealedRole } from './keys';
+import type { Ring, SealedRole } from './keys';
 import {
-  addHolder, createRole, dropHolder, loadRoles, renameRole, retypeRole, revokeRole,
+  addHolder, createRole, dropHolder, renameRole, retypeRole, revokeRole,
   type RoleEdge, type RoleGraphData
 } from './roles';
-import { heldPasswordKey, unlock, WorkspaceError, type Who } from './session';
+import { forgetKeys, keysFor } from './ringOf';
+import { WorkspaceError, type Who } from './session';
+import { Unlock } from './Unlock';
 
-type Kind = 'person' | 'office' | 'member';
+type Kind = 'person' | 'role' | 'group';
 
+/**
+ * Drei Arten, und der Unterschied ist keiner der Technik:
+ *
+ *   Osoba   ein Mensch — das Konto selbst, entsteht mit ihm
+ *   Rola    eine Funktion, die jemand ausübt und die übergeben wird
+ *   Grupa   die, die dazugehören
+ */
 const KIND_NAME: Record<Kind, string> = {
-  person: 'Rola osobista',
-  office: 'Urząd',
-  member: 'Członkostwo'
+  person: 'Osoba',
+  role: 'Rola',
+  group: 'Grupa'
 };
 
 interface NodeData {
@@ -114,24 +123,18 @@ export function RoleGraph({ who }: { who: Who }) {
 
   const look = useCallback(async () => {
     try {
-      const graph = await loadRoles();
+      // Der Bund wird EINMAL gebaut und geteilt (`ringOf.ts`): das
+      // Seitenformular unterschreibt damit Zertifikate, diese Ansicht öffnet
+      // damit Namen.
+      const { ring: bund, graph } = await keysFor(who);
+
       setData(graph);
-
-      const passwordKey = heldPasswordKey();
-      if (passwordKey === null || graph.personRoleId === null) { setRing(null); return; }
-
-      const master = await openMasterKey(who.accountId, passwordKey, who.masterKeySealed);
-      const bund = await Ring.walk(graph.personRoleId, master, graph.roles, graph.grants);
-
       setRing(bund);
-      setNames(await bund.names());
+      setNames(bund === null ? new Map() : await bund.names());
       setFailed(null);
     } catch (e) {
-      if (e instanceof WorkspaceError) { setData(null); setFailed(e.message); return; }
-
-      // Der Dienst hat geantwortet, aber eine Hülle ging nicht auf: fast immer
-      // ein PasswordKey aus einer anderen Anmeldung. Der Graph bleibt sichtbar.
-      setRing(null);
+      setData(null);
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać ról.');
     }
   }, [who]);
 
@@ -143,6 +146,10 @@ export function RoleGraph({ who }: { who: Who }) {
 
     try {
       await todo();
+
+      // Rollen oder Zuteilungen haben sich geändert: der zwischengespeicherte
+      // Bund kennt den neuen Schlüssel sonst nicht.
+      forgetKeys();
       await look();
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
@@ -211,7 +218,13 @@ export function RoleGraph({ who }: { who: Who }) {
         co jest trzymane — pociągnij ją, żeby przekazać rolę dalej.
       </p>
 
-      {ring === null && <Unlock who={who} onDone={() => void look()} />}
+      {ring === null && (
+        <Unlock
+          who={who}
+          why="Nazwy ról są zapieczętowane."
+          onDone={() => void look()}
+        />
+      )}
 
       {failed !== null && <p className="wk-error">{failed}</p>}
       {busy !== null && <p className="wk-hint">{busy}</p>}
@@ -254,54 +267,12 @@ export function RoleGraph({ who }: { who: Who }) {
   );
 }
 
-/* -- Die Schlüssel zurückholen ---------------------------------------------- */
-
-function Unlock({ who, onDone }: { who: Who; onDone: () => void }) {
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
-
-  const go = async () => {
-    setBusy(true);
-    setFailed(null);
-
-    try {
-      await unlock(who.loginId, password);
-      setPassword('');
-      onDone();
-    } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć kluczy.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <form className="wk-note" onSubmit={(e) => { e.preventDefault(); if (!busy) void go(); }}>
-      <p className="wk-hint">
-        Nazwy ról są zapieczętowane. Klucz liczy się z hasła i zostaje tylko w
-        tej karcie — po odświeżeniu strony trzeba go policzyć jeszcze raz.
-      </p>
-
-      <div className="wk-actions">
-        <input
-          type="password"
-          value={password}
-          autoComplete="current-password"
-          placeholder="Hasło"
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <button type="submit" className="wk-btn" disabled={busy || password === ''}>
-          {busy ? 'Liczenie klucza…' : 'Otwórz klucze'}
-        </button>
-      </div>
-
-      {failed !== null && <p className="wk-error">{failed}</p>}
-    </form>
-  );
-}
-
-/* -- Was man mit einer Rolle tun kann --------------------------------------- */
+/* -- Was man mit einer Rolle tun kann ---------------------------------------
+ *
+ * Das Entsperren steht nicht mehr hier, sondern in `Unlock.tsx`: es wird an
+ * zwei Stellen gebraucht — hier für die Namen, im Seitenformular für die
+ * Unterschrift unter einem Zertifikat.
+ */
 
 function Panel({ role, ring, name, holders, names, busy, onAct }: {
   role: SealedRole;
@@ -314,7 +285,7 @@ function Panel({ role, ring, name, holders, names, busy, onAct }: {
 }) {
   const [draft, setDraft] = useState('');
   const [newName, setNewName] = useState('');
-  const [newKind, setNewKind] = useState<'office' | 'member'>('office');
+  const [newKind, setNewKind] = useState<'role' | 'group'>('role');
 
   const mine = ring !== null && ring.has(role.id);
   const label = (id: string) => names.get(id) ?? 'zapieczętowane';
@@ -358,10 +329,10 @@ function Panel({ role, ring, name, holders, names, busy, onAct }: {
             <div className="wk-actions">
               <button
                 type="button" className="wk-btn" disabled={busy}
-                onClick={() => void onAct('Zmiana typu…',
-                  () => retypeRole(role.id, role.kind === 'office' ? 'member' : 'office'))}
+                onClick={() => void onAct('Zmiana rodzaju…',
+                  () => retypeRole(role.id, role.kind === 'role' ? 'group' : 'role'))}
               >
-                Zmień na {role.kind === 'office' ? 'członkostwo' : 'urząd'}
+                Zmień na {role.kind === 'role' ? 'grupę' : 'rolę'}
               </button>
             </div>
           )}
@@ -405,9 +376,9 @@ function Panel({ role, ring, name, holders, names, busy, onAct }: {
 
             <label className="wk-field">
               <span>Rodzaj</span>
-              <select value={newKind} onChange={(e) => setNewKind(e.target.value as 'office' | 'member')}>
-                <option value="office">Urząd — przekazywalny</option>
-                <option value="member">Członkostwo — przynależność</option>
+              <select value={newKind} onChange={(e) => setNewKind(e.target.value as 'role' | 'group')}>
+                <option value="role">Rola — funkcja, którą ktoś pełni</option>
+                <option value="group">Grupa — ci, którzy do niej należą</option>
               </select>
             </label>
 

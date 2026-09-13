@@ -11,7 +11,7 @@ import { call } from './session';
 /** Eine Rolle dieses Kontos. Der Anzeigename ist versiegelt — hier steht die Art. */
 export interface RoleCard {
   readonly id: string;
-  readonly kind: 'person' | 'office' | 'member';
+  readonly kind: 'person' | 'role' | 'group';
   /** Die eine Rolle, die DIESES Konto ist. Sie kann nicht übergeben werden. */
   readonly isPersonal: boolean;
 }

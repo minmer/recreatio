@@ -86,6 +86,7 @@ Workspace.Map(app);
 Slug.Map(app);
 Roles.Map(app);
 Page.Map(app);
+Access.Map(app);
 
 app.Run();
 return 0;

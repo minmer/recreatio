@@ -327,7 +327,200 @@ code {
 .wk-side .wk-h2:first-child { margin-top: 0; }
 .wk-side .wk-form { max-width: none; }
 
+/* -- Zugang an einer Adresse ----------------------------------------------- */
+
+.wk-page-edit { display: grid; gap: 0.6rem; margin-top: 1rem; }
+.wk-page-edit .wk-form { max-width: 34rem; }
+.wk-page-edit .wk-h2:first-child { margin-top: 0.6rem; }
+
+/* Geerbt heisst: gilt hier, gehoert aber woanders hin. Das steht am Eintrag,
+   nicht in einer Fussnote — sonst sucht jemand den Knopf zum Zuruecknehmen. */
+.wk-badge {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  color: var(--wk-muted);
+}
+
+.wk-field input[type="number"] {
+  font: inherit;
+  width: 7rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 3px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+}
+
+/* -- Der Seiteneditor ------------------------------------------------------ */
+
+.pb { display: grid; gap: 0.7rem; margin-top: 0.4rem; }
+
+.pb-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7rem; }
+.pb-views { display: flex; gap: 0.3rem; }
+
+.pb-view {
+  font: inherit;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+
+.pb-view.is-active { border-color: var(--wk-accent); color: var(--wk-accent); }
+.pb-view-cols { font-size: 0.72rem; color: var(--wk-muted); font-variant-numeric: tabular-nums; }
+.pb-hint, .pb-empty { margin: 0; font-size: 0.86rem; color: var(--wk-muted); }
+
+.pb-palette { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+.pb-pill {
+  font: inherit;
+  padding: 0.35rem 0.7rem;
+  border: 1px dashed var(--wk-line);
+  border-radius: 3px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: grab;
+  touch-action: none;
+}
+
+.pb-pill:hover { border-color: var(--wk-accent); }
+.pb-pill.is-dragging { opacity: 0.4; }
+
+.pb-canvas { overflow-x: auto; }
+
+.pb-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--pb-cols), minmax(0, 1fr));
+  grid-auto-rows: var(--pb-row-h);
+  gap: var(--pb-gap);
+  padding: var(--pb-gap);
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-ground);
+}
+
+.pb-cell { border-radius: 3px; }
+.pb-cell.is-live { border: 1px dashed var(--wk-line); }
+.pb-cell.is-open { border-color: var(--wk-accent); }
+.pb-cell.is-over { background: color-mix(in srgb, var(--wk-accent) 18%, transparent); }
+
+.pb-item {
+  position: relative;
+  display: grid;
+  gap: 0.15rem;
+  align-content: center;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  cursor: grab;
+  touch-action: none;
+  overflow: hidden;
+}
+
+.pb-item.is-selected { border-color: var(--wk-accent); outline: 1px solid var(--wk-accent); }
+.pb-item.is-dragging { opacity: 0.4; }
+.pb-item.is-todo { border-style: dashed; }
+
+.pb-item-name { font-weight: 600; font-size: 0.9rem; }
+.pb-item-size { font-size: 0.74rem; color: var(--wk-muted); font-variant-numeric: tabular-nums; }
+.pb-item-todo { font-size: 0.74rem; color: var(--wk-accent); }
+
+/* Die Griffe liegen AUF der Kante: halb drinnen, halb draussen, damit man sie
+   trifft, ohne den Baustein zu verfehlen. */
+.pb-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 1px solid var(--wk-accent);
+  border-radius: 2px;
+  background: var(--wk-surface);
+  cursor: nwse-resize;
+}
+
+.pb-handle-top { top: -6px; left: 50%; margin-left: -6px; cursor: ns-resize; }
+.pb-handle-bottom { bottom: -6px; left: 50%; margin-left: -6px; cursor: ns-resize; }
+.pb-handle-left { left: -6px; top: 50%; margin-top: -6px; cursor: ew-resize; }
+.pb-handle-right { right: -6px; top: 50%; margin-top: -6px; cursor: ew-resize; }
+.pb-handle-top-left { top: -6px; left: -6px; }
+.pb-handle-top-right { top: -6px; right: -6px; cursor: nesw-resize; }
+.pb-handle-bottom-left { bottom: -6px; left: -6px; cursor: nesw-resize; }
+.pb-handle-bottom-right { bottom: -6px; right: -6px; }
+
+.pb-drop {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 1.3rem;
+  height: 1.3rem;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--wk-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pb-drop:hover { color: #a5361c; }
+
+.pb-ghost {
+  display: grid;
+  align-content: center;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--wk-accent);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  opacity: 0.9;
+}
+
+.pb-fields { display: grid; gap: 0.6rem; max-width: 34rem; }
+.pb-h { margin: 0.4rem 0 0; font-size: 0.95rem; font-weight: 600; }
+.wk-field.is-empty > span { color: var(--wk-accent); }
+
 /* -- Die öffentliche Seite ------------------------------------------------- */
+
+.wk-page-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--page-cols), minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.2rem;
+  align-items: start;
+}
+
+.wk-card {
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+}
+
+.wk-card-title { margin: 0; font-size: 1.05rem; font-weight: 600; }
+.wk-card-text { margin: 0; }
+.wk-card-lines { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; }
+.wk-card-unknown { margin: 0; font-size: 0.82rem; color: var(--wk-muted); }
+
+/* Ein Hinweis soll auffallen — sonst ist er keiner. */
+.wk-card-notice {
+  margin: 0;
+  padding-left: 0.7rem;
+  border-left: 3px solid var(--wk-accent);
+  font-weight: 600;
+}
 
 /* Absaetze kommen aus einem Textfeld: was jemand mit der Eingabetaste getrennt
    hat, soll auch getrennt dastehen. */

@@ -28,7 +28,7 @@ import {
 /** Eine Rolle, so wie der Dienst sie herausgibt — alles Geheime versiegelt. */
 export interface SealedRole {
   readonly id: string;
-  readonly kind: 'person' | 'office' | 'member';
+  readonly kind: 'person' | 'role' | 'group';
   readonly isPersonal: boolean;
   readonly createdAt: string;
   readonly displayNameSealed: string | null;

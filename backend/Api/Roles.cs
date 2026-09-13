@@ -184,12 +184,12 @@ public static class Roles
         }
 
         var kind = (body.Kind ?? string.Empty).Trim();
-        if (kind is not ("office" or "member"))
+        if (kind is not ("role" or "group"))
         {
-            // Persönliche Rollen entstehen mit dem Konto und sonst nie. Liesse
-            // man sie hier zu, gäbe es persönliche Rollen ohne ableitbaren
-            // Schlüssel — dieselbe Bezeichnung für zwei verschiedene Dinge.
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Rola może być urzędem albo członkostwem.");
+            // `person` entsteht mit dem Konto und sonst nie. Liesse man sie hier
+            // zu, gäbe es persönliche Rollen ohne ableitbaren Schlüssel —
+            // dieselbe Bezeichnung für zwei verschiedene Dinge.
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Rodzaj: rola albo grupa.");
             return;
         }
 
@@ -467,9 +467,9 @@ public static class Roles
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         var kind = (body.Kind ?? string.Empty).Trim();
-        if (kind is not ("office" or "member"))
+        if (kind is not ("role" or "group"))
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Rola może być urzędem albo członkostwem.");
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Rodzaj: rola albo grupa.");
             return;
         }
 

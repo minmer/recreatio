@@ -97,7 +97,7 @@ async function signEdge(
 export async function createRole(
   ring: Ring,
   holder: SealedRole,
-  options: { kind: 'office' | 'member'; name: string }
+  options: { kind: 'role' | 'group'; name: string }
 ): Promise<{ id: string }> {
   const id = newId();
   const pair = await newRolePair();
@@ -175,7 +175,7 @@ export async function renameRole(ring: Ring, roleId: string, name: string): Prom
   });
 }
 
-export const retypeRole = (roleId: string, kind: 'office' | 'member'): Promise<{ ok: boolean }> =>
+export const retypeRole = (roleId: string, kind: 'role' | 'group'): Promise<{ ok: boolean }> =>
   call<{ ok: boolean }>(`/workspace/roles/${encodeURIComponent(roleId)}/kind`, {
     method: 'POST',
     body: JSON.stringify({ kind })
