@@ -94,10 +94,13 @@ async function signEdge(
  * daraus zu machen hiesse, dass es Rollen gäbe, die niemand hält — und die
  * wären unlöschbar nutzlos, weil niemand ihren Schlüssel hat.
  */
+/** Was sich anlegen lässt. `person` ist ein MENSCH — nicht „das eigene Konto". */
+export type NewKind = 'role' | 'group' | 'person';
+
 export async function createRole(
   ring: Ring,
   holder: SealedRole,
-  options: { kind: 'role' | 'group'; name: string }
+  options: { kind: NewKind; name: string }
 ): Promise<{ id: string }> {
   const id = newId();
   const pair = await newRolePair();

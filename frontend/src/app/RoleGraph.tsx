@@ -27,7 +27,7 @@ import 'reactflow/dist/style.css';
 import type { Ring, SealedRole } from './keys';
 import {
   addHolder, createRole, dropHolder, renameRole, retypeRole, revokeRole,
-  type RoleEdge, type RoleGraphData
+  type NewKind, type RoleEdge, type RoleGraphData
 } from './roles';
 import { forgetKeys, keysFor } from './ringOf';
 import { WorkspaceError, type Who } from './session';
@@ -285,7 +285,7 @@ function Panel({ role, ring, name, holders, names, busy, onAct }: {
 }) {
   const [draft, setDraft] = useState('');
   const [newName, setNewName] = useState('');
-  const [newKind, setNewKind] = useState<'role' | 'group'>('role');
+  const [newKind, setNewKind] = useState<NewKind>('role');
 
   const mine = ring !== null && ring.has(role.id);
   const label = (id: string) => names.get(id) ?? 'zapieczętowane';
@@ -376,11 +376,24 @@ function Panel({ role, ring, name, holders, names, busy, onAct }: {
 
             <label className="wk-field">
               <span>Rodzaj</span>
-              <select value={newKind} onChange={(e) => setNewKind(e.target.value as 'role' | 'group')}>
+              <select value={newKind} onChange={(e) => setNewKind(e.target.value as NewKind)}>
+                <option value="person">Osoba — konkretny człowiek</option>
                 <option value="role">Rola — funkcja, którą ktoś pełni</option>
                 <option value="group">Grupa — ci, którzy do niej należą</option>
               </select>
             </label>
+
+            {/*
+              Der Unterschied, der später zählt: eine Person geht, ein Amt
+              bleibt. Wer beides gleich anlegt, kann die Frage „wer hat das
+              damals gemacht" nicht mehr von „wer macht das heute" trennen.
+            */}
+            {newKind === 'person' && (
+              <p className="wk-hint">
+                Osoba to człowiek, nie funkcja. Jeśli chodzi Ci o coś, co można
+                komuś przekazać — wybierz „Rola".
+              </p>
+            )}
 
             <div className="wk-actions">
               <button type="submit" className="wk-btn" disabled={busy || newName.trim() === ''}>Załóż rolę</button>

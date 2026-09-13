@@ -184,14 +184,33 @@ public static class Roles
         }
 
         var kind = (body.Kind ?? string.Empty).Trim();
-        if (kind is not ("role" or "group"))
+        if (kind is not ("role" or "group" or "person"))
         {
-            // `person` entsteht mit dem Konto und sonst nie. Liesse man sie hier
-            // zu, gäbe es persönliche Rollen ohne ableitbaren Schlüssel —
-            // dieselbe Bezeichnung für zwei verschiedene Dinge.
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Rodzaj: rola albo grupa.");
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Rodzaj: rola, grupa albo osoba.");
             return;
         }
+
+        /*
+         * `person` WAR hier verboten, mit der Begruendung, es gaebe sonst
+         * persoenliche Rollen ohne ableitbaren Schluessel — dieselbe Bezeichnung
+         * fuer zwei verschiedene Dinge.
+         *
+         * Die Begruendung traf die falsche Spalte. „Die persoenliche Rolle
+         * DIESES Kontos" steht nicht in `kind`, sondern in
+         * `app.account.person_role_id`; genau daraus rechnet `ListAsync` das
+         * `isPersonal` aus, und nur dort wird der Schluessel aus dem
+         * Hauptschluessel abgeleitet (`RoleKeys.PersonalRoleKey`).
+         *
+         * `kind = 'person'` heisst also schlicht: DIESE ROLLE IST EIN MENSCH —
+         * eine Pfarrerin, ein Kuester, ein Mitglied. Ihr Schluessel entsteht wie
+         * bei jeder anderen angelegten Rolle im Browser und wird dem Halter
+         * verpackt. Das ist kein zweites Ding mit demselben Namen, sondern das,
+         * was der Name immer schon sagte; die Oberflaeche nennt sie seit jeher
+         * „Osoba".
+         *
+         * Was bleibt: die Rolle, auf die das Konto zeigt, ist unverwechselbar,
+         * und sie ist es ueber den Zeiger — nicht ueber das Wort.
+         */
 
         if (!TryBlobs(ctx, out var fail,
                 (body.WrapPublicKey, "wrapPublicKey"), (body.SignPublicKey, "signPublicKey"),
@@ -485,7 +504,9 @@ public static class Roles
 
         if (await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 0)
         {
-            await Fail(ctx, StatusCodes.Status409Conflict, "Roli osobistej nie da się przetypować.");
+            // Gilt fuer JEDE Rolle der Art `person`, nicht nur fuer die des
+            // Kontos: aus einem Menschen wird keine Gruppe.
+            await Fail(ctx, StatusCodes.Status409Conflict, "Osoby nie da się przetypować.");
             return;
         }
 
