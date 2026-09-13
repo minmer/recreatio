@@ -277,7 +277,14 @@ export const VIEWS = {
   chat: 'Rozmowy',
   pages: 'Strony',
   addresses: 'Adresy i domeny',
-  roles: 'Role'
+  roles: 'Role',
+
+  /*
+   * Das Konto selbst — und die eine Entscheidung, die daran hängt: wie lange
+   * der Schlüssel lebt. Sie steht NICHT bei „Obszary": dort geht es um
+   * Schlüssel, die Inhalte öffnen, hier um den, der das Konto öffnet.
+   */
+  account: 'Konto'
 } as const;
 
 export type View = keyof typeof VIEWS;

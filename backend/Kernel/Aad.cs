@@ -16,6 +16,18 @@ public enum Field
     // kernel
     AccountMasterKey,
 
+    /// <summary>
+    /// 0021 — Der PasswordKey selbst, versiegelt unter einem GERAETESCHLUESSEL,
+    /// damit er einen Neustart uebersteht.
+    ///
+    /// <para>
+    /// Versiegelt und geoeffnet wird ausschliesslich im Browser; der Dienst legt
+    /// die Huelle ab und haelt fuer sie keinen Schluessel. Der Eintrag steht
+    /// hier, weil 3.13 ihn verlangt — nicht, weil der Kernel ihn benutzt.
+    /// </para>
+    /// </summary>
+    AccountKeptKey,
+
     /// <summary>12.3.2 — Der Schluessel eines einzelnen Datenelements.</summary>
     DataItemKey,
     RoleSignPrivate,
@@ -264,6 +276,7 @@ public readonly record struct Aad
     public static string FieldName(Field f) => f switch
     {
         Field.AccountMasterKey        => "masterkey",
+        Field.AccountKeptKey          => "kept_key",
         Field.DataItemKey             => "item_key",
         Field.RoleSignPrivate         => "sign_private",
         Field.RoleWrapPrivate         => "wrap_private",

@@ -17,7 +17,7 @@
 
 import { openMasterKey, Ring } from './keys';
 import { loadRoles, type RoleGraphData } from './roles';
-import { heldPasswordKey, type Who } from './session';
+import { passwordKeyFor, type Who } from './session';
 
 export interface Keys {
   /** `null` heisst: dieser Tab hat den PasswordKey nicht (mehr). */
@@ -31,7 +31,13 @@ export async function keysFor(who: Who): Promise<Keys> {
   if (cached !== null && cached.accountId === who.accountId) return cached.keys;
 
   const graph = await loadRoles();
-  const passwordKey = heldPasswordKey();
+
+  /*
+   * Notfalls von einem anderen Tab — der Schlüssel liegt nur im Speicher, aber
+   * nicht nur in DIESEM. Hat keiner einen, kommt `null`, und die Ansicht fragt
+   * nach dem Passwort wie bisher.
+   */
+  const passwordKey = await passwordKeyFor(who);
 
   if (passwordKey === null || graph.personRoleId === null) {
     // Der Graph steht trotzdem: eine Rolle ohne lesbaren Namen ist besser als

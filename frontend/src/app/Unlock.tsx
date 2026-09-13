@@ -11,7 +11,7 @@
 import { useState } from 'react';
 
 import { forgetKeys } from './ringOf';
-import { unlock, WorkspaceError, type Who } from './session';
+import { keepsKey, unlock, WorkspaceError, type Who } from './session';
 
 export function Unlock({ who, onDone, why }: {
   who: Who;
@@ -28,7 +28,7 @@ export function Unlock({ who, onDone, why }: {
     setFailed(null);
 
     try {
-      await unlock(who.loginId, password);
+      await unlock(who, password);
       setPassword('');
 
       // Der Bund wurde ohne Schlüssel gebaut und ist jetzt überholt.
@@ -43,9 +43,19 @@ export function Unlock({ who, onDone, why }: {
 
   return (
     <form className="wk-note" onSubmit={(e) => { e.preventDefault(); if (!busy) void go(); }}>
+      {/*
+        Der Satz muss zur EINSTELLUNG passen. „Bleibt nur in dieser Karte" wäre
+        bei eingeschalteter Verwahrung schlicht falsch — und zwar an der einen
+        Stelle, an der ein Mensch sich auf die Auskunft verlässt.
+      */}
       <p className="wk-hint">
-        {why} Klucz liczy się z hasła i zostaje tylko w tej karcie — po
-        odświeżeniu strony trzeba go policzyć jeszcze raz.
+        {why}{' '}
+        {keepsKey(who)
+          ? 'Klucz liczy się z hasła. Zostanie zachowany — zapieczętowany kluczem'
+            + ' tego urządzenia, którego usługa nie zna — więc po restarcie nie'
+            + ' zapytamy o nie ponownie.'
+          : 'Klucz liczy się z hasła i zostaje tylko w pamięci — po zamknięciu'
+            + ' wszystkich kart trzeba go policzyć jeszcze raz.'}
       </p>
 
       <div className="wk-actions">

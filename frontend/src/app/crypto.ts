@@ -59,6 +59,13 @@ export const Field = {
   RoleDisplayName: 'display_name',
 
   /*
+   * Der PasswordKey selbst, versiegelt unter dem GERÄTESCHLÜSSEL (0021), damit
+   * er einen Neustart übersteht. Versiegelt und geöffnet wird er nur hier; der
+   * Dienst legt die Hülle ab und hat für sie keinen Schlüssel.
+   */
+  AccountKeptKey: 'kept_key',
+
+  /*
    * Der Epochenschlüssel eines Bereichs. Er entsteht im Browser, wird der Rolle
    * verpackt und von dort wieder ausgepackt (`area.ts`) — beide Seiten müssen
    * dasselbe Etikett nennen, sonst passt das Label nicht zur AAD.

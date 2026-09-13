@@ -185,7 +185,12 @@ public static class Auth
                 {
                     accountId = Ids.ToText(accountId),
                     loginId = name,
-                    masterKeySealed = Base64Url.Encode(secrets.MasterKeySealed)
+                    masterKeySealed = Base64Url.Encode(secrets.MasterKeySealed),
+
+                    // Ein neues Konto bekommt die Vorgabe (0021). Sie steht hier
+                    // und nicht im Browser: sonst haette jede Oberflaeche ihre
+                    // eigene Meinung darueber, was voreingestellt ist.
+                    keyKeeping = Keeping.Kept
                 });
             }
             finally
@@ -214,7 +219,7 @@ public static class Auth
             await using var connection = await db.OpenAsync(ctx.RequestAborted);
             await using var cmd = new SqlCommand("""
                 SELECT id, password_salt, login_salt, login_verifier, master_key_sealed,
-                       person_role_id, disabled_at
+                       person_role_id, disabled_at, key_keeping
                 FROM app.account WHERE login_id = @n;
                 """, connection);
             cmd.Parameters.AddWithValue("@n", name);
@@ -223,6 +228,9 @@ public static class Auth
             byte[]? passwordSalt = null, loginSalt = null, verifier = null, masterSealed = null;
             Guid? personRoleId = null;
             var disabled = false;
+
+            // Die Vorgabe, falls die Zeile aus der Zeit vor 0021 stammt.
+            var keeping = Keeping.Kept;
 
             await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
             {
@@ -235,6 +243,7 @@ public static class Auth
                     masterSealed = (byte[])reader[4];
                     personRoleId = reader.IsDBNull(5) ? null : reader.GetGuid(5);
                     disabled = !reader.IsDBNull(6);
+                    keeping = reader.IsDBNull(7) ? Keeping.Kept : reader.GetString(7);
                 }
             }
 
@@ -298,7 +307,8 @@ public static class Auth
             {
                 accountId = Ids.ToText(accountId),
                 loginId = name,
-                masterKeySealed = Base64Url.Encode(masterSealed!)
+                masterKeySealed = Base64Url.Encode(masterSealed!),
+                keyKeeping = keeping
             });
         }
         finally
@@ -397,11 +407,21 @@ public static class Auth
         var who = await WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
         await ctx.Response.WriteAsJsonAsync(new
         {
             accountId = Ids.ToText(who.Value.AccountId),
             loginId = who.Value.LoginId,
-            masterKeySealed = Base64Url.Encode(who.Value.MasterKeySealed)
+            masterKeySealed = Base64Url.Encode(who.Value.MasterKeySealed),
+
+            /*
+             * Die Betriebsart kommt MIT. Der Browser muss vor dem ersten
+             * Handgriff wissen, ob er den Schluessel aufbewahren darf — holte er
+             * sie in einem zweiten Aufruf nach, gaebe es einen Augenblick, in
+             * dem er es nicht weiss, und genau dann faellt die Entscheidung.
+             */
+            keyKeeping = await Keeping.ModeOfAsync(connection, who.Value.AccountId, ctx.RequestAborted)
         });
     }
 

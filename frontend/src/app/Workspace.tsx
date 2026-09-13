@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { pagePath, PATH_SHAPE, tilesPath, viewPath, VIEWS, type Spot, type View } from './routes';
+import { Account } from './Account';
 import { Addresses } from './Addresses';
 import { Areas } from './Areas';
 import { MassOffice } from './MassOffice';
@@ -137,6 +138,10 @@ function Tiles({ desk }: { desk: Desk }) {
             {desk.roles.map((role) => <li key={role.id}>{roleName(role)}</li>)}
           </ul>
         </Tile>
+
+        <Tile view="account">
+          <p className="wk-empty">Hasło, klucz i urządzenia, które go pamiętają.</p>
+        </Tile>
       </div>
     </>
   );
@@ -171,6 +176,7 @@ function Inside({ view, desk, who, onChanged }: {
   if (view === 'roles') return <RoleGraph who={who} />;
   if (view === 'areas') return <Areas who={who} />;
   if (view === 'calendar') return <MassOffice />;
+  if (view === 'account') return <Account who={who} />;
 
   /*
    * Rozmowy: die Kachel steht, die Quelle nicht. Das hier auszuschreiben ist

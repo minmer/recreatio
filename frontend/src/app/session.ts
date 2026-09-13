@@ -14,6 +14,8 @@
 import { argon2id } from 'hash-wasm';
 
 import { fromBase64Url, toBase64Url } from './crypto';
+import { announceForget, borrow, serve, type Held } from './keyring';
+import { device, knownDevice, openKept, sealKept } from './kept';
 
 /**
  * Wo der Dienst liegt.
@@ -68,6 +70,15 @@ const API = serviceOrigin().replace(/\/+$/, '');
 /** Muss mit `Password` im Kernel übereinstimmen. */
 const ARGON = { memoryKiB: 64 * 1024, iterations: 3, parallelism: 1, outputBytes: 32, saltBytes: 16 } as const;
 
+/**
+ * Wie dieses Konto es mit dem PasswordKey hält (0021).
+ *
+ *   kept  der Schlüssel überlebt den Neustart — versiegelt beim Dienst,
+ *         zu öffnen nur mit dem Geräteschlüssel dieses Browsers
+ *   tab   der Schlüssel lebt nur im Arbeitsspeicher
+ */
+export type KeyKeeping = 'kept' | 'tab';
+
 export interface Who {
   readonly accountId: string;
   readonly loginId: string;
@@ -80,7 +91,20 @@ export interface Who {
    * niemand — deshalb darf sie mit der Sitzung mitkommen.
    */
   readonly masterKeySealed: string;
+
+  /**
+   * ABSICHTLICH fakultativ.
+   *
+   * Ein Dienst von vor 0021 schickt das Feld nicht. Fehlt es, gilt die
+   * STRENGE Fassung — der Schlüssel wird dann nicht aufbewahrt. Das ist die
+   * Richtung, in die ein Zweifel fallen muss: eine fehlende Angabe darf nicht
+   * dazu führen, dass etwas abgelegt wird, was niemand angeordnet hat.
+   */
+  readonly keyKeeping?: KeyKeeping;
 }
+
+/** Nur ein ausdrückliches `kept` zählt — alles andere ist „nur im Tab". */
+export const keepsKey = (who: Who): boolean => who.keyKeeping === 'kept';
 
 /* Base64URL steht in `crypto.ts`: dort wird es am häufigsten gebraucht, und
    zwei Fassungen derselben Kodierung laufen irgendwann auseinander. */
@@ -185,27 +209,145 @@ export async function signIn(loginId: string, password: string): Promise<Who> {
     body: JSON.stringify({ loginId, passwordKeyBase64Url: toBase64Url(key) })
   });
 
-  held = key;
+  // Der Name, wie der DIENST ihn schreibt: er ist dort kleingeschrieben, und
+  // unter ihm fragen die anderen Tabs.
+  remember(who.loginId, key);
+
+  // Eine misslungene Verwahrung ist kein misslungenes Anmelden.
+  try { await keepIfWanted(who, key); } catch { /* dann eben beim nächsten Mal */ }
+
   return who;
 }
 
-/* -- Der PasswordKey bleibt hier -------------------------------------------
+/* -- Der PasswordKey bleibt im Speicher ------------------------------------
  *
- * <b>Im Speicher dieses Tabs und sonst nirgends.</b> Ohne ihn öffnet sich kein
- * Rollenname: er führt zum Hauptschlüssel, der Hauptschlüssel zu den
- * Rollenschlüsseln. Der Altbestand legte ihn dafür in `sessionStorage` und
- * schickte ihn sogar an den Server; beides ist eine Abkürzung, die der Neubau
- * nicht nimmt — was in einem Speicher liegt, überlebt den Tab und liest jedes
- * Skript, das je auf diese Seite gerät.
+ * <b>Im Arbeitsspeicher und auf keinem Datenträger.</b> Ohne ihn öffnet sich
+ * kein Rollenname: er führt zum Hauptschlüssel, der Hauptschlüssel zu den
+ * Rollenschlüsseln. Der Altbestand legte ihn in `sessionStorage` und schickte
+ * ihn sogar an den Server; beides ist eine Abkürzung, die dieser Bau nicht
+ * nimmt — was in einem Speicher liegt, überlebt den Tab und liest jedes Skript,
+ * das je auf diese Seite gerät.
  *
- * Der Preis steht in `keys.ts`: nach einem Neuladen ist er fort, und wer die
- * Namen sehen will, tippt sein Passwort noch einmal. Die Sitzung selbst bleibt
- * davon unberührt — angemeldet ist man weiterhin.
+ * <b>Geteilt wird er trotzdem — zwischen den TABS, nicht auf die Platte.</b>
+ * Ein zweiter Tab derselben Herkunft fragt die offenen (`keyring.ts`); wer
+ * einen hat, reicht ihn im Speicher herüber. Das ist der Unterschied, auf den
+ * es ankommt: ein `sessionStorage` hätte hier gar nicht geholfen (er gilt je
+ * Tab), und ein `localStorage` hätte den Schlüssel auf die Platte geschrieben.
+ *
+ * Was bleibt: schliesst der letzte Tab, ist der Schlüssel fort. Antwortet
+ * niemand, wird nach dem Passwort gefragt — wie bisher.
  */
-let held: Uint8Array | null = null;
+let held: Held | null = null;
 
-/** Der PasswordKey dieses Tabs, oder `null` nach einem Neuladen. */
-export const heldPasswordKey = (): Uint8Array | null => held;
+/*
+ * Dieser Tab beantwortet Anfragen der anderen. Der Schlüssel wird dabei nicht
+ * kopiert abgelegt: `keyring.ts` fragt bei jedem Mal hier nach.
+ */
+serve(() => held, () => { held = null; });
+
+const remember = (loginId: string, key: Uint8Array): void => { held = { loginId, key }; };
+
+/** Der PasswordKey dieses Tabs, oder `null`. Fragt die anderen NICHT. */
+export const heldPasswordKey = (): Uint8Array | null => held?.key ?? null;
+
+/* -- Aufbewahren, ohne dass der Dienst mitliest (0021) ----------------------
+ *
+ * Der PasswordKey wird unter dem GERÄTESCHLÜSSEL versiegelt (`kept.ts`) und
+ * erst dann abgelegt. Der Dienst hält die Hülle und für sie keinen Schlüssel;
+ * das Gerät hält den Öffner und bekommt die Hülle nur gegen eine gültige
+ * Sitzung. Keine Hälfte genügt allein.
+ */
+
+/**
+ * Den Schlüssel dieses Tabs SOFORT verwahren.
+ *
+ * Für den Augenblick direkt nach dem Einschalten: das `who` im Speicher trägt
+ * dann noch die alte Betriebsart, und `keepIfWanted` würde deshalb ablehnen.
+ * Hier wird nicht gefragt — der Mensch hat es gerade angeordnet.
+ *
+ * `false` heisst: dieser Tab hat keinen Schlüssel, oder der Browser lässt
+ * nichts ablegen. Dann geschieht es beim nächsten Anmelden.
+ */
+export async function keepHeldKey(who: Who): Promise<boolean> {
+  if (held === null) return false;
+
+  const on = device();
+  if (on === null) return false;
+
+  await call('/workspace/key', {
+    method: 'POST',
+    body: JSON.stringify({ deviceId: on.id, sealed: await sealKept(who.accountId, on, held.key) })
+  });
+
+  return true;
+}
+
+/** Ablegen — aber nur, wenn dieses Konto es angeordnet hat. */
+async function keepIfWanted(who: Who, key: Uint8Array): Promise<void> {
+  if (!keepsKey(who)) return;
+
+  const on = device();
+  if (on === null) return; // Der Browser lässt nichts ablegen. Dann eben nicht.
+
+  await call('/workspace/key', {
+    method: 'POST',
+    body: JSON.stringify({ deviceId: on.id, sealed: await sealKept(who.accountId, on, key) })
+  });
+}
+
+/**
+ * Zurückholen.
+ *
+ * Ein Fehlschlag ist hier kein Fehler: es gibt nichts, es passt nicht zu diesem
+ * Gerät, oder die Sitzung reicht nicht. In allen drei Fällen ist die richtige
+ * Antwort dieselbe — nach dem Passwort fragen.
+ */
+async function restoreKept(who: Who): Promise<Uint8Array | null> {
+  if (!keepsKey(who)) return null;
+
+  // `knownDevice` und nicht `device`: beim blossen Nachsehen soll keine
+  // Gerätekennung entstehen.
+  const on = knownDevice();
+  if (on === null) return null;
+
+  try {
+    const kept = await call<{ sealed: string }>(
+      `/workspace/key?device=${encodeURIComponent(on.id)}`);
+
+    return await openKept(who.accountId, on, kept.sealed);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Der PasswordKey — aus diesem Tab, von einem anderen, oder aus der Verwahrung.
+ *
+ * <b>In dieser Reihenfolge, und sie ist keine Geschmacksfrage.</b> Ein offener
+ * Tab antwortet in Mikrosekunden und hält denselben Schlüssel; die Verwahrung
+ * kostet eine Runde zum Dienst. Zuerst zu fragen, was ohnehin schon im Speicher
+ * liegt, spart sie.
+ *
+ * <b>Der Name wird mitgegeben und geprüft.</b> Sonst bekäme man den Schlüssel
+ * eines Tabs, in dem gerade jemand anderes angemeldet ist.
+ */
+export async function passwordKeyFor(who: Who): Promise<Uint8Array | null> {
+  if (held !== null) return held.key;
+
+  const borrowed = await borrow(who.loginId);
+  if (borrowed !== null) {
+    remember(who.loginId, borrowed);
+    return borrowed;
+  }
+
+  const kept = await restoreKept(who);
+  if (kept !== null) {
+    remember(who.loginId, kept);
+    return kept;
+  }
+
+  return null;
+}
 
 /** Das Salz holen und rechnen — der teure Teil, an einer Stelle. */
 async function keyFor(loginId: string, password: string): Promise<Uint8Array> {
@@ -223,9 +365,18 @@ async function keyFor(loginId: string, password: string): Promise<Uint8Array> {
  * ersten Öffnen einer Hülle (`keys.ts`). Ein zweiter Anmeldeaufruf nur zur
  * Prüfung wäre eine zweite Sitzung für nichts.
  */
-export async function unlock(loginId: string, password: string): Promise<Uint8Array> {
-  held = await keyFor(loginId, password);
-  return held;
+export async function unlock(who: Who, password: string): Promise<Uint8Array> {
+  const key = await keyFor(who.loginId, password);
+  remember(who.loginId, key);
+
+  /*
+   * Und gleich verwahren, wenn das Konto es will. Ohne das stünde man nach dem
+   * nächsten Neustart wieder vor demselben Feld — und hätte beim vorletzten Mal
+   * schon alles getan, was nötig gewesen wäre.
+   */
+  try { await keepIfWanted(who, key); } catch { /* Öffnen hat trotzdem geklappt */ }
+
+  return key;
 }
 
 /**
@@ -249,14 +400,39 @@ export async function register(loginId: string, password: string): Promise<Who> 
     })
   });
 
-  held = key;
+  remember(who.loginId, key);
+
+  try { await keepIfWanted(who, key); } catch { /* dann eben beim nächsten Mal */ }
+
   return who;
 }
 
 export async function signOut(): Promise<void> {
   // Zuerst der Schlüssel, dann der Dienst: scheitert der Aufruf, soll trotzdem
   // nichts mehr im Speicher liegen.
+  const was = held;
   held = null;
+
+  /*
+   * Und in den ÜBRIGEN Tabs auch nicht. Der Keks gilt für alle — wer sich hier
+   * abmeldet, ist überall abgemeldet; ein Schlüssel, der daneben liegen bliebe,
+   * überlebte die Sitzung, zu der er gehört.
+   */
+  if (was !== null) announceForget(was.loginId);
+
+  /*
+   * Die verwahrte Hülle geht VOR dem Abmelden weg — danach gäbe es keine
+   * Sitzung mehr, mit der sie sich noch wegräumen liesse, und sie bliebe für
+   * den nächsten liegen, der an dieses Gerät kommt.
+   *
+   * Der Öffner im `localStorage` bleibt: ohne Hülle ist er wertlos, und beim
+   * nächsten Anmelden wird er wieder gebraucht.
+   */
+  const on = knownDevice();
+  if (on !== null) {
+    try { await call(`/workspace/key?device=${encodeURIComponent(on.id)}`, { method: 'DELETE' }); }
+    catch { /* Bleibt sie liegen, ist sie beim nächsten Anmelden ohnehin überschrieben. */ }
+  }
 
   try { await call<{ ok: boolean }>('/auth/logout', { method: 'POST' }); }
   catch { /* Abmelden scheitert nicht sichtbar: der Keks ist ohnehin fort. */ }
