@@ -84,6 +84,8 @@ app.MapGet("/health", () =>
 Auth.Map(app);
 Workspace.Map(app);
 Slug.Map(app);
+Roles.Map(app);
+Page.Map(app);
 
 app.Run();
 return 0;

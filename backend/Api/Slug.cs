@@ -144,7 +144,7 @@ public static partial class Slug
         var ancestors = Ancestors(path);
         if (ancestors.Count > 0)
         {
-            var held = await ClaimedAncestorAsync(connection, ancestors, ctx.RequestAborted);
+            var held = await LongestClaimedAsync(connection, ancestors, ctx.RequestAborted);
             if (held is not null && !mine.Any(r => r.Id == held.Value.RoleId))
             {
                 await Fail(ctx, StatusCodes.Status409Conflict,
@@ -183,10 +183,24 @@ public static partial class Slug
         });
     }
 
-    private static async Task<(string Path, Guid RoleId)?> ClaimedAncestorAsync(
-        SqlConnection connection, IReadOnlyList<string> ancestors, CancellationToken ct)
+    /// <summary>
+    /// Von den genannten Adressen die LÄNGSTE, die jemand führt — mit ihrer
+    /// Rolle.
+    ///
+    /// <para>
+    /// Die eine Stelle, an der „wer ist hier verantwortlich" beantwortet wird.
+    /// Beim Übernehmen bekommt sie die Vorfahren zu sehen (der Pfad selbst ist
+    /// dort ja noch frei), beim Schreiben einer Seite den Pfad UND seine
+    /// Vorfahren. Zwei Fassungen dieser Frage wären zwei Rechteprüfungen, und
+    /// eine davon liefe irgendwann anders.
+    /// </para>
+    /// </summary>
+    public static async Task<(string Path, Guid RoleId)?> LongestClaimedAsync(
+        SqlConnection connection, IReadOnlyList<string> paths, CancellationToken ct)
     {
-        var names = string.Join(", ", ancestors.Select((_, i) => $"@a{i}"));
+        if (paths.Count == 0) return null;
+
+        var names = string.Join(", ", paths.Select((_, i) => $"@a{i}"));
 
         // Der längste zuerst: die nächstliegende Heimat entscheidet, nicht die
         // oberste.
@@ -195,7 +209,7 @@ public static partial class Slug
             + $"WHERE path IN ({names}) AND claimed_by_role_id IS NOT NULL "
             + "ORDER BY LEN(path) DESC;", connection);
 
-        for (var i = 0; i < ancestors.Count; i++) cmd.Parameters.AddWithValue($"@a{i}", ancestors[i]);
+        for (var i = 0; i < paths.Count; i++) cmd.Parameters.AddWithValue($"@a{i}", paths[i]);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;

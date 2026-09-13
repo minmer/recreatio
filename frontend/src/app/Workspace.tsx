@@ -16,11 +16,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { tilesPath, viewPath, VIEWS, type Spot, type View } from './routes';
-import { WorkspaceError } from './session';
+import { pagePath, tilesPath, viewPath, VIEWS, type Spot, type View } from './routes';
+import { PageEditor } from './PageEditor';
+import { RoleGraph } from './RoleGraph';
+import { WorkspaceError, type Who } from './session';
 import { claimSlug, loadDesk, type Desk, type RoleCard } from './desk';
 
-export function Workspace({ spot }: { spot: Spot }) {
+export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   /** `undefined` = noch nicht nachgesehen, `null` = ging nicht. */
   const [desk, setDesk] = useState<Desk | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
@@ -75,7 +77,7 @@ export function Workspace({ spot }: { spot: Spot }) {
           <a className="wk-back" href={tilesPath()} aria-label="Wróć do warsztatu">←</a>
           <h1 className="wk-h1">{VIEWS[spot.view]}</h1>
         </div>
-        <Inside view={spot.view} desk={desk} onChanged={() => void look()} />
+        <Inside view={spot.view} desk={desk} who={who} onChanged={() => void look()} />
       </>
     );
   }
@@ -143,13 +145,14 @@ function Tile({ view, count, children }: {
 
 /* -- Eine Kachel ganz ------------------------------------------------------ */
 
-function Inside({ view, desk, onChanged }: {
+function Inside({ view, desk, who, onChanged }: {
   view: View;
   desk: Desk;
+  who: Who;
   onChanged: () => void;
 }) {
   if (view === 'pages') return <Pages desk={desk} onClaimed={onChanged} />;
-  if (view === 'roles') return <Roles desk={desk} />;
+  if (view === 'roles') return <RoleGraph who={who} />;
 
   /*
    * Kalender und Rozmowy: die Kachel steht, die Quelle nicht. Das hier
@@ -165,32 +168,13 @@ function Inside({ view, desk, onChanged }: {
   );
 }
 
-function Roles({ desk }: { desk: Desk }) {
-  return (
-    <>
-      <p className="wk-lede">
-        Rola to nie osoba: to, na co można przepisać odpowiedzialność. Człowiek
-        odchodzi, urząd zostaje.
-      </p>
-
-      <ul className="wk-list">
-        {desk.roles.map((role) => (
-          <li className="wk-row" key={role.id}>
-            <span>{roleName(role)}</span>
-            <span className="wk-row-side"><code>{short(role.id)}</code></span>
-          </li>
-        ))}
-      </ul>
-    </>
-  );
-}
-
 /* -- Strony: übernehmen, nicht anlegen ------------------------------------- */
 
 /** Dieselbe Form wie `ck_slug_path` und `Slug.Shape()` im Dienst. */
 const SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
 
 function Pages({ desk, onClaimed }: { desk: Desk; onClaimed: () => void }) {
+  const [editing, setEditing] = useState<string | null>(null);
   const [wanted, setWanted] = useState('');
   const [code, setCode] = useState('');
   const [roleId, setRoleId] = useState(desk.roles[0]?.id ?? '');
@@ -241,12 +225,28 @@ function Pages({ desk, onClaimed }: { desk: Desk; onClaimed: () => void }) {
         <ul className="wk-list">
           {desk.pages.map((page) => (
             <li className="wk-row" key={page.path}>
-              <span><code>recreatio.pl/{page.path}</code></span>
-              <span className="wk-row-side">{roleOf(desk, page.roleId)}</span>
+              <span>
+                <a className="wk-link" href={pagePath(page.path)}>
+                  <code>recreatio.pl/{page.path}</code>
+                </a>
+              </span>
+
+              <span className="wk-row-side">
+                {roleOf(desk, page.roleId)}{' · '}
+                <button
+                  type="button"
+                  className="wk-link-btn"
+                  onClick={() => setEditing(editing === page.path ? null : page.path)}
+                >
+                  {editing === page.path ? 'Zamknij' : 'Edytuj stronę'}
+                </button>
+              </span>
             </li>
           ))}
         </ul>
       )}
+
+      {editing !== null && <PageEditor path={editing} />}
 
       <h2 className="wk-h2">Przejmij adres</h2>
 

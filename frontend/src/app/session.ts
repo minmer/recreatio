@@ -13,6 +13,8 @@
 
 import { argon2id } from 'hash-wasm';
 
+import { fromBase64Url, toBase64Url } from './crypto';
+
 /**
  * Wo der Dienst liegt.
  *
@@ -33,27 +35,19 @@ const ARGON = { memoryKiB: 64 * 1024, iterations: 3, parallelism: 1, outputBytes
 export interface Who {
   readonly accountId: string;
   readonly loginId: string;
+
+  /**
+   * Die Hülle des Hauptschlüssels, unter dem PasswordKey versiegelt.
+   *
+   * Für den Dienst ein Byte-Feld; für diesen Browser der Anfang der Kette, an
+   * deren Ende ein lesbarer Rollenname steht. Ohne das Passwort öffnet sie
+   * niemand — deshalb darf sie mit der Sitzung mitkommen.
+   */
+  readonly masterKeySealed: string;
 }
 
-/* -- Base64URL --------------------------------------------------------------
- *
- * Ohne `+`, `/` und `=`: der Wert reist in JSON und manchmal in einer Adresse,
- * und die drei Zeichen bedeuten dort etwas anderes.
- */
-function toBase64Url(bytes: Uint8Array): string {
-  let binary = '';
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function fromBase64Url(text: string): Uint8Array {
-  const padded = text.replace(/-/g, '+').replace(/_/g, '/');
-  const binary = atob(padded + '='.repeat((4 - (padded.length % 4)) % 4));
-
-  const out = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) out[i] = binary.charCodeAt(i);
-  return out;
-}
+/* Base64URL steht in `crypto.ts`: dort wird es am häufigsten gebraucht, und
+   zwei Fassungen derselben Kodierung laufen irgendwann auseinander. */
 
 /**
  * Der teure Lauf. Läuft in WebAssembly und ist auf einem Telefon spürbar —
@@ -148,16 +142,54 @@ export async function whoIsThere(): Promise<Who | null> {
  * ist das, was zwei gleiche Passwörter verschieden rechnen lässt.
  */
 export async function signIn(loginId: string, password: string): Promise<Who> {
+  const key = await keyFor(loginId, password);
+
+  const who = await call<Who>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ loginId, passwordKeyBase64Url: toBase64Url(key) })
+  });
+
+  held = key;
+  return who;
+}
+
+/* -- Der PasswordKey bleibt hier -------------------------------------------
+ *
+ * <b>Im Speicher dieses Tabs und sonst nirgends.</b> Ohne ihn öffnet sich kein
+ * Rollenname: er führt zum Hauptschlüssel, der Hauptschlüssel zu den
+ * Rollenschlüsseln. Der Altbestand legte ihn dafür in `sessionStorage` und
+ * schickte ihn sogar an den Server; beides ist eine Abkürzung, die der Neubau
+ * nicht nimmt — was in einem Speicher liegt, überlebt den Tab und liest jedes
+ * Skript, das je auf diese Seite gerät.
+ *
+ * Der Preis steht in `keys.ts`: nach einem Neuladen ist er fort, und wer die
+ * Namen sehen will, tippt sein Passwort noch einmal. Die Sitzung selbst bleibt
+ * davon unberührt — angemeldet ist man weiterhin.
+ */
+let held: Uint8Array | null = null;
+
+/** Der PasswordKey dieses Tabs, oder `null` nach einem Neuladen. */
+export const heldPasswordKey = (): Uint8Array | null => held;
+
+/** Das Salz holen und rechnen — der teure Teil, an einer Stelle. */
+async function keyFor(loginId: string, password: string): Promise<Uint8Array> {
   const { passwordSaltBase64Url } = await call<{ passwordSaltBase64Url: string }>(
     `/auth/salt?loginId=${encodeURIComponent(loginId)}`
   );
 
-  const key = await derivePasswordKey(password, fromBase64Url(passwordSaltBase64Url));
+  return derivePasswordKey(password, fromBase64Url(passwordSaltBase64Url));
+}
 
-  return call<Who>('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ loginId, passwordKeyBase64Url: toBase64Url(key) })
-  });
+/**
+ * Nach einem Neuladen die Schlüssel zurückholen, ohne sich neu anzumelden.
+ *
+ * Es wird NICHT geprüft, ob das Passwort stimmt — das entscheidet sich beim
+ * ersten Öffnen einer Hülle (`keys.ts`). Ein zweiter Anmeldeaufruf nur zur
+ * Prüfung wäre eine zweite Sitzung für nichts.
+ */
+export async function unlock(loginId: string, password: string): Promise<Uint8Array> {
+  held = await keyFor(loginId, password);
+  return held;
 }
 
 /**
@@ -172,7 +204,7 @@ export async function register(loginId: string, password: string): Promise<Who> 
   const salt = crypto.getRandomValues(new Uint8Array(ARGON.saltBytes));
   const key = await derivePasswordKey(password, salt);
 
-  return call<Who>('/auth/register', {
+  const who = await call<Who>('/auth/register', {
     method: 'POST',
     body: JSON.stringify({
       loginId,
@@ -180,9 +212,16 @@ export async function register(loginId: string, password: string): Promise<Who> 
       passwordKeyBase64Url: toBase64Url(key)
     })
   });
+
+  held = key;
+  return who;
 }
 
 export async function signOut(): Promise<void> {
+  // Zuerst der Schlüssel, dann der Dienst: scheitert der Aufruf, soll trotzdem
+  // nichts mehr im Speicher liegen.
+  held = null;
+
   try { await call<{ ok: boolean }>('/auth/logout', { method: 'POST' }); }
   catch { /* Abmelden scheitert nicht sichtbar: der Keks ist ohnehin fort. */ }
 }

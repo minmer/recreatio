@@ -54,6 +54,24 @@ export const ROUTES = {
 
 export type Route = keyof typeof ROUTES;
 
+/**
+ * Die Adressen, die der NEUBAU ausliefert.
+ *
+ * <b>Warum hier eine Liste steht und nicht eine Frage an den Dienst.</b> Die
+ * Weiche in `main.tsx` entscheidet, BEVOR irgendetwas geladen ist, ob der
+ * Altbestand oder der Neubau die Adresse bekommt — und sie kann dabei nicht auf
+ * eine Antwort warten. Eine übernommene Adresse, die hier fehlt, landete beim
+ * Altbestand, der sie nicht kennt.
+ *
+ * Die Liste ist damit der Spiegel von `app.slug` im Browser, und jede neue
+ * Seite kostet einen Bau. Das ist der Preis für eine Weiche ohne Wartezeit;
+ * wenn der Altbestand fort ist, fällt er weg — dann gehört jede Adresse dem
+ * Neubau, und diese Liste verschwindet.
+ */
+export const PAGES = ['parish'] as const;
+
+export const isPage = (word: string): boolean => (PAGES as readonly string[]).includes(word);
+
 /** Der Teil zu einem Wort, oder `null`, wenn das Wort keiner ist. */
 export function routeOf(word: string): Route | null {
   // `hasOwnProperty` und nicht `in`: sonst wäre `#/constructor` ein Teil.
@@ -74,9 +92,17 @@ export interface Address {
    * landen, die er nicht gesucht hat.
    */
   readonly stray: string | null;
+
+  /**
+   * Eine öffentliche Seite (`#/parish`), oder `null`.
+   *
+   * Steht hier etwas, ist `route` bedeutungslos: die Adresse gehört keinem Teil
+   * des Arbeitsplatzes, sondern der Welt draussen.
+   */
+  readonly page: string | null;
 }
 
-const HOME: Address = { route: 'workspace', slug: null, tail: [], stray: null };
+const HOME: Address = { route: 'workspace', slug: null, tail: [], stray: null, page: null };
 
 /** Die Adresse zerlegen. Nimmt die Raute mitsamt allem davor. */
 export function parsePath(hash: string): Address {
@@ -100,9 +126,19 @@ export function parsePath(hash: string): Address {
 
   if (segments.length === 0) return HOME;
 
+  /*
+   * Eine öffentliche Seite steht VOR der Suche nach einem Teil: `#/parish` ist
+   * keine Ansicht des Arbeitsplatzes, und niemand muss dafür angemeldet sein.
+   * Der ganze Pfad gehört ihr — `#/parish/proby` ist EINE Adresse und nicht
+   * eine Adresse mit einem Anhängsel.
+   */
+  if (isPage(segments[0])) {
+    return { route: 'workspace', slug: null, tail: [], stray: null, page: segments.join('/') };
+  }
+
   const route = routeOf(segments[0]);
   if (route === null) {
-    return { route: 'workspace', slug: null, tail: [], stray: segments[0] };
+    return { route: 'workspace', slug: null, tail: [], stray: segments[0], page: null };
   }
 
   const rest = segments.slice(1);
@@ -112,7 +148,8 @@ export function parsePath(hash: string): Address {
     route,
     slug: slugged ? (rest[0] ?? null) : null,
     tail: slugged ? rest.slice(1) : rest,
-    stray: null
+    stray: null,
+    page: null
   };
 }
 
@@ -129,8 +166,16 @@ export function path(route: Route, slug?: string | null, ...tail: readonly strin
   return `#/${words.join('/')}`;
 }
 
+/** Die Adresse einer öffentlichen Seite. */
+export const pagePath = (path: string): string =>
+  `#/${path.split('/').map(encodeURIComponent).join('/')}`;
+
 /** Muss vor dem ersten Bild bekannt sein, wer hier ist? */
 export function needsIdentity(address: Address): boolean {
+  // Eine öffentliche Seite wartet auf niemanden: sie wird ohne Konto
+  // ausgeliefert, und ein Anmeldeformular davor wäre schlicht falsch.
+  if (address.page !== null) return false;
+
   return ROUTES[address.route].needsIdentity;
 }
 

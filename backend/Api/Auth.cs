@@ -181,7 +181,12 @@ public static class Auth
                 await StartSessionAsync(ctx, connection, accountId, tx);
                 await tx.CommitAsync(ctx.RequestAborted);
 
-                await ctx.Response.WriteAsJsonAsync(new { accountId = Ids.ToText(accountId), loginId = name });
+                await ctx.Response.WriteAsJsonAsync(new
+                {
+                    accountId = Ids.ToText(accountId),
+                    loginId = name,
+                    masterKeySealed = Base64Url.Encode(secrets.MasterKeySealed)
+                });
             }
             finally
             {
@@ -289,7 +294,12 @@ public static class Auth
             }
 
             await StartSessionAsync(ctx, connection, accountId);
-            await ctx.Response.WriteAsJsonAsync(new { accountId = Ids.ToText(accountId), loginId = name });
+            await ctx.Response.WriteAsJsonAsync(new
+            {
+                accountId = Ids.ToText(accountId),
+                loginId = name,
+                masterKeySealed = Base64Url.Encode(masterSealed!)
+            });
         }
         finally
         {
@@ -390,7 +400,8 @@ public static class Auth
         await ctx.Response.WriteAsJsonAsync(new
         {
             accountId = Ids.ToText(who.Value.AccountId),
-            loginId = who.Value.LoginId
+            loginId = who.Value.LoginId,
+            masterKeySealed = Base64Url.Encode(who.Value.MasterKeySealed)
         });
     }
 
@@ -417,15 +428,26 @@ public static class Auth
         await ctx.Response.WriteAsJsonAsync(new { ok = true });
     }
 
-    /// <summary>Wer gerade angemeldet ist — oder <c>null</c>.</summary>
-    public static async Task<(Guid AccountId, string LoginId)?> WhoAsync(HttpContext ctx, Db db)
+    /// <summary>
+    /// Wer gerade angemeldet ist — oder <c>null</c>.
+    ///
+    /// <para>
+    /// Die Hülle des Hauptschlüssels kommt mit. Sie liegt unter dem PasswordKey
+    /// und ist für den Dienst ein Byte-Feld; für den Browser ist sie der Anfang
+    /// der Kette, an deren Ende ein lesbarer Rollenname steht. Sie hier
+    /// mitzugeben spart eine zweite Abfrage — hinausgeben lässt sie sich
+    /// gefahrlos, denn ohne das Passwort öffnet sie niemand.
+    /// </para>
+    /// </summary>
+    public static async Task<(Guid AccountId, string LoginId, byte[] MasterKeySealed)?> WhoAsync(
+        HttpContext ctx, Db db)
     {
         var secret = ctx.Request.Cookies[Cookie];
         if (string.IsNullOrEmpty(secret)) return null;
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         await using var cmd = new SqlCommand("""
-            SELECT a.id, a.login_id
+            SELECT a.id, a.login_id, a.master_key_sealed
             FROM app.session s
             JOIN app.account a ON a.id = s.account_id
             WHERE s.token_sha256 = @hash
@@ -440,7 +462,7 @@ public static class Auth
         await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
         if (!await reader.ReadAsync(ctx.RequestAborted)) return null;
 
-        return (reader.GetGuid(0), reader.GetString(1));
+        return (reader.GetGuid(0), reader.GetString(1), (byte[])reader[2]);
     }
 
     /// <summary>Gross und klein sind derselbe Name — sonst legt jemand versehentlich ein zweites Konto an.</summary>

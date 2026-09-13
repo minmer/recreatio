@@ -40,8 +40,15 @@ export default defineConfig({
             // Argon2-WebAssembly mit — für eine Funktion, die dort niemand
             // aufruft.
             if (id.includes('/hash-wasm/')) return 'vendor-rc-crypto';
+
+            // reactflow gehört jetzt BEIDEN Seiten: dem Rollengraphen des
+            // Neubaus und den Cogita-Ansichten des Altbestands. Im gemeinsamen
+            // Bündel mit katex lüde der Arbeitsplatz einen Formelsatz mit, den
+            // dort niemand aufruft — 300 kB für eine Ansicht, die Kästchen und
+            // Pfeile zeichnet.
+            if (id.includes('/reactflow/') || id.includes('/@reactflow/')) return 'vendor-flow';
+
             if (
-              id.includes('/reactflow/') ||
               id.includes('/@dnd-kit/') ||
               id.includes('/katex/') ||
               id.includes('/react-katex/')

@@ -14,11 +14,21 @@
  * hier für ihn keine zweite Wurzel angelegt.
  */
 
+import { PAGES } from './app/routes';
+
 const BASE = '#/workspace';
 
+/*
+ * Die Seitenliste wird MITGELESEN und nicht abgeschrieben: zwei Listen liefen
+ * auseinander, und eine übernommene Adresse landete beim Altbestand, der sie
+ * nicht kennt. `routes.ts` importiert selbst nichts und bringt deshalb weder
+ * React noch ein Stilblatt in diese Datei — die Trennung bleibt.
+ */
 const isNew = (): boolean => {
   const hash = window.location.hash;
-  return hash === BASE || hash.startsWith(`${BASE}/`);
+  if (hash === BASE || hash.startsWith(`${BASE}/`)) return true;
+
+  return PAGES.some((page) => hash === `#/${page}` || hash.startsWith(`#/${page}/`));
 };
 
 /*

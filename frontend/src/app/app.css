@@ -253,3 +253,105 @@ code {
 .wk-field select:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
 
 .wk-done { margin: 0; font-size: 0.9rem; color: var(--wk-accent); }
+
+/* -- Der Rollengraph ------------------------------------------------------
+   Zeichenfläche und Seitenteil nebeneinander; auf schmalem Geraet
+   untereinander, denn ein Graph auf halber Telefonbreite ist kein Graph.
+   ------------------------------------------------------------------------ */
+
+.wk-graph-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 1rem;
+  margin-top: 0.8rem;
+  align-items: start;
+}
+
+@media (max-width: 52rem) {
+  .wk-graph-split { grid-template-columns: 1fr; }
+}
+
+.wk-graph {
+  height: 26rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  overflow: hidden;
+}
+
+/* React Flow zeichnet auf eigenem Grund — er muss den Tokens folgen, sonst
+   steht auf dunklem Geraet ein weisses Rechteck in der Seite. */
+.wk-graph .react-flow__background { background: var(--wk-surface); }
+.wk-graph .react-flow__controls-button {
+  background: var(--wk-surface);
+  border-bottom: 1px solid var(--wk-line);
+  fill: var(--wk-ink);
+}
+
+.wk-node {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 9rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-ground);
+  color: var(--wk-ink);
+  font-size: 0.9rem;
+}
+
+/* Die eigene Rolle ist der Anker des ganzen Bildes — sie darf man suchen
+   koennen, ohne zu lesen. */
+.wk-node-me { border-color: var(--wk-accent); border-width: 2px; }
+.wk-node-on { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+
+/* Verschlossen heisst NICHT namenlos: gestrichelt, weil dahinter etwas steht,
+   das man nicht sieht. */
+.wk-node-locked { border-style: dashed; color: var(--wk-muted); }
+
+.wk-node-name { font-weight: 600; }
+.wk-node-kind { color: var(--wk-muted); font-size: 0.76rem; }
+
+.wk-handle { width: 8px; height: 8px; background: var(--wk-accent); border: 0; }
+
+.wk-side {
+  display: grid;
+  gap: 0.6rem;
+  align-content: start;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+}
+
+.wk-side .wk-h2:first-child { margin-top: 0; }
+.wk-side .wk-form { max-width: none; }
+
+/* -- Die öffentliche Seite ------------------------------------------------- */
+
+/* Absaetze kommen aus einem Textfeld: was jemand mit der Eingabetaste getrennt
+   hat, soll auch getrennt dastehen. */
+.wk-page-lead { white-space: pre-line; }
+
+.wk-page-form { margin-top: 1rem; max-width: 34rem; }
+
+.wk-field textarea {
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 3px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  resize: vertical;
+}
+
+.wk-field textarea:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+
+.wk-actions input[type="password"] {
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 3px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+}

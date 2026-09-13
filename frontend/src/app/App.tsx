@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { needsIdentity, parsePath, path, spotOf, type Address } from './routes';
 import { signOut, whoIsThere, type Who } from './session';
+import { PublicPage } from './PublicPage';
 import { SignIn } from './SignIn';
 import { Workspace } from './Workspace';
 
@@ -61,6 +62,15 @@ export function App() {
     );
   }
 
+  /*
+   * Eine öffentliche Seite. Sie steht VOR jeder Frage nach der Anmeldung — wer
+   * `#/parish` aufruft, will die Seite sehen und nicht wissen, ob er angemeldet
+   * ist.
+   */
+  if (address.page !== null) {
+    return <Shell><PublicPage path={address.page} /></Shell>;
+  }
+
   if (who === undefined) {
     return <Shell><p className="wk-lede">Sprawdzanie…</p></Shell>;
   }
@@ -75,7 +85,7 @@ export function App() {
       wide
       onSignOut={() => { void signOut().then(() => setWho(null)); }}
     >
-      <Workspace spot={spotOf(address)} />
+      <Workspace spot={spotOf(address)} who={who} />
     </Shell>
   );
 }
