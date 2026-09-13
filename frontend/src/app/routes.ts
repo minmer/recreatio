@@ -68,9 +68,40 @@ export type Route = keyof typeof ROUTES;
  * wenn der Altbestand fort ist, fällt er weg — dann gehört jede Adresse dem
  * Neubau, und diese Liste verschwindet.
  */
-export const PAGES = ['parish'] as const;
+export const PAGES = ['parish', 'start'] as const;
 
 export const isPage = (word: string): boolean => (PAGES as readonly string[]).includes(word);
+
+/**
+ * Der Name, unter dem die Plattform zu Hause ist.
+ *
+ * <b>Alles andere ist eine EIGENE Domain</b> — cogita.pl zum Beispiel, die eine
+ * Seite zeigt, die auf recreatio.pl verwaltet wird. Dort gilt die Adresszeile
+ * nicht: der Name selbst sagt, welche Seite gemeint ist, und den fragt der
+ * Browser beim Dienst nach (`site.ts`).
+ *
+ * Steht hier und nicht in `site.ts`, weil die Weiche in `main.tsx` es wissen
+ * muss, BEVOR irgendetwas geladen ist — und diese Datei bringt nichts mit.
+ */
+export const PRIMARY_HOST = 'recreatio.pl';
+
+/**
+ * Der eigene Name dieser Seite — oder `null`, wenn wir zu Hause sind.
+ *
+ * Die Entwicklung zählt nicht als fremd: dort läuft alles unter localhost, und
+ * eine Adresszeile, die dann plötzlich nach einer Domain fragt, machte jeden
+ * Entwicklungslauf zu einer Fehlersuche.
+ */
+export function foreignHost(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  const host = window.location.hostname.toLowerCase();
+
+  if (host === PRIMARY_HOST || host === `www.${PRIMARY_HOST}`) return null;
+  if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return null;
+
+  return host;
+}
 
 /** Der Teil zu einem Wort, oder `null`, wenn das Wort keiner ist. */
 export function routeOf(word: string): Route | null {
@@ -102,7 +133,14 @@ export interface Address {
   readonly page: string | null;
 }
 
-const HOME: Address = { route: 'workspace', slug: null, tail: [], stray: null, page: null };
+/**
+ * `recreatio.pl` ohne alles.
+ *
+ * <b>Die Wurzel ist eine SEITE</b>, nicht der Arbeitsplatz: im Register steht
+ * sie als leerer Pfad und zeigt als Alias auf `start`. Wer hier ankommt, ist
+ * meistens ein Besucher — und der bekommt die Seite, nicht ein Anmeldeformular.
+ */
+const HOME: Address = { route: 'workspace', slug: null, tail: [], stray: null, page: '' };
 
 /** Die Adresse zerlegen. Nimmt die Raute mitsamt allem davor. */
 export function parsePath(hash: string): Address {

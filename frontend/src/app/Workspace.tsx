@@ -182,15 +182,27 @@ function Pages({ desk, who, onClaimed }: { desk: Desk; who: Who; onClaimed: () =
   const [failed, setFailed] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
-  const path = wanted.trim().toLowerCase().replace(/^\/+|\/+$/g, '');
+  const typed = wanted.trim();
+  const path = typed.toLowerCase().replace(/^\/+|\/+$/g, '');
+
+  /*
+   * Die Wurzel heisst im Register nichts — und ein unberührtes Feld heisst
+   * auch nichts. Unterschieden werden die beiden am GETIPPTEN und nicht am
+   * Ergebnis: wer „/” schreibt, nennt recreatio.pl selbst; wer gar nichts
+   * schreibt, hat das Feld noch nicht angefasst.
+   *
+   * Prüfte man nur `path`, gäbe es genau eine Adresse, die hier niemals zu
+   * übernehmen wäre — und der Dienst nähme sie anstandslos.
+   */
+  const isRoot = typed !== '' && path === '';
 
   /* Ein grauer Knopf muss sagen, warum — sonst sieht es aus, als sei der
      Adress-Code schon abgelehnt worden. */
   const blocker =
     busy ? null
     : desk.roles.length === 0 ? 'Nie masz roli, która mogłaby przejąć adres.'
-    : path === '' ? 'Wpisz adres.'
-    : !SHAPE.test(path) ? 'Adres: małe litery, cyfry i myślniki; części oddziel ukośnikiem.'
+    : typed === '' ? 'Wpisz adres.'
+    : !isRoot && !SHAPE.test(path) ? 'Adres: małe litery, cyfry i myślniki; części oddziel ukośnikiem.'
     : path === 'workspace' || path.startsWith('workspace/') ? 'Adres „workspace” należy do samego warsztatu.'
     : code.trim() === '' ? 'Wpisz kod adresu.'
     : roleId === '' ? 'Wybierz rolę.'
@@ -259,6 +271,11 @@ function Pages({ desk, who, onClaimed }: { desk: Desk; who: Who; onClaimed: () =
           <input value={wanted} onChange={(e) => setWanted(e.target.value)} placeholder="schola" />
         </label>
 
+        {/* Sonst wäre die Wurzel die einzige Adresse, die man nicht tippen kann. */}
+        <p className="wk-hint">
+          Sam <code>/</code> to <code>recreatio.pl</code>.
+        </p>
+
         <label className="wk-field">
           <span>Kod adresu</span>
           <input value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" />
@@ -278,8 +295,14 @@ function Pages({ desk, who, onClaimed }: { desk: Desk; who: Who; onClaimed: () =
         </label>
 
         <p className="wk-hint">
-          Wybrana rola odpowiada za ten adres i za wszystko pod nim —
-          <code>{path === '' ? 'schola' : path}/…</code> idzie razem z nim.
+          {isRoot ? (
+            <>Wybrana rola odpowiada za sam adres <code>recreatio.pl</code>.</>
+          ) : (
+            <>
+              Wybrana rola odpowiada za ten adres i za wszystko pod nim —
+              <code>{path === '' ? 'schola' : path}/…</code> idzie razem z nim.
+            </>
+          )}
         </p>
 
         {failed !== null && <p className="wk-error">{failed}</p>}

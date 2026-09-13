@@ -14,7 +14,7 @@
  * hier für ihn keine zweite Wurzel angelegt.
  */
 
-import { PAGES } from './app/routes';
+import { foreignHost, PAGES } from './app/routes';
 
 const BASE = '#/workspace';
 
@@ -25,8 +25,18 @@ const BASE = '#/workspace';
  * React noch ein Stilblatt in diese Datei — die Trennung bleibt.
  */
 const isNew = (): boolean => {
+  /*
+   * Eine EIGENE Domain gehört ganz dem Neubau. Dort gibt es keinen Altbestand,
+   * den man treffen könnte — und die Seite, die sie zeigt, steht im Register.
+   */
+  if (foreignHost() !== null) return true;
+
   const hash = window.location.hash;
   if (hash === BASE || hash.startsWith(`${BASE}/`)) return true;
+
+  // Die Wurzel gehört dem Neubau: `recreatio.pl` zeigt die Seite, die im
+  // Register als Alias auf `start` steht.
+  if (hash === '' || hash === '#' || hash === '#/') return true;
 
   return PAGES.some((page) => hash === `#/${page}` || hash.startsWith(`#/${page}/`));
 };

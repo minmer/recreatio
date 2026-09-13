@@ -31,6 +31,14 @@ public static class Page
         // `{*path}` fängt auch die Teile nach dem Schrägstrich: `parish/proby`
         // ist EINE Adresse und nicht eine Adresse mit einem Anhängsel.
         app.MapGet("/page/{*path}", ShowAsync);
+
+        /*
+         * Welche Seite zeigt DIESE Domain? Gefragt vom Browser, sobald er
+         * irgendwo anders als auf recreatio.pl geladen wurde. Öffentlich wie
+         * die Seite selbst — ein Name ist kein Geheimnis.
+         */
+        app.MapGet("/site", SiteAsync);
+
         app.MapPut("/workspace/page/{*path}", SaveAsync);
 
         /*
@@ -55,7 +63,7 @@ public static class Page
 
     /* -- Zeigen ------------------------------------------------------------- */
 
-    private static async Task ShowAsync(HttpContext ctx, Db db, string path)
+    private static async Task ShowAsync(HttpContext ctx, Db db, string? path)
     {
         var wanted = Slug.Normalise(path);
 
@@ -66,15 +74,86 @@ public static class Page
         }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        await WritePageAsync(ctx, connection, wanted);
+    }
 
+    /// <summary>
+    /// Welche Seite ein eigener Name zeigt.
+    ///
+    /// <para>
+    /// Der Browser fragt das, sobald er unter einem anderen Namen als
+    /// recreatio.pl geladen wurde: er kennt seinen Ort, aber nicht, welche
+    /// Adresse dort gemeint ist. Was er nennt, ist ungeprüft — und das macht
+    /// nichts: ein Name ist ein Schlüssel zum Nachschlagen, kein Recht. Was
+    /// dabei herauskommt, ist ohnehin öffentlich.
+    /// </para>
+    /// </summary>
+    private static async Task SiteAsync(HttpContext ctx, Db db, string? host)
+    {
+        var name = (host ?? string.Empty).Trim().ToLowerInvariant();
+
+        // Der Browser nennt bei einem abweichenden Port „name:5173". Der Port
+        // gehört nicht zum Namen.
+        var colon = name.IndexOf(':');
+        if (colon >= 0) name = name[..colon];
+
+        if (!Slug.IsHostName(name))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Ta domena nie prowadzi do żadnej strony.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        string path;
+        await using (var find = new SqlCommand("SELECT path FROM app.slug WHERE host = @host;", connection))
+        {
+            find.Parameters.AddWithValue("@host", name);
+
+            if (await find.ExecuteScalarAsync(ctx.RequestAborted) is not string found)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Ta domena nie prowadzi do żadnej strony.");
+                return;
+            }
+
+            path = found;
+        }
+
+        await WritePageAsync(ctx, connection, path);
+    }
+
+    /// <summary>
+    /// Die Seite einer Adresse hinausschreiben — die eine Stelle, die das tut.
+    ///
+    /// <para>
+    /// Sie wird von zwei Seiten gerufen: vom Pfad her und vom Namen her. Zwei
+    /// Fassungen hiessen zwei Meinungen darüber, wann ein Alias gilt und was
+    /// „noch nichts veröffentlicht" bedeutet.
+    /// </para>
+    /// </summary>
+    private static async Task WritePageAsync(HttpContext ctx, SqlConnection connection, string wanted)
+    {
         Guid slugId;
-        string? title = null, lead = null;
+        string? title = null, lead = null, aliasOf = null;
         DateTimeOffset? updatedAt = null;
 
+        /*
+         * EIN ALIAS ZEIGT AUF EINE ANDERE ADRESSE, und von dort kommt alles:
+         * Titel, Vorspann, Bausteine. Deshalb wird hier gleich mitgesprungen —
+         * zwei Abfragen hintereinander hiessen zwei Runden, und die zweite
+         * käme für einen Besucher sichtbar später.
+         *
+         * Übernommen sein muss das ZIEL: dort liegt der Inhalt. Ob der Alias
+         * selbst schon jemandem gehört, entscheidet, wer ihn verwaltet — nicht,
+         * ob die Seite zu sehen ist.
+         */
         await using (var cmd = new SqlCommand("""
-            SELECT s.id, s.claimed_by_role_id, p.title, p.lead, p.updated_at
+            SELECT COALESCE(t.id, s.id),
+                   COALESCE(t.claimed_by_role_id, s.claimed_by_role_id),
+                   p.title, p.lead, p.updated_at, s.alias_of
             FROM app.slug s
-            LEFT JOIN app.slug_page p ON p.slug_id = s.id
+            LEFT JOIN app.slug t ON s.alias_of IS NOT NULL AND t.path = s.alias_of
+            LEFT JOIN app.slug_page p ON p.slug_id = COALESCE(t.id, s.id)
             WHERE s.path = @path;
             """, connection))
         {
@@ -98,6 +177,7 @@ public static class Page
             title = reader.IsDBNull(2) ? null : reader.GetString(2);
             lead = reader.IsDBNull(3) ? null : reader.GetString(3);
             updatedAt = reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4);
+            aliasOf = reader.IsDBNull(5) ? null : reader.GetString(5);
         }
 
         /*
@@ -130,7 +210,7 @@ public static class Page
             }
         }
 
-        await ctx.Response.WriteAsJsonAsync(new { path = wanted, title, lead, updatedAt, parts });
+        await ctx.Response.WriteAsJsonAsync(new { path = wanted, aliasOf, title, lead, updatedAt, parts });
     }
 
     /* -- Schreiben ---------------------------------------------------------- */
@@ -164,12 +244,36 @@ public static class Page
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         /*
+         * DIE REIHENFOLGE: erst gibt es die Adresse, dann KANN sie überhaupt
+         * Inhalt tragen, dann DARF dieser Mensch.
+         *
+         * Ein Alias kann nie Inhalt tragen — ob ihn jemand übernommen hat oder
+         * nicht, ändert daran nichts. Fragte man zuerst nach dem Recht, bekäme
+         * man bei einem unübernommenen Alias „das hat noch niemand übernommen"
+         * zu hören: wahr, aber die falsche Auskunft. Wer das liest, holt sich
+         * einen Code für eine Adresse, die auch dann nichts annimmt.
+         */
+        var row = await RowAsync(connection, wanted, ctx.RequestAborted);
+
+        if (row is null)
+        {
+            // Ein Unterpfad, den niemand geöffnet hat, ist keine Adresse — auch
+            // nicht für den, der die Adresse darüber führt.
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+            return;
+        }
+
+        if (row.Value.AliasOf is not null)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                $"Ten adres jest tylko innym wejściem do „{row.Value.AliasOf}” — treść zmienia się tam.");
+            return;
+        }
+
+        /*
          * Wer darf hier schreiben? Zwei Wege, und beide beantwortet
          * <see cref="Access"/>: eine meiner Rollen FÜHRT die Adresse (oder die
          * nächsthöhere), oder eine meiner Rollen hält ein Zertifikat darauf.
-         *
-         * Die Frage hier noch einmal zu beantworten hiesse, zwei Rechteprüfungen
-         * zu haben — und eine davon liefe irgendwann anders.
          */
         var grip = await Access.OfAsync(connection, who.Value.AccountId, wanted, ctx.RequestAborted);
 
@@ -186,22 +290,7 @@ public static class Page
             return;
         }
 
-        Guid slugId;
-        await using (var find = new SqlCommand("SELECT id FROM app.slug WHERE path = @path;", connection))
-        {
-            find.Parameters.AddWithValue("@path", wanted);
-
-            // Eine Seite hängt an einer Zeile des Registers. Ein Unterpfad, den
-            // niemand geöffnet hat, ist keine Adresse — auch nicht für den, der
-            // die Adresse darüber führt.
-            if (await find.ExecuteScalarAsync(ctx.RequestAborted) is not Guid found)
-            {
-                await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
-                return;
-            }
-
-            slugId = found;
-        }
+        var slugId = row.Value.Id;
 
         var now = DateTimeOffset.UtcNow;
 
@@ -301,6 +390,23 @@ public static class Page
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
+        // Dieselbe Reihenfolge wie beim Text: erst die Zeile, dann ob sie Inhalt
+        // tragen KANN, dann ob dieser Mensch DARF.
+        var row = await RowAsync(connection, wanted, ctx.RequestAborted);
+
+        if (row is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+            return;
+        }
+
+        if (row.Value.AliasOf is not null)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                $"Ten adres jest tylko innym wejściem do „{row.Value.AliasOf}” — moduły zmieniają się tam.");
+            return;
+        }
+
         var grip = await Access.OfAsync(connection, who.Value.AccountId, wanted, ctx.RequestAborted);
 
         if (grip.OwnerRoleId is null)
@@ -316,17 +422,7 @@ public static class Page
             return;
         }
 
-        Guid slugId;
-        await using (var find = new SqlCommand("SELECT id FROM app.slug WHERE path = @path;", connection))
-        {
-            find.Parameters.AddWithValue("@path", wanted);
-            if (await find.ExecuteScalarAsync(ctx.RequestAborted) is not Guid found)
-            {
-                await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
-                return;
-            }
-            slugId = found;
-        }
+        var slugId = row.Value.Id;
 
         var now = DateTimeOffset.UtcNow;
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
@@ -358,6 +454,28 @@ public static class Page
 
         await tx.CommitAsync(ctx.RequestAborted);
         await ctx.Response.WriteAsJsonAsync(new { path = wanted, parts = parts.Count });
+    }
+
+    /// <summary>
+    /// Die Zeile des Registers — mit der Frage, ob sie nur ein zweiter Weg ist.
+    ///
+    /// <para>
+    /// Geschrieben wird NIE auf einen Alias. Läge unter ihm eine zweite Seite,
+    /// gäbe es zwei Fassungen derselben Sache, und eine davon wäre immer die
+    /// veraltete.
+    /// </para>
+    /// </summary>
+    private static async Task<(Guid Id, string? AliasOf)?> RowAsync(
+        SqlConnection connection, string path, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand(
+            "SELECT id, alias_of FROM app.slug WHERE path = @path;", connection);
+        cmd.Parameters.AddWithValue("@path", path);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return null;
+
+        return (reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1));
     }
 
     private static Task Fail(HttpContext ctx, int status, string message)

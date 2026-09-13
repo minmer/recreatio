@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { needsIdentity, parsePath, path, spotOf, type Address } from './routes';
+import { foreignHost, needsIdentity, parsePath, path, spotOf, type Address } from './routes';
 import { signOut, whoIsThere, type Who } from './session';
 import { PublicPage } from './PublicPage';
 import { SignIn } from './SignIn';
@@ -60,6 +60,17 @@ export function App() {
         <p><a className="wk-link" href={path('workspace')}>Przejdź do warsztatu</a></p>
       </Shell>
     );
+  }
+
+  /*
+   * EINE EIGENE DOMAIN zeigt genau eine Seite, und welche, sagt das Register.
+   * Die Adresszeile gilt hier nicht: wer cogita.pl aufruft, meint cogita.pl und
+   * nicht einen Teil des Arbeitsplatzes, der zufällig hinter derselben Raute
+   * läge.
+   */
+  const domain = foreignHost();
+  if (domain !== null) {
+    return <Shell><PublicPage host={domain} /></Shell>;
   }
 
   /*

@@ -16,8 +16,15 @@ import { useEffect, useState } from 'react';
 import { loadPage, toDraft, type PageContent } from './page';
 import { PageParts } from './PageParts';
 import { WorkspaceError } from './session';
+import { loadSite } from './site';
 
-export function PublicPage({ path }: { path: string }) {
+/**
+ * Entweder eine Adresse — oder eine eigene Domain, die eine zeigt.
+ *
+ * Beides endet bei derselben Antwort; welcher Weg es war, sieht man ihr nicht
+ * an, und das ist richtig so.
+ */
+export function PublicPage({ path, host }: { path?: string; host?: string }) {
   const [page, setPage] = useState<PageContent | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -27,7 +34,7 @@ export function PublicPage({ path }: { path: string }) {
     let alive = true;
     setPage(undefined);
 
-    loadPage(path)
+    (host !== undefined ? loadSite(host) : loadPage(path ?? ''))
       .then((found) => { if (alive) setPage(found); })
       .catch((e) => {
         if (!alive) return;
@@ -36,7 +43,7 @@ export function PublicPage({ path }: { path: string }) {
       });
 
     return () => { alive = false; };
-  }, [path]);
+  }, [path, host]);
 
   if (page === undefined) return <p className="wk-lede">Wczytywanie…</p>;
 
