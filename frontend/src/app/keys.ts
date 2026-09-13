@@ -182,6 +182,22 @@ export class Ring {
     return toBase64Url(await sealText(key, nameAad(roleId), name.trim()));
   }
 
+  /**
+   * Der private VERPACKUNGSschlüssel einer Rolle — zum Auspacken einer
+   * Zuteilung, die auf diese Rolle ausgestellt ist.
+   *
+   * Der Bund benutzt ihn beim Laufen schon selbst, behält ihn aber nicht: dort
+   * ist er ein Zwischenschritt. Für den Epochenschlüssel eines Bereichs wird er
+   * später noch einmal gebraucht, und ihn dann ein zweites Mal von Hand
+   * aufzumachen hiesse, die AAD ein zweites Mal zu tippen.
+   */
+  async wrapPrivate(roleId: string): Promise<Uint8Array> {
+    const role = this.roles.get(roleId);
+    if (role?.wrapPrivateSealed == null) throw new Error(`Rolle ${roleId} hat keinen Verpackungsschlüssel.`);
+
+    return open(this.keyOf(roleId), wrapAad(roleId), fromBase64Url(role.wrapPrivateSealed));
+  }
+
   /** Der private Signierschlüssel einer Rolle, für das Unterschreiben einer Kante. */
   async signKey(roleId: string): Promise<Uint8Array> {
     const role = this.roles.get(roleId);

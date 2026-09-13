@@ -87,6 +87,9 @@ Slug.Map(app);
 Roles.Map(app);
 Page.Map(app);
 Access.Map(app);
+Mass.Map(app);
+Area.Map(app);
+Calendar.Map(app);
 
 app.Run();
 return 0;

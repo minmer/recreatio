@@ -61,6 +61,17 @@ export const loadAccess = (path: string): Promise<AccessView> =>
  * macht diese Stelle — und ein fehlendes ergibt andere Bytes und eine
  * Unterschrift, die der Dienst ablehnt.
  */
+/**
+ * Worauf ein Zertifikat gilt — dieselben Wörter wie `Capabilities.ScopeText`
+ * im Kernel.
+ *
+ * Als Aufzählung und nicht als Zeichenkette: ein Tippfehler wäre sonst eine
+ * Unterschrift über andere Bytes, und die fällt nicht beim Schreiben auf,
+ * sondern beim Prüfen — mit „Podpis się nie zgadza" und ohne jeden Hinweis
+ * darauf, dass ein Wort schuld ist.
+ */
+export type ScopeKind = 'area' | 'body' | 'slug';
+
 export const certificateValue = (c: {
   capability: Capability;
   expiresAt: number;
@@ -68,6 +79,15 @@ export const certificateValue = (c: {
   issuedAt: number;
   issuedByRoleId: string;
   scopeId: string;
+
+  /*
+   * DER GELTUNGSBEREICH GEHT MIT IN DIE UNTERSCHRIFT (Kernel:
+   * CertificateRecord.ToCanonicalValue). Hier stand `'slug'` fest — damit liess
+   * sich ein Zertifikat auf einen BEREICH gar nicht unterschreiben: der Browser
+   * hashte „slug", der Dienst prüfte gegen „area", und die Unterschrift stimmte
+   * nie. Was fest dasteht, muss auch fest gelten; hier galt es nicht.
+   */
+  scopeKind: ScopeKind;
   subjectRoleId: string;
 }): Canon => O({
   capability: S(c.capability),
@@ -76,7 +96,7 @@ export const certificateValue = (c: {
   issuedAt: I(c.issuedAt),
   issuedByRoleId: S(c.issuedByRoleId),
   scopeId: S(c.scopeId),
-  scopeKind: S('slug'),
+  scopeKind: S(c.scopeKind),
   subjectRoleId: S(c.subjectRoleId)
 });
 
@@ -113,6 +133,9 @@ export async function grantAccess(
       capability, expiresAt, id, issuedAt,
       issuedByRoleId: issuerRoleId,
       scopeId: view.slugId,
+
+      // Eine Adresse. Bisher stillschweigend angenommen, jetzt gesagt.
+      scopeKind: 'slug',
       subjectRoleId
     })
   );

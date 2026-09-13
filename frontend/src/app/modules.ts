@@ -3,14 +3,16 @@
  *
  * <b>Nur, was sich heute zeigen lässt.</b> Der Altbestand hatte zwölf Arten —
  * Intencje, Msze, Kalendarz, Galeria. Die meisten hingen an Quellen, die es im
- * Neubau noch nicht gibt: kein Bereich, kein Kalender, keine Galerie. Sie hier
- * aufzuführen hiesse, eine Kachel anzubieten, die dauerhaft leer bleibt — und
- * eine leere Kachel ist keine Vorbereitung, sondern ein Versprechen, das die
- * Seite nicht hält.
+ * Neubau nicht gab. Eine Kachel anzubieten, die dauerhaft leer bleibt, ist
+ * keine Vorbereitung, sondern ein Versprechen, das die Seite nicht hält.
  *
- * Was hier steht, trägt seinen Inhalt selbst und erscheint sofort. Kommen
- * Kalender und Bereiche, kommen ihre Bausteine dazu — mit einer Quelle
- * dahinter.
+ * <b>Die Messen haben ihre Quelle inzwischen</b> (`app.calendar_item` mit
+ * `kind = 'mass'` und die Intentionen an ihren Vorkommen), und deshalb stehen
+ * sie hier. Die Galerie nicht: dort fehlt sie weiterhin, und solange sie fehlt,
+ * gehört sie nicht in diese Liste.
+ *
+ * Alles andere hier trägt seinen Inhalt selbst und erscheint sofort. Was ihn
+ * woanders herholt, sagt es mit `live` — sonst blendet die Seite es aus.
  *
  * <b>Die Felder folgen der Art.</b> Wer „Kontakt" auf die Seite legt, bekommt
  * Adresse, Telefon und E-Mail — und nicht eine Liste von vierzig Feldern, von
@@ -37,6 +39,23 @@ export interface ModuleDef {
   readonly colSpan: number;
   readonly rowSpan: number;
   readonly fields: readonly FieldDef[];
+
+  /**
+   * Holt dieser Baustein seinen Inhalt WOANDERS her?
+   *
+   * <b>Ohne diese Angabe verschwände er.</b> Die Seite blendet aus, was ein
+   * leeres `config` hat (`isEmpty`) — und das ist für Text und Kontakt richtig:
+   * eine Kachel mit einer Überschrift und nichts darunter sieht aus wie ein
+   * Fehler. In einem Messplan steht aber nur, WELCHER Kalender und wie er
+   * aussehen soll; sein Inhalt liegt in `app.calendar_item` und kommt erst beim
+   * Aufruf. Er fiele damit lautlos aus der Seite, und zwar genau dann, wenn er
+   * richtig eingerichtet ist.
+   *
+   * Die Ausnahme steht deshalb hier am Baustein und nicht als Sonderfall in
+   * der Zeichnung: dort wäre sie eine Bedingung auf einen Namen, und der
+   * nächste Baustein dieser Art hätte sie wieder nicht.
+   */
+  readonly live?: boolean;
 }
 
 export const CATALOG: readonly ModuleDef[] = [
@@ -45,6 +64,26 @@ export const CATALOG: readonly ModuleDef[] = [
     fields: [
       { key: 'title', label: 'Nagłówek', kind: 'line' },
       { key: 'body', label: 'Treść', kind: 'text' }
+    ]
+  },
+  {
+    /*
+     * Der einzige Baustein, der seinen Inhalt NICHT im `config` trägt: die
+     * Messen stehen in `app.calendar_item`, die Intentionen an ihren
+     * Vorkommen. Hier steht nur, WELCHER Kalender und wie er aussehen soll —
+     * deshalb `live`.
+     */
+    kind: 'masses', label: 'Msze i intencje', colSpan: 3, rowSpan: 3, live: true,
+    fields: [
+      { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Porządek mszy' },
+      /*
+       * Der Kalender, dessen Messen hier hängen — leer heisst: ALLE, die offen
+       * liegen, mit der Angabe woher. Gezeigt wird davon ohnehin nur, was unter
+       * einem Bereich mit offengelegter Epoche steht; ein fremder Kalender ist
+       * also kein Einbruch, sondern eine Auskunft, die jemand offengelegt hat.
+       */
+      { key: 'calendar', label: 'Kalendarz', kind: 'line', hint: 'Kennung — puste: wszystkie jawne' },
+      { key: 'days', label: 'Ile dni pokazać', kind: 'line', hint: '7' }
     ]
   },
   {

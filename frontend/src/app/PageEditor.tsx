@@ -20,6 +20,7 @@ import {
   type AccessView, type Capability
 } from './access';
 import { loadPage, savePage, saveParts, toDraft, type DraftPart } from './page';
+import { MassOffice } from './MassOffice';
 import { PageBuilder } from './PageBuilder';
 import { pagePath } from './routes';
 import { forgetKeys, keysFor, type Keys } from './ringOf';
@@ -163,6 +164,16 @@ export function PageEditor({ path, who }: { path: string; who: Who }) {
 
         {!dirty && busy === null && <span className="wk-blocker">Nic się nie zmieniło.</span>}
       </div>
+
+      {/*
+        Die Kanzlei erscheint erst, wenn die Seite einen Messplan ZEIGT.
+        Der Baustein ist die Erklärung „hier gibt es Messen"; ohne ihn stünde
+        auf jeder Seite ein Formular für etwas, das dort nicht vorkommt.
+
+        Ein Henne-Ei-Fall ist das nicht: man legt den Baustein ab, speichert die
+        Module, und die Kanzlei steht da — bevor die erste Messe existiert.
+      */}
+      {parts.some((part) => part.kind === 'masses') && <MassOffice />}
 
       {view !== null && (
         <>

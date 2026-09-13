@@ -56,7 +56,28 @@ export const Field = {
   AccountMasterKey: 'masterkey',
   RoleSignPrivate: 'sign_private',
   RoleWrapPrivate: 'wrap_private',
-  RoleDisplayName: 'display_name'
+  RoleDisplayName: 'display_name',
+
+  /*
+   * Der Epochenschlüssel eines Bereichs. Er entsteht im Browser, wird der Rolle
+   * verpackt und von dort wieder ausgepackt (`area.ts`) — beide Seiten müssen
+   * dasselbe Etikett nennen, sonst passt das Label nicht zur AAD.
+   */
+  AreaEpochKey: 'epoch_key',
+
+  /*
+   * Die versiegelten Felder eines Kalendereintrags. Sie heissen in der Tabelle
+   * `title`, `location`, `notes` (0020) — hier stehen die Etiketten des
+   * Kernels, und die lauten anders. Diese Zeilen sind genau die Stelle, an der
+   * beide Namen zusammenkommen.
+   */
+  CalendarEventTitle: 'event_title',
+  CalendarEventLocation: 'event_location',
+  CalendarItemNotes: 'item_notes',
+
+  /* Geber und Gabe einer Messintention — das, was nicht vorgelesen wird. */
+  MassIntentionGiver: 'mass_intention_giver',
+  MassIntentionOffering: 'mass_intention_offering'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

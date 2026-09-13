@@ -266,6 +266,13 @@ export function needsIdentity(address: Address): boolean {
  * `history.back()`: wer über einen Link hereinkommt, hat kein Zurück.
  */
 export const VIEWS = {
+  /*
+   * Die Bereiche stehen VOR dem Kalender, weil sie unter ihm liegen: ein
+   * Kalender gehört einem Bereich, und ein Bereich ist ein benannter Schlüssel
+   * mit seinen Epochen — kein Anhängsel einer Organisation. Wer den Kalender
+   * zuerst sucht, findet hier, woran er hängt.
+   */
+  areas: 'Obszary',
   calendar: 'Kalendarz',
   chat: 'Rozmowy',
   pages: 'Strony',

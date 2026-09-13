@@ -243,6 +243,14 @@ code {
 
 .wk-row-side { color: var(--wk-muted); font-size: 0.85rem; }
 
+/* Der Adressbaum. Die Linie links macht die Ebene sichtbar, ohne dass jede
+   Zeile ihren ganzen Pfad wiederholen muesste. Der Rueckfallwert steht dabei,
+   damit die Linie auch dann da ist, wenn es --wk-line einmal nicht gibt. */
+.wk-tree { list-style: none; margin: 0; padding: 0; }
+.wk-tree li { margin: 0; }
+.wk-tree-sub { margin-left: 0.55rem; padding-left: 0.9rem; border-left: 1px solid var(--wk-line, rgba(0, 0, 0, 0.14)); }
+.wk-tree-gap { color: var(--wk-muted); }
+
 .wk-form { display: grid; gap: 0.85rem; max-width: 26rem; }
 
 .wk-field select {
@@ -516,6 +524,74 @@ code {
 .wk-card-title { margin: 0; font-size: 1.05rem; font-weight: 600; }
 .wk-card-text { margin: 0; }
 .wk-card-lines { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; }
+
+/* -- Der Messplan auf der Seite -------------------------------------------
+   Dieselbe Ordnung wie auf dem gedruckten Bogen (`sheet.ts`): die Uhrzeit in
+   einer schmalen Spalte rechtsbuendig, die Intention daneben. Zwei Anordnungen
+   fuer dieselbe Sache waeren zwei Gewohnheiten, und wer den Aushang kennt,
+   muesste den Bildschirm neu lernen. */
+
+.wk-card-muted { margin: 0; color: var(--wk-muted); font-size: 0.9rem; }
+.wk-card-next { margin: 0; font-size: 1.05rem; }
+.wk-card-hours { margin: 0; font-variant-numeric: tabular-nums; }
+
+/* Kapitaelchen wie die Tagesueberschrift des Bogens. */
+.wk-card-next-day,
+.wk-mass-day-name {
+  color: var(--wk-muted);
+  font-variant: small-caps;
+  letter-spacing: 0.05em;
+}
+
+/* Die Kachel hat eine feste Hoehe; was nicht hineinpasst, rollt. */
+.wk-mass-days { display: grid; gap: 0.6rem; overflow-y: auto; min-width: 0; }
+.wk-mass-day { display: grid; gap: 0.15rem; }
+.wk-mass-day-name { margin: 0; font-size: 0.85rem; font-weight: 600; }
+
+.wk-mass-row { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); gap: 0 0.6rem; }
+.wk-mass-hour { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.wk-mass-what { min-width: 0; display: grid; gap: 0.1rem; }
+.wk-mass-title { font-size: 0.85rem; color: var(--wk-muted); }
+.wk-mass-int { font-size: 0.92rem; }
+
+/* „1)", „2)" — genau wie auf dem Bogen, und aus demselben Grund. */
+.wk-mass-ints { margin: 0; padding: 0; list-style: none; counter-reset: intencja; font-size: 0.92rem; }
+.wk-mass-ints li { counter-increment: intencja; padding-left: 1.4rem; text-indent: -1.4rem; }
+.wk-mass-ints li::before { content: counter(intencja) ") "; }
+
+/* Der Verweis auf die zusammengelegten — kein Eintrag, sondern ein Hinweis. */
+.wk-mass-many { font-variant: small-caps; letter-spacing: 0.04em; font-size: 0.9rem; }
+
+/* -- Die Kanzlei ----------------------------------------------------------
+   Hier wird ABGETIPPT, nicht ausgefuellt: das Eingabefeld ist breit, die Art
+   daneben schmal, und die Reihe bricht auf einem Telefon um. */
+
+.wk-mo-top { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: flex-end; }
+.wk-mo-top .wk-field { margin: 0; }
+
+.wk-mo-mass { margin: 0.8rem 0; display: grid; gap: 0.4rem; }
+.wk-mo-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+
+.wk-mo-entry { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.wk-mo-entry input { flex: 1 1 16rem; min-width: 0; }
+
+/* Zurueckgenommen, aber nicht fort: die Kanzlei sieht, dass da etwas war. */
+.wk-mo-int input { flex: 1 1 14rem; min-width: 0; border: none; background: transparent; padding: 0; }
+.wk-mo-int[data-cancelled='true'] { opacity: 0.55; }
+.wk-mo-int[data-cancelled='true'] input { text-decoration: line-through; }
+
+.wk-mo-need { margin: 0; font-size: 0.85rem; color: var(--wk-accent); }
+
+.wk-mo-days { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.wk-mo-day { display: flex; gap: 0.25rem; align-items: center; font-size: 0.9rem; }
+
+.wk-mo-keys { margin: 0.4rem 0 0; font-size: 0.82rem; color: var(--wk-muted); }
+.wk-mo-keys kbd {
+  font: inherit;
+  border: 1px solid var(--wk-line, rgba(0, 0, 0, 0.18));
+  border-radius: 4px;
+  padding: 0 0.25rem;
+}
 .wk-card-unknown { margin: 0; font-size: 0.82rem; color: var(--wk-muted); }
 
 /* Ein Hinweis soll auffallen — sonst ist er keiner. */

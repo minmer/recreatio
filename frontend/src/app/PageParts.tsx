@@ -14,6 +14,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 
 import { COLUMNS, frameFor, snapColSpan, snapRowSpan, type Breakpoint } from './layout';
+import { MassCard } from './MassCard';
 import { isEmpty, moduleDef, readLink } from './modules';
 import { pagePath } from './routes';
 import type { DraftPart } from './page';
@@ -35,11 +36,28 @@ function useBreakpoint(): Breakpoint {
   return breakpoint;
 }
 
-export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
+/*
+ * OHNE die Adresse. Sie stand hier, weil der Messplan sie brauchte, um seinen
+ * Inhalt zu holen — seit 0020 nennt er statt ihrer einen KALENDER, der in
+ * seinem `config` steht. Damit braucht kein Baustein mehr zu wissen, unter
+ * welcher Adresse er gerade gezeichnet wird, und das ist die richtige Ordnung:
+ * ein Baustein ist dasselbe, gleich wo er hängt.
+ */
+export function PageParts({ parts }: {
+  parts: readonly DraftPart[];
+}) {
   const breakpoint = useBreakpoint();
   const columns = COLUMNS[breakpoint];
 
-  const shown = parts.filter((part) => !isEmpty(part.config));
+  /*
+   * Ein leerer Baustein verschwindet für den Besucher — ausser er holt seinen
+   * Inhalt woanders her. Der Messplan hat NIE etwas im `config` stehen; ohne
+   * diese Ausnahme fiele er genau dann aus der Seite, wenn er richtig
+   * eingerichtet ist, und niemand käme darauf, warum.
+   */
+  const shown = parts.filter(
+    (part) => !isEmpty(part.config) || moduleDef(part.kind)?.live === true);
+
   if (shown.length === 0) return null;
 
   return (
@@ -50,16 +68,29 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
       {shown.map((part) => {
         const frame = frameFor(part, breakpoint);
 
+        /*
+         * Einmal gerechnet und weitergereicht: der Messplan entscheidet an
+         * DIESEN Zahlen, was er zeigt. Sie im Stil noch einmal auszurechnen
+         * hiesse, zwei Stellen zu haben, die sich einig sein müssen.
+         */
+        const colSpan = snapColSpan(frame.size.colSpan, columns);
+        const rowSpan = snapRowSpan(frame.size.rowSpan);
+
         return (
           <article
             key={part.id}
             className={`wk-card wk-card-${part.kind}`}
             style={{
-              gridColumn: `${frame.position.col} / span ${snapColSpan(frame.size.colSpan, columns)}`,
-              gridRow: `span ${snapRowSpan(frame.size.rowSpan)}`
+              gridColumn: `${frame.position.col} / span ${colSpan}`,
+              gridRow: `span ${rowSpan}`
             }}
           >
-            <Body kind={part.kind} config={part.config} />
+            <Body
+              kind={part.kind}
+              config={part.config}
+              colSpan={colSpan}
+              rowSpan={rowSpan}
+            />
           </article>
         );
       })}
@@ -71,9 +102,27 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
 const lines = (text: string): readonly string[] =>
   text.split('\n').map((line) => line.trim()).filter((line) => line !== '');
 
-function Body({ kind, config }: { kind: string; config: Record<string, string> }) {
+/*
+ * OHNE `path`. Der Messplan war der einzige Baustein, der die Adresse brauchte —
+ * und er nennt seit 0020 einen KALENDER, der in seinem `config` steht. Die
+ * Adresse weiterzureichen, damit niemand sie liest, sähe aus wie ein Zweck.
+ */
+function Body({ kind, config, colSpan, rowSpan }: {
+  kind: string;
+  config: Record<string, string>;
+  colSpan: number;
+  rowSpan: number;
+}) {
   const title = (config.title ?? '').trim();
   const body = (config.body ?? '').trim();
+
+  /*
+   * Der einzige Baustein, der etwas holt. Er steht vor allen anderen, weil er
+   * mit `config` nichts anfängt — dort steht nur, wie er aussehen soll.
+   */
+  if (kind === 'masses') {
+    return <MassCard config={config} colSpan={colSpan} rowSpan={rowSpan} />;
+  }
 
   if (kind === 'notice') {
     return <p className="wk-card-notice">{body}</p>;
