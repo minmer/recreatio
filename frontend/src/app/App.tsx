@@ -89,24 +89,29 @@ export function App() {
    * `#/parish` aufruft, will die Seite sehen und nicht wissen, ob er angemeldet
    * ist.
    */
-  if (address.page !== null) {
-    return <Shell><PublicPage path={address.page} /></Shell>;
-  }
-
   /*
-   * Ein individueller Platz — `#/seat/<token>/<key>`.
+   * Ein individueller Platz — `#/lo13/portal/<token>/<key>` oder, wenn er unter
+   * keiner Seite hängt, `#/seat/<token>/<key>`.
    *
-   * Er steht VOR der Frage nach der Anmeldung, wie eine öffentliche Seite: der
-   * Link IST der Ausweis, und wer ihn hat, ist meistens gerade der, der KEIN
-   * Konto hat. Ob jemand angemeldet ist, fragt die Seite selbst — sie braucht
-   * es nur, um das Binden anzubieten.
+   * Er steht VOR der Seite und vor der Frage nach der Anmeldung: der Link IST
+   * der Ausweis, und wer ihn hat, ist meistens gerade der, der KEIN Konto hat.
+   * Ob jemand angemeldet ist, fragt die Seite selbst — sie braucht es nur, um
+   * das Binden anzubieten.
    */
-  if (address.route === 'seat' && address.slug !== null) {
+  if (address.seat !== null) {
     return (
       <Shell>
-        <SeatPortal token={address.slug} keyText={address.tail[0] ?? null} />
+        <SeatPortal
+          token={address.seat.token}
+          keyText={address.seat.key}
+          under={address.page}
+        />
       </Shell>
     );
+  }
+
+  if (address.page !== null) {
+    return <Shell><PublicPage path={address.page} /></Shell>;
   }
 
   if (who === undefined) {

@@ -81,7 +81,7 @@ export type Route = keyof typeof ROUTES;
  * wenn der Altbestand fort ist, fällt er weg — dann gehört jede Adresse dem
  * Neubau, und diese Liste verschwindet.
  */
-export const PAGES = ['parish', 'start'] as const;
+export const PAGES = ['parish', 'start', 'lo13'] as const;
 
 export const isPage = (word: string): boolean => (PAGES as readonly string[]).includes(word);
 
@@ -122,6 +122,19 @@ export function routeOf(word: string): Route | null {
   return Object.prototype.hasOwnProperty.call(ROUTES, word) ? (word as Route) : null;
 }
 
+/**
+ * Ein individueller Platz, aus der Adresse gelesen.
+ *
+ * Zwei Teile, und sie tun Verschiedenes: `token` geht an den Dienst und sagt,
+ * WELCHER Platz gemeint ist; `key` geht nie hinaus und öffnet ihn. Beide stehen
+ * hinter der Raute — der Server einer statischen Seite sieht davon nichts.
+ */
+export interface Seat {
+  readonly token: string;
+  /** `null`, wenn der Link ohne zweiten Teil ankam — dann bleibt der Inhalt zu. */
+  readonly key: string | null;
+}
+
 export interface Address {
   readonly route: Route;
   /** Das einzelne Ding — `null`, wenn keines benannt ist. */
@@ -144,6 +157,15 @@ export interface Address {
    * des Arbeitsplatzes, sondern der Welt draussen.
    */
   readonly page: string | null;
+
+  /**
+   * Ein Platz — `#/lo13/portal/<token>/<key>` oder `#/seat/<token>/<key>`.
+   *
+   * Die erste Form gehört einer Seite: der Schüler liest die Adresse seiner
+   * Schule und dahinter seinen Platz, und das ist die Ordnung, die er erwartet.
+   * Die zweite bleibt für Plätze, die unter keiner Seite hängen.
+   */
+  readonly seat: Seat | null;
 }
 
 /**
@@ -153,7 +175,16 @@ export interface Address {
  * sie als leerer Pfad und zeigt als Alias auf `start`. Wer hier ankommt, ist
  * meistens ein Besucher — und der bekommt die Seite, nicht ein Anmeldeformular.
  */
-const HOME: Address = { route: 'workspace', slug: null, tail: [], stray: null, page: '' };
+const HOME: Address = { route: 'workspace', slug: null, tail: [], stray: null, page: '', seat: null };
+
+/**
+ * Das Wort, hinter dem ein Platz beginnt.
+ *
+ * Es ist im Register gesperrt (`Slug.IsReserved`), damit niemand eine
+ * Unterseite so nennt — sie verdeckte sonst jeden Schülerlink, und zwar
+ * lautlos, denn beide Adressen sähen gleich aus.
+ */
+const PORTAL = 'portal';
 
 /** Die Adresse zerlegen. Nimmt die Raute mitsamt allem davor. */
 export function parsePath(hash: string): Address {
@@ -184,12 +215,30 @@ export function parsePath(hash: string): Address {
    * eine Adresse mit einem Anhängsel.
    */
   if (isPage(segments[0])) {
-    return { route: 'workspace', slug: null, tail: [], stray: null, page: segments.join('/') };
+    /*
+     * `lo13/portal/<token>/<key>` ist KEINE Unterseite von lo13, sondern der
+     * Platz eines Menschen. Die Seite davor bleibt stehen — sie sagt ihm, wo er
+     * ist —, aber geladen wird der Platz.
+     */
+    const at = segments.indexOf(PORTAL);
+
+    if (at > 0) {
+      return {
+        route: 'workspace', slug: null, tail: [], stray: null,
+        page: segments.slice(0, at).join('/'),
+        seat: { token: segments[at + 1] ?? '', key: segments[at + 2] ?? null }
+      };
+    }
+
+    return {
+      route: 'workspace', slug: null, tail: [], stray: null,
+      page: segments.join('/'), seat: null
+    };
   }
 
   const route = routeOf(segments[0]);
   if (route === null) {
-    return { route: 'workspace', slug: null, tail: [], stray: segments[0], page: null };
+    return { route: 'workspace', slug: null, tail: [], stray: segments[0], page: null, seat: null };
   }
 
   const rest = segments.slice(1);
@@ -200,7 +249,14 @@ export function parsePath(hash: string): Address {
     slug: slugged ? (rest[0] ?? null) : null,
     tail: slugged ? rest.slice(1) : rest,
     stray: null,
-    page: null
+    page: null,
+
+    /*
+     * Die allgemeine Form, für Plätze ohne Seite darüber. Sie ergibt DENSELBEN
+     * Befund wie die seitenlokale — damit die Anwendung genau eine Stelle hat,
+     * an der sie einen Platz erkennt.
+     */
+    seat: route === 'seat' ? { token: rest[0] ?? '', key: rest[1] ?? null } : null
   };
 }
 

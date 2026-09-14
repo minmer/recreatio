@@ -30,8 +30,14 @@ import { newId } from './ids';
 import type { Ring, SealedRole } from './keys';
 import { call } from './session';
 
-/** Die AAD des Epochenschlüssels — an EINER Stelle, wie in `keys.ts`. */
-const epochAad = (areaId: string, epoch: number) =>
+/**
+ * Die AAD des Epochenschlüssels — an EINER Stelle, wie in `keys.ts`.
+ *
+ * Offen, weil derselbe Schlüssel an mehreren Orten verpackt liegt: an der Rolle
+ * (`key_grant`) und am Platz (`access_grant`). Dieselbe Sache, dasselbe
+ * Etikett — die AAD sagt, WAS versiegelt ist, nicht unter welchem Schlüssel.
+ */
+export const epochAad = (areaId: string, epoch: number) =>
   aad('keys', 'area_epoch', areaId, Field.AreaEpochKey, epoch);
 
 export interface AreaRow {

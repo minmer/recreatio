@@ -32,8 +32,18 @@ interface Shown {
   readonly internal: string | null;
 }
 
-export function Seats({ area, ring, ownerRoleId }: {
+export function Seats({ area, areas, ring, ownerRoleId }: {
   area: AreaRow;
+
+  /**
+   * Alle Bereiche dieses Menschen — für den GEMEINSAMEN Schlüssel.
+   *
+   * Eine Klasse braucht zwei: diesen hier für die Notizen, und einen zweiten
+   * für das, was allen gilt. Läge beides unter einem, öffnete jeder Schüler mit
+   * dem Gemeinsamen auch die Notizen über sich und alle anderen.
+   */
+  areas: readonly AreaRow[];
+
   ring: Ring;
   ownerRoleId: string;
 }) {
@@ -43,7 +53,7 @@ export function Seats({ area, ring, ownerRoleId }: {
   const [failed, setFailed] = useState<string | null>(null);
 
   /** Der Link des zuletzt ausgestellten Platzes — einmal, dann nie wieder. */
-  const [fresh, setFresh] = useState<{ name: string; link: Link } | null>(null);
+  const [fresh, setFresh] = useState<{ name: string; link: Link; under: string | null } | null>(null);
 
   const look = useCallback(async () => {
     try {
@@ -123,8 +133,10 @@ export function Seats({ area, ring, ownerRoleId }: {
         areaKey={key}
         epoch={area.currentEpoch}
         ownerRoleId={ownerRoleId}
+        areas={areas.filter((a) => a.areaId !== area.areaId && a.heldEpochs > 0)}
+        ring={ring}
         busy={busy !== null}
-        onIssued={(name, link) => { setFresh({ name, link }); void look(); }}
+        onIssued={(name, link, under) => { setFresh({ name, link, under }); void look(); }}
         onError={setFailed}
       />
     </>
@@ -139,8 +151,11 @@ export function Seats({ area, ring, ownerRoleId }: {
  * Kein „später ansehen": gespeichert ist nur der Abdruck. Das gehört gesagt,
  * solange der Link noch auf dem Bildschirm ist — danach ist es eine Ausrede.
  */
-function FreshLink({ fresh, onClose }: { fresh: { name: string; link: Link }; onClose: () => void }) {
-  const href = `${window.location.origin}${window.location.pathname}${seatPath(fresh.link)}`;
+function FreshLink({ fresh, onClose }: {
+  fresh: { name: string; link: Link; under: string | null };
+  onClose: () => void;
+}) {
+  const href = `${window.location.origin}${window.location.pathname}${seatPath(fresh.link, fresh.under)}`;
   const [copied, setCopied] = useState(false);
 
   return (
@@ -253,17 +268,21 @@ function SeatItem({ shown, areaKey, busy, onAct }: {
 
 /* -- Ausstellen ------------------------------------------------------------- */
 
-function NewSeatForm({ areaId, areaKey, epoch, ownerRoleId, busy, onIssued, onError }: {
+function NewSeatForm({ areaId, areaKey, epoch, ownerRoleId, areas, ring, busy, onIssued, onError }: {
   areaId: string;
   areaKey: Uint8Array;
   epoch: number;
   ownerRoleId: string;
+  areas: readonly AreaRow[];
+  ring: Ring;
   busy: boolean;
-  onIssued: (name: string, link: Link) => void;
+  onIssued: (name: string, link: Link, under: string | null) => void;
   onError: (message: string | null) => void;
 }) {
   const [name, setName] = useState('');
   const [personal, setPersonal] = useState('');
+  const [sharedId, setSharedId] = useState('');
+  const [under, setUnder] = useState('');
   const [working, setWorking] = useState(false);
 
   const go = async () => {
@@ -271,13 +290,37 @@ function NewSeatForm({ areaId, areaKey, epoch, ownerRoleId, busy, onIssued, onEr
     onError(null);
 
     try {
+      /*
+       * Der gemeinsame Schlüssel, wenn einer gewählt wurde. Er wird unter dem
+       * PLATZSCHLÜSSEL verpackt — damit liest der Schüler das Gemeinsame und
+       * kommt trotzdem nicht an die Notizen, die in DIESEM Bereich liegen.
+       */
+      const shared: { areaId: string; areaKey: Uint8Array; epoch: number }[] = [];
+
+      if (sharedId !== '') {
+        const area = areas.find((a) => a.areaId === sharedId);
+        if (area === undefined) throw new WorkspaceError('Nie ma takiego obszaru.');
+
+        const keys = await myEpochKeys(ring, area.areaId);
+        const key = keys.get(area.currentEpoch);
+
+        if (key === undefined) {
+          throw new WorkspaceError('Nie masz klucza tej epoki — nie da się go przekazać.');
+        }
+
+        shared.push({ areaId: area.areaId, areaKey: key, epoch: area.currentEpoch });
+      }
+
+      const page = under.trim().toLowerCase().replace(/^\/+|\/+$/g, '');
+
       const { link } = await issueSeat({
         areaId, areaKey, epoch, ownerRoleId,
         recipientName: name.trim() === '' ? undefined : name.trim(),
-        personalNote: personal.trim() === '' ? undefined : personal.trim()
+        personalNote: personal.trim() === '' ? undefined : personal.trim(),
+        shared
       });
 
-      onIssued(name.trim(), link);
+      onIssued(name.trim(), link, page === '' ? null : page);
       setName('');
       setPersonal('');
     } catch (e) {
@@ -314,6 +357,46 @@ function NewSeatForm({ areaId, areaKey, epoch, ownerRoleId, busy, onIssued, onEr
         <span>Co ma zobaczyć (można później)</span>
         <textarea rows={3} value={personal} onChange={(e) => setPersonal(e.target.value)} />
       </label>
+
+      {/*
+        DIE ZWEITE HÄLFTE DER KLASSE. Ohne sie hat der Schüler nur seinen
+        eigenen Zettel; mit ihr sieht er auch, was allen gilt — und weiterhin
+        nicht, was hier über ihn steht.
+      */}
+      {areas.length > 0 && (
+        <>
+          <label className="wk-field">
+            <span>Klucz wspólny dla klasy</span>
+            <select value={sharedId} onChange={(e) => setSharedId(e.target.value)}>
+              <option value="">— tylko własne miejsce —</option>
+              {areas.map((a) => <option key={a.areaId} value={a.areaId}>{a.name}</option>)}
+            </select>
+          </label>
+
+          <p className="wk-hint">
+            Klasa potrzebuje <strong>dwóch</strong> obszarów. Ten, w którym
+            jesteś, trzyma notatki — uczeń ich nie widzi. Wybrany tutaj trzyma
+            to, co wspólne: plan, terminy. Każde miejsce dostaje jego klucz
+            zapakowany swoim własnym, więc uczeń widzi wspólne i nie widzi
+            cudzego.
+          </p>
+        </>
+      )}
+
+      <label className="wk-field">
+        <span>Adres strony (opcjonalnie)</span>
+        <input
+          value={under}
+          placeholder="lo13"
+          onChange={(e) => setUnder(e.target.value)}
+        />
+      </label>
+
+      <p className="wk-hint">
+        Podaj adres strony, a link będzie brzmiał{' '}
+        <code>{(under.trim() || 'lo13')}/portal/…</code> zamiast{' '}
+        <code>seat/…</code>. To tylko wygląd adresu — treść i klucze są te same.
+      </p>
 
       <div className="wk-actions">
         <button type="submit" className="wk-btn" disabled={busy || working}>

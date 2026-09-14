@@ -21,6 +21,7 @@
  * ausgehängte.
  */
 
+import { newId } from './ids';
 import { call } from './session';
 
 /** Die Arten, die ein Eintrag haben kann — wie `ck_item_kind`. */
@@ -162,10 +163,23 @@ export interface AddedItem {
   readonly fields: number;
 }
 
-export const addItem = (calendarId: string, body: NewItem): Promise<AddedItem> =>
+/**
+ * Einen Eintrag anlegen.
+ *
+ * <b>Die Kennung entsteht HIER</b>, nicht am Dienst — wie beim Bereich und beim
+ * Platz. Sie muss es: die AAD eines versiegelten Feldes nennt den Eintrag, und
+ * versiegelt wird, bevor der Dienst antwortet. Münzte er die Kennung, nennte
+ * jede Hülle eine andere als die, unter der sie liegt.
+ *
+ * Wer die Kennung selbst mitbringt (weil er vorher damit versiegelt hat), gibt
+ * sie in `itemId` an; sonst entsteht sie hier.
+ */
+export const addItem = (
+  calendarId: string, body: NewItem & { readonly itemId?: string }
+): Promise<AddedItem> =>
   call<AddedItem>(`/workspace/calendar/${encodeURIComponent(calendarId)}/item`, {
     method: 'POST',
-    body: JSON.stringify(body)
+    body: JSON.stringify({ ...body, itemId: body.itemId ?? newId() })
   });
 
 const window_ = (from?: Date, to?: Date): string => {
@@ -184,12 +198,19 @@ export const loadItems = (
   return call<Days>(`/workspace/calendar/${encodeURIComponent(calendarId)}/items?${query}`);
 };
 
-/** Ohne Konto: nur was unter einem offengelegten Bereich liegt. */
+/**
+ * Ohne Konto: was unter einem offengelegten Bereich liegt — und, mit `seat`,
+ * was der Platz dieses Menschen aufschliesst.
+ *
+ * Das Token sagt dem Dienst nur, WELCHE Bereiche er herausgeben darf. Der
+ * Schlüssel bleibt hier; was zurückkommt, ist versiegelt wie immer.
+ */
 export const loadPublic = (
-  calendarId: string, from?: Date, to?: Date, kind?: ItemKind
+  calendarId: string, from?: Date, to?: Date, kind?: ItemKind, seat?: string
 ): Promise<Days> => {
   const query = new URLSearchParams(window_(from, to));
   if (kind !== undefined) query.set('kind', kind);
+  if (seat !== undefined && seat !== '') query.set('seat', seat);
 
   return call<Days>(`/calendar/${encodeURIComponent(calendarId)}/public?${query}`);
 };

@@ -198,7 +198,21 @@ public static class Calendar
         string Date, string Time, int? Minutes, bool? AllDay,
         string? TitlePublic, string? Status,
         string? Repeat, int? Every, int? Weekdays, string? Until, int? Count,
-        IReadOnlyList<SealedField>? Fields);
+        IReadOnlyList<SealedField>? Fields,
+
+        /*
+         * DIE KENNUNG ENTSTEHT IM BROWSER — wie beim Bereich und beim Platz.
+         *
+         * Sie MUSS es, sobald ein Feld versiegelt wird: die AAD eines Feldes
+         * nennt den Eintrag, und der Browser versiegelt, bevor der Dienst
+         * antwortet. Muenzte der Dienst die Kennung, naennte jede Huelle eine
+         * andere als die, unter der sie liegt — und ginge nie wieder auf.
+         *
+         * Genau das war der Fall, und es fiel nicht auf, weil derselbe Irrtum
+         * beim Oeffnen wiederholt wurde: der Pruefstand versiegelte und oeffnete
+         * mit SEINER Kennung und war sich mit sich selbst einig.
+         */
+        string? ItemId);
 
     /// <summary>
     /// Einen Eintrag anlegen.
@@ -372,7 +386,30 @@ public static class Calendar
             ? ((body.Weekdays ?? 0) == 0 ? Zones.BitOf(starts.DayOfWeek) : (body.Weekdays!.Value & 127))
             : null;
 
-        var itemId = Ids.NewId();
+        /*
+         * Ohne Kennung nur dann, wenn nichts versiegelt wird. Sonst entstuende
+         * eine Huelle, die niemand je wieder oeffnet — und zwar lautlos.
+         */
+        Guid itemId;
+
+        if (string.IsNullOrWhiteSpace(body.ItemId))
+        {
+            if (sealedFields.Count > 0)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest,
+                    "Wpis z zapieczętowanym polem musi przyjść z własną kennung — "
+                    + "inaczej etykieta wskazuje na co innego niż zapis.");
+                return;
+            }
+
+            itemId = Ids.NewId();
+        }
+        else if (!Guid.TryParse(body.ItemId, out itemId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung wpisu.");
+            return;
+        }
+
         var now = DateTimeOffset.UtcNow;
         var titlePublic = (body.TitlePublic ?? string.Empty).Trim();
 
@@ -559,10 +596,45 @@ public static class Calendar
         await ShowAsync(ctx, connection, id, who.Value.AccountId, from, to, kind);
     }
 
-    private static async Task PublicAsync(HttpContext ctx, Db db, Guid id, string? from, string? to, string? kind)
+    /// <summary>
+    /// Der Aushang — und, mit <c>?seat=</c>, das Gemeinsame einer Klasse.
+    ///
+    /// <para>
+    /// Ein Schueler ohne Konto haelt den Klassenschluessel: er steckt in seinem
+    /// Platz (<c>app.access_grant</c>, 0024). Was ihm fehlte, war ein Weg, die
+    /// Zeilen dazu zu bekommen — dieser hier. Er gibt genau die Bereiche frei,
+    /// die sein Platz aufschliesst, und keinen weiteren.
+    /// </para>
+    ///
+    /// <para>
+    /// Der Schluessel kommt dabei NICHT vor: der Dienst gibt versiegelte Felder
+    /// heraus, wie immer. Das Token sagt nur, WELCHE er herausgeben darf.
+    /// </para>
+    /// </summary>
+    private static async Task PublicAsync(
+        HttpContext ctx, Db db, Guid id, string? from, string? to, string? kind, string? seat)
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        await ShowAsync(ctx, connection, id, null, from, to, kind);
+
+        Guid? seatId = null;
+
+        if (!string.IsNullOrWhiteSpace(seat))
+        {
+            await using var find = new SqlCommand("""
+                SELECT id FROM app.access
+                WHERE token_sha256 = @token AND revoked_at IS NULL AND status = N'active'
+                  AND (expires_at IS NULL OR expires_at > @now);
+                """, connection);
+
+            find.Parameters.AddWithValue("@token",
+                System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(seat.Trim())));
+            find.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+
+            if (await find.ExecuteScalarAsync(ctx.RequestAborted) is Guid found) seatId = found;
+        }
+
+        await ShowAsync(ctx, connection, id, null, from, to, kind, seatId);
     }
 
     private sealed record Row(
@@ -577,7 +649,7 @@ public static class Calendar
 
     private static async Task ShowAsync(
         HttpContext ctx, SqlConnection connection, Guid calendarId, Guid? accountId,
-        string? from, string? to, string? kind)
+        string? from, string? to, string? kind, Guid? seatId = null)
     {
         var found = await CalendarOfAsync(connection, calendarId, ctx.RequestAborted);
         if (found is null)
@@ -597,7 +669,7 @@ public static class Calendar
          * Sichtbarkeitspruefung — keine Spalte, die der Dienst deuten muesste,
          * sondern eine Zuteilung oder ein offengelegter Schluessel.
          */
-        var readable = await ReadableAreasAsync(connection, accountId, ctx.RequestAborted);
+        var readable = await ReadableAreasAsync(connection, accountId, ctx.RequestAborted, seatId);
 
         if (readable.Count == 0)
         {
@@ -743,9 +815,24 @@ public static class Calendar
     /// </para>
     /// </summary>
     internal static async Task<List<Guid>> ReadableAreasAsync(
-        SqlConnection connection, Guid? accountId, CancellationToken ct)
+        SqlConnection connection, Guid? accountId, CancellationToken ct, Guid? seatId = null)
     {
         var areas = new HashSet<Guid>();
+
+        /*
+         * Was ein PLATZ aufschliesst (0024). Der dritte Weg neben Zuteilung und
+         * Offenlegung — und der einzige, der ohne Konto auskommt.
+         */
+        if (seatId is not null)
+        {
+            await using var granted = new SqlCommand(
+                "SELECT area_id FROM app.access_grant WHERE access_id = @seat;", connection);
+
+            granted.Parameters.AddWithValue("@seat", seatId.Value);
+
+            await using var reader = await granted.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) areas.Add(reader.GetGuid(0));
+        }
 
         await using (var open = new SqlCommand(
             "SELECT DISTINCT area_id FROM app.area_epoch WHERE key_public IS NOT NULL;", connection))

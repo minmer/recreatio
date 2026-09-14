@@ -106,6 +106,7 @@ export function Areas({ who }: { who: Who }) {
             <AreaRowView
               key={area.areaId}
               area={area}
+              areas={areas}
               calendars={calendars.filter((c) => c.areaId === area.areaId)}
               ring={ring}
               person={person}
@@ -125,8 +126,12 @@ export function Areas({ who }: { who: Who }) {
 
 /* -- Ein Bereich ----------------------------------------------------------- */
 
-function AreaRowView({ area, calendars, ring, person, open, busy, onOpen, onAct }: {
+function AreaRowView({ area, areas, calendars, ring, person, open, busy, onOpen, onAct }: {
   area: AreaRow;
+
+  /** Alle — für den gemeinsamen Schlüssel einer Klasse. */
+  areas: readonly AreaRow[];
+
   calendars: readonly CalendarRow[];
   ring: Ring | null;
   person: SealedRole | null;
@@ -206,7 +211,7 @@ function AreaRowView({ area, calendars, ring, person, open, busy, onOpen, onAct 
               braucht dessen Epochenschlüssel — den hat er genau hier.
             */}
             {ring !== null && person !== null && (
-              <Seats area={area} ring={ring} ownerRoleId={person.id} />
+              <Seats area={area} areas={areas} ring={ring} ownerRoleId={person.id} />
             )}
 
             {/*

@@ -68,9 +68,22 @@ public static partial class Slug
     public static bool IsWellFormed(string path) =>
         path == Home || (path.Length <= MaxPathLength && Shape().IsMatch(path));
 
-    /// <summary>Der Arbeitsplatz selbst. Er ist keine Adresse, die jemand führt.</summary>
+    /// <summary>
+    /// Adressen, die niemand führt.
+    ///
+    /// <para>
+    /// <c>workspace</c> ist der Arbeitsplatz selbst. <c>portal</c> ist der
+    /// Platzzugang: <c>lo13/portal/&lt;token&gt;/&lt;key&gt;</c> ist die Adresse
+    /// EINES SCHÜLERS und keine Unterseite. Liesse man sie übernehmen,
+    /// verdeckte eine Seite namens „portal" jeden dieser Links — und zwar
+    /// lautlos, denn beide sähen gleich aus.
+    /// </para>
+    /// </summary>
     public static bool IsReserved(string path) =>
-        path == "workspace" || path.StartsWith("workspace/", StringComparison.Ordinal);
+        path == "workspace" || path.StartsWith("workspace/", StringComparison.Ordinal)
+        || path == "portal"
+        || path.EndsWith("/portal", StringComparison.Ordinal)
+        || path.Contains("/portal/", StringComparison.Ordinal);
 
     /// <summary>Die Vorfahren von <c>a/b/c</c>: <c>a</c> und <c>a/b</c>.</summary>
     public static IReadOnlyList<string> Ancestors(string path)

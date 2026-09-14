@@ -66,6 +66,18 @@ public static class Seat
 
     /* -- Ausstellen --------------------------------------------------------- */
 
+    /// <summary>
+    /// Ein Schluessel, den dieser Platz AUSSERDEM aufschliesst — versiegelt
+    /// unter dem Platzschluessel.
+    ///
+    /// <para>
+    /// Der Fall ist die Klasse: das Gemeinsame liegt in einem eigenen Bereich,
+    /// und jeder Platz traegt dessen Schluessel. Die Notizen des Lehrers liegen
+    /// im ANDEREN Bereich und bleiben damit zu.
+    /// </para>
+    /// </summary>
+    public sealed record GrantIn(string AreaId, int Epoch, string Sealed);
+
     public sealed record IssueRequest(
         string SeatId,
         string TokenSha256,
@@ -77,6 +89,7 @@ public static class Seat
         string? PersonalNoteSealed,
         string? InternalNoteSealed,
         IReadOnlyList<string>? SlugIds,
+        IReadOnlyList<GrantIn>? Grants,
         int? Days);
 
     /// <summary>
@@ -139,6 +152,19 @@ public static class Seat
             slugIds.Add(slugId);
         }
 
+        var grants = new List<(Guid Area, int Epoch, byte[] Blob)>();
+        foreach (var one in body.Grants ?? [])
+        {
+            if (!Guid.TryParse(one.AreaId, out var grantArea) || one.Epoch < 1
+                || !Blob(one.Sealed, out var grantBlob) || grantBlob.Length == 0)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny klucz wspólny.");
+                return;
+            }
+
+            grants.Add((grantArea, one.Epoch, grantBlob));
+        }
+
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         if (!await Area.MayAsync(connection, who.Value.AccountId, id, Capability.Write, ctx.RequestAborted))
@@ -196,6 +222,27 @@ public static class Seat
                 open.Parameters.AddWithValue("@a", seatId);
                 open.Parameters.AddWithValue("@s", slugId);
                 await open.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            /*
+             * Die gemeinsamen Schluessel — in DERSELBEN Transaktion. Ein Platz,
+             * der ohne sie entstuende, waere einer, auf dem das Gemeinsame
+             * fehlt, und niemand saehe warum.
+             */
+            foreach (var (grantArea, grantEpoch, grantBlob) in grants)
+            {
+                await using var add = new SqlCommand("""
+                    INSERT INTO app.access_grant (access_id, area_id, epoch, sealed_blob, created_at)
+                    VALUES (@a, @area, @epoch, @blob, @now);
+                    """, connection, tx);
+
+                add.Parameters.AddWithValue("@a", seatId);
+                add.Parameters.AddWithValue("@area", grantArea);
+                add.Parameters.AddWithValue("@epoch", grantEpoch);
+                add.Parameters.AddWithValue("@blob", grantBlob);
+                add.Parameters.AddWithValue("@now", now);
+
+                await add.ExecuteNonQueryAsync(ctx.RequestAborted);
             }
 
             await tx.CommitAsync(ctx.RequestAborted);
@@ -414,29 +461,136 @@ public static class Seat
         cmd.Parameters.AddWithValue("@token", SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token.Trim())));
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
 
-        await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+        /*
+         * Der Leser wird GESCHLOSSEN, bevor die Zuteilungen geholt werden. Ein
+         * zweiter Befehl ueber dieselbe Verbindung, waehrend er offen ist,
+         * weist SQL Server ohne MARS ab — und von aussen saehe es aus wie ein
+         * Platz ohne Gemeinsames.
+         */
+        Guid seatId, areaId;
+        byte[] seatKeySealed;
+        int epoch;
+        string? recipientName;
+        byte[]? personalNote;
+        DateTimeOffset? expiresAt;
 
-        if (!await reader.ReadAsync(ctx.RequestAborted))
+        await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
         {
-            await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
-            return;
+            if (!await reader.ReadAsync(ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
+                return;
+            }
+
+            seatId = reader.GetGuid(0);
+            areaId = reader.GetGuid(1);
+            seatKeySealed = (byte[])reader[2];
+            epoch = reader.GetInt32(3);
+            recipientName = reader.IsDBNull(4) ? null : reader.GetString(4);
+            personalNote = reader.IsDBNull(5) ? null : (byte[])reader[5];
+            expiresAt = reader.IsDBNull(6) ? null : reader.GetDateTimeOffset(6);
         }
 
-        var seatId = reader.GetGuid(0);
+        /*
+         * Was dieser Platz AUSSERDEM aufschliesst — der Klassenschluessel.
+         * Versiegelt unter dem Platzschluessel: der Dienst reicht ihn durch,
+         * ohne ihn zu kennen.
+         */
+        var bySeat = await GrantsAsync(connection, [seatId], ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new
         {
             seatId = Ids.ToText(seatId),
-            areaId = Ids.ToText(reader.GetGuid(1)),
+            areaId = Ids.ToText(areaId),
 
             // Die Huelle des Platzschluessels. Der Oeffner steckt im Link.
-            seatKeySealed = Base64Url.Encode((byte[])reader[2]),
-            epoch = reader.GetInt32(3),
+            seatKeySealed = Base64Url.Encode(seatKeySealed),
+            epoch,
 
-            recipientName = reader.IsDBNull(4) ? null : reader.GetString(4),
-            personalNoteSealed = reader.IsDBNull(5) ? null : Base64Url.Encode((byte[])reader[5]),
-            expiresAt = reader.IsDBNull(6) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(6)
+            recipientName,
+            personalNoteSealed = personalNote is null ? null : Base64Url.Encode(personalNote),
+            expiresAt,
+
+            grants = bySeat.TryGetValue(seatId, out var list) ? list : []
         });
+    }
+
+    /// <summary>
+    /// Die gemeinsamen Schluessel je Platz — mit dem, was sie aufschliessen.
+    ///
+    /// <para>
+    /// Der Kalender steht dabei, weil der Schluessel allein nichts nuetzt: ohne
+    /// die Kennung wuesste ein Schueler ohne Konto nicht, WAS er damit oeffnen
+    /// kann, und muesste danach fragen — was er ohne Konto nicht kann.
+    /// </para>
+    /// </summary>
+    private static async Task<Dictionary<Guid, List<object>>> GrantsAsync(
+        SqlConnection connection, IReadOnlyList<Guid> seatIds, CancellationToken ct)
+    {
+        var map = new Dictionary<Guid, List<object>>();
+        if (seatIds.Count == 0) return map;
+
+        var rows = new List<(Guid Seat, Guid Area, string Name, int Epoch, byte[] Blob)>();
+        var names = string.Join(", ", seatIds.Select((_, i) => $"@s{i}"));
+
+        await using (var cmd = new SqlCommand(
+            $"SELECT g.access_id, g.area_id, a.name, g.epoch, g.sealed_blob "
+            + $"FROM app.access_grant g JOIN app.area a ON a.id = g.area_id "
+            + $"WHERE g.access_id IN ({names});", connection))
+        {
+            for (var i = 0; i < seatIds.Count; i++) cmd.Parameters.AddWithValue($"@s{i}", seatIds[i]);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                rows.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2),
+                    reader.GetInt32(3), (byte[])reader[4]));
+            }
+        }
+
+        if (rows.Count == 0) return map;
+
+        /* Die Kalender der aufgeschlossenen Bereiche — der Leser ist zu. */
+        var calendars = new Dictionary<Guid, List<object>>();
+        var areaIds = rows.Select(r => r.Area).Distinct().ToList();
+        var areaNames = string.Join(", ", areaIds.Select((_, i) => $"@a{i}"));
+
+        await using (var cmd = new SqlCommand(
+            $"SELECT area_id, id, title, time_zone FROM app.calendar WHERE area_id IN ({areaNames});",
+            connection))
+        {
+            for (var i = 0; i < areaIds.Count; i++) cmd.Parameters.AddWithValue($"@a{i}", areaIds[i]);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var area = reader.GetGuid(0);
+                if (!calendars.TryGetValue(area, out var list)) calendars[area] = list = [];
+
+                list.Add(new
+                {
+                    calendarId = Ids.ToText(reader.GetGuid(1)),
+                    title = reader.GetString(2),
+                    timeZone = reader.GetString(3)
+                });
+            }
+        }
+
+        foreach (var row in rows)
+        {
+            if (!map.TryGetValue(row.Seat, out var list)) map[row.Seat] = list = [];
+
+            list.Add(new
+            {
+                areaId = Ids.ToText(row.Area),
+                areaName = row.Name,
+                epoch = row.Epoch,
+                @sealed = Base64Url.Encode(row.Blob),
+                calendars = calendars.TryGetValue(row.Area, out var found) ? found : []
+            });
+        }
+
+        return map;
     }
 
     public sealed record BindRequest(string RoleId, string SeatKeySealed);
@@ -568,30 +722,47 @@ public static class Seat
 
         for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i].Id);
 
-        var seats = new List<object>();
+        /* Erst sammeln, dann den Leser schliessen — siehe `OpenAsync`. */
+        var rows = new List<(Guid Seat, Guid Area, string AreaName, string? Name, Guid Role,
+            byte[] KeySealed, int Epoch, byte[]? Note, string Status, DateTimeOffset? Until)>();
 
-        await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
-        while (await reader.ReadAsync(ctx.RequestAborted))
+        await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
         {
-            seats.Add(new
+            while (await reader.ReadAsync(ctx.RequestAborted))
             {
-                seatId = Ids.ToText(reader.GetGuid(0)),
-                areaId = Ids.ToText(reader.GetGuid(1)),
-                areaName = reader.GetString(2),
-                recipientName = reader.IsDBNull(3) ? null : reader.GetString(3),
-                roleId = Ids.ToText(reader.GetGuid(4)),
-
-                // Unter dem OEFFENTLICHEN Schluessel dieser Rolle verpackt.
-                seatKeySealed = Base64Url.Encode((byte[])reader[5]),
-                epoch = reader.GetInt32(6),
-
-                personalNoteSealed = reader.IsDBNull(7) ? null : Base64Url.Encode((byte[])reader[7]),
-                status = reader.GetString(8),
-                expiresAt = reader.IsDBNull(9) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(9)
-            });
+                rows.Add((
+                    reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2),
+                    reader.IsDBNull(3) ? null : reader.GetString(3),
+                    reader.GetGuid(4), (byte[])reader[5], reader.GetInt32(6),
+                    reader.IsDBNull(7) ? null : (byte[])reader[7],
+                    reader.GetString(8),
+                    reader.IsDBNull(9) ? null : reader.GetDateTimeOffset(9)));
+            }
         }
 
-        await ctx.Response.WriteAsJsonAsync(new { seats });
+        var bySeat = await GrantsAsync(connection, rows.Select(r => r.Seat).ToList(), ctx.RequestAborted);
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            seats = rows.Select(r => new
+            {
+                seatId = Ids.ToText(r.Seat),
+                areaId = Ids.ToText(r.Area),
+                areaName = r.AreaName,
+                recipientName = r.Name,
+                roleId = Ids.ToText(r.Role),
+
+                // Unter dem OEFFENTLICHEN Schluessel dieser Rolle verpackt.
+                seatKeySealed = Base64Url.Encode(r.KeySealed),
+                epoch = r.Epoch,
+
+                personalNoteSealed = r.Note is null ? null : Base64Url.Encode(r.Note),
+                status = r.Status,
+                expiresAt = r.Until,
+
+                grants = bySeat.TryGetValue(r.Seat, out var list) ? list : []
+            })
+        });
     }
 
     /* -- Gemeinsames -------------------------------------------------------- */

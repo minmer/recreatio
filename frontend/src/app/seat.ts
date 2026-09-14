@@ -29,6 +29,7 @@ import {
   aad, Field, fromBase64Url, KEY_SIZE, open, openText, seal, sealText,
   sha256, toBase64Url, unwrapKey, wrapKey
 } from './crypto';
+import { epochAad } from './area';
 import { newId } from './ids';
 import type { Ring, SealedRole } from './keys';
 import { call } from './session';
@@ -71,8 +72,62 @@ export function newLink(): { link: Link; key: Uint8Array } {
  * nichts, und in seinem Protokoll steht nur, dass jemand die Startseite geholt
  * hat.
  */
-export const seatPath = (link: Link): string =>
-  `#/seat/${encodeURIComponent(link.token)}/${encodeURIComponent(link.key)}`;
+export const seatPath = (link: Link, under?: string | null): string => {
+  const tail = `${encodeURIComponent(link.token)}/${encodeURIComponent(link.key)}`;
+
+  /*
+   * Unter einer Seite liest sich die Adresse so, wie der Mensch sie erwartet:
+   * erst seine Schule, dann sein Platz. Ohne Seite bleibt die allgemeine Form.
+   */
+  return under === undefined || under === null || under === ''
+    ? `#/seat/${tail}`
+    : `#/${under.split('/').map(encodeURIComponent).join('/')}/portal/${tail}`;
+};
+
+/* -- Was ein Platz AUSSERDEM aufschliesst ---------------------------------- */
+
+export interface SeatGrant {
+  readonly areaId: string;
+  readonly areaName: string;
+  readonly epoch: number;
+  /** Der Epochenschlüssel jenes Bereichs, versiegelt unter dem PLATZSCHLÜSSEL. */
+  readonly sealed: string;
+
+  /**
+   * Was dieser Schlüssel aufschliesst.
+   *
+   * Der Schlüssel allein nützt nichts: ohne die Kennung wüsste ein Schüler ohne
+   * Konto nicht, WAS er damit öffnen kann — und fragen kann er nicht.
+   */
+  readonly calendars: readonly { calendarId: string; title: string; timeZone: string }[];
+}
+
+/**
+ * Die gemeinsamen Schlüssel aufmachen.
+ *
+ * Der Weg ist immer derselbe — Link (oder Rolle) → Platzschlüssel → hier. Ein
+ * zweiter Weg für denselben Zweck wäre eine zweite Gelegenheit, ihn falsch zu
+ * bauen.
+ */
+export async function openGrants(
+  grants: readonly SeatGrant[], seatKey: Uint8Array
+): Promise<Map<string, { key: Uint8Array; epoch: number; name: string }>> {
+  const out = new Map<string, { key: Uint8Array; epoch: number; name: string }>();
+
+  for (const one of grants) {
+    try {
+      out.set(one.areaId, {
+        key: await open(seatKey, epochAad(one.areaId, one.epoch), fromBase64Url(one.sealed)),
+        epoch: one.epoch,
+        name: one.areaName
+      });
+    } catch {
+      // Aus einer anderen Epoche, oder beschädigt. Die übrigen bleiben lesbar.
+    }
+  }
+
+  return out;
+}
 
 /* -- Ausstellen ------------------------------------------------------------- */
 
@@ -94,6 +149,15 @@ export interface NewSeat {
 
   readonly slugIds?: readonly string[];
   readonly days?: number;
+
+  /**
+   * Weitere Schlüssel, die dieser Platz tragen soll — beim Schüler der
+   * KLASSENSCHLÜSSEL.
+   *
+   * Dadurch liest er das Gemeinsame, ohne den Schlüssel der Kanzlei zu
+   * bekommen: die Notizen über ihn liegen im anderen Bereich und bleiben zu.
+   */
+  readonly shared?: readonly { areaId: string; areaKey: Uint8Array; epoch: number }[];
 }
 
 /**
@@ -140,6 +204,14 @@ export async function issueSeat(what: NewSeat): Promise<{ seatId: string; link: 
         : toBase64Url(await sealText(what.areaKey, internalAad(seatId), internal)),
 
       slugIds: what.slugIds ?? [],
+
+      /* Der Klassenschlüssel, versiegelt unter dem Platzschlüssel. */
+      grants: await Promise.all((what.shared ?? []).map(async (one) => ({
+        areaId: one.areaId,
+        epoch: one.epoch,
+        sealed: toBase64Url(await seal(seatKey, epochAad(one.areaId, one.epoch), one.areaKey))
+      }))),
+
       days: what.days ?? null
     })
   });
@@ -233,6 +305,9 @@ export interface Portal {
   readonly recipientName: string | null;
   readonly personalNoteSealed: string | null;
   readonly expiresAt: string | null;
+
+  /** Was dieser Platz ausserdem aufschliesst — beim Schüler die Klasse. */
+  readonly grants: readonly SeatGrant[];
 }
 
 /**
@@ -292,6 +367,7 @@ export interface MySeat {
   readonly personalNoteSealed: string | null;
   readonly status: string;
   readonly expiresAt: string | null;
+  readonly grants: readonly SeatGrant[];
 }
 
 export const loadMySeats = (): Promise<{ seats: readonly MySeat[] }> =>
