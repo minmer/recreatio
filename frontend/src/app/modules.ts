@@ -87,6 +87,22 @@ export const CATALOG: readonly ModuleDef[] = [
     ]
   },
   {
+    /*
+     * Das Formular. Wie der Messplan holt es seinen Inhalt woanders her — aber
+     * anders als dieser hat es keinen Verweis im `config`: die FELDER hängen
+     * am Baustein selbst (`app.slug_field`), denn eine Antwort zeigt auf ein
+     * Feld, und ein Feld muss eine Zeile sein, damit sie darauf zeigen kann.
+     *
+     * Deshalb `live`: `config` trägt nur die Überschrift, und ohne diese
+     * Ausnahme fiele der Baustein genau dann aus der Seite, wenn er richtig
+     * eingerichtet ist.
+     */
+    kind: 'form', label: 'Formularz', colSpan: 3, rowSpan: 3, live: true,
+    fields: [
+      { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Zgłoszenie' }
+    ]
+  },
+  {
     kind: 'notice', label: 'Ogłoszenie', colSpan: 2, rowSpan: 1,
     fields: [
       { key: 'body', label: 'Treść', kind: 'text', hint: 'Krótko — to ma rzucać się w oczy' }

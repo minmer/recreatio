@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { foreignHost, localPath, needsIdentity, parsePath, path, spotOf, type Address } from './routes';
 import { signOut, whoIsThere, type Who } from './session';
 import { PublicPage } from './PublicPage';
+import { SeatPortal } from './SeatPortal';
 import { SignIn } from './SignIn';
 import { Workspace } from './Workspace';
 
@@ -90,6 +91,22 @@ export function App() {
    */
   if (address.page !== null) {
     return <Shell><PublicPage path={address.page} /></Shell>;
+  }
+
+  /*
+   * Ein individueller Platz — `#/seat/<token>/<key>`.
+   *
+   * Er steht VOR der Frage nach der Anmeldung, wie eine öffentliche Seite: der
+   * Link IST der Ausweis, und wer ihn hat, ist meistens gerade der, der KEIN
+   * Konto hat. Ob jemand angemeldet ist, fragt die Seite selbst — sie braucht
+   * es nur, um das Binden anzubieten.
+   */
+  if (address.route === 'seat' && address.slug !== null) {
+    return (
+      <Shell>
+        <SeatPortal token={address.slug} keyText={address.tail[0] ?? null} />
+      </Shell>
+    );
   }
 
   if (who === undefined) {

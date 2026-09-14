@@ -142,6 +142,32 @@ public enum Field
     PersonPhone,
     PersonBorn,
 
+    /*
+     * `app.person_value` laesst sechs Angaben zu, der Kernel kannte vier. Die
+     * beiden fehlenden hier nachzutragen ist keine Formsache: ohne eigenes
+     * Etikett trugen Anschrift und E-Mail dasselbe wie eine andere Angabe, und
+     * genau dann geht der Geheimtext der einen am Platz der anderen auf — die
+     * Freigabe waere nicht mehr die Freigabe EINER Angabe.
+     */
+    PersonAddress,
+    PersonEmail,
+
+    // Der individuelle Zugang (0022)
+    //
+    // Der Platzschluessel wird ZWEIMAL verpackt — einmal fuer den Link, einmal
+    // fuer den Bereich. Dieselbe Sache, dasselbe Etikett: die AAD sagt, WAS
+    // versiegelt ist, nicht unter welchem Schluessel.
+    SeatKey,
+
+    /// <summary>Was der Mensch auf seinem Platz sieht — unter dem Platzschluessel.</summary>
+    SeatPersonalNote,
+
+    /// <summary>
+    /// Was die Kanzlei ueber ihn fuehrt — unter dem EPOCHENSCHLUESSEL, nicht
+    /// unter dem Platzschluessel. Sonst laese der Platzinhaber mit.
+    /// </summary>
+    SeatInternalNote,
+
     // Pfarrei
     //
     // Die Intention ist der Fall, an dem sich die Feldnamen bewaehren: EINE
@@ -335,6 +361,11 @@ public readonly record struct Aad
         Field.PersonSurname           => "surname",
         Field.PersonPhone             => "person_phone",
         Field.PersonBorn              => "born",
+        Field.PersonAddress           => "person_address",
+        Field.PersonEmail             => "person_email",
+        Field.SeatKey                 => "seat_key",
+        Field.SeatPersonalNote        => "seat_personal",
+        Field.SeatInternalNote        => "seat_internal",
         Field.EnquiryGroupName        => "enquiry_group_name",
         Field.EnquiryContactPerson    => "enquiry_contact_person",
         Field.MassIntentionGiver      => "mass_intention_giver",

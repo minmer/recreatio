@@ -1,0 +1,637 @@
+using System.Security.Cryptography;
+using Kernel;
+using Microsoft.Data.SqlClient;
+
+namespace Api;
+
+/// <summary>
+/// Der individuelle Zugang — ein PLATZ in einem Bereich.
+///
+/// <para>
+/// Vier Faelle, ein Gebilde: der Firmkandidat ohne Konto, der Teilnehmer, der
+/// sich vom offenen Netz anmeldet, der Schueler in einer Klasse — und der
+/// Schueler, dem der Lehrer etwas auf seine eigene Seite schreibt. Die ersten
+/// drei schreiben herein, der letzte liest heraus. Dieselbe Zeile traegt beides.
+/// </para>
+///
+/// <code>
+///   personal_note_sealed   unter dem PLATZSCHLUESSEL   — beide lesen
+///   internal_note_sealed   unter dem EPOCHENSCHLUESSEL — nur die Kanzlei
+/// </code>
+///
+/// <para>
+/// <b>Jeder Platz hat seinen eigenen Schluessel</b>, und er liegt dreifach
+/// verpackt: unter dem Schluessel aus dem Link, unter dem Epochenschluessel des
+/// Bereichs, und — sobald jemand den Platz an sein Konto bindet — unter dem
+/// oeffentlichen Schluessel seiner Rolle.
+/// </para>
+///
+/// <para>
+/// Das ist der Unterschied zu 0005, wo der Link den EPOCHENSCHLUESSEL trug:
+/// damit haette jeder Schueler jeden anderen Platz geoeffnet. 0023 nennt den
+/// Befund; hier steht die Folge.
+/// </para>
+///
+/// <para>
+/// <b>Der Dienst oeffnet nichts.</b> Er nimmt Huellen entgegen, gibt sie
+/// heraus, und kennt vom Link nur dessen SHA-256.
+/// </para>
+/// </summary>
+public static class Seat
+{
+    public const int MaxName = 200;
+
+    /// <summary>Ein Platz ohne Ablaufdatum ist einer, der in fuenf Jahren noch aufgeht.</summary>
+    private static readonly TimeSpan DefaultLife = TimeSpan.FromDays(365);
+
+    public static void Map(WebApplication app)
+    {
+        // Die Kanzlei.
+        app.MapPost("/workspace/area/{id:guid}/seat", IssueAsync);
+        app.MapGet("/workspace/area/{id:guid}/seats", ListAsync);
+        app.MapPost("/workspace/seat/{id:guid}/note", NoteAsync);
+        app.MapPost("/workspace/seat/{id:guid}/revoke", RevokeAsync);
+
+        // Meine eigenen Plaetze — ueber das Konto, ohne Link.
+        app.MapGet("/workspace/seats", MineAsync);
+
+        /*
+         * Der Link. OHNE Konto — das ist der ganze Zweck: ein Vierzehnjaehriger
+         * hat keines, und ein Teilnehmer soll sich fuer eine Anmeldung keines
+         * anlegen muessen.
+         */
+        app.MapGet("/seat/{token}", OpenAsync);
+        app.MapPost("/seat/{token}/bind", BindAsync);
+    }
+
+    /* -- Ausstellen --------------------------------------------------------- */
+
+    public sealed record IssueRequest(
+        string SeatId,
+        string TokenSha256,
+        string SeatKeySealed,
+        string SeatKeyForArea,
+        int Epoch,
+        string OwnerRoleId,
+        string? RecipientName,
+        string? PersonalNoteSealed,
+        string? InternalNoteSealed,
+        IReadOnlyList<string>? SlugIds,
+        int? Days);
+
+    /// <summary>
+    /// Einen Platz ausstellen.
+    ///
+    /// <para>
+    /// <b>Die Kennung entsteht im Browser</b>, wie beim Bereich: die AAD des
+    /// Platzschluessels nennt den Platz, also muss er existieren, bevor der
+    /// Schluessel verpackt werden kann.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Der Dienst sieht den Link nie.</b> Er bekommt dessen SHA-256; das
+    /// Geheimnis selbst bleibt im Browser des Ausstellenden, bis es verschickt
+    /// ist. Geht es dabei verloren, ist der Platz verloren — und genau deshalb
+    /// steht das Zurueckziehen daneben.
+    /// </para>
+    /// </summary>
+    private static async Task IssueAsync(HttpContext ctx, Db db, Guid id, IssueRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        if (!Guid.TryParse(body.SeatId, out var seatId) || !Guid.TryParse(body.OwnerRoleId, out var ownerRoleId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung.");
+            return;
+        }
+
+        if (body.Epoch < 1)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Epoka zaczyna się od 1.");
+            return;
+        }
+
+        if (!Blob(body.TokenSha256, out var tokenHash) || tokenHash.Length != 32)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Odcisk linku musi mieć 32 bajty.");
+            return;
+        }
+
+        if (!Blob(body.SeatKeySealed, out var forLink) || forLink.Length == 0
+            || !Blob(body.SeatKeyForArea, out var forArea) || forArea.Length == 0)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny zapieczętowany klucz miejsca.");
+            return;
+        }
+
+        var personal = Optional(body.PersonalNoteSealed);
+        var internalNote = Optional(body.InternalNoteSealed);
+
+        var slugIds = new List<Guid>();
+        foreach (var raw in body.SlugIds ?? [])
+        {
+            if (!Guid.TryParse(raw, out var slugId))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung adresu.");
+                return;
+            }
+            slugIds.Add(slugId);
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        if (!await Area.MayAsync(connection, who.Value.AccountId, id, Capability.Write, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
+            return;
+        }
+
+        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        if (!mine.Any(r => r.Id == ownerRoleId))
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "To nie jest Twoja rola.");
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var until = now + (body.Days is > 0 ? TimeSpan.FromDays(Math.Min(body.Days.Value, 3650)) : DefaultLife);
+        var name = (body.RecipientName ?? string.Empty).Trim();
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            await using (var insert = new SqlCommand("""
+                INSERT INTO app.access
+                    (id, area_id, token_sha256, seat_key_sealed, seat_key_for_area, epoch,
+                     recipient_name, personal_note_sealed, internal_note_sealed,
+                     created_by_role_id, created_at, expires_at)
+                VALUES (@id, @area, @token, @forLink, @forArea, @epoch,
+                        @name, @personal, @internal, @by, @now, @until);
+                """, connection, tx))
+            {
+                insert.Parameters.AddWithValue("@id", seatId);
+                insert.Parameters.AddWithValue("@area", id);
+                insert.Parameters.AddWithValue("@token", tokenHash);
+                insert.Parameters.AddWithValue("@forLink", forLink);
+                insert.Parameters.AddWithValue("@forArea", forArea);
+                insert.Parameters.AddWithValue("@epoch", body.Epoch);
+                insert.Parameters.AddWithValue("@name",
+                    name == "" ? DBNull.Value : name[..Math.Min(name.Length, MaxName)]);
+                insert.Parameters.AddWithValue("@personal", (object?)personal ?? DBNull.Value);
+                insert.Parameters.AddWithValue("@internal", (object?)internalNote ?? DBNull.Value);
+                insert.Parameters.AddWithValue("@by", ownerRoleId);
+                insert.Parameters.AddWithValue("@now", now);
+                insert.Parameters.AddWithValue("@until", until);
+
+                await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            foreach (var slugId in slugIds.Distinct())
+            {
+                await using var open = new SqlCommand(
+                    "INSERT INTO app.access_slug (access_id, slug_id) VALUES (@a, @s);", connection, tx);
+
+                open.Parameters.AddWithValue("@a", seatId);
+                open.Parameters.AddWithValue("@s", slugId);
+                await open.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch (SqlException e) when (e.Number is 2601 or 2627)
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict, "Takie miejsce już istnieje.");
+            return;
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            seatId = Ids.ToText(seatId),
+            areaId = Ids.ToText(id),
+            recipientName = name == "" ? null : name,
+            expiresAt = until
+        });
+    }
+
+    /* -- Die Kanzleisicht --------------------------------------------------- */
+
+    /// <summary>
+    /// Die Plaetze eines Bereichs.
+    ///
+    /// <para>
+    /// Mit beiden Huellen: die Kanzlei braucht <c>seat_key_for_area</c>, um den
+    /// Platzschluessel zu oeffnen, und den Epochenschluessel fuer die interne
+    /// Notiz. Beides geht versiegelt hinaus — geoeffnet wird im Browser.
+    /// </para>
+    /// </summary>
+    private static async Task ListAsync(HttpContext ctx, Db db, Guid id)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        if (!await Area.MayAsync(connection, who.Value.AccountId, id, Capability.Read, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
+            return;
+        }
+
+        await using var cmd = new SqlCommand("""
+            SELECT a.id, a.recipient_name, a.seat_key_for_area, a.epoch,
+                   a.personal_note_sealed, a.internal_note_sealed,
+                   a.status, a.view_count, a.created_at, a.expires_at, a.revoked_at,
+                   (SELECT COUNT(*) FROM app.access_holder h
+                     WHERE h.access_id = a.id AND h.until IS NULL) AS holders
+            FROM app.access a
+            WHERE a.area_id = @area
+            ORDER BY a.created_at DESC;
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@area", id);
+
+        var seats = new List<object>();
+
+        await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+        while (await reader.ReadAsync(ctx.RequestAborted))
+        {
+            seats.Add(new
+            {
+                seatId = Ids.ToText(reader.GetGuid(0)),
+                recipientName = reader.IsDBNull(1) ? null : reader.GetString(1),
+                seatKeyForArea = Base64Url.Encode((byte[])reader[2]),
+                epoch = reader.GetInt32(3),
+                personalNoteSealed = reader.IsDBNull(4) ? null : Base64Url.Encode((byte[])reader[4]),
+                internalNoteSealed = reader.IsDBNull(5) ? null : Base64Url.Encode((byte[])reader[5]),
+                status = reader.GetString(6),
+                viewCount = reader.GetInt32(7),
+                createdAt = reader.GetDateTimeOffset(8),
+                expiresAt = reader.IsDBNull(9) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(9),
+                revokedAt = reader.IsDBNull(10) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(10),
+                holders = reader.GetInt32(11)
+            });
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), seats });
+    }
+
+    public sealed record NoteRequest(string? PersonalNoteSealed, string? InternalNoteSealed);
+
+    /// <summary>
+    /// Die Notizen setzen — der Fall des Lehrers.
+    ///
+    /// <para>
+    /// Nur was genannt wurde. Ein Aufruf, der bloss die interne Notiz aendern
+    /// will, darf die persoenliche nicht nebenbei loeschen.
+    /// </para>
+    /// </summary>
+    private static async Task NoteAsync(HttpContext ctx, Db db, Guid id, NoteRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var area = await AreaOfAsync(connection, id, ctx.RequestAborted);
+        if (area is null || !await Area.MayAsync(connection, who.Value.AccountId, area.Value,
+                Capability.Write, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego miejsca nie ma.");
+            return;
+        }
+
+        var personal = Optional(body.PersonalNoteSealed);
+        var internalNote = Optional(body.InternalNoteSealed);
+
+        if (personal is null && internalNote is null)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nie podano żadnej notatki.");
+            return;
+        }
+
+        await using var cmd = new SqlCommand("""
+            UPDATE app.access
+               SET personal_note_sealed = ISNULL(@personal, personal_note_sealed),
+                   internal_note_sealed = ISNULL(@internal, internal_note_sealed)
+             WHERE id = @id;
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@personal", (object?)personal ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@internal", (object?)internalNote ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@id", id);
+
+        await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+        await ctx.Response.WriteAsJsonAsync(new { seatId = Ids.ToText(id), updated = true });
+    }
+
+    /// <summary>
+    /// Den Link zurueckziehen.
+    ///
+    /// <para>
+    /// <b>Die Halter bleiben.</b> Wer den Platz an sein Konto gebunden hat,
+    /// kommt weiter heran — er haelt den Platzschluessel unter seinem
+    /// Rollenschluessel. Zurueckgezogen wird der LINK, und das ist die Absicht:
+    /// ein Zettel, der herumliegt, soll aufhoeren zu gelten, ohne dass der
+    /// Mensch dahinter ausgesperrt wird.
+    /// </para>
+    /// </summary>
+    private static async Task RevokeAsync(HttpContext ctx, Db db, Guid id)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var area = await AreaOfAsync(connection, id, ctx.RequestAborted);
+        if (area is null || !await Area.MayAsync(connection, who.Value.AccountId, area.Value,
+                Capability.Write, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego miejsca nie ma.");
+            return;
+        }
+
+        await using var cmd = new SqlCommand(
+            "UPDATE app.access SET status = N'revoked', revoked_at = @now WHERE id = @id AND revoked_at IS NULL;",
+            connection);
+
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+        cmd.Parameters.AddWithValue("@id", id);
+
+        await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+        await ctx.Response.WriteAsJsonAsync(new { seatId = Ids.ToText(id), revoked = true });
+    }
+
+    /* -- Der Link ----------------------------------------------------------- */
+
+    /// <summary>
+    /// Was der Link oeffnet — OHNE Konto.
+    ///
+    /// <para>
+    /// Der Dienst rechnet den Abdruck des mitgegebenen Geheimnisses und sucht
+    /// danach. Den SCHLUESSEL bekommt er dabei nicht: der steht hinter der
+    /// Raute und bleibt im Browser. Was hier hinausgeht, ist die Huelle.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Ein abgelaufener oder zurueckgezogener Platz antwortet wie einer, den
+    /// es nicht gibt.</b> Der Unterschied waere eine Auskunft darueber, welche
+    /// Links es einmal gab.
+    /// </para>
+    /// </summary>
+    private static async Task OpenAsync(HttpContext ctx, Db db, string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        /*
+         * Gezaehlt wird beim Oeffnen, und zwar in derselben Anweisung: eine
+         * zweite waere eine zweite Runde und koennte ausbleiben.
+         */
+        await using var cmd = new SqlCommand("""
+            UPDATE app.access
+               SET view_count = view_count + 1
+            OUTPUT inserted.id, inserted.area_id, inserted.seat_key_sealed, inserted.epoch,
+                   inserted.recipient_name, inserted.personal_note_sealed, inserted.expires_at
+             WHERE token_sha256 = @token
+               AND revoked_at IS NULL
+               AND status = N'active'
+               AND (expires_at IS NULL OR expires_at > @now);
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@token", SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token.Trim())));
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+
+        if (!await reader.ReadAsync(ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
+            return;
+        }
+
+        var seatId = reader.GetGuid(0);
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            seatId = Ids.ToText(seatId),
+            areaId = Ids.ToText(reader.GetGuid(1)),
+
+            // Die Huelle des Platzschluessels. Der Oeffner steckt im Link.
+            seatKeySealed = Base64Url.Encode((byte[])reader[2]),
+            epoch = reader.GetInt32(3),
+
+            recipientName = reader.IsDBNull(4) ? null : reader.GetString(4),
+            personalNoteSealed = reader.IsDBNull(5) ? null : Base64Url.Encode((byte[])reader[5]),
+            expiresAt = reader.IsDBNull(6) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(6)
+        });
+    }
+
+    public sealed record BindRequest(string RoleId, string SeatKeySealed);
+
+    /// <summary>
+    /// Den Platz an eine Person binden.
+    ///
+    /// <para>
+    /// <b>Der Browser verpackt den Platzschluessel fuer die Rolle</b> — er hat
+    /// ihn gerade aus dem Link geoeffnet. Der Dienst bekommt nur die fertige
+    /// Huelle; er koennte sie nicht herstellen, denn er hat den Schluessel nie.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Welche Person, wird gefragt und nicht geraten.</b> Ein Elternteil mit
+    /// zwei Kindern oeffnet zwei Links; ohne diese Frage landeten beide bei
+    /// derselben Person — und weil die Angaben trotzdem aufgingen, faende es
+    /// niemand heraus.
+    /// </para>
+    /// </summary>
+    private static async Task BindAsync(HttpContext ctx, Db db, string token, BindRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        if (!Guid.TryParse(body.RoleId, out var roleId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung roli.");
+            return;
+        }
+
+        if (!Blob(body.SeatKeySealed, out var wrapped) || wrapped.Length == 0)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny zapieczętowany klucz miejsca.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        if (!mine.Any(r => r.Id == roleId))
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "To nie jest Twoja rola.");
+            return;
+        }
+
+        Guid seatId;
+        await using (var find = new SqlCommand("""
+            SELECT id FROM app.access
+            WHERE token_sha256 = @token AND revoked_at IS NULL AND status = N'active'
+              AND (expires_at IS NULL OR expires_at > @now);
+            """, connection))
+        {
+            find.Parameters.AddWithValue("@token",
+                SHA256.HashData(System.Text.Encoding.UTF8.GetBytes((token ?? string.Empty).Trim())));
+            find.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+
+            if (await find.ExecuteScalarAsync(ctx.RequestAborted) is not Guid found)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
+                return;
+            }
+            seatId = found;
+        }
+
+        await using var upsert = new SqlCommand("""
+            UPDATE app.access_holder
+               SET seat_key_sealed = @blob, until = NULL
+             WHERE access_id = @seat AND role_id = @role;
+
+            IF @@ROWCOUNT = 0
+                INSERT INTO app.access_holder (access_id, role_id, added_by_role_id, since, seat_key_sealed)
+                VALUES (@seat, @role, @role, @now, @blob);
+            """, connection);
+
+        upsert.Parameters.AddWithValue("@seat", seatId);
+        upsert.Parameters.AddWithValue("@role", roleId);
+        upsert.Parameters.AddWithValue("@blob", wrapped);
+        upsert.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+
+        await upsert.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            seatId = Ids.ToText(seatId),
+            roleId = Ids.ToText(roleId),
+            bound = true
+        });
+    }
+
+    /* -- Meine Plaetze ------------------------------------------------------ */
+
+    /// <summary>
+    /// Die Plaetze, die eine meiner Rollen haelt — ohne Link.
+    ///
+    /// <para>
+    /// Mit der Huelle des Platzschluessels unter der jeweiligen Rolle: erst
+    /// damit ist das Binden mehr als ein Eintrag in einer Liste.
+    /// </para>
+    /// </summary>
+    private static async Task MineAsync(HttpContext ctx, Db db)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        if (mine.Count == 0)
+        {
+            await ctx.Response.WriteAsJsonAsync(new { seats = Array.Empty<object>() });
+            return;
+        }
+
+        var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
+
+        await using var cmd = new SqlCommand($"""
+            SELECT a.id, a.area_id, ar.name, a.recipient_name,
+                   h.role_id, h.seat_key_sealed, a.epoch,
+                   a.personal_note_sealed, a.status, a.expires_at
+            FROM app.access_holder h
+            JOIN app.access a  ON a.id = h.access_id
+            JOIN app.area   ar ON ar.id = a.area_id
+            WHERE h.until IS NULL
+              AND h.seat_key_sealed IS NOT NULL
+              AND h.role_id IN ({names})
+            ORDER BY a.created_at DESC;
+            """, connection);
+
+        for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i].Id);
+
+        var seats = new List<object>();
+
+        await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+        while (await reader.ReadAsync(ctx.RequestAborted))
+        {
+            seats.Add(new
+            {
+                seatId = Ids.ToText(reader.GetGuid(0)),
+                areaId = Ids.ToText(reader.GetGuid(1)),
+                areaName = reader.GetString(2),
+                recipientName = reader.IsDBNull(3) ? null : reader.GetString(3),
+                roleId = Ids.ToText(reader.GetGuid(4)),
+
+                // Unter dem OEFFENTLICHEN Schluessel dieser Rolle verpackt.
+                seatKeySealed = Base64Url.Encode((byte[])reader[5]),
+                epoch = reader.GetInt32(6),
+
+                personalNoteSealed = reader.IsDBNull(7) ? null : Base64Url.Encode((byte[])reader[7]),
+                status = reader.GetString(8),
+                expiresAt = reader.IsDBNull(9) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(9)
+            });
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { seats });
+    }
+
+    /* -- Gemeinsames -------------------------------------------------------- */
+
+    internal static async Task<Guid?> AreaOfAsync(SqlConnection connection, Guid seatId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("SELECT area_id FROM app.access WHERE id = @id;", connection);
+        cmd.Parameters.AddWithValue("@id", seatId);
+
+        return await cmd.ExecuteScalarAsync(ct) is Guid found ? found : null;
+    }
+
+    /// <summary>
+    /// Ein fakultatives Base64URL-Feld — <c>null</c> heisst „nicht angegeben".
+    ///
+    /// Getrennt von <see cref="Blob"/> und nicht als zweite Ueberladung: zwei
+    /// Methoden, die sich nur in der Nullbarkeit unterscheiden, laesst C# nicht
+    /// zu — und ein Unterschied, den der Uebersetzer nicht sieht, ist auch fuer
+    /// den Leser keiner.
+    /// </summary>
+    private static byte[]? Optional(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+
+        try { return Base64Url.Decode(text); }
+        catch (FormatException) { return null; }
+    }
+
+    private static bool Blob(string? text, out byte[] bytes)
+    {
+        bytes = [];
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        try { bytes = Base64Url.Decode(text); return true; }
+        catch (FormatException) { return false; }
+    }
+
+    private static Task Fail(HttpContext ctx, int status, string message)
+    {
+        ctx.Response.StatusCode = status;
+        return ctx.Response.WriteAsJsonAsync(new { error = message });
+    }
+}

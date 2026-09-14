@@ -14,6 +14,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 
 import { COLUMNS, frameFor, snapColSpan, snapRowSpan, type Breakpoint } from './layout';
+import { FormCard } from './FormCard';
 import { MassCard } from './MassCard';
 import { isEmpty, moduleDef, readLink } from './modules';
 import { pagePath } from './routes';
@@ -87,6 +88,7 @@ export function PageParts({ parts }: {
           >
             <Body
               kind={part.kind}
+              partId={part.id}
               config={part.config}
               colSpan={colSpan}
               rowSpan={rowSpan}
@@ -107,8 +109,16 @@ const lines = (text: string): readonly string[] =>
  * und er nennt seit 0020 einen KALENDER, der in seinem `config` steht. Die
  * Adresse weiterzureichen, damit niemand sie liest, sähe aus wie ein Zweck.
  */
-function Body({ kind, config, colSpan, rowSpan }: {
+function Body({ kind, partId, config, colSpan, rowSpan }: {
   kind: string;
+
+  /*
+   * Der Baustein selbst. Das Formular braucht ihn: seine Felder hängen NICHT
+   * im `config`, sondern als Zeilen an genau diesem Baustein — eine Antwort
+   * zeigt auf ein Feld, und dafür muss es das Feld geben.
+   */
+  partId: string;
+
   config: Record<string, string>;
   colSpan: number;
   rowSpan: number;
@@ -122,6 +132,10 @@ function Body({ kind, config, colSpan, rowSpan }: {
    */
   if (kind === 'masses') {
     return <MassCard config={config} colSpan={colSpan} rowSpan={rowSpan} />;
+  }
+
+  if (kind === 'form') {
+    return <FormCard partId={partId} config={config} />;
   }
 
   if (kind === 'notice') {

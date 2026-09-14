@@ -19,6 +19,10 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { forgetKept, loadKept, setKeyKeeping, type KeptDevice } from './keeping';
 import { knownDevice } from './kept';
+import type { Ring, SealedRole } from './keys';
+import { PersonCard } from './PersonCard';
+import { keysFor } from './ringOf';
+import { loadMySeats, openMine as openMySeat, type MySeat } from './seat';
 import { keepHeldKey, WorkspaceError, type KeyKeeping, type Who } from './session';
 
 export function Account({ who }: { who: Who }) {
@@ -29,6 +33,32 @@ export function Account({ who }: { who: Who }) {
   const [said, setSaid] = useState<string | null>(null);
 
   const here = knownDevice()?.id ?? null;
+
+  /*
+   * Der Bund und die eigene Person. Beides wird für „Moje dane" gebraucht: die
+   * Angaben liegen unter dem Rollenschlüssel, und den hält der Bund.
+   */
+  const [ring, setRing] = useState<Ring | null>(null);
+  const [person, setPerson] = useState<SealedRole | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    void keysFor(who)
+      .then(({ ring: bund, graph }) => {
+        if (!alive) return;
+        setRing(bund);
+
+        /*
+         * Die eigene PERSON, nicht die Kontorolle. „Account" ist ein Pęk
+         * kluczy und hat keinen Geburtstag.
+         */
+        setPerson(graph.roles.find((r) => r.kind === 'person' && !r.isPersonal) ?? null);
+      })
+      .catch(() => { if (alive) setRing(null); });
+
+    return () => { alive = false; };
+  }, [who]);
 
   const look = useCallback(async () => {
     try {
@@ -178,6 +208,89 @@ export function Account({ who }: { who: Who }) {
       <p className="wk-hint">
         Usunięcie urządzenia nie wylogowuje go — zabiera mu tylko zachowany
         klucz. Przy następnym otwarciu poprosi o hasło.
+      </p>
+
+      {ring !== null && person !== null && (
+        <PersonCard roleId={person.id} ring={ring} />
+      )}
+
+      {ring !== null && person === null && (
+        <>
+          <h2 className="wk-h2">Moje dane</h2>
+          <p className="wk-note">
+            Dane należą do <strong>osoby</strong>, a konto osobą nie jest — to
+            pęk kluczy. Załóż osobę w zakładce „Role", wtedy będzie komu je
+            przypisać.
+          </p>
+        </>
+      )}
+
+      {ring !== null && <MySeats ring={ring} />}
+    </>
+  );
+}
+
+/* -- Die Plätze, die ich halte ---------------------------------------------- */
+
+/**
+ * Was aus dem Binden geworden ist.
+ *
+ * Ohne diese Liste wäre das Binden ein Eintrag, den niemand wiedersieht: der
+ * Platzschlüssel liegt unter dem Rollenschlüssel, und genau deshalb kommt man
+ * hier auch ohne den ursprünglichen Link heran.
+ */
+function MySeats({ ring }: { ring: Ring }) {
+  const [seats, setSeats] = useState<readonly MySeat[] | null>(null);
+  const [notes, setNotes] = useState<Map<string, string | null>>(new Map());
+
+  useEffect(() => {
+    let alive = true;
+
+    void loadMySeats()
+      .then(async ({ seats: found }) => {
+        if (!alive) return;
+        setSeats(found);
+
+        const opened = new Map<string, string | null>();
+        for (const seat of found) {
+          try { opened.set(seat.seatId, await openMySeat(seat, ring)); }
+          catch { opened.set(seat.seatId, null); }
+        }
+        if (alive) setNotes(opened);
+      })
+      .catch(() => { if (alive) setSeats([]); });
+
+    return () => { alive = false; };
+  }, [ring]);
+
+  if (seats === null || seats.length === 0) return null;
+
+  return (
+    <>
+      <h2 className="wk-h2">Moje miejsca</h2>
+
+      <ul className="wk-list">
+        {seats.map((seat) => (
+          <li className="wk-row" key={seat.seatId}>
+            <span>
+              <strong>{seat.areaName}</strong>
+              {seat.recipientName !== null && (
+                <span className="wk-row-side"> · {seat.recipientName}</span>
+              )}
+              {notes.get(seat.seatId) != null && (
+                <p className="wk-card-text" style={{ whiteSpace: 'pre-wrap' }}>
+                  {notes.get(seat.seatId)}
+                </p>
+              )}
+            </span>
+            <span className="wk-row-side">{seat.status === 'revoked' ? 'link wycofany' : ''}</span>
+          </li>
+        ))}
+      </ul>
+
+      <p className="wk-hint">
+        Docierasz tu bez linku — klucz miejsca jest zapakowany kluczem Twojej
+        osoby. Nawet wycofany link tego nie zabiera.
       </p>
     </>
   );

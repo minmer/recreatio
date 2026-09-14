@@ -27,6 +27,7 @@ import {
 import { createCalendar, loadCalendars, type CalendarRow } from './calendar';
 import type { Ring, SealedRole } from './keys';
 import { keysFor, forgetKeys } from './ringOf';
+import { Seats } from './Seats';
 import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
 
@@ -107,6 +108,7 @@ export function Areas({ who }: { who: Who }) {
               area={area}
               calendars={calendars.filter((c) => c.areaId === area.areaId)}
               ring={ring}
+              person={person}
               open={open === area.areaId}
               busy={busy !== null}
               onOpen={() => setOpen(open === area.areaId ? null : area.areaId)}
@@ -123,10 +125,11 @@ export function Areas({ who }: { who: Who }) {
 
 /* -- Ein Bereich ----------------------------------------------------------- */
 
-function AreaRowView({ area, calendars, ring, open, busy, onOpen, onAct }: {
+function AreaRowView({ area, calendars, ring, person, open, busy, onOpen, onAct }: {
   area: AreaRow;
   calendars: readonly CalendarRow[];
   ring: Ring | null;
+  person: SealedRole | null;
   open: boolean;
   busy: boolean;
   onOpen: () => void;
@@ -196,6 +199,15 @@ function AreaRowView({ area, calendars, ring, open, busy, onOpen, onAct }: {
                 </li>
               ))}
             </ul>
+
+            {/*
+              Die Plätze. Sie stehen HIER und nicht in einer eigenen Ansicht:
+              ein Platz ist ein Platz IN einem Bereich, und wer ihn ausstellt,
+              braucht dessen Epochenschlüssel — den hat er genau hier.
+            */}
+            {ring !== null && person !== null && (
+              <Seats area={area} ring={ring} ownerRoleId={person.id} />
+            )}
 
             {/*
               Offenlegen ist endgültig. Das gehört VOR den Knopf, nicht in eine

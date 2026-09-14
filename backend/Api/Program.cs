@@ -91,6 +91,10 @@ Access.Map(app);
 Mass.Map(app);
 Area.Map(app);
 Calendar.Map(app);
+Seat.Map(app);
+Person.Map(app);
+Intake.Map(app);
+Form.Map(app);
 
 app.Run();
 return 0;

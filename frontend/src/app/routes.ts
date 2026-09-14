@@ -49,7 +49,20 @@ export const ROUTES = {
    * Es gibt nur einen: deinen. Ein Name dahinter wäre der Arbeitsplatz eines
    * anderen, und den gibt es nicht zu sehen.
    */
-  workspace: { slugged: false, needsIdentity: true }
+  workspace: { slugged: false, needsIdentity: true },
+
+  /**
+   * Ein individueller Platz — `#/seat/<token>/<key>`.
+   *
+   * <b>Ohne Konto</b>, und das ist der ganze Zweck: ein Firmkandidat ist
+   * vierzehn und hat keines. Der Link IST der Ausweis.
+   *
+   * <b>Beide Teile stehen hinter der Raute.</b> Der Server einer statischen
+   * Seite sieht davon nichts; in seinem Protokoll steht, dass jemand die
+   * Startseite geholt hat. Der Browser schickt danach NUR das Token an den
+   * Dienst — der Schlüssel bleibt hier und öffnet den Platz.
+   */
+  seat: { slugged: true, needsIdentity: false }
 } as const satisfies Readonly<Record<string, RouteDef>>;
 
 export type Route = keyof typeof ROUTES;

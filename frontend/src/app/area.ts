@@ -62,6 +62,18 @@ export const loadAreas = (): Promise<{ areas: readonly AreaRow[] }> =>
 export const loadMembers = (areaId: string): Promise<{ areaId: string; members: readonly Member[] }> =>
   call(`/workspace/area/${encodeURIComponent(areaId)}/members`);
 
+/**
+ * Ein OFFENGELEGTER Epochenschlüssel — ohne Konto.
+ *
+ * Damit öffnet ein Besucher, was offen sein soll: die Beschriftungen eines
+ * Formulars, die Titel im Schaukasten. Wer nichts offengelegt hat, bekommt 404
+ * — und das ist dann kein öffentliches Formular.
+ */
+export const loadPublicKey = (
+  areaId: string
+): Promise<{ areaId: string; epoch: number; key: string }> =>
+  call(`/area/${encodeURIComponent(areaId)}/key`);
+
 /* -- Ein Zertifikat, hier unterschrieben ----------------------------------- */
 
 const YEAR_IN_SECONDS = 365 * 24 * 60 * 60;

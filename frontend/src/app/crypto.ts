@@ -84,7 +84,34 @@ export const Field = {
 
   /* Geber und Gabe einer Messintention — das, was nicht vorgelesen wird. */
   MassIntentionGiver: 'mass_intention_giver',
-  MassIntentionOffering: 'mass_intention_offering'
+  MassIntentionOffering: 'mass_intention_offering',
+
+  /*
+   * Die Angaben eines Menschen (0005). JEDES Feld ein eigenes Etikett — sonst
+   * ginge der Geheimtext der Telefonnummer am Platz des Geburtstags auf, und
+   * eine Freigabe wäre nicht mehr die Freigabe EINER Angabe.
+   */
+  PersonGivenName: 'given_name',
+  PersonSurname: 'surname',
+  PersonPhone: 'person_phone',
+  PersonBorn: 'born',
+  PersonAddress: 'person_address',
+  PersonEmail: 'person_email',
+
+  /*
+   * Der individuelle Zugang (0022). Der Platzschlüssel wird zweimal verpackt —
+   * für den Link und für den Bereich; dieselbe Sache, dasselbe Etikett.
+   */
+  SeatKey: 'seat_key',
+  SeatPersonalNote: 'seat_personal',
+  SeatInternalNote: 'seat_internal',
+
+  /* Eine eingesandte Antwort, und der private Annahmeschlüssel dahinter. */
+  EventAnswer: 'answer',
+  EventIntakeKey: 'intake_key',
+  EventFieldLabel: 'field_label',
+  EventFieldHelp: 'field_help',
+  EventFieldOptions: 'field_options'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];
@@ -366,6 +393,46 @@ export async function newRolePair(): Promise<RolePair> {
     wrapPublicKey: new Uint8Array(wrapPublicKey),
     wrapPrivateKey: new Uint8Array(wrapPrivateKey)
   };
+}
+
+export interface WrapPair {
+  readonly publicKey: Uint8Array;
+  readonly privateKey: Uint8Array;
+}
+
+/**
+ * EIN Paar zum Verpacken — für den Annahmeschlüssel eines Bereichs.
+ *
+ * <b>Nicht `newRolePair`.</b> Das macht zwei Paare, weil eine Rolle
+ * unterschreiben UND verpacken muss. Eine Annahme unterschreibt nie: sie nimmt
+ * entgegen. Das zweite Paar wäre acht Sekunden für einen Schlüssel, den
+ * niemand je benutzt — und ein unbenutzter privater Schlüssel ist kein
+ * neutrales Ding, sondern einer, den jemand später falsch verwendet.
+ */
+export async function newWrapPair(): Promise<WrapPair> {
+  const pair = await crypto.subtle.generateKey(
+    {
+      name: 'RSA-OAEP',
+      modulusLength: RSA_BITS,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: 'SHA-256'
+    },
+    true,
+    ['encrypt', 'decrypt']
+  );
+
+  const [publicKey, privateKey] = await Promise.all([
+    crypto.subtle.exportKey('spki', pair.publicKey),
+    crypto.subtle.exportKey('pkcs8', pair.privateKey)
+  ]);
+
+  return { publicKey: new Uint8Array(publicKey), privateKey: new Uint8Array(privateKey) };
+}
+
+/** SHA-256 über Text — für den Abdruck eines Linkgeheimnisses. */
+export async function sha256(text: string): Promise<Uint8Array> {
+  const bytes = new TextEncoder().encode(text);
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', view(bytes)));
 }
 
 /**

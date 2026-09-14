@@ -20,6 +20,7 @@ import {
   type AccessView, type Capability
 } from './access';
 import { loadPage, savePage, saveParts, toDraft, type DraftPart } from './page';
+import { FormOffice } from './FormOffice';
 import { MassOffice } from './MassOffice';
 import { PageBuilder } from './PageBuilder';
 import { pagePath } from './routes';
@@ -174,6 +175,16 @@ export function PageEditor({ path, who }: { path: string; who: Who }) {
         Module, und die Kanzlei steht da — bevor die erste Messe existiert.
       */}
       {parts.some((part) => part.kind === 'masses') && <MassOffice />}
+
+      {/*
+        Je Formular EINER — anders als beim Messplan, der einen Kalender nennt.
+        Die Fragen hängen an DIESEM Baustein, also gibt es sie auch je Baustein
+        zu stellen; zwei Formulare auf einer Seite sind zwei Bögen und nicht
+        zwei Ansichten desselben.
+      */}
+      {parts.filter((part) => part.kind === 'form').map((part) => (
+        <FormOffice key={part.id} partId={part.id} who={who} />
+      ))}
 
       {view !== null && (
         <>
