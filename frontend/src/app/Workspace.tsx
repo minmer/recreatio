@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { pagePath, PATH_SHAPE, tilesPath, viewPath, VIEWS, type Spot, type View } from './routes';
+import { PATH_SHAPE, tilesPath, viewPath, VIEWS, type Spot, type View } from './routes';
 import { Account } from './Account';
 import { Addresses } from './Addresses';
 import { Areas } from './Areas';
@@ -24,8 +24,9 @@ import { MassOffice } from './MassOffice';
 import { PageEditor } from './PageEditor';
 import { RoleGraph } from './RoleGraph';
 import { WorkspaceError, type Who } from './session';
+import { SlugTree } from './SlugTree';
 import { claimSlug, loadDesk, type Desk, type RoleCard } from './desk';
-import { treeOf, type Node } from './tree';
+import { treeOf } from './tree';
 
 export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   /** `undefined` = noch nicht nachgesehen, `null` = ging nicht. */
@@ -257,11 +258,13 @@ function Pages({ desk, who, onClaimed }: { desk: Desk; who: Who; onClaimed: () =
           na liście i trzeba mieć do niego kod.
         </p>
       ) : (
-        <PageTree
+        <SlugTree
           nodes={treeOf(desk.pages)}
           desk={desk}
+          who={who}
           editing={editing}
           onEdit={(path) => setEditing(editing === path ? null : path)}
+          onChanged={onClaimed}
         />
       )}
 
@@ -327,94 +330,6 @@ function Pages({ desk, who, onClaimed }: { desk: Desk; who: Who; onClaimed: () =
   );
 }
 
-/* -- Die Adressen als Baum ------------------------------------------------- */
-
-/* Die Rechnerei steht in `tree.ts` — hier wird nur gezeichnet. */
-
-/** Oben der ganze Name, darunter nur das Stück: so liest sich die Ebene. */
-const nodeLabel = (node: Node, depth: number): string =>
-  depth > 0 ? `/${node.name}`
-  : node.path === '' ? 'recreatio.pl'
-  : `recreatio.pl/${node.path}`;
-
-function PageTree({ nodes, desk, editing, onEdit, depth = 0 }: {
-  nodes: readonly Node[];
-  desk: Desk;
-  editing: string | null;
-  onEdit: (path: string) => void;
-  depth?: number;
-}) {
-  return (
-    <ul className={depth === 0 ? 'wk-tree' : 'wk-tree wk-tree-sub'}>
-      {nodes.map((node) => (
-        <li key={node.path}>
-          <TreeRow node={node} desk={desk} editing={editing} onEdit={onEdit} depth={depth} />
-
-          {node.children.length > 0 && (
-            <PageTree
-              nodes={node.children}
-              desk={desk}
-              editing={editing}
-              onEdit={onEdit}
-              depth={depth + 1}
-            />
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function TreeRow({ node, desk, editing, onEdit, depth }: {
-  node: Node;
-  desk: Desk;
-  editing: string | null;
-  onEdit: (path: string) => void;
-  depth: number;
-}) {
-  /*
-   * Die Zeile EINMAL in eine eigene Bindung, und danach nur noch sie.
-   * `node.page?.aliasOf !== null` wäre still falsch: fehlt die Zeile, ergibt
-   * die Kette `undefined`, und `undefined !== null` stimmt — das Abzeichen
-   * erschiene ausgerechnet dort, wo es gar keine Zeile gibt.
-   */
-  const page = node.page;
-
-  return (
-    <div className="wk-row">
-      <span>
-        {page === null ? (
-          // Ein Zwischenstück, das niemand führt: keine Seite, aber eine Ebene.
-          <code className="wk-tree-gap" title="Tego adresu nikt nie prowadzi">
-            {nodeLabel(node, depth)}
-          </code>
-        ) : (
-          <a className="wk-link" href={pagePath(node.path)}>
-            <code>{nodeLabel(node, depth)}</code>
-          </a>
-        )}
-
-        {page !== null && page.aliasOf !== null && (
-          <span className="wk-row-side"> → <code>{page.aliasOf}</code></span>
-        )}
-
-        {page !== null && page.host !== null && (
-          <span className="wk-row-side"> · <code>{page.host}</code></span>
-        )}
-      </span>
-
-      {page !== null && (
-        <span className="wk-row-side">
-          {roleOf(desk, page.roleId)}{' · '}
-          <button type="button" className="wk-link-btn" onClick={() => onEdit(node.path)}>
-            {editing === node.path ? 'Zamknij' : 'Edytuj stronę'}
-          </button>
-        </span>
-      )}
-    </div>
-  );
-}
-
 /* -- Namen ----------------------------------------------------------------- */
 
 /**
@@ -427,11 +342,6 @@ function roleName(role: RoleCard): string {
   if (role.kind === 'role') return 'Rola';
   if (role.kind === 'group') return 'Grupa';
   return 'Osoba';
-}
-
-function roleOf(desk: Desk, roleId: string): string {
-  const role = desk.roles.find((r) => r.id === roleId);
-  return role === undefined ? short(roleId) : roleName(role);
 }
 
 const short = (id: string): string => id.slice(0, 8);

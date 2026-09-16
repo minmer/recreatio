@@ -205,8 +205,8 @@ public static class Seat
                 insert.Parameters.AddWithValue("@epoch", body.Epoch);
                 insert.Parameters.AddWithValue("@name",
                     name == "" ? DBNull.Value : name[..Math.Min(name.Length, MaxName)]);
-                insert.Parameters.AddWithValue("@personal", (object?)personal ?? DBNull.Value);
-                insert.Parameters.AddWithValue("@internal", (object?)internalNote ?? DBNull.Value);
+                insert.Parameters.AddBlob("@personal", personal);
+                insert.Parameters.AddBlob("@internal", internalNote);
                 insert.Parameters.AddWithValue("@by", ownerRoleId);
                 insert.Parameters.AddWithValue("@now", now);
                 insert.Parameters.AddWithValue("@until", until);
@@ -371,8 +371,8 @@ public static class Seat
              WHERE id = @id;
             """, connection);
 
-        cmd.Parameters.AddWithValue("@personal", (object?)personal ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@internal", (object?)internalNote ?? DBNull.Value);
+        cmd.Parameters.AddBlob("@personal", personal);
+        cmd.Parameters.AddBlob("@internal", internalNote);
         cmd.Parameters.AddWithValue("@id", id);
 
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);

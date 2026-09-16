@@ -38,6 +38,232 @@ public static partial class Slug
          */
         app.MapPost("/workspace/alias", AliasAsync);
         app.MapPost("/workspace/domain", DomainAsync);
+
+        /* Der Unterbau einer uebernommenen Adresse — umhaengen und zuordnen. */
+        app.MapPost("/workspace/slug/move", MoveAsync);
+        app.MapPost("/workspace/slug/internal", InternalAsync);
+    }
+
+    public sealed record MoveRequest(string Path, string NewPath);
+
+    /// <summary>
+    /// Eine Unteradresse umhaengen oder umbenennen — mitsamt allem darunter.
+    ///
+    /// <para>
+    /// <b>Der Inhalt zieht NICHT um.</b> `slug_page` und `slug_part` haengen an
+    /// der Kennung, nicht am Pfad; eine Seite behaelt also ihren Text, ihre
+    /// Bausteine und ihre Formularfelder. Was sich aendert, ist die Adresse —
+    /// und die von allem, was darunter liegt.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Verweise ziehen mit.</b> Ein Alias zeigt auf einen PFAD; bliebe er
+    /// stehen, zeigte er nach dem Umhaengen ins Leere. Beides geschieht in
+    /// einer Transaktion, sonst gaebe es einen Augenblick, in dem die Seite
+    /// unter keiner Adresse zu finden ist.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Eine Wurzel entsteht hier nicht.</b> Oberste Adressen nimmt man mit
+    /// einem Code (0017); waere Umhaengen ein zweiter Weg dorthin, liesse sich
+    /// der Code umgehen.
+    /// </para>
+    /// </summary>
+    private static async Task MoveAsync(HttpContext ctx, Db db, MoveRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var from = Normalise(body.Path);
+        var to = Normalise(body.NewPath);
+
+        if (from == Home || to == Home || !IsWellFormed(from) || !IsWellFormed(to) || IsReserved(to))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                "Adres: małe litery, cyfry i myślniki; części oddziel ukośnikiem.");
+            return;
+        }
+
+        if (from == to)
+        {
+            await ctx.Response.WriteAsJsonAsync(new { path = to, moved = false });
+            return;
+        }
+
+        if (!to.Contains('/'))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                "Adres najwyższego poziomu bierze się kodem, nie przeciągnięciem.");
+            return;
+        }
+
+        /*
+         * IN SICH SELBST laesst sich nichts haengen. Sonst verschwaende der
+         * ganze Ast: seine Vorfahren waeren seine Nachfahren.
+         */
+        if (to.StartsWith(from + "/", StringComparison.Ordinal))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, "Nie można wsunąć gałęzi w nią samą.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        /*
+         * ZWEI Rechte: an der Stelle, von der etwas weggeht, und an der, wo es
+         * ankommt. Eines allein genuegte, um eine Seite in einen fremden
+         * Unterbau zu schieben — oder aus ihm heraus.
+         */
+        var here = await Access.OfAsync(connection, who.Value.AccountId, from, ctx.RequestAborted);
+        if (!here.MayWrite)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
+            return;
+        }
+
+        var parent = to[..to.LastIndexOf('/')];
+        var there = await Access.OfAsync(connection, who.Value.AccountId, parent, ctx.RequestAborted);
+
+        if (!there.MayWrite)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Tam nie możesz nic położyć.");
+            return;
+        }
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            await using (var taken = new SqlCommand(
+                "SELECT TOP 1 1 FROM app.slug WHERE path = @to;", connection, tx))
+            {
+                taken.Parameters.AddWithValue("@to", to);
+
+                if (await taken.ExecuteScalarAsync(ctx.RequestAborted) is not null)
+                {
+                    await tx.RollbackAsync(ctx.RequestAborted);
+                    await Fail(ctx, StatusCodes.Status409Conflict, "Pod tym adresem już coś jest.");
+                    return;
+                }
+            }
+
+            int moved;
+
+            await using (var cmd = new SqlCommand("""
+                UPDATE app.slug
+                   SET path = @to + SUBSTRING(path, LEN(@from) + 1, 200)
+                 WHERE path = @from OR path LIKE @under;
+
+                SELECT @@ROWCOUNT;
+                """, connection, tx))
+            {
+                cmd.Parameters.AddWithValue("@from", from);
+                cmd.Parameters.AddWithValue("@to", to);
+                cmd.Parameters.AddWithValue("@under", from + "/%");
+
+                moved = (int)(await cmd.ExecuteScalarAsync(ctx.RequestAborted) ?? 0);
+            }
+
+            if (moved == 0)
+            {
+                await tx.RollbackAsync(ctx.RequestAborted);
+                await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+                return;
+            }
+
+            await using (var cmd = new SqlCommand("""
+                UPDATE app.slug
+                   SET alias_of = @to + SUBSTRING(alias_of, LEN(@from) + 1, 200)
+                 WHERE alias_of = @from OR alias_of LIKE @under;
+                """, connection, tx))
+            {
+                cmd.Parameters.AddWithValue("@from", from);
+                cmd.Parameters.AddWithValue("@to", to);
+                cmd.Parameters.AddWithValue("@under", from + "/%");
+
+                await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+            await ctx.Response.WriteAsJsonAsync(new { path = to, moved });
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+    }
+
+    public sealed record InternalRequest(string Path, string? RoleId);
+
+    /// <summary>
+    /// Eine Unteradresse einer Rolle zuordnen — oder wieder freigeben.
+    ///
+    /// <para>
+    /// <c>roleId = null</c> macht sie wieder oeffentlich. Alles andere macht
+    /// sie zu IHRER Seite: sichtbar fuer wen die Rolle haelt, fuer das Amt, das
+    /// die Adresse fuehrt, und fuer einen Platz, dem sie zugeteilt wurde.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Die genannte Rolle muss nicht die eigene sein.</b> Eine Lehrerin
+    /// ordnet `lo13/anna` Annas Rolle zu, ohne sie zu halten — sonst koennte
+    /// niemand eine Seite fuer einen anderen einrichten. Es ist auch keine
+    /// Preisgabe: die Zuordnung NIMMT Sichtbarkeit weg, sie gibt keine.
+    /// </para>
+    /// </summary>
+    private static async Task InternalAsync(HttpContext ctx, Db db, InternalRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var path = Normalise(body.Path);
+
+        Guid? roleId = null;
+        if (!string.IsNullOrWhiteSpace(body.RoleId))
+        {
+            if (!Guid.TryParse(body.RoleId, out var found))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung roli.");
+                return;
+            }
+            roleId = found;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
+        if (!grip.MayWrite)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
+            return;
+        }
+
+        await using var cmd = new SqlCommand(
+            "UPDATE app.slug SET internal_for_role_id = @role WHERE path = @path;", connection);
+
+        cmd.Parameters.AddWithValue("@role", (object?)roleId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@path", path);
+
+        try
+        {
+            if (await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 0)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+                return;
+            }
+        }
+        catch (SqlException e) when (e.Number == 547)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiej roli nie ma.");
+            return;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            path,
+            internalForRoleId = roleId is null ? null : Ids.ToText(roleId.Value)
+        });
     }
 
     public sealed record ClaimRequest(string Path, string Code, string RoleId);

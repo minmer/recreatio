@@ -730,8 +730,8 @@ public static class Roles
 
         cmd.Parameters.AddWithValue("@id", roleId);
         cmd.Parameters.AddWithValue("@kind", kind);
-        cmd.Parameters.AddWithValue("@name",
-            body.DisplayNameSealed is null ? DBNull.Value : Base64Url.Decode(body.DisplayNameSealed));
+        cmd.Parameters.AddBlob("@name",
+            body.DisplayNameSealed is null ? null : Base64Url.Decode(body.DisplayNameSealed));
         cmd.Parameters.AddWithValue("@wrapPub", Base64Url.Decode(body.WrapPublicKey));
         cmd.Parameters.AddWithValue("@signPub", Base64Url.Decode(body.SignPublicKey));
         cmd.Parameters.AddWithValue("@wrapPriv", Base64Url.Decode(body.WrapPrivateSealed));

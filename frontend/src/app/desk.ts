@@ -33,6 +33,16 @@ export interface PageCard {
 
   /** Eine eigene Domain, die hierher zeigt, oder `null`. */
   readonly host: string | null;
+
+  /**
+   * WESSEN Seite das ist — `null` heisst öffentlich.
+   *
+   * Steht hier eine Rolle, liefert der Dienst die Seite nur an den aus, der sie
+   * hält, an das Amt, das die Adresse führt, und an einen Platz, dem sie
+   * zugeteilt wurde. Für alle anderen gibt es sie nicht — nicht „verboten",
+   * sondern nicht.
+   */
+  readonly internalForRoleId: string | null;
 }
 
 export interface Desk {
@@ -83,6 +93,36 @@ export const declareAlias = (
   call<Claimed & { readonly aliasOf: string }>('/workspace/alias', {
     method: 'POST',
     body: JSON.stringify({ path, target, roleId })
+  });
+
+/**
+ * Eine Unteradresse umhängen — mitsamt allem darunter.
+ *
+ * <b>Der Inhalt zieht nicht um.</b> Text, Bausteine und Formularfelder hängen
+ * an der Kennung, nicht am Pfad; was sich ändert, ist die Adresse. Verweise
+ * (`alias_of`) ziehen mit, sonst zeigten sie danach ins Leere.
+ */
+export const moveSlug = (
+  path: string, newPath: string
+): Promise<{ path: string; moved: number | false }> =>
+  call('/workspace/slug/move', {
+    method: 'POST',
+    body: JSON.stringify({ path, newPath })
+  });
+
+/**
+ * Eine Unteradresse einer Rolle zuordnen — oder wieder freigeben (`roleId = null`).
+ *
+ * Die genannte Rolle muss nicht die eigene sein: eine Lehrerin richtet `lo13/anna`
+ * für Anna ein, ohne Annas Rolle zu halten. Es ist auch keine Preisgabe — die
+ * Zuordnung NIMMT Sichtbarkeit weg, sie gibt keine.
+ */
+export const setInternal = (
+  path: string, roleId: string | null
+): Promise<{ path: string; internalForRoleId: string | null }> =>
+  call('/workspace/slug/internal', {
+    method: 'POST',
+    body: JSON.stringify({ path, roleId })
   });
 
 /** Eine eigene Domain anhängen — oder sie abnehmen (`host` = `null`). */

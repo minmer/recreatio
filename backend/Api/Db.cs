@@ -1,6 +1,38 @@
+using System.Data;
+
 using Microsoft.Data.SqlClient;
 
 namespace Api;
+
+/// <summary>
+/// Parameter, deren Typ nicht geraten werden darf.
+/// </summary>
+public static class Parameters
+{
+    /// <summary>
+    /// Eine versiegelte Huelle als Parameter — auch dann, wenn sie fehlt.
+    ///
+    /// <para>
+    /// <b><c>AddWithValue(…, DBNull.Value)</c> raet auf <c>nvarchar</c>.</b> Steht
+    /// dahinter eine <c>varbinary</c>-Spalte, lehnt SQL Server ab: „Implicit
+    /// conversion from data type nvarchar to varbinary(max) is not allowed" —
+    /// und zwar NUR auf dem Weg, auf dem der Wert wirklich einmal fehlt. Ein
+    /// Platz ohne Notiz, ein Feld ohne Platzschluessel: seltene Wege, die dann
+    /// mit einem 500 enden statt mit einer Zeile.
+    /// </para>
+    ///
+    /// <para>
+    /// Der Typ steht hier deshalb ausgeschrieben statt geraten. <c>-1</c> ist
+    /// <c>max</c>; fuer eine engere Spalte (<c>varbinary(32)</c>) ist das
+    /// gleichgueltig — die Groesse beschreibt den Parameter, nicht die Spalte.
+    /// </para>
+    /// </summary>
+    public static SqlParameter AddBlob(this SqlParameterCollection into, string name, byte[]? value) =>
+        into.Add(new SqlParameter(name, SqlDbType.VarBinary, -1)
+        {
+            Value = (object?)value ?? DBNull.Value
+        });
+}
 
 /// <summary>
 /// Die Verbindung zur Datenbank, an einer Stelle aufgelöst.

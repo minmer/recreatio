@@ -51,7 +51,15 @@ public static class Workspace
                 // Ein zweiter Weg hierher — oder keiner. Die Oberfläche zeigt
                 // beides an derselben Zeile, sonst müsste sie zweimal fragen.
                 aliasOf = p.AliasOf,
-                host = p.Host
+                host = p.Host,
+
+                /*
+                 * WESSEN Seite das ist (0026). `null` heisst oeffentlich — und
+                 * das gehoert in dieselbe Zeile wie Alias und Domain: der Baum
+                 * zeigt alle drei nebeneinander, sonst muesste er zweimal
+                 * fragen und zweimal zeichnen.
+                 */
+                internalForRoleId = p.InternalFor is null ? null : Ids.ToText(p.InternalFor.Value)
             })
         });
     }
@@ -100,10 +108,10 @@ public static class Workspace
 
     /// <summary>Die Adressen, die diese Rollen führen.</summary>
     private static async Task<List<(string Path, Guid RoleId, DateTimeOffset ClaimedAt,
-        string? AliasOf, string? Host)>> PagesOfAsync(
+        string? AliasOf, string? Host, Guid? InternalFor)>> PagesOfAsync(
         SqlConnection connection, List<RoleRow> roles, CancellationToken ct)
     {
-        var pages = new List<(string, Guid, DateTimeOffset, string?, string?)>();
+        var pages = new List<(string, Guid, DateTimeOffset, string?, string?, Guid?)>();
 
         // Ohne Rollen gibt es nichts zu fragen. Ein `IN ()` ohne Werte wäre
         // ausserdem kein gültiges SQL.
@@ -112,8 +120,8 @@ public static class Workspace
         var names = string.Join(", ", roles.Select((_, i) => $"@r{i}"));
 
         await using var cmd = new SqlCommand(
-            $"SELECT path, claimed_by_role_id, claimed_at, alias_of, host FROM app.slug "
-            + $"WHERE claimed_by_role_id IN ({names}) ORDER BY path;", connection);
+            $"SELECT path, claimed_by_role_id, claimed_at, alias_of, host, internal_for_role_id "
+            + $"FROM app.slug WHERE claimed_by_role_id IN ({names}) ORDER BY path;", connection);
 
         for (var i = 0; i < roles.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", roles[i].Id);
 
@@ -122,7 +130,8 @@ public static class Workspace
         {
             pages.Add((reader.GetString(0), reader.GetGuid(1), reader.GetDateTimeOffset(2),
                 reader.IsDBNull(3) ? null : reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetString(4)));
+                reader.IsDBNull(4) ? null : reader.GetString(4),
+                reader.IsDBNull(5) ? null : reader.GetGuid(5)));
         }
 
         return pages;

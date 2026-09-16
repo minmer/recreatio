@@ -153,8 +153,8 @@ public static class Form
         insert.Parameters.AddWithValue("@kind", kind);
         insert.Parameters.AddWithValue("@pos", body.Position);
         insert.Parameters.AddWithValue("@label", label);
-        insert.Parameters.AddWithValue("@help", Optional(body.HelpSealed) ?? (object)DBNull.Value);
-        insert.Parameters.AddWithValue("@options", Optional(body.OptionsSealed) ?? (object)DBNull.Value);
+        insert.Parameters.AddBlob("@help", Optional(body.HelpSealed));
+        insert.Parameters.AddBlob("@options", Optional(body.OptionsSealed));
         insert.Parameters.AddWithValue("@epoch", body.Epoch);
         insert.Parameters.AddWithValue("@required", body.IsRequired ?? false);
         insert.Parameters.AddWithValue("@half", body.IsHalfWidth ?? false);
@@ -500,7 +500,7 @@ public static class Form
                 insert.Parameters.AddWithValue("@part", id);
                 insert.Parameters.AddWithValue("@access", (object?)seatId ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@role", (object?)roleId ?? DBNull.Value);
-                insert.Parameters.AddWithValue("@claim", (object?)claim ?? DBNull.Value);
+                insert.Parameters.AddBlob("@claim", claim);
                 insert.Parameters.AddWithValue("@now", now);
 
                 await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
@@ -518,7 +518,7 @@ public static class Form
                 add.Parameters.AddWithValue("@field", fieldId);
                 add.Parameters.AddWithValue("@value", sealedValue);
                 add.Parameters.AddWithValue("@wrapped", wrapped);
-                add.Parameters.AddWithValue("@seat", (object?)forSeat ?? DBNull.Value);
+                add.Parameters.AddBlob("@seat", forSeat);
 
                 await add.ExecuteNonQueryAsync(ctx.RequestAborted);
             }

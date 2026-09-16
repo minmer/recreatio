@@ -63,7 +63,7 @@ public static class Page
 
     /* -- Zeigen ------------------------------------------------------------- */
 
-    private static async Task ShowAsync(HttpContext ctx, Db db, string? path)
+    private static async Task ShowAsync(HttpContext ctx, Db db, string? path, string? seat)
     {
         var wanted = Slug.Normalise(path);
 
@@ -74,7 +74,7 @@ public static class Page
         }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        await WritePageAsync(ctx, connection, wanted);
+        await WritePageAsync(ctx, db, connection, wanted, seat);
     }
 
     /// <summary>
@@ -88,7 +88,7 @@ public static class Page
     /// dabei herauskommt, ist ohnehin öffentlich.
     /// </para>
     /// </summary>
-    private static async Task SiteAsync(HttpContext ctx, Db db, string? host, string? path)
+    private static async Task SiteAsync(HttpContext ctx, Db db, string? host, string? path, string? seat)
     {
         var name = (host ?? string.Empty).Trim().ToLowerInvariant();
 
@@ -155,7 +155,7 @@ public static class Page
             return;
         }
 
-        await WritePageAsync(ctx, connection, wanted);
+        await WritePageAsync(ctx, db, connection, wanted, seat);
     }
 
     /// <summary>
@@ -167,9 +167,62 @@ public static class Page
     /// „noch nichts veröffentlicht" bedeutet.
     /// </para>
     /// </summary>
-    private static async Task WritePageAsync(HttpContext ctx, SqlConnection connection, string wanted)
+    /// <summary>
+    /// Darf dieser Aufrufer eine INTERNE Adresse sehen? Drei Wege, und kein vierter.
+    ///
+    /// <code>
+    ///   ein PLATZ            der Link, ohne Konto — `app.access_slug`
+    ///   die Rolle halten     ueber das Konto, im Rollengraphen erreichbar
+    ///   schreiben duerfen    das Amt, das die Adresse fuehrt
+    /// </code>
+    ///
+    /// <para>
+    /// Der erste steht zuerst, weil er der haeufigste ist: ein Vierzehnjaehriger
+    /// hat kein Konto, und eine Rollenpruefung allein sperrte genau den aus,
+    /// fuer den die Seite gemacht wurde.
+    /// </para>
+    /// </summary>
+    private static async Task<bool> MaySeeAsync(
+        HttpContext ctx, Db db, SqlConnection connection,
+        Guid internalFor, Guid slugId, Guid askedId, string path, string? seat)
     {
-        Guid slugId;
+        if (!string.IsNullOrWhiteSpace(seat))
+        {
+            await using var cmd = new SqlCommand("""
+                SELECT TOP 1 1
+                FROM app.access a
+                JOIN app.access_slug g ON g.access_id = a.id
+                WHERE a.token_sha256 = @token
+                  AND a.revoked_at IS NULL AND a.status = N'active'
+                  AND (a.expires_at IS NULL OR a.expires_at > @now)
+                  AND g.slug_id IN (@slug, @asked);
+                """, connection);
+
+            cmd.Parameters.AddWithValue("@token",
+                System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(seat.Trim())));
+            cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            cmd.Parameters.AddWithValue("@slug", slugId);
+            cmd.Parameters.AddWithValue("@asked", askedId);
+
+            if (await cmd.ExecuteScalarAsync(ctx.RequestAborted) is not null) return true;
+        }
+
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) return false;
+
+        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        if (mine.Any(r => r.Id == internalFor)) return true;
+
+        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
+        return grip.MayWrite;
+    }
+
+    private static async Task WritePageAsync(
+        HttpContext ctx, Db db, SqlConnection connection, string wanted, string? seat = null)
+    {
+        Guid slugId, askedId;
+        Guid? internalFor;
         string? title = null, lead = null, aliasOf = null;
         DateTimeOffset? updatedAt = null;
 
@@ -186,7 +239,9 @@ public static class Page
         await using (var cmd = new SqlCommand("""
             SELECT COALESCE(t.id, s.id),
                    COALESCE(t.claimed_by_role_id, s.claimed_by_role_id),
-                   p.title, p.lead, p.updated_at, s.alias_of
+                   p.title, p.lead, p.updated_at, s.alias_of,
+                   COALESCE(t.internal_for_role_id, s.internal_for_role_id),
+                   s.id
             FROM app.slug s
             LEFT JOIN app.slug t ON s.alias_of IS NOT NULL AND t.path = s.alias_of
             LEFT JOIN app.slug_page p ON p.slug_id = COALESCE(t.id, s.id)
@@ -214,6 +269,22 @@ public static class Page
             lead = reader.IsDBNull(3) ? null : reader.GetString(3);
             updatedAt = reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4);
             aliasOf = reader.IsDBNull(5) ? null : reader.GetString(5);
+            internalFor = reader.IsDBNull(6) ? null : reader.GetGuid(6);
+            askedId = reader.GetGuid(7);
+        }
+
+        /*
+         * EINE INTERNE ADRESSE GEHOERT EINER ROLLE (0026).
+         *
+         * Wer nicht hineindarf, bekommt dieselbe Antwort wie fuer eine Adresse,
+         * die es nicht gibt. Ein 403 verriete, dass unter `lo13/anna` jemand
+         * gefuehrt wird — und das ist bereits eine Auskunft ueber Anna.
+         */
+        if (internalFor is not null
+            && !await MaySeeAsync(ctx, db, connection, internalFor.Value, slugId, askedId, wanted, seat))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Pod tym adresem nie ma jeszcze strony.");
+            return;
         }
 
         /*
