@@ -15,11 +15,12 @@
  * erhebt, muss sagen, wer sie verarbeitet, BEVOR jemand etwas eingegeben hat.
  * Fehlt sie, sammelt dieses Formular nichts — es sagt, was fehlt.
  *
- * <b>Und wer sich anmeldet, bekommt eine Adresse</b>, wenn der Baustein
- * `portal` trägt (0027): der Browser würfelt sich vor dem Absenden einen
- * eigenen Platz, und danach steht der Link genau einmal da. Ohne `portal`
- * bleibt es bei der Quittung — dann ist die Einsendung eine Einbahnstrasse, und
- * das ist für einen blossen Rückruf richtig.
+ * <b>Und wer sich anmeldet, bekommt eine Adresse</b> (0027): der Browser
+ * würfelt sich vor dem Absenden einen eigenen Platz, und danach steht der Link
+ * genau einmal da. Ohne Schalter — ein Formular, das nach Namen und
+ * Geburtsdatum fragt und nichts zurückgibt, wäre die schlechtere
+ * Voreinstellung. Die Quittung bleibt für den einen Fall, in dem es keinen
+ * Platz geben kann: wenn der Bereich gar keine Annahme hat.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -41,6 +42,9 @@ export function FormCard({ partId, config }: {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [claim, setClaim] = useState<string | null>(null);
   const [link, setLink] = useState<Link | null>(null);
+
+  /** Wohin der Platz gehört — der Dienst hat es entschieden, nicht wir. */
+  const [landed, setLanded] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -92,19 +96,18 @@ export function FormCard({ partId, config }: {
   const nameless = form.areas.filter((a) => a.controller === null);
 
   /*
-   * DAS PORTAL, wenn der Baustein es trägt. Ohne Anker keine Adresse: der Platz
-   * hinge dann an nichts, und `seatPath` fiele auf die allgemeine Form `#/seat/…`
-   * zurück — was geht, aber niemandem sagt, wo er ist.
-   */
-  const wantsPortal = (config.portal ?? '').trim() !== ''
-    && ['tak', 'yes', 'true', '1'].includes((config.portal ?? '').trim().toLowerCase());
-
-  /*
-   * Die Adresse, unter der das Portal hängen soll — aus dem Baustein und nicht
-   * aus dem Ort, an dem er steht: das Formular liegt auf
-   * `…/confirmation/signin`, das Portal gehört aber unter `…/confirmation`.
-   * Fehlt die Angabe, bleibt die allgemeine Form `#/seat/…` — sie führt ebenso
-   * hin, sagt dem Menschen bloss nicht, wo er gelandet ist.
+   * DAS PORTAL GIBT ES IMMER, und das ist eine Entscheidung gegen einen
+   * Schalter.
+   *
+   * Ein Formular, das nach Namen und Geburtsdatum fragt und dafür nichts
+   * zurückgibt, ist die schlechtere Voreinstellung — und ein Kästchen, das man
+   * dafür erst finden müsste, wäre eines, das die meisten nie finden. Die
+   * Quittung bleibt für den einen Fall, in dem es keinen Platz geben kann:
+   * wenn der Bereich gar keine Annahme hat.
+   *
+   * <b>Wohin es hängt, entscheidet der Dienst</b> (`Form.Above`): eine Ebene
+   * über dem Formular. Der Browser müsste dafür seinen eigenen Pfad kennen, und
+   * `PageParts` gibt ihn bewusst nicht weiter.
    */
   const under = (config.portalUnder ?? '').trim();
 
@@ -128,13 +131,13 @@ export function FormCard({ partId, config }: {
 
             <textarea
               readOnly rows={3} className="wk-mono"
-              value={`${window.location.origin}${window.location.pathname}${seatPath(link, under === '' ? null : under)}`}
+              value={`${window.location.origin}${window.location.pathname}${seatPath(link, landed)}`}
             />
 
             <div className="wk-actions">
               <a
                 className="wk-btn"
-                href={seatPath(link, under === '' ? null : under)}
+                href={seatPath(link, landed)}
               >
                 Otwórz moją stronę
               </a>
@@ -176,7 +179,12 @@ export function FormCard({ partId, config }: {
       const done = await submitForm(partId, given, {
         areas: form.areas,
         fields: form.fields,
-        selfSeat: wantsPortal && home !== undefined
+        /*
+         * Nur wo es eine Annahme GIBT. `form.areas` führt genau die Bereiche,
+         * die eine haben — ein Platz ohne sie wäre einer, den die Kanzlei nie
+         * öffnen könnte, und der Dienst lehnte ihn ohnehin ab.
+         */
+        selfSeat: home !== undefined && form.areas.some((a) => a.areaId === home)
           ? {
               areaId: home,
               epoch: form.fields.find((f) => f.areaId === home)?.epoch ?? 1,
@@ -190,6 +198,7 @@ export function FormCard({ partId, config }: {
 
       setClaim(done.claim);
       setLink(done.link);
+      setLanded(done.under);
       setSent(true);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać.');

@@ -231,7 +231,12 @@ export interface SubmitTo {
  */
 export async function submitForm(
   partId: string, answers: readonly Answer[], to: SubmitTo
-): Promise<{ registrationId: string; claim: string | null; link: Link | null }> {
+): Promise<{
+  registrationId: string;
+  claim: string | null;
+  link: Link | null;
+  under: string | null;
+}> {
   const areaOf = new Map(to.fields.map((f) => [f.fieldId, f.areaId]));
   const publicKeys = new Map(to.areas.map((a) => [a.areaId, fromBase64Url(a.publicKey)]));
 
@@ -318,7 +323,7 @@ export async function submitForm(
     };
   }
 
-  const done = await call<{ registrationId: string }>(
+  const done = await call<{ registrationId: string; portalUnder: string | null }>(
     `/form/${encodeURIComponent(partId)}/submit`,
     {
       method: 'POST',
@@ -331,7 +336,14 @@ export async function submitForm(
       })
     });
 
-  return { registrationId: done.registrationId, claim, link: mine?.link ?? null };
+  return {
+    registrationId: done.registrationId,
+    claim,
+    link: mine?.link ?? null,
+
+    /* Wohin der Platz gehört — vom Dienst, der es entschieden hat. */
+    under: done.portalUnder ?? null
+  };
 }
 
 /**

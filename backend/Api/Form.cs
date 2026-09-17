@@ -188,11 +188,36 @@ public static class Form
             return;
         }
 
+        /*
+         * Dieselben zwei Achsen wie bei den Einsendungen: wer die Seite fuehrt,
+         * oder wer einen der Bereiche liest, in die gefragt wird. Die
+         * Beschriftungen liegen unter dem Epochenschluessel des Bereichs — wer
+         * ihn hat, soll seine eigenen Fragen auch sehen duerfen, ohne dass ihm
+         * jemand die Seite gibt.
+         */
         var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
+
         if (!grip.MayWrite)
         {
-            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
-            return;
+            var asked = await ReadFieldsAsync(connection, id, ctx.RequestAborted);
+            var any = false;
+
+            foreach (var areaId in asked.Select(f => f.AreaId).Distinct())
+            {
+                if (await Area.MayAsync(connection, who.Value.AccountId, areaId,
+                        Capability.Read, ctx.RequestAborted))
+                {
+                    any = true;
+                    break;
+                }
+            }
+
+            if (!any)
+            {
+                await Fail(ctx, StatusCodes.Status403Forbidden,
+                    "Ani tego adresu nie prowadzisz, ani nie czytasz obszaru, o który pyta ten formularz.");
+                return;
+            }
         }
 
         await ctx.Response.WriteAsJsonAsync(new
@@ -626,14 +651,22 @@ public static class Form
         {
             registrationId = Ids.ToText(registrationId),
             values = parsed.Count,
-            seatId = seatId is null ? null : Ids.ToText(seatId.Value)
+            seatId = seatId is null ? null : Ids.ToText(seatId.Value),
+
+            /*
+             * WO das Portal haengt — der Dienst hat es entschieden, also sagt
+             * er es auch. Ohne das muesste der Browser die Regel ein zweites
+             * Mal kennen, und zwei Meinungen darueber ergaeben eine Adresse,
+             * die ins Leere zeigt.
+             */
+            portalUnder = mint?.UnderPath
         });
     }
 
     /// <summary>Ein geprueufter Selbstplatz, fertig zum Einfuegen.</summary>
     private readonly record struct SelfSeatRow(
         Guid Id, Guid AreaId, byte[] TokenHash, byte[] ForLink, byte[] ForIntake,
-        int Epoch, string? RecipientName, IReadOnlyList<Guid> SlugIds);
+        int Epoch, string? RecipientName, IReadOnlyList<Guid> SlugIds, string? UnderPath);
 
     /// <summary>
     /// Den mitgeschickten Platz pruefen — und dabei die eine Frage stellen, die
@@ -722,43 +755,66 @@ public static class Form
          */
         var slugIds = new List<Guid>();
 
-        if (!string.IsNullOrWhiteSpace(body.UnderPath))
+        var formPath = await PathOfPartAsync(connection, partId, ctx.RequestAborted);
+        if (formPath is null)
         {
-            var wanted = Slug.Normalise(body.UnderPath);
-
-            var formPath = await PathOfPartAsync(connection, partId, ctx.RequestAborted);
-            if (formPath is null)
-            {
-                await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
-                return null;
-            }
-
-            if (formPath != wanted && !formPath.StartsWith(wanted + "/", StringComparison.Ordinal))
-            {
-                await Fail(ctx, StatusCodes.Status403Forbidden,
-                    "Miejsce może należeć tylko do strony z tym formularzem albo do strony nad nią.");
-                return null;
-            }
-
-            await using var cmd = new SqlCommand(
-                "SELECT id FROM app.slug WHERE path = @under;", connection);
-
-            cmd.Parameters.AddWithValue("@under", wanted);
-
-            if (await cmd.ExecuteScalarAsync(ctx.RequestAborted) is not Guid foundId)
-            {
-                await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
-                return null;
-            }
-
-            slugIds.Add(foundId);
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
+            return null;
         }
+
+        /*
+         * WO DAS PORTAL HAENGT — und der Browser muss es nicht wissen.
+         *
+         * Die Regel ist eine Eigenschaft des Baus und keine Einstellung je
+         * Seite: das Formular liegt auf `…/confirmation/signin`, das Portal
+         * gehoert eine Ebene darueber, auf `…/confirmation`. Genau dort sucht
+         * ein Mensch es auch — die Anmeldung ist ein Durchgang, die Firmung
+         * ist der Ort.
+         *
+         * Gibt es die Seite darueber nicht im Register, bleibt die Seite mit
+         * dem Formular. Und wer es anders will, nennt `UnderPath` — dann gilt
+         * dieselbe Pruefung wie sonst.
+         */
+        var wanted = string.IsNullOrWhiteSpace(body.UnderPath)
+            ? Above(formPath)
+            : Slug.Normalise(body.UnderPath);
+
+        if (formPath != wanted && !formPath.StartsWith(wanted + "/", StringComparison.Ordinal))
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden,
+                "Miejsce może należeć tylko do strony z tym formularzem albo do strony nad nią.");
+            return null;
+        }
+
+        var anchor = await SlugIdAsync(connection, wanted, ctx.RequestAborted);
+
+        /*
+         * Nur wenn der Aufrufer ihn GENANNT hat, ist ein fehlender Anker ein
+         * Fehler. Beim abgeleiteten faellt er still auf die Seite mit dem
+         * Formular zurueck: eine Anmeldung abzulehnen, weil eine Zwischenseite
+         * nie uebernommen wurde, waere eine Strafe fuer den Falschen.
+         */
+        if (anchor is null && !string.IsNullOrWhiteSpace(body.UnderPath))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+            return null;
+        }
+
+        var anchorPath = wanted;
+
+        if (anchor is null)
+        {
+            anchor = await SlugIdAsync(connection, formPath, ctx.RequestAborted);
+            anchorPath = formPath;
+        }
+
+        if (anchor is not null) slugIds.Add(anchor.Value);
 
         var name = (body.RecipientName ?? string.Empty).Trim();
 
         return new SelfSeatRow(seatId, areaId, tokenHash, forLink, forIntake, body.Epoch,
             name == "" ? null : name[..Math.Min(name.Length, 200)],
-            slugIds);
+            slugIds, anchor is null ? null : anchorPath);
     }
 
     /* -- Was die Kanzlei sieht ---------------------------------------------- */
@@ -777,12 +833,50 @@ public static class Form
             return;
         }
 
+        /*
+         * ZWEI ACHSEN, und die zweite ist die, auf die es hier ankommt.
+         *
+         * Bis hierher stand allein das Schreibrecht an der ADRESSE. Das ist die
+         * falsche Achse: die Antworten liegen unter dem Annahmeschluessel des
+         * BEREICHS, und den haelt die Kanzlei — nicht, wer die Seite fuehrt. Es
+         * war genau der Fall aus 0001, nur umgedreht: der eine DARF und KANN
+         * nicht, der andere KANN und DARF nicht.
+         *
+         * Deshalb: sehen darf, wer die Seite fuehrt ODER einen der Bereiche
+         * lesen darf, in die dieses Formular schreibt.
+         */
         var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
-        if (!grip.MayWrite)
+        var fields = await ReadFieldsAsync(connection, id, ctx.RequestAborted);
+
+        var mine = new HashSet<Guid>();
+
+        foreach (var areaId in fields.Select(f => f.AreaId).Distinct())
         {
-            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
+            if (await Area.MayAsync(connection, who.Value.AccountId, areaId,
+                    Capability.Read, ctx.RequestAborted))
+            {
+                mine.Add(areaId);
+            }
+        }
+
+        if (!grip.MayWrite && mine.Count == 0)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden,
+                "Ani tego adresu nie prowadzisz, ani nie czytasz obszaru, do którego trafiają odpowiedzi.");
             return;
         }
+
+        /*
+         * Und HERAUS gehen nur die Werte der Bereiche, die dieser Mensch lesen
+         * darf. Eine Huelle an jemanden zu schicken, der den Schluessel dazu
+         * nie bekommt, nuetzt ihm nichts und liegt dann an einer Stelle mehr.
+         *
+         * Wer die Seite fuehrt, ohne einen Bereich zu lesen, sieht deshalb DASS
+         * es Einsendungen gibt und wann — nicht, was darin steht. Das ist keine
+         * Einschraenkung, sondern die Wahrheit: oeffnen koennte er sie ohnehin
+         * nicht.
+         */
+        var readable = fields.Where(f => mine.Contains(f.AreaId)).Select(f => f.Id).ToHashSet();
 
         var rows = new List<(Guid Id, Guid? Seat, DateTimeOffset At, DateTimeOffset? Gone)>();
 
@@ -822,11 +916,16 @@ public static class Form
             while (await reader.ReadAsync(ctx.RequestAborted))
             {
                 var key = reader.GetGuid(0);
+                var fieldId = reader.GetGuid(1);
+
+                // Ein Feld aus einem Bereich, den dieser Mensch nicht liest.
+                if (!readable.Contains(fieldId)) continue;
+
                 if (!byRegistration.TryGetValue(key, out var list)) byRegistration[key] = list = [];
 
                 list.Add(new
                 {
-                    fieldId = Ids.ToText(reader.GetGuid(1)),
+                    fieldId = Ids.ToText(fieldId),
                     @sealed = Base64Url.Encode((byte[])reader[2]),
 
                     /* Verpackt unter der oeffentlichen Haelfte — zu oeffnen mit
@@ -901,6 +1000,30 @@ public static class Form
     }
 
     /// <summary>Die Adresse, auf der dieser Baustein steht — fuer die Rechtefrage.</summary>
+    /// <summary>
+    /// Eine Ebene hoeher — oder der Pfad selbst, wenn er schon oben steht.
+    ///
+    /// <para>
+    /// Eine oberste Adresse hat kein Darueber: <c>parish</c> bliebe sonst
+    /// <c>""</c>, und das ist die Wurzel, die niemandem gehoert.
+    /// </para>
+    /// </summary>
+    private static string Above(string path)
+    {
+        var cut = path.LastIndexOf('/');
+        return cut <= 0 ? path : path[..cut];
+    }
+
+    private static async Task<Guid?> SlugIdAsync(
+        SqlConnection connection, string path, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand(
+            "SELECT id FROM app.slug WHERE path = @p;", connection);
+
+        cmd.Parameters.AddWithValue("@p", path);
+        return await cmd.ExecuteScalarAsync(ct) as Guid?;
+    }
+
     private static async Task<string?> PathOfPartAsync(
         SqlConnection connection, Guid partId, CancellationToken ct)
     {
