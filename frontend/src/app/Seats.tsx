@@ -22,7 +22,7 @@ import { myEpochKeys, type AreaRow } from './area';
 import { loadIntake, openIntakeKey } from './intake';
 import type { Ring } from './keys';
 import {
-  issueSeat, loadSeats, openAsOffice, revokeSeat, officeSeatKey, seatPath, setNotes,
+  issueSeat, loadSeats, openAsOffice, relinkSeat, revokeSeat, officeSeatKey, seatPath, setNotes,
   type Link, type SeatRow
 } from './seat';
 import { WorkspaceError } from './session';
@@ -151,6 +151,7 @@ export function Seats({ area, areas, ring, ownerRoleId }: {
               shown={one}
               areaKey={key}
               intakePrivate={intakePrivate}
+              onLink={(name, link, under) => setFresh({ name, link, under })}
               busy={busy !== null}
               onAct={act}
             />
@@ -217,12 +218,15 @@ function FreshLink({ fresh, onClose }: {
 
 /* -- Ein Platz -------------------------------------------------------------- */
 
-function SeatItem({ shown, areaKey, intakePrivate, busy, onAct }: {
+function SeatItem({ shown, areaKey, intakePrivate, onLink, busy, onAct }: {
   shown: Shown;
   areaKey: Uint8Array;
 
   /** Nur für Plätze aus einer Selbstanmeldung — sonst `null` (0027). */
   intakePrivate: Uint8Array | null;
+
+  /** Ein frisch ausgestellter Link — er steht danach genau einmal oben. */
+  onLink: (name: string, link: Link, under: string | null) => void;
 
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
@@ -283,6 +287,24 @@ function SeatItem({ shown, areaKey, intakePrivate, busy, onAct }: {
                 Zapisz
               </button>
 
+              {/*
+                DER LINK ZUM VERSCHICKEN. Er lässt sich nicht nachschlagen —
+                gespeichert ist nur sein Abdruck —, also wird ein NEUER
+                ausgestellt. Der Platzschlüssel bleibt derselbe, deshalb behält
+                der Mensch seine Angaben; nur die Hülle darum ist neu.
+              */}
+              <button
+                type="button" className="wk-btn" disabled={busy}
+                onClick={() => void onAct('Wystawianie linku…', async () => {
+                  const seatKey = await officeSeatKey(row, areaKey, intakePrivate ?? undefined);
+                  if (seatKey === null) throw new WorkspaceError('Do tego miejsca nie ma klucza.');
+
+                  onLink(row.recipientName ?? '', await relinkSeat(row.seatId, seatKey), row.under);
+                })}
+              >
+                Wystaw nowy link
+              </button>
+
               <button
                 type="button" className="wk-link-btn" disabled={busy}
                 onClick={() => void onAct('Wycofywanie…', () => revokeSeat(row.seatId))}
@@ -290,6 +312,14 @@ function SeatItem({ shown, areaKey, intakePrivate, busy, onAct }: {
                 Wycofaj link
               </button>
             </div>
+
+            <p className="wk-hint">
+              <strong>Starego linku nie da się odczytać</strong> — zapisany jest
+              tylko jego odcisk. „Wystaw nowy" robi więc nowy link do
+              <em>tego samego</em> miejsca: wszystko, co człowiek już wpisał,
+              zostaje, a poprzedni link przestaje działać. Tym możesz wysłać
+              SMS-a.
+            </p>
 
             <p className="wk-hint">
               Wycofanie unieważnia link. Kto przypisał miejsce do konta, dalej

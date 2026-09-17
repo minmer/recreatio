@@ -51,6 +51,7 @@ public static class Seat
         app.MapGet("/workspace/area/{id:guid}/seats", ListAsync);
         app.MapPost("/workspace/seat/{id:guid}/note", NoteAsync);
         app.MapPost("/workspace/seat/{id:guid}/revoke", RevokeAsync);
+        app.MapPost("/workspace/seat/{id:guid}/relink", RelinkAsync);
 
         // Meine eigenen Plaetze — ueber das Konto, ohne Link.
         app.MapGet("/workspace/seats", MineAsync);
@@ -308,7 +309,16 @@ public static class Seat
                    a.status, a.view_count, a.created_at, a.expires_at, a.revoked_at,
                    (SELECT COUNT(*) FROM app.access_holder h
                      WHERE h.access_id = a.id AND h.until IS NULL) AS holders,
-                   a.seat_key_for_intake, a.origin
+                   a.seat_key_for_intake, a.origin,
+
+                   /*
+                    * Wohin der Platz gehoert — damit ein neu ausgestellter Link
+                    * sich liest wie die Adresse, unter der der Mensch ihn
+                    * erwartet, und nicht als loses `#/seat/…`.
+                    */
+                   (SELECT TOP 1 s.path FROM app.access_slug g
+                     JOIN app.slug s ON s.id = g.slug_id
+                    WHERE g.access_id = a.id ORDER BY LEN(s.path)) AS under_path
             FROM app.access a
             WHERE a.area_id = @area
             ORDER BY a.created_at DESC;
@@ -328,6 +338,7 @@ public static class Seat
                 seatKeyForArea = reader.IsDBNull(2) ? null : Base64Url.Encode((byte[])reader[2]),
                 seatKeyForIntake = reader.IsDBNull(12) ? null : Base64Url.Encode((byte[])reader[12]),
                 origin = reader.GetString(13),
+                under = reader.IsDBNull(14) ? null : reader.GetString(14),
                 epoch = reader.GetInt32(3),
                 personalNoteSealed = reader.IsDBNull(4) ? null : Base64Url.Encode((byte[])reader[4]),
                 internalNoteSealed = reader.IsDBNull(5) ? null : Base64Url.Encode((byte[])reader[5]),
@@ -403,6 +414,90 @@ public static class Seat
     /// Mensch dahinter ausgesperrt wird.
     /// </para>
     /// </summary>
+    public sealed record RelinkRequest(string TokenSha256, string SeatKeySealed);
+
+    /// <summary>
+    /// EINEN NEUEN LINK auf denselben Platz — zum Verschicken per SMS.
+    ///
+    /// <para>
+    /// <b>Der alte ist nicht wiederzubekommen.</b> Gespeichert ist nur sein
+    /// SHA-256; niemand kann ihn nachschlagen, auch der Betreiber nicht. Wer
+    /// sich selbst angemeldet hat, hat ihn EINMAL gesehen — und wenn er ihn
+    /// verloren hat, ist er fort.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Der PLATZSCHLUESSEL bleibt derselbe</b>, und daran haengt alles: die
+    /// eigenen Angaben, die persoenliche Notiz, die gemeinsamen Schluessel
+    /// liegen unter ihm. Neu ist nur die Huelle darum — derselbe Schluessel,
+    /// unter einem neuen Linkgeheimnis versiegelt. Einen neuen Platz
+    /// auszustellen waere kuerzer und falsch: die Antworten des Menschen
+    /// blieben unter dem alten und waeren fuer ihn verloren.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Der alte Link stirbt dabei</b>, weil der Abdruck ersetzt wird. Das
+    /// ist die Absicht: ein Link, den man neu ausstellt, wird neu ausgestellt,
+    /// WEIL der alte nicht mehr gelten soll.
+    /// </para>
+    ///
+    /// <para>
+    /// Aufpacken kann die Kanzlei den Platzschluessel ohnehin — ueber die
+    /// Epoche (ausgestellter Platz) oder ueber die Annahme (Selbstanmeldung,
+    /// 0027). Der Dienst bekommt auch hier nur Huellen zu sehen.
+    /// </para>
+    /// </summary>
+    private static async Task RelinkAsync(HttpContext ctx, Db db, Guid id, RelinkRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        if (!Blob(body.TokenSha256, out var tokenHash) || tokenHash.Length != 32)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Odcisk linku musi mieć 32 bajty.");
+            return;
+        }
+
+        if (!Blob(body.SeatKeySealed, out var forLink) || forLink.Length == 0)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny zapieczętowany klucz miejsca.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var area = await AreaOfAsync(connection, id, ctx.RequestAborted);
+        if (area is null || !await Area.MayAsync(connection, who.Value.AccountId, area.Value,
+                Capability.Write, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego miejsca nie ma.");
+            return;
+        }
+
+        /*
+         * Ein zurueckgezogener Platz bekommt keinen neuen Link. Sonst waere das
+         * Zuruecknehmen eine Bitte statt einer Tatsache.
+         */
+        await using var cmd = new SqlCommand("""
+            UPDATE app.access
+               SET token_sha256 = @token, seat_key_sealed = @forLink, view_count = 0
+             WHERE id = @id AND revoked_at IS NULL AND status = N'active';
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@token", tokenHash);
+        cmd.Parameters.AddBlob("@forLink", forLink);
+        cmd.Parameters.AddWithValue("@id", id);
+
+        if (await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 0)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "To miejsce jest wycofane — nowy link nic by nie otworzył.");
+            return;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { seatId = Ids.ToText(id), relinked = true });
+    }
+
     private static async Task RevokeAsync(HttpContext ctx, Db db, Guid id)
     {
         var who = await Auth.WhoAsync(ctx, db);

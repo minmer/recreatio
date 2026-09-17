@@ -241,6 +241,9 @@ export interface SeatRow {
   readonly seatKeyForIntake: string | null;
   readonly origin: 'office' | 'self';
 
+  /** Die Seite, unter der dieser Platz hängt — für die Adresse eines neuen Links. */
+  readonly under: string | null;
+
   readonly epoch: number;
   readonly personalNoteSealed: string | null;
   readonly internalNoteSealed: string | null;
@@ -324,6 +327,35 @@ export async function officeSeatKey(
 
   if (row.seatKeyForArea === null) return null;
   return quietly(() => open(areaKey, label, fromBase64Url(row.seatKeyForArea!)));
+}
+
+/**
+ * Einen NEUEN Link auf denselben Platz — zum Verschicken.
+ *
+ * <b>Der alte ist nicht wiederzubekommen.</b> Gespeichert war nur sein Abdruck.
+ * Wer sich selbst angemeldet hat, sah seinen Link genau einmal; ist er fort,
+ * gibt es nur diesen Weg.
+ *
+ * <b>Der Platzschlüssel bleibt.</b> Er wird bloss neu verpackt — deshalb
+ * behält der Mensch alles, was unter ihm liegt: seine eigenen Angaben, die
+ * Notiz, die gemeinsamen Schlüssel. Ein neuer Platz wäre kürzer und falsch.
+ *
+ * <b>Der alte Link gilt danach nicht mehr.</b> Das ist der Zweck.
+ */
+export async function relinkSeat(
+  seatId: string, seatKey: Uint8Array
+): Promise<Link> {
+  const { link, key: linkKey } = newLink();
+
+  await call(`/workspace/seat/${encodeURIComponent(seatId)}/relink`, {
+    method: 'POST',
+    body: JSON.stringify({
+      tokenSha256: toBase64Url(await sha256(link.token)),
+      seatKeySealed: toBase64Url(await seal(linkKey, seatAad(seatId), seatKey))
+    })
+  });
+
+  return link;
 }
 
 export const revokeSeat = (seatId: string): Promise<{ revoked: boolean }> =>

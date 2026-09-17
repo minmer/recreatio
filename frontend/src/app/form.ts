@@ -426,6 +426,35 @@ export async function openSubmission(
   return out;
 }
 
+/**
+ * Wie es einer Einsendung ERGANGEN ist — und nicht nur, was aufging.
+ *
+ * <b>Ein leerer Kasten ist keine Auskunft.</b> `openSubmission` verschluckt
+ * jeden Fehlschlag, und das ist für die Anzeige einer einzelnen Zeile richtig:
+ * eine beschädigte Antwort darf die übrigen nicht mitnehmen. Für die Kanzlei
+ * ist es falsch — sie sieht Zeitstempel ohne Inhalt und erfährt nicht, woran
+ * es liegt. Die drei Fälle sind völlig verschieden:
+ *
+ * <code>
+ *   nichts geschickt   der Dienst gab keine Werte heraus (fremder Bereich)
+ *   nichts aufgegangen der Annahmeschlüssel passt nicht zu diesen Hüllen
+ *   teils              einzelne Hüllen sind beschädigt
+ * </code>
+ */
+export interface Reading {
+  readonly values: Map<string, string>;
+  readonly sent: number;
+  readonly opened: number;
+}
+
+export async function readSubmission(
+  submission: Submission, intakePrivate: Uint8Array
+): Promise<Reading> {
+  const values = await openSubmission(submission, intakePrivate);
+
+  return { values, sent: submission.values.length, opened: values.size };
+}
+
 /* -- Kleinkram -------------------------------------------------------------- */
 
 async function sha256Of(text: string): Promise<Uint8Array> {

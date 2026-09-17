@@ -24,7 +24,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { loadAreas, myEpochKeys, type AreaRow } from './area';
 import {
   FIELD_KINDS, KIND_LABEL, addField, loadFields, loadRegistrations, openFields,
-  openSubmission, removeField, type FieldKind, type OpenField, type Submission
+  readSubmission, removeField, type FieldKind, type OpenField, type Submission
 } from './form';
 import { createIntake, loadIntake, openIntakeKey, setController } from './intake';
 import type { Ring, SealedRole } from './keys';
@@ -40,6 +40,15 @@ export function FormOffice({ partId, who }: { partId: string; who: Who }) {
   const [opened, setOpened] = useState<Map<string, Map<string, string>>>(new Map());
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+
+  /**
+   * Warum nichts dasteht, wenn nichts dasteht.
+   *
+   * Kein Fehler — eine Auskunft. Deshalb neben `failed` und nicht darin: „der
+   * Schlüssel passt nicht zu diesen Hüllen" ist etwas anderes als „es ging
+   * schief", und die Antwort darauf ist eine andere.
+   */
+  const [note, setNote] = useState<string | null>(null);
 
   const look = useCallback(async () => {
     try {
@@ -94,7 +103,7 @@ export function FormOffice({ partId, who }: { partId: string; who: Who }) {
    * davon lesen — er hat den ersten nie gesehen.
    */
   const read = async (areaId: string) => {
-    if (ring === null) return;
+    if (ring === null) throw new WorkspaceError('Bez hasła w tej karcie nie da się otworzyć odpowiedzi.');
 
     const intake = await loadIntake(areaId);
     const privateKey = await openIntakeKey(intake, ring);
@@ -103,10 +112,42 @@ export function FormOffice({ partId, who }: { partId: string; who: Who }) {
     setSubmissions(registrations);
 
     const out = new Map<string, Map<string, string>>();
+    let sent = 0;
+    let got = 0;
+
     for (const one of registrations) {
-      out.set(one.registrationId, await openSubmission(one, privateKey));
+      const reading = await readSubmission(one, privateKey);
+      out.set(one.registrationId, reading.values);
+      sent += reading.sent;
+      got += reading.opened;
     }
+
     setOpened(out);
+
+    /*
+     * WARUM NICHTS DASTEHT, wenn nichts dasteht. Ein leerer Kasten sieht aus
+     * wie „noch keine Zgłoszenia" und ist es nicht — die drei Gründe sehen
+     * gleich aus und sind völlig verschieden.
+     */
+    if (registrations.length === 0) {
+      setNote('Jeszcze nikt się nie zapisał.');
+    } else if (sent === 0) {
+      setNote(
+        'Zgłoszenia są, ale usługa nie wydała ich treści: żadne pytanie tego '
+        + 'formularza nie należy do obszaru, który czytasz. Poproś o dostęp do '
+        + 'obszaru, do którego trafiają odpowiedzi.');
+    } else if (got === 0) {
+      setNote(
+        `Przyszło ${sent} zapieczętowanych odpowiedzi i żadna się nie otworzyła. `
+        + 'Ten klucz przyjmowania nie pasuje do tych kopert. Zwykle znaczy to, że '
+        + 'wpisy powstały pod inną parą kluczy tego obszaru albo pod wcześniejszą '
+        + 'wersją strony — takich wpisów nie da się już odzyskać, trzeba je zebrać '
+        + 'ponownie.');
+    } else if (got < sent) {
+      setNote(`Otwarto ${got} z ${sent} odpowiedzi. Reszta nie pasuje do tego klucza.`);
+    } else {
+      setNote(null);
+    }
   };
 
   const areasHere = [...new Set(fields.map((f) => f.areaId))];
@@ -194,6 +235,8 @@ export function FormOffice({ partId, who }: { partId: string; who: Who }) {
           ))}
         </div>
       )}
+
+      {note !== null && <p className="wk-note">{note}</p>}
 
       {submissions.length > 0 && (
         <ul className="wk-list">
