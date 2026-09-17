@@ -249,24 +249,74 @@ export function FormOffice({ partId, who }: { partId: string; who: Who }) {
                   {s.withdrawnAt !== null && ' · wycofane'}
                 </span>
 
-                <ul className="wk-tile-lines">
-                  {fields.map((f) => {
-                    const value = opened.get(s.registrationId)?.get(f.fieldId);
-                    if (value === undefined) return null;
-
-                    return (
-                      <li key={f.fieldId}>
-                        <strong>{f.label ?? 'zapieczętowane'}:</strong> {value}
-                      </li>
-                    );
-                  })}
-                </ul>
+                {/*
+                  ÜBER DAS GEÖFFNETE laufen, nicht über die Fragen.
+                  Andersherum verschwand eine Zeile ganz, sobald die Fragenliste
+                  leer war oder ein Feld inzwischen gelöscht wurde — der Wert
+                  war da, und zu sehen war nichts. Eine Antwort, deren Frage
+                  fehlt, steht jetzt mit ihrer Kennung da: unschön und wahr.
+                */}
+                <Answers
+                  values={opened.get(s.registrationId)}
+                  fields={fields}
+                  sealed={s.values.length}
+                />
               </span>
             </li>
           ))}
         </ul>
       )}
     </>
+  );
+}
+
+/* -- Eine Einsendung, wie sie dasteht --------------------------------------- */
+
+/**
+ * Was in EINER Einsendung steht — und wenn nichts darin steht, warum.
+ *
+ * <b>Eine Zeile darf nie leer aussehen, während sie etwas enthält.</b> Genau
+ * das geschah, solange hier über die Fragenliste gelaufen wurde: fehlte sie,
+ * fehlte die ganze Antwort, ohne ein Wort dazu. Jetzt kommt die Reihenfolge von
+ * den Fragen und der INHALT von dem, was aufging.
+ */
+function Answers({ values, fields, sealed }: {
+  values: Map<string, string> | undefined;
+  fields: readonly OpenField[];
+  sealed: number;
+}) {
+  if (values === undefined) {
+    return <p className="wk-empty">Jeszcze nieotwarte — kliknij „Otwórz zgłoszenia".</p>;
+  }
+
+  if (values.size === 0) {
+    return (
+      <p className="wk-empty">
+        {sealed === 0
+          ? 'Usługa nie wydała treści tego zgłoszenia — nie czytasz obszaru, do którego trafiło.'
+          : `${sealed} zapieczętowanych odpowiedzi, żadna nie pasuje do tego klucza przyjmowania.`}
+      </p>
+    );
+  }
+
+  /* Erst die bekannten Fragen der Reihe nach, dann alles Übrige. */
+  const known = fields.filter((f) => values.has(f.fieldId));
+  const rest = [...values.keys()].filter((id) => !fields.some((f) => f.fieldId === id));
+
+  return (
+    <ul className="wk-tile-lines">
+      {known.map((f) => (
+        <li key={f.fieldId}>
+          <strong>{f.label ?? 'zapieczętowane pytanie'}:</strong> {values.get(f.fieldId)}
+        </li>
+      ))}
+
+      {rest.map((id) => (
+        <li key={id}>
+          <strong className="wk-row-side">pytanie usunięte ({id.slice(0, 8)}):</strong> {values.get(id)}
+        </li>
+      ))}
+    </ul>
   );
 }
 
