@@ -144,18 +144,26 @@ function Shell({
 }) {
   return (
     <div className="wk-root">
+      {/*
+        Der Streifen geht ueber die ganze Breite, sein INHALT nicht: er steht
+        ueber derselben Spalte wie die Seite darunter. Ohne diese innere Huelle
+        klebte die Marke ganz links, waehrend der Text in der Mitte begaenne —
+        zwei Anfaenge auf einem Bild.
+      */}
       <header className="wk-top">
-        <span className="wk-brand">REcreatio</span>
-        <span className="wk-stage">Neubau</span>
+        <div className={wide ? 'wk-top-in wk-top-in-wide' : 'wk-top-in'}>
+          <span className="wk-brand">REcreatio</span>
+          <span className="wk-stage">Neubau</span>
 
-        {who !== undefined && (
-          <span className="wk-who">
-            {who.loginId}
-            {onSignOut !== undefined && (
-              <button type="button" className="wk-link-btn" onClick={onSignOut}>Wyloguj</button>
-            )}
-          </span>
-        )}
+          {who !== undefined && (
+            <span className="wk-who">
+              {who.loginId}
+              {onSignOut !== undefined && (
+                <button type="button" className="wk-link-btn" onClick={onSignOut}>Wyloguj</button>
+              )}
+            </span>
+          )}
+        </div>
       </header>
       <main className={wide ? 'wk-main wk-main-wide' : 'wk-main'}>{children}</main>
     </div>

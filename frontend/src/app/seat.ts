@@ -402,6 +402,9 @@ export interface SubmittedValue {
   readonly valueSealed: string;
   readonly valueKeySealed: string;
   readonly submittedAt: string;
+
+  /** Welche Einsendung — eine Berichtigung muss sagen, welche sie meint. */
+  readonly registrationId: string;
 }
 
 /*

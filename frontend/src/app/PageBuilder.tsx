@@ -28,7 +28,7 @@ import {
 
 import { newId } from './ids';
 import {
-  BREAKPOINTS, canPlace, cellWidth, cells, COLUMNS, firstFreeCell, frameFor, hitAt,
+  BREAKPOINTS, byReadingOrder, canPlace, cellWidth, cells, COLUMNS, firstFreeCell, frameFor, hitAt,
   MIN_COL_SPAN, MIN_ROW_SPAN, pixelSize, resized, snapColSpan, snapRowSpan, validCells, withFrame,
   type Breakpoint, type Frame, type Handle, type Layout
 } from './layout';
@@ -49,11 +49,27 @@ const HANDLES: readonly Handle[] = [
   'top-left', 'top', 'top-right', 'left', 'right', 'bottom-left', 'bottom', 'bottom-right'
 ];
 
-export function PageBuilder({ parts, onChange, busy }: {
+export function PageBuilder({ parts, onChange: report, busy }: {
   parts: readonly DraftPart[];
   onChange: (next: readonly DraftPart[]) => void;
   busy: boolean;
 }) {
+  /**
+   * JEDE Änderung geht durch die Leserichtung.
+   *
+   * <b>Die Stelle im Raster ist die Ordnung</b>, und die Liste muss das
+   * mitmachen — gespeichert wird die Listenstelle, nicht die Kachelmitte
+   * (`slug_part.position`). Hinge die Liste weiter an der Reihenfolge des
+   * Hinzufügens, erzählte das Bild eine Anordnung und der Dienst eine andere,
+   * sobald jemand einen neuen Baustein ÜBER einen älteren setzt.
+   *
+   * Hier und nicht an den fünf Aufrufstellen: eine davon würde vergessen, und
+   * zwar die, die man am seltensten benutzt.
+   */
+  const onChange = useCallback(
+    (next: readonly DraftPart[]) => report(byReadingOrder(next)),
+    [report]);
+
   const [breakpoint, setBreakpoint] = useState<Breakpoint>('desktop');
   const [selected, setSelected] = useState<string | null>(null);
   const [cell, setCell] = useState(0);

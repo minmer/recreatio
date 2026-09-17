@@ -63,6 +63,15 @@ public static class Seat
          */
         app.MapGet("/seat/{token}", OpenAsync);
         app.MapPost("/seat/{token}/bind", BindAsync);
+
+        /*
+         * SEINE EIGENE EINSENDUNG BERICHTIGEN — ohne Konto, mit dem Link.
+         *
+         * Wer sich selbst angemeldet hat, hat sich vertippt oder ist umgezogen.
+         * Ihn dafuer in die Kanzlei zu schicken hiesse: die Angabe gehoert dem
+         * Amt. Sie gehoert ihm.
+         */
+        app.MapPost("/seat/{token}/submission", ReviseAsync);
     }
 
     /* -- Ausstellen --------------------------------------------------------- */
@@ -414,6 +423,154 @@ public static class Seat
     /// Mensch dahinter ausgesperrt wird.
     /// </para>
     /// </summary>
+    public sealed record ReviseValue(string FieldId, string Sealed, string WrappedKey, string SeatKeySealed);
+
+    public sealed record ReviseRequest(string RegistrationId, IReadOnlyList<ReviseValue> Values);
+
+    /// <summary>
+    /// Die eigene Einsendung berichtigen — mit dem Link, ohne Konto.
+    ///
+    /// <para>
+    /// <b>Der Link ist der Ausweis.</b> Wer ihn hat, ist gemeint; derselbe
+    /// Satz wie ueberall sonst am Platz. Geprueft wird deshalb nur, dass die
+    /// Einsendung AN DIESEM Platz haengt — eine fremde laesst sich damit nicht
+    /// anfassen.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Ersetzt wird, was mitkommt</b>, und zwar Feld fuer Feld. Was nicht
+    /// genannt ist, bleibt stehen: ein Browser, der nur ein Feld schickt, soll
+    /// nicht die uebrigen loeschen, bloss weil er sie nicht erwaehnt hat.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Der Dienst sieht auch hier nichts.</b> Er bekommt dieselben drei
+    /// Huellen wie beim ersten Mal: den Wert, den Wertschluessel unter der
+    /// oeffentlichen Annahmehaelfte, und denselben Wertschluessel unter dem
+    /// Platzschluessel. Oeffnen kann er keine davon.
+    /// </para>
+    /// </summary>
+    private static async Task ReviseAsync(HttpContext ctx, Db db, string token, ReviseRequest body)
+    {
+        if (string.IsNullOrWhiteSpace(token)
+            || !Guid.TryParse(body.RegistrationId, out var registrationId))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego zgłoszenia nie ma.");
+            return;
+        }
+
+        var values = body.Values ?? [];
+
+        if (values.Count == 0)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nie podano żadnej poprawki.");
+            return;
+        }
+
+        var parsed = new List<(Guid Field, byte[] Sealed, byte[] Wrapped, byte[] ForSeat)>();
+
+        foreach (var one in values)
+        {
+            if (!Guid.TryParse(one.FieldId, out var fieldId)
+                || !Blob(one.Sealed, out var sealedValue) || sealedValue.Length == 0
+                || !Blob(one.WrappedKey, out var wrapped) || wrapped.Length == 0
+                || !Blob(one.SeatKeySealed, out var forSeat) || forSeat.Length == 0)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna poprawka.");
+                return;
+            }
+
+            parsed.Add((fieldId, sealedValue, wrapped, forSeat));
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        /*
+         * EINE Abfrage fuer beides: gibt es den Platz, und haengt diese
+         * Einsendung daran. Zwei hintereinander liessen dazwischen Raum fuer
+         * die Frage „wessen Einsendung ist das eigentlich".
+         */
+        await using (var cmd = new SqlCommand("""
+            SELECT TOP 1 1
+            FROM app.access a
+            JOIN app.registration r ON r.access_id = a.id
+            WHERE a.token_sha256 = @token
+              AND a.revoked_at IS NULL AND a.status = N'active'
+              AND (a.expires_at IS NULL OR a.expires_at > @now)
+              AND r.id = @reg;
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("@token",
+                SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token.Trim())));
+            cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            cmd.Parameters.AddWithValue("@reg", registrationId);
+
+            if (await cmd.ExecuteScalarAsync(ctx.RequestAborted) is null)
+            {
+                // Dieselbe Antwort fuer „gibt es nicht" und „nicht deine".
+                await Fail(ctx, StatusCodes.Status404NotFound, "Tego zgłoszenia nie ma.");
+                return;
+            }
+        }
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            foreach (var (fieldId, sealedValue, wrapped, forSeat) in parsed)
+            {
+                /*
+                 * Ersetzen heisst hier: die alte Zeile geht, die neue kommt.
+                 * Ein UPDATE waere kuerzer und liefe ins Leere, wenn das Feld
+                 * beim ersten Mal uebersprungen wurde — dann gibt es keine
+                 * Zeile, die sich aendern liesse.
+                 */
+                await using (var drop = new SqlCommand("""
+                    DELETE FROM app.registration_value
+                     WHERE registration_id = @reg AND field_id = @field;
+                    """, connection, tx))
+                {
+                    drop.Parameters.AddWithValue("@reg", registrationId);
+                    drop.Parameters.AddWithValue("@field", fieldId);
+                    await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+                }
+
+                await using var add = new SqlCommand("""
+                    INSERT INTO app.registration_value
+                        (registration_id, field_id, value_sealed, wrapped_key, seat_key_sealed)
+                    VALUES (@reg, @field, @value, @wrapped, @seat);
+                    """, connection, tx);
+
+                add.Parameters.AddWithValue("@reg", registrationId);
+                add.Parameters.AddWithValue("@field", fieldId);
+                add.Parameters.AddBlob("@value", sealedValue);
+                add.Parameters.AddBlob("@wrapped", wrapped);
+                add.Parameters.AddBlob("@seat", forSeat);
+
+                await add.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+
+            await ctx.Response.WriteAsJsonAsync(new
+            {
+                registrationId = Ids.ToText(registrationId),
+                revised = parsed.Count
+            });
+        }
+        catch (SqlException e) when (e.Number == 547)
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "To pytanie już nie należy do tego formularza.");
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+    }
+
     public sealed record RelinkRequest(string TokenSha256, string SeatKeySealed);
 
     /// <summary>
@@ -660,7 +817,7 @@ public static class Seat
 
         await using var cmd = new SqlCommand("""
             SELECT f.id, f.kind, f.position, f.area_id, f.epoch, f.label_sealed,
-                   v.value_sealed, v.seat_key_sealed, r.submitted_at
+                   v.value_sealed, v.seat_key_sealed, r.submitted_at, r.id
             FROM app.registration r
             JOIN app.registration_value v ON v.registration_id = r.id
             JOIN app.slug_field f         ON f.id = v.field_id
@@ -683,7 +840,10 @@ public static class Seat
                 labelSealed = Base64Url.Encode((byte[])reader[5]),
                 valueSealed = Base64Url.Encode((byte[])reader[6]),
                 valueKeySealed = Base64Url.Encode((byte[])reader[7]),
-                submittedAt = reader.GetDateTimeOffset(8)
+                submittedAt = reader.GetDateTimeOffset(8),
+
+                /* Damit eine Berichtigung sagen kann, WELCHE Einsendung sie meint. */
+                registrationId = Ids.ToText(reader.GetGuid(9))
             });
         }
 

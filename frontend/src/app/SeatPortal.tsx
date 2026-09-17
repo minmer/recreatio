@@ -1,21 +1,24 @@
 /**
  * Der Platz, wie ihn der LINK öffnet — ohne Konto.
  *
- * <b>Vier Teile, und jeder hängt an einem anderen Schlüssel.</b> Die Seite
- * schreibt bei jedem dazu, WER ihn lesen kann; das ist die einzige Erklärung,
- * die ein Mensch hier wirklich braucht, und sie steht am Inhalt statt in einer
- * Hilfe, die niemand aufschlägt.
+ * <b>Es steht hier, was da ist — und sonst nichts.</b> Die Seite trug einmal
+ * vier feste Abschnitte, und bei einem Firmling waren drei davon leer: keine
+ * Nachricht, kein gemeinsamer Kalender, kein Konto. Ein leerer Kasten ist keine
+ * Auskunft; er sieht aus wie etwas Kaputtes und schiebt das Einzige, worum
+ * jemand herkommt, nach unten. Jeder Abschnitt erscheint deshalb nur gefüllt.
  *
  * <code>
- *   1  von der Lehrerin, nur für dich   Platzschlüssel
- *   2  gemeinsam für die Klasse         Klassenschlüssel (im Platz verpackt)
- *   3  deine eigenen Angaben            dein Rollenschlüssel — braucht ein Konto
- *   4  was du der Schule gegeben hast   Annahmeschlüssel des Amtes
+ *   die eigene Einsendung   Platzschlüssel      — und sie lässt sich ändern
+ *   von der Kanzlei         Platzschlüssel      — wenn etwas geschrieben wurde
+ *   gemeinsam für die Gruppe Gruppenschlüssel   — wenn der Platz einen trägt
  * </code>
  *
- * <b>Und das Fünfte wird GENANNT, obwohl es nicht zu sehen ist:</b> die Schule
- * führt Notizen, die hier nicht erscheinen. Sie zu verschweigen wäre bequem und
- * unehrlich — wer das später erfährt, erfährt es als Überraschung.
+ * <b>Die Angabe gehört dem Menschen, nicht dem Amt.</b> Darum steht der Knopf
+ * zum Berichtigen hier und nicht in der Kanzlei: wer sich vertippt hat, soll es
+ * selbst geradeziehen können.
+ *
+ * <b>Was noch nicht da ist, wird als Satz gesagt</b> und nicht als leere
+ * Überschrift. Ein Versprechen in Form eines leeren Kastens ist keines.
  *
  * <b>Der Schlüssel steht in der Adresse, hinter der Raute.</b> Er geht nie an
  * den Dienst: der bekommt das Token und gibt dafür eine Hülle heraus,
@@ -30,8 +33,12 @@ import { fromBase64Url, openText } from './crypto';
 import type { SealedRole } from './keys';
 import { Field, aad } from './crypto';
 import { keysFor } from './ringOf';
-import { openSubmitted } from './form';
-import { bindSeat, loadPortal, openGrants, openPortal, type Portal } from './seat';
+import { openSubmitted, reviseSubmission } from './form';
+import { loadPublicIntake } from './intake';
+import {
+  bindSeat, loadPortal, openGrants, openPortal,
+  type Portal, type SubmittedValue
+} from './seat';
 import { pagePath } from './routes';
 import { whoIsThere, WorkspaceError, type Who } from './session';
 
@@ -233,13 +240,24 @@ export function SeatPortal({ token, keyText, under }: {
 
       {failed !== null && <p className="wk-error">{failed}</p>}
 
-      {/* -- 1 ---------------------------------------------------------- */}
+      {/*
+        NUR WAS DA IST.
 
-      <Zone title="Od nauczyciela" who="Widzisz to tylko Ty i szkoła.">
-        {note === null
-          ? <p className="wk-empty">Nic tu jeszcze nie napisano.</p>
-          : <p className="wk-card-text" style={{ whiteSpace: 'pre-wrap' }}>{note}</p>}
-      </Zone>
+        Diese Seite trug vier Abschnitte, und drei davon standen leer auf dem
+        Platz eines Firmlings: keine Nachricht, kein gemeinsamer Kalender, kein
+        Konto. Ein leerer Kasten ist keine Auskunft — er sieht aus wie etwas,
+        das kaputt ist, und er schiebt das Einzige, worum jemand herkommt, nach
+        unten.
+
+        Also erscheint jeder Abschnitt nur, wenn er etwas enthält. Ein Schüler
+        mit Nachricht und Klasse sieht sie weiterhin; ein Firmling sieht seine
+        Angaben und sonst nichts. Dieselbe Seite, ohne Fallunterscheidung.
+      */}
+      {note !== null && (
+        <Zone title="Od kancelarii" who="Widzisz to tylko Ty i kancelaria.">
+          <p className="wk-card-text" style={{ whiteSpace: 'pre-wrap' }}>{note}</p>
+        </Zone>
+      )}
 
       {/*
         WAS ER SELBST EINGETRAGEN HAT. Steht VOR dem Gemeinsamen, weil ein
@@ -258,80 +276,52 @@ export function SeatPortal({ token, keyText, under }: {
           {mine.length === 0 ? (
             <p className="wk-empty">Bez klucza z adresu nie da się tego otworzyć.</p>
           ) : (
-            <dl className="wk-card-lines">
-              {mine.map((one) => (
-                <div key={one.fieldId}>
-                  <dt className="wk-row-side">{one.label ?? 'zapieczętowane pytanie'}</dt>
-                  <dd>{one.value ?? 'zapieczętowane'}</dd>
-                </div>
-              ))}
-            </dl>
+            <Submission
+              values={portal.submitted}
+              open={mine}
+              token={token}
+              seatKey={seatKey}
+              onSaved={() => void look()}
+            />
           )}
-
-          <p className="wk-hint">
-            Tak to zapisaliśmy. Jeśli coś się nie zgadza, napisz do kancelarii —
-            tego adresu nie da się tu poprawić samodzielnie.
-          </p>
         </Zone>
       )}
 
       {/* -- 2 ---------------------------------------------------------- */}
 
-      <Zone
-        title="Wspólne dla klasy"
-        who={sharedNames.length === 0
-          ? 'Ten link nie otwiera niczego wspólnego.'
-          : `Widzi to cała klasa: ${sharedNames.join(', ')}.`}
-      >
-        {shared.length === 0
-          ? <p className="wk-empty">Nic na najbliższe tygodnie.</p>
-          : (
-            <ul className="wk-tile-lines">
-              {shared.map((s, i) => (
-                <li key={i}>
-                  <strong>{new Date(s.when).toLocaleDateString('pl-PL',
-                    { day: 'numeric', month: 'long' })}</strong>
-                  {' — '}
-                  {s.what ?? 'zapieczętowane'}
-                </li>
-              ))}
-            </ul>
-          )}
-      </Zone>
+      {/* Das Gemeinsame — nur, wenn dieser Platz wirklich etwas aufschliesst. */}
+      {shared.length > 0 && (
+        <Zone
+          title="Wspólne dla grupy"
+          who={`Widzą to wszyscy: ${sharedNames.join(', ')}.`}
+        >
+          <ul className="wk-tile-lines">
+            {shared.map((s, i) => (
+              <li key={i}>
+                <strong>{new Date(s.when).toLocaleDateString('pl-PL',
+                  { day: 'numeric', month: 'long' })}</strong>
+                {' — '}
+                {s.what ?? 'zapieczętowane'}
+              </li>
+            ))}
+          </ul>
+        </Zone>
+      )}
 
-      {/* -- 3 ---------------------------------------------------------- */}
+      {/*
+        WAS HIER NOCH KOMMT — statt vier leerer Kästen.
 
-      <Zone title="Twoje dane" who="Należą do Ciebie. Szkoła widzi tylko to, co sam udostępnisz.">
-        {who === null || who === undefined ? (
-          <p className="wk-hint">
-            Imię, nazwisko, telefon czy data urodzenia trzymasz u siebie — nie
-            w szkole. Potrzebujesz do tego konta; wtedy sam decydujesz, które
-            pole komu dajesz, po jednym.
-          </p>
-        ) : (
-          <p className="wk-hint">
-            Prowadzisz je w zakładce <strong>Konto → Moje dane</strong>. Każde
-            pole udostępniasz osobno — numer telefonu nie pociąga za sobą daty
-            urodzenia.
-          </p>
-        )}
-      </Zone>
-
-      {/* -- 4 ---------------------------------------------------------- */}
-
-      <Zone title="Co przekazałeś szkole" who="Widzi to kancelaria — i Ty.">
-        <p className="wk-hint">
-          To, co wyślesz formularzem z tego miejsca, zostaje zapieczętowane
-          kluczem kancelarii. Usługa tego nie czyta.
-        </p>
-      </Zone>
-
-      {/* -- Das Fünfte: genannt, obwohl unsichtbar -------------------- */}
-
-      <p className="wk-hint">
-        Szkoła prowadzi też własne notatki o uczniu — ocena, obecność, uwagi.
-        <strong> Tutaj ich nie widać</strong>, i tak ma być; piszemy o tym, żeby
-        nie było to niespodzianką.
+        Die Abschnitte über eigene Daten und über das, was man dem Amt gegeben
+        hat, standen hier als Versprechen in Form leerer Überschriften. Ein
+        leerer Kasten verspricht nichts, er sieht kaputt aus. Ein Satz verspricht
+        etwas und sagt zugleich, dass es noch nicht da ist — das ist ehrlicher
+        und kürzer.
+      */}
+      <p className="wk-note">
+        <strong>To jest Twoja strona.</strong> Z czasem wszystko będzie się
+        działo tutaj: terminy i spotkania, wiadomości od kancelarii, zgoda na
+        to, co udostępniasz. Na razie jest tu Twoje zgłoszenie — wracaj pod ten
+        sam adres, on się nie zmieni.
       </p>
 
       {portal.expiresAt !== null && (
@@ -400,6 +390,133 @@ export function SeatPortal({ token, keyText, under }: {
  * die vier Teile auseinanderhält. Ohne sie sähe alles gleich aus, und er
  * schriebe in den falschen.
  */
+/* -- Die eigene Einsendung, zum Nachlesen und Berichtigen ------------------- */
+
+/**
+ * Was er eingetragen hat — und der Weg, es zu ändern.
+ *
+ * <b>Die Angabe gehört ihm.</b> Ihn für einen Tippfehler in die Kanzlei zu
+ * schicken hiesse: sie gehört dem Amt. Also steht der Knopf hier, und die
+ * Änderung geht denselben Weg wie die erste Einsendung — ein frischer Schlüssel
+ * je Wert, einmal für das Amt verpackt und einmal für ihn selbst.
+ *
+ * <b>Nur geänderte Felder gehen hinaus.</b> Ein unverändertes noch einmal zu
+ * versiegeln hiesse, seinen Schlüssel ohne Grund zu wechseln — und es machte
+ * jede Berichtigung zu einer Neuschrift des ganzen Bogens.
+ */
+function Submission({ values, open, token, seatKey, onSaved }: {
+  values: readonly SubmittedValue[];
+  open: readonly { fieldId: string; label: string | null; value: string | null }[];
+  token: string;
+  seatKey: Uint8Array | null;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  const start = () => {
+    const from: Record<string, string> = {};
+    for (const one of open) from[one.fieldId] = one.value ?? '';
+
+    setDraft(from);
+    setFailed(null);
+    setEditing(true);
+  };
+
+  const changed = open.filter((one) => (draft[one.fieldId] ?? '') !== (one.value ?? ''));
+
+  const save = async () => {
+    if (seatKey === null) return;
+
+    setBusy(true);
+    setFailed(null);
+
+    try {
+      /*
+       * Die öffentliche Annahmehälfte holt sich die Seite selbst — sie kennt
+       * den Bereich aus der eigenen Einsendung. Das Formular, auf dem das
+       * einmal stand, muss sie dafür nicht kennen.
+       */
+      const areaId = values[0].areaId;
+      const intake = await loadPublicIntake(areaId);
+
+      await reviseSubmission(
+        token, values[0].registrationId,
+        changed.map((one) => ({ fieldId: one.fieldId, value: draft[one.fieldId] ?? '' })),
+        { intakePublic: fromBase64Url(intake.publicKey), seatKey });
+
+      setEditing(false);
+      onSaved();
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <>
+        <dl className="wk-card-lines">
+          {open.map((one) => (
+            <div key={one.fieldId}>
+              <dt className="wk-row-side">{one.label ?? 'zapieczętowane pytanie'}</dt>
+              <dd>{one.value ?? 'zapieczętowane'}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {seatKey !== null && (
+          <div className="wk-actions">
+            <button type="button" className="wk-btn" onClick={start}>Popraw dane</button>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {open.map((one) => (
+        <label className="wk-field" key={one.fieldId}>
+          <span>{one.label ?? 'zapieczętowane pytanie'}</span>
+          <input
+            value={draft[one.fieldId] ?? ''}
+            disabled={busy}
+            onChange={(e) => setDraft({ ...draft, [one.fieldId]: e.target.value })}
+          />
+        </label>
+      ))}
+
+      {failed !== null && <p className="wk-error">{failed}</p>}
+
+      <p className="wk-hint">
+        Zmiany pieczętujemy w tej przeglądarce. Usługa zapisze je, nie mogąc ich
+        odczytać — otworzy je ta sama kancelaria co poprzednio.
+      </p>
+
+      <div className="wk-actions">
+        <button
+          type="button" className="wk-btn"
+          disabled={busy || changed.length === 0}
+          onClick={() => void save()}
+        >
+          {busy ? 'Zapisywanie…' : `Zapisz${changed.length > 0 ? ` (${changed.length})` : ''}`}
+        </button>
+
+        <button
+          type="button" className="wk-link-btn" disabled={busy}
+          onClick={() => setEditing(false)}
+        >
+          Anuluj
+        </button>
+      </div>
+    </>
+  );
+}
+
 function Zone({ title, who, children }: {
   title: string;
   who: string;

@@ -507,3 +507,43 @@ async function quietly(todo: () => Promise<string>): Promise<string | null> {
 async function quiet<T>(todo: () => Promise<T>): Promise<T | null> {
   try { return await todo(); } catch { return null; }
 }
+
+/* -- Berichtigen: der Mensch selbst, mit seinem Link ------------------------ */
+
+/**
+ * Die eigene Einsendung ändern — ohne Konto.
+ *
+ * <b>Dieselben drei Hüllen wie beim ersten Mal</b>, und aus demselben Grund:
+ * ein frischer Schlüssel je Wert, der Wert darunter, der Schlüssel einmal für
+ * das Amt (unter der öffentlichen Annahmehälfte) und einmal für den Menschen
+ * selbst (unter seinem Platzschlüssel). Wer nur eines der beiden schriebe,
+ * nähme der einen oder der anderen Seite ihre eigenen Angaben.
+ *
+ * <b>Ein NEUER Wertschlüssel, nicht der alte.</b> Denselben wiederzuverwenden
+ * wäre bequem und hiesse: wer je eine Fassung mitgelesen hat, liest auch jede
+ * spätere.
+ *
+ * Geändert wird nur, was genannt wird — ein Feld, das hier fehlt, bleibt stehen.
+ */
+export async function reviseSubmission(
+  token: string, registrationId: string,
+  answers: readonly Answer[],
+  keys: { readonly intakePublic: Uint8Array; readonly seatKey: Uint8Array }
+): Promise<{ revised: number }> {
+  const values = await Promise.all(answers.map(async (one) => {
+    const key = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
+    const label = valueAad(one.fieldId);
+
+    return {
+      fieldId: one.fieldId,
+      sealed: toBase64Url(await sealText(key, label, one.value.trim())),
+      wrappedKey: toBase64Url(await wrapKey(keys.intakePublic, label, key)),
+      seatKeySealed: toBase64Url(await seal(keys.seatKey, label, key))
+    };
+  }));
+
+  return call(`/seat/${encodeURIComponent(token)}/submission`, {
+    method: 'POST',
+    body: JSON.stringify({ registrationId, values })
+  });
+}

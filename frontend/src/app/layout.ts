@@ -364,3 +364,34 @@ export const cells = (pixels: number, cellSize: number): number => {
   const exact = pixels / cellSize;
   return Math.sign(exact) * Math.round(Math.abs(exact));
 };
+
+/**
+ * Die Bausteine in LESEREIHENFOLGE — oben vor unten, links vor rechts.
+ *
+ * <b>Die Stelle im Raster IST die Ordnung.</b> Vorher war sie es nicht: ein
+ * Baustein wurde ans Ende der Liste gehängt, und dort blieb er, wohin man ihn
+ * auch schob. Gespeichert wird aber die Listenstelle (`slug_part.position`) —
+ * also erzählte das Raster eine Anordnung und der Dienst eine andere, sobald
+ * jemand einen neuen Baustein ÜBER einen älteren setzte.
+ *
+ * Woran das hängt, ist nicht nur Kosmetik: nach `position` richtet sich, was
+ * ein Vorleseprogramm zuerst liest, in welcher Folge die Seite auf dem Telefon
+ * untereinander fällt und in welcher Reihenfolge jemand mit der Tabulatortaste
+ * hindurchgeht.
+ *
+ * <b>Massgeblich ist der DESKTOP-Rahmen</b>, nicht der gerade gezeigte: sonst
+ * hinge die gespeicherte Folge davon ab, welche Ansicht beim Speichern offen
+ * war. Die schmaleren Ansichten setzen ihre Bausteine ohnehin selbst
+ * (`firstFreeCell`), und eine DOM-Folge kann es nur einmal geben.
+ *
+ * Bei gleichem Platz entscheidet die bisherige Folge — `sort` ist in modernem
+ * JavaScript stabil, also wackelt nichts, was nicht wackeln muss.
+ */
+export function byReadingOrder<T extends Placed>(parts: readonly T[]): T[] {
+  return [...parts].sort((a, b) => {
+    const one = frameFor(a, 'desktop').position;
+    const two = frameFor(b, 'desktop').position;
+
+    return one.row === two.row ? one.col - two.col : one.row - two.row;
+  });
+}

@@ -41,13 +41,21 @@
   grid-template-rows: auto 1fr;
 }
 
+/* Der Streifen geht durch, der Inhalt steht in der Spalte der Seite. */
 .wk-top {
-  display: flex;
-  align-items: baseline;
-  gap: 0.7rem;
   padding: 1rem 1.4rem;
   border-bottom: 1px solid var(--wk-line);
 }
+
+.wk-top-in {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  max-width: 40rem;
+  margin-inline: auto;
+}
+
+.wk-top-in-wide { max-width: 62rem; }
 
 .wk-brand { font-weight: 600; letter-spacing: 0.01em; }
 
@@ -63,8 +71,15 @@
   padding: 0.05rem 0.5rem;
 }
 
+/* `max-width` allein stellt die Spalte NICHT in die Mitte — sie blieb links
+   kleben, und auf einem breiten Schirm sah die Seite aus wie halb geladen.
+   `margin-inline: auto` ist das fehlende Stueck; `box-sizing` sorgt dafuer,
+   dass die Polsterung die Breite nicht noch einmal dazuzaehlt. */
 .wk-main {
-  max-width: 40rem;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(40rem + 2.8rem);
+  margin-inline: auto;
   padding: 2.4rem 1.4rem 4rem;
   display: grid;
   gap: 1rem;
@@ -154,7 +169,7 @@ code {
    ~46rem zwei halbe Zeilen Text, und das liest niemand.
    ------------------------------------------------------------------------ */
 
-.wk-main-wide { max-width: 62rem; }
+.wk-main-wide { max-width: calc(62rem + 2.8rem); }
 
 .wk-tiles {
   display: grid;

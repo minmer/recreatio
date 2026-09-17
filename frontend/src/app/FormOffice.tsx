@@ -25,7 +25,7 @@ import { loadAreas, myEpochKeys, type AreaRow } from './area';
 import {
   FIELD_KINDS, KIND_LABEL, addField, loadFields, loadRegistrations, openFields,
   hideSubmission, readSubmission, removeField, removeSubmission,
-  type FieldKind, type OpenField, type Submission
+  type FieldKind, type OpenField, type SealedField, type Submission
 } from './form';
 import { createIntake, loadIntake, openIntakeKey, setController } from './intake';
 import type { Ring, SealedRole } from './keys';
@@ -59,33 +59,77 @@ export function FormOffice({ partId, who }: { partId: string; who: Who }) {
   const [lastArea, setLastArea] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
 
+  /**
+   * Alles laden — aber NICHT alles oder nichts.
+   *
+   * <b>Vorher hing die ganze Ansicht an jedem einzelnen Schritt.</b> Der
+   * Schlüsselbund wurde geholt, dann ALLE Bereiche dieses Menschen, dann je
+   * Bereich sein Epochenschlüssel — und erst ganz am Ende standen die Fragen.
+   * Ein Bereich, der seinen Schlüssel nicht hergab (eine fremde Epoche, ein
+   * Bereich ohne Zuteilung), warf, und `setFields` kam nie: die Fragenliste
+   * blieb leer, obwohl mit DIESEM Formular alles in Ordnung war. Auf dem Bild
+   * sah es aus, als seien die Fragen gelöscht.
+   *
+   * Deshalb jetzt in der Reihenfolge der Wichtigkeit, und jeder Schritt für
+   * sich: erst die Fragen (auch unlesbar sind sie besser als keine), dann die
+   * Schlüssel, Bereich für Bereich und jeder in seinem eigenen Versuch.
+   */
   const look = useCallback(async () => {
+    let sealed: readonly SealedField[] = [];
+
     try {
-      const { ring: bund, graph } = await keysFor(who);
-      setRing(bund);
-      setPerson(graph.roles.find((r) => r.isPersonal) ?? null);
+      sealed = (await loadFields(partId)).fields;
 
-      const mine = (await loadAreas()).areas;
-      setAreas(mine);
-
-      const { fields: sealed } = await loadFields(partId);
-
-      /* Die Schlüssel der Bereiche, die ich halte — damit werden die Fragen lesbar. */
-      const keys = new Map<string, Uint8Array>();
-
-      if (bund !== null) {
-        for (const area of mine) {
-          const held = await myEpochKeys(bund, area.areaId);
-          const key = held.get(area.currentEpoch);
-          if (key !== undefined) keys.set(area.areaId, key);
-        }
-      }
-
-      setFields(await openFields(sealed, keys));
+      /* Zunächst ohne Beschriftung — dieselbe Gestalt, die `openFields` einem
+         Feld ohne Schlüssel gibt. Gleich darunter werden sie lesbar. */
+      setFields(sealed.map((f) => ({ ...f, label: null, help: null, options: [] })));
       setFailed(null);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać formularza.');
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać pytań.');
+      return;
     }
+
+    let bund: Ring | null = null;
+
+    try {
+      const keys = await keysFor(who);
+      bund = keys.ring;
+      setRing(bund);
+      setPerson(keys.graph.roles.find((r) => r.isPersonal) ?? null);
+    } catch {
+      // Ohne Schlüsselbund bleiben die Fragen zu. Sie stehen trotzdem da.
+      setRing(null);
+    }
+
+    let mine: readonly AreaRow[] = [];
+
+    try {
+      mine = (await loadAreas()).areas;
+      setAreas(mine);
+    } catch {
+      setAreas([]);
+    }
+
+    if (bund === null) return;
+
+    /*
+     * Die Schlüssel der Bereiche, die ich halte — JEDER in seinem eigenen
+     * Versuch. Ein Bereich, der seinen nicht hergibt, lässt nur seine eigenen
+     * Fragen zu; er nimmt nicht die der anderen mit.
+     */
+    const keys = new Map<string, Uint8Array>();
+
+    for (const area of mine) {
+      try {
+        const held = await myEpochKeys(bund, area.areaId);
+        const key = held.get(area.currentEpoch);
+        if (key !== undefined) keys.set(area.areaId, key);
+      } catch {
+        // Eine fremde Epoche, keine Zuteilung. Kein Fehler — eine Auskunft.
+      }
+    }
+
+    setFields(await openFields(sealed, keys));
   }, [who, partId]);
 
   useEffect(() => { void look(); }, [look]);
@@ -362,6 +406,25 @@ function Answers({ values, fields, sealed }: {
           ? 'Usługa nie wydała treści tego zgłoszenia — nie czytasz obszaru, do którego trafiło.'
           : `${sealed} zapieczętowanych odpowiedzi, żadna nie pasuje do tego klucza przyjmowania.`}
       </p>
+    );
+  }
+
+  /*
+   * OHNE FRAGENLISTE IST NICHTS GELÖSCHT. Sie stand hier einmal als „pytanie
+   * usunięte" da, sobald die Liste leer war — eine Behauptung über die Fragen,
+   * die in Wahrheit eine über das Laden war. Die Antworten stehen trotzdem, mit
+   * ihrer Kennung.
+   */
+  if (fields.length === 0) {
+    return (
+      <>
+        <p className="wk-empty">Pytania się nie wczytały — poniżej same odpowiedzi.</p>
+        <ul className="wk-tile-lines">
+          {[...values.entries()].map(([id, text]) => (
+            <li key={id}><strong className="wk-row-side">{id.slice(0, 8)}:</strong> {text}</li>
+          ))}
+        </ul>
+      </>
     );
   }
 
