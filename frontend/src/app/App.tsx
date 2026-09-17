@@ -81,7 +81,7 @@ export function App() {
    */
   const domain = foreignHost();
   if (domain !== null) {
-    return <Shell><PublicPage host={domain} local={localPath(hash)} /></Shell>;
+    return <Shell wide><PublicPage host={domain} local={localPath(hash)} /></Shell>;
   }
 
   /*
@@ -111,7 +111,7 @@ export function App() {
   }
 
   if (address.page !== null) {
-    return <Shell><PublicPage path={address.page} /></Shell>;
+    return <Shell wide><PublicPage path={address.page} /></Shell>;
   }
 
   if (who === undefined) {

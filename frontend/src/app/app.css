@@ -55,7 +55,7 @@
   margin-inline: auto;
 }
 
-.wk-top-in-wide { max-width: 62rem; }
+.wk-top-in-wide { max-width: 84rem; }
 
 .wk-brand { font-weight: 600; letter-spacing: 0.01em; }
 
@@ -169,7 +169,10 @@ code {
    ~46rem zwei halbe Zeilen Text, und das liest niemand.
    ------------------------------------------------------------------------ */
 
-.wk-main-wide { max-width: calc(62rem + 2.8rem); }
+/* Die breite Spalte — Kacheln, der Seiteneditor, eine öffentliche Seite.
+   Ein sechsspaltiges Raster in 62rem gibt jeder Spalte gut 9rem; auf einem
+   Bildschirm, der 1900 Punkte hat, bleibt daneben die halbe Fläche leer. */
+.wk-main-wide { max-width: calc(84rem + 2.8rem); }
 
 .wk-tiles {
   display: grid;
@@ -180,6 +183,12 @@ code {
 
 @media (max-width: 46rem) {
   .wk-tiles { grid-template-columns: 1fr; }
+}
+
+/* Auf der breiten Spalte waeren zwei Kacheln je gut 40rem — eine Kachel, die
+   eine halbe Zeile traegt, muss das nicht sein. Ab 70rem also drei. */
+@media (min-width: 70rem) {
+  .wk-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 .wk-tile {
@@ -643,3 +652,12 @@ code {
   background: var(--wk-surface);
   color: var(--wk-ink);
 }
+
+/* -- Die Zeilenlänge auf einer breiten Seite -------------------------------
+   Eine Kachel darf die ganze Seite einnehmen; ihr FLIESSTEXT darf es nicht.
+   Über etwa 70 Zeichen je Zeile verliert das Auge beim Rücksprung die Zeile,
+   und auf 84rem wären es gut zweihundert. Überschriften, Listen und Zahlen
+   bleiben davon unberührt — sie werden nicht am Stück gelesen. */
+
+.wk-card-text,
+.wk-card-notice { max-width: 66ch; }

@@ -13,7 +13,9 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 
-import { COLUMNS, frameFor, snapColSpan, snapRowSpan, type Breakpoint } from './layout';
+import {
+  byReadingOrder, COLUMNS, frameFor, snapColSpan, snapRowSpan, type Breakpoint
+} from './layout';
 import { FormCard } from './FormCard';
 import { MassCard } from './MassCard';
 import { isEmpty, moduleDef, readLink } from './modules';
@@ -56,8 +58,26 @@ export function PageParts({ parts }: {
    * diese Ausnahme fiele er genau dann aus der Seite, wenn er richtig
    * eingerichtet ist, und niemand käme darauf, warum.
    */
-  const shown = parts.filter(
+  const visible = parts.filter(
     (part) => !isEmpty(part.config) || moduleDef(part.kind)?.live === true);
+
+  /*
+   * DIE STELLE IM RASTER ENTSCHEIDET, auch hier.
+   *
+   * Die Spalte steht unten ausdrücklich (`gridColumn`), die ZEILE nicht: sie
+   * ergibt sich aus der Reihenfolge, in der die Bausteine hier stehen. Und die
+   * kam bisher aus `slug_part.position`, also aus der Reihenfolge des
+   * Hinzufügens — ein Baustein, den jemand nach oben schob, blieb unten.
+   *
+   * Eine feste Zeile (`gridRow: row / span n`) wäre die andere Möglichkeit und
+   * die schlechtere: die Höhe einer Kachel hängt hier an ihrem INHALT, nicht an
+   * einer Rasterzeile. Ein längerer Text liefe in die nächste Kachel hinein,
+   * und eine Lücke im Entwurf risse ein Loch in die Seite.
+   *
+   * Also die Leserichtung, dieselbe Regel wie im Editor — und sie wirkt sofort,
+   * auch auf Seiten, die seit der Änderung niemand neu gespeichert hat.
+   */
+  const shown = byReadingOrder(visible);
 
   if (shown.length === 0) return null;
 
