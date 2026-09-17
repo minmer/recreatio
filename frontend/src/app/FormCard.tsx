@@ -14,6 +14,12 @@
  * <b>Die Klausel steht darüber, nicht darunter.</b> Wer personenbezogene Daten
  * erhebt, muss sagen, wer sie verarbeitet, BEVOR jemand etwas eingegeben hat.
  * Fehlt sie, sammelt dieses Formular nichts — es sagt, was fehlt.
+ *
+ * <b>Und wer sich anmeldet, bekommt eine Adresse</b>, wenn der Baustein
+ * `portal` trägt (0027): der Browser würfelt sich vor dem Absenden einen
+ * eigenen Platz, und danach steht der Link genau einmal da. Ohne `portal`
+ * bleibt es bei der Quittung — dann ist die Einsendung eine Einbahnstrasse, und
+ * das ist für einen blossen Rückruf richtig.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -23,6 +29,7 @@ import { fromBase64Url } from './crypto';
 import {
   loadForm, openFields, submitForm, type Answer, type OpenField, type PublicForm
 } from './form';
+import { seatPath, type Link } from './seat';
 import { WorkspaceError } from './session';
 
 export function FormCard({ partId, config }: {
@@ -33,6 +40,8 @@ export function FormCard({ partId, config }: {
   const [fields, setFields] = useState<readonly OpenField[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [claim, setClaim] = useState<string | null>(null);
+  const [link, setLink] = useState<Link | null>(null);
+  const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -82,16 +91,64 @@ export function FormCard({ partId, config }: {
    */
   const nameless = form.areas.filter((a) => a.controller === null);
 
-  if (claim !== null) {
+  /*
+   * DAS PORTAL, wenn der Baustein es trägt. Ohne Anker keine Adresse: der Platz
+   * hinge dann an nichts, und `seatPath` fiele auf die allgemeine Form `#/seat/…`
+   * zurück — was geht, aber niemandem sagt, wo er ist.
+   */
+  const wantsPortal = (config.portal ?? '').trim() !== ''
+    && ['tak', 'yes', 'true', '1'].includes((config.portal ?? '').trim().toLowerCase());
+
+  /*
+   * Die Adresse, unter der das Portal hängen soll — aus dem Baustein und nicht
+   * aus dem Ort, an dem er steht: das Formular liegt auf
+   * `…/confirmation/signin`, das Portal gehört aber unter `…/confirmation`.
+   * Fehlt die Angabe, bleibt die allgemeine Form `#/seat/…` — sie führt ebenso
+   * hin, sagt dem Menschen bloss nicht, wo er gelandet ist.
+   */
+  const under = (config.portalUnder ?? '').trim();
+
+  /* Woraus der Name auf dem Platz kommt — dasselbe Feld, das die Kanzlei dafür kennzeichnet. */
+  const nameField = fields.find((f) => f.identityRole === 'name');
+
+  if (sent) {
     return (
       <>
         {title !== '' && <h2 className="wk-card-title">{title}</h2>}
         <p className="wk-done">Zgłoszenie przyjęte.</p>
-        <p className="wk-hint">
-          Zachowaj to pokwitowanie — to jedyny sposób, żeby później wrócić do
-          swojego zgłoszenia. Nikt Ci go nie odtworzy.
-        </p>
-        <textarea readOnly rows={2} value={claim} className="wk-mono" />
+
+        {link !== null ? (
+          <>
+            <p className="wk-hint">
+              <strong>To jest Twój adres.</strong> Pod nim zobaczysz to, co
+              wpisałeś — i to, co parafia do Ciebie napisze. Zapisz go albo dodaj
+              do zakładek: <strong>widzisz go tylko teraz</strong>, bo u nas
+              zapisany jest wyłącznie jego odcisk. Nikt Ci go nie odtworzy.
+            </p>
+
+            <textarea
+              readOnly rows={3} className="wk-mono"
+              value={`${window.location.origin}${window.location.pathname}${seatPath(link, under === '' ? null : under)}`}
+            />
+
+            <div className="wk-actions">
+              <a
+                className="wk-btn"
+                href={seatPath(link, under === '' ? null : under)}
+              >
+                Otwórz moją stronę
+              </a>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="wk-hint">
+              Zachowaj to pokwitowanie — to jedyny sposób, żeby później wrócić do
+              swojego zgłoszenia. Nikt Ci go nie odtworzy.
+            </p>
+            {claim !== null && <textarea readOnly rows={2} value={claim} className="wk-mono" />}
+          </>
+        )}
       </>
     );
   }
@@ -107,8 +164,33 @@ export function FormCard({ partId, config }: {
         .map((f) => ({ fieldId: f.fieldId, value: answers[f.fieldId] ?? '' }))
         .filter((a) => a.value.trim() !== '');
 
-      const done = await submitForm(partId, given, { areas: form.areas, fields: form.fields });
+      /*
+       * Der Platz gehört dem Bereich, in den dieses Formular schreibt. Fragen
+       * mehrerer Bereiche kommen vor (die Anmeldung an die Pfarrei, die
+       * Gesundheitsangabe an die Leitung) — das Portal hängt am ERSTEN, und
+       * zwar an dem des Namensfeldes, wenn es eines gibt. Sonst hinge es
+       * irgendwo.
+       */
+      const home = nameField?.areaId ?? form.fields[0]?.areaId;
+
+      const done = await submitForm(partId, given, {
+        areas: form.areas,
+        fields: form.fields,
+        selfSeat: wantsPortal && home !== undefined
+          ? {
+              areaId: home,
+              epoch: form.fields.find((f) => f.areaId === home)?.epoch ?? 1,
+              recipientName: nameField === undefined
+                ? undefined
+                : (answers[nameField.fieldId] ?? '').trim(),
+              underPath: under === '' ? undefined : under
+            }
+          : undefined
+      });
+
       setClaim(done.claim);
+      setLink(done.link);
+      setSent(true);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać.');
     } finally {

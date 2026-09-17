@@ -16,10 +16,11 @@
  */
 
 import {
-  aad, Field, fromBase64Url, KEY_SIZE, openText, seal, sealText,
+  aad, Field, fromBase64Url, KEY_SIZE, open, openText, seal, sealText,
   toBase64Url, unwrapKey, wrapKey
 } from './crypto';
 import { newId } from './ids';
+import { newLink, seatAad, type Link, type SubmittedValue } from './seat';
 import { call } from './session';
 import type { Controller } from './intake';
 
@@ -193,6 +194,30 @@ export interface SubmitTo {
 
   /** Angemeldet und ausdrücklich benannt — nie geraten. */
   readonly roleId?: string;
+
+  /**
+   * SELBST ANMELDEN: der Browser würfelt sich hier einen eigenen Platz, und die
+   * Einsendung bekommt einen Link zurück (0027).
+   *
+   * <b>Der Firmling ist der Fall.</b> Er hat kein Konto, niemand hat ihm etwas
+   * geschickt — und trotzdem soll er seine Angaben wiederlesen können. Also
+   * entsteht sein Platz in demselben Augenblick wie seine Einsendung.
+   *
+   * `underPath` sagt, wohin der Platz gehört: damit liest sich seine Adresse
+   * als <code>…/confirmation/portal/…</code> und nicht als loses `#/seat/…`.
+   *
+   * <b>Ein PFAD und keine Kennung</b>, und der Dienst prüft ihn: `access_slug`
+   * ist einer der drei Wege in eine interne Unterseite (0026). Nähme er eine
+   * Kennung, wie sie kommt, schriebe sich ein Fremder mit einer Anmeldung den
+   * Zutritt zu `lo13/anna`. Erlaubt ist die Seite mit diesem Formular oder eine
+   * darüber.
+   */
+  readonly selfSeat?: {
+    readonly areaId: string;
+    readonly epoch: number;
+    readonly recipientName?: string;
+    readonly underPath?: string;
+  };
 }
 
 /**
@@ -206,9 +231,28 @@ export interface SubmitTo {
  */
 export async function submitForm(
   partId: string, answers: readonly Answer[], to: SubmitTo
-): Promise<{ registrationId: string; claim: string | null }> {
+): Promise<{ registrationId: string; claim: string | null; link: Link | null }> {
   const areaOf = new Map(to.fields.map((f) => [f.fieldId, f.areaId]));
   const publicKeys = new Map(to.areas.map((a) => [a.areaId, fromBase64Url(a.publicKey)]));
+
+  /*
+   * DER EIGENE PLATZ, falls dieses Formular einen vergibt. Er entsteht VOR den
+   * Werten, weil jeder Wertschlüssel ein zweites Mal unter ihm versiegelt wird
+   * — das ist der Weg, auf dem der Mensch später seine eigenen Angaben
+   * wiederliest.
+   */
+  let mine: { seatId: string; link: Link; linkKey: Uint8Array; seatKey: Uint8Array } | null = null;
+
+  if (to.selfSeat !== undefined && to.seat === undefined) {
+    const { link, key: linkKey } = newLink();
+    mine = {
+      seatId: newId(), link, linkKey,
+      seatKey: crypto.getRandomValues(new Uint8Array(KEY_SIZE))
+    };
+  }
+
+  /* Ein Platz, den ich mitbringe, oder einer, den ich gerade gewürfelt habe. */
+  const seatKey = to.seat?.key ?? mine?.seatKey;
 
   const values: object[] = [];
 
@@ -232,15 +276,47 @@ export async function submitForm(
       wrappedKey: toBase64Url(await wrapKey(publicKey, label, key)),
 
       // Damit der Mensch seine eigene Einsendung wiederlesen kann.
-      seatKeySealed: to.seat === undefined
+      seatKeySealed: seatKey === undefined
         ? null
-        : toBase64Url(await seal(to.seat.key, label, key))
+        : toBase64Url(await seal(seatKey, label, key))
     });
   }
 
-  const claim = to.seat === undefined && to.roleId === undefined
+  /*
+   * Die Quittung nur dann, wenn es sonst KEINE Spur gäbe. Wer einen Platz hat —
+   * mitgebracht oder eben gewürfelt — findet über ihn zurück; ein zweites
+   * Geheimnis daneben wäre ein zweites, das man verlieren kann.
+   */
+  const claim = to.seat === undefined && to.roleId === undefined && mine === null
     ? toBase64Url(crypto.getRandomValues(new Uint8Array(24)))
     : null;
+
+  let seat: object | null = null;
+
+  if (mine !== null && to.selfSeat !== undefined) {
+    const publicKey = publicKeys.get(to.selfSeat.areaId);
+    if (publicKey === undefined) throw new Error('Ten obszar nie przyjmuje zgłoszeń.');
+
+    const label = seatAad(mine.seatId);
+
+    seat = {
+      seatId: mine.seatId,
+      tokenSha256: toBase64Url(await sha256Of(mine.link.token)),
+      seatKeySealed: toBase64Url(await seal(mine.linkKey, label, mine.seatKey)),
+
+      /*
+       * DER WEG DER KANZLEI — unter der Annahme und NICHT unter der Epoche.
+       * Der Epochenschlüssel liegt bei einem öffentlichen Formular offen; unter
+       * ihm zu versiegeln schützte nichts (0027).
+       */
+      seatKeyForIntake: toBase64Url(await wrapKey(publicKey, label, mine.seatKey)),
+
+      areaId: to.selfSeat.areaId,
+      epoch: to.selfSeat.epoch,
+      recipientName: to.selfSeat.recipientName ?? null,
+      underPath: to.selfSeat.underPath ?? null
+    };
+  }
 
   const done = await call<{ registrationId: string }>(
     `/form/${encodeURIComponent(partId)}/submit`,
@@ -250,11 +326,48 @@ export async function submitForm(
         values,
         claimSha256: claim === null ? null : toBase64Url(await sha256Of(claim)),
         seatToken: to.seat?.token ?? null,
-        roleId: to.roleId ?? null
+        roleId: to.roleId ?? null,
+        seat
       })
     });
 
-  return { registrationId: done.registrationId, claim };
+  return { registrationId: done.registrationId, claim, link: mine?.link ?? null };
+}
+
+/**
+ * Die EIGENEN Antworten aufmachen — was das Portal eines Firmlings zeigt.
+ *
+ * <b>Zwei Schlüssel, und sie kommen von verschiedenen Seiten.</b> Der Wert
+ * hängt am Platz (mein Link), die Frage an der Epoche des Bereichs (öffentlich,
+ * sonst wäre das Formular nie lesbar gewesen).
+ *
+ * <b>Die Frage darf zubleiben, die Antwort nicht.</b> Wer später ohne den
+ * Epochenschlüssel wiederkommt, sieht trotzdem, was er geschrieben hat — nur
+ * ohne Beschriftung. Das ist besser als eine leere Seite und ehrlicher als eine
+ * erfundene Frage.
+ */
+export async function openSubmitted(
+  values: readonly SubmittedValue[], seatKey: Uint8Array,
+  epochKeys: ReadonlyMap<string, Uint8Array>
+): Promise<readonly { fieldId: string; label: string | null; value: string | null }[]> {
+  const out: { fieldId: string; label: string | null; value: string | null }[] = [];
+
+  for (const one of values) {
+    const valueKey = await quiet(() =>
+      open(seatKey, valueAad(one.fieldId), fromBase64Url(one.valueKeySealed)));
+
+    const epochKey = epochKeys.get(one.areaId);
+
+    out.push({
+      fieldId: one.fieldId,
+      label: epochKey === undefined ? null : await quietly(() =>
+        openText(epochKey, labelAad(one.fieldId), fromBase64Url(one.labelSealed))),
+      value: valueKey === null ? null : await quietly(() =>
+        openText(valueKey, valueAad(one.fieldId), fromBase64Url(one.valueSealed)))
+    });
+  }
+
+  return out;
 }
 
 /* -- Was die Kanzlei sieht -------------------------------------------------- */
@@ -309,5 +422,10 @@ async function sha256Of(text: string): Promise<Uint8Array> {
 }
 
 async function quietly(todo: () => Promise<string>): Promise<string | null> {
+  try { return await todo(); } catch { return null; }
+}
+
+/** Wie `quietly`, aber für Bytes: eine Hülle, die nicht aufgeht, ist `null`. */
+async function quiet<T>(todo: () => Promise<T>): Promise<T | null> {
   try { return await todo(); } catch { return null; }
 }

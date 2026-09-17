@@ -326,8 +326,32 @@ public static class Form
 
     public sealed record ValueIn(string FieldId, string Sealed, string WrappedKey, string? SeatKeySealed);
 
+    /// <summary>
+    /// Ein Platz, den der Einsendende sich SELBST gewuerfelt hat (0027).
+    ///
+    /// <para>
+    /// <b>Nicht der Dienst legt ihn an, sondern der Browser</b> — wie bei jedem
+    /// Platz. Der Dienst bekommt den Abdruck des Links und zwei Huellen, von
+    /// denen er keine oeffnen kann; das Geheimnis, das sie aufmacht, hat er nie
+    /// gesehen.
+    /// </para>
+    ///
+    /// <para>
+    /// <b><c>SeatKeyForIntake</c> und nicht <c>…ForArea</c>.</b> Ein
+    /// oeffentliches Formular setzt voraus, dass der Bereich seinen
+    /// Epochenschluessel veroeffentlicht hat — sonst bleiben die
+    /// Beschriftungen zu. Unter einem veroeffentlichten Schluessel zu
+    /// versiegeln schuetzt nichts. Der Platz geht deshalb an die ANNAHME, deren
+    /// private Haelfte unter dem Amtsschluessel liegt.
+    /// </para>
+    /// </summary>
+    public sealed record SelfSeat(
+        string SeatId, string TokenSha256, string SeatKeySealed, string SeatKeyForIntake,
+        string AreaId, int Epoch, string? RecipientName, string? UnderPath);
+
     public sealed record SubmitRequest(
-        IReadOnlyList<ValueIn> Values, string? ClaimSha256, string? SeatToken, string? RoleId);
+        IReadOnlyList<ValueIn> Values, string? ClaimSha256, string? SeatToken, string? RoleId,
+        SelfSeat? Seat);
 
     /// <summary>
     /// Eine Einsendung — ohne Konto.
@@ -476,6 +500,32 @@ public static class Form
             roleId = wanted;
         }
 
+        /*
+         * DER SELBSTGEWUERFELTE PLATZ (0027).
+         *
+         * Er entsteht ZUGLEICH mit der Einsendung und nicht davor: der Firmling
+         * fuellt aus, und erst danach gibt es etwas, worauf ein Link zeigen
+         * koennte. Beides in einer Transaktion — ein Platz ohne Einsendung waere
+         * ein Link auf nichts, eine Einsendung ohne Platz ein Mensch, der nicht
+         * mehr an seine eigenen Angaben kommt.
+         */
+        SelfSeatRow? mint = null;
+
+        if (body.Seat is not null)
+        {
+            if (seatId is not null)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest,
+                    "Zgłoszenie ma jedno miejsce, nie dwa.");
+                return;
+            }
+
+            mint = await ReadSelfSeatAsync(ctx, connection, id, body.Seat, fields);
+            if (mint is null) return;
+
+            seatId = mint.Value.Id;
+        }
+
         if (seatId is null && roleId is null && claim is null)
         {
             await Fail(ctx, StatusCodes.Status400BadRequest,
@@ -490,6 +540,47 @@ public static class Form
 
         try
         {
+            if (mint is not null)
+            {
+                var seat = mint.Value;
+
+                await using (var open = new SqlCommand("""
+                    INSERT INTO app.access
+                        (id, area_id, token_sha256, seat_key_sealed, seat_key_for_intake, epoch,
+                         recipient_name, origin, created_by_role_id, created_at)
+                    VALUES (@id, @area, @token, @forLink, @forIntake, @epoch,
+                            @name, N'self', NULL, @now);
+                    """, connection, tx))
+                {
+                    open.Parameters.AddWithValue("@id", seat.Id);
+                    open.Parameters.AddWithValue("@area", seat.AreaId);
+                    open.Parameters.AddWithValue("@token", seat.TokenHash);
+                    open.Parameters.AddBlob("@forLink", seat.ForLink);
+                    open.Parameters.AddBlob("@forIntake", seat.ForIntake);
+                    open.Parameters.AddWithValue("@epoch", seat.Epoch);
+                    open.Parameters.AddWithValue("@name",
+                        seat.RecipientName is null ? DBNull.Value : seat.RecipientName);
+                    open.Parameters.AddWithValue("@now", now);
+
+                    await open.ExecuteNonQueryAsync(ctx.RequestAborted);
+                }
+
+                /*
+                 * Wohin der Platz gehoert — damit das Portal zurueckfindet und
+                 * damit eine interne Unterseite (0026) sich ihm oeffnet.
+                 */
+                foreach (var slugId in seat.SlugIds)
+                {
+                    await using var bind = new SqlCommand(
+                        "INSERT INTO app.access_slug (access_id, slug_id) VALUES (@a, @s);",
+                        connection, tx);
+
+                    bind.Parameters.AddWithValue("@a", seat.Id);
+                    bind.Parameters.AddWithValue("@s", slugId);
+                    await bind.ExecuteNonQueryAsync(ctx.RequestAborted);
+                }
+            }
+
             await using (var insert = new SqlCommand("""
                 INSERT INTO app.registration
                     (id, part_id, access_id, role_id, claim_sha256, submitted_at)
@@ -537,6 +628,137 @@ public static class Form
             values = parsed.Count,
             seatId = seatId is null ? null : Ids.ToText(seatId.Value)
         });
+    }
+
+    /// <summary>Ein geprueufter Selbstplatz, fertig zum Einfuegen.</summary>
+    private readonly record struct SelfSeatRow(
+        Guid Id, Guid AreaId, byte[] TokenHash, byte[] ForLink, byte[] ForIntake,
+        int Epoch, string? RecipientName, IReadOnlyList<Guid> SlugIds);
+
+    /// <summary>
+    /// Den mitgeschickten Platz pruefen — und dabei die eine Frage stellen, die
+    /// wirklich zaehlt: KOMMT DIE KANZLEI HERAN?
+    ///
+    /// <para>
+    /// Der Platzschluessel ist unter der oeffentlichen Haelfte der Annahme
+    /// verpackt. Hat der Bereich gar keine Annahme, gibt es diese Haelfte
+    /// nicht, und was hier ankaeme, koennte niemand je oeffnen — ein Platz, der
+    /// aussieht wie einer und keiner ist. Deshalb steht die Pruefung hier und
+    /// nicht bei der Anzeige, wo sie zu spaet waere.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Der Bereich muss einer sein, in den dieses Formular ohnehin
+    /// einsendet.</b> Sonst haengte sich eine Einsendung einen Platz in einen
+    /// fremden Bereich — und stuende dort in der Liste der Kanzlei, die ihn nie
+    /// ausgestellt hat.
+    /// </para>
+    /// </summary>
+    private static async Task<SelfSeatRow?> ReadSelfSeatAsync(
+        HttpContext ctx, SqlConnection connection, Guid partId, SelfSeat body, List<FieldRow> fields)
+    {
+        if (!Guid.TryParse(body.SeatId, out var seatId) || seatId == Guid.Empty
+            || !Guid.TryParse(body.AreaId, out var areaId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung miejsca.");
+            return null;
+        }
+
+        if (!fields.Any(f => f.AreaId == areaId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                "Miejsce miałoby powstać w obszarze, do którego ten formularz nie pisze.");
+            return null;
+        }
+
+        if (body.Epoch < 1)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Epoka zaczyna się od 1.");
+            return null;
+        }
+
+        var tokenHash = Optional(body.TokenSha256);
+        if (tokenHash is null || tokenHash.Length != 32)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Odcisk linku musi mieć 32 bajty.");
+            return null;
+        }
+
+        var forLink = Optional(body.SeatKeySealed);
+        var forIntake = Optional(body.SeatKeyForIntake);
+
+        if (forLink is null || forLink.Length == 0 || forIntake is null || forIntake.Length == 0)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny zapieczętowany klucz miejsca.");
+            return null;
+        }
+
+        await using (var has = new SqlCommand(
+            "SELECT TOP 1 1 FROM app.intake WHERE area_id = @area;", connection))
+        {
+            has.Parameters.AddWithValue("@area", areaId);
+
+            if (await has.ExecuteScalarAsync(ctx.RequestAborted) is null)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "Ten obszar nie przyjmuje zgłoszeń — nikt nie mógłby otworzyć miejsca.");
+                return null;
+            }
+        }
+
+        /*
+         * WOHIN DER PLATZ GEHOERT — und das darf der Einsendende NICHT frei
+         * waehlen.
+         *
+         * `app.access_slug` ist einer der drei Wege in eine interne Unterseite
+         * (0026). Naehme der Dienst hier eine Kennung entgegen, wie sie kommt,
+         * schriebe sich ein Fremder mit einer Anmeldung den Zutritt zu
+         * `lo13/anna` — er muesste die Kennung nur raten oder abschreiben.
+         *
+         * Erlaubt ist deshalb genau die Seite, auf der das Formular steht, oder
+         * eine darueber. Mehr braucht der Fall nicht: das Formular liegt unter
+         * `…/confirmation/signin`, das Portal soll unter `…/confirmation`
+         * haengen.
+         */
+        var slugIds = new List<Guid>();
+
+        if (!string.IsNullOrWhiteSpace(body.UnderPath))
+        {
+            var wanted = Slug.Normalise(body.UnderPath);
+
+            var formPath = await PathOfPartAsync(connection, partId, ctx.RequestAborted);
+            if (formPath is null)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
+                return null;
+            }
+
+            if (formPath != wanted && !formPath.StartsWith(wanted + "/", StringComparison.Ordinal))
+            {
+                await Fail(ctx, StatusCodes.Status403Forbidden,
+                    "Miejsce może należeć tylko do strony z tym formularzem albo do strony nad nią.");
+                return null;
+            }
+
+            await using var cmd = new SqlCommand(
+                "SELECT id FROM app.slug WHERE path = @under;", connection);
+
+            cmd.Parameters.AddWithValue("@under", wanted);
+
+            if (await cmd.ExecuteScalarAsync(ctx.RequestAborted) is not Guid foundId)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+                return null;
+            }
+
+            slugIds.Add(foundId);
+        }
+
+        var name = (body.RecipientName ?? string.Empty).Trim();
+
+        return new SelfSeatRow(seatId, areaId, tokenHash, forLink, forIntake, body.Epoch,
+            name == "" ? null : name[..Math.Min(name.Length, 200)],
+            slugIds);
     }
 
     /* -- Was die Kanzlei sieht ---------------------------------------------- */

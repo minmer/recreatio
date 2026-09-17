@@ -24,11 +24,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { loadPublicKey } from './area';
 import { loadPublic, type Occurrence } from './calendar';
 import { fromBase64Url, openText } from './crypto';
 import type { SealedRole } from './keys';
 import { Field, aad } from './crypto';
 import { keysFor } from './ringOf';
+import { openSubmitted } from './form';
 import { bindSeat, loadPortal, openGrants, openPortal, type Portal } from './seat';
 import { pagePath } from './routes';
 import { whoIsThere, WorkspaceError, type Who } from './session';
@@ -49,6 +51,9 @@ export function SeatPortal({ token, keyText, under }: {
   const [note, setNote] = useState<string | null>(null);
   const [seatKey, setSeatKey] = useState<Uint8Array | null>(null);
   const [shared, setShared] = useState<readonly Shared[]>([]);
+
+  /** Was er selbst eingetragen hat — Frage und Antwort, beide aufgemacht. */
+  const [mine, setMine] = useState<readonly { fieldId: string; label: string | null; value: string | null }[]>([]);
   const [sharedNames, setSharedNames] = useState<readonly string[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -77,6 +82,28 @@ export function SeatPortal({ token, keyText, under }: {
         setSeatKey(null);
         setNote(null);
         return;
+      }
+
+      /*
+       * WAS ER SELBST EINGETRAGEN HAT (0027) — beim Firmling sein Formular.
+       *
+       * Der Wert hängt am Platz, die FRAGE dagegen an der Epoche des Bereichs.
+       * Die liegt bei einem öffentlichen Formular offen — sonst hätte er es nie
+       * ausfüllen können. Bleibt sie zu, steht die Antwort trotzdem da, nur
+       * ohne Beschriftung.
+       */
+      if (found.submitted.length > 0) {
+        const epochs = new Map<string, Uint8Array>();
+
+        for (const areaId of new Set(found.submitted.map((s) => s.areaId))) {
+          try {
+            epochs.set(areaId, fromBase64Url((await loadPublicKey(areaId)).key));
+          } catch {
+            // Nicht offengelegt. Die Antwort bleibt lesbar, die Frage nicht.
+          }
+        }
+
+        setMine(await openSubmitted(found.submitted, key, epochs));
       }
 
       /*
@@ -213,6 +240,40 @@ export function SeatPortal({ token, keyText, under }: {
           ? <p className="wk-empty">Nic tu jeszcze nie napisano.</p>
           : <p className="wk-card-text" style={{ whiteSpace: 'pre-wrap' }}>{note}</p>}
       </Zone>
+
+      {/*
+        WAS ER SELBST EINGETRAGEN HAT. Steht VOR dem Gemeinsamen, weil ein
+        Firmling deswegen herkommt: er hat ein Formular ausgefüllt und will
+        sehen, dass es angekommen ist — und was dort steht.
+
+        Ist nichts eingesandt worden, fehlt der Abschnitt ganz. Ein leerer
+        Kasten „Twoje zgłoszenie" auf dem Platz eines Schülers behauptete, es
+        gäbe dort eines.
+      */}
+      {portal.submitted.length > 0 && (
+        <Zone
+          title="Twoje zgłoszenie"
+          who="Widzisz to Ty i kancelaria, która prowadzi zapisy."
+        >
+          {mine.length === 0 ? (
+            <p className="wk-empty">Bez klucza z adresu nie da się tego otworzyć.</p>
+          ) : (
+            <dl className="wk-card-lines">
+              {mine.map((one) => (
+                <div key={one.fieldId}>
+                  <dt className="wk-row-side">{one.label ?? 'zapieczętowane pytanie'}</dt>
+                  <dd>{one.value ?? 'zapieczętowane'}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+
+          <p className="wk-hint">
+            Tak to zapisaliśmy. Jeśli coś się nie zgadza, napisz do kancelarii —
+            tego adresu nie da się tu poprawić samodzielnie.
+          </p>
+        </Zone>
+      )}
 
       {/* -- 2 ---------------------------------------------------------- */}
 

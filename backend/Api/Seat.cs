@@ -292,12 +292,23 @@ public static class Seat
             return;
         }
 
+        /*
+         * BEIDE Wege der Kanzlei stehen hier (0027), und genau EINER ist je
+         * Zeile gefuellt:
+         *
+         *   seat_key_for_area     das Amt hat den Platz ausgestellt
+         *   seat_key_for_intake   jemand hat sich selbst angemeldet
+         *
+         * `origin` sagt welcher, damit die Oberflaeche nicht aus „welche Spalte
+         * ist leer" darauf schliessen muss.
+         */
         await using var cmd = new SqlCommand("""
             SELECT a.id, a.recipient_name, a.seat_key_for_area, a.epoch,
                    a.personal_note_sealed, a.internal_note_sealed,
                    a.status, a.view_count, a.created_at, a.expires_at, a.revoked_at,
                    (SELECT COUNT(*) FROM app.access_holder h
-                     WHERE h.access_id = a.id AND h.until IS NULL) AS holders
+                     WHERE h.access_id = a.id AND h.until IS NULL) AS holders,
+                   a.seat_key_for_intake, a.origin
             FROM app.access a
             WHERE a.area_id = @area
             ORDER BY a.created_at DESC;
@@ -314,7 +325,9 @@ public static class Seat
             {
                 seatId = Ids.ToText(reader.GetGuid(0)),
                 recipientName = reader.IsDBNull(1) ? null : reader.GetString(1),
-                seatKeyForArea = Base64Url.Encode((byte[])reader[2]),
+                seatKeyForArea = reader.IsDBNull(2) ? null : Base64Url.Encode((byte[])reader[2]),
+                seatKeyForIntake = reader.IsDBNull(12) ? null : Base64Url.Encode((byte[])reader[12]),
+                origin = reader.GetString(13),
                 epoch = reader.GetInt32(3),
                 personalNoteSealed = reader.IsDBNull(4) ? null : Base64Url.Encode((byte[])reader[4]),
                 internalNoteSealed = reader.IsDBNull(5) ? null : Base64Url.Encode((byte[])reader[5]),
@@ -498,6 +511,16 @@ public static class Seat
          */
         var bySeat = await GrantsAsync(connection, [seatId], ctx.RequestAborted);
 
+        /*
+         * WAS ER SELBST EINGESANDT HAT (0027). Der Wertschluessel liegt ein
+         * zweites Mal da, versiegelt unter dem Platzschluessel — der Dienst
+         * reicht ihn durch, ohne ihn zu kennen, wie alles andere hier auch.
+         *
+         * Ohne das waere das Portal eines Firmlings leer: seine Angaben liegen
+         * unter dem Annahmeschluessel, und der gehoert dem Amt.
+         */
+        var submitted = await SubmittedAsync(connection, seatId, ctx.RequestAborted);
+
         await ctx.Response.WriteAsJsonAsync(new
         {
             seatId = Ids.ToText(seatId),
@@ -511,8 +534,65 @@ public static class Seat
             personalNoteSealed = personalNote is null ? null : Base64Url.Encode(personalNote),
             expiresAt,
 
-            grants = bySeat.TryGetValue(seatId, out var list) ? list : []
+            grants = bySeat.TryGetValue(seatId, out var list) ? list : [],
+            submitted
         });
+    }
+
+    /// <summary>
+    /// Was ueber DIESEN Platz eingesandt wurde — Frage und Antwort, beide
+    /// versiegelt.
+    ///
+    /// <para>
+    /// <b>Die Beschriftung geht mit.</b> Ohne sie stuenden im Portal Werte ohne
+    /// Fragen — „Kowalski", „2011-04-03" — und niemand wuesste, wonach gefragt
+    /// worden war. Sie liegt unter dem EPOCHENSCHLUESSEL des Bereichs, den ein
+    /// oeffentliches Formular ohnehin veroeffentlicht haben muss; sonst haette
+    /// der Einsendende das Formular gar nicht lesen koennen.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Ohne <c>seat_key_sealed</c> bleibt eine Zeile weg.</b> Das ist eine
+    /// Einsendung, die ueber einen anderen Weg kam — sie gehoert dem Amt, nicht
+    /// diesem Platz. Sie hier als „verschlossen" zu zeigen hiesse, ihre
+    /// Existenz zu verraten.
+    /// </para>
+    /// </summary>
+    private static async Task<List<object>> SubmittedAsync(
+        SqlConnection connection, Guid seatId, CancellationToken ct)
+    {
+        var out_ = new List<object>();
+
+        await using var cmd = new SqlCommand("""
+            SELECT f.id, f.kind, f.position, f.area_id, f.epoch, f.label_sealed,
+                   v.value_sealed, v.seat_key_sealed, r.submitted_at
+            FROM app.registration r
+            JOIN app.registration_value v ON v.registration_id = r.id
+            JOIN app.slug_field f         ON f.id = v.field_id
+            WHERE r.access_id = @seat AND v.seat_key_sealed IS NOT NULL
+            ORDER BY r.submitted_at, f.position;
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@seat", seatId);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            out_.Add(new
+            {
+                fieldId = Ids.ToText(reader.GetGuid(0)),
+                kind = reader.GetString(1),
+                position = reader.GetInt32(2),
+                areaId = Ids.ToText(reader.GetGuid(3)),
+                epoch = reader.GetInt32(4),
+                labelSealed = Base64Url.Encode((byte[])reader[5]),
+                valueSealed = Base64Url.Encode((byte[])reader[6]),
+                valueKeySealed = Base64Url.Encode((byte[])reader[7]),
+                submittedAt = reader.GetDateTimeOffset(8)
+            });
+        }
+
+        return out_;
     }
 
     /// <summary>

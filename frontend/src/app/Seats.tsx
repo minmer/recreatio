@@ -19,9 +19,10 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { myEpochKeys, type AreaRow } from './area';
+import { loadIntake, openIntakeKey } from './intake';
 import type { Ring } from './keys';
 import {
-  issueSeat, loadSeats, openAsOffice, revokeSeat, seatKeyOfRow, seatPath, setNotes,
+  issueSeat, loadSeats, openAsOffice, revokeSeat, officeSeatKey, seatPath, setNotes,
   type Link, type SeatRow
 } from './seat';
 import { WorkspaceError } from './session';
@@ -48,6 +49,17 @@ export function Seats({ area, areas, ring, ownerRoleId }: {
   ownerRoleId: string;
 }) {
   const [key, setKey] = useState<Uint8Array | null>(null);
+
+  /**
+   * Der private Annahmeschlüssel — für die Plätze, die aus einer
+   * SELBSTANMELDUNG entstanden sind (0027). Sie hängen nicht an der Epoche,
+   * sondern an der Annahme; ohne ihn bleiben sie in der Liste stehen und zu.
+   *
+   * `null` ist der Normalfall bei einem Bereich ohne Formular — deshalb ist ein
+   * Fehlschlag hier kein Fehler, sondern eine Auskunft.
+   */
+  const [intakePrivate, setIntakePrivate] = useState<Uint8Array | null>(null);
+
   const [rows, setRows] = useState<readonly Shown[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -63,6 +75,23 @@ export function Seats({ area, areas, ring, ownerRoleId }: {
 
       const { seats } = await loadSeats(area.areaId);
 
+      /*
+       * Nur holen, wenn es etwas zu holen gibt: ein Bereich ohne Formular hat
+       * keine Annahme, und ein 404 dafür wäre kein Fehler, sondern der
+       * Normalfall.
+       */
+      let intake: Uint8Array | null = null;
+
+      if (seats.some((row) => row.origin === 'self')) {
+        try {
+          intake = await openIntakeKey(await loadIntake(area.areaId), ring);
+        } catch {
+          intake = null;
+        }
+      }
+
+      setIntakePrivate(intake);
+
       if (areaKey === null) {
         setRows(seats.map((row) => ({ row, personal: null, internal: null })));
         return;
@@ -70,7 +99,7 @@ export function Seats({ area, areas, ring, ownerRoleId }: {
 
       const opened: Shown[] = [];
       for (const row of seats) {
-        opened.push({ row, ...await openAsOffice(row, areaKey) });
+        opened.push({ row, ...await openAsOffice(row, areaKey, intake ?? undefined) });
       }
       setRows(opened);
       setFailed(null);
@@ -121,6 +150,7 @@ export function Seats({ area, areas, ring, ownerRoleId }: {
               key={one.row.seatId}
               shown={one}
               areaKey={key}
+              intakePrivate={intakePrivate}
               busy={busy !== null}
               onAct={act}
             />
@@ -187,9 +217,13 @@ function FreshLink({ fresh, onClose }: {
 
 /* -- Ein Platz -------------------------------------------------------------- */
 
-function SeatItem({ shown, areaKey, busy, onAct }: {
+function SeatItem({ shown, areaKey, intakePrivate, busy, onAct }: {
   shown: Shown;
   areaKey: Uint8Array;
+
+  /** Nur für Plätze aus einer Selbstanmeldung — sonst `null` (0027). */
+  intakePrivate: Uint8Array | null;
+
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
@@ -201,7 +235,15 @@ function SeatItem({ shown, areaKey, busy, onAct }: {
   const gone = row.revokedAt !== null;
 
   const save = async () => {
-    const seatKey = await seatKeyOfRow(row, areaKey);
+    /*
+     * Ein selbst angemeldeter Platz haengt an der ANNAHME und nicht an der
+     * Epoche (0027). Ohne deren privaten Schluessel kommt die Kanzlei hier
+     * nicht heran — dann bleibt der Knopf besser stehen, als dass er eine
+     * Notiz unter einem Schluessel ablegt, den niemand wieder findet.
+     */
+    const seatKey = await officeSeatKey(row, areaKey, intakePrivate ?? undefined);
+    if (seatKey === null) throw new WorkspaceError("Do tego miejsca nie ma klucza.");
+
     await setNotes(row.seatId, areaKey, seatKey, { personal, internal });
   };
 

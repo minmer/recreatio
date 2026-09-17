@@ -224,7 +224,23 @@ export async function issueSeat(what: NewSeat): Promise<{ seatId: string; link: 
 export interface SeatRow {
   readonly seatId: string;
   readonly recipientName: string | null;
-  readonly seatKeyForArea: string;
+
+  /**
+   * Der Weg der Kanzlei zum Platzschlüssel — GENAU EINER je Zeile (0027).
+   *
+   * <code>
+   *   origin 'office'   seat_key_for_area     unter dem Epochenschlüssel
+   *   origin 'self'     seat_key_for_intake   unter dem Annahmeschlüssel
+   * </code>
+   *
+   * Der zweite Fall ist die Selbstanmeldung: dort liegt der Epochenschlüssel
+   * offen (sonst wäre das Formular nicht lesbar gewesen), und unter ihm zu
+   * versiegeln schützte nichts.
+   */
+  readonly seatKeyForArea: string | null;
+  readonly seatKeyForIntake: string | null;
+  readonly origin: 'office' | 'self';
+
   readonly epoch: number;
   readonly personalNoteSealed: string | null;
   readonly internalNoteSealed: string | null;
@@ -250,14 +266,11 @@ export interface OpenedSeat {
  * Eine Hülle, die nicht aufgeht, ergibt `null` und keinen Absturz: ein
  * einzelner beschädigter Platz darf die Liste nicht leeren.
  */
-export async function openAsOffice(row: SeatRow, areaKey: Uint8Array): Promise<OpenedSeat> {
-  let seatKey: Uint8Array | null = null;
-
-  try {
-    seatKey = await open(areaKey, seatAad(row.seatId), fromBase64Url(row.seatKeyForArea));
-  } catch {
-    return { personal: null, internal: null };
-  }
+export async function openAsOffice(
+  row: SeatRow, areaKey: Uint8Array, intakePrivate?: Uint8Array
+): Promise<OpenedSeat> {
+  const seatKey = await officeSeatKey(row, areaKey, intakePrivate);
+  if (seatKey === null) return { personal: null, internal: null };
 
   return {
     personal: await quietly(() => row.personalNoteSealed === null
@@ -288,9 +301,30 @@ export async function setNotes(
   });
 }
 
-/** Den Platzschlüssel aus der Kanzleihülle holen — zum Schreiben. */
-export const seatKeyOfRow = (row: SeatRow, areaKey: Uint8Array): Promise<Uint8Array> =>
-  open(areaKey, seatAad(row.seatId), fromBase64Url(row.seatKeyForArea));
+/**
+ * Den Platzschlüssel aus der Kanzleihülle holen — der EINE Weg, den diese Zeile
+ * hat.
+ *
+ * <b>Die Zeile sagt, welcher.</b> Aus „welches Feld ist gefüllt" darauf zu
+ * schliessen ginge auch und wäre der Schluss statt der Angabe: wer eine dritte
+ * Art Platz baut, müsste den Schluss mitpflegen.
+ *
+ * `null` statt eines Fehlers: ein einzelner Platz, der nicht aufgeht — eine
+ * alte Epoche, ein fehlender Annahmeschlüssel — darf die Liste nicht leeren.
+ */
+export async function officeSeatKey(
+  row: SeatRow, areaKey: Uint8Array, intakePrivate?: Uint8Array
+): Promise<Uint8Array | null> {
+  const label = seatAad(row.seatId);
+
+  if (row.origin === 'self') {
+    if (intakePrivate === undefined || row.seatKeyForIntake === null) return null;
+    return quietly(() => unwrapKey(intakePrivate, label, fromBase64Url(row.seatKeyForIntake!)));
+  }
+
+  if (row.seatKeyForArea === null) return null;
+  return quietly(() => open(areaKey, label, fromBase64Url(row.seatKeyForArea!)));
+}
 
 export const revokeSeat = (seatId: string): Promise<{ revoked: boolean }> =>
   call(`/workspace/seat/${encodeURIComponent(seatId)}/revoke`, { method: 'POST' });
@@ -308,7 +342,41 @@ export interface Portal {
 
   /** Was dieser Platz ausserdem aufschliesst — beim Schüler die Klasse. */
   readonly grants: readonly SeatGrant[];
+
+  /** Was über diesen Platz eingesandt wurde — beim Firmling sein Formular. */
+  readonly submitted: readonly SubmittedValue[];
 }
+
+/**
+ * Eine eigene Antwort, wie der Platz sie zurückbekommt.
+ *
+ * <b>Drei Hüllen und drei verschiedene Schlüssel</b>, und das ist kein Zufall:
+ *
+ * <code>
+ *   labelSealed      Epochenschlüssel des Bereichs   (die Frage — öffentlich)
+ *   valueKeySealed   PLATZSCHLÜSSEL                  (mein Weg zum Wert)
+ *   valueSealed      der Wertschlüssel darin         (die Antwort)
+ * </code>
+ *
+ * Der Dienst hat keinen davon.
+ */
+export interface SubmittedValue {
+  readonly fieldId: string;
+  readonly kind: string;
+  readonly position: number;
+  readonly areaId: string;
+  readonly epoch: number;
+  readonly labelSealed: string;
+  readonly valueSealed: string;
+  readonly valueKeySealed: string;
+  readonly submittedAt: string;
+}
+
+/*
+ * Aufgemacht werden sie in `form.ts` — dort liegen die Etiketten der Fragen
+ * und Antworten. Hier steht nur, WAS der Platz zurückgibt; ein zweiter Satz
+ * Etiketten wäre ein zweiter, der driften kann.
+ */
 
 /**
  * Den Platz holen — OHNE Konto.
@@ -396,6 +464,6 @@ export async function openMine(seat: MySeat, ring: Ring): Promise<string | null>
 /* -- Kleinkram -------------------------------------------------------------- */
 
 /** Eine Hülle, die nicht aufgeht, ist ein Befund — kein Absturz. */
-async function quietly(todo: () => Promise<string | null>): Promise<string | null> {
+async function quietly<T>(todo: () => Promise<T>): Promise<T | null> {
   try { return await todo(); } catch { return null; }
 }
