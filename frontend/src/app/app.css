@@ -51,11 +51,11 @@
   display: flex;
   align-items: baseline;
   gap: 0.7rem;
-  max-width: 40rem;
+  width: min(100%, 40rem);
   margin-inline: auto;
 }
 
-.wk-top-in-wide { max-width: 84rem; }
+.wk-top-in-wide { width: min(100%, 110rem); }
 
 .wk-brand { font-weight: 600; letter-spacing: 0.01em; }
 
@@ -71,14 +71,18 @@
   padding: 0.05rem 0.5rem;
 }
 
-/* `max-width` allein stellt die Spalte NICHT in die Mitte — sie blieb links
-   kleben, und auf einem breiten Schirm sah die Seite aus wie halb geladen.
-   `margin-inline: auto` ist das fehlende Stueck; `box-sizing` sorgt dafuer,
-   dass die Polsterung die Breite nicht noch einmal dazuzaehlt. */
+/* Die Spalte steht in der Mitte — und zwar mit `width: min(100%, …)` und nicht
+   mit `width: 100%` plus `max-width`.
+
+   Der Unterschied ist nicht Geschmack: `.wk-main` ist ein Rasterfeld von
+   `.wk-root`. Ein Rasterfeld mit `width: 100%` bekommt eine feste Breite, die
+   erst danach von `max-width` gekappt wird — was uebrigbleibt, faellt an das
+   Ende der Spur, und die Seite klebte links. `min(100%, …)` setzt die Breite
+   gleich richtig, und dann haben die automatischen Seitenraender etwas zu
+   verteilen. */
 .wk-main {
   box-sizing: border-box;
-  width: 100%;
-  max-width: calc(40rem + 2.8rem);
+  width: min(100%, calc(40rem + 2.8rem));
   margin-inline: auto;
   padding: 2.4rem 1.4rem 4rem;
   display: grid;
@@ -170,9 +174,14 @@ code {
    ------------------------------------------------------------------------ */
 
 /* Die breite Spalte — Kacheln, der Seiteneditor, eine öffentliche Seite.
-   Ein sechsspaltiges Raster in 62rem gibt jeder Spalte gut 9rem; auf einem
-   Bildschirm, der 1900 Punkte hat, bleibt daneben die halbe Fläche leer. */
-.wk-main-wide { max-width: calc(84rem + 2.8rem); }
+   Sie überschreibt `width`, nicht `max-width`: sonst stünde daneben noch die
+   engere Breite und gewänne, je nachdem welche Regel zuletzt käme.
+
+   110rem sind rund 1760 Punkte. Auf einem Schirm mit 2500 bleibt links und
+   rechts je eine Handbreit — die Seite füllt ihn, ohne am Rand zu kleben. Dass
+   der Fliesstext darin nicht auf 1760 Punkte Zeilenlänge auseinanderläuft,
+   besorgt `.wk-card-text` mit seinen 66 Zeichen. */
+.wk-main-wide { width: min(100%, calc(110rem + 2.8rem)); }
 
 .wk-tiles {
   display: grid;
