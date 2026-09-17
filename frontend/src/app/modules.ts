@@ -60,7 +60,19 @@ export interface ModuleDef {
 
 export const CATALOG: readonly ModuleDef[] = [
   {
-    kind: 'text', label: 'Tekst', colSpan: 3, rowSpan: 3,
+    /*
+     * ÜBER DIE GANZE BREITE, nicht über die halbe.
+     *
+     * Dieser Baustein trägt den Fliesstext einer Seite — bei der Firmung sind
+     * das mehrere Absätze am Stück. Mit `colSpan: 3` bekam jeder davon die
+     * halbe Spalte, und wer eine Seite schrieb, musste JEDEN einzeln breiter
+     * ziehen; wer es vergass, hatte eine Seite, die zur Hälfte leer aussieht.
+     *
+     * Eine Vorgabe ist keine Fessel: nebeneinander stellt man zwei Texte
+     * weiterhin, indem man sie schmaler zieht. Nur ist das jetzt der seltenere
+     * Fall, und der seltenere Fall soll die Arbeit machen.
+     */
+    kind: 'text', label: 'Tekst', colSpan: 6, rowSpan: 3,
     fields: [
       { key: 'title', label: 'Nagłówek', kind: 'line' },
       { key: 'body', label: 'Treść', kind: 'text' }
