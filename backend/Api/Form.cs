@@ -48,6 +48,21 @@ public static class Form
 
         app.MapGet("/workspace/part/{id:guid}/registrations", RegistrationsAsync);
 
+        /*
+         * ZWEI VERSCHIEDENE DINGE, und sie duerfen nicht denselben Knopf haben.
+         *
+         *   hide    raeumt die LISTE auf. Die Huellen bleiben liegen.
+         *   remove  loescht die HUELLEN. Danach gibt es sie nicht mehr —
+         *           auch nicht fuer den Betreiber, der sie ohnehin nie lesen
+         *           konnte.
+         *
+         * Ein einziger Knopf „usuń", der in Wahrheit versteckt, waere eine
+         * Zusage, die niemand einloest: wer seine Daten zurueckzieht, meint die
+         * Bytes und nicht die Anzeige.
+         */
+        app.MapPost("/workspace/registration/{id:guid}/hide", HideAsync);
+        app.MapPost("/workspace/registration/{id:guid}/remove", RemoveAsync);
+
         /* Ohne Konto — das ist der Zweck. */
         app.MapGet("/form/{id:guid}", PublicAsync);
         app.MapPost("/form/{id:guid}/submit", SubmitAsync);
@@ -878,12 +893,19 @@ public static class Form
          */
         var readable = fields.Where(f => mine.Contains(f.AreaId)).Select(f => f.Id).ToHashSet();
 
-        var rows = new List<(Guid Id, Guid? Seat, DateTimeOffset At, DateTimeOffset? Gone)>();
+        var rows = new List<(Guid Id, Guid? Seat, DateTimeOffset At, DateTimeOffset? Gone, bool Hidden)>();
 
-        await using (var cmd = new SqlCommand("""
-            SELECT id, access_id, submitted_at, withdrawn_at
+        /*
+         * Versteckte kommen nur mit, wenn danach gefragt wird — sonst waere
+         * „ukryj" ein Knopf ohne Wirkung. Und sie kommen als VERSTECKT, damit
+         * die Oberflaeche sie nicht wieder unter die uebrigen mischt.
+         */
+        var withHidden = ctx.Request.Query["hidden"] == "1";
+
+        await using (var cmd = new SqlCommand($"""
+            SELECT id, access_id, submitted_at, withdrawn_at, is_hidden
             FROM app.registration
-            WHERE part_id = @part AND is_hidden = 0
+            WHERE part_id = @part {(withHidden ? "" : "AND is_hidden = 0")}
             ORDER BY submitted_at DESC;
             """, connection))
         {
@@ -896,7 +918,8 @@ public static class Form
                     reader.GetGuid(0),
                     reader.IsDBNull(1) ? null : reader.GetGuid(1),
                     reader.GetDateTimeOffset(2),
-                    reader.IsDBNull(3) ? null : reader.GetDateTimeOffset(3)));
+                    reader.IsDBNull(3) ? null : reader.GetDateTimeOffset(3),
+                    reader.GetBoolean(4)));
             }
         }
 
@@ -944,6 +967,7 @@ public static class Form
                 seatId = r.Seat is null ? null : Ids.ToText(r.Seat.Value),
                 submittedAt = r.At,
                 withdrawnAt = r.Gone,
+                hidden = r.Hidden,
                 values = byRegistration.TryGetValue(r.Id, out var list) ? list : []
             })
         });
@@ -999,7 +1023,164 @@ public static class Form
         return fields;
     }
 
-    /// <summary>Die Adresse, auf der dieser Baustein steht — fuer die Rechtefrage.</summary>
+    public sealed record HideRequest(bool Hidden);
+
+    /// <summary>
+    /// Eine Einsendung aus der Liste nehmen — oder zurueckholen.
+    ///
+    /// <para>
+    /// <b>Das loescht nichts.</b> Die versiegelten Antworten bleiben, wo sie
+    /// sind; es aendert sich, was die Kanzlei vor sich sieht. Fuer eine
+    /// Doppeleinsendung oder einen Probelauf ist das genau richtig — und fuer
+    /// jemanden, der um Loeschung bittet, genau falsch. Dafuer steht
+    /// <see cref="RemoveAsync"/> daneben.
+    /// </para>
+    /// </summary>
+    private static async Task HideAsync(HttpContext ctx, Db db, Guid id, HideRequest body)
+    {
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        if (!await MayTendAsync(ctx, db, connection, id)) return;
+
+        await using var cmd = new SqlCommand(
+            "UPDATE app.registration SET is_hidden = @hidden WHERE id = @id;", connection);
+
+        cmd.Parameters.AddWithValue("@hidden", body.Hidden);
+        cmd.Parameters.AddWithValue("@id", id);
+
+        await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            registrationId = Ids.ToText(id),
+            hidden = body.Hidden
+        });
+    }
+
+    /// <summary>
+    /// Eine Einsendung LOESCHEN — die Antworten mit.
+    ///
+    /// <para>
+    /// <b>Danach gibt es sie nicht mehr.</b> Kein Papierkorb, kein Merkmal: die
+    /// Zeilen in <c>registration_value</c> verschwinden, und mit ihnen die
+    /// einzigen Bytes, in denen die Angaben je standen. Der Dienst konnte sie
+    /// nie lesen und kann sie erst recht nicht wiederherstellen.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Der PLATZ bleibt stehen.</b> Er ist der Zugang eines Menschen und
+    /// nicht seine Einsendung; naehme man ihn mit, naehme man dem Firmling auch
+    /// die Nachricht der Kanzlei und den gemeinsamen Kalender. Sein Portal
+    /// zeigt danach kein „Twoje zgłoszenie" mehr — was zutrifft.
+    /// </para>
+    /// </summary>
+    private static async Task RemoveAsync(HttpContext ctx, Db db, Guid id)
+    {
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        if (!await MayTendAsync(ctx, db, connection, id)) return;
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            int values;
+
+            await using (var cmd = new SqlCommand("""
+                DELETE FROM app.registration_value WHERE registration_id = @id;
+                SELECT @@ROWCOUNT;
+                """, connection, tx))
+            {
+                cmd.Parameters.AddWithValue("@id", id);
+                values = (int)(await cmd.ExecuteScalarAsync(ctx.RequestAborted) ?? 0);
+            }
+
+            await using (var cmd = new SqlCommand(
+                "DELETE FROM app.registration WHERE id = @id;", connection, tx))
+            {
+                cmd.Parameters.AddWithValue("@id", id);
+                await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+
+            await ctx.Response.WriteAsJsonAsync(new
+            {
+                registrationId = Ids.ToText(id),
+                removed = true,
+                values
+            });
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Darf dieser Mensch an DIESER Einsendung etwas aendern?
+    ///
+    /// <para>
+    /// <b>Schreiben, nicht lesen.</b> Zum Ansehen genuegt Lesen am Bereich —
+    /// zum Wegraeumen oder Loeschen nicht. Wer etwas fortnimmt, aendert den
+    /// Bestand, und dafuer gilt dieselbe Schwelle wie fuers Aufstellen der
+    /// Fragen.
+    /// </para>
+    ///
+    /// <para>
+    /// Antwortet selbst, wenn es nicht geht — der Aufrufer sieht nur noch den
+    /// Rueckgabewert an.
+    /// </para>
+    /// </summary>
+    private static async Task<bool> MayTendAsync(
+        HttpContext ctx, Db db, SqlConnection connection, Guid registrationId)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return false; }
+
+        Guid partId;
+
+        await using (var cmd = new SqlCommand(
+            "SELECT part_id FROM app.registration WHERE id = @id;", connection))
+        {
+            cmd.Parameters.AddWithValue("@id", registrationId);
+
+            if (await cmd.ExecuteScalarAsync(ctx.RequestAborted) is not Guid found)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Takiego zgłoszenia nie ma.");
+                return false;
+            }
+
+            partId = found;
+        }
+
+        var path = await PathOfPartAsync(connection, partId, ctx.RequestAborted);
+        if (path is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
+            return false;
+        }
+
+        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
+        if (grip.MayWrite) return true;
+
+        var fields = await ReadFieldsAsync(connection, partId, ctx.RequestAborted);
+
+        foreach (var areaId in fields.Select(f => f.AreaId).Distinct())
+        {
+            if (await Area.MayAsync(connection, who.Value.AccountId, areaId,
+                    Capability.Write, ctx.RequestAborted))
+            {
+                return true;
+            }
+        }
+
+        await Fail(ctx, StatusCodes.Status403Forbidden,
+            "Do tego zgłoszenia nie masz prawa zapisu — ani przez adres, ani przez obszar.");
+        return false;
+    }
+
     /// <summary>
     /// Eine Ebene hoeher — oder der Pfad selbst, wenn er schon oben steht.
     ///

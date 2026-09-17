@@ -24,7 +24,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { loadAreas, myEpochKeys, type AreaRow } from './area';
 import {
   FIELD_KINDS, KIND_LABEL, addField, loadFields, loadRegistrations, openFields,
-  readSubmission, removeField, type FieldKind, type OpenField, type Submission
+  hideSubmission, readSubmission, removeField, removeSubmission,
+  type FieldKind, type OpenField, type Submission
 } from './form';
 import { createIntake, loadIntake, openIntakeKey, setController } from './intake';
 import type { Ring, SealedRole } from './keys';
@@ -49,6 +50,14 @@ export function FormOffice({ partId, who }: { partId: string; who: Who }) {
    * schief", und die Antwort darauf ist eine andere.
    */
   const [note, setNote] = useState<string | null>(null);
+
+  /**
+   * Welcher Bereich zuletzt aufgemacht wurde — damit „ukryj" und „usuń"
+   * danach dieselbe Liste neu holen können, ohne dass jemand erneut auf
+   * „Otwórz zgłoszenia" klicken muss.
+   */
+  const [lastArea, setLastArea] = useState<string | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
 
   const look = useCallback(async () => {
     try {
@@ -108,7 +117,9 @@ export function FormOffice({ partId, who }: { partId: string; who: Who }) {
     const intake = await loadIntake(areaId);
     const privateKey = await openIntakeKey(intake, ring);
 
-    const { registrations } = await loadRegistrations(partId);
+    setLastArea(areaId);
+
+    const { registrations } = await loadRegistrations(partId, showHidden);
     setSubmissions(registrations);
 
     const out = new Map<string, Map<string, string>>();
@@ -236,6 +247,31 @@ export function FormOffice({ partId, who }: { partId: string; who: Who }) {
         </div>
       )}
 
+      {submissions.length > 0 && (
+        <>
+          <p className="wk-hint">
+            <strong>„Ukryj" nic nie kasuje</strong> — wiersz znika z listy, a
+            zapieczętowane odpowiedzi leżą dalej. <strong>„Usuń bezpowrotnie"</strong> kasuje
+            same odpowiedzi: nikt ich potem nie odtworzy, także prowadzący
+            usługę, bo nigdy nie mógł ich przeczytać. Miejsce kandydata zostaje —
+            zabierasz zgłoszenie, nie dostęp.
+          </p>
+
+          <label className="wk-field">
+            <span>
+              <input
+                type="checkbox" checked={showHidden}
+                onChange={(e) => {
+                  setShowHidden(e.target.checked);
+                  if (lastArea !== null) void act('Wczytywanie…', () => read(lastArea));
+                }}
+              />
+              {' '}Pokaż też ukryte
+            </span>
+          </label>
+        </>
+      )}
+
       {note !== null && <p className="wk-note">{note}</p>}
 
       {submissions.length > 0 && (
@@ -247,6 +283,36 @@ export function FormOffice({ partId, who }: { partId: string; who: Who }) {
                   {new Date(s.submittedAt).toLocaleString('pl-PL')}
                   {s.seatId !== null && ' · z miejsca'}
                   {s.withdrawnAt !== null && ' · wycofane'}
+                  {s.hidden && ' · ukryte'}
+                </span>
+
+                {/*
+                  ZWEI VERSCHIEDENE DINGE, nebeneinander und verschieden
+                  benannt. „Ukryj" räumt die Liste auf und lässt die Hüllen
+                  liegen; „Usuń" nimmt die Bytes fort. Ein Knopf für beides
+                  wäre der bequeme Weg und eine Unwahrheit gegenüber dem, der
+                  um Löschung bittet.
+                */}
+                <span className="wk-row-side">
+                  <button
+                    type="button" className="wk-link-btn" disabled={busy !== null}
+                    onClick={() => void act(s.hidden ? 'Przywracanie…' : 'Ukrywanie…', async () => {
+                      await hideSubmission(s.registrationId, !s.hidden);
+                      if (lastArea !== null) await read(lastArea);
+                    })}
+                  >
+                    {s.hidden ? 'Przywróć' : 'Ukryj'}
+                  </button>
+                  {' · '}
+                  <button
+                    type="button" className="wk-link-btn" disabled={busy !== null}
+                    onClick={() => void act('Usuwanie…', async () => {
+                      await removeSubmission(s.registrationId);
+                      if (lastArea !== null) await read(lastArea);
+                    })}
+                  >
+                    Usuń bezpowrotnie
+                  </button>
                 </span>
 
                 {/*

@@ -395,11 +395,48 @@ export interface Submission {
   readonly seatId: string | null;
   readonly submittedAt: string;
   readonly withdrawnAt: string | null;
+
+  /** Aus der Liste genommen — die Hüllen liegen weiter da. */
+  readonly hidden: boolean;
+
   readonly values: readonly SealedAnswer[];
 }
 
-export const loadRegistrations = (partId: string): Promise<{ registrations: readonly Submission[] }> =>
-  call(`/workspace/part/${encodeURIComponent(partId)}/registrations`);
+export const loadRegistrations = (
+  partId: string, withHidden = false
+): Promise<{ registrations: readonly Submission[] }> =>
+  call(`/workspace/part/${encodeURIComponent(partId)}/registrations${withHidden ? '?hidden=1' : ''}`);
+
+/**
+ * Aus der Liste nehmen — oder zurückholen.
+ *
+ * <b>Das löscht nichts.</b> Die versiegelten Antworten bleiben liegen; es
+ * ändert sich, was die Kanzlei vor sich sieht. Für eine Doppeleinsendung oder
+ * einen Probelauf ist das richtig — für jemanden, der um Löschung bittet,
+ * falsch. Dafür steht `removeSubmission` daneben.
+ */
+export const hideSubmission = (
+  registrationId: string, hidden: boolean
+): Promise<{ registrationId: string; hidden: boolean }> =>
+  call(`/workspace/registration/${encodeURIComponent(registrationId)}/hide`, {
+    method: 'POST',
+    body: JSON.stringify({ hidden })
+  });
+
+/**
+ * LÖSCHEN — die Antworten mit.
+ *
+ * <b>Danach gibt es sie nicht mehr.</b> Kein Papierkorb: die einzigen Bytes, in
+ * denen die Angaben je standen, verschwinden. Auch der Dienst bekommt sie nicht
+ * zurück — er konnte sie ohnehin nie lesen.
+ *
+ * <b>Der Platz bleibt.</b> Er ist der Zugang eines Menschen und nicht seine
+ * Einsendung; sein Portal zeigt danach nur kein „Twoje zgłoszenie" mehr.
+ */
+export const removeSubmission = (
+  registrationId: string
+): Promise<{ registrationId: string; removed: boolean; values: number }> =>
+  call(`/workspace/registration/${encodeURIComponent(registrationId)}/remove`, { method: 'POST' });
 
 /**
  * Eine Einsendung aufmachen — mit dem PRIVATEN Annahmeschlüssel.

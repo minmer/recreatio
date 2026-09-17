@@ -534,33 +534,126 @@ public static class Page
         var now = DateTimeOffset.UtcNow;
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
-        await using (var clear = new SqlCommand(
-            "DELETE FROM app.slug_part WHERE slug_id = @slug;", connection, tx))
+        /*
+         * NICHT MEHR ALLES WEGWERFEN UND NEU SCHREIBEN.
+         *
+         * <b>Ein Baustein ist eine Kennung, an der etwas hängt.</b> Auf
+         * `app.slug_part` zeigen zwei Fremdschlüssel: die FRAGEN eines
+         * Formulars (`slug_field.part_id`) und die EINSENDUNGEN darauf
+         * (`registration.part_id`). Ein `DELETE` über alle Zeilen der Seite —
+         * so stand es hier — liess sich deshalb nicht mehr ausführen, sobald
+         * ein Formular auch nur eine Frage trug: die Datenbank lehnte ab, und
+         * heraus kam ein 500. Die Seite war damit gar nicht mehr zu speichern,
+         * nicht bloss das Formular nicht mehr zu entfernen.
+         *
+         * Also der ehrliche Abgleich: was bleibt, wird geändert; was neu ist,
+         * kommt hinzu; was geht, geht — und was NICHT gehen kann, sagt warum.
+         */
+        try
         {
-            clear.Parameters.AddWithValue("@slug", slugId);
-            await clear.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        var here = new List<Guid>();
+
+        await using (var known = new SqlCommand(
+            "SELECT id FROM app.slug_part WHERE slug_id = @slug;", connection, tx))
+        {
+            known.Parameters.AddWithValue("@slug", slugId);
+
+            await using var reader = await known.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted)) here.Add(reader.GetGuid(0));
         }
+
+        foreach (var going in here.Where(id => !ids.Contains(id)))
+        {
+            /*
+             * EINE EINSENDUNG IST KEIN ENTWURF. Wer ein Formular wegnimmt, auf
+             * das sich Menschen eingetragen haben, nähme ihnen auch das, was
+             * sie eingesandt haben — und der Dienst könnte es nicht einmal
+             * wieder herausgeben, weil er es nicht lesen kann. Das geht nur,
+             * wenn es ausdrücklich verlangt wird, und dafür gibt es hier keinen
+             * Weg.
+             */
+            await using (var count = new SqlCommand(
+                "SELECT COUNT(*) FROM app.registration WHERE part_id = @part;", connection, tx))
+            {
+                count.Parameters.AddWithValue("@part", going);
+
+                if ((int)(await count.ExecuteScalarAsync(ctx.RequestAborted) ?? 0) > 0)
+                {
+                    await tx.RollbackAsync(ctx.RequestAborted);
+                    await Fail(ctx, StatusCodes.Status409Conflict,
+                        "Na tym formularzu są już zgłoszenia — nie da się go usunąć razem ze stroną. "
+                        + "Zostaw blok albo najpierw zajmij się zgłoszeniami.");
+                    return;
+                }
+            }
+
+            /* Fragen ohne Einsendungen gehen mit — sie hängen an diesem Baustein. */
+            await using (var fields = new SqlCommand(
+                "DELETE FROM app.slug_field WHERE part_id = @part;", connection, tx))
+            {
+                fields.Parameters.AddWithValue("@part", going);
+                await fields.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await using (var drop = new SqlCommand(
+                "DELETE FROM app.slug_part WHERE id = @part;", connection, tx))
+            {
+                drop.Parameters.AddWithValue("@part", going);
+                await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+        }
+
+        var staying = here.ToHashSet();
 
         for (var i = 0; i < parts.Count; i++)
         {
-            await using var insert = new SqlCommand("""
-                INSERT INTO app.slug_part (id, slug_id, kind, position, layout, config, created_at)
-                VALUES (@id, @slug, @kind, @position, @layout, @config, @now);
-                """, connection, tx);
+            var id = Guid.Parse(parts[i].Id);
 
-            insert.Parameters.AddWithValue("@id", Guid.Parse(parts[i].Id));
-            insert.Parameters.AddWithValue("@slug", slugId);
-            insert.Parameters.AddWithValue("@kind", parts[i].Kind.Trim());
-            insert.Parameters.AddWithValue("@position", i);
-            insert.Parameters.AddWithValue("@layout", parts[i].Layout);
-            insert.Parameters.AddWithValue("@config", (object?)parts[i].Config ?? DBNull.Value);
-            insert.Parameters.AddWithValue("@now", now);
+            await using var save = staying.Contains(id)
+                ? new SqlCommand("""
+                    UPDATE app.slug_part
+                       SET kind = @kind, position = @position, layout = @layout, config = @config
+                     WHERE id = @id;
+                    """, connection, tx)
+                : new SqlCommand("""
+                    INSERT INTO app.slug_part (id, slug_id, kind, position, layout, config, created_at)
+                    VALUES (@id, @slug, @kind, @position, @layout, @config, @now);
+                    """, connection, tx);
 
-            await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
+            save.Parameters.AddWithValue("@id", id);
+            save.Parameters.AddWithValue("@kind", parts[i].Kind.Trim());
+            save.Parameters.AddWithValue("@position", i);
+            save.Parameters.AddWithValue("@layout", parts[i].Layout);
+            save.Parameters.AddWithValue("@config", (object?)parts[i].Config ?? DBNull.Value);
+
+            if (!staying.Contains(id))
+            {
+                save.Parameters.AddWithValue("@slug", slugId);
+                save.Parameters.AddWithValue("@now", now);
+            }
+
+            await save.ExecuteNonQueryAsync(ctx.RequestAborted);
         }
 
         await tx.CommitAsync(ctx.RequestAborted);
         await ctx.Response.WriteAsJsonAsync(new { path = wanted, parts = parts.Count });
+
+        }
+        catch (SqlException e) when (e.Number is 547 or 2601 or 2627)
+        {
+            /*
+             * Ein 500 auf einem PUT ist doppelt schlecht: der Browser sieht dann
+             * nicht einmal den Grund, weil eine Fehlerantwort keine
+             * CORS-Kopfzeile mehr traegt — es sieht nach „blockiert" aus und ist
+             * ein Verstoss gegen eine Bedingung. Also wird er hier benannt.
+             */
+            await tx.RollbackAsync(ctx.RequestAborted);
+
+            await Fail(ctx, StatusCodes.Status409Conflict, e.Number == 547
+                ? "Do któregoś z tych bloków coś jeszcze należy — nie da się go teraz usunąć."
+                : "Taki blok już gdzieś stoi. Odśwież stronę i spróbuj jeszcze raz.");
+        }
     }
 
     /// <summary>
