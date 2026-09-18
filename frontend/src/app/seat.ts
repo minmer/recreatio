@@ -377,6 +377,30 @@ export interface Portal {
 
   /** Was über diesen Platz eingesandt wurde — beim Firmling sein Formular. */
   readonly submitted: readonly SubmittedValue[];
+
+  /**
+   * Die VORLAGE, aus der sich dieses Portal zeichnet (0028) — oder `null`.
+   *
+   * <b>Eine ganz gewöhnliche Seite.</b> Ihre Bausteine kommen über diesen Weg
+   * und nicht über ihre Adresse: sie ist in der Regel intern (0026), und hier
+   * ist der Link der Ausweis. Gezeichnet wird sie mit `PageParts`, wie jede
+   * andere — dieselben Module, dasselbe Raster, derselbe Editor.
+   *
+   * `null` heisst: der Bereich hat keine eingerichtet. Dann zeigt das Portal
+   * seine eingebaute Gestalt, und das ist kein Übergangszustand — ein Platz
+   * ohne Vorlage soll trotzdem etwas zeigen.
+   */
+  readonly template: {
+    readonly path: string;
+    readonly title: string | null;
+    readonly lead: string | null;
+    readonly parts: readonly {
+      readonly id: string;
+      readonly kind: string;
+      readonly layout: string;
+      readonly config: string | null;
+    }[];
+  } | null;
 }
 
 /**

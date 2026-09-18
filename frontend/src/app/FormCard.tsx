@@ -30,6 +30,7 @@ import { fromBase64Url } from './crypto';
 import {
   loadForm, openFields, submitForm, type Answer, type OpenField, type PublicForm
 } from './form';
+import { Phones } from './Phones';
 import { seatPath, type Link } from './seat';
 import { WorkspaceError } from './session';
 
@@ -253,10 +254,20 @@ export function FormCard({ partId, config }: {
                   <option value="">—</option>
                   {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
+              ) : f.kind === 'phone' ? (
+                /*
+                 * Eine Nummer wird zum Plättchen, sobald sie fertig ist — und
+                 * das `+48` schreibt die Maschine. Mehrere Nummern in einem Feld
+                 * sind der Normalfall, nicht die Ausnahme: Mutter, Vater, Kind.
+                 */
+                <Phones
+                  value={answers[f.fieldId] ?? ''}
+                  onChange={(next) => setAnswers({ ...answers, [f.fieldId]: next })}
+                />
               ) : (
                 <input
                   type={f.kind === 'date' ? 'date' : f.kind === 'number' ? 'number'
-                    : f.kind === 'email' ? 'email' : f.kind === 'phone' ? 'tel' : 'text'}
+                    : f.kind === 'email' ? 'email' : 'text'}
                   value={answers[f.fieldId] ?? ''}
                   onChange={(e) => setAnswers({ ...answers, [f.fieldId]: e.target.value })}
                 />

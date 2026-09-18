@@ -33,13 +33,13 @@ import { fromBase64Url, openText } from './crypto';
 import type { SealedRole } from './keys';
 import { Field, aad } from './crypto';
 import { keysFor } from './ringOf';
-import { openSubmitted, reviseSubmission } from './form';
-import { loadPublicIntake } from './intake';
-import {
-  bindSeat, loadPortal, openGrants, openPortal,
-  type Portal, type SubmittedValue
-} from './seat';
+import { openSubmitted } from './form';
+import { bindSeat, loadPortal, openGrants, openPortal, type Portal } from './seat';
 import { pagePath } from './routes';
+import { PageParts } from './PageParts';
+import { toDraft } from './page';
+import { SeatContext, type SeatView } from './seatContext';
+import { Submission } from './Submission';
 import { whoIsThere, WorkspaceError, type Who } from './session';
 
 interface Shared {
@@ -207,8 +207,35 @@ export function SeatPortal({ token, keyText, under }: {
     );
   }
 
+  /*
+   * WAS DIESE SEITE ZEIGT, BESTIMMT DIE KANZLEI (0028).
+   *
+   * Hat der Bereich eine Portalvorlage, kommen ihre Bausteine mit, und sie
+   * werden gezeichnet wie jede andere Seite — mit `PageParts`, im selben
+   * Raster, mit denselben Modulen. Wer dort einen Text dazustellen will, tut es
+   * im Seiteneditor und braucht dafür keine neue Fassung dieser Anwendung.
+   *
+   * Ohne Vorlage bleibt die eingebaute Gestalt darunter stehen. Das ist kein
+   * Übergangszustand, den man später wegräumt: ein Platz, den jemand ohne
+   * Vorlage ausgestellt hat, soll trotzdem etwas zeigen.
+   */
+  const seat: SeatView = {
+    token,
+    seatKey,
+    recipientName: portal.recipientName,
+    note,
+    submitted: portal.submitted,
+    opened: mine,
+    shared,
+    sharedNames,
+    expiresAt: portal.expiresAt,
+    reload: () => void look()
+  };
+
+  const template = portal.template;
+
   return (
-    <>
+    <SeatContext.Provider value={seat}>
       {under !== null && under !== '' && (
         <p className="wk-row-side">
           <a className="wk-link" href={pagePath(under)}>← {under}</a>
@@ -216,12 +243,11 @@ export function SeatPortal({ token, keyText, under }: {
       )}
 
       <h1 className="wk-h1">
-        {portal.recipientName === null ? 'Twoje miejsce' : portal.recipientName}
+        {template?.title ?? (portal.recipientName === null ? 'Twoje miejsce' : portal.recipientName)}
       </h1>
 
       <p className="wk-lede">
-        Ten link jest kluczem, nie legitymacją: kto go ma, widzi tę stronę.
-        Nie przekazuj go dalej.
+        {template?.lead ?? 'Ten link jest kluczem, nie legitymacją: kto go ma, widzi tę stronę. Nie przekazuj go dalej.'}
       </p>
 
       {keyText === null && (
@@ -240,6 +266,22 @@ export function SeatPortal({ token, keyText, under }: {
 
       {failed !== null && <p className="wk-error">{failed}</p>}
 
+      {/*
+        DIE VORLAGE, wenn es eine gibt — und dann NUR sie. Beides zu zeigen
+        hiesse, dieselbe Einsendung zweimal untereinander zu stellen: einmal aus
+        dem Baustein und einmal aus dem eingebauten Abschnitt.
+      */}
+      {template !== null && <PageParts parts={template.parts.map(toDraft)} />}
+
+      {template !== null && template.parts.length === 0 && (
+        <p className="wk-note">
+          Ta strona jeszcze nic nie pokazuje — kancelaria dopiero układa jej
+          moduły. Wróć tu za jakiś czas; adres się nie zmieni.
+        </p>
+      )}
+
+      {template === null && (
+      <>
       {/*
         NUR WAS DA IST.
 
@@ -323,6 +365,8 @@ export function SeatPortal({ token, keyText, under }: {
         to, co udostępniasz. Na razie jest tu Twoje zgłoszenie — wracaj pod ten
         sam adres, on się nie zmieni.
       </p>
+      </>
+      )}
 
       {portal.expiresAt !== null && (
         <p className="wk-hint">
@@ -379,7 +423,7 @@ export function SeatPortal({ token, keyText, under }: {
           </div>
         </form>
       )}
-    </>
+    </SeatContext.Provider>
   );
 }
 
@@ -390,133 +434,6 @@ export function SeatPortal({ token, keyText, under }: {
  * die vier Teile auseinanderhält. Ohne sie sähe alles gleich aus, und er
  * schriebe in den falschen.
  */
-/* -- Die eigene Einsendung, zum Nachlesen und Berichtigen ------------------- */
-
-/**
- * Was er eingetragen hat — und der Weg, es zu ändern.
- *
- * <b>Die Angabe gehört ihm.</b> Ihn für einen Tippfehler in die Kanzlei zu
- * schicken hiesse: sie gehört dem Amt. Also steht der Knopf hier, und die
- * Änderung geht denselben Weg wie die erste Einsendung — ein frischer Schlüssel
- * je Wert, einmal für das Amt verpackt und einmal für ihn selbst.
- *
- * <b>Nur geänderte Felder gehen hinaus.</b> Ein unverändertes noch einmal zu
- * versiegeln hiesse, seinen Schlüssel ohne Grund zu wechseln — und es machte
- * jede Berichtigung zu einer Neuschrift des ganzen Bogens.
- */
-function Submission({ values, open, token, seatKey, onSaved }: {
-  values: readonly SubmittedValue[];
-  open: readonly { fieldId: string; label: string | null; value: string | null }[];
-  token: string;
-  seatKey: Uint8Array | null;
-  onSaved: () => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
-
-  const start = () => {
-    const from: Record<string, string> = {};
-    for (const one of open) from[one.fieldId] = one.value ?? '';
-
-    setDraft(from);
-    setFailed(null);
-    setEditing(true);
-  };
-
-  const changed = open.filter((one) => (draft[one.fieldId] ?? '') !== (one.value ?? ''));
-
-  const save = async () => {
-    if (seatKey === null) return;
-
-    setBusy(true);
-    setFailed(null);
-
-    try {
-      /*
-       * Die öffentliche Annahmehälfte holt sich die Seite selbst — sie kennt
-       * den Bereich aus der eigenen Einsendung. Das Formular, auf dem das
-       * einmal stand, muss sie dafür nicht kennen.
-       */
-      const areaId = values[0].areaId;
-      const intake = await loadPublicIntake(areaId);
-
-      await reviseSubmission(
-        token, values[0].registrationId,
-        changed.map((one) => ({ fieldId: one.fieldId, value: draft[one.fieldId] ?? '' })),
-        { intakePublic: fromBase64Url(intake.publicKey), seatKey });
-
-      setEditing(false);
-      onSaved();
-    } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!editing) {
-    return (
-      <>
-        <dl className="wk-card-lines">
-          {open.map((one) => (
-            <div key={one.fieldId}>
-              <dt className="wk-row-side">{one.label ?? 'zapieczętowane pytanie'}</dt>
-              <dd>{one.value ?? 'zapieczętowane'}</dd>
-            </div>
-          ))}
-        </dl>
-
-        {seatKey !== null && (
-          <div className="wk-actions">
-            <button type="button" className="wk-btn" onClick={start}>Popraw dane</button>
-          </div>
-        )}
-      </>
-    );
-  }
-
-  return (
-    <>
-      {open.map((one) => (
-        <label className="wk-field" key={one.fieldId}>
-          <span>{one.label ?? 'zapieczętowane pytanie'}</span>
-          <input
-            value={draft[one.fieldId] ?? ''}
-            disabled={busy}
-            onChange={(e) => setDraft({ ...draft, [one.fieldId]: e.target.value })}
-          />
-        </label>
-      ))}
-
-      {failed !== null && <p className="wk-error">{failed}</p>}
-
-      <p className="wk-hint">
-        Zmiany pieczętujemy w tej przeglądarce. Usługa zapisze je, nie mogąc ich
-        odczytać — otworzy je ta sama kancelaria co poprzednio.
-      </p>
-
-      <div className="wk-actions">
-        <button
-          type="button" className="wk-btn"
-          disabled={busy || changed.length === 0}
-          onClick={() => void save()}
-        >
-          {busy ? 'Zapisywanie…' : `Zapisz${changed.length > 0 ? ` (${changed.length})` : ''}`}
-        </button>
-
-        <button
-          type="button" className="wk-link-btn" disabled={busy}
-          onClick={() => setEditing(false)}
-        >
-          Anuluj
-        </button>
-      </div>
-    </>
-  );
-}
-
 function Zone({ title, who, children }: {
   title: string;
   who: string;

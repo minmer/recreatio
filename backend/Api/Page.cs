@@ -293,29 +293,7 @@ public static class Page
          * sieht dazwischen eine leere Seite — und wer sie in dem Augenblick
          * wegklickt, kommt nicht wieder.
          */
-        var parts = new List<object>();
-
-        await using (var cmd = new SqlCommand("""
-            SELECT id, kind, layout, config
-            FROM app.slug_part
-            WHERE slug_id = @slug
-            ORDER BY position;
-            """, connection))
-        {
-            cmd.Parameters.AddWithValue("@slug", slugId);
-
-            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
-            while (await reader.ReadAsync(ctx.RequestAborted))
-            {
-                parts.Add(new
-                {
-                    id = Ids.ToText(reader.GetGuid(0)),
-                    kind = reader.GetString(1),
-                    layout = reader.GetString(2),
-                    config = reader.IsDBNull(3) ? null : reader.GetString(3)
-                });
-            }
-        }
+        var parts = await PartsOfAsync(connection, slugId, ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new { path = wanted, aliasOf, title, lead, updatedAt, parts });
     }
@@ -654,6 +632,46 @@ public static class Page
                 ? "Do któregoś z tych bloków coś jeszcze należy — nie da się go teraz usunąć."
                 : "Taki blok już gdzieś stoi. Odśwież stronę i spróbuj jeszcze raz.");
         }
+    }
+
+    /// <summary>
+    /// Die Bausteine einer Adresse, in ihrer Reihenfolge.
+    ///
+    /// <para>
+    /// <b>Oeffentlich zugaenglich, weil das Portal sie auch braucht.</b> Ein
+    /// Platz bekommt seine Vorlage ueber <c>GET /seat/{token}</c> (0028) — er
+    /// hat keine Adresse zum Tippen und darf trotzdem dieselben Bausteine
+    /// sehen. Sie dort noch einmal abzufragen hiesse, zwei Abfragen zu haben,
+    /// die sich einig sein muessen.
+    /// </para>
+    /// </summary>
+    public static async Task<List<object>> PartsOfAsync(
+        SqlConnection connection, Guid slugId, CancellationToken ct)
+    {
+        var parts = new List<object>();
+
+        await using var cmd = new SqlCommand("""
+            SELECT id, kind, layout, config
+            FROM app.slug_part
+            WHERE slug_id = @slug
+            ORDER BY position;
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@slug", slugId);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            parts.Add(new
+            {
+                id = Ids.ToText(reader.GetGuid(0)),
+                kind = reader.GetString(1),
+                layout = reader.GetString(2),
+                config = reader.IsDBNull(3) ? null : reader.GetString(3)
+            });
+        }
+
+        return parts;
     }
 
     /// <summary>

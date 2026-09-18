@@ -96,5 +96,11 @@ Person.Map(app);
 Intake.Map(app);
 Form.Map(app);
 
+/*
+ * Termine, die man sich nehmen kann (0029). Sie stehen im KALENDER — hier
+ * kommt nur die Frage dazu, wer sich daraufsetzen darf.
+ */
+Slot.Map(app);
+
 app.Run();
 return 0;

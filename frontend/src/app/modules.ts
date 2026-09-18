@@ -135,6 +135,56 @@ export const CATALOG: readonly ModuleDef[] = [
       { key: 'email', label: 'E-mail', kind: 'line' }
     ]
   },
+  /* -- Was nur in einem PORTAL etwas zeigt (0028) ------------------------- */
+
+  /*
+   * Drei Bausteine, die ihren Inhalt aus dem PLATZ nehmen und nicht aus ihrem
+   * `config`. Deshalb `live`: sonst fielen sie aus der Seite, weil sie leer
+   * aussehen — dieselbe Ausnahme wie beim Messplan und beim Formular.
+   *
+   * Auf einer gewöhnlichen Seite sagen sie, dass sie hier nichts zeigen können.
+   * Das ist besser als nichts: wer sie versehentlich dorthin legt, erfährt es,
+   * statt sich zu wundern.
+   */
+  {
+    kind: 'seat-submission', label: 'Zgłoszenie osoby', colSpan: 3, rowSpan: 3, live: true,
+    fields: [
+      { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Twoje zgłoszenie' },
+      {
+        key: 'editable', label: 'Czy można poprawiać', kind: 'line',
+        hint: 'tak albo nie — puste znaczy tak'
+      }
+    ]
+  },
+  {
+    kind: 'seat-note', label: 'Wiadomość dla osoby', colSpan: 3, rowSpan: 2, live: true,
+    fields: [
+      { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Od kancelarii' }
+    ]
+  },
+  {
+    kind: 'seat-shared', label: 'Wspólne terminy', colSpan: 3, rowSpan: 3, live: true,
+    fields: [
+      { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Najbliższe spotkania' }
+    ]
+  },
+
+  {
+    /*
+     * TERMINE ZUM AUSSUCHEN (0029). Der Baustein nennt einen KALENDER — dieselbe
+     * Form wie beim Messplan (0020): ein Baustein weiss nicht, unter welcher
+     * Adresse er hängt, wohl aber, woraus er seinen Inhalt nimmt.
+     *
+     * Deshalb steht hier nichts über die Firmung. Derselbe Baustein trägt die
+     * Termine einer Beichte, eines Elterngesprächs oder einer Probe; was ihn
+     * unterscheidet, ist der Kalender, den er nennt.
+     */
+    kind: 'slots', label: 'Terminy do wyboru', colSpan: 3, rowSpan: 3, live: true,
+    fields: [
+      { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Wybierz termin spotkania' },
+      { key: 'calendar', label: 'Kalendarz', kind: 'line', hint: 'Kennung kalendarza z terminami' }
+    ]
+  },
   {
     kind: 'links', label: 'Odnośniki', colSpan: 2, rowSpan: 3,
     fields: [

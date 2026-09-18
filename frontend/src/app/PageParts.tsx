@@ -20,6 +20,9 @@ import { FormCard } from './FormCard';
 import { MassCard } from './MassCard';
 import { isEmpty, moduleDef, readLink } from './modules';
 import { pagePath } from './routes';
+import { SlotCard } from './SlotCard';
+import { Submission } from './Submission';
+import { useSeat } from './seatContext';
 import type { DraftPart } from './page';
 
 /** Dieselben Schwellen wie die Zeichenflächen des Editors. */
@@ -158,6 +161,20 @@ function Body({ kind, partId, config, colSpan, rowSpan }: {
     return <FormCard partId={partId} config={config} />;
   }
 
+  /*
+   * DIE DREI BAUSTEINE DES PORTALS (0028). Sie nehmen ihren Inhalt aus dem
+   * Platz und nicht aus `config` — deshalb stehen sie hier vor allem anderen,
+   * gleich hinter denen, die es ebenso halten.
+   */
+  if (kind === 'seat-submission' || kind === 'seat-note' || kind === 'seat-shared') {
+    return <SeatCard kind={kind} config={config} />;
+  }
+
+  /* Termine zum Aussuchen — er nennt seinen Kalender selbst. */
+  if (kind === 'slots') {
+    return <SlotCard config={config} />;
+  }
+
   if (kind === 'notice') {
     return <p className="wk-card-notice">{body}</p>;
   }
@@ -225,3 +242,107 @@ function Body({ kind, partId, config, colSpan, rowSpan }: {
 }
 
 export default PageParts;
+
+/* -- Die Bausteine eines Portals (0028) ------------------------------------ */
+
+/**
+ * Was nur ein PLATZ füllen kann.
+ *
+ * <b>Ohne Platz sagen sie es.</b> Dieselben Bausteine liegen im Editor auf
+ * einer gewöhnlichen Seite; dort gibt es keinen geöffneten Platz. Leer zu
+ * bleiben sähe aus wie ein Fehler — also steht dort, wozu der Baustein da ist
+ * und wo er etwas zeigt.
+ */
+function SeatCard({ kind, config }: {
+  kind: 'seat-submission' | 'seat-note' | 'seat-shared';
+  config: Record<string, string>;
+}) {
+  const seat = useSeat();
+  const title = (config.title ?? '').trim();
+
+  if (seat === null) {
+    return (
+      <>
+        {title !== '' && <h2 className="wk-card-title">{title}</h2>}
+        <p className="wk-card-muted">
+          {kind === 'seat-submission' ? 'Tu pojawi się zgłoszenie osoby, która otworzy swój link.'
+            : kind === 'seat-note' ? 'Tu pojawi się wiadomość, którą kancelaria napisze tej osobie.'
+            : 'Tu pojawią się wspólne terminy, jeśli miejsce niesie klucz grupy.'}
+        </p>
+      </>
+    );
+  }
+
+  if (seat.seatKey === null) {
+    return (
+      <>
+        {title !== '' && <h2 className="wk-card-title">{title}</h2>}
+        <p className="wk-card-muted">Bez klucza z adresu nie da się tego otworzyć.</p>
+      </>
+    );
+  }
+
+  if (kind === 'seat-note') {
+    return (
+      <>
+        <h2 className="wk-card-title">{title === '' ? 'Od kancelarii' : title}</h2>
+        {seat.note === null
+          ? <p className="wk-empty">Nic tu jeszcze nie napisano.</p>
+          : <p className="wk-card-text" style={{ whiteSpace: 'pre-wrap' }}>{seat.note}</p>}
+      </>
+    );
+  }
+
+  if (kind === 'seat-shared') {
+    return (
+      <>
+        <h2 className="wk-card-title">{title === '' ? 'Wspólne terminy' : title}</h2>
+
+        {seat.shared.length === 0 ? (
+          <p className="wk-empty">Nic na najbliższe tygodnie.</p>
+        ) : (
+          <>
+            <ul className="wk-tile-lines">
+              {seat.shared.map((one, i) => (
+                <li key={i}>
+                  <strong>
+                    {new Date(one.when).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}
+                  </strong>
+                  {' — '}
+                  {one.what ?? 'zapieczętowane'}
+                </li>
+              ))}
+            </ul>
+            <p className="wk-hint">Widzą to wszyscy: {seat.sharedNames.join(', ')}.</p>
+          </>
+        )}
+      </>
+    );
+  }
+
+  /*
+   * Das Berichtigen lässt sich abstellen — aber die Vorgabe ist JA. Die Angabe
+   * gehört dem Menschen; wer sie festnagelt, soll das ausdrücklich tun.
+   */
+  const editable = (config.editable ?? '').trim().toLowerCase();
+  const mayEdit = editable === '' || ['tak', 'yes', 'true', '1'].includes(editable);
+
+  return (
+    <>
+      <h2 className="wk-card-title">{title === '' ? 'Twoje zgłoszenie' : title}</h2>
+
+      {seat.submitted.length === 0 ? (
+        <p className="wk-empty">Jeszcze nic nie wysłano z tego miejsca.</p>
+      ) : (
+        <Submission
+          values={seat.submitted}
+          open={seat.opened}
+          token={seat.token}
+          seatKey={seat.seatKey}
+          mayEdit={mayEdit}
+          onSaved={seat.reload}
+        />
+      )}
+    </>
+  );
+}

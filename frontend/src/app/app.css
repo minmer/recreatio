@@ -674,3 +674,54 @@ code {
    Textsäule will, zieht den Baustein auf drei Spalten; wer die ganze Seite
    will, lässt ihn auf sechs. Zwei Stellen, die dasselbe regeln — das Raster und
    eine Regel hier —, wären eine zu viel, und die hier ist die unsichtbare. */
+
+/* -- Telefonnummern als Plättchen -----------------------------------------
+   Eine Nummer, die dasteht, ist eine angenommene Nummer — das Plättchen sagt
+   es, ohne dass jemand es lesen muss. Das × gehört daneben und nicht in ein
+   Menü: eine falsche Nummer nimmt man weg, wo man sie sieht. */
+
+.wk-chips {
+  margin: 0 0 0.35rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.wk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.3rem 0.15rem 0.6rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.92rem;
+}
+
+.wk-chip-x {
+  font: inherit;
+  line-height: 1;
+  border: 0;
+  background: none;
+  padding: 0 0.25rem;
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+
+.wk-chip-x:hover { color: #a5361c; }
+.wk-chip-x:disabled { cursor: default; opacity: 0.5; }
+.wk-chip-x:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; border-radius: 999px; }
+
+/* Ein Code, der abgetippt wird — gross, mit Abstand zwischen den Zeichen, und
+   ohne Ligaturen. Er steht genau einmal da; ihn falsch abzulesen ist teuer. */
+.wk-code {
+  margin: 0.3rem 0;
+  font-family: ui-monospace, "Cascadia Mono", "IBM Plex Mono", monospace;
+  font-size: 1.6rem;
+  letter-spacing: 0.25em;
+  font-variant-ligatures: none;
+  color: var(--wk-accent);
+}

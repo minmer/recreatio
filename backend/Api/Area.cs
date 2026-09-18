@@ -59,6 +59,15 @@ public static class Area
         app.MapPost("/workspace/area/{id:guid}/publish", PublishAsync);
 
         /*
+         * DIE VORLAGE DES PORTALS (0028) — eine ganz gewoehnliche Seite, deren
+         * Bausteine jeder Platz dieses Bereichs zu sehen bekommt. Eine Vorlage
+         * je Bereich: alle sehen denselben Aufbau, verschieden ist nur, was in
+         * den persoenlichen Bausteinen steht.
+         */
+        app.MapGet("/workspace/area/{id:guid}/portal", PortalAsync);
+        app.MapPost("/workspace/area/{id:guid}/portal", SetPortalAsync);
+
+        /*
          * ÖFFENTLICH, und das ist der ganze Punkt. Wer einen veröffentlichten
          * Epochenschlüssel holt, braucht kein Konto — sonst wäre „öffentlich"
          * bloss ein anderes Wort für „angemeldet".
@@ -742,6 +751,139 @@ public static class Area
      * an vier Stellen. Eine zweite Fassung davon waere eine zweite Meinung
      * darueber, wer wo darf — und die eine davon liefe irgendwann anders.
      */
+    /* -- Die Vorlage des Portals (0028) ------------------------------------ */
+
+    public sealed record PortalRequest(string? Path);
+
+    private static async Task PortalAsync(HttpContext ctx, Db db, Guid id)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        if (!await MayAsync(connection, who.Value.AccountId, id, Capability.Read, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
+            return;
+        }
+
+        await using var cmd = new SqlCommand("""
+            SELECT s.path FROM app.area_portal p
+            JOIN app.slug s ON s.id = p.slug_id
+            WHERE p.area_id = @area;
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@area", id);
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            areaId = Ids.ToText(id),
+            path = await cmd.ExecuteScalarAsync(ctx.RequestAborted) as string
+        });
+    }
+
+    /// <summary>
+    /// Eine Seite zur Vorlage des Portals erklaeren — oder die Erklaerung
+    /// zuruecknehmen (<c>path = null</c>).
+    ///
+    /// <para>
+    /// <b>ZWEI Rechte, wie beim Formularfeld.</b> Wer die Vorlage bestimmt,
+    /// entscheidet, was jeder Platz dieses Bereichs zu sehen bekommt — dafuer
+    /// braucht er das Recht am BEREICH. Und er bindet eine fremde Seite ein —
+    /// dafuer braucht er das Recht an DIESER ADRESSE. Eines allein genuegte,
+    /// um eine fremde Seite in ein fremdes Portal zu haengen.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Oeffentlich sollte sie nicht sein</b>, und der Dienst sagt es, statt
+    /// es zu erzwingen: eine Vorlage ohne <c>internal_for_role_id</c> (0026)
+    /// steht auch unter ihrer eigenen Adresse. Manchmal ist genau das gewollt —
+    /// deshalb ein Hinweis in der Antwort und keine Ablehnung.
+    /// </para>
+    /// </summary>
+    private static async Task SetPortalAsync(HttpContext ctx, Db db, Guid id, PortalRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        if (!await MayAsync(connection, who.Value.AccountId, id, Capability.Write, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(body.Path))
+        {
+            await using var drop = new SqlCommand(
+                "DELETE FROM app.area_portal WHERE area_id = @area;", connection);
+
+            drop.Parameters.AddWithValue("@area", id);
+            await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+            await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), path = (string?)null });
+            return;
+        }
+
+        var path = Slug.Normalise(body.Path);
+
+        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
+        if (!grip.MayWrite)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
+            return;
+        }
+
+        Guid slugId;
+        bool isInternal;
+
+        await using (var find = new SqlCommand(
+            "SELECT id, internal_for_role_id FROM app.slug WHERE path = @p;", connection))
+        {
+            find.Parameters.AddWithValue("@p", path);
+
+            await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
+            if (!await reader.ReadAsync(ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+                return;
+            }
+
+            slugId = reader.GetGuid(0);
+            isInternal = !reader.IsDBNull(1);
+        }
+
+        await using (var save = new SqlCommand("""
+            MERGE app.area_portal AS target
+            USING (SELECT @area AS area_id) AS source ON target.area_id = source.area_id
+            WHEN MATCHED THEN UPDATE SET slug_id = @slug
+            WHEN NOT MATCHED THEN INSERT (area_id, slug_id, created_at) VALUES (@area, @slug, @now);
+            """, connection))
+        {
+            save.Parameters.AddWithValue("@area", id);
+            save.Parameters.AddWithValue("@slug", slugId);
+            save.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+
+            await save.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            areaId = Ids.ToText(id),
+            path,
+
+            /*
+             * Keine Ablehnung, eine Auskunft: die Vorlage steht sonst auch unter
+             * ihrer eigenen Adresse, und wer das nicht will, macht sie intern.
+             */
+            warning = isInternal ? null
+                : "Ta strona jest publiczna — każdy, kto zna jej adres, zobaczy szablon portalu. "
+                  + "Przypisz ją roli w drzewie adresów, żeby zniknęła dla postronnych."
+        });
+    }
+
     internal static async Task<bool> MayAsync(
         SqlConnection connection, Guid accountId, Guid areaId, Capability needed, CancellationToken ct)
     {

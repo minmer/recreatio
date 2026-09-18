@@ -773,6 +773,19 @@ public static class Seat
          */
         var submitted = await SubmittedAsync(connection, seatId, ctx.RequestAborted);
 
+        /*
+         * DIE VORLAGE (0028) — die Bausteine, aus denen sich dieses Portal
+         * zeichnet. Sie gehoert dem BEREICH, nicht dem Platz: alle sehen
+         * denselben Aufbau, verschieden ist nur, was in den persoenlichen
+         * Bausteinen steht.
+         *
+         * Sie kommt ueber DIESEN Weg heraus und nicht ueber ihre Adresse: die
+         * Vorlage ist in der Regel eine interne Seite (0026), und der Link ist
+         * hier der Ausweis. Wer kein Portal eingerichtet hat, bekommt `null` —
+         * dann zeichnet die Seite ihre eingebauten Abschnitte wie bisher.
+         */
+        var template = await TemplateAsync(connection, areaId, ctx.RequestAborted);
+
         await ctx.Response.WriteAsJsonAsync(new
         {
             seatId = Ids.ToText(seatId),
@@ -787,8 +800,54 @@ public static class Seat
             expiresAt,
 
             grants = bySeat.TryGetValue(seatId, out var list) ? list : [],
-            submitted
+            submitted,
+            template
         });
+    }
+
+    /// <summary>
+    /// Die Vorlage, aus der sich das Portal dieses Bereichs zeichnet (0028).
+    ///
+    /// <para>
+    /// <c>null</c>, wenn keine eingerichtet ist — und das ist kein Mangel,
+    /// sondern der Anfangszustand: die Seite zeigt dann ihre eingebauten
+    /// Abschnitte, wie sie es immer getan hat.
+    /// </para>
+    /// </summary>
+    private static async Task<object?> TemplateAsync(
+        SqlConnection connection, Guid areaId, CancellationToken ct)
+    {
+        Guid slugId;
+        string path;
+        string? title, lead;
+
+        await using (var cmd = new SqlCommand("""
+            SELECT s.id, s.path, g.title, g.lead
+            FROM app.area_portal p
+            JOIN app.slug s      ON s.id = p.slug_id
+            LEFT JOIN app.slug_page g ON g.slug_id = s.id
+            WHERE p.area_id = @area;
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("@area", areaId);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct)) return null;
+
+            slugId = reader.GetGuid(0);
+            path = reader.GetString(1);
+            title = reader.IsDBNull(2) ? null : reader.GetString(2);
+            lead = reader.IsDBNull(3) ? null : reader.GetString(3);
+        }
+
+        /* Der Leser ist zu — erst danach die Bausteine (MARS). */
+        return new
+        {
+            path,
+            title,
+            lead,
+            parts = await Page.PartsOfAsync(connection, slugId, ct)
+        };
     }
 
     /// <summary>
