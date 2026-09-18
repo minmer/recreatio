@@ -62,7 +62,20 @@ export const ROUTES = {
    * Startseite geholt hat. Der Browser schickt danach NUR das Token an den
    * Dienst — der Schlüssel bleibt hier und öffnet den Platz.
    */
-  seat: { slugged: true, needsIdentity: false }
+  seat: { slugged: true, needsIdentity: false },
+
+  /**
+   * Eine bestätigte Nummer — `#/verify/<token>` (0030).
+   *
+   * <b>Ohne Konto, und mit genau einem Handgriff:</b> die Kanzlei schickt den
+   * Link per SMS, der Mensch tippt darauf, und damit steht fest, dass er unter
+   * dieser Nummer erreichbar war. Mehr beweist auch eine Code-SMS nicht — und
+   * sie könnte der Dienst gar nicht schicken, weil er die Nummer nicht liest.
+   *
+   * <b>Hinter der Raute</b>, wie der Platz: der Server einer statischen Seite
+   * sieht das Geheimnis nie.
+   */
+  verify: { slugged: true, needsIdentity: false }
 } as const satisfies Readonly<Record<string, RouteDef>>;
 
 export type Route = keyof typeof ROUTES;

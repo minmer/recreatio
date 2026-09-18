@@ -25,7 +25,8 @@ import { loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from './area';
 import { fromBase64Url } from './crypto';
 import {
   FIELD_KINDS, KIND_LABEL, addField, loadFields, loadRegistrations, openFields,
-  hideSubmission, readSubmission, removeField, removeSubmission, reviseAsOffice,
+  armCheck, hideSubmission, readSubmission, removeField, removeSubmission, reviseAsOffice,
+  type ValueCheck,
   type FieldKind, type OpenField, type SealedField, type Submission
 } from './form';
 import { createIntake, loadIntake, loadPublicIntake, openIntakeKey, setController } from './intake';
@@ -501,6 +502,8 @@ export function FormOffice({ partId, config, who }: {
                 {s.seatId !== null && (
                   <SendPanel
                     seatId={s.seatId}
+                    registrationId={s.registrationId}
+                    checks={s.checks}
                     values={opened.get(s.registrationId)}
                     fieldsByLabel={fields}
                     template={config.sms ?? ''}
@@ -797,15 +800,29 @@ export default FormOffice;
  * benannt — eine Nachricht mit einer stillen Lücke ginge sonst hinaus, ohne
  * dass jemand es merkt.
  */
-function SendPanel({ seatId, values, fieldsByLabel, template, ring, onError }: {
+function SendPanel({
+  seatId, registrationId, values, fieldsByLabel, checks, template, ring, onError
+}: {
   seatId: string;
+
+  /** Welche Einsendung — eine Bestätigung hängt am WERT, nicht am Menschen. */
+  readonly registrationId: string;
+
   values: Map<string, string> | undefined;
   fieldsByLabel: readonly OpenField[];
+
+  /** Was an einzelnen Werten schon bestätigt ist (0030). */
+  checks: readonly ValueCheck[];
+
   template: string;
   ring: Ring | null;
   onError: (message: string | null) => void;
 }) {
   const [link, setLink] = useState<string | null>(null);
+
+  /** Der Bestätigungslink — er entsteht auf Knopfdruck und steht dann einmal da. */
+  const [checkLink, setCheckLink] = useState<string | null>(null);
+
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -837,8 +854,41 @@ function SendPanel({ seatId, values, fieldsByLabel, template, ring, onError }: {
     ? null
     : firstPhone(values?.get(phoneField.fieldId) ?? '');
 
+  /*
+   * `{weryfikacja}` — der Link, mit dem der Mensch seine Nummer bestätigt
+   * (0030). Er entsteht erst auf Knopfdruck: ein Geheimnis, das bei jedem
+   * Aufschlagen der Liste neu gewürfelt würde, wäre bei jedem Aufschlagen ein
+   * neues, und der zuletzt verschickte gälte nicht mehr.
+   */
+  if (checkLink !== null) byLabel.set('weryfikacja', checkLink);
+
   const text = template.trim() === '' ? '' : renderSms(template, byLabel, link);
   const gaps = template.trim() === '' ? [] : missingIn(template, byLabel, link);
+
+  /** Was an DIESER Nummer schon bestätigt ist — oder aussteht. */
+  const mark = phoneField === undefined
+    ? undefined
+    : checks.find((c) => c.fieldId === phoneField.fieldId);
+
+  const verified = mark?.verifiedAt ?? null;
+
+  const arm = async () => {
+    if (phoneField === undefined) return;
+
+    setBusy(true);
+    onError(null);
+
+    try {
+      const { token } = await armCheck(registrationId, phoneField.fieldId);
+
+      setCheckLink(
+        `${window.location.origin}${window.location.pathname}#/verify/${encodeURIComponent(token)}`);
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się przygotować linku.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const issue = async () => {
     if (ring === null) { onError('Bez hasła nie da się wystawić linku.'); return; }
@@ -884,6 +934,20 @@ function SendPanel({ seatId, values, fieldsByLabel, template, ring, onError }: {
           <a className="wk-link-btn" href={`tel:${number}`}>Zadzwoń</a>
         )}
 
+        {/*
+          DEN BESTÄTIGUNGSLINK SCHARFSTELLEN (0030). Er ersetzt einen früheren,
+          noch offenen — wer zweimal schickt, hat nicht zwei gültige Links,
+          sondern einen neuen.
+        */}
+        {phoneField !== undefined && verified === null && (
+          <button
+            type="button" className="wk-link-btn" disabled={busy}
+            onClick={() => void arm()}
+          >
+            {checkLink === null ? 'Dodaj link potwierdzający' : 'Nowy link potwierdzający'}
+          </button>
+        )}
+
         {text !== '' && (
           <button
             type="button" className="wk-link-btn"
@@ -901,6 +965,40 @@ function SendPanel({ seatId, values, fieldsByLabel, template, ring, onError }: {
         <p className="wk-hint">
           Ta osoba nie podała numeru — zostaje skopiowanie wiadomości.
         </p>
+      )}
+
+      {/*
+        DER ZUSTAND DER NUMMER — drei, und sie sind verschieden: bestätigt,
+        „Link ist draussen und wartet", nichts davon. Der mittlere ist der, den
+        eine Kanzlei wirklich braucht: sie hat geschickt, es kam nichts zurück.
+      */}
+      {phoneField !== undefined && verified !== null && (
+        <p className="wk-hint">
+          <strong>Numer potwierdzony</strong>{' '}
+          {new Date(verified).toLocaleDateString('pl-PL',
+            { day: 'numeric', month: 'long', year: 'numeric' })}
+          {' '}— ta osoba kliknęła link, który tam wysłaliście.
+        </p>
+      )}
+
+      {phoneField !== undefined && verified === null && mark !== undefined && (
+        <p className="wk-hint">
+          Link potwierdzający wysłany{' '}
+          {new Date(mark.sentAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })},
+          {' '}bez odpowiedzi. Ważny do{' '}
+          {new Date(mark.expiresAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}.
+        </p>
+      )}
+
+      {checkLink !== null && (
+        <>
+          <p className="wk-hint">
+            <strong>Ten link potwierdza numer</strong> — wstaw go do wiadomości
+            przez <code>{'{weryfikacja}'}</code> albo wyślij osobno. Poprzedni,
+            jeśli był, przestał działać.
+          </p>
+          <textarea readOnly rows={2} className="wk-mono" value={checkLink} />
+        </>
       )}
 
       {link !== null && (

@@ -23,6 +23,7 @@ import { signOut, whoIsThere, type Who } from './session';
 import { PublicPage } from './PublicPage';
 import { SeatPortal } from './SeatPortal';
 import { SignIn } from './SignIn';
+import { Verify } from './Verify';
 import { Workspace } from './Workspace';
 
 export function App() {
@@ -98,6 +99,15 @@ export function App() {
    * Ob jemand angemeldet ist, fragt die Seite selbst — sie braucht es nur, um
    * das Binden anzubieten.
    */
+  /*
+   * Eine Nummer bestätigen (0030). Sie steht VOR der Frage nach der Anmeldung
+   * und vor der Seite: wer aus einer SMS kommt, hat kein Konto und will einen
+   * Handgriff, keine Anmeldemaske.
+   */
+  if (address.route === 'verify') {
+    return <Shell><Verify token={address.slug} /></Shell>;
+  }
+
   if (address.seat !== null) {
     return (
       <Shell>

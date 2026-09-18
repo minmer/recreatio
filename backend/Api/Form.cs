@@ -77,6 +77,22 @@ public static class Form
          */
         app.MapPost("/workspace/registration/{id:guid}/values", ReviseAsOfficeAsync);
 
+        /*
+         * EINE NUMMER BESTAETIGEN, OHNE SIE ZU KENNEN (0030).
+         *
+         * Der Dienst kann keine SMS mit einem Code schicken — er liest die
+         * Nummer nicht. Also wuerfelt die KANZLEI ein Geheimnis, verschickt den
+         * Link von Hand, und der Dienst bekommt nur den Abdruck und die Stelle:
+         * welche Einsendung, welches Feld.
+         *
+         * Wer klickt, war unter dieser Nummer erreichbar. Mehr beweist auch
+         * eine Code-SMS nicht.
+         */
+        app.MapPost("/workspace/registration/{id:guid}/check", ArmCheckAsync);
+
+        /* Ohne Konto — der Link IST der Beweis. */
+        app.MapPost("/verify/{token}", VerifyAsync);
+
         /* Ohne Konto — das ist der Zweck. */
         app.MapGet("/form/{id:guid}", PublicAsync);
         app.MapPost("/form/{id:guid}/submit", SubmitAsync);
@@ -972,6 +988,35 @@ public static class Form
             }
         }
 
+        /* Die Bestaetigungen dieser Einsendungen — der Leser oben ist zu (MARS). */
+        var byCheck = new Dictionary<Guid, List<object>>();
+
+        if (rows.Count > 0)
+        {
+            var names = string.Join(", ", rows.Select((_, i) => $"@c{i}"));
+
+            await using var cmd = new SqlCommand(
+                $"SELECT registration_id, field_id, sent_at, expires_at, verified_at "
+                + $"FROM app.value_check WHERE registration_id IN ({names});", connection);
+
+            for (var i = 0; i < rows.Count; i++) cmd.Parameters.AddWithValue($"@c{i}", rows[i].Id);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                var key = reader.GetGuid(0);
+                if (!byCheck.TryGetValue(key, out var list)) byCheck[key] = list = [];
+
+                list.Add(new
+                {
+                    fieldId = Ids.ToText(reader.GetGuid(1)),
+                    sentAt = reader.GetDateTimeOffset(2),
+                    expiresAt = reader.GetDateTimeOffset(3),
+                    verifiedAt = reader.IsDBNull(4) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(4)
+                });
+            }
+        }
+
         await ctx.Response.WriteAsJsonAsync(new
         {
             partId = Ids.ToText(id),
@@ -982,7 +1027,14 @@ public static class Form
                 submittedAt = r.At,
                 withdrawnAt = r.Gone,
                 hidden = r.Hidden,
-                values = byRegistration.TryGetValue(r.Id, out var list) ? list : []
+                values = byRegistration.TryGetValue(r.Id, out var list) ? list : [],
+
+                /*
+                 * Welche Werte bestaetigt sind (0030) — die STELLE, nicht der
+                 * Inhalt. Der Dienst sagt „dieses Feld dieser Einsendung wurde
+                 * bestaetigt" und weiss weiterhin nicht, welche Nummer das ist.
+                 */
+                checks = byCheck.TryGetValue(r.Id, out var marks) ? marks : []
             })
         });
     }
@@ -1211,6 +1263,22 @@ public static class Form
                     await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
                 }
 
+                /*
+                 * EINE BESTAETIGUNG GILT DEM WERT, NICHT DEM MENSCHEN (0030).
+                 * Wer die Nummer aendert, hat eine ANDERE Nummer — und die ist
+                 * ungeprueft. Das hier zu tun statt es jemandem aufzutragen ist
+                 * der Unterschied zwischen einer Regel und einer Bitte.
+                 */
+                await using (var stale = new SqlCommand("""
+                    DELETE FROM app.value_check
+                     WHERE registration_id = @reg AND field_id = @field;
+                    """, connection, tx))
+                {
+                    stale.Parameters.AddWithValue("@reg", id);
+                    stale.Parameters.AddWithValue("@field", fieldId);
+                    await stale.ExecuteNonQueryAsync(ctx.RequestAborted);
+                }
+
                 await using var add = new SqlCommand("""
                     INSERT INTO app.registration_value
                         (registration_id, field_id, value_sealed, wrapped_key, seat_key_sealed)
@@ -1245,6 +1313,172 @@ public static class Form
             registrationId = Ids.ToText(id),
             revised = parsed.Count
         });
+    }
+
+    public sealed record ArmRequest(string FieldId, string TokenSha256, int? Days);
+
+    /// <summary>
+    /// Eine Bestaetigung scharfstellen — die Kanzlei verschickt sie selbst.
+    ///
+    /// <para>
+    /// <b>Der Dienst erfaehrt die Nummer nicht.</b> Er bekommt den ABDRUCK
+    /// eines Geheimnisses und die Stelle, um die es geht: diese Einsendung,
+    /// dieses Feld. Welche Nummer dort steht, weiss er so wenig wie vorher.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Eine offene Bestaetigung ersetzt die vorige.</b> Wer den Link zweimal
+    /// verschickt, hat nicht zwei Bestaetigungen offen, sondern eine neue — und
+    /// die alte soll dann nicht mehr gelten.
+    /// </para>
+    /// </summary>
+    private static async Task ArmCheckAsync(HttpContext ctx, Db db, Guid id, ArmRequest body)
+    {
+        if (!Guid.TryParse(body.FieldId, out var fieldId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung pola.");
+            return;
+        }
+
+        var hash = Optional(body.TokenSha256);
+        if (hash is null || hash.Length != 32)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Odcisk linku musi mieć 32 bajty.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        if (!await MayTendAsync(ctx, db, connection, id)) return;
+
+        var now = DateTimeOffset.UtcNow;
+        var until = now.AddDays(body.Days is > 0 and <= 90 ? body.Days.Value : 14);
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            /* Die vorige, noch offene, faellt weg — siehe oben. */
+            await using (var drop = new SqlCommand("""
+                DELETE FROM app.value_check
+                 WHERE registration_id = @reg AND field_id = @field AND verified_at IS NULL;
+                """, connection, tx))
+            {
+                drop.Parameters.AddWithValue("@reg", id);
+                drop.Parameters.AddWithValue("@field", fieldId);
+                await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await using var insert = new SqlCommand("""
+                INSERT INTO app.value_check
+                    (id, registration_id, field_id, token_sha256, sent_at, expires_at)
+                VALUES (@id, @reg, @field, @token, @now, @until);
+                """, connection, tx);
+
+            insert.Parameters.AddWithValue("@id", Ids.NewId());
+            insert.Parameters.AddWithValue("@reg", id);
+            insert.Parameters.AddWithValue("@field", fieldId);
+            insert.Parameters.AddBlob("@token", hash);
+            insert.Parameters.AddWithValue("@now", now);
+            insert.Parameters.AddWithValue("@until", until);
+
+            await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch (SqlException e) when (e.Number is 2601 or 2627)
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict, "Ten link już istnieje.");
+            return;
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            registrationId = Ids.ToText(id),
+            fieldId = Ids.ToText(fieldId),
+            expiresAt = until
+        });
+    }
+
+    /// <summary>
+    /// Den Link einloesen — ohne Konto, ohne Platz.
+    ///
+    /// <para>
+    /// <b>Der Link IST der Beweis.</b> Wer ihn hat, war unter der Nummer
+    /// erreichbar, an die er geschickt wurde. Der Dienst weiss weiterhin nicht,
+    /// welche Nummer das war — er setzt nur einen Zeitstempel an die Stelle.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Zweimal klicken bestaetigt nicht zweimal</b>, und es ist auch kein
+    /// Fehler: wer auf denselben Link noch einmal tippt, soll dasselbe sehen
+    /// wie beim ersten Mal und nicht eine Absage.
+    /// </para>
+    /// </summary>
+    private static async Task VerifyAsync(HttpContext ctx, Db db, string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego linku nie ma.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(token.Trim()));
+
+        DateTimeOffset? already;
+        DateTimeOffset until;
+
+        await using (var find = new SqlCommand(
+            "SELECT verified_at, expires_at FROM app.value_check WHERE token_sha256 = @t;", connection))
+        {
+            find.Parameters.AddBlob("@t", hash);
+
+            await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
+            if (!await reader.ReadAsync(ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Tego linku nie ma.");
+                return;
+            }
+
+            already = reader.IsDBNull(0) ? null : reader.GetDateTimeOffset(0);
+            until = reader.GetDateTimeOffset(1);
+        }
+
+        if (already is not null)
+        {
+            await ctx.Response.WriteAsJsonAsync(new { verified = true, at = already, again = true });
+            return;
+        }
+
+        if (until <= DateTimeOffset.UtcNow)
+        {
+            await Fail(ctx, StatusCodes.Status410Gone,
+                "Ten link już wygasł. Poproś kancelarię o nowy.");
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        await using (var mark = new SqlCommand("""
+            UPDATE app.value_check SET verified_at = @now
+             WHERE token_sha256 = @t AND verified_at IS NULL;
+            """, connection))
+        {
+            mark.Parameters.AddWithValue("@now", now);
+            mark.Parameters.AddBlob("@t", hash);
+
+            await mark.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { verified = true, at = now, again = false });
     }
 
     /// <summary>
