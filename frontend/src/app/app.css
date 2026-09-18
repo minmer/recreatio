@@ -662,29 +662,15 @@ code {
   color: var(--wk-ink);
 }
 
-/* -- Die Zeilenlänge auf einer breiten Seite -------------------------------
+/* -- Die Breite einer Kachel gilt auch für ihren Text ----------------------
 
-   Eine Kachel darf die ganze Seite einnehmen; ihr FLIESSTEXT darf es nicht.
-   Über etwa 70 Zeichen je Zeile verliert das Auge beim Rücksprung die Zeile,
-   und auf 110rem wären es weit über zweihundert.
+   Hier stand eine Deckelung auf 70 Zeichen, mittig in der Kachel. Typografisch
+   ist das die Lehrbuchantwort — praktisch war es die falsche: eine Kachel über
+   die ganze Seite mit einer schmalen Textsäule darin sieht aus, als sei sie
+   nicht fertig geladen, und die Breite, die man ihr gegeben hat, tut nichts.
 
-   Die Spalte steht deshalb MITTIG in der Kachel (`margin-inline: auto`) — und
-   die Überschrift gehört dazu. Bliebe der Text links kleben, sähe eine
-   breite Kachel halb leer aus, und genau das war die Klage. So sieht sie
-   gesetzt aus statt abgeschnitten.
-
-   Listen, Zeiten und Zahlen bleiben unberührt: sie werden nicht am Stück
-   gelesen, und eine Uhrzeit in der Mitte einer leeren Kachel wäre albern.
-
-   ACHTUNG, EINE NAMENSGLEICHHEIT: die Kachel eines Textbausteins heisst selbst
-   `wk-card wk-card-text` (`wk-card-${kind}`), und so heissen auch ihre Absätze.
-   Ohne `>` träfe die Regel beides und schnürte die ganze Kachel samt Rahmen auf
-   70 Zeichen ein. Der Nachfahrenpfeil trennt die beiden: der Absatz ist ein
-   Kind der Kachel, die Kachel ist kein Kind ihrer selbst. */
-
-.wk-card > .wk-card-text,
-.wk-card > .wk-card-notice,
-.wk-card.wk-card-text > .wk-card-title {
-  width: min(100%, 70ch);
-  margin-inline: auto;
-}
+   DIE BREITE ENTSCHEIDET DER AUTOR, und zwar dort, wo er sie ohnehin
+   entscheidet: an der Spannweite des Bausteins im Raster. Wer eine schmale
+   Textsäule will, zieht den Baustein auf drei Spalten; wer die ganze Seite
+   will, lässt ihn auf sechs. Zwei Stellen, die dasselbe regeln — das Raster und
+   eine Regel hier —, wären eine zu viel, und die hier ist die unsichtbare. */
