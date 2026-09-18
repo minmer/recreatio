@@ -547,3 +547,36 @@ export async function reviseSubmission(
     body: JSON.stringify({ registrationId, values })
   });
 }
+
+/**
+ * Eine Einsendung von der KANZLEI aus berichtigen.
+ *
+ * <b>Derselbe Weg wie beim Menschen selbst</b>, nur mit dem anderen Ausweis:
+ * ein frischer Schlüssel je Wert, einmal unter der öffentlichen Annahmehälfte
+ * (für das Amt) und einmal unter dem Platzschlüssel (für ihn). Fehlte das
+ * zweite, nähme eine Korrektur ihm seine eigene Angabe weg.
+ */
+export async function reviseAsOffice(
+  registrationId: string,
+  answers: readonly Answer[],
+  keys: { readonly intakePublic: Uint8Array; readonly seatKey: Uint8Array | null }
+): Promise<{ revised: number }> {
+  const values = await Promise.all(answers.map(async (one) => {
+    const key = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
+    const label = valueAad(one.fieldId);
+
+    return {
+      fieldId: one.fieldId,
+      sealed: toBase64Url(await sealText(key, label, one.value.trim())),
+      wrappedKey: toBase64Url(await wrapKey(keys.intakePublic, label, key)),
+      seatKeySealed: keys.seatKey === null
+        ? null
+        : toBase64Url(await seal(keys.seatKey, label, key))
+    };
+  }));
+
+  return call(`/workspace/registration/${encodeURIComponent(registrationId)}/values`, {
+    method: 'POST',
+    body: JSON.stringify({ values })
+  });
+}

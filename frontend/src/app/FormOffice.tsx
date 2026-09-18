@@ -25,14 +25,15 @@ import { loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from './area';
 import { fromBase64Url } from './crypto';
 import {
   FIELD_KINDS, KIND_LABEL, addField, loadFields, loadRegistrations, openFields,
-  hideSubmission, readSubmission, removeField, removeSubmission,
+  hideSubmission, readSubmission, removeField, removeSubmission, reviseAsOffice,
   type FieldKind, type OpenField, type SealedField, type Submission
 } from './form';
-import { createIntake, loadIntake, openIntakeKey, setController } from './intake';
+import { createIntake, loadIntake, loadPublicIntake, openIntakeKey, setController } from './intake';
 import type { Ring, SealedRole } from './keys';
 import { keysFor } from './ringOf';
 import { officeSeatKey, loadSeats, relinkSeat, seatPath, type SeatRow } from './seat';
 import { WorkspaceError, type Who } from './session';
+import { firstPhone, joinPhones, normalisePhone, splitPhones } from './phone';
 import { missingIn, renderSms } from './sms';
 
 export function FormOffice({ partId, config, who }: {
@@ -242,6 +243,65 @@ export function FormOffice({ partId, config, who }: {
 
   const areasHere = [...new Set(fields.map((f) => f.areaId))];
 
+  /*
+   * Welche Nummern anders dastehen, als sie heute gespeichert würden. Gerechnet
+   * wird auf dem, was AUFGEGANGEN ist — eine Hülle, die niemand öffnen kann,
+   * lässt sich auch nicht geraderücken.
+   */
+  const phoneFields = fields.filter((f) => f.kind === 'phone');
+
+  const crooked = submissions.flatMap((s) => {
+    const opened_ = opened.get(s.registrationId);
+    if (opened_ === undefined) return [];
+
+    return phoneFields.flatMap((f) => {
+      const raw = opened_.get(f.fieldId);
+      if (raw === undefined || raw.trim() === '') return [];
+
+      const tidy = joinPhones(splitPhones(raw)
+        .map((one) => normalisePhone(one) ?? one));
+
+      return tidy === raw ? [] : [{ registrationId: s.registrationId, fieldId: f.fieldId, tidy }];
+    });
+  });
+
+  /**
+   * Sie alle auf einmal geraderücken.
+   *
+   * <b>Der Platzschlüssel muss mit.</b> Eine Korrektur, die den Wert nur für
+   * das Amt neu versiegelt, nähme dem Menschen seine eigene Angabe weg — in
+   * seinem Portal stünde danach nichts mehr. Deshalb wird er für jede
+   * Einsendung mit Platz geholt (über die Epoche oder die Annahme, 0027).
+   */
+  const straighten = async () => {
+    if (ring === null) throw new WorkspaceError('Bez hasła nie da się poprawić.');
+    if (lastArea === null) throw new WorkspaceError('Najpierw otwórz zgłoszenia.');
+
+    const intake = await loadPublicIntake(lastArea);
+    const byRegistration = new Map<string, { fieldId: string; value: string }[]>();
+
+    for (const one of crooked) {
+      const list = byRegistration.get(one.registrationId) ?? [];
+      list.push({ fieldId: one.fieldId, value: one.tidy });
+      byRegistration.set(one.registrationId, list);
+    }
+
+    for (const [registrationId, answers] of byRegistration) {
+      const seatId = submissions.find((s) => s.registrationId === registrationId)?.seatId ?? null;
+
+      const seatKey = seatId === null
+        ? null
+        : await seatRowOf(seatId, ring).then((r) => r.key).catch(() => null);
+
+      await reviseAsOffice(registrationId, answers, {
+        intakePublic: fromBase64Url(intake.publicKey),
+        seatKey
+      });
+    }
+
+    if (lastArea !== null) await read(lastArea);
+  };
+
   return (
     <>
       <h3 className="wk-h2">Formularz</h3>
@@ -349,6 +409,32 @@ export function FormOffice({ partId, config, who }: {
             </span>
           </label>
         </>
+      )}
+
+      {/*
+        DIE ALTEN NUMMERN GERADEZIEHEN.
+
+        Was vor den Plättchen eingetragen wurde, steht da, wie es getippt wurde:
+        „600700800", „600-700-800". Der Dienst kann das nicht richten — er liest
+        die Werte nicht. Also tut es die Kanzlei, die den Annahmeschlüssel hat,
+        und zwar einmal für alle.
+
+        Sie erscheint nur, wenn es wirklich etwas zu richten GIBT: ein Knopf,
+        der nichts tut, ist ein Knopf, den man beim nächsten Mal wieder drückt.
+      */}
+      {crooked.length > 0 && (
+        <p className="wk-note">
+          {crooked.length === 1
+            ? 'Jeden numer telefonu jest zapisany w innej postaci niż reszta.'
+            : `${crooked.length} numerów telefonu jest zapisanych w innej postaci niż reszta.`}
+          {' '}
+          <button
+            type="button" className="wk-link-btn" disabled={busy !== null}
+            onClick={() => void act('Poprawianie numerów…', straighten)}
+          >
+            Popraw je na +48 …
+          </button>
+        </p>
       )}
 
       {note !== null && <p className="wk-note">{note}</p>}
@@ -732,6 +818,25 @@ function SendPanel({ seatId, values, fieldsByLabel, template, ring, onError }: {
     }
   }
 
+  /*
+   * `{imie}` neben `{Imię i nazwisko}` — der Altbestand hatte beide, und aus
+   * gutem Grund: „Cześć Anna Kowalska" grüsst niemand. Alles bis zum ersten
+   * Leerzeichen; ein einwortiger Name ist sein eigener Vorname.
+   */
+  const nameField = fieldsByLabel.find((f) => f.identityRole === 'name');
+  const fullName = nameField === undefined ? undefined : values?.get(nameField.fieldId);
+
+  if (fullName !== undefined && fullName.trim() !== '') {
+    byLabel.set('imie', fullName.trim().split(/\s+/)[0]);
+    byLabel.set('osoba', fullName.trim());
+  }
+
+  /* Die Nummer, die das Telefon wählt — die erste des Telefonfeldes. */
+  const phoneField = fieldsByLabel.find((f) => f.kind === 'phone');
+  const number = phoneField === undefined
+    ? null
+    : firstPhone(values?.get(phoneField.fieldId) ?? '');
+
   const text = template.trim() === '' ? '' : renderSms(template, byLabel, link);
   const gaps = template.trim() === '' ? [] : missingIn(template, byLabel, link);
 
@@ -760,6 +865,25 @@ function SendPanel({ seatId, values, fieldsByLabel, template, ring, onError }: {
           {busy ? 'Wystawianie…' : link === null ? 'Wystaw link' : 'Wystaw nowy link'}
         </button>
 
+        {/*
+          DER KLICK, DER DAS TELEFON ÖFFNET — wie im Altbestand
+          (`AccessPanel.tsx`): `sms:<numer>?body=<treść>`. Auf einem Telefon
+          steht danach die fertige Nachricht im Nachrichtenfenster, und es
+          bleibt genau ein Handgriff: absenden.
+
+          Ohne Nummer gibt es den Knopf nicht. Ein `sms:` ohne Ziel öffnet ein
+          leeres Fenster, und das sieht aus, als sei etwas verlorengegangen.
+        */}
+        {number !== null && text !== '' && (
+          <a className="wk-btn" href={`sms:${number}?body=${encodeURIComponent(text)}`}>
+            Wyślij SMS
+          </a>
+        )}
+
+        {number !== null && (
+          <a className="wk-link-btn" href={`tel:${number}`}>Zadzwoń</a>
+        )}
+
         {text !== '' && (
           <button
             type="button" className="wk-link-btn"
@@ -772,6 +896,12 @@ function SendPanel({ seatId, values, fieldsByLabel, template, ring, onError }: {
           </button>
         )}
       </div>
+
+      {number === null && text !== '' && (
+        <p className="wk-hint">
+          Ta osoba nie podała numeru — zostaje skopiowanie wiadomości.
+        </p>
+      )}
 
       {link !== null && (
         <>

@@ -114,3 +114,31 @@ export function withPhone(
 
   return { numbers: [...numbers, one], added: true };
 }
+
+/**
+ * Dieselbe Nummer, wie ein Telefon sie wählt.
+ *
+ * <b>Ohne Leerzeichen.</b> `+48 600 700 800` liest sich gut und gehört nicht in
+ * ein `sms:`- oder `tel:`-Ziel: dort ist alles ausser Ziffern und `+` bestenfalls
+ * überflüssig und schlimmstenfalls der Grund, warum das Telefon den Link gar
+ * nicht erst annimmt.
+ *
+ * Der Altbestand hatte dafür `dialable()` in `AccessPanel.tsx` und machte
+ * nebenbei dieselbe +48-Ergänzung — hier steht sie schon in `normalisePhone`,
+ * also bleibt hier nur das Abstreifen.
+ */
+export function dialable(value: string): string | null {
+  const one = normalisePhone(value);
+  return one === null ? null : one.replace(/\s+/g, '');
+}
+
+/**
+ * Die ERSTE Nummer eines Feldes — für einen Link, der genau ein Ziel hat.
+ *
+ * Ein Feld kann mehrere tragen (Mutter, Vater, Kind); ein `sms:`-Ziel nicht.
+ * Welche gemeint ist, sagt die Reihenfolge: die zuerst eingetragene.
+ */
+export const firstPhone = (value: string): string | null => {
+  const all = splitPhones(value);
+  return all.length === 0 ? null : dialable(all[0]);
+};

@@ -63,6 +63,20 @@ public static class Form
         app.MapPost("/workspace/registration/{id:guid}/hide", HideAsync);
         app.MapPost("/workspace/registration/{id:guid}/remove", RemoveAsync);
 
+        /*
+         * EINE EINSENDUNG BERICHTIGEN — von der Kanzlei aus.
+         *
+         * Es gibt schon `POST /seat/{token}/submission`: dort berichtigt der
+         * Mensch selbst, mit seinem Link. Das ist der Normalfall und bleibt es.
+         *
+         * Hier steht der andere: eine Telefonnummer, die als „600700800"
+         * eingetragen wurde und als „+48 600 700 800" gespeichert gehoert. Wer
+         * das reihum geradezieht, ist die Kanzlei — sie hat den
+         * Annahmeschluessel, und der Betroffene hat vielleicht seit Wochen
+         * nicht hereingeschaut.
+         */
+        app.MapPost("/workspace/registration/{id:guid}/values", ReviseAsOfficeAsync);
+
         /* Ohne Konto — das ist der Zweck. */
         app.MapGet("/form/{id:guid}", PublicAsync);
         app.MapPost("/form/{id:guid}/submit", SubmitAsync);
@@ -1116,6 +1130,121 @@ public static class Form
             await tx.RollbackAsync(ctx.RequestAborted);
             throw;
         }
+    }
+
+    public sealed record OfficeValue(string FieldId, string Sealed, string WrappedKey, string? SeatKeySealed);
+
+    public sealed record OfficeReviseRequest(IReadOnlyList<OfficeValue> Values);
+
+    /// <summary>
+    /// Eine Einsendung von der Kanzlei aus berichtigen.
+    ///
+    /// <para>
+    /// <b>Der Dienst sieht auch hier nichts.</b> Er bekommt dieselben Huellen
+    /// wie bei der ersten Einsendung und legt sie hin. Wer berichtigt, hat den
+    /// Annahmeschluessel im Browser — der Dienst hat ihn nie.
+    /// </para>
+    ///
+    /// <para>
+    /// <b><c>SeatKeySealed</c> gehoert dazu, wenn es einen Platz gibt.</b>
+    /// Liesse man es weg, staende die berichtigte Nummer nur noch fuer das Amt
+    /// da und waere fuer den Menschen selbst verschwunden — eine Korrektur, die
+    /// ihm etwas WEGNIMMT. Die Oberflaeche holt den Platzschluessel dafuer
+    /// ueber die Epoche oder die Annahme (0027).
+    /// </para>
+    ///
+    /// <para>
+    /// Ersetzt wird Feld fuer Feld, und nur was mitkommt — wie beim Menschen
+    /// selbst.
+    /// </para>
+    /// </summary>
+    private static async Task ReviseAsOfficeAsync(
+        HttpContext ctx, Db db, Guid id, OfficeReviseRequest body)
+    {
+        var values = body.Values ?? [];
+
+        if (values.Count == 0)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nie podano żadnej poprawki.");
+            return;
+        }
+
+        var parsed = new List<(Guid Field, byte[] Sealed, byte[] Wrapped, byte[]? ForSeat)>();
+
+        foreach (var one in values)
+        {
+            if (!Guid.TryParse(one.FieldId, out var fieldId))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung pola.");
+                return;
+            }
+
+            var sealedValue = Optional(one.Sealed);
+            var wrapped = Optional(one.WrappedKey);
+
+            if (sealedValue is null || sealedValue.Length == 0 || wrapped is null || wrapped.Length == 0)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna poprawka.");
+                return;
+            }
+
+            parsed.Add((fieldId, sealedValue, wrapped, Optional(one.SeatKeySealed)));
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        if (!await MayTendAsync(ctx, db, connection, id)) return;
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            foreach (var (fieldId, sealedValue, wrapped, forSeat) in parsed)
+            {
+                await using (var drop = new SqlCommand("""
+                    DELETE FROM app.registration_value
+                     WHERE registration_id = @reg AND field_id = @field;
+                    """, connection, tx))
+                {
+                    drop.Parameters.AddWithValue("@reg", id);
+                    drop.Parameters.AddWithValue("@field", fieldId);
+                    await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+                }
+
+                await using var add = new SqlCommand("""
+                    INSERT INTO app.registration_value
+                        (registration_id, field_id, value_sealed, wrapped_key, seat_key_sealed)
+                    VALUES (@reg, @field, @value, @wrapped, @seat);
+                    """, connection, tx);
+
+                add.Parameters.AddWithValue("@reg", id);
+                add.Parameters.AddWithValue("@field", fieldId);
+                add.Parameters.AddBlob("@value", sealedValue);
+                add.Parameters.AddBlob("@wrapped", wrapped);
+                add.Parameters.AddBlob("@seat", forSeat);
+
+                await add.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch (SqlException e) when (e.Number == 547)
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict, "To pytanie już nie należy do tego formularza.");
+            return;
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            registrationId = Ids.ToText(id),
+            revised = parsed.Count
+        });
     }
 
     /// <summary>
