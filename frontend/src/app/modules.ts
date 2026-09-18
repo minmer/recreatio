@@ -111,7 +111,17 @@ export const CATALOG: readonly ModuleDef[] = [
      */
     kind: 'form', label: 'Formularz', colSpan: 3, rowSpan: 3, live: true,
     fields: [
-      { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Zgłoszenie' }
+      { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Zgłoszenie' },
+
+      /*
+       * DIE NACHRICHT, EINMAL GESCHRIEBEN. Sie steht im Baustein und nicht in
+       * einer Einstellung des Bereichs: wer dieses Formular führt, schreibt
+       * auch, was danach verschickt wird.
+       */
+      {
+        key: 'sms', label: 'Szablon wiadomości', kind: 'text',
+        hint: 'Cześć {Imię i nazwisko}! Twoja strona: {link}'
+      }
     ]
   },
   {

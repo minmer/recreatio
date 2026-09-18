@@ -183,7 +183,7 @@ export function PageEditor({ path, who }: { path: string; who: Who }) {
         zwei Ansichten desselben.
       */}
       {parts.filter((part) => part.kind === 'form').map((part) => (
-        <FormOffice key={part.id} partId={part.id} who={who} />
+        <FormOffice key={part.id} partId={part.id} config={part.config} who={who} />
       ))}
 
       {view !== null && (

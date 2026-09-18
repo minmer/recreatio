@@ -21,7 +21,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { loadAreas, myEpochKeys, type AreaRow } from './area';
+import { loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from './area';
+import { fromBase64Url } from './crypto';
 import {
   FIELD_KINDS, KIND_LABEL, addField, loadFields, loadRegistrations, openFields,
   hideSubmission, readSubmission, removeField, removeSubmission,
@@ -30,9 +31,18 @@ import {
 import { createIntake, loadIntake, openIntakeKey, setController } from './intake';
 import type { Ring, SealedRole } from './keys';
 import { keysFor } from './ringOf';
+import { officeSeatKey, loadSeats, relinkSeat, seatPath, type SeatRow } from './seat';
 import { WorkspaceError, type Who } from './session';
+import { missingIn, renderSms } from './sms';
 
-export function FormOffice({ partId, who }: { partId: string; who: Who }) {
+export function FormOffice({ partId, config, who }: {
+  partId: string;
+
+  /** Der Baustein selbst — daraus kommt die Vorlage der Nachricht. */
+  config: Record<string, string>;
+
+  who: Who;
+}) {
   const [ring, setRing] = useState<Ring | null>(null);
   const [person, setPerson] = useState<SealedRole | null>(null);
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
@@ -126,6 +136,31 @@ export function FormOffice({ partId, who }: { partId: string; who: Who }) {
         if (key !== undefined) keys.set(area.areaId, key);
       } catch {
         // Eine fremde Epoche, keine Zuteilung. Kein Fehler — eine Auskunft.
+      }
+    }
+
+    /*
+     * DIE KANZLEI DARF NICHT WENIGER SEHEN ALS EIN FREMDER.
+     *
+     * Die Beschriftungen liegen unter dem Epochenschlüssel. Oben kommt er aus
+     * der ZUTEILUNG — dem Weg des Amtes. Ein öffentliches Formular setzt aber
+     * voraus, dass derselbe Schlüssel VERÖFFENTLICHT ist (sonst hätte niemand
+     * das Formular lesen können), und die beiden Wege können auseinanderfallen:
+     * eine Zuteilung aus einer anderen Epoche, eine Rolle, deren Zuteilung
+     * fehlt, ein Bereich, den `loadAreas` nicht führt.
+     *
+     * Dann stand in der Kanzlei „zapieczętowane", während draussen jeder die
+     * Frage lesen konnte — die absurde Richtung. Also wird der veröffentlichte
+     * Schlüssel nachgeschlagen, und zwar nur für die Bereiche, die oben nichts
+     * hergegeben haben: die Zuteilung bleibt der erste Weg.
+     */
+    for (const areaId of new Set(sealed.map((f) => f.areaId))) {
+      if (keys.has(areaId)) continue;
+
+      try {
+        keys.set(areaId, fromBase64Url((await loadPublicKey(areaId)).key));
+      } catch {
+        // Nicht offengelegt und keine Zuteilung: die Frage bleibt zu, zu Recht.
       }
     }
 
@@ -371,6 +406,22 @@ export function FormOffice({ partId, who }: { partId: string; who: Who }) {
                   fields={fields}
                   sealed={s.values.length}
                 />
+
+                {/*
+                  DER LINK UND DIE NACHRICHT — nur, wo es einen Platz gibt.
+                  Eine Einsendung ohne Platz (nur mit Quittung) hat nichts, worauf
+                  ein Link zeigen könnte; dort wäre der Knopf ein Versprechen.
+                */}
+                {s.seatId !== null && (
+                  <SendPanel
+                    seatId={s.seatId}
+                    values={opened.get(s.registrationId)}
+                    fieldsByLabel={fields}
+                    template={config.sms ?? ''}
+                    ring={ring}
+                    onError={setFailed}
+                  />
+                )}
               </span>
             </li>
           ))}
@@ -642,3 +693,144 @@ function IntakeSetup({ areaId, areaName, ring, officeRoleId, busy, onAct }: {
 }
 
 export default FormOffice;
+
+/* -- Der Link und die Nachricht (0027/0029) -------------------------------- */
+
+/**
+ * Was die Kanzlei einem Menschen schickt.
+ *
+ * <b>Den alten Link gibt es nicht zurück.</b> Gespeichert ist nur sein
+ * Abdruck — niemand kann ihn nachschlagen, auch der Betreiber nicht. „Wystaw
+ * link" stellt deshalb einen NEUEN auf DENSELBEN Platz aus: der Platzschlüssel
+ * bleibt, also behält der Mensch alles, was er schon eingetragen hat, und nur
+ * die Hülle darum ist neu. Der vorige hört auf zu gelten — das ist der Zweck.
+ *
+ * <b>Die Nachricht steht daneben, fertig zum Kopieren.</b> Die Vorlage schreibt
+ * die Kanzlei einmal am Baustein; hier wird eingesetzt, was dieser Mensch
+ * eingetragen hat. Ein Platzhalter ohne Antwort bleibt sichtbar und wird oben
+ * benannt — eine Nachricht mit einer stillen Lücke ginge sonst hinaus, ohne
+ * dass jemand es merkt.
+ */
+function SendPanel({ seatId, values, fieldsByLabel, template, ring, onError }: {
+  seatId: string;
+  values: Map<string, string> | undefined;
+  fieldsByLabel: readonly OpenField[];
+  template: string;
+  ring: Ring | null;
+  onError: (message: string | null) => void;
+}) {
+  const [link, setLink] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const byLabel = new Map<string, string>();
+
+  if (values !== undefined) {
+    for (const f of fieldsByLabel) {
+      const v = values.get(f.fieldId);
+      if (f.label !== null && v !== undefined) byLabel.set(f.label, v);
+    }
+  }
+
+  const text = template.trim() === '' ? '' : renderSms(template, byLabel, link);
+  const gaps = template.trim() === '' ? [] : missingIn(template, byLabel, link);
+
+  const issue = async () => {
+    if (ring === null) { onError('Bez hasła nie da się wystawić linku.'); return; }
+
+    setBusy(true);
+    onError(null);
+
+    try {
+      const row = await seatRowOf(seatId, ring);
+      const fresh = await relinkSeat(seatId, row.key);
+
+      setLink(`${window.location.origin}${window.location.pathname}${seatPath(fresh, row.under)}`);
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się wystawić linku.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="wk-form">
+      <div className="wk-actions">
+        <button type="button" className="wk-btn" disabled={busy} onClick={() => void issue()}>
+          {busy ? 'Wystawianie…' : link === null ? 'Wystaw link' : 'Wystaw nowy link'}
+        </button>
+
+        {text !== '' && (
+          <button
+            type="button" className="wk-link-btn"
+            onClick={() => {
+              void navigator.clipboard?.writeText(text)
+                .then(() => setCopied(true)).catch(() => setCopied(false));
+            }}
+          >
+            {copied ? 'Skopiowano' : 'Kopiuj wiadomość'}
+          </button>
+        )}
+      </div>
+
+      {link !== null && (
+        <>
+          <p className="wk-hint">
+            <strong>Ten link widzisz tylko teraz</strong> — zapisany jest wyłącznie
+            jego odcisk. Poprzedni przestał działać; wszystko, co ta osoba już
+            wpisała, zostaje.
+          </p>
+          <textarea readOnly rows={2} className="wk-mono" value={link} />
+        </>
+      )}
+
+      {template.trim() === '' ? (
+        <p className="wk-hint">
+          Napisz szablon wiadomości w ustawieniach tego bloku — np.{' '}
+          <code>Cześć {'{Imię i nazwisko}'}! Twoja strona: {'{link}'}</code>
+        </p>
+      ) : (
+        <>
+          {gaps.length > 0 && (
+            <p className="wk-blocker">
+              Bez treści: {gaps.map((g) => `{${g}}`).join(', ')}
+              {gaps.includes('link') && ' — najpierw wystaw link.'}
+            </p>
+          )}
+          <textarea readOnly rows={4} value={text} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Den Platz eines Menschen aufmachen — über die Epoche oder über die Annahme.
+ *
+ * <b>Beide Wege, weil es beide gibt</b> (0027): ein Platz, den das Amt
+ * ausgestellt hat, hängt an der Epoche; einer aus einer Selbstanmeldung an der
+ * Annahme. Welcher, sagt die Zeile selbst.
+ */
+async function seatRowOf(seatId: string, ring: Ring): Promise<{ key: Uint8Array; under: string | null }> {
+  const mine = (await loadAreas()).areas;
+
+  for (const area of mine) {
+    const { seats } = await loadSeats(area.areaId).catch(() => ({ seats: [] as readonly SeatRow[] }));
+    const row = seats.find((s) => s.seatId === seatId);
+    if (row === undefined) continue;
+
+    const areaKey = (await myEpochKeys(ring, area.areaId)).get(area.currentEpoch);
+
+    let intake: Uint8Array | undefined;
+    if (row.origin === 'self') {
+      intake = await openIntakeKey(await loadIntake(area.areaId), ring);
+    }
+
+    const key = await officeSeatKey(row, areaKey ?? new Uint8Array(32), intake);
+    if (key === null) throw new WorkspaceError('Do tego miejsca nie ma klucza.');
+
+    return { key, under: row.under };
+  }
+
+  throw new WorkspaceError('Tego miejsca nie ma wśród Twoich obszarów.');
+}
