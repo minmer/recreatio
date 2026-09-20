@@ -91,14 +91,92 @@ export function normalisePhone(raw: string): string | null {
 }
 
 /**
+ * Was IMMER zwischen zwei Nummern steht und in keiner vorkommt.
+ *
+ * Zeilenumbruch, Komma, Strichpunkt, Sternchen — keines davon ist je Teil
+ * einer Rufnummer, also trennt jedes. Der Schrägstrich steht bewusst NICHT
+ * dabei: `12/345 67 89` ist eine gängige polnische Schreibweise für EINE
+ * Nummer, und wer ihn trennen liesse, zerschnitte sie mitten entzwei.
+ */
+const BETWEEN = /[\n\r,;*]+/;
+
+/**
  * Der gespeicherte Wert eines Telefonfeldes — eine Nummer je Zeile.
  *
- * <b>Zeilen und keine Kommas.</b> Eine Nummer enthält nie einen Zeilenumbruch,
- * ein Komma dagegen kommt in Schreibweisen durchaus vor; und dieselbe Trennung
- * benutzt das Formular schon für die Auswahlliste eines Feldes.
+ * <b>Das Leerzeichen ist der schwierige Fall, und deshalb steht es hier
+ * eigens.</b> Es trennt manchmal (`600700800 601601601`) und gliedert
+ * manchmal (`+48 600 700 800`) — dieselbe Zeichenfolge, zwei Bedeutungen. Wer
+ * stumpf daran trennt, zerlegt jede einzelne gespeicherte Nummer in drei
+ * Stücke; wer es nie tut, lässt zwei Nummern als eine unlesbare stehen.
+ *
+ * <b>Entschieden wird es nicht am Zeichen, sondern am Ergebnis</b>
+ * (<see cref="bySpace"/>): ergibt das Ganze zusammengelesen EINE gültige
+ * Nummer, war jedes Leerzeichen darin Gliederung. Sonst wird von links
+ * abgetrennt, sobald ein vollständiger Anschluss beisammen ist.
+ *
+ * <b>Was keine Nummer ist, bleibt stehen.</b> Ein Feld darf durch das Ordnen
+ * nichts verlieren — `domofon 14` kommt unverändert wieder heraus.
  */
 export const splitPhones = (value: string): readonly string[] =>
-  value.split('\n').map((one) => one.trim()).filter((one) => one !== '');
+  value.split(BETWEEN)
+    .flatMap(bySpace)
+    .map((one) => one.trim())
+    .filter((one) => one !== '');
+
+/**
+ * Ein Stück ohne harte Trenner in seine Nummern zerlegen.
+ *
+ * <code>
+ *   600 700 800              →  ein Anschluss (Gliederung)
+ *   12 345 67 89             →  ein Anschluss (Gliederung)
+ *   600700800 601601901      →  zwei Anschlüsse
+ *   +48 600 700 800 601601601 →  zwei Anschlüsse
+ *   domofon 14               →  bleibt, wie es ist
+ * </code>
+ *
+ * <b>Warum der Blick aufs Ganze zuerst kommt.</b> Zwei polnische Nummern
+ * hintereinander sind achtzehn Ziffern, und achtzehn Ziffern sind nach E.164
+ * keine Rufnummer mehr — das Ganze fällt also von selbst durch, wo wirklich
+ * zwei stehen. Bei `12 345 67 89` geht es dagegen auf, und genau davor
+ * bewahrt es uns: von links gelesen wäre `1234567` schon ein vollständiger
+ * Anschluss gewesen, und `89` bliebe als Rest liegen.
+ */
+function bySpace(chunk: string): readonly string[] {
+  const text = chunk.trim();
+  if (text === '') return [];
+
+  /* Ganz gelesen eine Nummer? Dann ist jedes Leerzeichen darin Gliederung. */
+  if (normalisePhone(text) !== null) return [text];
+
+  const parts = text.split(/\s+/);
+  const out: string[] = [];
+
+  let at = 0;
+
+  while (at < parts.length) {
+    let takes = 0;
+
+    /* Das KÜRZESTE Stück, das schon einen ganzen Anschluss ergibt. */
+    for (let upto = at + 1; upto <= parts.length; upto++) {
+      if (normalisePhone(parts.slice(at, upto).join('')) !== null) {
+        takes = upto - at;
+        break;
+      }
+    }
+
+    /*
+     * Nichts davon ist eine Nummer — dann ist der Rest keine, und er bleibt in
+     * einem Stück stehen. Ihn hier wortweise zu zerstreuen hiesse, aus einer
+     * Anmerkung mehrere zu machen.
+     */
+    if (takes === 0) { out.push(parts.slice(at).join(' ')); break; }
+
+    out.push(parts.slice(at, at + takes).join(' '));
+    at += takes;
+  }
+
+  return out;
+}
 
 export const joinPhones = (numbers: readonly string[]): string => numbers.join('\n');
 
@@ -126,10 +204,25 @@ export const tidyPhones = (value: string): string =>
 export function withPhone(
   numbers: readonly string[], raw: string
 ): { readonly numbers: readonly string[]; readonly added: boolean } {
-  const one = normalisePhone(raw);
-  if (one === null || numbers.includes(one)) return { numbers, added: false };
+  const out = [...numbers];
+  let added = false;
 
-  return { numbers: [...numbers, one], added: true };
+  /*
+   * EINGEFÜGT WIRD SELTEN EINE EINZELNE. Wer aus einer Tabelle oder einer
+   * alten Liste kopiert, bringt „600700800, 601601601" mit — vorher wurde das
+   * am Stück durch `normalisePhone` geschickt, fiel als Unsinn durch und
+   * verschwand kommentarlos. Jetzt zerlegt dieselbe Regel es, die auch den
+   * gespeicherten Wert zerlegt, und es entstehen zwei Marken.
+   */
+  for (const one of splitPhones(raw)) {
+    const tidy = normalisePhone(one);
+    if (tidy === null || out.includes(tidy)) continue;
+
+    out.push(tidy);
+    added = true;
+  }
+
+  return added ? { numbers: out, added: true } : { numbers, added: false };
 }
 
 /**
