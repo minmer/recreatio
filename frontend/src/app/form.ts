@@ -592,6 +592,16 @@ export interface ValueCheck {
   readonly sentAt: string;
   readonly expiresAt: string;
   readonly verifiedAt: string | null;
+
+  /**
+   * WIE bestätigt wurde (0031) — und die beiden sagen nicht dasselbe.
+   *
+   * `sms` heisst: jemand hat den Link geöffnet, der an diese Nummer ging —
+   * unter ihr war also jemand erreichbar. `self` heisst: der Mensch hat in
+   * seinem Portal bestätigt, dass die Angabe stimmt. Das zweite ist weniger,
+   * und es als dasselbe anzuzeigen wäre eine Auskunft, die nicht stimmt.
+   */
+  readonly origin: 'sms' | 'self';
 }
 
 /**
@@ -633,6 +643,24 @@ export const redeemCheck = (
   token: string
 ): Promise<{ verified: boolean; at: string; again: boolean }> =>
   call(`/verify/${encodeURIComponent(token)}`, { method: 'POST' });
+
+/**
+ * „To mój numer" — aus dem eigenen Portal bestätigen (0031).
+ *
+ * <b>Es beweist etwas anderes als der Link aus der SMS.</b> Wer hier drückt,
+ * sagt: diese Angabe stimmt noch. Wer auf einen Link tippt, den die Kanzlei an
+ * die Nummer geschickt hat, zeigt ausserdem, dass unter DIESER Nummer jemand
+ * erreichbar war. Deshalb steht in der Zeile, auf welchem Weg es geschah, und
+ * deshalb macht dieser Knopf aus einer bestehenden SMS-Bestätigung keine
+ * schwächere — `again` sagt dann, dass es sie schon gab.
+ */
+export const selfCheck = (
+  token: string, registrationId: string, fieldId: string
+): Promise<{ verified: boolean; again: boolean; origin: 'sms' | 'self'; at: string }> =>
+  call(`/seat/${encodeURIComponent(token)}/check`, {
+    method: 'POST',
+    body: JSON.stringify({ registrationId, fieldId })
+  });
 
 /**
  * Einzelne Einstellungen eines Bausteins ändern — ohne die ganze Seite.

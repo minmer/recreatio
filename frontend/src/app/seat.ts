@@ -429,6 +429,10 @@ export interface SubmittedValue {
 
   /** Welche Einsendung — eine Berichtigung muss sagen, welche sie meint. */
   readonly registrationId: string;
+
+  /** `null` heisst: noch nicht bestätigt. Ein echter Zustand (0030/0031). */
+  readonly verifiedAt: string | null;
+  readonly verifiedWay: 'sms' | 'self' | null;
 }
 
 /*

@@ -72,6 +72,13 @@ public static class Seat
          * Amt. Sie gehoert ihm.
          */
         app.MapPost("/seat/{token}/submission", ReviseAsync);
+
+        /*
+         * „To mój numer“ — die Bestaetigung aus dem eigenen Portal (0031).
+         * Sie steht neben dem SMS-Link und ersetzt ihn nicht: der Link zeigt
+         * Erreichbarkeit, dieser Knopf zeigt, dass die Angabe noch gilt.
+         */
+        app.MapPost("/seat/{token}/check", SelfCheckAsync);
     }
 
     /* -- Ausstellen --------------------------------------------------------- */
@@ -426,6 +433,157 @@ public static class Seat
     public sealed record ReviseValue(string FieldId, string Sealed, string WrappedKey, string SeatKeySealed);
 
     public sealed record ReviseRequest(string RegistrationId, IReadOnlyList<ReviseValue> Values);
+
+    public sealed record SelfCheckRequest(string RegistrationId, string FieldId);
+
+    /// <summary>
+    /// „To mój numer" — der Mensch bestaetigt seine eigene Angabe (0031).
+    ///
+    /// <para>
+    /// <b>Das ist nicht dasselbe wie der Link aus der SMS</b>, und es steht
+    /// deshalb mit <c>origin = 'self'</c> in der Zeile. Wer hier drueckt, sagt:
+    /// diese Angabe stimmt noch. Wer auf einen Link tippt, den die Kanzlei an
+    /// die Nummer geschickt hat, zeigt ausserdem, dass unter DIESER Nummer
+    /// jemand erreichbar war. Das zweite ist mehr, und die Liste der Kanzlei
+    /// muss beides auseinanderhalten koennen.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Eine staerkere Bestaetigung wird nicht ueberschrieben.</b> Wer nach
+    /// einem geklickten SMS-Link im Portal noch einmal drueckt, macht daraus
+    /// keine schwaechere Auskunft — die bestehende bleibt, und die Antwort
+    /// sagt, dass es sie schon gab.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Der Dienst erfaehrt die Nummer auch hier nicht.</b> Bestaetigt wird
+    /// eine STELLE: diese Einsendung, dieses Feld. Was dort steht, liegt
+    /// versiegelt und bleibt es.
+    /// </para>
+    /// </summary>
+    private static async Task SelfCheckAsync(
+        HttpContext ctx, Db db, string token, SelfCheckRequest body)
+    {
+        if (string.IsNullOrWhiteSpace(token)
+            || !Guid.TryParse(body.RegistrationId, out var registrationId)
+            || !Guid.TryParse(body.FieldId, out var fieldId))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego zgłoszenia nie ma.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        /*
+         * DREI FRAGEN IN EINER ABFRAGE: gibt es den Platz, haengt diese
+         * Einsendung daran, und steht dort ueberhaupt ein Wert an dieser
+         * Stelle. Getrennt gestellt liessen sie dazwischen Raum fuer die
+         * Frage, wessen Einsendung das eigentlich ist.
+         */
+        await using (var cmd = new SqlCommand("""
+            SELECT TOP 1 1
+            FROM app.access a
+            JOIN app.registration r       ON r.access_id = a.id
+            JOIN app.registration_value v ON v.registration_id = r.id
+            WHERE a.token_sha256 = @token
+              AND a.revoked_at IS NULL AND a.status = N'active'
+              AND (a.expires_at IS NULL OR a.expires_at > @now)
+              AND r.id = @reg AND v.field_id = @field;
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("@token",
+                SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token.Trim())));
+            cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            cmd.Parameters.AddWithValue("@reg", registrationId);
+            cmd.Parameters.AddWithValue("@field", fieldId);
+
+            if (await cmd.ExecuteScalarAsync(ctx.RequestAborted) is null)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound,
+                    "Tej odpowiedzi tu nie ma.");
+                return;
+            }
+        }
+
+        /* Steht schon eine Bestaetigung? Dann bleibt sie, wie sie ist. */
+        string? standing = null;
+        DateTimeOffset? since = null;
+
+        await using (var seen = new SqlCommand("""
+            SELECT TOP 1 origin, verified_at
+            FROM app.value_check
+            WHERE registration_id = @reg AND field_id = @field AND verified_at IS NOT NULL
+            ORDER BY verified_at DESC;
+            """, connection))
+        {
+            seen.Parameters.AddWithValue("@reg", registrationId);
+            seen.Parameters.AddWithValue("@field", fieldId);
+
+            await using var reader = await seen.ExecuteReaderAsync(ctx.RequestAborted);
+            if (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                standing = reader.GetString(0);
+                since = reader.GetDateTimeOffset(1);
+            }
+        }
+
+        if (standing is not null)
+        {
+            await ctx.Response.WriteAsJsonAsync(new
+            {
+                verified = true, again = true, origin = standing, at = since
+            });
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            /*
+             * Ein offener SMS-Link wird gegenstandslos: die Frage, die er
+             * stellen sollte, ist beantwortet. Ihn liegen zu lassen hiesse, dass
+             * ein Klick auf einen alten Link spaeter eine zweite Bestaetigung
+             * derselben Stelle erzeugt.
+             */
+            await using (var drop = new SqlCommand("""
+                DELETE FROM app.value_check
+                 WHERE registration_id = @reg AND field_id = @field AND verified_at IS NULL;
+                """, connection, tx))
+            {
+                drop.Parameters.AddWithValue("@reg", registrationId);
+                drop.Parameters.AddWithValue("@field", fieldId);
+                await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await using var insert = new SqlCommand("""
+                INSERT INTO app.value_check
+                    (id, registration_id, field_id, token_sha256, sent_at, expires_at,
+                     verified_at, origin)
+                VALUES (@id, @reg, @field, NULL, @now, @now, @now, 'self');
+                """, connection, tx);
+
+            insert.Parameters.AddWithValue("@id", Ids.NewId());
+            insert.Parameters.AddWithValue("@reg", registrationId);
+            insert.Parameters.AddWithValue("@field", fieldId);
+            insert.Parameters.AddWithValue("@now", now);
+
+            await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            verified = true, again = false, origin = "self", at = now
+        });
+    }
 
     /// <summary>
     /// Die eigene Einsendung berichtigen — mit dem Link, ohne Konto.
@@ -876,10 +1034,23 @@ public static class Seat
 
         await using var cmd = new SqlCommand("""
             SELECT f.id, f.kind, f.position, f.area_id, f.epoch, f.label_sealed,
-                   v.value_sealed, v.seat_key_sealed, r.submitted_at, r.id
+                   v.value_sealed, v.seat_key_sealed, r.submitted_at, r.id,
+                   c.verified_at, c.origin
             FROM app.registration r
             JOIN app.registration_value v ON v.registration_id = r.id
             JOIN app.slug_field f         ON f.id = v.field_id
+            /*
+                DIE BESTAETIGUNG DIESER STELLE, falls es eine gibt (0030/0031).
+                Mit TOP 1, weil ein SMS-Link und eine Selbstbestaetigung
+                nacheinander stehen koennen; die JUENGSTE gilt.
+            */
+            OUTER APPLY (
+                SELECT TOP 1 k.verified_at, k.origin
+                FROM app.value_check k
+                WHERE k.registration_id = r.id AND k.field_id = f.id
+                  AND k.verified_at IS NOT NULL
+                ORDER BY k.verified_at DESC
+            ) c
             WHERE r.access_id = @seat AND v.seat_key_sealed IS NOT NULL
             ORDER BY r.submitted_at, f.position;
             """, connection);
@@ -902,7 +1073,15 @@ public static class Seat
                 submittedAt = reader.GetDateTimeOffset(8),
 
                 /* Damit eine Berichtigung sagen kann, WELCHE Einsendung sie meint. */
-                registrationId = Ids.ToText(reader.GetGuid(9))
+                registrationId = Ids.ToText(reader.GetGuid(9)),
+
+                /*
+                 * OB DIESE ANGABE BESTAETIGT IST — und auf welchem Weg.
+                 * Der Mensch soll in seinem Portal sehen, was die Kanzlei sieht;
+                 * sonst drueckt er auf einen Knopf, der laengst nichts mehr tut.
+                 */
+                verifiedAt = reader.IsDBNull(10) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(10),
+                verifiedWay = reader.IsDBNull(11) ? null : reader.GetString(11)
             });
         }
 

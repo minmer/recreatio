@@ -17,6 +17,9 @@
   --wk-muted: #5b554c;
   --wk-line: #dcd7cd;
   --wk-accent: #7a5a2e;
+
+  /* Bestätigt — neben einer Angabe, nie als einziges Zeichen (0030/0031). */
+  --wk-ok: #2f6b3a;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -27,6 +30,7 @@
     --wk-muted: #b0a695;
     --wk-line: #353027;
     --wk-accent: #d3a25e;
+    --wk-ok: #7fc68d;
   }
 }
 
@@ -724,4 +728,25 @@ code {
   letter-spacing: 0.25em;
   font-variant-ligatures: none;
   color: var(--wk-accent);
+}
+
+/*
+    BESTÄTIGT — das Zeichen neben einer Nummer (0030/0031).
+
+    Klein und ruhig: es steht in derselben Zeile wie die Angabe und darf sie
+    nicht überstimmen. Die Farbe trägt die Aussage nicht allein — das Häkchen
+    steht auch dann da, wenn jemand keine Farben unterscheidet.
+*/
+.wk-chip-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: var(--wk-ok);
+  background: transparent;
+  font-size: 0.82rem;
+  white-space: nowrap;
 }

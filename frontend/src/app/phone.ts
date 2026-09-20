@@ -64,28 +64,30 @@ export function normalisePhone(raw: string): string | null {
    */
   if (digits.length < 7 + HOME.length || digits.length > 15) return null;
 
-  return '+' + group(digits);
-}
-
-/**
- * Die Ziffern lesbar gliedern — aber nur, wo wir die Gewohnheit kennen.
- *
- * <b>Für das eigene Land nach der gewohnten Art</b> (`+48 600 700 800`).
- *
- * <b>Für alles andere gar nicht.</b> Hier stand einmal „in Dreiergruppen, weil
- * wir die dortige Gewohnheit nicht kennen" — und das war falsch: es nimmt eine
- * zweistellige Landesvorwahl an. `+1 202 555 0143` wurde dabei zu
- * `+12 025 550 143`, was wie eine andere Nummer aussieht. Eine Gliederung, die
- * man nicht kennt, erfindet man nicht; ungegliederte Ziffern sind hässlicher
- * und immer richtig.
- */
-function group(digits: string): string {
+  /*
+   * DAS EIGENE LAND wird nach der gewohnten Art gegliedert — dort kennen wir
+   * sie.
+   */
   if (digits.startsWith(HOME) && digits.length === HOME.length + HOME_DIGITS) {
     const rest = digits.slice(HOME.length);
-    return `${HOME} ${rest.slice(0, 3)} ${rest.slice(3, 6)} ${rest.slice(6)}`;
+    return `+${HOME} ${rest.slice(0, 3)} ${rest.slice(3, 6)} ${rest.slice(6)}`;
   }
 
-  return digits;
+  /*
+   * EIN FREMDES LAND BEHÄLT SEINE EIGENE GLIEDERUNG.
+   *
+   * Hier stand einmal nur `'+' + digits`, und das war doppelt unglücklich: es
+   * widersprach dem, was oben versprochen ist („unberührt: nicht unser Land"),
+   * und der Knopf „Normalizuj numery" hätte `+1 202 555 0143` bei jedem Lauf
+   * zu `+12025550143` gemacht — dieselbe Nummer, schlechter zu lesen, und für
+   * niemanden ein Gewinn.
+   *
+   * Vereinheitlicht wird deshalb nur, was wir sicher wissen: `00` heisst `+`,
+   * und mehrere Leerzeichen sind eines. Wie die Nummer im Inneren gegliedert
+   * ist, weiss der, der sie geschrieben hat, besser als wir.
+   */
+  const shown = text.replace(/^00/, '+').replace(/\s+/g, ' ').trim();
+  return shown.startsWith('+') ? shown : `+${shown}`;
 }
 
 /**
@@ -99,6 +101,21 @@ export const splitPhones = (value: string): readonly string[] =>
   value.split('\n').map((one) => one.trim()).filter((one) => one !== '');
 
 export const joinPhones = (numbers: readonly string[]): string => numbers.join('\n');
+
+/**
+ * Ein ganzes Telefonfeld, so wie es heute gespeichert würde.
+ *
+ * <b>Was sich nicht als Nummer lesen lässt, bleibt stehen.</b> Genau darin
+ * liegt der Unterschied zwischen Ordnen und Verlieren: `normalisePhone` gibt
+ * `null` zurück, wo es nichts zu erkennen gibt, und dann gilt weiterhin, was
+ * der Mensch geschrieben hat. Ein Feld, in dem „domofon 14" steht, kommt
+ * unverändert heraus.
+ *
+ * <b>Der Vergleich mit dem Original ist die ganze Prüfung</b>, ob etwas zu tun
+ * ist: kommt dasselbe heraus, ist nichts krumm.
+ */
+export const tidyPhones = (value: string): string =>
+  joinPhones(splitPhones(value).map((one) => normalisePhone(one) ?? one));
 
 /**
  * Eine Nummer dazunehmen — geordnet, ohne Dopplung.
@@ -129,7 +146,18 @@ export function withPhone(
  */
 export function dialable(value: string): string | null {
   const one = normalisePhone(value);
-  return one === null ? null : one.replace(/\s+/g, '');
+  if (one === null) return null;
+
+  /*
+   * ALLES AUSSER ZIFFERN WEG, das führende `+` bleibt.
+   *
+   * Vorher wurden nur Leerzeichen abgestreift, und das genügte, solange jede
+   * Nummer am Ende `+48 600 700 800` hiess. Seit eine ausländische Nummer ihre
+   * eigene Gliederung behält, kann dort auch `+49-151-23456789` stehen — und
+   * ein Bindestrich in einem `tel:`-Ziel ist bestenfalls überflüssig und
+   * schlimmstenfalls der Grund, warum das Telefon den Link nicht annimmt.
+   */
+  return '+' + one.replace(/\D/g, '');
 }
 
 /**

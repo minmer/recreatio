@@ -1027,7 +1027,7 @@ public static class Form
             var names = string.Join(", ", rows.Select((_, i) => $"@c{i}"));
 
             await using var cmd = new SqlCommand(
-                $"SELECT registration_id, field_id, sent_at, expires_at, verified_at "
+                $"SELECT registration_id, field_id, sent_at, expires_at, verified_at, origin "
                 + $"FROM app.value_check WHERE registration_id IN ({names});", connection);
 
             for (var i = 0; i < rows.Count; i++) cmd.Parameters.AddWithValue($"@c{i}", rows[i].Id);
@@ -1043,7 +1043,11 @@ public static class Form
                     fieldId = Ids.ToText(reader.GetGuid(1)),
                     sentAt = reader.GetDateTimeOffset(2),
                     expiresAt = reader.GetDateTimeOffset(3),
-                    verifiedAt = reader.IsDBNull(4) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(4)
+                    verifiedAt = reader.IsDBNull(4) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(4),
+
+                    /* `sms` = ein Link wurde geklickt, `self` = im Portal bestaetigt.
+                       Zwei verschiedene Auskuenfte (0031) — nie dieselbe Zeile. */
+                    origin = reader.GetString(5)
                 });
             }
         }

@@ -20,7 +20,7 @@
 import { useState } from 'react';
 
 import { fromBase64Url } from './crypto';
-import { reviseSubmission } from './form';
+import { reviseSubmission, selfCheck } from './form';
 import { loadPublicIntake } from './intake';
 import { Phones } from './Phones';
 import type { SubmittedValue } from './seat';
@@ -65,6 +65,32 @@ export function Submission({ values, open, token, seatKey, mayEdit = true, onSav
 
   const changed = open.filter((one) => (draft[one.fieldId] ?? '') !== (one.value ?? ''));
 
+  /**
+   * „To mój numer" (0031).
+   *
+   * <b>Es schickt nichts und ändert nichts an der Angabe.</b> Festgehalten
+   * wird nur, dass der Mensch sie bestätigt hat — an der STELLE, nicht am
+   * Menschen: ein Bogen kann zwei Nummern tragen, und die eine zu bestätigen
+   * sagt nichts über die andere.
+   *
+   * <b>Danach wird neu geladen</b>, statt den Zustand hier zu erraten: was
+   * herauskommt, entscheidet der Dienst — er kann melden, dass es die
+   * Bestätigung schon gab, und zwar auf dem stärkeren Weg.
+   */
+  const confirm = async (fieldId: string) => {
+    setBusy(true);
+    setFailed(null);
+
+    try {
+      await selfCheck(token, values[0].registrationId, fieldId);
+      onSaved();
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się potwierdzić.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const save = async () => {
     if (seatKey === null) return;
 
@@ -98,13 +124,61 @@ export function Submission({ values, open, token, seatKey, mayEdit = true, onSav
     return (
       <>
         <dl className="wk-card-lines">
-          {open.map((one) => (
-            <div key={one.fieldId}>
-              <dt className="wk-row-side">{one.label ?? 'zapieczętowane pytanie'}</dt>
-              <dd>{one.value ?? 'zapieczętowane'}</dd>
-            </div>
-          ))}
+          {open.map((one) => {
+            const row = values.find((v) => v.fieldId === one.fieldId);
+
+            return (
+              <div key={one.fieldId}>
+                <dt className="wk-row-side">{one.label ?? 'zapieczętowane pytanie'}</dt>
+                <dd>
+                  {one.value ?? 'zapieczętowane'}
+
+                  {/*
+                    NEBEN DER NUMMER, nicht in einem eigenen Abschnitt weiter
+                    unten. „Ist meine Nummer bestätigt?" ist eine Frage ÜBER
+                    DIESE ZEILE, und eine Antwort drei Zeilen tiefer zwingt
+                    jeden, sie sich selbst zuzuordnen — bei zwei Nummern
+                    (Mutter, Vater) geht das schon nicht mehr auf.
+                  */}
+                  {row !== undefined && row.kind === 'phone' && (
+                    row.verifiedAt !== null ? (
+                      <span className="wk-chip-ok" title={
+                        row.verifiedWay === 'sms'
+                          ? 'Otworzyłeś link, który tu wysłaliśmy'
+                          : 'Potwierdziłeś tu, że numer jest aktualny'}>
+                        {' '}✓ potwierdzony
+                      </span>
+                    ) : seatKey !== null && (
+                      <>
+                        {' '}
+                        <button
+                          type="button" className="wk-link-btn" disabled={busy}
+                          onClick={() => void confirm(one.fieldId)}
+                        >
+                          To mój numer
+                        </button>
+                      </>
+                    )
+                  )}
+                </dd>
+              </div>
+            );
+          })}
         </dl>
+
+        {failed !== null && <p className="wk-error">{failed}</p>}
+
+        {/*
+          WAS DAS HÄKCHEN HEISST — einmal, unter der Liste. Ein „potwierdzony"
+          ohne Erklärung liest sich wie eine Prüfung, die jemand anders
+          bestanden hat.
+        */}
+        {values.some((v) => v.kind === 'phone' && v.verifiedAt === null) && seatKey !== null && (
+          <p className="wk-hint">
+            Potwierdzenie mówi kancelarii, że numer jest aktualny — nic poza tym
+            nie zmienia i niczego nie wysyła.
+          </p>
+        )}
 
         {seatKey !== null && mayEdit && (
           <div className="wk-actions">

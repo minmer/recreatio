@@ -35,7 +35,7 @@ import type { Ring, SealedRole } from './keys';
 import { keysFor } from './ringOf';
 import { officeSeatKey, loadSeats, relinkSeat, seatPath, type SeatRow } from './seat';
 import { WorkspaceError, type Who } from './session';
-import { dialable, joinPhones, normalisePhone, splitPhones, withPhone } from './phone';
+import { dialable, joinPhones, normalisePhone, splitPhones, tidyPhones, withPhone } from './phone';
 import { holesFor, missingIn, renderSms, smsHref, usesHole, VERIFY } from './sms';
 
 export function FormOffice({ partId, config, who }: {
@@ -270,8 +270,7 @@ export function FormOffice({ partId, config, who }: {
       const raw = opened_.get(f.fieldId);
       if (raw === undefined || raw.trim() === '') return [];
 
-      const tidy = joinPhones(splitPhones(raw)
-        .map((one) => normalisePhone(one) ?? one));
+      const tidy = tidyPhones(raw);
 
       return tidy === raw ? [] : [{ registrationId: s.registrationId, fieldId: f.fieldId, tidy }];
     });
@@ -288,6 +287,14 @@ export function FormOffice({ partId, config, who }: {
   const straighten = async () => {
     if (ring === null) throw new WorkspaceError('Bez hasła nie da się poprawić.');
     if (lastArea === null) throw new WorkspaceError('Najpierw otwórz zgłoszenia.');
+
+    /*
+     * WIE VIELE ES WAREN, bevor es keine mehr sind. Nach dem Neulesen ist
+     * `crooked` leer — dann liesse sich nicht mehr sagen, ob der Knopf zehn
+     * Nummern gerichtet hat oder gar nichts tat.
+     */
+    const howMany = crooked.length;
+    const people = new Set(crooked.map((one) => one.registrationId)).size;
 
     const intake = await loadPublicIntake(lastArea);
     const byRegistration = new Map<string, { fieldId: string; value: string }[]>();
@@ -311,7 +318,24 @@ export function FormOffice({ partId, config, who }: {
       });
     }
 
-    if (lastArea !== null) await read(lastArea);
+    await read(lastArea);
+
+    /*
+     * ERST NACH `read` — es setzt seine eigene Auskunft und würde diese sonst
+     * überschreiben.
+     *
+     * Und die Bestätigungen: wer eine Nummer neu schreibt, hat für den Dienst
+     * eine ANDERE Nummer, und die ist ungeprüft (0030). Das geschieht
+     * serverseitig, ohne dass jemand daran denken müsste — aber wer eben noch
+     * ein Häkchen gesehen hat, soll erfahren, warum es weg ist.
+     */
+    setNote(
+      howMany === 1
+        ? 'Poprawiono numer telefonu w jednej odpowiedzi. Jeśli był potwierdzony, '
+          + 'potwierdzenie wygasło — to już inny zapis numeru.'
+        : `Poprawiono numery telefonu w ${howMany} odpowiedziach `
+          + `(${people === 1 ? 'jedna osoba' : people + ' osób'}). `
+          + 'Potwierdzenia tych numerów wygasły — to już inny zapis numeru.');
   };
 
   return (
@@ -395,7 +419,66 @@ export function FormOffice({ partId, config, who }: {
               Otwórz zgłoszenia
             </button>
           ))}
+
+          {/*
+            „NORMALIZUJ NUMERY" STEHT IMMER DA, sobald das Formular überhaupt
+            nach einer Nummer fragt — und nicht erst, wenn etwas krumm ist.
+
+            Vorher erschien der Knopf nur im Fehlerfall, und sein Fehlen sah in
+            drei völlig verschiedenen Lagen gleich aus: nichts aufgemacht,
+            nichts krumm, keine Telefonfrage. Wer nachsehen wollte, ob die
+            Nummern in Ordnung sind, fand genau dann nichts vor, wenn sie es
+            waren. Jetzt steht er da und sagt selbst, woran er ist — abgeblendet,
+            mit dem Grund darunter.
+          */}
+          {phoneFields.length > 0 && (
+            <button
+              type="button" className="wk-btn"
+              disabled={busy !== null || crooked.length === 0}
+              onClick={() => void act('Poprawianie numerów…', straighten)}
+            >
+              {crooked.length === 0
+                ? 'Normalizuj numery'
+                : `Normalizuj numery (${crooked.length})`}
+            </button>
+          )}
         </div>
+      )}
+
+      {/*
+        WAS DER KNOPF GERADE KANN — und wenn er nichts kann, warum.
+
+        Die Zeile gehört zum Knopf und steht deshalb immer dort, wo er steht.
+        Ein abgeblendeter Knopf ohne Begründung ist eine Sackgasse: man sieht,
+        dass es nicht geht, und erfährt nicht, woran es liegt.
+      */}
+      {phoneFields.length > 0 ? (
+        <p className="wk-hint">
+          {crooked.length > 0
+            ? (crooked.length === 1
+                ? 'Jeden numer jest zapisany inaczej niż reszta — „Normalizuj numery" '
+                  + 'zapisze go w postaci +48 600 700 800.'
+                : `${crooked.length} numerów jest zapisanych inaczej niż reszta — `
+                  + '„Normalizuj numery" zapisze je w postaci +48 600 700 800.')
+            : opened.size === 0
+              ? 'Numery można znormalizować po otwarciu zgłoszeń.'
+              : 'Wszystkie numery są już w jednej postaci.'}
+        </p>
+      ) : fields.length === 0 ? (
+        submissions.length > 0 && (
+          <p className="wk-hint">
+            Póki pytania się nie otworzyły, nie wiadomo, które odpowiedzi są
+            numerami — i nie ma czego normalizować.
+          </p>
+        )
+      ) : (
+        submissions.length > 0 && (
+          <p className="wk-hint">
+            Ten formularz nie pyta dziś o telefon, więc nie ma czego normalizować.
+            Odpowiedzi przy usuniętych pytaniach zostają tak, jak je wpisano — bez
+            pytania nie wiadomo, że to numer.
+          </p>
+        )
       )}
 
       {/*
@@ -446,56 +529,6 @@ export function FormOffice({ partId, config, who }: {
         </>
       )}
 
-      {/*
-        DIE ALTEN NUMMERN GERADEZIEHEN.
-
-        Was vor den Plättchen eingetragen wurde, steht da, wie es getippt wurde:
-        „600700800", „600-700-800". Der Dienst kann das nicht richten — er liest
-        die Werte nicht. Also tut es die Kanzlei, die den Annahmeschlüssel hat,
-        und zwar einmal für alle.
-
-        Sie erscheint nur, wenn es wirklich etwas zu richten GIBT: ein Knopf,
-        der nichts tut, ist ein Knopf, den man beim nächsten Mal wieder drückt.
-      */}
-      {crooked.length > 0 && (
-        <p className="wk-note">
-          {crooked.length === 1
-            ? 'Jeden numer telefonu jest zapisany w innej postaci niż reszta.'
-            : `${crooked.length} numerów telefonu jest zapisanych w innej postaci niż reszta.`}
-          {' '}
-          <button
-            type="button" className="wk-link-btn" disabled={busy !== null}
-            onClick={() => void act('Poprawianie numerów…', straighten)}
-          >
-            Popraw je na +48 …
-          </button>
-        </p>
-      )}
-
-      {/*
-        WARUM DER KNOPF FEHLT, wenn er fehlt.
-
-        Er erschien nur, wenn es etwas zu richten gab — und sah damit in drei
-        ganz verschiedenen Lagen gleich aus: alles in Ordnung, nichts
-        aufgemacht, oder die Antworten gehören zu gelöschten Fragen. Die dritte
-        ist die, die hier wirklich vorkam, und sie ist nicht zu erraten: ohne
-        die Frage weiss niemand, dass „123456789" eine Nummer sein sollte, und
-        ein Geburtsdatum liesse sich genauso gut für eine halten.
-      */}
-      {submissions.length > 0 && crooked.length === 0 && (
-        <p className="wk-hint">
-          {opened.size === 0
-            ? 'Numery telefonów można poprawić po otwarciu zgłoszeń.'
-            : fields.length === 0
-              ? 'Póki pytania się nie otworzyły, nie wiadomo, które odpowiedzi są '
-                + 'numerami — i nie ma czego poprawiać.'
-              : phoneFields.length === 0
-                ? 'Ten formularz nie ma dziś pytania o telefon, więc nie ma czego '
-                  + 'poprawiać. Odpowiedzi przy usuniętych pytaniach zostają tak, jak '
-                  + 'je wpisano — bez pytania nie wiadomo, że to numer.'
-                : 'Wszystkie numery są już w jednej postaci.'}
-        </p>
-      )}
 
       {note !== null && <p className="wk-note">{note}</p>}
 
@@ -551,6 +584,7 @@ export function FormOffice({ partId, config, who }: {
                   values={opened.get(s.registrationId)}
                   fields={fields}
                   sealed={s.values.length}
+                  checks={s.checks}
                 />
 
                 {/*
@@ -591,11 +625,45 @@ export function FormOffice({ partId, config, who }: {
  * fehlte die ganze Antwort, ohne ein Wort dazu. Jetzt kommt die Reihenfolge von
  * den Fragen und der INHALT von dem, was aufging.
  */
-function Answers({ values, fields, sealed }: {
+function Answers({ values, fields, sealed, checks }: {
   values: Map<string, string> | undefined;
   fields: readonly OpenField[];
   sealed: number;
+
+  /** Was an einzelnen Werten bestätigt ist (0030/0031). */
+  checks: readonly ValueCheck[];
 }) {
+  /**
+   * DAS ZEICHEN STEHT NEBEN DER ANGABE, nicht in einem Abschnitt darunter.
+   *
+   * „Ist diese Nummer bestätigt?" ist eine Frage über DIESE ZEILE. Die Antwort
+   * drei Zeilen tiefer zwingt jeden, sie sich selbst zuzuordnen — und bei zwei
+   * Nummern auf einem Bogen (Mutter, Vater) geht das gar nicht mehr auf.
+   *
+   * Und sie sagt, auf WELCHEM Weg (0031): ein geklickter SMS-Link zeigt, dass
+   * unter der Nummer jemand erreichbar war; ein Druck im eigenen Portal zeigt,
+   * dass die Angabe noch gilt. Beides als dasselbe anzuzeigen wäre bequem und
+   * unwahr.
+   */
+  const mark = (fieldId: string) => {
+    const one = checks.find((c) => c.fieldId === fieldId && c.verifiedAt !== null);
+    if (one === undefined) return null;
+
+    const when = new Date(one.verifiedAt!).toLocaleDateString('pl-PL',
+      { day: 'numeric', month: 'long', year: 'numeric' });
+
+    return (
+      <span
+        className="wk-chip-ok"
+        title={one.origin === 'sms'
+          ? `Otworzył link wysłany SMS-em — ${when}`
+          : `Potwierdził w swoim portalu — ${when}`}
+      >
+        ✓ {one.origin === 'sms' ? 'potwierdzony SMS-em' : 'potwierdzony w portalu'}
+      </span>
+    );
+  };
+
   if (values === undefined) {
     return <p className="wk-empty">Jeszcze nieotwarte — kliknij „Otwórz zgłoszenia".</p>;
   }
@@ -622,7 +690,9 @@ function Answers({ values, fields, sealed }: {
         <p className="wk-empty">Pytania się nie wczytały — poniżej same odpowiedzi.</p>
         <ul className="wk-tile-lines">
           {[...values.entries()].map(([id, text]) => (
-            <li key={id}><strong className="wk-row-side">{id.slice(0, 8)}:</strong> {text}</li>
+            <li key={id}>
+              <strong className="wk-row-side">{id.slice(0, 8)}:</strong> {text}{mark(id)}
+            </li>
           ))}
         </ul>
       </>
@@ -631,9 +701,10 @@ function Answers({ values, fields, sealed }: {
 
   /* Erst die bekannten Fragen der Reihe nach, dann alles Übrige. */
   const known = fields.filter((f) => values.has(f.fieldId));
+
   /*
    * EIN GELEERTER VERWAISTER WERT IST NICHTS MEHR. Nach dem Umschreiben auf
-   * die heutige Frage bleibt die alte Zeile als leere Huelle liegen — sie hier
+   * die heutige Frage bleibt die alte Zeile als leere Hülle liegen — sie hier
    * zu zeigen hiesse „pytanie usunięte (01a0ae09):" und dahinter nichts. Bei
    * einer BEKANNTEN Frage bleibt die leere Antwort dagegen stehen: dass jemand
    * ein Feld freigelassen hat, ist eine Auskunft.
@@ -645,13 +716,15 @@ function Answers({ values, fields, sealed }: {
     <ul className="wk-tile-lines">
       {known.map((f) => (
         <li key={f.fieldId}>
-          <strong>{f.label ?? 'zapieczętowane pytanie'}:</strong> {values.get(f.fieldId)}
+          <strong>{f.label ?? 'zapieczętowane pytanie'}:</strong>{' '}
+          {values.get(f.fieldId)}{mark(f.fieldId)}
         </li>
       ))}
 
       {rest.map((id) => (
         <li key={id}>
-          <strong className="wk-row-side">pytanie usunięte ({id.slice(0, 8)}):</strong> {values.get(id)}
+          <strong className="wk-row-side">pytanie usunięte ({id.slice(0, 8)}):</strong>{' '}
+          {values.get(id)}{mark(id)}
         </li>
       ))}
     </ul>
@@ -1236,7 +1309,19 @@ function SendPanel({
             <strong>{label} — potwierdzony</strong>{' '}
             {new Date(mark.verifiedAt).toLocaleDateString('pl-PL',
               { day: 'numeric', month: 'long', year: 'numeric' })}
-            {' '}— ta osoba kliknęła link, który tam wysłaliście.
+            {/*
+              WELCHER WEG, wörtlich (0031). Hier stand „ta osoba kliknęła link,
+              który tam wysłaliście" für JEDE Bestätigung — und das wurde in dem
+              Augenblick unwahr, in dem es den Knopf im Portal gab. Die beiden
+              sagen nicht dasselbe: der geklickte Link zeigt, dass unter DIESER
+              Nummer jemand erreichbar war; der Knopf zeigt, dass die Angabe
+              noch gilt. Wer sie zusammenwirft, hält eine Erreichbarkeit für
+              belegt, die niemand belegt hat.
+            */}
+            {mark.origin === 'sms'
+              ? ' — ta osoba kliknęła link, który tam wysłaliście.'
+              : ' — ta osoba potwierdziła to w swoim portalu. '
+                + 'To nie dowód, że telefon działa — jeśli tego potrzebujecie, wyślijcie link.'}
           </p>
         ) : (
           <p className="wk-hint" key={fieldId}>
