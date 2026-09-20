@@ -279,10 +279,27 @@ public static class Form
             }
         }
 
+        /*
+         * DURCH `Told` — wie beim oeffentlichen Bogen, und das ist keine
+         * Schoenheitsfrage.
+         *
+         * `FieldRow` ist die Zeile, wie sie in der Datenbank steht: `Id`,
+         * `Label` als `byte[]`. Direkt hinausgeschrieben wird daraus `id` und ein
+         * Base64 nach Standardalphabet — der Browser sucht aber `fieldId` und
+         * `labelSealed` in Base64Url. Er fand beides nicht, und weil sich
+         * `undefined` still weiterreichen laesst, kam kein Fehler heraus,
+         * sondern eine Ansicht, die sich selbst widersprach: die Beschriftung
+         * ging nie auf (die AAD wurde ueber `undefined` gebildet), und keine
+         * Antwort fand ihre Frage (verglichen wurde gegen `undefined`). In der
+         * Kanzlei stand „zapieczętowane" und „pytanie usunięte", waehrend
+         * draussen jeder denselben Bogen lesen und ausfuellen konnte.
+         *
+         * Der oeffentliche Weg war immer richtig. Nur dieser eine nicht.
+         */
         await ctx.Response.WriteAsJsonAsync(new
         {
             partId = Ids.ToText(id),
-            fields = await ReadFieldsAsync(connection, id, ctx.RequestAborted)
+            fields = (await ReadFieldsAsync(connection, id, ctx.RequestAborted)).Select(Told)
         });
     }
 
@@ -1074,6 +1091,19 @@ public static class Form
         identityRole = f.IdentityRole
     };
 
+    /// <summary>
+    /// Die Zeilen, wie sie in der Datenbank stehen.
+    ///
+    /// <para>
+    /// <b>NIE HINAUSSCHREIBEN — immer durch <see cref="Told"/>.</b> Diese
+    /// Aufstellung traegt `Id` und `Label` als `byte[]`; der Browser sucht
+    /// `fieldId` und `labelSealed` in Base64Url. Direkt serialisiert kommt
+    /// eine zweite Gestalt derselben Sache heraus, und niemand merkt es: es
+    /// wirft nicht, es fehlt nur — und `undefined` reicht sich still weiter,
+    /// bis eine Beschriftung nie aufgeht und keine Antwort ihre Frage findet.
+    /// Genau das ist einmal passiert, und zwar nur auf dem Weg der Kanzlei.
+    /// </para>
+    /// </summary>
     private static async Task<List<FieldRow>> ReadFieldsAsync(
         SqlConnection connection, Guid partId, CancellationToken ct)
     {
@@ -1504,6 +1534,24 @@ public static class Form
         {
             await tx.RollbackAsync(ctx.RequestAborted);
             await Fail(ctx, StatusCodes.Status409Conflict, "Ten link już istnieje.");
+            return;
+        }
+        /*
+         * EINE BESTAETIGUNG OHNE FRAGE KANN ES NICHT GEBEN — `value_check`
+         * zeigt auf `slug_field`, und das ist richtig so: bestaetigt wird eine
+         * STELLE, und eine Stelle, die es nicht mehr gibt, ist keine.
+         *
+         * Wer sein Formular neu gebaut hat, traegt aber Antworten, die auf die
+         * Fragen von GESTERN zeigen: lesbar, und trotzdem nicht zu bestaetigen.
+         * Der Fremdschluessel faengt das ab — ohne diesen Zweig endete es als
+         * 500, im Browser ein Abbruch ohne Grund, der wie ein CORS-Fehler
+         * aussieht.
+         */
+        catch (SqlException e) when (e.Number == 547)
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Tego pytania już nie ma — najpierw przepisz odpowiedź na dzisiejsze pytanie.");
             return;
         }
         catch

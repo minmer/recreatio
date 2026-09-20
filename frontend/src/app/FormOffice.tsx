@@ -35,8 +35,8 @@ import type { Ring, SealedRole } from './keys';
 import { keysFor } from './ringOf';
 import { officeSeatKey, loadSeats, relinkSeat, seatPath, type SeatRow } from './seat';
 import { WorkspaceError, type Who } from './session';
-import { firstPhone, joinPhones, normalisePhone, splitPhones } from './phone';
-import { holesFor, missingIn, renderSms } from './sms';
+import { dialable, joinPhones, normalisePhone, splitPhones, withPhone } from './phone';
+import { holesFor, missingIn, renderSms, smsHref, usesHole, VERIFY } from './sms';
 
 export function FormOffice({ partId, config, who }: {
   partId: string;
@@ -566,8 +566,10 @@ export function FormOffice({ partId, config, who }: {
                     values={opened.get(s.registrationId)}
                     fieldsByLabel={fields}
                     template={conf.sms ?? ''}
+                    areaId={lastArea}
                     ring={ring}
                     onError={setFailed}
+                    onChanged={async () => { if (lastArea !== null) await read(lastArea); }}
                   />
                 )}
               </span>
@@ -629,7 +631,15 @@ function Answers({ values, fields, sealed }: {
 
   /* Erst die bekannten Fragen der Reihe nach, dann alles Übrige. */
   const known = fields.filter((f) => values.has(f.fieldId));
-  const rest = [...values.keys()].filter((id) => !fields.some((f) => f.fieldId === id));
+  /*
+   * EIN GELEERTER VERWAISTER WERT IST NICHTS MEHR. Nach dem Umschreiben auf
+   * die heutige Frage bleibt die alte Zeile als leere Huelle liegen — sie hier
+   * zu zeigen hiesse „pytanie usunięte (01a0ae09):" und dahinter nichts. Bei
+   * einer BEKANNTEN Frage bleibt die leere Antwort dagegen stehen: dass jemand
+   * ein Feld freigelassen hat, ist eine Auskunft.
+   */
+  const rest = [...values.keys()].filter(
+    (id) => !fields.some((f) => f.fieldId === id) && (values.get(id) ?? '').trim() !== '');
 
   return (
     <ul className="wk-tile-lines">
@@ -859,13 +869,72 @@ export default FormOffice;
  * benannt — eine Nachricht mit einer stillen Lücke ginge sonst hinaus, ohne
  * dass jemand es merkt.
  */
+/* -- Welche Werte Nummern sind --------------------------------------------- */
+
+/** Eine Nummer dieser Einsendung — und woher wir wissen, dass es eine ist. */
+type Numbered = {
+  readonly fieldId: string;
+
+  /** Wählbar, ohne Leerzeichen — das Ziel von `sms:` und `tel:`. */
+  readonly dial: string;
+
+  /** Lesbar, wie sie in der Liste steht. */
+  readonly shown: string;
+
+  /**
+   * Die Frage dazu gibt es nicht mehr. Dass dies eine Nummer ist, schliessen
+   * wir aus ihrer GESTALT — und deshalb entscheidet der Mensch, nicht wir.
+   */
+  readonly orphan: boolean;
+};
+
+/**
+ * Die Nummern einer Einsendung.
+ *
+ * <b>Eine bekannte Frage sagt es selbst.</b> Steht dort „Telefon", sind es
+ * Nummern; steht dort etwas anderes, sind es keine — auch dann nicht, wenn
+ * neun Ziffern dastehen. `1993-07-16` ergibt `+4819930716`, und ein
+ * Geburtsdatum als Handynummer zu führen ist schlimmer als gar nichts zu
+ * erkennen.
+ *
+ * <b>Eine Frage, die es nicht mehr gibt, ist der andere Fall.</b> Dort steht
+ * niemand mehr, der sagen könnte, was der Wert ist — aber die Kanzlei SIEHT
+ * ihn. Sie bekommt den Knopf angeboten und entscheidet; geraten wird nur, wem
+ * er angeboten wird, nie was damit geschieht.
+ */
+function numbersOf(
+  values: Map<string, string> | undefined, fields: readonly OpenField[]
+): readonly Numbered[] {
+  if (values === undefined) return [];
+
+  const out: Numbered[] = [];
+
+  for (const [fieldId, text] of values) {
+    const field = fields.find((f) => f.fieldId === fieldId);
+    if (field !== undefined && field.kind !== 'phone') continue;
+
+    for (const one of splitPhones(text)) {
+      const dial = dialable(one);
+      if (dial === null) continue;
+
+      out.push({ fieldId, dial, shown: normalisePhone(one) ?? one, orphan: field === undefined });
+    }
+  }
+
+  return out;
+}
+
 function SendPanel({
-  seatId, registrationId, values, fieldsByLabel, checks, template, ring, onError
+  seatId, registrationId, areaId, values, fieldsByLabel, checks, template, ring,
+  onError, onChanged
 }: {
   seatId: string;
 
   /** Welche Einsendung — eine Bestätigung hängt am WERT, nicht am Menschen. */
   readonly registrationId: string;
+
+  /** Wohin die Antworten gehen — für den Annahmeschlüssel beim Umschreiben. */
+  areaId: string | null;
 
   values: Map<string, string> | undefined;
   fieldsByLabel: readonly OpenField[];
@@ -876,11 +945,20 @@ function SendPanel({
   template: string;
   ring: Ring | null;
   onError: (message: string | null) => void;
+
+  /** Nach dem Umschreiben ist die Liste veraltet. */
+  onChanged: () => Promise<void>;
 }) {
   const [link, setLink] = useState<string | null>(null);
 
-  /** Der Bestätigungslink — er entsteht auf Knopfdruck und steht dann einmal da. */
-  const [checkLink, setCheckLink] = useState<string | null>(null);
+  /*
+   * JEDE NUMMER IHREN EIGENEN LINK. Vorher stand hier ein einzelner
+   * `checkLink` für die ganze Einsendung — und das war falsch, sobald ein
+   * Bogen zwei Nummern trug: bestätigt wurde dann die eine mit dem Link der
+   * anderen. Geschlüsselt wird nach der wählbaren Nummer, nicht nach dem Feld;
+   * ein Feld kann mehrere tragen.
+   */
+  const [links, setLinks] = useState<ReadonlyMap<string, string>>(new Map());
 
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -907,43 +985,115 @@ function SendPanel({
     byLabel.set('osoba', fullName.trim());
   }
 
-  /* Die Nummer, die das Telefon wählt — die erste des Telefonfeldes. */
-  const phoneField = fieldsByLabel.find((f) => f.kind === 'phone');
-  const number = phoneField === undefined
-    ? null
-    : firstPhone(values?.get(phoneField.fieldId) ?? '');
+  const numbers = numbersOf(values, fieldsByLabel);
+  const orphans = numbers.filter((n) => n.orphan);
+
+  /** Wohin ein umgeschriebener Wert gehört — die Frage von heute. */
+  const livePhone = fieldsByLabel.find((f) => f.kind === 'phone');
+
+  /** Die Nachricht, wie sie mit DIESEM Bestätigungslink dasteht. */
+  const textFor = (verify: string | null): string => {
+    if (template.trim() === '') return '';
+
+    const filled = new Map(byLabel);
+    if (verify !== null) filled.set(VERIFY, verify);
+
+    return renderSms(template, filled, link);
+  };
+
+  const gapsFor = (verify: string | null): readonly string[] => {
+    if (template.trim() === '') return [];
+
+    const filled = new Map(byLabel);
+    if (verify !== null) filled.set(VERIFY, verify);
+
+    return missingIn(template, filled, link);
+  };
 
   /*
-   * `{weryfikacja}` — der Link, mit dem der Mensch seine Nummer bestätigt
-   * (0030). Er entsteht erst auf Knopfdruck: ein Geheimnis, das bei jedem
-   * Aufschlagen der Liste neu gewürfelt würde, wäre bei jedem Aufschlagen ein
-   * neues, und der zuletzt verschickte gälte nicht mehr.
+   * Was ohne jede Nummer dasteht — die Vorschau unten. Ein Bestätigungslink
+   * gehört dort NICHT hinein: welcher es wäre, entscheidet sich erst an der
+   * Nummer, die angeklickt wird.
    */
-  if (checkLink !== null) byLabel.set('weryfikacja', checkLink);
+  const preview = textFor(null);
+  const gaps = gapsFor(null).filter((g) => g !== VERIFY || numbers.length === 0);
 
-  const text = template.trim() === '' ? '' : renderSms(template, byLabel, link);
-  const gaps = template.trim() === '' ? [] : missingIn(template, byLabel, link);
+  const wantsVerify = usesHole(template, VERIFY);
 
-  /** Was an DIESER Nummer schon bestätigt ist — oder aussteht. */
-  const mark = phoneField === undefined
-    ? undefined
-    : checks.find((c) => c.fieldId === phoneField.fieldId);
+  const base = () => `${window.location.origin}${window.location.pathname}`;
 
-  const verified = mark?.verifiedAt ?? null;
+  /**
+   * EIN KLICK AUF DIE NUMMER — und die Nachricht steht fertig im Telefon.
+   *
+   * <b>Der Bestätigungslink entsteht dabei</b>, für genau diese Nummer, und
+   * nur wenn die Vorlage ihn einsetzt. Ihn bei jedem Aufschlagen der Liste zu
+   * würfeln wäre das Gegenteil von Bestätigen: der zuletzt verschickte gälte
+   * dann nicht mehr, ohne dass jemand etwas getan hätte.
+   *
+   * <b>Ein zweiter Klick würfelt nicht neu.</b> Wer dieselbe Nachricht noch
+   * einmal öffnet, will sie noch einmal schicken — nicht den Link ungültig
+   * machen, den er eben verschickt hat.
+   */
+  const write = async (one: Numbered) => {
+    let verify = links.get(one.dial) ?? null;
 
-  const arm = async () => {
-    if (phoneField === undefined) return;
+    if (verify === null && wantsVerify && !one.orphan) {
+      setBusy(true);
+      onError(null);
+
+      try {
+        const { token } = await armCheck(registrationId, one.fieldId);
+
+        verify = `${base()}#/verify/${encodeURIComponent(token)}`;
+        setLinks(new Map(links).set(one.dial, verify));
+      } catch (e) {
+        onError(e instanceof WorkspaceError ? e.message : 'Nie udało się przygotować linku.');
+        return;
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    window.location.href = smsHref(one.dial, textFor(verify));
+  };
+
+  /**
+   * Einen verwaisten Wert auf die HEUTIGE Frage umschreiben.
+   *
+   * <b>Warum es das überhaupt braucht.</b> `value_check.field_id` zeigt auf
+   * `slug_field` — eine Bestätigung ohne Frage kann es nicht geben, und das
+   * ist richtig so. Wer sein Formular neu gebaut hat, trägt aber Antworten,
+   * die auf die Fragen von gestern zeigen: lesbar, und trotzdem nicht zu
+   * bestätigen. Hier werden sie an die Frage von heute gehängt.
+   *
+   * <b>Der Platzschlüssel muss mit</b> — wie bei jeder Korrektur der Kanzlei.
+   * Ohne ihn stünde im Portal des Menschen hinterher nichts mehr.
+   */
+  const rebind = async () => {
+    if (livePhone === undefined) return;
+    if (ring === null) { onError('Bez hasła nie da się przepisać.'); return; }
+    if (areaId === null) { onError('Najpierw otwórz zgłoszenia.'); return; }
 
     setBusy(true);
     onError(null);
 
     try {
-      const { token } = await armCheck(registrationId, phoneField.fieldId);
+      const intake = await loadPublicIntake(areaId);
+      const seatKey = await seatRowOf(seatId, ring).then((r) => r.key).catch(() => null);
 
-      setCheckLink(
-        `${window.location.origin}${window.location.pathname}#/verify/${encodeURIComponent(token)}`);
+      /* Was schon unter der heutigen Frage steht, bleibt — und geht voran. */
+      let merged = [...splitPhones(values?.get(livePhone.fieldId) ?? '')];
+      for (const one of orphans) merged = [...withPhone(merged, one.dial).numbers];
+
+      await reviseAsOffice(registrationId, [
+        { fieldId: livePhone.fieldId, value: joinPhones(merged) },
+        /* Der verwaiste Wert wird geleert, nicht verdoppelt. */
+        ...[...new Set(orphans.map((o) => o.fieldId))].map((fieldId) => ({ fieldId, value: '' }))
+      ], { intakePublic: fromBase64Url(intake.publicKey), seatKey });
+
+      await onChanged();
     } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się przygotować linku.');
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się przepisać numeru.');
     } finally {
       setBusy(false);
     }
@@ -959,7 +1109,7 @@ function SendPanel({
       const row = await seatRowOf(seatId, ring);
       const fresh = await relinkSeat(seatId, row.key);
 
-      setLink(`${window.location.origin}${window.location.pathname}${seatPath(fresh, row.under)}`);
+      setLink(`${base()}${seatPath(fresh, row.under)}`);
     } catch (e) {
       onError(e instanceof WorkspaceError ? e.message : 'Nie udało się wystawić linku.');
     } finally {
@@ -975,43 +1125,49 @@ function SendPanel({
         </button>
 
         {/*
-          DER KLICK, DER DAS TELEFON ÖFFNET — wie im Altbestand
-          (`AccessPanel.tsx`): `sms:<numer>?body=<treść>`. Auf einem Telefon
-          steht danach die fertige Nachricht im Nachrichtenfenster, und es
-          bleibt genau ein Handgriff: absenden.
+          DIE NUMMER IST DER KNOPF — wie im Altbestand (`AccessPanel.tsx`).
+          Ein Klick stellt den Bestätigungslink für GENAU DIESE Nummer scharf,
+          setzt ihn in die Vorlage und öffnet das Nachrichtenfenster mit
+          fertigem Text. Es bleibt ein Handgriff: absenden.
 
-          Ohne Nummer gibt es den Knopf nicht. Ein `sms:` ohne Ziel öffnet ein
-          leeres Fenster, und das sieht aus, als sei etwas verlorengegangen.
+          Vorher stand hier „Kopiuj wiadomość", und das war zwei Fehler in
+          einem: die Kanzlei musste den Text von Hand in ein Fenster tragen,
+          das sie selbst suchen musste — und dabei lag für alle Nummern
+          derselbe Text im Zwischenspeicher, obwohl jede ihren eigenen Link
+          braucht.
         */}
-        {number !== null && text !== '' && (
-          <a className="wk-btn" href={`sms:${number}?body=${encodeURIComponent(text)}`}>
-            Wyślij SMS
-          </a>
-        )}
+        {numbers.map((one) => (
+          <button
+            key={`${one.fieldId}|${one.dial}`}
+            type="button"
+            className="wk-btn"
+            disabled={busy || template.trim() === ''}
+            title={one.orphan
+              ? 'Pytanie do tego numeru usunięte — bez potwierdzenia'
+              : 'Napisz SMS z tym numerem'}
+            onClick={() => void write(one)}
+          >
+            {busy ? 'Przygotowywanie…' : `SMS: ${one.shown}`}
+            {checks.some((c) => c.fieldId === one.fieldId && c.verifiedAt !== null) ? ' ✓' : ''}
+          </button>
+        ))}
 
-        {number !== null && (
-          <a className="wk-link-btn" href={`tel:${number}`}>Zadzwoń</a>
-        )}
+        {numbers.map((one) => (
+          <a key={`tel|${one.dial}`} className="wk-link-btn" href={`tel:${one.dial}`}>
+            Zadzwoń {one.shown}
+          </a>
+        ))}
 
         {/*
-          DEN BESTÄTIGUNGSLINK SCHARFSTELLEN (0030). Er ersetzt einen früheren,
-          noch offenen — wer zweimal schickt, hat nicht zwei gültige Links,
-          sondern einen neuen.
+          KOPIEREN BLEIBT NUR, WO ES NICHTS ANZUKLICKEN GIBT. Wo eine Nummer
+          steht, ist der Zwischenspeicher der Umweg — und ein gefährlicher:
+          derselbe Text für zwei Menschen trüge denselben Bestätigungslink.
         */}
-        {phoneField !== undefined && verified === null && (
-          <button
-            type="button" className="wk-link-btn" disabled={busy}
-            onClick={() => void arm()}
-          >
-            {checkLink === null ? 'Dodaj link potwierdzający' : 'Nowy link potwierdzający'}
-          </button>
-        )}
-
-        {text !== '' && (
+        {numbers.length === 0 && preview !== '' && (
           <button
             type="button" className="wk-link-btn"
             onClick={() => {
-              void navigator.clipboard?.writeText(text)
+              void navigator.clipboard?.writeText(preview)
                 .then(() => setCopied(true)).catch(() => setCopied(false));
             }}
           >
@@ -1020,44 +1176,87 @@ function SendPanel({
         )}
       </div>
 
-      {number === null && text !== '' && (
+      {numbers.length === 0 && preview !== '' && (
         <p className="wk-hint">
-          Ta osoba nie podała numeru — zostaje skopiowanie wiadomości.
+          {values === undefined
+            ? 'Otwórz zgłoszenie, żeby zobaczyć numer.'
+            : 'W tym zgłoszeniu nie ma numeru do kliknięcia — zostaje skopiowanie wiadomości.'}
+        </p>
+      )}
+
+      {template.trim() === '' && numbers.length > 0 && (
+        <p className="wk-hint">
+          Napisz najpierw szablon wiadomości — bez niego nie ma czego wysłać.
         </p>
       )}
 
       {/*
-        DER ZUSTAND DER NUMMER — drei, und sie sind verschieden: bestätigt,
-        „Link ist draussen und wartet", nichts davon. Der mittlere ist der, den
-        eine Kanzlei wirklich braucht: sie hat geschickt, es kam nichts zurück.
+        DER VERWAISTE WERT — und was dagegen zu tun ist.
+
+        Er lässt sich lesen und anwählen, aber NICHT bestätigen: eine
+        Bestätigung zeigt auf eine Frage, und diese gibt es nicht mehr. Das ist
+        keine Lücke, die sich wegargumentieren lässt — also steht hier, woran
+        es liegt, und daneben der eine Handgriff, der es behebt.
       */}
-      {phoneField !== undefined && verified !== null && (
-        <p className="wk-hint">
-          <strong>Numer potwierdzony</strong>{' '}
-          {new Date(verified).toLocaleDateString('pl-PL',
-            { day: 'numeric', month: 'long', year: 'numeric' })}
-          {' '}— ta osoba kliknęła link, który tam wysłaliście.
+      {orphans.length > 0 && (
+        <p className="wk-note">
+          {orphans.length === 1
+            ? 'Ten numer należy do pytania, którego już nie ma — '
+            : 'Te numery należą do pytań, których już nie ma — '}
+          SMS wyślesz, ale linku potwierdzającego do nich nie da się wystawić.
+          {livePhone === undefined ? (
+            <> Najpierw dodaj do formularza pytanie o telefon.</>
+          ) : (
+            <>
+              {' '}
+              <button
+                type="button" className="wk-link-btn" disabled={busy}
+                onClick={() => void rebind()}
+              >
+                Przepisz na „{livePhone.label ?? 'telefon'}"
+              </button>
+            </>
+          )}
         </p>
       )}
 
-      {phoneField !== undefined && verified === null && mark !== undefined && (
-        <p className="wk-hint">
-          Link potwierdzający wysłany{' '}
-          {new Date(mark.sentAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })},
-          {' '}bez odpowiedzi. Ważny do{' '}
-          {new Date(mark.expiresAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}.
-        </p>
-      )}
+      {/*
+        DER ZUSTAND JEDER EINZELNEN NUMMER — bestätigt, „Link ist draussen und
+        wartet", oder nichts davon. Der mittlere ist der, den eine Kanzlei
+        wirklich braucht: sie hat geschickt, es kam nichts zurück.
+      */}
+      {[...new Set(numbers.filter((n) => !n.orphan).map((n) => n.fieldId))].map((fieldId) => {
+        const mark = checks.find((c) => c.fieldId === fieldId);
+        if (mark === undefined) return null;
 
-      {checkLink !== null && (
-        <>
-          <p className="wk-hint">
-            <strong>Ten link potwierdza numer</strong> — wstaw go do wiadomości
-            przez <code>{'{weryfikacja}'}</code> albo wyślij osobno. Poprzedni,
-            jeśli był, przestał działać.
+        const label = fieldsByLabel.find((f) => f.fieldId === fieldId)?.label ?? 'Numer';
+
+        return mark.verifiedAt !== null ? (
+          <p className="wk-hint" key={fieldId}>
+            <strong>{label} — potwierdzony</strong>{' '}
+            {new Date(mark.verifiedAt).toLocaleDateString('pl-PL',
+              { day: 'numeric', month: 'long', year: 'numeric' })}
+            {' '}— ta osoba kliknęła link, który tam wysłaliście.
           </p>
-          <textarea readOnly rows={2} className="wk-mono" value={checkLink} />
-        </>
+        ) : (
+          <p className="wk-hint" key={fieldId}>
+            Link potwierdzający wysłany{' '}
+            {new Date(mark.sentAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })},
+            {' '}bez odpowiedzi. Ważny do{' '}
+            {new Date(mark.expiresAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}.
+          </p>
+        );
+      })}
+
+      {links.size > 0 && (
+        <p className="wk-hint">
+          <strong>
+            {links.size === 1
+              ? 'Link potwierdzający poszedł w wiadomości'
+              : `Linki potwierdzające (${links.size}) poszły w wiadomościach`}
+          </strong>
+          {' '}— każdy numer dostał własny. Poprzednie, jeśli były, przestały działać.
+        </p>
       )}
 
       {link !== null && (
@@ -1073,7 +1272,7 @@ function SendPanel({
 
       {template.trim() === '' ? (
         <p className="wk-hint">
-          Napisz szablon wiadomości w ustawieniach tego bloku — np.{' '}
+          Napisz szablon wiadomości powyżej — np.{' '}
           <code>Cześć {'{Imię i nazwisko}'}! Twoja strona: {'{link}'}</code>
         </p>
       ) : (
@@ -1084,7 +1283,20 @@ function SendPanel({
               {gaps.includes('link') && ' — najpierw wystaw link.'}
             </p>
           )}
-          <textarea readOnly rows={4} value={text} />
+
+          {/*
+            DIE VORSCHAU OHNE BESTÄTIGUNGSLINK. `{weryfikacja}` steht hier
+            absichtlich noch in Klammern: welcher Link es wird, entscheidet
+            sich an der Nummer, die angeklickt wird — einer je Nummer.
+          */}
+          <textarea readOnly rows={4} value={preview} />
+
+          {wantsVerify && numbers.some((n) => !n.orphan) && (
+            <p className="wk-hint">
+              <code>{`{${VERIFY}}`}</code> wypełni się przy kliknięciu w numer —
+              każdy numer dostaje własny link.
+            </p>
+          )}
         </>
       )}
     </div>

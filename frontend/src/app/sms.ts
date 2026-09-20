@@ -92,3 +92,37 @@ export function missingIn(
  */
 export const holesFor = (labels: readonly (string | null)[]): readonly string[] =>
   [LINK, ...labels.filter((l): l is string => l !== null && l.trim() !== '')];
+
+/** Der Platzhalter, hinter dem der Bestätigungslink steckt (0030). */
+export const VERIFY = 'weryfikacja';
+
+/**
+ * Benutzt diese Vorlage einen bestimmten Platzhalter?
+ *
+ * <b>Wofür es gebraucht wird.</b> Einen Bestätigungslink scharfzustellen
+ * verbraucht einen: der neue setzt den vorigen ausser Kraft. Wer ihn würfelt,
+ * ohne dass die Vorlage ihn überhaupt einsetzt, macht den zuletzt
+ * verschickten ungültig und schickt dafür nichts.
+ */
+export const usesHole = (template: string, name: string): boolean => {
+  for (const match of template.matchAll(HOLE)) {
+    if (key(match[1]) === key(name)) return true;
+  }
+  return false;
+};
+
+/**
+ * Der Verweis, der das Nachrichtenfenster mit fertigem Text öffnet.
+ *
+ * <b>Zwei Trennzeichen, und sie sind nicht austauschbar.</b> Android liest
+ * `sms:<nummer>?body=…`, die Geräte von Apple `sms:<nummer>&body=…`. Wer nur
+ * eines kennt, öffnet der anderen Hälfte ein LEERES Fenster — und das sieht
+ * nicht nach einem Fehler aus, sondern danach, als sei die Nachricht
+ * verlorengegangen. Der Altbestand hatte dieselbe Fallunterscheidung.
+ */
+export function smsHref(number: string, body: string): string {
+  const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent;
+  const apple = /iPhone|iPad|iPod|Macintosh/.test(agent);
+
+  return `sms:${number}${apple ? '&' : '?'}body=${encodeURIComponent(body)}`;
+}
