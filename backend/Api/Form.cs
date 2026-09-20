@@ -49,6 +49,20 @@ public static class Form
         app.MapGet("/workspace/part/{id:guid}/registrations", RegistrationsAsync);
 
         /*
+         * EINE EINSTELLUNG DES BAUSTEINS, von der Kanzleisicht aus.
+         *
+         * Der Rasterentwurf speichert `config` mitsamt der ganzen Seite
+         * (`PUT /workspace/parts`). Das ist dort richtig — dort verschiebt man
+         * Bausteine. Die Nachrichtenvorlage denkt aber niemand beim Verschieben
+         * aus, sondern dann, wenn er vor den Einsendungen sitzt; sie dort zu
+         * suchen hiesse, die Seite zu verlassen, um einen Satz zu tippen.
+         *
+         * Deshalb dieser Weg: EIN Baustein, EINZELNE Schluessel, alles andere
+         * bleibt stehen.
+         */
+        app.MapPost("/workspace/part/{id:guid}/config", ConfigAsync);
+
+        /*
          * ZWEI VERSCHIEDENE DINGE, und sie duerfen nicht denselben Knopf haben.
          *
          *   hide    raeumt die LISTE auf. Die Huellen bleiben liegen.
@@ -1314,6 +1328,107 @@ public static class Form
             revised = parsed.Count
         });
     }
+
+    public sealed record ConfigRequest(Dictionary<string, string> Set);
+
+    /// <summary>
+    /// Einzelne Einstellungen eines Bausteins aendern — ohne die Seite.
+    ///
+    /// <para>
+    /// <b>Gesetzt wird, was mitkommt</b>; alles andere bleibt. Der Rasterentwurf
+    /// schickt beim Speichern das ganze `config`, und das ist dort richtig —
+    /// hier waere es falsch: wer die Nachrichtenvorlage tippt, meint die
+    /// Vorlage und nicht die Ueberschrift, die er nicht angefasst hat.
+    /// </para>
+    ///
+    /// <para>
+    /// Ein leerer Wert LOESCHT den Schluessel. Sonst bliebe eine Vorlage, die
+    /// jemand geleert hat, als leerer Text stehen und gaelte weiter als gesetzt.
+    /// </para>
+    /// </summary>
+    private static async Task ConfigAsync(HttpContext ctx, Db db, Guid id, ConfigRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var set = body.Set ?? [];
+
+        if (set.Count == 0)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nie podano żadnej zmiany.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var path = await PathOfPartAsync(connection, id, ctx.RequestAborted);
+        if (path is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
+            return;
+        }
+
+        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
+        if (!grip.MayWrite)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
+            return;
+        }
+
+        string? current;
+
+        await using (var read = new SqlCommand(
+            "SELECT config FROM app.slug_part WHERE id = @id;", connection))
+        {
+            read.Parameters.AddWithValue("@id", id);
+            current = await read.ExecuteScalarAsync(ctx.RequestAborted) as string;
+        }
+
+        Dictionary<string, string> config;
+
+        try
+        {
+            config = current is null or ""
+                ? []
+                : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(current) ?? [];
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            /* Was nicht zu lesen ist, wird nicht stillschweigend ueberschrieben. */
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Ustawienia tego bloku są nieczytelne — otwórz go w edytorze strony.");
+            return;
+        }
+
+        foreach (var (key, value) in set)
+        {
+            if (value.Trim() == "") config.Remove(key);
+            else config[key] = value;
+        }
+
+        var written = System.Text.Json.JsonSerializer.Serialize(config);
+
+        if (written.Length > MaxConfigLength)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                $"Ustawienia bloku: najwyżej {MaxConfigLength} znaków.");
+            return;
+        }
+
+        await using (var save = new SqlCommand(
+            "UPDATE app.slug_part SET config = @c WHERE id = @id;", connection))
+        {
+            save.Parameters.AddWithValue("@c", written);
+            save.Parameters.AddWithValue("@id", id);
+
+            await save.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { partId = Ids.ToText(id), config });
+    }
+
+    /// <summary>Dieselbe Grenze wie beim Speichern der ganzen Seite (<see cref="Page"/>).</summary>
+    private const int MaxConfigLength = 8000;
 
     public sealed record ArmRequest(string FieldId, string TokenSha256, int? Days);
 

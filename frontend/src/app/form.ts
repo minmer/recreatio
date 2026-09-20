@@ -633,3 +633,19 @@ export const redeemCheck = (
   token: string
 ): Promise<{ verified: boolean; at: string; again: boolean }> =>
   call(`/verify/${encodeURIComponent(token)}`, { method: 'POST' });
+
+/**
+ * Einzelne Einstellungen eines Bausteins ändern — ohne die ganze Seite.
+ *
+ * Der Rasterentwurf speichert `config` mitsamt der Seite; das ist dort richtig.
+ * Hier geht es um EINEN Schlüssel, den jemand vor den Einsendungen tippt —
+ * dafür die Seite zu verlassen wäre der Umweg, der dazu führt, dass niemand es
+ * tut. Ein leerer Wert löscht den Schlüssel.
+ */
+export const setPartConfig = (
+  partId: string, set: Record<string, string>
+): Promise<{ partId: string; config: Record<string, string> }> =>
+  call(`/workspace/part/${encodeURIComponent(partId)}/config`, {
+    method: 'POST',
+    body: JSON.stringify({ set })
+  });

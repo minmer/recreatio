@@ -26,6 +26,7 @@ import { fromBase64Url } from './crypto';
 import {
   FIELD_KINDS, KIND_LABEL, addField, loadFields, loadRegistrations, openFields,
   armCheck, hideSubmission, readSubmission, removeField, removeSubmission, reviseAsOffice,
+  setPartConfig,
   type ValueCheck,
   type FieldKind, type OpenField, type SealedField, type Submission
 } from './form';
@@ -35,7 +36,7 @@ import { keysFor } from './ringOf';
 import { officeSeatKey, loadSeats, relinkSeat, seatPath, type SeatRow } from './seat';
 import { WorkspaceError, type Who } from './session';
 import { firstPhone, joinPhones, normalisePhone, splitPhones } from './phone';
-import { missingIn, renderSms } from './sms';
+import { holesFor, missingIn, renderSms } from './sms';
 
 export function FormOffice({ partId, config, who }: {
   partId: string;
@@ -70,6 +71,16 @@ export function FormOffice({ partId, config, who }: {
    */
   const [lastArea, setLastArea] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
+
+  /**
+   * Die Einstellungen, nachdem HIER etwas gespeichert wurde.
+   *
+   * Der Baustein gehört der Seite darüber, und die lädt sich nicht neu, bloss
+   * weil hier ein Satz getippt wurde. Ohne diesen Schatten stünde nach dem
+   * Speichern wieder der alte Text da — als wäre nichts angekommen.
+   */
+  const [saved, setSaved] = useState<Record<string, string> | null>(null);
+  const conf = saved ?? config;
 
   /**
    * Alles laden — aber NICHT alles oder nichts.
@@ -387,6 +398,29 @@ export function FormOffice({ partId, config, who }: {
         </div>
       )}
 
+      {/*
+        DIE NACHRICHTENVORLAGE STEHT HIER, nicht in den Rastereinstellungen.
+        Sie wird gedacht, wenn jemand vor den Einsendungen sitzt — und dafür
+        die Seite zu verlassen ist der Umweg, der dazu führt, dass niemand sie
+        je schreibt.
+
+        SIE HÄNGT AN KEINER BEDINGUNG. Zuerst stand sie hinter `areasHere`,
+        und das war derselbe Fehler zweimal: `areasHere` kommt aus den Fragen,
+        die Fragen kommen aus den Schlüsseln — also verschwand der Kasten genau
+        dann, wenn beim Aufschliessen etwas schiefging. Eine Vorlage ist aber
+        blosser Text am Baustein. Sie braucht keinen Schlüssel, keinen Bereich
+        und keine einzige Einsendung, und wer die Seite führen darf, darf sie
+        schreiben.
+      */}
+      <Template
+        partId={partId}
+        value={conf.sms ?? ''}
+        labels={fields.map((f) => f.label)}
+        busy={busy !== null}
+        onSaved={setSaved}
+        onError={setFailed}
+      />
+
       {submissions.length > 0 && (
         <>
           <p className="wk-hint">
@@ -435,6 +469,31 @@ export function FormOffice({ partId, config, who }: {
           >
             Popraw je na +48 …
           </button>
+        </p>
+      )}
+
+      {/*
+        WARUM DER KNOPF FEHLT, wenn er fehlt.
+
+        Er erschien nur, wenn es etwas zu richten gab — und sah damit in drei
+        ganz verschiedenen Lagen gleich aus: alles in Ordnung, nichts
+        aufgemacht, oder die Antworten gehören zu gelöschten Fragen. Die dritte
+        ist die, die hier wirklich vorkam, und sie ist nicht zu erraten: ohne
+        die Frage weiss niemand, dass „123456789" eine Nummer sein sollte, und
+        ein Geburtsdatum liesse sich genauso gut für eine halten.
+      */}
+      {submissions.length > 0 && crooked.length === 0 && (
+        <p className="wk-hint">
+          {opened.size === 0
+            ? 'Numery telefonów można poprawić po otwarciu zgłoszeń.'
+            : fields.length === 0
+              ? 'Póki pytania się nie otworzyły, nie wiadomo, które odpowiedzi są '
+                + 'numerami — i nie ma czego poprawiać.'
+              : phoneFields.length === 0
+                ? 'Ten formularz nie ma dziś pytania o telefon, więc nie ma czego '
+                  + 'poprawiać. Odpowiedzi przy usuniętych pytaniach zostają tak, jak '
+                  + 'je wpisano — bez pytania nie wiadomo, że to numer.'
+                : 'Wszystkie numery są już w jednej postaci.'}
         </p>
       )}
 
@@ -506,7 +565,7 @@ export function FormOffice({ partId, config, who }: {
                     checks={s.checks}
                     values={opened.get(s.registrationId)}
                     fieldsByLabel={fields}
-                    template={config.sms ?? ''}
+                    template={conf.sms ?? ''}
                     ring={ring}
                     onError={setFailed}
                   />
@@ -1061,4 +1120,122 @@ async function seatRowOf(seatId: string, ring: Ring): Promise<{ key: Uint8Array;
   }
 
   throw new WorkspaceError('Tego miejsca nie ma wśród Twoich obszarów.');
+}
+
+/* -- Die Nachricht, einmal geschrieben ------------------------------------- */
+
+/**
+ * Die Vorlage der SMS — dort, wo die Einsendungen stehen.
+ *
+ * <b>Sie liegt im `config` des Bausteins</b> wie jede andere Einstellung, und
+ * sie ist auch im Rasterentwurf zu sehen. Gespeichert wird sie hier aber
+ * EINZELN (`setPartConfig`): der Entwurf schreibt beim Speichern die ganze
+ * Seite, und wer nur einen Satz tippt, will nicht die Anordnung mitspeichern,
+ * die er gar nicht angefasst hat.
+ *
+ * <b>Die Platzhalter stehen darunter, mit den Namen dieses Formulars.</b> Sie
+ * zu erraten ist der Unterschied zwischen „geht nicht" und „geht" — eine Frage
+ * heisst genau so, wie sie im Bogen steht, samt Grossschreibung und Leerzeichen.
+ */
+function Template({ partId, value, labels, busy, onSaved, onError }: {
+  partId: string;
+  value: string;
+  labels: readonly (string | null)[];
+  busy: boolean;
+  onSaved: (next: Record<string, string>) => void;
+  onError: (message: string | null) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+  const [open, setOpen] = useState(value.trim() === '');
+
+  const holes = holesFor(labels);
+  const changed = draft !== value;
+
+  const save = async () => {
+    setSaving(true);
+    onError(null);
+
+    try {
+      const done = await setPartConfig(partId, { sms: draft });
+      onSaved(done.config);
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać szablonu.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <h4 className="wk-h2">
+        Szablon wiadomości
+        {' '}
+        <button type="button" className="wk-link-btn" onClick={() => setOpen(!open)}>
+          {open ? 'Zwiń' : value.trim() === '' ? 'Napisz' : 'Zmień'}
+        </button>
+      </h4>
+
+      {!open && value.trim() !== '' && (
+        <p className="wk-card-muted" style={{ whiteSpace: 'pre-wrap' }}>{value}</p>
+      )}
+
+      {open && (
+        <div className="wk-form">
+          <label className="wk-field">
+            <span>Treść — w nawiasach wstaw odpowiedź z formularza</span>
+            <textarea
+              rows={3}
+              value={draft}
+              disabled={busy || saving}
+              placeholder={'Cześć {imie}! Twoja strona: {link}'}
+              onChange={(e) => setDraft(e.target.value)}
+            />
+          </label>
+
+          {/*
+            Ein Klick setzt den Platzhalter ein — abgetippt wird er sonst falsch,
+            und eine Frage heisst genau so, wie sie im Bogen steht.
+          */}
+          <p className="wk-hint">
+            Wstaw:{' '}
+            {holes.map((one) => (
+              <button
+                key={one} type="button" className="wk-link-btn"
+                style={{ marginRight: '0.5rem' }}
+                onClick={() => setDraft(`${draft}{${one}}`)}
+              >
+                {`{${one}}`}
+              </button>
+            ))}
+          </p>
+
+          <p className="wk-hint">
+            <code>{'{link}'}</code> to strona osoby, <code>{'{weryfikacja}'}</code> — link
+            potwierdzający numer, <code>{'{imie}'}</code> — samo imię.
+            Czego nie da się wypełnić, zostaje widoczne w nawiasach.
+          </p>
+
+          <div className="wk-actions">
+            <button
+              type="button" className="wk-btn"
+              disabled={busy || saving || !changed}
+              onClick={() => void save()}
+            >
+              {saving ? 'Zapisywanie…' : 'Zapisz szablon'}
+            </button>
+
+            {changed && (
+              <button
+                type="button" className="wk-link-btn" disabled={saving}
+                onClick={() => setDraft(value)}
+              >
+                Cofnij
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
