@@ -33,7 +33,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
-  addItem, loadCalendars, REPEAT_LABEL, type CalendarRow, type RepeatKind
+  addItem, loadCalendars, REPEAT_LABEL, type CalendarRow, type ItemKind, type RepeatKind
 } from './calendar';
 import {
   addIntention, CONFESSION, KIND_LABEL, MASS, WEEKDAY_BITS,
@@ -41,6 +41,7 @@ import {
   updateIntention, type IntentionKind, type OfficeIntention, type OfficeMass
 } from './mass';
 import { printIntentions, sheetWeek } from './sheet';
+import { closeSlot, loadOfficeSlots, openSlot, type OfficeSlot } from './slot';
 import { call, WorkspaceError } from './session';
 
 /**
@@ -203,6 +204,15 @@ export function MassOffice() {
       {calendar !== undefined && (
         <>
           <ServiceForm calendar={calendar} onAdded={() => void load()} />
+
+          {/*
+            DIE TERMINE STEHEN UNTER DEM ANLEGEN, nicht darüber: wer
+            hierherkommt, kommt meistens wegen der Messen. Sie hängen am selben
+            Kalender und am selben Fenster — aber an anderer Arbeit, und darum
+            in einer eigenen Liste (siehe `Appointments`).
+          */}
+          <Appointments calendar={calendar} from={shownDay} />
+
           <PrintSheet calendarId={calendar.calendarId} />
         </>
       )}
@@ -402,13 +412,189 @@ function Row({ intention, onChanged, onError }: {
   );
 }
 
+/* -- Termine, die man sich nehmen kann ------------------------------------- */
+
+/**
+ * Die Termine eines Kalenders — und wer sich auf sie gesetzt hat.
+ *
+ * <b>Warum sie nicht bei den Messen stehen.</b> Eine Messe traegt Intentionen,
+ * ein Termin traegt Menschen. Das sind zwei verschiedene Vorgaenge mit
+ * verschiedenen Handgriffen, und sie in eine Liste zu zwingen hiesse, an jeder
+ * Zeile erst zu pruefen, was sie eigentlich ist. Darum eine eigene Liste —
+ * derselbe Kalender, dasselbe Fenster, andere Arbeit.
+ *
+ * <b>Freigegeben wird je VORKOMMEN.</b> „Samstags 10:00" ist eine Reihe;
+ * angeboten wird der 14. November. Ein Eintrag ohne Freigabe steht hier
+ * trotzdem — sonst muesste man raten, welche Termine es ueberhaupt gibt.
+ */
+function Appointments({ calendar, from }: { calendar: CalendarRow; from: string }) {
+  const [items, setItems] = useState<readonly OfficeMass[]>([]);
+  const [slots, setSlots] = useState<readonly OfficeSlot[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [places, setPlaces] = useState<Record<string, string>>({});
+
+  const load = useCallback(async () => {
+    try {
+      const start = new Date(`${from}T00:00:00`);
+      const end = new Date(start);
+      end.setDate(end.getDate() + WINDOW_DAYS);
+
+      const [plan, open] = await Promise.all([
+        loadOffice(calendar.calendarId, start, end, ['appointment']),
+        loadOfficeSlots(calendar.calendarId).catch(() => ({ slots: [] as readonly OfficeSlot[] }))
+      ]);
+
+      setItems(plan.masses);
+      setSlots(open.slots);
+      setFailed(null);
+    } catch (e) {
+      setItems([]);
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać terminów.');
+    }
+  }, [calendar.calendarId, from]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const act = async (what: string, todo: () => Promise<unknown>) => {
+    setBusy(what);
+    setFailed(null);
+
+    try {
+      await todo();
+      await load();
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (items.length === 0) {
+    return (
+      <>
+        <h4 className="wk-h2">Terminy</h4>
+        {failed !== null && <p className="wk-error">{failed}</p>}
+        <p className="wk-empty">
+          W tym oknie nie ma żadnego terminu. Załóż go powyżej jako „Termin" —
+          potem tutaj otworzysz go na zapisy.
+        </p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h4 className="wk-h2">Terminy</h4>
+
+      {failed !== null && <p className="wk-error">{failed}</p>}
+      {busy !== null && <p className="wk-hint">{busy}</p>}
+
+      <ul className="wk-list">
+        {items.map((one) => {
+          /*
+            NACH DEM AUGENBLICK, nicht nach der Zeichenfolge. Beide Seiten
+            schicken ein `DateTimeOffset`, aber die eine kommt aus der
+            Datenbank und die andere wird in der Zeitzone des Kalenders
+            gerechnet: `…T10:00:00+01:00` und `…T09:00:00+00:00` sind derselbe
+            Augenblick und zwei verschiedene Zeichenfolgen. Verglichen man sie
+            als Text, stünde jeder freigegebene Termin hier als „nieotwarty“ —
+            und ein zweites Öffnen liefe ins Leere.
+          */
+          const slot = slots.find(
+            (s) => s.itemId === one.itemId
+              && new Date(s.occurrenceAt).getTime() === new Date(one.occurrenceAt).getTime());
+
+          const key = `${one.itemId}-${one.occurrenceAt}`;
+          const when = new Date(one.startsAt);
+
+          return (
+            <li className="wk-row" key={key}>
+              <span>
+                <strong>
+                  {when.toLocaleDateString('pl-PL',
+                    { weekday: 'short', day: 'numeric', month: 'long' })}
+                  {', '}
+                  {when.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+                </strong>
+                {one.title !== null && <> — {one.title}</>}
+
+                {/*
+                  DREI ZUSTÄNDE, und sie sehen verschieden aus: nicht
+                  freigegeben, freigegeben mit Platz, voll. Ein „2/4" allein
+                  sagte nicht, ob überhaupt jemand buchen darf.
+                */}
+                {slot === undefined ? (
+                  <p className="wk-hint">
+                    Nieotwarty — nikt się tu nie zapisze.
+                    {' '}
+                    <label>
+                      Miejsc:{' '}
+                      <input
+                        type="number" min={1} max={99} style={{ width: '4rem' }}
+                        value={places[key] ?? '1'}
+                        onChange={(e) => setPlaces({ ...places, [key]: e.target.value })}
+                      />
+                    </label>
+                    {' '}
+                    <button
+                      type="button" className="wk-link-btn" disabled={busy !== null}
+                      onClick={() => void act('Otwieranie…', () => openSlot(
+                        one.itemId, one.occurrenceAt,
+                        Math.max(1, Number(places[key] ?? '1') || 1)))}
+                    >
+                      Otwórz na zapisy
+                    </button>
+                  </p>
+                ) : (
+                  <p className="wk-hint">
+                    <strong>{slot.taken} z {slot.capacity}</strong>
+                    {slot.who.length > 0 && <> — {slot.who.join(', ')}</>}
+                    {slot.taken === 0 && (
+                      <>
+                        {' · '}
+                        <button
+                          type="button" className="wk-link-btn" disabled={busy !== null}
+                          onClick={() => void act('Zamykanie…',
+                            () => closeSlot(one.itemId, one.occurrenceAt))}
+                        >
+                          Zamknij zapisy
+                        </button>
+                      </>
+                    )}
+                  </p>
+                )}
+
+                {/*
+                  WER SCHON DRIN SITZT, ENTSCHEIDET MIT. Solange das Fenster
+                  läuft, darf er jemanden dazunehmen — durch einen Code oder
+                  indem er eine Bitte annimmt. Die Kanzlei soll sehen, dass
+                  dieses Fenster offen ist, sonst wundert sie sich, warum ein
+                  belegter Termin noch wächst.
+                */}
+                {slot?.inviteUntil != null && new Date(slot.inviteUntil) > new Date() && (
+                  <p className="wk-hint">
+                    Do {new Date(slot.inviteUntil).toLocaleString('pl-PL',
+                      { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                    {' '}zapisany może dobrać kogoś kodem albo przyjąć prośbę.
+                  </p>
+                )}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+}
+
 /* -- Eine Messe anlegen ---------------------------------------------------- */
 
 /** Die Wiederholungen, die für einen Gottesdienst Sinn ergeben. */
 const SERVICE_REPEATS: readonly RepeatKind[] = ['none', 'daily', 'weekly', 'monthly'];
 
 function ServiceForm({ calendar, onAdded }: { calendar: CalendarRow; onAdded: () => void }) {
-  const [kind, setKind] = useState<typeof MASS | typeof CONFESSION>(MASS);
+  const [kind, setKind] = useState<ItemKind>(MASS);
   const [date, setDate] = useState(todayKey);
   const [time, setTime] = useState('18:00');
   const [title, setTitle] = useState('');
@@ -482,18 +668,42 @@ function ServiceForm({ calendar, onAdded }: { calendar: CalendarRow; onAdded: ()
       className="wk-form"
       onSubmit={(e) => { e.preventDefault(); if (blocker === null) void go(); }}
     >
-      <h4 className="wk-h2">Załóż mszę albo spowiedź</h4>
+      <h4 className="wk-h2">Załóż wpis</h4>
 
       <label className="wk-field">
         <span>Co</span>
         <select
           value={kind}
-          onChange={(e) => setKind(e.target.value as typeof MASS | typeof CONFESSION)}
+          onChange={(e) => setKind(e.target.value as ItemKind)}
         >
           <option value={MASS}>Msza</option>
           <option value={CONFESSION}>Spowiedź</option>
+
+          {/*
+            DER TERMIN — das, wofür die Firmlinge herkommen.
+
+            Er stand hier nicht, und damit gab es im ganzen Haus keinen Weg,
+            einen anzulegen: der Dienst kannte `appointment` von Anfang an
+            (`ck_item_kind`), das Buchen war gebaut (0029), das Modul für die
+            Seite auch — nur die eine Auswahlliste bot es nicht an. Eine
+            Möglichkeit, die nirgends angeboten wird, gibt es nicht.
+          */}
+          <option value="appointment">Termin (do zapisów)</option>
         </select>
       </label>
+
+      {/*
+        WAS ALS NÄCHSTES ZU TUN IST. Ein angelegter Termin nimmt noch niemanden
+        auf — freigegeben wird je Vorkommen, weiter unten. Ohne diesen Satz
+        legt jemand einen Termin an, sieht ihn im Plan stehen und wartet auf
+        Anmeldungen, die nicht kommen können.
+      */}
+      {kind === 'appointment' && (
+        <p className="wk-hint">
+          Sam termin jeszcze nikogo nie przyjmuje — otwórz go na zapisy niżej,
+          w „Terminy", podając liczbę miejsc.
+        </p>
+      )}
 
       <label className="wk-field">
         <span>Dzień</span>

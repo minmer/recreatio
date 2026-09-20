@@ -60,12 +60,19 @@ public static class Mass
     private static Task PlanAsync(HttpContext ctx, Db db, string? calendar, string? from, string? to) =>
         ShowAsync(ctx, db, calendar, from, to, null);
 
-    private static async Task OfficeAsync(HttpContext ctx, Db db, string? calendar, string? from, string? to)
+    private static async Task OfficeAsync(
+        HttpContext ctx, Db db, string? calendar, string? from, string? to, string? kinds)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
-        await ShowAsync(ctx, db, calendar, from, to, who.Value.AccountId);
+        if (!Kinds(kinds, out var wanted))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieznany rodzaj wpisu.");
+            return;
+        }
+
+        await ShowAsync(ctx, db, calendar, from, to, who.Value.AccountId, wanted);
     }
 
     private sealed record Row(
@@ -76,6 +83,46 @@ public static class Mass
 
     private sealed record Service(
         Row Item, DateTimeOffset OccurrenceAt, DateTimeOffset StartsAt, DateTimeOffset EndsAt);
+
+    /// <summary>
+    /// Welche Arten der Plan zeigt.
+    ///
+    /// <para>
+    /// <b>Die Vorgabe ist der Gottesdienst</b> — Messe und Beichte. Der
+    /// oeffentliche Plan kennt nichts anderes und darf nichts anderes kennen:
+    /// ein Firmungstermin, der in der Gablota zwischen den Messen stuende,
+    /// waere dort eine Ankuendigung, die niemand gemacht hat.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Die Kanzlei darf fragen</b>, und zwar nur nach Arten, die es gibt
+    /// (<c>ck_item_kind</c>). Was nicht in der Liste steht, wird nicht etwa
+    /// stillschweigend uebergangen — es faellt als Absage heraus, sonst bekaeme
+    /// jemand einen leeren Plan und suchte den Fehler bei sich.
+    /// </para>
+    /// </summary>
+    private static readonly string[] Services = ["mass", "confession"];
+
+    private static bool Kinds(string? asked, out List<string> kinds)
+    {
+        kinds = [];
+
+        if (string.IsNullOrWhiteSpace(asked)) { kinds = [.. Services]; return true; }
+
+        foreach (var one in asked.Split(',', StringSplitOptions.RemoveEmptyEntries
+                                             | StringSplitOptions.TrimEntries))
+        {
+            var kind = one.ToLowerInvariant();
+
+            if (kind is not ("appointment" or "task" or "mass" or "confession" or "visit"))
+                return false;
+
+            if (!kinds.Contains(kind)) kinds.Add(kind);
+        }
+
+        return kinds.Count > 0;
+    }
+
 
     /// <summary>
     /// Der Messplan.
@@ -93,8 +140,11 @@ public static class Mass
     /// </para>
     /// </summary>
     private static async Task ShowAsync(
-        HttpContext ctx, Db db, string? calendar, string? from, string? to, Guid? accountId)
+        HttpContext ctx, Db db, string? calendar, string? from, string? to, Guid? accountId,
+        IReadOnlyList<string>? kinds = null)
     {
+        kinds ??= Services;
+
         if (!Calendar.Window(from, to, out var since, out var till))
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Zakres dat jest nieczytelny albo za długi.");
@@ -130,6 +180,9 @@ public static class Mass
         var rows = new List<Row>();
         var areaNames = string.Join(", ", readable.Select((_, i) => $"@a{i}"));
 
+        /* Gebunden und nicht eingesetzt — eine Art ist ein Wert, kein Stueck SQL. */
+        var kindNames = string.Join(", ", kinds.Select((_, i) => $"@k{i}"));
+
         await using (var cmd = new SqlCommand($"""
             SELECT i.id, i.calendar_id, c.title, a.name, c.time_zone,
                    i.kind, i.title_public, i.starts_at, i.ends_at, i.status,
@@ -137,7 +190,7 @@ public static class Mass
             FROM app.calendar_item i
             JOIN app.calendar c ON c.id = i.calendar_id
             JOIN app.area a     ON a.id = c.area_id
-            WHERE i.kind IN (N'mass', N'confession')
+            WHERE i.kind IN ({kindNames})
               AND i.starts_at <= @to
               AND (i.repeat_kind = N'none' OR i.repeat_until IS NULL OR i.repeat_until >= @from)
               AND i.visibility_area_id IN ({areaNames})
@@ -148,6 +201,7 @@ public static class Mass
             cmd.Parameters.AddWithValue("@to", till);
             if (only is not null) cmd.Parameters.AddWithValue("@only", only.Value);
             for (var i = 0; i < readable.Count; i++) cmd.Parameters.AddWithValue($"@a{i}", readable[i]);
+            for (var i = 0; i < kinds.Count; i++) cmd.Parameters.AddWithValue($"@k{i}", kinds[i]);
 
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
             while (await reader.ReadAsync(ctx.RequestAborted))

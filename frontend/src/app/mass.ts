@@ -152,8 +152,19 @@ const askFor = (calendar?: string, from?: Date, to?: Date): string => {
 export const loadPlan = (calendar?: string, from?: Date, to?: Date): Promise<Plan> =>
   call<Plan>(`/masses?${askFor(calendar, from, to)}`);
 
-export const loadOffice = (calendar?: string, from?: Date, to?: Date): Promise<OfficePlan> =>
-  call<OfficePlan>(`/workspace/masses?${askFor(calendar, from, to)}`);
+/**
+ * Der Plan der Kanzlei.
+ *
+ * <b>`kinds` fehlt meistens</b>, und dann bleibt es beim Gottesdienst — Messe
+ * und Beichte. Wer Termine sucht (Firmung), sagt es ausdrücklich: sie stehen
+ * in derselben Reihe von Vorkommen, haben aber nichts mit Intentionen zu tun
+ * und gehören deshalb nicht ungefragt in dieselbe Liste.
+ */
+export const loadOffice = (
+  calendar?: string, from?: Date, to?: Date, kinds?: readonly string[]
+): Promise<OfficePlan> =>
+  call<OfficePlan>(`/workspace/masses?${askFor(calendar, from, to)}`
+    + (kinds === undefined ? '' : `&kinds=${encodeURIComponent(kinds.join(','))}`));
 
 export const addIntention = (
   itemId: string,
