@@ -340,6 +340,13 @@ code {
 .wk-node {
   display: grid;
   gap: 0.1rem;
+
+  /*
+      MITTIG, damit die drei Punkte um die Mitte herum sitzen: sie werden über
+      `top: calc(50% + …)` gesetzt, und bei oben ausgerichtetem Inhalt stünde
+      der Text neben dem obersten Punkt statt neben der Mitte.
+  */
+  align-content: center;
   min-width: 9rem;
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--wk-line);
@@ -362,6 +369,41 @@ code {
 .wk-node-kind { color: var(--wk-muted); font-size: 0.76rem; }
 
 .wk-handle { width: 8px; height: 8px; background: var(--wk-accent); border: 0; }
+
+/*
+    DIE DREI PUNKTE je Seite eines Knotens — führen, schreiben, lesen.
+
+    Groesser als ein blosser Anschluss, weil sie ANGEFASST werden: drei Ziele
+    18px auseinander sind mit der Maus zu treffen, drei Ziele von 8px nicht.
+    Die Farbe kommt aus dem Knoten (`style`), damit Punkt und Kante dieselbe
+    tragen und man am Bild sieht, welche Art wohin laeuft.
+*/
+.wk-dot {
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--wk-surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+
+.wk-dot:hover { width: 15px; height: 15px; }
+
+/* Die Legende — ohne sie sind drei Farben drei Raetsel. */
+.wk-dot-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-right: 0.9rem;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.wk-dot-key i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: inline-block;
+}
 
 .wk-side {
   display: grid;

@@ -17,7 +17,7 @@
  * je entschieden.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, {
   Background, Controls, Handle, Position,
   type Connection, type Edge, type Node, type NodeProps
@@ -26,8 +26,8 @@ import 'reactflow/dist/style.css';
 
 import type { Ring, SealedRole } from './keys';
 import {
-  addHolder, createRole, dropHolder, renameRole, retypeRole, revokeRole,
-  type NewKind, type RoleEdge, type RoleGraphData
+  addHolder, createRole, dropHolder, EDGE_KINDS, renameRole, retypeRole, revokeRole,
+  type EdgeKind, type NewKind, type RoleEdge, type RoleGraphData
 } from './roles';
 import { forgetKeys, keysFor } from './ringOf';
 import { WorkspaceError, type Who } from './session';
@@ -55,6 +55,35 @@ interface NodeData {
   readonly locked: boolean;
 }
 
+/**
+ * Die drei Punkte an jeder Seite eines Knotens — wie im Altbestand
+ * (`roleGraphConfig.ts`), und mit derselben Bedeutung.
+ *
+ * <code>
+ *   holds   führen: ändern, weitergeben, aufnehmen   (dort „Owner")
+ *   write   eintragen, was der Rolle gehört
+ *   read    hineinsehen
+ * </code>
+ *
+ * <b>Warum drei Punkte und nicht ein Punkt mit Auswahl danach.</b> Die Stufe
+ * gehört zu der Geste, mit der die Kante entsteht — wer zieht, hat sie schon
+ * im Kopf. Ein Dialog hinterher fragt nach etwas, das längst entschieden ist,
+ * und verlegt die Antwort an eine Stelle, an der man den Graphen nicht mehr
+ * sieht.
+ *
+ * <b>Die Reihenfolge ist die Ordnung</b> — oben das Stärkste. Sie stimmt mit
+ * der Leiter überein (3.5), und `certify` steht bewusst NICHT dabei: das ist
+ * eine Sache der Bereiche, nicht der Rollen.
+ */
+const DOTS = [
+  { kind: 'holds' as const, name: 'prowadzi', colour: '#1d4ed8' },
+  { kind: 'write' as const, name: 'pisze', colour: '#b3401f' },
+  { kind: 'read' as const, name: 'czyta', colour: '#0284c7' }
+];
+
+/** Der Abstand zwischen den Punkten — genug, um nicht danebenzugreifen. */
+const DOT_GAP = 18;
+
 /** Ausserhalb der Komponente: React Flow vergleicht die Typen mit `===`. */
 const NODE_TYPES = { role: RoleNode };
 
@@ -62,11 +91,36 @@ function RoleNode({ data, selected }: NodeProps<NodeData>) {
   return (
     <div
       className={`wk-node${data.personal ? ' wk-node-me' : ''}${data.locked ? ' wk-node-locked' : ''}${selected ? ' wk-node-on' : ''}`}
+      style={{ minHeight: `${(DOTS.length - 1) * DOT_GAP + 52}px` }}
     >
-      <Handle type="target" position={Position.Left} className="wk-handle" />
+      {DOTS.map((dot, at) => {
+        /* Mittig um die Zeilenmitte herum, damit der Knoten nicht kopflastig wird. */
+        const offset = (at - (DOTS.length - 1) / 2) * DOT_GAP;
+
+        return (
+          <Fragment key={dot.kind}>
+            <Handle
+              id={`in-${dot.kind}`}
+              type="target"
+              position={Position.Left}
+              className="wk-dot"
+              style={{ top: `calc(50% + ${offset}px)`, background: dot.colour }}
+              title={`${dot.name} — tu przyjmij`}
+            />
+            <Handle
+              id={`out-${dot.kind}`}
+              type="source"
+              position={Position.Right}
+              className="wk-dot"
+              style={{ top: `calc(50% + ${offset}px)`, background: dot.colour }}
+              title={`${dot.name} — stąd pociągnij`}
+            />
+          </Fragment>
+        );
+      })}
+
       <span className="wk-node-name">{data.label}</span>
       <small className="wk-node-kind">{KIND_NAME[data.kind]}</small>
-      <Handle type="source" position={Position.Right} className="wk-handle" />
     </div>
   );
 }
@@ -179,12 +233,24 @@ export function RoleGraph({ who }: { who: Who }) {
   const edges: Edge[] = useMemo(() => {
     if (data == null) return [];
 
-    return data.edges.map((edge) => ({
-      id: edge.id,
-      source: edge.fromRoleId,
-      target: edge.toRoleId,
-      animated: false
-    }));
+    return data.edges.map((edge) => {
+      const dot = DOTS.find((d) => d.kind === edge.edgeKind) ?? DOTS[0];
+
+      /*
+       * AN DIE PUNKTE GEHÄNGT, aus denen sie stammt — sonst liefen alle drei
+       * Arten durch dieselbe Stelle und man sähe am Bild nicht mehr, was gilt.
+       */
+      return {
+        id: edge.id,
+        source: edge.fromRoleId,
+        target: edge.toRoleId,
+        sourceHandle: `out-${dot.kind}`,
+        targetHandle: `in-${dot.kind}`,
+        animated: false,
+        style: { stroke: dot.colour, strokeWidth: 2 },
+        label: dot.kind === 'holds' ? undefined : dot.name
+      };
+    });
   }, [data]);
 
   if (data === undefined) return <p className="wk-lede">Wczytywanie…</p>;
@@ -201,13 +267,30 @@ export function RoleGraph({ who }: { who: Who }) {
   const role = data.roles.find((r) => r.id === selected) ?? null;
   const holders = selected === null ? [] : data.edges.filter((e) => e.toRoleId === selected);
 
+  /**
+   * Eine Kante entsteht — auf der Stufe des Punktes, aus dem gezogen wurde.
+   *
+   * <b>Die Stufe steckt im Anschluss</b> (`out-read`), nicht in einer Frage
+   * hinterher: wer zieht, hat sie schon entschieden, und ein Dialog danach
+   * verlegte die Antwort an eine Stelle ohne den Graphen davor.
+   *
+   * Wird ohne Punkt gezogen — was React Flow bei einem Klick ins Leere liefert —
+   * gilt `holds`: das ist, was „przekazać" immer hiess.
+   */
   const onConnect = (c: Connection) => {
     if (ring === null || c.source === null || c.target === null) return;
 
     const holder = data.roles.find((r) => r.id === c.source);
     if (holder === undefined) return;
 
-    void act('Przekazywanie…', () => addHolder(ring, c.target as string, holder));
+    const from = (c.sourceHandle ?? '').replace(/^out-/, '');
+    const kind = (EDGE_KINDS as readonly string[]).includes(from)
+      ? (from as EdgeKind)
+      : 'holds';
+
+    const named = DOTS.find((d) => d.kind === kind)?.name ?? kind;
+
+    void act(`Nadawanie: ${named}…`, () => addHolder(ring, c.target as string, holder, kind));
   };
 
   return (
@@ -217,6 +300,36 @@ export function RoleGraph({ who }: { who: Who }) {
         odchodzi, urząd zostaje. Strzałka prowadzi od tego, kto trzyma, do tego,
         co jest trzymane — pociągnij ją, żeby przekazać rolę dalej.
       </p>
+
+      {/*
+        DIE LEGENDE GEHÖRT NEBEN DEN GRAPHEN, nicht in eine Hilfe. Drei Farben
+        ohne Erklärung sind drei Rätsel, und wer gerade ziehen will, schlägt
+        nichts nach.
+      */}
+      <p className="wk-hint">
+        {DOTS.map((dot) => (
+          <span className="wk-dot-key" key={dot.kind}>
+            <i style={{ background: dot.colour }} />
+            {dot.name}
+          </span>
+        ))}
+        {'— pociągnij z kropki tej wysokości, którą chcesz nadać.'}
+      </p>
+
+      {/*
+        WAS DIE STUFEN HEUTE SIND, ehrlich gesagt. Für Rollen, die noch in der
+        alten Form liegen (`keyLayout === 0`), öffnet EIN Schlüssel alles —
+        dort sind „pisze" und „czyta" Hausregeln und keine Schranke. Das zu
+        verschweigen hiesse, eine Sicherheit zu behaupten, die für diese Rollen
+        nicht gilt.
+      */}
+      {data.roles.some((r) => r.keyLayout === 0) && (
+        <p className="wk-note">
+          Część ról powstała, zanim rozdzielono czytanie od podpisywania. Dla nich
+          „pisze" i „czyta" są ustaleniem, nie zamkiem — kto je czyta, może też
+          działać w ich imieniu. Nowe role nie mają już tego problemu.
+        </p>
+      )}
 
       {ring === null && (
         <Unlock
@@ -340,19 +453,40 @@ function Panel({ role, ring, name, holders, names, busy, onAct }: {
           <h3 className="wk-h2">Kto trzyma</h3>
           <ul className="wk-list">
             {holders.length === 0 && <li className="wk-empty">Nikt — to korzeń Twojego konta.</li>}
-            {holders.map((edge) => (
-              <li className="wk-row" key={edge.id}>
-                <span>{label(edge.fromRoleId)}</span>
-                {holders.length > 1 && (
-                  <button
-                    type="button" className="wk-link-btn" disabled={busy}
-                    onClick={() => void onAct('Odbieranie…', () => dropHolder(role.id, edge.fromRoleId))}
-                  >
-                    Odbierz
-                  </button>
-                )}
-              </li>
-            ))}
+            {holders.map((edge) => {
+              const dot = DOTS.find((d) => d.kind === edge.edgeKind) ?? DOTS[0];
+
+              /*
+               * NUR DIE FÜHRENDEN sind Halter. Eine Lese- oder Schreibkante
+               * abzugeben nimmt niemandem den Schlüssel — die Warnung „das ist
+               * der letzte" gilt für sie nicht, und der Knopf darf deshalb auch
+               * dann dastehen, wenn es nur eine gibt.
+               */
+              const holding = holders.filter((e) => e.edgeKind === 'holds');
+              const last = edge.edgeKind === 'holds' && holding.length <= 1;
+
+              return (
+                <li className="wk-row" key={edge.id}>
+                  <span>
+                    {label(edge.fromRoleId)}
+                    <span className="wk-dot-key" style={{ marginLeft: '.5rem' }}>
+                      <i style={{ background: dot.colour }} />
+                      {dot.name}
+                    </span>
+                  </span>
+
+                  {!last && (
+                    <button
+                      type="button" className="wk-link-btn" disabled={busy}
+                      onClick={() => void onAct(`Odbieranie: ${dot.name}…`,
+                        () => dropHolder(role.id, edge.fromRoleId, edge.edgeKind as EdgeKind))}
+                    >
+                      Odbierz
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
 
           {/* Anlegen: die gewählte Rolle HÄLT die neue. Ohne Halter gäbe es eine
