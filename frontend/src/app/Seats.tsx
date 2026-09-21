@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { myEpochKeys, type AreaRow } from './area';
+import { areaPortal, myEpochKeys, type AreaRow } from './area';
 import { loadIntake, openIntakeKey } from './intake';
 import type { Ring } from './keys';
 import {
@@ -352,9 +352,27 @@ function NewSeatForm({ areaId, areaKey, epoch, ownerRoleId, areas, ring, busy, o
   onError: (message: string | null) => void;
 }) {
   const [name, setName] = useState('');
-  const [personal, setPersonal] = useState('');
   const [sharedId, setSharedId] = useState('');
-  const [under, setUnder] = useState('');
+  /*
+   * DIE ADRESSE KOMMT VOM BEREICH (0028), nicht aus einem Feld. Sie ist für
+   * alle Plätze dieselbe — sie bei jedem Ausstellen zu erfragen hiesse,
+   * dieselbe Angabe zweihundertmal zu wiederholen und beim
+   * zweihundertersten Mal anders.
+   *
+   * `null` heisst: keine Portalseite gesetzt. Dann steht der Link unter
+   * `seat/…`, was genauso funktioniert und nur weniger schön aussieht.
+   */
+  const [under, setUnder] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    areaPortal(areaId)
+      .then((p) => { if (alive) setUnder(p.path); })
+      .catch(() => { if (alive) setUnder(null); });
+
+    return () => { alive = false; };
+  }, [areaId]);
   const [working, setWorking] = useState(false);
 
   const go = async () => {
@@ -383,18 +401,15 @@ function NewSeatForm({ areaId, areaKey, epoch, ownerRoleId, areas, ring, busy, o
         shared.push({ areaId: area.areaId, areaKey: key, epoch: area.currentEpoch });
       }
 
-      const page = under.trim().toLowerCase().replace(/^\/+|\/+$/g, '');
 
       const { link } = await issueSeat({
         areaId, areaKey, epoch, ownerRoleId,
         recipientName: name.trim() === '' ? undefined : name.trim(),
-        personalNote: personal.trim() === '' ? undefined : personal.trim(),
         shared
       });
 
-      onIssued(name.trim(), link, page === '' ? null : page);
+      onIssued(name.trim(), link, under);
       setName('');
-      setPersonal('');
     } catch (e) {
       onError(e instanceof WorkspaceError ? e.message : 'Nie udało się wystawić miejsca.');
     } finally {
@@ -406,6 +421,20 @@ function NewSeatForm({ areaId, areaKey, epoch, ownerRoleId, areas, ring, busy, o
     <form className="wk-form" onSubmit={(e) => { e.preventDefault(); void go(); }}>
       <h3 className="wk-h2">Wystaw miejsce</h3>
 
+      {/*
+        NUR DAS, WAS SICH NICHT ABLEITEN LÄSST.
+
+        Hier standen einmal vier Felder. Drei davon waren Arbeit, die anderswo
+        schon getan ist: die Nachricht lässt sich am Platz selbst schreiben
+        (und der Hinweis „można później" gab es zu), und die Adresse gehört zum
+        BEREICH — sie steht bei seinem Portal, einmal für alle Plätze, statt bei
+        jedem Ausstellen neu getippt zu werden.
+
+        Und der übliche Weg ist ohnehin ein anderer: wer ein Formular
+        hinstellt, bekommt Plätze, ohne einen einzigen davon auszustellen.
+        Dieses Formular ist für den Fall daneben — jemanden von Hand
+        hereinzunehmen.
+      */}
       <label className="wk-field">
         <span>Dla kogo</span>
         <input
@@ -415,30 +444,21 @@ function NewSeatForm({ areaId, areaKey, epoch, ownerRoleId, areas, ring, busy, o
         />
       </label>
 
-      {/*
-        Der Name ist KLARTEXT, und das gehört gesagt: der Ausstellende muss den
-        Link zuordnen können, bevor er ihn verschickt. Wer das nicht will,
-        lässt das Feld leer.
-      */}
       <p className="wk-hint">
         To pole jest jawne — służy Tobie, żeby wiedzieć, komu wysłałeś który
         link. Możesz je zostawić puste.
       </p>
 
-      <label className="wk-field">
-        <span>Co ma zobaczyć (można później)</span>
-        <textarea rows={3} value={personal} onChange={(e) => setPersonal(e.target.value)} />
-      </label>
-
       {/*
-        DIE ZWEITE HÄLFTE DER KLASSE. Ohne sie hat der Schüler nur seinen
-        eigenen Zettel; mit ihr sieht er auch, was allen gilt — und weiterhin
-        nicht, was hier über ihn steht.
+        DER GEMEINSAME SCHLÜSSEL. Er bleibt, weil er das Einzige ist, was ein
+        Platz NICHT von seinem Bereich erbt: er zeigt auf einen ZWEITEN Bereich.
+        Die lange Erklärung ist weg — sie beschrieb den Aufbau einer Klasse und
+        nicht dieses Feld.
       */}
       {areas.length > 0 && (
         <>
           <label className="wk-field">
-            <span>Klucz wspólny dla klasy</span>
+            <span>Klucz wspólny</span>
             <select value={sharedId} onChange={(e) => setSharedId(e.target.value)}>
               <option value="">— tylko własne miejsce —</option>
               {areas.map((a) => <option key={a.areaId} value={a.areaId}>{a.name}</option>)}
@@ -446,28 +466,23 @@ function NewSeatForm({ areaId, areaKey, epoch, ownerRoleId, areas, ring, busy, o
           </label>
 
           <p className="wk-hint">
-            Klasa potrzebuje <strong>dwóch</strong> obszarów. Ten, w którym
-            jesteś, trzyma notatki — uczeń ich nie widzi. Wybrany tutaj trzyma
-            to, co wspólne: plan, terminy. Każde miejsce dostaje jego klucz
-            zapakowany swoim własnym, więc uczeń widzi wspólne i nie widzi
-            cudzego.
+            Dokłada klucz drugiego obszaru — tego ze wspólnym planem. Swojego
+            miejsca i tak nikt inny nie zobaczy.
           </p>
         </>
       )}
 
-      <label className="wk-field">
-        <span>Adres strony (opcjonalnie)</span>
-        <input
-          value={under}
-          placeholder="lo13"
-          onChange={(e) => setUnder(e.target.value)}
-        />
-      </label>
-
+      {/*
+        WOHIN DER LINK ZEIGT — als Auskunft, nicht als Frage. Ist keine
+        Portalseite gesetzt, steht hier, WO man sie setzt: sonst sucht jemand
+        das Feld, das hier früher stand.
+      */}
       <p className="wk-hint">
-        Podaj adres strony, a link będzie brzmiał{' '}
-        <code>{(under.trim() || 'lo13')}/portal/…</code> zamiast{' '}
-        <code>seat/…</code>. To tylko wygląd adresu — treść i klucze są te same.
+        {under === null
+          ? 'Ten obszar nie ma jeszcze strony portalu — link będzie zaczynał się od '
+          : 'Link będzie zaczynał się od '}
+        <code>{under === null ? 'seat/…' : `${under}/portal/…`}</code>
+        {under === null && '. Ustawisz ją wyżej, przy obszarze.'}
       </p>
 
       <div className="wk-actions">

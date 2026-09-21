@@ -21,7 +21,8 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-  createArea, dropFromArea, loadAreas, loadMembers, myEpochKeys, setPublicLevel, setSeatLevel,
+  areaPortal, createArea, dropFromArea, loadAreas, loadMembers, myEpochKeys,
+  setAreaPortal, setPublicLevel, setSeatLevel,
   PUBLIC_LEVELS, SEAT_LEVELS, type AreaRow, type Member, type PublicLevel
 } from './area';
 import { createCalendar, loadCalendars, type CalendarRow } from './calendar';
@@ -332,6 +333,9 @@ function AreaRowView({ area, depth, areas, calendars, ring, person, open, busy, 
 
             {note !== null && <p className="wk-note">{note}</p>}
 
+            <h3 className="wk-h2">Strona portalu</h3>
+            <PortalPage area={area} busy={busy} onAct={onAct} />
+
             {/*
               Die Plätze. Sie stehen HIER und nicht in einer eigenen Ansicht:
               ein Platz ist ein Platz IN einem Bereich, und wer ihn ausstellt,
@@ -412,6 +416,86 @@ function AreaRowView({ area, depth, areas, calendars, ring, person, open, busy, 
         {open ? 'Zamknij' : 'Otwórz'}
       </button>
     </li>
+  );
+}
+
+/* -- Die Portalseite eines Bereichs ---------------------------------------- */
+
+/**
+ * Welche Seite das Portal dieses Bereichs zeichnet.
+ *
+ * <b>Sie gehört hierher und nicht zum einzelnen Platz.</b> Alle Plätze eines
+ * Bereichs zeigen denselben Aufbau; verschieden ist nur, was in den
+ * persönlichen Bausteinen steht. Beim Ausstellen danach zu fragen hiesse,
+ * dieselbe Angabe für jeden Platz erneut zu tippen — und beim zwanzigsten Mal
+ * anders.
+ *
+ * <b>Sie ist auch keine Sicherheitsfrage.</b> Ob ein Link
+ * `lo13/portal/…` oder `seat/…` heisst, ändert an Inhalt und Schlüsseln nichts;
+ * es ändert, wie er aussieht, wenn jemand ihn bekommt.
+ */
+function PortalPage({ area, busy, onAct }: {
+  area: AreaRow;
+  busy: boolean;
+  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+}) {
+  const [path, setPath] = useState<string | null | undefined>(undefined);
+  const [draft, setDraft] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+
+    areaPortal(area.areaId)
+      .then((p) => { if (alive) { setPath(p.path); setDraft(p.path ?? ''); } })
+      .catch(() => { if (alive) setPath(null); });
+
+    return () => { alive = false; };
+  }, [area.areaId]);
+
+  if (path === undefined) return <p className="wk-empty">Wczytywanie…</p>;
+
+  if (area.myLevel !== 'admin' && area.myLevel !== 'write') {
+    return (
+      <p className="wk-empty">
+        {path === null ? 'Bez strony portalu.' : <>Portal: <code>{path}</code></>}
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <label className="wk-field">
+        <span>Adres portalu</span>
+        <input
+          value={draft}
+          placeholder="np. lo13"
+          onChange={(e) => setDraft(e.target.value)}
+        />
+      </label>
+
+      <p className="wk-hint">
+        Stąd biorą się linki do miejsc: <code>{(draft.trim() || 'seat')}/portal/…</code>.
+        Ta strona rysuje też portal — to, co widzi osoba, która wejdzie
+        ze swojego linku. Puste pole znaczy: bez strony, linki zaczną się od{' '}
+        <code>seat/…</code>.
+      </p>
+
+      {draft.trim() !== (path ?? '') && (
+        <div className="wk-actions">
+          <button
+            type="button" className="wk-btn" disabled={busy}
+            onClick={() => void onAct('Zapisywanie portalu…', async () => {
+              const tidy = draft.trim().toLowerCase().replace(/^\/+|\/+$/g, '');
+              const saved = await setAreaPortal(area.areaId, tidy === '' ? null : tidy);
+              setPath(saved.path);
+              setDraft(saved.path ?? '');
+            })}
+          >
+            Zapisz
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 

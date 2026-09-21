@@ -342,3 +342,25 @@ export const dropFromArea = (
     method: 'POST',
     body: JSON.stringify({ roleId })
   });
+
+/* -- Die Portalseite eines Bereichs (0028) --------------------------------- */
+
+/**
+ * Welche Seite das Portal dieses Bereichs zeichnet — und unter welcher Adresse
+ * seine Links stehen.
+ *
+ * <b>Sie gehört zum BEREICH und nicht zum einzelnen Platz.</b> Alle sehen
+ * denselben Aufbau; verschieden ist nur, was in den persönlichen Bausteinen
+ * steht. Sie bei jedem Ausstellen erneut einzutippen hiesse, dieselbe Angabe
+ * zweihundertmal zu wiederholen — und beim zweihundertersten Mal anders.
+ */
+export const areaPortal = (areaId: string): Promise<{ path: string | null }> =>
+  call(`/workspace/area/${encodeURIComponent(areaId)}/portal`);
+
+export const setAreaPortal = (
+  areaId: string, path: string | null
+): Promise<{ path: string | null }> =>
+  call(`/workspace/area/${encodeURIComponent(areaId)}/portal`, {
+    method: 'POST',
+    body: JSON.stringify({ path })
+  });

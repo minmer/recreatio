@@ -19,7 +19,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, {
-  Background, Controls, Handle, Position,
+  Background, Controls, Handle, Position, useNodesState,
   type Connection, type Edge, type Node, type NodeProps
 } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -53,6 +53,55 @@ interface NodeData {
   readonly kind: Kind;
   readonly personal: boolean;
   readonly locked: boolean;
+}
+
+/**
+ * Wohin jemand die Knoten geschoben hat — je Konto, in DIESEM Browser.
+ *
+ * <b>Warum das hier liegen darf und nicht am Dienst.</b> Eine Anordnung ist
+ * kein Teil der Rollenordnung: sie sagt nichts darüber, wer was hält, und zwei
+ * Menschen dürfen dasselbe Haus verschieden anordnen. Sie am Dienst zu führen
+ * hiesse, eine Ansichtssache zu gemeinsamer Wahrheit zu machen.
+ *
+ * <b>Es darf fehlschlagen.</b> Ein privates Fenster, gesperrte Website-Daten,
+ * ein voller Speicher — alles davon endet hier in `catch`, und die Ansicht
+ * rechnet dann einfach wieder von vorn. Eine Anordnung, die verlorengeht, ist
+ * ärgerlich; eine Ansicht, die deswegen weiss bleibt, wäre kaputt.
+ */
+const SPOTS = 'rc.graph.spots';
+
+type Spot = { x: number; y: number };
+
+function savedSpots(accountId: string): Map<string, Spot> {
+  try {
+    const all = JSON.parse(localStorage.getItem(SPOTS) ?? '{}') as Record<string, Record<string, Spot>>;
+    return new Map(Object.entries(all[accountId] ?? {}));
+  } catch {
+    return new Map();
+  }
+}
+
+function forgetSpots(accountId: string): void {
+  try {
+    const all = JSON.parse(localStorage.getItem(SPOTS) ?? '{}') as Record<string, unknown>;
+    delete all[accountId];
+    localStorage.setItem(SPOTS, JSON.stringify(all));
+  } catch {
+    // Nichts zu vergessen ist auch ein Ergebnis.
+  }
+}
+
+function keepSpots(accountId: string, nodes: readonly Node<NodeData>[]): void {
+  try {
+    const all = JSON.parse(localStorage.getItem(SPOTS) ?? '{}') as Record<string, Record<string, Spot>>;
+
+    all[accountId] = Object.fromEntries(
+      nodes.map((n) => [n.id, { x: Math.round(n.position.x), y: Math.round(n.position.y) }]));
+
+    localStorage.setItem(SPOTS, JSON.stringify(all));
+  } catch {
+    // Siehe oben: eine verlorene Anordnung ist kein Grund, irgendetwas abzubrechen.
+  }
 }
 
 /**
@@ -212,23 +261,56 @@ export function RoleGraph({ who }: { who: Who }) {
     }
   };
 
-  const nodes: Node<NodeData>[] = useMemo(() => {
-    if (data == null) return [];
-    const spots = place(data.roles, data.edges);
+  /*
+   * DIE KNOTEN LIEGEN IM ZUSTAND, nicht in einem `useMemo`.
+   *
+   * Aus einem Memo gerechnet sprängen sie bei jedem Neuladen der Daten an
+   * ihren errechneten Platz zurück — man schöbe sie, und beim nächsten
+   * Umbenennen stünden sie wieder in der Reihe. Was jemand angeordnet hat,
+   * gehört ihm.
+   */
+  const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([]);
 
-    return data.roles.map((role) => ({
-      id: role.id,
-      type: 'role',
-      position: spots.get(role.id) ?? { x: 40, y: 30 },
-      selected: role.id === selected,
-      data: {
-        label: names.get(role.id) ?? (ring?.has(role.id) === true ? 'bez nazwy' : 'zapieczętowane'),
-        kind: role.kind,
-        personal: role.isPersonal,
-        locked: ring?.has(role.id) !== true
-      }
-    }));
-  }, [data, names, ring, selected]);
+  useEffect(() => {
+    if (data == null) { setNodes([]); return; }
+
+    const computed = place(data.roles, data.edges);
+    const kept = savedSpots(who.accountId);
+
+    setNodes((before) => {
+      const standing = new Map(before.map((n) => [n.id, n.position]));
+
+      return data.roles.map((role) => ({
+        id: role.id,
+        type: 'role',
+
+        /*
+         * DREI QUELLEN, in dieser Reihenfolge: wo der Knoten gerade steht,
+         * wo ihn jemand zuletzt abgelegt hat, und erst zuletzt der errechnete
+         * Platz. So bleibt eine Anordnung über das Umbenennen hinweg stehen,
+         * und eine NEUE Rolle bekommt trotzdem einen sinnvollen Platz statt
+         * der linken oberen Ecke.
+         */
+        position: standing.get(role.id) ?? kept.get(role.id) ?? computed.get(role.id) ?? { x: 40, y: 30 },
+
+        data: {
+          label: names.get(role.id) ?? (ring?.has(role.id) === true ? 'bez nazwy' : 'zapieczętowane'),
+          kind: role.kind,
+          personal: role.isPersonal,
+          locked: ring?.has(role.id) !== true
+        }
+      }));
+    });
+  }, [data, names, ring, who.accountId, setNodes]);
+
+  /*
+   * Ausgewählt wird über die Eigenschaft und nicht über einen Neuaufbau: sonst
+   * liefe jeder Klick durch dieselbe Stelle, die die Plätze setzt, und ein
+   * Klick verschöbe den Graphen.
+   */
+  const shown: Node<NodeData>[] = useMemo(
+    () => nodes.map((n) => ({ ...n, selected: n.id === selected })),
+    [nodes, selected]);
 
   const edges: Edge[] = useMemo(() => {
     if (data == null) return [];
@@ -277,6 +359,14 @@ export function RoleGraph({ who }: { who: Who }) {
    * Wird ohne Punkt gezogen — was React Flow bei einem Klick ins Leere liefert —
    * gilt `holds`: das ist, was „przekazać" immer hiess.
    */
+  /*
+   * BEIM LOSLASSEN GESPEICHERT, nicht bei jedem Pixel. Ein Zug erzeugt Dutzende
+   * Änderungen; jede davon zu schreiben hiesse, für eine einzige Geste
+   * hundertmal in den Speicher zu greifen.
+   */
+  const onDropped = useCallback(
+    () => keepSpots(who.accountId, nodes), [who.accountId, nodes]);
+
   const onConnect = (c: Connection) => {
     if (ring === null || c.source === null || c.target === null) return;
 
@@ -317,6 +407,30 @@ export function RoleGraph({ who }: { who: Who }) {
       </p>
 
       {/*
+        UMSTELLEN DARF MAN RÜCKGÄNGIG MACHEN. Wer die Knoten verschoben hat und
+        den Überblick verliert, braucht einen Weg zurück — sonst ist die
+        Beweglichkeit eine Falle statt einer Hilfe.
+      */}
+      <p className="wk-hint">
+        Węzły można przesuwać — układ zostaje w tej przeglądarce.
+        {' '}
+        <button
+          type="button"
+          className="wk-link-btn"
+          onClick={() => {
+            forgetSpots(who.accountId);
+            setNodes((was) => {
+              if (data == null) return was;
+              const fresh = place(data.roles, data.edges);
+              return was.map((n) => ({ ...n, position: fresh.get(n.id) ?? n.position }));
+            });
+          }}
+        >
+          Ułóż od nowa
+        </button>
+      </p>
+
+      {/*
         WAS DIE STUFEN HEUTE SIND, ehrlich gesagt. Für Rollen, die noch in der
         alten Form liegen (`keyLayout === 0`), öffnet EIN Schlüssel alles —
         dort sind „pisze" und „czyta" Hausregeln und keine Schranke. Das zu
@@ -345,13 +459,16 @@ export function RoleGraph({ who }: { who: Who }) {
       <div className="wk-graph-split">
         <div className="wk-graph">
           <ReactFlow
-            nodes={nodes}
+            nodes={shown}
             edges={edges}
             nodeTypes={NODE_TYPES}
+            onNodesChange={onNodesChange}
             onConnect={onConnect}
             onNodeClick={(_, node) => setSelected(node.id)}
             onPaneClick={() => setSelected(null)}
-            nodesDraggable={false}
+
+            onNodeDragStop={onDropped}
+
             fitView
             proOptions={{ hideAttribution: true }}
           >
