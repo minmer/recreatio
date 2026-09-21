@@ -33,9 +33,70 @@ public static class Roles
 {
     /// <summary>
     /// 3.1 — Der Kernel deutet die Art einer Kante nicht; das tut das Modul.
-    /// Der Neubau vergibt heute genau eine.
+    ///
+    /// <para>
+    /// <c>holds</c> ist die Art, mit der eine Rolle GEFUEHRT wird: der Halter
+    /// hat ihren Schluessel und handelt in ihrem Namen. Der Altbestand nannte
+    /// das <c>Owner</c>, und die Oberflaeche beschriftet es weiterhin so — ein
+    /// zweiter Name in der Datenbank waere dieselbe Sache doppelt.
+    /// </para>
     /// </summary>
     private const string HoldsEdge = "holds";
+
+    /// <summary>
+    /// Die drei Arten, die der Altbestand an jedem Knoten als drei Punkte
+    /// zeichnete (<c>roleGraphConfig.ts</c>) — und die Ordnung, die
+    /// <c>Domain/RoleRelationships.cs</c> ihnen gab:
+    ///
+    /// <code>
+    ///   holds ("Owner")  fuehren: aendern, weitergeben, aufnehmen
+    ///   write            eintragen, was der Rolle gehoert
+    ///   read             hineinsehen
+    /// </code>
+    ///
+    /// <para>
+    /// <b>Die Art geht in die UNTERSCHRIFT ein</b> (0008), nicht nur in die
+    /// Zeile. Deshalb steht die Liste hier und nicht bloss in der
+    /// Pruefbedingung der Tabelle: was der Browser unterschreibt und was
+    /// gespeichert wird, muss dieselbe Zeichenkette sein, sonst laesst sich die
+    /// Kante hinterher nicht mehr nachpruefen.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Was hier NICHT steht</b>, ist die Bedeutung fuer die Schluessel.
+    /// Heute oeffnet ein Rollenschluessel alles einer Rolle zugleich; eine
+    /// Zuteilung kann deshalb nicht weniger hergeben als alles. Solange das so
+    /// ist, sind <c>read</c> und <c>write</c> Hausregeln und keine Schranke —
+    /// und die Oberflaeche hat das zu sagen, statt eine Sicherheit zu
+    /// behaupten, die es nicht gibt.
+    /// </para>
+    /// </summary>
+    private static readonly string[] EdgeKinds = [HoldsEdge, "write", "read"];
+
+    private static bool IsEdgeKind(string? text) =>
+        text is not null && Array.IndexOf(EdgeKinds, text) >= 0;
+
+    /// <summary>
+    /// Die Kanten, die BEFUGNIS tragen — und das sind nur die, mit denen eine
+    /// Rolle gefuehrt wird.
+    ///
+    /// <para>
+    /// <b>Warum das gefiltert gehoert.</b> Seit 0032 gibt es Kanten der Art
+    /// <c>read</c> und <c>write</c>. Liefen sie in dieselbe Erreichbarkeit,
+    /// holte sich jeder mit einer Lesekante das Recht, die Rolle umzubenennen,
+    /// weiterzugeben oder zurueckzunehmen — eine Lesekante waere dann die
+    /// staerkste Kante von allen.
+    /// </para>
+    ///
+    /// <para>
+    /// Sichtbar bleiben sie trotzdem: die Anzeige laeuft ueber alle Kanten,
+    /// die Befugnis ueber diese.
+    /// </para>
+    /// </summary>
+    private static List<RoleGraph.Edge> Held(IEnumerable<EdgeRow> edges) =>
+        edges.Where(e => e.Kind == HoldsEdge)
+             .Select(e => new RoleGraph.Edge(e.From, e.To))
+             .ToList();
 
     /// <summary>
     /// Wie weit ein mitgeschickter Zeitpunkt danebenliegen darf. Er geht in die
@@ -71,9 +132,31 @@ public static class Roles
         string SignPrivateSealed,
         string? DisplayNameSealed,
         string GrantSealedBlob,
-        EdgeProof Edge);
+        EdgeProof Edge,
 
-    public sealed record HolderRequest(string HolderRoleId, string GrantSealedBlob, EdgeProof Edge);
+        /// <summary>
+        /// Der Signierschluessel, verpackt fuer den Halter (0034). Ist er da,
+        /// entsteht die Rolle in der getrennten Form: Lesen und Unterschreiben
+        /// haben dann verschiedene Schluessel. Fehlt er, entsteht sie wie vor
+        /// 0034 — EIN Schluessel fuer beides.
+        /// </summary>
+        string? SignGrantSealedBlob = null);
+
+    /// <summary>
+    /// <c>EdgeKind</c> fehlt bei aelteren Aufrufern — dann ist es <c>holds</c>,
+    /// die einzige Art, die es vor 0032 gab. Ein stillschweigendes Umdeuten
+    /// waere hier gefaehrlich: die Art steht in der Unterschrift, und wer
+    /// nichts schickt, hat auch nichts anderes unterschrieben.
+    /// </summary>
+    public sealed record HolderRequest(
+        string HolderRoleId, string GrantSealedBlob, EdgeProof Edge, string? EdgeKind = null,
+
+        /// <summary>
+        /// Nur fuer <c>holds</c> und nur bei getrennter Form: wer FUEHRT, muss
+        /// unterschreiben koennen. Wer liest oder schreibt, bekommt ihn nicht —
+        /// das ist der ganze Unterschied zwischen den Stufen.
+        /// </summary>
+        string? SignGrantSealedBlob = null);
     public sealed record NameRequest(string DisplayNameSealed);
     public sealed record KindRequest(string Kind);
 
@@ -81,7 +164,8 @@ public static class Roles
 
     private sealed record RoleRow(
         Guid Id, string Kind, byte[]? NameSealed, byte[] WrapPublic, byte[] SignPublic,
-        byte[]? WrapPrivateSealed, byte[]? SignPrivateSealed, DateTimeOffset CreatedAt);
+        byte[]? WrapPrivateSealed, byte[]? SignPrivateSealed, DateTimeOffset CreatedAt,
+        byte KeyLayout);
 
     private sealed record EdgeRow(
         Guid Id, Guid From, Guid To, Guid Signer, string Kind, DateTimeOffset CreatedAt, DateTimeOffset? ExpiresAt);
@@ -113,7 +197,7 @@ public static class Roles
         }
 
         var (roles, edges) = await GraphAsync(connection, null, ctx.RequestAborted);
-        var reachable = RoleGraph.Reachable(person.Value, edges.Select(e => new RoleGraph.Edge(e.From, e.To)).ToList());
+        var reachable = RoleGraph.Reachable(person.Value, Held(edges));
 
         var mine = roles.Where(r => reachable.Contains(r.Id)).ToList();
         var grants = await GrantsAsync(connection, mine.Select(r => r.Id).ToList(), ctx.RequestAborted);
@@ -131,7 +215,10 @@ public static class Roles
                 wrapPublicKey = Base64Url.Encode(r.WrapPublic),
                 signPublicKey = Base64Url.Encode(r.SignPublic),
                 wrapPrivateSealed = r.WrapPrivateSealed is null ? null : Base64Url.Encode(r.WrapPrivateSealed),
-                signPrivateSealed = r.SignPrivateSealed is null ? null : Base64Url.Encode(r.SignPrivateSealed)
+                signPrivateSealed = r.SignPrivateSealed is null ? null : Base64Url.Encode(r.SignPrivateSealed),
+
+                /* 0 = ein Schluessel oeffnet alles (vor 0034), 1 = getrennt. */
+                keyLayout = r.KeyLayout
             }),
             edges = edges
                 .Where(e => reachable.Contains(e.From) && reachable.Contains(e.To))
@@ -149,7 +236,10 @@ public static class Roles
             {
                 holderRoleId = Ids.ToText(g.Holder),
                 roleId = Ids.ToText(g.Granted),
-                sealedBlob = Base64Url.Encode(g.Blob)
+                sealedBlob = Base64Url.Encode(g.Blob),
+
+                /* `role` oeffnet Name und Lesen, `role_sign` das Unterschreiben. */
+                keyKind = g.Kind
             })
         });
     }
@@ -236,7 +326,7 @@ public static class Roles
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
         var (roles, edges) = await GraphAsync(connection, tx, ctx.RequestAborted);
-        var reachable = RoleGraph.Reachable(person.Value, edges.Select(e => new RoleGraph.Edge(e.From, e.To)).ToList());
+        var reachable = RoleGraph.Reachable(person.Value, Held(edges));
 
         var holder = roles.FirstOrDefault(r => r.Id == holderId);
         if (holder is null || !reachable.Contains(holderId))
@@ -256,7 +346,10 @@ public static class Roles
             return;
         }
 
-        if (!VerifyEdge(holder.SignPublic, edgeId, holderId, roleId, holderId, createdAt, Base64Url.Decode(body.Edge.Signature)))
+        /* Eine neue Rolle wird GEFUEHRT — alles andere waere eine Rolle, die
+           niemand oeffnen kann. */
+        if (!VerifyEdge(holder.SignPublic, edgeId, holderId, roleId, holderId, createdAt,
+                Base64Url.Decode(body.Edge.Signature), HoldsEdge))
         {
             await tx.RollbackAsync(ctx.RequestAborted);
             await Fail(ctx, StatusCodes.Status400BadRequest, "Podpis krawędzi się nie zgadza.");
@@ -265,9 +358,19 @@ public static class Roles
 
         await InsertRoleAsync(connection, tx, roleId, kind, body, ctx.RequestAborted);
         await InsertEdgeAsync(connection, tx, edgeId, holderId, roleId, holderId, createdAt,
-            Base64Url.Decode(body.Edge.Signature), ctx.RequestAborted);
+            Base64Url.Decode(body.Edge.Signature), HoldsEdge, ctx.RequestAborted);
         await InsertGrantAsync(connection, tx, holderId, roleId, Base64Url.Decode(body.GrantSealedBlob),
             holderId, ctx.RequestAborted);
+
+        /*
+         * DER SIGNIERSCHLUESSEL, wenn die Rolle in getrennter Form entsteht
+         * (0034). Wer sie anlegt, FUEHRT sie — er bekommt beides.
+         */
+        if (body.SignGrantSealedBlob is not null)
+        {
+            await InsertGrantAsync(connection, tx, holderId, roleId,
+                Base64Url.Decode(body.SignGrantSealedBlob), holderId, ctx.RequestAborted, "role_sign");
+        }
 
         await tx.CommitAsync(ctx.RequestAborted);
         await ctx.Response.WriteAsJsonAsync(new { id = Ids.ToText(roleId), kind });
@@ -303,6 +406,32 @@ public static class Roles
             return;
         }
 
+        /*
+         * DIE ART DER KANTE (0032). Fehlt sie, ist es `holds` — so hiess es,
+         * bevor es eine Wahl gab, und wer nichts schickt, hat auch nichts
+         * anderes unterschrieben.
+         */
+        var edgeKind = body.EdgeKind ?? HoldsEdge;
+
+        if (!IsEdgeKind(edgeKind))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                "Rodzaj powiązania: holds, write albo read.");
+            return;
+        }
+
+        /*
+         * STILLSCHWEIGEND ZU VERWERFEN WAERE SCHLIMMER als abzulehnen: der
+         * Aufrufer glaubte dann, er habe jemandem das Unterschreiben gegeben,
+         * und niemand saehe, dass es nicht geschah.
+         */
+        if (body.SignGrantSealedBlob is not null && edgeKind != HoldsEdge)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                "Klucz podpisu należy tylko do prowadzenia roli — nie do odczytu ani zapisu.");
+            return;
+        }
+
         var createdAt = DateTimeOffset.FromUnixTimeSeconds(body.Edge.CreatedAt);
         if (!IsFresh(createdAt))
         {
@@ -318,7 +447,7 @@ public static class Roles
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
         var (roles, edges) = await GraphAsync(connection, tx, ctx.RequestAborted);
-        var links = edges.Select(e => new RoleGraph.Edge(e.From, e.To)).ToList();
+        var links = Held(edges);
         var reachable = RoleGraph.Reachable(person.Value, links);
 
         var holder = roles.FirstOrDefault(r => r.Id == holderId);
@@ -332,10 +461,19 @@ public static class Roles
             return;
         }
 
-        if (edges.Any(e => e.From == holderId && e.To == id))
+        /*
+         * DIESELBE ART ZWEIMAL ist dieselbe Zusage doppelt — und bleibt
+         * abgelehnt. VERSCHIEDENE Arten nebeneinander sind dagegen sinnvoll:
+         * wer eine Rolle fuehrt, kann daneben eine Schreibkante von woanders
+         * haben, und welche zaehlt, entscheidet die Aufloesung.
+         *
+         * Vor 0032 gab es nur eine Art, und da war „dieselbe Paarung" und
+         * „dieselbe Zusage" dasselbe. Jetzt nicht mehr.
+         */
+        if (edges.Any(e => e.From == holderId && e.To == id && e.Kind == edgeKind))
         {
             await tx.RollbackAsync(ctx.RequestAborted);
-            await Fail(ctx, StatusCodes.Status409Conflict, "Ta rola już to trzyma.");
+            await Fail(ctx, StatusCodes.Status409Conflict, "Ta rola już to trzyma na tym stopniu.");
             return;
         }
 
@@ -347,7 +485,8 @@ public static class Roles
             return;
         }
 
-        if (!VerifyEdge(holder.SignPublic, edgeId, holderId, id, holderId, createdAt, Base64Url.Decode(body.Edge.Signature)))
+        if (!VerifyEdge(holder.SignPublic, edgeId, holderId, id, holderId, createdAt,
+                Base64Url.Decode(body.Edge.Signature), edgeKind))
         {
             await tx.RollbackAsync(ctx.RequestAborted);
             await Fail(ctx, StatusCodes.Status400BadRequest, "Podpis krawędzi się nie zgadza.");
@@ -355,9 +494,24 @@ public static class Roles
         }
 
         await InsertEdgeAsync(connection, tx, edgeId, holderId, id, holderId, createdAt,
-            Base64Url.Decode(body.Edge.Signature), ctx.RequestAborted);
+            Base64Url.Decode(body.Edge.Signature), edgeKind, ctx.RequestAborted);
         await InsertGrantAsync(connection, tx, holderId, id, Base64Url.Decode(body.GrantSealedBlob),
             holderId, ctx.RequestAborted);
+
+        /*
+         * NUR WER FUEHRT, DARF UNTERSCHREIBEN (0034).
+         *
+         * Das ist die Stelle, an der die drei Stufen aufhoeren, blosse
+         * Etiketten zu sein: ein Leser bekommt den Signierschluessel nicht,
+         * und ohne ihn kann er keine Kante und kein Zertifikat herstellen, das
+         * der Dienst annimmt. Schreiben kann er trotzdem — aber nicht so, dass
+         * es wie eine befugte Zusage aussieht.
+         */
+        if (body.SignGrantSealedBlob is not null && edgeKind == HoldsEdge)
+        {
+            await InsertGrantAsync(connection, tx, holderId, id,
+                Base64Url.Decode(body.SignGrantSealedBlob), holderId, ctx.RequestAborted, "role_sign");
+        }
 
         await tx.CommitAsync(ctx.RequestAborted);
         await ctx.Response.WriteAsJsonAsync(new { id = Ids.ToText(edgeId) });
@@ -374,10 +528,18 @@ public static class Roles
     /// derselbe Wunsch, aber vollständig.
     /// </para>
     /// </summary>
-    private static async Task DropHolderAsync(HttpContext ctx, Db db, Guid id, Guid holderId)
+    private static async Task DropHolderAsync(
+        HttpContext ctx, Db db, Guid id, Guid holderId, string? kind)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        if (kind is not null && !IsEdgeKind(kind))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                "Rodzaj powiązania: holds, write albo read.");
+            return;
+        }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
@@ -387,7 +549,7 @@ public static class Roles
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
         var (_, edges) = await GraphAsync(connection, tx, ctx.RequestAborted);
-        var reachable = RoleGraph.Reachable(person.Value, edges.Select(e => new RoleGraph.Edge(e.From, e.To)).ToList());
+        var reachable = RoleGraph.Reachable(person.Value, Held(edges));
 
         if (!reachable.Contains(id) || !reachable.Contains(holderId))
         {
@@ -396,7 +558,20 @@ public static class Roles
             return;
         }
 
-        if (edges.Count(e => e.To == id) <= 1)
+        /*
+         * NUR DIE FUEHRENDEN ZAEHLEN (0032). Wer eine Rolle bloss liest, haelt
+         * sie nicht — zaehlte er mit, liesse sich der letzte echte Halter
+         * entfernen, solange irgendwo eine Lesekante steht, und danach koennte
+         * niemand die Rolle mehr oeffnen.
+         */
+        /*
+         * … UND NUR, WENN HIER WIRKLICH EIN HALTER WEGGEHT. Eine Lesekante zu
+         * loesen nimmt niemandem den Schluessel; die Wache davor waere dann
+         * eine Absage auf eine Gefahr, die es nicht gibt.
+         */
+        if ((kind is null || kind == HoldsEdge)
+            && edges.Count(e => e.To == id && e.Kind == HoldsEdge) <= 1
+            && edges.Any(e => e.From == holderId && e.To == id && e.Kind == HoldsEdge))
         {
             await tx.RollbackAsync(ctx.RequestAborted);
             await Fail(ctx, StatusCodes.Status409Conflict,
@@ -404,17 +579,35 @@ public static class Roles
             return;
         }
 
-        await using (var cmd = new SqlCommand("""
-            UPDATE app.role_edge SET revoked_at = @now
-            WHERE from_role_id = @from AND to_role_id = @to AND revoked_at IS NULL;
+        /*
+         * EINE ART LOESEN ODER ALLE.
+         *
+         * Ohne `kind` faellt jede Verbindung zwischen den beiden — das ist, was
+         * „diesen Halter entfernen" immer hiess, und es bleibt die Vorgabe.
+         * Mit `kind` faellt genau ein Punkt aus dem Graphen; die uebrigen
+         * bleiben stehen, denn sie sind eigene Zusagen.
+         *
+         * DER SCHLUESSEL GEHT NUR MIT DER FUEHRENDEN KANTE. Wer eine Lesekante
+         * loest, nimmt damit keine Zuteilung zurueck — die haengt am Fuehren.
+         */
+        var dropsHolding = kind is null || kind == HoldsEdge;
 
+        await using (var cmd = new SqlCommand($"""
+            UPDATE app.role_edge SET revoked_at = @now
+            WHERE from_role_id = @from AND to_role_id = @to AND revoked_at IS NULL
+              {(kind is null ? "" : "AND edge_kind = @kind")};
+
+            {(dropsHolding ? """
             UPDATE app.key_grant SET destroyed_at = @now
-            WHERE role_id = @from AND key_kind = N'role' AND key_ref = @to AND destroyed_at IS NULL;
+            WHERE role_id = @from AND key_kind IN (N'role', N'role_sign')
+              AND key_ref = @to AND destroyed_at IS NULL;
+            """ : "")}
             """, connection, tx))
         {
             cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
             cmd.Parameters.AddWithValue("@from", holderId);
             cmd.Parameters.AddWithValue("@to", id);
+            if (kind is not null) cmd.Parameters.AddWithValue("@kind", kind);
             await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
         }
 
@@ -589,7 +782,7 @@ public static class Roles
         }
 
         var (_, edges) = await GraphAsync(connection, null, ctx.RequestAborted);
-        var reachable = RoleGraph.Reachable(person.Value, edges.Select(e => new RoleGraph.Edge(e.From, e.To)).ToList());
+        var reachable = RoleGraph.Reachable(person.Value, Held(edges));
 
         if (!reachable.Contains(roleId))
         {
@@ -618,6 +811,7 @@ public static class Roles
 
         await using (var cmd = new SqlCommand("""
             SELECT id, kind, display_name_sealed, wrap_public_key, sign_public_key,
+                   key_layout,
                    wrap_private_sealed, sign_private_sealed, created_at
             FROM app.role WHERE revoked_at IS NULL;
             """, connection, tx))
@@ -629,9 +823,10 @@ public static class Roles
                     reader.GetGuid(0), reader.GetString(1),
                     reader.IsDBNull(2) ? null : (byte[])reader[2],
                     (byte[])reader[3], (byte[])reader[4],
-                    reader.IsDBNull(5) ? null : (byte[])reader[5],
                     reader.IsDBNull(6) ? null : (byte[])reader[6],
-                    reader.GetDateTimeOffset(7)));
+                    reader.IsDBNull(7) ? null : (byte[])reader[7],
+                    reader.GetDateTimeOffset(8),
+                    reader.GetByte(5)));
             }
         }
 
@@ -653,23 +848,24 @@ public static class Roles
         return (roles, edges);
     }
 
-    private static async Task<List<(Guid Holder, Guid Granted, byte[] Blob)>> GrantsAsync(
+    private static async Task<List<(Guid Holder, Guid Granted, byte[] Blob, string Kind)>> GrantsAsync(
         SqlConnection connection, List<Guid> holders, CancellationToken ct)
     {
-        var grants = new List<(Guid, Guid, byte[])>();
+        var grants = new List<(Guid, Guid, byte[], string)>();
         if (holders.Count == 0) return grants;
 
         var names = string.Join(", ", holders.Select((_, i) => $"@h{i}"));
         await using var cmd = new SqlCommand(
-            $"SELECT role_id, key_ref, sealed_blob FROM app.key_grant "
-            + $"WHERE key_kind = N'role' AND destroyed_at IS NULL AND role_id IN ({names});", connection);
+            $"SELECT role_id, key_ref, sealed_blob, key_kind FROM app.key_grant "
+            + $"WHERE key_kind IN (N'role', N'role_sign') AND destroyed_at IS NULL "
+            + $"AND role_id IN ({names});", connection);
 
         for (var i = 0; i < holders.Count; i++) cmd.Parameters.AddWithValue($"@h{i}", holders[i]);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            grants.Add((reader.GetGuid(0), reader.GetGuid(1), (byte[])reader[2]));
+            grants.Add((reader.GetGuid(0), reader.GetGuid(1), (byte[])reader[2], reader.GetString(3)));
         }
 
         return grants;
@@ -687,14 +883,14 @@ public static class Roles
     /// </summary>
     private static bool VerifyEdge(
         byte[] signerSpki, Guid edgeId, Guid from, Guid to, Guid signer,
-        DateTimeOffset createdAt, byte[] signature)
+        DateTimeOffset createdAt, byte[] signature, string edgeKind)
     {
         var record = new RoleEdgeRecord
         {
             Id = edgeId,
             FromRoleId = from,
             ToRoleId = to,
-            EdgeKind = HoldsEdge,
+            EdgeKind = edgeKind,
             SignerRoleId = signer,
             CreatedUtc = createdAt
         };
@@ -724,8 +920,8 @@ public static class Roles
         await using var cmd = new SqlCommand("""
             INSERT INTO app.role
                 (id, kind, display_name_sealed, wrap_public_key, sign_public_key,
-                 wrap_private_sealed, sign_private_sealed, created_at)
-            VALUES (@id, @kind, @name, @wrapPub, @signPub, @wrapPriv, @signPriv, @now);
+                 wrap_private_sealed, sign_private_sealed, created_at, key_layout)
+            VALUES (@id, @kind, @name, @wrapPub, @signPub, @wrapPriv, @signPriv, @now, @layout);
             """, connection, tx);
 
         cmd.Parameters.AddWithValue("@id", roleId);
@@ -737,13 +933,14 @@ public static class Roles
         cmd.Parameters.AddWithValue("@wrapPriv", Base64Url.Decode(body.WrapPrivateSealed));
         cmd.Parameters.AddWithValue("@signPriv", Base64Url.Decode(body.SignPrivateSealed));
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+        cmd.Parameters.AddWithValue("@layout", body.SignGrantSealedBlob is null ? (byte)0 : (byte)1);
 
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
     private static async Task InsertEdgeAsync(
         SqlConnection connection, SqlTransaction tx, Guid edgeId, Guid from, Guid to, Guid signer,
-        DateTimeOffset createdAt, byte[] signature, CancellationToken ct)
+        DateTimeOffset createdAt, byte[] signature, string edgeKind, CancellationToken ct)
     {
         await using var cmd = new SqlCommand("""
             INSERT INTO app.role_edge
@@ -756,7 +953,7 @@ public static class Roles
         cmd.Parameters.AddWithValue("@to", to);
         cmd.Parameters.AddWithValue("@signer", signer);
         cmd.Parameters.AddWithValue("@sig", signature);
-        cmd.Parameters.AddWithValue("@kind", HoldsEdge);
+        cmd.Parameters.AddWithValue("@kind", edgeKind);
 
         // Derselbe Zeitpunkt, der unterschrieben wurde — auf die Sekunde. Sonst
         // liesse sich die Kante später nicht mehr nachprüfen.
@@ -765,18 +962,43 @@ public static class Roles
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    /// <summary>
+    /// Die Zuteilung des ROLLENSCHLUESSELS an einen Halter.
+    ///
+    /// <para>
+    /// <b>Eine je Paarung, nicht eine je Kante</b> (0032). Der Schluessel ist
+    /// ein Ding: wer ihn schon hat, bekommt ihn durch eine zweite Kante nicht
+    /// noch einmal. Wird jemand von <c>read</c> auf <c>write</c> gehoben, ohne
+    /// die alte Kante zu loesen, stuenden sonst zwei gleiche Zuteilungen da —
+    /// und <c>ux_key_grant_one</c> lehnt die zweite ab, was als 500 herauskaeme.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Die bestehende wird NICHT ueberschrieben.</b> Sie ist unter dem
+    /// oeffentlichen Schluessel desselben Halters verpackt und oeffnet
+    /// dasselbe; sie zu ersetzen aenderte nichts ausser dem Zeitstempel. Was
+    /// zaehlt, ist, dass am Ende genau eine dasteht.
+    /// </para>
+    /// </summary>
     private static async Task InsertGrantAsync(
         SqlConnection connection, SqlTransaction tx, Guid holderId, Guid grantedId,
-        byte[] sealedBlob, Guid grantedBy, CancellationToken ct)
+        byte[] sealedBlob, Guid grantedBy, CancellationToken ct, string keyKind = "role")
     {
         await using var cmd = new SqlCommand("""
-            INSERT INTO app.key_grant
-                (id, role_id, key_kind, key_ref, sealed_blob, granted_by_role_id, created_at)
-            VALUES (@id, @role, N'role', @ref, @blob, @by, @now);
+            IF NOT EXISTS (
+                SELECT 1 FROM app.key_grant
+                 WHERE role_id = @role AND key_kind = @kind AND key_ref = @ref
+                   AND key_epoch IS NULL AND destroyed_at IS NULL)
+            BEGIN
+                INSERT INTO app.key_grant
+                    (id, role_id, key_kind, key_ref, sealed_blob, granted_by_role_id, created_at)
+                VALUES (@id, @role, @kind, @ref, @blob, @by, @now);
+            END
             """, connection, tx);
 
         cmd.Parameters.AddWithValue("@id", Ids.NewId());
         cmd.Parameters.AddWithValue("@role", holderId);
+        cmd.Parameters.AddWithValue("@kind", keyKind);
         cmd.Parameters.AddWithValue("@ref", grantedId);
         cmd.Parameters.AddWithValue("@blob", sealedBlob);
         cmd.Parameters.AddWithValue("@by", grantedBy);

@@ -21,8 +21,8 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-  createArea, loadAreas, loadMembers, myEpochKeys, publishEpoch,
-  type AreaRow, type Member
+  createArea, dropFromArea, loadAreas, loadMembers, myEpochKeys, setPublicLevel, setSeatLevel,
+  PUBLIC_LEVELS, SEAT_LEVELS, type AreaRow, type Member, type PublicLevel
 } from './area';
 import { createCalendar, loadCalendars, type CalendarRow } from './calendar';
 import type { Ring, SealedRole } from './keys';
@@ -102,10 +102,11 @@ export function Areas({ who }: { who: Who }) {
         <p className="wk-empty">Nie prowadzisz jeszcze żadnego obszaru.</p>
       ) : (
         <ul className="wk-list">
-          {areas.map((area) => (
+          {inOrder(areas).map(({ area, depth }) => (
             <AreaRowView
               key={area.areaId}
               area={area}
+              depth={depth}
               areas={areas}
               calendars={calendars.filter((c) => c.areaId === area.areaId)}
               ring={ring}
@@ -119,15 +120,75 @@ export function Areas({ who }: { who: Who }) {
         </ul>
       )}
 
-      <NewArea ring={ring} person={person} busy={busy !== null} onAct={act} />
+      <NewArea ring={ring} person={person} areas={areas} busy={busy !== null} onAct={act} />
     </>
   );
 }
 
+/**
+ * Die Stufen in der Sprache, die im Haus gesprochen wird.
+ *
+ * <b>Kein `certify` darunter.</b> Es steht neben der Leiter (3.5) und heisst
+ * etwas ganz anderes — „darf hineinlassen", nicht „darf mehr". In dieselbe
+ * Liste gesetzt läse es sich als vierte Stufe, und genau der Fall, für den es
+ * gedacht ist, ginge verloren.
+ */
+const LEVEL_NAME: Record<'read' | 'write' | 'admin', string> = {
+  read: 'czytasz',
+  write: 'piszesz',
+  admin: 'prowadzisz'
+};
+
+/** Dieselben Wörter, aber über jemand anderen gesagt. */
+const OTHER_LEVEL: Record<string, string> = {
+  read: 'czyta',
+  write: 'pisze',
+  admin: 'prowadzi',
+  certify: 'wpuszcza'
+};
+
+/* -- Der Baum -------------------------------------------------------------- */
+
+/**
+ * Die Bereiche in der Ordnung, in der sie liegen — `Parafia > Msza > Ofiary`.
+ *
+ * <b>Flach gezeichnet, mit Einzug.</b> Verschachtelte Listen wären hier eine
+ * zweite Struktur neben `parent_area_id`, und zwei Strukturen laufen
+ * auseinander. Die Tiefe steht deshalb an der Zeile, nicht im Markup.
+ *
+ * <b>Wessen Vater nicht dabei ist, steht ganz aussen.</b> Das ist kein Fehler,
+ * sondern der Normalfall für jemanden, der den inneren Bereich lesen darf und
+ * den äusseren nicht: der äussere kommt in seiner Liste gar nicht vor. Ihn als
+ * „fehlt" zu zeigen verriete, dass es ihn gibt.
+ */
+function inOrder(areas: readonly AreaRow[]): readonly { area: AreaRow; depth: number }[] {
+  const known = new Set(areas.map((a) => a.areaId));
+  const out: { area: AreaRow; depth: number }[] = [];
+
+  const under = (parent: string | null, depth: number) => {
+    for (const area of areas) {
+      const mine = area.parentAreaId !== null && known.has(area.parentAreaId)
+        ? area.parentAreaId
+        : null;
+
+      if (mine !== parent) continue;
+
+      out.push({ area, depth });
+      under(area.areaId, depth + 1);
+    }
+  };
+
+  under(null, 0);
+  return out;
+}
+
 /* -- Ein Bereich ----------------------------------------------------------- */
 
-function AreaRowView({ area, areas, calendars, ring, person, open, busy, onOpen, onAct }: {
+function AreaRowView({ area, depth, areas, calendars, ring, person, open, busy, onOpen, onAct }: {
   area: AreaRow;
+
+  /** Wie tief er liegt — der Einzug, nicht die Wahrheit: die steht in `parentAreaId`. */
+  depth: number;
 
   /** Alle — für den gemeinsamen Schlüssel einer Klasse. */
   areas: readonly AreaRow[];
@@ -147,35 +208,76 @@ function AreaRowView({ area, areas, calendars, ring, person, open, busy, onOpen,
     loadMembers(area.areaId).then((found) => setMembers(found.members)).catch(() => setMembers([]));
   }, [open, area.areaId]);
 
-  const publish = async () => {
-    if (ring === null) return;
+  const [note, setNote] = useState<string | null>(null);
 
-    /*
-     * Der Schlüssel wird aus der EIGENEN Zuteilung zurückgeholt und nicht
-     * irgendwo zwischengelegt. Damit geht das auch am Tag nach dem Anlegen —
-     * und es geht nur dem, der ihn ohnehin hat.
-     */
+  /**
+   * Den Bereich nach aussen oeffnen oder schliessen.
+   *
+   * <b>Der Schluessel kommt aus der EIGENEN Zuteilung</b> und liegt nirgends
+   * zwischen. Damit geht das auch am Tag nach dem Anlegen — und es geht nur
+   * dem, der ihn ohnehin hat.
+   *
+   * <b>Beim Schliessen wird keiner gebraucht:</b> es wird einer weggenommen.
+   */
+  const openTo = async (level: PublicLevel) => {
+    if (level === 'none') {
+      await setPublicLevel(area.areaId, level);
+      return;
+    }
+
+    if (ring === null) throw new WorkspaceError('Bez hasła nie otworzysz obszaru.');
+
     const keys = await myEpochKeys(ring, area.areaId);
     const key = keys.get(area.currentEpoch);
 
     if (key === undefined) {
-      throw new WorkspaceError('Nie masz klucza tej epoki — nie możesz jej ujawnić.');
+      throw new WorkspaceError('Nie masz klucza tej epoki — nie możesz jej otworzyć.');
     }
 
-    await publishEpoch(area.areaId, area.currentEpoch, key);
+    await setPublicLevel(area.areaId, level, key);
   };
-
-  const allOpen = area.publishedEpochs >= area.currentEpoch;
 
   return (
     <li className="wk-row">
-      <span>
+      <span style={{ paddingLeft: `${depth * 1.4}rem` }}>
+        {/*
+          DER EINZUG SAGT, WORIN ER LIEGT. Ein Strich davor, damit die Tiefe
+          auch dann zu sehen ist, wenn nur ein einziger Bereich eingerückt
+          dasteht — ohne ihn sähe es nach einem Satzfehler aus.
+        */}
+        {depth > 0 && <span className="wk-row-side" aria-hidden="true">└ </span>}
+
         <strong>{area.name}</strong>
+
         <span className="wk-row-side">
           {' · '}epoka {area.currentEpoch}
           {' · '}masz {area.heldEpochs}
-          {area.publishedEpochs > 0 && <> · jawne {area.publishedEpochs}</>}
+
+          {/*
+            WAS ICH HIER DARF — an der Zeile, nicht erst im aufgeklappten
+            Kasten. Wer eine Liste von Bereichen überfliegt, fragt genau das.
+          */}
+          {area.myLevel !== null && <> · {LEVEL_NAME[area.myLevel]}</>}
+          {area.mayCertify && <> · wpuszcza</>}
         </span>
+
+        {/*
+          ZWEI ZEICHEN, DIE NICHT DASSELBE SIND (0035): wie weit der Bereich
+          nach aussen offen steht, und was jemand sieht, der über ein Formular
+          hereinkommt. Beide stehen nur da, wenn sie etwas sagen — ein „nic"
+          neben jedem Bereich wäre Lärm.
+        */}
+        {area.publicLevel !== 'none' && (
+          <span className="wk-chip-ok" title="Bez konta, dla każdego">
+            {area.publicLevel === 'write' ? 'jawny · można pisać' : 'jawny'}
+          </span>
+        )}
+
+        {area.seatLevel !== 'own' && (
+          <span className="wk-chip-ok" title="Co widzi osoba z formularza poza swoim">
+            z formularza: {area.seatLevel === 'write' ? 'pisze' : 'czyta'}
+          </span>
+        )}
 
         {open && (
           <div className="wk-form">
@@ -195,15 +297,40 @@ function AreaRowView({ area, areas, calendars, ring, person, open, busy, onOpen,
 
             <NewCalendar areaId={area.areaId} busy={busy} onAct={onAct} />
 
-            <h3 className="wk-h2">Kto trzyma</h3>
+            <h3 className="wk-h2">Kto tu jest</h3>
+
+            {/*
+              MIT DER STUFE, nicht nur mit dem Namen. „Wer ist hier" ohne „was
+              darf er" ist die Hälfte der Frage — und die unwichtigere.
+            */}
             <ul className="wk-tile-lines">
               {members.map((m) => (
                 <li key={m.roleId}>
                   {m.kind === 'person' ? 'Osoba' : m.kind === 'group' ? 'Grupa' : 'Rola'}
                   {' '}<code>{m.roleId.slice(0, 8)}</code>
+                  {' — '}
+                  {m.capabilities.map((c) => OTHER_LEVEL[c] ?? c).join(', ')}
+
+                  {area.mayCertify && (
+                    <>
+                      {' · '}
+                      <button
+                        type="button" className="wk-link-btn" disabled={busy}
+                        onClick={() => void onAct('Usuwanie z obszaru…', async () => {
+                          const out = await dropFromArea(area.areaId, m.roleId);
+                          setNote(out.note);
+                          setMembers((was) => was.filter((x) => x.roleId !== m.roleId));
+                        })}
+                      >
+                        Usuń stąd
+                      </button>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
+
+            {note !== null && <p className="wk-note">{note}</p>}
 
             {/*
               Die Plätze. Sie stehen HIER und nicht in einer eigenen Ansicht:
@@ -214,30 +341,68 @@ function AreaRowView({ area, areas, calendars, ring, person, open, busy, onOpen,
               <Seats area={area} areas={areas} ring={ring} ownerRoleId={person.id} />
             )}
 
-            {/*
-              Offenlegen ist endgültig. Das gehört VOR den Knopf, nicht in eine
-              Bestätigung danach: wer erst nach dem Klick erfährt, dass es nicht
-              zurückgeht, erfährt es zu spät.
-            */}
-            <h3 className="wk-h2">Jawność</h3>
-            {allOpen ? (
-              <p className="wk-empty">Ta epoka jest już jawna — każdy może otworzyć to, co pod nią leży.</p>
+            {/* -- Nach aussen ------------------------------------------- */}
+
+            <h3 className="wk-h2">Dla wszystkich</h3>
+
+            {area.myLevel !== 'admin' ? (
+              <p className="wk-empty">Tym steruje ten, kto prowadzi obszar.</p>
             ) : (
               <>
                 <p className="wk-hint">
-                  Ujawnienie epoki wydaje jej klucz na zewnątrz. Działa wstecz —
-                  obejmie wszystko, co kiedykolwiek pod nią zapieczętowano — i nie
-                  da się go cofnąć.
+                  Otwarcie obszaru wydaje klucz epoki na zewnątrz — każdy będzie
+                  mógł przeczytać to, co pod nią leży, także wstecz. Zamknięcie
+                  odbiera klucz z tej chwili, ale nie odbiera go tym, którzy już
+                  go sobie zapisali.
                 </p>
+
                 <div className="wk-actions">
-                  <button
-                    type="button" className="wk-btn" disabled={busy || ring === null}
-                    onClick={() => void onAct('Ujawnianie epoki…', publish)}
-                  >
-                    Ujawnij epokę {area.currentEpoch}
-                  </button>
+                  {PUBLIC_LEVELS.map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      className={level === area.publicLevel ? 'wk-btn' : 'wk-link-btn'}
+                      disabled={busy || ring === null || level === area.publicLevel}
+                      onClick={() => void onAct('Zmiana jawności…', () => openTo(level))}
+                    >
+                      {level === 'none' ? 'Zamknięty'
+                        : level === 'read' ? 'Każdy czyta'
+                        : 'Każdy czyta i pisze'}
+                    </button>
+                  ))}
                 </div>
               </>
+            )}
+
+            {/* -- Dla tych z formularza --------------------------------- */}
+
+            <h3 className="wk-h2">Kto przyjdzie przez formularz</h3>
+
+            <p className="wk-hint">
+              Swoje zgłoszenie taka osoba widzi zawsze — należy do niej. Tu
+              ustawiasz tylko, ile widzi <em>poza</em> nim.
+            </p>
+
+            {area.myLevel !== 'admin' ? (
+              <p className="wk-empty">Tym steruje ten, kto prowadzi obszar.</p>
+            ) : (
+              <div className="wk-actions">
+                {SEAT_LEVELS.map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    className={level === area.seatLevel ? 'wk-btn' : 'wk-link-btn'}
+                    disabled={busy || level === area.seatLevel}
+                    onClick={() => void onAct('Zmiana dostępu…', async () => {
+                      await setSeatLevel(area.areaId, level);
+                    })}
+                  >
+                    {level === 'own' ? 'Tylko swoje'
+                      : level === 'read' ? 'Czyta wspólne'
+                      : 'Czyta i pisze wspólne'}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -252,13 +417,25 @@ function AreaRowView({ area, areas, calendars, ring, person, open, busy, onOpen,
 
 /* -- Anlegen ---------------------------------------------------------------- */
 
-function NewArea({ ring, person, busy, onAct }: {
+function NewArea({ ring, person, areas, busy, onAct }: {
   ring: Ring | null;
   person: SealedRole | null;
+
+  /** Worin er liegen kann — nur, wo ich selbst prowadzę (0035). */
+  areas: readonly AreaRow[];
+
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
   const [name, setName] = useState('');
+  const [inside, setInside] = useState('');
+
+  /*
+   * NUR DORT, WO ICH PROWADZĘ. Der Dienst verlangt `admin` auf dem äusseren
+   * Bereich (0035); eine Auswahl, die mehr anböte, führte zu einem Knopf, der
+   * beim Drücken absagt.
+   */
+  const canNest = areas.filter((a) => a.myLevel === 'admin');
 
   const blocker =
     busy ? null
@@ -274,7 +451,9 @@ function NewArea({ ring, person, busy, onAct }: {
         e.preventDefault();
         if (blocker !== null || ring === null || person === null) return;
 
-        void onAct('Zakładanie obszaru…', () => createArea(ring, person, name)).then(() => setName(''));
+        void onAct('Zakładanie obszaru…',
+          () => createArea(ring, person, name, inside === '' ? undefined : inside))
+          .then(() => { setName(''); setInside(''); });
       }}
     >
       <h2 className="wk-h2">Załóż obszar</h2>
@@ -283,6 +462,25 @@ function NewArea({ ring, person, busy, onAct }: {
         <span>Nazwa</span>
         <input value={name} placeholder="np. Kancelaria" onChange={(e) => setName(e.target.value)} />
       </label>
+
+      {canNest.length > 0 && (
+        <label className="wk-field">
+          <span>Wewnątrz</span>
+          <select value={inside} onChange={(e) => setInside(e.target.value)}>
+            <option value="">Nigdzie — osobny obszar</option>
+            {canNest.map((a) => (
+              <option key={a.areaId} value={a.areaId}>{a.name}</option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {inside !== '' && (
+        <p className="wk-hint">
+          Kto ma tu wejść, musi już być w obszarze nadrzędnym — to warunek, nie
+          dziedziczenie. Bycie tam samo w sobie nie daje tu niczego.
+        </p>
+      )}
 
       <p className="wk-hint">
         Klucz powstaje w tej przeglądarce — usługa dostaje go tylko zapakowanego

@@ -88,7 +88,14 @@ public static class Workspace
 
             SELECT r.id, r.kind, CAST(0 AS bit)
             FROM app.account a
+            /*
+                NUR `holds` (0032). Eine Lese- oder Schreibkante macht eine Rolle
+                sichtbar, nicht verfuegbar — liefe sie hier mit, brachte eine
+                Lesekante saemtliche Rechte dieser Rolle mit, und das waere das
+                Gegenteil dessen, was sie heisst.
+            */
             JOIN app.role_edge e ON e.from_role_id = a.person_role_id AND e.revoked_at IS NULL
+                                AND e.edge_kind = N'holds'
             JOIN app.role r      ON r.id = e.to_role_id AND r.revoked_at IS NULL
             WHERE a.id = @account;
             """, connection);

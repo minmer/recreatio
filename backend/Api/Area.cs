@@ -59,6 +59,14 @@ public static class Area
         app.MapPost("/workspace/area/{id:guid}/publish", PublishAsync);
 
         /*
+         * Die Gestalt eines Bereichs (0035): wie weit er nach aussen offen
+         * steht, und was jemand sieht, der ueber ein Formular hereinkommt.
+         */
+        app.MapPost("/workspace/area/{id:guid}/public", SetPublicAsync);
+        app.MapPost("/workspace/area/{id:guid}/seat-level", SetSeatLevelAsync);
+        app.MapPost("/workspace/area/{id:guid}/drop", DropAsync);
+
+        /*
          * DIE VORLAGE DES PORTALS (0028) — eine ganz gewoehnliche Seite, deren
          * Bausteine jeder Platz dieses Bereichs zu sehen bekommt. Eine Vorlage
          * je Bereich: alle sehen denselben Aufbau, verschieden ist nur, was in
@@ -81,7 +89,10 @@ public static class Area
     public sealed record Proof(string Id, string Capability, long IssuedAt, long ExpiresAt, string Signature);
 
     public sealed record CreateRequest(
-        string AreaId, string Name, string RoleId, string WrappedKey, IReadOnlyList<Proof> Certificates);
+        string AreaId, string Name, string RoleId, string WrappedKey, IReadOnlyList<Proof> Certificates,
+
+        /// <summary>Unter welchem Bereich er liegt — `null` heisst: ganz aussen (0035).</summary>
+        string? ParentAreaId = null);
 
     /// <summary>
     /// Einen Bereich anlegen.
@@ -121,6 +132,24 @@ public static class Area
             return;
         }
 
+        /*
+         * DER VATER (0035). Wer einen inneren Bereich anlegt, muss den
+         * aeusseren VERWALTEN — sonst haengte sich jeder mit Lesezugang einen
+         * Bereich unter fremde Ordnung.
+         */
+        Guid? parentId = null;
+
+        if (body.ParentAreaId is not null)
+        {
+            if (!Guid.TryParse(body.ParentAreaId, out var asked))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung obszaru nadrzędnego.");
+                return;
+            }
+
+            parentId = asked;
+        }
+
         byte[] wrapped;
         try { wrapped = Base64Url.Decode(body.WrappedKey ?? string.Empty); }
         catch (FormatException)
@@ -149,6 +178,34 @@ public static class Area
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiej roli nie ma.");
             return;
+        }
+
+        /*
+         * WER INNEN ANLEGT, MUSS AUSSEN VERWALTEN (0035).
+         *
+         * Sonst haengte sich jeder, der die Messe nur liest, einen Bereich
+         * unter sie — und die Verschachtelung waere eine Behauptung ueber
+         * Ordnung statt einer Ordnung.
+         *
+         * Und die Rolle, auf die der neue Bereich laeuft, muss im aeusseren
+         * stehen: die Voraussetzung gilt vom ersten Zertifikat an, nicht erst
+         * ab dem zweiten.
+         */
+        if (parentId is not null)
+        {
+            if (!await MayAsync(connection, who.Value.AccountId, parentId.Value,
+                    Capability.Admin, ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nadrzędnego nie ma.");
+                return;
+            }
+
+            if (!await InAreaAsync(connection, null, parentId.Value, [roleId], ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "Ta rola nie należy do obszaru nadrzędnego — najpierw dodaj ją tam.");
+                return;
+            }
         }
 
         /*
@@ -230,13 +287,14 @@ public static class Area
         try
         {
             await using (var area = new SqlCommand("""
-                INSERT INTO app.area (id, name, current_epoch, created_at)
-                VALUES (@id, @name, 1, @now);
+                INSERT INTO app.area (id, name, current_epoch, created_at, parent_area_id)
+                VALUES (@id, @name, 1, @now, @parent);
                 """, connection, tx))
             {
                 area.Parameters.AddWithValue("@id", areaId);
                 area.Parameters.AddWithValue("@name", name);
                 area.Parameters.AddWithValue("@now", now);
+                area.Parameters.AddWithValue("@parent", (object?)parentId ?? DBNull.Value);
                 await area.ExecuteNonQueryAsync(ctx.RequestAborted);
             }
 
@@ -315,7 +373,32 @@ public static class Area
                      WHERE g.key_kind = N'epoch' AND g.key_ref = a.id
                        AND g.destroyed_at IS NULL AND g.role_id IN ({names})) AS held,
                    (SELECT COUNT(*) FROM app.area_epoch e
-                     WHERE e.area_id = a.id AND e.key_public IS NOT NULL) AS published
+                     WHERE e.area_id = a.id AND e.key_public IS NOT NULL) AS published,
+                   a.parent_area_id, a.public_level, a.seat_level,
+
+                   /*
+                       MEINE eigene Stufe — die staerkste, die eine meiner
+                       Rollen traegt. Ohne sie muesste die Oberflaeche raten,
+                       ob sie einen Knopf anbieten darf, und ein Knopf, der
+                       beim Druecken 403 sagt, ist schlimmer als keiner.
+
+                       `certify` steht neben der Leiter (3.5) und wird deshalb
+                       getrennt gemeldet, nicht in dieselbe Spalte gequetscht.
+                   */
+                   (SELECT TOP 1 c.capability FROM app.certificate c
+                     WHERE c.scope_kind = N'area' AND c.scope_id = a.id
+                       AND c.revoked_at IS NULL AND c.expires_at > @now
+                       AND c.capability <> N'certify'
+                       AND c.subject_role_id IN ({names})
+                     ORDER BY CASE c.capability
+                                WHEN N'admin' THEN 3 WHEN N'write' THEN 2 ELSE 1 END DESC) AS mine,
+
+                   CAST(CASE WHEN EXISTS (
+                        SELECT 1 FROM app.certificate c
+                         WHERE c.scope_kind = N'area' AND c.scope_id = a.id
+                           AND c.revoked_at IS NULL AND c.expires_at > @now
+                           AND c.capability = N'certify'
+                           AND c.subject_role_id IN ({names})) THEN 1 ELSE 0 END AS bit) AS mayCertify
             FROM app.area a
             WHERE EXISTS (
                 SELECT 1 FROM app.certificate c
@@ -341,7 +424,18 @@ public static class Area
 
                 // Wie viele Epochen ich öffnen kann, und wie viele offenliegen.
                 heldEpochs = reader.GetInt32(3),
-                publishedEpochs = reader.GetInt32(4)
+                publishedEpochs = reader.GetInt32(4),
+
+                /* Wo er liegt — `null` heisst: ganz aussen. */
+                parentAreaId = reader.IsDBNull(5) ? null : Ids.ToText(reader.GetGuid(5)),
+
+                /* Was von aussen geht, und was ein Formularmensch sieht (0035). */
+                publicLevel = reader.GetString(6),
+                seatLevel = reader.GetString(7),
+
+                /* Und was ICH hier darf — damit die Oberflaeche nicht raet. */
+                myLevel = reader.IsDBNull(8) ? null : reader.GetString(8),
+                mayCertify = reader.GetBoolean(9)
             });
         }
 
@@ -373,7 +467,7 @@ public static class Area
         }
 
         await using var cmd = new SqlCommand("""
-            SELECT DISTINCT r.id, r.kind, r.wrap_public_key
+            SELECT r.id, r.kind, r.wrap_public_key, c.capability
             FROM app.certificate c
             JOIN app.role r ON r.id = c.subject_role_id AND r.revoked_at IS NULL
             WHERE c.scope_kind = N'area' AND c.scope_id = @area
@@ -383,18 +477,52 @@ public static class Area
         cmd.Parameters.AddWithValue("@area", id);
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
 
-        var members = new List<object>();
+        /*
+         * EINE ZEILE JE ROLLE, mit ALLEN ihren Stufen.
+         *
+         * Die Abfrage liefert je Zertifikat eine Zeile — eine Rolle mit
+         * `admin` und `certify` kaeme also zweimal. Das waere zweierlei
+         * falsch: die Liste zaehlte Menschen doppelt, und wer sie anzeigt,
+         * muesste selbst gruppieren.
+         *
+         * Zusammengefasst wird zu einer LISTE und nicht zu einem Wert:
+         * `certify` steht neben der Leiter (3.5), und „die hoechste Stufe"
+         * verschluckte genau den Fall, fuer den es sie gibt — den Pfarrer, der
+         * jemanden aufnimmt, ohne selbst hineinzusehen.
+         */
+        var found = new Dictionary<Guid, (string Kind, byte[] Wrap, List<string> Caps)>();
+        var order = new List<Guid>();
 
         await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
         while (await reader.ReadAsync(ctx.RequestAborted))
         {
-            members.Add(new
+            var roleId = reader.GetGuid(0);
+
+            if (!found.TryGetValue(roleId, out var row))
             {
-                roleId = Ids.ToText(reader.GetGuid(0)),
-                kind = reader.GetString(1),
-                wrapPublicKey = Base64Url.Encode((byte[])reader[2])
-            });
+                row = (reader.GetString(1), (byte[])reader[2], []);
+                found[roleId] = row;
+                order.Add(roleId);
+            }
+
+            var capability = reader.GetString(3);
+            if (!row.Caps.Contains(capability)) row.Caps.Add(capability);
         }
+
+        var members = order.Select(roleId =>
+        {
+            var row = found[roleId];
+
+            return (object)new
+            {
+                roleId = Ids.ToText(roleId),
+                kind = row.Kind,
+                wrapPublicKey = Base64Url.Encode(row.Wrap),
+
+                /* Alle Stufen dieser Rolle — `read`/`write`/`admin` und `certify`. */
+                capabilities = row.Caps
+            };
+        }).ToList();
 
         await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), members });
     }
@@ -535,6 +663,32 @@ public static class Area
         if (!await MayAsync(connection, who.Value.AccountId, id, Capability.Certify, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "Tu nikogo nie wpuszczasz.");
+            return;
+        }
+
+        /*
+         * DIE VORAUSSETZUNG DER VERSCHACHTELUNG (0035).
+         *
+         * Wer in einen inneren Bereich soll, muss im aeusseren stehen. Das ist
+         * keine Vererbung — aussen zu stehen gibt innen NICHTS —, sondern eine
+         * Bedingung: die Spenden liegen innerhalb der Messe, und wer von den
+         * Spenden etwas wissen darf, gehoert zuerst zur Messe.
+         *
+         * Geprueft wird die blosse Zugehoerigkeit, nicht die Hoehe: wer die
+         * Messe nur liest, darf in den Spendenbereich aufgenommen werden — mit
+         * welcher Stufe dort, entscheidet dieser Bereich selbst.
+         *
+         * ABGELEHNT WIRD MIT GRUND. Ein blosses 403 liesse den Verwalter
+         * raten, warum eine Zusage nicht ankommt, die er gerade unterschrieben
+         * hat.
+         */
+        var parent = await ParentOfAsync(connection, null, id, ctx.RequestAborted);
+
+        if (parent is not null
+            && !await InAreaAsync(connection, null, parent.Value, [subjectId], ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Ta rola nie należy do obszaru nadrzędnego — najpierw dodaj ją tam.");
             return;
         }
 
@@ -881,6 +1035,331 @@ public static class Area
             warning = isInternal ? null
                 : "Ta strona jest publiczna — każdy, kto zna jej adres, zobaczy szablon portalu. "
                   + "Przypisz ją roli w drzewie adresów, żeby zniknęła dla postronnych."
+        });
+    }
+
+    /// <summary>
+    /// Ob <paramref name="roleIds"/> im Bereich <paramref name="areaId"/> steht —
+    /// irgendeine Stufe genuegt.
+    ///
+    /// <para>
+    /// <b>Die Voraussetzung der Verschachtelung</b> (0035): wer in einen inneren
+    /// Bereich soll, muss im aeusseren stehen. Geprueft wird die blosse
+    /// Zugehoerigkeit und nicht die Hoehe — wer die Messe nur liest, darf
+    /// trotzdem in den Spendenbereich aufgenommen werden, und mit welcher Stufe
+    /// dort, entscheidet der Spendenbereich selbst.
+    /// </para>
+    /// </summary>
+    private static async Task<bool> InAreaAsync(
+        SqlConnection connection, SqlTransaction? tx, Guid areaId, IReadOnlyList<Guid> roleIds,
+        CancellationToken ct)
+    {
+        if (roleIds.Count == 0) return false;
+
+        var names = string.Join(", ", roleIds.Select((_, i) => $"@p{i}"));
+
+        await using var cmd = new SqlCommand($"""
+            SELECT TOP 1 1 FROM app.certificate
+            WHERE scope_kind = N'area' AND scope_id = @area
+              AND revoked_at IS NULL AND expires_at > @now
+              AND subject_role_id IN ({names});
+            """, connection, tx);
+
+        cmd.Parameters.AddWithValue("@area", areaId);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+        for (var i = 0; i < roleIds.Count; i++) cmd.Parameters.AddWithValue($"@p{i}", roleIds[i]);
+
+        return await cmd.ExecuteScalarAsync(ct) is not null;
+    }
+
+    /// <summary>Der Vater eines Bereichs, oder <c>null</c>.</summary>
+    private static async Task<Guid?> ParentOfAsync(
+        SqlConnection connection, SqlTransaction? tx, Guid areaId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand(
+            "SELECT parent_area_id FROM app.area WHERE id = @id;", connection, tx);
+
+        cmd.Parameters.AddWithValue("@id", areaId);
+        return await cmd.ExecuteScalarAsync(ct) as Guid?;
+    }
+
+    /// <summary>
+    /// Wuerde <paramref name="child"/> unter <paramref name="parent"/> einen
+    /// Kreis schliessen?
+    ///
+    /// <para>
+    /// Eine Pruefbedingung faengt nur den unmittelbaren Fall (ein Bereich ist
+    /// nicht sein eigener Vater). <c>A &gt; B &gt; A</c> muss der Dienst
+    /// abfangen, und zwar IN der Transaktion — sonst entsteht zwischen Pruefung
+    /// und Schreiben genau die Kante, die den Kreis schliesst.
+    /// </para>
+    /// </summary>
+    private static async Task<bool> WouldLoopAsync(
+        SqlConnection connection, SqlTransaction? tx, Guid child, Guid parent, CancellationToken ct)
+    {
+        var at = (Guid?)parent;
+
+        /* Tiefenbegrenzung wie beim Rollengraphen: gegen Kreise hilft die
+           besuchte Menge, gegen unbezahlbar tiefe Baeume die Zahl. */
+        for (var depth = 0; depth < 32 && at is not null; depth++)
+        {
+            if (at == child) return true;
+            at = await ParentOfAsync(connection, tx, at.Value, ct);
+        }
+
+        return false;
+    }
+
+    public sealed record PublicRequest(string Level, string? Key);
+
+    /// <summary>
+    /// Wie weit dieser Bereich nach aussen offen steht (0035).
+    ///
+    /// <code>
+    ///   none    niemand von aussen
+    ///   read    jeder darf lesen        (Messzeiten)
+    ///   write   jeder darf lesen und einsenden
+    /// </code>
+    ///
+    /// <para>
+    /// <b>Absicht und Schluessel gehen zusammen.</b> Lesen von aussen ist
+    /// nicht eine Erlaubnis, sondern ein SCHLUESSEL: wer ihn hat, liest. Diese
+    /// Stelle setzt deshalb beides in einem Zug — wer hochsetzt, schickt den
+    /// veroeffentlichten Epochenschluessel mit; wer auf <c>none</c> zurueckgeht,
+    /// nimmt ihn zurueck.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Zuruecknehmen ist kein Ungeschehenmachen</b>, und der Dienst tut auch
+    /// nicht so. Wer den Schluessel gelesen hat, hat ihn; was aufhoert, ist der
+    /// Zugriff auf das, was danach kommt. Solange es keine Epochenrotation
+    /// gibt, gilt das uneingeschraenkt, und die Oberflaeche hat es zu sagen.
+    /// </para>
+    /// </summary>
+    private static async Task SetPublicAsync(HttpContext ctx, Db db, Guid id, PublicRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var level = (body.Level ?? string.Empty).Trim().ToLowerInvariant();
+
+        if (level is not ("none" or "read" or "write"))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Otwartość: none, read albo write.");
+            return;
+        }
+
+        byte[]? key = null;
+
+        if (level != "none")
+        {
+            try { key = Base64Url.Decode(body.Key ?? string.Empty); }
+            catch (FormatException)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny klucz.");
+                return;
+            }
+
+            if (key.Length != KeySize)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest,
+                    "Żeby otworzyć obszar, trzeba podać jego klucz epoki (32 bajty).");
+                return;
+            }
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        if (!await MayAsync(connection, who.Value.AccountId, id, Capability.Admin, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
+            return;
+        }
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            await using (var set = new SqlCommand(
+                "UPDATE app.area SET public_level = @level WHERE id = @id;", connection, tx))
+            {
+                set.Parameters.AddWithValue("@level", level);
+                set.Parameters.AddWithValue("@id", id);
+                await set.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await using (var epoch = new SqlCommand("""
+                UPDATE app.area_epoch SET key_public = @key
+                WHERE area_id = @area AND epoch = (SELECT current_epoch FROM app.area WHERE id = @area);
+                """, connection, tx))
+            {
+                epoch.Parameters.AddBlob("@key", key);
+                epoch.Parameters.AddWithValue("@area", id);
+                await epoch.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), publicLevel = level });
+    }
+
+    public sealed record SeatLevelRequest(string Level);
+
+    /// <summary>
+    /// Was jemand sieht, der ueber ein FORMULAR hereinkommt (0035).
+    ///
+    /// <code>
+    ///   own     nur das Eigene (Vorgabe)
+    ///   read    dazu das Gemeinsame lesen
+    ///   write   dazu beitragen
+    /// </code>
+    ///
+    /// <para>
+    /// <b>Das Eigene ist nie die Frage.</b> Wer sich anmeldet, bekommt einen
+    /// Platz und damit vollen Zugriff auf seine eigene Einsendung — sie gehoert
+    /// ihm. Hier geht es nur um das Uebrige.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Die Stufe haengt am BEREICH und nicht am Formular.</b> Das Formular
+    /// sagt, wohin es fuehrt; was man dort sieht, sagt der Verwalter — einmal,
+    /// und nicht je Anmeldung.
+    /// </para>
+    /// </summary>
+    private static async Task SetSeatLevelAsync(HttpContext ctx, Db db, Guid id, SeatLevelRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var level = (body.Level ?? string.Empty).Trim().ToLowerInvariant();
+
+        if (level is not ("own" or "read" or "write"))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Dostęp z formularza: own, read albo write.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        if (!await MayAsync(connection, who.Value.AccountId, id, Capability.Admin, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
+            return;
+        }
+
+        await using (var set = new SqlCommand(
+            "UPDATE app.area SET seat_level = @level WHERE id = @id;", connection))
+        {
+            set.Parameters.AddWithValue("@level", level);
+            set.Parameters.AddWithValue("@id", id);
+            await set.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), seatLevel = level });
+    }
+
+    public sealed record DropRequest(string RoleId);
+
+    /// <summary>
+    /// Eine Rolle wieder hinausnehmen.
+    ///
+    /// <para>
+    /// <b>Zuerst die inneren Bereiche.</b> Faellt jemand aussen weg, waehrend
+    /// er innen noch steht, ist die Voraussetzung der Verschachtelung verletzt —
+    /// und zwar still. Der Dienst lehnt deshalb ab und nennt, wo es klemmt,
+    /// statt eine Ordnung zu hinterlassen, die ihre eigene Regel bricht.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Und was er gelesen hat, hat er gelesen.</b> Das Zertifikat faellt,
+    /// die Zuteilung faellt — der Schluessel, den sein Browser einmal
+    /// ausgepackt hat, faellt nicht. Ohne Epochenrotation gibt es dagegen kein
+    /// Mittel, und es waere unredlich, hier etwas anderes anzudeuten.
+    /// </para>
+    /// </summary>
+    private static async Task DropAsync(HttpContext ctx, Db db, Guid id, DropRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        if (!Guid.TryParse(body.RoleId, out var subjectId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung roli.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        if (!await MayAsync(connection, who.Value.AccountId, id, Capability.Certify, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Tu nikogo nie wypuszczasz.");
+            return;
+        }
+
+        /* Steht die Rolle in einem Bereich, der IN diesem liegt? */
+        await using (var inner = new SqlCommand("""
+            SELECT TOP 1 a.name
+            FROM app.area a
+            JOIN app.certificate c ON c.scope_kind = N'area' AND c.scope_id = a.id
+                                  AND c.revoked_at IS NULL AND c.expires_at > @now
+                                  AND c.subject_role_id = @role
+            WHERE a.parent_area_id = @area;
+            """, connection))
+        {
+            inner.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            inner.Parameters.AddWithValue("@role", subjectId);
+            inner.Parameters.AddWithValue("@area", id);
+
+            if (await inner.ExecuteScalarAsync(ctx.RequestAborted) is string where)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    $"Ta rola jest jeszcze w obszarze „{where}”, który leży w tym. Najpierw usuń ją stamtąd.");
+                return;
+            }
+        }
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            await using (var cmd = new SqlCommand("""
+                UPDATE app.certificate SET revoked_at = @now
+                WHERE scope_kind = N'area' AND scope_id = @area
+                  AND subject_role_id = @role AND revoked_at IS NULL;
+
+                UPDATE app.key_grant SET destroyed_at = @now
+                WHERE key_kind = N'epoch' AND key_ref = @area
+                  AND role_id = @role AND destroyed_at IS NULL;
+                """, connection, tx))
+            {
+                cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+                cmd.Parameters.AddWithValue("@area", id);
+                cmd.Parameters.AddWithValue("@role", subjectId);
+                await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            areaId = Ids.ToText(id),
+            roleId = Ids.ToText(subjectId),
+            dropped = true,
+
+            /* Ehrlich gesagt, nicht verschwiegen. */
+            note = "Klucz, który ta rola już otworzyła, zostaje u niej. Odcięty jest dostęp do tego, co dalej."
         });
     }
 

@@ -44,15 +44,33 @@ export const loadRoles = (): Promise<RoleGraphData> => call<RoleGraphData>('/wor
  * fehlendes Feld ergibt andere Bytes, und der Dienst lehnt ab — ohne dass man
  * ihm ansieht, warum.
  */
+/**
+ * Die drei Arten, eine Rolle weiterzugeben (0032) — die drei Punkte des
+ * Altbestands an jedem Knoten.
+ *
+ * <code>
+ *   holds   führen: ändern, weitergeben, aufnehmen   (dort „Owner")
+ *   write   eintragen, was der Rolle gehört
+ *   read    hineinsehen
+ * </code>
+ *
+ * <b>Die Art wird UNTERSCHRIEBEN</b> (siehe `edgeValue`), nicht bloss
+ * gespeichert. Eine Kante, deren Art sich nachträglich ändern liesse, ohne die
+ * Unterschrift zu brechen, wäre keine Zusage, sondern eine Behauptung.
+ */
+export const EDGE_KINDS = ['holds', 'write', 'read'] as const;
+export type EdgeKind = (typeof EDGE_KINDS)[number];
+
 export const edgeValue = (edge: {
   id: string;
   fromRoleId: string;
   toRoleId: string;
   signerRoleId: string;
   createdAt: number;
+  edgeKind?: EdgeKind;
 }): Canon => O({
   createdAt: I(edge.createdAt),
-  edgeKind: S('holds'),
+  edgeKind: S(edge.edgeKind ?? 'holds'),
   expiresAt: NIL,
   fromAccountCommitment: NIL,
   fromRoleId: S(edge.fromRoleId),
@@ -71,14 +89,14 @@ interface SignedEdge {
 }
 
 async function signEdge(
-  ring: Ring, holderRoleId: string, toRoleId: string
+  ring: Ring, holderRoleId: string, toRoleId: string, edgeKind: EdgeKind = 'holds'
 ): Promise<SignedEdge> {
   const id = newId();
   const createdAt = nowSeconds();
 
   const signature = await signCanonical(
     await ring.signKey(holderRoleId),
-    edgeValue({ id, fromRoleId: holderRoleId, toRoleId, signerRoleId: holderRoleId, createdAt })
+    edgeValue({ id, fromRoleId: holderRoleId, toRoleId, signerRoleId: holderRoleId, createdAt, edgeKind })
   );
 
   return { id, createdAt, signature: toBase64Url(signature) };
@@ -106,16 +124,33 @@ export async function createRole(
   const pair = await newRolePair();
   const roleKey = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
 
-  const [wrapPrivateSealed, signPrivateSealed, displayNameSealed, grantSealedBlob] = await Promise.all([
+  /*
+   * ZWEI SCHLÜSSEL, NICHT EINER (0034).
+   *
+   *   roleKey   öffnet Namen und Verpackungsschlüssel — jede Stufe bekommt ihn
+   *   signKey   öffnet den Signierschlüssel — nur wer die Rolle FÜHRT
+   *
+   * Vorher öffnete einer beides, und damit konnte jeder, der lesen durfte,
+   * auch in ihrem Namen aufnehmen und weitergeben. Die drei Stufen wären
+   * Etiketten geblieben: der Dienst hätte sie geachtet, der Schlüssel nicht.
+   */
+  const signKey = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
+
+  const [wrapPrivateSealed, signPrivateSealed, displayNameSealed,
+         grantSealedBlob, signGrantSealedBlob] = await Promise.all([
     seal(roleKey, aad('kernel', 'role', id, Field.RoleWrapPrivate, 1), pair.wrapPrivateKey),
-    seal(roleKey, aad('kernel', 'role', id, Field.RoleSignPrivate, 1), pair.signPrivateKey),
+    seal(signKey, aad('kernel', 'role', id, Field.RoleSignPrivate, 1), pair.signPrivateKey),
     seal(roleKey, aad('kernel', 'role', id, Field.RoleDisplayName, 1),
       new TextEncoder().encode(options.name.trim())),
 
     // Für den Halter verpackt — dafür reicht sein ÖFFENTLICHER Schlüssel. So
     // nimmt ein Verwalter jemanden auf, ohne dessen Geheimnisse zu kennen.
     wrapKey(fromBase64Url(holder.wrapPublicKey),
-      aad('kernel', 'role_grant', id, Field.RoleWrapPrivate, 1), roleKey)
+      aad('kernel', 'role_grant', id, Field.RoleWrapPrivate, 1), roleKey),
+
+    // Wer sie anlegt, führt sie — er bekommt beide.
+    wrapKey(fromBase64Url(holder.wrapPublicKey),
+      aad('kernel', 'role_grant', id, Field.RoleSignPrivate, 1), signKey)
   ]);
 
   const edge = await signEdge(ring, holder.id, id);
@@ -132,6 +167,7 @@ export async function createRole(
       signPrivateSealed: toBase64Url(signPrivateSealed),
       displayNameSealed: toBase64Url(displayNameSealed),
       grantSealedBlob: toBase64Url(grantSealedBlob),
+      signGrantSealedBlob: toBase64Url(signGrantSealedBlob),
       edge
     })
   });
@@ -144,8 +180,18 @@ export async function createRole(
  * lehnt ihn ab, und das ist kein Formfehler: zwei Rollen, die einander
  * aufschliessen, hat niemand je entschieden.
  */
+/**
+ * Jemanden an eine Rolle hängen — auf einer der drei Stufen (0032).
+ *
+ * <b>Der Rollenschlüssel geht in JEDEM Fall mit.</b> Lesen heisst hier
+ * entschlüsseln können; eine Lesekante ohne Schlüssel gäbe nichts zu lesen.
+ * Was die Stufen (noch) NICHT auseinanderhält, ist das Handeln IM NAMEN der
+ * Rolle: derselbe Schlüssel öffnet heute auch ihren Signierschlüssel. Bis das
+ * getrennt ist, sind `write` und `read` Hausregeln — und die Oberfläche sagt
+ * das, statt eine Schranke zu behaupten.
+ */
 export async function addHolder(
-  ring: Ring, roleId: string, holder: SealedRole
+  ring: Ring, roleId: string, holder: SealedRole, edgeKind: EdgeKind = 'holds'
 ): Promise<{ id: string }> {
   const grantSealedBlob = await wrapKey(
     fromBase64Url(holder.wrapPublicKey),
@@ -153,21 +199,45 @@ export async function addHolder(
     ring.keyOf(roleId)
   );
 
-  const edge = await signEdge(ring, holder.id, roleId);
+  /*
+   * DER SIGNIERSCHLÜSSEL NUR BEIM FÜHREN (0034).
+   *
+   * Das ist die Stelle, an der `read` und `write` aufhören, Etiketten zu sein.
+   * Ein Leser bekommt ihn nicht, und ohne ihn kann er keine Kante und kein
+   * Zertifikat herstellen, das der Dienst annimmt — der prüft die Unterschrift.
+   * Schreiben kann er weiterhin; nur sieht es dann nicht wie eine befugte
+   * Zusage aus, und genau das ist der Unterschied, den wir wollten.
+   *
+   * `null` heisst: die Rolle ist noch in der alten Form, in der ein Schlüssel
+   * beides öffnete. Dann gibt es nichts gesondert weiterzugeben.
+   */
+  const mine = edgeKind === 'holds' ? ring.signKeyOf(roleId) : null;
+
+  const signGrantSealedBlob = mine === null ? undefined : toBase64Url(await wrapKey(
+    fromBase64Url(holder.wrapPublicKey),
+    aad('kernel', 'role_grant', roleId, Field.RoleSignPrivate, 1), mine));
+
+  const edge = await signEdge(ring, holder.id, roleId, edgeKind);
 
   return call<{ id: string }>(`/workspace/roles/${encodeURIComponent(roleId)}/holders`, {
     method: 'POST',
     body: JSON.stringify({
       holderRoleId: holder.id,
       grantSealedBlob: toBase64Url(grantSealedBlob),
-      edge
+      edge,
+      edgeKind,
+      signGrantSealedBlob
     })
   });
 }
 
-export const dropHolder = (roleId: string, holderRoleId: string): Promise<{ ok: boolean }> =>
+/** Ohne `edgeKind` fällt jede Verbindung; mit ihm genau dieser eine Punkt. */
+export const dropHolder = (
+  roleId: string, holderRoleId: string, edgeKind?: EdgeKind
+): Promise<{ ok: boolean }> =>
   call<{ ok: boolean }>(
-    `/workspace/roles/${encodeURIComponent(roleId)}/holders/${encodeURIComponent(holderRoleId)}`,
+    `/workspace/roles/${encodeURIComponent(roleId)}/holders/${encodeURIComponent(holderRoleId)}`
+      + (edgeKind === undefined ? '' : `?kind=${encodeURIComponent(edgeKind)}`),
     { method: 'DELETE' });
 
 /** Umbenennen. Der Name geht fertig versiegelt hinaus — der Dienst liest ihn nie. */

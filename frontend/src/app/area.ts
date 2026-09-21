@@ -40,6 +40,14 @@ import { call } from './session';
 export const epochAad = (areaId: string, epoch: number) =>
   aad('keys', 'area_epoch', areaId, Field.AreaEpochKey, epoch);
 
+/** Was von aussen geht (0035). `none` heisst: nichts. */
+export const PUBLIC_LEVELS = ['none', 'read', 'write'] as const;
+export type PublicLevel = (typeof PUBLIC_LEVELS)[number];
+
+/** Was jemand sieht, der über ein FORMULAR hereinkommt (0035). */
+export const SEAT_LEVELS = ['own', 'read', 'write'] as const;
+export type SeatLevel = (typeof SEAT_LEVELS)[number];
+
 export interface AreaRow {
   readonly areaId: string;
   readonly name: string;
@@ -54,12 +62,36 @@ export interface AreaRow {
    */
   readonly heldEpochs: number;
   readonly publishedEpochs: number;
+
+  /**
+   * Worin er liegt — `null` heisst: ganz aussen (0035).
+   *
+   * <b>Eine Voraussetzung, keine Vererbung.</b> Wer nach innen soll, muss
+   * aussen stehen; aussen zu stehen gibt innen nichts.
+   */
+  readonly parentAreaId: string | null;
+
+  readonly publicLevel: PublicLevel;
+  readonly seatLevel: SeatLevel;
+
+  /**
+   * Was ICH hier darf — damit die Oberfläche keinen Knopf anbietet, der beim
+   * Drücken 403 sagt. `null` heisst: gar nichts (dann stünde er aber auch
+   * nicht in der Liste).
+   */
+  readonly myLevel: 'read' | 'write' | 'admin' | null;
+
+  /** `certify` steht NEBEN der Leiter (3.5) — darum eigens. */
+  readonly mayCertify: boolean;
 }
 
 export interface Member {
   readonly roleId: string;
   readonly kind: 'person' | 'role' | 'group';
   readonly wrapPublicKey: string;
+
+  /** Alle Stufen dieser Rolle — `read`/`write`/`admin` und/oder `certify`. */
+  readonly capabilities: readonly string[];
 }
 
 export const loadAreas = (): Promise<{ areas: readonly AreaRow[] }> =>
@@ -130,7 +162,7 @@ async function signedCertificate(ring: Ring, what: {
  * bekommen; der hat nur die Hülle.
  */
 export async function createArea(
-  ring: Ring, person: SealedRole, name: string
+  ring: Ring, person: SealedRole, name: string, parentAreaId?: string
 ): Promise<{ areaId: string; epoch: number; key: Uint8Array }> {
   const areaId = newId();
   const key = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
@@ -143,6 +175,9 @@ export async function createArea(
       areaId,
       name: name.trim(),
       roleId: person.id,
+
+      /* Worin er liegt — `undefined` heisst: ganz aussen (0035). */
+      parentAreaId: parentAreaId ?? null,
       wrappedKey: toBase64Url(wrapped),
       certificates: [
         await signedCertificate(ring, {
@@ -254,3 +289,56 @@ export async function grantTo(
     })
   });
 }
+
+/* -- Die Gestalt eines Bereichs (0035) ------------------------------------- */
+
+/**
+ * Wie weit der Bereich nach aussen offen steht.
+ *
+ * <b>Absicht und Schlüssel gehen zusammen hinaus.</b> Lesen von aussen ist
+ * keine Erlaubnis, sondern ein SCHLÜSSEL: wer ihn hat, liest. Wer öffnet,
+ * schickt ihn deshalb mit; wer schliesst, nimmt ihn zurück.
+ *
+ * <b>Zurücknehmen macht nichts ungeschehen.</b> Wer den Schlüssel gelesen hat,
+ * hat ihn — es endet der Zugriff auf das, was DANACH kommt. Solange es keine
+ * Epochenrotation gibt, gilt das ohne Einschränkung, und die Oberfläche sagt es.
+ */
+export const setPublicLevel = (
+  areaId: string, level: PublicLevel, key?: Uint8Array
+): Promise<{ areaId: string; publicLevel: PublicLevel }> =>
+  call(`/workspace/area/${encodeURIComponent(areaId)}/public`, {
+    method: 'POST',
+    body: JSON.stringify({
+      level,
+      key: key === undefined ? null : toBase64Url(key)
+    })
+  });
+
+/**
+ * Was jemand sieht, der über ein Formular hereinkommt — ausser seinem Eigenen.
+ *
+ * Das Eigene ist nie die Frage: seine Einsendung gehört ihm. Hier geht es um
+ * das Gemeinsame, und es entscheidet der Bereich, nicht das Formular.
+ */
+export const setSeatLevel = (
+  areaId: string, level: SeatLevel
+): Promise<{ areaId: string; seatLevel: SeatLevel }> =>
+  call(`/workspace/area/${encodeURIComponent(areaId)}/seat-level`, {
+    method: 'POST',
+    body: JSON.stringify({ level })
+  });
+
+/**
+ * Eine Rolle wieder hinausnehmen.
+ *
+ * Abgelehnt, solange sie in einem Bereich steht, der IN diesem liegt — sonst
+ * bliebe eine Ordnung zurück, die ihre eigene Regel bricht. Was die Rolle
+ * schon gelesen hat, bleibt bei ihr; `note` sagt das.
+ */
+export const dropFromArea = (
+  areaId: string, roleId: string
+): Promise<{ areaId: string; roleId: string; dropped: boolean; note: string }> =>
+  call(`/workspace/area/${encodeURIComponent(areaId)}/drop`, {
+    method: 'POST',
+    body: JSON.stringify({ roleId })
+  });

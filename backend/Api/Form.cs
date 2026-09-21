@@ -448,7 +448,22 @@ public static class Form
     /// </summary>
     public sealed record SelfSeat(
         string SeatId, string TokenSha256, string SeatKeySealed, string SeatKeyForIntake,
-        string AreaId, int Epoch, string? RecipientName, string? UnderPath);
+        string AreaId, int Epoch, string? RecipientName, string? UnderPath,
+
+        /// <summary>
+        /// Der Epochenschluessel des Bereichs, verpackt unter dem PLATZSCHLUESSEL
+        /// (0035) — damit dieser Mensch ausser seinem Eigenen auch das
+        /// Gemeinsame sieht.
+        ///
+        /// <para>
+        /// <b>Er kann ihn nur haben, wenn er offenliegt.</b> Ein Fremder hat
+        /// keinen Epochenschluessel; hat er einen, dann weil der Bereich ihn
+        /// veroeffentlicht hat. Was hier hereinkommt, gibt also nichts weiter,
+        /// als ohnehin offen steht — und der Dienst nimmt es trotzdem nur an,
+        /// wenn der Bereich es zulaesst (<c>seat_level</c>).
+        /// </para>
+        /// </summary>
+        string? AreaKeySealed = null);
 
     public sealed record SubmitRequest(
         IReadOnlyList<ValueIn> Values, string? ClaimSha256, string? SeatToken, string? RoleId,
@@ -680,6 +695,43 @@ public static class Form
                     bind.Parameters.AddWithValue("@s", slugId);
                     await bind.ExecuteNonQueryAsync(ctx.RequestAborted);
                 }
+
+                /*
+                 * WAS ER AUSSER SEINEM EIGENEN SIEHT (0035).
+                 *
+                 * Das Eigene gehoert ihm ohnehin — es haengt am Platzschluessel.
+                 * Hier geht es um das Gemeinsame, und ob er es sehen darf,
+                 * sagt der BEREICH (`seat_level`) und nicht das Formular.
+                 *
+                 * Der Schluessel kommt aus dem Browser des Anmeldenden. Haben
+                 * kann er ihn nur, wenn der Bereich ihn veroeffentlicht hat —
+                 * es geht also nichts hinaus, was nicht ohnehin offen stuende.
+                 * Steht der Bereich auf `own`, wird er verworfen; das ist kein
+                 * Fehler des Anmeldenden, sondern die Antwort auf seine Frage.
+                 */
+                if (seat.AreaKey is not null)
+                {
+                    await using var level = new SqlCommand(
+                        "SELECT seat_level FROM app.area WHERE id = @area;", connection, tx);
+                    level.Parameters.AddWithValue("@area", seat.AreaId);
+
+                    if (await level.ExecuteScalarAsync(ctx.RequestAborted) is string allowed
+                        && allowed != "own")
+                    {
+                        await using var share = new SqlCommand("""
+                            INSERT INTO app.access_grant (access_id, area_id, epoch, sealed_blob, created_at)
+                            VALUES (@a, @area, @epoch, @blob, @now);
+                            """, connection, tx);
+
+                        share.Parameters.AddWithValue("@a", seat.Id);
+                        share.Parameters.AddWithValue("@area", seat.AreaId);
+                        share.Parameters.AddWithValue("@epoch", seat.Epoch);
+                        share.Parameters.AddBlob("@blob", seat.AreaKey);
+                        share.Parameters.AddWithValue("@now", now);
+
+                        await share.ExecuteNonQueryAsync(ctx.RequestAborted);
+                    }
+                }
             }
 
             await using (var insert = new SqlCommand("""
@@ -740,9 +792,21 @@ public static class Form
     }
 
     /// <summary>Ein geprueufter Selbstplatz, fertig zum Einfuegen.</summary>
+    /// <summary>
+    /// Ein Base64Url-Feld, das FEHLEN darf. Unlesbar wird wie fehlend
+    /// behandelt: es haengt nichts daran ausser einer Zugabe, und eine
+    /// Anmeldung deswegen abzulehnen waere unverhaeltnismaessig.
+    /// </summary>
+    private static byte[]? TryBlob(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        try { return Base64Url.Decode(text); } catch (FormatException) { return null; }
+    }
+
     private readonly record struct SelfSeatRow(
         Guid Id, Guid AreaId, byte[] TokenHash, byte[] ForLink, byte[] ForIntake,
-        int Epoch, string? RecipientName, IReadOnlyList<Guid> SlugIds, string? UnderPath);
+        int Epoch, string? RecipientName, IReadOnlyList<Guid> SlugIds, string? UnderPath,
+        byte[]? AreaKey);
 
     /// <summary>
     /// Den mitgeschickten Platz pruefen — und dabei die eine Frage stellen, die
@@ -890,7 +954,11 @@ public static class Form
 
         return new SelfSeatRow(seatId, areaId, tokenHash, forLink, forIntake, body.Epoch,
             name == "" ? null : name[..Math.Min(name.Length, 200)],
-            slugIds, anchor is null ? null : anchorPath);
+            slugIds, anchor is null ? null : anchorPath,
+
+            /* Unlesbar heisst: nicht mitgegeben. Kein Grund, die ganze
+               Anmeldung abzulehnen — sie steht fuer sich. */
+            TryBlob(body.AreaKeySealed));
     }
 
     /* -- Was die Kanzlei sieht ---------------------------------------------- */
