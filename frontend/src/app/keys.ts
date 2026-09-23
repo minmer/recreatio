@@ -198,6 +198,17 @@ export class Ring {
   /** Hält dieser Bund den Schlüssel dieser Rolle? */
   has = (roleId: string): boolean => this.keys.has(roleId);
 
+  /**
+   * Die Rolle selbst — für das, was an ihrer ÖFFENTLICHEN Hälfte hängt.
+   *
+   * <b>Sie gibt nichts preis.</b> Was hier herauskommt, hat der Dienst
+   * ohnehin herausgegeben: der Wickel-Vorderschlüssel, der Unterschriften-
+   * Vorderschlüssel, und die versiegelten Hälften, die ohne Schlüssel
+   * niemandem nützen. Wer einen Platz an eine Rolle bindet, braucht genau
+   * das — und nicht deren Geheimnis.
+   */
+  roleOf = (roleId: string): SealedRole | undefined => this.roles.get(roleId);
+
   get size(): number { return this.keys.size; }
 
   /**

@@ -23,6 +23,8 @@
  * und hoch, ein Hinweis schmal und flach.
  */
 
+import { call } from './session';
+
 export type FieldKind = 'line' | 'text';
 
 export interface FieldDef {
@@ -56,6 +58,16 @@ export interface ModuleDef {
    * nächste Baustein dieser Art hätte sie wieder nicht.
    */
   readonly live?: boolean;
+
+  /**
+   * Nimmt dieser Baustein EINSENDUNGEN an?
+   *
+   * <b>Nur dann ist die Frage sinnvoll, wovon er handelt.</b> Ein Aushangtext
+   * handelt von niemandem; ihn danach zu fragen hiesse, eine Auswahl
+   * hinzustellen, deren einzige richtige Antwort „keine" ist. Ein Bogen
+   * dagegen erzeugt einen Platz, und ein Platz muss jemandem gehören.
+   */
+  readonly takes?: boolean;
 }
 
 export const CATALOG: readonly ModuleDef[] = [
@@ -109,7 +121,7 @@ export const CATALOG: readonly ModuleDef[] = [
      * Ausnahme fiele der Baustein genau dann aus der Seite, wenn er richtig
      * eingerichtet ist.
      */
-    kind: 'form', label: 'Formularz', colSpan: 3, rowSpan: 3, live: true,
+    kind: 'form', label: 'Formularz', colSpan: 3, rowSpan: 3, live: true, takes: true,
     fields: [
       { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Zgłoszenie' },
 
@@ -157,7 +169,7 @@ export const CATALOG: readonly ModuleDef[] = [
    * statt sich zu wundern.
    */
   {
-    kind: 'seat-submission', label: 'Zgłoszenie osoby', colSpan: 3, rowSpan: 3, live: true,
+    kind: 'seat-submission', label: 'Zgłoszenie osoby', colSpan: 3, rowSpan: 3, live: true, takes: true,
     fields: [
       { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Twoje zgłoszenie' },
       {
@@ -213,6 +225,9 @@ export const moduleDef = (kind: string): ModuleDef | undefined =>
 /** Der Name einer Art — oder ihr Schlüssel, wenn es sie nicht (mehr) gibt. */
 export const moduleLabel = (kind: string): string => moduleDef(kind)?.label ?? kind;
 
+/** Erzeugt diese Art Plätze? Dann muss dastehen, wem sie gehören. */
+export const takesEntries = (kind: string): boolean => moduleDef(kind)?.takes === true;
+
 /**
  * Der Inhalt eines Bausteins, aus seinem gespeicherten `config` gelesen.
  *
@@ -258,3 +273,91 @@ export function readLink(line: string): { label: string; path: string } | null {
 
   return path === '' ? null : { label: label === '' ? path : label, path };
 }
+
+/* -- Die Bausteine selbst (0036) ------------------------------------------- */
+
+/**
+ * Ein Baustein ist ein DING, kein Platz auf einer Seite.
+ *
+ * <b>Er gehört in einen Bereich</b> — dort liegen seine Daten. Die Seite zeigt
+ * ihn; sie besitzt ihn nicht. Deshalb ist „derselbe Bogen auf zwei Seiten" kein
+ * Sonderfall mehr, sondern zwei Verwendungen eines Bausteins, mit EINEM Satz
+ * Fragen und EINEM Satz Antworten.
+ *
+ * <b>`areaId` darf fehlen.</b> Ein Text trägt nichts Versiegeltes; sein Inhalt
+ * steht offen, weil er auf einem Aushang steht. Für ihn entscheidet die Seite.
+ */
+/**
+ * WOVON ein Baustein handelt (0038).
+ *
+ * <b>Daran hängt, woran der Platz hängt, den eine Einsendung erzeugt.</b> Ein
+ * Link muss zu etwas gehören — zu einem Menschen, zu einer Gruppe, zu einem
+ * Amt. „Zu irgendetwas" ist keine Antwort, und genau deshalb steht es am
+ * Baustein und nicht im Kopf dessen, der ihn gebaut hat.
+ */
+export const SUBJECTS = ['none', 'person', 'group', 'role'] as const;
+export type Subject = (typeof SUBJECTS)[number];
+
+export const SUBJECT_LABEL: Record<Subject, string> = {
+  none: 'Niczyj — zwykły formularz',
+  person: 'Osoby',
+  group: 'Grupy',
+  role: 'Roli'
+};
+
+export interface ModuleRow {
+  readonly moduleId: string;
+  readonly areaId: string | null;
+  readonly areaName: string | null;
+  readonly kind: string;
+  readonly name: string;
+  readonly config: string | null;
+  readonly createdAt: string;
+
+  /** Wovon er handelt — `'none'` heisst: von nichts Benanntem. */
+  readonly forKind: Subject;
+
+  /** Auf wie vielen Seiten er steht. `0` ist ein echter Zustand. */
+  readonly usedOnPages: number;
+
+  /** Wie viel er trägt — ein Bogen mit Antworten lässt sich nicht mehr umziehen. */
+  readonly fields: number;
+  readonly entries: number;
+}
+
+export const loadModules = (): Promise<{ modules: readonly ModuleRow[] }> =>
+  call('/workspace/modules');
+
+export const createModule = (
+  moduleId: string, kind: string, name: string, areaId: string | null,
+  forKind: Subject = 'none', config?: string
+): Promise<{ moduleId: string }> =>
+  call('/workspace/module', {
+    method: 'POST',
+    body: JSON.stringify({ moduleId, kind, name, areaId, forKind, config: config ?? '{}' })
+  });
+
+/**
+ * Umbenennen, den Bereich setzen, die Einstellung ändern.
+ *
+ * <b>Den Bereich zu WECHSELN geht nur, solange er leer ist.</b> Was unter dem
+ * alten Schlüssel liegt, bleibt darunter — der Dienst kann es nicht
+ * umschlüsseln, er hat keinen Schlüssel. Der Dienst lehnt das ab; hier steht
+ * es, damit die Oberfläche es vorher sagen kann.
+ */
+export const updateModule = (
+  moduleId: string,
+  change: {
+    name?: string; areaId?: string; clearArea?: boolean; config?: string;
+
+    /** Nur solange nichts eingegangen ist — sonst lehnt der Dienst ab (409). */
+    forKind?: Subject;
+  }
+): Promise<{ moduleId: string; areaId: string | null; name: string }> =>
+  call(`/workspace/module/${encodeURIComponent(moduleId)}`, {
+    method: 'POST',
+    body: JSON.stringify(change)
+  });
+
+export const removeModule = (moduleId: string): Promise<{ removed: boolean }> =>
+  call(`/workspace/module/${encodeURIComponent(moduleId)}`, { method: 'DELETE' });

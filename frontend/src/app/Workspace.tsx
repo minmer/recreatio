@@ -20,6 +20,7 @@ import { PATH_SHAPE, tilesPath, viewPath, VIEWS, type Spot, type View } from './
 import { Account } from './Account';
 import { Addresses } from './Addresses';
 import { Areas } from './Areas';
+import { Modules } from './Modules';
 import { MassOffice } from './MassOffice';
 import { PageEditor } from './PageEditor';
 import { RoleGraph } from './RoleGraph';
@@ -114,6 +115,12 @@ function Tiles({ desk }: { desk: Desk }) {
           <p className="wk-empty">Żadnej rozmowy.</p>
         </Tile>
 
+        <Tile view="modules">
+          <p className="wk-empty">
+            Formularze, plany mszy, teksty — rzeczy, które strony pokazują.
+          </p>
+        </Tile>
+
         <Tile view="pages" count={desk.pages.length}>
           {desk.pages.length === 0 ? (
             <p className="wk-empty">Nie prowadzisz jeszcze żadnego adresu.</p>
@@ -172,6 +179,7 @@ function Inside({ view, desk, who, onChanged }: {
   who: Who;
   onChanged: () => void;
 }) {
+  if (view === 'modules') return <Modules who={who} />;
   if (view === 'pages') return <Pages desk={desk} who={who} onClaimed={onChanged} />;
   if (view === 'addresses') return <Addresses desk={desk} onChanged={onChanged} />;
   if (view === 'roles') return <RoleGraph who={who} />;

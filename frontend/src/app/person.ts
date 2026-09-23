@@ -15,12 +15,14 @@
  * wäre nicht mehr die Freigabe EINER Angabe.
  */
 
+import { loadPublicKey, myEpochKeys } from './area';
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url, type FieldName } from './crypto';
 import type { Ring } from './keys';
 import { call } from './session';
 
-/** Dieselben sechs wie `ck_person_value_field` und `Person.Fields`. */
-export const PERSON_FIELDS = ['given_name', 'surname', 'phone', 'born', 'address', 'email'] as const;
+/** Dieselben sieben wie `ck_person_value_field` und `Person.Fields`. */
+export const PERSON_FIELDS =
+  ['given_name', 'surname', 'phone', 'born', 'address', 'email', 'nickname'] as const;
 export type PersonField = (typeof PERSON_FIELDS)[number];
 
 export const FIELD_LABEL: Record<PersonField, string> = {
@@ -29,7 +31,8 @@ export const FIELD_LABEL: Record<PersonField, string> = {
   phone: 'Telefon',
   born: 'Data urodzenia',
   address: 'Adres',
-  email: 'E-mail'
+  email: 'E-mail',
+  nickname: 'Przezwisko'
 };
 
 /**
@@ -46,7 +49,8 @@ const LABELS: Record<PersonField, FieldName> = {
   phone: Field.PersonPhone,
   born: Field.PersonBorn,
   address: Field.PersonAddress,
-  email: Field.PersonEmail
+  email: Field.PersonEmail,
+  nickname: Field.PersonNickname
 };
 
 /*
@@ -112,15 +116,89 @@ export async function openMine(
 
 /* -- Schreiben -------------------------------------------------------------- */
 
+/** Wohin die Berichtigung ging — und wohin nicht. */
+export interface Refreshed {
+  /** Bereiche, deren Abschrift jetzt wieder stimmt. */
+  readonly refreshed: readonly string[];
+
+  /** Bereiche, an die man nicht herankam. Namen, damit man es dem Menschen sagen kann. */
+  readonly couldNot: readonly string[];
+}
+
+/** Was der Dienst zur Änderung sagt: wo diese Angabe schon liegt. */
+interface Stale {
+  readonly areaId: string;
+  readonly areaName: string;
+  readonly epoch: number;
+}
+
+/**
+ * Eine Angabe setzen — und die Abschriften nachziehen.
+ *
+ * <b>Wer seine Nummer ändert, meint seine Nummer.</b> Nicht „meine Nummer hier
+ * und die alte überall sonst". Die Angabe liegt an der Rolle des Menschen, und
+ * jeder Bereich, dem er sie einmal gegeben hat, hält eine eigene Hülle davon.
+ * Ohne diesen Schritt bliebe in jedem einzelnen davon der alte Stand stehen —
+ * und niemand sähe es ihm an.
+ *
+ * <b>Der Dienst kann das nicht.</b> Eine Abschrift liegt unter dem
+ * Epochenschlüssel eines Bereichs; er hat keinen. Er sagt nur, WELCHE Bereiche
+ * betroffen sind — neu versiegelt wird hier, im Browser dessen, dem die Angabe
+ * gehört.
+ *
+ * <b>Das gibt nichts Neues heraus.</b> Berichtigt wird nur, wo die Angabe schon
+ * liegt. Ein Bereich, der sie nie bekommen hat, bekommt sie auch jetzt nicht;
+ * dafür bleibt es bei `releaseValue`.
+ *
+ * <b>Zwei Wege an den Schlüssel, und der eigene zuerst.</b> Wer im Bereich
+ * steht, hält den Epochenschlüssel selbst. Wer nur einmal etwas in ein
+ * öffentliches Formular geschrieben hat, hält ihn nicht — dann der
+ * offengelegte. Gibt es beides nicht, bleibt diese eine Abschrift alt, und das
+ * wird BERICHTET statt verschwiegen: eine stumme Lücke wäre schlimmer als eine
+ * genannte.
+ */
 export async function setValue(
   roleId: string, ring: Ring, field: PersonField, value: string
-): Promise<void> {
-  const sealed = await sealText(ring.keyOf(roleId), valueAad(roleId, field), value.trim());
+): Promise<Refreshed> {
+  const text = value.trim();
+  const sealed = await sealText(ring.keyOf(roleId), valueAad(roleId, field), text);
 
-  await call(`/workspace/person/${encodeURIComponent(roleId)}/value`, {
-    method: 'POST',
-    body: JSON.stringify({ field, sealed: toBase64Url(sealed) })
-  });
+  const said = await call<{ stale?: readonly Stale[] }>(
+    `/workspace/person/${encodeURIComponent(roleId)}/value`,
+    { method: 'POST', body: JSON.stringify({ field, sealed: toBase64Url(sealed) }) });
+
+  const refreshed: string[] = [];
+  const couldNot: string[] = [];
+
+  for (const where of said.stale ?? []) {
+    try {
+      await releaseValue(roleId, field, text, {
+        areaId: where.areaId, areaKey: await epochKeyOf(ring, where), epoch: where.epoch
+      });
+
+      refreshed.push(where.areaName);
+    } catch {
+      /* Kein Schlüssel, oder der Bereich nimmt gerade nichts an. Die übrigen
+         sind trotzdem berichtigt — und der Name steht in der Meldung. */
+      couldNot.push(where.areaName);
+    }
+  }
+
+  return { refreshed, couldNot };
+}
+
+/** Der eigene Epochenschlüssel, sonst der offengelegte, sonst gar keiner. */
+async function epochKeyOf(ring: Ring, where: Stale): Promise<Uint8Array> {
+  const held = (await myEpochKeys(ring, where.areaId)).get(where.epoch);
+  if (held !== undefined) return held;
+
+  const open = await loadPublicKey(where.areaId);
+
+  if (open.epoch !== where.epoch) {
+    throw new Error('Jawny klucz jest z innej epoki.');
+  }
+
+  return fromBase64Url(open.key);
 }
 
 /** Löschen — mitsamt allen Freigaben, denn sie hängen daran. */

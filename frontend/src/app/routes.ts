@@ -357,6 +357,13 @@ export const VIEWS = {
   areas: 'Obszary',
   calendar: 'Kalendarz',
   chat: 'Rozmowy',
+  /*
+   * Bausteine stehen VOR den Seiten, weil sie unter ihnen liegen: eine
+   * Seite zeigt Bausteine, sie besitzt sie nicht (0036). Wer den Bogen
+   * sucht, findet hier das Ding — nicht die Stelle, an der es zufaellig
+   * haengt.
+   */
+  modules: 'Moduły',
   pages: 'Strony',
   addresses: 'Adresy i domeny',
   roles: 'Role',

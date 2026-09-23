@@ -37,6 +37,26 @@ namespace Api;
 /// </summary>
 public static class Form
 {
+    /// <summary>
+    /// Was ein Feld ueber die Person sagt, die den Bogen ausfuellt (0038).
+    ///
+    /// <para>
+    /// Dieselben Woerter wie <c>ck_person_value_field</c>. Zwei Listen fuer
+    /// dieselbe Sache sind die zuverlaessigste Art, sie auseinanderlaufen zu
+    /// lassen — und hier faellt es erst auf, wenn ein Bogen sich nicht mehr
+    /// ausfuellen laesst.
+    /// </para>
+    /// </summary>
+    private static readonly string[] IdentityRoles =
+    [
+        "none",
+
+        /* Was 0022 kannte. Bleibt gueltig, damit vorhandene Zeilen es bleiben. */
+        "name", "contact",
+
+        "given_name", "surname", "phone", "born", "address", "email", "nickname"
+    ];
+
     private static readonly string[] Kinds =
         ["line", "text", "choice", "date", "number", "checkbox", "email", "phone"];
 
@@ -61,6 +81,13 @@ public static class Form
          * bleibt stehen.
          */
         app.MapPost("/workspace/part/{id:guid}/config", ConfigAsync);
+
+        /*
+         * RSA ist der Umschlag, nicht der Tresor (0037). Wer eine Einsendung
+         * aufmacht, versiegelt ihre Schluessel im selben Zug symmetrisch neu —
+         * und der RSA-Umschlag faellt.
+         */
+        app.MapPost("/workspace/part/{id:guid}/rewrap", RewrapAsync);
 
         /*
          * ZWEI VERSCHIEDENE DINGE, und sie duerfen nicht denselben Knopf haben.
@@ -148,10 +175,24 @@ public static class Form
             return;
         }
 
+        /*
+         * WELCHE ANGABE DIESES FELD IST (0038).
+         *
+         * Dieselben Woerter wie in `person_value` — sonst laesst sich ein
+         * Bogen nicht aus den Angaben eines Menschen ausfuellen: „name" ist
+         * nicht dasselbe wie „Vorname", und „contact" ist Telefon oder
+         * E-Mail oder beides.
+         *
+         * `name` und `contact` bleiben gueltig: sie stehen in vorhandenen
+         * Zeilen, und zu raten, was gemeint war, waere schlimmer als sie
+         * stehenzulassen.
+         */
         var identity = (body.IdentityRole ?? "none").Trim().ToLowerInvariant();
-        if (identity is not ("none" or "name" or "contact"))
+
+        if (!IdentityRoles.Contains(identity))
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Rola pola: none, name albo contact.");
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                "Rola pola: none albo jedna z danych osoby (given_name, surname, …).");
             return;
         }
 
@@ -417,9 +458,27 @@ public static class Form
             });
         }
 
+        /*
+         * WOVON DER BOGEN HANDELT (0038) — und das gehoert nach DRAUSSEN.
+         *
+         * Wer ihn ausfuellt, muss wissen, woran der Platz haengen wird, den er
+         * damit bekommt: an ihm selbst, an einer Gruppe, an einem Amt. Steht es
+         * nur drinnen, raet der Browser — und raet fuer jemanden, dem danach
+         * ein Link gehoert.
+         */
+        var forKind = "none";
+
+        await using (var ask = new SqlCommand(
+            "SELECT for_kind FROM app.module WHERE id = @id;", connection))
+        {
+            ask.Parameters.AddWithValue("@id", id);
+            if (await ask.ExecuteScalarAsync(ctx.RequestAborted) is string said) forKind = said;
+        }
+
         await ctx.Response.WriteAsJsonAsync(new
         {
             partId = Ids.ToText(id),
+            forKind,
             fields = fields.Select(Told),
             areas
         });
@@ -1059,7 +1118,7 @@ public static class Form
             var names = string.Join(", ", rows.Select((_, i) => $"@r{i}"));
 
             await using var cmd = new SqlCommand(
-                $"SELECT registration_id, field_id, value_sealed, wrapped_key "
+                $"SELECT registration_id, field_id, value_sealed, wrapped_key, office_key_sealed "
                 + $"FROM app.registration_value WHERE registration_id IN ({names});", connection);
 
             for (var i = 0; i < rows.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", rows[i].Id);
@@ -1082,7 +1141,21 @@ public static class Form
 
                     /* Verpackt unter der oeffentlichen Haelfte — zu oeffnen mit
                        dem privaten Annahmeschluessel, den nur das Amt hat. */
-                    wrappedKey = Base64Url.Encode((byte[])reader[3])
+                    /*
+                     * ZWEI WEGE ZUM SELBEN SCHLUESSEL (0037).
+                     *
+                     * `wrappedKey` ist der RSA-Umschlag der Annahme — der Weg,
+                     * auf dem der Wert hereinkam. `officeKeySealed` ist
+                     * derselbe Schluessel, vom Amt unter dem Schluessel SEINER
+                     * ROLLE neu versiegelt.
+                     *
+                     * Sobald der zweite dasteht, faellt der erste: was
+                     * jahrelang liegenbleibt, soll AES sein und nicht RSA.
+                     * Genau einer von beiden ist immer da — die
+                     * Pruefbedingung der Tabelle laesst nichts anderes zu.
+                     */
+                    wrappedKey = reader.IsDBNull(3) ? null : Base64Url.Encode((byte[])reader[3]),
+                    officeKeySealed = reader.IsDBNull(4) ? null : Base64Url.Encode((byte[])reader[4])
                 });
             }
         }
@@ -1433,6 +1506,194 @@ public static class Form
 
     public sealed record ConfigRequest(Dictionary<string, string> Set);
 
+    public sealed record RewrapValue(string RegistrationId, string FieldId, string OfficeKeySealed);
+    public sealed record RewrapSeat(string SeatId, string SeatKeyForOffice);
+    public sealed record RewrapRequest(
+        IReadOnlyList<RewrapValue>? Values, IReadOnlyList<RewrapSeat>? Seats);
+
+    /// <summary>
+    /// Den RSA-Umschlag durch eine symmetrische Huelle ersetzen (0037).
+    ///
+    /// <para>
+    /// <b>Wer das tut, hat den Schluessel gerade offen.</b> Das Amt macht eine
+    /// Einsendung auf — dafuer packt es den privaten Annahmeschluessel aus und
+    /// damit jeden Wertschluessel. In diesem Augenblick kann es denselben
+    /// Schluessel unter dem Schluessel SEINER ROLLE neu versiegeln. Der Dienst
+    /// bekommt die fertige Huelle und sieht wie immer nichts davon.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Und der alte faellt im selben Zug.</b> Beide nebeneinander stehen zu
+    /// lassen brachte gar nichts: angreifbar ist, was dasteht. Deshalb setzt
+    /// dieselbe Anweisung den einen und loescht den anderen — dazwischen gibt
+    /// es keinen Zustand, in dem beide gelten.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Die Pruefbedingung der Tabelle ist die Sicherung.</b> Kaeme eine
+    /// leere Huelle herein, schluege <c>ck_registration_value_office</c> an und
+    /// die Zeile bliebe, wie sie war. Ein Wert ohne jeden Weg hinein kann so
+    /// nicht entstehen — auch nicht durch einen Fehler hier.
+    /// </para>
+    /// </summary>
+    private static async Task RewrapAsync(HttpContext ctx, Db db, Guid id, RewrapRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        /*
+         * DASSELBE RECHT WIE ZUM LESEN der Einsendungen — mehr braucht es
+         * nicht, und weniger waere zu wenig: wer die Werte oeffnen darf, darf
+         * auch die Huelle um ihren Schluessel austauschen. Am Inhalt aendert
+         * sich dabei nichts.
+         *
+         * `MayTendAsync` taugt hier NICHT: es fragt nach einer EINSENDUNG,
+         * und hier steht ein Baustein.
+         */
+        var path = await PathOfPartAsync(connection, id, ctx.RequestAborted);
+        if (path is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
+            return;
+        }
+
+        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
+
+        if (!grip.MayWrite)
+        {
+            var fields = await ReadFieldsAsync(connection, id, ctx.RequestAborted);
+            var any = false;
+
+            foreach (var areaId in fields.Select(f => f.AreaId).Distinct())
+            {
+                if (await Area.MayAsync(connection, who.Value.AccountId, areaId,
+                        Capability.Read, ctx.RequestAborted))
+                {
+                    any = true;
+                    break;
+                }
+            }
+
+            if (!any)
+            {
+                await Fail(ctx, StatusCodes.Status403Forbidden,
+                    "Ani tego adresu nie prowadzisz, ani nie czytasz obszaru tego formularza.");
+                return;
+            }
+        }
+
+        var values = body.Values ?? [];
+        var seats = body.Seats ?? [];
+
+        if (values.Count == 0 && seats.Count == 0)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nie podano nic do przepieczętowania.");
+            return;
+        }
+
+        var done = 0;
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            foreach (var one in values)
+            {
+                if (!Guid.TryParse(one.RegistrationId, out var registrationId)
+                    || !Guid.TryParse(one.FieldId, out var fieldId))
+                {
+                    await tx.RollbackAsync(ctx.RequestAborted);
+                    await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung.");
+                    return;
+                }
+
+                var blob = Optional(one.OfficeKeySealed);
+                if (blob is null || blob.Length == 0)
+                {
+                    await tx.RollbackAsync(ctx.RequestAborted);
+                    await Fail(ctx, StatusCodes.Status400BadRequest, "Pusta koperta — to by zabrało dostęp.");
+                    return;
+                }
+
+                await using var cmd = new SqlCommand("""
+                    UPDATE v
+                       SET v.office_key_sealed = @blob, v.wrapped_key = NULL
+                      FROM app.registration_value v
+                      JOIN app.registration r ON r.id = v.registration_id
+                     WHERE v.registration_id = @reg AND v.field_id = @field
+                       AND r.part_id = @part;
+                    """, connection, tx);
+
+                cmd.Parameters.AddBlob("@blob", blob);
+                cmd.Parameters.AddWithValue("@reg", registrationId);
+                cmd.Parameters.AddWithValue("@field", fieldId);
+                cmd.Parameters.AddWithValue("@part", id);
+
+                done += await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            foreach (var one in seats)
+            {
+                if (!Guid.TryParse(one.SeatId, out var seatId))
+                {
+                    await tx.RollbackAsync(ctx.RequestAborted);
+                    await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung miejsca.");
+                    return;
+                }
+
+                var blob = Optional(one.SeatKeyForOffice);
+                if (blob is null || blob.Length == 0)
+                {
+                    await tx.RollbackAsync(ctx.RequestAborted);
+                    await Fail(ctx, StatusCodes.Status400BadRequest, "Pusta koperta — to by zabrało dostęp.");
+                    return;
+                }
+
+                /*
+                 * NUR die Plaetze DIESES Bausteins. Ohne die Verbindung ueber
+                 * `registration` liesse sich von hier aus ein fremder Platz
+                 * umschreiben — mit einer Huelle, die der Absender gewaehlt hat.
+                 */
+                await using var cmd = new SqlCommand("""
+                    UPDATE a
+                       SET a.seat_key_for_office = @blob, a.seat_key_for_intake = NULL
+                      FROM app.access a
+                     WHERE a.id = @seat
+                       AND EXISTS (SELECT 1 FROM app.registration r
+                                    WHERE r.access_id = a.id AND r.part_id = @part);
+                    """, connection, tx);
+
+                cmd.Parameters.AddBlob("@blob", blob);
+                cmd.Parameters.AddWithValue("@seat", seatId);
+                cmd.Parameters.AddWithValue("@part", id);
+
+                done += await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch (SqlException e) when (e.Number == 547)
+        {
+            /*
+             * Die Pruefbedingung hat angeschlagen: es waere ein Wert
+             * entstanden, den niemand mehr oeffnet. Nichts davon gilt.
+             */
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Ta koperta nie otwierałaby nic — nic nie zmieniono.");
+            return;
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { partId = Ids.ToText(id), rewrapped = done });
+    }
+
     /// <summary>
     /// Einzelne Einstellungen eines Bausteins aendern — ohne die Seite.
     ///
@@ -1480,7 +1741,14 @@ public static class Form
         string? current;
 
         await using (var read = new SqlCommand(
-            "SELECT config FROM app.slug_part WHERE id = @id;", connection))
+            /*
+                DIE EINSTELLUNG GEHOERT DEM BAUSTEIN (0036), nicht seiner
+                Verwendung. Sonst schriebe man sie an EINE Stelle, waehrend das
+                Lesen ueber den Baustein laeuft — und die Vorlage waere gespeichert
+                und trotzdem unsichtbar. Genau das ist einmal passiert.
+            */
+            "SELECT COALESCE(m.config, p.config) FROM app.slug_part p "
+            + "LEFT JOIN app.module m ON m.id = p.module_id WHERE p.id = @id;", connection))
         {
             read.Parameters.AddWithValue("@id", id);
             current = await read.ExecuteScalarAsync(ctx.RequestAborted) as string;
@@ -1518,7 +1786,14 @@ public static class Form
         }
 
         await using (var save = new SqlCommand(
-            "UPDATE app.slug_part SET config = @c WHERE id = @id;", connection))
+            """
+            UPDATE app.module SET config = @c
+             WHERE id = (SELECT module_id FROM app.slug_part WHERE id = @id);
+
+            /* Der Rest in `slug_part` wird mitgefuehrt, solange er dasteht —
+               zwei Staende derselben Sache laufen sonst auseinander. */
+            UPDATE app.slug_part SET config = @c WHERE id = @id;
+            """, connection))
         {
             save.Parameters.AddWithValue("@c", written);
             save.Parameters.AddWithValue("@id", id);

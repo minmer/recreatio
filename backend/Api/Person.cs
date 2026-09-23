@@ -42,7 +42,7 @@ namespace Api;
 public static class Person
 {
     /// <summary>
-    /// Dieselben sechs wie <c>ck_person_value_field</c>.
+    /// Dieselben sieben wie <c>ck_person_value_field</c>.
     ///
     /// <para>
     /// Sie stehen hier ein zweites Mal, damit ein Tippfehler eine Meldung
@@ -52,7 +52,7 @@ public static class Person
     /// </para>
     /// </summary>
     private static readonly string[] Fields =
-        ["given_name", "surname", "phone", "born", "address", "email"];
+        ["given_name", "surname", "phone", "born", "address", "email", "nickname"];
 
     public static void Map(WebApplication app)
     {
@@ -142,11 +142,20 @@ public static class Person
     /// Eine Angabe setzen oder ersetzen.
     ///
     /// <para>
-    /// <b>Bestehende Freigaben werden NICHT nachgezogen.</b> Wer umzieht, gibt
-    /// seine neue Anschrift denen, die sie bekommen sollen — und nicht
-    /// automatisch jedem, der die alte einmal bekommen hat. Das ist keine
-    /// Bequemlichkeitsluecke, sondern der Unterschied zwischen „ich habe es
-    /// geaendert" und „ich habe es weitergegeben".
+    /// <b>Der Dienst zieht die Abschriften nicht nach — er kann es nicht.</b>
+    /// Eine Abschrift liegt unter dem Epochenschluessel eines Bereichs, und den
+    /// hat er nicht. Was er kann, ist SAGEN, welche jetzt veraltet sind: die
+    /// Antwort nennt jeden Bereich, der diese Angabe schon hat, samt Epoche.
+    /// Neu versiegeln muss der Browser dessen, dem die Angabe gehoert.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Und er zieht sie nach, ohne zu fragen.</b> Wer seine Nummer aendert,
+    /// meint seine Nummer — nicht „meine Nummer hier und die alte ueberall
+    /// sonst". Die genannten Bereiche haben die Angabe bereits; sie zu
+    /// berichtigen gibt nichts heraus, was sie nicht schon haetten. Was
+    /// weiterhin niemand automatisch bekommt, ist eine Angabe, die er noch nie
+    /// hatte — dafuer bleibt es bei <c>release</c>.
     /// </para>
     /// </summary>
     private static async Task SetAsync(HttpContext ctx, Db db, Guid roleId, SetRequest body)
@@ -159,7 +168,7 @@ public static class Person
         if (!Fields.Contains(field))
         {
             await Fail(ctx, StatusCodes.Status400BadRequest,
-                "Pole: imię, nazwisko, telefon, data urodzenia, adres albo e-mail.");
+                "Pole: imię, nazwisko, telefon, data urodzenia, adres, e-mail albo przezwisko.");
             return;
         }
 
@@ -195,7 +204,50 @@ public static class Person
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
 
         await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
-        await ctx.Response.WriteAsJsonAsync(new { roleId = Ids.ToText(roleId), field, saved = true });
+
+        /*
+         * WO DIESE ANGABE SCHON LIEGT. Erst nach dem Schreiben gefragt: was
+         * hier herauskommt, ist die Arbeitsliste fuer den Browser, und die
+         * soll zu dem passen, was jetzt dasteht.
+         *
+         * Die laufende Epoche des Bereichs, nicht die der Abschrift — unter
+         * einer abgeloesten Epoche neu zu versiegeln hiesse, die Berichtigung
+         * dorthin zu legen, wo niemand mehr nachsieht.
+         */
+        var stale = new List<object>();
+
+        await using (var ask = new SqlCommand("""
+            SELECT r.area_id, a.name,
+                   (SELECT MAX(e.epoch) FROM app.area_epoch e WHERE e.area_id = r.area_id)
+            FROM app.person_release r
+            JOIN app.area a ON a.id = r.area_id
+            WHERE r.role_id = @r AND r.field = @f
+            ORDER BY a.name;
+            """, connection))
+        {
+            ask.Parameters.AddWithValue("@r", roleId);
+            ask.Parameters.AddWithValue("@f", field);
+
+            await using var reader = await ask.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                /* Ohne Epoche liesse sich nichts versiegeln; dann steht der
+                   Bereich nicht auf der Liste, statt sie unbrauchbar zu machen. */
+                if (reader.IsDBNull(2)) continue;
+
+                stale.Add(new
+                {
+                    areaId = Ids.ToText(reader.GetGuid(0)),
+                    areaName = reader.GetString(1),
+                    epoch = reader.GetInt32(2)
+                });
+            }
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            roleId = Ids.ToText(roleId), field, saved = true, stale
+        });
     }
 
     public sealed record ForgetRequest(string Field);

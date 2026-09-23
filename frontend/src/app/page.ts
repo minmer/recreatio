@@ -7,7 +7,7 @@
  */
 
 import type { Layout } from './layout';
-import { readConfig } from './modules';
+import { readConfig } from './moduleKinds';
 import { call } from './session';
 
 /**

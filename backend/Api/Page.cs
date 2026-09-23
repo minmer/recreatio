@@ -52,7 +52,14 @@ public static class Page
     public sealed record SaveRequest(string Title, string? Lead);
 
     /// <summary>Ein Baustein, wie ihn die Oberfläche schickt.</summary>
-    public sealed record PartInput(string Id, string Kind, string Layout, string? Config);
+    /// <summary>
+    /// <c>ModuleId</c> fehlt bei aelteren Aufrufern und beim Entwerfen im
+    /// Raster — dann entsteht ein Baustein unter derselben Kennung (0036).
+    /// Wer einen NENNT, stellt einen bestehenden hin: dieselben Daten an zwei
+    /// Stellen.
+    /// </summary>
+    public sealed record PartInput(
+        string Id, string Kind, string Layout, string? Config, string? ModuleId = null);
 
     public sealed record PartsRequest(string Path, IReadOnlyList<PartInput> Parts);
 
@@ -588,18 +595,78 @@ public static class Page
         {
             var id = Guid.Parse(parts[i].Id);
 
+            /*
+             * JEDE VERWENDUNG HAT EINEN BAUSTEIN (0036).
+             *
+             * Nennt der Aufrufer einen, wird dieser gezeigt — so haengt derselbe
+             * Bogen auf zwei Seiten und traegt EINEN Satz Antworten.
+             *
+             * Nennt er keinen, entsteht einer, und zwar unter DERSELBEN
+             * Kennung wie die Verwendung. Das ist die Regel, die frueher einmal
+             * aufgeschrieben wurde: was ein einfacher Weg nebenbei anlegt, muss
+             * danach ein richtiges, benanntes Ding sein, das auch in der
+             * Bausteinliste steht — kein stiller Sonderfall, der sich nirgends
+             * wiederfindet.
+             *
+             * Den Bereich kann er dabei nicht kennen; den setzt man beim
+             * Baustein. `NULL` ist deshalb die richtige Antwort und keine
+             * Luecke.
+             */
+            var moduleId = string.IsNullOrWhiteSpace(parts[i].ModuleId)
+                ? id
+                : Guid.Parse(parts[i].ModuleId!);
+
+            await using (var mint = new SqlCommand("""
+                IF NOT EXISTS (SELECT 1 FROM app.module WHERE id = @module)
+                BEGIN
+                    INSERT INTO app.module (id, area_id, kind, name, config, created_at)
+                    VALUES (@module, NULL, @kind, @name, @config, @now);
+                END
+                ELSE IF @mine = 1
+                BEGIN
+                    /* Ein Baustein, der nur HIER steht, folgt dem Entwurf. Einer,
+                       der auch woanders steht, tut es nicht: sonst aenderte das
+                       Speichern einer Seite stillschweigend eine andere. */
+                    UPDATE app.module
+                       SET kind = @kind, config = @config
+                     WHERE id = @module
+                       AND (SELECT COUNT(*) FROM app.slug_part p
+                             WHERE p.module_id = @module AND p.id <> @id) = 0;
+                END
+                """, connection, tx))
+            {
+                mint.Parameters.AddWithValue("@module", moduleId);
+                mint.Parameters.AddWithValue("@id", id);
+                mint.Parameters.AddWithValue("@kind", parts[i].Kind.Trim());
+                mint.Parameters.AddWithValue("@config", (object?)parts[i].Config ?? DBNull.Value);
+                mint.Parameters.AddWithValue("@now", now);
+                mint.Parameters.AddWithValue("@mine", moduleId == id ? 1 : 0);
+
+                /* Ein Name, unter dem er wiederzufinden ist. Die Kanzlei
+                   benennt ihn um, sobald sie ihn das erste Mal ansieht. */
+                mint.Parameters.AddWithValue("@name",
+                    $"{parts[i].Kind.Trim()} — {wanted}".Length > 200
+                        ? $"{parts[i].Kind.Trim()} — {wanted}"[..200]
+                        : $"{parts[i].Kind.Trim()} — {wanted}");
+
+                await mint.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
             await using var save = staying.Contains(id)
                 ? new SqlCommand("""
                     UPDATE app.slug_part
-                       SET kind = @kind, position = @position, layout = @layout, config = @config
+                       SET kind = @kind, position = @position, layout = @layout,
+                           config = @config, module_id = @module
                      WHERE id = @id;
                     """, connection, tx)
                 : new SqlCommand("""
-                    INSERT INTO app.slug_part (id, slug_id, kind, position, layout, config, created_at)
-                    VALUES (@id, @slug, @kind, @position, @layout, @config, @now);
+                    INSERT INTO app.slug_part
+                        (id, slug_id, kind, position, layout, config, created_at, module_id)
+                    VALUES (@id, @slug, @kind, @position, @layout, @config, @now, @module);
                     """, connection, tx);
 
             save.Parameters.AddWithValue("@id", id);
+            save.Parameters.AddWithValue("@module", moduleId);
             save.Parameters.AddWithValue("@kind", parts[i].Kind.Trim());
             save.Parameters.AddWithValue("@position", i);
             save.Parameters.AddWithValue("@layout", parts[i].Layout);
@@ -651,10 +718,18 @@ public static class Page
         var parts = new List<object>();
 
         await using var cmd = new SqlCommand("""
-            SELECT id, kind, layout, config
-            FROM app.slug_part
-            WHERE slug_id = @slug
-            ORDER BY position;
+            SELECT p.id, COALESCE(m.kind, p.kind) AS kind, p.layout,
+                   COALESCE(m.config, p.config) AS config, p.module_id
+            FROM app.slug_part p
+            /*
+                DER BAUSTEIN GEWINNT (0036). Steht derselbe auf zwei Seiten,
+                zeigen beide dasselbe — sonst waere „DERSELBE“ nur ein Wort.
+                `slug_part.kind`/`config` stehen noch als Rest da und gelten
+                nur, wo ein Baustein (noch) fehlt.
+            */
+            LEFT JOIN app.module m ON m.id = p.module_id
+            WHERE p.slug_id = @slug
+            ORDER BY p.position;
             """, connection);
 
         cmd.Parameters.AddWithValue("@slug", slugId);
@@ -667,7 +742,10 @@ public static class Page
                 id = Ids.ToText(reader.GetGuid(0)),
                 kind = reader.GetString(1),
                 layout = reader.GetString(2),
-                config = reader.IsDBNull(3) ? null : reader.GetString(3)
+                config = reader.IsDBNull(3) ? null : reader.GetString(3),
+
+                /* Welcher Baustein hier gezeigt wird — die Seite zeigt ihn nur. */
+                moduleId = reader.IsDBNull(4) ? null : Ids.ToText(reader.GetGuid(4))
             });
         }
 

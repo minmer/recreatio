@@ -18,7 +18,7 @@ import {
 } from './layout';
 import { FormCard } from './FormCard';
 import { MassCard } from './MassCard';
-import { isEmpty, moduleDef, readLink } from './modules';
+import { isEmpty, moduleDef, readLink } from './moduleKinds';
 import { pagePath } from './routes';
 import { SlotCard } from './SlotCard';
 import { Submission } from './Submission';

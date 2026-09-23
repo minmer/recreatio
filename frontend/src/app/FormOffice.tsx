@@ -24,11 +24,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from './area';
 import { fromBase64Url } from './crypto';
 import {
-  FIELD_KINDS, KIND_LABEL, addField, loadFields, loadRegistrations, openFields,
+  CHOOSABLE_IDENTITY, FIELD_KINDS, IDENTITY_LABEL, KIND_LABEL,
+  addField, loadFields, loadRegistrations, openFields,
   armCheck, hideSubmission, readSubmission, removeField, removeSubmission, reviseAsOffice,
-  setPartConfig,
+  rewrapToOffice, setPartConfig,
   type ValueCheck,
-  type FieldKind, type OpenField, type SealedField, type Submission
+  type FieldKind, type IdentityRole, type OpenField, type SealedField, type Submission
 } from './form';
 import { createIntake, loadIntake, loadPublicIntake, openIntakeKey, setController } from './intake';
 import type { Ring, SealedRole } from './keys';
@@ -209,6 +210,15 @@ export function FormOffice({ partId, config, who }: {
     const intake = await loadIntake(areaId);
     const privateKey = await openIntakeKey(intake, ring);
 
+    /*
+     * Der Schlüssel der AMTSROLLE — nicht der Epochenschlüssel. 0005 nennt den
+     * Grund: läge die Annahme unter der Epoche, könnte jeder Helfer sämtliche
+     * Anmeldungen lesen, ohne dass ihm jemand etwas gegeben hätte. Der Umbau
+     * auf AES darf diese Trennung nicht nebenbei aufheben.
+     */
+    const officeKey = ring.has(intake.sealedForRoleId) ? ring.keyOf(intake.sealedForRoleId) : null;
+    const pending: { fieldId: string; registrationId: string; officeKeySealed: string }[] = [];
+
     setLastArea(areaId);
 
     const { registrations } = await loadRegistrations(partId, showHidden);
@@ -219,13 +229,37 @@ export function FormOffice({ partId, config, who }: {
     let got = 0;
 
     for (const one of registrations) {
-      const reading = await readSubmission(one, privateKey);
+      const reading = await readSubmission(one, privateKey, officeKey ?? undefined);
       out.set(one.registrationId, reading.values);
       sent += reading.sent;
       got += reading.opened;
+
+      for (const one2 of reading.toRewrap) {
+        pending.push({ ...one2, registrationId: one.registrationId });
+      }
     }
 
     setOpened(out);
+
+    /*
+     * RSA IST DER UMSCHLAG, NICHT DER TRESOR (0037).
+     *
+     * Was gerade aufging, lag noch unter dem RSA-Umschlag der Annahme. Genau
+     * jetzt liegt der Schlüssel offen — also wird er unter dem Schlüssel der
+     * Amtsrolle neu versiegelt, und der Umschlag fällt.
+     *
+     * <b>Still und ohne Rückfrage</b>, weil nichts daran eine Entscheidung
+     * ist: es ändert nicht, wer lesen darf, sondern nur, wogegen das
+     * Gespeicherte auf Jahre standhalten muss. Schlägt es fehl, bleibt alles,
+     * wie es war — gelesen wurde ohnehin schon.
+     */
+    if (pending.length > 0) {
+      try {
+        await rewrapToOffice(partId, pending);
+      } catch {
+        // Der alte Weg steht noch; beim nächsten Öffnen wieder.
+      }
+    }
 
     /*
      * WARUM NICHTS DASTEHT, wenn nichts dasteht. Ein leerer Kasten sieht aus
@@ -746,6 +780,7 @@ function NewFieldForm({ areas, ring, partId, position, busy, onAdded, onError }:
   const [kind, setKind] = useState<FieldKind>('line');
   const [areaId, setAreaId] = useState('');
   const [required, setRequired] = useState(false);
+  const [identity, setIdentity] = useState<IdentityRole>('none');
   const [options, setOptions] = useState('');
   const [working, setWorking] = useState(false);
 
@@ -768,11 +803,13 @@ function NewFieldForm({ areas, ring, partId, position, busy, onAdded, onError }:
         areaId: area.areaId, areaKey, epoch: area.currentEpoch,
         kind, position, label,
         options: kind === 'choice' ? options.split('\n') : undefined,
-        isRequired: required
+        isRequired: required,
+        identityRole: identity
       });
 
       setLabel('');
       setOptions('');
+      setIdentity('none');
       onAdded();
     } catch (e) {
       onError(e instanceof WorkspaceError ? e.message : 'Nie udało się dodać pytania.');
@@ -794,6 +831,26 @@ function NewFieldForm({ areas, ring, partId, position, busy, onAdded, onError }:
         <span>Rodzaj</span>
         <select value={kind} onChange={(e) => setKind(e.target.value as FieldKind)}>
           {FIELD_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+        </select>
+      </label>
+
+      {/*
+        WELCHE genormte Angabe das ist (0038).
+
+        Ohne sie ist ‚Imię’ für das Programm ein Wort wie jedes andere, und wer
+        den Bogen ausfüllt, tippt seinen Vornamen zum vierten Mal. Steht sie
+        da, füllt der Bogen sich selbst — aus dem, was der Mensch EINMAL
+        angelegt hat, und eine Änderung dort ist eine Änderung überall.
+      */}
+      <label className="wk-field">
+        <span>Czego dotyczy</span>
+        <select
+          value={identity}
+          onChange={(e) => setIdentity(e.target.value as IdentityRole)}
+        >
+          {CHOOSABLE_IDENTITY.map((r) => (
+            <option key={r} value={r}>{IDENTITY_LABEL[r]}</option>
+          ))}
         </select>
       </label>
 

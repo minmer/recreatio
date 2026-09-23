@@ -102,5 +102,8 @@ Form.Map(app);
  */
 Slot.Map(app);
 
+/* Bausteine als eigene Dinge — die Seite zeigt sie nur (0036). */
+Module.Map(app);
+
 app.Run();
 return 0;

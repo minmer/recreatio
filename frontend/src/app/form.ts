@@ -38,8 +38,45 @@ export const KIND_LABEL: Record<FieldKind, string> = {
   phone: 'Telefon'
 };
 
-/** Woraus Name und Kontakt zu lesen sind — sonst müsste die Kanzlei raten. */
-export type IdentityRole = 'none' | 'name' | 'contact';
+/**
+ * WELCHE genormte Angabe eine Frage abfragt (0038).
+ *
+ * <b>Die Frage steht in Worten, die Angabe braucht einen Namen.</b> „Imię i
+ * nazwisko", „Jak się do Ciebie zwracać?", „Twój numer" — daran erkennt kein
+ * Programm, dass zweimal dasselbe gemeint ist. Steht es hier, dann schon: dann
+ * füllt der Bogen sich aus dem, was der Mensch EINMAL angelegt hat, und eine
+ * Änderung dort ist eine Änderung überall.
+ *
+ * <b>`name` und `contact` bleiben.</b> Sie stehen in vorhandenen Zeilen. Sie zu
+ * verbieten hiesse zu raten, was gemeint war — und „Name" ist nicht dasselbe
+ * wie „Vorname".
+ */
+export const IDENTITY_ROLES = [
+  'none',
+  'given_name', 'surname', 'nickname', 'born', 'phone', 'email', 'address',
+  'name', 'contact'
+] as const;
+
+export type IdentityRole = (typeof IDENTITY_ROLES)[number];
+
+export const IDENTITY_LABEL: Record<IdentityRole, string> = {
+  none: '— zwykłe pytanie —',
+  given_name: 'Imię',
+  surname: 'Nazwisko',
+  nickname: 'Przezwisko',
+  born: 'Data urodzenia',
+  phone: 'Telefon',
+  email: 'E-mail',
+  address: 'Adres',
+
+  /* Was vor 0038 dastand — auswählbar bleibt es nicht, lesbar schon. */
+  name: 'Nazwisko (dawne „name")',
+  contact: 'Kontakt (dawne „contact")'
+};
+
+/** Was man heute WÄHLEN kann — die beiden alten stehen nur noch in Zeilen. */
+export const CHOOSABLE_IDENTITY: readonly IdentityRole[] =
+  IDENTITY_ROLES.filter((r) => r !== 'name' && r !== 'contact');
 
 const labelAad = (fieldId: string) => aad('form', 'field', fieldId, Field.EventFieldLabel, 1);
 const helpAad = (fieldId: string) => aad('form', 'field', fieldId, Field.EventFieldHelp, 1);
@@ -126,6 +163,12 @@ export interface FormArea {
 
 export interface PublicForm {
   readonly partId: string;
+
+  /**
+   * WOVON der Bogen handelt (0038) — und woran der Platz hängen wird, den er
+   * erzeugt. `'none'` heisst: von nichts Benanntem.
+   */
+  readonly forKind: 'none' | 'person' | 'group' | 'role';
   readonly fields: readonly SealedField[];
   readonly areas: readonly FormArea[];
 }
@@ -236,6 +279,16 @@ export async function submitForm(
   claim: string | null;
   link: Link | null;
   under: string | null;
+
+  /**
+   * Der Platz, den dieser Browser sich gewürfelt hat — samt Schlüssel.
+   *
+   * <b>Damit lässt er sich an eine Rolle binden</b> (`bindSeat`), und das
+   * geht nur JETZT: der Schlüssel liegt im Speicher dieses Tabs und sonst
+   * nirgends. Wer ihn hier nicht mitnimmt, müsste den Platz später über
+   * seinen Link wieder aufmachen — und der ist gerade einmal sichtbar.
+   */
+  seat: { seatId: string; key: Uint8Array } | null;
 }> {
   const areaOf = new Map(to.fields.map((f) => [f.fieldId, f.areaId]));
   const publicKeys = new Map(to.areas.map((a) => [a.areaId, fromBase64Url(a.publicKey)]));
@@ -340,6 +393,7 @@ export async function submitForm(
     registrationId: done.registrationId,
     claim,
     link: mine?.link ?? null,
+    seat: mine === null ? null : { seatId: mine.seatId, key: mine.seatKey },
 
     /* Wohin der Platz gehört — vom Dienst, der es entschieden hat. */
     under: done.portalUnder ?? null
@@ -387,7 +441,11 @@ export async function openSubmitted(
 export interface SealedAnswer {
   readonly fieldId: string;
   readonly sealed: string;
-  readonly wrappedKey: string;
+  /** Der alte RSA-Umschlag der Annahme. `null`, sobald er abgelöst ist (0037). */
+  readonly wrappedKey: string | null;
+
+  /** Derselbe Schlüssel, symmetrisch unter dem Schlüssel der Amtsrolle (0037). */
+  readonly officeKeySealed: string | null;
 }
 
 export interface Submission {
@@ -442,29 +500,85 @@ export const removeSubmission = (
   call(`/workspace/registration/${encodeURIComponent(registrationId)}/remove`, { method: 'POST' });
 
 /**
- * Eine Einsendung aufmachen — mit dem PRIVATEN Annahmeschlüssel.
+ * Eine Einsendung aufmachen — auf dem Weg, der dasteht.
  *
- * Zwei Schritte je Wert: den Feldschlüssel auspacken, damit den Wert öffnen.
- * Genau deshalb kann der Dienst nichts davon lesen — er hat den ersten nie.
+ * <b>Zwei Wege zum selben Schlüssel</b> (0037), und der symmetrische hat
+ * Vorrang: `officeKeySealed` liegt unter dem Schlüssel der Amtsrolle,
+ * `wrappedKey` ist der alte RSA-Umschlag der Annahme. Genau einer von beiden
+ * steht da — die Prüfbedingung der Tabelle lässt nichts anderes zu.
+ *
+ * <b>Was hier zusätzlich herauskommt, ist die Umstellung selbst.</b> Wer einen
+ * RSA-Umschlag geöffnet hat, hält den Schlüssel gerade offen und kann ihn
+ * symmetrisch neu versiegeln — genau jetzt und nur jetzt. `toRewrap` sammelt
+ * diese Hüllen; wer sie abschickt, löst den RSA-Umschlag ab.
+ *
+ * <b>Ohne Amtsschlüssel wird nichts umgestellt</b>, und das ist kein Fehler:
+ * dann fehlt der Schlüssel, unter dem die neue Hülle liegen müsste. Gelesen
+ * wird trotzdem.
  */
 export async function openSubmission(
-  submission: Submission, intakePrivate: Uint8Array
+  submission: Submission, intakePrivate: Uint8Array, officeKey?: Uint8Array
 ): Promise<Map<string, string>> {
+  return (await openAndRewrap(submission, intakePrivate, officeKey)).values;
+}
+
+/**
+ * Dasselbe, aber mit den Hüllen, die den RSA-Umschlag ablösen (0037).
+ *
+ * <b>Eine eigene Funktion, damit `openSubmission` ihren Vertrag behält.</b>
+ * Wer nur lesen will — das Portal, die Prüfungen — bekommt weiterhin eine Map
+ * und merkt von der Umstellung nichts.
+ */
+export async function openAndRewrap(
+  submission: Submission,
+  intakePrivate: Uint8Array,
+  officeKey?: Uint8Array
+): Promise<{
+  readonly values: Map<string, string>;
+  readonly toRewrap: readonly { fieldId: string; officeKeySealed: string }[];
+}> {
   const out = new Map<string, string>();
+  const toRewrap: { fieldId: string; officeKeySealed: string }[] = [];
 
   for (const value of submission.values) {
     try {
       const label = valueAad(value.fieldId);
-      const key = await unwrapKey(intakePrivate, label, fromBase64Url(value.wrappedKey));
+
+      /* Der symmetrische Weg zuerst — er ist der, der bleiben soll. */
+      const key = value.officeKeySealed !== null && value.officeKeySealed !== undefined
+        ? await open(officeKeyOf(officeKey), officeValueAad(value.fieldId),
+            fromBase64Url(value.officeKeySealed))
+        : await unwrapKey(intakePrivate, label, fromBase64Url(value.wrappedKey!));
 
       out.set(value.fieldId, await openText(key, label, fromBase64Url(value.sealed)));
+
+      /* Noch in RSA? Dann jetzt die Hülle, die ihn ablöst. */
+      if (value.officeKeySealed == null && officeKey !== undefined) {
+        toRewrap.push({
+          fieldId: value.fieldId,
+          officeKeySealed: toBase64Url(
+            await seal(officeKey, officeValueAad(value.fieldId), key))
+        });
+      }
     } catch {
       // Aus einer anderen Annahme, oder beschädigt. Die übrigen bleiben lesbar.
     }
   }
 
-  return out;
+  return { values: out, toRewrap };
 }
+
+/** Ohne Amtsschlüssel lässt sich eine symmetrische Hülle nicht öffnen. */
+function officeKeyOf(key: Uint8Array | undefined): Uint8Array {
+  if (key === undefined) {
+    throw new Error('Bez klucza roli kancelarii tej koperty się nie otworzy.');
+  }
+  return key;
+}
+
+/** Die AAD der symmetrischen Wertschlüsselhülle — eigen, siehe `Field`. */
+const officeValueAad = (fieldId: string) =>
+  aad('form', 'value', fieldId, Field.OfficeValueKey, 1);
 
 /**
  * Wie es einer Einsendung ERGANGEN ist — und nicht nur, was aufging.
@@ -485,14 +599,20 @@ export interface Reading {
   readonly values: Map<string, string>;
   readonly sent: number;
   readonly opened: number;
+
+  /**
+   * Hüllen, die den RSA-Umschlag ablösen (0037) — für die Werte, die noch in
+   * ihm lagen. Leer heisst: schon umgestellt, oder kein Amtsschlüssel da.
+   */
+  readonly toRewrap: readonly { fieldId: string; officeKeySealed: string }[];
 }
 
 export async function readSubmission(
-  submission: Submission, intakePrivate: Uint8Array
+  submission: Submission, intakePrivate: Uint8Array, officeKey?: Uint8Array
 ): Promise<Reading> {
-  const values = await openSubmission(submission, intakePrivate);
+  const { values, toRewrap } = await openAndRewrap(submission, intakePrivate, officeKey);
 
-  return { values, sent: submission.values.length, opened: values.size };
+  return { values, sent: submission.values.length, opened: values.size, toRewrap };
 }
 
 /* -- Kleinkram -------------------------------------------------------------- */
@@ -676,4 +796,23 @@ export const setPartConfig = (
   call(`/workspace/part/${encodeURIComponent(partId)}/config`, {
     method: 'POST',
     body: JSON.stringify({ set })
+  });
+
+/**
+ * Den RSA-Umschlag ablösen (0037).
+ *
+ * <b>Nur, wer gerade geöffnet hat, kann das.</b> Die Hüllen entstehen im
+ * selben Augenblick, in dem das Amt eine Einsendung aufmacht — dann liegt der
+ * Wertschlüssel offen und lässt sich unter dem Schlüssel der Amtsrolle neu
+ * versiegeln. Der Dienst setzt die neue und löscht die alte in einer
+ * Anweisung; dazwischen gibt es keinen Zustand, in dem beide gelten.
+ */
+export const rewrapToOffice = (
+  partId: string,
+  values: readonly { fieldId: string; registrationId: string; officeKeySealed: string }[],
+  seats: readonly { seatId: string; seatKeyForOffice: string }[] = []
+): Promise<{ rewrapped: number }> =>
+  call(`/workspace/part/${encodeURIComponent(partId)}/rewrap`, {
+    method: 'POST',
+    body: JSON.stringify({ values, seats })
   });

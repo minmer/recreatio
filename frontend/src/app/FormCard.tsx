@@ -30,9 +30,12 @@ import { fromBase64Url } from './crypto';
 import {
   loadForm, openFields, submitForm, type Answer, type OpenField, type PublicForm
 } from './form';
+import type { Ring } from './keys';
 import { Phones } from './Phones';
-import { seatPath, type Link } from './seat';
-import { WorkspaceError } from './session';
+import { keysFor } from './ringOf';
+import { bindSeat, seatPath, type Link } from './seat';
+import { whoIsThere, WorkspaceError } from './session';
+import { detailsOf, personFieldOf, subjectsFor, type Subject } from './subject';
 
 export function FormCard({ partId, config }: {
   partId: string;
@@ -49,6 +52,21 @@ export function FormCard({ partId, config }: {
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+
+  /*
+   * FÜR WEN dieser Bogen gerade ausgefüllt wird (0038).
+   *
+   * <b>Ein Vater meldet drei Kinder an.</b> Jedes Kind ist eine eigene Rolle
+   * mit eigenen Angaben; er hält ihre Schlüssel. Die Frage ist deshalb nie
+   * „wer bin ich“, sondern „für wen fülle ich das gerade aus“ — und die
+   * Antwort muss sich MITTEN IM Ausfüllen ändern lassen.
+   *
+   * <b>Ohne Anmeldung bleibt das alles leer</b>, und der Bogen ist der, der
+   * er vorher war. Niemand muss sich anmelden, um etwas einzureichen.
+   */
+  const [ring, setRing] = useState<Ring | null>(null);
+  const [subjects, setSubjects] = useState<readonly Subject[]>([]);
+  const [chosen, setChosen] = useState<string | null>(null);
 
   const look = useCallback(async () => {
     try {
@@ -73,6 +91,32 @@ export function FormCard({ partId, config }: {
 
       setFields(await openFields(found.fields, keys));
       setFailed(null);
+
+      /*
+       * WEN wir fragen können. Nur wenn der Bogen überhaupt von jemandem
+       * handelt — sonst wäre es eine Auswahl ohne Gegenstand.
+       *
+       * Jeder Fehlschlag hier ist stumm und gewollt: wer nicht angemeldet
+       * ist, füllt den Bogen aus wie immer. Ein „Nicht angemeldet“ an dieser
+       * Stelle wäre eine Aufforderung, und dieses Formular fordert nichts.
+       */
+      if (found.forKind !== 'none') {
+        try {
+          const who = await whoIsThere();
+
+          if (who !== null) {
+            const keyring = await keysFor(who);
+
+            if (keyring.ring !== null) {
+              const found2 = await subjectsFor(found.forKind, keyring.graph, keyring.ring);
+              setRing(keyring.ring);
+              setSubjects(found2);
+            }
+          }
+        } catch {
+          // Keine Sitzung, oder kein Schlüssel in diesem Tab. Kein Fehler.
+        }
+      }
     } catch (e) {
       setForm(null);
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać formularza.');
@@ -80,6 +124,47 @@ export function FormCard({ partId, config }: {
   }, [partId]);
 
   useEffect(() => { void look(); }, [look]);
+
+  /*
+   * DIE GENORMTEN ANGABEN EINTRAGEN — und beim Wechsel WIEDER HERAUS.
+   *
+   * <b>Das Ersetzen ist der eigentliche Punkt.</b> Wer von einem Kind auf
+   * das andere umschaltet, darf nicht den Namen des ersten stehen lassen;
+   * das wäre ein Bogen, der auf den Falschen läuft, und niemand sähe es ihm
+   * an. Deshalb wird JEDES genormte Feld gesetzt — auch auf leer, wenn der
+   * Gewählte dazu nichts hinterlegt hat.
+   *
+   * <b>Die übrigen Antworten bleiben.</b> „Warum willst du mitmachen“ gehört
+   * dem Bogen und nicht dem Menschen; sie zu löschen wäre eine Strafe fürs
+   * Umschalten.
+   */
+  useEffect(() => {
+    if (ring === null || chosen === null) return;
+
+    let dropped = false;
+
+    void (async () => {
+      const details = await detailsOf(chosen, ring);
+      if (dropped) return;
+
+      setAnswers((before) => {
+        const next = { ...before };
+
+        for (const field of fields) {
+          const which = personFieldOf(field.identityRole);
+          if (which === null) continue;
+
+          next[field.fieldId] = details.get(which) ?? '';
+        }
+
+        return next;
+      });
+    })();
+
+    /* Wer schnell zweimal umschaltet, bekommt sonst die erste Antwort
+       über die zweite geschrieben. */
+    return () => { dropped = true; };
+  }, [chosen, ring, fields]);
 
   const title = (config.title ?? '').trim();
 
@@ -112,8 +197,20 @@ export function FormCard({ partId, config }: {
    */
   const under = (config.portalUnder ?? '').trim();
 
-  /* Woraus der Name auf dem Platz kommt — dasselbe Feld, das die Kanzlei dafür kennzeichnet. */
-  const nameField = fields.find((f) => f.identityRole === 'name');
+  /*
+   * Woraus der Name auf dem Platz kommt.
+   *
+   * <b>Das alte `name` zuerst, dann das genormte `surname`</b> (0038). Beide
+   * kommen vor: vorhandene Bögen tragen `name`, neue benennen die Angabe.
+   * Erst das eine zu suchen und dann das andere ist kein Sonderfall, sondern
+   * die Reihenfolge, in der die Bedeutung enger wird.
+   */
+  const nameField = fields.find((f) => f.identityRole === 'name')
+    ?? fields.find((f) => f.identityRole === 'surname')
+    ?? fields.find((f) => f.identityRole === 'given_name');
+
+  /** Wer gerade gemeint ist — oder niemand. */
+  const forWhom = subjects.find((one) => one.roleId === chosen) ?? null;
 
   if (sent) {
     return (
@@ -189,13 +286,44 @@ export function FormCard({ partId, config }: {
           ? {
               areaId: home,
               epoch: form.fields.find((f) => f.areaId === home)?.epoch ?? 1,
-              recipientName: nameField === undefined
-                ? undefined
-                : (answers[nameField.fieldId] ?? '').trim(),
+              /*
+               * Der Name des Gemeinten geht VOR dem, was im Feld steht:
+               * gewählt zu haben ist genauer als getippt zu haben. Er steht
+               * offen am Platz, damit die Kanzlei ihn zuordnen kann, BEVOR
+               * sie ihn verschickt — deshalb wird er hier nicht versiegelt.
+               */
+              recipientName: forWhom?.name
+                ?? (nameField === undefined
+                  ? undefined
+                  : (answers[nameField.fieldId] ?? '').trim()),
               underPath: under === '' ? undefined : under
             }
           : undefined
       });
+
+      /*
+       * DER PLATZ GEHÖRT DEM, UM DEN ES GEHT (0038).
+       *
+       * <b>Genau jetzt, oder nie.</b> Der Platzschlüssel liegt im Speicher
+       * dieses Tabs; danach käme man nur über den Link wieder heran, und der
+       * steht ein einziges Mal da. Verpackt wird unter dem ÖFFENTLICHEN
+       * Schlüssel der Rolle — dafür braucht es kein Geheimnis des Gemeinten.
+       *
+       * <b>Misslingt es, bleibt die Einsendung trotzdem gültig.</b> Sie liegt
+       * beim Dienst, und der Link steht gleich da. Hier abzubrechen hiesse,
+       * einen angenommenen Bogen als Fehlschlag auszugeben.
+       */
+      if (forWhom !== null && done.seat !== null && done.link !== null && ring !== null) {
+        const role = ring.roleOf(forWhom.roleId);
+
+        if (role !== undefined) {
+          try {
+            await bindSeat(done.link.token, done.seat.seatId, done.seat.key, role);
+          } catch {
+            // Der Link steht gleich da; von dort aus geht es auch später.
+          }
+        }
+      }
 
       setClaim(done.claim);
       setLink(done.link);
@@ -225,6 +353,42 @@ export function FormCard({ partId, config }: {
           Ten formularz nie mówi, kto odpowiada za dane, więc nic nie zbiera.
           Prowadzący stronę musi to uzupełnić.
         </p>
+      )}
+
+      {/*
+        FÜR WEN — und zwar VOR den Fragen.
+
+        Wer erst unten sieht, dass er das Falsche ausgefüllt hat, hat es
+        schon ausgefüllt. Die Auswahl steht deshalb oben, und der häufigste
+        Fall („ich für mich“) steht zuoberst in der Liste.
+
+        Es gibt sie nur für Angemeldete, die überhaupt mehr als nichts
+        halten. Alle anderen füllen den Bogen aus wie immer.
+      */}
+      {subjects.length > 0 && nameless.length === 0 && (
+        <label className="wk-field">
+          <span>{form.forKind === 'person' ? 'Kogo dotyczy zgłoszenie'
+            : form.forKind === 'group' ? 'Której grupy dotyczy' : 'Której roli dotyczy'}</span>
+
+          <select
+            value={chosen ?? ''}
+            onChange={(e) => setChosen(e.target.value === '' ? null : e.target.value)}
+          >
+            <option value="">— wpiszę sam —</option>
+            {subjects.map((one) => (
+              <option key={one.roleId} value={one.roleId}>
+                {one.name ?? 'bez nazwy'}{one.isMine && ' (ja)'}
+              </option>
+            ))}
+          </select>
+
+          <span className="wk-hint">
+            Wybranie wypełni pola danymi, które masz już zapisane — raz
+            wpisanymi i wspólnymi dla wszystkich formularzy. Zmienisz je u
+            siebie, zmienią się wszędzie. Miejsce, które powstanie z tego
+            zgłoszenia, będzie należało właśnie do wybranego.
+          </span>
+        </label>
       )}
 
       {nameless.length === 0 && (

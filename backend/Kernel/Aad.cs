@@ -82,6 +82,28 @@ public enum Field
     /// <summary>Der private Annahmeschluessel einer Veranstaltung.</summary>
     EventIntakeKey,
 
+    /// <summary>
+    /// 0037 — ein Wertschluessel, den das AMT neu versiegelt hat: unter dem
+    /// Schluessel seiner Rolle statt unter dem RSA-Umschlag der Annahme.
+    ///
+    /// <para>
+    /// <b>Ein EIGENES Etikett und nicht dasselbe wie der Wert.</b> Die AAD
+    /// bindet eine Huelle an ihren Zweck; teilten sich Wert und
+    /// Wertschluessel eines, liesse sich das eine an die Stelle des anderen
+    /// schieben, ohne dass die Pruefung anschluege.
+    /// </para>
+    /// </summary>
+    OfficeValueKey,
+
+    /// <summary>0037 — ein Platzschluessel, vom Amt neu versiegelt.</summary>
+    OfficeSeatKey,
+
+    /// <summary>
+    /// 0037 — eine Zuteilung, die ihr Halter neu versiegelt hat: unter
+    /// seinem eigenen Rollenschluessel statt unter seinem RSA-Umschlag.
+    /// </summary>
+    HeldGrant,
+
     // Cogita — der Wissensgraph
     //
     // Nur ZWEI Felder, obwohl der Graph beliebig viele Arten kennt. Das ist
@@ -151,6 +173,14 @@ public enum Field
      */
     PersonAddress,
     PersonEmail,
+
+    /*
+     * Der RUFNAME (0038). Auf einem Namensschild steht nicht der Vorname aus
+     * dem Ausweis, und wer ihn unter dem Etikett des Vornamens versiegelte,
+     * haette zwei Angaben an einem Platz — dann ist die Freigabe des Rufnamens
+     * die Freigabe des Vornamens.
+     */
+    PersonNickname,
 
     // Der individuelle Zugang (0022)
     //
@@ -334,6 +364,9 @@ public readonly record struct Aad
         Field.EventFieldOptions       => "field_options",
         Field.EventAnswer             => "answer",
         Field.EventIntakeKey          => "intake_key",
+        Field.OfficeValueKey          => "office_value_key",
+        Field.OfficeSeatKey           => "office_seat_key",
+        Field.HeldGrant               => "held_grant",
         Field.GraphNodeValue          => "node_value",
         Field.GraphEdgeNote           => "edge_note",
         Field.CandidateName           => "candidate_name",
@@ -363,6 +396,7 @@ public readonly record struct Aad
         Field.PersonBorn              => "born",
         Field.PersonAddress           => "person_address",
         Field.PersonEmail             => "person_email",
+        Field.PersonNickname          => "person_nickname",
         Field.SeatKey                 => "seat_key",
         Field.SeatPersonalNote        => "seat_personal",
         Field.SeatInternalNote        => "seat_internal",

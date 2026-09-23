@@ -121,6 +121,23 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
   /* Nur Bereiche, in die man wirklich hineinsiegeln kann — siehe Kopf. */
   const reachable = areas.filter((a) => a.heldEpochs > 0);
 
+  /*
+   * SPEICHERN ZIEHT NACH. Wer die Nummer ändert, ändert sie überall dort, wo
+   * er sie schon hingegeben hat — `setValue` tut das und sagt, wo es ging.
+   *
+   * Gesagt wird beides. Ein stilles „gespeichert" wäre die halbe Wahrheit,
+   * wenn in einem Bereich der alte Stand stehen bleibt.
+   */
+  const save = async () => {
+    const { refreshed, couldNot } = await setValue(roleId, ring, field, draft);
+
+    if (couldNot.length > 0) {
+      onSaid(`Zapisano. Nie udało się odświeżyć w: ${couldNot.join(', ')}`);
+    } else if (refreshed.length > 0) {
+      onSaid(`Zapisano i odświeżono w: ${refreshed.join(', ')}`);
+    }
+  };
+
   const give = async () => {
     if (value === null || target === '') return;
 
@@ -159,7 +176,7 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
               <button
                 type="button" className="wk-btn"
                 disabled={busy || draft.trim() === '' || draft === value}
-                onClick={() => void onAct('Zapisywanie…', () => setValue(roleId, ring, field, draft))}
+                onClick={() => void onAct('Zapisywanie…', save)}
               >
                 Zapisz
               </button>

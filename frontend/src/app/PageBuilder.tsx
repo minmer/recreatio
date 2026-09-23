@@ -32,7 +32,7 @@ import {
   MIN_COL_SPAN, MIN_ROW_SPAN, pixelSize, resized, snapColSpan, snapRowSpan, validCells, withFrame,
   type Breakpoint, type Frame, type Handle, type Layout
 } from './layout';
-import { CATALOG, moduleDef, moduleLabel } from './modules';
+import { CATALOG, moduleDef, moduleLabel } from './moduleKinds';
 import type { DraftPart } from './page';
 
 const ROW_H = 84;

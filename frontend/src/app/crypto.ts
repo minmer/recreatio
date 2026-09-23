@@ -97,6 +97,7 @@ export const Field = {
   PersonBorn: 'born',
   PersonAddress: 'person_address',
   PersonEmail: 'person_email',
+  PersonNickname: 'person_nickname',
 
   /*
    * Der individuelle Zugang (0022). Der Platzschlüssel wird zweimal verpackt —
@@ -109,6 +110,18 @@ export const Field = {
   /* Eine eingesandte Antwort, und der private Annahmeschlüssel dahinter. */
   EventAnswer: 'answer',
   EventIntakeKey: 'intake_key',
+
+  /*
+   * 0037 — dieselben Schlüssel, aber SYMMETRISCH neu versiegelt.
+   *
+   * RSA ist der Umschlag für die Übergabe; was jahrelang liegenbleibt, soll
+   * AES sein. Jede dieser Hüllen bekommt ihr EIGENES Etikett: teilten sie
+   * eines mit dem Wert, den sie öffnen, liesse sich die eine an die Stelle der
+   * anderen schieben, ohne dass die Prüfung anschlüge.
+   */
+  OfficeValueKey: 'office_value_key',
+  OfficeSeatKey: 'office_seat_key',
+  HeldGrant: 'held_grant',
   EventFieldLabel: 'field_label',
   EventFieldHelp: 'field_help',
   EventFieldOptions: 'field_options'
