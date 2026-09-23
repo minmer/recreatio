@@ -40,6 +40,8 @@ import {
   dayKey, dayLabel, firstOnOrAfter, hour, loadOffice, loadPlan, massesOnly, positionInDay,
   updateIntention, type IntentionKind, type OfficeIntention, type OfficeMass
 } from './mass';
+import { createCalendar, loadCalendars as loadAllCalendars } from './calendar';
+import { loadAreas, type AreaRow } from './area';
 import { printIntentions, sheetWeek } from './sheet';
 import { closeSlot, loadOfficeSlots, openSlot, type OfficeSlot } from './slot';
 import { call, WorkspaceError } from './session';
@@ -58,6 +60,10 @@ const keyOf = (mass: OfficeMass): string => `${mass.itemId}-${mass.occurrenceAt}
 
 export function MassOffice() {
   const [calendars, setCalendars] = useState<readonly CalendarRow[] | null>(null);
+
+  /* Für das Anlegen: ein Kalender gehört in einen Bereich, und welche das sein
+     können, weiss nur diese Liste. */
+  const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [chosen, setChosen] = useState<string>('');
   const [from, setFrom] = useState(todayKey);
   const [masses, setMasses] = useState<readonly OfficeMass[]>([]);
@@ -71,6 +77,8 @@ export function MassOffice() {
         setChosen((current) => (current === '' ? (found.calendars[0]?.calendarId ?? '') : current));
       })
       .catch(() => setCalendars([]));
+
+    loadAreas().then((found) => setAreas(found.areas)).catch(() => setAreas([]));
   }, []);
 
   const load = useCallback(async () => {
@@ -98,6 +106,24 @@ export function MassOffice() {
   }, [chosen, from]);
 
   useEffect(() => { void load(); }, [load]);
+
+  /*
+   * Eine Handlung, die danach neu lädt — dieselbe Form wie anderswo. Ohne sie
+   * stünde ein neuer Kalender erst beim nächsten Aufruf in der Auswahl.
+   */
+  const act = async (what: string, todo: () => Promise<unknown>) => {
+    setError(null);
+
+    try {
+      await todo();
+      const found = await loadAllCalendars();
+      setCalendars(found.calendars);
+      setChosen((now) => (now === '' ? found.calendars[0]?.calendarId ?? '' : now));
+      await load();
+    } catch (e) {
+      setError(e instanceof WorkspaceError ? e.message : `Nie udało się: ${what}`);
+    }
+  };
 
   const calendar = (calendars ?? []).find((c) => c.calendarId === chosen);
   const mass = masses[at];
@@ -127,10 +153,13 @@ export function MassOffice() {
    */
   if (calendars.length === 0) {
     return (
-      <p className="wk-note">
-        Nie prowadzisz żadnego kalendarza. Kalendarz należy do obszaru — najpierw
-        załóż obszar, potem kalendarz w nim.
-      </p>
+      <>
+        <p className="wk-note">
+          Nie prowadzisz żadnego kalendarza. Kalendarz należy do obszaru —
+          wybierzesz go zakładając.
+        </p>
+        <NewCalendar areas={areas} busy={false} onAct={act} />
+      </>
     );
   }
 
@@ -149,6 +178,8 @@ export function MassOffice() {
             ))}
           </select>
         </label>
+
+        <NewCalendar areas={areas} busy={false} onAct={act} />
 
         <label className="wk-field">
           <span>Dzień</span>
@@ -585,6 +616,111 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
         })}
       </ul>
     </>
+  );
+}
+
+/* -- Einen Kalender anlegen ------------------------------------------------ */
+
+/**
+ * Ein neuer Kalender — HIER, bei den Kalendern.
+ *
+ * <b>Er stand einmal beim Bereich</b>, weil ein Kalender einen Bereich
+ * BRAUCHT: der Bereich entscheidet, wer ihn sieht. Das ist ein Grund, beide zu
+ * verbinden, und keiner, das Formular dort zu führen — wer einen Kalender
+ * anlegen will, sucht ihn bei den Kalendern.
+ *
+ * <b>Der Bereich wird deshalb hier gewählt.</b> Es ist die einzige Angabe, die
+ * sich nicht erraten lässt: an ihr hängt, wer den Plan später lesen darf.
+ */
+function NewCalendar({ areas, busy, onAct }: {
+  areas: readonly AreaRow[];
+  busy: boolean;
+  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [zone, setZone] = useState('Europe/Warsaw');
+  const [areaId, setAreaId] = useState('');
+
+  /* Anlegen darf, wer den Bereich führt oder beschreibt. */
+  const mine = areas.filter((a) => a.myLevel === 'admin' || a.myLevel === 'write');
+
+  if (!open) {
+    return (
+      <div className="wk-actions">
+        <button
+          type="button" className="wk-link-btn" disabled={busy}
+          onClick={() => { setOpen(true); setAreaId(mine[0]?.areaId ?? ''); }}
+        >
+          Nowy kalendarz
+        </button>
+      </div>
+    );
+  }
+
+  if (mine.length === 0) {
+    return (
+      <p className="wk-note">
+        Kalendarz należy do obszaru — a Ty nie prowadzisz żadnego. Załóż go
+        w zakładce „Obszary", potem wróć tutaj.
+        {' '}
+        <button type="button" className="wk-link-btn" onClick={() => setOpen(false)}>
+          Zamknij
+        </button>
+      </p>
+    );
+  }
+
+  return (
+    <form
+      className="wk-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (title.trim() === '' || areaId === '') return;
+
+        void onAct('Zakładanie kalendarza…',
+          () => createCalendar({ areaId, title: title.trim(), timeZone: zone }))
+          .then(() => { setTitle(''); setOpen(false); });
+      }}
+    >
+      <h4 className="wk-h2">Nowy kalendarz</h4>
+
+      <label className="wk-field">
+        <span>Nazwa</span>
+        <input value={title} placeholder="np. Porządek mszy" onChange={(e) => setTitle(e.target.value)} />
+      </label>
+
+      <label className="wk-field">
+        <span>W obszarze</span>
+        <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
+          {mine.map((a) => <option key={a.areaId} value={a.areaId}>{a.name}</option>)}
+        </select>
+      </label>
+
+      <p className="wk-hint">
+        Obszar decyduje, kto zobaczy ten plan. Jeśli ma być w gablocie, wybierz
+        taki, który jest jawny — albo otwórz go potem.
+      </p>
+
+      <label className="wk-field">
+        <span>Strefa czasowa</span>
+        <input value={zone} onChange={(e) => setZone(e.target.value)} />
+      </label>
+
+      <p className="wk-hint">
+        Strefa należy do kalendarza, nie do czytelnika: msza o 18:00 jest o 18:00
+        tam, gdzie się odprawia — także po zmianie czasu.
+      </p>
+
+      <div className="wk-actions">
+        <button type="submit" className="wk-btn" disabled={busy || title.trim() === ''}>
+          Załóż kalendarz
+        </button>
+        <button type="button" className="wk-link-btn" onClick={() => setOpen(false)}>
+          Anuluj
+        </button>
+      </div>
+    </form>
   );
 }
 
