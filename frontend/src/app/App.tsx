@@ -18,7 +18,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { foreignHost, localPath, needsIdentity, parsePath, path, spotOf, type Address } from './routes';
+import { Crumbs } from './Crumbs';
+import {
+  foreignHost, localPath, needsIdentity, parsePath, path, spotOf,
+  type Address, type Spot
+} from './routes';
 import { signOut, whoIsThere, type Who } from './session';
 import { PublicPage } from './PublicPage';
 import { SeatPortal } from './SeatPortal';
@@ -132,24 +136,43 @@ export function App() {
     return <Shell><SignIn onDone={setWho} /></Shell>;
   }
 
+  /*
+   * EINMAL ausgerechnet, und dann an beide.
+   *
+   * Der Kopf braucht es für den Weg, die Werkstatt für das Bild. Zweimal zu
+   * rechnen hiesse: zwei Meinungen darüber, wo wir stehen — und die
+   * auffällige wäre die, bei der der Weg etwas anderes sagt als die Seite.
+   */
+  const spot = spotOf(address);
+
   return (
     <Shell
       who={who}
       wide
+      spot={spot}
       onSignOut={() => { void signOut().then(() => setWho(null)); }}
     >
-      <Workspace spot={spotOf(address)} who={who} />
+      <Workspace spot={spot} who={who} />
     </Shell>
   );
 }
 
 function Shell({
-  children, who, wide = false, onSignOut
+  children, who, wide = false, spot, onSignOut
 }: {
   children: React.ReactNode;
   who?: Who;
   /** Die Kacheln brauchen zwei Spalten; ein Text braucht eine Zeilenlänge. */
   wide?: boolean;
+
+  /**
+   * Wo im Arbeitsplatz wir stehen — oder nichts, wenn wir gar nicht darin sind.
+   *
+   * <b>Eine öffentliche Seite bekommt KEINEN Weg.</b> Sie gehört der Welt
+   * draussen; ein „Warsztat › …“ darüber wäre ein Verweis auf ein Haus, in dem
+   * der Besucher nichts zu suchen hat und meistens auch kein Konto.
+   */
+  spot?: Spot;
   onSignOut?: () => void;
 }) {
   return (
@@ -162,8 +185,15 @@ function Shell({
       */}
       <header className="wk-top">
         <div className={wide ? 'wk-top-in wk-top-in-wide' : 'wk-top-in'}>
-          <span className="wk-brand">REcreatio</span>
+          {/*
+            Die Marke führt nach Hause. Sie war bisher ein toter Schriftzug —
+            und die eine Stelle, an der jeder zuerst klickt, wenn er sich
+            verlaufen hat.
+          */}
+          <a className="wk-brand" href={path('workspace')}>REcreatio</a>
           <span className="wk-stage">Neubau</span>
+
+          {spot !== undefined && <Crumbs spot={spot} />}
 
           {who !== undefined && (
             <span className="wk-who">

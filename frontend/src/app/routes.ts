@@ -378,10 +378,23 @@ export const VIEWS = {
 
 export type View = keyof typeof VIEWS;
 
-/** Wo im Arbeitsplatz wir stehen. */
+/**
+ * Wo im Arbeitsplatz wir stehen.
+ *
+ * <b>`trail` ist der Weg INNERHALB einer Ansicht</b> — der geöffnete Bereich,
+ * die geöffnete Seite. Er steht in der ADRESSE und nicht im Speicher, aus
+ * demselben Grund wie die Ansicht selbst: ein Bereich, den man aufgeschlagen
+ * hat, lässt sich so verschicken und neu laden, und der Zurück-Pfeil des
+ * Browsers schliesst ihn, statt den Arbeitsplatz zu verlassen.
+ *
+ * <b>Er wird hier NICHT gedeutet.</b> Was seine Segmente bedeuten, weiss nur
+ * die Ansicht: für „Obszary" ist es eine Kennung, für „Strony" ein Pfad im
+ * Register. Das Register der Adressen ist nicht der Ort, an dem das
+ * entschieden wird.
+ */
 export type Spot =
   | { readonly kind: 'tiles' }
-  | { readonly kind: 'view'; readonly view: View }
+  | { readonly kind: 'view'; readonly view: View; readonly trail: readonly string[] }
   | { readonly kind: 'stray'; readonly word: string };
 
 export function spotOf(address: Address): Spot {
@@ -390,12 +403,18 @@ export function spotOf(address: Address): Spot {
 
   // `hasOwnProperty` und nicht `in`: sonst wäre `#/workspace/constructor` eine Ansicht.
   return Object.prototype.hasOwnProperty.call(VIEWS, first)
-    ? { kind: 'view', view: first as View }
+    ? { kind: 'view', view: first as View, trail: address.tail.slice(1) }
     : { kind: 'stray', word: first };
 }
 
-/** Die Adresse einer Ansicht. */
-export const viewPath = (view: View): string => path('workspace', null, view);
+/**
+ * Die Adresse einer Ansicht — und, wenn etwas darin offen ist, von WAS.
+ *
+ * `viewPath('areas')` ist die Liste, `viewPath('areas', id)` ein einzelner
+ * Bereich. Beides sind Adressen, und damit lässt sich beides verschicken.
+ */
+export const viewPath = (view: View, ...trail: readonly string[]): string =>
+  path('workspace', null, view, ...trail.filter((one) => one !== ''));
 
 /** Die Adresse der Kacheln — das Ziel jedes Zurück-Pfeils. */
 export const tilesPath = (): string => path('workspace');

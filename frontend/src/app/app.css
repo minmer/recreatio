@@ -61,7 +61,17 @@
 
 .wk-top-in-wide { width: min(100%, 110rem); }
 
-.wk-brand { font-weight: 600; letter-spacing: 0.01em; }
+/* Die Marke fuehrt nach Hause. Sie sieht aus wie vorher: unterstrichen waere
+   sie der auffaelligste Verweis der Seite, und sie ist der beilaeufigste. */
+.wk-brand {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: inherit;
+  text-decoration: none;
+}
+
+.wk-brand:hover { color: var(--wk-accent); }
+.wk-brand:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 3px; }
 
 /* Solange der Neubau nicht traegt, steht das an der Kopfleiste — nicht in
    einer Fussnote, die niemand liest. */
@@ -150,6 +160,11 @@ code {
   color: #fff;
   cursor: pointer;
 }
+
+/* Auch auf einem <a>: ein Ziel ist manchmal eine Adresse und kein Handgriff,
+   und dann gehoert dorthin ein Verweis — er soll nur aussehen wie der Knopf
+   daneben. */
+.wk-btn { display: inline-block; text-decoration: none; }
 
 .wk-btn:disabled { opacity: 0.5; cursor: default; }
 .wk-btn:focus-visible { outline: 2px solid var(--wk-ink); outline-offset: 2px; }
@@ -791,4 +806,107 @@ code {
   background: transparent;
   font-size: 0.82rem;
   white-space: nowrap;
+}
+
+/* -- Der Weg im Kopf --------------------------------------------------------
+   „Warsztat › Obszary › Parafia › Schola" — neben der Marke, auf jedem Bild
+   an derselben Stelle.
+
+   Er darf NICHT dazu fuehren, dass der Streifen seitlich scrollt: ein Kopf,
+   den man wegschieben kann, nimmt die Abmeldung mit. Deshalb `min-width: 0`
+   und ein Umbruch — der Weg nimmt sich lieber eine zweite Zeile, als den Rest
+   hinauszudraengen.
+   ------------------------------------------------------------------------ */
+
+.wk-crumbs { min-width: 0; font-size: 0.88rem; }
+
+.wk-crumbs ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.1rem 0.35rem;
+}
+
+.wk-crumbs li { display: flex; align-items: baseline; gap: 0.35rem; }
+
+.wk-crumb-sep { color: var(--wk-line); }
+
+.wk-crumb-link {
+  color: var(--wk-muted);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.wk-crumb-link:hover { color: var(--wk-ink); border-bottom-color: var(--wk-line); }
+.wk-crumb-link:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+
+/* Wo man steht. Kraeftiger als der Weg dahin, aber kein Verweis — sonst sieht
+   es aus wie ein Weg weiter, und es ist keiner. */
+.wk-crumb-here { color: var(--wk-ink); font-weight: 600; }
+
+.wk-crumb-with { display: inline-flex; align-items: baseline; gap: 0.15rem; }
+
+/* -- Was daneben liegt ----------------------------------------------------- */
+
+.wk-crumb-beside { position: relative; display: inline-flex; }
+
+.wk-crumb-more {
+  font: inherit;
+  font-size: 0.7rem;
+  line-height: 1;
+  border: 0;
+  background: none;
+  padding: 0.15rem;
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+
+.wk-crumb-more:hover { color: var(--wk-ink); }
+.wk-crumb-more:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+
+.wk-crumb-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  margin: 0.25rem 0 0;
+  padding: 0.3rem 0;
+  list-style: none;
+
+  /* Eine eigene Flaeche, damit sie nicht in dem liest, was darunter steht. */
+  background: var(--wk-surface);
+  border: 1px solid var(--wk-line);
+  border-radius: 0.4rem;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+
+  /* Breit genug fuer einen Namen, schmal genug fuer ein Telefon. */
+  min-width: 10rem;
+  max-width: min(22rem, 80vw);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.wk-crumb-menu a {
+  display: block;
+  padding: 0.3rem 0.8rem;
+  color: var(--wk-ink);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wk-crumb-menu a:hover { background: var(--wk-ground); }
+.wk-crumb-menu a:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+
+/* Auf schmalem Geraet nimmt der Weg die zweite Zeile, und die Marke bleibt
+   oben: ein Weg, der die Abmeldung hinausdraengt, ist schlechter als einer,
+   der umbricht. */
+@media (max-width: 46rem) {
+  .wk-top-in { flex-wrap: wrap; }
+  .wk-crumbs { order: 3; flex-basis: 100%; }
+  .wk-who { order: 2; }
 }

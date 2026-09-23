@@ -25,11 +25,13 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-  createArea, dropFromArea, loadAreas, loadMembers, myEpochKeys,
+  besideIt, chainTo, createArea, dropFromArea, inOrder, loadAreas, loadMembers, myEpochKeys,
   setPublicLevel, setSeatLevel,
   PUBLIC_LEVELS, SEAT_LEVELS, type AreaRow, type Member, type PublicLevel
 } from './area';
+import { useCrumbs, type Crumb } from './crumbTrail';
 import type { Ring, SealedRole } from './keys';
+import { viewPath } from './routes';
 import { keysFor, forgetKeys } from './ringOf';
 import { Seats } from './Seats';
 import { WorkspaceError, type Who } from './session';
@@ -58,49 +60,34 @@ const OTHER_LEVEL: Record<string, string> = {
 };
 
 /**
- * Die Bereiche in der Ordnung, in der sie liegen — `Parafia > Msza > Ofiary`.
+ * Welches der drei Bilder gerade dasteht — und zwar AUS DER ADRESSE.
  *
- * <b>Flach gezeichnet, mit Einzug.</b> Verschachtelte Listen wären hier eine
- * zweite Struktur neben `parent_area_id`, und zwei Strukturen laufen
- * auseinander. Die Tiefe steht deshalb an der Zeile, nicht im Markup.
+ * <b>`#/workspace/areas` ist die Liste, `#/workspace/areas/<kennung>` ein
+ * Bereich, `#/workspace/areas/new` das Anlegen.</b> Als Zustand im Speicher
+ * liess sich ein aufgeschlagener Bereich nicht verschicken, ein Neuladen warf
+ * einen heraus, und der Zurück-Pfeil des Browsers verliess den Arbeitsplatz,
+ * statt den Bereich zu schliessen.
  *
- * <b>Wessen Vater nicht dabei ist, steht ganz aussen.</b> Das ist kein Fehler,
- * sondern der Normalfall für jemanden, der den inneren Bereich lesen darf und
- * den äusseren nicht: der äussere kommt in seiner Liste gar nicht vor. Ihn als
- * „fehlt" zu zeigen verriete, dass es ihn gibt.
+ * <b>`new` kann keine Kennung sein.</b> Kennungen sind UUIDs; das Wort ist
+ * damit frei und muss nicht gesperrt werden.
  */
-function inOrder(areas: readonly AreaRow[]): readonly { area: AreaRow; depth: number }[] {
-  const known = new Set(areas.map((a) => a.areaId));
-  const out: { area: AreaRow; depth: number }[] = [];
-
-  const under = (parent: string | null, depth: number) => {
-    for (const area of areas) {
-      const mine = area.parentAreaId !== null && known.has(area.parentAreaId)
-        ? area.parentAreaId
-        : null;
-
-      if (mine !== parent) continue;
-
-      out.push({ area, depth });
-      under(area.areaId, depth + 1);
-    }
-  };
-
-  under(null, 0);
-  return out;
-}
-
-/** Welches der drei Bilder gerade dasteht. */
 type View =
   | { readonly at: 'list' }
   | { readonly at: 'area'; readonly areaId: string }
   | { readonly at: 'new' };
 
-export function Areas({ who }: { who: Who }) {
+const NEW = 'new';
+
+const viewOf = (trail: readonly string[]): View =>
+  trail[0] === undefined ? { at: 'list' }
+  : trail[0] === NEW ? { at: NEW }
+  : { at: 'area', areaId: trail[0] };
+
+export function Areas({ who, trail }: { who: Who; trail: readonly string[] }) {
   const [areas, setAreas] = useState<readonly AreaRow[] | null | undefined>(undefined);
   const [ring, setRing] = useState<Ring | null>(null);
   const [person, setPerson] = useState<SealedRole | null>(null);
-  const [view, setView] = useState<View>({ at: 'list' });
+  const view = viewOf(trail);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -119,6 +106,32 @@ export function Areas({ who }: { who: Who }) {
   }, [who]);
 
   useEffect(() => { void look(); }, [look]);
+
+  /*
+   * DER WEG OBEN IM KOPF.
+   *
+   * In der Adresse steht eine Kennung; ein Mensch liest darin nichts. Was
+   * dort stehen soll, ist „Parafia › Schola" — und das weiss nur diese
+   * Ansicht, weil sie die Bereiche ohnehin geladen hat.
+   *
+   * <b>Jede Stufe nimmt ihre Geschwister mit.</b> Wer in einem Unterbereich
+   * steht, will meistens in den daneben; hinauf und wieder hinunter sind zwei
+   * Klicks für etwas, das einer sein sollte.
+   */
+  const list = areas ?? [];
+
+  const crumbs: Crumb[] = view.at === NEW
+    ? [{ label: 'Nowy obszar', href: null }]
+    : view.at === 'area'
+      ? chainTo(list, view.areaId).map((step, at, all) => ({
+          label: step.name,
+          href: at === all.length - 1 ? null : viewPath('areas', step.areaId),
+          beside: besideIt(list, step)
+            .map((other) => ({ label: other.name, href: viewPath('areas', other.areaId) }))
+        }))
+      : [];
+
+  useCrumbs(crumbs);
 
   const act = async (what: string, todo: () => Promise<unknown>) => {
     setBusy(what);
@@ -169,7 +182,7 @@ export function Areas({ who }: { who: Who }) {
       /* Weggefallen, während er offen war — zurück statt ins Leere. */
       return (
         <>
-          <Back onClick={() => setView({ at: 'list' })} />
+          <Back />
           <p className="wk-empty">Tego obszaru już nie ma.</p>
         </>
       );
@@ -177,7 +190,7 @@ export function Areas({ who }: { who: Who }) {
 
     return (
       <>
-        <Back onClick={() => setView({ at: 'list' })} />
+        <Back />
         {head}
 
         {ring === null && (
@@ -201,7 +214,7 @@ export function Areas({ who }: { who: Who }) {
   if (view.at === 'new') {
     return (
       <>
-        <Back onClick={() => setView({ at: 'list' })} />
+        <Back />
         {head}
 
         {ring === null && (
@@ -214,7 +227,7 @@ export function Areas({ who }: { who: Who }) {
           areas={areas}
           busy={busy !== null}
           onAct={act}
-          onDone={() => setView({ at: 'list' })}
+          onDone={() => { window.location.hash = viewPath('areas'); }}
         />
       </>
     );
@@ -250,13 +263,9 @@ export function Areas({ who }: { who: Who }) {
                 */}
                 {depth > 0 && <span className="wk-row-side" aria-hidden="true">└ </span>}
 
-                <button
-                  type="button"
-                  className="wk-link-btn"
-                  onClick={() => setView({ at: 'area', areaId: area.areaId })}
-                >
+                <a className="wk-link-btn" href={viewPath('areas', area.areaId)}>
                   <strong>{area.name}</strong>
-                </button>
+                </a>
 
                 <span className="wk-row-side">
                   {area.myLevel !== null && <> · {LEVEL_NAME[area.myLevel]}</>}
@@ -280,23 +289,21 @@ export function Areas({ who }: { who: Who }) {
       )}
 
       <div className="wk-actions">
-        <button type="button" className="wk-btn" onClick={() => setView({ at: 'new' })}>
-          Załóż obszar
-        </button>
+        <a className="wk-btn" href={viewPath('areas', NEW)}>Załóż obszar</a>
       </div>
     </>
   );
 }
 
-/** Der Weg zurück. Er steht oben links, weil er dort gesucht wird. */
-function Back({ onClick }: { onClick: () => void }) {
-  return (
-    <p>
-      <button type="button" className="wk-link-btn" onClick={onClick}>
-        ← Wszystkie obszary
-      </button>
-    </p>
-  );
+/**
+ * Der Weg zurück. Er steht oben links, weil er dort gesucht wird.
+ *
+ * <b>Ein Verweis und kein Knopf</b> — seit die Liste eine Adresse ist. Ein
+ * Knopf liesse sich nicht in einem neuen Tab öffnen und sagte der Statuszeile
+ * nicht, wohin er führt.
+ */
+function Back() {
+  return <p><a className="wk-link-btn" href={viewPath('areas')}>← Wszystkie obszary</a></p>;
 }
 
 /* -- Ein Bereich, ganz ------------------------------------------------------ */

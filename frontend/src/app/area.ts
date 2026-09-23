@@ -94,6 +94,103 @@ export interface Member {
   readonly capabilities: readonly string[];
 }
 
+/* -- Die Ordnung, in der sie liegen ---------------------------------------
+
+   Zwei Fragen an denselben Baum, und beide gehoeren hierher und nicht in die
+   Zeichnung: sie rechnen, sie zeichnen nichts. Dort waeren sie nur von dort
+   aus zu pruefen — und ein Kreis in einer Elternkette haengt den ganzen Tab
+   auf, lange bevor jemand ihn sieht.
+   ------------------------------------------------------------------------ */
+
+/**
+ * Die Bereiche in der Ordnung, in der sie liegen — `Parafia > Msza > Ofiary`.
+ *
+ * <b>Flach gezeichnet, mit Einzug.</b> Verschachtelte Listen wären hier eine
+ * zweite Struktur neben `parent_area_id`, und zwei Strukturen laufen
+ * auseinander. Die Tiefe steht deshalb an der Zeile, nicht im Markup.
+ *
+ * <b>Wessen Vater nicht dabei ist, steht ganz aussen.</b> Das ist kein Fehler,
+ * sondern der Normalfall für jemanden, der den inneren Bereich lesen darf und
+ * den äusseren nicht: der äussere kommt in seiner Liste gar nicht vor. Ihn als
+ * „fehlt" zu zeigen verriete, dass es ihn gibt.
+ */
+/**
+ * Der Vater, SOWEIT ER ZU SEHEN IST — sonst keiner.
+ *
+ * <b>Die eine Stelle, an der das entschieden wird.</b> Wer den inneren Bereich
+ * lesen darf und den äusseren nicht, bekommt den äusseren gar nicht erst in
+ * seine Liste. Für ihn liegt der innere ganz aussen, und das ist die Wahrheit,
+ * die er sehen soll.
+ *
+ * <b>Zweimal entschieden wäre es zweimal anders.</b> Die eingerückte Liste und
+ * der Weg im Kopf sind zwei Antworten auf dieselbe Frage; rechnete jede für
+ * sich, sähe derselbe Bereich an zwei Stellen verschieden tief aus.
+ */
+export const parentInSight = (
+  areas: readonly AreaRow[], area: AreaRow
+): string | null =>
+  area.parentAreaId !== null && areas.some((a) => a.areaId === area.parentAreaId)
+    ? area.parentAreaId
+    : null;
+
+/** Die Bereiche, die neben diesem liegen — unter demselben sichtbaren Vater. */
+export const besideIt = (
+  areas: readonly AreaRow[], area: AreaRow
+): readonly AreaRow[] => {
+  const mine = parentInSight(areas, area);
+
+  return areas.filter((other) =>
+    other.areaId !== area.areaId && parentInSight(areas, other) === mine);
+};
+
+export function inOrder(areas: readonly AreaRow[]): readonly { area: AreaRow; depth: number }[] {
+  const out: { area: AreaRow; depth: number }[] = [];
+
+  const under = (parent: string | null, depth: number) => {
+    for (const area of areas) {
+      if (parentInSight(areas, area) !== parent) continue;
+
+      out.push({ area, depth });
+      under(area.areaId, depth + 1);
+    }
+  };
+
+  under(null, 0);
+  return out;
+}
+
+/**
+ * Die Kette vom äussersten Bereich bis zu diesem.
+ *
+ * <b>Sie bricht ab, wo der Vater fehlt</b> — und das ist kein Fehler, sondern
+ * der Normalfall für jemanden, der den inneren Bereich lesen darf und den
+ * äusseren nicht: der äussere kommt in seiner Liste gar nicht vor. Ihn als
+ * Lücke zu zeigen verriete, dass es ihn gibt.
+ *
+ * <b>Und sie hält an, wenn sie sich beisst.</b> Der Dienst verhindert Kreise
+ * (`ck_area_not_self`, `WouldLoopAsync`), aber eine Ansicht, die sich darauf
+ * verlässt, hängt den ganzen Tab auf, sobald es einmal nicht stimmt.
+ */
+export function chainTo(areas: readonly AreaRow[], areaId: string): readonly AreaRow[] {
+  const byId = new Map(areas.map((a) => [a.areaId, a]));
+  const out: AreaRow[] = [];
+  const seen = new Set<string>();
+
+  let at: string | null = areaId;
+
+  while (at !== null && !seen.has(at)) {
+    seen.add(at);
+
+    const here: AreaRow | undefined = byId.get(at);
+    if (here === undefined) break;
+
+    out.unshift(here);
+    at = here.parentAreaId;
+  }
+
+  return out;
+}
+
 export const loadAreas = (): Promise<{ areas: readonly AreaRow[] }> =>
   call<{ areas: readonly AreaRow[] }>('/workspace/areas');
 

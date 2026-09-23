@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { PATH_SHAPE, tilesPath, viewPath, VIEWS, type Spot, type View } from './routes';
+import { useCrumbs } from './crumbTrail';
 import { Account } from './Account';
 import { Addresses } from './Addresses';
 import { Areas } from './Areas';
@@ -84,7 +85,13 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
           <a className="wk-back" href={tilesPath()} aria-label="Wróć do warsztatu">←</a>
           <h1 className="wk-h1">{VIEWS[spot.view]}</h1>
         </div>
-        <Inside view={spot.view} desk={desk} who={who} onChanged={() => void look()} />
+        <Inside
+          view={spot.view}
+          trail={spot.trail}
+          desk={desk}
+          who={who}
+          onChanged={() => void look()}
+        />
       </>
     );
   }
@@ -173,17 +180,28 @@ function Tile({ view, count, children }: {
 
 /* -- Eine Kachel ganz ------------------------------------------------------ */
 
-function Inside({ view, desk, who, onChanged }: {
+function Inside({ view, trail, desk, who, onChanged }: {
   view: View;
+
+  /**
+   * Was INNERHALB der Ansicht offen ist — aus der Adresse.
+   *
+   * <b>Gedeutet wird er hier nicht.</b> Für „Obszary" ist das eine Kennung,
+   * für „Strony" ein Pfad im Register; wer das hier entschiede, müsste jede
+   * Ansicht kennen, die es je geben wird.
+   */
+  trail: readonly string[];
   desk: Desk;
   who: Who;
   onChanged: () => void;
 }) {
   if (view === 'modules') return <Modules who={who} />;
-  if (view === 'pages') return <Pages desk={desk} who={who} onClaimed={onChanged} />;
+  if (view === 'pages') {
+    return <Pages desk={desk} who={who} trail={trail} onClaimed={onChanged} />;
+  }
   if (view === 'addresses') return <Addresses desk={desk} onChanged={onChanged} />;
   if (view === 'roles') return <RoleGraph who={who} />;
-  if (view === 'areas') return <Areas who={who} />;
+  if (view === 'areas') return <Areas who={who} trail={trail} />;
   if (view === 'calendar') return <MassOffice />;
   if (view === 'account') return <Account who={who} />;
 
@@ -205,8 +223,27 @@ function Inside({ view, desk, who, onChanged }: {
 
 /* -- Strony: übernehmen, nicht anlegen ------------------------------------- */
 
-function Pages({ desk, who, onClaimed }: { desk: Desk; who: Who; onClaimed: () => void }) {
-  const [editing, setEditing] = useState<string | null>(null);
+function Pages({ desk, who, trail, onClaimed }: {
+  desk: Desk;
+  who: Who;
+  trail: readonly string[];
+  onClaimed: () => void;
+}) {
+  /*
+   * DIE OFFENE SEITE STEHT IN DER ADRESSE.
+   *
+   * Ein Pfad im Register hat Teile — `parish/grzegorzki` —, und die sind
+   * schon Segmente. Sie werden hier nicht zusammengeklebt und wieder
+   * auseinandergenommen, sondern sind, was sie sind: der Weg dorthin.
+   */
+  const editing = trail.length === 0 ? null : trail.join('/');
+
+  /* Und derselbe Weg steht oben im Kopf — Stufe für Stufe, nicht als ein Wort. */
+  useCrumbs(trail.map((part, at) => ({
+    label: part,
+    href: at === trail.length - 1 ? null : viewPath('pages', ...trail.slice(0, at + 1))
+  })));
+
   const [wanted, setWanted] = useState('');
   const [code, setCode] = useState('');
   const [roleId, setRoleId] = useState(desk.roles[0]?.id ?? '');
@@ -271,7 +308,12 @@ function Pages({ desk, who, onClaimed }: { desk: Desk; who: Who; onClaimed: () =
           desk={desk}
           who={who}
           editing={editing}
-          onEdit={(path) => setEditing(editing === path ? null : path)}
+          onEdit={(path) => {
+            /* Noch einmal auf dieselbe: zumachen. Wie vorher, nur jetzt als Adresse. */
+            window.location.hash = editing === path
+              ? viewPath('pages')
+              : viewPath('pages', ...path.split('/'));
+          }}
           onChanged={onClaimed}
         />
       )}
