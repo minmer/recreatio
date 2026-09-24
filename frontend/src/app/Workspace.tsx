@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { PATH_SHAPE, tilesPath, viewPath, VIEWS, type Spot, type View } from './routes';
+import { PATH_SHAPE, viewPath, VIEWS, type Spot, type View } from './routes';
 import { useCrumbs } from './crumbTrail';
 import { Account } from './Account';
 import { Addresses } from './Addresses';
@@ -59,7 +59,8 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
         <p className="wk-lede">
           Warsztat nie zna części <code>{spot.word}</code>.
         </p>
-        <p><a className="wk-link" href={tilesPath()}>Wróć do warsztatu</a></p>
+
+        {/* Der Weg hinaus steht oben, wie überall. Zwei Ausgänge sind keiner mehr. */}
       </>
     );
   }
@@ -81,10 +82,17 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   if (spot.kind === 'view') {
     return (
       <>
-        <div className="wk-view-head">
-          <a className="wk-back" href={tilesPath()} aria-label="Wróć do warsztatu">←</a>
-          <h1 className="wk-h1">{VIEWS[spot.view]}</h1>
-        </div>
+        {/*
+          NUR, WENN NICHTS DARIN OFFEN IST.
+
+          Der Weg oben nennt die Ansicht ohnehin. Stand die Überschrift
+          zusätzlich da, las man „Obszary" zweimal — und sobald ein Bereich
+          offen war, sogar falsch: oben stand „… › Schola", darunter gross
+           „Obszary", und die Seite zeigte Schola. Was offen ist, trägt seinen
+          eigenen Namen (`AreaPage`), und der ist der richtige.
+        */}
+        {spot.trail.length === 0 && <h1 className="wk-h1">{VIEWS[spot.view]}</h1>}
+
         <Inside
           view={spot.view}
           trail={spot.trail}
@@ -195,7 +203,7 @@ function Inside({ view, trail, desk, who, onChanged }: {
   who: Who;
   onChanged: () => void;
 }) {
-  if (view === 'modules') return <Modules who={who} />;
+  if (view === 'modules') return <Modules who={who} trail={trail} />;
   if (view === 'pages') {
     return <Pages desk={desk} who={who} trail={trail} onClaimed={onChanged} />;
   }

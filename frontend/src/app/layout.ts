@@ -20,6 +20,8 @@
  * ist die Linie.
  */
 
+import { useEffect, useState } from 'react';
+
 export const BREAKPOINTS = ['desktop', 'tablet', 'mobile'] as const;
 export type Breakpoint = (typeof BREAKPOINTS)[number];
 
@@ -394,4 +396,29 @@ export function byReadingOrder<T extends Placed>(parts: readonly T[]): T[] {
 
     return one.row === two.row ? one.col - two.col : one.row - two.row;
   });
+}
+
+/* -- Welche Bildschirmgrösse gerade gilt ----------------------------------- */
+
+/*
+ * Die Schwellen standen in `PageParts`, die Spaltenzahlen hier — zwei Dateien
+ * für eine Entscheidung. Die Zeichenflächen des Editors messen dieselben
+ * Breiten, und wer sie auseinanderlaufen lässt, baut eine Seite in einer
+ * Grösse, die der Besucher nie zu sehen bekommt.
+ */
+export const breakpointFor = (width: number): Breakpoint =>
+  width < 640 ? 'mobile' : width < 1024 ? 'tablet' : 'desktop';
+
+/** Dieselbe Frage als Haken — sie ändert sich, während man das Fenster zieht. */
+export function useBreakpoint(): Breakpoint {
+  const [breakpoint, setBreakpoint] = useState<Breakpoint>(() =>
+    typeof window === 'undefined' ? 'desktop' : breakpointFor(window.innerWidth));
+
+  useEffect(() => {
+    const onResize = () => setBreakpoint(breakpointFor(window.innerWidth));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  return breakpoint;
 }

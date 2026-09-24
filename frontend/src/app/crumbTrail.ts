@@ -24,6 +24,8 @@
 
 import { useEffect, useSyncExternalStore } from 'react';
 
+import { tilesPath, VIEWS, viewPath, type Spot } from './routes';
+
 /** Eine Stufe des Weges. */
 export interface Crumb {
   readonly label: string;
@@ -89,3 +91,54 @@ export function useCrumbs(mine: readonly Crumb[]): void {
     };
   }, [same]);
 }
+
+/* -- Der ganze Weg, und wohin der Pfeil zeigt ------------------------------
+
+   Beides rechnet und zeichnet nichts, und beides ist der Weg, auf dem man
+   sich durch den Arbeitsplatz bewegt. In einer Zeichnung liesse es sich nur
+   von dort aus pruefen — und ein Pfeil, der eine Stufe zu weit springt, faellt
+   niemandem auf, ausser dem, der ihn gerade gedrueckt hat.
+   ------------------------------------------------------------------------ */
+
+/**
+ * Die STUFEN, die in der Adresse stehen, und darunter, was die Ansicht
+ * angemeldet hat.
+ *
+ * <b>Die letzte Stufe ist nie ein Verweis.</b> Ein Link auf die Stelle, auf
+ * der man steht, sieht aus wie ein Weg weiter und ist keiner — deshalb wird
+ * er hier abgeraeumt und nicht bei jedem Aufrufer einzeln.
+ */
+export function trailOf(spot: Spot, deep: readonly Crumb[]): readonly Crumb[] {
+  const out: Crumb[] = [{
+    label: 'Warsztat',
+
+    /* Auf den Kacheln steht man darauf — dann ist es kein Verweis. */
+    href: spot.kind === 'tiles' ? null : tilesPath()
+  }];
+
+  if (spot.kind === 'view') {
+    out.push({ label: VIEWS[spot.view], href: viewPath(spot.view) });
+    out.push(...deep);
+  }
+
+  if (spot.kind === 'stray') {
+    out.push({ label: spot.word, href: null });
+  }
+
+  return out.map((crumb, at) =>
+    at === out.length - 1 ? { ...crumb, href: null } : crumb);
+}
+
+/**
+ * Wohin der Pfeil zeigt: EINE Stufe hinauf, nicht nach Hause.
+ *
+ * <b>Er stand vorher im Inhalt und fuehrte immer auf die Kacheln.</b> Aus
+ * einem Unterbereich war das ein Sprung ueber alles hinweg, was dazwischen
+ * liegt — und wer einen Schritt zurueck wollte, musste sich den ganzen Weg
+ * wieder hinunterklicken.
+ *
+ * <b>`null` heisst: es gibt keine Stufe darueber</b>, und dann steht kein
+ * Pfeil da. Einer, der nirgendwohin fuehrt, ist schlimmer als keiner.
+ */
+export const stepUp = (trail: readonly Crumb[]): string | null =>
+  trail.length > 1 ? trail[trail.length - 2].href : null;

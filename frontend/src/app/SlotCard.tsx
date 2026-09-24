@@ -22,10 +22,11 @@ import {
   askSlot, bookSlot, loadSlots, releaseSlot, type PublicSlot
 } from './slot';
 
-export function SlotCard({ config }: { config: Record<string, string> }) {
+export function SlotCard({ title, calendar: calendarId }: {
+  title: string;
+  calendar: string;
+}) {
   const seat = useSeat();
-  const title = (config.title ?? '').trim();
-  const calendarId = (config.calendar ?? '').trim();
 
   const [slots, setSlots] = useState<readonly PublicSlot[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);

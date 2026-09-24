@@ -15,43 +15,30 @@
  * <b>Wo Geschwister sind, wird der Weg zum Menü.</b> Wer in einem Unterbereich
  * steht, will meistens in den daneben — hinauf und wieder hinunter sind zwei
  * Klicks für etwas, das einer sein sollte.
+ *
+ * <b>Und der Pfeil geht EINE Stufe hinauf, nicht nach Hause.</b> Er stand
+ * vorher im Inhalt und führte immer auf die Kacheln — aus einem Unterbereich
+ * war das ein Sprung über alles hinweg, was dazwischen liegt. Hier steht er
+ * am Anfang des Weges und führt dorthin, wo der Weg herkommt: auf die Stufe
+ * davor. Wo es keine gibt, steht er nicht — ein Pfeil, der nirgendwohin
+ * führt, ist schlimmer als keiner.
  */
 
 import { useEffect, useRef, useState } from 'react';
 
-import { useDeepCrumbs, type Crumb } from './crumbTrail';
-import { tilesPath, VIEWS, viewPath, type Spot } from './routes';
+import { stepUp, trailOf, useDeepCrumbs, type Crumb } from './crumbTrail';
+import type { Spot } from './routes';
 
 export function Crumbs({ spot }: { spot: Spot }) {
-  const deep = useDeepCrumbs();
-
-  /*
-   * DIE STUFEN, DIE IN DER ADRESSE STEHEN.
-   *
-   * Auf den Kacheln selbst steht nur „Warsztat", und zwar ohne Verweis: es ist
-   * die Stelle, auf der man steht.
-   */
-  const trail: Crumb[] = [{
-    label: 'Warsztat',
-    href: spot.kind === 'tiles' ? null : tilesPath()
-  }];
-
-  if (spot.kind === 'view') {
-    trail.push({
-      label: VIEWS[spot.view],
-      /* Die Ansicht selbst ist nur dann ein Verweis, wenn etwas darin offen ist. */
-      href: deep.length === 0 ? null : viewPath(spot.view)
-    });
-
-    trail.push(...deep);
-  }
-
-  if (spot.kind === 'stray') {
-    trail.push({ label: spot.word, href: null });
-  }
+  const trail = trailOf(spot, useDeepCrumbs());
+  const up = stepUp(trail);
 
   return (
     <nav className="wk-crumbs" aria-label="Gdzie jesteś">
+      {up !== null && (
+        <a className="wk-crumb-up" href={up} aria-label="O jeden poziom w górę">←</a>
+      )}
+
       <ol>
         {trail.map((crumb, at) => (
           <li key={`${at}-${crumb.label}`}>

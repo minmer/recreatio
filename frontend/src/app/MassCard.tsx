@@ -43,8 +43,19 @@ function startOfToday(): Date {
   return at;
 }
 
-export function MassCard({ config, colSpan, rowSpan }: {
-  config: Record<string, string>;
+export function MassCard({ title, calendar, days: wanted, colSpan, rowSpan }: {
+  title: string;
+  calendar: string;
+
+  /**
+   * Wie viele Tage — oder `null`, wenn niemand es gesagt hat.
+   *
+   * <b>`null` ist nicht 7.</b> Ohne Angabe richtet sich die Zahl nach dem,
+   * was in die Kachel passt; eine Vorgabe daraus zu machen hiesse, jede
+   * flache Kachel mit sieben Tagen zu füllen, die sie nicht zeigen kann.
+   */
+  days: number | null;
+
   colSpan: number;
   rowSpan: number;
 }) {
@@ -56,12 +67,9 @@ export function MassCard({ config, colSpan, rowSpan }: {
    * will, bekommt sieben und eine Kachel, die scrollt, statt stillschweigend
    * drei.
    */
-  const wanted = Number.parseInt((config.days ?? '').trim(), 10);
-  const days = Number.isFinite(wanted) && wanted > 0
+  const days = wanted !== null && wanted > 0
     ? Math.min(wanted, 31)
     : massDays(shape, rowSpan);
-
-  const calendar = (config.calendar ?? '').trim();
 
   const [plan, setPlan] = useState<readonly PublicMass[] | null | undefined>(undefined);
 
@@ -81,8 +89,6 @@ export function MassCard({ config, colSpan, rowSpan }: {
 
     return () => { alive = false; };
   }, [calendar, days]);
-
-  const title = (config.title ?? '').trim();
 
   if (plan === undefined) {
     return <Frame title={title}><p className="wk-card-text">Wczytywanie…</p></Frame>;

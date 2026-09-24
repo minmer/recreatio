@@ -37,9 +37,12 @@ import { bindSeat, seatPath, type Link } from './seat';
 import { whoIsThere, WorkspaceError } from './session';
 import { detailsOf, personFieldOf, subjectsFor, type Subject } from './subject';
 
-export function FormCard({ partId, config }: {
+export function FormCard({ partId, title, portalUnder: under }: {
   partId: string;
-  config: Record<string, string>;
+  title: string;
+
+  /** Unter welcher Seite die Plätze hängen. Leer: eine Ebene höher. */
+  portalUnder: string;
 }) {
   const [form, setForm] = useState<PublicForm | null | undefined>(undefined);
   const [fields, setFields] = useState<readonly OpenField[]>([]);
@@ -166,7 +169,7 @@ export function FormCard({ partId, config }: {
     return () => { dropped = true; };
   }, [chosen, ring, fields]);
 
-  const title = (config.title ?? '').trim();
+
 
   if (form === undefined) return <p className="wk-card-text">Wczytywanie…</p>;
 
@@ -195,7 +198,7 @@ export function FormCard({ partId, config }: {
    * über dem Formular. Der Browser müsste dafür seinen eigenen Pfad kennen, und
    * `PageParts` gibt ihn bewusst nicht weiter.
    */
-  const under = (config.portalUnder ?? '').trim();
+
 
   /*
    * Woraus der Name auf dem Platz kommt.

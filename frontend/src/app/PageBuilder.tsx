@@ -32,7 +32,7 @@ import {
   MIN_COL_SPAN, MIN_ROW_SPAN, pixelSize, resized, snapColSpan, snapRowSpan, validCells, withFrame,
   type Breakpoint, type Frame, type Handle, type Layout
 } from './layout';
-import { CATALOG, moduleDef, moduleLabel } from './moduleKinds';
+import { PARTS, partLabel, partOf } from './parts/registry';
 import type { DraftPart } from './page';
 
 const ROW_H = 84;
@@ -119,13 +119,13 @@ export function PageBuilder({ parts, onChange: report, busy }: {
 
     if (id.startsWith('palette:')) {
       const kind = id.slice('palette:'.length);
-      const def = moduleDef(kind);
+      const def = partOf(kind);
       const size = {
-        colSpan: snapColSpan(def?.colSpan ?? MIN_COL_SPAN, columns),
-        rowSpan: snapRowSpan(def?.rowSpan ?? MIN_ROW_SPAN)
+        colSpan: snapColSpan(def?.box.colSpan ?? MIN_COL_SPAN, columns),
+        rowSpan: snapRowSpan(def?.box.rowSpan ?? MIN_ROW_SPAN)
       };
 
-      setDrag({ ...validCells(parts, size, columns, breakpoint), label: moduleLabel(kind), size });
+      setDrag({ ...validCells(parts, size, columns, breakpoint), label: partLabel(kind), size });
       return;
     }
 
@@ -138,7 +138,7 @@ export function PageBuilder({ parts, onChange: report, busy }: {
     // Der bewegte Baustein steht sich selbst nicht im Weg.
     setDrag({
       ...validCells(parts, size, columns, breakpoint, partId),
-      label: moduleLabel(part.kind),
+      label: partLabel(part.kind),
       size
     });
     setSelected(partId);
@@ -156,10 +156,10 @@ export function PageBuilder({ parts, onChange: report, busy }: {
 
     if (active.startsWith('palette:')) {
       const kind = active.slice('palette:'.length);
-      const def = moduleDef(kind);
+      const def = partOf(kind);
       const size = {
-        colSpan: snapColSpan(def?.colSpan ?? MIN_COL_SPAN, columns),
-        rowSpan: snapRowSpan(def?.rowSpan ?? MIN_ROW_SPAN)
+        colSpan: snapColSpan(def?.box.colSpan ?? MIN_COL_SPAN, columns),
+        rowSpan: snapRowSpan(def?.box.rowSpan ?? MIN_ROW_SPAN)
       };
 
       if (!canPlace(parts, { position, size }, columns, breakpoint)) return;
@@ -289,7 +289,9 @@ export function PageBuilder({ parts, onChange: report, busy }: {
         onDragEnd={onDragEnd}
       >
         <div className="pb-palette">
-          {CATALOG.map((m) => <Pill key={m.kind} kind={m.kind} label={m.label} />)}
+          {PARTS.map((one) => (
+            <Pill key={one.kind} kind={one.kind} label={one.label} use={one.use} />
+          ))}
         </div>
 
         {/* Die Zeichenfläche wird schmaler, nicht nur spaltenärmer. */}
@@ -364,7 +366,15 @@ function ghostStyle(size: { colSpan: number; rowSpan: number }, cell: number): C
   return { width: `${width}px`, height: `${height}px` };
 }
 
-function Pill({ kind, label }: { kind: string; label: string }) {
+/**
+ * Ein Baustein in der Ablage — mit dem Satz, WOZU er da ist.
+ *
+ * <b>Der Name allein genügte nicht.</b> „Formularz" sagt, was es ist, und
+ * nicht, wann man es nimmt; wer elf Namen nebeneinander sieht, rät. Der Satz
+ * steht am Baustein selbst (`use`), nicht in dieser Liste — sonst hätte die
+ * nächste Liste ihn wieder nicht.
+ */
+function Pill({ kind, label, use }: { kind: string; label: string; use: string }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `palette:${kind}` });
 
   return (
@@ -372,10 +382,12 @@ function Pill({ kind, label }: { kind: string; label: string }) {
       ref={setNodeRef}
       type="button"
       className={`pb-pill${isDragging ? ' is-dragging' : ''}`}
+      title={use}
       {...listeners}
       {...attributes}
     >
-      {label}
+      <span className="pb-pill-name">{label}</span>
+      <span className="pb-pill-use">{use}</span>
     </button>
   );
 }
@@ -419,7 +431,7 @@ function Item({ part, frame, columns, selected, onSelect, onResizeStart, onRemov
       {...listeners}
       {...attributes}
     >
-      <span className="pb-item-name">{moduleLabel(part.kind)}</span>
+      <span className="pb-item-name">{partLabel(part.kind)}</span>
       <span className="pb-item-size">{colSpan}×{rowSpan}</span>
       {empty && <span className="pb-item-todo">do uzupełnienia</span>}
 
@@ -456,7 +468,7 @@ function Fields({ part, busy, onSet }: {
   busy: boolean;
   onSet: (key: string, value: string) => void;
 }) {
-  const def = moduleDef(part.kind);
+  const def = partOf(part.kind);
 
   if (def === undefined) {
     return (

@@ -25,18 +25,32 @@ import { useCallback, useEffect, useState } from 'react';
 import { loadAreas, type AreaRow } from './area';
 import { newId } from './ids';
 import {
-  CATALOG, createModule, loadModules, moduleLabel, removeModule, SUBJECT_LABEL, SUBJECTS,
-  takesEntries, updateModule, type Subject,
-  type ModuleRow
-} from './moduleKinds';
+  createModule, loadModules, removeModule, SUBJECT_LABEL, SUBJECTS,
+  updateModule, type Subject, type ModuleRow
+} from './module';
+import { PARTS, partLabel, takesEntries } from './parts/registry';
+import { useCrumbs } from './crumbTrail';
+import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 
+/**
+ * Welches der beiden Bilder dasteht — AUS DER ADRESSE, wie bei den Bereichen.
+ *
+ * <b>`#/workspace/modules/new`.</b> Als Zustand im Speicher liess sich das
+ * Anlegen nicht verschicken, ein Neuladen warf einen heraus, und der
+ * Zurück-Pfeil des Browsers verliess den Arbeitsplatz statt das Formular.
+ */
 type View = { readonly at: 'list' } | { readonly at: 'new' };
 
-export function Modules({ who: _who }: { who: Who }) {
+const NEW = 'new';
+
+export function Modules({ who: _who, trail }: { who: Who; trail: readonly string[] }) {
   const [modules, setModules] = useState<readonly ModuleRow[] | null | undefined>(undefined);
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
-  const [view, setView] = useState<View>({ at: 'list' });
+  const view: View = trail[0] === NEW ? { at: NEW } : { at: 'list' };
+
+  /* Was offen ist, steht oben im Weg — und nur das. */
+  useCrumbs(view.at === NEW ? [{ label: 'Nowy moduł', href: null }] : []);
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -89,17 +103,12 @@ export function Modules({ who: _who }: { who: Who }) {
   if (view.at === 'new') {
     return (
       <>
-        <p>
-          <button type="button" className="wk-link-btn" onClick={() => setView({ at: 'list' })}>
-            ← Wszystkie moduły
-          </button>
-        </p>
         {head}
         <NewModule
           areas={areas}
           busy={busy !== null}
           onAct={act}
-          onDone={() => setView({ at: 'list' })}
+          onDone={() => { window.location.hash = viewPath('modules'); }}
         />
       </>
     );
@@ -134,9 +143,7 @@ export function Modules({ who: _who }: { who: Who }) {
       )}
 
       <div className="wk-actions">
-        <button type="button" className="wk-btn" onClick={() => setView({ at: 'new' })}>
-          Nowy moduł
-        </button>
+        <a className="wk-btn" href={viewPath('modules', NEW)}>Nowy moduł</a>
       </div>
     </>
   );
@@ -172,7 +179,7 @@ function ModuleRowView({ module: row, areas, open, busy, onOpen, onAct }: {
         </button>
 
         <span className="wk-row-side">
-          {' · '}{moduleLabel(row.kind)}
+          {' · '}{partLabel(row.kind)}
           {row.areaName !== null ? <> · {row.areaName}</> : <> · bez obszaru</>}
           {row.usedOnPages === 0
             ? <> · nigdzie nie stoi</>
@@ -291,7 +298,7 @@ function NewModule({ areas, busy, onAct, onDone }: {
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
   onDone: () => void;
 }) {
-  const [kind, setKind] = useState(CATALOG[0]?.kind ?? 'text');
+  const [kind, setKind] = useState(PARTS[0]?.kind ?? 'text');
   const [name, setName] = useState('');
   const [areaId, setAreaId] = useState('');
   const [forKind, setForKind] = useState<Subject>('person');
@@ -319,12 +326,12 @@ function NewModule({ areas, busy, onAct, onDone }: {
           .then(onDone);
       }}
     >
-      <h2 className="wk-h1">Nowy moduł</h2>
+      <h1 className="wk-h1">Nowy moduł</h1>
 
       <label className="wk-field">
         <span>Rodzaj</span>
         <select value={kind} onChange={(e) => setKind(e.target.value)}>
-          {CATALOG.map((c) => (
+          {PARTS.map((c) => (
             <option key={c.kind} value={c.kind}>{c.label}</option>
           ))}
         </select>

@@ -20,6 +20,12 @@
 
   /* Bestätigt — neben einer Angabe, nie als einziges Zeichen (0030/0031). */
   --wk-ok: #2f6b3a;
+
+  /* Eine Fläche, die sich abhebt, ohne eine Kante zu ziehen — Plättchen,
+     Reiterleisten, die Zeile unter dem Zeiger. Sie muss in BEIDEN Themen
+     definiert sein: eine Farbe, die nur im hellen steht, färbt im dunklen
+     nichts und lässt die Fläche verschwinden. */
+  --wk-soft: #efebe3;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -31,6 +37,7 @@
     --wk-line: #353027;
     --wk-accent: #d3a25e;
     --wk-ok: #7fc68d;
+    --wk-soft: #272319;
   }
 }
 
@@ -250,28 +257,8 @@ code {
 
 .wk-empty { margin: 0; font-size: 0.92rem; color: var(--wk-muted); }
 
-/* -- Eine Kachel ganz ------------------------------------------------------ */
-
-.wk-view-head { display: flex; align-items: center; gap: 0.7rem; }
-
-.wk-back {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  flex: none;
-  border: 1px solid var(--wk-line);
-  border-radius: 3px;
-  background: var(--wk-surface);
-  color: var(--wk-accent);
-  font-size: 1.1rem;
-  line-height: 1;
-  text-decoration: none;
-}
-
-.wk-back:hover { border-color: var(--wk-accent); }
-.wk-back:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+/* `.wk-view-head` und `.wk-back` standen hier, bis der Weg in den Kopf zog.
+   Der Pfeil ist jetzt `.wk-crumb-up` — eine Stelle, ein Pfeil. */
 
 .wk-h2 { margin: 1.6rem 0 0; font-size: 1.05rem; font-weight: 600; }
 
@@ -486,9 +473,21 @@ code {
 
 .pb-palette { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 
+/*
+   Ein Baustein in der Ablage sagt, WOZU er da ist — nicht nur, wie er heisst.
+   Elf Namen nebeneinander lassen raten; elf Namen mit je einer Zeile nicht.
+
+   Deshalb zwei Zeilen statt einer, und deshalb ein Raster: der Name oben,
+   der Satz darunter, beide linksbündig — zentriert würde der Satz zu einer
+   Bildunterschrift.
+*/
 .pb-pill {
   font: inherit;
-  padding: 0.35rem 0.7rem;
+  display: grid;
+  gap: 0.1rem;
+  text-align: left;
+  max-width: 14rem;
+  padding: 0.4rem 0.7rem;
   border: 1px dashed var(--wk-line);
   border-radius: 3px;
   background: var(--wk-surface);
@@ -496,6 +495,12 @@ code {
   cursor: grab;
   touch-action: none;
 }
+
+.pb-pill-name { font-weight: 600; }
+
+/* Leiser als der Name: er ist die Antwort auf eine Frage, die man nur beim
+   ersten Mal stellt. */
+.pb-pill-use { font-size: 0.72rem; line-height: 1.35; color: var(--wk-muted); }
 
 .pb-pill:hover { border-color: var(--wk-accent); }
 .pb-pill.is-dragging { opacity: 0.4; }
@@ -818,7 +823,36 @@ code {
    hinauszudraengen.
    ------------------------------------------------------------------------ */
 
-.wk-crumbs { min-width: 0; font-size: 0.88rem; }
+.wk-crumbs {
+  min-width: 0;
+  font-size: 0.88rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+/* Der Pfeil eine Stufe hinauf. Er steht VOR dem Weg, weil er aus ihm
+   heraus führt — und er ist gross genug zum Tippen: ein Ziel unter 2rem
+   trifft auf einem Telefon niemand. */
+.wk-crumb-up {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  align-self: center;
+  border: 1px solid var(--wk-line);
+  border-radius: 3px;
+  background: var(--wk-surface);
+  color: var(--wk-accent);
+  font-size: 1rem;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.wk-crumb-up:hover { border-color: var(--wk-accent); }
+.wk-crumb-up:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
 
 .wk-crumbs ol {
   list-style: none;
@@ -909,4 +943,273 @@ code {
   .wk-top-in { flex-wrap: wrap; }
   .wk-crumbs { order: 3; flex-basis: 100%; }
   .wk-who { order: 2; }
+}
+
+/* ===========================================================================
+   OBSZARY — die Bauteile, die diese Ansicht braucht
+
+   Absichtlich allgemein benannt: ein Reiter, ein Plättchen, ein Feld mit
+   Abteilungen sind nichts Bereichseigenes. Die nächste Ansicht, die das
+   braucht, soll es nehmen und nicht nachbauen.
+   =========================================================================== */
+
+/* -- Der Baum ------------------------------------------------------------- */
+
+/*
+   Die TIEFE steht an der Zeile (`--depth`), nicht im Markup: die Liste kommt
+   flach aus `inOrder`, weil verschachtelte Listen eine zweite Struktur neben
+   `parent_area_id` wären.
+*/
+.wk-tree-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  /* Auf einem Telefon bricht die Zeile, statt die Plaettchen hinauszuschieben:
+     was dann fehlte, waere genau die Auskunft, wegen der sie dastehen. */
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  padding: 0.55rem 0.7rem;
+  padding-left: calc(0.7rem + var(--depth, 0) * 1.25rem);
+  border-radius: 0.4rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+/*
+   Der Strich, der sagt: das liegt DARIN. Er steht genau an der Kante, an der
+   die Einrückung beginnt.
+
+   `opacity: min(var(--depth), 1)` ist die ganze Bedingung — bei Tiefe 0 wird
+   er 0 und ist fort, ab 1 steht er. Eine zweite Klasse dafür wäre dieselbe
+   Zahl ein zweites Mal, und die beiden liefen auseinander.
+*/
+.wk-tree-row::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--depth, 0) * 1.25rem);
+  top: 0.15rem;
+  bottom: 0.15rem;
+  width: 1px;
+  background: var(--wk-line);
+  opacity: min(var(--depth, 0), 1);
+}
+
+.wk-tree-row:hover { background: var(--wk-soft); }
+.wk-tree-row:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+
+.wk-tree-name {
+  font-weight: 600;
+
+  /* Ein langer Name schiebt die Plättchen nicht hinaus, er bricht. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Was ICH hier darf — ganz rechts, leise. Es ist die Antwort auf eine Frage,
+   die man beim Überfliegen nicht stellt. */
+.wk-tree-mine {
+  margin-left: auto;
+  flex: none;
+  font-size: 0.8rem;
+  color: var(--wk-muted);
+}
+
+/* Das Anlegen steht am ENDE der Liste, in derselben Zeilenform — dort, wo die
+   Dinge sind, und nicht in einer Leiste darüber. */
+.wk-tree-add {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.4rem;
+  color: var(--wk-accent);
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+
+.wk-tree-add:hover { background: var(--wk-soft); }
+.wk-tree-add:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+
+/* -- Plättchen ------------------------------------------------------------- */
+
+/*
+   Sie stehen nur da, wo etwas VOM NORMALFALL ABWEICHT. Eines an jeder Zeile
+   wäre keines: stünde „zamknięty" überall, liesse sich das Offene nicht mehr
+   herauslesen.
+*/
+.wk-tags { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; min-width: 0; }
+
+.wk-tag {
+  display: inline-block;
+  padding: 0.08rem 0.45rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-soft);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--wk-muted);
+  white-space: nowrap;
+}
+
+/* Offen nach aussen. Farbe NEBEN dem Wort und nicht statt seiner: wer die
+   beiden Grüntöne nicht unterscheidet, liest „jawny". */
+.wk-tag-open {
+  border-color: var(--wk-ok);
+  color: var(--wk-ok);
+  background: transparent;
+}
+
+/* -- Die Angaben zu einem Bereich ------------------------------------------ */
+
+/*
+   Vier Felder statt eines Satzes mit Trennpunkten. „epoka 3 · masz 2 ·
+   prowadzisz" musste man LESEN, um drei Angaben zu erfahren.
+*/
+.wk-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 2.2rem;
+  margin: 0.9rem 0 1.4rem;
+}
+
+.wk-fact { min-width: 0; }
+
+.wk-fact dt {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wk-muted);
+}
+
+.wk-fact dd {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.1rem 0 0;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* -- Reiter ---------------------------------------------------------------- */
+
+/*
+   Echte Reiter und keine Knöpfe. Vorher trug der gewählte Abschnitt dasselbe
+   Aussehen wie „Załóż obszar" — er sah aus wie etwas, das man TUT, und nicht
+   wie der Ort, an dem man steht.
+*/
+.wk-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  border-bottom: 1px solid var(--wk-line);
+}
+
+.wk-tab {
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.45rem 0.8rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+
+.wk-tab:hover { color: var(--wk-ink); }
+.wk-tab:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+
+.wk-tab-on {
+  color: var(--wk-ink);
+  font-weight: 600;
+  border-bottom-color: var(--wk-accent);
+}
+
+.wk-panel { padding-top: 1.1rem; display: grid; gap: 0.9rem; }
+
+/* -- Ein Feld mit Abteilungen ---------------------------------------------- */
+
+/*
+   Vorher war die GEWÄHLTE Stufe ein gefüllter Knopf und die übrigen
+   unterstrichene Verweise — das Eingeschaltete sah aus wie das, was man
+   drücken soll. Hier ist eines eingeschaltet und die anderen sind die Wahl.
+*/
+.wk-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--wk-line);
+  border-radius: 0.4rem;
+  overflow: hidden;
+  align-self: start;
+}
+
+.wk-seg-opt {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem 0.85rem;
+  border: 0;
+  border-left: 1px solid var(--wk-line);
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+
+.wk-seg-opt:first-child { border-left: 0; }
+.wk-seg-opt:hover:not(:disabled) { background: var(--wk-soft); }
+.wk-seg-opt:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+
+/* Eingeschaltet — und deshalb NICHT drückbar. `:disabled` blasst hier nicht
+   ab: es ist kein abgeschalteter Knopf, sondern der Zustand selbst. */
+.wk-seg-on,
+.wk-seg-on:disabled {
+  background: var(--wk-accent);
+  border-left-color: var(--wk-accent);
+  color: #fff;
+  opacity: 1;
+  cursor: default;
+}
+
+.wk-seg-opt:disabled:not(.wk-seg-on) { opacity: 0.45; cursor: default; }
+
+/* -- Wer im Bereich steht --------------------------------------------------- */
+
+.wk-people { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }
+
+.wk-person {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.4rem;
+}
+
+.wk-person:hover { background: var(--wk-soft); }
+
+.wk-person-who { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+
+/* Die Kennung, wenn der Name verschlossen bleibt. Sie steht leise da: sie ist
+   kein Name, sondern das Eingeständnis, dass wir keinen haben. */
+.wk-person-id { font-size: 0.85rem; color: var(--wk-muted); }
+
+.wk-person-can { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-left: auto; }
+
+/* -- Zwei Zeilen, die es noch nicht gab ------------------------------------- */
+
+/* Läuft gerade. Leise, weil es von selbst vorbeigeht. */
+.wk-working { margin: 0; font-size: 0.88rem; color: var(--wk-muted); }
+
+/*
+   Eine Warnung, die bleibt — nicht ein Fehler, der vorbeigeht. Der Streifen
+   links trägt sie, damit sie nicht wie ein Hinweis unter vielen aussieht.
+*/
+.wk-warn {
+  margin: 0;
+  padding: 0.5rem 0.8rem;
+  border-left: 3px solid var(--wk-accent);
+  background: var(--wk-soft);
+  border-radius: 0 0.3rem 0.3rem 0;
+  font-size: 0.88rem;
+  color: var(--wk-ink);
 }
