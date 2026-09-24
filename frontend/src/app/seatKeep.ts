@@ -39,6 +39,16 @@ interface Held {
   /** Base64URL — hier liegt kein Byte-Feld, sondern Text. */
   readonly key: string;
 
+  /**
+   * Zu WELCHER Seite dieser Platz gehört — aus dem Link, der ihn brachte.
+   *
+   * <b>Damit eine Seite ihren Platz findet, ohne zu fragen.</b> Sonst
+   * müsste jede öffentliche Seite für jeden behaltenen Platz beim Dienst
+   * nachschlagen, wohin er gehört — zwölf Aufrufe, um meistens nichts zu
+   * finden. Im Link steht es ohnehin: alles vor `portal` ist die Seite.
+   */
+  readonly under: string | null;
+
   /** Wann er zuletzt gebraucht wurde. Der älteste weicht zuerst. */
   readonly at: number;
 }
@@ -77,12 +87,52 @@ function write(held: readonly Held[]): void {
   }
 }
 
-/** Den Schlüssel zu diesem Platz behalten — oder seinen Zeitstempel auffrischen. */
-export function remember(token: string, key: Uint8Array): void {
-  const now = Date.now();
-  const mine = { token, key: toBase64Url(key), at: now };
+/**
+ * Den Schlüssel zu diesem Platz behalten — oder seinen Zeitstempel auffrischen.
+ *
+ * <b>`under` nur, wenn es bekannt ist.</b> Wer aus dem Link kommt, weiss es;
+ * wer den Platz später noch einmal öffnet, nicht unbedingt — und dann soll
+ * das, was schon dasteht, nicht mit `null` überschrieben werden.
+ */
+export function remember(token: string, key: Uint8Array, under?: string | null): void {
+  const held = read();
+  const was = held.find((one) => one.token === token);
 
-  write([mine, ...read().filter((one) => one.token !== token)]);
+  const mine: Held = {
+    token,
+    key: toBase64Url(key),
+    under: under === undefined ? was?.under ?? null : under,
+    at: Date.now()
+  };
+
+  write([mine, ...held.filter((one) => one.token !== token)]);
+}
+
+/**
+ * DER PLATZ, DER ZU DIESER SEITE GEHÖRT — oder `null`.
+ *
+ * <b>Erst genau, dann grosszügig.</b> Steht ein Platz genau unter dieser
+ * Seite, ist er gemeint. Sonst der zuletzt gebrauchte desselben Hauses —
+ * denn „mein Eigenes auch auf einer anderen Seite der Pfarrei" ist der
+ * ganze Zweck.
+ *
+ * <b>Aber nicht über Häuser hinweg.</b> Der Platz eines Schülers darf sich
+ * nicht auf der Seite einer fremden Pfarrei auftun: derselbe Browser, zwei
+ * Welten. Der erste Schritt der Adresse trennt sie.
+ */
+export function seatFor(path: string): string | null {
+  const held = [...read()].sort((a, b) => b.at - a.at);
+
+  const exact = held.find((one) => one.under === path);
+  if (exact !== undefined) return exact.token;
+
+  const house = path.split('/')[0];
+  if (house === undefined || house === '') return null;
+
+  const same = held.find((one) =>
+    one.under !== null && one.under.split('/')[0] === house);
+
+  return same?.token ?? null;
 }
 
 /**
@@ -163,7 +213,10 @@ export function keepFromAddress(hash: string): string | null {
   if (token === '' || key === '') return null;
 
   try {
-    remember(token, fromBase64Url(key));
+    /* Alles VOR dem Wegweiser ist die Seite — bei `#/seat/…` ist es nichts. */
+    const under = at === 0 ? null : segments.slice(0, at).join('/');
+
+    remember(token, fromBase64Url(key), under);
   } catch {
     /* Kein lesbarer Schlüssel. Dann steht er auch nicht in der Adresse
        herum — was nicht aufgeht, nützt dort niemandem. */
@@ -190,9 +243,14 @@ export function keepFromAddress(hash: string): string | null {
  * `null` heisst: dieser Browser hält ihn nicht. Dann gibt es hier keinen Link
  * mehr, und das ist die Wahrheit — der alte gilt weiter, aber er steht woanders.
  */
-export function linkTo(token: string, under: string | null): string | null {
+export function linkTo(token: string, under?: string | null): string | null {
   const key = recall(token);
   if (key === null) return null;
+
+  /* Die mitgegebene Seite gilt; sonst die, die beim Platz steht. */
+  const where = under === undefined
+    ? read().find((one) => one.token === token)?.under ?? null
+    : under;
 
   const tail = `${encodeURIComponent(token)}/${encodeURIComponent(toBase64Url(key))}`;
 
@@ -202,7 +260,7 @@ export function linkTo(token: string, under: string | null): string | null {
    * über eine Form, die schon eine hat — aber `seatPath` nimmt einen `Link`,
    * und hier liegt ein Schlüssel. Wer die eine ändert, ändert die andere mit.
    */
-  return under === null || under === ''
+  return where === null || where === ''
     ? `#/seat/${tail}`
-    : `#/${under.split('/').map(encodeURIComponent).join('/')}/portal/${tail}`;
+    : `#/${where.split('/').map(encodeURIComponent).join('/')}/portal/${tail}`;
 }

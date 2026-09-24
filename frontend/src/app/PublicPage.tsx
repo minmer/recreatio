@@ -9,12 +9,21 @@
  * steht etwas" sehen verschieden aus. Wer die ersten beiden zusammenwirft,
  * zeigt jedem Besucher für einen Moment eine leere Seite — und wer sie
  * wegklickt, bevor der Text da ist, kommt nicht wieder.
+ *
+ * <b>Und wer seinen Platz hier hat, sieht ihn auch hier.</b> Der
+ * Platzschlüssel liegt im Browser (`seatKeep`), nicht in der Adresse — also
+ * gilt er auf der ganzen Adresse und nicht nur auf der einen Seite, über die
+ * man hereinkam. Vorher ging alles wieder zu, sobald man eine Seite
+ * weiterging, und es sah aus, als hätte man den Link nie geöffnet.
  */
 
 import { useEffect, useState } from 'react';
 
 import { loadPage, toDraft, type PageContent } from './page';
 import { PageParts } from './PageParts';
+import { SeatContext } from './seatContext';
+import { seatFor } from './seatKeep';
+import { useSeat } from './seatView';
 import { WorkspaceError } from './session';
 import { loadSite } from './site';
 
@@ -78,9 +87,40 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
       {page.title !== null && <h1 className="wk-h1">{page.title}</h1>}
       {page.lead !== null && <p className="wk-lede wk-page-lead">{page.lead}</p>}
 
-      <PageParts parts={parts} />
+      <WithSeat path={page.path}>
+        <PageParts parts={parts} />
+      </WithSeat>
     </>
   );
+}
+
+/**
+ * Hält dieser Browser einen Platz, der auf diese Seite gehört? Dann gilt er.
+ *
+ * <b>Ohne Platz ändert sich nichts.</b> `SeatContext` steht dann auf `null`,
+ * wie bisher, und die persönlichen Bausteine sagen, was hier erscheinen wird.
+ *
+ * <b>Und es wird nichts geholt, wenn nichts zu holen ist.</b> Wer keinen
+ * Platz hält — also fast jeder Besucher — löst keinen einzigen Aufruf aus:
+ * welcher Platz zu welcher Seite gehört, steht im Browser neben dem
+ * Schlüssel und muss nicht erfragt werden.
+ */
+function WithSeat({ path, children }: { path: string; children: React.ReactNode }) {
+  const token = seatFor(path);
+
+  return token === null
+    ? <>{children}</>
+    : <Opened token={token}>{children}</Opened>;
+}
+
+/*
+ * Ein eigenes Bauteil, weil ein Haken nicht bedingt aufgerufen werden darf.
+ * Ohne es stünde `useSeat` hinter einem `if`, und React zählt Haken.
+ */
+function Opened({ token, children }: { token: string; children: React.ReactNode }) {
+  const { seat } = useSeat(token, null);
+
+  return <SeatContext.Provider value={seat}>{children}</SeatContext.Provider>;
 }
 
 export default PublicPage;

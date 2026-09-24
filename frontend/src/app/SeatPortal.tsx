@@ -25,34 +25,21 @@
  * aufgemacht wird sie hier.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { loadPublicKey } from './area';
-import { loadPublic, type Occurrence } from './calendar';
-import { fromBase64Url, openText } from './crypto';
 import type { SealedRole } from './keys';
-import { Field, aad } from './crypto';
 import { keysFor } from './ringOf';
-import { openSubmitted } from './form';
-import { bindSeat, loadPortal, openGrants, openPortal, type Portal } from './seat';
-import { linkTo, recall, remember } from './seatKeep';
+import { bindSeat } from './seat';
+import { linkTo } from './seatKeep';
 import { pagePath } from './routes';
 import { PageParts } from './PageParts';
 import { toDraft } from './page';
-import { SeatContext, type SeatView } from './seatContext';
+import { SeatContext } from './seatContext';
+import { useSeat } from './seatView';
 import { Submission } from './Submission';
 import { whoIsThere, WorkspaceError, type Who } from './session';
 
-interface Shared {
-  readonly name: string;
-  readonly when: string;
-  readonly what: string | null;
-}
 
-/** Was nicht aufgeht, ist `null` — ein kaputter Link ist kein Absturz. */
-function quiet<T>(todo: () => T): T | null {
-  try { return todo(); } catch { return null; }
-}
 
 export function SeatPortal({ token, keyText, under }: {
   token: string;
@@ -60,15 +47,25 @@ export function SeatPortal({ token, keyText, under }: {
   /** Die Seite, unter der dieser Platz hängt — `lo13`. */
   under: string | null;
 }) {
-  const [portal, setPortal] = useState<Portal | null | undefined>(undefined);
-  const [note, setNote] = useState<string | null>(null);
-  const [seatKey, setSeatKey] = useState<Uint8Array | null>(null);
-  const [shared, setShared] = useState<readonly Shared[]>([]);
+  /*
+   * DER PLATZ SELBST — aufgemacht von `useSeat`, das auch jede öffentliche
+   * Seite benutzt. Hier stand er einmal ganz ausgeschrieben, und genau
+   * deshalb galt er nur hier.
+   */
+  const { portal, failed, seat, reload } = useSeat(token, keyText);
 
-  /** Was er selbst eingetragen hat — Frage und Antwort, beide aufgemacht. */
-  const [mine, setMine] = useState<readonly { fieldId: string; label: string | null; value: string | null }[]>([]);
-  const [sharedNames, setSharedNames] = useState<readonly string[]>([]);
-  const [failed, setFailed] = useState<string | null>(null);
+  /* Was der Haken aufgemacht hat — oder nichts. */
+  const seatKey = seat?.seatKey ?? null;
+
+  /* Eine eigene Meldung fürs Binden: die des Hakens gehört dem Aufmachen. */
+  const [mishap, setMishap] = useState<string | null>(null);
+
+  /* Dieselben Angaben, nur aus einer Hand. Sie standen hier als eigene
+     Zustände, und genau deshalb liessen sie sich nirgends sonst benutzen. */
+  const note = seat?.note ?? null;
+  const mine = seat?.opened ?? [];
+  const shared = seat?.shared ?? [];
+  const sharedNames = seat?.sharedNames ?? [];
 
   const [who, setWho] = useState<Who | null | undefined>(undefined);
   const [persons, setPersons] = useState<readonly SealedRole[]>([]);
@@ -76,104 +73,7 @@ export function SeatPortal({ token, keyText, under }: {
   const [busy, setBusy] = useState(false);
   const [bound, setBound] = useState(false);
 
-  const look = useCallback(async () => {
-    try {
-      const found = await loadPortal(token);
-      setPortal(found);
-      setFailed(null);
-      setSharedNames(found.grants.map((g) => g.areaName));
 
-      /*
-       * AUS DEM LINK ODER AUS DEM BROWSER — in dieser Reihenfolge.
-       *
-       * Der Link gilt, wenn einer da ist: wer einen NEUEN bekommen hat
-       * (`relink`), soll den neuen benutzen und nicht den alten, der noch
-       * herumliegt. Sonst der behaltene, und das ist der Normalfall — nach
-       * dem ersten Mal steht er nicht mehr in der Adresse.
-       */
-      const fromLink = keyText === null ? null : quiet(() => fromBase64Url(keyText));
-      const held = fromLink ?? recall(token);
-
-      if (held === null) return;
-
-      let key: Uint8Array;
-      try {
-        const opened = await openPortal(found, held);
-        key = opened.seatKey;
-        setSeatKey(key);
-
-        /* Er geht auf — also ist er der richtige, und er darf bleiben. */
-        remember(token, held);
-        setNote(opened.personal);
-      } catch {
-        setSeatKey(null);
-        setNote(null);
-        return;
-      }
-
-      /*
-       * WAS ER SELBST EINGETRAGEN HAT (0027) — beim Firmling sein Formular.
-       *
-       * Der Wert hängt am Platz, die FRAGE dagegen an der Epoche des Bereichs.
-       * Die liegt bei einem öffentlichen Formular offen — sonst hätte er es nie
-       * ausfüllen können. Bleibt sie zu, steht die Antwort trotzdem da, nur
-       * ohne Beschriftung.
-       */
-      if (found.submitted.length > 0) {
-        const epochs = new Map<string, Uint8Array>();
-
-        for (const areaId of new Set(found.submitted.map((s) => s.areaId))) {
-          try {
-            epochs.set(areaId, fromBase64Url((await loadPublicKey(areaId)).key));
-          } catch {
-            // Nicht offengelegt. Die Antwort bleibt lesbar, die Frage nicht.
-          }
-        }
-
-        setMine(await openSubmitted(found.submitted, key, epochs));
-      }
-
-      /*
-       * Das Gemeinsame. Der Klassenschlüssel steckt im Platz; das Token sagt
-       * dem Dienst, welche Bereiche er herausgeben darf — der Schlüssel selbst
-       * geht nie hinaus.
-       */
-      const keys = await openGrants(found.grants, key);
-      const rows: Shared[] = [];
-
-      const from = new Date();
-      from.setHours(0, 0, 0, 0);
-      const to = new Date(from);
-      to.setDate(to.getDate() + 30);
-
-      for (const grant of found.grants) {
-        const classKey = keys.get(grant.areaId);
-        if (classKey === undefined) continue;
-
-        for (const calendar of grant.calendars) {
-          let days;
-          try { days = await loadPublic(calendar.calendarId, from, to, undefined, token); }
-          catch { continue; }
-
-          for (const one of days.occurrences) {
-            rows.push({
-              name: grant.areaName,
-              when: one.startsAt,
-              what: await titleOf(one, classKey.key)
-            });
-          }
-        }
-      }
-
-      rows.sort((a, b) => a.when.localeCompare(b.when));
-      setShared(rows);
-    } catch (e) {
-      setPortal(null);
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć.');
-    }
-  }, [token, keyText]);
-
-  useEffect(() => { void look(); }, [look]);
 
   useEffect(() => {
     let alive = true;
@@ -204,13 +104,13 @@ export function SeatPortal({ token, keyText, under }: {
     if (person === undefined) return;
 
     setBusy(true);
-    setFailed(null);
+    setMishap(null);
 
     try {
       await bindSeat(token, portal.seatId, seatKey, person);
       setBound(true);
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się przypisać.');
+      setMishap(e instanceof WorkspaceError ? e.message : 'Nie udało się przypisać.');
     } finally {
       setBusy(false);
     }
@@ -239,19 +139,6 @@ export function SeatPortal({ token, keyText, under }: {
    * Übergangszustand, den man später wegräumt: ein Platz, den jemand ohne
    * Vorlage ausgestellt hat, soll trotzdem etwas zeigen.
    */
-  const seat: SeatView = {
-    token,
-    seatKey,
-    recipientName: portal.recipientName,
-    note,
-    submitted: portal.submitted,
-    opened: mine,
-    shared,
-    sharedNames,
-    expiresAt: portal.expiresAt,
-    reload: () => void look()
-  };
-
   const template = portal.template;
 
   return (
@@ -285,7 +172,7 @@ export function SeatPortal({ token, keyText, under }: {
         </p>
       )}
 
-      {failed !== null && <p className="wk-error">{failed}</p>}
+      {(failed ?? mishap) !== null && <p className="wk-error">{failed ?? mishap}</p>}
 
       {/*
         DIE VORLAGE, wenn es eine gibt — und dann NUR sie. Beides zu zeigen
@@ -344,7 +231,7 @@ export function SeatPortal({ token, keyText, under }: {
               open={mine}
               token={token}
               seatKey={seatKey}
-              onSaved={() => void look()}
+              onSaved={() => reload()}
             />
           )}
         </Zone>
@@ -469,23 +356,6 @@ function Zone({ title, who, children }: {
   );
 }
 
-/** Der Titel eines Eintrags — offen, wenn er offen ist, sonst aufgemacht. */
-async function titleOf(one: Occurrence, key: Uint8Array): Promise<string | null> {
-  if (one.titlePublic !== null && one.titlePublic !== '') return one.titlePublic;
-
-  const sealed = one.fields.find((f) => f.field === 'title');
-  if (sealed === undefined) return null;
-
-  try {
-    return await openText(
-      key,
-      aad('calendar', 'item', one.itemId, Field.CalendarEventTitle, 1),
-      fromBase64Url(sealed.sealed)
-    );
-  } catch {
-    return null;
-  }
-}
 
 /**
  * DER EIGENE LINK, auf Verlangen.

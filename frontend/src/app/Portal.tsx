@@ -132,6 +132,31 @@ export function Portal({ moduleId, onPage, portalUnder, ownerRoleId, onSet }: {
     ? []
     : pages.filter((one) => mayCarry(onPage, one.path));
 
+  /*
+   * WELCHE SEITE DER LINK WIRKLICH ÖFFNET.
+   *
+   * Ohne Einstellung leitet der Dienst sie ab: eine Ebene höher, und wenn
+   * es die nicht gibt, die Seite mit dem Bogen (`Form.Above`). Das ist eine
+   * Regel, auf die niemand von selbst kommt — also steht hier nicht „o
+   * poziom wyżej", sondern die Adresse, die dabei herauskommt.
+   *
+   * <b>Dieselbe Ableitung ein zweites Mal, und das ist der Preis.</b> Sie
+   * steht im Dienst, weil sie dort gilt; hier steht sie, damit man sie
+   * VORHER sieht. Laufen sie auseinander, zeigt diese Zeile das Falsche —
+   * deshalb steht der Name der Gegenstelle im Kommentar.
+   */
+  const derived = (() => {
+    if (onPage === null) return null;
+
+    const cut = onPage.lastIndexOf('/');
+    if (cut < 0) return onPage;
+
+    const above = onPage.slice(0, cut);
+    return pages.some((one) => one.path === above) ? above : onPage;
+  })();
+
+  const opens = has ? portalUnder : derived;
+
   const said = (e: unknown) =>
     setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
 
@@ -203,8 +228,15 @@ export function Portal({ moduleId, onPage, portalUnder, ownerRoleId, onSet }: {
           wyżej" ist keine Regel, auf die jemand von selbst kommt.
         */
         <p className="wk-hint">
-          Nikt tego jeszcze nie ustawił. Kto wyśle, trafia teraz na stronę
-          o poziom wyżej — a jeśli jej nie ma, na tę z formularzem.
+          Nikt tego jeszcze nie ustawił — więc link otworzy stronę o poziom
+          wyżej, a jeśli jej nie ma, tę z formularzem.
+        </p>
+      )}
+
+      {opens !== null && (
+        <p className="wk-warn">
+          Link otwiera <code>recreatio.pl/{opens}</code>
+          {!has && ' — tak wychodzi z ustawień, nikt tego nie wybrał.'}
         </p>
       )}
 
