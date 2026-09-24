@@ -10,12 +10,13 @@ namespace Kernel;
 /// Ausstellen auf, sondern Wochen spaeter, wenn jemand etwas nicht sehen kann,
 /// das er verwaltet.
 ///
-/// <b>Entschieden:</b> read &lt; write &lt; admin, und certify steht daneben.
+/// <b>Entschieden:</b> read &lt; write &lt; admin, und certify steht daneben —
+/// aber admin schliesst es ein.
 ///
 /// <code>
-///   certify ──┐   (darf Zertifikate ausstellen)
+///   certify ◀─┐   (darf Zertifikate ausstellen)
 ///             │
-///   admin ────┼── schliesst write ein
+///   admin ────┼── schliesst write UND certify ein
 ///     │       │
 ///   write ────┘── schliesst read ein
 ///     │
@@ -26,11 +27,13 @@ namespace Kernel;
 /// damit noch lange nicht selbst lesen. Das ist der Fall des Pfarrers, der
 /// jemanden in eine Gruppe aufnimmt, deren Inhalte ihn nichts angehen — und
 /// genau dieser Fall geht verloren, sobald certify die anderen einschliesst.
-/// Umgekehrt ist es genauso: ein Verwalter, der alles lesen und aendern darf,
-/// darf deshalb noch niemanden hineinlassen.
 ///
-/// Wer beides braucht, bekommt zwei Zertifikate. Das ist keine Umstaendlichkeit,
-/// sondern die Stelle, an der jemand einmal hinschauen muss.
+/// <b>Warum admin es trotzdem einschliesst</b> (entschieden 2026-09-24). Die
+/// Gegenrichtung stand hier auch: ein Verwalter duerfe deshalb noch niemanden
+/// hineinlassen, und wer beides brauche, bekomme zwei Zertifikate. In der
+/// Praxis hiess das: wer einen Bereich „prowadzi", stand davor und konnte
+/// niemanden dazunehmen, weil das zweite Zertifikat fehlte. Wer einen Bereich
+/// fuehrt, entscheidet auch, wer hineinkommt — das ist, was „prowadzi" heisst.
 /// </summary>
 public enum Capability
 {
@@ -69,12 +72,12 @@ public static class Capabilities
     /// <summary>
     /// Ob <paramref name="held"/> ausreicht, um <paramref name="needed"/> zu tun.
     ///
-    /// <c>certify</c> deckt nur sich selbst, und nichts deckt <c>certify</c> ab.
-    /// Das ist die ganze Sonderregel.
+    /// <c>certify</c> deckt nur sich selbst; abgedeckt wird es von sich selbst
+    /// und von <c>admin</c>. Das ist die ganze Sonderregel.
     /// </summary>
     public static bool Covers(Capability held, Capability needed)
     {
-        if (needed == Capability.Certify) return held == Capability.Certify;
+        if (needed == Capability.Certify) return held is Capability.Certify or Capability.Admin;
         if (held == Capability.Certify) return false;
         return held >= needed;
     }

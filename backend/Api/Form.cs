@@ -218,17 +218,18 @@ public static class Form
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        var path = await PathOfPartAsync(connection, id, ctx.RequestAborted);
-        if (path is null)
+        var sheet = await SheetAsync(connection, id, ctx.RequestAborted);
+        if (sheet is null)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
             return;
         }
 
-        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
-        if (!grip.MayWrite)
+        id = sheet.ModuleId;
+
+        if (!await MayWriteSheetAsync(connection, who.Value.AccountId, sheet, ctx.RequestAborted))
         {
-            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
+            await Fail(ctx, StatusCodes.Status403Forbidden, NotYours);
             return;
         }
 
@@ -281,12 +282,14 @@ public static class Form
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        var path = await PathOfPartAsync(connection, id, ctx.RequestAborted);
-        if (path is null)
+        var sheet = await SheetAsync(connection, id, ctx.RequestAborted);
+        if (sheet is null)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
             return;
         }
+
+        id = sheet.ModuleId;
 
         /*
          * Dieselben zwei Achsen wie bei den Einsendungen: wer die Seite fuehrt,
@@ -295,9 +298,9 @@ public static class Form
          * ihn hat, soll seine eigenen Fragen auch sehen duerfen, ohne dass ihm
          * jemand die Seite gibt.
          */
-        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
+        var mayWrite = await MayWriteSheetAsync(connection, who.Value.AccountId, sheet, ctx.RequestAborted);
 
-        if (!grip.MayWrite)
+        if (!mayWrite)
         {
             var asked = await ReadFieldsAsync(connection, id, ctx.RequestAborted);
             var any = false;
@@ -373,17 +376,18 @@ public static class Form
             partId = found;
         }
 
-        var path = await PathOfPartAsync(connection, partId, ctx.RequestAborted);
-        if (path is null)
+        var sheet = await SheetAsync(connection, partId, ctx.RequestAborted);
+        if (sheet is null)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
             return;
         }
 
-        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
-        if (!grip.MayWrite)
+        partId = sheet.ModuleId;
+
+        if (!await MayWriteSheetAsync(connection, who.Value.AccountId, sheet, ctx.RequestAborted))
         {
-            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
+            await Fail(ctx, StatusCodes.Status403Forbidden, NotYours);
             return;
         }
 
@@ -961,12 +965,27 @@ public static class Form
          */
         var slugIds = new List<Guid>();
 
-        var formPath = await PathOfPartAsync(connection, partId, ctx.RequestAborted);
-        if (formPath is null)
+        /*
+         * AUF WELCHER SEITE DAS FORMULAR STEHT — es koennen mehrere sein
+         * (0036: ein Baustein, viele Verwendungen). Steht es auf keiner, nimmt
+         * es nichts an: niemand kann es ausgefuellt haben, und ein Platz ohne
+         * Seite haette keinen Ort.
+         */
+        var sheet = await SheetAsync(connection, partId, ctx.RequestAborted);
+        if (sheet is null || sheet.Paths.Count == 0)
         {
-            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
+            await Fail(ctx, StatusCodes.Status404NotFound, "Ten formularz nie stoi na żadnej stronie.");
             return null;
         }
+
+        var named = string.IsNullOrWhiteSpace(body.UnderPath) ? null : Slug.Normalise(body.UnderPath);
+
+        /* Die Seite, an der sich der genannte Ort messen lassen muss — sonst die erste. */
+        var formPath = named is null
+            ? sheet.Paths[0]
+            : sheet.Paths.FirstOrDefault(page => page == named
+                || named.StartsWith(page + "/", StringComparison.Ordinal)
+                || page.StartsWith(named + "/", StringComparison.Ordinal)) ?? sheet.Paths[0];
 
         /*
          * WO DAS PORTAL HAENGT — und der Browser muss es nicht wissen.
@@ -1061,12 +1080,14 @@ public static class Form
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        var path = await PathOfPartAsync(connection, id, ctx.RequestAborted);
-        if (path is null)
+        var sheet = await SheetAsync(connection, id, ctx.RequestAborted);
+        if (sheet is null)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
             return;
         }
+
+        id = sheet.ModuleId;
 
         /*
          * ZWEI ACHSEN, und die zweite ist die, auf die es hier ankommt.
@@ -1080,7 +1101,7 @@ public static class Form
          * Deshalb: sehen darf, wer die Seite fuehrt ODER einen der Bereiche
          * lesen darf, in die dieses Formular schreibt.
          */
-        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
+        var mayWrite = await MayWriteSheetAsync(connection, who.Value.AccountId, sheet, ctx.RequestAborted);
         var fields = await ReadFieldsAsync(connection, id, ctx.RequestAborted);
 
         var mine = new HashSet<Guid>();
@@ -1094,7 +1115,7 @@ public static class Form
             }
         }
 
-        if (!grip.MayWrite && mine.Count == 0)
+        if (!mayWrite && mine.Count == 0)
         {
             await Fail(ctx, StatusCodes.Status403Forbidden,
                 "Ani tego adresu nie prowadzisz, ani nie czytasz obszaru, do którego trafiają odpowiedzi.");
@@ -1584,16 +1605,18 @@ public static class Form
          * `MayTendAsync` taugt hier NICHT: es fragt nach einer EINSENDUNG,
          * und hier steht ein Baustein.
          */
-        var path = await PathOfPartAsync(connection, id, ctx.RequestAborted);
-        if (path is null)
+        var sheet = await SheetAsync(connection, id, ctx.RequestAborted);
+        if (sheet is null)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
             return;
         }
 
-        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
+        id = sheet.ModuleId;
 
-        if (!grip.MayWrite)
+        var mayWrite = await MayWriteSheetAsync(connection, who.Value.AccountId, sheet, ctx.RequestAborted);
+
+        if (!mayWrite)
         {
             var fields = await ReadFieldsAsync(connection, id, ctx.RequestAborted);
             var any = false;
@@ -1756,17 +1779,18 @@ public static class Form
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        var path = await PathOfPartAsync(connection, id, ctx.RequestAborted);
-        if (path is null)
+        var sheet = await SheetAsync(connection, id, ctx.RequestAborted);
+        if (sheet is null)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
             return;
         }
 
-        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
-        if (!grip.MayWrite)
+        id = sheet.ModuleId;
+
+        if (!await MayWriteSheetAsync(connection, who.Value.AccountId, sheet, ctx.RequestAborted))
         {
-            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
+            await Fail(ctx, StatusCodes.Status403Forbidden, NotYours);
             return;
         }
 
@@ -1779,8 +1803,7 @@ public static class Form
                 Lesen ueber den Baustein laeuft — und die Vorlage waere gespeichert
                 und trotzdem unsichtbar. Genau das ist einmal passiert.
             */
-            "SELECT COALESCE(m.config, p.config) FROM app.slug_part p "
-            + "LEFT JOIN app.module m ON m.id = p.module_id WHERE p.id = @id;", connection))
+            "SELECT config FROM app.module WHERE id = @id;", connection))
         {
             read.Parameters.AddWithValue("@id", id);
             current = await read.ExecuteScalarAsync(ctx.RequestAborted) as string;
@@ -1819,12 +1842,12 @@ public static class Form
 
         await using (var save = new SqlCommand(
             """
-            UPDATE app.module SET config = @c
-             WHERE id = (SELECT module_id FROM app.slug_part WHERE id = @id);
+            UPDATE app.module SET config = @c WHERE id = @id;
 
             /* Der Rest in `slug_part` wird mitgefuehrt, solange er dasteht —
-               zwei Staende derselben Sache laufen sonst auseinander. */
-            UPDATE app.slug_part SET config = @c WHERE id = @id;
+               zwei Staende derselben Sache laufen sonst auseinander. Auf JEDER
+               Seite, auf der der Baustein steht. */
+            UPDATE app.slug_part SET config = @c WHERE module_id = @id;
             """, connection))
         {
             save.Parameters.AddWithValue("@c", written);
@@ -2060,15 +2083,14 @@ public static class Form
             partId = found;
         }
 
-        var path = await PathOfPartAsync(connection, partId, ctx.RequestAborted);
-        if (path is null)
+        var sheet = await SheetAsync(connection, partId, ctx.RequestAborted);
+        if (sheet is null)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
             return false;
         }
 
-        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
-        if (grip.MayWrite) return true;
+        if (await MayWriteSheetAsync(connection, who.Value.AccountId, sheet, ctx.RequestAborted)) return true;
 
         var fields = await ReadFieldsAsync(connection, partId, ctx.RequestAborted);
 
@@ -2110,18 +2132,100 @@ public static class Form
         return await cmd.ExecuteScalarAsync(ct) as Guid?;
     }
 
-    private static async Task<string?> PathOfPartAsync(
-        SqlConnection connection, Guid partId, CancellationToken ct)
+    /// <summary>
+    /// Ein Formular, wie die Kanzlei es anfasst: sein BAUSTEIN (0036), sein
+    /// Bereich, und die Seiten, auf denen er steht.
+    /// </summary>
+    private sealed record Sheet(Guid ModuleId, Guid? AreaId, IReadOnlyList<string> Paths);
+
+    /// <summary>Was gesagt wird, wenn jemand ein Formular anfasst, das nicht seines ist.</summary>
+    private const string NotYours =
+        "Tego formularza nie prowadzisz — ani przez jego obszar, ani przez stronę, na której stoi.";
+
+    /// <summary>
+    /// Den Bogen finden — ueber den Baustein, nicht ueber EINE Verwendung.
+    ///
+    /// <para>
+    /// <b>Hier stand die Suche nach `slug_part.id`.</b> Sie fand nur Boegen,
+    /// deren Baustein zufaellig dieselbe Kennung trug wie seine Verwendung —
+    /// die vor 0036 entstandenen und die, die eine Seite nebenbei anlegt. Ein
+    /// Baustein aus der Bausteinliste hat eine eigene Kennung; einer, der
+    /// (noch) auf keiner Seite steht, hat gar keine Verwendung. Fuer beide
+    /// sagte jeder Aufruf „Takiego bloku nie ma", obwohl der Bogen da war.
+    /// </para>
+    ///
+    /// <para>
+    /// Angenommen wird beides: die Kennung des Bausteins (so fragt der
+    /// Browser) und die einer Verwendung (so fragten aeltere Aufrufer).
+    /// </para>
+    /// </summary>
+    private static async Task<Sheet?> SheetAsync(SqlConnection connection, Guid id, CancellationToken ct)
     {
-        await using var cmd = new SqlCommand("""
-            SELECT s.path
+        Guid moduleId;
+        Guid? areaId;
+
+        await using (var find = new SqlCommand("""
+            SELECT TOP 1 m.id, m.area_id
+            FROM app.module m
+            WHERE m.id = @id
+               OR m.id = (SELECT module_id FROM app.slug_part WHERE id = @id)
+            ORDER BY CASE WHEN m.id = @id THEN 0 ELSE 1 END;
+            """, connection))
+        {
+            find.Parameters.AddWithValue("@id", id);
+
+            await using var reader = await find.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct)) return null;
+
+            moduleId = reader.GetGuid(0);
+            areaId = reader.IsDBNull(1) ? null : reader.GetGuid(1);
+        }
+
+        var paths = new List<string>();
+
+        await using (var where = new SqlCommand("""
+            SELECT DISTINCT s.path
             FROM app.slug_part p
             JOIN app.slug s ON s.id = p.slug_id
-            WHERE p.id = @id;
-            """, connection);
+            WHERE p.module_id = @m
+            ORDER BY s.path;
+            """, connection))
+        {
+            where.Parameters.AddWithValue("@m", moduleId);
 
-        cmd.Parameters.AddWithValue("@id", partId);
-        return await cmd.ExecuteScalarAsync(ct) as string;
+            await using var reader = await where.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) paths.Add(reader.GetString(0));
+        }
+
+        return new Sheet(moduleId, areaId, paths);
+    }
+
+    /// <summary>
+    /// Wer einen Bogen PFLEGEN darf — dieselbe Regel wie fuer jeden Baustein
+    /// (<c>Module.MayTendAsync</c>), und die alte dazu.
+    ///
+    /// <para>
+    /// <b>Mit Bereich entscheidet der Bereich</b>: dort liegen die Antworten.
+    /// <b>Und wer eine Seite fuehrt, auf der er steht</b>, darf es weiterhin —
+    /// so war es, bevor der Bogen ein eigenes Ding wurde, und niemandem wird
+    /// hier etwas genommen.
+    /// </para>
+    /// </summary>
+    private static async Task<bool> MayWriteSheetAsync(
+        SqlConnection connection, Guid accountId, Sheet sheet, CancellationToken ct)
+    {
+        if (sheet.AreaId is Guid area
+            && await Area.MayAsync(connection, accountId, area, Capability.Write, ct))
+        {
+            return true;
+        }
+
+        foreach (var path in sheet.Paths)
+        {
+            if ((await Access.OfAsync(connection, accountId, path, ct)).MayWrite) return true;
+        }
+
+        return false;
     }
 
     private static byte[]? Optional(string? text)

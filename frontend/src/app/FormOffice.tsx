@@ -40,6 +40,7 @@ import {
   officeSeatKey, loadSeats, relinkSeat, revokeSeat, seatPath, type SeatRow
 } from './seat';
 import { WorkspaceError, type Who } from './session';
+import { Unlock } from './Unlock';
 import { dialable, joinPhones, normalisePhone, splitPhones, tidyPhones, withPhone } from './phone';
 import { holesFor, missingIn, renderSms, smsHref, usesHole, VERIFY } from './sms';
 
@@ -394,8 +395,17 @@ export function FormOffice({ partId, config, who, standsOn }: {
       {failed !== null && <p className="wk-error">{failed}</p>}
       {busy !== null && <p className="wk-hint">{busy}</p>}
 
+      {/*
+        NICHT NUR SAGEN, SONDERN ÖFFNEN. Hier stand bloss der Satz — und wer
+        ihn las, hatte keinen Ort, das Passwort einzugeben, ausser in einer
+        anderen Ansicht.
+      */}
       {ring === null && (
-        <p className="wk-note">Bez hasła nie da się ani zapieczętować pytania, ani otworzyć odpowiedzi.</p>
+        <Unlock
+          who={who}
+          why="Bez hasła nie da się ani zapieczętować pytania, ani otworzyć odpowiedzi."
+          onDone={() => void look()}
+        />
       )}
 
       {/* -- Die Fragen --------------------------------------------------- */}

@@ -10,10 +10,9 @@
  * die Kennung hier gemacht: die AAD des Epochenschlüssels nennt den Bereich, und
  * ohne die Kennung vorher gäbe es nichts, worauf sie lauten könnte.
  *
- * <b>Zwei Zertifikate, nicht eines.</b> `admin` und `certify` stehen
- * NEBENEINANDER (Kernel 3.5) und nicht übereinander. Ein Bereich mit nur `admin`
- * wäre einer, in den nie jemand hineingelassen werden kann — auch nicht von dem,
- * der ihn angelegt hat.
+ * <b>Ein Zertifikat: `admin`.</b> Es schliesst `certify` ein (Kernel 3.5,
+ * seit 2026-09-24): wer einen Bereich führt, lässt auch hinein. Nur `certify`
+ * allein bleibt, was es war — hineinlassen, ohne selbst zu lesen.
  *
  * <b>Was der Browser nach einem Neuladen tut.</b> Der Epochenschlüssel lebt im
  * Speicher des Tabs. Ist er fort, wird er aus der eigenen Zuteilung
@@ -82,7 +81,7 @@ export interface AreaRow {
    */
   readonly myLevel: 'read' | 'write' | 'admin' | null;
 
-  /** `certify` steht NEBEN der Leiter (3.5) — darum eigens. */
+  /** Ob ich hier hineinlassen darf — mit `certify` oder mit `admin`, das es einschliesst. */
   readonly mayCertify: boolean;
 }
 
@@ -280,9 +279,6 @@ export async function createArea(
       certificates: [
         await signedCertificate(ring, {
           issuerRoleId: person.id, subjectRoleId: person.id, areaId, capability: 'admin'
-        }),
-        await signedCertificate(ring, {
-          issuerRoleId: person.id, subjectRoleId: person.id, areaId, capability: 'certify'
         })
       ]
     })

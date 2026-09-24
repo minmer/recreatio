@@ -524,8 +524,13 @@ t.Ok("3.5   read schliesst write NICHT ein", () =>
 t.Ok("3.5   certify schliesst read NICHT ein", () =>
     !Capabilities.Covers(Capability.Certify, Capability.Read));
 
-t.Ok("3.5   admin schliesst certify NICHT ein", () =>
-    !Capabilities.Covers(Capability.Admin, Capability.Certify));
+// Wer einen Bereich fuehrt, laesst auch hinein (2026-09-24).
+t.Ok("3.5   admin schliesst certify ein", () =>
+    Capabilities.Covers(Capability.Admin, Capability.Certify));
+
+t.Ok("3.5   write schliesst certify NICHT ein", () =>
+    !Capabilities.Covers(Capability.Write, Capability.Certify)
+    && !Capabilities.Covers(Capability.Read, Capability.Certify));
 
 t.Ok("3.5   certify deckt sich selbst", () =>
     Capabilities.Covers(Capability.Certify, Capability.Certify));

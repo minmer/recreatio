@@ -551,36 +551,18 @@ public static class Page
         foreach (var going in here.Where(id => !ids.Contains(id)))
         {
             /*
-             * EINE EINSENDUNG IST KEIN ENTWURF. Wer ein Formular wegnimmt, auf
-             * das sich Menschen eingetragen haben, nähme ihnen auch das, was
-             * sie eingesandt haben — und der Dienst könnte es nicht einmal
-             * wieder herausgeben, weil er es nicht lesen kann. Das geht nur,
-             * wenn es ausdrücklich verlangt wird, und dafür gibt es hier keinen
-             * Weg.
+             * NUR DIE VERWENDUNG GEHT (0041). Fragen und Einsendungen gehoeren
+             * dem BAUSTEIN; er bleibt in der Bausteinliste stehen, mit allem,
+             * was daran haengt, und laesst sich auf eine andere Seite setzen.
+             *
+             * Hier stand frueher: Einsendungen da? Dann ablehnen. Keine? Dann
+             * die Fragen mitloeschen. Das stammte aus der Zeit, in der Baustein
+             * und Verwendung dieselbe Zeile waren — heute loeschte es die
+             * Fragen eines Formulars, das weiter existiert, nur weil es von
+             * EINER Seite genommen wurde. Wer den Baustein selbst loswerden
+             * will, loescht ihn in der Bausteinliste; dort gilt die Regel mit
+             * den Einsendungen weiter.
              */
-            await using (var count = new SqlCommand(
-                "SELECT COUNT(*) FROM app.registration WHERE part_id = @part;", connection, tx))
-            {
-                count.Parameters.AddWithValue("@part", going);
-
-                if ((int)(await count.ExecuteScalarAsync(ctx.RequestAborted) ?? 0) > 0)
-                {
-                    await tx.RollbackAsync(ctx.RequestAborted);
-                    await Fail(ctx, StatusCodes.Status409Conflict,
-                        "Na tym formularzu są już zgłoszenia — nie da się go usunąć razem ze stroną. "
-                        + "Zostaw blok albo najpierw zajmij się zgłoszeniami.");
-                    return;
-                }
-            }
-
-            /* Fragen ohne Einsendungen gehen mit — sie hängen an diesem Baustein. */
-            await using (var fields = new SqlCommand(
-                "DELETE FROM app.slug_field WHERE part_id = @part;", connection, tx))
-            {
-                fields.Parameters.AddWithValue("@part", going);
-                await fields.ExecuteNonQueryAsync(ctx.RequestAborted);
-            }
-
             await using (var drop = new SqlCommand(
                 "DELETE FROM app.slug_part WHERE id = @part;", connection, tx))
             {

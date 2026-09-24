@@ -208,19 +208,17 @@ public static class Area
         }
 
         /*
-         * ZWEI Zertifikate, nicht eines. `certify` steht NEBEN der Leiter und
-         * nicht darunter (Kernel 3.5): `admin` deckt es nicht ab. Wer einen
-         * Bereich anlegt und niemanden hineinlassen könnte, hätte ein teures
-         * Nichts.
+         * EIN Zertifikat genuegt: `admin`. Es schliesst `certify` ein
+         * (Kernel 3.5, seit 2026-09-24) — wer einen Bereich fuehrt, laesst auch
+         * hinein. Ein zweites `certify` nimmt der Dienst weiterhin an; so
+         * schickten es die Browser bis dahin, und es schadet nicht.
          */
-        var wanted = new[] { Capability.Admin, Capability.Certify };
         var proofs = body.Certificates ?? [];
 
-        if (!wanted.All(c => proofs.Any(p =>
-                Capabilities.TryParse(p.Capability, out var parsed) && parsed == c)))
+        if (!proofs.Any(p => Capabilities.TryParse(p.Capability, out var parsed) && parsed == Capability.Admin))
         {
             await Fail(ctx, StatusCodes.Status400BadRequest,
-                "Brakuje zaświadczeń: obszar potrzebuje „admin” i „certify”.");
+                "Brakuje zaświadczenia: obszar potrzebuje „admin”.");
             return;
         }
 
@@ -382,7 +380,7 @@ public static class Area
                        beim Druecken 403 sagt, ist schlimmer als keiner.
 
                        `certify` steht neben der Leiter (3.5) und wird deshalb
-                       getrennt gemeldet, nicht in dieselbe Spalte gequetscht.
+                       getrennt gemeldet — wer `admin` hat, darf es mit.
                    */
                    (SELECT TOP 1 c.capability FROM app.certificate c
                      WHERE c.scope_kind = N'area' AND c.scope_id = a.id
@@ -396,7 +394,7 @@ public static class Area
                         SELECT 1 FROM app.certificate c
                          WHERE c.scope_kind = N'area' AND c.scope_id = a.id
                            AND c.revoked_at IS NULL AND c.expires_at > @now
-                           AND c.capability = N'certify'
+                           AND c.capability IN (N'certify', N'admin')
                            AND c.subject_role_id IN ({names})) THEN 1 ELSE 0 END AS bit) AS mayCertify
             FROM app.area a
             WHERE EXISTS (

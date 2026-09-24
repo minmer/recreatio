@@ -49,7 +49,8 @@ import { Unlock } from './Unlock';
  * <b>Kein `certify` darunter.</b> Es steht neben der Leiter (3.5) und heisst
  * etwas ganz anderes — „darf hineinlassen", nicht „darf mehr". In dieselbe
  * Liste gesetzt läse es sich als vierte Stufe, und genau der Fall, für den es
- * gedacht ist, ginge verloren.
+ * gedacht ist, ginge verloren. `admin` schliesst es ein: wer „prowadzi",
+ * lässt auch hinein — und muss es deshalb nicht eigens dastehen haben.
  */
 const LEVEL_NAME: Record<'read' | 'write' | 'admin', string> = {
   read: 'czytasz',
@@ -416,7 +417,7 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
         <Fact label="Twoje klucze">{area.heldEpochs}</Fact>
         <Fact label="Ty">
           {area.myLevel === null ? '—' : LEVEL_NAME[area.myLevel]}
-          {area.mayCertify && <span className="wk-tag">wpuszczasz</span>}
+          {area.mayCertify && area.myLevel !== 'admin' && <span className="wk-tag">wpuszczasz</span>}
         </Fact>
         {parent !== null && (
           <Fact label="Wewnątrz">
@@ -458,9 +459,13 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
                   </span>
 
                   <span className="wk-person-can">
-                    {m.capabilities.map((c) => (
-                      <span className="wk-tag" key={c}>{OTHER_LEVEL[c] ?? c}</span>
-                    ))}
+                    {/* „prowadzi" schliesst „wpuszcza" ein — zweimal dasselbe
+                        zu zeigen hiesse, es gäbe einen Unterschied. */}
+                    {m.capabilities
+                      .filter((c) => c !== 'certify' || !m.capabilities.includes('admin'))
+                      .map((c) => (
+                        <span className="wk-tag" key={c}>{OTHER_LEVEL[c] ?? c}</span>
+                      ))}
                   </span>
 
                   {area.mayCertify && (
@@ -620,7 +625,9 @@ function AddRole({ area, ring, graph, self, members, names, busy, onAct }: {
   const candidates = graph.roles.filter((r) => !r.isPersonal && ring.has(r.id) && !present.has(r.id));
   const chosen = candidates.find((r) => r.id === pick) ?? candidates[0] ?? null;
 
-  const issuer = members.find((m) => m.capabilities.includes('certify') && ring.maySign(m.roleId))?.roleId ?? null;
+  /* Wer hier hineinlässt: `certify`, oder `admin`, das es einschliesst. */
+  const issuer = members.find((m) =>
+    (m.capabilities.includes('admin') || m.capabilities.includes('certify')) && ring.maySign(m.roleId))?.roleId ?? null;
 
   const blocker =
     issuer === null ? 'Żadna z Twoich ról nie może tu nikogo wpuścić.'
@@ -731,6 +738,7 @@ function AddRole({ area, ring, graph, self, members, names, busy, onAct }: {
           busy={busy}
           onPick={setLevel}
         />
+        {level === 'admin' && <span className="wk-hint">Kto prowadzi, może też wpuszczać innych.</span>}
       </div>
 
       {blocker !== null && !busy && <p className="wk-blocker">{blocker}</p>}
