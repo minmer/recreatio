@@ -335,6 +335,18 @@ export function RoleGraph({ who }: { who: Who }) {
     });
   }, [data]);
 
+  /*
+   * BEIM LOSLASSEN GESPEICHERT, nicht bei jedem Pixel. Ein Zug erzeugt Dutzende
+   * Änderungen; jede davon zu schreiben hiesse, für eine einzige Geste
+   * hundertmal in den Speicher zu greifen.
+   *
+   * <b>Über den frühen Rückgaben, nicht darunter.</b> Stand er unter
+   * „Wczytywanie…", lief der erste Aufruf ohne ihn und der nächste mit ihm —
+   * React zählt die Haken je Aufruf und brach die Seite mit #310 ab.
+   */
+  const onDropped = useCallback(
+    () => keepSpots(who.accountId, nodes), [who.accountId, nodes]);
+
   if (data === undefined) return <p className="wk-lede">Wczytywanie…</p>;
 
   if (data === null) {
@@ -359,14 +371,6 @@ export function RoleGraph({ who }: { who: Who }) {
    * Wird ohne Punkt gezogen — was React Flow bei einem Klick ins Leere liefert —
    * gilt `holds`: das ist, was „przekazać" immer hiess.
    */
-  /*
-   * BEIM LOSLASSEN GESPEICHERT, nicht bei jedem Pixel. Ein Zug erzeugt Dutzende
-   * Änderungen; jede davon zu schreiben hiesse, für eine einzige Geste
-   * hundertmal in den Speicher zu greifen.
-   */
-  const onDropped = useCallback(
-    () => keepSpots(who.accountId, nodes), [who.accountId, nodes]);
-
   const onConnect = (c: Connection) => {
     if (ring === null || c.source === null || c.target === null) return;
 
