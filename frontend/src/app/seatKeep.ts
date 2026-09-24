@@ -171,3 +171,38 @@ export function keepFromAddress(hash: string): string | null {
 
   return `#/${segments.slice(0, at + 2).join('/')}`;
 }
+
+/* -- Und wieder hinein ----------------------------------------------------- */
+
+/**
+ * Der GANZE Link zu diesem Platz — mit Schlüssel, zum Weitergeben.
+ *
+ * <b>Das ist die Kehrseite des Aufräumens, und ohne sie wäre es ein Verlust.</b>
+ * Solange der Schlüssel in der Adresszeile stand, WAR die Adresszeile der Link:
+ * kopieren, aufs Telefon schicken, als Lesezeichen ablegen. Nimmt man ihn
+ * heraus, ohne einen Weg zurück anzubieten, sitzt der Mensch vor einer Adresse,
+ * die bei ihm funktioniert und bei niemandem sonst — und merkt es erst, wenn
+ * der andere eine leere Seite sieht.
+ *
+ * <b>Also gibt der Browser ihn auf Verlangen wieder her.</b> Er hat ihn ja; er
+ * zeigt ihn nur nicht ungefragt.
+ *
+ * `null` heisst: dieser Browser hält ihn nicht. Dann gibt es hier keinen Link
+ * mehr, und das ist die Wahrheit — der alte gilt weiter, aber er steht woanders.
+ */
+export function linkTo(token: string, under: string | null): string | null {
+  const key = recall(token);
+  if (key === null) return null;
+
+  const tail = `${encodeURIComponent(token)}/${encodeURIComponent(toBase64Url(key))}`;
+
+  /*
+   * Dieselbe Form wie `seat.seatPath`, und das ist kein Zufall: es IST dieselbe
+   * Adresse. Sie hier nachzubauen statt sie zu holen wäre eine zweite Meinung
+   * über eine Form, die schon eine hat — aber `seatPath` nimmt einen `Link`,
+   * und hier liegt ein Schlüssel. Wer die eine ändert, ändert die andere mit.
+   */
+  return under === null || under === ''
+    ? `#/seat/${tail}`
+    : `#/${under.split('/').map(encodeURIComponent).join('/')}/portal/${tail}`;
+}

@@ -35,7 +35,7 @@ import { Field, aad } from './crypto';
 import { keysFor } from './ringOf';
 import { openSubmitted } from './form';
 import { bindSeat, loadPortal, openGrants, openPortal, type Portal } from './seat';
-import { recall, remember } from './seatKeep';
+import { linkTo, recall, remember } from './seatKeep';
 import { pagePath } from './routes';
 import { PageParts } from './PageParts';
 import { toDraft } from './page';
@@ -256,6 +256,7 @@ export function SeatPortal({ token, keyText, under }: {
 
   return (
     <SeatContext.Provider value={seat}>
+      <MyLink token={token} under={under} />
       {under !== null && under !== '' && (
         <p className="wk-row-side">
           <a className="wk-link" href={pagePath(under)}>← {under}</a>
@@ -484,6 +485,45 @@ async function titleOf(one: Occurrence, key: Uint8Array): Promise<string | null>
   } catch {
     return null;
   }
+}
+
+/**
+ * DER EIGENE LINK, auf Verlangen.
+ *
+ * <b>Die Kehrseite des Aufräumens.</b> Solange der Schlüssel in der
+ * Adresszeile stand, WAR sie der Link — kopieren, aufs Telefon schicken, als
+ * Lesezeichen ablegen. Ihn herauszunehmen, ohne einen Weg zurück anzubieten,
+ * hiesse: der Mensch hätte eine Adresse, die bei ihm geht und bei niemandem
+ * sonst — und er merkte es erst, wenn der andere eine leere Seite sieht.
+ *
+ * <b>Zugeklappt, weil man ihn selten braucht.</b> Und weil ein Geheimnis,
+ * das ungefragt auf dem Bildschirm steht, genau das Problem wäre, das gerade
+ * behoben wurde — nur eine Zeile tiefer.
+ */
+function MyLink({ token, under }: { token: string; under: string | null }) {
+  const [shown, setShown] = useState(false);
+
+  const local = linkTo(token, under);
+  if (local === null) return null;
+
+  const full = `${window.location.origin}${window.location.pathname}${local}`;
+
+  return (
+    <details className="wk-fold" onToggle={(e) => setShown(e.currentTarget.open)}>
+      <summary>Twój link</summary>
+
+      {shown && (
+        <>
+          <p className="wk-hint">
+            Tym adresem wracasz tutaj — także na innym urządzeniu. Kto go ma,
+            widzi tę stronę, więc nie przekazuj go dalej.
+          </p>
+
+          <textarea readOnly rows={3} className="wk-mono" value={full} />
+        </>
+      )}
+    </details>
+  );
 }
 
 export default SeatPortal;

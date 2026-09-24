@@ -44,32 +44,22 @@ export function App() {
   /*
    * DER SCHLÜSSEL EINES PLATZES GEHÖRT NICHT IN DIE ADRESSZEILE.
    *
-   * Er kommt dort an — der Link IST der Ausweis, und anders liesse er sich
-   * nicht verschicken. Aber er soll nicht dort BLEIBEN: die Adresszeile
-   * steht im Verlauf, in jedem Lesezeichen und auf jedem Bildschirmfoto.
-   *
-   * Also wird er beim Ankommen in den Browser gelegt (`seatKeep`) und aus
-   * der Adresse genommen — mit `replaceState`, damit der Zurück-Pfeil nicht
-   * auf die Fassung MIT Schlüssel zurückführt.
-   *
-   * Vor allem anderen, und ohne auf etwas zu warten: hätte der Mensch das
-   * Bild schon gesehen, stünde der Schlüssel schon im Verlauf.
+   * Beim Laden ist das schon geschehen (`mount.tsx`) — dort, wo noch nichts
+   * gezeichnet ist. Hier bleibt der zweite Weg hinein: jemand tippt einen
+   * Link in die Adresszeile eines offenen Tabs, oder folgt einem aus einer
+   * Nachricht. Dann kommt der Schlüssel über `hashchange`, und er soll
+   * genauso wenig stehen bleiben.
    */
   useEffect(() => {
-    const tidy = () => {
-      const cleaned = keepFromAddress(window.location.hash);
-      if (cleaned === null) return false;
-
-      window.history.replaceState(null, '', cleaned);
-      setAddress(parsePath(cleaned));
-      setHash(cleaned);
-      return true;
-    };
-
-    tidy();
-
     const onHash = () => {
-      if (tidy()) return;
+      const cleaned = keepFromAddress(window.location.hash);
+
+      if (cleaned !== null) {
+        window.history.replaceState(null, '', cleaned);
+        setAddress(parsePath(cleaned));
+        setHash(cleaned);
+        return;
+      }
 
       setAddress(parsePath(window.location.hash));
       setHash(window.location.hash);
