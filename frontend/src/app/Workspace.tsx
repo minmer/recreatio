@@ -25,6 +25,7 @@ import { Account } from './Account';
 import { Addresses } from './Addresses';
 import { Areas } from './Areas';
 import { Modules } from './Modules';
+import { Reservations } from './Reservations';
 import { MassOffice } from './MassOffice';
 import { PageEditor } from './PageEditor';
 import { RoleGraph } from './RoleGraph';
@@ -125,6 +126,10 @@ function Tiles({ desk }: { desk: Desk }) {
           <p className="wk-empty">Klucze: obszar, jego epoki i to, kto je trzyma.</p>
         </Tile>
 
+        <Tile view="bookings">
+          <p className="wk-empty">Terminy u księdza, sale, dom — i kto co zajął.</p>
+        </Tile>
+
         <Tile view="calendar">
           <p className="wk-empty">Msze, intencje i wydruk do gabloty.</p>
         </Tile>
@@ -214,6 +219,7 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'roles') return <RoleGraph who={who} />;
   if (view === 'areas') return <Areas who={who} trail={trail} />;
   if (view === 'calendar') return <MassOffice />;
+  if (view === 'bookings') return <Reservations trail={trail} />;
   if (view === 'account') return <Account who={who} />;
 
   /*

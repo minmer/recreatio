@@ -1,65 +1,59 @@
 /**
- * Termine zum Aussuchen — der Baustein im Portal (0029).
+ * Sich etwas für eine Zeit nehmen — ein Treffen mit dem Priester, ein Haus in
+ * Hortus Dei. Ein Baustein, beide Fälle (0039).
  *
- * <b>Jede Zeile sagt, was mit ihr geht</b>, und zwar mit einem Wort statt mit
- * einem grauen Knopf: „wolne", „zajęte przez kogoś", „pełny". Ein Knopf, der
- * nicht geht, ohne dass daneben steht warum, sieht aus wie ein Fehler.
+ * <b>Das Ding sagt, welcher Fall es ist.</b> Gibt die Kanzlei die Zeiten vor
+ * (`offered`), steht hier eine Liste der Termine, und man nimmt einen. Wählt,
+ * wer fragt, die Zeit selbst (`open`), steht hier, was belegt ist, und darunter
+ * die Frage nach einer eigenen Zeit. Beides endet an derselben Stelle: „Twoje
+ * rezerwacje", mit dem, was steht, und dem, was noch wartet.
  *
- * <b>Wer zuerst zugreift, wird Gastgeber</b> und bekommt einen Code, der drei
- * Tage gilt. Er steht danach GENAU EINMAL da — beim Dienst liegt nur sein
- * Abdruck. Das gehört gesagt, solange er noch auf dem Bildschirm ist.
- *
- * <b>Zwei Wege hinein, und beide enden in derselben Buchung:</b> der Code, oder
- * eine Bitte, die der Gastgeber annimmt. Der zweite ist für den, der den Code
- * nicht hat — im Altbestand war das genau so, und es war richtig.
+ * <b>Ohne Platz nur ansehen.</b> Genommen wird mit dem Platz, den der Link
+ * bringt — der Firmling hat seinen seit dem Formular, die Gruppe für Hortus
+ * Dei bekommt ihren genauso: aus dem Formular „Zapytanie o pobyt". Auf einer
+ * gewöhnlichen Seite ohne Link sagt der Baustein, wozu er da ist.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 
+import {
+  askToJoin, hostDecides, loadOffers, minutesToTime, nightsToSpan, releaseClaim,
+  takeOffer, takeSpan, type Busy, type MyClaim, type Offer, type Offers, type Rules
+} from './resource';
 import { useSeat } from './seatContext';
 import { WorkspaceError } from './session';
-import {
-  askSlot, bookSlot, loadSlots, releaseSlot, type PublicSlot
-} from './slot';
 
-export function SlotCard({ title, calendar: calendarId }: {
+export function SlotCard({ title, resource }: {
   title: string;
-  calendar: string;
+
+  /** Das Ding. Leer, solange die Kanzlei keines gewählt hat. */
+  resource: string;
 }) {
   const seat = useSeat();
+  const token = seat?.token ?? null;
 
-  const [slots, setSlots] = useState<readonly PublicSlot[] | null>(null);
+  const [data, setData] = useState<Offers | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
   /** Der Code des zuletzt genommenen Termins — einmal, dann nie wieder. */
   const [fresh, setFresh] = useState<{ code: string; until: string | null } | null>(null);
 
+  const named = resource !== '';
+
   const look = useCallback(async () => {
-    if (calendarId === '') return;
+    if (!named) return;
 
     try {
-      const { slots: found } = await loadSlots(calendarId, seat?.token);
-      setSlots(found);
+      setData(await loadOffers(resource, token));
       setFailed(null);
     } catch (e) {
-      setSlots([]);
+      setData(null);
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać terminów.');
     }
-  }, [calendarId, seat?.token]);
+  }, [named, resource, token]);
 
   useEffect(() => { void look(); }, [look]);
-
-  if (calendarId === '') {
-    return (
-      <>
-        {title !== '' && <h2 className="wk-card-title">{title}</h2>}
-        <p className="wk-card-muted">
-          Ten blok potrzebuje kennungi kalendarza — wpisz ją w ustawieniach modułu.
-        </p>
-      </>
-    );
-  }
 
   const act = async (what: string, todo: () => Promise<unknown>) => {
     setBusy(what);
@@ -75,61 +69,141 @@ export function SlotCard({ title, calendar: calendarId }: {
     }
   };
 
+  const heading = <h2 className="wk-card-title">{title === '' ? (data?.resource.name ?? 'Terminy') : title}</h2>;
+
+  if (!named) {
+    return (
+      <>
+        {heading}
+        <p className="wk-card-muted">Ten blok nie wie jeszcze, czego dotyczy — wybierz zasób w ustawieniach.</p>
+      </>
+    );
+  }
+
+  if (data === null) {
+    return <>{heading}{failed !== null ? <p className="wk-error">{failed}</p> : <p className="wk-card-text">Wczytywanie…</p>}</>;
+  }
+
+  const rules = data.resource;
+
   return (
     <>
-      <h2 className="wk-card-title">{title === '' ? 'Terminy' : title}</h2>
+      {heading}
 
-      {seat === null && (
+      {token === null && (
         <p className="wk-card-muted">
-          Tu osoba wybierze swój termin. Widać to dopiero po otwarciu jej linku.
+          {rules.mode === 'offered'
+            ? 'Tu osoba wybierze swój termin — po otwarciu swojego linku.'
+            : 'Tu można zapytać o termin — po wysłaniu formularza, z własnego linku.'}
         </p>
       )}
 
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {busy !== null && <p className="wk-hint">{busy}</p>}
+      {busy !== null && <p className="wk-working">{busy}</p>}
 
       {fresh !== null && (
         <div className="wk-note">
           <p>
-            <strong>Masz termin.</strong> Przez najbliższe 72 godziny możesz
-            dobrać do niego kogoś jeszcze — podaj mu ten kod:
+            <strong>Masz termin.</strong> Przez {rules.inviteHours} godzin możesz dobrać do
+            niego kogoś jeszcze — podaj mu ten kod:
           </p>
           <p className="wk-code">{fresh.code}</p>
           <p className="wk-hint">
-            <strong>Widzisz go tylko teraz.</strong> U nas zapisany jest wyłącznie
-            jego odcisk. Gdy minie {fresh.until === null ? 'termin' :
-              new Date(fresh.until).toLocaleString('pl-PL')}, termin otworzy się
-            dla wszystkich, jeśli zostanie na nim wolne miejsce.
+            <strong>Widzisz go tylko teraz</strong> — zapisany jest wyłącznie jego odcisk.
+            {fresh.until !== null && <> Po {new Date(fresh.until).toLocaleString('pl-PL')} termin
+            otworzy się dla wszystkich, jeśli zostanie na nim wolne miejsce.</>}
           </p>
           <button type="button" className="wk-link-btn" onClick={() => setFresh(null)}>Ukryj</button>
         </div>
       )}
 
-      {slots === null ? (
-        <p className="wk-card-text">Wczytywanie…</p>
-      ) : slots.length === 0 ? (
-        <p className="wk-empty">Nie ma jeszcze żadnych terminów do wyboru.</p>
+      <Mine claims={data.mine} rules={rules} token={token} busy={busy !== null} onAct={act} />
+
+      {rules.mode === 'offered' ? (
+        <OfferList
+          offers={data.offers ?? []}
+          rules={rules}
+          token={token}
+          busy={busy !== null}
+          onAct={act}
+          onCode={(code, until) => setFresh({ code, until })}
+        />
       ) : (
-        <ul className="wk-list">
-          {slots.map((one) => (
-            <Row
-              key={`${one.itemId}:${one.occurrenceAt}`}
-              slot={one}
-              token={seat?.token ?? null}
-              busy={busy !== null}
-              onAct={act}
-              onCode={(code, until) => setFresh({ code, until })}
-            />
-          ))}
-        </ul>
+        <OpenAsk
+          busyTimes={data.busy ?? []}
+          rules={rules}
+          token={token}
+          busy={busy !== null}
+          onAct={act}
+        />
       )}
     </>
   );
 }
 
-/* -- Eine Zeile ------------------------------------------------------------ */
+/* -- Was ich halte -------------------------------------------------------- */
 
-const WORD: Record<string, string> = {
+const STATUS_WORD: Record<MyClaim['status'], string> = {
+  pending: 'czeka na odpowiedź',
+  confirmed: 'potwierdzone',
+  declined: 'odrzucone',
+  released: 'oddane'
+};
+
+/**
+ * Was dieser Platz hält — ZUERST, vor allem anderen.
+ *
+ * <b>Darum kommt man zurück.</b> Wer seinen Link ein zweites Mal öffnet, will
+ * wissen, ob die Kanzlei ja gesagt hat — nicht noch einmal die Liste aller
+ * Termine sehen.
+ */
+function Mine({ claims, rules, token, busy, onAct }: {
+  claims: readonly MyClaim[];
+  rules: Rules;
+  token: string | null;
+  busy: boolean;
+  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+}) {
+  if (claims.length === 0 || token === null) return null;
+
+  return (
+    <section className="wk-panel">
+      <h3 className="wk-h2">Twoje rezerwacje</h3>
+
+      <ul className="wk-people">
+        {claims.map((c) => (
+          <li className="wk-person" key={c.claimId}>
+            <span className="wk-person-who">
+              <strong>{span(c.startsAt, c.endsAt, rules)}</strong>
+            </span>
+
+            <span className="wk-person-can">
+              <span className={c.status === 'confirmed' ? 'wk-tag wk-tag-open' : 'wk-tag'}>
+                {STATUS_WORD[c.status]}
+                {c.awaits === 'host' && ' gospodarza'}
+                {c.awaits === 'office' && ' kancelarii'}
+              </span>
+              {c.hosting && <span className="wk-tag">gospodarz</span>}
+            </span>
+
+            {(c.status === 'pending' || c.status === 'confirmed') && (
+              <button
+                type="button" className="wk-link-btn" disabled={busy}
+                onClick={() => void onAct('Oddawanie…', () => releaseClaim(c.claimId, token))}
+              >
+                {c.status === 'pending' ? 'Wycofaj' : 'Oddaj'}
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/* -- Die Kanzlei gibt die Zeiten vor ---------------------------------------- */
+
+const WORD: Record<Offer['state'], string> = {
   open: 'wolne',
   inviteneeded: 'trzyma je ktoś inny',
   locked: 'zamknięte',
@@ -137,110 +211,229 @@ const WORD: Record<string, string> = {
   mine: 'Twój termin'
 };
 
-function Row({ slot, token, busy, onAct, onCode }: {
-  slot: PublicSlot;
+function OfferList({ offers, rules, token, busy, onAct, onCode }: {
+  offers: readonly Offer[];
+  rules: Rules;
+  token: string | null;
+  busy: boolean;
+  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+  onCode: (code: string, until: string | null) => void;
+}) {
+  if (offers.length === 0) return <p className="wk-empty">Nie ma teraz żadnych terminów do wyboru.</p>;
+
+  return (
+    <ul className="wk-list">
+      {offers.map((one) => (
+        <OfferRow
+          key={`${one.itemId}:${one.occurrenceAt}`}
+          offer={one}
+          rules={rules}
+          token={token}
+          busy={busy}
+          onAct={onAct}
+          onCode={onCode}
+        />
+      ))}
+    </ul>
+  );
+}
+
+function OfferRow({ offer, rules, token, busy, onAct, onCode }: {
+  offer: Offer;
+  rules: Rules;
   token: string | null;
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
   onCode: (code: string, until: string | null) => void;
 }) {
   const [code, setCode] = useState('');
-  const [asking, setAsking] = useState(false);
 
-  const when = new Date(slot.occurrenceAt);
-
-  const take = async (withCode?: string) => {
-    if (token === null) return;
-
-    await onAct('Zapisywanie…', async () => {
-      const done = await bookSlot(slot.itemId, slot.occurrenceAt, token, withCode);
-      if (done.inviteCode !== null) onCode(done.inviteCode, done.inviteUntil);
-    });
-  };
+  const take = (withCode?: string) => token !== null && void onAct('Zapisywanie…', async () => {
+    const done = await takeOffer(rules.resourceId, offer, token, withCode);
+    if (done.inviteCode !== null) onCode(done.inviteCode, done.inviteUntil);
+  });
 
   return (
     <li className="wk-row">
       <span>
-        <strong>
-          {when.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' })}
-          {', '}
-          {when.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
-        </strong>
+        <strong>{span(offer.startsAt, offer.endsAt, rules)}</strong>
+        <span className="wk-row-side"> · {offer.taken} z {offer.capacity} · {WORD[offer.state]}</span>
 
-        <span className="wk-row-side">
-          {slot.titlePublic !== null && ` · ${slot.titlePublic}`}
-          {` · ${slot.minutes} min`}
-          {` · ${slot.taken}/${slot.capacity}`}
-          {` · ${WORD[slot.state] ?? slot.state}`}
-        </span>
+        {token !== null && offer.state === 'open' && (
+          <div className="wk-actions">
+            <button type="button" className="wk-btn" disabled={busy} onClick={() => take()}>Biorę</button>
+          </div>
+        )}
 
         {/*
-          DER CODE, wenn jemand anders den Termin hält. Er steht als Feld da und
-          nicht hinter einem Knopf: wer einen Code bekommen hat, will ihn
-          eintippen, ohne vorher zu suchen wo.
+          JEMAND HÄLT IHN — zwei Wege hinein, und beide stehen da: sein Code,
+          oder eine Bitte an ihn. Nur den Code anzubieten hiesse, dass nur
+          hineinkommt, wer den Gastgeber schon kennt.
         */}
-        {slot.state === 'inviteneeded' && token !== null && (
-          <div className="wk-form">
-            <label className="wk-field">
-              <span>Kod od osoby, która trzyma ten termin</span>
-              <input
-                value={code}
-                disabled={busy}
-                autoComplete="off"
-                placeholder="ABC234"
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-              />
-            </label>
+        {token !== null && offer.state === 'inviteneeded' && (
+          <div className="wk-actions">
+            <input
+              value={code} placeholder="kod od gospodarza" style={{ width: '9rem' }}
+              onChange={(e) => setCode(e.target.value)}
+            />
+            <button type="button" className="wk-btn" disabled={busy || code.trim() === ''}
+              onClick={() => take(code)}>
+              Dołączam
+            </button>
+            <button type="button" className="wk-link-btn" disabled={busy}
+              onClick={() => void onAct('Wysyłanie prośby…', () => askToJoin(rules.resourceId, offer, token))}>
+              albo poproś
+            </button>
+          </div>
+        )}
 
-            <div className="wk-actions">
-              <button
-                type="button" className="wk-btn"
-                disabled={busy || code.trim().length < 4}
-                onClick={() => void take(code.trim())}
-              >
-                Dołącz kodem
-              </button>
-
-              <button
-                type="button" className="wk-link-btn" disabled={busy || asking}
-                onClick={() => void onAct('Wysyłanie prośby…', async () => {
-                  await askSlot(slot.itemId, slot.occurrenceAt, token);
-                  setAsking(true);
-                })}
-              >
-                {asking ? 'Poproszono' : 'Albo poproś o dołączenie'}
-              </button>
-            </div>
-
-            <p className="wk-hint">
-              Nie masz kodu? Poproś — osoba, która trzyma ten termin, zobaczy
-              prośbę u siebie i może się zgodzić.
-            </p>
+        {/* Der Gastgeber entscheidet über die, die bitten. */}
+        {token !== null && offer.hosting && offer.asks.length > 0 && (
+          <div className="wk-panel">
+            {offer.asks.map((ask) => (
+              <p className="wk-hint" key={ask.claimId}>
+                Prosi o dołączenie: <strong>{ask.name ?? 'ktoś bez nazwy'}</strong>
+                {' '}
+                <button type="button" className="wk-link-btn" disabled={busy}
+                  onClick={() => void onAct('Przyjmowanie…', () => hostDecides(ask.claimId, true, token))}>
+                  Przyjmij
+                </button>
+                {' · '}
+                <button type="button" className="wk-link-btn" disabled={busy}
+                  onClick={() => void onAct('Odmawianie…', () => hostDecides(ask.claimId, false, token))}>
+                  Odmów
+                </button>
+              </p>
+            ))}
           </div>
         )}
       </span>
-
-      <span className="wk-row-side">
-        {token === null ? null
-          : slot.state === 'mine' ? (
-            <button
-              type="button" className="wk-link-btn" disabled={busy}
-              onClick={() => void onAct('Rezygnacja…',
-                () => releaseSlot(slot.itemId, slot.occurrenceAt, token))}
-            >
-              Zrezygnuj
-            </button>
-          ) : slot.state === 'open' ? (
-            <button
-              type="button" className="wk-btn" disabled={busy}
-              onClick={() => void take()}
-            >
-              Zapisz się
-            </button>
-          ) : null}
-      </span>
     </li>
   );
+}
+
+/* -- Wer fragt, wählt die Zeit ---------------------------------------------- */
+
+/**
+ * Eine eigene Zeit erfragen — nach Nächten oder nach Stunden.
+ *
+ * <b>Was belegt ist, steht darüber</b>, ohne Namen: wer fragt, soll nicht
+ * raten und dann eine Absage bekommen. Die Prüfung macht trotzdem der Dienst —
+ * diese Liste ist eine Hilfe, keine Zusage.
+ */
+function OpenAsk({ busyTimes, rules, token, busy, onAct }: {
+  busyTimes: readonly Busy[];
+  rules: Rules;
+  token: string | null;
+  busy: boolean;
+  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+}) {
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [day, setDay] = useState('');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+
+  const span_ = (): { starts: Date; ends: Date } | null => {
+    if (rules.byNight) {
+      if (from === '' || to === '' || to <= from) return null;
+      return nightsToSpan(from, to, rules);
+    }
+
+    if (day === '' || start === '' || end === '' || end <= start) return null;
+    return { starts: new Date(`${day}T${start}:00`), ends: new Date(`${day}T${end}:00`) };
+  };
+
+  const chosen = span_();
+
+  return (
+    <>
+      <h3 className="wk-h2">Zajęte</h3>
+
+      {busyTimes.length === 0 ? (
+        <p className="wk-empty">Nic nie jest zajęte w najbliższym czasie.</p>
+      ) : (
+        <ul className="wk-card-lines">
+          {busyTimes.map((b, i) => (
+            <li key={i}>
+              {span(b.startsAt, b.endsAt, rules)}
+              {b.tentative && <span className="wk-row-side"> · wstępnie</span>}
+              {b.whole && <span className="wk-row-side"> · całość zajęta</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {token !== null && (
+        <div className="wk-form">
+          <h3 className="wk-h2">Zapytaj o termin</h3>
+
+          {rules.byNight ? (
+            <>
+              <label className="wk-field">
+                <span>Przyjazd (od {minutesToTime(rules.checkInMin)})</span>
+                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+              </label>
+              <label className="wk-field">
+                <span>Wyjazd (do {minutesToTime(rules.checkOutMin)})</span>
+                <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+              </label>
+            </>
+          ) : (
+            <>
+              <label className="wk-field">
+                <span>Dzień</span>
+                <input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+              </label>
+              <div className="wk-actions">
+                <label className="wk-field"><span>Od</span>
+                  <input type="time" value={start} onChange={(e) => setStart(e.target.value)} /></label>
+                <label className="wk-field"><span>Do</span>
+                  <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
+              </div>
+            </>
+          )}
+
+          {(rules.bufferBefore > 0 || rules.bufferAfter > 0) && (
+            <p className="wk-hint">
+              Między grupami jest czas na przygotowanie — {rules.bufferBefore + rules.bufferAfter} min.
+            </p>
+          )}
+
+          <div className="wk-actions">
+            <button
+              type="button" className="wk-btn" disabled={busy || chosen === null}
+              onClick={() => chosen !== null && void onAct('Wysyłanie…',
+                () => takeSpan(rules.resourceId, chosen.starts, chosen.ends, token))}
+            >
+              {rules.approval === 'office' ? 'Zapytaj' : 'Rezerwuję'}
+            </button>
+
+            {rules.approval === 'office' && (
+              <span className="wk-row-side">Kancelaria odpowie — zobaczysz to tutaj.</span>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* -- Kleinkram ------------------------------------------------------------- */
+
+/** Wie eine Zeit gelesen wird — ein Tag mit Uhrzeit, oder von einer Nacht zur nächsten. */
+function span(startsAt: string, endsAt: string, rules: Rules): string {
+  const s = new Date(startsAt);
+  const e = new Date(endsAt);
+
+  const date = (d: Date) => d.toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'long' });
+  const time = (d: Date) => d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+
+  if (rules.byNight) return `${date(s)} → ${date(e)}`;
+
+  return s.toDateString() === e.toDateString()
+    ? `${date(s)}, ${time(s)}–${time(e)}`
+    : `${date(s)} ${time(s)} → ${date(e)} ${time(e)}`;
 }
 
 export default SlotCard;

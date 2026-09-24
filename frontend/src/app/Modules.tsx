@@ -38,6 +38,7 @@ import {
 } from './module';
 import { setPartConfig } from './form';
 import { PARTS, partLabel, partOf, takesEntries } from './parts/registry';
+import { PickResource } from './PickResource';
 import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 
@@ -448,7 +449,13 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
           <label className="wk-field" key={field.key}>
             <span>{field.label}</span>
 
-            {field.kind === 'line' ? (
+            {field.kind === 'resource' ? (
+              <PickResource
+                value={value}
+                busy={busy}
+                onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }}
+              />
+            ) : field.kind === 'line' ? (
               <input
                 value={value}
                 placeholder={field.hint}

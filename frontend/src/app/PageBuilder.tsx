@@ -34,6 +34,7 @@ import {
 } from './layout';
 import { PARTS, partLabel, partOf } from './parts/registry';
 import { PickModule } from './PickModule';
+import { PickResource } from './PickResource';
 import type { DraftPart } from './page';
 
 const ROW_H = 84;
@@ -538,7 +539,9 @@ function Fields({ part, busy, onSet }: {
           <label className={`wk-field${empty ? ' is-empty' : ''}`} key={field.key}>
             <span>{field.label}</span>
 
-            {field.kind === 'line' ? (
+            {field.kind === 'resource' ? (
+              <PickResource value={value} busy={busy} onPick={(id) => onSet(field.key, id)} />
+            ) : field.kind === 'line' ? (
               <input
                 value={value}
                 placeholder={field.hint}

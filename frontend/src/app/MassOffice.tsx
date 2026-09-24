@@ -43,7 +43,8 @@ import {
 import { createCalendar, loadCalendars as loadAllCalendars } from './calendar';
 import { loadAreas, type AreaRow } from './area';
 import { printIntentions, sheetWeek } from './sheet';
-import { closeSlot, loadOfficeSlots, openSlot, type OfficeSlot } from './slot';
+import { loadResources, type ResourceRow } from './resource';
+import { viewPath } from './routes';
 import { call, WorkspaceError } from './session';
 
 /**
@@ -460,10 +461,8 @@ function Row({ intention, onChanged, onError }: {
  */
 function Appointments({ calendar, from }: { calendar: CalendarRow; from: string }) {
   const [items, setItems] = useState<readonly OfficeMass[]>([]);
-  const [slots, setSlots] = useState<readonly OfficeSlot[]>([]);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [resource, setResource] = useState<ResourceRow | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
-  const [places, setPlaces] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     try {
@@ -471,13 +470,13 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
       const end = new Date(start);
       end.setDate(end.getDate() + WINDOW_DAYS);
 
-      const [plan, open] = await Promise.all([
+      const [plan, all] = await Promise.all([
         loadOffice(calendar.calendarId, start, end, ['appointment']),
-        loadOfficeSlots(calendar.calendarId).catch(() => ({ slots: [] as readonly OfficeSlot[] }))
+        loadResources().catch(() => ({ resources: [] as readonly ResourceRow[] }))
       ]);
 
       setItems(plan.masses);
-      setSlots(open.slots);
+      setResource(all.resources.find((r) => r.calendarId === calendar.calendarId) ?? null);
       setFailed(null);
     } catch (e) {
       setItems([]);
@@ -487,134 +486,56 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
 
   useEffect(() => { void load(); }, [load]);
 
-  const act = async (what: string, todo: () => Promise<unknown>) => {
-    setBusy(what);
-    setFailed(null);
-
-    try {
-      await todo();
-      await load();
-    } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  if (items.length === 0) {
-    return (
-      <>
-        <h4 className="wk-h2">Terminy</h4>
-        {failed !== null && <p className="wk-error">{failed}</p>}
-        <p className="wk-empty">
-          W tym oknie nie ma żadnego terminu. Załóż go powyżej jako „Termin" —
-          potem tutaj otworzysz go na zapisy.
-        </p>
-      </>
-    );
-  }
-
   return (
     <>
       <h4 className="wk-h2">Terminy</h4>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {busy !== null && <p className="wk-hint">{busy}</p>}
 
-      <ul className="wk-list">
-        {items.map((one) => {
-          /*
-            NACH DEM AUGENBLICK, nicht nach der Zeichenfolge. Beide Seiten
-            schicken ein `DateTimeOffset`, aber die eine kommt aus der
-            Datenbank und die andere wird in der Zeitzone des Kalenders
-            gerechnet: `…T10:00:00+01:00` und `…T09:00:00+00:00` sind derselbe
-            Augenblick und zwei verschiedene Zeichenfolgen. Verglichen man sie
-            als Text, stünde jeder freigegebene Termin hier als „nieotwarty“ —
-            und ein zweites Öffnen liefe ins Leere.
-          */
-          const slot = slots.find(
-            (s) => s.itemId === one.itemId
-              && new Date(s.occurrenceAt).getTime() === new Date(one.occurrenceAt).getTime());
+      {/*
+        WER SICH WORAUF GESETZT HAT, steht bei den Rezerwacje (0039) — an einer
+        Stelle für das Treffen mit dem Priester und für das Haus in Hortus Dei.
+        Hier stand es zusätzlich, mit einem Knopf „Otwórz na zapisy" je
+        Vorkommen. Den gibt es nicht mehr: gehört dieser Kalender einem Zasób,
+        ist JEDER Termin darin zu wählen, und wer einen nicht anbieten will,
+        streicht ihn hier im Kalender.
+      */}
+      {resource === undefined ? null : resource === null ? (
+        <p className="wk-hint">
+          Ten kalendarz nie należy do żadnego zasobu — jego terminów nikt nie wybierze.
+          Załóż zasób w <a className="wk-link" href={viewPath('bookings', 'new')}>Rezerwacjach</a>.
+        </p>
+      ) : (
+        <p className="wk-hint">
+          Każdy termin tutaj można wybrać — to zasób{' '}
+          <a className="wk-link" href={viewPath('bookings', resource.resourceId)}>{resource.name}</a>
+          {' '}({resource.capacity} na termin). Kto się zapisał, widać tam.
+        </p>
+      )}
 
-          const key = `${one.itemId}-${one.occurrenceAt}`;
-          const when = new Date(one.startsAt);
+      {items.length === 0 ? (
+        <p className="wk-empty">W tym oknie nie ma żadnego terminu. Załóż go powyżej jako „Termin".</p>
+      ) : (
+        <ul className="wk-list">
+          {items.map((one) => {
+            const when = new Date(one.startsAt);
 
-          return (
-            <li className="wk-row" key={key}>
-              <span>
-                <strong>
-                  {when.toLocaleDateString('pl-PL',
-                    { weekday: 'short', day: 'numeric', month: 'long' })}
-                  {', '}
-                  {when.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
-                </strong>
-                {one.title !== null && <> — {one.title}</>}
-
-                {/*
-                  DREI ZUSTÄNDE, und sie sehen verschieden aus: nicht
-                  freigegeben, freigegeben mit Platz, voll. Ein „2/4" allein
-                  sagte nicht, ob überhaupt jemand buchen darf.
-                */}
-                {slot === undefined ? (
-                  <p className="wk-hint">
-                    Nieotwarty — nikt się tu nie zapisze.
-                    {' '}
-                    <label>
-                      Miejsc:{' '}
-                      <input
-                        type="number" min={1} max={99} style={{ width: '4rem' }}
-                        value={places[key] ?? '1'}
-                        onChange={(e) => setPlaces({ ...places, [key]: e.target.value })}
-                      />
-                    </label>
-                    {' '}
-                    <button
-                      type="button" className="wk-link-btn" disabled={busy !== null}
-                      onClick={() => void act('Otwieranie…', () => openSlot(
-                        one.itemId, one.occurrenceAt,
-                        Math.max(1, Number(places[key] ?? '1') || 1)))}
-                    >
-                      Otwórz na zapisy
-                    </button>
-                  </p>
-                ) : (
-                  <p className="wk-hint">
-                    <strong>{slot.taken} z {slot.capacity}</strong>
-                    {slot.who.length > 0 && <> — {slot.who.join(', ')}</>}
-                    {slot.taken === 0 && (
-                      <>
-                        {' · '}
-                        <button
-                          type="button" className="wk-link-btn" disabled={busy !== null}
-                          onClick={() => void act('Zamykanie…',
-                            () => closeSlot(one.itemId, one.occurrenceAt))}
-                        >
-                          Zamknij zapisy
-                        </button>
-                      </>
-                    )}
-                  </p>
-                )}
-
-                {/*
-                  WER SCHON DRIN SITZT, ENTSCHEIDET MIT. Solange das Fenster
-                  läuft, darf er jemanden dazunehmen — durch einen Code oder
-                  indem er eine Bitte annimmt. Die Kanzlei soll sehen, dass
-                  dieses Fenster offen ist, sonst wundert sie sich, warum ein
-                  belegter Termin noch wächst.
-                */}
-                {slot?.inviteUntil != null && new Date(slot.inviteUntil) > new Date() && (
-                  <p className="wk-hint">
-                    Do {new Date(slot.inviteUntil).toLocaleString('pl-PL',
-                      { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-                    {' '}zapisany może dobrać kogoś kodem albo przyjąć prośbę.
-                  </p>
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+            return (
+              <li className="wk-row" key={`${one.itemId}:${one.occurrenceAt}`}>
+                <span>
+                  <strong>
+                    {when.toLocaleDateString('pl-PL',
+                      { weekday: 'short', day: 'numeric', month: 'long' })}
+                    {', '}
+                    {when.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+                  </strong>
+                  {one.title !== null && <> — {one.title}</>}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </>
   );
 }

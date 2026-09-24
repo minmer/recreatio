@@ -105,30 +105,48 @@ export const formPart = definePart<FormConfig>({
   )
 });
 
-/* -- Termine zum Aussuchen -------------------------------------------------- */
+/* -- Etwas für eine Zeit nehmen (0039) ------------------------------------ */
 
 interface SlotConfig {
   readonly title: string;
-  readonly calendar: string;
+
+  /**
+   * Das Ding — ein Priester, ein Raum, ein Haus.
+   *
+   * <b>Einen Kalender statt des Dings gibt es nicht mehr.</b> Vor 0039 nahm
+   * dieser Baustein eine Kalenderkennung; die einzigen zwei, die je gesetzt
+   * wurden, trugen `con26/27/1` und nichts — keiner fand je einen Termin.
+   * Einen Rückweg für Einstellungen zu halten, die nie funktioniert haben,
+   * hieße, eine zweite Frage offen zu lassen, auf die es keine gute Antwort
+   * gibt: welcher Zasób, wenn zwei denselben Kalender lesen?
+   */
+  readonly resource: string;
 }
 
 export const slotsPart = definePart<SlotConfig>({
   kind: 'slots',
-  label: 'Terminy do wyboru',
-  use: 'Kto otworzy swój adres, wybiera sobie godzinę.',
+
+  /*
+   * EIN BAUSTEIN FÜR BEIDES. Ein Treffen mit dem Priester und ein Haus in
+   * Hortus Dei sind dasselbe: jemand nimmt sich einen Teil von etwas
+   * Begrenztem, für eine Zeit. Welcher Fall es ist, sagt das Ding — nicht
+   * dieser Baustein.
+   */
+  label: 'Rezerwacja',
+  use: 'Termin u księdza, sala, dom — ktoś zajmuje coś na czas.',
   box: { colSpan: 3, rowSpan: 3 },
 
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Wybierz termin spotkania' },
-    { key: 'calendar', label: 'Kalendarz', kind: 'line', hint: 'Kennung kalendarza z terminami' }
+    { key: 'resource', label: 'Co można zarezerwować', kind: 'resource' }
   ],
 
   read: (raw: RawConfig): SlotConfig => ({
     title: text(raw, 'title'),
-    calendar: text(raw, 'calendar')
+    resource: text(raw, 'resource')
   }),
 
   hasContent: () => true,
 
-  View: ({ config }) => <SlotCard title={config.title} calendar={config.calendar} />
+  View: ({ config }) => <SlotCard title={config.title} resource={config.resource} />
 });

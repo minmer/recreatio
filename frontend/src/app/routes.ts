@@ -356,6 +356,14 @@ export const VIEWS = {
    */
   areas: 'Obszary',
   calendar: 'Kalendarz',
+
+  /*
+   * Was man sich für eine Zeit nehmen kann (0039) — das Treffen mit dem
+   * Priester und das Haus in Hortus Dei. Neben dem Kalender, weil ihre
+   * Angebote dort stehen; nicht in ihm, weil hier Menschen etwas halten und
+   * dort nur Zeiten stehen.
+   */
+  bookings: 'Rezerwacje',
   chat: 'Rozmowy',
   /*
    * Bausteine stehen VOR den Seiten, weil sie unter ihnen liegen: eine

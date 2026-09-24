@@ -100,7 +100,9 @@ Form.Map(app);
  * Termine, die man sich nehmen kann (0029). Sie stehen im KALENDER — hier
  * kommt nur die Frage dazu, wer sich daraufsetzen darf.
  */
-Slot.Map(app);
+/* `Slot` ist in `Bookings` aufgegangen (0039): ein Termin beim Priester und
+   ein Haus in Hortus Dei sind dieselbe Sache mit anderen Regeln. */
+Bookings.Map(app);
 
 /* Bausteine als eigene Dinge — die Seite zeigt sie nur (0036). */
 Module.Map(app);

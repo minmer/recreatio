@@ -956,7 +956,10 @@ public static class Calendar
 
     /* -- Gemeinsames -------------------------------------------------------- */
 
-    private static async Task<Dictionary<(Guid, DateTimeOffset), (bool Cancelled, DateTimeOffset? MovedTo)>>
+    /* `internal`: die Buchungen (`Bookings`) pruefen ein Vorkommen gegen DIESELBEN
+       Ausnahmen — eine zweite Fassung liefe auseinander, und dann liesse sich ein
+       gestrichener Termin buchen. */
+    internal static async Task<Dictionary<(Guid, DateTimeOffset), (bool Cancelled, DateTimeOffset? MovedTo)>>
         ExceptionsAsync(SqlConnection connection, List<Guid> itemIds, CancellationToken ct)
     {
         var map = new Dictionary<(Guid, DateTimeOffset), (bool, DateTimeOffset?)>();

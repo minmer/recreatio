@@ -55,7 +55,12 @@ export interface PartContext {
 
 /* -- Die Felder, mit denen man ihn füllt ------------------------------------ */
 
-export type FieldKind = 'line' | 'text';
+/**
+ * `resource` ist ein Ding aus den Rezerwacje, gewählt statt getippt: seine
+ * Kennung ist eine UUID, und wer eine abtippen soll, schreibt stattdessen,
+ * wie er das Ding nennt.
+ */
+export type FieldKind = 'line' | 'text' | 'resource';
 
 export interface FieldDef {
   readonly key: string;
