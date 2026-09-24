@@ -22,6 +22,7 @@ import { knownDevice } from './kept';
 import type { Ring, SealedRole } from './keys';
 import { PersonCard } from './PersonCard';
 import { keysFor } from './ringOf';
+import { selfOf } from './roles';
 import { loadMySeats, openMine as openMySeat, type MySeat } from './seat';
 import { keepHeldKey, WorkspaceError, type KeyKeeping, type Who } from './session';
 
@@ -53,7 +54,7 @@ export function Account({ who }: { who: Who }) {
          * Die eigene PERSON, nicht die Kontorolle. „Account" ist ein Pęk
          * kluczy und hat keinen Geburtstag.
          */
-        setPerson(graph.roles.find((r) => r.kind === 'person' && !r.isPersonal) ?? null);
+        setPerson(selfOf(graph));
       })
       .catch(() => { if (alive) setRing(null); });
 

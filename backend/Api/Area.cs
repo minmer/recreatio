@@ -173,6 +173,12 @@ public static class Area
             return;
         }
 
+        if (Workspace.IsAccount(mine, roleId))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);
+            return;
+        }
+
         var issuer = await PublicSignKeyAsync(connection, roleId, ctx.RequestAborted);
         if (issuer is null)
         {
@@ -187,9 +193,9 @@ public static class Area
          * unter sie — und die Verschachtelung waere eine Behauptung ueber
          * Ordnung statt einer Ordnung.
          *
-         * Und die Rolle, auf die der neue Bereich laeuft, muss im aeusseren
-         * stehen: die Voraussetzung gilt vom ersten Zertifikat an, nicht erst
-         * ab dem zweiten.
+         * Die ROLLE, auf die der neue Bereich laeuft, muss dagegen NICHT
+         * aussen stehen: jeder Bereich hat seine eigenen Rollen (siehe
+         * GrantAsync). Die Verschachtelung ordnet Bereiche, nicht Menschen.
          */
         if (parentId is not null)
         {
@@ -197,13 +203,6 @@ public static class Area
                     Capability.Admin, ctx.RequestAborted))
             {
                 await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nadrzędnego nie ma.");
-                return;
-            }
-
-            if (!await InAreaAsync(connection, null, parentId.Value, [roleId], ctx.RequestAborted))
-            {
-                await Fail(ctx, StatusCodes.Status409Conflict,
-                    "Ta rola nie należy do obszaru nadrzędnego — najpierw dodaj ją tam.");
                 return;
             }
         }
@@ -659,6 +658,18 @@ public static class Area
             return;
         }
 
+        /*
+         * DER EMPFAENGER DARF KEIN KONTO SEIN (0040) — auch kein fremdes. Der
+         * Aussteller darf eines sein: wer vor 0040 einen Bereich am Konto
+         * angelegt hat, gibt ihn von dort aus weiter, bis er ihn einer Person
+         * uebergeben hat.
+         */
+        if (await Workspace.IsAnyAccountAsync(connection, null, subjectId, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);
+            return;
+        }
+
         // DARF: ohne `certify` lässt hier niemand jemanden herein.
         if (!await MayAsync(connection, who.Value.AccountId, id, Capability.Certify, ctx.RequestAborted))
         {
@@ -667,30 +678,16 @@ public static class Area
         }
 
         /*
-         * DIE VORAUSSETZUNG DER VERSCHACHTELUNG (0035).
+         * JEDER BEREICH HAT SEINE EIGENEN ROLLEN.
          *
-         * Wer in einen inneren Bereich soll, muss im aeusseren stehen. Das ist
-         * keine Vererbung — aussen zu stehen gibt innen NICHTS —, sondern eine
-         * Bedingung: die Spenden liegen innerhalb der Messe, und wer von den
-         * Spenden etwas wissen darf, gehoert zuerst zur Messe.
-         *
-         * Geprueft wird die blosse Zugehoerigkeit, nicht die Hoehe: wer die
-         * Messe nur liest, darf in den Spendenbereich aufgenommen werden — mit
-         * welcher Stufe dort, entscheidet dieser Bereich selbst.
-         *
-         * ABGELEHNT WIRD MIT GRUND. Ein blosses 403 liesse den Verwalter
-         * raten, warum eine Zusage nicht ankommt, die er gerade unterschrieben
-         * hat.
+         * Hier stand die Voraussetzung der Verschachtelung (0035): wer in
+         * einen inneren Bereich soll, muss im aeusseren stehen. Sie ist
+         * gefallen. Ein Katechet der Firmgruppe muss nicht zur ganzen Pfarrei
+         * gehoeren, um die Gruppe zu fuehren — und wer ihn trotzdem aussen
+         * haben wollte, musste ihn dort erst anlegen, nur um ihn innen
+         * aufnehmen zu duerfen. Die Verschachtelung ordnet die Bereiche; wer
+         * in welchem steht, entscheidet jeder fuer sich.
          */
-        var parent = await ParentOfAsync(connection, null, id, ctx.RequestAborted);
-
-        if (parent is not null
-            && !await InAreaAsync(connection, null, parent.Value, [subjectId], ctx.RequestAborted))
-        {
-            await Fail(ctx, StatusCodes.Status409Conflict,
-                "Ta rola nie należy do obszaru nadrzędnego — najpierw dodaj ją tam.");
-            return;
-        }
 
         var issuer = await PublicSignKeyAsync(connection, issuerId, ctx.RequestAborted);
         if (issuer is null)
@@ -1038,40 +1035,6 @@ public static class Area
         });
     }
 
-    /// <summary>
-    /// Ob <paramref name="roleIds"/> im Bereich <paramref name="areaId"/> steht —
-    /// irgendeine Stufe genuegt.
-    ///
-    /// <para>
-    /// <b>Die Voraussetzung der Verschachtelung</b> (0035): wer in einen inneren
-    /// Bereich soll, muss im aeusseren stehen. Geprueft wird die blosse
-    /// Zugehoerigkeit und nicht die Hoehe — wer die Messe nur liest, darf
-    /// trotzdem in den Spendenbereich aufgenommen werden, und mit welcher Stufe
-    /// dort, entscheidet der Spendenbereich selbst.
-    /// </para>
-    /// </summary>
-    private static async Task<bool> InAreaAsync(
-        SqlConnection connection, SqlTransaction? tx, Guid areaId, IReadOnlyList<Guid> roleIds,
-        CancellationToken ct)
-    {
-        if (roleIds.Count == 0) return false;
-
-        var names = string.Join(", ", roleIds.Select((_, i) => $"@p{i}"));
-
-        await using var cmd = new SqlCommand($"""
-            SELECT TOP 1 1 FROM app.certificate
-            WHERE scope_kind = N'area' AND scope_id = @area
-              AND revoked_at IS NULL AND expires_at > @now
-              AND subject_role_id IN ({names});
-            """, connection, tx);
-
-        cmd.Parameters.AddWithValue("@area", areaId);
-        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
-        for (var i = 0; i < roleIds.Count; i++) cmd.Parameters.AddWithValue($"@p{i}", roleIds[i]);
-
-        return await cmd.ExecuteScalarAsync(ct) is not null;
-    }
-
     /// <summary>Der Vater eines Bereichs, oder <c>null</c>.</summary>
     private static async Task<Guid?> ParentOfAsync(
         SqlConnection connection, SqlTransaction? tx, Guid areaId, CancellationToken ct)
@@ -1270,10 +1233,9 @@ public static class Area
     /// Eine Rolle wieder hinausnehmen.
     ///
     /// <para>
-    /// <b>Zuerst die inneren Bereiche.</b> Faellt jemand aussen weg, waehrend
-    /// er innen noch steht, ist die Voraussetzung der Verschachtelung verletzt —
-    /// und zwar still. Der Dienst lehnt deshalb ab und nennt, wo es klemmt,
-    /// statt eine Ordnung zu hinterlassen, die ihre eigene Regel bricht.
+    /// <b>Nur dieser Bereich.</b> Wer innen noch steht, bleibt dort: jeder
+    /// Bereich hat seine eigenen Rollen, und aussen hinauszugehen nimmt einem
+    /// innen nichts.
     /// </para>
     ///
     /// <para>
@@ -1300,28 +1262,6 @@ public static class Area
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "Tu nikogo nie wypuszczasz.");
             return;
-        }
-
-        /* Steht die Rolle in einem Bereich, der IN diesem liegt? */
-        await using (var inner = new SqlCommand("""
-            SELECT TOP 1 a.name
-            FROM app.area a
-            JOIN app.certificate c ON c.scope_kind = N'area' AND c.scope_id = a.id
-                                  AND c.revoked_at IS NULL AND c.expires_at > @now
-                                  AND c.subject_role_id = @role
-            WHERE a.parent_area_id = @area;
-            """, connection))
-        {
-            inner.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
-            inner.Parameters.AddWithValue("@role", subjectId);
-            inner.Parameters.AddWithValue("@area", id);
-
-            if (await inner.ExecuteScalarAsync(ctx.RequestAborted) is string where)
-            {
-                await Fail(ctx, StatusCodes.Status409Conflict,
-                    $"Ta rola jest jeszcze w obszarze „{where}”, który leży w tym. Najpierw usuń ją stamtąd.");
-                return;
-            }
         }
 
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
@@ -1403,7 +1343,7 @@ public static class Area
         return await cmd.ExecuteScalarAsync(ct) as byte[];
     }
 
-    private static async Task GrantKeyAsync(
+    internal static async Task GrantKeyAsync(
         SqlConnection connection, SqlTransaction tx, Guid roleId, Guid areaId, int epoch,
         byte[] wrapped, Guid byRoleId, DateTimeOffset now, CancellationToken ct)
     {
@@ -1424,7 +1364,7 @@ public static class Area
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    private static async Task InsertCertificateAsync(
+    internal static async Task InsertCertificateAsync(
         SqlConnection connection, SqlTransaction tx, CertificateRecord record, byte[] signature,
         CancellationToken ct)
     {
@@ -1447,7 +1387,7 @@ public static class Area
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    private static bool Verify(CertificateRecord record, byte[] issuerSpki, byte[] signature)
+    internal static bool Verify(CertificateRecord record, byte[] issuerSpki, byte[] signature)
     {
         try
         {

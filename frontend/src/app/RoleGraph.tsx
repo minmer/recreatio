@@ -24,25 +24,33 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
+import { handOver, holdsAnything, loadHeld, type Held } from './handOver';
 import type { Ring, SealedRole } from './keys';
 import {
-  addHolder, createRole, dropHolder, EDGE_KINDS, renameRole, retypeRole, revokeRole,
+  addHolder, createRole, dropHolder, EDGE_KINDS, personsOf, renameRole, retypeRole, revokeRole,
   type EdgeKind, type NewKind, type RoleEdge, type RoleGraphData
 } from './roles';
 import { forgetKeys, keysFor } from './ringOf';
 import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
 
-type Kind = 'person' | 'role' | 'group';
+type Kind = 'account' | 'person' | 'role' | 'group';
 
 /**
- * Drei Arten, und der Unterschied ist keiner der Technik:
+ * Vier Arten, und der Unterschied ist keiner der Technik:
  *
- *   Osoba   ein Mensch — das Konto selbst, entsteht mit ihm
+ *   Konto   der Schlüsselbund — entsteht mit der Anmeldung, hält nur Personen
+ *   Osoba   ein Mensch
  *   Rola    eine Funktion, die jemand ausübt und die übergeben wird
  *   Grupa   die, die dazugehören
+ *
+ * <b>Das Konto heisst immer „Konto".</b> Es hat keinen eigenen Namen: es ist
+ * kein Mensch, und ein Name darüber würde genau das behaupten. Was vor 0040
+ * darunter versiegelt wurde („Account" oder nichts), bleibt liegen und wird
+ * nicht mehr gelesen.
  */
 const KIND_NAME: Record<Kind, string> = {
+  account: 'Konto',
   person: 'Osoba',
   role: 'Rola',
   group: 'Grupa'
@@ -137,25 +145,34 @@ const DOT_GAP = 18;
 const NODE_TYPES = { role: RoleNode };
 
 function RoleNode({ data, selected }: NodeProps<NodeData>) {
+  /*
+   * DAS KONTO HAT KEINE EINGÄNGE und nur EINEN Ausgang (0040): niemand hält
+   * es, und es führt Personen — ganz, nicht lesend. Punkte, an denen jede
+   * Kante abgelehnt würde, wären Einladungen zu einem Fehler.
+   */
+  const dots = data.personal ? DOTS.filter((d) => d.kind === 'holds') : DOTS;
+
   return (
     <div
       className={`wk-node${data.personal ? ' wk-node-me' : ''}${data.locked ? ' wk-node-locked' : ''}${selected ? ' wk-node-on' : ''}`}
       style={{ minHeight: `${(DOTS.length - 1) * DOT_GAP + 52}px` }}
     >
-      {DOTS.map((dot, at) => {
+      {dots.map((dot, at) => {
         /* Mittig um die Zeilenmitte herum, damit der Knoten nicht kopflastig wird. */
-        const offset = (at - (DOTS.length - 1) / 2) * DOT_GAP;
+        const offset = (at - (dots.length - 1) / 2) * DOT_GAP;
 
         return (
           <Fragment key={dot.kind}>
-            <Handle
-              id={`in-${dot.kind}`}
-              type="target"
-              position={Position.Left}
-              className="wk-dot"
-              style={{ top: `calc(50% + ${offset}px)`, background: dot.colour }}
-              title={`${dot.name} — tu przyjmij`}
-            />
+            {!data.personal && (
+              <Handle
+                id={`in-${dot.kind}`}
+                type="target"
+                position={Position.Left}
+                className="wk-dot"
+                style={{ top: `calc(50% + ${offset}px)`, background: dot.colour }}
+                title={`${dot.name} — tu przyjmij`}
+              />
+            )}
             <Handle
               id={`out-${dot.kind}`}
               type="source"
@@ -231,9 +248,16 @@ export function RoleGraph({ who }: { who: Who }) {
       // damit Namen.
       const { ring: bund, graph } = await keysFor(who);
 
+      /*
+       * Das Konto heisst „Konto", was immer vor 0040 darunter versiegelt
+       * wurde — auch dort, wo es als Halter einer Person genannt wird.
+       */
+      const opened = new Map(bund === null ? [] : await bund.names());
+      if (graph.personRoleId !== null) opened.set(graph.personRoleId, 'Konto');
+
       setData(graph);
       setRing(bund);
-      setNames(bund === null ? new Map() : await bund.names());
+      setNames(opened);
       setFailed(null);
     } catch (e) {
       setData(null);
@@ -294,8 +318,11 @@ export function RoleGraph({ who }: { who: Who }) {
         position: standing.get(role.id) ?? kept.get(role.id) ?? computed.get(role.id) ?? { x: 40, y: 30 },
 
         data: {
-          label: names.get(role.id) ?? (ring?.has(role.id) === true ? 'bez nazwy' : 'zapieczętowane'),
-          kind: role.kind,
+          label: role.isPersonal ? 'Konto'
+            : names.get(role.id) ?? (ring?.has(role.id) === true ? 'bez nazwy' : 'zapieczętowane'),
+          /* Am Zeiger erkannt, nicht an der Art: was der Dienst vor 0040
+             anlegte, trägt noch `person`. */
+          kind: role.isPersonal ? 'account' : role.kind,
           personal: role.isPersonal,
           locked: ring?.has(role.id) !== true
         }
@@ -387,13 +414,30 @@ export function RoleGraph({ who }: { who: Who }) {
     void act(`Nadawanie: ${named}…`, () => addHolder(ring, c.target as string, holder, kind));
   };
 
+  /*
+   * WAS DER DIENST ABLEHNEN WÜRDE, lässt sich gar nicht erst ziehen (0040):
+   * in das Konto hinein, und aus dem Konto zu etwas anderem als einer Person.
+   */
+  const fits = (c: Connection): boolean => {
+    const from = data.roles.find((r) => r.id === c.source);
+    const to = data.roles.find((r) => r.id === c.target);
+    if (from === undefined || to === undefined || to.isPersonal) return false;
+
+    return !from.isPersonal || (to.kind === 'person' && c.sourceHandle === 'out-holds');
+  };
+
   return (
     <>
       <p className="wk-lede">
-        Rola to nie osoba: to, na co można przepisać odpowiedzialność. Człowiek
-        odchodzi, urząd zostaje. Strzałka prowadzi od tego, kto trzyma, do tego,
-        co jest trzymane — pociągnij ją, żeby przekazać rolę dalej.
+        Na górze jest konto — trzyma tylko osoby. Pod osobami wiszą role:
+        to, na co można przepisać odpowiedzialność. Człowiek odchodzi, urząd
+        zostaje. Strzałka prowadzi od tego, kto trzyma, do tego, co jest
+        trzymane — pociągnij ją, żeby przekazać rolę dalej.
       </p>
+
+      {ring !== null && (
+        <HandOverBar ring={ring} graph={data} names={names} onDone={() => { forgetKeys(); void look(); }} />
+      )}
 
       {/*
         DIE LEGENDE GEHÖRT NEBEN DEN GRAPHEN, nicht in eine Hilfe. Drei Farben
@@ -468,6 +512,7 @@ export function RoleGraph({ who }: { who: Who }) {
             nodeTypes={NODE_TYPES}
             onNodesChange={onNodesChange}
             onConnect={onConnect}
+            isValidConnection={fits}
             onNodeClick={(_, node) => setSelected(node.id)}
             onPaneClick={() => setSelected(null)}
 
@@ -484,6 +529,8 @@ export function RoleGraph({ who }: { who: Who }) {
         <aside className="wk-side">
           {role === null ? (
             <p className="wk-empty">Kliknij rolę, żeby zobaczyć, co można z nią zrobić.</p>
+          ) : role.isPersonal ? (
+            <AccountPanel who={who} ring={ring} account={role} busy={busy !== null} onAct={act} />
           ) : (
             <Panel
               role={role}
@@ -671,6 +718,149 @@ function Panel({ role, ring, name, holders, names, busy, onAct }: {
         </>
       )}
     </>
+  );
+}
+
+/* -- Das Konto (0040) -------------------------------------------------------
+ *
+ * Kein Name, keine Art zum Umstellen, nichts zum Löschen, niemand, der es
+ * hält. Was man mit ihm tun kann, ist genau eines: eine Person anlegen.
+ */
+
+function AccountPanel({ who, ring, account, busy, onAct }: {
+  who: Who;
+  ring: Ring | null;
+  account: SealedRole;
+  busy: boolean;
+  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+}) {
+  const [name, setName] = useState('');
+
+  return (
+    <>
+      <h2 className="wk-h2">Konto</h2>
+      <p className="wk-row-side">{who.loginId}</p>
+
+      <p className="wk-hint">
+        Konto samo niczego nie trzyma. Obszary, adresy i role należą do osób,
+        które konto prowadzi.
+      </p>
+
+      {ring !== null && ring.has(account.id) && (
+        <form
+          className="wk-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (name.trim() !== '') {
+              void onAct('Liczenie kluczy nowej osoby…',
+                () => createRole(ring, account, { kind: 'person', name }))
+                .then(() => setName(''));
+            }
+          }}
+        >
+          <h3 className="wk-h2">Nowa osoba</h3>
+          <label className="wk-field">
+            <span>Imię</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
+          </label>
+          <div className="wk-actions">
+            <button type="submit" className="wk-btn" disabled={busy || name.trim() === ''}>Załóż osobę</button>
+          </div>
+          <p className="wk-hint">Powstają dwa klucze RSA-4096 — to potrwa kilka sekund.</p>
+        </form>
+      )}
+    </>
+  );
+}
+
+/** 1 obszar, 2 obszary, 5 obszarów. */
+function counted(n: number, one: string, few: string, many: string): string {
+  const tens = n % 100;
+  const units = n % 10;
+  const word = n === 1 ? one
+    : units >= 2 && units <= 4 && (tens < 12 || tens > 14) ? few
+    : many;
+  return `${n} ${word}`;
+}
+
+/**
+ * WAS DAS KONTO VOR 0040 BEKAM — einmal übergeben, dann nie wieder zu sehen.
+ *
+ * Oben über dem Graphen und nicht erst im Konto-Knoten: wer hier nicht
+ * zufällig auf „Konto" klickt, sähe nie, dass seine Bereiche noch am falschen
+ * Ort hängen.
+ */
+function HandOverBar({ ring, graph, names, onDone }: {
+  ring: Ring;
+  graph: RoleGraphData;
+  names: ReadonlyMap<string, string>;
+  onDone: () => void;
+}) {
+  const [held, setHeld] = useState<Held | null>(null);
+  const [to, setTo] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  const persons = personsOf(graph);
+
+  useEffect(() => {
+    let alive = true;
+    loadHeld()
+      .then((found) => { if (alive) setHeld(found); })
+      .catch(() => { if (alive) setHeld(null); });
+    return () => { alive = false; };
+  }, [graph]);
+
+  if (held === null || !holdsAnything(held)) return null;
+
+  const what = [
+    held.areas.length > 0 && counted(held.areas.length, 'obszar', 'obszary', 'obszarów'),
+    held.addresses > 0 && counted(held.addresses, 'adres', 'adresy', 'adresów'),
+    held.calendarItems > 0
+      && counted(held.calendarItems, 'wpis w kalendarzu', 'wpisy w kalendarzu', 'wpisów w kalendarzu'),
+    held.intakes.length > 0
+      && counted(held.intakes.length, 'skrzynka formularza', 'skrzynki formularzy', 'skrzynek formularzy')
+  ].filter((x): x is string => x !== false).join(', ');
+
+  const person = persons.find((p) => p.id === to) ?? persons[0] ?? null;
+  const nameOf = (p: SealedRole) => names.get(p.id) ?? 'bez nazwy';
+
+  return (
+    <div className="wk-warn">
+      <p>
+        <strong>Konto trzyma jeszcze samo: {what}.</strong>{' '}
+        Od teraz należy to do osób — przekaż to jednej z nich. Klucze zostaną
+        przepakowane w tej przeglądarce.
+      </p>
+
+      {person === null ? (
+        <p>Najpierw załóż osobę: kliknij „Konto" w grafie.</p>
+      ) : (
+        <div className="wk-actions">
+          {persons.length > 1 && (
+            <select value={person.id} disabled={busy} onChange={(e) => setTo(e.target.value)}>
+              {persons.map((p) => <option key={p.id} value={p.id}>{nameOf(p)}</option>)}
+            </select>
+          )}
+          <button
+            type="button" className="wk-btn" disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setFailed(null);
+              handOver(ring, held, person)
+                .then(() => onDone())
+                .catch((e: unknown) => setFailed(
+                  e instanceof WorkspaceError ? e.message : 'Nie udało się przekazać.'))
+                .finally(() => setBusy(false));
+            }}
+          >
+            {busy ? 'Przepakowywanie kluczy…' : `Przekaż: ${nameOf(person)}`}
+          </button>
+        </div>
+      )}
+
+      {failed !== null && <p className="wk-error">{failed}</p>}
+    </div>
   );
 }
 

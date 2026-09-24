@@ -30,13 +30,15 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-  besideIt, chainTo, createArea, dropFromArea, inOrder, loadAreas, loadMembers, myEpochKeys,
+  besideIt, chainTo, createArea, dropFromArea, inOrder, joinArea, loadAreas, loadMembers, myEpochKeys,
   setPublicLevel, setSeatLevel,
   PUBLIC_LEVELS, SEAT_LEVELS, type AreaRow, type Member, type PublicLevel
 } from './area';
+import { namesInArea, type Called } from './called';
 import { useCrumbs, type Crumb } from './crumbTrail';
 import type { Ring, SealedRole } from './keys';
 import { keysFor, forgetKeys } from './ringOf';
+import { createRole, loadRoles, selfOf, type RoleGraphData } from './roles';
 import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
@@ -64,6 +66,7 @@ const OTHER_LEVEL: Record<string, string> = {
 };
 
 const KIND_NAME: Record<Member['kind'], string> = {
+  account: 'Konto',
   person: 'Osoba',
   group: 'Grupa',
   role: 'Rola'
@@ -97,6 +100,7 @@ export function Areas({ who, trail }: { who: Who; trail: readonly string[] }) {
   const [areas, setAreas] = useState<readonly AreaRow[] | null | undefined>(undefined);
   const [ring, setRing] = useState<Ring | null>(null);
   const [person, setPerson] = useState<SealedRole | null>(null);
+  const [graph, setGraph] = useState<RoleGraphData | null>(null);
   const view = viewOf(trail);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -106,7 +110,9 @@ export function Areas({ who, trail }: { who: Who; trail: readonly string[] }) {
       const { ring: bund, graph } = await keysFor(who);
 
       setRing(bund);
-      setPerson(graph.roles.find((r) => r.isPersonal) ?? null);
+      setGraph(graph);
+      // Die eigene PERSON hält einen neuen Bereich, nicht das Konto (0040).
+      setPerson(selfOf(graph));
       setAreas((await loadAreas()).areas);
       setFailed(null);
     } catch (e) {
@@ -204,6 +210,8 @@ export function Areas({ who, trail }: { who: Who; trail: readonly string[] }) {
           area={shown}
           areas={areas}
           ring={ring}
+          graph={graph}
+          self={person}
           busy={busy !== null}
           onAct={act}
         />
@@ -319,16 +327,18 @@ type Section = 'roles' | 'forms' | 'public';
  * etwas tun, um überhaupt etwas zu sehen. „Wer ist hier" ist die Frage, mit der
  * fast jeder kommt.
  */
-function AreaPage({ area, areas, ring, busy, onAct }: {
+function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
   area: AreaRow;
   areas: readonly AreaRow[];
   ring: Ring | null;
+  graph: RoleGraphData | null;
+  self: SealedRole | null;
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
   const [section, setSection] = useState<Section>('roles');
   const [members, setMembers] = useState<readonly Member[] | null>(null);
-  const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
+  const [names, setNames] = useState<ReadonlyMap<string, Called>>(new Map());
   const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
@@ -344,27 +354,20 @@ function AreaPage({ area, areas, ring, busy, onAct }: {
       setMembers(found);
 
       /*
-       * NAMEN STATT KENNUNGEN, wo es geht.
-       *
-       * Hier stand `roleId.slice(0, 8)` — acht Zeichen Hex als Bezeichnung
-       * eines Menschen. Lesbar ist der Name nur für den, der den Schlüssel der
-       * Rolle hält; für alle anderen bleibt die Kennung, und DAS ist die
-       * ehrliche Antwort: „nicht für dich" und nicht „namenlos".
+       * NAMEN STATT KENNUNGEN, wo es geht — und bei Menschen der echte Name:
+       * der Spitzname oder Vor- und Nachname, nicht bloss die Bezeichnung der
+       * Rolle (`called.ts`). Für wen nichts davon lesbar ist, bleibt die
+       * Kennung, und DAS ist die ehrliche Antwort: „nicht für dich" und nicht
+       * „namenlos".
        */
-      if (ring === null) return;
+      if (ring === null || graph === null) return;
 
-      const read = new Map<string, string>();
-
-      for (const one of found) {
-        const name = await ring.name(one.roleId);
-        if (name !== null) read.set(one.roleId, name);
-      }
-
+      const read = await namesInArea(ring, graph, area.areaId, found.map((m) => m.roleId));
       if (!dropped) setNames(read);
     })();
 
     return () => { dropped = true; };
-  }, [section, area.areaId, ring]);
+  }, [section, area.areaId, ring, graph]);
 
   const parent = area.parentAreaId === null
     ? null
@@ -442,9 +445,16 @@ function AreaPage({ area, areas, ring, busy, onAct }: {
                 <li className="wk-person" key={m.roleId}>
                   <span className="wk-person-who">
                     <span className="wk-tag">{KIND_NAME[m.kind]}</span>
-                    {names.has(m.roleId)
-                      ? <strong>{names.get(m.roleId)}</strong>
-                      : <code className="wk-person-id">{m.roleId.slice(0, 8)}</code>}
+                    {names.has(m.roleId) ? (
+                      <>
+                        <strong>{names.get(m.roleId)?.name}</strong>
+                        {names.get(m.roleId)?.also != null && (
+                          <span className="wk-person-also">{names.get(m.roleId)?.also}</span>
+                        )}
+                      </>
+                    ) : (
+                      <code className="wk-person-id">{m.roleId.slice(0, 8)}</code>
+                    )}
                   </span>
 
                   <span className="wk-person-can">
@@ -471,16 +481,24 @@ function AreaPage({ area, areas, ring, busy, onAct }: {
           )}
 
           {/*
-            DIE VORAUSSETZUNG, an der Stelle, an der sie gilt — und nicht mehr
-            oben auf der Seite, wo sie jeden empfing, der bloss nachsehen wollte.
+            HIER STAND DIE VORAUSSETZUNG DER VERSCHACHTELUNG — „wejść tu może
+            tylko ktoś, kto jest już w …". Sie ist gefallen: jeder Bereich hat
+            seine eigenen Rollen, und wer innen steht, muss aussen nicht stehen.
           */}
-          {parent !== null && (
-            <p className="wk-hint">
-              Wejść tu może tylko ktoś, kto jest już w <strong>{parent.name}</strong>.
-            </p>
-          )}
-
           {note !== null && <p className="wk-note">{note}</p>}
+
+          {area.mayCertify && ring !== null && graph !== null && members !== null && (
+            <AddRole
+              area={area}
+              ring={ring}
+              graph={graph}
+              self={self}
+              members={members}
+              names={names}
+              busy={busy}
+              onAct={onAct}
+            />
+          )}
         </div>
       )}
 
@@ -555,6 +573,173 @@ function AreaPage({ area, areas, ring, busy, onAct }: {
         </div>
       )}
     </>
+  );
+}
+
+/* -- Eine Rolle dazunehmen -------------------------------------------------- */
+
+type Level = 'read' | 'write' | 'admin';
+
+/**
+ * Eine Rolle in DIESEN Bereich — eine neue oder eine, die ich schon habe.
+ *
+ * <b>Jeder Bereich hat seine eigenen Rollen.</b> Die übliche Bewegung ist
+ * deshalb nicht „such dir aus dem Graphen etwas", sondern „leg hier an, was
+ * dieser Bereich braucht" — Katecheci, Animatorzy, Rada. Die neue Rolle hält
+ * die eigene Person; wer sie später übernimmt, bekommt sie im Rollengraphen.
+ *
+ * <b>Unterschrieben von der Rolle, die hier hineinlässt</b> — nicht von
+ * irgendeiner meiner Rollen. Das Zertifikat nennt, wer die Tür aufgemacht
+ * hat, und das soll dieselbe Rolle sein, die dazu befugt ist.
+ */
+function AddRole({ area, ring, graph, self, members, names, busy, onAct }: {
+  area: AreaRow;
+  ring: Ring;
+  graph: RoleGraphData;
+  self: SealedRole | null;
+  members: readonly Member[];
+  names: ReadonlyMap<string, Called>;
+  busy: boolean;
+  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [from, setFrom] = useState<'new' | 'mine'>('new');
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<'role' | 'group'>('role');
+  const [pick, setPick] = useState('');
+  const [level, setLevel] = useState<Level>('write');
+  const [labels, setLabels] = useState<ReadonlyMap<string, string>>(new Map());
+
+  useEffect(() => {
+    let alive = true;
+    void ring.names().then((read) => { if (alive) setLabels(read); });
+    return () => { alive = false; };
+  }, [ring]);
+
+  const present = new Set(members.map((m) => m.roleId));
+  const candidates = graph.roles.filter((r) => !r.isPersonal && ring.has(r.id) && !present.has(r.id));
+  const chosen = candidates.find((r) => r.id === pick) ?? candidates[0] ?? null;
+
+  const issuer = members.find((m) => m.capabilities.includes('certify') && ring.maySign(m.roleId))?.roleId ?? null;
+
+  const blocker =
+    issuer === null ? 'Żadna z Twoich ról nie może tu nikogo wpuścić.'
+    : from === 'new' && self === null ? 'Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach.'
+    : from === 'new' && name.trim() === '' ? 'Nazwij rolę.'
+    : from === 'mine' && chosen === null ? 'Wszystkie Twoje role już tu są.'
+    : null;
+
+  if (!open) {
+    return (
+      <button type="button" className="wk-tree-add" disabled={busy} onClick={() => setOpen(true)}>
+        <span aria-hidden="true">+</span> Dodaj rolę
+      </button>
+    );
+  }
+
+  const add = async () => {
+    if (blocker !== null || issuer === null) return;
+
+    let done = false;
+
+    await onAct(from === 'new' ? 'Liczenie kluczy nowej roli…' : 'Dodawanie…', async () => {
+      let role: SealedRole;
+
+      if (from === 'new') {
+        if (self === null) return;
+        const { id } = await createRole(ring, self, { kind, name });
+        const made = (await loadRoles()).roles.find((r) => r.id === id);
+        if (made === undefined) throw new WorkspaceError('Rola powstała, ale jeszcze jej nie widać — odśwież.');
+        role = made;
+      } else {
+        if (chosen === null) return;
+        role = chosen;
+      }
+
+      await joinArea(ring, area.areaId, role, issuer, level);
+      done = true;
+    });
+
+    if (done) {
+      setName('');
+      setPick('');
+      setOpen(false);
+    }
+  };
+
+  const who = (id: string) => names.get(id)?.name ?? labels.get(id) ?? 'bez nazwy';
+
+  return (
+    <form className="wk-form wk-add-role" onSubmit={(e) => { e.preventDefault(); void add(); }}>
+      <h3 className="wk-h2">Dodaj rolę</h3>
+
+      <Segment
+        now={from}
+        options={[
+          { value: 'new' as const, label: 'Nowa dla tego obszaru' },
+          { value: 'mine' as const, label: 'Jedna z moich' }
+        ]}
+        busy={busy}
+        onPick={setFrom}
+      />
+
+      {from === 'new' ? (
+        <>
+          <label className="wk-field">
+            <span>Nazwa</span>
+            <input value={name} placeholder="np. Katecheci" autoComplete="off"
+              onChange={(e) => setName(e.target.value)} />
+          </label>
+
+          <div className="wk-field">
+            <span>Rodzaj</span>
+            <Segment
+              now={kind}
+              options={[
+                { value: 'role' as const, label: 'Rola — funkcja' },
+                { value: 'group' as const, label: 'Grupa — ci, którzy należą' }
+              ]}
+              busy={busy}
+              onPick={setKind}
+            />
+          </div>
+
+          {self !== null && (
+            <p className="wk-hint">Prowadzi ją {who(self.id)}. Komu ją przekazać, ustawisz w Rolach.</p>
+          )}
+        </>
+      ) : candidates.length > 0 ? (
+        <label className="wk-field">
+          <span>Rola</span>
+          <select value={chosen?.id ?? ''} onChange={(e) => setPick(e.target.value)}>
+            {candidates.map((r) => (
+              <option key={r.id} value={r.id}>{who(r.id)} · {KIND_NAME[r.kind]}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      <div className="wk-field">
+        <span>Co może w tym obszarze</span>
+        <Segment
+          now={level}
+          options={[
+            { value: 'read' as const, label: 'Czyta' },
+            { value: 'write' as const, label: 'Pisze' },
+            { value: 'admin' as const, label: 'Prowadzi' }
+          ]}
+          busy={busy}
+          onPick={setLevel}
+        />
+      </div>
+
+      {blocker !== null && !busy && <p className="wk-blocker">{blocker}</p>}
+
+      <div className="wk-actions">
+        <button type="submit" className="wk-btn" disabled={busy || blocker !== null}>Dodaj</button>
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setOpen(false)}>Anuluj</button>
+      </div>
+    </form>
   );
 }
 
@@ -642,7 +827,7 @@ function NewArea({ ring, person, areas, busy, onAct, onDone }: {
   const blocker =
     busy ? null
     : ring === null ? 'Najpierw podaj hasło.'
-    : person === null ? 'Nie znaleziono Twojej roli osobistej.'
+    : person === null ? 'Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach.'
     : name.trim() === '' ? 'Nazwij obszar.'
     : null;
 
@@ -679,17 +864,6 @@ function NewArea({ ring, person, areas, busy, onAct, onDone }: {
             ))}
           </select>
         </label>
-      )}
-
-      {/*
-        NUR WENN ES GILT. Hier standen zwei Absätze — einer über die
-        Voraussetzung, einer darüber, wie der Schlüssel entsteht. Den zweiten
-        liest niemand, der gerade einen Namen eintippt.
-      */}
-      {inside !== '' && (
-        <p className="wk-hint">
-          Wejść tam będzie mógł tylko ktoś, kto jest już w obszarze nadrzędnym.
-        </p>
       )}
 
       {blocker !== null && !busy && <p className="wk-blocker">{blocker}</p>}

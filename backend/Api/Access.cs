@@ -215,6 +215,13 @@ public static class Access
             return;
         }
 
+        // Dem Konto wird nichts gegeben (0040) — nur Personen und Rollen darunter.
+        if (Workspace.IsAccount(mine, roleId))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);
+            return;
+        }
+
         // Gefragt wird am ELTERNPFAD: dort hängt das Recht, darunter etwas zu
         // öffnen. Die neue Adresse selbst kennt noch niemand.
         var parent = string.Join('/', path.Split('/')[..^1]);
@@ -327,6 +334,13 @@ public static class Access
         if (!mine.Any(r => r.Id == issuerId))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "W imieniu tej roli nie możesz nic wystawić.");
+            return;
+        }
+
+        // Auch kein fremdes Konto bekommt ein Zertifikat (0040).
+        if (await Workspace.IsAnyAccountAsync(connection, null, subjectId, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);
             return;
         }
 

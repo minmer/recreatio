@@ -10,36 +10,29 @@
  * Telefon spürbar lange. Eine Oberfläche, die währenddessen still steht, sieht
  * kaputt aus — also sagt sie, was gerade passiert und warum es dauert.
  *
- * <b>Beim Anlegen entstehen ZWEI Rollen, und sie heissen verschieden.</b>
+ * <b>Beim Anlegen entstehen ZWEI Rollen, und nur eine hat einen Namen.</b>
  *
  * <code>
- *   Account   — die Rolle, auf die das Konto zeigt. Generisch benannt, weil
- *               sie kein Mensch ist: sie ist der Schlüsselbund selbst.
- *   &lt;Name&gt;    — der erste MENSCH, von „Account" gehalten.
+ *   Konto     — die Rolle, auf die das Konto zeigt (Art `account`, 0040). Sie
+ *               ist kein Mensch, sondern der Schlüsselbund, und hält nur
+ *               Personen. Der Dienst legt sie an; sie heisst immer „Konto".
+ *   &lt;Name&gt;    — der erste MENSCH, vom Konto gehalten. Er ist es, der
+ *               Bereiche, Adressen und Ämter übernimmt.
  * </code>
  *
  * Ohne diese Trennung trüge der Schlüsselbund den Namen einer Person — und wer
  * das Konto später jemand anderem übergibt, übergäbe einen fremden Namen mit.
  *
- * <b>Beide Namen werden HIER gesetzt, nicht am Dienst.</b> Ein Name liegt
- * versiegelt an der Rolle; der Dienst hat dafür keinen Schlüssel und könnte ihn
- * nicht einmal dann schreiben, wenn er wollte.
+ * <b>Der Name wird HIER gesetzt, nicht am Dienst.</b> Er liegt versiegelt an
+ * der Rolle; der Dienst hat dafür keinen Schlüssel und könnte ihn nicht einmal
+ * dann schreiben, wenn er wollte.
  */
 
 import { useState } from 'react';
 
 import { forgetKeys, keysFor } from './ringOf';
-import { createRole, renameRole } from './roles';
+import { createRole } from './roles';
 import { register, signIn, WorkspaceError, type Who } from './session';
-
-/**
- * Der Name der Kontorolle — generisch, absichtlich.
- *
- * Sie ist kein Mensch und kein Amt: sie ist das, woran alles andere hängt. Ein
- * persönlicher Name an dieser Stelle wäre eine Behauptung darüber, wem das
- * Konto gehört, und die stimmt spätestens bei der ersten Übergabe nicht mehr.
- */
-const ACCOUNT_ROLE_NAME = 'Account';
 
 type Mode = 'in' | 'new';
 
@@ -69,14 +62,15 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
     : null;
 
   /**
-   * Was NACH dem Anlegen noch geschieht: die Kontorolle bekommt ihren
-   * generischen Namen, und der erste Mensch entsteht.
+   * Was NACH dem Anlegen noch geschieht: der erste Mensch entsteht, unter dem
+   * Konto. Das Konto selbst braucht keinen Namen mehr (0040) — es heisst
+   * überall „Konto".
    *
    * Getrennt vom Anlegen, weil hier bereits ein gültiges Konto steht. Scheitert
    * dieser Teil, ist man trotzdem angemeldet — die Namen lassen sich unter
    * „Role" nachtragen, ein verworfenes Konto liesse sich nicht nachtragen.
    */
-  const nameTheRoles = async (who: Who, wanted: string): Promise<void> => {
+  const firstPerson = async (who: Who, wanted: string): Promise<void> => {
     const { ring, graph } = await keysFor(who);
 
     if (ring === null) {
@@ -88,7 +82,6 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
       throw new WorkspaceError('Konto nie ma jeszcze roli.');
     }
 
-    await renameRole(ring, root.id, ACCOUNT_ROLE_NAME);
     await createRole(ring, root, { kind: 'person', name: wanted });
 
     // Der Bund kennt den Schlüssel der neuen Rolle sonst nicht.
@@ -117,14 +110,14 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
        * AB HIER STEHT DAS KONTO. Ein Fehlschlag darunter darf die Anmeldung
        * nicht zurücknehmen — er wird gezeigt, und man ist trotzdem drin.
        */
-      setBusy('Nazywanie roli i zakładanie pierwszej osoby…');
+      setBusy('Zakładanie pierwszej osoby…');
 
       try {
-        await nameTheRoles(who, nick.trim());
+        await firstPerson(who, nick.trim());
       } catch (e) {
         setFailed(e instanceof WorkspaceError
-          ? `Konto powstało, ale nie udało się nazwać ról: ${e.message}`
-          : 'Konto powstało, ale nie udało się nazwać ról. Dokończ to w zakładce „Role".');
+          ? `Konto powstało, ale nie udało się założyć osoby: ${e.message}`
+          : 'Konto powstało, ale nie udało się założyć osoby. Dokończ to w zakładce „Role" — kliknij „Konto".');
       }
 
       setNick('');

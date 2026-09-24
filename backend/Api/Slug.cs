@@ -239,6 +239,14 @@ public static partial class Slug
             return;
         }
 
+        // Eine Seite nur fuer ein Konto waere eine Seite fuer niemanden (0040).
+        if (roleId is not null
+            && await Workspace.IsAnyAccountAsync(connection, null, roleId.Value, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);
+            return;
+        }
+
         await using var cmd = new SqlCommand(
             "UPDATE app.slug SET internal_for_role_id = @role WHERE path = @path;", connection);
 
@@ -355,6 +363,13 @@ public static partial class Slug
         if (!mine.Any(r => r.Id == roleId))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "To nie jest Twoja rola.");
+            return;
+        }
+
+        // Dem Konto wird nichts gegeben (0040) — nur Personen und Rollen darunter.
+        if (Workspace.IsAccount(mine, roleId))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);
             return;
         }
 
@@ -567,6 +582,13 @@ public static partial class Slug
         if (!mine.Any(r => r.Id == roleId))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "To nie jest Twoja rola.");
+            return;
+        }
+
+        // Dem Konto wird nichts gegeben (0040) — nur Personen und Rollen darunter.
+        if (Workspace.IsAccount(mine, roleId))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);
             return;
         }
 

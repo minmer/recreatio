@@ -23,7 +23,7 @@
 import type { IdentityRole } from './form';
 import type { Ring } from './keys';
 import { loadPerson, openMine, PERSON_FIELDS, type PersonField } from './person';
-import type { RoleGraphData } from './roles';
+import { personsOf, type RoleGraphData } from './roles';
 
 /** Wovon ein Baustein handeln kann. Dieselben vier wie `ck_module_for_kind`. */
 export type ForKind = 'none' | 'person' | 'group' | 'role';
@@ -71,6 +71,9 @@ export async function subjectsFor(
 
   const out: Subject[] = [];
 
+  /* „Ich" sind die Personen, die das Konto selbst hält — nicht das Konto (0040). */
+  const me = new Set(personsOf(graph).map((p) => p.id));
+
   for (const role of graph.roles) {
     if (role.kind !== forKind) continue;
     if (!ring.has(role.id)) continue;
@@ -78,7 +81,7 @@ export async function subjectsFor(
     out.push({
       roleId: role.id,
       name: await ring.name(role.id),
-      isMine: role.id === graph.personRoleId
+      isMine: me.has(role.id)
     });
   }
 

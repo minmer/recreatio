@@ -498,6 +498,14 @@ public static class Person
         HttpContext ctx, SqlConnection connection, Guid accountId, Guid roleId)
     {
         var mine = await Workspace.RolesOfAsync(connection, accountId, ctx.RequestAborted);
+
+        // Das Konto hat keine Angaben (0040): es ist ein Schluesselbund, kein Mensch.
+        if (Workspace.IsAccount(mine, roleId))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);
+            return false;
+        }
+
         if (mine.Any(r => r.Id == roleId)) return true;
 
         await Fail(ctx, StatusCodes.Status403Forbidden, "To nie jest Twoja rola.");

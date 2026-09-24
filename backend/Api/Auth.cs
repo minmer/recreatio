@@ -335,7 +335,16 @@ public static class Auth
         finally { CryptographicOperations.ZeroMemory(roleKey); }
     }
 
-    /// <summary>Rolle eintragen und das Konto darauf zeigen lassen — beides oder keines.</summary>
+    /// <summary>
+    /// Rolle eintragen und das Konto darauf zeigen lassen — beides oder keines.
+    ///
+    /// <para>
+    /// <b>Art `account`, nicht `person`</b> (0040). Die Rolle ist der
+    /// Schluesselbund des Kontos; der erste Mensch darunter entsteht gleich
+    /// danach im Browser (`SignIn.tsx`), weil dessen Name versiegelt wird und
+    /// der Dienst ihn nicht sehen soll.
+    /// </para>
+    /// </summary>
     private static async Task InsertPersonRoleAsync(
         SqlConnection connection, SqlTransaction? tx, Guid accountId, Guid roleId,
         RoleIdentity keys, DateTimeOffset now, CancellationToken ct)
@@ -344,7 +353,7 @@ public static class Auth
             INSERT INTO app.role
                 (id, kind, wrap_public_key, sign_public_key,
                  wrap_private_sealed, sign_private_sealed, created_at)
-            VALUES (@role, N'person', @wrap, @sign, @wrapSealed, @signSealed, @now);
+            VALUES (@role, N'account', @wrap, @sign, @wrapSealed, @signSealed, @now);
 
             UPDATE app.account SET person_role_id = @role WHERE id = @account;
             """, connection, tx);

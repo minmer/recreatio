@@ -11,10 +11,34 @@ import { call } from './session';
 /** Eine Rolle dieses Kontos. Der Anzeigename ist versiegelt — hier steht die Art. */
 export interface RoleCard {
   readonly id: string;
-  readonly kind: 'person' | 'role' | 'group';
-  /** Die eine Rolle, die DIESES Konto ist. Sie kann nicht übergeben werden. */
+  readonly kind: 'account' | 'person' | 'role' | 'group';
+
+  /** Das KONTO selbst (0040). Es hält nur Personen und bekommt nichts. */
   readonly isPersonal: boolean;
+
+  /** Wie weit unter dem Konto: 1 sind die Personen, die es selbst hält. */
+  readonly depth: number;
 }
+
+/**
+ * Wer etwas übernehmen kann — eine Adresse, eine Seite. Alle meine Rollen
+ * AUSSER dem Konto: der Dienst lehnt es ohnehin ab, und eine Auswahl, die
+ * mit einer Absage endet, ist eine Falle.
+ */
+export const takers = (roles: readonly RoleCard[]): readonly RoleCard[] =>
+  roles.filter((role) => !role.isPersonal);
+
+/**
+ * Die Art, solange der Name versiegelt ist. EINE Stelle — vorher stand
+ * dieselbe Liste dreimal, und „Twoja rola osobista" hiess dort, was jetzt
+ * das Konto ist.
+ */
+export const kindName = (role: RoleCard): string =>
+  role.isPersonal ? 'Konto'
+  : role.kind === 'role' ? 'Rola'
+  : role.kind === 'group' ? 'Grupa'
+  : role.depth === 1 ? 'Ty'
+  : 'Osoba';
 
 /**
  * Eine Adresse, die eine meiner Rollen führt.

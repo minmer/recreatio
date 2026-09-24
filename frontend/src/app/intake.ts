@@ -21,7 +21,7 @@ import { aad, Field, fromBase64Url, newWrapPair, open, seal, toBase64Url } from 
 import type { Ring } from './keys';
 import { call } from './session';
 
-const intakeAad = (areaId: string) => aad('intake', 'area', areaId, Field.EventIntakeKey, 1);
+export const intakeAad = (areaId: string) => aad('intake', 'area', areaId, Field.EventIntakeKey, 1);
 
 export interface Controller {
   readonly name: string;

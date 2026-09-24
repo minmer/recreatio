@@ -29,7 +29,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { openSubpage } from './access';
-import { moveSlug, type Desk, type PageCard, type RoleCard } from './desk';
+import { kindName, moveSlug, takers, type Desk, type PageCard } from './desk';
 import type { Ring } from './keys';
 import { keysFor } from './ringOf';
 import { pagePath, PATH_SHAPE } from './routes';
@@ -310,12 +310,6 @@ function whose(roleId: string, names: ReadonlyMap<string, string>, desk: Desk): 
   return roleId.slice(0, 8);
 }
 
-const kindName = (role: RoleCard): string =>
-  role.isPersonal ? 'Twoja rola osobista'
-  : role.kind === 'role' ? 'Rola'
-  : role.kind === 'group' ? 'Grupa'
-  : 'Osoba';
-
 /* -- Wem die Adresse gehört ------------------------------------------------ */
 
 /**
@@ -406,7 +400,7 @@ function AddChild({ parent, desk, busy, onAct }: {
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
   const [name, setName] = useState('');
-  const [roleId, setRoleId] = useState(desk.roles[0]?.id ?? '');
+  const [roleId, setRoleId] = useState(takers(desk.roles)[0]?.id ?? '');
 
   const clean = name.trim().toLowerCase();
   const wanted = `${parent}/${clean}`;
@@ -437,7 +431,7 @@ function AddChild({ parent, desk, busy, onAct }: {
       <label className="wk-field">
         <span>Kto będzie odpowiadał</span>
         <select value={roleId} disabled={busy} onChange={(e) => setRoleId(e.target.value)}>
-          {desk.roles.map((r) => (
+          {takers(desk.roles).map((r) => (
             <option key={r.id} value={r.id}>{kindName(r)} · {r.id.slice(0, 8)}</option>
           ))}
         </select>

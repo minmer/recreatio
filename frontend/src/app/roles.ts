@@ -34,6 +34,33 @@ export interface RoleGraphData {
 
 export const loadRoles = (): Promise<RoleGraphData> => call<RoleGraphData>('/workspace/roles');
 
+/* -- Das Konto und seine Personen (0040) ------------------------------------
+ *
+ * `personRoleId` heisst im Draht noch so, wie die Spalte heisst — es ist das
+ * KONTO: die Wurzel, deren Schlüssel aus dem Hauptschlüssel abgeleitet wird.
+ * Es hält nur Personen, und ihm wird nichts gegeben. Wer handelt, ist eine
+ * dieser Personen oder eine Rolle darunter.
+ */
+
+/** Die Personen, die das Konto selbst hält — die älteste zuerst. */
+export function personsOf(graph: RoleGraphData): readonly SealedRole[] {
+  const held = new Set(graph.edges
+    .filter((e) => e.fromRoleId === graph.personRoleId && e.edgeKind === 'holds')
+    .map((e) => e.toRoleId));
+
+  return graph.roles
+    .filter((r) => r.kind === 'person' && held.has(r.id))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/**
+ * Die Person, als die man handelt, wo niemand gefragt wird: ein neuer
+ * Bereich, ein Kalendereintrag, das Postfach eines Formulars. `null`, solange
+ * das Konto noch keine hält — dann ist das erste, was zu tun ist, eine
+ * anzulegen.
+ */
+export const selfOf = (graph: RoleGraphData): SealedRole | null => personsOf(graph)[0] ?? null;
+
 /**
  * Die kanonische Form einer Kante — Feld für Feld wie `RoleEdgeRecord` im
  * Kernel.

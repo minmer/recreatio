@@ -356,6 +356,13 @@ public static class Calendar
             return;
         }
 
+        // Dem Konto wird nichts gegeben (0040) — nur Personen und Rollen darunter.
+        if (Workspace.IsAccount(mine, ownerRoleId))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);
+            return;
+        }
+
         var zone = Zones.Of(zoneId);
         var allDay = body.AllDay ?? false;
         var starts = Zones.AtLocal(day.ToDateTime(allDay ? new TimeOnly(0, 0) : hour), zone);

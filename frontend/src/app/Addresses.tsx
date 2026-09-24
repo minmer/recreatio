@@ -17,7 +17,7 @@
 
 import { useState } from 'react';
 
-import { bindDomain, declareAlias, type Desk, type RoleCard } from './desk';
+import { bindDomain, declareAlias, kindName, takers, type Desk } from './desk';
 import { PATH_SHAPE, pagePath } from './routes';
 import { WorkspaceError } from './session';
 
@@ -34,10 +34,6 @@ const PAGES_CNAME = 'minmer.github.io';
 
 /** Klein, mit Punkt, ohne Schema und ohne Pfad — wie `Slug.IsHostName` im Dienst. */
 const HOST_SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\.[a-z0-9]+(?:-[a-z0-9]+)*)+$/;
-
-const roleLabel = (role: RoleCard): string =>
-  (role.isPersonal ? 'Ty' : role.kind === 'group' ? 'Grupa' : 'Rola')
-  + ' · ' + role.id.slice(0, 8);
 
 export function Addresses({ desk, onChanged }: { desk: Desk; onChanged: () => void }) {
   /* Nur Adressen, auf denen Inhalt LIEGT, taugen als Ziel. Ein Alias auf einen
@@ -150,7 +146,7 @@ function AliasForm({ desk, roots, onDone }: {
 }) {
   const [target, setTarget] = useState('');
   const [wanted, setWanted] = useState('');
-  const [roleId, setRoleId] = useState(desk.roles[0]?.id ?? '');
+  const [roleId, setRoleId] = useState(takers(desk.roles)[0]?.id ?? '');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -219,8 +215,8 @@ function AliasForm({ desk, roots, onDone }: {
       <label className="wk-field">
         <span>Kto będzie odpowiadał</span>
         <select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
-          {desk.roles.map((role) => (
-            <option key={role.id} value={role.id}>{roleLabel(role)}</option>
+          {takers(desk.roles).map((role) => (
+            <option key={role.id} value={role.id}>{kindName(role)} · {role.id.slice(0, 8)}</option>
           ))}
         </select>
       </label>

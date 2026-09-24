@@ -31,7 +31,7 @@ import { PageEditor } from './PageEditor';
 import { RoleGraph } from './RoleGraph';
 import { WorkspaceError, type Who } from './session';
 import { SlugTree } from './SlugTree';
-import { claimSlug, loadDesk, type Desk, type RoleCard } from './desk';
+import { claimSlug, kindName, loadDesk, takers, type Desk } from './desk';
 import { treeOf } from './tree';
 
 export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
@@ -166,7 +166,7 @@ function Tiles({ desk }: { desk: Desk }) {
 
         <Tile view="roles" count={desk.roles.length}>
           <ul className="wk-tile-lines">
-            {desk.roles.map((role) => <li key={role.id}>{roleName(role)}</li>)}
+            {desk.roles.map((role) => <li key={role.id}>{kindName(role)}</li>)}
           </ul>
         </Tile>
 
@@ -334,7 +334,7 @@ function Pages({ desk, who, trail, onClaimed }: {
 
   const [wanted, setWanted] = useState('');
   const [code, setCode] = useState('');
-  const [roleId, setRoleId] = useState(desk.roles[0]?.id ?? '');
+  const [roleId, setRoleId] = useState(takers(desk.roles)[0]?.id ?? '');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -472,8 +472,8 @@ function Pages({ desk, who, trail, onClaimed }: {
           <label className="wk-field">
             <span>Kto będzie odpowiadał</span>
             <select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
-              {desk.roles.map((role) => (
-                <option key={role.id} value={role.id}>{roleName(role)} · {short(role.id)}</option>
+              {takers(desk.roles).map((role) => (
+                <option key={role.id} value={role.id}>{kindName(role)} · {short(role.id)}</option>
               ))}
             </select>
           </label>
@@ -506,18 +506,6 @@ function Pages({ desk, who, trail, onClaimed }: {
 }
 
 /* -- Namen ----------------------------------------------------------------- */
-
-/**
- * Der Anzeigename einer Rolle ist versiegelt (`display_name_sealed`) — der
- * Dienst kann ihn nicht lesen, und der Browser hat die Schlüssel dafür noch
- * nicht. Bis dahin steht hier die ART, und die ist ehrlich.
- */
-function roleName(role: RoleCard): string {
-  if (role.isPersonal) return 'Twoja rola osobista';
-  if (role.kind === 'role') return 'Rola';
-  if (role.kind === 'group') return 'Grupa';
-  return 'Osoba';
-}
 
 const short = (id: string): string => id.slice(0, 8);
 

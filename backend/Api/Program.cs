@@ -86,6 +86,7 @@ Keeping.Map(app);
 Workspace.Map(app);
 Slug.Map(app);
 Roles.Map(app);
+HandOver.Map(app);
 Page.Map(app);
 Access.Map(app);
 Mass.Map(app);

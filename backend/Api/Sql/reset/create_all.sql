@@ -8,7 +8,7 @@
     Der ENDZUSTAND der Wanderungen 0001 bis 0019 — nicht ihr Nacheinander.
     Wo eine spaetere eine fruehere geaendert hat, steht hier nur das Ergebnis:
 
-        ck_role_kind          `person, role, group`   (0011, nicht 0001)
+        ck_role_kind          `account, person, role, group`   (0040, nicht 0001)
         ck_certificate_scope  mit `slug`              (0012)
         claim_code_sha256     NULL erlaubt            (0012)
         ck_slug_path          laesst die leere Wurzel (0014)
@@ -91,7 +91,8 @@ CREATE TABLE app.role
     CONSTRAINT pk_role PRIMARY KEY (id),
 
     -- 0011: person, role, group — die Woerter, die im Haus benutzt werden.
-    CONSTRAINT ck_role_kind CHECK (kind IN (N'person', N'role', N'group'))
+    -- 0040: account — die Wurzel eines Kontos, die nur Personen haelt.
+    CONSTRAINT ck_role_kind CHECK (kind IN (N'account', N'person', N'role', N'group'))
 );
 GO
 

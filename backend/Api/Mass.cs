@@ -445,8 +445,12 @@ public static class Mass
                 insert.Parameters.AddWithValue("@ord", ordinal.Value);
                 insert.Parameters.AddWithValue("@text", text[..Math.Min(text.Length, MaxText)]);
                 insert.Parameters.AddWithValue("@kind", kind);
+                /*
+                 * WER ES EINGETRAGEN HAT: die eigene Person, nicht das Konto
+                 * (0040). `mine[0]` war das Konto — die erste Zeile der Liste.
+                 */
                 insert.Parameters.AddWithValue("@role",
-                    mine.Count == 0 ? DBNull.Value : mine[0].Id);
+                    Workspace.SelfOf(mine) is { } self ? self.Id : (object)DBNull.Value);
                 insert.Parameters.AddWithValue("@now", now);
 
                 await insert.ExecuteNonQueryAsync(ctx.RequestAborted);

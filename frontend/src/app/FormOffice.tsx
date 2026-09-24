@@ -35,6 +35,7 @@ import { createIntake, loadIntake, loadPublicIntake, openIntakeKey, setControlle
 import type { Ring, SealedRole } from './keys';
 import { Portal } from './Portal';
 import { keysFor } from './ringOf';
+import { selfOf } from './roles';
 import {
   officeSeatKey, loadSeats, relinkSeat, revokeSeat, seatPath, type SeatRow
 } from './seat';
@@ -132,7 +133,8 @@ export function FormOffice({ partId, config, who, standsOn }: {
       const keys = await keysFor(who);
       bund = keys.ring;
       setRing(bund);
-      setPerson(keys.graph.roles.find((r) => r.isPersonal) ?? null);
+      // Die eigene PERSON — das Konto bekommt kein Postfach und keinen Termin (0040).
+      setPerson(selfOf(keys.graph));
     } catch {
       // Ohne Schlüsselbund bleiben die Fragen zu. Sie stehen trotzdem da.
       setRing(null);

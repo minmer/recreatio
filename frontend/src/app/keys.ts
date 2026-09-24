@@ -28,7 +28,8 @@ import {
 /** Eine Rolle, so wie der Dienst sie herausgibt — alles Geheime versiegelt. */
 export interface SealedRole {
   readonly id: string;
-  readonly kind: 'person' | 'role' | 'group';
+  /** `account` ist die Wurzel des Kontos (0040) — sie hält nur Personen. */
+  readonly kind: 'account' | 'person' | 'role' | 'group';
   readonly isPersonal: boolean;
   readonly createdAt: string;
   readonly displayNameSealed: string | null;

@@ -28,7 +28,7 @@ import {
 } from './crypto';
 import { newId } from './ids';
 import type { Ring, SealedRole } from './keys';
-import { call } from './session';
+import { call, WorkspaceError } from './session';
 
 /**
  * Die AAD des Epochenschlüssels — an EINER Stelle, wie in `keys.ts`.
@@ -66,8 +66,9 @@ export interface AreaRow {
   /**
    * Worin er liegt — `null` heisst: ganz aussen (0035).
    *
-   * <b>Eine Voraussetzung, keine Vererbung.</b> Wer nach innen soll, muss
-   * aussen stehen; aussen zu stehen gibt innen nichts.
+   * <b>Eine Ordnung der Bereiche, nicht der Menschen.</b> Jeder Bereich hat
+   * seine eigenen Rollen: aussen zu stehen gibt innen nichts, und wer innen
+   * steht, muss aussen nicht stehen.
    */
   readonly parentAreaId: string | null;
 
@@ -87,7 +88,7 @@ export interface AreaRow {
 
 export interface Member {
   readonly roleId: string;
-  readonly kind: 'person' | 'role' | 'group';
+  readonly kind: 'account' | 'person' | 'role' | 'group';
   readonly wrapPublicKey: string;
 
   /** Alle Stufen dieser Rolle — `read`/`write`/`admin` und/oder `certify`. */
@@ -223,7 +224,7 @@ export type Capability = 'read' | 'write' | 'admin' | 'certify';
  * anderes gerechnet als über das, was geprüft wird — und der Dienst lehnte ab,
  * ohne sagen zu können, warum.
  */
-async function signedCertificate(ring: Ring, what: {
+export async function signedCertificate(ring: Ring, what: {
   issuerRoleId: string;
   subjectRoleId: string;
   areaId: string;
@@ -387,6 +388,37 @@ export async function grantTo(
   });
 }
 
+/**
+ * Eine Rolle in den Bereich aufnehmen — mit JEDEM Schlüssel, den ich halte.
+ *
+ * <b>Alle Epochen, nicht nur die jetzige.</b> Was unter einer früheren
+ * versiegelt wurde, bliebe der neuen Rolle sonst verschlossen, obwohl sie
+ * im Bereich steht. Der Dienst nimmt je Epoche eine Zuteilung und ein
+ * Zertifikat; bei den meisten Bereichen ist es genau eine.
+ *
+ * <b>Kein Umweg über den äusseren Bereich.</b> Jeder Bereich hat seine
+ * eigenen Rollen; wer innen steht, muss aussen nicht stehen.
+ */
+export async function joinArea(
+  ring: Ring,
+  areaId: string,
+  role: { readonly id: string; readonly kind: Member['kind']; readonly wrapPublicKey: string },
+  issuerRoleId: string,
+  capability: 'read' | 'write' | 'admin'
+): Promise<void> {
+  const keys = await myEpochKeys(ring, areaId);
+
+  if (keys.size === 0) {
+    throw new WorkspaceError('Nie masz klucza tego obszaru — nie możesz nikogo dodać.');
+  }
+
+  const member: Member = { roleId: role.id, kind: role.kind, wrapPublicKey: role.wrapPublicKey, capabilities: [] };
+
+  for (const [epoch, key] of [...keys].sort(([a], [b]) => a - b)) {
+    await grantTo(ring, areaId, epoch, key, member, issuerRoleId, capability);
+  }
+}
+
 /* -- Die Gestalt eines Bereichs (0035) ------------------------------------- */
 
 /**
@@ -428,9 +460,9 @@ export const setSeatLevel = (
 /**
  * Eine Rolle wieder hinausnehmen.
  *
- * Abgelehnt, solange sie in einem Bereich steht, der IN diesem liegt — sonst
- * bliebe eine Ordnung zurück, die ihre eigene Regel bricht. Was die Rolle
- * schon gelesen hat, bleibt bei ihr; `note` sagt das.
+ * Nur aus DIESEM Bereich: in einem inneren bleibt sie stehen, denn jeder
+ * Bereich hat seine eigenen Rollen. Was die Rolle schon gelesen hat, bleibt
+ * bei ihr; `note` sagt das.
  */
 export const dropFromArea = (
   areaId: string, roleId: string

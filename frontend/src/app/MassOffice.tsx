@@ -44,8 +44,9 @@ import { createCalendar, loadCalendars as loadAllCalendars } from './calendar';
 import { loadAreas, type AreaRow } from './area';
 import { printIntentions, sheetWeek } from './sheet';
 import { loadResources, type ResourceRow } from './resource';
+import { loadRoles, selfOf } from './roles';
 import { viewPath } from './routes';
-import { call, WorkspaceError } from './session';
+import { WorkspaceError } from './session';
 
 /**
  * Wie weit vorausgeladen wird — zwei Wochen, nicht ein Tag.
@@ -666,17 +667,19 @@ function ServiceForm({ calendar, onAdded }: { calendar: CalendarRow; onAdded: ()
    * ihn angelegt hat, bleibt lesbar, auch wenn das Konto später einer anderen
    * Person gehört.
    */
-  const [roleId, setRoleId] = useState<string | null>(null);
+  const [roleId, setRoleId] = useState<string | null | undefined>(undefined);
 
+  /* Die eigene PERSON, nicht das Konto: dem Konto gehört nichts (0040). */
   useEffect(() => {
-    call<{ personRoleId: string }>('/workspace/roles')
-      .then((graph) => setRoleId(graph.personRoleId))
+    loadRoles()
+      .then((graph) => setRoleId(selfOf(graph)?.id ?? null))
       .catch(() => setRoleId(null));
   }, []);
 
   const blocker =
     busy ? null
-    : roleId === null ? 'Wczytywanie roli…'
+    : roleId === undefined ? 'Wczytywanie roli…'
+    : roleId === null ? 'Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach.'
     : date === '' || time === '' ? 'Podaj dzień i godzinę.'
     /*
      * EINE REIHE MUSS EIN ENDE HABEN. Hier gesagt statt als 400 vom Dienst —
@@ -686,7 +689,7 @@ function ServiceForm({ calendar, onAdded }: { calendar: CalendarRow; onAdded: ()
     : null;
 
   const go = async () => {
-    if (roleId === null) return;
+    if (roleId == null) return;
 
     setBusy(true);
     setFailed(null);

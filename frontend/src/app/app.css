@@ -1193,6 +1193,12 @@ code {
    kein Name, sondern das Eingeständnis, dass wir keinen haben. */
 .wk-person-id { font-size: 0.85rem; color: var(--wk-muted); }
 
+/* Die andere Form desselben Menschen: „Kasia" und daneben „Katarzyna Nowak". */
+.wk-person-also { font-size: 0.85rem; color: var(--wk-muted); }
+
+/* Das Dazunehmen steht unter der Liste, abgesetzt: es ist eine Handlung, kein Eintrag. */
+.wk-add-role { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--wk-line); }
+
 .wk-person-can { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-left: auto; }
 
 /* -- Zwei Zeilen, die es noch nicht gab ------------------------------------- */

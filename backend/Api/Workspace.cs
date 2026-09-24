@@ -26,8 +26,55 @@ public static class Workspace
         app.MapGet("/workspace", SummaryAsync);
     }
 
-    /// <summary>Eine Rolle, wie der Arbeitsplatz sie zeigt.</summary>
-    public readonly record struct RoleRow(Guid Id, string Kind, bool IsPersonal);
+    /// <summary>
+    /// Eine Rolle, wie der Arbeitsplatz sie zeigt.
+    ///
+    /// <para>
+    /// <c>IsPersonal</c> ist das KONTO (0040) — die Wurzel, deren Schluessel
+    /// abgeleitet wird. <c>Depth</c> ist der kuerzeste Weg von dort: 1 heisst
+    /// „haelt das Konto selbst", und das sind nur Personen.
+    /// </para>
+    /// </summary>
+    public readonly record struct RoleRow(Guid Id, string Kind, bool IsPersonal, int Depth);
+
+    /// <summary>
+    /// Was gesagt wird, wenn jemand dem Konto etwas geben will. Eine Stelle,
+    /// damit es ueberall dasselbe heisst.
+    /// </summary>
+    public const string AccountTakesNothing =
+        "Konto samo niczego nie trzyma — wybierz osobę albo rolę pod nim.";
+
+    /// <summary>
+    /// Ist diese Rolle MEINE und darf sie etwas bekommen? Alles Meine ausser
+    /// dem Konto (0040).
+    /// </summary>
+    public static bool IsAccount(IEnumerable<RoleRow> mine, Guid roleId) =>
+        mine.Any(r => r.Id == roleId && r.IsPersonal);
+
+    /// <summary>
+    /// Ist diese Rolle IRGENDEIN Konto — auch ein fremdes?
+    ///
+    /// <para>
+    /// Gebraucht, wo der Empfaenger nicht meiner sein muss: ein Zertifikat
+    /// fuer einen anderen Menschen. Gefragt wird am Zeiger des Kontos und
+    /// nicht an <c>kind</c> — der Zeiger ist, was die Rolle zum Konto macht.
+    /// </para>
+    /// </summary>
+    public static async Task<bool> IsAnyAccountAsync(
+        SqlConnection connection, SqlTransaction? tx, Guid roleId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand(
+            "SELECT 1 FROM app.account WHERE person_role_id = @id;", connection, tx);
+        cmd.Parameters.AddWithValue("@id", roleId);
+        return await cmd.ExecuteScalarAsync(ct) is not null;
+    }
+
+    /// <summary>
+    /// Die Person, als die dieses Konto handelt, wo niemand gewaehlt wird —
+    /// die aelteste, die das Konto selbst haelt.
+    /// </summary>
+    public static RoleRow? SelfOf(IEnumerable<RoleRow> mine) =>
+        mine.Where(r => r.Depth == 1 && r.Kind == "person").Select(r => (RoleRow?)r).FirstOrDefault();
 
     private static async Task SummaryAsync(HttpContext ctx, Db db)
     {
@@ -41,7 +88,7 @@ public static class Workspace
 
         await ctx.Response.WriteAsJsonAsync(new
         {
-            roles = roles.Select(r => new { id = Ids.ToText(r.Id), kind = r.Kind, isPersonal = r.IsPersonal }),
+            roles = roles.Select(r => new { id = Ids.ToText(r.Id), kind = r.Kind, isPersonal = r.IsPersonal, depth = r.Depth }),
             pages = pages.Select(p => new
             {
                 path = p.Path,
@@ -65,8 +112,8 @@ public static class Workspace
     }
 
     /// <summary>
-    /// Die Rollen eines Kontos: die persönliche, und was von ihr aus im
-    /// Rollengraphen hängt.
+    /// Die Rollen eines Kontos: das Konto selbst, und alles, was von ihm aus
+    /// im Rollengraphen GEFUEHRT wird — ueber beliebig viele Stufen.
     ///
     /// <para>
     /// Erreichbarkeit im Graphen IST Schlüsselerreichbarkeit (Kernel:
@@ -74,30 +121,47 @@ public static class Workspace
     /// Oberfläche, sondern die Antwort auf „was darf dieser Mensch auf eine
     /// Adresse setzen".
     /// </para>
+    ///
+    /// <para>
+    /// <b>Frueher nur eine Stufe tief.</b> Das reichte, solange alles direkt
+    /// am Konto hing. Seit das Konto nur Personen haelt (0040), haengt jedes
+    /// Amt mindestens zwei Stufen tiefer — `Konto → Anna → Sekretariat` —, und
+    /// eine Stufe haette das Sekretariat stumm aus allem herausgenommen, was
+    /// Anna tun darf. Der Rollengraph (`Roles.ListAsync`) rechnete schon immer
+    /// ueber alle Stufen; jetzt rechnen beide dasselbe.
+    /// </para>
     /// </summary>
     public static async Task<List<RoleRow>> RolesOfAsync(
         SqlConnection connection, Guid accountId, CancellationToken ct)
     {
-        await using var cmd = new SqlCommand("""
-            SELECT r.id, r.kind, CAST(1 AS bit) AS is_personal
-            FROM app.account a
-            JOIN app.role r ON r.id = a.person_role_id
-            WHERE a.id = @account AND r.revoked_at IS NULL
+        await using var cmd = new SqlCommand($"""
+            WITH held (id, depth) AS (
+                SELECT r.id, 0
+                FROM app.account a
+                JOIN app.role r ON r.id = a.person_role_id
+                WHERE a.id = @account AND r.revoked_at IS NULL
 
-            UNION ALL
+                UNION ALL
 
-            SELECT r.id, r.kind, CAST(0 AS bit)
-            FROM app.account a
-            /*
-                NUR `holds` (0032). Eine Lese- oder Schreibkante macht eine Rolle
-                sichtbar, nicht verfuegbar — liefe sie hier mit, brachte eine
-                Lesekante saemtliche Rechte dieser Rolle mit, und das waere das
-                Gegenteil dessen, was sie heisst.
-            */
-            JOIN app.role_edge e ON e.from_role_id = a.person_role_id AND e.revoked_at IS NULL
-                                AND e.edge_kind = N'holds'
-            JOIN app.role r      ON r.id = e.to_role_id AND r.revoked_at IS NULL
-            WHERE a.id = @account;
+                SELECT e.to_role_id, h.depth + 1
+                FROM held h
+                /*
+                    NUR `holds` (0032). Eine Lese- oder Schreibkante macht eine
+                    Rolle sichtbar, nicht verfuegbar — liefe sie hier mit,
+                    brachte eine Lesekante saemtliche Rechte dieser Rolle mit,
+                    und das waere das Gegenteil dessen, was sie heisst.
+                */
+                JOIN app.role_edge e ON e.from_role_id = h.id AND e.revoked_at IS NULL
+                                    AND e.edge_kind = N'holds'
+                JOIN app.role r      ON r.id = e.to_role_id AND r.revoked_at IS NULL
+                WHERE h.depth < {RoleGraph.MaxDepth}
+            )
+            SELECT r.id, r.kind, MIN(h.depth) AS depth
+            FROM held h
+            JOIN app.role r ON r.id = h.id
+            GROUP BY r.id, r.kind, r.created_at
+            ORDER BY MIN(h.depth), r.created_at
+            OPTION (MAXRECURSION {RoleGraph.MaxDepth + 1});
             """, connection);
 
         cmd.Parameters.AddWithValue("@account", accountId);
@@ -107,7 +171,8 @@ public static class Workspace
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            roles.Add(new RoleRow(reader.GetGuid(0), reader.GetString(1), reader.GetBoolean(2)));
+            var depth = reader.GetInt32(2);
+            roles.Add(new RoleRow(reader.GetGuid(0), reader.GetString(1), depth == 0, depth));
         }
 
         return roles;

@@ -346,6 +346,19 @@ public static class Roles
             return;
         }
 
+        /*
+         * DAS KONTO HAELT NUR PERSONEN (0040). Ein Amt direkt am Konto hiesse:
+         * es gehoert niemandem Bestimmten, und wer es einem Nachfolger
+         * uebergibt, muesste das Konto mitgeben.
+         */
+        if (holderId == person.Value && kind != "person")
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Konto prowadzi tylko osoby. Rolę albo grupę załóż pod osobą.");
+            return;
+        }
+
         /* Eine neue Rolle wird GEFUEHRT — alles andere waere eine Rolle, die
            niemand oeffnen kann. */
         if (!VerifyEdge(holder.SignPublic, edgeId, holderId, roleId, holderId, createdAt,
@@ -458,6 +471,28 @@ public static class Roles
         {
             await tx.RollbackAsync(ctx.RequestAborted);
             await Fail(ctx, StatusCodes.Status403Forbidden, "Ta rola nie jest Twoja.");
+            return;
+        }
+
+        /*
+         * DAS KONTO (0040): niemand haelt es, und es haelt nur Personen — und
+         * die ganz. Eine Lesekante vom Konto auf eine Person waere eine Person,
+         * die zum Konto gehoert und doch nicht von ihm gefuehrt wird.
+         */
+        var target = roles.First(r => r.Id == id);
+
+        if (id == person.Value || target.Kind == "account")
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict, "Konta nikt nie trzyma — to ono jest na górze.");
+            return;
+        }
+
+        if (holderId == person.Value && (target.Kind != "person" || edgeKind != HoldsEdge))
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Konto prowadzi tylko osoby. Rolę albo grupę przekaż osobie.");
             return;
         }
 
@@ -689,7 +724,7 @@ public static class Roles
         if (!await MayTouchAsync(ctx, db, connection, id)) return;
 
         await using var cmd = new SqlCommand(
-            "UPDATE app.role SET kind = @kind WHERE id = @id AND kind <> N'person' AND revoked_at IS NULL;",
+            "UPDATE app.role SET kind = @kind WHERE id = @id AND kind IN (N'role', N'group') AND revoked_at IS NULL;",
             connection);
 
         cmd.Parameters.AddWithValue("@kind", kind);
@@ -697,9 +732,9 @@ public static class Roles
 
         if (await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 0)
         {
-            // Gilt fuer JEDE Rolle der Art `person`, nicht nur fuer die des
-            // Kontos: aus einem Menschen wird keine Gruppe.
-            await Fail(ctx, StatusCodes.Status409Conflict, "Osoby nie da się przetypować.");
+            // Gilt fuer JEDE Person und fuer das Konto: aus einem Menschen wird
+            // keine Gruppe, und aus dem Schluesselbund kein Amt.
+            await Fail(ctx, StatusCodes.Status409Conflict, "Osoby ani konta nie da się przetypować.");
             return;
         }
 
@@ -735,7 +770,7 @@ public static class Roles
         if (id == person.Value)
         {
             await Fail(ctx, StatusCodes.Status409Conflict,
-                "To Twoja rola osobista — bez niej konto nic nie trzyma.");
+                "To konto — na nim wiszą wszystkie Twoje osoby.");
             return;
         }
 

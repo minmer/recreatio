@@ -124,6 +124,13 @@ public static class Intake
             return;
         }
 
+        // Dem Konto wird nichts gegeben (0040) — nur Personen und Rollen darunter.
+        if (Workspace.IsAccount(mine, roleId))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);
+            return;
+        }
+
         await using var insert = new SqlCommand("""
             IF EXISTS (SELECT 1 FROM app.intake WHERE area_id = @area)
                 THROW 50001, 'intake exists', 1;

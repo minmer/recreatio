@@ -1021,6 +1021,13 @@ public static class Seat
             return;
         }
 
+        // Dem Konto wird nichts gegeben (0040) — nur Personen und Rollen darunter.
+        if (Workspace.IsAccount(mine, roleId))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Workspace.AccountTakesNothing);
+            return;
+        }
+
         Guid seatId;
         await using (var find = new SqlCommand("""
             SELECT id FROM app.access
