@@ -81,6 +81,16 @@ export interface ModuleRow {
   /** Auf wie vielen Seiten er steht. `0` ist ein echter Zustand. */
   readonly usedOnPages: number;
 
+  /**
+   * UND AUF WELCHEN.
+   *
+   * <b>Daran hängt, welche Seite sein Portal tragen darf</b> — die Regel des
+   * Dienstes geht von der Seite aus, auf der der Bogen steht. Die Oberfläche
+   * las das bisher aus dem WEG, über den jemand hereinkam; wer denselben
+   * Baustein über die Bausteinliste aufschlug, bekam gar keine Auswahl.
+   */
+  readonly pages: readonly string[];
+
   /** Wie viel er trägt — ein Bogen mit Antworten lässt sich nicht mehr umziehen. */
   readonly fields: number;
   readonly entries: number;

@@ -42,7 +42,7 @@ import { WorkspaceError, type Who } from './session';
 import { dialable, joinPhones, normalisePhone, splitPhones, tidyPhones, withPhone } from './phone';
 import { holesFor, missingIn, renderSms, smsHref, usesHole, VERIFY } from './sms';
 
-export function FormOffice({ partId, config, who, onPage }: {
+export function FormOffice({ partId, config, who, standsOn }: {
   partId: string;
 
   /** Der Baustein selbst — daraus kommt die Vorlage der Nachricht. */
@@ -51,13 +51,14 @@ export function FormOffice({ partId, config, who, onPage }: {
   who: Who;
 
   /**
-   * Die Seite, über die dieser Bogen aufgeschlagen wurde — oder `null`.
+   * Auf welchen Seiten dieser Bogen steht.
    *
-   * Ein Baustein kann auf mehreren Seiten stehen; welche gemeint ist, weiss
-   * nur der Weg hierher. Das Portal braucht es: es wird eine Unterseite
-   * DIESER Seite.
+   * <b>Aus den Daten, nicht aus dem Weg hierher.</b> Vorher stand hier die
+   * eine Seite, über die jemand hereinkam — und wer denselben Baustein über
+   * die Bausteinliste aufschlug, bekam `null` und damit eine Ansicht, in der
+   * sich nichts einstellen liess.
    */
-  onPage?: string | null;
+  standsOn?: readonly string[];
 }) {
   const [ring, setRing] = useState<Ring | null>(null);
   const [person, setPerson] = useState<SealedRole | null>(null);
@@ -571,7 +572,7 @@ export function FormOffice({ partId, config, who, onPage }: {
 
       <Portal
         moduleId={partId}
-        onPage={onPage ?? null}
+        standsOn={standsOn ?? []}
         portalUnder={(conf.portalUnder ?? '').trim()}
         ownerRoleId={person?.id ?? null}
         onSet={(where) => setSaved({ ...conf, portalUnder: where })}

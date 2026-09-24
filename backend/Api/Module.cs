@@ -78,6 +78,37 @@ public static class Module
                    /* Auf wie vielen Seiten er steht — „nirgends" ist eine Auskunft. */
                    (SELECT COUNT(*) FROM app.slug_part p WHERE p.module_id = m.id) AS used,
 
+                   /*
+                       UND AUF WELCHEN.
+
+                       Die Zahl allein genuegte nicht. Wo ein Bogen steht,
+                       entscheidet, welche Seite sein Portal tragen darf
+                       (`Form.ReadSelfSeatAsync`: die Seite mit dem Bogen,
+                       eine darueber, eine darunter). Die Oberflaeche las das
+                       bisher aus dem WEG, ueber den jemand hereinkam — und
+                       wer denselben Baustein ueber die Bausteinliste
+                       aufschlug, bekam gar keine Auswahl.
+
+                       Eine Zeichenkette mit Zeilenumbruechen und kein JSON:
+                       es sind Pfade, sie enthalten keine Zeilenumbrueche
+                       (`ck_slug_path`), und der Aufrufer trennt sie in einer
+                       Zeile.
+                   */
+                   /*
+                       `FOR XML PATH` und nicht `STRING_AGG`: dieser Server
+                       kennt das zweite nicht. Ein Pfad besteht aus
+                       Kleinbuchstaben, Ziffern, Strichen und Schraegstrichen
+                       (`ck_slug_path`) — da gibt es nichts zu entschaerfen,
+                       und `.value()` macht ohnehin rueckgaengig, was der
+                       Umweg ueber XML verschluesselt hat.
+                   */
+                   (SELECT s.path + CHAR(10)
+                      FROM app.slug_part p
+                      JOIN app.slug s ON s.id = p.slug_id
+                     WHERE p.module_id = m.id
+                     ORDER BY s.path
+                     FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)') AS pages,
+
                    /* Und wie viel er traegt: ein Bogen mit Antworten laesst sich
                       nicht mehr beliebig umbauen. */
                    (SELECT COUNT(*) FROM app.slug_field f WHERE f.part_id = m.id) AS fields,
@@ -121,8 +152,14 @@ public static class Module
                 areaName = reader.IsDBNull(7) ? null : reader.GetString(7),
 
                 usedOnPages = reader.GetInt32(8),
-                fields = reader.GetInt32(9),
-                entries = reader.GetInt32(10)
+
+                /* Leer heisst: nirgends. Kein `null` nach draussen — eine
+                   leere Liste ist dieselbe Auskunft ohne Sonderfall. */
+                pages = reader.IsDBNull(9)
+                    ? Array.Empty<string>()
+                    : reader.GetString(9).Split((char)10, StringSplitOptions.RemoveEmptyEntries),
+                fields = reader.GetInt32(10),
+                entries = reader.GetInt32(11)
             });
         }
 

@@ -415,7 +415,7 @@ function Pages({ desk, who, trail, onClaimed }: {
               partId={module.moduleId}
               config={readConfig(module.config)}
               who={who}
-              onPage={editing}
+              standsOn={module.pages}
             />
           </>
         )

@@ -7,20 +7,20 @@
  * nicht, fiel er auf die Seite mit dem Formular zurück: der Mensch öffnete
  * seinen Link und sah den Bogen, den er gerade abgeschickt hatte.
  *
- * <b>Und die Seite darüber ist oft die falsche.</b> Sie ist die öffentliche
- * Übersicht. Wer dort die Platz-Bausteine ablegte, stellte jedem Besucher
- * Kacheln hin, die für ihn leer bleiben — „Tu pojawi się…", unter dem
- * Pfarrtext.
+ * <b>Wo der Bogen steht, sagt der Bogen</b> (`ModuleRow.pages`) — und nicht der
+ * Weg, über den jemand hierhergekommen ist. Das war der Fehler davor: wer
+ * denselben Baustein über die Bausteinliste aufschlug, bekam keine Auswahl,
+ * keinen Knopf und die Meldung, der Bogen stehe nirgends. Er stand sehr wohl
+ * irgendwo; nur diese Ansicht wusste es nicht.
  *
- * <b>Zwei Wege, und beide kommen vor.</b> Eine vorhandene Seite dafür zu
- * benennen ist manchmal genau richtig; manchmal soll das Portal seine eigene
- * Seite sein. Also steht hier beides nebeneinander — wählen und anlegen.
+ * <b>Drei Wege, und alle drei kommen vor.</b> Eine vorhandene Seite benennen;
+ * eine neue anlegen und selbst benennen; oder gar nichts tun und es dem Dienst
+ * überlassen. Der dritte ist der, der bisher als einziger von selbst geschah —
+ * jetzt steht wenigstens da, was dabei herauskommt.
  *
  * <b>Angelegt wird sie NICHT leer.</b> Ein Portal ohne den Baustein, der die
  * eigene Einsendung zeigt, ist kein Portal — es ist eine leere Seite hinter
- * einem geheimen Link. Also stehen zwei Bausteine darauf, sobald sie entsteht,
- * und der erste ist der, um den es geht: <b>was ich eingeschickt habe, und die
- * Möglichkeit, es zu berichtigen.</b>
+ * einem geheimen Link.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -31,20 +31,24 @@ import { setPartConfig } from './form';
 import { newId } from './ids';
 import { COLUMNS, type Layout } from './layout';
 import { saveParts, type DraftPart } from './page';
-import { viewPath } from './routes';
+import { PATH_SHAPE, viewPath } from './routes';
 import { WorkspaceError } from './session';
 
 /**
- * Wie der Schritt heisst, den ein neues Portal bekommt.
+ * Wie ein neues Portal vorgeschlagen wird.
  *
  * <b>Nicht `portal`.</b> Das Wort ist im Register gesperrt (`Slug.IsReserved`),
  * weil hinter ihm der Link eines Menschen beginnt — `…/portal/<token>`. Eine
  * Unterseite so zu nennen verdeckte jeden dieser Links, und zwar lautlos.
+ *
+ * <b>Ein Vorschlag und keine Vorschrift.</b> Wer sein Portal `candidate` nennen
+ * will, nennt es so; das Feld steht offen.
  */
 const STEP = 'moje';
 
 /**
- * Welche Seiten ein Platz tragen darf — dieselbe Regel wie im Dienst.
+ * Welche Seiten ein Platz tragen darf — dieselbe Regel wie im Dienst
+ * (`Form.ReadSelfSeatAsync`).
  *
  * <b>Die Seite mit dem Bogen, eine darüber, eine darunter.</b> Alle drei liegen
  * im Zuständigkeitsbereich derselben Kanzlei. Eine Auswahl, die mehr anböte,
@@ -92,23 +96,23 @@ function fullWidth(row: number, rowSpan: number): Layout {
   return out;
 }
 
-export function Portal({ moduleId, onPage, portalUnder, ownerRoleId, onSet }: {
+export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: {
   moduleId: string;
 
   /**
-   * Die Seite, über die dieser Bogen aufgeschlagen wurde.
+   * Die Seiten, auf denen dieser Bogen steht.
    *
-   * <b>`null` heisst: er steht nirgends</b> — dann gibt es keine Seite, unter
-   * die ein Portal gehören könnte, und es wird auch keine angeboten. Ein
-   * Baustein kann auf mehreren Seiten stehen; welche gemeint ist, weiss nur der
-   * Weg, über den man hier hereinkam.
+   * <b>Leer heisst: nirgends</b> — und das ist kein Grund, alles zu sperren.
+   * Wer ein Portal VORBEREITET, bevor er den Bogen auslegt, tut etwas
+   * Vernünftiges; die Regel des Dienstes greift erst, wenn jemand absendet.
+   * Also wird dann alles angeboten und dazugesagt, was noch fehlt.
    */
-  onPage: string | null;
+  standsOn: readonly string[];
 
-  /** Worauf der Bogen heute zeigt. Leer heisst: eine Ebene über der Seite. */
+  /** Worauf der Bogen heute zeigt. Leer heisst: der Dienst leitet es ab. */
   portalUnder: string;
 
-  /** Wer die neue Unterseite führen soll. */
+  /** Wer eine neue Unterseite führen soll. */
   ownerRoleId: string | null;
 
   /** Nach dem Setzen — damit die Einstellung im Bild nachzieht. */
@@ -117,6 +121,7 @@ export function Portal({ moduleId, onPage, portalUnder, ownerRoleId, onSet }: {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [pages, setPages] = useState<readonly PageCard[]>([]);
+  const [wanted, setWanted] = useState('');
 
   const look = useCallback(async () => {
     try { setPages((await loadDesk()).pages); } catch { setPages([]); }
@@ -124,41 +129,53 @@ export function Portal({ moduleId, onPage, portalUnder, ownerRoleId, onSet }: {
 
   useEffect(() => { void look(); }, [look]);
 
-  const wanted = onPage === null ? null : `${onPage}/${STEP}`;
   const has = portalUnder !== '';
+  const nowhere = standsOn.length === 0;
 
-  /* Was schon dasteht und in Frage käme. */
-  const choices = onPage === null
-    ? []
-    : pages.filter((one) => mayCarry(onPage, one.path));
+  /* Ein Vorschlag für den neuen Pfad — sobald bekannt ist, wo der Bogen steht. */
+  useEffect(() => {
+    if (wanted === '' && standsOn[0] !== undefined) setWanted(`${standsOn[0]}/${STEP}`);
+  }, [standsOn, wanted]);
+
+  /*
+   * WAS ZUR AUSWAHL STEHT.
+   *
+   * Steht der Bogen irgendwo, gilt die Regel des Dienstes — gegen JEDE seiner
+   * Seiten, denn er darf auf mehreren stehen und eine davon genügt. Steht er
+   * nirgends, gibt es nichts zu prüfen: dann alles, was mir gehört.
+   */
+  const choices = nowhere
+    ? pages
+    : pages.filter((one) => standsOn.some((page) => mayCarry(page, one.path)));
 
   /*
    * WELCHE SEITE DER LINK WIRKLICH ÖFFNET.
    *
-   * Ohne Einstellung leitet der Dienst sie ab: eine Ebene höher, und wenn
-   * es die nicht gibt, die Seite mit dem Bogen (`Form.Above`). Das ist eine
-   * Regel, auf die niemand von selbst kommt — also steht hier nicht „o
-   * poziom wyżej", sondern die Adresse, die dabei herauskommt.
+   * Ohne Einstellung leitet der Dienst sie ab: eine Ebene höher, und wenn es
+   * die nicht gibt, die Seite mit dem Bogen (`Form.Above`). Eine Regel, auf die
+   * niemand von selbst kommt — also steht hier nicht „o poziom wyżej", sondern
+   * die Adresse, die dabei herauskommt.
    *
-   * <b>Dieselbe Ableitung ein zweites Mal, und das ist der Preis.</b> Sie
-   * steht im Dienst, weil sie dort gilt; hier steht sie, damit man sie
-   * VORHER sieht. Laufen sie auseinander, zeigt diese Zeile das Falsche —
-   * deshalb steht der Name der Gegenstelle im Kommentar.
+   * <b>Dieselbe Ableitung ein zweites Mal, und das ist der Preis.</b> Sie steht
+   * im Dienst, weil sie dort gilt; hier steht sie, damit man sie VORHER sieht.
+   * Laufen sie auseinander, zeigt diese Zeile das Falsche — deshalb steht der
+   * Name der Gegenstelle im Kommentar.
    */
   const derived = (() => {
-    if (onPage === null) return null;
+    const first = standsOn[0];
+    if (first === undefined) return null;
 
-    const cut = onPage.lastIndexOf('/');
-    if (cut < 0) return onPage;
+    const cut = first.lastIndexOf('/');
+    if (cut < 0) return first;
 
-    const above = onPage.slice(0, cut);
-    return pages.some((one) => one.path === above) ? above : onPage;
+    const above = first.slice(0, cut);
+    return pages.some((one) => one.path === above) ? above : first;
   })();
 
   const opens = has ? portalUnder : derived;
 
-  const said = (e: unknown) =>
-    setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+  const said = (e: unknown, what: string) =>
+    setFailed(e instanceof WorkspaceError ? e.message : what);
 
   /** Auf eine Seite zeigen, die es schon gibt. */
   const point = async (where: string) => {
@@ -169,15 +186,16 @@ export function Portal({ moduleId, onPage, portalUnder, ownerRoleId, onSet }: {
       await setPartConfig(moduleId, { portalUnder: where });
       onSet(where);
     } catch (e) {
-      said(e);
+      said(e, 'Nie udało się zapisać.');
     } finally {
       setBusy(false);
     }
   };
 
-  /** Eine eigene anlegen. */
+  /** Eine neue anlegen — unter dem Namen, der im Feld steht. */
   const make = async () => {
-    if (wanted === null || ownerRoleId === null) return;
+    const where = wanted.trim().replace(/^\/+|\/+$/g, '');
+    if (where === '' || ownerRoleId === null) return;
 
     setBusy(true);
     setFailed(null);
@@ -191,7 +209,7 @@ export function Portal({ moduleId, onPage, portalUnder, ownerRoleId, onSet }: {
        * Einstellung: ab da landen die Plätze dort, und ab da soll auch etwas
        * da sein.
        */
-      await openSubpage(wanted, ownerRoleId, 'Portal');
+      await openSubpage(where, ownerRoleId, 'Portal');
 
       const parts: DraftPart[] = SEED.map((one, at) => ({
         id: newId(),
@@ -201,35 +219,46 @@ export function Portal({ moduleId, onPage, portalUnder, ownerRoleId, onSet }: {
         config: one.config
       }));
 
-      await saveParts(wanted, parts);
-      await setPartConfig(moduleId, { portalUnder: wanted });
+      await saveParts(where, parts);
+      await setPartConfig(moduleId, { portalUnder: where });
 
-      onSet(wanted);
-      window.location.hash = viewPath('pages', ...wanted.split('/'));
+      onSet(where);
+      window.location.hash = viewPath('pages', ...where.split('/'));
     } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się założyć portalu.');
+      said(e, 'Nie udało się założyć portalu.');
     } finally {
       setBusy(false);
     }
   };
 
+  const path = wanted.trim().replace(/^\/+|\/+$/g, '');
+  const taken = pages.some((one) => one.path === path);
+
+  const blocker =
+    path === '' ? 'Wpisz adres strony.'
+    : !PATH_SHAPE.test(path) ? 'Adres: małe litery, cyfry i myślniki; części oddziel ukośnikiem.'
+    : taken ? 'Taka strona już jest — wybierz ją wyżej.'
+    : ownerRoleId === null ? 'Nie znaleziono Twojej roli.'
+    : null;
+
   return (
     <section className="wk-form">
       <h3 className="wk-h2">Po wysłaniu</h3>
 
-      {has ? (
+      {/*
+        WO DER BOGEN STEHT. Es entscheidet, welche Seite sein Portal tragen
+        darf — und es ist das Erste, was fehlt, wenn nichts anzubieten ist.
+      */}
+      {nowhere ? (
         <p className="wk-hint">
-          Kto wyśle ten formularz, trafia na <code>recreatio.pl/{portalUnder}</code>.
+          Ten formularz nie stoi jeszcze na żadnej stronie. Portal możesz
+          przygotować już teraz — pamiętaj tylko, że po postawieniu formularza
+          portal musi być tą samą stroną, wyżej albo niżej.
         </p>
       ) : (
-        /*
-          WAS HEUTE PASSIERT, wenn niemand etwas entschieden hat. Es
-          auszusprechen ist der halbe Grund für diesen Abschnitt: „eine Ebene
-          wyżej" ist keine Regel, auf die jemand von selbst kommt.
-        */
         <p className="wk-hint">
-          Nikt tego jeszcze nie ustawił — więc link otworzy stronę o poziom
-          wyżej, a jeśli jej nie ma, tę z formularzem.
+          Formularz stoi na: {standsOn.map((one) => <code key={one}>recreatio.pl/{one}</code>)
+            .reduce<React.ReactNode[]>((all, one, at) => at === 0 ? [one] : [...all, ', ', one], [])}.
         </p>
       )}
 
@@ -240,6 +269,14 @@ export function Portal({ moduleId, onPage, portalUnder, ownerRoleId, onSet }: {
         </p>
       )}
 
+      {has && (
+        <div className="wk-actions">
+          <a className="wk-btn" href={viewPath('pages', ...portalUnder.split('/'))}>
+            Otwórz tę stronę
+          </a>
+        </div>
+      )}
+
       <Choose
         now={portalUnder}
         choices={choices}
@@ -247,45 +284,44 @@ export function Portal({ moduleId, onPage, portalUnder, ownerRoleId, onSet }: {
         onPick={(where) => void point(where)}
       />
 
-      {failed !== null && <p className="wk-error">{failed}</p>}
+      {/*
+        EINE NEUE, unter einem Namen, den man selbst wählt. Vorher stand hier
+        ein fester Vorschlag und kein Feld — wer sein Portal anders nennen
+        wollte, konnte es nicht.
+      */}
+      <details className="wk-fold" open={!has && choices.length === 0}>
+        <summary>Albo załóż nową stronę</summary>
 
-      <div className="wk-actions">
-        {has && (
-          <a className="wk-btn" href={viewPath('pages', ...portalUnder.split('/'))}>
-            Otwórz tę stronę
-          </a>
-        )}
+        <label className="wk-field">
+          <span>Adres</span>
+          <input
+            value={wanted}
+            placeholder="np. parish/grzegorzki/confirmation/candidate"
+            disabled={busy}
+            onChange={(e) => setWanted(e.target.value)}
+          />
+        </label>
 
-        {/*
-          EINE EIGENE SEITE. Sie entsteht mit zwei Bausteinen — dem Zgłoszenie
-          dieser Person, das sie poprawić kann, und dem Platz für die Antwort
-          der Kanzlei. Ein Portal ohne den ersten wäre keines.
-        */}
-        {!choices.some((one) => one.path === wanted) && (
-          <button
-            type="button"
-            className={has ? 'wk-link-btn' : 'wk-btn'}
-            disabled={busy || wanted === null || ownerRoleId === null}
-            onClick={() => void make()}
-          >
-            {busy ? 'Zakładanie…' : 'Załóż własną stronę portalu'}
-          </button>
-        )}
-
-        {wanted === null && (
-          <span className="wk-blocker">
-            Ten formularz nie stoi na żadnej stronie — najpierw go gdzieś postaw.
-          </span>
-        )}
-      </div>
-
-      {!has && wanted !== null && (
         <p className="wk-hint">
-          Własna strona powstanie jako <code>recreatio.pl/{wanted}</code> —
-          ze zgłoszeniem tej osoby, które <strong>może poprawić</strong>,
+          Powstanie ze zgłoszeniem tej osoby, które <strong>może poprawić</strong>,
           i miejscem na wiadomość od kancelarii.
         </p>
-      )}
+
+        {blocker !== null && !busy && <p className="wk-blocker">{blocker}</p>}
+
+        <div className="wk-actions">
+          <button
+            type="button"
+            className="wk-btn"
+            disabled={busy || blocker !== null}
+            onClick={() => void make()}
+          >
+            {busy ? 'Zakładanie…' : 'Załóż i otwórz'}
+          </button>
+        </div>
+      </details>
+
+      {failed !== null && <p className="wk-error">{failed}</p>}
     </section>
   );
 }
@@ -313,7 +349,7 @@ function Choose({ now, choices, busy, onPick }: {
         disabled={busy}
         onChange={(e) => { if (e.target.value !== '') onPick(e.target.value); }}
       >
-        <option value="">— o poziom wyżej —</option>
+        <option value="">— niech usługa wybierze —</option>
         {choices.map((one) => (
           <option key={one.path} value={one.path}>recreatio.pl/{one.path}</option>
         ))}

@@ -386,7 +386,14 @@ function ModulePage({ module: row, areas, who, busy, onAct }: {
       {/* -- Und was seine Art ausmacht -------------------------------------- */}
 
       {row.kind === 'form'
-        ? <FormOffice partId={row.moduleId} config={readConfig(row.config)} who={who} />
+        ? (
+          <FormOffice
+            partId={row.moduleId}
+            config={readConfig(row.config)}
+            who={who}
+            standsOn={row.pages}
+          />
+        )
         : <Content module={row} busy={busy} />}
     </>
   );
