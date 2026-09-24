@@ -20,7 +20,7 @@ import {
   askToJoin, hostDecides, loadOffers, minutesToTime, nightsToSpan, releaseClaim,
   takeOffer, takeSpan, type Busy, type MyClaim, type Offer, type Offers, type Rules
 } from './resource';
-import { useSeat } from './seatContext';
+import { seatName, useSeats } from './seatContext';
 import { WorkspaceError } from './session';
 
 export function SlotCard({ title, resource }: {
@@ -29,7 +29,14 @@ export function SlotCard({ title, resource }: {
   /** Das Ding. Leer, solange die Kanzlei keines gewählt hat. */
   resource: string;
 }) {
-  const seat = useSeat();
+  /*
+   * WESSEN TERMIN. Wer mehrere Links geöffnet hat, hält mehrere Plätze —
+   * und ein Termin gehört genau einem davon. Also wird gefragt, und zwar
+   * nur dann, wenn es etwas zu wählen gibt.
+   */
+  const seats = useSeats();
+  const [pick, setPick] = useState<string | null>(null);
+  const seat = seats.find((one) => one.token === pick) ?? seats[0] ?? null;
   const token = seat?.token ?? null;
 
   const [data, setData] = useState<Offers | null>(null);
@@ -89,6 +96,26 @@ export function SlotCard({ title, resource }: {
   return (
     <>
       {heading}
+
+      {seats.length > 1 && (
+        <div className="wk-seat-pick">
+          <span className="wk-hint">Za kogo:</span>
+          <div className="wk-seg" role="group" aria-label="Za kogo">
+            {seats.map((one, at) => (
+              <button
+                key={one.token}
+                type="button"
+                aria-pressed={one.token === token}
+                className={one.token === token ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
+                disabled={busy !== null || one.token === token}
+                onClick={() => { setPick(one.token); setFresh(null); }}
+              >
+                {seatName(one, at)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {token === null && (
         <p className="wk-card-muted">

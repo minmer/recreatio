@@ -21,6 +21,7 @@ import { loadAreas, type AreaRow } from './area';
 import { newId } from './ids';
 import { createModule, loadModules, type ModuleRow } from './module';
 import { WorkspaceError } from './session';
+import { AreaOptions } from './AreaOptions';
 
 export function PickModule({ kind, chosen, busy, onPick, onMade }: {
   /** Die Art, die hier steht — nur Bausteine derselben passen an diese Stelle. */
@@ -137,9 +138,7 @@ export function PickModule({ kind, chosen, busy, onPick, onMade }: {
             onChange={(e) => setAreaId(e.target.value)}
           >
             <option value="">— bez obszaru —</option>
-            {usable.map((a) => (
-              <option key={a.areaId} value={a.areaId}>{a.name}</option>
-            ))}
+            <AreaOptions areas={areas} only={usable} />
           </select>
         </label>
 

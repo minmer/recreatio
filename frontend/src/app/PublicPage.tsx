@@ -17,12 +17,12 @@
  * weiterging, und es sah aus, als hätte man den Link nie geöffnet.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { loadPage, toDraft, type PageContent } from './page';
 import { PageParts } from './PageParts';
-import { SeatContext } from './seatContext';
-import { seatFor } from './seatKeep';
+import { SeatContext, useSeats } from './seatContext';
+import { seatsFor } from './seatKeep';
 import { useSeat } from './seatView';
 import { WorkspaceError } from './session';
 import { loadSite } from './site';
@@ -95,10 +95,11 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
 }
 
 /**
- * Hält dieser Browser einen Platz, der auf diese Seite gehört? Dann gilt er.
+ * Hält dieser Browser Plätze, die auf diese Seite gehören? Dann gelten sie —
+ * ALLE, nicht bloss der zuletzt geöffnete.
  *
- * <b>Ohne Platz ändert sich nichts.</b> `SeatContext` steht dann auf `null`,
- * wie bisher, und die persönlichen Bausteine sagen, was hier erscheinen wird.
+ * <b>Ohne Platz ändert sich nichts.</b> `SeatContext` bleibt dann leer, und
+ * die persönlichen Bausteine sagen, was hier erscheinen wird.
  *
  * <b>Und es wird nichts geholt, wenn nichts zu holen ist.</b> Wer keinen
  * Platz hält — also fast jeder Besucher — löst keinen einzigen Aufruf aus:
@@ -106,21 +107,39 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
  * Schlüssel und muss nicht erfragt werden.
  */
 function WithSeat({ path, children }: { path: string; children: React.ReactNode }) {
-  const token = seatFor(path);
+  /*
+   * EINMAL JE SEITE gelesen. Jeder geöffnete Platz frischt seinen Zeitstempel
+   * auf, und die Reihenfolge hängt daran — neu gelesen bei jedem Zeichnen,
+   * wanderten die Plätze zwischen den Bauteilen und jeder würde neu geholt.
+   */
+  const tokens = useMemo(() => seatsFor(path), [path]);
 
-  return token === null
-    ? <>{children}</>
-    : <Opened token={token}>{children}</Opened>;
+  return <OpenAll tokens={tokens}>{children}</OpenAll>;
 }
 
 /*
- * Ein eigenes Bauteil, weil ein Haken nicht bedingt aufgerufen werden darf.
- * Ohne es stünde `useSeat` hinter einem `if`, und React zählt Haken.
+ * JE PLATZ EIN BAUTEIL, ineinander. Ein Haken darf nicht in einer Schleife
+ * stehen — React zählt Haken, und eine Liste, die wächst, zählte anders.
+ * Verschachtelt hat jedes Bauteil genau einen, und jedes legt seinen Platz
+ * zu denen, die es von aussen bekommt.
  */
+function OpenAll({ tokens, children }: { tokens: readonly string[]; children: React.ReactNode }) {
+  if (tokens.length === 0) return <>{children}</>;
+
+  return (
+    <Opened token={tokens[0]}>
+      <OpenAll tokens={tokens.slice(1)}>{children}</OpenAll>
+    </Opened>
+  );
+}
+
 function Opened({ token, children }: { token: string; children: React.ReactNode }) {
   const { seat } = useSeat(token, null);
+  const outer = useSeats();
 
-  return <SeatContext.Provider value={seat}>{children}</SeatContext.Provider>;
+  const all = useMemo(() => (seat === null ? outer : [...outer, seat]), [outer, seat]);
+
+  return <SeatContext.Provider value={all}>{children}</SeatContext.Provider>;
 }
 
 export default PublicPage;

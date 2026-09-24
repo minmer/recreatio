@@ -26,6 +26,7 @@ import {
   setValue, withdrawValue, type PersonField, type Release
 } from './person';
 import { WorkspaceError } from './session';
+import { AreaOptions } from './AreaOptions';
 
 export function PersonCard({ roleId, ring }: { roleId: string; ring: Ring }) {
   const [values, setValues] = useState<Map<PersonField, string>>(new Map());
@@ -235,9 +236,10 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
                   <span>Udostępnij obszarowi</span>
                   <select value={target} onChange={(e) => setTarget(e.target.value)}>
                     <option value="">—</option>
-                    {reachable
-                      .filter((a) => !releases.some((r) => r.areaId === a.areaId))
-                      .map((a) => <option key={a.areaId} value={a.areaId}>{a.name}</option>)}
+                    <AreaOptions
+                      areas={areas}
+                      only={reachable.filter((a) => !releases.some((r) => r.areaId === a.areaId))}
+                    />
                   </select>
                 </label>
 

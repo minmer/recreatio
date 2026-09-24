@@ -25,7 +25,7 @@
  * aufgemacht wird sie hier.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { SealedRole } from './keys';
 import { keysFor } from './ringOf';
@@ -56,6 +56,12 @@ export function SeatPortal({ token, keyText, under }: {
 
   /* Was der Haken aufgemacht hat — oder nichts. */
   const seatKey = seat?.seatKey ?? null;
+
+  /*
+   * Hier gilt GENAU dieser Platz: wer seinen Link öffnet, meint ihn. Die
+   * übrigen, die der Browser hält, erscheinen auf den Seiten des Hauses.
+   */
+  const seatList = useMemo(() => (seat === null ? [] : [seat]), [seat]);
 
   /* Eine eigene Meldung fürs Binden: die des Hakens gehört dem Aufmachen. */
   const [mishap, setMishap] = useState<string | null>(null);
@@ -142,7 +148,7 @@ export function SeatPortal({ token, keyText, under }: {
   const template = portal.template;
 
   return (
-    <SeatContext.Provider value={seat}>
+    <SeatContext.Provider value={seatList}>
       <MyLink token={token} under={under} />
       {under !== null && under !== '' && (
         <p className="wk-row-side">

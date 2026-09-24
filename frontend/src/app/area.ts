@@ -191,6 +191,31 @@ export function chainTo(areas: readonly AreaRow[], areaId: string): readonly Are
   return out;
 }
 
+/**
+ * Wo ein Bereich liegt, in EINER Zeile — für Auswahllisten.
+ *
+ * <b>Der Name allein reicht nicht.</b> „Kandydaci" gibt es in der Firmung
+ * und in der Erstkommunion; in einer Liste stehen dann zweimal dieselben
+ * Buchstaben, und wer wählt, rät. Mit dem Weg dorthin nicht:
+ * „Parafia Grzegórzki › Bierzmowanie › Kandydaci".
+ *
+ * <b>Lange Wege werden in der MITTE gekürzt.</b> Vorn steht, zu welchem Haus
+ * es gehört, hinten, was es ist und worin es direkt liegt — das Dazwischen ist
+ * das, was man am ehesten entbehrt: „Parafia › … › Bierzmowanie › Kandydaci".
+ * Der ganze Weg steht in \`full\` (für \`title\`, als Tooltip).
+ */
+export function areaPath(
+  areas: readonly AreaRow[], areaId: string
+): { readonly short: string; readonly full: string } {
+  const names = chainTo(areas, areaId).map((a) => a.name);
+  const full = names.join(' › ');
+
+  return {
+    short: names.length <= 3 ? full : [names[0], '…', ...names.slice(-2)].join(' › '),
+    full
+  };
+}
+
 export const loadAreas = (): Promise<{ areas: readonly AreaRow[] }> =>
   call<{ areas: readonly AreaRow[] }>('/workspace/areas');
 

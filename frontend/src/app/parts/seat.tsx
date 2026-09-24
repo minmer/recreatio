@@ -20,32 +20,49 @@
 import type { ReactNode } from 'react';
 
 import { definePart, flag, text, type RawConfig } from '../part';
-import { useSeat } from '../seatContext';
+import { seatName, useSeats, type SeatView } from '../seatContext';
 import { Submission } from '../Submission';
 
 /**
  * Die zwei Zustände, die alle drei kennen — und der Inhalt danach.
  *
  * `empty` ist das, was ohne Platz dasteht: eine Ankündigung, kein Fehler.
+ *
+ * <b>Mehrere Plätze, mehrere Abschnitte.</b> Wer zwei Links geöffnet hat —
+ * zwei Kinder, zwei Anmeldungen —, sieht beide, jeden unter seinem Namen.
+ * Einer allein steht ohne Namen da, wie bisher: über dem eigenen Zgłoszenie
+ * noch einmal den eigenen Namen zu lesen, sagte nichts.
  */
 function OnSeat({ title, fallback, empty, children }: {
   title: string;
   fallback: string;
   empty: string;
-  children: (seat: NonNullable<ReturnType<typeof useSeat>>) => ReactNode;
+  children: (seat: SeatView) => ReactNode;
 }) {
-  const seat = useSeat();
+  const seats = useSeats();
   const head = <h2 className="wk-card-title">{title === '' ? fallback : title}</h2>;
 
-  if (seat === null) {
+  if (seats.length === 0) {
     return <>{head}<p className="wk-card-muted">{empty}</p></>;
   }
 
-  if (seat.seatKey === null) {
-    return <>{head}<p className="wk-card-muted">Bez klucza z adresu nie da się tego otworzyć.</p></>;
-  }
+  const one = (seat: SeatView) => seat.seatKey === null
+    ? <p className="wk-card-muted">Bez klucza z adresu nie da się tego otworzyć.</p>
+    : children(seat);
 
-  return <>{head}{children(seat)}</>;
+  if (seats.length === 1) return <>{head}{one(seats[0])}</>;
+
+  return (
+    <>
+      {head}
+      {seats.map((seat, at) => (
+        <section className="wk-seat-one" key={seat.token}>
+          <h3 className="wk-seat-who">{seatName(seat, at)}</h3>
+          {one(seat)}
+        </section>
+      ))}
+    </>
+  );
 }
 
 /* -- Was jemand selbst eingeschickt hat ------------------------------------- */

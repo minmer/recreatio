@@ -109,30 +109,32 @@ export function remember(token: string, key: Uint8Array, under?: string | null):
 }
 
 /**
- * DER PLATZ, DER ZU DIESER SEITE GEHÖRT — oder `null`.
+ * DIE PLÄTZE, DIE ZU DIESER SEITE GEHÖREN — ALLE, nicht einer.
  *
- * <b>Erst genau, dann grosszügig.</b> Steht ein Platz genau unter dieser
- * Seite, ist er gemeint. Sonst der zuletzt gebrauchte desselben Hauses —
- * denn „mein Eigenes auch auf einer anderen Seite der Pfarrei" ist der
- * ganze Zweck.
+ * <b>Es war einer, und das war zu wenig.</b> Wer zwei Links geöffnet hat —
+ * die eigenen Kinder, zwei Gruppen, zwei Rollen in derselben Pfarrei —, sah
+ * danach nur noch den zuletzt geöffneten. Der andere Schlüssel lag weiter
+ * im Browser; die Seite fragte bloss nicht nach ihm.
+ *
+ * <b>Erst genau, dann grosszügig.</b> Die, die genau unter dieser Seite
+ * stehen, kommen zuerst; danach die übrigen desselben Hauses, der zuletzt
+ * gebrauchte vorn — denn „mein Eigenes auch auf einer anderen Seite der
+ * Pfarrei" ist der ganze Zweck.
  *
  * <b>Aber nicht über Häuser hinweg.</b> Der Platz eines Schülers darf sich
  * nicht auf der Seite einer fremden Pfarrei auftun: derselbe Browser, zwei
  * Welten. Der erste Schritt der Adresse trennt sie.
  */
-export function seatFor(path: string): string | null {
+export function seatsFor(path: string): readonly string[] {
   const held = [...read()].sort((a, b) => b.at - a.at);
-
-  const exact = held.find((one) => one.under === path);
-  if (exact !== undefined) return exact.token;
-
   const house = path.split('/')[0];
-  if (house === undefined || house === '') return null;
 
-  const same = held.find((one) =>
-    one.under !== null && one.under.split('/')[0] === house);
+  const exact = held.filter((one) => one.under === path);
+  const same = house === undefined || house === ''
+    ? []
+    : held.filter((one) => one.under !== null && one.under !== path && one.under.split('/')[0] === house);
 
-  return same?.token ?? null;
+  return [...exact, ...same].map((one) => one.token);
 }
 
 /**

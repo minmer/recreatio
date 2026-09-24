@@ -4,10 +4,14 @@
  * <b>Warum ein Kontext und kein Durchreichen.</b> `PageParts` zeichnet, was in
  * `slug_part` steht, und weiss nichts über Plätze — das ist richtig so: ein
  * Baustein ist dasselbe, gleich wo er hängt (0020). Die persönlichen Bausteine
- * eines Portals brauchen aber den geöffneten Platz. Ihn durch jede Ebene zu
+ * eines Portals brauchen aber die geöffneten Plätze. Sie durch jede Ebene zu
  * reichen hiesse, jeden Baustein etwas tragen zu lassen, was nur drei brauchen.
  *
- * <b>`null` ist der Normalfall.</b> Dieselben Bausteine stehen auf einer
+ * <b>Eine Liste, nicht ein Platz.</b> Wer mehrere Links geöffnet hat, hält
+ * mehrere Schlüssel — und eine Seite, die nur einen davon benutzte, zeigte
+ * die übrigen Menschen nicht, obwohl ihr Schlüssel im Browser lag.
+ *
+ * <b>Leer ist der Normalfall.</b> Dieselben Bausteine stehen auf einer
  * öffentlichen Seite im Editor — dort gibt es keinen Platz, und sie sagen das,
  * statt leer zu bleiben.
  */
@@ -43,6 +47,11 @@ export interface SeatView {
   readonly reload: () => void;
 }
 
-export const SeatContext = createContext<SeatView | null>(null);
+export const SeatContext = createContext<readonly SeatView[]>([]);
 
-export const useSeat = (): SeatView | null => useContext(SeatContext);
+/** Alle geöffneten Plätze — der für diese Seite zuerst. */
+export const useSeats = (): readonly SeatView[] => useContext(SeatContext);
+
+/** Wie ein Platz in einer Liste heisst: der Name, den er trägt, sonst seine Stelle. */
+export const seatName = (seat: SeatView, at: number): string =>
+  seat.recipientName?.trim() || `Zgłoszenie ${at + 1}`;

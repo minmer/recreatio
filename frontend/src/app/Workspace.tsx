@@ -422,6 +422,7 @@ function Pages({ desk, who, trail, onClaimed }: {
               config={readConfig(module.config)}
               who={who}
               standsOn={module.pages}
+              title={module.name}
             />
           </>
         )

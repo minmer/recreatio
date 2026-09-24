@@ -28,6 +28,7 @@ import {
 } from './resource';
 import { viewPath } from './routes';
 import { WorkspaceError } from './session';
+import { AreaOptions } from './AreaOptions';
 
 const NEW = 'new';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -395,7 +396,7 @@ function Editor({ was, all, areas, calendars, onSaved }: {
           <span>Obszar</span>
           <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
             <option value="">— wybierz —</option>
-            {writable.map((a) => <option key={a.areaId} value={a.areaId}>{a.name}</option>)}
+            <AreaOptions areas={areas} only={writable} />
           </select>
         </label>
       )}

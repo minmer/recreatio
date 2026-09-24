@@ -19,9 +19,9 @@
  * hätte.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
-import { loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from './area';
+import { areaPath, loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from './area';
 import { fromBase64Url } from './crypto';
 import {
   CHOOSABLE_IDENTITY, FIELD_KINDS, IDENTITY_LABEL, KIND_LABEL,
@@ -43,8 +43,13 @@ import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
 import { dialable, joinPhones, normalisePhone, splitPhones, tidyPhones, withPhone } from './phone';
 import { holesFor, missingIn, renderSms, smsHref, usesHole, VERIFY } from './sms';
+import { AreaOptions } from './AreaOptions';
+import { FormTable } from './FormTable';
 
-export function FormOffice({ partId, config, who, standsOn }: {
+/** Die drei Reiter eines Formulars. */
+type FormTabName = 'edit' | 'entries' | 'people';
+
+export function FormOffice({ partId, config, who, standsOn, settings, title }: {
   partId: string;
 
   /** Der Baustein selbst — daraus kommt die Vorlage der Nachricht. */
@@ -61,7 +66,25 @@ export function FormOffice({ partId, config, who, standsOn }: {
    * sich nichts einstellen liess.
    */
   standsOn?: readonly string[];
+
+  /**
+   * Was der Baustein selbst einstellt — Name, Bereich, wessen Formular. Es
+   * steht im ersten Reiter, zusammen mit allem anderen, was man EINRICHTET.
+   */
+  settings?: ReactNode;
+
+  /** Wie das Formular heisst — für den Namen der CSV-Datei. */
+  title?: string;
 }) {
+  /*
+   * DREI REITER, wie im Altbestand der Veranstaltungen (`events/admin`:
+   * Strony · Dostęp · Ustawienia): EINRICHTEN, LESEN, HANDELN. Vorher stand
+   * alles untereinander — Fragen, Annahme, Vorlage, Portal, und darunter die
+   * Einsendungen —, und wer nur jemanden anrufen wollte, scrollte durch die
+   * Einrichtung.
+   */
+  const [tab, setTab] = useState<FormTabName>('edit');
+
   const [ring, setRing] = useState<Ring | null>(null);
   const [person, setPerson] = useState<SealedRole | null>(null);
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
@@ -388,10 +411,27 @@ export function FormOffice({ partId, config, who, standsOn }: {
           + 'Potwierdzenia tych numerów wygasły — to już inny zapis numeru.');
   };
 
+  /*
+   * AUFMACHEN, SOBALD MAN HINSIEHT. Wer den Reiter „Zgłoszenia" oder „Osoby"
+   * öffnet, will die Einsendungen sehen — ein eigener Knopf davor war ein
+   * Klick, der nichts entschied. Einmal, mit dem ersten Bereich; hat das
+   * Formular mehrere, stehen ihre Knöpfe darüber.
+   */
+  const [autoTried, setAutoTried] = useState(false);
+
+  useEffect(() => {
+    if (tab === 'edit' || autoTried || ring === null || lastArea !== null || areasHere.length === 0) return;
+    setAutoTried(true);
+    void act('Otwieranie zgłoszeń…', () => read(areasHere[0]));
+  }, [tab, autoTried, ring, lastArea, areasHere.length]);
+
+  const areaLabel = (areaId: string) =>
+    areaPath(areas, areaId).short || areas.find((a) => a.areaId === areaId)?.name || areaId.slice(0, 8);
+
+  const reread = async () => { if (lastArea !== null) await read(lastArea); };
+
   return (
     <>
-      <h3 className="wk-h2">Formularz</h3>
-
       {failed !== null && <p className="wk-error">{failed}</p>}
       {busy !== null && <p className="wk-hint">{busy}</p>}
 
@@ -408,296 +448,397 @@ export function FormOffice({ partId, config, who, standsOn }: {
         />
       )}
 
-      {/* -- Die Fragen --------------------------------------------------- */}
+      <div className="wk-tabs" role="tablist">
+        <FormTab now={tab} mine="edit" onPick={setTab}>Formularz</FormTab>
+        <FormTab now={tab} mine="entries" onPick={setTab}>
+          Zgłoszenia{submissions.length > 0 ? ` (${submissions.length})` : ''}
+        </FormTab>
+        <FormTab now={tab} mine="people" onPick={setTab}>Osoby</FormTab>
+      </div>
 
-      {fields.length === 0 ? (
-        <p className="wk-empty">Jeszcze żadnego pytania.</p>
-      ) : (
-        <ul className="wk-list">
-          {fields.map((f) => (
-            <li className="wk-row" key={f.fieldId}>
-              <span>
-                <strong>{f.label ?? 'zapieczętowane'}</strong>
-                <span className="wk-row-side">
-                  {' · '}{KIND_LABEL[f.kind]}
-                  {f.isRequired && ' · wymagane'}
-                  {f.identityRole !== 'none' && ` · ${f.identityRole}`}
-                </span>
-              </span>
+      {/* == 1. EINRICHTEN ================================================== */}
 
-              <button
-                type="button" className="wk-link-btn" disabled={busy !== null}
-                onClick={() => void act('Usuwanie…', () => removeField(f.fieldId))}
-              >
-                Usuń
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {tab === 'edit' && (
+        <>
+          {settings}
 
-      {ring !== null && (
-        <NewFieldForm
-          areas={areas}
-          ring={ring}
-          partId={partId}
-          position={fields.length}
-          busy={busy !== null}
-          onAdded={() => void look()}
-          onError={setFailed}
-        />
-      )}
+          {/*
+            DIE ÜBERSCHRIFT DES BOGENS. Sie stand im Rastereditor, solange ein
+            Bogen dort seine Felder hatte — seit er dort nur noch ausgewählt
+            wird, gehört sie hierher, zu allem anderen, was ihm gehört.
+          */}
+          <Naming
+            partId={partId}
+            value={conf.title ?? ''}
+            busy={busy !== null}
+            onSaved={setSaved}
+            onError={setFailed}
+          />
 
-      {/* -- Annahme und Klausel ------------------------------------------ */}
+          <h3 className="wk-h2">Pytania</h3>
 
-      {ring !== null && person !== null && areasHere.map((areaId) => (
-        <IntakeSetup
-          key={areaId}
-          areaId={areaId}
-          areaName={areas.find((a) => a.areaId === areaId)?.name ?? areaId.slice(0, 8)}
-          ring={ring}
-          officeRoleId={person.id}
-          busy={busy !== null}
-          onAct={act}
-        />
-      ))}
+          {fields.length === 0 ? (
+            <p className="wk-empty">Jeszcze żadnego pytania.</p>
+          ) : (
+            <ul className="wk-list">
+              {fields.map((f) => (
+                <li className="wk-row" key={f.fieldId}>
+                  <span>
+                    <strong>{f.label ?? 'zapieczętowane'}</strong>
+                    <span className="wk-row-side">
+                      {' · '}{KIND_LABEL[f.kind]}
+                      {f.isRequired && ' · wymagane'}
+                      {f.identityRole !== 'none' && ` · ${IDENTITY_LABEL[f.identityRole]}`}
+                    </span>
+                  </span>
 
-      {/* -- Die Antworten ------------------------------------------------ */}
+                  <button
+                    type="button" className="wk-link-btn" disabled={busy !== null}
+                    onClick={() => void act('Usuwanie…', () => removeField(f.fieldId))}
+                  >
+                    Usuń
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
 
-      <h4 className="wk-h2">Zgłoszenia</h4>
+          {ring !== null && (
+            <NewFieldForm
+              areas={areas}
+              ring={ring}
+              partId={partId}
+              position={fields.length}
+              taken={fields.map((f) => f.identityRole).filter((r) => r !== 'none')}
+              busy={busy !== null}
+              onAdded={() => void look()}
+              onError={setFailed}
+            />
+          )}
 
-      {areasHere.length === 0 ? (
-        <p className="wk-empty">Najpierw pytania.</p>
-      ) : (
-        <div className="wk-actions">
-          {areasHere.map((areaId) => (
-            <button
-              key={areaId} type="button" className="wk-btn" disabled={busy !== null}
-              onClick={() => void act('Otwieranie…', () => read(areaId))}
-            >
-              Otwórz zgłoszenia
-            </button>
+          {/* -- Annahme und Klausel -------------------------------------- */}
+
+          {ring !== null && person !== null && areasHere.map((areaId) => (
+            <IntakeSetup
+              key={areaId}
+              areaId={areaId}
+              areaName={areaLabel(areaId)}
+              ring={ring}
+              officeRoleId={person.id}
+              busy={busy !== null}
+              onAct={act}
+            />
           ))}
 
           {/*
-            „NORMALIZUJ NUMERY" STEHT IMMER DA, sobald das Formular überhaupt
-            nach einer Nummer fragt — und nicht erst, wenn etwas krumm ist.
-
-            Vorher erschien der Knopf nur im Fehlerfall, und sein Fehlen sah in
-            drei völlig verschiedenen Lagen gleich aus: nichts aufgemacht,
-            nichts krumm, keine Telefonfrage. Wer nachsehen wollte, ob die
-            Nummern in Ordnung sind, fand genau dann nichts vor, wenn sie es
-            waren. Jetzt steht er da und sagt selbst, woran er ist — abgeblendet,
-            mit dem Grund darunter.
+            DIE NACHRICHT UND DAS PORTAL — was der Mensch bekommt, wenn ihm ein
+            Link geschickt wird, und wohin der Link führt. Beides wird EINMAL
+            eingerichtet; benutzt wird es drüben, bei den Osoby.
           */}
-          {phoneFields.length > 0 && (
-            <button
-              type="button" className="wk-btn"
-              disabled={busy !== null || crooked.length === 0}
-              onClick={() => void act('Poprawianie numerów…', straighten)}
-            >
-              {crooked.length === 0
-                ? 'Normalizuj numery'
-                : `Normalizuj numery (${crooked.length})`}
-            </button>
-          )}
-        </div>
-      )}
+          <Template
+            partId={partId}
+            value={conf.sms ?? ''}
+            labels={fields.map((f) => f.label)}
+            busy={busy !== null}
+            onSaved={setSaved}
+            onError={setFailed}
+          />
 
-      {/*
-        WAS DER KNOPF GERADE KANN — und wenn er nichts kann, warum.
-
-        Die Zeile gehört zum Knopf und steht deshalb immer dort, wo er steht.
-        Ein abgeblendeter Knopf ohne Begründung ist eine Sackgasse: man sieht,
-        dass es nicht geht, und erfährt nicht, woran es liegt.
-      */}
-      {phoneFields.length > 0 ? (
-        <p className="wk-hint">
-          {crooked.length > 0
-            ? (crooked.length === 1
-                ? 'Jeden numer jest zapisany inaczej niż reszta — „Normalizuj numery" '
-                  + 'zapisze go w postaci +48 600 700 800.'
-                : `${crooked.length} numerów jest zapisanych inaczej niż reszta — `
-                  + '„Normalizuj numery" zapisze je w postaci +48 600 700 800.')
-            : opened.size === 0
-              ? 'Numery można znormalizować po otwarciu zgłoszeń.'
-              : 'Wszystkie numery są już w jednej postaci.'}
-        </p>
-      ) : fields.length === 0 ? (
-        submissions.length > 0 && (
-          <p className="wk-hint">
-            Póki pytania się nie otworzyły, nie wiadomo, które odpowiedzi są
-            numerami — i nie ma czego normalizować.
-          </p>
-        )
-      ) : (
-        submissions.length > 0 && (
-          <p className="wk-hint">
-            Ten formularz nie pyta dziś o telefon, więc nie ma czego normalizować.
-            Odpowiedzi przy usuniętych pytaniach zostają tak, jak je wpisano — bez
-            pytania nie wiadomo, że to numer.
-          </p>
-        )
-      )}
-
-      {/*
-        DIE NACHRICHTENVORLAGE STEHT HIER, nicht in den Rastereinstellungen.
-        Sie wird gedacht, wenn jemand vor den Einsendungen sitzt — und dafür
-        die Seite zu verlassen ist der Umweg, der dazu führt, dass niemand sie
-        je schreibt.
-
-        SIE HÄNGT AN KEINER BEDINGUNG. Zuerst stand sie hinter `areasHere`,
-        und das war derselbe Fehler zweimal: `areasHere` kommt aus den Fragen,
-        die Fragen kommen aus den Schlüsseln — also verschwand der Kasten genau
-        dann, wenn beim Aufschliessen etwas schiefging. Eine Vorlage ist aber
-        blosser Text am Baustein. Sie braucht keinen Schlüssel, keinen Bereich
-        und keine einzige Einsendung, und wer die Seite führen darf, darf sie
-        schreiben.
-      */}
-      <Template
-        partId={partId}
-        value={conf.sms ?? ''}
-        labels={fields.map((f) => f.label)}
-        busy={busy !== null}
-        onSaved={setSaved}
-        onError={setFailed}
-      />
-
-      {/*
-        WOHIN EIN LINK FÜHRT. Es stand bisher als Pfad in einem Textfeld des
-        Rastereditors — man musste die Adresse kennen, die Seite musste es
-        schon geben, und wer nichts eintrug, bekam eine abgeleitete Regel,
-        die nirgends stand.
-      */}
-      {/*
-        DIE ÜBERSCHRIFT DES BOGENS. Sie stand im Rastereditor, solange ein
-        Bogen dort seine Felder hatte — seit er dort nur noch ausgewählt
-        wird, gehört sie hierher, zu allem anderen, was ihm gehört.
-      */}
-      <Naming
-        partId={partId}
-        value={conf.title ?? ''}
-        busy={busy !== null}
-        onSaved={setSaved}
-        onError={setFailed}
-      />
-
-      <Portal
-        moduleId={partId}
-        standsOn={standsOn ?? []}
-        portalUnder={(conf.portalUnder ?? '').trim()}
-        ownerRoleId={person?.id ?? null}
-        onSet={(where) => setSaved({ ...conf, portalUnder: where })}
-      />
-
-      {submissions.length > 0 && (
-        <>
-          <p className="wk-hint">
-            <strong>„Ukryj" nic nie kasuje</strong> — wiersz znika z listy, a
-            zapieczętowane odpowiedzi leżą dalej. <strong>„Usuń bezpowrotnie"</strong> kasuje
-            same odpowiedzi: nikt ich potem nie odtworzy, także prowadzący
-            usługę, bo nigdy nie mógł ich przeczytać. Miejsce kandydata zostaje —
-            zabierasz zgłoszenie, nie dostęp.
-          </p>
-
-          <label className="wk-field">
-            <span>
-              <input
-                type="checkbox" checked={showHidden}
-                onChange={(e) => {
-                  setShowHidden(e.target.checked);
-                  if (lastArea !== null) void act('Wczytywanie…', () => read(lastArea));
-                }}
-              />
-              {' '}Pokaż też ukryte
-            </span>
-          </label>
+          <Portal
+            moduleId={partId}
+            standsOn={standsOn ?? []}
+            portalUnder={(conf.portalUnder ?? '').trim()}
+            ownerRoleId={person?.id ?? null}
+            onSet={(where) => setSaved({ ...conf, portalUnder: where })}
+          />
         </>
       )}
 
+      {/* == 2 und 3: was dafür aufgemacht werden muss ======================== */}
 
-      {note !== null && <p className="wk-note">{note}</p>}
+      {tab !== 'edit' && (
+        <>
+          {areasHere.length === 0 ? (
+            <p className="wk-empty">Najpierw pytania — bez nich nie ma zgłoszeń.</p>
+          ) : (lastArea === null || areasHere.length > 1) && (
+            <div className="wk-actions">
+              {areasHere.map((areaId) => (
+                <button
+                  key={areaId} type="button"
+                  className={areaId === lastArea ? 'wk-btn' : 'wk-link-btn'}
+                  disabled={busy !== null || ring === null}
+                  onClick={() => void act('Otwieranie…', () => read(areaId))}
+                >
+                  {areasHere.length > 1 ? `Otwórz: ${areaLabel(areaId)}` : 'Otwórz zgłoszenia'}
+                </button>
+              ))}
+            </div>
+          )}
 
-      {submissions.length > 0 && (
-        <ul className="wk-list">
-          {submissions.map((s) => (
-            <li className="wk-row" key={s.registrationId}>
+          {note !== null && <p className="wk-note">{note}</p>}
+
+          {lastArea !== null && (
+            <label className="wk-field">
               <span>
-                <span className="wk-row-side">
-                  {new Date(s.submittedAt).toLocaleString('pl-PL')}
-                  {s.seatId !== null && ' · z miejsca'}
-                  {s.withdrawnAt !== null && ' · wycofane'}
-                  {s.hidden && ' · ukryte'}
-                </span>
-
-                {/*
-                  ZWEI VERSCHIEDENE DINGE, nebeneinander und verschieden
-                  benannt. „Ukryj" räumt die Liste auf und lässt die Hüllen
-                  liegen; „Usuń" nimmt die Bytes fort. Ein Knopf für beides
-                  wäre der bequeme Weg und eine Unwahrheit gegenüber dem, der
-                  um Löschung bittet.
-                */}
-                <span className="wk-row-side">
-                  <button
-                    type="button" className="wk-link-btn" disabled={busy !== null}
-                    onClick={() => void act(s.hidden ? 'Przywracanie…' : 'Ukrywanie…', async () => {
-                      await hideSubmission(s.registrationId, !s.hidden);
-                      if (lastArea !== null) await read(lastArea);
-                    })}
-                  >
-                    {s.hidden ? 'Przywróć' : 'Ukryj'}
-                  </button>
-                  {' · '}
-                  <button
-                    type="button" className="wk-link-btn" disabled={busy !== null}
-                    onClick={() => void act('Usuwanie…', async () => {
-                      await removeSubmission(s.registrationId);
-                      if (lastArea !== null) await read(lastArea);
-                    })}
-                  >
-                    Usuń bezpowrotnie
-                  </button>
-                </span>
-
-                {/*
-                  ÜBER DAS GEÖFFNETE laufen, nicht über die Fragen.
-                  Andersherum verschwand eine Zeile ganz, sobald die Fragenliste
-                  leer war oder ein Feld inzwischen gelöscht wurde — der Wert
-                  war da, und zu sehen war nichts. Eine Antwort, deren Frage
-                  fehlt, steht jetzt mit ihrer Kennung da: unschön und wahr.
-                */}
-                <Answers
-                  values={opened.get(s.registrationId)}
-                  fields={fields}
-                  sealed={s.values.length}
-                  checks={s.checks}
+                <input
+                  type="checkbox" checked={showHidden}
+                  onChange={(e) => {
+                    setShowHidden(e.target.checked);
+                    void act('Wczytywanie…', reread);
+                  }}
                 />
-
-                {/*
-                  DER LINK UND DIE NACHRICHT — nur, wo es einen Platz gibt.
-                  Eine Einsendung ohne Platz (nur mit Quittung) hat nichts, worauf
-                  ein Link zeigen könnte; dort wäre der Knopf ein Versprechen.
-                */}
-                {s.seatId !== null && (
-                  <SendPanel
-                    seatId={s.seatId}
-                    registrationId={s.registrationId}
-                    checks={s.checks}
-                    values={opened.get(s.registrationId)}
-                    fieldsByLabel={fields}
-                    template={conf.sms ?? ''}
-                    areaId={lastArea}
-                    ring={ring}
-                    onError={setFailed}
-                    onChanged={async () => { if (lastArea !== null) await read(lastArea); }}
-                  />
-                )}
+                {' '}Pokaż też ukryte
               </span>
-            </li>
-          ))}
-        </ul>
+            </label>
+          )}
+        </>
+      )}
+
+      {/* == 2. LESEN ======================================================= */}
+
+      {tab === 'entries' && lastArea !== null && (
+        <FormTable
+          fields={fields}
+          submissions={submissions}
+          opened={opened}
+          fileName={title ?? conf.title ?? 'zgloszenia'}
+        />
+      )}
+
+      {/* == 3. HANDELN ===================================================== */}
+
+      {tab === 'people' && lastArea !== null && (
+        <>
+          {/*
+            „NORMALIZUJ NUMERY" STEHT IMMER DA, sobald das Formular überhaupt
+            nach einer Nummer fragt — und nicht erst, wenn etwas krumm ist.
+            Abgeblendet, mit dem Grund darunter.
+          */}
+          {phoneFields.length > 0 && (
+            <div className="wk-actions">
+              <button
+                type="button" className="wk-link-btn"
+                disabled={busy !== null || crooked.length === 0}
+                onClick={() => void act('Poprawianie numerów…', straighten)}
+              >
+                {crooked.length === 0 ? 'Normalizuj numery' : `Normalizuj numery (${crooked.length})`}
+              </button>
+              <span className="wk-hint">
+                {crooked.length === 0
+                  ? 'Wszystkie numery są już w jednej postaci.'
+                  : crooked.length === 1
+                    ? 'Jeden numer jest zapisany inaczej niż reszta — zostanie zapisany jako +48 600 700 800.'
+                    : `${crooked.length} numerów jest zapisanych inaczej niż reszta — zostaną zapisane jako +48 600 700 800.`}
+              </span>
+            </div>
+          )}
+
+          <People
+            submissions={submissions}
+            opened={opened}
+            fields={fields}
+            template={conf.sms ?? ''}
+            areaId={lastArea}
+            ring={ring}
+            busy={busy !== null}
+            onHide={(s) => void act(s.hidden ? 'Przywracanie…' : 'Ukrywanie…', async () => {
+              await hideSubmission(s.registrationId, !s.hidden);
+              await reread();
+            })}
+            onRemove={(s) => void act('Usuwanie…', async () => {
+              await removeSubmission(s.registrationId);
+              await reread();
+            })}
+            onError={setFailed}
+            onChanged={reread}
+          />
+        </>
       )}
     </>
+  );
+}
+
+/** Ein Reiter — dieselbe Gestalt wie in den Obszary. */
+function FormTab({ now, mine, onPick, children }: {
+  now: FormTabName;
+  mine: FormTabName;
+  onPick: (tab: FormTabName) => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={now === mine}
+      className={now === mine ? 'wk-tab wk-tab-on' : 'wk-tab'}
+      onClick={() => onPick(mine)}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* -- Die Menschen, die sich eingetragen haben ------------------------------- */
+
+/**
+ * Wer ein Mensch in dieser Liste ist: sein Name und die Nummer, die man wählt.
+ *
+ * <b>Aus den GENORMTEN Fragen zuerst</b> (0038): Imię und Nazwisko, sonst
+ * das alte „name". Fehlt beides, die erste ausgefüllte einzeilige Antwort —
+ * irgendetwas muss in der Zeile stehen, woran man den Menschen erkennt.
+ */
+function whoIn(
+  values: Map<string, string> | undefined, fields: readonly OpenField[]
+): { name: string; dial: string | null; shown: string | null } {
+  if (values === undefined) return { name: '— zapieczętowane —', dial: null, shown: null };
+
+  const of = (role: IdentityRole) => {
+    const field = fields.find((f) => f.identityRole === role);
+    return field === undefined ? null : values.get(field.fieldId)?.trim() || null;
+  };
+
+  const nick = of('nickname');
+  const full = [of('given_name'), of('surname')].filter((part) => part !== null).join(' ') || of('name');
+  const first = fields.find((f) => f.kind === 'line' && (values.get(f.fieldId)?.trim() ?? '') !== '');
+
+  const name = full !== null
+    ? (nick !== null ? `${full} („${nick}")` : full)
+    : nick ?? (first === undefined ? null : values.get(first.fieldId)!.trim()) ?? '— bez imienia —';
+
+  const phone = numbersOf(values, fields)[0];
+
+  return { name, dial: phone?.dial ?? null, shown: phone?.shown ?? null };
+}
+
+/**
+ * Wer sich eingetragen hat — EINE Zeile je Mensch, alles Weitere auf Abruf.
+ *
+ * <b>Nach dem Vorbild des Altbestands</b> (`events/admin/AccessPanel.tsx`):
+ * eine Zeile ist ein Name und eine Nummer — die zwei Dinge, nach denen man am
+ * Tag selbst greift —, dazu, woran der Mensch gerade ist. Alles andere liegt
+ * hinter „Więcej": die Antworten, der Link mit der Nachricht, die
+ * Bestätigung der Nummer, Ukryj und Usuń.
+ *
+ * <b>Die Nummer ist ein Anruf</b>, ein Tipp auf dem Telefon.
+ */
+function People({
+  submissions, opened, fields, template, areaId, ring, busy, onHide, onRemove, onError, onChanged
+}: {
+  submissions: readonly Submission[];
+  opened: Map<string, Map<string, string>>;
+  fields: readonly OpenField[];
+  template: string;
+  areaId: string | null;
+  ring: Ring | null;
+  busy: boolean;
+  onHide: (s: Submission) => void;
+  onRemove: (s: Submission) => void;
+  onError: (message: string | null) => void;
+  onChanged: () => Promise<void>;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const rows = submissions
+    .map((s) => ({ s, values: opened.get(s.registrationId), ...whoIn(opened.get(s.registrationId), fields) }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+
+  if (rows.length === 0) return <p className="wk-empty">Nikt się jeszcze nie zapisał.</p>;
+
+  return (
+    <section className="wk-panel">
+      <h3 className="wk-h2">Osoby ({rows.length})</h3>
+
+      <ul className="wk-entry-list">
+        {rows.map(({ s, values, name, dial, shown }) => {
+          const open = openId === s.registrationId;
+          const verified = s.checks.some((c) => c.verifiedAt !== null);
+
+          return (
+            <li key={s.registrationId} className={s.hidden || s.withdrawnAt !== null ? 'wk-entry is-muted' : 'wk-entry'}>
+              <div className="wk-entry-head">
+                <strong className="wk-entry-name">{name}</strong>
+
+                {dial !== null
+                  ? <a className="wk-entry-phone" href={`tel:${dial}`}>{shown}</a>
+                  : <span className="wk-hint">brak telefonu</span>}
+
+                <span className="wk-tags">
+                  {s.hidden && <span className="wk-tag">ukryte</span>}
+                  {s.withdrawnAt !== null && <span className="wk-tag">wycofane</span>}
+                  {s.seatId !== null
+                    ? <span className="wk-tag wk-tag-open">link</span>
+                    : <span className="wk-tag">bez linku</span>}
+                  {verified && <span className="wk-tag wk-tag-open">numer potwierdzony</span>}
+                </span>
+
+                <button
+                  type="button" className="wk-link-btn wk-entry-more" aria-expanded={open}
+                  onClick={() => setOpenId(open ? null : s.registrationId)}
+                >
+                  {open ? 'Mniej' : 'Więcej'}
+                </button>
+              </div>
+
+              {open && (
+                <div className="wk-entry-body">
+                  <p className="wk-hint">Wysłano {new Date(s.submittedAt).toLocaleString('pl-PL')}</p>
+
+                  <Answers values={values} fields={fields} sealed={s.values.length} checks={s.checks} />
+
+                  {/*
+                    DER LINK UND DIE NACHRICHT — nur, wo es einen Platz gibt.
+                    Eine Einsendung ohne Platz hat nichts, worauf ein Link
+                    zeigen könnte; dort wäre der Knopf ein Versprechen.
+                  */}
+                  {s.seatId !== null ? (
+                    <SendPanel
+                      seatId={s.seatId}
+                      registrationId={s.registrationId}
+                      checks={s.checks}
+                      values={values}
+                      fieldsByLabel={fields}
+                      template={template}
+                      areaId={areaId}
+                      ring={ring}
+                      onError={onError}
+                      onChanged={onChanged}
+                    />
+                  ) : (
+                    <p className="wk-hint">To zgłoszenie przyszło bez miejsca — nie ma linku, który można by wysłać.</p>
+                  )}
+
+                  {/*
+                    ZWEI VERSCHIEDENE DINGE, verschieden benannt. „Ukryj" räumt
+                    die Liste auf und lässt die Hüllen liegen; „Usuń" nimmt die
+                    Bytes fort — und fragt deshalb vorher, wie der Altbestand.
+                  */}
+                  <div className="wk-actions">
+                    <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onHide(s)}>
+                      {s.hidden ? 'Przywróć' : 'Ukryj'}
+                    </button>
+                    <button
+                      type="button" className="wk-link-btn wk-danger" disabled={busy}
+                      onClick={() => {
+                        if (window.confirm(`Usunąć zgłoszenie: ${name}? Odpowiedzi zostaną skasowane bez możliwości odtworzenia — także przez prowadzącego usługę.`)) {
+                          onRemove(s);
+                        }
+                      }}
+                    >
+                      Usuń bezpowrotnie
+                    </button>
+                  </div>
+                  <p className="wk-hint">
+                    „Ukryj" nic nie kasuje — wiersz znika z listy, a zapieczętowane
+                    odpowiedzi zostają. Miejsce osoby zostaje też po usunięciu:
+                    zabierasz zgłoszenie, nie dostęp.
+                  </p>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -819,11 +960,43 @@ function Answers({ values, fields, sealed, checks }: {
 
 /* -- Eine Frage stellen ----------------------------------------------------- */
 
-function NewFieldForm({ areas, ring, partId, position, busy, onAdded, onError }: {
+/**
+ * Welche Form eine genormte Angabe hat — im Bogen wie in den eigenen Daten.
+ *
+ * <b>Festgelegt, nicht vorgeschlagen.</b> Ein Geburtsdatum, das als freie
+ * Zeile abgefragt wird, kommt als „2 kwietnia" zurück und passt dann nicht in
+ * das, was der Mensch einmal angelegt hat. Die Adresse steht dort in einer
+ * Zeile, also hier auch.
+ */
+const KIND_OF: Partial<Record<IdentityRole, FieldKind>> = {
+  given_name: 'line',
+  surname: 'line',
+  nickname: 'line',
+  born: 'date',
+  phone: 'phone',
+  email: 'email',
+  address: 'line'
+};
+
+/**
+ * Eine neue Frage.
+ *
+ * <b>Zuerst: WORÜBER.</b> Ist es eine genormte Angabe — Imię, Telefon, Data
+ * urodzenia —, dann steht damit das meiste schon fest: die Form der Antwort,
+ * und meist auch die Frage selbst. Vorher kam diese Wahl als dritte, nach
+ * Frage und Rodzaj; wer „Imię" eintippte und „Jedna linia" wählte, musste
+ * danach noch einmal „Imię" auswählen, und nichts hinderte ihn, dort etwas
+ * anderes zu wählen als das, was er gefragt hatte.
+ *
+ * <b>Was schon gefragt wird, wird nicht zweimal angeboten.</b> Zwei Fragen
+ * nach dem Vornamen füllten sich beide aus derselben Angabe.
+ */
+function NewFieldForm({ areas, ring, partId, position, taken, busy, onAdded, onError }: {
   areas: readonly AreaRow[];
   ring: Ring;
   partId: string;
   position: number;
+  taken: readonly IdentityRole[];
   busy: boolean;
   onAdded: () => void;
   onError: (message: string | null) => void;
@@ -837,6 +1010,20 @@ function NewFieldForm({ areas, ring, partId, position, busy, onAdded, onError }:
   const [working, setWorking] = useState(false);
 
   const usable = areas.filter((a) => a.heldEpochs > 0);
+
+  /* Die genormte Angabe gewählt: Form festlegen, Frage vorschlagen — aber
+     eine selbst geschriebene Frage nicht überschreiben. */
+  const about = (next: IdentityRole) => {
+    const shaped = KIND_OF[next];
+    if (shaped !== undefined) setKind(shaped);
+
+    const proposed = identity === 'none' ? '' : IDENTITY_LABEL[identity];
+    if (label.trim() === '' || label === proposed) setLabel(next === 'none' ? '' : IDENTITY_LABEL[next]);
+
+    setIdentity(next);
+  };
+
+  const fixed = KIND_OF[identity] !== undefined;
 
   const go = async () => {
     const area = usable.find((a) => a.areaId === areaId);
@@ -862,6 +1049,7 @@ function NewFieldForm({ areas, ring, partId, position, busy, onAdded, onError }:
       setLabel('');
       setOptions('');
       setIdentity('none');
+      setKind('line');
       onAdded();
     } catch (e) {
       onError(e instanceof WorkspaceError ? e.message : 'Nie udało się dodać pytania.');
@@ -874,20 +1062,8 @@ function NewFieldForm({ areas, ring, partId, position, busy, onAdded, onError }:
     <form className="wk-form" onSubmit={(e) => { e.preventDefault(); void go(); }}>
       <h4 className="wk-h2">Dodaj pytanie</h4>
 
-      <label className="wk-field">
-        <span>Pytanie</span>
-        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="np. Imię i nazwisko" />
-      </label>
-
-      <label className="wk-field">
-        <span>Rodzaj</span>
-        <select value={kind} onChange={(e) => setKind(e.target.value as FieldKind)}>
-          {FIELD_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
-        </select>
-      </label>
-
       {/*
-        WELCHE genormte Angabe das ist (0038).
+        WELCHE genormte Angabe das ist (0038) — und zwar ZUERST.
 
         Ohne sie ist ‚Imię’ für das Programm ein Wort wie jedes andere, und wer
         den Bogen ausfüllt, tippt seinen Vornamen zum vierten Mal. Steht sie
@@ -896,14 +1072,30 @@ function NewFieldForm({ areas, ring, partId, position, busy, onAdded, onError }:
       */}
       <label className="wk-field">
         <span>Czego dotyczy</span>
-        <select
-          value={identity}
-          onChange={(e) => setIdentity(e.target.value as IdentityRole)}
-        >
+        <select value={identity} onChange={(e) => about(e.target.value as IdentityRole)}>
           {CHOOSABLE_IDENTITY.map((r) => (
-            <option key={r} value={r}>{IDENTITY_LABEL[r]}</option>
+            <option key={r} value={r} disabled={r !== 'none' && taken.includes(r)}>
+              {IDENTITY_LABEL[r]}{r !== 'none' && taken.includes(r) ? ' — już jest w formularzu' : ''}
+            </option>
           ))}
         </select>
+      </label>
+
+      <label className="wk-field">
+        <span>Pytanie</span>
+        <input
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder={identity === 'none' ? 'np. Z której jesteś parafii?' : IDENTITY_LABEL[identity]}
+        />
+      </label>
+
+      <label className="wk-field">
+        <span>Rodzaj</span>
+        <select value={kind} disabled={fixed} onChange={(e) => setKind(e.target.value as FieldKind)}>
+          {FIELD_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+        </select>
+        {fixed && <span className="wk-hint">Wynika z tego, czego dotyczy pytanie.</span>}
       </label>
 
       {kind === 'choice' && (
@@ -921,7 +1113,7 @@ function NewFieldForm({ areas, ring, partId, position, busy, onAdded, onError }:
         <span>Odpowiedzi trafiają do obszaru</span>
         <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
           <option value="">—</option>
-          {usable.map((a) => <option key={a.areaId} value={a.areaId}>{a.name}</option>)}
+          <AreaOptions areas={areas} only={usable} />
         </select>
       </label>
 

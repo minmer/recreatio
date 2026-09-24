@@ -1210,6 +1210,57 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 /* Die andere Form desselben Menschen: „Kasia" und daneben „Katarzyna Nowak". */
 .wk-person-also { font-size: 0.85rem; color: var(--wk-muted); }
 
+/* -- Ein Formular: die Einsendungen als Tabelle und als Menschen ---------- */
+
+.wk-entries { display: grid; gap: 0.6rem; }
+
+/* Suche und Filter in einer Zeile, so viele, wie hineinpassen. */
+.wk-entries-bar { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: end; }
+.wk-entries-bar .wk-field { min-width: 12rem; flex: 1 1 12rem; }
+
+/* Breite Tabellen scrollen in sich — nie die ganze Seite. */
+.wk-table-wrap { overflow-x: auto; border: 1px solid var(--wk-line); border-radius: 0.4rem; background: var(--wk-surface); }
+
+.wk-table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+.wk-table th, .wk-table td { padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--wk-line); }
+.wk-table td { white-space: pre-wrap; }
+.wk-table th { position: sticky; top: 0; background: var(--wk-soft); white-space: nowrap; }
+.wk-table tbody tr:hover { background: var(--wk-soft); }
+.wk-table .wk-tag { margin-left: 0.35rem; }
+.wk-num { text-align: right; font-variant-numeric: tabular-nums; }
+.wk-row-muted td { color: var(--wk-muted); }
+
+.wk-th-sort {
+  font: inherit;
+  font-weight: 600;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-th-sort:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+
+/* Die Menschen: eine Zeile je Mensch, der Rest hinter „Więcej". */
+.wk-entry-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.wk-entry { border-bottom: 1px solid var(--wk-line); }
+.wk-entry.is-muted .wk-entry-name { color: var(--wk-muted); }
+
+.wk-entry-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 0.8rem; padding: 0.6rem 0.2rem; }
+.wk-entry-name { min-width: 10rem; }
+.wk-entry-phone { color: var(--wk-accent); font-variant-numeric: tabular-nums; text-decoration: none; }
+.wk-entry-phone:hover { text-decoration: underline; }
+.wk-entry-more { margin-left: auto; }
+.wk-entry-body { display: grid; gap: 0.6rem; padding: 0 0.2rem 1rem; }
+
+.wk-danger { color: #a5361c; }
+
+/* Mehrere geöffnete Plätze auf einer Seite: je einer ein Abschnitt, mit Namen. */
+.wk-seat-one { display: grid; gap: 0.4rem; padding-top: 0.6rem; }
+.wk-seat-one + .wk-seat-one { border-top: 1px solid var(--wk-line); margin-top: 0.4rem; }
+.wk-seat-who { margin: 0; font-size: 0.95rem; font-weight: 600; }
+.wk-seat-pick { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
 /* Das Dazunehmen steht unter der Liste, abgesetzt: es ist eine Handlung, kein Eintrag. */
 .wk-add-role { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--wk-line); }
 

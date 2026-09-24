@@ -47,6 +47,7 @@ import { loadResources, type ResourceRow } from './resource';
 import { loadRoles, selfOf } from './roles';
 import { viewPath } from './routes';
 import { WorkspaceError } from './session';
+import { AreaOptions } from './AreaOptions';
 
 /**
  * Wie weit vorausgeladen wird — zwei Wochen, nicht ein Tag.
@@ -615,7 +616,7 @@ function NewCalendar({ areas, busy, onAct }: {
       <label className="wk-field">
         <span>W obszarze</span>
         <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-          {mine.map((a) => <option key={a.areaId} value={a.areaId}>{a.name}</option>)}
+          <AreaOptions areas={areas} only={mine} />
         </select>
       </label>
 

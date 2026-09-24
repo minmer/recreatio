@@ -42,6 +42,7 @@ import { createRole, loadRoles, selfOf, type RoleGraphData } from './roles';
 import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
+import { AreaOptions } from './AreaOptions';
 
 /**
  * Die Stufen in der Sprache, die im Haus gesprochen wird.
@@ -867,9 +868,7 @@ function NewArea({ ring, person, areas, busy, onAct, onDone }: {
           <span>Wewnątrz</span>
           <select value={inside} onChange={(e) => setInside(e.target.value)}>
             <option value="">Nigdzie — osobny obszar</option>
-            {canNest.map((a) => (
-              <option key={a.areaId} value={a.areaId}>{a.name}</option>
-            ))}
+            <AreaOptions areas={areas} only={canNest} />
           </select>
         </label>
       )}
