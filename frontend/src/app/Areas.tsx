@@ -38,7 +38,6 @@ import { useCrumbs, type Crumb } from './crumbTrail';
 import type { Ring, SealedRole } from './keys';
 import { keysFor, forgetKeys } from './ringOf';
 import { viewPath } from './routes';
-import { Seats } from './Seats';
 import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
 
@@ -205,7 +204,6 @@ export function Areas({ who, trail }: { who: Who; trail: readonly string[] }) {
           area={shown}
           areas={areas}
           ring={ring}
-          person={person}
           busy={busy !== null}
           onAct={act}
         />
@@ -321,11 +319,10 @@ type Section = 'roles' | 'forms' | 'public';
  * etwas tun, um überhaupt etwas zu sehen. „Wer ist hier" ist die Frage, mit der
  * fast jeder kommt.
  */
-function AreaPage({ area, areas, ring, person, busy, onAct }: {
+function AreaPage({ area, areas, ring, busy, onAct }: {
   area: AreaRow;
   areas: readonly AreaRow[];
   ring: Ring | null;
-  person: SealedRole | null;
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
@@ -510,13 +507,18 @@ function AreaPage({ area, areas, ring, person, busy, onAct }: {
           <p className="wk-hint">Swoje zgłoszenie taka osoba widzi zawsze.</p>
 
           {/*
-            Die Plätze selbst. Sie stehen HIER, weil ein Platz ein Platz IN
-            einem Bereich ist und wer ihn ausstellt, dessen Epochenschlüssel
-            braucht — den hat er genau hier.
+            HIER STANDEN DIE PLÄTZE — und das Ausstellen von Hand.
+
+            Es war dieselbe Sache zweimal: wer ein Formular führt, sieht
+            jede Einsendung mitsamt Namen, Antworten und Link an einer
+            Stelle (`FormOffice`). Der Knopf hier erzeugte daneben einen
+            Platz OHNE Einsendung — einen, den danach nur eine zweite Liste
+            wiederfand.
+
+            Was an dieser Stelle bleibt, ist die Einstellung darüber: WIE
+            VIEL so jemand ausser seinem Eigenen sieht. Das ist eine
+            Eigenschaft des Bereichs und gehört nirgendwo sonst hin.
           */}
-          {ring !== null && person !== null && (
-            <Seats area={area} areas={areas} ring={ring} ownerRoleId={person.id} />
-          )}
         </div>
       )}
 

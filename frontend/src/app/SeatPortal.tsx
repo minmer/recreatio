@@ -35,6 +35,7 @@ import { Field, aad } from './crypto';
 import { keysFor } from './ringOf';
 import { openSubmitted } from './form';
 import { bindSeat, loadPortal, openGrants, openPortal, type Portal } from './seat';
+import { recall, remember } from './seatKeep';
 import { pagePath } from './routes';
 import { PageParts } from './PageParts';
 import { toDraft } from './page';
@@ -46,6 +47,11 @@ interface Shared {
   readonly name: string;
   readonly when: string;
   readonly what: string | null;
+}
+
+/** Was nicht aufgeht, ist `null` — ein kaputter Link ist kein Absturz. */
+function quiet<T>(todo: () => T): T | null {
+  try { return todo(); } catch { return null; }
 }
 
 export function SeatPortal({ token, keyText, under }: {
@@ -77,13 +83,27 @@ export function SeatPortal({ token, keyText, under }: {
       setFailed(null);
       setSharedNames(found.grants.map((g) => g.areaName));
 
-      if (keyText === null) return;
+      /*
+       * AUS DEM LINK ODER AUS DEM BROWSER — in dieser Reihenfolge.
+       *
+       * Der Link gilt, wenn einer da ist: wer einen NEUEN bekommen hat
+       * (`relink`), soll den neuen benutzen und nicht den alten, der noch
+       * herumliegt. Sonst der behaltene, und das ist der Normalfall — nach
+       * dem ersten Mal steht er nicht mehr in der Adresse.
+       */
+      const fromLink = keyText === null ? null : quiet(() => fromBase64Url(keyText));
+      const held = fromLink ?? recall(token);
+
+      if (held === null) return;
 
       let key: Uint8Array;
       try {
-        const opened = await openPortal(found, fromBase64Url(keyText));
+        const opened = await openPortal(found, held);
         key = opened.seatKey;
         setSeatKey(key);
+
+        /* Er geht auf — also ist er der richtige, und er darf bleiben. */
+        remember(token, held);
         setNote(opened.personal);
       } catch {
         setSeatKey(null);

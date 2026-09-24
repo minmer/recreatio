@@ -29,7 +29,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { openSubpage } from './access';
-import { moveSlug, setInternal, type Desk, type PageCard, type RoleCard } from './desk';
+import { moveSlug, type Desk, type PageCard, type RoleCard } from './desk';
 import type { Ring } from './keys';
 import { keysFor } from './ringOf';
 import { pagePath, PATH_SHAPE } from './routes';
@@ -187,7 +187,7 @@ function Branch({ nodes, depth, ...rest }: Shared & {
 
 /* -- Eine Zeile ------------------------------------------------------------ */
 
-function Row({ node, depth, desk, names, ring, editing, dragging, over, allowed, busy,
+function Row({ node, depth, desk, names, editing, dragging, over, allowed, busy,
   onEdit, onDragStart, onDragEnd, onOver, onDrop, onAct }: Shared & {
   node: Node;
   depth: number;
@@ -281,7 +281,6 @@ function Row({ node, depth, desk, names, ring, editing, dragging, over, allowed,
 
       {open && page !== null && (
         <div className="wk-form" style={{ flexBasis: '100%' }}>
-          <Owner page={page} desk={desk} names={names} ring={ring} busy={busy} onAct={onAct} />
           <Rename page={page} busy={busy} onAct={onAct} />
           <AddChild parent={node.path} desk={desk} busy={busy} onAct={onAct} />
         </div>
@@ -325,86 +324,15 @@ const kindName = (role: RoleCard): string =>
  * der Auswahl der eigenen Rollen ein Feld für eine fremde Kennung. Ohne das
  * liesse sich der Fall, für den das Ganze gebaut ist, gar nicht eintragen.
  */
-function Owner({ page, desk, names, ring, busy, onAct }: {
-  page: PageCard;
-  desk: Desk;
-  names: ReadonlyMap<string, string>;
-  ring: Ring | null;
-  busy: boolean;
-  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
-}) {
-  const now = page.internalForRoleId ?? '';
+/*
+   „KTO MA WIDZIEĆ TĘ STRONĘ" — FORT.
 
-  /* `''` = öffentlich, `'?'` = eine fremde Kennung, sonst eine eigene Rolle. */
-  const foreign = now !== '' && !desk.roles.some((r) => r.id === now);
-
-  const [pick, setPick] = useState(foreign ? '?' : now);
-  const [typed, setTyped] = useState(foreign ? now : '');
-
-  const wanted = pick === '?' ? typed.trim() : pick;
-  const bad = pick === '?' && typed.trim() !== '' && !isId(typed.trim());
-
-  return (
-    <>
-      <label className="wk-field">
-        <span>Kto ma widzieć tę stronę</span>
-        <select value={pick} disabled={busy} onChange={(e) => setPick(e.target.value)}>
-          <option value="">Każdy — strona publiczna</option>
-          {desk.roles.map((r) => (
-            <option key={r.id} value={r.id}>
-              {names.get(r.id) ?? kindName(r)} · {r.id.slice(0, 8)}
-            </option>
-          ))}
-          <option value="?">Ktoś inny — wklej kennung roli…</option>
-        </select>
-      </label>
-
-      {pick === '?' && (
-        <label className="wk-field">
-          <span>Kennung roli</span>
-          <input
-            value={typed}
-            disabled={busy}
-            placeholder="00000000-0000-0000-0000-000000000000"
-            autoComplete="off"
-            onChange={(e) => setTyped(e.target.value)}
-          />
-        </label>
-      )}
-
-      {bad && <p className="wk-blocker">To nie jest kennung roli.</p>}
-
-      {ring === null && (
-        <p className="wk-hint">
-          Bez hasła w tej karcie nazwy ról zostają zapieczętowane — widać rodzaj i kennung.
-        </p>
-      )}
-
-      <p className="wk-hint">
-        Strona przypisana komuś <strong>przestaje istnieć dla pozostałych</strong> — nie
-        „zabroniona", tylko nieobecna. Otworzą ją: ta rola, kancelaria prowadząca adres
-        powyżej oraz miejsce, któremu ten adres przydzielono.
-      </p>
-
-      {wanted !== now && !bad && (
-        <div className="wk-actions">
-          <button
-            type="button" className="wk-btn"
-            disabled={busy || (pick === '?' && typed.trim() === '')}
-            onClick={() => void onAct('Zapisywanie…',
-              () => setInternal(page.path, wanted === '' ? null : wanted))}
-          >
-            {wanted === '' ? 'Otwórz dla wszystkich' : 'Przypisz'}
-          </button>
-        </div>
-      )}
-    </>
-  );
-}
-
-const isId = (text: string): boolean =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text);
-
+   Es war ein zweites Schloss neben dem einzigen, das schliesst. Was
+   geschützt ist, liegt unter einem Bereichsschlüssel; Titel, Text und
+   Einstellungen einer Seite gehen offen hinaus. Eine Adresse zu verbergen
+   schützte damit nichts — und sah aus, als täte es das, was schlimmer ist
+   als gar kein Schloss.
+*/
 /* -- Umbenennen ------------------------------------------------------------ */
 
 /**

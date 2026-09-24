@@ -47,7 +47,6 @@ public static class Seat
     public static void Map(WebApplication app)
     {
         // Die Kanzlei.
-        app.MapPost("/workspace/area/{id:guid}/seat", IssueAsync);
         app.MapGet("/workspace/area/{id:guid}/seats", ListAsync);
         app.MapPost("/workspace/seat/{id:guid}/note", NoteAsync);
         app.MapPost("/workspace/seat/{id:guid}/revoke", RevokeAsync);
@@ -81,209 +80,21 @@ public static class Seat
         app.MapPost("/seat/{token}/check", SelfCheckAsync);
     }
 
-    /* -- Ausstellen --------------------------------------------------------- */
+    /*
+        AUSSTELLEN VON HAND — FORT.
 
-    /// <summary>
-    /// Ein Schluessel, den dieser Platz AUSSERDEM aufschliesst — versiegelt
-    /// unter dem Platzschluessel.
-    ///
-    /// <para>
-    /// Der Fall ist die Klasse: das Gemeinsame liegt in einem eigenen Bereich,
-    /// und jeder Platz traegt dessen Schluessel. Die Notizen des Lehrers liegen
-    /// im ANDEREN Bereich und bleiben damit zu.
-    /// </para>
-    /// </summary>
-    public sealed record GrantIn(string AreaId, int Epoch, string Sealed);
+        Ein Platz entstand auf zwei Wegen: aus einer Einsendung, und weil die
+        Kanzlei einen ausstellte. Der zweite war eine Verdopplung des ersten:
+        das Amt legt ohnehin ein Formular an, und wer es abschickt, bekommt
+        seinen Platz — mitsamt Namen, Antworten und Link, alles an einer
+        Stelle. Der Knopf daneben erzeugte einen Platz OHNE Einsendung, den
+        danach niemand wiederfand ausser über eine zweite Liste.
 
-    public sealed record IssueRequest(
-        string SeatId,
-        string TokenSha256,
-        string SeatKeySealed,
-        string SeatKeyForArea,
-        int Epoch,
-        string OwnerRoleId,
-        string? RecipientName,
-        string? PersonalNoteSealed,
-        string? InternalNoteSealed,
-        IReadOnlyList<string>? SlugIds,
-        IReadOnlyList<GrantIn>? Grants,
-        int? Days);
-
-    /// <summary>
-    /// Einen Platz ausstellen.
-    ///
-    /// <para>
-    /// <b>Die Kennung entsteht im Browser</b>, wie beim Bereich: die AAD des
-    /// Platzschluessels nennt den Platz, also muss er existieren, bevor der
-    /// Schluessel verpackt werden kann.
-    /// </para>
-    ///
-    /// <para>
-    /// <b>Der Dienst sieht den Link nie.</b> Er bekommt dessen SHA-256; das
-    /// Geheimnis selbst bleibt im Browser des Ausstellenden, bis es verschickt
-    /// ist. Geht es dabei verloren, ist der Platz verloren — und genau deshalb
-    /// steht das Zurueckziehen daneben.
-    /// </para>
-    /// </summary>
-    private static async Task IssueAsync(HttpContext ctx, Db db, Guid id, IssueRequest body)
-    {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
-        if (!Guid.TryParse(body.SeatId, out var seatId) || !Guid.TryParse(body.OwnerRoleId, out var ownerRoleId))
-        {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung.");
-            return;
-        }
-
-        if (body.Epoch < 1)
-        {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Epoka zaczyna się od 1.");
-            return;
-        }
-
-        if (!Blob(body.TokenSha256, out var tokenHash) || tokenHash.Length != 32)
-        {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Odcisk linku musi mieć 32 bajty.");
-            return;
-        }
-
-        if (!Blob(body.SeatKeySealed, out var forLink) || forLink.Length == 0
-            || !Blob(body.SeatKeyForArea, out var forArea) || forArea.Length == 0)
-        {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny zapieczętowany klucz miejsca.");
-            return;
-        }
-
-        var personal = Optional(body.PersonalNoteSealed);
-        var internalNote = Optional(body.InternalNoteSealed);
-
-        var slugIds = new List<Guid>();
-        foreach (var raw in body.SlugIds ?? [])
-        {
-            if (!Guid.TryParse(raw, out var slugId))
-            {
-                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung adresu.");
-                return;
-            }
-            slugIds.Add(slugId);
-        }
-
-        var grants = new List<(Guid Area, int Epoch, byte[] Blob)>();
-        foreach (var one in body.Grants ?? [])
-        {
-            if (!Guid.TryParse(one.AreaId, out var grantArea) || one.Epoch < 1
-                || !Blob(one.Sealed, out var grantBlob) || grantBlob.Length == 0)
-            {
-                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny klucz wspólny.");
-                return;
-            }
-
-            grants.Add((grantArea, one.Epoch, grantBlob));
-        }
-
-        await using var connection = await db.OpenAsync(ctx.RequestAborted);
-
-        if (!await Area.MayAsync(connection, who.Value.AccountId, id, Capability.Write, ctx.RequestAborted))
-        {
-            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
-            return;
-        }
-
-        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
-        if (!mine.Any(r => r.Id == ownerRoleId))
-        {
-            await Fail(ctx, StatusCodes.Status403Forbidden, "To nie jest Twoja rola.");
-            return;
-        }
-
-        var now = DateTimeOffset.UtcNow;
-        var until = now + (body.Days is > 0 ? TimeSpan.FromDays(Math.Min(body.Days.Value, 3650)) : DefaultLife);
-        var name = (body.RecipientName ?? string.Empty).Trim();
-
-        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
-
-        try
-        {
-            await using (var insert = new SqlCommand("""
-                INSERT INTO app.access
-                    (id, area_id, token_sha256, seat_key_sealed, seat_key_for_area, epoch,
-                     recipient_name, personal_note_sealed, internal_note_sealed,
-                     created_by_role_id, created_at, expires_at)
-                VALUES (@id, @area, @token, @forLink, @forArea, @epoch,
-                        @name, @personal, @internal, @by, @now, @until);
-                """, connection, tx))
-            {
-                insert.Parameters.AddWithValue("@id", seatId);
-                insert.Parameters.AddWithValue("@area", id);
-                insert.Parameters.AddWithValue("@token", tokenHash);
-                insert.Parameters.AddWithValue("@forLink", forLink);
-                insert.Parameters.AddWithValue("@forArea", forArea);
-                insert.Parameters.AddWithValue("@epoch", body.Epoch);
-                insert.Parameters.AddWithValue("@name",
-                    name == "" ? DBNull.Value : name[..Math.Min(name.Length, MaxName)]);
-                insert.Parameters.AddBlob("@personal", personal);
-                insert.Parameters.AddBlob("@internal", internalNote);
-                insert.Parameters.AddWithValue("@by", ownerRoleId);
-                insert.Parameters.AddWithValue("@now", now);
-                insert.Parameters.AddWithValue("@until", until);
-
-                await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
-            }
-
-            foreach (var slugId in slugIds.Distinct())
-            {
-                await using var open = new SqlCommand(
-                    "INSERT INTO app.access_slug (access_id, slug_id) VALUES (@a, @s);", connection, tx);
-
-                open.Parameters.AddWithValue("@a", seatId);
-                open.Parameters.AddWithValue("@s", slugId);
-                await open.ExecuteNonQueryAsync(ctx.RequestAborted);
-            }
-
-            /*
-             * Die gemeinsamen Schluessel — in DERSELBEN Transaktion. Ein Platz,
-             * der ohne sie entstuende, waere einer, auf dem das Gemeinsame
-             * fehlt, und niemand saehe warum.
-             */
-            foreach (var (grantArea, grantEpoch, grantBlob) in grants)
-            {
-                await using var add = new SqlCommand("""
-                    INSERT INTO app.access_grant (access_id, area_id, epoch, sealed_blob, created_at)
-                    VALUES (@a, @area, @epoch, @blob, @now);
-                    """, connection, tx);
-
-                add.Parameters.AddWithValue("@a", seatId);
-                add.Parameters.AddWithValue("@area", grantArea);
-                add.Parameters.AddWithValue("@epoch", grantEpoch);
-                add.Parameters.AddWithValue("@blob", grantBlob);
-                add.Parameters.AddWithValue("@now", now);
-
-                await add.ExecuteNonQueryAsync(ctx.RequestAborted);
-            }
-
-            await tx.CommitAsync(ctx.RequestAborted);
-        }
-        catch (SqlException e) when (e.Number is 2601 or 2627)
-        {
-            await tx.RollbackAsync(ctx.RequestAborted);
-            await Fail(ctx, StatusCodes.Status409Conflict, "Takie miejsce już istnieje.");
-            return;
-        }
-        catch
-        {
-            await tx.RollbackAsync(ctx.RequestAborted);
-            throw;
-        }
-
-        await ctx.Response.WriteAsJsonAsync(new
-        {
-            seatId = Ids.ToText(seatId),
-            areaId = Ids.ToText(id),
-            recipientName = name == "" ? null : name,
-            expiresAt = until
-        });
-    }
+        Was bleibt: `/workspace/area/{id}/seats` (die Kanzlei liest sie),
+        `/relink` (den Link neu zeigen) und `/revoke` (ihn zurücknehmen).
+        Angelegt werden Plätze nur noch dort, wo sie entstehen — beim
+        Absenden eines Formulars (`Form.SubmitAsync`).
+    */
 
     /* -- Die Kanzleisicht --------------------------------------------------- */
 

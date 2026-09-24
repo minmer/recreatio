@@ -15,24 +15,19 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import {
-  CAPABILITY_NAME, grantAccess, loadAccess, openSubpage, revokeGrant,
-  type AccessView, type Capability
-} from './access';
 import { loadPage, savePage, saveParts, toDraft, type DraftPart } from './page';
-import { FormOffice } from './FormOffice';
 import { MassOffice } from './MassOffice';
 import { PageBuilder } from './PageBuilder';
 import { pagePath } from './routes';
-import { forgetKeys, keysFor, type Keys } from './ringOf';
 import { WorkspaceError, type Who } from './session';
-import { Unlock } from './Unlock';
 
-const CAPABILITIES: readonly Capability[] = ['read', 'write', 'admin', 'certify'];
+export function PageEditor({ path, who, onOpenModule }: {
+  path: string;
+  who: Who;
 
-const short = (id: string): string => id.slice(0, 8);
-
-export function PageEditor({ path, who }: { path: string; who: Who }) {
+  /** Den Baustein aufschlagen — als Unterseite DIESER Seite (`Workspace`). */
+  onOpenModule: (moduleId: string) => void;
+}) {
   const [title, setTitle] = useState('');
   const [lead, setLead] = useState('');
   const [parts, setParts] = useState<readonly DraftPart[]>([]);
@@ -40,8 +35,6 @@ export function PageEditor({ path, who }: { path: string; who: Who }) {
   /* Die Anordnung geht als GANZES hinaus. Ein Knopf, der immer anklickbar ist,
      sagt nicht, ob noch etwas offen ist — deshalb merkt sich das der Editor. */
   const [dirty, setDirty] = useState(false);
-  const [view, setView] = useState<AccessView | null>(null);
-  const [keys, setKeys] = useState<Keys | null>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -65,9 +58,7 @@ export function PageEditor({ path, who }: { path: string; who: Who }) {
 
     setDirty(false);
 
-    try { setView(await loadAccess(path)); } catch { setView(null); }
 
-    setKeys(await keysFor(who));
     setReady(true);
   }, [path, who]);
 
@@ -90,18 +81,6 @@ export function PageEditor({ path, who }: { path: string; who: Who }) {
 
   if (!ready) return <p className="wk-hint">Wczytywanie strony…</p>;
 
-  const ring = keys?.ring ?? null;
-  const mayCertify = view?.mayCertify === true;
-
-  /*
-   * Mit WELCHER Rolle unterschrieben wird. Die führende, wenn sie mir gehört —
-   * sonst die erste, deren Schlüssel ich halte. Ohne Schlüssel gar keine: eine
-   * Unterschrift, die niemand leisten kann, ist kein Formular wert.
-   */
-  const issuer =
-    view?.ownerRoleId != null && ring?.has(view.ownerRoleId) === true
-      ? view.ownerRoleId
-      : keys?.graph.roles.find((r) => ring?.has(r.id) === true)?.id ?? null;
 
   return (
     <div className="wk-page-edit">
@@ -151,6 +130,22 @@ export function PageEditor({ path, who }: { path: string; who: Who }) {
         parts={parts}
         busy={busy !== null}
         onChange={(next) => { setParts(next); setDirty(true); }}
+
+        /*
+          ERST SPEICHERN, DANN HINÜBER. Was der Editor gerade geändert hat,
+          steht nur im Bild: dass diese Stelle DIESEN Bogen zeigt. Ohne das
+          Speichern wäre der Bogen angelegt und die Seite wüsste nichts
+          davon — und die einzige Spur davon wäre eine Adresse, die auf
+          einen Baustein zeigt, der dort nicht steht.
+        */
+        onOpenModule={(moduleId, next) => {
+          setParts(next);
+
+          void act('Zapisywanie modułów…', () => saveParts(path, next)).then(() => {
+            setDirty(false);
+            onOpenModule(moduleId);
+          });
+        }}
       />
 
       <div className="wk-actions">
@@ -177,197 +172,25 @@ export function PageEditor({ path, who }: { path: string; who: Who }) {
       {parts.some((part) => part.kind === 'masses') && <MassOffice />}
 
       {/*
-        Je Formular EINER — anders als beim Messplan, der einen Kalender nennt.
-        Die Fragen hängen an DIESEM Baustein, also gibt es sie auch je Baustein
-        zu stellen; zwei Formulare auf einer Seite sind zwei Bögen und nicht
-        zwei Ansichten desselben.
+        HIER STANDEN: die Fragen des Formulars, „Kto ma dostęp" und „Otwórz
+        podstronę". Alle drei gehörten woanders hin.
+
+        <b>Die Fragen gehören dem BAUSTEIN</b>, nicht der Seite, auf der er
+        steht (0036). Sie hier zu stellen hiess: wer denselben Bogen auf eine
+        zweite Seite legt, bearbeitet ihn an zwei Stellen — und sieht beide
+        Male dieselben Antworten, ohne zu wissen, warum. Jetzt führt die
+        Kachel zum Baustein, und dort wird gefragt.
+
+        <b>Der Zugang zu einer ADRESSE war ein zweites Schloss neben dem
+        einzigen, das schliesst.</b> Was geschützt ist, liegt unter einem
+        Bereichsschlüssel; Titel, Text und Einstellungen einer Seite gehen
+        offen hinaus — das steht zwei Bildschirme weiter oben. Eine Adresse
+        zu verbergen schützte damit nichts und sah aus, als täte es das.
+
+        <b>Unterseiten gehören in die Seiteneinstellungen</b>, wo der Baum
+        steht. Sie hier ein zweites Mal anzubieten hiess, dasselbe an zwei
+        Stellen zu pflegen.
       */}
-      {parts.filter((part) => part.kind === 'form').map((part) => (
-        <FormOffice key={part.id} partId={part.id} config={part.config} who={who} />
-      ))}
-
-      {view !== null && (
-        <>
-          <h3 className="wk-h2">Kto ma dostęp</h3>
-
-          <p className="wk-hint">
-            Adres prowadzi rola <code>{short(view.ownerRoleId ?? '—')}</code>
-            {view.ownerPath !== null && view.ownerPath !== path && (
-              <> — z adresu <code>recreatio.pl/{view.ownerPath}</code></>
-            )}.
-          </p>
-
-          {view.grants.length === 0 ? (
-            <p className="wk-empty">Nikt poza prowadzącym.</p>
-          ) : (
-            <ul className="wk-list">
-              {view.grants.map((grant) => (
-                <li className="wk-row" key={grant.id}>
-                  <span>
-                    <code>{short(grant.subjectRoleId)}</code> — {CAPABILITY_NAME[grant.capability]}
-                    {grant.inherited && <span className="wk-badge">z „{grant.path}"</span>}
-                  </span>
-
-                  {/* Geerbtes wird dort zurückgenommen, wo es ausgestellt wurde
-                      — hier wäre der Knopf eine Lüge. */}
-                  {!grant.inherited && mayCertify && (
-                    <button
-                      type="button" className="wk-link-btn" disabled={busy !== null}
-                      onClick={() => void act('Odbieranie…', () => revokeGrant(grant.id))}
-                    >
-                      Odbierz
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {mayCertify && ring === null && (
-            <Unlock
-              who={who}
-              why="Żeby dopuścić kogoś do tego adresu, trzeba podpisać zaświadczenie."
-              onDone={() => void look()}
-            />
-          )}
-
-          {mayCertify && ring !== null && issuer !== null && (
-            <>
-              <GrantForm
-                busy={busy !== null}
-                onGrant={(subjectRoleId, capability, days) =>
-                  act('Wystawianie…', async () => {
-                    await grantAccess(ring, { view, subjectRoleId, issuerRoleId: issuer, capability, days });
-                  })
-                }
-              />
-
-              <SubpageForm
-                busy={busy !== null}
-                base={path}
-                roles={(keys?.graph.roles ?? []).filter((r) => ring.has(r.id)).map((r) => r.id)}
-                onOpen={(full, roleId) =>
-                  act('Otwieranie podstrony…', async () => {
-                    await openSubpage(full, roleId);
-                    forgetKeys();
-                  })
-                }
-              />
-            </>
-          )}
-        </>
-      )}
     </div>
   );
 }
-
-/* -- Zugang geben ----------------------------------------------------------- */
-
-function GrantForm({ busy, onGrant }: {
-  busy: boolean;
-  onGrant: (subjectRoleId: string, capability: Capability, days: number) => Promise<void>;
-}) {
-  const [subject, setSubject] = useState('');
-  const [capability, setCapability] = useState<Capability>('write');
-  const [days, setDays] = useState(365);
-
-  return (
-    <form
-      className="wk-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!busy && subject.trim() !== '') void onGrant(subject.trim(), capability, days);
-      }}
-    >
-      <h4 className="wk-h2">Dopuść rolę</h4>
-
-      <label className="wk-field">
-        <span>Rola (pełna kennung)</span>
-        <input
-          value={subject}
-          placeholder="01a0…-…"
-          autoComplete="off"
-          onChange={(e) => setSubject(e.target.value)}
-        />
-      </label>
-
-      <label className="wk-field">
-        <span>Co wolno</span>
-        <select value={capability} onChange={(e) => setCapability(e.target.value as Capability)}>
-          {CAPABILITIES.map((c) => (
-            <option key={c} value={c}>{CAPABILITY_NAME[c]}</option>
-          ))}
-        </select>
-      </label>
-
-      <label className="wk-field">
-        <span>Na ile dni</span>
-        <input
-          type="number" min={1} max={1825} value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-        />
-      </label>
-
-      <p className="wk-hint">
-        „Może zmieniać" sięga też podstron, ale nie pozwala ich otwierać ani
-        przekazywać dalej — to osobne prawo. Zaświadczenie zawsze ma koniec.
-      </p>
-
-      <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={busy || subject.trim() === ''}>Dopuść</button>
-        {subject.trim() === '' && !busy && <span className="wk-blocker">Wklej kennung roli.</span>}
-      </div>
-    </form>
-  );
-}
-
-/* -- Eine Unterseite öffnen ------------------------------------------------- */
-
-function SubpageForm({ busy, base, roles, onOpen }: {
-  busy: boolean;
-  base: string;
-  roles: readonly string[];
-  onOpen: (full: string, roleId: string) => Promise<void>;
-}) {
-  const [suffix, setSuffix] = useState('');
-  const [roleId, setRoleId] = useState(roles[0] ?? '');
-
-  const clean = suffix.trim().toLowerCase().replace(/^\/+|\/+$/g, '');
-
-  return (
-    <form
-      className="wk-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!busy && clean !== '' && roleId !== '') void onOpen(`${base}/${clean}`, roleId);
-      }}
-    >
-      <h4 className="wk-h2">Otwórz podstronę</h4>
-
-      <label className="wk-field">
-        <span>Adres</span>
-        <input value={suffix} placeholder="aktualnosci" onChange={(e) => setSuffix(e.target.value)} />
-      </label>
-
-      <label className="wk-field">
-        <span>Kto ją poprowadzi</span>
-        <select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
-          {roles.map((id) => <option key={id} value={id}>{short(id)}</option>)}
-        </select>
-      </label>
-
-      <p className="wk-hint">
-        Podstrona nie potrzebuje kodu: otwiera ją ten, kto prowadzi adres wyżej.
-        Powstanie <code>recreatio.pl/{base}/{clean === '' ? '…' : clean}</code>.
-      </p>
-
-      <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={busy || clean === '' || roleId === ''}>
-          Otwórz
-        </button>
-      </div>
-    </form>
-  );
-}
-
-export default PageEditor;

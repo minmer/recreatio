@@ -78,7 +78,10 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
                 Moduł „{part.kind}" nie jest znany tej wersji strony.
               </p>
             ) : (
-              <def.View raw={part.config} ctx={{ partId: part.id, box }} />
+              <def.View
+                raw={part.config}
+                ctx={{ moduleId: part.moduleId ?? part.id, box }}
+              />
             )}
           </article>
         );

@@ -1213,3 +1213,34 @@ code {
   font-size: 0.88rem;
   color: var(--wk-ink);
 }
+
+/*
+   Etwas, das man selten braucht, steht zugeklappt da — eine Zeile statt eines
+   Formulars. Aufgeklappt sieht es aus wie jedes andere Formular; der Rahmen
+   ist nur da, damit man die Grenze sieht.
+*/
+.wk-fold {
+  margin-top: 1.6rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 0.4rem;
+  background: var(--wk-surface);
+}
+
+.wk-fold > summary {
+  padding: 0.6rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+/* Der eigene Pfeil — der eingebaute sitzt in jedem Browser woanders. */
+.wk-fold > summary::-webkit-details-marker { display: none; }
+.wk-fold > summary::before { content: "＋ "; color: var(--wk-muted); }
+.wk-fold[open] > summary::before { content: "− "; }
+
+.wk-fold > summary:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-fold[open] > summary { border-bottom: 1px solid var(--wk-line); }
+.wk-fold > *:not(summary) { padding: 0 0.9rem 0.9rem; }
+
+/* Dasselbe eine Stufe tiefer: „albo załóż nowy" im Bausteinwähler. */
+.pb-new > summary { cursor: pointer; font-size: 0.9rem; color: var(--wk-accent); }

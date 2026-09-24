@@ -33,6 +33,7 @@ import {
   type Breakpoint, type Frame, type Handle, type Layout
 } from './layout';
 import { PARTS, partLabel, partOf } from './parts/registry';
+import { PickModule } from './PickModule';
 import type { DraftPart } from './page';
 
 const ROW_H = 84;
@@ -49,10 +50,25 @@ const HANDLES: readonly Handle[] = [
   'top-left', 'top', 'top-right', 'left', 'right', 'bottom-left', 'bottom', 'bottom-right'
 ];
 
-export function PageBuilder({ parts, onChange: report, busy }: {
+export function PageBuilder({ parts, onChange: report, busy, onOpenModule }: {
   parts: readonly DraftPart[];
   onChange: (next: readonly DraftPart[]) => void;
   busy: boolean;
+
+  /**
+   * Einen Baustein AUFSCHLAGEN — dorthin, wo man seine Fragen stellt.
+   *
+   * Der Rastereditor weiss nicht, wo das ist; er sagt nur, WELCHEN. Wohin
+   * es führt, entscheidet die Seite, die ihn einhängt — sonst müsste er
+   * Adressen kennen, und das ist nicht seine Aufgabe.
+   *
+   * <b>Die Anordnung geht MIT.</b> Wer gerade einen Bogen angelegt hat, hat
+   * eine Änderung im Bild, die noch nirgends steht — genau die, die sagt,
+   * welchen Baustein diese Stelle zeigt. Sie aus dem Zustand zu lesen wäre
+   * ein Wettlauf: React hat ihn noch nicht gesetzt, wenn dieser Aufruf
+   * geschieht. Also reicht der Editor sie weiter.
+   */
+  onOpenModule: (moduleId: string, parts: readonly DraftPart[]) => void;
 }) {
   /**
    * JEDE Änderung geht durch die Leserichtung.
@@ -179,7 +195,7 @@ export function PageBuilder({ parts, onChange: report, busy }: {
           : { position: firstFreeCell(parts, fitted, cols, bp), size: fitted };
       }
 
-      const made: DraftPart = { id: newId(), kind, layout, config: {} };
+      const made: DraftPart = { id: newId(), moduleId: null, kind, layout, config: {} };
       onChange([...parts, made]);
       setSelected(made.id);
       return;
@@ -254,6 +270,14 @@ export function PageBuilder({ parts, onChange: report, busy }: {
 
   const setConfig = (partId: string, key: string, value: string) =>
     onChange(parts.map((p) => (p.id === partId ? { ...p, config: { ...p.config, [key]: value } } : p)));
+
+  /* WELCHEN Baustein diese Stelle zeigt. Der Inhalt zieht damit mit: er
+     hängt am Baustein, nicht an der Stelle. */
+  const withModule = (partId: string, moduleId: string): readonly DraftPart[] =>
+    parts.map((p) => (p.id === partId ? { ...p, moduleId } : p));
+
+  const setModule = (partId: string, moduleId: string) =>
+    onChange(withModule(partId, moduleId));
 
   const width = CANVAS_W[breakpoint];
   const chosen = parts.find((p) => p.id === selected) ?? null;
@@ -351,10 +375,34 @@ export function PageBuilder({ parts, onChange: report, busy }: {
         <p className="pb-empty">Strona nie ma jeszcze modułu. Przeciągnij pierwszy z listy powyżej.</p>
       )}
 
-      {/* Die Felder folgen der ART des gewählten Bausteins — niemand füllt
-          vierzig Felder aus, von denen dreissig hier nicht vorkommen. */}
+      {/*
+        EIN BOGEN WIRD GEWÄHLT, NICHT HIER GESTELLT.
+
+        Seine Fragen gehören ihm und nicht der Seite, auf der er steht: wer
+        denselben Bogen zweimal auslegt, soll EINEN Satz Fragen haben und
+        EINEN Satz Antworten. Alles andere trägt seinen Inhalt selbst und
+        wird deshalb weiterhin hier gefüllt.
+      */}
       {chosen !== null && (
-        <Fields part={chosen} busy={busy} onSet={(key, value) => setConfig(chosen.id, key, value)} />
+        chosen.kind === 'form' ? (
+          <PickModule
+            kind={chosen.kind}
+            chosen={chosen.moduleId}
+            busy={busy}
+            onPick={(moduleId) => setModule(chosen.id, moduleId)}
+            onMade={(moduleId) => {
+              const next = withModule(chosen.id, moduleId);
+              onChange(next);
+              onOpenModule(moduleId, next);
+            }}
+          />
+        ) : (
+          <Fields
+            part={chosen}
+            busy={busy}
+            onSet={(key, value) => setConfig(chosen.id, key, value)}
+          />
+        )
       )}
     </div>
   );

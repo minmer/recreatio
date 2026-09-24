@@ -39,10 +39,15 @@ import { createElement, type ComponentType } from 'react';
  */
 export interface PartContext {
   /**
-   * Der Baustein selbst. Das Formular braucht ihn — seine Fragen hängen nicht
-   * im `config`, sondern als eigene Zeilen an genau dieser Kennung.
+   * DER BAUSTEIN, nicht die Stelle, an der er steht.
+   *
+   * <b>Daran hängen die Fragen eines Bogens und die Antworten darauf.</b>
+   * Bis eben war es dieselbe Kennung wie die der Stelle, und deshalb fiel
+   * nicht auf, dass hier die falsche stand. Sobald derselbe Bogen auf einer
+   * zweiten Seite liegt, sind es zwei Kennungen — und die der Stelle führt
+   * zu einem Bogen ohne Fragen.
    */
-  readonly partId: string;
+  readonly moduleId: string;
 
   /** Wie viele Rasterfelder er belegt. Der Messplan entscheidet daran, was hineinpasst. */
   readonly box: { readonly colSpan: number; readonly rowSpan: number };

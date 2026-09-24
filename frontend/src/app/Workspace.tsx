@@ -18,6 +18,9 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { PATH_SHAPE, viewPath, VIEWS, type Spot, type View } from './routes';
 import { useCrumbs } from './crumbTrail';
+import { FormOffice } from './FormOffice';
+import { loadModules, readConfig, type ModuleRow } from './module';
+import { partLabel } from './parts/registry';
 import { Account } from './Account';
 import { Addresses } from './Addresses';
 import { Areas } from './Areas';
@@ -231,6 +234,43 @@ function Inside({ view, trail, desk, who, onChanged }: {
 
 /* -- Strony: übernehmen, nicht anlegen ------------------------------------- */
 
+/**
+ * EIN BAUSTEIN ALS UNTERSEITE SEINER SEITE.
+ *
+ * `#/workspace/pages/parish/zapisy/<kennung>` schlägt den Baustein auf, der
+ * auf `parish/zapisy` steht. Das ist die Ordnung, in der man ihn sucht — man
+ * kommt von der Seite, auf der er liegt, und der Weg oben sagt es auch so.
+ *
+ * <b>Woran man ihn erkennt.</b> Eine Kennung ist eine UUID; ein Schritt im
+ * Register ist ein Wort. Die Form allein genügte aber nicht als Beweis —
+ * `ck_slug_path` liesse eine Unterseite zu, die genau so aussieht. Deshalb
+ * wird ZUSÄTZLICH gefragt, ob der ganze Pfad eine Seite ist, die ich führe:
+ * ist er es, ist es eine Seite, und die Form zählt nicht.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function splitTrail(trail: readonly string[], known: ReadonlySet<string>): {
+  readonly path: string | null;
+  readonly moduleId: string | null;
+} {
+  const whole = trail.join('/');
+  if (trail.length === 0) return { path: null, moduleId: null };
+
+  /* Eine Seite, die es gibt, bleibt eine Seite. */
+  if (known.has(whole)) return { path: whole, moduleId: null };
+
+  const last = trail[trail.length - 1];
+  const above = trail.slice(0, -1).join('/');
+
+  if (trail.length > 1 && UUID.test(last) && known.has(above)) {
+    return { path: above, moduleId: last };
+  }
+
+  /* Weder noch: behandelt wie eine Seite, und die sagt dann selbst, dass sie
+     nicht da ist. Zu raten wäre schlimmer. */
+  return { path: whole, moduleId: null };
+}
+
 function Pages({ desk, who, trail, onClaimed }: {
   desk: Desk;
   who: Who;
@@ -244,13 +284,47 @@ function Pages({ desk, who, trail, onClaimed }: {
    * schon Segmente. Sie werden hier nicht zusammengeklebt und wieder
    * auseinandergenommen, sondern sind, was sie sind: der Weg dorthin.
    */
-  const editing = trail.length === 0 ? null : trail.join('/');
+  const known = new Set(desk.pages.map((one) => one.path));
+  const { path: editing, moduleId } = splitTrail(trail, known);
 
-  /* Und derselbe Weg steht oben im Kopf — Stufe für Stufe, nicht als ein Wort. */
-  useCrumbs(trail.map((part, at) => ({
-    label: part,
-    href: at === trail.length - 1 ? null : viewPath('pages', ...trail.slice(0, at + 1))
-  })));
+  /*
+   * Der aufgeschlagene Baustein. Geholt wird er nur, wenn einer
+   * aufgeschlagen ist — auf der Seitenliste wäre es ein Aufruf für nichts.
+   */
+  const [module, setModule] = useState<ModuleRow | null>(null);
+
+  useEffect(() => {
+    if (moduleId === null) { setModule(null); return; }
+
+    let dropped = false;
+
+    void loadModules()
+      .then(({ modules }) => {
+        if (dropped) return;
+        setModule(modules.find((one) => one.moduleId === moduleId) ?? null);
+      })
+      .catch(() => { if (!dropped) setModule(null); });
+
+    return () => { dropped = true; };
+  }, [moduleId]);
+
+  /*
+   * Und derselbe Weg steht oben im Kopf — Stufe für Stufe. Der Baustein
+   * hängt als letzte Stufe darunter und trägt seinen Namen, nicht seine
+   * Kennung: in der Adresse steht eine UUID, und darin liest ein Mensch
+   * nichts.
+   */
+  const steps = moduleId === null ? trail : trail.slice(0, -1);
+
+  useCrumbs([
+    ...steps.map((one, at) => ({
+      label: one,
+      href: viewPath('pages', ...steps.slice(0, at + 1))
+    })),
+    ...(moduleId === null
+      ? []
+      : [{ label: module?.name ?? partLabel('form'), href: null }])
+  ]);
 
   const [wanted, setWanted] = useState('');
   const [code, setCode] = useState('');
@@ -326,64 +400,101 @@ function Pages({ desk, who, trail, onClaimed }: {
         />
       )}
 
-      {editing !== null && <PageEditor path={editing} who={who} />}
+      {/*
+        EIN BAUSTEIN, AUFGESCHLAGEN — als Unterseite der Seite, auf der er
+        steht. Die Seitenliste bleibt dabei stehen: man kommt von ihr, und
+        man geht zu ihr zurück.
+      */}
+      {moduleId !== null && (
+        module === null ? (
+          <p className="wk-empty">Tego modułu nie ma — albo nie jest Twój.</p>
+        ) : (
+          <>
+            <h2 className="wk-h2">{module.name}</h2>
+            <FormOffice
+              partId={module.moduleId}
+              config={readConfig(module.config)}
+              who={who}
+              onPage={editing}
+            />
+          </>
+        )
+      )}
 
-      <h2 className="wk-h2">Przejmij adres</h2>
+      {moduleId === null && editing !== null && (
+        <PageEditor
+          path={editing}
+          who={who}
+          onOpenModule={(id) => { window.location.hash = viewPath('pages', ...editing.split('/'), id); }}
+        />
+      )}
 
-      <form
-        className="wk-form"
-        onSubmit={(e) => { e.preventDefault(); if (blocker === null) void go(); }}
-      >
-        <label className="wk-field">
-          <span>Adres</span>
-          <input value={wanted} onChange={(e) => setWanted(e.target.value)} placeholder="schola" />
-        </label>
+      {/*
+        EINE ADRESSE ÜBERNIMMT MAN EINMAL.
 
-        {/* Sonst wäre die Wurzel die einzige Adresse, die man nicht tippen kann. */}
-        <p className="wk-hint">
-          Sam <code>/</code> to <code>recreatio.pl</code>.
-        </p>
+        Das Formular stand offen unter jeder Seitenliste — vier Felder und
+        drei Absätze für einen Handgriff, den man im Jahr vielleicht zweimal
+        tut. Zugeklappt steht dort eine Zeile; wer sie braucht, klappt sie auf.
+      */}
+      <details className="wk-fold">
+        <summary>Przejmij adres</summary>
 
-        <label className="wk-field">
-          <span>Kod adresu</span>
-          <input value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" />
-        </label>
 
-        {/*
-          NICHT „ja" przejmuję adres, tylko rola. To jedyne pole, które łatwo
-          przeoczyć, a decyduje o tym, co się stanie, gdy ktoś odejdzie.
-        */}
-        <label className="wk-field">
-          <span>Kto będzie odpowiadał</span>
-          <select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
-            {desk.roles.map((role) => (
-              <option key={role.id} value={role.id}>{roleName(role)} · {short(role.id)}</option>
-            ))}
-          </select>
-        </label>
+        <form
+          className="wk-form"
+          onSubmit={(e) => { e.preventDefault(); if (blocker === null) void go(); }}
+        >
+          <label className="wk-field">
+            <span>Adres</span>
+            <input value={wanted} onChange={(e) => setWanted(e.target.value)} placeholder="schola" />
+          </label>
 
-        <p className="wk-hint">
-          {isRoot ? (
-            <>Wybrana rola odpowiada za sam adres <code>recreatio.pl</code>.</>
-          ) : (
-            <>
-              Wybrana rola odpowiada za ten adres i za wszystko pod nim —
-              <code>{path === '' ? 'schola' : path}/…</code> idzie razem z nim.
-            </>
-          )}
-        </p>
+          {/* Sonst wäre die Wurzel die einzige Adresse, die man nicht tippen kann. */}
+          <p className="wk-hint">
+            Sam <code>/</code> to <code>recreatio.pl</code>.
+          </p>
 
-        {failed !== null && <p className="wk-error">{failed}</p>}
-        {done !== null && <p className="wk-done">Adres <code>recreatio.pl/{done}</code> jest Twój.</p>}
+          <label className="wk-field">
+            <span>Kod adresu</span>
+            <input value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" />
+          </label>
 
-        <div className="wk-actions">
-          <button type="submit" className="wk-btn" disabled={blocker !== null || busy}>
-            {busy ? 'Sprawdzanie…' : 'Przejmij'}
-          </button>
+          {/*
+            NICHT „ja" przejmuję adres, tylko rola. To jedyne pole, które łatwo
+            przeoczyć, a decyduje o tym, co się stanie, gdy ktoś odejdzie.
+          */}
+          <label className="wk-field">
+            <span>Kto będzie odpowiadał</span>
+            <select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+              {desk.roles.map((role) => (
+                <option key={role.id} value={role.id}>{roleName(role)} · {short(role.id)}</option>
+              ))}
+            </select>
+          </label>
 
-          {blocker !== null && !busy && <span className="wk-blocker">{blocker}</span>}
-        </div>
-      </form>
+          <p className="wk-hint">
+            {isRoot ? (
+              <>Wybrana rola odpowiada za sam adres <code>recreatio.pl</code>.</>
+            ) : (
+              <>
+                Wybrana rola odpowiada za ten adres i za wszystko pod nim —
+                <code>{path === '' ? 'schola' : path}/…</code> idzie razem z nim.
+              </>
+            )}
+          </p>
+
+          {failed !== null && <p className="wk-error">{failed}</p>}
+          {done !== null && <p className="wk-done">Adres <code>recreatio.pl/{done}</code> jest Twój.</p>}
+
+          <div className="wk-actions">
+            <button type="submit" className="wk-btn" disabled={blocker !== null || busy}>
+              {busy ? 'Sprawdzanie…' : 'Przejmij'}
+            </button>
+
+            {blocker !== null && !busy && <span className="wk-blocker">{blocker}</span>}
+          </div>
+        </form>
+      </details>
     </>
   );
 }

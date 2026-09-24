@@ -33,19 +33,31 @@ import {
 } from './form';
 import { createIntake, loadIntake, loadPublicIntake, openIntakeKey, setController } from './intake';
 import type { Ring, SealedRole } from './keys';
+import { Portal } from './Portal';
 import { keysFor } from './ringOf';
-import { officeSeatKey, loadSeats, relinkSeat, seatPath, type SeatRow } from './seat';
+import {
+  officeSeatKey, loadSeats, relinkSeat, revokeSeat, seatPath, type SeatRow
+} from './seat';
 import { WorkspaceError, type Who } from './session';
 import { dialable, joinPhones, normalisePhone, splitPhones, tidyPhones, withPhone } from './phone';
 import { holesFor, missingIn, renderSms, smsHref, usesHole, VERIFY } from './sms';
 
-export function FormOffice({ partId, config, who }: {
+export function FormOffice({ partId, config, who, onPage }: {
   partId: string;
 
   /** Der Baustein selbst — daraus kommt die Vorlage der Nachricht. */
   config: Record<string, string>;
 
   who: Who;
+
+  /**
+   * Die Seite, über die dieser Bogen aufgeschlagen wurde — oder `null`.
+   *
+   * Ein Baustein kann auf mehreren Seiten stehen; welche gemeint ist, weiss
+   * nur der Weg hierher. Das Portal braucht es: es wird eine Unterseite
+   * DIESER Seite.
+   */
+  onPage?: string | null;
 }) {
   const [ring, setRing] = useState<Ring | null>(null);
   const [person, setPerson] = useState<SealedRole | null>(null);
@@ -536,6 +548,33 @@ export function FormOffice({ partId, config, who }: {
         busy={busy !== null}
         onSaved={setSaved}
         onError={setFailed}
+      />
+
+      {/*
+        WOHIN EIN LINK FÜHRT. Es stand bisher als Pfad in einem Textfeld des
+        Rastereditors — man musste die Adresse kennen, die Seite musste es
+        schon geben, und wer nichts eintrug, bekam eine abgeleitete Regel,
+        die nirgends stand.
+      */}
+      {/*
+        DIE ÜBERSCHRIFT DES BOGENS. Sie stand im Rastereditor, solange ein
+        Bogen dort seine Felder hatte — seit er dort nur noch ausgewählt
+        wird, gehört sie hierher, zu allem anderen, was ihm gehört.
+      */}
+      <Naming
+        partId={partId}
+        value={conf.title ?? ''}
+        busy={busy !== null}
+        onSaved={setSaved}
+        onError={setFailed}
+      />
+
+      <Portal
+        moduleId={partId}
+        onPage={onPage ?? null}
+        portalUnder={(conf.portalUnder ?? '').trim()}
+        ownerRoleId={person?.id ?? null}
+        onSet={(where) => setSaved({ ...conf, portalUnder: where })}
       />
 
       {submissions.length > 0 && (
@@ -1247,11 +1286,47 @@ function SendPanel({
     }
   };
 
+  /**
+   * Den Link ZURÜCKNEHMEN.
+   *
+   * <b>Er stand bei den Plätzen, und die Plätze sind fort</b> — sie waren
+   * dieselbe Sache zweimal. Das Zurücknehmen war es nicht: es ist der einzige
+   * Handgriff gegen einen Link, der in die falschen Hände geraten ist, und er
+   * gehört an dieselbe Zeile wie das Ausstellen.
+   *
+   * <b>Es löscht nichts.</b> Die Einsendung bleibt, wo sie ist; was aufhört,
+   * ist der Zugang über diesen Link. Wer ihn wieder braucht, bekommt mit
+   * „Wystaw nowy link" einen neuen — der alte wird davon nicht wieder gültig.
+   */
+  const withdraw = async () => {
+    setBusy(true);
+    onError(null);
+
+    try {
+      await revokeSeat(seatId);
+      setLink(null);
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się wycofać linku.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="wk-form">
       <div className="wk-actions">
         <button type="button" className="wk-btn" disabled={busy} onClick={() => void issue()}>
           {busy ? 'Wystawianie…' : link === null ? 'Wystaw link' : 'Wystaw nowy link'}
+        </button>
+
+        <button
+          type="button"
+          className="wk-link-btn"
+          disabled={busy}
+          title="Link przestaje działać. Zgłoszenie zostaje."
+          onClick={() => void withdraw()}
+        >
+          Wycofaj link
         </button>
 
         {/*
@@ -1491,6 +1566,53 @@ async function seatRowOf(seatId: string, ring: Ring): Promise<{ key: Uint8Array;
  * zu erraten ist der Unterschied zwischen „geht nicht" und „geht" — eine Frage
  * heisst genau so, wie sie im Bogen steht, samt Grossschreibung und Leerzeichen.
  */
+/**
+ * Wie der Bogen auf der Seite überschrieben ist.
+ *
+ * <b>Eine Einstellung des Bausteins</b> wie die Vorlage daneben — sie braucht
+ * keinen Schlüssel und keine einzige Einsendung, und wer die Seite führt,
+ * darf sie schreiben.
+ */
+function Naming({ partId, value, busy, onSaved, onError }: {
+  partId: string;
+  value: string;
+  busy: boolean;
+  onSaved: (next: Record<string, string>) => void;
+  onError: (message: string | null) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setDraft(value); }, [value]);
+
+  const save = async () => {
+    setSaving(true);
+    onError(null);
+
+    try {
+      const done = await setPartConfig(partId, { title: draft.trim() });
+      onSaved(done.config);
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <label className="wk-field">
+      <span>Nagłówek na stronie</span>
+      <input
+        value={draft}
+        placeholder="np. Zgłoszenie"
+        disabled={busy || saving}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => { if (draft.trim() !== value.trim()) void save(); }}
+      />
+    </label>
+  );
+}
+
 function Template({ partId, value, labels, busy, onSaved, onError }: {
   partId: string;
   value: string;

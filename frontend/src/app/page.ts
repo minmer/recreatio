@@ -22,6 +22,19 @@ export interface PagePart {
   readonly kind: string;
   readonly layout: string;
   readonly config: string | null;
+
+  /**
+   * WELCHEN Baustein diese Stelle zeigt (0036).
+   *
+   * <b>Nicht dasselbe wie `id`.</b> Bis jetzt war es das immer — eine neue
+   * Stelle legte einen Baustein unter DERSELBEN Kennung an. Sobald dieselbe
+   * Stelle einen VORHANDENEN Baustein zeigt, laufen die beiden auseinander,
+   * und dann ist die Kennung des Bausteins die, unter der seine Fragen und
+   * seine Antworten hängen.
+   *
+   * `null` nur bei einer Zeile, die älter ist als 0036.
+   */
+  readonly moduleId: string | null;
 }
 
 export interface PageContent {
@@ -54,6 +67,10 @@ export const savePage = (
 /** Ein Baustein, wie ihn der Editor hält: ausgepackt. */
 export interface DraftPart {
   readonly id: string;
+
+  /** Der Baustein, den diese Stelle zeigt — siehe `PagePart.moduleId`. */
+  readonly moduleId: string | null;
+
   readonly kind: string;
   readonly layout: Layout;
   readonly config: Record<string, string>;
@@ -77,7 +94,13 @@ export function toDraft(part: PagePart): DraftPart {
     }
   } catch { /* ohne Anordnung */ }
 
-  return { id: part.id, kind: part.kind, layout, config: readConfig(part.config) };
+  return {
+    id: part.id,
+    moduleId: part.moduleId ?? null,
+    kind: part.kind,
+    layout,
+    config: readConfig(part.config)
+  };
 }
 
 /**
@@ -94,6 +117,7 @@ export const saveParts = (path: string, parts: readonly DraftPart[]): Promise<{ 
       path,
       parts: parts.map((part) => ({
         id: part.id,
+        moduleId: part.moduleId,
         kind: part.kind,
         layout: JSON.stringify(part.layout),
         config: JSON.stringify(part.config)

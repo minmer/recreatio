@@ -23,6 +23,7 @@ import {
   foreignHost, localPath, needsIdentity, parsePath, path, spotOf,
   type Address, type Spot
 } from './routes';
+import { keepFromAddress } from './seatKeep';
 import { signOut, whoIsThere, type Who } from './session';
 import { PublicPage } from './PublicPage';
 import { SeatPortal } from './SeatPortal';
@@ -40,8 +41,36 @@ export function App() {
    */
   const [hash, setHash] = useState<string>(() => window.location.hash);
 
+  /*
+   * DER SCHLÜSSEL EINES PLATZES GEHÖRT NICHT IN DIE ADRESSZEILE.
+   *
+   * Er kommt dort an — der Link IST der Ausweis, und anders liesse er sich
+   * nicht verschicken. Aber er soll nicht dort BLEIBEN: die Adresszeile
+   * steht im Verlauf, in jedem Lesezeichen und auf jedem Bildschirmfoto.
+   *
+   * Also wird er beim Ankommen in den Browser gelegt (`seatKeep`) und aus
+   * der Adresse genommen — mit `replaceState`, damit der Zurück-Pfeil nicht
+   * auf die Fassung MIT Schlüssel zurückführt.
+   *
+   * Vor allem anderen, und ohne auf etwas zu warten: hätte der Mensch das
+   * Bild schon gesehen, stünde der Schlüssel schon im Verlauf.
+   */
   useEffect(() => {
+    const tidy = () => {
+      const cleaned = keepFromAddress(window.location.hash);
+      if (cleaned === null) return false;
+
+      window.history.replaceState(null, '', cleaned);
+      setAddress(parsePath(cleaned));
+      setHash(cleaned);
+      return true;
+    };
+
+    tidy();
+
     const onHash = () => {
+      if (tidy()) return;
+
       setAddress(parsePath(window.location.hash));
       setHash(window.location.hash);
     };

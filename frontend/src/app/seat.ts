@@ -30,8 +30,8 @@ import {
   sha256, toBase64Url, unwrapKey, wrapKey
 } from './crypto';
 import { epochAad } from './area';
-import { newId } from './ids';
 import type { Ring, SealedRole } from './keys';
+import type { PagePart } from './page';
 import { call } from './session';
 
 /* -- Die Etiketten, an EINER Stelle ---------------------------------------- */
@@ -129,95 +129,19 @@ export async function openGrants(
   return out;
 }
 
-/* -- Ausstellen ------------------------------------------------------------- */
+/*
+   AUSSTELLEN VON HAND — FORT.
 
-export interface NewSeat {
-  readonly areaId: string;
-  /** Der Epochenschlüssel dieses Bereichs — die Kanzlei hält ihn. */
-  readonly areaKey: Uint8Array;
-  readonly epoch: number;
-  readonly ownerRoleId: string;
+   Ein Platz entstand auf zwei Wegen: aus einer Einsendung, und weil die
+   Kanzlei einen ausstellte. Der zweite war eine Verdopplung des ersten — wer
+   ein Formular führt, sieht ohnehin jede Einsendung mitsamt Namen, Antworten
+   und Link an EINER Stelle. Der Knopf daneben erzeugte einen Platz ohne
+   Einsendung, den danach nur eine zweite Liste wiederfand.
 
-  /** Offen, damit der Ausstellende den Link zuordnen kann, BEVOR er ihn schickt. */
-  readonly recipientName?: string;
-
-  /** Was der Mensch auf dem Platz sieht. */
-  readonly personalNote?: string;
-
-  /** Was die Kanzlei über ihn führt. Er liest es nicht. */
-  readonly internalNote?: string;
-
-  readonly slugIds?: readonly string[];
-  readonly days?: number;
-
-  /**
-   * Weitere Schlüssel, die dieser Platz tragen soll — beim Schüler der
-   * KLASSENSCHLÜSSEL.
-   *
-   * Dadurch liest er das Gemeinsame, ohne den Schlüssel der Kanzlei zu
-   * bekommen: die Notizen über ihn liegen im anderen Bereich und bleiben zu.
-   */
-  readonly shared?: readonly { areaId: string; areaKey: Uint8Array; epoch: number }[];
-}
-
-/**
- * Einen Platz ausstellen — der Fall des Lehrers und der Kanzlei.
- *
- * Gibt den LINK zurück. Er steht genau einmal hier: gespeichert ist nur sein
- * Abdruck, und wer ihn verliert, muss einen neuen ausstellen.
- */
-export async function issueSeat(what: NewSeat): Promise<{ seatId: string; link: Link }> {
-  const seatId = newId();
-  const { link, key: linkKey } = newLink();
-
-  // Der Platzschlüssel selbst. Er verlässt diesen Browser nur verpackt.
-  const seatKey = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
-
-  const label = seatAad(seatId);
-
-  const [forLink, forArea] = await Promise.all([
-    seal(linkKey, label, seatKey),
-    seal(what.areaKey, label, seatKey)
-  ]);
-
-  const personal = (what.personalNote ?? '').trim();
-  const internal = (what.internalNote ?? '').trim();
-
-  await call('/workspace/area/' + encodeURIComponent(what.areaId) + '/seat', {
-    method: 'POST',
-    body: JSON.stringify({
-      seatId,
-      tokenSha256: toBase64Url(await sha256(link.token)),
-      seatKeySealed: toBase64Url(forLink),
-      seatKeyForArea: toBase64Url(forArea),
-      epoch: what.epoch,
-      ownerRoleId: what.ownerRoleId,
-      recipientName: what.recipientName ?? null,
-
-      // Die persönliche Notiz unter dem PLATZ-, die interne unter dem
-      // EPOCHENSCHLÜSSEL. Daran hängt, dass er die eine liest und die andere nicht.
-      personalNoteSealed: personal === ''
-        ? null
-        : toBase64Url(await sealText(seatKey, personalAad(seatId), personal)),
-      internalNoteSealed: internal === ''
-        ? null
-        : toBase64Url(await sealText(what.areaKey, internalAad(seatId), internal)),
-
-      slugIds: what.slugIds ?? [],
-
-      /* Der Klassenschlüssel, versiegelt unter dem Platzschlüssel. */
-      grants: await Promise.all((what.shared ?? []).map(async (one) => ({
-        areaId: one.areaId,
-        epoch: one.epoch,
-        sealed: toBase64Url(await seal(seatKey, epochAad(one.areaId, one.epoch), one.areaKey))
-      }))),
-
-      days: what.days ?? null
-    })
-  });
-
-  return { seatId, link };
-}
+   `openAsOffice` ist mitgegangen: es machte die Notizen EINER Zeile jener
+   Liste auf. `officeSeatKey` darunter bleibt — die Kanzlei braucht es, um
+   einen Link neu auszustellen.
+*/
 
 /* -- Die Kanzleisicht ------------------------------------------------------- */
 
@@ -261,29 +185,6 @@ export const loadSeats = (areaId: string): Promise<{ seats: readonly SeatRow[] }
 export interface OpenedSeat {
   readonly personal: string | null;
   readonly internal: string | null;
-}
-
-/**
- * Einen Platz mit dem EPOCHENSCHLÜSSEL öffnen — die Kanzlei.
- *
- * Eine Hülle, die nicht aufgeht, ergibt `null` und keinen Absturz: ein
- * einzelner beschädigter Platz darf die Liste nicht leeren.
- */
-export async function openAsOffice(
-  row: SeatRow, areaKey: Uint8Array, intakePrivate?: Uint8Array
-): Promise<OpenedSeat> {
-  const seatKey = await officeSeatKey(row, areaKey, intakePrivate);
-  if (seatKey === null) return { personal: null, internal: null };
-
-  return {
-    personal: await quietly(() => row.personalNoteSealed === null
-      ? Promise.resolve(null)
-      : openText(seatKey!, personalAad(row.seatId), fromBase64Url(row.personalNoteSealed))),
-
-    internal: await quietly(() => row.internalNoteSealed === null
-      ? Promise.resolve(null)
-      : openText(areaKey, internalAad(row.seatId), fromBase64Url(row.internalNoteSealed)))
-  };
 }
 
 /** Die Notizen setzen. Nur was genannt wird — siehe `Seat.NoteAsync`. */
@@ -394,12 +295,10 @@ export interface Portal {
     readonly path: string;
     readonly title: string | null;
     readonly lead: string | null;
-    readonly parts: readonly {
-      readonly id: string;
-      readonly kind: string;
-      readonly layout: string;
-      readonly config: string | null;
-    }[];
+    /* Dieselben Zeilen wie eine Seite — samt `moduleId`, an dem die Fragen
+       eines Bogens hängen. Sie hier ohne ihn zu beschreiben hiesse, ihn auf
+       dem Weg durch das Portal zu verlieren. */
+    readonly parts: readonly PagePart[];
   } | null;
 }
 

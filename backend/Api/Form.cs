@@ -978,10 +978,35 @@ public static class Form
             ? Above(formPath)
             : Slug.Normalise(body.UnderPath);
 
-        if (formPath != wanted && !formPath.StartsWith(wanted + "/", StringComparison.Ordinal))
+        /*
+         * WELCHE SEITE ein Platz tragen darf.
+         *
+         * Drei Faelle, und alle drei liegen im Zustaendigkeitsbereich
+         * derselben Kanzlei:
+         *
+         *   die Seite MIT dem Formular   — der einfachste Fall
+         *   eine Seite DARUEBER          — die abgeleitete Vorgabe (`Above`)
+         *   eine Seite DARUNTER          — ein eigenes Portal
+         *
+         * <b>Das Darunter kam dazu, weil ein Portal eine eigene Seite sein
+         * soll.</b> Vorher blieb nur die Seite darueber, und die ist meist
+         * die oeffentliche Uebersicht — wer dort die Platz-Bausteine ablegte,
+         * stellte jedem Besucher drei Kacheln hin, die fuer ihn leer bleiben.
+         * Eine eigene Unterseite ist der Ort, an dem ein Portal hingehoert,
+         * und sie war bis eben verboten.
+         *
+         * <b>Sicher ist es, weil es ENGER ist als das, was schon galt.</b>
+         * Wer ein Formular fuehrt, fuehrt auch alles darunter (`slug`-Baum);
+         * eine Seite DARUEBER zuzulassen war die weitere Erlaubnis, und die
+         * steht seit jeher da.
+         */
+        var below = wanted.StartsWith(formPath + "/", StringComparison.Ordinal);
+        var above = formPath.StartsWith(wanted + "/", StringComparison.Ordinal);
+
+        if (formPath != wanted && !above && !below)
         {
             await Fail(ctx, StatusCodes.Status403Forbidden,
-                "Miejsce może należeć tylko do strony z tym formularzem albo do strony nad nią.");
+                "Miejsce może należeć tylko do strony z tym formularzem, nad nią albo pod nią.");
             return null;
         }
 

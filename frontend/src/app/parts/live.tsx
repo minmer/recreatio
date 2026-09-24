@@ -82,21 +82,16 @@ export const formPart = definePart<FormConfig>({
   takes: true,
 
   /*
-   * `sms` steht in den Feldern und NICHT in der Gestalt: die Vorlage liest die
-   * Kanzlei (`FormOffice`), nicht die Seite. Sie hier auszulesen hiesse, sie
-   * für jeden Besucher mitzuschicken, der sie nie zu sehen bekommt.
+   * KEINE FELDER AUF DER SEITE — und das ist die Aussage.
+   *
+   * Überschrift, Nachrichtenvorlage und Portal gehören dem BOGEN, nicht der
+   * Stelle, an der er steht: wer denselben Bogen auf zwei Seiten legt, soll
+   * nicht zwei Überschriften pflegen. Eingestellt wird er dort, wo er wohnt
+   * — auf seiner eigenen Seite (`FormOffice`), die ihn ohnehin führt.
+   *
+   * Die Seite wählt nur noch, WELCHEN sie zeigt (`PickModule`).
    */
-  fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Zgłoszenie' },
-    {
-      key: 'portalUnder', label: 'Miejsca pod stroną', kind: 'line',
-      hint: 'Adres podstrony — puste: o poziom wyżej'
-    },
-    {
-      key: 'sms', label: 'Szablon wiadomości', kind: 'text',
-      hint: 'Użyj {link}, żeby wstawić adres osoby'
-    }
-  ],
+  fields: [],
 
   read: (raw: RawConfig): FormConfig => ({
     title: text(raw, 'title'),
@@ -106,7 +101,7 @@ export const formPart = definePart<FormConfig>({
   hasContent: () => true,
 
   View: ({ config, ctx }) => (
-    <FormCard partId={ctx.partId} title={config.title} portalUnder={config.portalUnder} />
+    <FormCard partId={ctx.moduleId} title={config.title} portalUnder={config.portalUnder} />
   )
 });
 
