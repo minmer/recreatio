@@ -188,7 +188,7 @@ function FieldRow({ fieldId, fields, answers, outcome, onAnswer }: FlowProps & {
       <span>{label}{required && ' *'}</span>
 
       {f.label === null ? (
-        <p className="wk-card-muted">Tego pola nie da się odczytać — obszar nie ujawnił swojego klucza.</p>
+        <p className="wk-card-muted">Tego pytania nie da się odczytać.</p>
       ) : f.kind === 'text' ? (
         <textarea rows={4} value={value} onChange={(e) => set(e.target.value)} />
       ) : f.kind === 'choice' ? (

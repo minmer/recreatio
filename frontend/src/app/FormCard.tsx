@@ -207,6 +207,17 @@ export function FormCard({ partId, title, portalUnder: under }: {
   const nameless = form.controller === null;
 
   /*
+   * FRAGEN, DIE NIEMAND LESEN KANN — einmal gesagt, nicht bei jeder.
+   *
+   * Sechsmal „Tego pola nie da się odczytać" untereinander sieht aus wie ein
+   * kaputtes Formular, und niemand erfährt, was zu tun ist. Es liegt fast
+   * immer daran, dass die Fragen noch unter einem Bereich liegen, der nicht
+   * jawny ist — und reparieren kann es nur, wer das Formular führt.
+   */
+  const unreadable = fields.filter((f) => f.label === null).length;
+  const blind = fields.length > 0 && unreadable === fields.length;
+
+  /*
    * DAS PORTAL GIBT ES IMMER, und das ist eine Entscheidung gegen einen
    * Schalter.
    *
@@ -430,7 +441,15 @@ export function FormCard({ partId, title, portalUnder: under }: {
         </label>
       )}
 
-      {!nameless && !form.closed && (
+      {unreadable > 0 && !form.closed && (
+        <p className="wk-warn">
+          {blind ? 'Pytań tego formularza nie da się odczytać' : `Części pytań (${unreadable}) nie da się odczytać`}
+          {' '}— są zapieczętowane kluczem obszaru, który nie jest jawny. Prowadzący formularz
+          naprawi to, otwierając go u siebie: pytania zostaną przepieczętowane kluczem obszaru formularza.
+        </p>
+      )}
+
+      {!nameless && !form.closed && !blind && (
         <form className="wk-form" onSubmit={(e) => { e.preventDefault(); void send(); }}>
           <FormFlow
             items={layout}

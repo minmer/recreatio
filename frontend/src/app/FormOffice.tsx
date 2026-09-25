@@ -494,6 +494,10 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
   const formArea = module?.areaId == null ? undefined : areas.find((a) => a.areaId === module.areaId);
 
+  /* Vor allem, was beim Zeichnen einen Bereich beim Namen nennt — auch den Warnungen. */
+  const areaLabel = (areaId: string) =>
+    areaPath(areas, areaId).short || areas.find((a) => a.areaId === areaId)?.name || areaId.slice(0, 8);
+
   /** Der Epochenschlüssel eines Bereichs, den ich halte — oder eine klare Absage. */
   const keyOf = async (areaId: string): Promise<{ key: Uint8Array; epoch: number }> => {
     if (ring === null) throw new WorkspaceError('Bez hasła nie da się zapieczętować pytania.');
@@ -567,6 +571,60 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     }
   };
 
+  /*
+   * ALTE FRAGEN ZIEHEN VON SELBST UM.
+   *
+   * Vor 0042 lag eine Frage unter dem Schlüssel ihres ANTWORTbereichs — und
+   * der ist meist nicht jawny. Draussen stand dann „zapieczętowane" bei jeder
+   * Frage, obwohl das Formular in einem offenen Bereich steht. Ein Knopf im
+   * zweiten Reiter reichte nicht: wer das Formular einrichtet, steht im
+   * ersten und sieht ihn nie.
+   *
+   * Wer die Fragen lesen UND den Schlüssel des Formularbereichs hat, tut es
+   * darum beim Öffnen, einmal. Es ist derselbe Text unter einem anderen
+   * Schlüssel — nichts, was man bestätigen müsste. Geht es nicht (eine Frage
+   * bleibt zu), steht die Warnung da und sagt warum.
+   */
+  const [resealTried, setResealTried] = useState(false);
+  const canReseal = ring !== null && formArea !== undefined && stale.length > 0
+    && stale.every((f) => f.label !== null);
+
+  useEffect(() => {
+    if (resealTried || busy !== null || !canReseal) return;
+    setResealTried(true);
+    void act('Przepieczętowywanie pytań kluczem formularza…', resealStale);
+  }, [resealTried, busy, canReseal]);
+
+  /* Ein Formularbereich, der nicht jawny ist: dann liest draussen niemand die Fragen. */
+  const hiddenNotice = formArea !== undefined && formArea.publicLevel === 'none' && (
+    <p className="wk-warn">
+      Obszar formularza „{areaLabel(formArea.areaId)}" nie jest jawny — pytania przeczyta tylko ten,
+      kto ma jego klucz. Na stronie publicznej będą nieczytelne. Ustaw w tym obszarze, w zakładce
+      „Dla wszystkich", „Każdy czyta" — albo wybierz tu obszar jawny.
+    </p>
+  );
+
+  /* Welche Bereiche die alten Fragen noch verschliessen — beim Namen. */
+  const staleUnder = [...new Set(stale.map((f) => f.labelAreaId ?? f.areaId))].map((id) => `„${areaLabel(id)}"`).join(', ');
+
+  const staleNotice = stale.length > 0 && ring !== null && (
+    <div className="wk-warn">
+      <p>
+        {stale.length === 1 ? 'Jedno pytanie jest zapieczętowane' : `${stale.length} pytań jest zapieczętowanych`}{' '}
+        kluczem obszaru odpowiedzi ({staleUnder}), a nie formularza — na stronie publicznej
+        {stale.length === 1 ? ' jest nieczytelne' : ' są nieczytelne'}.
+        {!stale.every((f) => f.label !== null) && ' Nie wszystkie da się teraz odczytać — potrzebny jest klucz tamtego obszaru.'}
+        {formArea === undefined && ' Nie masz klucza obszaru formularza.'}
+      </p>
+      <button
+        type="button" className="wk-link-btn" disabled={busy !== null || !canReseal}
+        onClick={() => void act('Przepieczętowywanie pytań…', resealStale)}
+      >
+        Przepieczętuj kluczem formularza
+      </button>
+    </div>
+  );
+
   /**
    * Eine Frage speichern — neu versiegelt unter dem Schlüssel des Formulars,
    * und wenn ihre Antworten woandershin sollen, mit JEDER Antwort neu verpackt.
@@ -615,9 +673,6 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     if (moveTo !== undefined) { setLastArea(null); setOpened(new Map()); setSubmissions([]); setAutoTried(false); }
   };
 
-  const areaLabel = (areaId: string) =>
-    areaPath(areas, areaId).short || areas.find((a) => a.areaId === areaId)?.name || areaId.slice(0, 8);
-
   const reread = async () => { if (lastArea !== null) await read(lastArea); };
 
   return (
@@ -653,6 +708,10 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
       {tab === 'settings' && module !== undefined && (
         <>
+          {/* Wer „czy formularz jest czytelny dla wszystkich" fragt, steht HIER. */}
+          {staleNotice}
+          {hiddenNotice}
+
           <ModuleSettings
             row={module}
             areas={areas}
@@ -743,27 +802,9 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             </p>
           )}
 
-          {formArea !== undefined && formArea.publicLevel === 'none' && (
-            <p className="wk-hint">
-              Obszar formularza „{areaLabel(formArea.areaId)}" nie jest jawny — pytania
-              przeczyta tylko ten, kto ma jego klucz. Na stronie publicznej będą zapieczętowane.
-            </p>
-          )}
+          {hiddenNotice}
 
-          {stale.length > 0 && ring !== null && (
-            <div className="wk-warn">
-              <p>
-                {stale.length === 1 ? 'Jedno pytanie jest' : `${stale.length} pytań jest`} zapieczętowanych
-                jeszcze kluczem obszaru odpowiedzi, a nie formularza.
-              </p>
-              <button
-                type="button" className="wk-link-btn" disabled={busy !== null}
-                onClick={() => void act('Przepieczętowywanie pytań…', resealStale)}
-              >
-                Przepieczętuj kluczem formularza
-              </button>
-            </div>
-          )}
+          {staleNotice}
 
           {/* Antwortbereiche ohne Annahme — dort nimmt eine Frage nichts an. */}
           {ring !== null && person !== null && areasHere
