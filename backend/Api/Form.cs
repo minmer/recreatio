@@ -1019,10 +1019,10 @@ public static class Form
          * schriebe sich ein Fremder mit einer Anmeldung den Zutritt zu
          * `lo13/anna` — er muesste die Kennung nur raten oder abschreiben.
          *
-         * Erlaubt ist deshalb genau die Seite, auf der das Formular steht, oder
-         * eine darueber. Mehr braucht der Fall nicht: das Formular liegt unter
-         * `…/confirmation/signin`, das Portal soll unter `…/confirmation`
-         * haengen.
+         * Erlaubt ist deshalb, was mit der Seite des Formulars verwandt ist
+         * (sie selbst, darueber, darunter) — und was die KANZLEI in den
+         * Einstellungen gewaehlt hat, sofern es eine oeffentliche Seite
+         * desselben Traegers ist (`MayAnchorAsync`).
          */
         var slugIds = new List<Guid>();
 
@@ -1061,39 +1061,24 @@ public static class Form
          * dem Formular. Und wer es anders will, nennt `UnderPath` — dann gilt
          * dieselbe Pruefung wie sonst.
          */
-        var wanted = string.IsNullOrWhiteSpace(body.UnderPath)
-            ? Above(formPath)
-            : Slug.Normalise(body.UnderPath);
+        /*
+         * Was die KANZLEI eingestellt hat (`portalUnder` am Baustein) — nicht,
+         * was der Einsendende mitschickt. Nennt er nichts, gilt ihre Wahl.
+         */
+        var configured = await PortalOfAsync(connection, sheet.ModuleId, ctx.RequestAborted);
+
+        var wanted = named ?? configured ?? Above(formPath);
 
         /*
-         * WELCHE SEITE ein Platz tragen darf.
-         *
-         * Drei Faelle, und alle drei liegen im Zustaendigkeitsbereich
-         * derselben Kanzlei:
-         *
-         *   die Seite MIT dem Formular   — der einfachste Fall
-         *   eine Seite DARUEBER          — die abgeleitete Vorgabe (`Above`)
-         *   eine Seite DARUNTER          — ein eigenes Portal
-         *
-         * <b>Das Darunter kam dazu, weil ein Portal eine eigene Seite sein
-         * soll.</b> Vorher blieb nur die Seite darueber, und die ist meist
-         * die oeffentliche Uebersicht — wer dort die Platz-Bausteine ablegte,
-         * stellte jedem Besucher drei Kacheln hin, die fuer ihn leer bleiben.
-         * Eine eigene Unterseite ist der Ort, an dem ein Portal hingehoert,
-         * und sie war bis eben verboten.
-         *
-         * <b>Sicher ist es, weil es ENGER ist als das, was schon galt.</b>
-         * Wer ein Formular fuehrt, fuehrt auch alles darunter (`slug`-Baum);
-         * eine Seite DARUEBER zuzulassen war die weitere Erlaubnis, und die
-         * steht seit jeher da.
+         * WELCHE SEITE ein Platz tragen darf — `MayAnchorAsync`, dieselbe
+         * Regel wie beim Einstellen. Die Seite mit dem Formular, eine darueber,
+         * eine darunter; und, wenn die Kanzlei sie SELBST gewaehlt hat, jede
+         * andere oeffentliche Seite desselben Traegers.
          */
-        var below = wanted.StartsWith(formPath + "/", StringComparison.Ordinal);
-        var above = formPath.StartsWith(wanted + "/", StringComparison.Ordinal);
-
-        if (formPath != wanted && !above && !below)
+        if (!await MayAnchorAsync(connection, sheet.Paths, wanted,
+                chosenByOffice: configured is not null && wanted == configured, ctx.RequestAborted))
         {
-            await Fail(ctx, StatusCodes.Status403Forbidden,
-                "Miejsce może należeć tylko do strony z tym formularzem, nad nią albo pod nią.");
+            await Fail(ctx, StatusCodes.Status403Forbidden, NotAnchorable);
             return null;
         }
 
@@ -1894,6 +1879,20 @@ public static class Form
             return;
         }
 
+        /*
+         * DAS PORTAL WIRD BEIM EINSTELLEN GEPRUEFT, nicht erst beim ersten
+         * Einsendenden — dort sähe die Absage niemand, der sie beheben kann.
+         * Steht der Bogen noch nirgends, gibt es nichts zu messen; dann
+         * greift die Regel beim Absenden.
+         */
+        if (set.TryGetValue("portalUnder", out var portal) && !string.IsNullOrWhiteSpace(portal)
+            && sheet.Paths.Count > 0
+            && !await MayAnchorAsync(connection, sheet.Paths, Slug.Normalise(portal), chosenByOffice: true, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, NotAnchorable);
+            return;
+        }
+
         string? current;
 
         await using (var read = new SqlCommand(
@@ -2220,6 +2219,105 @@ public static class Form
     {
         var cut = path.LastIndexOf('/');
         return cut <= 0 ? path : path[..cut];
+    }
+
+    private const string NotAnchorable =
+        "Portalem może być strona z tym formularzem, strona nad nią lub pod nią — albo inna "
+        + "strona tego samego właściciela, wybrana w ustawieniach formularza. Nigdy strona wewnętrzna.";
+
+    /// <summary>
+    /// Wo die Kanzlei das Portal dieses Bogens haben will — `portalUnder` am
+    /// Baustein, oder <c>null</c>, wenn sie nichts gewaehlt hat.
+    /// </summary>
+    private static async Task<string?> PortalOfAsync(SqlConnection connection, Guid moduleId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("SELECT config FROM app.module WHERE id = @id;", connection);
+        cmd.Parameters.AddWithValue("@id", moduleId);
+
+        if (await cmd.ExecuteScalarAsync(ct) is not string text || text == "") return null;
+
+        try
+        {
+            var config = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(text);
+            return config is not null && config.TryGetValue("portalUnder", out var under) && !string.IsNullOrWhiteSpace(under)
+                ? Slug.Normalise(under)
+                : null;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Darf ein Platz dieses Bogens an der Seite <paramref name="wanted"/> haengen?
+    ///
+    /// <para>
+    /// <b>Verwandt mit einer Seite des Bogens</b> — sie selbst, eine darueber,
+    /// eine darunter: das darf jeder nennen, auch der Einsendende. Alle drei
+    /// liegen im Zustaendigkeitsbereich derselben Kanzlei; darunter ist sogar
+    /// ENGER als darueber, denn wer ein Formular fuehrt, fuehrt den Baum
+    /// darunter.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Eine andere Seite desselben Traegers — nur, wenn die Kanzlei sie
+    /// gewaehlt hat.</b> Das Formular auf `…/confirmation/signin`, das Portal
+    /// auf `…/confirmation/candidate`: Geschwister, beide von derselben Rolle
+    /// uebernommen. Vorher hing es davon ab, ob der Bogen ZUFAELLIG auch auf
+    /// einer hoeheren Seite stand, ob diese Wahl angeboten wurde. Ein
+    /// Einsendender kann das nicht erzwingen: er nennt nur, was die Kanzlei
+    /// eingestellt hat (`chosenByOffice`), sonst gilt die enge Regel.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Nie eine interne Seite</b> — auch keine verwandte. Eine interne Seite
+    /// gehoert einem Menschen (`lo13/anna`), und `access_slug` ist ein Weg
+    /// hinein (0026): ein Platz dort gaebe JEDEM Einsendenden Zutritt zu ihr.
+    /// Seit „darunter" erlaubt ist, reichte dafuer ein Formular auf `lo13` und
+    /// ein selbst genannter Pfad. Wer einem Menschen einen Platz auf seiner
+    /// internen Seite gibt, tut das als Kanzlei, nicht ueber ein Formular.
+    /// Ein Verweis nur, wenn er verwandt ist.
+    /// </para>
+    /// </summary>
+    private static async Task<bool> MayAnchorAsync(
+        SqlConnection connection, IReadOnlyList<string> formPaths, string wanted, bool chosenByOffice,
+        CancellationToken ct)
+    {
+        await using (var look = new SqlCommand(
+            "SELECT 1 FROM app.slug WHERE path = @p AND internal_for_role_id IS NOT NULL;", connection))
+        {
+            look.Parameters.AddWithValue("@p", wanted);
+            if (await look.ExecuteScalarAsync(ct) is not null) return false;
+        }
+
+        foreach (var page in formPaths)
+        {
+            if (page == wanted
+                || page.StartsWith(wanted + "/", StringComparison.Ordinal)
+                || wanted.StartsWith(page + "/", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        if (!chosenByOffice || formPaths.Count == 0) return false;
+
+        var names = string.Join(", ", formPaths.Select((_, at) => $"@f{at}"));
+
+        await using var cmd = new SqlCommand($"""
+            SELECT TOP 1 1
+            FROM app.slug w
+            JOIN app.slug f ON f.claimed_by_role_id = w.claimed_by_role_id
+            WHERE w.path = @wanted
+              AND w.alias_of IS NULL
+              AND f.path IN ({names});
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@wanted", wanted);
+        for (var at = 0; at < formPaths.Count; at++) cmd.Parameters.AddWithValue($"@f{at}", formPaths[at]);
+
+        return await cmd.ExecuteScalarAsync(ct) is not null;
     }
 
     private static async Task<Guid?> SlugIdAsync(

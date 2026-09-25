@@ -48,17 +48,29 @@ const STEP = 'moje';
 
 /**
  * Welche Seiten ein Platz tragen darf — dieselbe Regel wie im Dienst
- * (`Form.ReadSelfSeatAsync`).
+ * (`Form.MayAnchorAsync`).
  *
- * <b>Die Seite mit dem Bogen, eine darüber, eine darunter.</b> Alle drei liegen
- * im Zuständigkeitsbereich derselben Kanzlei. Eine Auswahl, die mehr anböte,
- * endete in einer Absage (403) — und zwar erst beim Absenden des ersten
- * Menschen, also da, wo es niemand mehr sieht.
+ * <b>Verwandt:</b> die Seite mit dem Bogen, eine darüber, eine darunter.
+ *
+ * <b>Oder eine andere öffentliche Seite DESSELBEN TRÄGERS</b> — das Formular
+ * auf `…/confirmation/signin`, das Portal auf `…/confirmation/candidate`.
+ * Vorher hing die Auswahl davon ab, ob der Bogen zufällig auch auf einer
+ * höheren Seite stand: dann kamen alle Seiten darunter mit, sonst nur die
+ * Kette nach oben. Dieselbe Organisation, einmal mehr und einmal weniger
+ * Seiten.
+ *
+ * <b>Nie eine interne Seite</b> — sie gehört einem Menschen, und ein Platz dort
+ * trüge JEDEN Einsendenden hinein. Ein Verweis zeigt woandershin: nur, wenn er
+ * verwandt ist.
  */
-const mayCarry = (formPage: string, path: string): boolean =>
-  path === formPage
-  || formPage.startsWith(path + '/')
-  || path.startsWith(formPage + '/');
+const mayCarry = (formPage: string, one: PageCard, pages: readonly PageCard[]): boolean => {
+  const path = one.path;
+  if (one.internalForRoleId !== null) return false;
+  if (path === formPage || formPage.startsWith(path + '/') || path.startsWith(formPage + '/')) return true;
+  if (one.aliasOf !== null) return false;
+  const owner = pages.find((page) => page.path === formPage)?.roleId;
+  return owner !== undefined && owner === one.roleId;
+};
 
 /**
  * Was auf einem frischen Portal steht.
@@ -145,8 +157,11 @@ export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: 
    * nirgends, gibt es nichts zu prüfen: dann alles, was mir gehört.
    */
   const choices = nowhere
-    ? pages
-    : pages.filter((one) => standsOn.some((page) => mayCarry(page, one.path)));
+    ? pages.filter((one) => one.internalForRoleId === null)
+    : pages.filter((one) => standsOn.some((page) => mayCarry(page, one, pages)));
+
+  /* Was eingestellt ist, aber (nicht mehr) passt — der Bogen ist umgezogen. */
+  const astray = has && !nowhere && pages.length > 0 && !choices.some((one) => one.path === portalUnder);
 
   /*
    * WELCHE SEITE DER LINK WIRKLICH ÖFFNET.
@@ -209,7 +224,16 @@ export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: 
        * Einstellung: ab da landen die Plätze dort, und ab da soll auch etwas
        * da sein.
        */
-      await openSubpage(where, ownerRoleId, 'Portal');
+      /*
+       * WEM DIE NEUE SEITE GEHÖRT: dem Träger der Seite darüber, wenn ich ihn
+       * halte — so wie jede andere Seite in diesem Baum. Sonst mir. Gehörte
+       * sie immer mir, wäre ein Portal NEBEN dem Formular (`…/candidate`
+       * neben `…/signin`) eine fremde Seite und dürfte keines sein.
+       */
+      const parent = where.split('/').slice(0, -1).join('/');
+      const owner = pages.find((one) => one.path === parent && one.aliasOf === null)?.roleId ?? ownerRoleId;
+
+      await openSubpage(where, owner, 'Portal');
 
       const parts: DraftPart[] = SEED.map((one, at) => ({
         id: newId(),
@@ -253,12 +277,14 @@ export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: 
         <p className="wk-hint">
           Ten formularz nie stoi jeszcze na żadnej stronie. Portal możesz
           przygotować już teraz — pamiętaj tylko, że po postawieniu formularza
-          portal musi być tą samą stroną, wyżej albo niżej.
+          portal musi być tą samą stroną, stroną nad nią lub pod nią albo inną
+          publiczną stroną tego samego właściciela.
         </p>
       ) : (
         <p className="wk-hint">
           Formularz stoi na: {standsOn.map((one) => <code key={one}>recreatio.pl/{one}</code>)
             .reduce<React.ReactNode[]>((all, one, at) => at === 0 ? [one] : [...all, ', ', one], [])}.
+          {' '}Portalem może być każda publiczna strona tego samego właściciela.
         </p>
       )}
 
@@ -266,6 +292,13 @@ export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: 
         <p className="wk-warn">
           Link otwiera <code>recreatio.pl/{opens}</code>
           {!has && ' — tak wychodzi z ustawień, nikt tego nie wybrał.'}
+        </p>
+      )}
+
+      {astray && (
+        <p className="wk-blocker">
+          Ta strona nie pasuje już do stron, na których stoi formularz — wybierz inną,
+          inaczej zgłoszenie się nie powiedzie.
         </p>
       )}
 
@@ -350,6 +383,10 @@ function Choose({ now, choices, busy, onPick }: {
         onChange={(e) => { if (e.target.value !== '') onPick(e.target.value); }}
       >
         <option value="">— niech usługa wybierze —</option>
+        {/* Was eingestellt ist, steht da — auch wenn es nicht mehr passt. */}
+        {now !== '' && !choices.some((one) => one.path === now) && (
+          <option value={now} disabled>recreatio.pl/{now} (nie pasuje)</option>
+        )}
         {choices.map((one) => (
           <option key={one.path} value={one.path}>recreatio.pl/{one.path}</option>
         ))}

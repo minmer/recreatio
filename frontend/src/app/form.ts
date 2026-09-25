@@ -387,8 +387,9 @@ export interface SubmitTo {
    * <b>Ein PFAD und keine Kennung</b>, und der Dienst prüft ihn: `access_slug`
    * ist einer der drei Wege in eine interne Unterseite (0026). Nähme er eine
    * Kennung, wie sie kommt, schriebe sich ein Fremder mit einer Anmeldung den
-   * Zutritt zu `lo13/anna`. Erlaubt ist die Seite mit diesem Formular oder eine
-   * darüber.
+   * Zutritt zu `lo13/anna`. Erlaubt ist die Seite mit diesem Formular, eine
+   * darüber oder darunter — und die Seite, die die Kanzlei in den Einstellungen
+   * gewählt hat, wenn sie öffentlich ist und demselben Träger gehört.
    */
   readonly selfSeat?: {
     readonly areaId: string;
