@@ -102,6 +102,15 @@ export interface ModuleRow {
   readonly controller: { readonly name: string; readonly address: string | null; readonly email: string | null } | null;
 }
 
+/**
+ * Was beim Umzug eines Formulars neu versiegelt mitgeht: jede Frage (0042) und
+ * sein Aufbau samt Logik (0043), falls es einen hat.
+ */
+export interface Resealed {
+  readonly fields: readonly ResealIn[];
+  readonly design?: { readonly sealed: string; readonly epoch: number };
+}
+
 /** Eine Frage, unter dem Schlüssel des NEUEN Formularbereichs versiegelt (0042). */
 export interface ResealIn {
   readonly fieldId: string;
@@ -142,6 +151,10 @@ export const updateModule = (
     closed?: boolean;
     controller?: { name: string; address?: string; email?: string };
     reseal?: readonly ResealIn[];
+
+    /** Der Aufbau, unter dem Schlüssel des neuen Bereichs (0043) — Pflicht, wenn es einen gibt. */
+    designSealed?: string;
+    designEpoch?: number;
   }
 ): Promise<{ moduleId: string; areaId: string | null; name: string }> =>
   call(`/workspace/module/${encodeURIComponent(moduleId)}`, {

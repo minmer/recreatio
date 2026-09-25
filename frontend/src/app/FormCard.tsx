@@ -23,7 +23,7 @@
  * Platz geben kann: wenn der Bereich gar keine Annahme hat.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { loadPublicKey } from './area';
 import { fromBase64Url } from './crypto';
@@ -31,7 +31,8 @@ import {
   loadForm, openFields, submitForm, type Answer, type OpenField, type PublicForm
 } from './form';
 import type { Ring } from './keys';
-import { Phones } from './Phones';
+import { evaluate, layoutWith, missingIn, openDesign, type FormDesign } from './formDesign';
+import { FormFlow, isRequired } from './FormFlow';
 import { keysFor } from './ringOf';
 import { bindSeat, seatPath, type Link } from './seat';
 import { whoIsThere, WorkspaceError } from './session';
@@ -46,6 +47,9 @@ export function FormCard({ partId, title, portalUnder: under }: {
 }) {
   const [form, setForm] = useState<PublicForm | null | undefined>(undefined);
   const [fields, setFields] = useState<readonly OpenField[]>([]);
+
+  /* Aufbau und Logik (0043) — oder `null`: dann ist das Formular eine Liste wie vorher. */
+  const [design, setDesign] = useState<FormDesign | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [claim, setClaim] = useState<string | null>(null);
   const [link, setLink] = useState<Link | null>(null);
@@ -85,7 +89,10 @@ export function FormCard({ partId, title, portalUnder: under }: {
        */
       const keys = new Map<string, Uint8Array>();
 
-      for (const areaId of new Set(found.fields.map((f) => f.labelAreaId ?? f.areaId))) {
+      const needed = [...found.fields.map((f) => f.labelAreaId ?? f.areaId),
+        ...(found.design === null ? [] : [found.design.areaId])];
+
+      for (const areaId of new Set(needed)) {
         try {
           const open = await loadPublicKey(areaId);
           keys.set(areaId, fromBase64Url(open.key));
@@ -95,6 +102,7 @@ export function FormCard({ partId, title, portalUnder: under }: {
       }
 
       setFields(await openFields(found.fields, keys));
+      setDesign(await openDesign(found.design ?? null, found.design === null ? undefined : keys.get(found.design.areaId), partId));
       setFailed(null);
 
       /*
@@ -129,6 +137,18 @@ export function FormCard({ partId, title, portalUnder: under }: {
   }, [partId]);
 
   useEffect(() => { void look(); }, [look]);
+
+  /*
+   * DER AUFBAU UND DIE LOGIK (0043) — bei jeder Antwort neu ausgewertet.
+   * Ohne Dokument ist der Aufbau die Liste der Fragen, und die Logik leer:
+   * alles steht da, wie vorher.
+   */
+  const byId = useMemo(() => new Map(fields.map((f) => [f.fieldId, f])), [fields]);
+  const layout = useMemo(
+    () => layoutWith(design?.layout ?? [], fields.map((f) => f.fieldId)), [design, fields]);
+  const outcome = useMemo(
+    () => evaluate({ version: 1, layout, nodes: design?.nodes ?? [], edges: design?.edges ?? [] }, answers),
+    [layout, design, answers]);
 
   /*
    * DIE GENORMTEN ANGABEN EINTRAGEN — und beim Wechsel WIEDER HERAUS.
@@ -259,14 +279,19 @@ export function FormCard({ partId, title, portalUnder: under }: {
     );
   }
 
-  const missing = fields.filter((f) => f.isRequired && (answers[f.fieldId] ?? '').trim() === '');
+  /* Was fehlt — nur, was sichtbar ist; eine verborgene Frage hält niemanden auf. */
+  const missing = missingIn(layout, isRequired(byId, outcome), answers, outcome)
+    .map((id) => byId.get(id))
+    .filter((f): f is OpenField => f !== undefined);
 
   const send = async () => {
     setBusy(true);
     setFailed(null);
 
     try {
+      /* Nur, was zu sehen war: eine Antwort in einer verborgenen Frage geht nicht hinaus. */
       const given: Answer[] = fields
+        .filter((f) => !outcome.hidden.has(f.fieldId))
         .map((f) => ({ fieldId: f.fieldId, value: answers[f.fieldId] ?? '' }))
         .filter((a) => a.value.trim() !== '');
 
@@ -407,53 +432,13 @@ export function FormCard({ partId, title, portalUnder: under }: {
 
       {!nameless && !form.closed && (
         <form className="wk-form" onSubmit={(e) => { e.preventDefault(); void send(); }}>
-          {fields.map((f) => (
-            <label className="wk-field" key={f.fieldId}>
-              <span>
-                {f.label ?? 'zapieczętowane'}
-                {f.isRequired && ' *'}
-              </span>
-
-              {f.label === null ? (
-                <p className="wk-card-muted">
-                  Tego pola nie da się odczytać — obszar nie ujawnił swojego klucza.
-                </p>
-              ) : f.kind === 'text' ? (
-                <textarea
-                  rows={4}
-                  value={answers[f.fieldId] ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, [f.fieldId]: e.target.value })}
-                />
-              ) : f.kind === 'choice' ? (
-                <select
-                  value={answers[f.fieldId] ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, [f.fieldId]: e.target.value })}
-                >
-                  <option value="">—</option>
-                  {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              ) : f.kind === 'phone' ? (
-                /*
-                 * Eine Nummer wird zum Plättchen, sobald sie fertig ist — und
-                 * das `+48` schreibt die Maschine. Mehrere Nummern in einem Feld
-                 * sind der Normalfall, nicht die Ausnahme: Mutter, Vater, Kind.
-                 */
-                <Phones
-                  value={answers[f.fieldId] ?? ''}
-                  onChange={(next) => setAnswers({ ...answers, [f.fieldId]: next })}
-                />
-              ) : (
-                <input
-                  type={f.kind === 'date' ? 'date' : f.kind === 'number' ? 'number'
-                    : f.kind === 'email' ? 'email' : 'text'}
-                  value={answers[f.fieldId] ?? ''}
-                  onChange={(e) => setAnswers({ ...answers, [f.fieldId]: e.target.value })}
-                />
-              )}
-
-              {f.help !== null && <span className="wk-hint">{f.help}</span>}
-            </label>
-          ))}
+          <FormFlow
+            items={layout}
+            fields={byId}
+            answers={answers}
+            outcome={outcome}
+            onAnswer={(fieldId, value) => setAnswers((before) => ({ ...before, [fieldId]: value }))}
+          />
 
           {failed !== null && <p className="wk-error">{failed}</p>}
 
@@ -464,7 +449,7 @@ export function FormCard({ partId, title, portalUnder: under }: {
 
             {missing.length > 0 && (
               <span className="wk-blocker">
-                Brakuje: {missing.map((f) => f.label ?? 'zapieczętowane').join(', ')}
+                Brakuje: {missing.map((f) => outcome.labels.get(f.fieldId) ?? f.label ?? 'zapieczętowane').join(', ')}
               </span>
             )}
           </div>

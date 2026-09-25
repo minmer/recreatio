@@ -1315,3 +1315,255 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 
 /* Dasselbe eine Stufe tiefer: „albo załóż nowy" im Bausteinwähler. */
 .pb-new > summary { cursor: pointer; font-size: 0.9rem; color: var(--wk-accent); }
+
+/* ===========================================================================
+   Das Formular mit Aufbau und Logik (0043)
+   =========================================================================== */
+
+/* Ein Satz zwischen zwei Fragen — Text, kein Feld; darum ohne Rahmen. */
+.wk-form-text { margin: 0; white-space: pre-wrap; font-size: 0.94rem; }
+
+/* Eine Gruppe: eine Überschrift über ihren Fragen, und eine Linie, die zeigt, wie weit sie reicht. */
+.wk-form-group {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0.3rem 0 0.2rem 0.9rem;
+  border: 0;
+  border-left: 2px solid var(--wk-line);
+  min-width: 0;
+}
+
+.wk-form-group > legend {
+  padding: 0;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+  font-size: 0.98rem;
+}
+
+/* Eine kurze Angabe — ein kurzes Feld. */
+.wk-field-half { width: min(100%, 13rem); }
+
+/* Was die Logik unter ein Feld schreibt: eine Auskunft, keine Absage. */
+.wk-form-msg {
+  font-size: 0.82rem;
+  color: var(--wk-ink);
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--wk-accent);
+}
+
+/* SEITEN: die Schritte oben, erreichbar nur, was davor erfüllt ist. */
+.wk-form-pages, .wk-form-tabs { display: grid; gap: 0.85rem; }
+
+.wk-form-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.wk-form-steps > li { counter-increment: step; }
+
+.wk-form-step {
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+
+.wk-form-step::before { content: counter(step) ". "; font-variant-numeric: tabular-nums; }
+.wk-form-step:disabled { opacity: 0.45; cursor: default; }
+.wk-form-step:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+
+.wk-form-step-on {
+  border-color: var(--wk-accent);
+  color: var(--wk-ink);
+  font-weight: 600;
+}
+
+/* Ein Reiter, in dem noch etwas fehlt. */
+.wk-form-dot { color: var(--wk-accent); font-weight: 700; }
+
+/* -- Der Aufbau: eine Gliederung --------------------------------------------- */
+
+.wk-layout { display: grid; gap: 0.8rem; padding-top: 1rem; max-width: 46rem; }
+
+.wk-layout-list { display: grid; gap: 0.35rem; margin: 0; padding: 0; list-style: none; }
+
+.wk-layout-inner {
+  margin: 0.4rem 0 0.1rem 0.6rem;
+  padding-left: 0.8rem;
+  border-left: 2px solid var(--wk-line);
+}
+
+.wk-layout-row {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+}
+
+.wk-layout-group { background: var(--wk-soft); }
+
+.wk-layout-head { display: flex; align-items: center; gap: 0.6rem; }
+.wk-layout-what { flex: 1 1 auto; min-width: 0; }
+
+.wk-layout-text textarea.wk-layout-what,
+.wk-layout-group-head input,
+.wk-layout-group-head select {
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 3px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+}
+
+.wk-layout-text textarea.wk-layout-what { resize: vertical; }
+
+.wk-layout-group-head { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.wk-layout-group-head input { flex: 1 1 10rem; min-width: 0; }
+
+.wk-layout-grips { display: flex; gap: 0.15rem; flex: 0 0 auto; }
+
+.wk-grip {
+  font: inherit;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+
+.wk-grip:hover:not(:disabled) { border-color: var(--wk-line); color: var(--wk-ink); background: var(--wk-surface); }
+.wk-grip:disabled { opacity: 0.3; cursor: default; }
+.wk-grip:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 0; }
+
+.wk-layout-add { padding: 0.2rem 0.2rem 0; font-size: 0.88rem; }
+
+/* -- Die Logik: ein Graph ----------------------------------------------------- */
+
+.wk-logic { display: grid; gap: 0.8rem; padding-top: 1rem; }
+
+.wk-logic-palette { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; }
+.wk-logic-pal-group { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.wk-logic-pal-group > .wk-hint { margin-right: 0.2rem; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.72rem; }
+
+/*
+   Drei Rollen, drei Formen — nicht nur drei Farben: ein Eingang hat die
+   Kante links, ein Ausgang rechts, ein Tor ist gerahmt. So liest man den
+   Fluss auch ohne Farbe.
+*/
+.wk-lpal {
+  font: inherit;
+  font-size: 0.84rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 3px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+
+.wk-lpal:hover { border-color: var(--wk-accent); }
+.wk-lpal:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-lpal-input { border-left: 3px solid var(--wk-ok); }
+.wk-lpal-output { border-right: 3px solid var(--wk-accent); }
+
+.wk-logic-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18rem;
+  gap: 0.8rem;
+  align-items: stretch;
+}
+
+@media (max-width: 760px) {
+  .wk-logic-split { grid-template-columns: minmax(0, 1fr); }
+}
+
+.wk-logic-canvas {
+  height: 34rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-ground);
+  overflow: hidden;
+}
+
+/* React Flow im Ton des Arbeitsplatzes — auch im dunklen. */
+.wk-logic-canvas .react-flow__controls-button {
+  background: var(--wk-surface);
+  border-bottom-color: var(--wk-line);
+  fill: var(--wk-ink);
+}
+
+.wk-logic-canvas .react-flow__background { color: var(--wk-line); }
+.wk-logic-canvas .react-flow__edge.selected .react-flow__edge-path { stroke: var(--wk-accent) !important; }
+
+.wk-lnode {
+  position: relative;
+  display: grid;
+  gap: 0.1rem;
+  min-width: 9rem;
+  max-width: 15rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.wk-lnode-input { border-left: 4px solid var(--wk-ok); }
+.wk-lnode-output { border-right: 4px solid var(--wk-accent); }
+.wk-lnode-gate { border-radius: 999px; text-align: center; min-width: 5rem; }
+.wk-lnode-on { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+
+.wk-lnode-kind { font-weight: 600; }
+.wk-lnode-sum { color: var(--wk-muted); overflow-wrap: anywhere; }
+
+.wk-lnode-val {
+  justify-self: start;
+  font-size: 0.72rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--wk-soft);
+  color: var(--wk-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.wk-lnode-gate .wk-lnode-val { justify-self: center; }
+.wk-lnode-val.is-yes { color: var(--wk-ok); font-weight: 600; }
+
+.wk-lhandle.react-flow__handle {
+  width: 10px;
+  height: 10px;
+  background: var(--wk-surface);
+  border: 2px solid var(--wk-muted);
+}
+
+.wk-lhandle.react-flow__handle-connecting { border-color: #a5361c; }
+.wk-lhandle.react-flow__handle-valid { border-color: var(--wk-ok); }
+
+.wk-lport {
+  position: absolute;
+  left: 0.45rem;
+  transform: translateY(-50%);
+  font-size: 0.64rem;
+  color: var(--wk-muted);
+  pointer-events: none;
+}
+
+.wk-lnode:has(.wk-lport) { padding-left: 1.3rem; }

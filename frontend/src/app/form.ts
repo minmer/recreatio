@@ -22,6 +22,7 @@ import {
 import { newId } from './ids';
 import { newLink, seatAad, type Link, type SubmittedValue } from './seat';
 import { call } from './session';
+import type { SealedDesign } from './formDesign';
 import type { Controller } from './intake';
 
 export const FIELD_KINDS = ['line', 'text', 'choice', 'date', 'number', 'checkbox', 'email', 'phone'] as const;
@@ -266,7 +267,12 @@ export interface SealedField {
   readonly identityRole: IdentityRole;
 }
 
-export const loadFields = (partId: string): Promise<{ fields: readonly SealedField[] }> =>
+export const loadFields = (partId: string): Promise<{
+  fields: readonly SealedField[];
+
+  /** Aufbau und Logik (0043) — versiegelt, oder `null`, wenn das Formular eine Liste ist. */
+  design: SealedDesign | null;
+}> =>
   call(`/workspace/part/${encodeURIComponent(partId)}/fields`);
 
 export const removeField = (fieldId: string): Promise<{ removed: boolean }> =>
@@ -296,6 +302,9 @@ export interface PublicForm {
 
   /** EINE Klausel für das ganze Formular (0042) — ohne sie sammelt es nichts. */
   readonly controller: Controller | null;
+
+  /** Aufbau und Logik (0043) — versiegelt unter dem Schlüssel des Formularbereichs. */
+  readonly design: SealedDesign | null;
 }
 
 export const loadForm = (partId: string): Promise<PublicForm> =>

@@ -47,10 +47,16 @@ import { holesFor, missingIn, renderSms, smsHref, usesHole, VERIFY } from './sms
 import { AreaOptions } from './AreaOptions';
 import { FormTable } from './FormTable';
 import { ModuleSettings } from './ModuleSettings';
-import { updateModule, type ModuleRow, type ResealIn } from './module';
+import { updateModule, type ModuleRow, type Resealed, type ResealIn } from './module';
+import {
+  EMPTY_DESIGN, layoutWith, openDesign, saveDesign, sealDesign,
+  type FormDesign, type SealedDesign
+} from './formDesign';
+import { FormLayout } from './FormLayout';
+import { FormLogic } from './FormLogic';
 
-/** Die vier Reiter eines Formulars. */
-type FormTabName = 'settings' | 'questions' | 'entries' | 'people';
+/** Die Reiter eines Formulars: einrichten (vier) — lesen — handeln. */
+type FormTabName = 'settings' | 'questions' | 'layout' | 'logic' | 'entries' | 'people';
 
 export function FormOffice({ partId, config, who, standsOn, module, onModuleChanged }: {
   partId: string;
@@ -128,6 +134,16 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
   const [saved, setSaved] = useState<Record<string, string> | null>(null);
   const conf = saved ?? config;
 
+  /*
+   * AUFBAU UND LOGIK (0043) — ein versiegeltes Dokument je Formular.
+   * `sealedDesign` ist, was der Dienst hat; `design`, was davon aufging. Steht
+   * das eine ohne das andere da, darf niemand darüberschreiben: er würde
+   * einen Aufbau löschen, den er nicht sehen kann.
+   */
+  const [sealedDesign, setSealedDesign] = useState<SealedDesign | null>(null);
+  const [design, setDesign] = useState<FormDesign | null>(null);
+  const designLocked = sealedDesign !== null && design === null;
+
   /**
    * Alles laden — aber NICHT alles oder nichts.
    *
@@ -145,9 +161,14 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    */
   const look = useCallback(async () => {
     let sealed: readonly SealedField[] = [];
+    let shut: SealedDesign | null = null;
 
     try {
-      sealed = (await loadFields(partId)).fields;
+      const loaded = await loadFields(partId);
+      sealed = loaded.fields;
+      shut = loaded.design;
+      setSealedDesign(shut);
+      if (shut === null) setDesign(null);
 
       /* Zunächst ohne Beschriftung — dieselbe Gestalt, die `openFields` einem
          Feld ohne Schlüssel gibt. Gleich darunter werden sie lesbar. */
@@ -225,6 +246,28 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     }
 
     setFields(await openFields(sealed, keys));
+
+    /*
+     * DER AUFBAU UND DIE LOGIK (0043) — unter dem Schlüssel des
+     * Formularbereichs, und zwar der EPOCHE, mit der sie versiegelt wurden.
+     * Erst die Zuteilung, dann der veröffentlichte Schlüssel, falls er dieselbe
+     * Epoche hat.
+     */
+    if (shut !== null) {
+      let key: Uint8Array | undefined;
+      try { key = (await myEpochKeys(bund, shut.areaId)).get(shut.epoch); } catch { key = undefined; }
+
+      if (key === undefined) {
+        try {
+          const open = await loadPublicKey(shut.areaId);
+          if (open.epoch === shut.epoch) key = fromBase64Url(open.key);
+        } catch {
+          // Nicht offengelegt: der Aufbau bleibt zu, und das wird gesagt.
+        }
+      }
+
+      setDesign(await openDesign(shut, key, partId));
+    }
 
     /* Welche Antwortbereiche schon eine Annahme haben — ohne sie nimmt eine Frage nichts an. */
     const taking = new Map<string, boolean>();
@@ -434,7 +477,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
   const [autoTried, setAutoTried] = useState(false);
 
   useEffect(() => {
-    if (tab === 'settings' || tab === 'questions' || autoTried || ring === null
+    if ((tab !== 'entries' && tab !== 'people') || autoTried || ring === null
       || lastArea !== null || areasHere.length === 0) return;
     setAutoTried(true);
     void act('Otwieranie zgłoszeń…', () => read(areasHere[0]));
@@ -467,11 +510,14 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    * den Umzug des Formulars. Eine Frage, die hier nicht aufging, kann nicht
    * mit: dann lieber gar nicht umziehen.
    */
-  const resealFor = async (target: string): Promise<readonly ResealIn[]> => {
+  const resealFor = async (target: string): Promise<Resealed> => {
     const { key, epoch } = await keyOf(target);
     const unread = fields.filter((f) => f.label === null);
     if (unread.length > 0) {
       throw new WorkspaceError('Nie każde pytanie da się teraz odczytać — bez tego nie da się ich przepieczętować.');
+    }
+    if (designLocked) {
+      throw new WorkspaceError('Układu formularza nie da się teraz odczytać — bez tego nie da się go przepieczętować.');
     }
 
     const out: ResealIn[] = [];
@@ -482,8 +528,30 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
         labelEpoch: epoch
       });
     }
-    return out;
+
+    /* Der Aufbau zieht mit, unter demselben neuen Schlüssel (0043). */
+    return design === null || sealedDesign === null
+      ? { fields: out }
+      : { fields: out, design: { sealed: await sealDesign(design, key, partId), epoch } };
   };
+
+  /**
+   * Aufbau und Logik speichern — ein Dokument, unter dem Schlüssel des
+   * Formularbereichs. Wer nur die Logik ändert, schickt den Aufbau mit, wie
+   * er ist, und umgekehrt.
+   */
+  const saveDesignNow = async (next: FormDesign) => {
+    if (module?.areaId == null) throw new WorkspaceError('Formularz potrzebuje najpierw własnego obszaru.');
+    if (designLocked) throw new WorkspaceError('Zapisany układ jest zapieczętowany kluczem, którego nie masz.');
+    const { key, epoch } = await keyOf(module.areaId);
+    await saveDesign(partId, module.areaId, epoch, await sealDesign(next, key, partId));
+  };
+
+  /* Der vollständige Aufbau: jede Frage genau einmal, neue am Ende. */
+  const current = design ?? EMPTY_DESIGN;
+  const fieldIds = fields.map((f) => f.fieldId);
+  const layout = layoutWith(current.layout, fieldIds);
+  const byId = new Map(fields.map((f) => [f.fieldId, f]));
 
   /* Fragen, die noch unter dem Schlüssel ihrer Antworten liegen, nicht des Formulars. */
   const stale = module?.areaId == null ? [] : fields.filter((f) => f.labelAreaId !== module.areaId);
@@ -573,6 +641,8 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
       <div className="wk-tabs" role="tablist">
         {module !== undefined && <FormTab now={tab} mine="settings" onPick={setTab}>Ustawienia</FormTab>}
         <FormTab now={tab} mine="questions" onPick={setTab}>Pytania</FormTab>
+        {module !== undefined && <FormTab now={tab} mine="layout" onPick={setTab}>Układ</FormTab>}
+        {module !== undefined && <FormTab now={tab} mine="logic" onPick={setTab}>Logika</FormTab>}
         <FormTab now={tab} mine="entries" onPick={setTab}>
           Zgłoszenia{submissions.length > 0 ? ` (${submissions.length})` : ''}
         </FormTab>
@@ -776,6 +846,43 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             />
           )}
         </>
+      )}
+
+      {/* == 3. AUFBAU UND LOGIK (0043) ======================================= */}
+
+      {(tab === 'layout' || tab === 'logic') && module !== undefined && (
+        module.areaId === null ? (
+          <p className="wk-warn">
+            Układ i logika są zapieczętowane kluczem obszaru formularza — ustaw go najpierw
+            w zakładce „Ustawienia".
+          </p>
+        ) : ring === null ? (
+          <p className="wk-empty">Bez hasła nie da się ani odczytać, ani zapieczętować układu.</p>
+        ) : designLocked ? (
+          <p className="wk-warn">
+            Ten formularz ma zapisany układ, ale nie masz klucza, którym go zapieczętowano
+            — nie da się go ani odczytać, ani nadpisać.
+          </p>
+        ) : fields.length === 0 ? (
+          <p className="wk-empty">Najpierw pytania — układ i logika na nich się opierają.</p>
+        ) : tab === 'layout' ? (
+          <FormLayout
+            layout={layout}
+            fields={byId}
+            busy={busy !== null}
+            onSave={(next) => void act('Zapisywanie układu…',
+              () => saveDesignNow({ ...current, layout: next }))}
+          />
+        ) : (
+          <FormLogic
+            design={current}
+            layout={layout}
+            fields={fields}
+            busy={busy !== null}
+            onSave={(nodes, edges) => void act('Zapisywanie logiki…',
+              () => saveDesignNow({ ...current, layout, nodes, edges }))}
+          />
+        )
       )}
 
       {/* == 2 und 3: was dafür aufgemacht werden muss ======================== */}

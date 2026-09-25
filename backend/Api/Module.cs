@@ -313,7 +313,10 @@ public static class Module
         string? ForKind = null,
 
         /* 0042 — das Formular als Ganzes. */
-        bool? Closed = null, ControllerIn? Controller = null, IReadOnlyList<ResealIn>? Reseal = null);
+        bool? Closed = null, ControllerIn? Controller = null, IReadOnlyList<ResealIn>? Reseal = null,
+
+        /* 0043 — der Aufbau, unter dem Schluessel des neuen Bereichs. */
+        string? DesignSealed = null, int? DesignEpoch = null);
 
     /// <summary>
     /// Umbenennen, den Bereich setzen, die Einstellung aendern.
@@ -405,6 +408,40 @@ public static class Module
          * unter dem sie liegen koennte.
          */
         var resealed = new Dictionary<Guid, (byte[] Label, byte[]? Help, byte[]? Options, int Epoch)>();
+
+        /*
+         * DER AUFBAU ZIEHT MIT (0043). Er liegt unter demselben Schluessel wie
+         * die Fragen; ohne neue Huelle bliebe er unter dem alten, und das
+         * Formular zeigte seine Fragen, aber nicht mehr seine Ordnung.
+         */
+        var hasDesign = false;
+        await using (var look = new SqlCommand("SELECT 1 FROM app.form_design WHERE module_id = @id;", connection))
+        {
+            look.Parameters.AddWithValue("@id", id);
+            hasDesign = await look.ExecuteScalarAsync(ctx.RequestAborted) is not null;
+        }
+
+        byte[]? designSealed = null;
+
+        if (moving && hasDesign)
+        {
+            if (areaId is null)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "Formularz z układem potrzebuje obszaru — układ jest zapieczętowany jego kluczem.");
+                return;
+            }
+
+            try { designSealed = Base64Url.Decode(body.DesignSealed ?? string.Empty); }
+            catch (FormatException) { designSealed = null; }
+
+            if (designSealed is null || designSealed.Length == 0 || body.DesignEpoch is null or < 1)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "Żeby zmienić obszar, trzeba przepieczętować też układ formularza — odśwież i spróbuj jeszcze raz.");
+                return;
+            }
+        }
 
         if (moving && found.Value.Fields > 0)
         {
@@ -556,6 +593,20 @@ public static class Module
                 await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
             }
 
+            if (designSealed is not null)
+            {
+                await using var design = new SqlCommand("""
+                    UPDATE app.form_design SET area_id = @area, epoch = @epoch, sealed = @sealed, updated_at = @now
+                     WHERE module_id = @id;
+                    """, connection, tx);
+                design.Parameters.AddWithValue("@area", areaId!.Value);
+                design.Parameters.AddWithValue("@epoch", body.DesignEpoch!.Value);
+                design.Parameters.AddWithValue("@sealed", designSealed);
+                design.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+                design.Parameters.AddWithValue("@id", id);
+                await design.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
             foreach (var (fieldId, (label, help, options, epoch)) in resealed)
             {
                 await using var seal = new SqlCommand("""
@@ -639,6 +690,7 @@ public static class Module
 
         await using var cmd = new SqlCommand("""
             DELETE FROM app.slug_field WHERE part_id = @id;
+            DELETE FROM app.form_design WHERE module_id = @id;
             DELETE FROM app.module WHERE id = @id;
             """, connection);
 

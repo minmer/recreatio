@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react';
 
 import type { AreaRow } from './area';
 import { AreaOptions } from './AreaOptions';
-import { removeModule, SUBJECT_LABEL, SUBJECTS, updateModule, type ModuleRow, type ResealIn, type Subject } from './module';
+import { removeModule, SUBJECT_LABEL, SUBJECTS, updateModule, type ModuleRow, type Resealed, type Subject } from './module';
 import { takesEntries } from './parts/registry';
 import { viewPath } from './routes';
 
@@ -28,11 +28,11 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 
   /**
-   * Die Fragen, unter dem Schlüssel des NEUEN Bereichs versiegelt — nur ein
-   * Formular kann das. Fehlt es, bleibt der Bereich fest, sobald etwas daran
-   * hängt: dann gibt es niemanden, der umschlüsseln könnte.
+   * Die Fragen und der Aufbau, unter dem Schlüssel des NEUEN Bereichs
+   * versiegelt — nur ein Formular kann das. Fehlt es, bleibt der Bereich fest,
+   * sobald etwas daran hängt: dann gibt es niemanden, der umschlüsseln könnte.
    */
-  reseal?: (areaId: string) => Promise<readonly ResealIn[]>;
+  reseal?: (areaId: string) => Promise<Resealed>;
 }) {
   const [name, setName] = useState(row.name);
   const [areaId, setAreaId] = useState(row.areaId ?? '');
@@ -59,15 +59,18 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
   const save = () => onAct('Zapisywanie…', async () => {
     const moving = areaId !== (row.areaId ?? '');
 
+    /*
+     * Die Fragen und der Aufbau gehen neu versiegelt mit — oder der Dienst
+     * lehnt ab. Gefragt wird auch ohne Fragen: ein Aufbau kann schon stehen.
+     */
+    const again = moving && areaId !== '' && reseal !== undefined ? await reseal(areaId) : null;
+
     await updateModule(row.moduleId, {
       name: name.trim(),
       ...(forKind === row.forKind ? {} : { forKind }),
       ...(areaId === '' ? (row.areaId === null ? {} : { clearArea: true }) : { areaId }),
-
-      /* Die Fragen gehen neu versiegelt mit — oder der Dienst lehnt ab. */
-      ...(moving && areaId !== '' && row.fields > 0 && reseal !== undefined
-        ? { reseal: await reseal(areaId) }
-        : {})
+      ...(again === null || again.fields.length === 0 ? {} : { reseal: again.fields }),
+      ...(again?.design === undefined ? {} : { designSealed: again.design.sealed, designEpoch: again.design.epoch })
     });
   });
 
@@ -121,7 +124,7 @@ export function ModuleSettings({ row, areas, busy, onAct, reseal }: {
 
       {movable && carries && areaId !== (row.areaId ?? '') && (
         <p className="wk-hint">
-          Przy zapisie wszystkie pytania zostaną przepieczętowane kluczem nowego
+          Przy zapisie wszystkie pytania (i układ z logiką) zostaną przepieczętowane kluczem nowego
           obszaru. Zebrane odpowiedzi zostają tam, gdzie są.
         </p>
       )}
