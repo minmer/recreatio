@@ -36,6 +36,7 @@ import { FormFlow, isRequired } from './FormFlow';
 import { keysFor } from './ringOf';
 import { bindSeat, seatPath, type Link } from './seat';
 import { whoIsThere, WorkspaceError } from './session';
+import { usePerson } from './pagePerson';
 import { detailsOf, personFieldOf, subjectsFor, type Subject } from './subject';
 
 export function FormCard({ partId, title, portalUnder: under }: {
@@ -74,6 +75,24 @@ export function FormCard({ partId, title, portalUnder: under }: {
   const [ring, setRing] = useState<Ring | null>(null);
   const [subjects, setSubjects] = useState<readonly Subject[]>([]);
   const [chosen, setChosen] = useState<string | null>(null);
+
+  /** Dopisane do istniejącego miejsca (0045) — dann gibt es keinen neuen Link. */
+  const [attached, setAttached] = useState<string | null>(null);
+
+  /*
+   * DIE WAHL DER SEITE (0045). Handelt der Bogen von einer PERSON, gilt, wer
+   * oben auf der Seite gewählt ist — hier wird nicht noch einmal gefragt:
+   *
+   *   eine eigene Person   füllt die genormten Felder vor, der neue Platz gehört ihr
+   *   ein Platz aus Link   die Einsendung kommt an DENSELBEN Platz — kein zweiter Link
+   *   niemand              wie immer: selbst eintragen, neuer Link
+   */
+  const person = usePerson();
+  const pageDecides = person !== null && form != null && form.forKind === 'person';
+  const pageRole = pageDecides && person.chosen?.kind === 'role' ? person.chosen : null;
+  const pageSeat = pageDecides && person.chosen?.kind === 'seat' ? person.chosen.seat : null;
+  const whom = pageDecides ? (pageRole?.id ?? null) : chosen;
+  const whomRing = pageDecides ? (pageRole?.ring ?? null) : ring;
 
   const look = useCallback(async () => {
     try {
@@ -164,12 +183,12 @@ export function FormCard({ partId, title, portalUnder: under }: {
    * Umschalten.
    */
   useEffect(() => {
-    if (ring === null || chosen === null) return;
+    if (whomRing === null || whom === null) return;
 
     let dropped = false;
 
     void (async () => {
-      const details = await detailsOf(chosen, ring);
+      const details = await detailsOf(whom, whomRing);
       if (dropped) return;
 
       setAnswers((before) => {
@@ -189,7 +208,7 @@ export function FormCard({ partId, title, portalUnder: under }: {
     /* Wer schnell zweimal umschaltet, bekommt sonst die erste Antwort
        über die zweite geschrieben. */
     return () => { dropped = true; };
-  }, [chosen, ring, fields]);
+  }, [whom, whomRing, fields]);
 
 
 
@@ -246,13 +265,21 @@ export function FormCard({ partId, title, portalUnder: under }: {
     ?? fields.find((f) => f.identityRole === 'given_name');
 
   /** Wer gerade gemeint ist — oder niemand. */
-  const forWhom = subjects.find((one) => one.roleId === chosen) ?? null;
+  const forWhom: Subject | null = pageDecides
+    ? (pageRole === null ? null : { roleId: pageRole.id, name: pageRole.name, isMine: pageRole.isMine })
+    : subjects.find((one) => one.roleId === chosen) ?? null;
 
   if (sent) {
     return (
       <>
         {title !== '' && <h2 className="wk-card-title">{title}</h2>}
         <p className="wk-done">Zgłoszenie przyjęte.</p>
+
+        {attached !== null && (
+          <p className="wk-hint">
+            Dopisane do miejsca <strong>{attached}</strong> — zobaczysz je pod tym samym linkiem co dotąd.
+          </p>
+        )}
 
         {link !== null ? (
           <>
@@ -315,6 +342,23 @@ export function FormCard({ partId, title, portalUnder: under }: {
        */
       const home = nameField?.areaId ?? form.fields[0]?.areaId;
 
+      /*
+       * FÜR EINEN PLATZ AUS DEM LINK: an denselben Platz. Sein Schlüssel
+       * versiegelt die Werte ein zweites Mal — so liest er sie später dort,
+       * wo er seine erste Einsendung liest.
+       */
+      if (pageSeat !== null && pageSeat.seatKey !== null) {
+        await submitForm(partId, given, {
+          areas: form.areas, fields: form.fields,
+          seat: { token: pageSeat.token, key: pageSeat.seatKey }
+        });
+
+        setAttached(person?.chosen?.name ?? 'wybranej osoby');
+        setSent(true);
+        pageSeat.reload();
+        return;
+      }
+
       const done = await submitForm(partId, given, {
         areas: form.areas,
         fields: form.fields,
@@ -354,8 +398,8 @@ export function FormCard({ partId, title, portalUnder: under }: {
        * beim Dienst, und der Link steht gleich da. Hier abzubrechen hiesse,
        * einen angenommenen Bogen als Fehlschlag auszugeben.
        */
-      if (forWhom !== null && done.seat !== null && done.link !== null && ring !== null) {
-        const role = ring.roleOf(forWhom.roleId);
+      if (forWhom !== null && done.seat !== null && done.link !== null && whomRing !== null) {
+        const role = whomRing.roleOf(forWhom.roleId);
 
         if (role !== undefined) {
           try {
@@ -415,7 +459,17 @@ export function FormCard({ partId, title, portalUnder: under }: {
         Es gibt sie nur für Angemeldete, die überhaupt mehr als nichts
         halten. Alle anderen füllen den Bogen aus wie immer.
       */}
-      {subjects.length > 0 && !nameless && !form.closed && (
+      {/* Die Wahl oben gilt — hier nur, WER es ist. */}
+      {pageDecides && person.chosen !== null && !nameless && !form.closed && (
+        <p className="wk-hint">
+          {person.chosen.kind === 'seat'
+            ? <>Zgłoszenie zostanie dopisane do miejsca <strong>{person.chosen.name}</strong> (ten sam link).</>
+            : <>Zgłoszenie dla: <strong>{person.chosen.name}</strong> — pola wypełnią się Twoimi zapisanymi danymi.</>}
+          {' '}Zmienisz to u góry strony.
+        </p>
+      )}
+
+      {!pageDecides && subjects.length > 0 && !nameless && !form.closed && (
         <label className="wk-field">
           <span>{form.forKind === 'person' ? 'Kogo dotyczy zgłoszenie'
             : form.forKind === 'group' ? 'Której grupy dotyczy' : 'Której roli dotyczy'}</span>

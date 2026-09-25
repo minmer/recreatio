@@ -8,7 +8,8 @@
  * deshalb hier und erscheint auf jeder Seite, auf der ein Platz offen ist.
  *
  * <code>
- *   SeatBar           oben auf der Seite: welcher Platz offen ist, und was damit geht
+ *   SeatBar           oben auf der Seite: nur, wenn ein Link nicht aufging
+ *   SeatTools         der eigene Link und das Binden an ein Konto
  *   PersonalSections  die eingebauten Abschnitte — wo die Seite keine eigenen hat
  *   MyLink, BindSeat  einzeln, für die Ansicht eines Platzes ohne Seite
  * </code>
@@ -19,7 +20,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { SealedRole } from './keys';
 import { keysFor } from './ringOf';
 import { bindSeat } from './seat';
-import { seatName, useSeats, useSeatStates, type SeatView } from './seatContext';
+import { useSeatStates, type SeatView } from './seatContext';
 import { freshSeat, linkTo } from './seatKeep';
 import { whoIsThere, WorkspaceError, type Who } from './session';
 import { OwnSubmissions } from './Submission';
@@ -27,17 +28,19 @@ import { OwnSubmissions } from './Submission';
 /* -- Oben auf der Seite ----------------------------------------------------- */
 
 /**
- * WELCHER PLATZ HIER OFFEN IST — und was nicht aufging.
+ * WAS NICHT AUFGING — und nur das.
  *
- * <b>Ohne Platz: nichts.</b> Ein Besucher ohne Link sieht die Seite, wie sie
- * ist; kein Kasten sagt ihm, dass er keinen hat.
+ * <b>Hier standen einmal je geöffnetem Platz ein aufklappbarer Kasten</b> —
+ * drei Links, drei Kästen über der Seite, bevor irgendetwas von ihr kam. Wer
+ * gerade für wen handelt, sagt jetzt EINE Auswahl (`PersonPicker`); der
+ * eigene Link und das Binden an ein Konto stehen bei dem, was der Mensch
+ * geschickt hat (`PersonalSections`, „Zgłoszenie osoby").
  *
- * <b>Ein Link, der nicht aufgeht, sagt es — hier, und nur für den, der ihn
- * gerade angeklickt hat.</b> Ein behaltener Platz, der inzwischen abgelaufen
+ * <b>Ein Link, der nicht aufgeht, sagt es</b> — hier, und nur für den, der
+ * ihn gerade angeklickt hat. Ein behaltener Platz, der inzwischen abgelaufen
  * ist, schweigt: ihn hat niemand gerade gewollt.
  */
 export function SeatBar({ path }: { path: string }) {
-  const seats = useSeats();
   const states = useSeatStates();
   const fresh = freshSeat();
 
@@ -50,30 +53,24 @@ export function SeatBar({ path }: { path: string }) {
     : state?.state === 'locked' ? 'Klucz z linku nie pasuje do tego miejsca. Sprawdź, czy link nie urwał się przy kopiowaniu.'
     : null;
 
-  if (trouble === null && seats.length === 0) return null;
+  return trouble === null ? null : <p className="wk-error">{trouble}</p>;
+}
 
+/**
+ * Der eigene Link und das Binden — klein, unter dem, was der Mensch geschickt
+ * hat. Dort sucht er, wie er wieder hierher kommt.
+ */
+export function SeatTools({ seat }: { seat: SeatView }) {
   return (
-    <div className="wk-seat-bar">
-      {trouble !== null && <p className="wk-error">{trouble}</p>}
-
-      {seats.filter((seat) => seat.seatKey !== null).map((seat, at) => (
-        <details className="wk-fold wk-seat-fold" key={seat.token}>
-          <summary>
-            {seats.length === 1 ? 'Twoje miejsce' : `Miejsce: ${seatName(seat, at)}`}
-            <span className="wk-row-side"> — otwarte na tym urządzeniu</span>
-          </summary>
-
-          <p className="wk-hint">
-            Link jest kluczem, nie legitymacją: kto go ma, widzi Twoje dane na stronach
-            tej organizacji. Nie przekazuj go dalej.
-            {seat.expiresAt !== null && ` Działa do ${new Date(seat.expiresAt).toLocaleDateString('pl-PL',
-              { day: 'numeric', month: 'long', year: 'numeric' })}.`}
-          </p>
-
-          <MyLink token={seat.token} />
-          <BindSeat seat={seat} />
-        </details>
-      ))}
+    <div className="wk-seat-tools">
+      <MyLink token={seat.token} />
+      <BindSeat seat={seat} />
+      {seat.expiresAt !== null && (
+        <p className="wk-hint">
+          Link działa do {new Date(seat.expiresAt).toLocaleDateString('pl-PL',
+            { day: 'numeric', month: 'long', year: 'numeric' })}.
+        </p>
+      )}
     </div>
   );
 }
@@ -113,6 +110,7 @@ export function PersonalSections({ seat }: { seat: SeatView }) {
               onSaved={seat.reload}
             />
           )}
+          <SeatTools seat={seat} />
         </Zone>
       )}
 

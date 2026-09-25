@@ -213,6 +213,7 @@ function ResourcePage({ row, all, areas, calendars, onChanged }: {
         <div className="wk-fact"><dt>Rodzaj</dt><dd>{KIND_LABEL[row.kind]}</dd></div>
         <div className="wk-fact"><dt>Czas wybiera</dt><dd>{row.mode === 'offered' ? 'kancelaria' : 'pytający'}</dd></div>
         <div className="wk-fact"><dt>Naraz</dt><dd>{row.capacity}</dd></div>
+        <div className="wk-fact"><dt>Na osobę</dt><dd>{row.perPerson === 0 ? 'bez limitu' : row.perPerson}</dd></div>
         <div className="wk-fact"><dt>Potwierdza</dt><dd>{row.approval === 'office' ? 'kancelaria' : 'nikt'}</dd></div>
       </dl>
 
@@ -317,6 +318,20 @@ function when(c: { startsAt: string; endsAt: string }, row: ResourceRow): string
  * gleichzeitig hinzustellen hiesse, die Hälfte der Felder für nichts
  * auszufüllen — und nicht zu wissen, welche Hälfte.
  */
+/**
+ * WIE VIELE TERMINE EINER HALTEN DARF (0045) — 0 heisst: keine Grenze.
+ * Gezählt wird, was noch steht oder wartet und nicht vorbei ist.
+ */
+export function PerPersonField({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  return (
+    <label className="wk-field">
+      <span>Ile terminów może wybrać jedna osoba</span>
+      <input type="number" min={0} value={value} onChange={(e) => onChange(e.target.value)} />
+      <span className="wk-hint">0 — bez limitu. Kto ma już tyle, może swój termin zamienić na inny.</span>
+    </label>
+  );
+}
+
 function Editor({ was, all, areas, calendars, onSaved }: {
   was: ResourceRow | null;
   all: readonly ResourceRow[];
@@ -333,6 +348,7 @@ function Editor({ was, all, areas, calendars, onSaved }: {
   const [capacity, setCapacity] = useState(String(was?.capacity ?? 1));
   const [approval, setApproval] = useState<'none' | 'office'>(was?.approval ?? 'none');
   const [inviteHours, setInviteHours] = useState(String(was?.inviteHours ?? 0));
+  const [perPerson, setPerPerson] = useState(String(was?.perPerson ?? 0));
   const [byNight, setByNight] = useState(was?.byNight ?? false);
   const [checkIn, setCheckIn] = useState(minutesToTime(was?.checkInMin ?? 960));
   const [checkOut, setCheckOut] = useState(minutesToTime(was?.checkOutMin ?? 600));
@@ -372,7 +388,8 @@ function Editor({ was, all, areas, calendars, onSaved }: {
       checkInMin: toMin(checkIn), checkOutMin: toMin(checkOut),
       bufferBefore: Math.max(0, Number(before) || 0),
       bufferAfter: Math.max(0, Number(after) || 0),
-      leadDays: Math.max(0, Number(lead) || 0)
+      leadDays: Math.max(0, Number(lead) || 0),
+      perPerson: Math.max(0, Number(perPerson) || 0)
     };
 
     try {
@@ -451,7 +468,10 @@ function Editor({ was, all, areas, calendars, onSaved }: {
           <label className="wk-field">
             <span>Ile godzin pierwszy może dobierać osoby kodem</span>
             <input type="number" min={0} value={inviteHours} onChange={(e) => setInviteHours(e.target.value)} />
+            <span className="wk-hint">Tyle czasu pierwszy zapisany jest gospodarzem terminu. 0 — bez gospodarza.</span>
           </label>
+
+          <PerPersonField value={perPerson} onChange={setPerPerson} />
         </>
       ) : (
         <>

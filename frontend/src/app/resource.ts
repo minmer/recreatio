@@ -12,6 +12,8 @@
  * wäre die, der man nicht trauen darf.
  */
 
+import { aad, Field, fromBase64Url, openText, sealText, sha256, toBase64Url } from './crypto';
+import { newId } from './ids';
 import { call } from './session';
 
 /** Wer die Zeit wählt: die Kanzlei (`offered`) oder wer fragt (`open`). */
@@ -42,6 +44,9 @@ export interface Rules {
   readonly approval: 'none' | 'office';
   readonly inviteHours: number;
   readonly leadDays: number;
+
+  /** Wie viele Termine EINER halten darf — 0: keine Grenze (0045). */
+  readonly perPerson: number;
 }
 
 /**
@@ -87,6 +92,9 @@ export interface MyClaim {
   readonly awaits: 'office' | 'host' | null;
   readonly hosting: boolean;
   readonly inviteUntil: string | null;
+
+  /** Der eigene Code, versiegelt unter dem Schlüssel des Halters (0045) — oder `null`. */
+  readonly inviteSealed: string | null;
 }
 
 /** Belegt — ohne Namen. `whole`: ein Teil des Baums darüber oder darunter. */
@@ -105,12 +113,29 @@ export interface Offers {
 }
 
 /**
- * Was an einem Ding frei ist.
+ * WER NIMMT (0045) — ein Platz aus einem Link, oder eine eigene Person, wenn
+ * jemand angemeldet ist.
+ *
+ * `key` ist der Schlüssel, unter dem der Code des Gastgebers für ihn
+ * versiegelt wird: der Platzschlüssel, oder der Schlüssel der Person. Fehlt
+ * er (ein Link ohne Schlüssel), würfelt der Dienst den Code und sagt ihn
+ * einmal, wie bisher.
  */
-export function loadOffers(resource: string, seat?: string | null,
+export type Holder =
+  | { readonly kind: 'seat'; readonly token: string; readonly key: Uint8Array | null }
+  | { readonly kind: 'role'; readonly roleId: string; readonly key: Uint8Array; readonly name: string | null };
+
+/** Wie sich ein Halter dem Dienst ausweist — nie mit seinem Schlüssel. */
+const who = (holder: Holder) => holder.kind === 'seat'
+  ? { seat: holder.token }
+  : { roleId: holder.roleId, name: holder.name };
+
+/** Was an einem Ding frei ist — und, mit einem Halter, was er schon hält. */
+export function loadOffers(resource: string, holder?: Holder | null,
   from?: Date, to?: Date): Promise<Offers> {
   const q = new URLSearchParams({ resource });
-  if (seat) q.set('seat', seat);
+  if (holder?.kind === 'seat') q.set('seat', holder.token);
+  if (holder?.kind === 'role') q.set('role', holder.roleId);
   if (from) q.set('from', from.toISOString());
   if (to) q.set('to', to.toISOString());
 
@@ -122,21 +147,80 @@ export interface Taken {
   readonly status: Status;
   readonly awaits: 'office' | 'host' | null;
 
-  /** Genau einmal — gespeichert ist nur sein Abdruck. */
+  /** Wurde er Gastgeber? Dann gibt es einen Code. */
+  readonly hosting: boolean;
+
+  /**
+   * Der Code — der eigene, im Browser gewürfelt, oder der des Dienstes, wenn
+   * es keinen Schlüssel gab, unter dem er sich hätte versiegeln lassen.
+   */
   readonly inviteCode: string | null;
   readonly inviteUntil: string | null;
 }
 
-/** Einen angebotenen Termin nehmen. */
-export const takeOffer = (resourceId: string, offer: Pick<Offer, 'itemId' | 'occurrenceAt'>,
-  seat: string, code?: string): Promise<Taken> =>
-  call('/resource/claim', {
+/* -- Der Code des Gastgebers (0045) --------------------------------------- */
+
+/** Ohne 0, O, 1, I, L — dasselbe Alphabet wie im Dienst (`Bookings.CodeAlphabet`). */
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+const inviteAad = (claimId: string) => aad('claim', 'invite', claimId, Field.ClaimInvite, 1);
+
+/** Sechs Zeichen, gleich verteilt — ohne Modulo-Schieflage. */
+export function newInviteCode(): string {
+  let out = '';
+  while (out.length < 6) {
+    const [byte] = crypto.getRandomValues(new Uint8Array(1));
+    if (byte < 248) out += CODE_ALPHABET[byte % CODE_ALPHABET.length];
+  }
+  return out;
+}
+
+/** Derselbe Abdruck wie im Dienst: SHA-256 über den Code in Grossbuchstaben. */
+export const inviteHash = (code: string) => sha256(code.trim().toUpperCase());
+
+/**
+ * Den eigenen Code wieder lesen — mit dem Schlüssel des Halters.
+ * `null`: keiner da, oder nicht seiner.
+ */
+export async function openInvite(claim: Pick<MyClaim, 'claimId' | 'inviteSealed'>,
+  holder: Holder): Promise<string | null> {
+  if (claim.inviteSealed === null || holder.key === null) return null;
+  try {
+    return await openText(holder.key, inviteAad(claim.claimId), fromBase64Url(claim.inviteSealed));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Einen angebotenen Termin nehmen — oder einen eigenen gegen ihn tauschen.
+ *
+ * <b>Der Code des Gastgebers entsteht HIER.</b> Wird dieser Anspruch der
+ * erste auf dem Termin, nimmt der Dienst seinen Abdruck und das Siegel; der
+ * Code selbst geht nie hinaus. Wird er es nicht, wirft der Dienst beides weg.
+ */
+export async function takeOffer(resourceId: string, offer: Pick<Offer, 'itemId' | 'occurrenceAt'>,
+  holder: Holder, code?: string, replaces?: string): Promise<Taken> {
+  const claimId = newId();
+  const mine = holder.key === null ? null : newInviteCode();
+
+  const done = await call<Taken>('/resource/claim', {
     method: 'POST',
     body: JSON.stringify({
       resourceId, itemId: offer.itemId, occurrenceAt: offer.occurrenceAt,
-      seat, code: code?.trim() || null
+      ...who(holder),
+      code: code?.trim() || null,
+      claimId,
+      ...(mine === null || holder.key === null ? {} : {
+        inviteSha256: toBase64Url(await inviteHash(mine)),
+        inviteSealed: toBase64Url(await sealText(holder.key, inviteAad(claimId), mine))
+      }),
+      replaces: replaces ?? null
     })
   });
+
+  return { ...done, inviteCode: done.inviteCode ?? (done.hosting ? mine : null) };
+}
 
 /**
  * Eine frei gewählte Zeit erfragen.
@@ -145,30 +229,30 @@ export const takeOffer = (resourceId: string, offer: Pick<Offer, 'itemId' | 'occ
  * die Kapelle für einen Nachmittag. Die Kanzlei sagt zu allen auf einmal ja.
  */
 export const takeSpan = (resourceId: string, startsAt: Date, endsAt: Date,
-  seat: string, groupId?: string): Promise<Taken> =>
+  holder: Holder, groupId?: string): Promise<Taken> =>
   call('/resource/claim', {
     method: 'POST',
     body: JSON.stringify({
       resourceId, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(),
-      seat, groupId: groupId ?? null
+      ...who(holder), groupId: groupId ?? null
     })
   });
 
-export const releaseClaim = (claimId: string, seat: string): Promise<{ released: boolean }> =>
-  call('/resource/release', { method: 'POST', body: JSON.stringify({ claimId, seat }) });
+export const releaseClaim = (claimId: string, holder: Holder): Promise<{ released: boolean }> =>
+  call('/resource/release', { method: 'POST', body: JSON.stringify({ claimId, ...who(holder) }) });
 
 /** Um Mitnahme bitten, wenn der Code fehlt. */
 export const askToJoin = (resourceId: string, offer: Pick<Offer, 'itemId' | 'occurrenceAt'>,
-  seat: string): Promise<Taken> =>
+  holder: Holder): Promise<Taken> =>
   call('/resource/ask', {
     method: 'POST',
-    body: JSON.stringify({ resourceId, itemId: offer.itemId, occurrenceAt: offer.occurrenceAt, seat })
+    body: JSON.stringify({ resourceId, itemId: offer.itemId, occurrenceAt: offer.occurrenceAt, ...who(holder) })
   });
 
 /** Der Gastgeber sagt ja oder nein. */
-export const hostDecides = (claimId: string, accept: boolean, seat: string) =>
+export const hostDecides = (claimId: string, accept: boolean, holder: Holder) =>
   call<{ status: Status }>('/resource/decide', {
-    method: 'POST', body: JSON.stringify({ claimId, accept, seat })
+    method: 'POST', body: JSON.stringify({ claimId, accept, ...who(holder) })
   });
 
 /* -- die Kanzlei ---------------------------------------------------------- */
@@ -201,6 +285,7 @@ export type ResourceChange = Partial<{
   approval: 'none' | 'office';
   inviteHours: number;
   leadDays: number;
+  perPerson: number;
 }>;
 
 export const createResource = (resourceId: string, areaId: string, change: ResourceChange) =>
@@ -224,6 +309,11 @@ export interface OfficeClaim {
   readonly name: string | null;
   readonly roleId: string | null;
   readonly createdAt: string;
+
+  /** Welcher Termin (0045) — und bis wann der Gastgeber allein einlädt. */
+  readonly itemId: string | null;
+  readonly occurrenceAt: string | null;
+  readonly inviteUntil: string | null;
 }
 
 export const loadClaims = (resourceId: string): Promise<{ resource: ResourceRow; claims: readonly OfficeClaim[] }> =>

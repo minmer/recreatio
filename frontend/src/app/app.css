@@ -1593,3 +1593,45 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-seat-bar { display: grid; gap: 0.5rem; margin-bottom: 1rem; }
 .wk-seat-fold { margin-top: 0; }
 .wk-seat-fold > summary .wk-row-side { font-weight: 400; }
+
+/* ===========================================================================
+   Für wen — einmal für die ganze Seite (0045)
+   =========================================================================== */
+
+/* Oben, rechts, unaufdringlich: eine Zeile, kein Kasten. */
+.wk-page-top { display: flex; justify-content: flex-end; min-height: 0; }
+
+.wk-person-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--wk-muted);
+}
+
+.wk-person-pick select {
+  font: inherit;
+  color: var(--wk-ink);
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 3px;
+  background: var(--wk-surface);
+  max-width: 16rem;
+}
+
+.wk-person-pick select:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+
+/* Der eigene Link und das Binden — klein, unter der eigenen Einsendung. */
+.wk-seat-tools { display: grid; gap: 0.4rem; margin-top: 0.6rem; }
+.wk-seat-tools .wk-fold { margin-top: 0; }
+
+/* -- Rezerwacja ------------------------------------------------------------ */
+
+.wk-host-info { flex-basis: 100%; font-size: 0.84rem; color: var(--wk-muted); }
+.wk-code-inline { display: inline-block; margin: 0 0.3rem; font-size: 1rem; letter-spacing: 0.3em; }
+
+.wk-slot-people { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.3rem; }
+.wk-slot-host { display: block; margin-top: 0.2rem; }
+
+.wk-slot-rules { display: grid; gap: 0.4rem; margin-bottom: 0.6rem; }
+.wk-field-num input { width: 6rem; }

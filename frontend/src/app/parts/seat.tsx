@@ -20,6 +20,8 @@
 import type { ReactNode } from 'react';
 
 import { definePart, picked, text, type RawConfig } from '../part';
+import { usePerson } from '../pagePerson';
+import { SeatTools } from '../SeatBar';
 import { seatName, useSeats, type SeatView } from '../seatContext';
 import { OwnSubmissions } from '../Submission';
 
@@ -40,7 +42,34 @@ function OnSeat({ title, fallback, empty, children }: {
   children: (seat: SeatView) => ReactNode;
 }) {
   const seats = useSeats();
+  const person = usePerson();
   const head = <h2 className="wk-card-title">{title === '' ? fallback : title}</h2>;
+
+  /*
+   * AUF EINER SEITE gilt die EINE Wahl von oben (`PersonPicker`): der
+   * Gewählte, und nur er. Hier standen vorher alle geöffneten Plätze
+   * untereinander, jeder unter seinem Namen.
+   */
+  if (person !== null) {
+    const chosen = person.chosen;
+
+    if (chosen?.kind === 'seat') {
+      return <>{head}{chosen.seat.seatKey === null
+        ? <p className="wk-card-muted">Bez klucza z adresu nie da się tego otworzyć.</p>
+        : children(chosen.seat)}</>;
+    }
+
+    return (
+      <>
+        {head}
+        <p className="wk-card-muted">
+          {chosen?.kind === 'role'
+            ? `Osoba „${chosen.name}" nie otworzyła tu żadnego linku — to, co wysłała z linku, pokaże się po jego otwarciu.`
+            : seats.length > 0 ? 'Wybierz u góry strony, za kogo.' : empty}
+        </p>
+      </>
+    );
+  }
 
   if (seats.length === 0) {
     return <>{head}<p className="wk-card-muted">{empty}</p></>;
@@ -122,15 +151,18 @@ export const seatSubmissionPart = definePart<SubmissionConfig>({
       empty="Tu pojawi się zgłoszenie osoby, która otworzy swój link."
     >
       {(seat) => (
-        <OwnSubmissions
-          values={seat.submitted}
-          open={seat.opened}
-          token={seat.token}
-          seatKey={seat.seatKey}
-          formId={config.form}
-          show={config.show === 'all' ? null : config.show}
-          onSaved={seat.reload}
-        />
+        <>
+          <OwnSubmissions
+            values={seat.submitted}
+            open={seat.opened}
+            token={seat.token}
+            seatKey={seat.seatKey}
+            formId={config.form}
+            show={config.show === 'all' ? null : config.show}
+            onSaved={seat.reload}
+          />
+          <SeatTools seat={seat} />
+        </>
       )}
     </OnSeat>
   )

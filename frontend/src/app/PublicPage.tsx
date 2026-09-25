@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { loadPage, toDraft, type PageContent } from './page';
 import { PageParts } from './PageParts';
+import { PersonPicker, PersonProvider, usePerson } from './pagePerson';
 import { PersonalSections, SeatBar } from './SeatBar';
 import { SeatContext, SeatStateContext, useSeats, useSeatStates, type SeatState } from './seatContext';
 import { freshSeat, seatsExactly, seatsFor } from './seatKeep';
@@ -84,21 +85,27 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
   }
 
   return (
-    <>
-      {page.title !== null && <h1 className="wk-h1">{page.title}</h1>}
-      {page.lead !== null && <p className="wk-lede wk-page-lead">{page.lead}</p>}
+    <WithSeat path={page.path}>
+      <PersonProvider path={page.path}>
+        {/*
+          FÜR WEN — einmal, oben, für die ganze Seite. Die Rezerwacja, das
+          Formular und die persönlichen Bausteine lesen dieselbe Wahl.
+        */}
+        <div className="wk-page-top"><PersonPicker /></div>
 
-      <WithSeat path={page.path}>
+        {page.title !== null && <h1 className="wk-h1">{page.title}</h1>}
+        {page.lead !== null && <p className="wk-lede wk-page-lead">{page.lead}</p>}
+
         <SeatBar path={page.path} />
         <PageParts parts={parts} />
 
         {/*
           Keine persönlichen Bausteine auf dieser Seite? Dann die eingebauten
-          Abschnitte — für den Platz, dessen Link HIERHER geführt hat.
+          Abschnitte — für den Gewählten, wenn sein Link HIERHER geführt hat.
         */}
         {!parts.some((one) => one.kind.startsWith('seat-')) && <Fallback path={page.path} />}
-      </WithSeat>
-    </>
+      </PersonProvider>
+    </WithSeat>
   );
 }
 
@@ -165,18 +172,13 @@ function Opened({ token, children }: { token: string; children: React.ReactNode 
   );
 }
 
-/** Die eingebauten Abschnitte für die Plätze, deren Link GENAU hierher geführt hat. */
+/** Die eingebauten Abschnitte — für den Gewählten, wenn sein Link GENAU hierher geführt hat. */
 function Fallback({ path }: { path: string }) {
-  const seats = useSeats();
-  const exact = useMemo(() => new Set(seatsExactly(path)), [path, seats]);
+  const chosen = usePerson()?.chosen ?? null;
+  const exact = useMemo(() => new Set(seatsExactly(path)), [path, chosen]);
 
-  return (
-    <>
-      {seats.filter((seat) => exact.has(seat.token) && seat.seatKey !== null).map((seat) => (
-        <PersonalSections seat={seat} key={seat.token} />
-      ))}
-    </>
-  );
+  if (chosen?.kind !== 'seat' || !exact.has(chosen.seat.token)) return null;
+  return <PersonalSections seat={chosen.seat} />;
 }
 
 export default PublicPage;

@@ -83,6 +83,12 @@ public enum Field
     /// </summary>
     FormDesign,
 
+    /// <summary>
+    /// 0045 — der Code des Gastgebers eines Termins, versiegelt unter dem
+    /// Schluessel dessen, der ihn haelt (Platz oder Person). Der Dienst liest ihn nie.
+    /// </summary>
+    ClaimInvite,
+
     /// <summary>Eine eingesandte Antwort. Besondere Kategorie, bis das Gegenteil gesagt wird.</summary>
     EventAnswer,
 
@@ -370,6 +376,7 @@ public readonly record struct Aad
         Field.EventFieldHelp          => "field_help",
         Field.EventFieldOptions       => "field_options",
         Field.FormDesign              => "form_design",
+        Field.ClaimInvite             => "claim_invite",
         Field.EventAnswer             => "answer",
         Field.EventIntakeKey          => "intake_key",
         Field.OfficeValueKey          => "office_value_key",

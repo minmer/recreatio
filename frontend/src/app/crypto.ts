@@ -127,7 +127,8 @@ export const Field = {
   EventFieldOptions: 'field_options',
 
   /* 0043 — Aufbau und Logik eines Formulars, unter dem Schlüssel seines Bereichs. */
-  FormDesign: 'form_design'
+  FormDesign: 'form_design',
+  ClaimInvite: 'claim_invite'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

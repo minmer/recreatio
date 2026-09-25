@@ -75,11 +75,15 @@ public static class Bookings
     internal sealed record ResourceRow(
         Guid Id, Guid AreaId, Guid? ParentId, Guid? CalendarId, string Name, string Kind,
         string Mode, bool ByNight, int CheckInMin, int CheckOutMin, int Capacity,
-        int BufferBefore, int BufferAfter, string Approval, int InviteHours, int LeadDays);
+        int BufferBefore, int BufferAfter, string Approval, int InviteHours, int LeadDays,
+
+        /* Wie viele Termine EINER halten darf — 0: keine Grenze (0045). */
+        int PerPerson);
 
     private const string ResourceColumns = """
         id, area_id, parent_id, calendar_id, name, kind, mode, by_night, check_in_min,
-        check_out_min, capacity, buffer_before, buffer_after, approval, invite_hours, lead_days
+        check_out_min, capacity, buffer_before, buffer_after, approval, invite_hours, lead_days,
+        per_person
         """;
 
     private static ResourceRow ReadResource(SqlDataReader r) => new(
@@ -88,7 +92,7 @@ public static class Bookings
         r.IsDBNull(3) ? null : r.GetGuid(3),
         r.GetString(4), r.GetString(5), r.GetString(6), r.GetBoolean(7),
         r.GetInt32(8), r.GetInt32(9), r.GetInt32(10), r.GetInt32(11), r.GetInt32(12),
-        r.GetString(13), r.GetInt32(14), r.GetInt32(15));
+        r.GetString(13), r.GetInt32(14), r.GetInt32(15), r.GetInt32(16));
 
     private static async Task<ResourceRow?> ResourceAsync(
         SqlConnection connection, Guid id, CancellationToken ct)
@@ -155,11 +159,19 @@ public static class Bookings
     private sealed record ClaimRow(
         Guid Id, Guid ResourceId, DateTimeOffset StartsAt, DateTimeOffset EndsAt,
         Guid? ItemId, DateTimeOffset? OccurrenceAt, Guid? AccessId, Guid? RoleId, Guid GroupId,
-        string Status, string? Awaits, byte[]? InviteSha256, DateTimeOffset? InviteUntil);
+        string Status, string? Awaits, byte[]? InviteSha256, DateTimeOffset? InviteUntil,
+        byte[]? InviteSealed, string? HolderName)
+    {
+        /// <summary>
+        /// Haelt DIESER ihn — ein Platz oder eine Rolle (0045)? Die Kennungen
+        /// kommen aus verschiedenen Tabellen und koennen sich nicht gleichen.
+        /// </summary>
+        public bool HeldBy(Guid me) => AccessId == me || RoleId == me;
+    }
 
     private const string ClaimColumns = """
         id, resource_id, starts_at, ends_at, item_id, occurrence_at, access_id, role_id,
-        group_id, status, awaits, invite_sha256, invite_until
+        group_id, status, awaits, invite_sha256, invite_until, invite_sealed, holder_name
         """;
 
     private static ClaimRow ReadClaim(SqlDataReader r) => new(
@@ -171,7 +183,9 @@ public static class Bookings
         r.GetGuid(8), r.GetString(9),
         r.IsDBNull(10) ? null : r.GetString(10),
         r.IsDBNull(11) ? null : (byte[])r[11],
-        r.IsDBNull(12) ? null : r.GetDateTimeOffset(12));
+        r.IsDBNull(12) ? null : r.GetDateTimeOffset(12),
+        r.IsDBNull(13) ? null : (byte[])r[13],
+        r.IsDBNull(14) ? null : r.GetString(14));
 
     /// <summary>
     /// ZAEHLT GEGEN DIE GRENZE?
@@ -416,14 +430,38 @@ public static class Bookings
 
     public sealed record ClaimRequest(
         string ResourceId, string? ItemId, string? OccurrenceAt,
-        string? StartsAt, string? EndsAt, string? Seat, string? Code, string? GroupId);
+        string? StartsAt, string? EndsAt, string? Seat, string? Code, string? GroupId,
+
+        /* -- 0045 ---------------------------------------------------------- */
+
+        /* Statt eines Platzes: eine eigene Person (mit Anmeldung). */
+        string? RoleId = null,
+
+        /* Wie sie heisst — OFFEN, damit die Kanzlei weiss, wer da sitzt. */
+        string? Name = null,
+
+        /* Die Kennung, die der Browser gewuerfelt hat — der Code ist an sie gebunden. */
+        string? ClaimId = null,
+
+        /*
+         * Der Code des Gastgebers, im Browser gewuerfelt: sein Abdruck, und
+         * er selbst versiegelt unter dem Schluessel des Halters. Gebraucht
+         * nur, wenn dieser Anspruch der erste auf dem Termin ist.
+         */
+        string? InviteSha256 = null,
+        string? InviteSealed = null,
+
+        /* Einen eigenen Termin gegen diesen tauschen — in EINEM Schritt. */
+        string? Replaces = null);
 
     private static async Task ClaimAsync(HttpContext ctx, Db db, ClaimRequest body)
     {
         await TakeAsync(ctx, db, body, asking: false);
     }
 
-    public sealed record AskRequest(string ResourceId, string ItemId, string OccurrenceAt, string? Seat);
+    public sealed record AskRequest(
+        string ResourceId, string ItemId, string OccurrenceAt, string? Seat,
+        string? RoleId = null, string? Name = null);
 
     /// <summary>
     /// Um Mitnahme bitten — der zweite Weg hinein, wenn der Code fehlt.
@@ -437,7 +475,8 @@ public static class Bookings
     private static async Task AskAsync(HttpContext ctx, Db db, AskRequest body)
     {
         await TakeAsync(ctx, db,
-            new ClaimRequest(body.ResourceId, body.ItemId, body.OccurrenceAt, null, null, body.Seat, null, null),
+            new ClaimRequest(body.ResourceId, body.ItemId, body.OccurrenceAt, null, null, body.Seat, null, null,
+                RoleId: body.RoleId, Name: body.Name),
             asking: true);
     }
 
@@ -454,12 +493,15 @@ public static class Bookings
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        var me = await SeatOfAsync(connection, body.Seat, ctx.RequestAborted);
-        if (me is null)
+        /* Ein Platz — oder eine eigene Person, mit Anmeldung (0045). */
+        var holder = await HolderAsync(ctx, db, connection, body.Seat, body.RoleId, ctx.RequestAborted);
+        if (holder is null)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
             return;
         }
+
+        var me = holder.Value.Id;
 
         var resource = await ResourceAsync(connection, resourceId, ctx.RequestAborted);
         if (resource is null)
@@ -541,9 +583,49 @@ public static class Bookings
             group = g;
         }
 
+        Guid? replaces = null;
+        if (!string.IsNullOrWhiteSpace(body.Replaces))
+        {
+            if (!Guid.TryParse(body.Replaces, out var r))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna rezerwacja do zamiany.");
+                return;
+            }
+            replaces = r;
+        }
+
+        /*
+         * DIE KENNUNG — vom Browser, wenn er eine mitbringt: an sie ist der
+         * versiegelte Code gebunden. Eine, die es schon gibt, laeuft unten in
+         * den Schluessel und wird abgelehnt.
+         */
+        var claimId = Guid.TryParse(body.ClaimId, out var chosenId) ? chosenId : Ids.NewId();
+
+        /* Der Code aus dem Browser: Abdruck und Siegel — beides oder keins. */
+        byte[]? offeredHash = null, offeredSealed = null;
+        if (!string.IsNullOrWhiteSpace(body.InviteSha256) || !string.IsNullOrWhiteSpace(body.InviteSealed))
+        {
+            try
+            {
+                offeredHash = Base64Url.Decode(body.InviteSha256 ?? string.Empty);
+                offeredSealed = Base64Url.Decode(body.InviteSealed ?? string.Empty);
+            }
+            catch (FormatException) { offeredHash = null; }
+
+            if (offeredHash is null || offeredHash.Length != 32 || offeredSealed is null
+                || offeredSealed.Length is 0 or > 4096)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny kod gospodarza.");
+                return;
+            }
+        }
+
+        var name = string.IsNullOrWhiteSpace(body.Name) ? null : body.Name.Trim();
+        if (name is not null && name.Length > MaxName) name = name[..MaxName];
+
         var tree = await TreeAsync(connection, null, resource, ctx.RequestAborted);
-        var claimId = Ids.NewId();
         string? code = null;
+        byte[]? hash = null, sealedCode = null;
         string status;
 
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
@@ -568,10 +650,10 @@ public static class Bookings
             if (group is not null)
             {
                 await using var own = new SqlCommand(
-                    "SELECT COUNT(*) FROM app.claim WHERE group_id = @g AND (access_id IS NULL OR access_id <> @me);",
+                    "SELECT COUNT(*) FROM app.claim WHERE group_id = @g AND COALESCE(access_id, role_id) <> @me;",
                     connection, tx);
                 own.Parameters.AddWithValue("@g", group.Value);
-                own.Parameters.AddWithValue("@me", me.Value);
+                own.Parameters.AddWithValue("@me", me);
 
                 if ((int)(await own.ExecuteScalarAsync(ctx.RequestAborted))! > 0)
                 {
@@ -581,11 +663,54 @@ public static class Bookings
                 }
             }
 
+            /* Was getauscht wird, muss seins sein, hier, und noch stehen. */
+            if (replaces is not null)
+            {
+                var old = await ClaimByIdAsync(connection, tx, replaces.Value, ctx.RequestAborted);
+                if (old is null || !old.HeldBy(me) || old.ResourceId != resource.Id || !Live(old))
+                {
+                    await tx.RollbackAsync(ctx.RequestAborted);
+                    await Fail(ctx, StatusCodes.Status404NotFound, "Nie ma czego zamienić.");
+                    return;
+                }
+            }
+
+            /*
+             * -- JE MENSCH HOECHSTENS SO VIELE (0045) ------------------------------
+             *
+             * Unter derselben Sperre wie die Plaetze: zwei Klicks im selben
+             * Augenblick sollen nicht beide unter der Grenze durchrutschen. Was
+             * getauscht wird, zaehlt nicht mit — es geht ja gerade.
+             */
+            if (resource.PerPerson > 0)
+            {
+                await using var count = new SqlCommand("""
+                    SELECT COUNT(*) FROM app.claim
+                    WHERE resource_id = @r AND (access_id = @me OR role_id = @me)
+                      AND status IN (N'pending', N'confirmed') AND ends_at > @now
+                      AND (@old IS NULL OR id <> @old);
+                    """, connection, tx);
+                count.Parameters.AddWithValue("@r", resource.Id);
+                count.Parameters.AddWithValue("@me", me);
+                count.Parameters.AddWithValue("@now", now);
+                count.Parameters.Add("@old", System.Data.SqlDbType.UniqueIdentifier).Value =
+                    (object?)replaces ?? DBNull.Value;
+
+                if ((int)(await count.ExecuteScalarAsync(ctx.RequestAborted))! >= resource.PerPerson)
+                {
+                    await tx.RollbackAsync(ctx.RequestAborted);
+                    await Fail(ctx, StatusCodes.Status409Conflict, resource.PerPerson == 1
+                        ? "Możesz mieć tylko jeden termin — zamień go albo najpierw oddaj."
+                        : $"Możesz mieć najwyżej {resource.PerPerson} terminy — zamień jeden albo najpierw oddaj.");
+                    return;
+                }
+            }
+
             var verdict = resource.Mode == "offered"
                 ? await JudgeOfferAsync(connection, tx, resource, itemId!.Value, occurrenceAt!.Value,
-                    me.Value, body.Code, now, ctx.RequestAborted)
+                    me, body.Code, now, ctx.RequestAborted)
                 : await JudgeOpenAsync(connection, tx, resource, tree.Above, tree.Below,
-                    starts, ends, me.Value, ctx.RequestAborted);
+                    starts, ends, me, ctx.RequestAborted);
 
             /*
              * Um Mitnahme bitten geht genau dann, wenn Nehmen am Code scheitert.
@@ -620,15 +745,47 @@ public static class Bookings
                 && await TakenAsync(connection, tx, resource.Id, itemId!.Value, occurrenceAt!.Value,
                     ctx.RequestAborted) == 0;
 
-            if (firstOnOffer) code = NewCode();
+            if (firstOnOffer)
+            {
+                /*
+                 * Bringt der Browser seinen Code mit, kennt der Dienst ihn nicht
+                 * einmal — nur den Abdruck und das Siegel. Sonst wuerfelt er ihn
+                 * wie bisher und sagt ihn genau einmal.
+                 */
+                if (offeredHash is not null)
+                {
+                    (hash, sealedCode) = (offeredHash, offeredSealed);
+                }
+                else
+                {
+                    code = NewCode();
+                    hash = HashCode(code);
+                }
+            }
+
+            /* Der Tausch: der alte geht in DERSELBEN Transaktion. */
+            if (replaces is not null)
+            {
+                await using var drop = new SqlCommand("""
+                    UPDATE app.claim
+                       SET status = N'released', awaits = NULL, released_at = @now,
+                           invite_sha256 = NULL, invite_until = NULL, invite_sealed = NULL
+                     WHERE id = @old;
+                    """, connection, tx);
+                drop.Parameters.AddWithValue("@old", replaces.Value);
+                drop.Parameters.AddWithValue("@now", now);
+                await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
 
             await using (var insert = new SqlCommand("""
                 INSERT INTO app.claim
-                    (id, resource_id, starts_at, ends_at, item_id, occurrence_at, access_id,
-                     group_id, status, awaits, invite_sha256, invite_until, created_at)
+                    (id, resource_id, starts_at, ends_at, item_id, occurrence_at, access_id, role_id,
+                     group_id, status, awaits, invite_sha256, invite_until, invite_sealed, holder_name,
+                     created_at)
                 VALUES
-                    (@id, @r, @s, @e, @item, @at, @me,
-                     @group, @status, @awaits, @hash, @until, @now);
+                    (@id, @r, @s, @e, @item, @at, @access, @role,
+                     @group, @status, @awaits, @hash, @until, @sealed, @name,
+                     @now);
                 """, connection, tx))
             {
                 insert.Parameters.AddWithValue("@id", claimId);
@@ -637,14 +794,17 @@ public static class Bookings
                 insert.Parameters.AddWithValue("@e", ends);
                 insert.Parameters.AddWithValue("@item", (object?)itemId ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@at", (object?)occurrenceAt ?? DBNull.Value);
-                insert.Parameters.AddWithValue("@me", me.Value);
+                insert.Parameters.AddWithValue("@access", holder.Value.IsRole ? DBNull.Value : (object)me);
+                insert.Parameters.AddWithValue("@role", holder.Value.IsRole ? (object)me : DBNull.Value);
                 insert.Parameters.AddWithValue("@group", group ?? claimId);
                 insert.Parameters.AddWithValue("@status", status);
                 insert.Parameters.AddWithValue("@awaits",
                     status == "pending" ? (asking ? "host" : "office") : DBNull.Value);
-                insert.Parameters.AddBlob("@hash", code is null ? null : HashCode(code));
+                insert.Parameters.AddBlob("@hash", hash);
                 insert.Parameters.AddWithValue("@until",
-                    code is null ? DBNull.Value : now.AddHours(resource.InviteHours));
+                    hash is null ? DBNull.Value : now.AddHours(resource.InviteHours));
+                insert.Parameters.AddBlob("@sealed", sealedCode);
+                insert.Parameters.AddWithValue("@name", (object?)name ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@now", now);
 
                 await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
@@ -674,13 +834,14 @@ public static class Bookings
             awaits = status == "pending" ? (asking ? "host" : "office") : null,
 
             /*
-             * DER CODE STEHT GENAU EINMAL HIER. Gespeichert ist nur sein
-             * Abdruck; wer ihn verliert, gibt den Termin zurueck und nimmt ihn
-             * neu — einen zweiten Weg zu bauen hiesse, ein Geheimnis
-             * nachschlagbar zu machen.
+             * DER CODE — nur, wenn der Dienst ihn gewuerfelt hat, und dann
+             * genau einmal. Hat der Browser ihn mitgebracht, steht hier nichts:
+             * er kennt ihn, und versiegelt liegt er fuer ihn bereit.
              */
             inviteCode = code,
-            inviteUntil = code is null ? (DateTimeOffset?)null : now.AddHours(resource.InviteHours)
+            hosting = hash is not null,
+            inviteUntil = hash is null ? (DateTimeOffset?)null : now.AddHours(resource.InviteHours),
+            replaced = replaces is null ? null : Ids.ToText(replaces.Value)
         });
     }
 
@@ -695,7 +856,7 @@ public static class Bookings
         return JudgeOffer(
             resource.Capacity, resource.InviteHours,
             claims.Count(Counts),
-            claims.Any(c => Live(c) && c.AccessId == me),
+            claims.Any(c => Live(c) && c.HeldBy(me)),
             host?.InviteSha256, host?.InviteUntil, code, now);
     }
 
@@ -728,7 +889,7 @@ public static class Bookings
         var counted = claims.Where(Counts).ToList();
 
         /* Genau dasselbe noch einmal zu nehmen ist kein neuer Wunsch. */
-        if (claims.Any(c => c.ResourceId == resource.Id && c.AccessId == me
+        if (claims.Any(c => c.ResourceId == resource.Id && c.HeldBy(me)
                             && c.StartsAt == starts && c.EndsAt == ends))
             return Verdict.Mine;
 
@@ -797,7 +958,7 @@ public static class Bookings
        ZURUECKGEBEN
        ====================================================================== */
 
-    public sealed record ReleaseRequest(string ClaimId, string? Seat);
+    public sealed record ReleaseRequest(string ClaimId, string? Seat, string? RoleId = null);
 
     /// <summary>
     /// Zurueckgeben.
@@ -819,8 +980,8 @@ public static class Bookings
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        var me = await SeatOfAsync(connection, body.Seat, ctx.RequestAborted);
-        if (me is null)
+        var holder = await HolderAsync(ctx, db, connection, body.Seat, body.RoleId, ctx.RequestAborted);
+        if (holder is null)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
             return;
@@ -829,12 +990,13 @@ public static class Bookings
         await using var cmd = new SqlCommand("""
             UPDATE app.claim
                SET status = N'released', awaits = NULL, released_at = @now,
-                   invite_sha256 = NULL, invite_until = NULL
-             WHERE id = @id AND access_id = @me AND status IN (N'pending', N'confirmed');
+                   invite_sha256 = NULL, invite_until = NULL, invite_sealed = NULL
+             WHERE id = @id AND (access_id = @me OR role_id = @me)
+               AND status IN (N'pending', N'confirmed');
             """, connection);
 
         cmd.Parameters.AddWithValue("@id", claimId);
-        cmd.Parameters.AddWithValue("@me", me.Value);
+        cmd.Parameters.AddWithValue("@me", holder.Value.Id);
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
 
         if (await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 0)
@@ -850,7 +1012,7 @@ public static class Bookings
        JA ODER NEIN
        ====================================================================== */
 
-    public sealed record DecideRequest(string ClaimId, bool Accept, string? Seat);
+    public sealed record DecideRequest(string ClaimId, bool Accept, string? Seat, string? RoleId = null);
 
     /// <summary>
     /// Der GASTGEBER sagt ja oder nein zu einer Bitte um Mitnahme.
@@ -872,12 +1034,14 @@ public static class Bookings
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        var me = await SeatOfAsync(connection, body.Seat, ctx.RequestAborted);
-        if (me is null)
+        var holder = await HolderAsync(ctx, db, connection, body.Seat, body.RoleId, ctx.RequestAborted);
+        if (holder is null)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
             return;
         }
+
+        var me = holder.Value.Id;
 
         var ask = await ClaimByIdAsync(connection, null, claimId, ctx.RequestAborted);
         if (ask is null || ask.Status != "pending" || ask.Awaits != "host" || ask.ItemId is null)
@@ -912,7 +1076,7 @@ public static class Bookings
             /* Nur wer den Termin HAELT, entscheidet — nicht wer bloss darauf sitzt. */
             var host = claims.FirstOrDefault(c => c.Status == "confirmed" && c.InviteSha256 is not null);
 
-            if (host is null || host.AccessId != me)
+            if (host is null || !host.HeldBy(me))
             {
                 await tx.RollbackAsync(ctx.RequestAborted);
                 await Fail(ctx, StatusCodes.Status403Forbidden, "O tym decyduje gospodarz terminu.");
@@ -1045,7 +1209,7 @@ public static class Bookings
     /// </para>
     /// </summary>
     private static async Task OffersAsync(
-        HttpContext ctx, Db db, string? resource, string? seat, string? from, string? to)
+        HttpContext ctx, Db db, string? resource, string? seat, string? role, string? from, string? to)
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
@@ -1064,7 +1228,8 @@ public static class Bookings
         var till = DateTimeOffset.TryParse(to, out var t) && t > since ? t : since.AddDays(60);
         if (till > since.AddDays(400)) till = since.AddDays(400);
 
-        var me = await SeatOfAsync(connection, seat, ctx.RequestAborted);
+        /* Ein Platz — oder eine eigene Person, mit Anmeldung (0045). */
+        var me = (await HolderAsync(ctx, db, connection, seat, role, ctx.RequestAborted))?.Id;
 
         var rules = new
         {
@@ -1080,7 +1245,8 @@ public static class Bookings
             bufferAfter = found.BufferAfter,
             approval = found.Approval,
             inviteHours = found.InviteHours,
-            leadDays = found.LeadDays
+            leadDays = found.LeadDays,
+            perPerson = found.PerPerson
         };
 
         /* Was DIESER Platz haelt — in jedem Fall. */
@@ -1100,12 +1266,12 @@ public static class Bookings
 
                 var taken = claims.Count(Counts);
                 var host = claims.FirstOrDefault(c => c.Status == "confirmed" && c.InviteSha256 is not null);
-                var myClaim = me is null ? null : claims.FirstOrDefault(c => c.AccessId == me);
+                var myClaim = me is null ? null : claims.FirstOrDefault(c => c.HeldBy(me.Value));
 
                 var verdict = JudgeOffer(found.Capacity, found.InviteHours, taken,
                     myClaim is not null, host?.InviteSha256, host?.InviteUntil, null, now);
 
-                var hosting = host is not null && me is not null && host.AccessId == me;
+                var hosting = host is not null && me is not null && host.HeldBy(me.Value);
 
                 shown.Add(new
                 {
@@ -1184,7 +1350,7 @@ public static class Bookings
 
         await using var cmd = new SqlCommand($"""
             SELECT {ClaimColumns} FROM app.claim
-            WHERE resource_id = @r AND access_id = @me AND status <> N'released'
+            WHERE resource_id = @r AND (access_id = @me OR role_id = @me) AND status <> N'released'
             ORDER BY starts_at;
             """, connection);
 
@@ -1206,7 +1372,10 @@ public static class Bookings
                 status = c.Status,
                 awaits = c.Awaits,
                 hosting = c.InviteSha256 is not null,
-                inviteUntil = c.InviteUntil
+                inviteUntil = c.InviteUntil,
+
+                /* Der Code, versiegelt unter dem Schluessel des Halters — lesen kann ihn nur er (0045). */
+                inviteSealed = c.InviteSealed is null ? null : Base64Url.Encode(c.InviteSealed)
             });
         }
 
@@ -1220,9 +1389,9 @@ public static class Bookings
 
         foreach (var c in claims.Where(c => c.Status == "pending" && c.Awaits == "host"))
         {
-            string? name = null;
+            string? name = c.HolderName;
 
-            if (c.AccessId is not null)
+            if (name is null && c.AccessId is not null)
             {
                 await using var cmd = new SqlCommand(
                     "SELECT recipient_name FROM app.access WHERE id = @a;", connection);
@@ -1308,6 +1477,7 @@ public static class Bookings
             approval = row.Approval,
             inviteHours = row.InviteHours,
             leadDays = row.LeadDays,
+            perPerson = row.PerPerson,
 
             /* Was auf ein Ja der Kanzlei wartet — die Zahl, die zuerst zaehlt. */
             pending
@@ -1318,7 +1488,7 @@ public static class Bookings
         string? ResourceId, string? AreaId, string? ParentId, string? CalendarId,
         string? Name, string? Kind, string? Mode, bool? ByNight, int? CheckInMin, int? CheckOutMin,
         int? Capacity, int? BufferBefore, int? BufferAfter, string? Approval,
-        int? InviteHours, int? LeadDays);
+        int? InviteHours, int? LeadDays, int? PerPerson = null);
 
     private static async Task CreateAsync(HttpContext ctx, Db db, ResourceBody body)
     {
@@ -1340,7 +1510,7 @@ public static class Bookings
         }
 
         var draft = new ResourceRow(id, areaId, null, null, "", "other", "offered", false,
-            960, 600, 1, 0, 0, "none", 0, 0);
+            960, 600, 1, 0, 0, "none", 0, 0, 0);
 
         var (row, error) = await Merge(connection, draft, body, ctx.RequestAborted);
         if (row is null)
@@ -1353,10 +1523,10 @@ public static class Bookings
             INSERT INTO app.resource
                 (id, area_id, parent_id, calendar_id, name, kind, mode, by_night, check_in_min,
                  check_out_min, capacity, buffer_before, buffer_after, approval, invite_hours,
-                 lead_days, created_at, updated_at)
+                 lead_days, per_person, created_at, updated_at)
             VALUES
                 (@id, @area, @parent, @cal, @name, @kind, @mode, @night, @in, @out,
-                 @cap, @bb, @ba, @appr, @inv, @lead, @now, @now);
+                 @cap, @bb, @ba, @appr, @inv, @lead, @pp, @now, @now);
             """, connection))
         {
             Bind(cmd, row);
@@ -1407,7 +1577,7 @@ public static class Bookings
                SET parent_id = @parent, calendar_id = @cal, name = @name, kind = @kind,
                    mode = @mode, by_night = @night, check_in_min = @in, check_out_min = @out,
                    capacity = @cap, buffer_before = @bb, buffer_after = @ba, approval = @appr,
-                   invite_hours = @inv, lead_days = @lead, updated_at = @now
+                   invite_hours = @inv, lead_days = @lead, per_person = @pp, updated_at = @now
              WHERE id = @id;
             """, connection))
         {
@@ -1492,6 +1662,14 @@ public static class Bookings
 
         int pick(int? given, int before) => given ?? before;
 
+        /*
+         * DIE ZAHLEN, mit Worten statt mit einem Fremdschluessel-Fehler: wer im
+         * Kalender „0 osób na termin" eintippt, soll lesen, was falsch ist.
+         */
+        if (pick(body.Capacity, was.Capacity) < 1) return (null, "Na termin musi móc przyjść co najmniej jedna osoba.");
+        if (pick(body.PerPerson, was.PerPerson) is < 0 or > 1000) return (null, "Terminów na osobę: od 0 (bez limitu) do 1000.");
+        if (pick(body.InviteHours, was.InviteHours) is < 0 or > 24 * 60) return (null, "Czas gospodarza: od 0 do 1440 godzin.");
+
         return (was with
         {
             ParentId = parent,
@@ -1507,7 +1685,8 @@ public static class Bookings
             BufferAfter = pick(body.BufferAfter, was.BufferAfter),
             Approval = approval,
             InviteHours = pick(body.InviteHours, was.InviteHours),
-            LeadDays = pick(body.LeadDays, was.LeadDays)
+            LeadDays = pick(body.LeadDays, was.LeadDays),
+            PerPerson = pick(body.PerPerson, was.PerPerson)
         }, null);
     }
 
@@ -1529,6 +1708,7 @@ public static class Bookings
         cmd.Parameters.AddWithValue("@appr", row.Approval);
         cmd.Parameters.AddWithValue("@inv", row.InviteHours);
         cmd.Parameters.AddWithValue("@lead", row.LeadDays);
+        cmd.Parameters.AddWithValue("@pp", row.PerPerson);
     }
 
     /* ======================================================================
@@ -1568,7 +1748,8 @@ public static class Bookings
 
         await using (var cmd = new SqlCommand($"""
             SELECT c.id, c.starts_at, c.ends_at, c.status, c.awaits, c.group_id,
-                   c.invite_sha256, a.recipient_name, c.role_id, c.created_at
+                   c.invite_sha256, COALESCE(a.recipient_name, c.holder_name), c.role_id, c.created_at,
+                   c.item_id, c.occurrence_at, c.invite_until
             FROM app.claim c
             LEFT JOIN app.access a ON a.id = c.access_id
             WHERE c.resource_id = @r AND c.status <> N'released'
@@ -1597,7 +1778,14 @@ public static class Bookings
                     hosting = !reader.IsDBNull(6),
                     name = reader.IsDBNull(7) ? null : reader.GetString(7),
                     roleId = reader.IsDBNull(8) ? null : Ids.ToText(reader.GetGuid(8)),
-                    createdAt = reader.GetDateTimeOffset(9)
+                    createdAt = reader.GetDateTimeOffset(9),
+
+                    /* Welcher Termin — damit der Kalender weiss, wer auf welchem sitzt (0045). */
+                    itemId = reader.IsDBNull(10) ? null : Ids.ToText(reader.GetGuid(10)),
+                    occurrenceAt = reader.IsDBNull(11) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(11),
+
+                    /* Wie lange er noch Gastgeber ist — bis dahin nur mit seinem Code. */
+                    inviteUntil = reader.IsDBNull(12) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(12)
                 });
             }
         }
@@ -1612,6 +1800,31 @@ public static class Bookings
     /* ======================================================================
        KLEINKRAM
        ====================================================================== */
+
+    /// <summary>
+    /// WER NIMMT — ein Platz (sein Token genuegt) oder eine eigene Person
+    /// (dann mit Anmeldung, und sie muss dem Konto gehoeren; das Konto selbst
+    /// nimmt nichts, 0040). <c>null</c>: niemand, der hier etwas nehmen darf.
+    /// </summary>
+    private static async Task<(Guid Id, bool IsRole)?> HolderAsync(
+        HttpContext ctx, Db db, SqlConnection connection, string? seat, string? roleId, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(seat))
+        {
+            var found = await SeatOfAsync(connection, seat, ct);
+            return found is null ? null : (found.Value, false);
+        }
+
+        if (!Guid.TryParse(roleId, out var role)) return null;
+
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) return null;
+
+        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ct);
+        if (!mine.Any(r => r.Id == role) || Workspace.IsAccount(mine, role)) return null;
+
+        return (role, true);
+    }
 
     private static async Task<Guid?> SeatOfAsync(
         SqlConnection connection, string? token, CancellationToken ct)

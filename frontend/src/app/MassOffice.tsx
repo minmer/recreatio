@@ -43,7 +43,7 @@ import {
 import { createCalendar, loadCalendars as loadAllCalendars } from './calendar';
 import { loadAreas, type AreaRow } from './area';
 import { printIntentions, sheetWeek } from './sheet';
-import { loadResources, type ResourceRow } from './resource';
+import { loadClaims, loadResources, updateResource, type OfficeClaim, type ResourceRow } from './resource';
 import { loadRoles, selfOf } from './roles';
 import { viewPath } from './routes';
 import { WorkspaceError } from './session';
@@ -464,6 +464,7 @@ function Row({ intention, onChanged, onError }: {
 function Appointments({ calendar, from }: { calendar: CalendarRow; from: string }) {
   const [items, setItems] = useState<readonly OfficeMass[]>([]);
   const [resource, setResource] = useState<ResourceRow | null | undefined>(undefined);
+  const [claims, setClaims] = useState<readonly OfficeClaim[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -477,8 +478,11 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
         loadResources().catch(() => ({ resources: [] as readonly ResourceRow[] }))
       ]);
 
+      const mine = all.resources.find((r) => r.calendarId === calendar.calendarId) ?? null;
+
       setItems(plan.masses);
-      setResource(all.resources.find((r) => r.calendarId === calendar.calendarId) ?? null);
+      setResource(mine);
+      setClaims(mine === null ? [] : (await loadClaims(mine.resourceId).catch(() => ({ claims: [] }))).claims);
       setFailed(null);
     } catch (e) {
       setItems([]);
@@ -488,6 +492,11 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
 
   useEffect(() => { void load(); }, [load]);
 
+  /* Wer auf welchem Termin sitzt — je Vorkommen, am ursprünglichen Beginn. */
+  const on = (one: OfficeMass) => claims.filter((c) => c.itemId === one.itemId
+    && c.occurrenceAt !== null && new Date(c.occurrenceAt).getTime() === new Date(one.occurrenceAt).getTime()
+    && (c.status === 'confirmed' || c.status === 'pending'));
+
   return (
     <>
       <h4 className="wk-h2">Terminy</h4>
@@ -495,12 +504,10 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
       {failed !== null && <p className="wk-error">{failed}</p>}
 
       {/*
-        WER SICH WORAUF GESETZT HAT, steht bei den Rezerwacje (0039) — an einer
-        Stelle für das Treffen mit dem Priester und für das Haus in Hortus Dei.
-        Hier stand es zusätzlich, mit einem Knopf „Otwórz na zapisy" je
-        Vorkommen. Den gibt es nicht mehr: gehört dieser Kalender einem Zasób,
-        ist JEDER Termin darin zu wählen, und wer einen nicht anbieten will,
-        streicht ihn hier im Kalender.
+        WER SICH WORAUF GESETZT HAT, steht bei den Rezerwacje (0039) — und jetzt
+        auch hier, je Termin (0045): wer, wer davon Gastgeber ist, und bis wann
+        er allein einlädt. Die Regeln des Zasób stehen darüber und lassen sich
+        hier ändern — genau dort, wo man sieht, was sie bewirken.
       */}
       {resource === undefined ? null : resource === null ? (
         <p className="wk-hint">
@@ -508,11 +515,7 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
           Załóż zasób w <a className="wk-link" href={viewPath('bookings', 'new')}>Rezerwacjach</a>.
         </p>
       ) : (
-        <p className="wk-hint">
-          Każdy termin tutaj można wybrać — to zasób{' '}
-          <a className="wk-link" href={viewPath('bookings', resource.resourceId)}>{resource.name}</a>
-          {' '}({resource.capacity} na termin). Kto się zapisał, widać tam.
-        </p>
+        <SlotRules row={resource} onSaved={(row) => setResource(row)} />
       )}
 
       {items.length === 0 ? (
@@ -521,6 +524,9 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
         <ul className="wk-list">
           {items.map((one) => {
             const when = new Date(one.startsAt);
+            const here = on(one);
+            const host = here.find((c) => c.hosting);
+            const counted = here.filter((c) => c.status === 'confirmed' || c.awaits === 'office').length;
 
             return (
               <li className="wk-row" key={`${one.itemId}:${one.occurrenceAt}`}>
@@ -532,6 +538,30 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
                     {when.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
                   </strong>
                   {one.title !== null && <> — {one.title}</>}
+
+                  {resource != null && (
+                    <span className="wk-row-side"> · {counted} z {resource.capacity}</span>
+                  )}
+
+                  {here.length > 0 && (
+                    <span className="wk-slot-people">
+                      {here.map((c) => (
+                        <span className={c.hosting ? 'wk-tag wk-tag-open' : 'wk-tag'} key={c.claimId}>
+                          {c.name ?? 'bez nazwy'}
+                          {c.hosting && ' · gospodarz'}
+                          {c.status === 'pending' && (c.awaits === 'host' ? ' · prosi gospodarza' : ' · czeka')}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+
+                  {host !== undefined && host.inviteUntil !== null && (
+                    <span className="wk-hint wk-slot-host">
+                      {new Date(host.inviteUntil).getTime() > Date.now()
+                        ? `Gospodarz (${host.name ?? 'bez nazwy'}) sam dobiera osoby do ${stamp(host.inviteUntil)} — potem wolne miejsca otworzą się dla wszystkich. Kod zna tylko on.`
+                        : `Czas gospodarza minął ${stamp(host.inviteUntil)} — wolne miejsca są dla wszystkich.`}
+                    </span>
+                  )}
                 </span>
               </li>
             );
@@ -539,6 +569,96 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
         </ul>
       )}
     </>
+  );
+}
+
+/** Ein Zeitpunkt, kurz: „26 września, 19:00". */
+const stamp = (at: string) => {
+  const d = new Date(at);
+  return `${d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}, ${
+    d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`;
+};
+
+/**
+ * DIE REGELN DER TERMINE (0045) — hier, wo man sie wirken sieht.
+ *
+ * <code>
+ *   osób na termin         wie viele auf EINEN Termin passen      (capacity)
+ *   terminów na osobę      wie viele Termine EINER halten darf    (per_person, 0 = frei)
+ *   godzin gospodarza      so lange lädt der Erste allein ein      (invite_hours, 0 = nie)
+ * </code>
+ *
+ * Dieselben Zahlen wie in „Rezerwacje › Zasady"; dort steht das Ganze, hier
+ * das, was man beim Planen der Termine braucht.
+ */
+function SlotRules({ row, onSaved }: { row: ResourceRow; onSaved: (row: ResourceRow) => void }) {
+  const [capacity, setCapacity] = useState(String(row.capacity));
+  const [perPerson, setPerPerson] = useState(String(row.perPerson));
+  const [hours, setHours] = useState(String(row.inviteHours));
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    setCapacity(String(row.capacity));
+    setPerPerson(String(row.perPerson));
+    setHours(String(row.inviteHours));
+  }, [row.resourceId, row.capacity, row.perPerson, row.inviteHours]);
+
+  const changed = capacity !== String(row.capacity) || perPerson !== String(row.perPerson)
+    || hours !== String(row.inviteHours);
+
+  const save = async () => {
+    setBusy(true);
+    setFailed(null);
+    setDone(false);
+
+    try {
+      onSaved(await updateResource(row.resourceId, {
+        capacity: Number(capacity), perPerson: Number(perPerson), inviteHours: Number(hours)
+      }));
+      setDone(true);
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="wk-slot-rules" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+      <p className="wk-hint">
+        Każdy termin tutaj można wybrać — to zasób{' '}
+        <a className="wk-link" href={viewPath('bookings', row.resourceId)}>{row.name}</a>.
+      </p>
+
+      <div className="wk-actions">
+        <label className="wk-field wk-field-num">
+          <span>Osób na termin</span>
+          <input type="number" min={1} value={capacity} disabled={busy} onChange={(e) => setCapacity(e.target.value)} />
+        </label>
+        <label className="wk-field wk-field-num">
+          <span>Terminów na osobę</span>
+          <input type="number" min={0} value={perPerson} disabled={busy} onChange={(e) => setPerPerson(e.target.value)} />
+        </label>
+        <label className="wk-field wk-field-num">
+          <span>Godzin gospodarza</span>
+          <input type="number" min={0} value={hours} disabled={busy} onChange={(e) => setHours(e.target.value)} />
+        </label>
+        {changed && <button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Zapisywanie…' : 'Zapisz'}</button>}
+        {done && !changed && <span className="wk-row-side">Zapisano.</span>}
+      </div>
+
+      <p className="wk-hint">
+        {Number(perPerson) === 0 ? 'Jedna osoba może wziąć dowolnie wiele terminów.'
+          : `Jedna osoba może mieć naraz ${perPerson} — potem może już tylko zamienić.`}
+        {' '}
+        {Number(hours) === 0 ? 'Bez gospodarza: każdy zapisuje się sam.'
+          : `Pierwszy zapisany na termin przez ${hours} h sam dobiera pozostałych — swoim kodem albo zgodą na prośbę.`}
+      </p>
+
+      {failed !== null && <p className="wk-error">{failed}</p>}
+    </form>
   );
 }
 
