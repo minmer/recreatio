@@ -630,7 +630,8 @@ public static class Calendar
             await using var find = new SqlCommand("""
                 SELECT id FROM app.access
                 WHERE token_sha256 = @token AND revoked_at IS NULL AND status = N'active'
-                  AND (expires_at IS NULL OR expires_at > @now);
+                  AND (expires_at IS NULL OR expires_at > @now)
+                  AND (verify_hash IS NULL OR verified_at IS NOT NULL);
                 """, connection);
 
             find.Parameters.AddWithValue("@token",

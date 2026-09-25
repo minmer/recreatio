@@ -20,6 +20,7 @@ import { createContext, useContext } from 'react';
 
 import type { OwnAnswer } from './form';
 import type { SubmittedValue } from './seat';
+import type { SeatChallenge } from './seatCheck';
 
 export interface SeatView {
   readonly token: string;
@@ -63,8 +64,14 @@ export const SeatContext = createContext<readonly SeatView[]>([]);
  */
 export interface SeatState {
   readonly token: string;
-  readonly state: 'loading' | 'open' | 'gone' | 'locked';
+  readonly state: 'loading' | 'open' | 'gone' | 'locked' | 'verify';
   readonly failed: string | null;
+
+  /** Der Link wartet auf seine erste Bestätigung (0046) — die Fragen dazu. */
+  readonly challenge: SeatChallenge | null;
+
+  /** Nach der richtigen Antwort: alles noch einmal holen. */
+  readonly reload: () => void;
 }
 
 export const SeatStateContext = createContext<readonly SeatState[]>([]);

@@ -94,6 +94,7 @@ public static class Form
          * Dienst ablegt und herausgibt, ohne es zu lesen.
          */
         app.MapPost("/workspace/part/{id:guid}/design", SaveDesignAsync);
+        app.MapPost("/workspace/part/{id:guid}/linkcheck", LinkCheckAsync);
 
         /*
          * RSA ist der Umschlag, nicht der Tresor (0037). Wer eine Einsendung
@@ -571,7 +572,21 @@ public static class Form
         /// wenn der Bereich es zulaesst (<c>seat_level</c>).
         /// </para>
         /// </summary>
-        string? AreaKeySealed = null);
+        string? AreaKeySealed = null,
+
+        /* -- 0046 ---------------------------------------------------------- */
+
+        /* Der Link selbst (Token und Schluessel), versiegelt unter dem Platzschluessel — fuer die Kanzlei. */
+        string? LinkSealed = null,
+
+        /*
+         * Der langsame Abdruck der Angaben, die beim ersten Oeffnen des Links
+         * zu bestaetigen sind (PBKDF2, im Browser gerechnet), und welche
+         * Fragen das sind. Wer sich hier selbst anmeldet, hat sie eben
+         * eingegeben — er gilt als bestaetigt.
+         */
+        string? VerifySha256 = null,
+        IReadOnlyList<string>? VerifyFields = null);
 
     public sealed record SubmitRequest(
         IReadOnlyList<ValueIn> Values, string? ClaimSha256, string? SeatToken, string? RoleId,
@@ -686,7 +701,8 @@ public static class Form
             await using var find = new SqlCommand("""
                 SELECT id FROM app.access
                 WHERE token_sha256 = @token AND revoked_at IS NULL AND status = N'active'
-                  AND (expires_at IS NULL OR expires_at > @now);
+                  AND (expires_at IS NULL OR expires_at > @now)
+                  AND (verify_hash IS NULL OR verified_at IS NOT NULL);
                 """, connection);
 
             find.Parameters.AddWithValue("@token",
@@ -798,9 +814,11 @@ public static class Form
                 await using (var open = new SqlCommand("""
                     INSERT INTO app.access
                         (id, area_id, token_sha256, seat_key_sealed, seat_key_for_intake, epoch,
-                         recipient_name, origin, created_by_role_id, created_at)
+                         recipient_name, origin, created_by_role_id, created_at,
+                         link_sealed, verify_hash, verify_fields, verified_at)
                     VALUES (@id, @area, @token, @forLink, @forIntake, @epoch,
-                            @name, N'self', NULL, @now);
+                            @name, N'self', NULL, @now,
+                            @linkSealed, @verifyHash, @verifyFields, @verifiedAt);
                     """, connection, tx))
                 {
                     open.Parameters.AddWithValue("@id", seat.Id);
@@ -812,6 +830,12 @@ public static class Form
                     open.Parameters.AddWithValue("@name",
                         seat.RecipientName is null ? DBNull.Value : seat.RecipientName);
                     open.Parameters.AddWithValue("@now", now);
+                    open.Parameters.AddBlob("@linkSealed", seat.LinkSealed);
+                    open.Parameters.AddBlob("@verifyHash", seat.VerifyHash);
+                    open.Parameters.AddWithValue("@verifyFields", (object?)seat.VerifyFields ?? DBNull.Value);
+
+                    /* Wer sich eben selbst angemeldet hat, hat die Angaben gerade eingegeben. */
+                    open.Parameters.AddWithValue("@verifiedAt", seat.VerifyHash is null ? DBNull.Value : now);
 
                     await open.ExecuteNonQueryAsync(ctx.RequestAborted);
                 }
@@ -941,7 +965,7 @@ public static class Form
     private readonly record struct SelfSeatRow(
         Guid Id, Guid AreaId, byte[] TokenHash, byte[] ForLink, byte[] ForIntake,
         int Epoch, string? RecipientName, IReadOnlyList<Guid> SlugIds, string? UnderPath,
-        byte[]? AreaKey);
+        byte[]? AreaKey, byte[]? LinkSealed = null, byte[]? VerifyHash = null, string? VerifyFields = null);
 
     /// <summary>
     /// Den mitgeschickten Platz pruefen — und dabei die eine Frage stellen, die
@@ -1118,7 +1142,10 @@ public static class Form
 
             /* Unlesbar heisst: nicht mitgegeben. Kein Grund, die ganze
                Anmeldung abzulehnen — sie steht fuer sich. */
-            TryBlob(body.AreaKeySealed));
+            TryBlob(body.AreaKeySealed),
+            TryBlob(body.LinkSealed),
+            TryBlob(body.VerifySha256) is { Length: 32 } proof ? proof : null,
+            VerifyFieldsText(body.VerifyFields));
     }
 
     /* -- Was die Kanzlei sieht ---------------------------------------------- */
@@ -1184,7 +1211,7 @@ public static class Form
          */
         var readable = fields.Where(f => mine.Contains(f.AreaId)).Select(f => f.Id).ToHashSet();
 
-        var rows = new List<(Guid Id, Guid? Seat, DateTimeOffset At, DateTimeOffset? Gone, bool Hidden)>();
+        var rows = new List<(Guid Id, Guid? Seat, DateTimeOffset At, DateTimeOffset? Gone, bool Hidden, DateTimeOffset? Confirmed)>();
 
         /*
          * Versteckte kommen nur mit, wenn danach gefragt wird — sonst waere
@@ -1194,7 +1221,7 @@ public static class Form
         var withHidden = ctx.Request.Query["hidden"] == "1";
 
         await using (var cmd = new SqlCommand($"""
-            SELECT id, access_id, submitted_at, withdrawn_at, is_hidden
+            SELECT id, access_id, submitted_at, withdrawn_at, is_hidden, confirmed_at
             FROM app.registration
             WHERE part_id = @part {(withHidden ? "" : "AND is_hidden = 0")}
             ORDER BY submitted_at DESC;
@@ -1210,7 +1237,8 @@ public static class Form
                     reader.IsDBNull(1) ? null : reader.GetGuid(1),
                     reader.GetDateTimeOffset(2),
                     reader.IsDBNull(3) ? null : reader.GetDateTimeOffset(3),
-                    reader.GetBoolean(4)));
+                    reader.GetBoolean(4),
+                    reader.IsDBNull(5) ? null : reader.GetDateTimeOffset(5)));
             }
         }
 
@@ -1306,6 +1334,9 @@ public static class Form
                 submittedAt = r.At,
                 withdrawnAt = r.Gone,
                 hidden = r.Hidden,
+
+                /* Der Mensch hat seine GANZE Einsendung durchgesehen und bestaetigt (0046). */
+                confirmedAt = r.Confirmed,
                 values = byRegistration.TryGetValue(r.Id, out var list) ? list : [],
 
                 /*
@@ -1323,7 +1354,7 @@ public static class Form
     internal sealed record FieldRow(
         Guid Id, Guid AreaId, string Kind, int Position, byte[] Label, byte[]? Help,
         byte[]? Options, int Epoch, bool IsRequired, bool IsHalfWidth, string IdentityRole,
-        Guid? LabelAreaId = null, int? LabelEpoch = null, bool SelfEdit = true);
+        Guid? LabelAreaId = null, int? LabelEpoch = null, bool SelfEdit = true, bool LinkCheck = false);
 
     /// <summary>
     /// Wie eine Frage hinausgeht. <c>labelAreaId</c> / <c>labelEpoch</c> sind
@@ -1346,7 +1377,10 @@ public static class Form
         isRequired = f.IsRequired,
         isHalfWidth = f.IsHalfWidth,
         identityRole = f.IdentityRole,
-        selfEdit = f.SelfEdit
+        selfEdit = f.SelfEdit,
+
+        /* Beim ersten Oeffnen eines Links zu bestaetigen (0046)? */
+        linkCheck = f.LinkCheck
     };
 
     /// <summary>
@@ -1398,7 +1432,7 @@ public static class Form
         await using var cmd = new SqlCommand("""
             SELECT id, area_id, kind, position, label_sealed, help_sealed, options_sealed,
                    epoch, is_required, is_half_width, identity_role, label_area_id, label_epoch,
-                   self_edit
+                   self_edit, link_check
             FROM app.slug_field
             WHERE part_id = @part
             ORDER BY position;
@@ -1417,7 +1451,8 @@ public static class Form
                 reader.GetInt32(7), reader.GetBoolean(8), reader.GetBoolean(9), reader.GetString(10),
                 reader.IsDBNull(11) ? null : reader.GetGuid(11),
                 reader.IsDBNull(12) ? null : reader.GetInt32(12),
-                reader.GetBoolean(13)));
+                reader.GetBoolean(13),
+                reader.GetBoolean(14)));
         }
 
         return fields;
@@ -2871,6 +2906,86 @@ public static class Form
             partId = Ids.ToText(id),
             design = await DesignAsync(connection, id, ctx.RequestAborted)
         });
+    }
+
+    public sealed record LinkCheckRequest(IReadOnlyList<string>? FieldIds);
+
+    /// <summary>
+    /// WELCHE ANGABEN beim ersten Oeffnen eines Links bestaetigt werden (0046).
+    ///
+    /// <para>
+    /// Eine Liste fuer das ganze Formular — die genannten Fragen an, alle
+    /// anderen aus. Keine: der Link fragt nichts. Gilt fuer Links, die AB JETZT
+    /// entstehen (Anmeldung, neuer Link der Kanzlei); ein schon verschickter
+    /// traegt, womit er entstand.
+    /// </para>
+    /// </summary>
+    private static async Task LinkCheckAsync(HttpContext ctx, Db db, Guid id, LinkCheckRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var sheet = await SheetAsync(connection, id, ctx.RequestAborted);
+        if (sheet is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
+            return;
+        }
+
+        if (!await MayWriteSheetAsync(connection, who.Value.AccountId, sheet, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, NotYours);
+            return;
+        }
+
+        var wanted = new HashSet<Guid>();
+        foreach (var one in body.FieldIds ?? [])
+        {
+            if (!Guid.TryParse(one, out var fieldId))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelne pytanie.");
+                return;
+            }
+            wanted.Add(fieldId);
+        }
+
+        if (wanted.Count > 10)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Najwyżej 10 pytań — link ma się otwierać, nie egzaminować.");
+            return;
+        }
+
+        var fields = await ReadFieldsAsync(connection, sheet.ModuleId, ctx.RequestAborted);
+        if (!wanted.All(w => fields.Any(f => f.Id == w)))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Tego pytania nie ma w tym formularzu.");
+            return;
+        }
+
+        foreach (var f in fields)
+        {
+            await using var cmd = new SqlCommand(
+                "UPDATE app.slug_field SET link_check = @on WHERE id = @id;", connection);
+            cmd.Parameters.AddWithValue("@on", wanted.Contains(f.Id));
+            cmd.Parameters.AddWithValue("@id", f.Id);
+            await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            partId = Ids.ToText(sheet.ModuleId),
+            fieldIds = wanted.Select(Ids.ToText)
+        });
+    }
+
+    /// <summary>Die zu bestaetigenden Fragen als Text — oder <c>null</c>, wenn keine.</summary>
+    internal static string? VerifyFieldsText(IReadOnlyList<string>? ids)
+    {
+        var parsed = (ids ?? []).Select(one => Guid.TryParse(one, out var g) ? g : (Guid?)null)
+            .Where(g => g is not null).Select(g => Ids.ToText(g!.Value)).Distinct().Take(10).ToList();
+        return parsed.Count == 0 ? null : string.Join(",", parsed);
     }
 
     private static byte[]? Optional(string? text)

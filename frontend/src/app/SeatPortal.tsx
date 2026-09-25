@@ -22,8 +22,10 @@ import { pagePath } from './routes';
 import { PageParts } from './PageParts';
 import { toDraft } from './page';
 import { BindSeat, MyLink, PersonalSections } from './SeatBar';
+import { FirstOpen } from './FirstOpen';
 import { SeatContext } from './seatContext';
 import { useSeat } from './seatView';
+import { ReviewSubmissions } from './Submission';
 
 export function SeatPortal({ token, keyText, under }: {
   token: string;
@@ -31,11 +33,16 @@ export function SeatPortal({ token, keyText, under }: {
   /** Die Seite, unter der dieser Platz hängt — nur noch bei Adressen, die nicht aufgeräumt wurden. */
   under: string | null;
 }) {
-  const { portal, failed, seat } = useSeat(token, keyText);
+  const { portal, failed, seat, challenge, reload } = useSeat(token, keyText);
   const seatKey = seat?.seatKey ?? null;
 
   /* Hier gilt GENAU dieser Platz: wer seinen Link öffnet, meint ihn. */
   const seatList = useMemo(() => (seat === null ? [] : [seat]), [seat]);
+
+  /* ERST BESTÄTIGEN (0046) — solange nichts aufgeschlossen ist, gibt es nichts anderes zu zeigen. */
+  if (challenge !== null) {
+    return <FirstOpen token={token} challenge={challenge} onPassed={reload} />;
+  }
 
   if (portal === undefined) return <p className="wk-lede">Otwieranie…</p>;
 
@@ -86,6 +93,8 @@ export function SeatPortal({ token, keyText, under }: {
       )}
 
       {failed !== null && <p className="wk-error">{failed}</p>}
+
+      {seat !== null && <ReviewSubmissions seat={seat} who={null} />}
 
       {template !== null && <PageParts parts={template.parts.map(toDraft)} />}
 

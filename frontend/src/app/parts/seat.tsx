@@ -153,13 +153,9 @@ export const seatSubmissionPart = definePart<SubmissionConfig>({
       {(seat) => (
         <>
           <OwnSubmissions
-            values={seat.submitted}
-            open={seat.opened}
-            token={seat.token}
-            seatKey={seat.seatKey}
+            seat={seat}
             formId={config.form}
             show={config.show === 'all' ? null : config.show}
-            onSaved={seat.reload}
           />
           <SeatTools seat={seat} />
         </>

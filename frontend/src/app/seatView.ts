@@ -18,7 +18,8 @@ import { loadPublicKey } from './area';
 import { loadPublic, type Occurrence } from './calendar';
 import { aad, Field, fromBase64Url, openText } from './crypto';
 import { openSubmitted, type OwnAnswer } from './form';
-import { loadPortal, openGrants, openPortal, type Portal } from './seat';
+import { isChallenge, loadPortal, openGrants, openPortal, type Portal } from './seat';
+import type { SeatChallenge } from './seatCheck';
 import type { SeatView } from './seatContext';
 import { recall, remember } from './seatKeep';
 import { WorkspaceError } from './session';
@@ -42,6 +43,12 @@ export interface Opened {
   /** `null`, solange nichts offen ist — dann gibt es auch nichts zu zeigen. */
   readonly seat: SeatView | null;
 
+  /**
+   * Der Link wartet auf seine ERSTE Bestätigung (0046). Dann ist `portal`
+   * noch `undefined` und `seat` `null`: es kam nichts, was etwas aufschliesst.
+   */
+  readonly challenge: SeatChallenge | null;
+
   readonly reload: () => void;
 }
 
@@ -58,10 +65,26 @@ export function useSeat(token: string, keyText: string | null): Opened {
   const [failed, setFailed] = useState<string | null>(null);
 
   const [mine, setMine] = useState<readonly OwnAnswer[]>([]);
+  const [challenge, setChallenge] = useState<SeatChallenge | null>(null);
 
   const look = useCallback(async () => {
     try {
-      const found = await loadPortal(token);
+      const reply = await loadPortal(token);
+
+      /*
+       * ERST BESTÄTIGEN (0046). Der Dienst hat nur die Fragen geschickt — die
+       * Seite zeigt sie (`FirstOpen`) und holt danach alles noch einmal.
+       */
+      if (isChallenge(reply)) {
+        setChallenge(reply);
+        setPortal(undefined);
+        setSeatKey(null);
+        setFailed(null);
+        return;
+      }
+
+      const found = reply;
+      setChallenge(null);
       setPortal(found);
       setFailed(null);
       setSharedNames(found.grants.map((g) => g.areaName));
@@ -151,12 +174,16 @@ export function useSeat(token: string, keyText: string | null): Opened {
       rows.sort((a, b) => a.when.localeCompare(b.when));
       setShared(rows);
     } catch (e) {
+      setChallenge(null);
       setPortal(null);
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć.');
     }
   }, [token, keyText]);
 
   useEffect(() => { void look(); }, [look]);
+
+  /* Stabil — wer es in eine Abhängigkeitsliste schreibt, soll nicht bei jedem Zeichnen neu rechnen. */
+  const reload = useCallback(() => { void look(); }, [look]);
 
   const seat: SeatView | null = portal === undefined || portal === null ? null : {
     token,
@@ -169,10 +196,10 @@ export function useSeat(token: string, keyText: string | null): Opened {
     shared,
     sharedNames,
     expiresAt: portal.expiresAt,
-    reload: () => void look()
+    reload
   };
 
-  return { portal, failed, seat, reload: () => void look() };
+  return { portal, failed, seat, challenge, reload };
 }
 
 /** Der Titel eines Eintrags — offen, wenn er offen ist, sonst aufgemacht. */

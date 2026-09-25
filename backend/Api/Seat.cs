@@ -49,6 +49,7 @@ public static class Seat
         // Die Kanzlei.
         app.MapGet("/workspace/area/{id:guid}/seats", ListAsync);
         app.MapPost("/workspace/seat/{id:guid}/note", NoteAsync);
+        app.MapPost("/workspace/seats/names", NamesAsync);
         app.MapPost("/workspace/seat/{id:guid}/revoke", RevokeAsync);
         app.MapPost("/workspace/seat/{id:guid}/relink", RelinkAsync);
 
@@ -78,6 +79,14 @@ public static class Seat
          * Erreichbarkeit, dieser Knopf zeigt, dass die Angabe noch gilt.
          */
         app.MapPost("/seat/{token}/check", SelfCheckAsync);
+
+        /*
+         * 0046 — beim ersten Oeffnen bestaetigen, die ganze Einsendung auf
+         * einmal bestaetigen, und nach einer Aenderung einen neuen Link.
+         */
+        app.MapPost("/seat/{token}/verify", VerifyAsync);
+        app.MapPost("/seat/{token}/confirm", ConfirmAsync);
+        app.MapPost("/seat/{token}/rotate", RotateAsync);
     }
 
     /*
@@ -145,7 +154,10 @@ public static class Seat
                     */
                    (SELECT TOP 1 s.path FROM app.access_slug g
                      JOIN app.slug s ON s.id = g.slug_id
-                    WHERE g.access_id = a.id ORDER BY LEN(s.path)) AS under_path
+                    WHERE g.access_id = a.id ORDER BY LEN(s.path)) AS under_path,
+                   a.link_sealed, a.verify_fields, a.verified_at,
+                   CAST(CASE WHEN a.verify_hash IS NULL THEN 0 ELSE 1 END AS bit) AS asks,
+                   a.verify_failures
             FROM app.access a
             WHERE a.area_id = @area
             ORDER BY a.created_at DESC;
@@ -174,7 +186,16 @@ public static class Seat
                 createdAt = reader.GetDateTimeOffset(8),
                 expiresAt = reader.IsDBNull(9) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(9),
                 revokedAt = reader.IsDBNull(10) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(10),
-                holders = reader.GetInt32(11)
+                holders = reader.GetInt32(11),
+
+                /* 0046 — der Link, versiegelt unter dem Platzschluessel, und ob er beim ersten Oeffnen fragt. */
+                linkSealed = reader.IsDBNull(15) ? null : Base64Url.Encode((byte[])reader[15]),
+                verifyFields = reader.IsDBNull(16) ? null : reader.GetString(16),
+                verifiedAt = reader.IsDBNull(17) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(17),
+                asks = reader.GetBoolean(18),
+
+                /* Zu viele falsche Antworten: der Link ist zu, nur ein neuer hilft. */
+                locked = reader.GetInt32(19) >= MaxVerifyFailures
             });
         }
 
@@ -182,6 +203,332 @@ public static class Seat
     }
 
     public sealed record NoteRequest(string? PersonalNoteSealed, string? InternalNoteSealed);
+
+    /* ======================================================================
+       0046 — BESTAETIGEN, ALLES BESTAETIGEN, NEUER LINK
+       ====================================================================== */
+
+    /// <summary>Nach so vielen Fehlversuchen ist der Link zu; die Kanzlei stellt einen neuen aus.</summary>
+    private const int MaxVerifyFailures = 10;
+
+    /// <summary>
+    /// Die Fragen, die beim ersten Oeffnen zu beantworten sind — ihre
+    /// Beschriftung, versiegelt unter dem Schluessel des Formulars.
+    /// </summary>
+    private static async Task<List<object>> VerifyQuestionsAsync(
+        SqlConnection connection, string? fieldsText, CancellationToken ct)
+    {
+        var ids = (fieldsText ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(one => Guid.TryParse(one, out var g) ? g : (Guid?)null)
+            .Where(g => g is not null).Select(g => g!.Value).ToList();
+
+        var out_ = new List<object>();
+        if (ids.Count == 0) return out_;
+
+        var names = string.Join(", ", ids.Select((_, i) => $"@f{i}"));
+
+        await using var cmd = new SqlCommand($"""
+            SELECT id, kind, label_sealed, COALESCE(label_area_id, area_id), COALESCE(label_epoch, epoch)
+            FROM app.slug_field WHERE id IN ({names});
+            """, connection);
+
+        for (var i = 0; i < ids.Count; i++) cmd.Parameters.AddWithValue($"@f{i}", ids[i]);
+
+        var found = new Dictionary<Guid, object>();
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            found[reader.GetGuid(0)] = new
+            {
+                fieldId = Ids.ToText(reader.GetGuid(0)),
+                kind = reader.GetString(1),
+                labelSealed = Base64Url.Encode((byte[])reader[2]),
+                labelAreaId = Ids.ToText(reader.GetGuid(3)),
+                labelEpoch = reader.GetInt32(4)
+            };
+        }
+
+        /* In der Reihenfolge, in der der Abdruck gerechnet wurde. */
+        foreach (var id in ids) if (found.TryGetValue(id, out var one)) out_.Add(one);
+        return out_;
+    }
+
+    public sealed record VerifyRequest(string? Proof);
+
+    /// <summary>
+    /// DIE ANTWORT BEIM ERSTEN OEFFNEN.
+    ///
+    /// <para>
+    /// Der Browser rechnet aus dem, was der Mensch eintippt, denselben
+    /// langsamen Abdruck wie bei der Anmeldung; der Dienst vergleicht. Richtig:
+    /// der Link fragt nie wieder. Falsch: ein Versuch weniger — nach zehn ist
+    /// Schluss, und auch die richtige Antwort oeffnet nichts mehr.
+    /// </para>
+    /// </summary>
+    private static async Task VerifyAsync(HttpContext ctx, Db db, string token, VerifyRequest body)
+    {
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var seat = await LiveSeatAsync(connection, token, gated: false, ctx.RequestAborted);
+        if (seat is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
+            return;
+        }
+
+        Guid seatId = seat.Value.Id;
+        byte[]? hash;
+        DateTimeOffset? verifiedAt;
+        int failures;
+
+        await using (var read = new SqlCommand(
+            "SELECT verify_hash, verified_at, verify_failures FROM app.access WHERE id = @id;", connection))
+        {
+            read.Parameters.AddWithValue("@id", seatId);
+            await using var reader = await read.ExecuteReaderAsync(ctx.RequestAborted);
+            await reader.ReadAsync(ctx.RequestAborted);
+            hash = reader.IsDBNull(0) ? null : (byte[])reader[0];
+            verifiedAt = reader.IsDBNull(1) ? null : reader.GetDateTimeOffset(1);
+            failures = reader.GetInt32(2);
+        }
+
+        if (hash is null || verifiedAt is not null)
+        {
+            await ctx.Response.WriteAsJsonAsync(new { verified = true });
+            return;
+        }
+
+        if (failures >= MaxVerifyFailures)
+        {
+            await Fail(ctx, StatusCodes.Status423Locked,
+                "Za dużo nieudanych prób — ten link jest zablokowany. Poproś kancelarię o nowy.");
+            return;
+        }
+
+        Blob(body.Proof, out var proof);
+        /* Gespeichert ist der Abdruck des Nachweises, nicht der Nachweis — wie beim Token. */
+        var right = proof.Length == 32 && CryptographicOperations.FixedTimeEquals(SHA256.HashData(proof), hash);
+
+        await using (var mark = new SqlCommand(right
+            ? "UPDATE app.access SET verified_at = @now, verify_failures = 0 WHERE id = @id;"
+            : "UPDATE app.access SET verify_failures = verify_failures + 1 WHERE id = @id;", connection))
+        {
+            mark.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            mark.Parameters.AddWithValue("@id", seatId);
+            await mark.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
+        if (!right)
+        {
+            var left = MaxVerifyFailures - failures - 1;
+            await Fail(ctx, StatusCodes.Status403Forbidden, left > 0
+                ? $"Te dane się nie zgadzają ze zgłoszeniem. Zostało prób: {left}."
+                : "Te dane się nie zgadzają — to była ostatnia próba. Poproś kancelarię o nowy link.");
+            return;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { verified = true });
+    }
+
+    public sealed record ConfirmRequest(string RegistrationId);
+
+    /// <summary>
+    /// „WSZYSTKO SIĘ ZGADZA" — die ganze Einsendung auf einmal bestaetigt.
+    ///
+    /// <para>
+    /// Nicht jede Nummer fuer sich: der Mensch sieht, was er angegeben hat —
+    /// Namen, Kontakte, alles — und sagt einmal, dass es stimmt. Die Kanzlei
+    /// sieht es an der Zeile.
+    /// </para>
+    /// </summary>
+    private static async Task ConfirmAsync(HttpContext ctx, Db db, string token, ConfirmRequest body)
+    {
+        if (!Guid.TryParse(body.RegistrationId, out var registrationId))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego zgłoszenia nie ma.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var seat = await LiveSeatAsync(connection, token, gated: true, ctx.RequestAborted);
+        if (seat is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
+            return;
+        }
+
+        await using var cmd = new SqlCommand("""
+            UPDATE app.registration SET confirmed_at = @now
+             WHERE id = @reg AND access_id = @seat;
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+        cmd.Parameters.AddWithValue("@reg", registrationId);
+        cmd.Parameters.AddWithValue("@seat", seat.Value.Id);
+
+        if (await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 0)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego zgłoszenia nie ma.");
+            return;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { registrationId = Ids.ToText(registrationId), confirmed = true });
+    }
+
+    public sealed record RotateRequest(string TokenSha256, string SeatKeySealed, string? LinkSealed);
+
+    /// <summary>
+    /// EIN NEUER LINK, WEIL SICH DIE ANGABEN GEAENDERT HABEN.
+    ///
+    /// <para>
+    /// Wer seine Angaben aendert — vor allem eine Nummer —, bekommt einen
+    /// neuen Link, und der alte hoert auf zu gelten. Er ist vielleicht an eine
+    /// Nummer gegangen, die nicht mehr stimmt; wer ihn dort findet, soll damit
+    /// nicht mehr hineinkommen.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Der Mensch tut es selbst</b>, mit dem alten Link als Ausweis: er
+    /// haelt den Platzschluessel und versiegelt ihn unter dem neuen Linkgeheimnis
+    /// — wie die Kanzlei beim neuen Link, nur ohne sie. Bestaetigt bleibt er;
+    /// er hat es eben gezeigt.
+    /// </para>
+    /// </summary>
+    private static async Task RotateAsync(HttpContext ctx, Db db, string token, RotateRequest body)
+    {
+        if (!Blob(body.TokenSha256, out var tokenHash) || tokenHash.Length != 32
+            || !Blob(body.SeatKeySealed, out var forLink) || forLink.Length == 0)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny nowy link.");
+            return;
+        }
+
+        Blob(body.LinkSealed, out var linkSealed);
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var seat = await LiveSeatAsync(connection, token, gated: true, ctx.RequestAborted);
+        if (seat is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
+            return;
+        }
+
+        await using var cmd = new SqlCommand("""
+            UPDATE app.access
+               SET token_sha256 = @token, seat_key_sealed = @forLink,
+                   link_sealed = COALESCE(@linkSealed, link_sealed), view_count = 0
+             WHERE id = @id;
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@token", tokenHash);
+        cmd.Parameters.AddBlob("@forLink", forLink);
+        cmd.Parameters.AddBlob("@linkSealed", linkSealed.Length == 0 ? null : linkSealed);
+        cmd.Parameters.AddWithValue("@id", seat.Value.Id);
+        await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await ctx.Response.WriteAsJsonAsync(new { seatId = Ids.ToText(seat.Value.Id), rotated = true });
+    }
+
+    /// <summary>
+    /// Der Platz hinter einem Token — lebendig, und mit <paramref name="gated"/>
+    /// nur, wenn er nicht mehr auf seine erste Bestaetigung wartet.
+    /// </summary>
+    private static async Task<(Guid Id, Guid AreaId)?> LiveSeatAsync(
+        SqlConnection connection, string token, bool gated, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return null;
+
+        await using var cmd = new SqlCommand($"""
+            SELECT id, area_id FROM app.access
+            WHERE token_sha256 = @token AND revoked_at IS NULL AND status = N'active'
+              AND (expires_at IS NULL OR expires_at > @now)
+              {(gated ? "AND (verify_hash IS NULL OR verified_at IS NOT NULL)" : "")};
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@token", SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token.Trim())));
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? (reader.GetGuid(0), reader.GetGuid(1)) : null;
+    }
+
+    public sealed record SeatName(string SeatId, string Name);
+
+    public sealed record NamesRequest(IReadOnlyList<SeatName>? Names);
+
+    /// <summary>
+    /// DER VOLLE NAME AM PLATZ — Imię i nazwisko, wo er bekannt ist.
+    ///
+    /// <para>
+    /// <b>Warum es das braucht.</b> Der Name am Platz (`recipient_name`) stand
+    /// offen da, damit die Kanzlei ihn zuordnen kann — genommen wurde aber das
+    /// ERSTE Namensfeld des Formulars, und bei getrennten Feldern war das der
+    /// Nachname allein. Im Kalender stand dann „Węglowski", bei Termin, Bitte
+    /// und Liste. Die Kanzlei hat die vollen Antworten, sobald sie die
+    /// Einsendungen aufmacht; von dort kommt hier der volle Name.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Nur ERGÄNZT, nie überschrieben.</b> Ein Name, den jemand von Hand
+    /// gesetzt hat („Janek, brat Oli"), bleibt; ersetzt wird nur ein leerer
+    /// oder einer, der im neuen enthalten ist — „Węglowski" wird „Jan
+    /// Węglowski", aber nichts anderes.
+    /// </para>
+    /// </summary>
+    private static async Task NamesAsync(HttpContext ctx, Db db, NamesRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var names = body.Names ?? [];
+        if (names.Count > 5000)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Za dużo naraz.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var mayWrite = new Dictionary<Guid, bool>();
+        var updated = 0;
+
+        foreach (var one in names)
+        {
+            if (!Guid.TryParse(one.SeatId, out var seatId)) continue;
+
+            var name = (one.Name ?? string.Empty).Trim();
+            if (name.Length == 0) continue;
+            if (name.Length > 200) name = name[..200];
+
+            var area = await AreaOfAsync(connection, seatId, ctx.RequestAborted);
+            if (area is null) continue;
+
+            if (!mayWrite.TryGetValue(area.Value, out var may))
+            {
+                may = await Area.MayAsync(connection, who.Value.AccountId, area.Value, Capability.Write, ctx.RequestAborted);
+                mayWrite[area.Value] = may;
+            }
+
+            if (!may) continue;
+
+            await using var cmd = new SqlCommand("""
+                UPDATE app.access
+                   SET recipient_name = @name
+                 WHERE id = @id
+                   AND (recipient_name IS NULL OR LTRIM(RTRIM(recipient_name)) = N''
+                        OR (LEN(@name) > LEN(recipient_name) AND CHARINDEX(recipient_name, @name) > 0));
+                """, connection);
+
+            cmd.Parameters.AddWithValue("@name", name);
+            cmd.Parameters.AddWithValue("@id", seatId);
+            updated += await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { updated });
+    }
 
     /// <summary>
     /// Die Notizen setzen — der Fall des Lehrers.
@@ -299,6 +646,7 @@ public static class Seat
             WHERE a.token_sha256 = @token
               AND a.revoked_at IS NULL AND a.status = N'active'
               AND (a.expires_at IS NULL OR a.expires_at > @now)
+              AND (a.verify_hash IS NULL OR a.verified_at IS NOT NULL)
               AND r.id = @reg AND v.field_id = @field;
             """, connection))
         {
@@ -466,6 +814,7 @@ public static class Seat
             WHERE a.token_sha256 = @token
               AND a.revoked_at IS NULL AND a.status = N'active'
               AND (a.expires_at IS NULL OR a.expires_at > @now)
+              AND (a.verify_hash IS NULL OR a.verified_at IS NOT NULL)
               AND r.id = @reg;
             """, connection))
         {
@@ -578,7 +927,11 @@ public static class Seat
         }
     }
 
-    public sealed record RelinkRequest(string TokenSha256, string SeatKeySealed);
+    public sealed record RelinkRequest(
+        string TokenSha256, string SeatKeySealed,
+
+        /* 0046 — der neue Link unter dem Platzschluessel, und was er beim ersten Oeffnen fragt. */
+        string? LinkSealed = null, string? VerifySha256 = null, IReadOnlyList<string>? VerifyFields = null);
 
     /// <summary>
     /// EINEN NEUEN LINK auf denselben Platz — zum Verschicken per SMS.
@@ -642,14 +995,31 @@ public static class Seat
          * Ein zurueckgezogener Platz bekommt keinen neuen Link. Sonst waere das
          * Zuruecknehmen eine Bitte statt einer Tatsache.
          */
+        /*
+         * EIN NEUER LINK FRAGT NEU (0046). Wer ihn bekommt, muss beim ersten
+         * Oeffnen zeigen, dass er gemeint ist — mit den Angaben, die das
+         * Formular jetzt dafuer nennt. Die Kanzlei hat den Abdruck aus den
+         * Antworten gerechnet, die sie gerade offen vor sich hat.
+         */
+        Blob(body.LinkSealed, out var linkSealed);
+        Blob(body.VerifySha256, out var verifyHash);
+        var verifyFields = Form.VerifyFieldsText(body.VerifyFields);
+        var asks = verifyHash.Length == 32 && verifyFields is not null;
+
         await using var cmd = new SqlCommand("""
             UPDATE app.access
-               SET token_sha256 = @token, seat_key_sealed = @forLink, view_count = 0
+               SET token_sha256 = @token, seat_key_sealed = @forLink, view_count = 0,
+                   link_sealed = @linkSealed,
+                   verify_hash = @verifyHash, verify_fields = @verifyFields,
+                   verified_at = NULL, verify_failures = 0
              WHERE id = @id AND revoked_at IS NULL AND status = N'active';
             """, connection);
 
         cmd.Parameters.AddWithValue("@token", tokenHash);
         cmd.Parameters.AddBlob("@forLink", forLink);
+        cmd.Parameters.AddBlob("@linkSealed", linkSealed.Length == 0 ? null : linkSealed);
+        cmd.Parameters.AddBlob("@verifyHash", asks ? verifyHash : null);
+        cmd.Parameters.AddWithValue("@verifyFields", asks ? verifyFields! : DBNull.Value);
         cmd.Parameters.AddWithValue("@id", id);
 
         if (await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 0)
@@ -723,7 +1093,9 @@ public static class Seat
             UPDATE app.access
                SET view_count = view_count + 1
             OUTPUT inserted.id, inserted.area_id, inserted.seat_key_sealed, inserted.epoch,
-                   inserted.recipient_name, inserted.personal_note_sealed, inserted.expires_at
+                   inserted.recipient_name, inserted.personal_note_sealed, inserted.expires_at,
+                   inserted.verify_hash, inserted.verified_at, inserted.verify_fields,
+                   inserted.verify_failures
              WHERE token_sha256 = @token
                AND revoked_at IS NULL
                AND status = N'active'
@@ -745,6 +1117,9 @@ public static class Seat
         string? recipientName;
         byte[]? personalNote;
         DateTimeOffset? expiresAt;
+        bool asksFirst;
+        string? verifyFieldsText;
+        int failures;
 
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
         {
@@ -761,6 +1136,31 @@ public static class Seat
             recipientName = reader.IsDBNull(4) ? null : reader.GetString(4);
             personalNote = reader.IsDBNull(5) ? null : (byte[])reader[5];
             expiresAt = reader.IsDBNull(6) ? null : reader.GetDateTimeOffset(6);
+
+            asksFirst = !reader.IsDBNull(7) && reader.IsDBNull(8);
+            verifyFieldsText = reader.IsDBNull(9) ? null : reader.GetString(9);
+            failures = reader.GetInt32(10);
+        }
+
+        /*
+         * ERST BESTAETIGEN, DANN OEFFNEN (0046). Solange der Link beim ersten
+         * Oeffnen fragt und niemand richtig geantwortet hat, geht hier NICHTS
+         * hinaus, was etwas aufschliesst: kein Platzschluessel, keine
+         * Einsendung, keine Notiz. Nur die Fragen — ihre Beschriftung liegt
+         * unter dem offenen Schluessel des Formulars.
+         */
+        if (asksFirst)
+        {
+            await ctx.Response.WriteAsJsonAsync(new
+            {
+                seatId = Ids.ToText(seatId),
+                verify = new
+                {
+                    fields = await VerifyQuestionsAsync(connection, verifyFieldsText, ctx.RequestAborted),
+                    attemptsLeft = Math.Max(0, MaxVerifyFailures - failures)
+                }
+            });
+            return;
         }
 
         /*
@@ -886,6 +1286,7 @@ public static class Seat
                    v.value_sealed, v.seat_key_sealed, r.submitted_at, r.id,
                    c.verified_at, c.origin,
                    r.part_id,
+                   r.confirmed_at AS registration_confirmed,
                    COALESCE(f.label_area_id, f.area_id), COALESCE(f.label_epoch, f.epoch),
                    f.options_sealed, f.self_edit
             FROM app.registration r
@@ -942,20 +1343,23 @@ public static class Seat
                  */
                 formId = Ids.ToText(reader.GetGuid(12)),
 
+                /* Hat er die GANZE Einsendung bestaetigt (0046)? */
+                confirmedAt = reader.IsDBNull(13) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(13),
+
                 /*
                  * UNTER WELCHEM SCHLUESSEL DIE FRAGE LIEGT (0042) — dem des
                  * Formulars, nicht dem der Antworten. Vorher ging nur
                  * `areaId` mit, und die Beschriftung blieb zu, sobald die
                  * Antworten in einem nicht jawnen Bereich lagen.
                  */
-                labelAreaId = Ids.ToText(reader.GetGuid(13)),
-                labelEpoch = reader.GetInt32(14),
+                labelAreaId = Ids.ToText(reader.GetGuid(14)),
+                labelEpoch = reader.GetInt32(15),
 
                 /* Die Auswahl — damit eine Berichtigung dieselbe Liste zeigt wie das Formular. */
-                optionsSealed = reader.IsDBNull(15) ? null : Base64Url.Encode((byte[])reader[15]),
+                optionsSealed = reader.IsDBNull(16) ? null : Base64Url.Encode((byte[])reader[16]),
 
                 /* Darf er sie selbst berichtigen (0044)? Der Dienst prueft es ohnehin. */
-                selfEdit = reader.GetBoolean(16)
+                selfEdit = reader.GetBoolean(17)
             });
         }
 
@@ -1095,7 +1499,8 @@ public static class Seat
         await using (var find = new SqlCommand("""
             SELECT id FROM app.access
             WHERE token_sha256 = @token AND revoked_at IS NULL AND status = N'active'
-              AND (expires_at IS NULL OR expires_at > @now);
+              AND (expires_at IS NULL OR expires_at > @now)
+              AND (verify_hash IS NULL OR verified_at IS NOT NULL);
             """, connection))
         {
             find.Parameters.AddWithValue("@token",

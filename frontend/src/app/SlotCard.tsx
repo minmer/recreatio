@@ -521,7 +521,8 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
         ? `Wolny. Będziesz pierwszy — przez ${rules.inviteHours} h sam dobierzesz pozostałych.`
         : `Wolny — zostało miejsc: ${left}.`
     : offer.state === 'inviteneeded'
-      ? `Z gospodarzem${offer.inviteUntil !== null ? ` do ${moment(offer.inviteUntil)}` : ''} — dołączysz z jego kodem albo za jego zgodą. Wolnych miejsc: ${left}.`
+      ? `Pierwsza osoba, która wybrała ten termin, zaprasza teraz znajomych${offer.inviteUntil !== null
+        ? ` — ma na to czas do ${moment(offer.inviteUntil)}` : ''}. Wolnych miejsc: ${left}.`
     : offer.state === 'full' ? 'Pełny.'
     : offer.state === 'locked' ? 'Zamknięty — grupa jest już skompletowana.'
     : 'Twój termin.';
@@ -549,35 +550,69 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
       {holder !== null && offer.state === 'inviteneeded' && (
         open ? (
           <div className="wk-slot-join">
-            <label className="wk-field">
-              <span>Kod zaproszenia od gospodarza</span>
-              <input value={code} placeholder="np. A3K9Q2" maxLength={6}
-                onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                onKeyDown={(e) => { if (e.key === 'Enter' && code.length === 6 && !busy) take(code); }} />
-            </label>
-            <div className="wk-actions">
-              {/*
-                ERST MIT DEM GANZEN CODE. Ein grauer Knopf neben einem leeren
-                Feld sah aus wie der Weg hinein und war es nicht — wer keinen
-                Code hat, soll zuerst die Bitte an den Gastgeber sehen.
-              */}
-              {code.length === 6 && (
-                <button type="button" className="wk-btn" disabled={busy} onClick={() => take(code)}>
-                  {replaces !== null ? 'Zamień z kodem' : 'Dołącz z kodem'}
-                </button>
-              )}
+            {/*
+              ERST DER SATZ, WARUM. Wer hier ankommt, sieht einen Termin mit
+              freien Plätzen, den er nicht einfach nehmen kann — und muss
+              verstehen, dass das eine Frist ist und keine Absage.
+            */}
+            <p className="wk-slot-explain">
+              Pierwsza osoba, która wybrała ten termin, ma czas, żeby zaprosić znajomych
+              {offer.inviteUntil !== null && <> — <strong>do {moment(offer.inviteUntil)}</strong></>}.
+              {' '}Do tego czasu możesz dołączyć na jeden z dwóch sposobów:
+            </p>
+
+            <div className="wk-slot-ways">
+              {/* 1. Ohne Code: die Bitte — der häufigere Fall, also zuerst und gross. */}
               {replaces === null && (
-                <button type="button" className="wk-link-btn" disabled={busy}
-                  onClick={() => void onAct('Wysyłanie prośby…', () => askToJoin(rules.resourceId, offer, holder))}>
-                  Poproś gospodarza o dołączenie
-                </button>
+                <section className="wk-slot-way">
+                  <strong>Nie masz kodu?</strong>
+                  <p>
+                    Poproś tę osobę o dołączenie. Zobaczy Twoją prośbę u siebie i może ją przyjąć —
+                    odpowiedź pojawi się tutaj, przy Twoim terminie.
+                  </p>
+                  <button type="button" className="wk-btn" disabled={busy}
+                    onClick={() => void onAct('Wysyłanie prośby…', () => askToJoin(rules.resourceId, offer, holder))}>
+                    Poproś o dołączenie
+                  </button>
+                </section>
               )}
-              <button type="button" className="wk-link-btn" onClick={() => setOpen(false)}>Ukryj</button>
+
+              {/* 2. Mit Code. */}
+              <section className="wk-slot-way">
+                <strong>Masz kod od tej osoby?</strong>
+                <label className="wk-field">
+                  <span>Kod zaproszenia (6 znaków)</span>
+                  <input value={code} placeholder="np. A3K9Q2" maxLength={6}
+                    onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && code.length === 6 && !busy) take(code); }} />
+                </label>
+                {/*
+                  ERST MIT DEM GANZEN CODE. Ein grauer Knopf neben einem leeren
+                  Feld sah aus wie der Weg hinein und war es nicht.
+                */}
+                {code.length === 6 && (
+                  <button type="button" className="wk-btn" disabled={busy} onClick={() => take(code)}>
+                    {replaces !== null ? 'Zamień z kodem' : 'Dołącz z kodem'}
+                  </button>
+                )}
+              </section>
             </div>
+
+            {/*
+              Was danach geschieht — genau die Regel des Dienstes: sitzt am Ende
+              der Frist nur der Erste darauf, gehört der Termin wieder allen.
+            */}
+            <p className="wk-hint">
+              {replaces !== null && 'Prośbę o dołączenie wyślesz, gdy nie będziesz mieć innego terminu. '}
+              Jeśli do tego czasu nikt nie dołączy, termin otworzy się dla wszystkich i wybierzesz go bez kodu.
+              {' '}
+              <button type="button" className="wk-link-btn" onClick={() => setOpen(false)}>Ukryj</button>
+            </p>
           </div>
         ) : (
-          <button type="button" className="wk-btn wk-btn-quiet wk-slot-take" disabled={busy} onClick={() => setOpen(true)}>
-            Pokaż opcje dołączenia
+          /* Ein richtiger Knopf, kein leiser: hier hinein geht es — nur anders als bei einem grünen. */
+          <button type="button" className="wk-btn wk-slot-take" disabled={busy} onClick={() => setOpen(true)}>
+            Chcę dołączyć do tego terminu
           </button>
         )
       )}

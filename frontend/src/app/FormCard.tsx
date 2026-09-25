@@ -28,7 +28,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadPublicKey } from './area';
 import { fromBase64Url } from './crypto';
 import {
-  loadForm, openFields, submitForm, type Answer, type OpenField, type PublicForm
+  fullNameOf, loadForm, openFields, submitForm, type Answer, type OpenField, type PublicForm
 } from './form';
 import type { Ring } from './keys';
 import { evaluate, layoutWith, missingIn, openDesign, type FormDesign } from './formDesign';
@@ -377,10 +377,14 @@ export function FormCard({ partId, title, portalUnder: under }: {
                * offen am Platz, damit die Kanzlei ihn zuordnen kann, BEVOR
                * sie ihn verschickt — deshalb wird er hier nicht versiegelt.
                */
+              /*
+               * IMIĘ I NAZWISKO, nicht das erste Namensfeld: bei getrennten
+               * Feldern stand hier sonst der Nachname allein — im Kalender der
+               * Kanzlei, an jeder Bitte um Mitnahme.
+               */
               recipientName: forWhom?.name
-                ?? (nameField === undefined
-                  ? undefined
-                  : (answers[nameField.fieldId] ?? '').trim()),
+                ?? fullNameOf(fields, (fieldId) => answers[fieldId])
+                ?? undefined,
               underPath: under === '' ? undefined : under
             }
           : undefined

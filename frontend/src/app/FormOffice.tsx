@@ -19,15 +19,15 @@
  * hätte.
  */
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { areaPath, loadAreas, loadPublicKey, myEpochKeys, type AreaRow } from './area';
 import { fromBase64Url } from './crypto';
 import {
-  CHOOSABLE_IDENTITY, FIELD_KINDS, IDENTITY_LABEL, KIND_LABEL,
+  CHOOSABLE_IDENTITY, FIELD_KINDS, IDENTITY_LABEL, KIND_LABEL, fullNameOf,
   addField, loadFields, loadRegistrations, openFields,
   armCheck, hideSubmission, readAcross, removeField, removeSubmission, reviseAsOffice,
-  rewrapToOffice, setPartConfig,
+  rewrapToOffice, setLinkCheck, setPartConfig,
   type ValueCheck,
   type FieldKind, type IdentityRole, type OpenField, type SealedField, type Submission,
   editField, moveAnswers, sealQuestion, type MovedValue
@@ -38,12 +38,13 @@ import { Portal } from './Portal';
 import { keysFor } from './ringOf';
 import { selfOf } from './roles';
 import {
-  officeSeatKey, loadSeats, relinkSeat, revokeSeat, seatPath, type SeatRow
+  nameSeats, officeSeatKey, loadSeats, relinkSeat, revokeSeat, seatPath, type Link, type SeatRow
 } from './seat';
+import { checkText, openLink, type CheckAnswer } from './seatCheck';
 import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
 import { dialable, joinPhones, normalisePhone, splitPhones, tidyPhones, withPhone } from './phone';
-import { holesFor, missingIn, renderSms, smsHref, usesHole, VERIFY } from './sms';
+import { LINK, renderSms, smsHref, usesHole, VERIFY } from './sms';
 import { AreaOptions } from './AreaOptions';
 import { FormTable } from './FormTable';
 import { ModuleSettings } from './ModuleSettings';
@@ -342,6 +343,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     setSubmissions(registrations);
 
     const areaOf = new Map(fields.map((f) => [f.fieldId, f.areaId]));
+    const named: { seatId: string; name: string }[] = [];
 
     const out = new Map<string, Map<string, string>>();
     let sent = 0;
@@ -354,10 +356,24 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
       for (const one2 of toRewrap) pending.push({ ...one2, registrationId: one.registrationId });
 
       out.set(one.registrationId, merged);
+
+      /* Der volle Name, für den Platz dieser Einsendung — gleich unten ergänzt. */
+      const full = one.seatId === null ? null : fullNameOf(fields, (fieldId) => merged.get(fieldId));
+      if (full !== null && one.seatId !== null) named.push({ seatId: one.seatId, name: full });
       got += merged.size;
     }
 
     setOpened(out);
+
+    /*
+     * IMIĘ I NAZWISKO AN DEN PLATZ. Der Name am Platz stand bisher oft nur als
+     * Nachname da (das erste Namensfeld des Formulars) — und so erschien er im
+     * Kalender, an Bitten um Mitnahme, in der Auswahl „Za kogo". Hier liegen
+     * die vollen Antworten offen; der Dienst ergänzt, was fehlt, und lässt
+     * einen von Hand gesetzten Namen stehen. Still: es ändert nichts daran,
+     * wer was lesen darf.
+     */
+    if (named.length > 0) void nameSeats(named).catch(() => undefined);
 
     /*
      * RSA IST DER UMSCHLAG, NICHT DER TRESOR (0037).
@@ -808,12 +824,16 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             onSet={(where) => setSaved({ ...conf, portalUnder: where })}
           />
 
-          <Template
+          {/*
+            DAS ERSTE ÖFFNEN EINES LINKS (0046) — was gefragt wird. Die
+            Nachricht selbst schreibt die Kanzlei dort, wo sie sie verschickt:
+            unter „Osoby", mit „Napisz SMS".
+          */}
+          <LinkCheckBox
             partId={partId}
-            value={conf.sms ?? ''}
-            labels={fields.map((f) => f.label)}
+            fields={fields}
             busy={busy !== null}
-            onSaved={setSaved}
+            onSaved={() => void look()}
             onError={setFailed}
           />
         </>
@@ -1046,10 +1066,13 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
           )}
 
           <People
+            partId={partId}
+            config={conf}
+            onConfig={setSaved}
             submissions={submissions}
             opened={opened}
             fields={fields}
-            template={conf.sms ?? ''}
+            seatAreas={areasHere}
             ring={ring}
             busy={busy !== null}
             onHide={(s) => void act(s.hidden ? 'Przywracanie…' : 'Ukrywanie…', async () => {
@@ -1092,16 +1115,20 @@ function FormTab({ now, mine, onPick, children }: {
 /* -- Die Menschen, die sich eingetragen haben ------------------------------- */
 
 /**
- * Wer ein Mensch in dieser Liste ist: sein Name und die Nummer, die man wählt.
+ * Wer ein Mensch in dieser Liste ist: sein Name und ALLE seine Nummern.
  *
  * <b>Aus den GENORMTEN Fragen zuerst</b> (0038): Imię und Nazwisko, sonst
  * das alte „name". Fehlt beides, die erste ausgefüllte einzeilige Antwort —
  * irgendetwas muss in der Zeile stehen, woran man den Menschen erkennt.
+ *
+ * <b>Alle Nummern, nicht die erste.</b> Ein Bogen fragt oft nach Mutter UND
+ * Vater; wer nur die erste sah, rief immer dieselbe an. Dieselbe Nummer in
+ * zwei Fragen steht einmal da.
  */
 function whoIn(
   values: Map<string, string> | undefined, fields: readonly OpenField[]
-): { name: string; dial: string | null; shown: string | null } {
-  if (values === undefined) return { name: '— zapieczętowane —', dial: null, shown: null };
+): { name: string; phones: readonly Numbered[] } {
+  if (values === undefined) return { name: '— zapieczętowane —', phones: [] };
 
   const of = (role: IdentityRole) => {
     const field = fields.find((f) => f.identityRole === role);
@@ -1109,36 +1136,95 @@ function whoIn(
   };
 
   const nick = of('nickname');
-  const full = [of('given_name'), of('surname')].filter((part) => part !== null).join(' ') || of('name');
+  /* Derselbe volle Name wie am Platz und im Kalender (`fullNameOf`) — ohne den Spitznamen, der steht daneben. */
+  const full = fullNameOf(fields.filter((f) => f.identityRole !== 'nickname'), (fieldId) => values.get(fieldId));
   const first = fields.find((f) => f.kind === 'line' && (values.get(f.fieldId)?.trim() ?? '') !== '');
 
   const name = full !== null
     ? (nick !== null ? `${full} („${nick}")` : full)
     : nick ?? (first === undefined ? null : values.get(first.fieldId)!.trim()) ?? '— bez imienia —';
 
-  const phone = numbersOf(values, fields)[0];
+  const seen = new Set<string>();
+  const phones = numbersOf(values, fields).filter((one) => {
+    if (seen.has(one.dial)) return false;
+    seen.add(one.dial);
+    return true;
+  });
 
-  return { name, dial: phone?.dial ?? null, shown: phone?.shown ?? null };
+  return { name, phones };
 }
+
+/**
+ * Was in einer Nachricht für DIESEN Menschen eingesetzt wird — nach
+ * Beschriftung der Frage, dazu `{imie}` und `{osoba}`.
+ *
+ * `{imie}` neben `{osoba}` — der Altbestand hatte beide, und aus gutem Grund:
+ * „Cześć Anna Kowalska" grüsst niemand.
+ */
+function holesOf(values: Map<string, string> | undefined, fields: readonly OpenField[]): Map<string, string> {
+  const out = new Map<string, string>();
+  if (values === undefined) return out;
+
+  for (const f of fields) {
+    const v = values.get(f.fieldId);
+    if (f.label !== null && v !== undefined) out.set(f.label, v);
+  }
+
+  const full = fullNameOf(fields.filter((f) => f.identityRole !== 'nickname'), (fieldId) => values.get(fieldId));
+  const given = fields.find((f) => f.identityRole === 'given_name');
+  const givenValue = given === undefined ? '' : (values.get(given.fieldId) ?? '').trim();
+
+  if (full !== null) {
+    out.set('osoba', full);
+    out.set('imie', givenValue !== '' ? givenValue : full.split(/\s+/)[0]);
+  }
+
+  return out;
+}
+
+/** Was ein neuer Link dieses Menschen beim ersten Öffnen fragt — seine Antworten auf die gewählten Fragen. */
+const checkOf = (values: Map<string, string> | undefined, fields: readonly OpenField[]): readonly CheckAnswer[] =>
+  fields.filter((f) => f.linkCheck)
+    .map((f) => ({ fieldId: f.fieldId, kind: f.kind, value: values?.get(f.fieldId) ?? '' }));
+
+/** Die Adresse, vor die ein Link gehängt wird. */
+const base = () => `${window.location.origin}${window.location.pathname}`;
 
 /**
  * Wer sich eingetragen hat — EINE Zeile je Mensch, alles Weitere auf Abruf.
  *
- * <b>Nach dem Vorbild des Altbestands</b> (`events/admin/AccessPanel.tsx`):
- * eine Zeile ist ein Name und eine Nummer — die zwei Dinge, nach denen man am
- * Tag selbst greift —, dazu, woran der Mensch gerade ist. Alles andere liegt
- * hinter „Więcej": die Antworten, der Link mit der Nachricht, die
- * Bestätigung der Nummer, Ukryj und Usuń.
+ * <b>Nach dem Vorbild des Altbestands</b> (`events/parts/RosterPart.tsx`):
+ * eine Zeile ist ein Name und seine Nummern — die Dinge, nach denen man am Tag
+ * selbst greift —, dazu, woran der Mensch gerade ist. Alles andere liegt
+ * hinter „Więcej": die Antworten, der Link, Ukryj und Usuń.
  *
- * <b>Die Nummer ist ein Anruf</b>, ein Tipp auf dem Telefon.
+ * <b>„Napisz SMS" schaltet die Liste um</b>, wie dort: die Nachricht wird
+ * EINMAL geschrieben (oder aus einem Szablon genommen), und neben jeder Nummer
+ * steht ein SMS-Knopf. Ein Tipp öffnet das Nachrichtenfenster mit fertigem
+ * Text für genau diesen Menschen, und der Knopf bekommt sein Häkchen — wer
+ * vierzig Namen abarbeitet, muss sehen, wo er war.
+ *
+ * <b>Der Link entsteht von selbst.</b> Jeder Platz trägt seinen Link
+ * versiegelt für die Kanzlei (0046); fehlt er, oder soll der Link beim ersten
+ * Öffnen fragen und tut es noch nicht, entsteht beim Tipp ein neuer.
  */
 function People({
-  submissions, opened, fields, template, ring, busy, onHide, onRemove, onError, onChanged
+  partId, config, onConfig, submissions, opened, fields, seatAreas, ring, busy,
+  onHide, onRemove, onError, onChanged
 }: {
+  partId: string;
+
+  /** Die Einstellungen des Bausteins — darin die gespeicherten Szablony. */
+  config: Record<string, string>;
+  onConfig: (next: Record<string, string>) => void;
+
   submissions: readonly Submission[];
   opened: Map<string, Map<string, string>>;
   fields: readonly OpenField[];
-  template: string;
+
+  /** Die Bereiche, in denen die Plätze dieses Formulars liegen. */
+  seatAreas: readonly string[];
+
   ring: Ring | null;
   busy: boolean;
   onHide: (s: Submission) => void;
@@ -1148,37 +1234,186 @@ function People({
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
 
+  /* „Napisz SMS": `null` heisst aus. Der Text gilt nur für diesen Durchgang. */
+  const [smsText, setSmsText] = useState<string | null>(null);
+
+  /** Welche Nummern in diesem Durchgang schon geöffnet wurden — „Zgłoszenie|Nummer". */
+  const [sent, setSent] = useState<ReadonlySet<string>>(new Set());
+
+  /** Die Bestätigungslinks (`{weryfikacja}`, 0030) — einer je Nummer, und ein zweiter Tipp würfelt nicht neu. */
+  const [verifyLinks, setVerifyLinks] = useState<ReadonlyMap<string, string>>(new Map());
+
+  /** Welche Nummer gerade vorbereitet wird. */
+  const [working, setWorking] = useState<string | null>(null);
+
+  const links = useSeatLinks(seatAreas, ring);
+
   const rows = submissions
     .map((s) => ({ s, values: opened.get(s.registrationId), ...whoIn(opened.get(s.registrationId), fields) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
 
   if (rows.length === 0) return <p className="wk-empty">Nikt się jeszcze nie zapisał.</p>;
 
+  const templates = templatesOf(config);
+
+  /**
+   * EIN TIPP AUF „SMS" — und die Nachricht steht fertig im Telefon.
+   *
+   * <b>Der Link wird dabei geholt oder gemacht</b>, nicht beim Aufschlagen:
+   * einen neuen zu würfeln macht den vorigen ungültig, und das darf nur
+   * geschehen, wenn er gleich darauf verschickt wird.
+   */
+  const write = async (s: Submission, one: Numbered) => {
+    if (smsText === null) return;
+
+    const key = `${s.registrationId}|${one.dial}`;
+    const values = opened.get(s.registrationId);
+    const filled = holesOf(values, fields);
+
+    setWorking(key);
+    onError(null);
+
+    try {
+      let link: string | null = null;
+
+      if (usesHole(smsText, LINK) && s.seatId !== null) {
+        link = await links.forSms(s.seatId, checkOf(values, fields));
+      }
+
+      if (usesHole(smsText, VERIFY) && !one.orphan) {
+        let verify = verifyLinks.get(key) ?? null;
+
+        if (verify === null) {
+          const { token } = await armCheck(s.registrationId, one.fieldId);
+          verify = `${base()}#/verify/${encodeURIComponent(token)}`;
+          const armed = verify;
+          setVerifyLinks((was) => new Map(was).set(key, armed));
+        }
+
+        filled.set(VERIFY, verify);
+      }
+
+      setSent((was) => new Set(was).add(key));
+      window.location.href = smsHref(one.dial, renderSms(smsText, filled, link));
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się przygotować wiadomości.');
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  /* Was die Kanzlei VOR dem Abarbeiten wissen muss. */
+  const withoutSeat = rows.filter((r) => r.s.seatId === null).length;
+  const willRenew = rows.filter((r) => {
+    if (r.s.seatId === null) return false;
+    const row = links.rows.get(r.s.seatId);
+    if (row === undefined || row.revokedAt !== null) return false;
+
+    const wantsQuestion = checkOf(r.values, fields).some((c) => checkText(c.kind, c.value) !== '');
+    return row.linkSealed === null || row.locked || (wantsQuestion && !row.asks);
+  }).length;
+
+  const first = rows[0];
+
   return (
     <section className="wk-panel">
-      <h3 className="wk-h2">Osoby ({rows.length})</h3>
+      <div className="wk-sms-bar">
+        <h3 className="wk-h2">Osoby ({rows.length})</h3>
+
+        <button
+          type="button"
+          className={smsText === null ? 'wk-btn wk-btn-quiet' : 'wk-btn'}
+          aria-expanded={smsText !== null}
+          onClick={() => {
+            const on = smsText === null;
+            setSmsText(on ? (templates[0]?.text ?? '') : null);
+            setSent(new Set());
+
+            /* Die Links, die schon bereitliegen, gleich aufmachen — dann wartet der Tipp auf nichts. */
+            if (on) links.warm(rows.flatMap((r) => (r.s.seatId === null ? [] : [r.s.seatId])));
+          }}
+        >
+          {smsText === null ? 'Napisz SMS' : 'Zakończ pisanie'}
+        </button>
+      </div>
+
+      {smsText !== null && (
+        <SmsPanel
+          partId={partId}
+          config={config}
+          text={smsText}
+          onText={setSmsText}
+          onConfig={onConfig}
+          fields={fields}
+          hasPhones={fields.some((f) => f.kind === 'phone')}
+          preview={smsText.trim() === '' ? null : renderSms(smsText, holesOf(first.values, fields), '…link…')}
+          previewName={first.name}
+          withoutSeat={withoutSeat}
+          willRenew={willRenew}
+          sentCount={sent.size}
+          onForget={() => setSent(new Set())}
+          onError={onError}
+        />
+      )}
 
       <ul className="wk-entry-list">
-        {rows.map(({ s, values, name, dial, shown }) => {
+        {rows.map(({ s, values, name, phones }) => {
           const open = openId === s.registrationId;
-          const verified = s.checks.some((c) => c.verifiedAt !== null);
+          const bySms = s.checks.some((c) => c.verifiedAt !== null && c.origin === 'sms');
+          const seat = s.seatId === null ? undefined : links.rows.get(s.seatId);
 
           return (
             <li key={s.registrationId} className={s.hidden || s.withdrawnAt !== null ? 'wk-entry is-muted' : 'wk-entry'}>
               <div className="wk-entry-head">
                 <strong className="wk-entry-name">{name}</strong>
 
-                {dial !== null
-                  ? <a className="wk-entry-phone" href={`tel:${dial}`}>{shown}</a>
-                  : <span className="wk-hint">brak telefonu</span>}
+                {/*
+                  JEDE NUMMER EIN ANRUF — und im SMS-Durchgang daneben ihr
+                  Knopf, mit Häkchen, sobald er einmal getippt wurde.
+                */}
+                <span className="wk-entry-phones">
+                  {phones.length === 0 ? (
+                    <span className="wk-hint">{values === undefined ? '' : 'brak telefonu'}</span>
+                  ) : phones.map((one) => {
+                    const key = `${s.registrationId}|${one.dial}`;
+                    const done = sent.has(key);
+
+                    return (
+                      <span className="wk-entry-phone-one" key={key}>
+                        <a className="wk-entry-phone" href={`tel:${one.dial}`}>{one.shown}</a>
+                        {smsText !== null && (
+                          <button
+                            type="button"
+                            className={done ? 'wk-sms-go is-sent' : 'wk-sms-go'}
+                            disabled={working !== null || smsText.trim() === '' || s.withdrawnAt !== null}
+                            aria-label={done ? `SMS na ${one.shown} — już otwarty w tym przejściu` : `SMS na ${one.shown}`}
+                            onClick={() => void write(s, one)}
+                          >
+                            {working === key ? '…' : 'SMS'}{done ? ' ✓' : ''}
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </span>
 
                 <span className="wk-tags">
                   {s.hidden && <span className="wk-tag">ukryte</span>}
                   {s.withdrawnAt !== null && <span className="wk-tag">wycofane</span>}
-                  {s.seatId !== null
-                    ? <span className="wk-tag wk-tag-open">link</span>
-                    : <span className="wk-tag">bez linku</span>}
-                  {verified && <span className="wk-tag wk-tag-open">numer potwierdzony</span>}
+                  {s.seatId === null && <span className="wk-tag">bez linku</span>}
+                  {seat !== undefined && seat.revokedAt !== null && <span className="wk-tag">link wycofany</span>}
+                  {seat?.locked === true && <span className="wk-tag">link zablokowany</span>}
+                  {seat !== undefined && seat.asks && seat.verifiedAt === null && !seat.locked && seat.revokedAt === null && (
+                    <span className="wk-tag" title="Link czeka, aż ktoś otworzy go pierwszy raz i odpowie na pytanie">
+                      link nieotwarty
+                    </span>
+                  )}
+                  {s.confirmedAt !== null && (
+                    <span className="wk-tag wk-tag-open" title={`Potwierdzone ${new Date(s.confirmedAt).toLocaleDateString('pl-PL')}`}>
+                      dane potwierdzone
+                    </span>
+                  )}
+                  {bySms && <span className="wk-tag wk-tag-open">numer potwierdzony SMS-em</span>}
                 </span>
 
                 <button
@@ -1191,14 +1426,16 @@ function People({
 
               {open && (
                 <div className="wk-entry-body">
-                  <p className="wk-hint">Wysłano {new Date(s.submittedAt).toLocaleString('pl-PL')}</p>
+                  <p className="wk-hint">
+                    Wysłano {new Date(s.submittedAt).toLocaleString('pl-PL')}
+                    {s.confirmedAt !== null && ` · dane potwierdzone przez osobę ${new Date(s.confirmedAt).toLocaleString('pl-PL')}`}
+                  </p>
 
                   <Answers values={values} fields={fields} sealed={s.values.length} checks={s.checks} />
 
                   {/*
-                    DER LINK UND DIE NACHRICHT — nur, wo es einen Platz gibt.
-                    Eine Einsendung ohne Platz hat nichts, worauf ein Link
-                    zeigen könnte; dort wäre der Knopf ein Versprechen.
+                    DER LINK — nur, wo es einen Platz gibt. Eine Einsendung ohne
+                    Platz hat nichts, worauf ein Link zeigen könnte.
                   */}
                   {s.seatId !== null ? (
                     <SendPanel
@@ -1206,9 +1443,8 @@ function People({
                       registrationId={s.registrationId}
                       checks={s.checks}
                       values={values}
-                      fieldsByLabel={fields}
-                      template={template}
-                      ring={ring}
+                      fields={fields}
+                      links={links}
                       onError={onError}
                       onChanged={onChanged}
                     />
@@ -1863,23 +2099,6 @@ function SelfEditBox({ value, onChange }: { value: boolean; onChange: (next: boo
 
 export default FormOffice;
 
-/* -- Der Link und die Nachricht (0027/0029) -------------------------------- */
-
-/**
- * Was die Kanzlei einem Menschen schickt.
- *
- * <b>Den alten Link gibt es nicht zurück.</b> Gespeichert ist nur sein
- * Abdruck — niemand kann ihn nachschlagen, auch der Betreiber nicht. „Wystaw
- * link" stellt deshalb einen NEUEN auf DENSELBEN Platz aus: der Platzschlüssel
- * bleibt, also behält der Mensch alles, was er schon eingetragen hat, und nur
- * die Hülle darum ist neu. Der vorige hört auf zu gelten — das ist der Zweck.
- *
- * <b>Die Nachricht steht daneben, fertig zum Kopieren.</b> Die Vorlage schreibt
- * die Kanzlei einmal am Baustein; hier wird eingesetzt, was dieser Mensch
- * eingetragen hat. Ein Platzhalter ohne Antwort bleibt sichtbar und wird oben
- * benannt — eine Nachricht mit einer stillen Lücke ginge sonst hinaus, ohne
- * dass jemand es merkt.
- */
 /* -- Welche Werte Nummern sind --------------------------------------------- */
 
 /** Eine Nummer dieser Einsendung — und woher wir wissen, dass es eine ist. */
@@ -1935,9 +2154,178 @@ function numbersOf(
   return out;
 }
 
+/* -- Die Links der Menschen, für die Kanzlei (0046) ------------------------ */
+
+/**
+ * Was die Kanzlei über die Links ihrer Menschen weiss — und wie sie an einen
+ * kommt.
+ */
+interface SeatLinks {
+  /** Die Plätze dieses Formulars, wie die Kanzlei sie sieht. */
+  readonly rows: ReadonlyMap<string, SeatRow>;
+
+  /** Der Link, OHNE etwas zu ändern — `null`, wenn die Kanzlei ihn nicht lesen kann. */
+  readonly peek: (seatId: string) => Promise<string | null>;
+
+  /**
+   * Der Link zum VERSCHICKEN. Der vorhandene, wenn er taugt; sonst ein neuer,
+   * der beim ersten Öffnen fragt, was das Formular dafür vorsieht.
+   */
+  readonly forSms: (seatId: string, check: readonly CheckAnswer[]) => Promise<string>;
+
+  /** Ein NEUER Link — der bisherige hört auf zu gelten. */
+  readonly renew: (seatId: string, check: readonly CheckAnswer[]) => Promise<string>;
+
+  /** Der Platzschlüssel — für eine Berichtigung durch die Kanzlei. */
+  readonly key: (seatId: string) => Promise<Uint8Array>;
+
+  /** Die vorhandenen Links im Hintergrund aufmachen, damit ein Tipp auf nichts wartet. */
+  readonly warm: (seatIds: readonly string[]) => void;
+
+  readonly reload: () => Promise<void>;
+}
+
+/** Die ganze Adresse eines Links — die Seite, unter der der Platz hängt, mit dem Platz daran. */
+const linkUrl = (link: Link, under: string | null) => `${base()}${seatPath(link, under)}`;
+
+/**
+ * DIE LINKS DER MENSCHEN — gelesen, nicht neu gewürfelt.
+ *
+ * <b>Vorher gab es nur „Wystaw link"</b>: gespeichert war vom Link nur sein
+ * Abdruck, also stellte jeder Klick einen NEUEN aus, und der alte starb. Jetzt
+ * liegt der Link versiegelt unter dem Platzschlüssel (0046), und die Kanzlei,
+ * die den Platz öffnen kann, liest ihn — für jeden Menschen, ohne etwas zu
+ * tun.
+ *
+ * <b>Neu gewürfelt wird nur, wenn es sein muss:</b> ein Platz von vor 0046
+ * (sein Link ist nirgends lesbar), ein gesperrter, oder einer, der beim ersten
+ * Öffnen fragen soll und es noch nicht tut — etwa der Link aus der eigenen
+ * Anmeldung, der nie verschickt wurde. Dann entsteht der neue beim
+ * Verschicken, und nur dann.
+ */
+function useSeatLinks(areaIds: readonly string[], ring: Ring | null): SeatLinks {
+  const [rows, setRows] = useState<ReadonlyMap<string, SeatRow>>(new Map());
+
+  /* Stabil über das Zeichnen hinweg — die Funktionen unten lesen immer den neuesten Stand. */
+  const found = useRef(new Map<string, { row: SeatRow; areaId: string }>());
+  const links = useRef(new Map<string, Link>());
+  const seatKeys = useRef(new Map<string, Uint8Array>());
+  const areaKeys = useRef(new Map<string, { epochs: Map<number, Uint8Array>; intake: Uint8Array | undefined }>());
+
+  const areaList = areaIds.join(',');
+
+  const reload = useCallback(async () => {
+    const out = new Map<string, { row: SeatRow; areaId: string }>();
+
+    for (const areaId of areaList === '' ? [] : areaList.split(',')) {
+      try {
+        for (const row of (await loadSeats(areaId)).seats) out.set(row.seatId, { row, areaId });
+      } catch {
+        // Ein Bereich, dessen Plätze ich nicht sehe — seine Menschen bleiben ohne Link.
+      }
+    }
+
+    found.current = out;
+
+    /* Ein Link kann sich inzwischen geändert haben — ein Mensch hat seine Angaben berichtigt. */
+    links.current = new Map();
+    setRows(new Map([...out].map(([id, one]) => [id, one.row])));
+  }, [areaList]);
+
+  useEffect(() => { void reload(); }, [reload]);
+
+  const key = useCallback(async (seatId: string): Promise<Uint8Array> => {
+    const known = seatKeys.current.get(seatId);
+    if (known !== undefined) return known;
+
+    const one = found.current.get(seatId);
+    if (one === undefined) throw new WorkspaceError('Tego miejsca nie ma wśród Twoich obszarów.');
+    if (ring === null) throw new WorkspaceError('Bez hasła nie da się otworzyć linku.');
+
+    let area = areaKeys.current.get(one.areaId);
+
+    if (area === undefined) {
+      const epochs = await myEpochKeys(ring, one.areaId).catch(() => new Map<number, Uint8Array>());
+      const intake = await loadIntake(one.areaId).then((i) => openIntakeKey(i, ring)).catch(() => undefined);
+      area = { epochs, intake };
+      areaKeys.current.set(one.areaId, area);
+    }
+
+    const areaKey = area.epochs.get(one.row.epoch) ?? [...area.epochs.values()].pop() ?? new Uint8Array(32);
+    const opened = await officeSeatKey(one.row, areaKey, area.intake);
+    if (opened === null) throw new WorkspaceError('Do tego miejsca nie ma klucza.');
+
+    seatKeys.current.set(seatId, opened);
+    return opened;
+  }, [ring]);
+
+  const peek = useCallback(async (seatId: string): Promise<string | null> => {
+    const one = found.current.get(seatId);
+    const known = links.current.get(seatId);
+    if (known !== undefined) return linkUrl(known, one?.row.under ?? null);
+
+    if (one === undefined || one.row.linkSealed === null || one.row.revokedAt !== null) return null;
+
+    const link = await openLink(seatId, await key(seatId), one.row.linkSealed);
+    if (link === null) return null;
+
+    links.current.set(seatId, link);
+    return linkUrl(link, one.row.under);
+  }, [key]);
+
+  const renew = useCallback(async (seatId: string, check: readonly CheckAnswer[]): Promise<string> => {
+    const link = await relinkSeat(seatId, await key(seatId), check);
+    links.current.set(seatId, link);
+    await reload();
+    return linkUrl(link, found.current.get(seatId)?.row.under ?? null);
+  }, [key, reload]);
+
+  const forSms = useCallback(async (seatId: string, check: readonly CheckAnswer[]): Promise<string> => {
+    const one = found.current.get(seatId);
+    if (one === undefined) throw new WorkspaceError('Tego miejsca nie ma wśród Twoich obszarów.');
+    if (one.row.revokedAt !== null) throw new WorkspaceError('Link tej osoby jest wycofany — nie ma czego wysłać.');
+
+    /*
+     * DER VORHANDENE TAUGT, wenn er lesbar und nicht gesperrt ist — und wenn
+     * er beim ersten Öffnen fragt, sobald das Formular es verlangt. Der Link
+     * aus der eigenen Anmeldung fragt nicht (wer sich anmeldet, hat die Daten
+     * eben getippt); verschickt wird deshalb ein neuer, der es tut.
+     */
+    const wantsQuestion = check.some((c) => checkText(c.kind, c.value) !== '');
+    const reusable = one.row.linkSealed !== null && !one.row.locked && (one.row.asks || !wantsQuestion);
+
+    if (reusable) {
+      const url = await peek(seatId);
+      if (url !== null) return url;
+    }
+
+    return renew(seatId, check);
+  }, [peek, renew]);
+
+  const warm = useCallback((seatIds: readonly string[]) => {
+    void (async () => {
+      for (const seatId of seatIds) await peek(seatId).catch(() => null);
+    })();
+  }, [peek]);
+
+  return { rows, peek, forSms, renew, key, warm, reload };
+}
+
+/* -- Der Link eines Menschen (0027/0046) ----------------------------------- */
+
+/**
+ * Der Link eines Menschen — wie er gerade ist, und was man mit ihm tun kann.
+ *
+ * <b>Er steht einfach da</b> (0046). Vorher stand hier „Wystaw link", und jeder
+ * Klick machte den vorigen ungültig — weil der alte nirgends lesbar lag. Jetzt
+ * liest die Kanzlei ihn; einen neuen gibt es nur, wenn sie ihn ausdrücklich
+ * will („Wystaw nowy link") oder wenn beim Verschicken einer fällig ist.
+ *
+ * <b>Die SMS steht nicht mehr hier</b>, sondern an der Zeile — im Durchgang
+ * „Napisz SMS", mit EINER Nachricht für alle.
+ */
 function SendPanel({
-  seatId, registrationId, values, fieldsByLabel, checks, template, ring,
-  onError, onChanged
+  seatId, registrationId, values, fields, checks, links, onError, onChanged
 }: {
   seatId: string;
 
@@ -1945,148 +2333,80 @@ function SendPanel({
   readonly registrationId: string;
 
   values: Map<string, string> | undefined;
-  fieldsByLabel: readonly OpenField[];
+  fields: readonly OpenField[];
 
   /** Was an einzelnen Werten schon bestätigt ist (0030). */
   checks: readonly ValueCheck[];
 
-  template: string;
-  ring: Ring | null;
+  links: SeatLinks;
   onError: (message: string | null) => void;
 
   /** Nach dem Umschreiben ist die Liste veraltet. */
   onChanged: () => Promise<void>;
 }) {
-  const [link, setLink] = useState<string | null>(null);
-
-  /*
-   * JEDE NUMMER IHREN EIGENEN LINK. Vorher stand hier ein einzelner
-   * `checkLink` für die ganze Einsendung — und das war falsch, sobald ein
-   * Bogen zwei Nummern trug: bestätigt wurde dann die eine mit dem Link der
-   * anderen. Geschlüsselt wird nach der wählbaren Nummer, nicht nach dem Feld;
-   * ein Feld kann mehrere tragen.
-   */
-  const [links, setLinks] = useState<ReadonlyMap<string, string>>(new Map());
-
+  /** `undefined`: wird gerade gelesen. `null`: die Kanzlei kennt ihn nicht. */
+  const [url, setUrl] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const byLabel = new Map<string, string>();
+  const row = links.rows.get(seatId);
+  const { peek } = links;
 
-  if (values !== undefined) {
-    for (const f of fieldsByLabel) {
-      const v = values.get(f.fieldId);
-      if (f.label !== null && v !== undefined) byLabel.set(f.label, v);
-    }
-  }
+  useEffect(() => {
+    let alive = true;
+    void peek(seatId)
+      .then((found) => { if (alive) setUrl(found); })
+      .catch(() => { if (alive) setUrl(null); });
+    return () => { alive = false; };
+  }, [peek, seatId, row?.linkSealed]);
 
-  /*
-   * `{imie}` neben `{Imię i nazwisko}` — der Altbestand hatte beide, und aus
-   * gutem Grund: „Cześć Anna Kowalska" grüsst niemand. Alles bis zum ersten
-   * Leerzeichen; ein einwortiger Name ist sein eigener Vorname.
-   */
-  const nameField = fieldsByLabel.find((f) => f.identityRole === 'name');
-  const fullName = nameField === undefined ? undefined : values?.get(nameField.fieldId);
-
-  if (fullName !== undefined && fullName.trim() !== '') {
-    byLabel.set('imie', fullName.trim().split(/\s+/)[0]);
-    byLabel.set('osoba', fullName.trim());
-  }
-
-  const numbers = numbersOf(values, fieldsByLabel);
+  const numbers = numbersOf(values, fields);
   const orphans = numbers.filter((n) => n.orphan);
 
   /** Wohin ein umgeschriebener Wert gehört — die Frage von heute. */
-  const livePhone = fieldsByLabel.find((f) => f.kind === 'phone');
+  const livePhone = fields.find((f) => f.kind === 'phone');
 
-  /** Die Nachricht, wie sie mit DIESEM Bestätigungslink dasteht. */
-  const textFor = (verify: string | null): string => {
-    if (template.trim() === '') return '';
+  /** Wonach der Link beim ersten Öffnen fragt — lesbar. */
+  const asked = (row?.verifyFields ?? '').split(',').filter((id) => id !== '')
+    .map((id) => fields.find((f) => f.fieldId === id)?.label ?? 'pytanie usunięte');
 
-    const filled = new Map(byLabel);
-    if (verify !== null) filled.set(VERIFY, verify);
+  const renew = async () => {
+    if (url !== null && !window.confirm(
+      'Wystawić nowy link? Obecny przestanie działać — także ten, który ta osoba już ma.')) return;
 
-    return renderSms(template, filled, link);
-  };
+    setBusy(true);
+    onError(null);
 
-  const gapsFor = (verify: string | null): readonly string[] => {
-    if (template.trim() === '') return [];
-
-    const filled = new Map(byLabel);
-    if (verify !== null) filled.set(VERIFY, verify);
-
-    return missingIn(template, filled, link);
-  };
-
-  /*
-   * Was ohne jede Nummer dasteht — die Vorschau unten. Ein Bestätigungslink
-   * gehört dort NICHT hinein: welcher es wäre, entscheidet sich erst an der
-   * Nummer, die angeklickt wird.
-   */
-  const preview = textFor(null);
-  const gaps = gapsFor(null).filter((g) => g !== VERIFY || numbers.length === 0);
-
-  const wantsVerify = usesHole(template, VERIFY);
-
-  const base = () => `${window.location.origin}${window.location.pathname}`;
-
-  /**
-   * EIN KLICK AUF DIE NUMMER — und die Nachricht steht fertig im Telefon.
-   *
-   * <b>Der Bestätigungslink entsteht dabei</b>, für genau diese Nummer, und
-   * nur wenn die Vorlage ihn einsetzt. Ihn bei jedem Aufschlagen der Liste zu
-   * würfeln wäre das Gegenteil von Bestätigen: der zuletzt verschickte gälte
-   * dann nicht mehr, ohne dass jemand etwas getan hätte.
-   *
-   * <b>Ein zweiter Klick würfelt nicht neu.</b> Wer dieselbe Nachricht noch
-   * einmal öffnet, will sie noch einmal schicken — nicht den Link ungültig
-   * machen, den er eben verschickt hat.
-   */
-  const write = async (one: Numbered) => {
-    let verify = links.get(one.dial) ?? null;
-
-    if (verify === null && wantsVerify && !one.orphan) {
-      setBusy(true);
-      onError(null);
-
-      try {
-        const { token } = await armCheck(registrationId, one.fieldId);
-
-        verify = `${base()}#/verify/${encodeURIComponent(token)}`;
-        setLinks(new Map(links).set(one.dial, verify));
-      } catch (e) {
-        onError(e instanceof WorkspaceError ? e.message : 'Nie udało się przygotować linku.');
-        return;
-      } finally {
-        setBusy(false);
-      }
+    try {
+      setUrl(await links.renew(seatId, checkOf(values, fields)));
+      setCopied(false);
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się wystawić linku.');
+    } finally {
+      setBusy(false);
     }
-
-    window.location.href = smsHref(one.dial, textFor(verify));
   };
 
   /**
    * Einen verwaisten Wert auf die HEUTIGE Frage umschreiben.
    *
    * <b>Warum es das überhaupt braucht.</b> `value_check.field_id` zeigt auf
-   * `slug_field` — eine Bestätigung ohne Frage kann es nicht geben, und das
-   * ist richtig so. Wer sein Formular neu gebaut hat, trägt aber Antworten,
-   * die auf die Fragen von gestern zeigen: lesbar, und trotzdem nicht zu
-   * bestätigen. Hier werden sie an die Frage von heute gehängt.
+   * `slug_field` — eine Bestätigung ohne Frage kann es nicht geben. Wer sein
+   * Formular neu gebaut hat, trägt aber Antworten, die auf die Fragen von
+   * gestern zeigen: lesbar, und trotzdem nicht zu bestätigen.
    *
    * <b>Der Platzschlüssel muss mit</b> — wie bei jeder Korrektur der Kanzlei.
    * Ohne ihn stünde im Portal des Menschen hinterher nichts mehr.
    */
   const rebind = async () => {
     if (livePhone === undefined) return;
-    if (ring === null) { onError('Bez hasła nie da się przepisać.'); return; }
     setBusy(true);
     onError(null);
 
     try {
       /* Die Annahme des Bereichs, in den DIESE Frage schreibt — bei mehreren nicht irgendeine. */
       const intake = await loadPublicIntake(livePhone.areaId);
-      const seatKey = await seatRowOf(seatId, ring).then((r) => r.key).catch(() => null);
+      const seatKey = await links.key(seatId).catch(() => null);
 
       /* Was schon unter der heutigen Frage steht, bleibt — und geht voran. */
       let merged = [...splitPhones(values?.get(livePhone.fieldId) ?? '')];
@@ -2106,43 +2426,21 @@ function SendPanel({
     }
   };
 
-  const issue = async () => {
-    if (ring === null) { onError('Bez hasła nie da się wystawić linku.'); return; }
-
-    setBusy(true);
-    onError(null);
-
-    try {
-      const row = await seatRowOf(seatId, ring);
-      const fresh = await relinkSeat(seatId, row.key);
-
-      setLink(`${base()}${seatPath(fresh, row.under)}`);
-    } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się wystawić linku.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   /**
-   * Den Link ZURÜCKNEHMEN.
-   *
-   * <b>Er stand bei den Plätzen, und die Plätze sind fort</b> — sie waren
-   * dieselbe Sache zweimal. Das Zurücknehmen war es nicht: es ist der einzige
-   * Handgriff gegen einen Link, der in die falschen Hände geraten ist, und er
-   * gehört an dieselbe Zeile wie das Ausstellen.
-   *
-   * <b>Es löscht nichts.</b> Die Einsendung bleibt, wo sie ist; was aufhört,
-   * ist der Zugang über diesen Link. Wer ihn wieder braucht, bekommt mit
-   * „Wystaw nowy link" einen neuen — der alte wird davon nicht wieder gültig.
+   * Den Link ZURÜCKNEHMEN — der einzige Handgriff gegen einen Link, der in
+   * die falschen Hände geraten ist. Es löscht nichts: die Einsendung bleibt,
+   * was aufhört, ist der Zugang über diesen Platz.
    */
   const withdraw = async () => {
+    if (!window.confirm('Wycofać link? Ta osoba straci dostęp przez link; zgłoszenie zostaje.')) return;
+
     setBusy(true);
     onError(null);
 
     try {
       await revokeSeat(seatId);
-      setLink(null);
+      await links.reload();
+      setUrl(null);
     } catch (e) {
       onError(e instanceof WorkspaceError ? e.message : 'Nie udało się wycofać linku.');
     } finally {
@@ -2150,112 +2448,88 @@ function SendPanel({
     }
   };
 
+  const when = (at: string) =>
+    new Date(at).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  if (row !== undefined && row.revokedAt !== null) {
+    return (
+      <p className="wk-hint">
+        Link tej osoby wycofano {when(row.revokedAt)} — przez link nie ma już dostępu.
+        Zgłoszenie zostaje.
+      </p>
+    );
+  }
+
   return (
     <div className="wk-form">
-      <div className="wk-actions">
-        <button type="button" className="wk-btn" disabled={busy} onClick={() => void issue()}>
-          {busy ? 'Wystawianie…' : link === null ? 'Wystaw link' : 'Wystaw nowy link'}
-        </button>
+      <h4 className="wk-h3">Link osoby</h4>
 
+      {url === undefined ? (
+        <p className="wk-hint">Otwieranie linku…</p>
+      ) : url === null ? (
+        <p className="wk-hint">
+          Tego linku kancelaria nie odczyta — powstał, zanim linki zaczęły być
+          zapisywane także dla niej. Przy pierwszym SMS-ie powstanie nowy
+          (stary przestanie działać); możesz go też wystawić od razu.
+        </p>
+      ) : (
+        <div className="wk-link-row">
+          <input readOnly className="wk-mono" value={url} aria-label="Link osoby" onFocus={(e) => e.currentTarget.select()} />
+          <button
+            type="button" className="wk-link-btn"
+            onClick={() => {
+              void navigator.clipboard?.writeText(url)
+                .then(() => setCopied(true)).catch(() => setCopied(false));
+            }}
+          >
+            {copied ? 'Skopiowano' : 'Kopiuj'}
+          </button>
+        </div>
+      )}
+
+      {row !== undefined && (
+        <p className="wk-hint">
+          {row.locked
+            ? 'Link zablokowany — ktoś kilka razy źle odpowiedział przy pierwszym otwarciu. Wystaw nowy.'
+            : row.asks && row.verifiedAt === null
+              ? `Jeszcze nieotwarty. Przy pierwszym otwarciu zapyta o: ${asked.join(', ') || '—'}.`
+              : row.asks
+                ? `Otwarty i potwierdzony ${when(row.verifiedAt!)} — więcej nie pyta.`
+                : 'Ten link nie pyta o nic przy otwarciu.'}
+          {row.viewCount > 0 && ` Otwierany ${row.viewCount}×.`}
+        </p>
+      )}
+
+      <div className="wk-actions">
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void renew()}>
+          {busy ? 'Wystawianie…' : url === null ? 'Wystaw link' : 'Wystaw nowy link'}
+        </button>
         <button
-          type="button"
-          className="wk-link-btn"
-          disabled={busy}
+          type="button" className="wk-link-btn wk-danger" disabled={busy}
           title="Link przestaje działać. Zgłoszenie zostaje."
           onClick={() => void withdraw()}
         >
           Wycofaj link
         </button>
-
-        {/*
-          DIE NUMMER IST DER KNOPF — wie im Altbestand (`AccessPanel.tsx`).
-          Ein Klick stellt den Bestätigungslink für GENAU DIESE Nummer scharf,
-          setzt ihn in die Vorlage und öffnet das Nachrichtenfenster mit
-          fertigem Text. Es bleibt ein Handgriff: absenden.
-
-          Vorher stand hier „Kopiuj wiadomość", und das war zwei Fehler in
-          einem: die Kanzlei musste den Text von Hand in ein Fenster tragen,
-          das sie selbst suchen musste — und dabei lag für alle Nummern
-          derselbe Text im Zwischenspeicher, obwohl jede ihren eigenen Link
-          braucht.
-        */}
-        {numbers.map((one) => (
-          <button
-            key={`${one.fieldId}|${one.dial}`}
-            type="button"
-            className="wk-btn"
-            disabled={busy || template.trim() === ''}
-            title={one.orphan
-              ? 'Pytanie do tego numeru usunięte — bez potwierdzenia'
-              : 'Napisz SMS z tym numerem'}
-            onClick={() => void write(one)}
-          >
-            {busy ? 'Przygotowywanie…' : `SMS: ${one.shown}`}
-            {checks.some((c) => c.fieldId === one.fieldId && c.verifiedAt !== null) ? ' ✓' : ''}
-          </button>
-        ))}
-
-        {numbers.map((one) => (
-          <a key={`tel|${one.dial}`} className="wk-link-btn" href={`tel:${one.dial}`}>
-            Zadzwoń {one.shown}
-          </a>
-        ))}
-
-        {/*
-          KOPIEREN BLEIBT NUR, WO ES NICHTS ANZUKLICKEN GIBT. Wo eine Nummer
-          steht, ist der Zwischenspeicher der Umweg — und ein gefährlicher:
-          derselbe Text für zwei Menschen trüge denselben Bestätigungslink.
-        */}
-        {numbers.length === 0 && preview !== '' && (
-          <button
-            type="button" className="wk-link-btn"
-            onClick={() => {
-              void navigator.clipboard?.writeText(preview)
-                .then(() => setCopied(true)).catch(() => setCopied(false));
-            }}
-          >
-            {copied ? 'Skopiowano' : 'Kopiuj wiadomość'}
-          </button>
-        )}
       </div>
 
-      {numbers.length === 0 && preview !== '' && (
-        <p className="wk-hint">
-          {values === undefined
-            ? 'Otwórz zgłoszenie, żeby zobaczyć numer.'
-            : 'W tym zgłoszeniu nie ma numeru do kliknięcia — zostaje skopiowanie wiadomości.'}
-        </p>
-      )}
-
-      {template.trim() === '' && numbers.length > 0 && (
-        <p className="wk-hint">
-          Napisz najpierw szablon wiadomości — bez niego nie ma czego wysłać.
-        </p>
-      )}
-
       {/*
-        DER VERWAISTE WERT — und was dagegen zu tun ist.
-
-        Er lässt sich lesen und anwählen, aber NICHT bestätigen: eine
-        Bestätigung zeigt auf eine Frage, und diese gibt es nicht mehr. Das ist
-        keine Lücke, die sich wegargumentieren lässt — also steht hier, woran
-        es liegt, und daneben der eine Handgriff, der es behebt.
+        DER VERWAISTE WERT — und was dagegen zu tun ist. Er lässt sich lesen
+        und anwählen, aber NICHT bestätigen: eine Bestätigung zeigt auf eine
+        Frage, und diese gibt es nicht mehr.
       */}
       {orphans.length > 0 && (
         <p className="wk-note">
           {orphans.length === 1
             ? 'Ten numer należy do pytania, którego już nie ma — '
             : 'Te numery należą do pytań, których już nie ma — '}
-          SMS wyślesz, ale linku potwierdzającego do nich nie da się wystawić.
+          SMS wyślesz, ale linku potwierdzającego numer do nich nie da się wystawić.
           {livePhone === undefined ? (
             <> Najpierw dodaj do formularza pytanie o telefon.</>
           ) : (
             <>
               {' '}
-              <button
-                type="button" className="wk-link-btn" disabled={busy}
-                onClick={() => void rebind()}
-              >
+              <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void rebind()}>
                 Przepisz na „{livePhone.label ?? 'telefon'}"
               </button>
             </>
@@ -2264,30 +2538,18 @@ function SendPanel({
       )}
 
       {/*
-        DER ZUSTAND JEDER EINZELNEN NUMMER — bestätigt, „Link ist draussen und
-        wartet", oder nichts davon. Der mittlere ist der, den eine Kanzlei
-        wirklich braucht: sie hat geschickt, es kam nichts zurück.
+        DER ZUSTAND JEDER NUMMER, die einen Bestätigungslink (`{weryfikacja}`)
+        bekommen hat — bestätigt, oder „ist draussen und wartet".
       */}
       {[...new Set(numbers.filter((n) => !n.orphan).map((n) => n.fieldId))].map((fieldId) => {
         const mark = checks.find((c) => c.fieldId === fieldId);
         if (mark === undefined) return null;
 
-        const label = fieldsByLabel.find((f) => f.fieldId === fieldId)?.label ?? 'Numer';
+        const label = fields.find((f) => f.fieldId === fieldId)?.label ?? 'Numer';
 
         return mark.verifiedAt !== null ? (
           <p className="wk-hint" key={fieldId}>
-            <strong>{label} — potwierdzony</strong>{' '}
-            {new Date(mark.verifiedAt).toLocaleDateString('pl-PL',
-              { day: 'numeric', month: 'long', year: 'numeric' })}
-            {/*
-              WELCHER WEG, wörtlich (0031). Hier stand „ta osoba kliknęła link,
-              który tam wysłaliście" für JEDE Bestätigung — und das wurde in dem
-              Augenblick unwahr, in dem es den Knopf im Portal gab. Die beiden
-              sagen nicht dasselbe: der geklickte Link zeigt, dass unter DIESER
-              Nummer jemand erreichbar war; der Knopf zeigt, dass die Angabe
-              noch gilt. Wer sie zusammenwirft, hält eine Erreichbarkeit für
-              belegt, die niemand belegt hat.
-            */}
+            <strong>{label} — potwierdzony</strong> {when(mark.verifiedAt)}
             {mark.origin === 'sms'
               ? ' — ta osoba kliknęła link, który tam wysłaliście.'
               : ' — ta osoba potwierdziła to w swoim portalu. '
@@ -2295,64 +2557,352 @@ function SendPanel({
           </p>
         ) : (
           <p className="wk-hint" key={fieldId}>
-            Link potwierdzający wysłany{' '}
+            Link potwierdzający numer wysłany{' '}
             {new Date(mark.sentAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })},
             {' '}bez odpowiedzi. Ważny do{' '}
             {new Date(mark.expiresAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}.
           </p>
         );
       })}
+    </div>
+  );
+}
 
-      {links.size > 0 && (
-        <p className="wk-hint">
-          <strong>
-            {links.size === 1
-              ? 'Link potwierdzający poszedł w wiadomości'
-              : `Linki potwierdzające (${links.size}) poszły w wiadomościach`}
-          </strong>
-          {' '}— każdy numer dostał własny. Poprzednie, jeśli były, przestały działać.
+/* -- Die Nachricht: einmal geschrieben, als Szablon behalten ---------------- */
+
+/** Eine gespeicherte Nachricht — wie im Altbestand der Veranstaltungen. */
+interface SmsTemplate {
+  readonly label: string;
+  readonly text: string;
+}
+
+/**
+ * Die Szablony dieses Formulars — aus `config.smsTemplates` (JSON).
+ *
+ * <b>Die eine Vorlage von vorher</b> (`config.sms`) steht als erster Szablon
+ * da, bis die Liste zum ersten Mal gespeichert wird; dann geht sie in ihr auf.
+ */
+function templatesOf(config: Record<string, string>): readonly SmsTemplate[] {
+  let list: SmsTemplate[] = [];
+
+  try {
+    const parsed: unknown = JSON.parse(config.smsTemplates ?? '[]');
+    if (Array.isArray(parsed)) {
+      list = parsed.filter((one): one is SmsTemplate =>
+        typeof one === 'object' && one !== null
+        && typeof (one as SmsTemplate).label === 'string'
+        && typeof (one as SmsTemplate).text === 'string');
+    }
+  } catch {
+    list = [];
+  }
+
+  const legacy = (config.sms ?? '').trim();
+  return legacy !== '' && !list.some((one) => one.text === legacy)
+    ? [{ label: 'Szablon', text: legacy }, ...list]
+    : list;
+}
+
+/**
+ * „Napisz SMS" — die Nachricht für den ganzen Durchgang.
+ *
+ * <b>Nach dem Altbestand</b> (`RosterPart.SmsPanel`): oben die gespeicherten
+ * Szablony, darunter der Text, darunter die Platzhalter zum Einsetzen, und
+ * die Nachricht so, wie sie beim ersten Menschen der Liste ankommt.
+ *
+ * <b>Die Szablony gehören dem Formular</b>, der Text dem Durchgang: wer ihn
+ * für heute umschreibt, ändert keinen Szablon, bis er ihn ausdrücklich
+ * speichert.
+ */
+function SmsPanel({
+  partId, config, text, onText, onConfig, fields, hasPhones, preview, previewName,
+  withoutSeat, willRenew, sentCount, onForget, onError
+}: {
+  partId: string;
+  config: Record<string, string>;
+  text: string;
+  onText: (next: string) => void;
+  onConfig: (next: Record<string, string>) => void;
+  fields: readonly OpenField[];
+  hasPhones: boolean;
+  preview: string | null;
+  previewName: string;
+
+  /** Wie viele Menschen keinen Platz haben — bei ihnen bleibt `{link}` leer. */
+  withoutSeat: number;
+
+  /** Wie viele beim Verschicken einen NEUEN Link bekommen — ihr alter hört dann auf. */
+  willRenew: number;
+
+  sentCount: number;
+  onForget: () => void;
+  onError: (message: string | null) => void;
+}) {
+  const templates = templatesOf(config);
+  const [naming, setNaming] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const saveList = async (list: readonly SmsTemplate[]) => {
+    setSaving(true);
+    onError(null);
+
+    try {
+      const done = await setPartConfig(partId, {
+        smsTemplates: list.length === 0 ? '' : JSON.stringify(list),
+        /* Die eine Vorlage von vorher ist jetzt Teil der Liste — oder bewusst fort. */
+        ...((config.sms ?? '') !== '' ? { sms: '' } : {})
+      });
+      onConfig(done.config);
+      setNaming(null);
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać szablonu.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveAs = (label: string) => {
+    const name = label.trim();
+    if (name === '' || text.trim() === '') return;
+
+    const at = templates.findIndex((one) => one.label === name);
+    void saveList(at < 0
+      ? [...templates, { label: name, text }]
+      : templates.map((one, i) => (i === at ? { label: name, text } : one)));
+  };
+
+  const labels = fields.map((f) => f.label).filter((l): l is string => l !== null && l.trim() !== '');
+  const holes = ['imie', 'osoba', LINK, ...(hasPhones ? [VERIFY] : []), ...labels];
+
+  /*
+   * WAS DER LINK FRAGT, GEHÖRT NICHT IN DIE NACHRICHT. Wer eine SMS
+   * pomyłkowo dostaje, liest die Antwort sonst gleich mit — und die Frage beim
+   * ersten Öffnen schützt nichts mehr.
+   */
+  const asked = fields.filter((f) => f.linkCheck);
+  const nameAsked = asked.some((f) => f.identityRole === 'given_name' || f.identityRole === 'surname' || f.identityRole === 'name');
+  const leaks = [
+    ...asked.filter((f) => f.label !== null && usesHole(text, f.label)).map((f) => f.label!),
+    ...(nameAsked && usesHole(text, 'osoba') ? ['osoba'] : []),
+    ...(asked.some((f) => f.identityRole === 'name') && usesHole(text, 'imie') ? ['imie'] : [])
+  ];
+
+  return (
+    <div className="wk-sms">
+      {templates.length > 0 && (
+        <ul className="wk-chips" aria-label="Zapisane szablony">
+          {templates.map((one, i) => (
+            <li key={`${one.label}-${i}`} className={one.text === text ? 'wk-chip is-on' : 'wk-chip'}>
+              <button type="button" className="wk-chip-pick" onClick={() => onText(one.text)}>{one.label}</button>
+              <button
+                type="button" className="wk-chip-x" disabled={saving}
+                aria-label={`Usuń szablon ${one.label}`}
+                onClick={() => {
+                  if (window.confirm(`Usunąć szablon „${one.label}"?`)) {
+                    void saveList(templates.filter((_, j) => j !== i));
+                  }
+                }}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <textarea
+        rows={3}
+        value={text}
+        aria-label="Treść wiadomości"
+        placeholder="Napisz wiadomość albo wybierz gotową…"
+        onChange={(e) => onText(e.target.value)}
+      />
+
+      {/*
+        Ein Klick setzt den Platzhalter ein — abgetippt wird er sonst falsch,
+        und eine Frage heisst genau so, wie sie im Bogen steht.
+      */}
+      <div className="wk-chips">
+        {holes.map((one) => (
+          <button key={one} type="button" className="wk-chip wk-chip-add" onClick={() => onText(`${text}{${one}}`)}>
+            + {`{${one}}`}
+          </button>
+        ))}
+      </div>
+
+      <p className="wk-hint">
+        <code>{'{link}'}</code> — strona osoby (powstaje sama), <code>{'{imie}'}</code> — samo
+        imię, <code>{'{osoba}'}</code> — imię i nazwisko
+        {hasPhones && <>, <code>{`{${VERIFY}}`}</code> — link potwierdzający ten numer</>}.
+        Czego nie da się wypełnić, zostaje widoczne w nawiasach.
+      </p>
+
+      {preview !== null && (
+        <p className="wk-sms-preview">
+          <span className="wk-row-side">Dla: {previewName}</span>
+          {preview}
         </p>
       )}
 
-      {link !== null && (
-        <>
-          <p className="wk-hint">
-            <strong>Ten link widzisz tylko teraz</strong> — zapisany jest wyłącznie
-            jego odcisk. Poprzedni przestał działać; wszystko, co ta osoba już
-            wpisała, zostaje.
-          </p>
-          <textarea readOnly rows={2} className="wk-mono" value={link} />
-        </>
+      {leaks.length > 0 && (
+        <p className="wk-warn">
+          Wiadomość zawiera {leaks.map((l) => `{${l}}`).join(', ')} — o to link pyta przy pierwszym
+          otwarciu. Kto dostanie SMS pomyłkowo, przeczyta odpowiedź razem z pytaniem. Usuń to z treści.
+        </p>
       )}
 
-      {template.trim() === '' ? (
+      {usesHole(text, LINK) && withoutSeat > 0 && (
         <p className="wk-hint">
-          Napisz szablon wiadomości powyżej — np.{' '}
-          <code>Cześć {'{Imię i nazwisko}'}! Twoja strona: {'{link}'}</code>
+          {withoutSeat === 1 ? '1 osoba nie ma' : `${withoutSeat} osób nie ma`} miejsca — u nich{' '}
+          <code>{'{link}'}</code> zostanie w nawiasach.
         </p>
+      )}
+
+      {usesHole(text, LINK) && willRenew > 0 && (
+        <p className="wk-hint">
+          {willRenew === 1 ? '1 osoba dostanie' : `${willRenew} osób dostanie`} przy wysyłce <strong>nowy link</strong>
+          {asked.length > 0 && <>, który przy pierwszym otwarciu zapyta o: {asked.map((f) => f.label ?? '—').join(', ')}</>}
+          . Ich dotychczasowy link przestanie działać.
+        </p>
+      )}
+
+      <div className="wk-actions">
+        {naming === null ? (
+          <button
+            type="button" className="wk-link-btn" disabled={saving || text.trim() === ''}
+            onClick={() => setNaming(templates.find((one) => one.text === text)?.label ?? '')}
+          >
+            Zapisz jako szablon
+          </button>
+        ) : (
+          <form className="wk-inline" onSubmit={(e) => { e.preventDefault(); saveAs(naming); }}>
+            <input
+              value={naming}
+              placeholder="Nazwa, np. Przypomnienie"
+              aria-label="Nazwa szablonu"
+              disabled={saving}
+              onChange={(e) => setNaming(e.target.value)}
+            />
+            <button type="submit" className="wk-btn" disabled={saving || naming.trim() === ''}>
+              {saving ? 'Zapisywanie…' : 'Zapisz'}
+            </button>
+            <button type="button" className="wk-link-btn" disabled={saving} onClick={() => setNaming(null)}>
+              Anuluj
+            </button>
+          </form>
+        )}
+
+        {sentCount > 0 && (
+          <span className="wk-hint">
+            Otwarto {sentCount} {sentCount === 1 ? 'wiadomość' : 'wiadomości'} w tym przejściu ·{' '}
+            <button type="button" className="wk-link-btn" onClick={onForget}>Wyczyść znaczniki</button>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* -- Das erste Öffnen eines Links (0046) ----------------------------------- */
+
+/**
+ * „O CO ZAPYTAĆ PRZY PIERWSZYM OTWARCIU LINKU" — eine Einstellung des
+ * ganzen Formulars.
+ *
+ * <b>Wozu.</b> Ein Link in einer SMS kann bei der falschen Nummer landen. Wer
+ * ihn zum ersten Mal öffnet, nennt einmal, was hier gewählt ist — etwa Imię
+ * und Nazwisko —, so wie es im Zgłoszenie steht. Einmal richtig: der Link
+ * fragt nie wieder. Nichts gewählt: er fragt nichts.
+ */
+function LinkCheckBox({ partId, fields, busy, onSaved, onError }: {
+  partId: string;
+  fields: readonly OpenField[];
+  busy: boolean;
+  onSaved: () => void;
+  onError: (message: string | null) => void;
+}) {
+  const current = fields.filter((f) => f.linkCheck).map((f) => f.fieldId).join(',');
+  const [draft, setDraft] = useState<ReadonlySet<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDraft(new Set(current === '' ? [] : current.split(',')));
+  }, [current]);
+
+  /* Was sich zum Wiedererkennen eignet — keine langen Texte, keine Auswahl aus einer Liste. */
+  const askable = fields.filter((f) => f.kind === 'line' || f.kind === 'date' || f.kind === 'phone'
+    || f.kind === 'email' || f.kind === 'number');
+
+  const changed = [...draft].sort().join(',') !== current.split(',').filter((id) => id !== '').sort().join(',');
+
+  const save = async () => {
+    setSaving(true);
+    onError(null);
+
+    try {
+      await setLinkCheck(partId, askable.filter((f) => draft.has(f.fieldId)).map((f) => f.fieldId));
+      onSaved();
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="wk-field">
+      <span>Pierwsze otwarcie linku — o co zapytać</span>
+
+      <p className="wk-hint">
+        Link wysłany SMS-em może trafić pod zły numer. Kto otworzy go pierwszy raz,
+        musi podać zaznaczone dane tak jak w zgłoszeniu (wielkość liter i polskie znaki
+        nie mają znaczenia). Raz poprawnie — link więcej nie pyta. Nic nie zaznaczone —
+        link nie pyta.
+      </p>
+
+      {askable.length === 0 ? (
+        <p className="wk-empty">W formularzu nie ma pytania, o które dałoby się zapytać.</p>
       ) : (
-        <>
-          {gaps.length > 0 && (
-            <p className="wk-blocker">
-              Bez treści: {gaps.map((g) => `{${g}}`).join(', ')}
-              {gaps.includes('link') && ' — najpierw wystaw link.'}
-            </p>
-          )}
+        <ul className="wk-checks">
+          {askable.map((f) => (
+            <li key={f.fieldId}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={draft.has(f.fieldId)}
+                  disabled={busy || saving || (!draft.has(f.fieldId) && draft.size >= 10)}
+                  onChange={(e) => {
+                    const next = new Set(draft);
+                    if (e.target.checked) next.add(f.fieldId); else next.delete(f.fieldId);
+                    setDraft(next);
+                  }}
+                />
+                {' '}{f.label ?? 'zapieczętowane pytanie'}
+                <span className="wk-row-side"> · {KIND_LABEL[f.kind]}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
 
-          {/*
-            DIE VORSCHAU OHNE BESTÄTIGUNGSLINK. `{weryfikacja}` steht hier
-            absichtlich noch in Klammern: welcher Link es wird, entscheidet
-            sich an der Nummer, die angeklickt wird — einer je Nummer.
-          */}
-          <textarea readOnly rows={4} value={preview} />
+      <p className="wk-hint">
+        Dotyczy linków, które kancelaria wyśle od teraz. Link z samodzielnego zapisu nie
+        pyta — zapisujący właśnie te dane wpisał; przy pierwszym SMS-ie dostanie nowy,
+        pytający link.
+      </p>
 
-          {wantsVerify && numbers.some((n) => !n.orphan) && (
-            <p className="wk-hint">
-              <code>{`{${VERIFY}}`}</code> wypełni się przy kliknięciu w numer —
-              każdy numer dostaje własny link.
-            </p>
-          )}
-        </>
+      {changed && (
+        <div className="wk-actions">
+          <button type="button" className="wk-btn" disabled={busy || saving} onClick={() => void save()}>
+            {saving ? 'Zapisywanie…' : 'Zapisz'}
+          </button>
+          <button
+            type="button" className="wk-link-btn" disabled={saving}
+            onClick={() => setDraft(new Set(current === '' ? [] : current.split(',')))}
+          >
+            Cofnij
+          </button>
+        </div>
       )}
     </div>
   );
@@ -2363,7 +2913,9 @@ function SendPanel({
  *
  * <b>Beide Wege, weil es beide gibt</b> (0027): ein Platz, den das Amt
  * ausgestellt hat, hängt an der Epoche; einer aus einer Selbstanmeldung an der
- * Annahme. Welcher, sagt die Zeile selbst.
+ * Annahme. Welcher, sagt die Zeile selbst. Für Korrekturen vieler Zeilen auf
+ * einmal (`straighten`); die Liste der Menschen hat ihren eigenen Weg
+ * (`useSeatLinks`).
  */
 async function seatRowOf(seatId: string, ring: Ring): Promise<{ key: Uint8Array; under: string | null }> {
   const mine = (await loadAreas()).areas;
@@ -2389,21 +2941,8 @@ async function seatRowOf(seatId: string, ring: Ring): Promise<{ key: Uint8Array;
   throw new WorkspaceError('Tego miejsca nie ma wśród Twoich obszarów.');
 }
 
-/* -- Die Nachricht, einmal geschrieben ------------------------------------- */
+/* -- Die Überschrift ------------------------------------------------------- */
 
-/**
- * Die Vorlage der SMS — dort, wo die Einsendungen stehen.
- *
- * <b>Sie liegt im `config` des Bausteins</b> wie jede andere Einstellung, und
- * sie ist auch im Rasterentwurf zu sehen. Gespeichert wird sie hier aber
- * EINZELN (`setPartConfig`): der Entwurf schreibt beim Speichern die ganze
- * Seite, und wer nur einen Satz tippt, will nicht die Anordnung mitspeichern,
- * die er gar nicht angefasst hat.
- *
- * <b>Die Platzhalter stehen darunter, mit den Namen dieses Formulars.</b> Sie
- * zu erraten ist der Unterschied zwischen „geht nicht" und „geht" — eine Frage
- * heisst genau so, wie sie im Bogen steht, samt Grossschreibung und Leerzeichen.
- */
 /**
  * Wie der Bogen auf der Seite überschrieben ist.
  *
@@ -2448,108 +2987,5 @@ function Naming({ partId, value, busy, onSaved, onError }: {
         onBlur={() => { if (draft.trim() !== value.trim()) void save(); }}
       />
     </label>
-  );
-}
-
-function Template({ partId, value, labels, busy, onSaved, onError }: {
-  partId: string;
-  value: string;
-  labels: readonly (string | null)[];
-  busy: boolean;
-  onSaved: (next: Record<string, string>) => void;
-  onError: (message: string | null) => void;
-}) {
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-  const [open, setOpen] = useState(value.trim() === '');
-
-  const holes = holesFor(labels);
-  const changed = draft !== value;
-
-  const save = async () => {
-    setSaving(true);
-    onError(null);
-
-    try {
-      const done = await setPartConfig(partId, { sms: draft });
-      onSaved(done.config);
-    } catch (e) {
-      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać szablonu.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <>
-      <h4 className="wk-h2">
-        Szablon wiadomości
-        {' '}
-        <button type="button" className="wk-link-btn" onClick={() => setOpen(!open)}>
-          {open ? 'Zwiń' : value.trim() === '' ? 'Napisz' : 'Zmień'}
-        </button>
-      </h4>
-
-      {!open && value.trim() !== '' && (
-        <p className="wk-card-muted" style={{ whiteSpace: 'pre-wrap' }}>{value}</p>
-      )}
-
-      {open && (
-        <div className="wk-form">
-          <label className="wk-field">
-            <span>Treść — w nawiasach wstaw odpowiedź z formularza</span>
-            <textarea
-              rows={3}
-              value={draft}
-              disabled={busy || saving}
-              placeholder={'Cześć {imie}! Twoja strona: {link}'}
-              onChange={(e) => setDraft(e.target.value)}
-            />
-          </label>
-
-          {/*
-            Ein Klick setzt den Platzhalter ein — abgetippt wird er sonst falsch,
-            und eine Frage heisst genau so, wie sie im Bogen steht.
-          */}
-          <p className="wk-hint">
-            Wstaw:{' '}
-            {holes.map((one) => (
-              <button
-                key={one} type="button" className="wk-link-btn"
-                style={{ marginRight: '0.5rem' }}
-                onClick={() => setDraft(`${draft}{${one}}`)}
-              >
-                {`{${one}}`}
-              </button>
-            ))}
-          </p>
-
-          <p className="wk-hint">
-            <code>{'{link}'}</code> to strona osoby, <code>{'{weryfikacja}'}</code> — link
-            potwierdzający numer, <code>{'{imie}'}</code> — samo imię.
-            Czego nie da się wypełnić, zostaje widoczne w nawiasach.
-          </p>
-
-          <div className="wk-actions">
-            <button
-              type="button" className="wk-btn"
-              disabled={busy || saving || !changed}
-              onClick={() => void save()}
-            >
-              {saving ? 'Zapisywanie…' : 'Zapisz szablon'}
-            </button>
-
-            {changed && (
-              <button
-                type="button" className="wk-link-btn" disabled={saving}
-                onClick={() => setDraft(value)}
-              >
-                Cofnij
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </>
   );
 }

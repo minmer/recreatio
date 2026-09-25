@@ -32,6 +32,7 @@ import {
 import { epochAad } from './area';
 import type { Ring, SealedRole } from './keys';
 import type { PagePart } from './page';
+import { checkFor, sealLink, type CheckAnswer, type SeatChallenge } from './seatCheck';
 import { pageLink } from './seatKeep';
 import { call } from './session';
 
@@ -180,6 +181,23 @@ export interface SeatRow {
   readonly expiresAt: string | null;
   readonly revokedAt: string | null;
   readonly holders: number;
+
+  /**
+   * DER LINK, für die Kanzlei wieder lesbar (0046) — versiegelt unter dem
+   * Platzschlüssel. `null` bei einem Platz von davor: dort gibt es nur einen
+   * neuen (`relinkSeat`), und der alte hört dabei auf.
+   */
+  readonly linkSealed: string | null;
+
+  /** Fragt der Link beim ersten Öffnen — und hat schon jemand richtig geantwortet? */
+  readonly asks: boolean;
+  readonly verifiedAt: string | null;
+
+  /** Wonach er fragt — die Fragen, durch Kommas getrennt, in der Reihenfolge des Nachweises. */
+  readonly verifyFields: string | null;
+
+  /** Zu viele falsche Antworten — der Link ist zu; nur ein neuer hilft. */
+  readonly locked: boolean;
 }
 
 export const loadSeats = (areaId: string): Promise<{ seats: readonly SeatRow[] }> =>
@@ -247,20 +265,64 @@ export async function officeSeatKey(
  * <b>Der alte Link gilt danach nicht mehr.</b> Das ist der Zweck.
  */
 export async function relinkSeat(
-  seatId: string, seatKey: Uint8Array
+  seatId: string, seatKey: Uint8Array,
+
+  /**
+   * Was der Link beim ersten Öffnen fragt (0046) — die Antworten, die die
+   * Kanzlei gerade offen vor sich hat. Leer: er fragt nichts.
+   */
+  check: readonly CheckAnswer[] = []
 ): Promise<Link> {
   const { link, key: linkKey } = newLink();
+  const asks = await checkFor(linkKey, seatId, check);
 
   await call(`/workspace/seat/${encodeURIComponent(seatId)}/relink`, {
     method: 'POST',
     body: JSON.stringify({
       tokenSha256: toBase64Url(await sha256(link.token)),
-      seatKeySealed: toBase64Url(await seal(linkKey, seatAad(seatId), seatKey))
+      seatKeySealed: toBase64Url(await seal(linkKey, seatAad(seatId), seatKey)),
+
+      /* Der Link selbst, für die Kanzlei — damit sie ihn morgen noch einmal schicken kann. */
+      linkSealed: await sealLink(seatId, seatKey, link),
+      verifySha256: asks?.verifySha256 ?? null,
+      verifyFields: asks?.verifyFields ?? null
     })
   });
 
   return link;
 }
+
+/**
+ * EIN NEUER LINK, weil der Mensch seine Angaben geändert hat (0046) — von ihm
+ * selbst, mit dem alten Link als Ausweis.
+ *
+ * <b>Warum überhaupt.</b> Der alte ist vielleicht an eine Nummer gegangen, die
+ * gerade berichtigt wurde. Wer ihn dort findet, soll damit nicht mehr
+ * hineinkommen. Der Platzschlüssel bleibt — nur die Hülle darum ist neu —,
+ * und der neue Link liegt versiegelt für die Kanzlei bereit.
+ */
+export async function rotateSeat(token: string, seatId: string, seatKey: Uint8Array): Promise<Link> {
+  const { link, key: linkKey } = newLink();
+
+  await call(`/seat/${encodeURIComponent(token)}/rotate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      tokenSha256: toBase64Url(await sha256(link.token)),
+      seatKeySealed: toBase64Url(await seal(linkKey, seatAad(seatId), seatKey)),
+      linkSealed: await sealLink(seatId, seatKey, link)
+    })
+  });
+
+  return link;
+}
+
+/**
+ * Den vollen Namen an die Plätze schreiben — aus den Antworten, die die
+ * Kanzlei gerade geöffnet hat. Der Dienst ERGÄNZT nur (ein leerer Name, oder
+ * „Węglowski" → „Jan Węglowski"); einen von Hand gesetzten lässt er stehen.
+ */
+export const nameSeats = (names: readonly { seatId: string; name: string }[]): Promise<{ updated: number }> =>
+  call('/workspace/seats/names', { method: 'POST', body: JSON.stringify({ names }) });
 
 export const revokeSeat = (seatId: string): Promise<{ revoked: boolean }> =>
   call(`/workspace/seat/${encodeURIComponent(seatId)}/revoke`, { method: 'POST' });
@@ -348,6 +410,9 @@ export interface SubmittedValue {
 
   /** Darf er die Antwort selbst berichtigen (0044)? Der Dienst prüft es ohnehin. */
   readonly selfEdit: boolean;
+
+  /** Hat er die GANZE Einsendung durchgesehen und bestätigt (0046)? Je Einsendung derselbe Wert. */
+  readonly confirmedAt: string | null;
 }
 
 /*
@@ -361,8 +426,15 @@ export interface SubmittedValue {
  *
  * Nur das Token geht hinaus. Der Schlüssel bleibt hier.
  */
-export const loadPortal = (token: string): Promise<Portal> =>
+export const loadPortal = (token: string): Promise<Portal | SeatChallenge> =>
   call(`/seat/${encodeURIComponent(token)}`);
+
+/**
+ * Wartet der Platz auf seine erste Bestätigung (0046)? Dann kam NICHTS, was
+ * etwas aufschliesst — nur die Fragen.
+ */
+export const isChallenge = (reply: Portal | SeatChallenge): reply is SeatChallenge =>
+  (reply as SeatChallenge).verify !== undefined;
 
 /** Und aufmachen. Der Schlüssel kommt aus dem Link, nicht vom Dienst. */
 export async function openPortal(

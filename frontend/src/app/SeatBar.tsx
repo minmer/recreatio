@@ -8,22 +8,24 @@
  * deshalb hier und erscheint auf jeder Seite, auf der ein Platz offen ist.
  *
  * <code>
- *   SeatBar           oben auf der Seite: nur, wenn ein Link nicht aufging
+ *   SeatBar           oben auf der Seite: was nicht aufging, die Frage beim
+ *                     ersten Öffnen und die Durchsicht der Angaben (0046)
  *   SeatTools         das Binden an ein Konto
  *   PersonalSections  die eingebauten Abschnitte — wo die Seite keine eigenen hat
  *   MyLink, BindSeat  einzeln, für die Ansicht eines Platzes ohne Seite
  * </code>
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type { SealedRole } from './keys';
 import { keysFor } from './ringOf';
 import { bindSeat } from './seat';
-import { useSeatStates, type SeatView } from './seatContext';
-import { freshSeat, linkTo } from './seatKeep';
+import { FirstOpen } from './FirstOpen';
+import { seatName, useSeats, useSeatStates, type SeatView } from './seatContext';
+import { freshSeat, linkTo, seatsExactly, wasReplaced } from './seatKeep';
 import { whoIsThere, WorkspaceError, type Who } from './session';
-import { OwnSubmissions } from './Submission';
+import { OwnSubmissions, ReviewSubmissions } from './Submission';
 
 /* -- Oben auf der Seite ----------------------------------------------------- */
 
@@ -39,21 +41,70 @@ import { OwnSubmissions } from './Submission';
  * <b>Ein Link, der nicht aufgeht, sagt es</b> — hier, und nur für den, der
  * ihn gerade angeklickt hat. Ein behaltener Platz, der inzwischen abgelaufen
  * ist, schweigt: ihn hat niemand gerade gewollt.
+ *
+ * <b>Und davor steht, was der Link zuerst verlangt</b> (0046): beim ersten
+ * Öffnen die Frage „Potwierdź, że to Ty“, danach einmal die Durchsicht aller
+ * Angaben. Beides nur für die Links, die HIERHER gehören.
  */
 export function SeatBar({ path }: { path: string }) {
   const states = useSeatStates();
+  const seats = useSeats();
   const fresh = freshSeat();
 
   const here = fresh !== null && fresh.under === path ? fresh : null;
   const state = here === null ? undefined : states.find((one) => one.token === here.token);
 
+  /*
+   * WESSEN LINK HIERHER GEFÜHRT HAT — der eben geöffnete und die, die genau
+   * unter dieser Seite behalten sind. Plätze von anderen Seiten desselben
+   * Hauses gelten hier auch, aber sie fragen und mahnen nicht hier.
+   */
+  const hereToken = here?.token ?? null;
+  const mine = useMemo(
+    () => new Set([...(hereToken === null ? [] : [hereToken]), ...seatsExactly(path)]),
+    [hereToken, path]);
+
   const trouble = here === null ? null
     : here.keyless ? 'W tym linku brakuje klucza — widać stronę, ale nie Twoje dane. Otwórz pełny link, który dostałeś.'
-    : state?.state === 'gone' ? `Twojego miejsca nie ma — link mógł zostać wycofany albo stracić ważność.${state.failed === null ? '' : ` ${state.failed}`}`
+    : state?.state === 'gone' ? `Twojego miejsca nie ma — link mógł zostać wycofany, zastąpiony nowym albo stracić ważność. Jeśli dostałeś nowy link (np. SMS-em), otwórz go.${state.failed === null ? '' : ` ${state.failed}`}`
     : state?.state === 'locked' ? 'Klucz z linku nie pasuje do tego miejsca. Sprawdź, czy link nie urwał się przy kopiowaniu.'
     : null;
 
-  return trouble === null ? null : <p className="wk-error">{trouble}</p>;
+  /* ERST BESTÄTIGEN (0046) — je Link, der darauf wartet. */
+  const asking = states.filter((one) => one.state === 'verify' && one.challenge !== null && mine.has(one.token));
+
+  /* DANN DURCHSEHEN (0046) — was noch niemand als richtig bestätigt hat. */
+  const reviewing = seats.filter((one) => mine.has(one.token));
+
+  return (
+    <>
+      {trouble !== null && <p className="wk-error">{trouble}</p>}
+
+      {/*
+        DER NEUE LINK, einmal gesagt. Er ersetzt den alten, weil sich die
+        Angaben geändert haben — und wer ihn nicht mitnimmt, kommt von einem
+        anderen Gerät nicht mehr herein.
+      */}
+      {here !== null && wasReplaced(here.token) && (
+        <div className="wk-note">
+          <p>
+            <strong>Zapisano. Twój link jest teraz nowy</strong> — poprzedni przestał
+            działać, na wypadek gdyby trafił pod zły numer. Na tym urządzeniu nic nie
+            musisz robić; na innych otwórz nowy link.
+          </p>
+          <MyLink token={here.token} under={here.under} />
+        </div>
+      )}
+
+      {asking.map((one) => (
+        <FirstOpen key={one.token} token={one.token} challenge={one.challenge!} onPassed={one.reload} />
+      ))}
+
+      {reviewing.map((seat, i) => (
+        <ReviewSubmissions key={seat.token} seat={seat} who={reviewing.length > 1 ? seatName(seat, i) : null} />
+      ))}
+    </>
+  );
 }
 
 /**
@@ -103,15 +154,7 @@ export function PersonalSections({ seat }: { seat: SeatView }) {
           {seat.opened.length === 0 ? (
             <p className="wk-empty">Bez klucza z adresu nie da się tego otworzyć.</p>
           ) : (
-            <OwnSubmissions
-              values={seat.submitted}
-              open={seat.opened}
-              token={seat.token}
-              seatKey={seat.seatKey}
-              formId={null}
-              show={null}
-              onSaved={seat.reload}
-            />
+            <OwnSubmissions seat={seat} formId={null} show={null} />
           )}
           <SeatTools seat={seat} />
         </Zone>

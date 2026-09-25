@@ -60,8 +60,8 @@ export const usePerson = (): PersonChoice | null => useContext(PersonContext);
 interface Own { readonly roleId: string; readonly name: string; readonly isMine: boolean; readonly ring: Ring }
 
 /**
- * Die Personen aus der Rollenkarte — mit dem Namen, unter dem sie gerufen
- * werden wollen (Spitzname, sonst Vor- und Nachname, sonst der Name der Rolle).
+ * Die Personen aus der Rollenkarte — mit Vor- und Nachnamen, sonst dem
+ * Spitznamen, sonst dem Namen der Rolle.
  */
 async function ownPersons(): Promise<readonly Own[]> {
   const who = await whoIsThere();
@@ -76,8 +76,12 @@ async function ownPersons(): Promise<readonly Own[]> {
     let name = one.name;
 
     try {
-      const called = calledFrom(await openMine(one.roleId, ring, (await loadPerson(one.roleId)).values));
-      if (called !== null) name = called.name;
+      /*
+       * IMIĘ I NAZWISKO zuerst, wo sie bekannt sind — derselbe Name, den die
+       * Kanzlei am Termin und in ihrer Liste sieht. Der Spitzname nur, wenn
+       * es sonst nichts gibt.
+       */
+      name = calledFrom(await openMine(one.roleId, ring, (await loadPerson(one.roleId)).values))?.name ?? name;
     } catch {
       // Keine eigenen Angaben — dann der Name der Rolle.
     }

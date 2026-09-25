@@ -128,7 +128,10 @@ export const Field = {
 
   /* 0043 — Aufbau und Logik eines Formulars, unter dem Schlüssel seines Bereichs. */
   FormDesign: 'form_design',
-  ClaimInvite: 'claim_invite'
+  ClaimInvite: 'claim_invite',
+
+  /* 0046 — der Link eines Platzes, versiegelt unter dem Platzschlüssel. */
+  SeatLink: 'seat_link'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];
@@ -472,4 +475,15 @@ export async function signCanonical(signPkcs8: Uint8Array, value: Canon): Promis
     { name: 'RSA-PSS', saltLength: PSS_SALT_BYTES }, key, view(utf8.encode(serialize(value))));
 
   return new Uint8Array(signature);
+}
+
+/** SHA-256 über Bytes — für den Abdruck eines Nachweises, der selbst nie gespeichert wird. */
+export async function sha256Bytes(bytes: Uint8Array): Promise<Uint8Array> {
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', view(bytes)));
+}
+
+/** HMAC-SHA-256 — ein Nachweis, den nur rechnen kann, wer den Schlüssel hält. */
+export async function hmacSha256(key: Uint8Array, message: Uint8Array): Promise<Uint8Array> {
+  const k = await crypto.subtle.importKey('raw', view(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', k, view(message)));
 }

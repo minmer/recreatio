@@ -15,9 +15,10 @@
  * für dich" ist eine andere Aussage als „namenlos", und die Liste soll sie
  * nicht verwischen.
  *
- * <b>Ein Mensch heisst zuerst, wie er gerufen werden will.</b> Steht ein
- * Spitzname da, ist er der Name; Vor- und Nachname stehen klein daneben.
- * Fehlt er, sind Vor- und Nachname der Name.
+ * <b>Vor- und Nachname zuerst, wo sie bekannt sind</b> — überall derselbe
+ * Name, in der Rollenliste wie im Kalender, an einer Bitte wie in der Liste
+ * der Kanzlei. Der Spitzname steht klein daneben; fehlen Vor- und Nachname,
+ * ist er der Name.
  */
 
 import { myEpochKeys } from './area';
@@ -40,8 +41,8 @@ export function calledFrom(values: ReadonlyMap<PersonField, string>): Called | n
     .filter((part) => part !== '')
     .join(' ') || null;
 
-  if (nick !== null) return { name: nick, also: full };
-  if (full !== null) return { name: full, also: null };
+  if (full !== null) return { name: full, also: nick };
+  if (nick !== null) return { name: nick, also: null };
   return null;
 }
 

@@ -21,6 +21,7 @@ import {
 } from './crypto';
 import { newId } from './ids';
 import { newLink, seatAad, type Link, type SubmittedValue } from './seat';
+import { sealLink } from './seatCheck';
 import { call } from './session';
 import type { SealedDesign } from './formDesign';
 import type { Controller } from './intake';
@@ -74,6 +75,29 @@ export const IDENTITY_LABEL: Record<IdentityRole, string> = {
   name: 'Nazwisko (dawne „name")',
   contact: 'Kontakt (dawne „contact")'
 };
+
+/**
+ * DER VOLLE NAME eines Menschen aus seinen Antworten — Imię i nazwisko.
+ *
+ * <b>Überall derselbe</b>: in der Liste der Kanzlei, am Platz, im Kalender, an
+ * einer Bitte um Mitnahme. Vorher nahm jede Stelle das ERSTE Namensfeld, und
+ * bei getrennten Feldern war das der Nachname allein.
+ *
+ * Reihenfolge: Vor- und Nachname, sonst das alte „name", sonst der Spitzname.
+ * `null`, wenn der Bogen nach keinem fragt.
+ */
+export function fullNameOf(
+  fields: readonly { readonly fieldId: string; readonly identityRole: IdentityRole }[],
+  valueOf: (fieldId: string) => string | undefined
+): string | null {
+  const of = (role: IdentityRole) => {
+    const field = fields.find((f) => f.identityRole === role);
+    return field === undefined ? null : valueOf(field.fieldId)?.trim() || null;
+  };
+
+  const full = [of('given_name'), of('surname')].filter((part) => part !== null).join(' ') || of('name');
+  return full ?? of('nickname');
+}
 
 /** Was man heute WÄHLEN kann — die beiden alten stehen nur noch in Zeilen. */
 export const CHOOSABLE_IDENTITY: readonly IdentityRole[] =
@@ -276,6 +300,9 @@ export interface SealedField {
 
   /** Darf der Mensch die Antwort über seinen Link berichtigen (0044)? */
   readonly selfEdit: boolean;
+
+  /** Fragt der Link beim ersten Öffnen nach dieser Angabe (0046)? */
+  readonly linkCheck: boolean;
 }
 
 export const loadFields = (partId: string): Promise<{
@@ -285,6 +312,23 @@ export const loadFields = (partId: string): Promise<{
   design: SealedDesign | null;
 }> =>
   call(`/workspace/part/${encodeURIComponent(partId)}/fields`);
+
+/**
+ * WELCHE ANGABEN ein Link beim ersten Öffnen abfragt (0046) — für das ganze
+ * Formular auf einmal. Leer: er fragt nichts. Gilt für Links, die ab jetzt
+ * entstehen.
+ */
+export const setLinkCheck = (
+  partId: string, fieldIds: readonly string[]
+): Promise<{ partId: string; fieldIds: readonly string[] }> =>
+  call(`/workspace/part/${encodeURIComponent(partId)}/linkcheck`, {
+    method: 'POST',
+    body: JSON.stringify({ fieldIds })
+  });
+
+/** Eine einzelne Frage aufmachen — für die Prüfung beim ersten Öffnen eines Links. */
+export const openLabel = (fieldId: string, labelSealed: string, key: Uint8Array): Promise<string | null> =>
+  quietly(() => openText(key, labelAad(fieldId), fromBase64Url(labelSealed)));
 
 export const removeField = (fieldId: string): Promise<{ removed: boolean }> =>
   call(`/workspace/field/${encodeURIComponent(fieldId)}/remove`, { method: 'POST' });
@@ -510,6 +554,15 @@ export async function submitForm(
       seatKeySealed: toBase64Url(await seal(mine.linkKey, label, mine.seatKey)),
 
       /*
+       * DER LINK, für die Kanzlei wieder lesbar (0046). Er fragt beim ersten
+       * Öffnen NICHTS: wer sich hier anmeldet, hat die Angaben eben selbst
+       * getippt. Einen fragenden Link stellt die Kanzlei aus, wenn sie ihn
+       * verschickt (`relinkSeat`) — erst dort kann er bei der falschen
+       * Nummer landen.
+       */
+      linkSealed: await sealLink(mine.seatId, mine.seatKey, mine.link),
+
+      /*
        * DER WEG DER KANZLEI — unter der Annahme und NICHT unter der Epoche.
        * Der Epochenschlüssel liegt bei einem öffentlichen Formular offen; unter
        * ihm zu versiegeln schützte nichts (0027).
@@ -628,6 +681,9 @@ export interface Submission {
 
   /** Was an einzelnen Werten bestätigt wurde (0030) — die Stelle, nicht der Inhalt. */
   readonly checks: readonly ValueCheck[];
+
+  /** Der Mensch hat seine GANZE Einsendung durchgesehen und bestätigt (0046). */
+  readonly confirmedAt: string | null;
 }
 
 export const loadRegistrations = (

@@ -89,6 +89,12 @@ public enum Field
     /// </summary>
     ClaimInvite,
 
+    /// <summary>
+    /// 0046 — der Link eines Platzes (Token und Schluessel), versiegelt unter dem
+    /// Platzschluessel: wer den Platz oeffnen kann, liest auch seinen Link.
+    /// </summary>
+    SeatLink,
+
     /// <summary>Eine eingesandte Antwort. Besondere Kategorie, bis das Gegenteil gesagt wird.</summary>
     EventAnswer,
 
@@ -377,6 +383,7 @@ public readonly record struct Aad
         Field.EventFieldOptions       => "field_options",
         Field.FormDesign              => "form_design",
         Field.ClaimInvite             => "claim_invite",
+        Field.SeatLink                => "seat_link",
         Field.EventAnswer             => "answer",
         Field.EventIntakeKey          => "intake_key",
         Field.OfficeValueKey          => "office_value_key",

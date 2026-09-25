@@ -1733,3 +1733,129 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 /* Ein Knopf, der da ist, aber nicht drängt: „Zmień termin", „Pokaż opcje dołączenia". */
 .wk-btn.wk-btn-quiet { background: transparent; color: var(--wk-accent); }
 .wk-btn.wk-btn-quiet:hover:not(:disabled) { background: var(--wk-soft); }
+
+/* Ein gelber Termin, aufgeklappt: warum — und die zwei Wege hinein, nebeneinander. */
+.wk-slot-explain { font-size: 0.9rem; }
+
+.wk-slot-ways {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.6rem;
+}
+
+.wk-slot-way {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--wk-held-line);
+  border-radius: 6px;
+  background: var(--wk-surface);
+}
+
+.wk-slot-way p { margin: 0; font-size: 0.86rem; color: var(--wk-muted); }
+.wk-slot-way .wk-btn { justify-self: start; }
+
+/* ==========================================================================
+   0046 — DER LINK EINES MENSCHEN: erstes Öffnen, Durchsicht, SMS-Durchgang
+   ========================================================================== */
+
+/*
+   DIE DURCHSICHT OBEN AUF DER SEITE — und die Frage beim ersten Öffnen.
+   Eine Fläche, die sich abhebt: sie ist das Erste, was der Mensch nach dem
+   Klick auf seinen Link tun soll, und verschwindet, sobald es getan ist.
+*/
+.wk-review {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0 0 1.2rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--wk-held-line);
+  border-radius: 10px;
+  background: var(--wk-held-bg);
+  color: var(--wk-ink);
+}
+
+.wk-review .wk-h2 { margin: 0; }
+.wk-review .wk-card-text { margin: 0; }
+.wk-review input { background: var(--wk-surface); }
+
+/* Der Link zum Kopieren — eine Zeile, die sich markieren lässt. */
+.wk-link-row { display: flex; gap: 0.5rem; align-items: center; min-width: 0; }
+.wk-link-row input { flex: 1; min-width: 0; }
+.wk-mono { font-family: ui-monospace, "Cascadia Mono", "IBM Plex Mono", monospace; font-size: 0.85rem; }
+
+/* Was der Link beim ersten Öffnen fragt — eine Liste zum Ankreuzen. */
+.wk-checks { list-style: none; margin: 0.2rem 0; padding: 0; display: grid; gap: 0.3rem; }
+
+.wk-inline { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.wk-inline input { min-width: 12rem; }
+
+/* -- „Napisz SMS" --------------------------------------------------------- */
+
+.wk-sms-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem 1rem; }
+.wk-sms-bar .wk-h2 { margin: 0; margin-right: auto; }
+
+.wk-sms {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 10px;
+  background: var(--wk-soft);
+}
+
+.wk-sms textarea { width: 100%; background: var(--wk-surface); }
+
+.wk-chip.is-on { border-color: var(--wk-accent); color: var(--wk-accent); }
+
+.wk-chip-pick,
+.wk-chip-add {
+  font: inherit;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+}
+
+.wk-chip-add { padding-right: 0.3rem; color: var(--wk-muted); font-size: 0.85rem; }
+.wk-chip-pick:focus-visible,
+.wk-chip-add:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; border-radius: 4px; }
+
+.wk-sms-preview {
+  margin: 0;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.5rem 0.7rem;
+  border-left: 3px solid var(--wk-line);
+  background: var(--wk-surface);
+  white-space: pre-wrap;
+  font-size: 0.92rem;
+}
+
+/* Alle Nummern eines Menschen, jede mit ihrem Knopf. */
+.wk-entry-phones { display: inline-flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; min-width: 0; }
+.wk-entry-phone-one { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+
+/*
+   DER SMS-KNOPF NEBEN DER NUMMER. Getippt: gefüllt und mit Häkchen — das
+   Häkchen trägt die Aussage, nicht die Farbe; wer vierzig Namen abarbeitet,
+   muss sehen, wo er war, auch auf einem Bildschirm, der Farben verschluckt.
+*/
+.wk-sms-go {
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  padding: 0.05rem 0.55rem;
+  border: 1px solid var(--wk-accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--wk-accent);
+  cursor: pointer;
+}
+
+.wk-sms-go:hover:not(:disabled) { background: var(--wk-soft); }
+.wk-sms-go:disabled { opacity: 0.5; cursor: default; }
+.wk-sms-go:focus-visible { outline: 2px solid var(--wk-ink); outline-offset: 2px; }
+.wk-sms-go.is-sent { border-color: var(--wk-ok); background: var(--wk-ok); color: var(--wk-surface); }

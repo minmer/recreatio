@@ -1,11 +1,11 @@
 /**
- * Die eigene Einsendung — nachlesen und berichtigen.
+ * Die eigene Einsendung — nachlesen, bestätigen und berichtigen.
  *
- * <b>Sie steht in einer eigenen Datei, weil zwei Stellen sie zeichnen:</b> das
- * Portal in seiner eingebauten Gestalt und der Baustein `seat-submission`, den
- * eine Kanzlei selbst auf die Portalvorlage legt (0028). Zweimal dasselbe zu
- * schreiben hiesse, dass die eine Fassung eine Verbesserung der anderen nicht
- * mitbekommt — und die Berichtigung ist genau die Stelle, an der das teuer wäre.
+ * <b>Sie steht in einer eigenen Datei, weil drei Stellen sie zeichnen:</b> das
+ * Portal in seiner eingebauten Gestalt, der Baustein `seat-submission`, den
+ * eine Kanzlei selbst auf die Seite legt (0028), und die Durchsicht oben auf
+ * der Seite nach dem ersten Öffnen (0046). Dreimal dasselbe zu schreiben
+ * hiesse, dass eine Fassung die Verbesserung der anderen nicht mitbekommt.
  *
  * <b>Die Angabe gehört dem Menschen.</b> Ihn für einen Tippfehler in die
  * Kanzlei zu schicken hiesse: sie gehört dem Amt. Also steht der Knopf hier,
@@ -13,48 +13,50 @@
  * Schlüssel je Wert, einmal für das Amt verpackt und einmal für ihn selbst.
  *
  * <b>Ob er eine Antwort ändern darf, sagt die FRAGE</b> (0044), nicht die Seite,
- * auf der sie steht — und der Dienst prüft es. Vorher war es ein Schalter am
- * Baustein, den nur der Knopf kannte.
+ * auf der sie steht — und der Dienst prüft es.
  *
- * <b>Nur geänderte Felder gehen hinaus.</b> Ein unverändertes noch einmal zu
- * versiegeln hiesse, seinen Schlüssel ohne Grund zu wechseln — und es machte
- * jede Berichtigung zu einer Neuschrift des ganzen Bogens.
+ * <b>Bestätigt wird die GANZE Einsendung auf einmal</b> (0046), nicht jede
+ * Nummer für sich: der Mensch sieht alles, was er angegeben hat, und sagt
+ * einmal „Wszystko się zgadza". Vorher stand neben jeder Nummer „To mój
+ * numer" — und wer eine Nummer bestätigt hatte, hatte die Adresse darunter
+ * nie angesehen.
+ *
+ * <b>Wer etwas ändert, bekommt einen neuen Link</b> (0046). Der alte ist
+ * vielleicht an eine Nummer gegangen, die gerade berichtigt wurde — wer ihn
+ * dort findet, soll damit nicht mehr hineinkommen.
  */
 
 import { useState } from 'react';
 
 import { fromBase64Url } from './crypto';
-import { reviseSubmission, selfCheck, type OwnAnswer } from './form';
+import { reviseSubmission, type OwnAnswer } from './form';
 import { loadPublicIntake } from './intake';
 import { Phones } from './Phones';
-import type { SubmittedValue } from './seat';
+import { rotateSeat, seatPath, type SubmittedValue } from './seat';
+import { confirmSubmission } from './seatCheck';
+import type { SeatView } from './seatContext';
+import { forget, markReplaced, underOf } from './seatKeep';
 import { WorkspaceError } from './session';
 
 /**
  * Welche eigenen Einsendungen ein Portal zeigt — und von jeder welche Antworten.
  *
  * <b>Je Einsendung ein Abschnitt.</b> Ein Platz kann mehrere tragen: zwei
- * Formulare, oder dasselbe zweimal. Vorher lief alles in EINE Liste, und eine
- * Berichtigung ging an die erste Einsendung — auch für eine Antwort aus der
- * zweiten.
+ * Formulare, oder dasselbe zweimal.
  *
  * @param formId Nur Einsendungen aus diesem Formular; `null` heisst: aus allen
  *   (die eingebaute Gestalt des Portals, und ein Baustein, der noch keines nennt).
  * @param show Welche Fragen; `null` heisst: alle.
  */
-export function OwnSubmissions({ values, open, token, seatKey, formId, show, onSaved }: {
-  values: readonly SubmittedValue[];
-  open: readonly OwnAnswer[];
-  token: string;
-  seatKey: Uint8Array | null;
+export function OwnSubmissions({ seat, formId, show }: {
+  seat: SeatView;
   formId: string | null;
   show: ReadonlySet<string> | null;
-  onSaved: () => void;
 }) {
   const shown = (v: { formId: string; fieldId: string }) =>
     (formId === null || v.formId === formId) && (show === null || show.has(v.fieldId));
 
-  const mine = values.filter(shown);
+  const mine = seat.submitted.filter(shown);
   const registrations = [...new Set(mine.map((v) => v.registrationId))];
 
   if (registrations.length === 0) {
@@ -68,11 +70,9 @@ export function OwnSubmissions({ values, open, token, seatKey, formId, show, onS
         const block = (
           <Submission
             key={registrationId}
+            seat={seat}
             values={these}
-            open={open.filter((o) => o.registrationId === registrationId && shown(o))}
-            token={token}
-            seatKey={seatKey}
-            onSaved={onSaved}
+            open={seat.opened.filter((o) => o.registrationId === registrationId && shown(o))}
           />
         );
 
@@ -93,22 +93,67 @@ export function OwnSubmissions({ values, open, token, seatKey, formId, show, onS
 }
 
 /**
+ * DURCHSEHEN, BEVOR ES WEITERGEHT (0046) — oben auf der Seite, solange eine
+ * Einsendung dieses Platzes noch nicht bestätigt ist.
+ *
+ * <b>Alle Angaben, nicht die, die der Baustein darunter zeigt.</b> Die Kanzlei
+ * kann auf ihrer Seite nur einen Teil zeigen lassen — bestätigt wird aber das
+ * Ganze, und vor allem die Kontakte, auf die sie ihre Nachrichten schickt.
+ */
+export function ReviewSubmissions({ seat, who }: { seat: SeatView; who: string | null }) {
+  if (seat.seatKey === null) return null;
+
+  const waiting = [...new Set(seat.submitted
+    .filter((v) => v.confirmedAt === null)
+    .map((v) => v.registrationId))];
+
+  if (waiting.length === 0) return null;
+
+  return (
+    <section className="wk-review" aria-labelledby={`review-${seat.seatId}`}>
+      <h2 className="wk-h2" id={`review-${seat.seatId}`}>
+        Sprawdź swoje dane{who === null ? '' : ` — ${who}`}
+      </h2>
+      <p className="wk-card-text">
+        Zanim przejdziesz dalej, przejrzyj wszystko, co jest zapisane w zgłoszeniu —
+        <strong> zwłaszcza numery telefonów i adresy e-mail</strong>. Na nie kancelaria
+        wysyła wiadomości i linki. Jeśli coś się nie zgadza, popraw to od razu.
+      </p>
+
+      {waiting.map((registrationId) => (
+        <Submission
+          key={registrationId}
+          seat={seat}
+          values={seat.submitted.filter((v) => v.registrationId === registrationId)}
+          open={seat.opened.filter((o) => o.registrationId === registrationId)}
+          review
+        />
+      ))}
+    </section>
+  );
+}
+
+/**
  * EINE Einsendung — was er eingetragen hat, und der Weg, es zu ändern.
  *
- * `values` und `open` gehören zu derselben Einsendung; `OwnSubmissions` teilt
- * sie so auf.
+ * @param review Die Durchsicht nach dem ersten Öffnen: mit „Wszystko się
+ *   zgadza". In einem Baustein steht die Bestätigung nicht — dort ist oft nur
+ *   ein Teil der Angaben zu sehen, und bestätigt wird das Ganze.
  */
-export function Submission({ values, open, token, seatKey, onSaved }: {
+export function Submission({ seat, values, open, review = false }: {
+  seat: SeatView;
   values: readonly SubmittedValue[];
   open: readonly OwnAnswer[];
-  token: string;
-  seatKey: Uint8Array | null;
-  onSaved: () => void;
+  review?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+
+  const { seatKey } = seat;
+  const registrationId = values[0]?.registrationId;
+  const confirmedAt = values[0]?.confirmedAt ?? null;
 
   const rowOf = (fieldId: string) => values.find((v) => v.fieldId === fieldId);
 
@@ -128,24 +173,19 @@ export function Submission({ values, open, token, seatKey, onSaved }: {
   const changed = editable.filter((one) => (draft[one.fieldId] ?? '') !== (one.value ?? ''));
 
   /**
-   * „To mój numer" (0031).
-   *
-   * <b>Es schickt nichts und ändert nichts an der Angabe.</b> Festgehalten
-   * wird nur, dass der Mensch sie bestätigt hat — an der STELLE, nicht am
-   * Menschen: ein Bogen kann zwei Nummern tragen, und die eine zu bestätigen
-   * sagt nichts über die andere.
+   * „Wszystko się zgadza" — einmal für die ganze Einsendung.
    *
    * <b>Danach wird neu geladen</b>, statt den Zustand hier zu erraten: was
-   * herauskommt, entscheidet der Dienst — er kann melden, dass es die
-   * Bestätigung schon gab, und zwar auf dem stärkeren Weg.
+   * gilt, sagt der Dienst.
    */
-  const confirm = async (fieldId: string) => {
+  const confirm = async () => {
+    if (registrationId === undefined) return;
     setBusy(true);
     setFailed(null);
 
     try {
-      await selfCheck(token, values[0].registrationId, fieldId);
-      onSaved();
+      await confirmSubmission(seat.token, registrationId);
+      seat.reload();
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się potwierdzić.');
     } finally {
@@ -154,7 +194,7 @@ export function Submission({ values, open, token, seatKey, onSaved }: {
   };
 
   const save = async () => {
-    if (seatKey === null) return;
+    if (seatKey === null || registrationId === undefined) return;
 
     setBusy(true);
     setFailed(null);
@@ -162,19 +202,34 @@ export function Submission({ values, open, token, seatKey, onSaved }: {
     try {
       /*
        * Die öffentliche Annahmehälfte holt sich die Seite selbst — sie kennt
-       * den Bereich aus der eigenen Einsendung. Das Formular, auf dem das
-       * einmal stand, muss sie dafür nicht kennen.
+       * den Bereich aus der eigenen Einsendung.
        */
-      const areaId = values[0].areaId;
-      const intake = await loadPublicIntake(areaId);
+      const intake = await loadPublicIntake(values[0].areaId);
 
       await reviseSubmission(
-        token, values[0].registrationId,
+        seat.token, registrationId,
         changed.map((one) => ({ fieldId: one.fieldId, value: draft[one.fieldId] ?? '' })),
         { intakePublic: fromBase64Url(intake.publicKey), seatKey });
 
       setEditing(false);
-      onSaved();
+
+      /*
+       * DER NEUE LINK (0046). Gespeichert ist schon — schlägt nur das hier
+       * fehl, bleibt der alte Link gültig, und die Änderung steht trotzdem.
+       */
+      try {
+        const under = underOf(seat.token);
+        const next = await rotateSeat(seat.token, seat.seatId, seatKey);
+
+        forget(seat.token);
+        markReplaced(next.token);
+
+        /* Über die Adresse, wie jeder Link: sie legt den neuen Schlüssel ab und öffnet die Seite neu. */
+        window.location.hash = seatPath(next, under);
+        return;
+      } catch {
+        seat.reload();
+      }
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
     } finally {
@@ -182,7 +237,7 @@ export function Submission({ values, open, token, seatKey, onSaved }: {
     }
   };
 
-  /** Eine Zeile zum Lesen — die Frage, die Antwort, und bei einer Nummer ihr Zustand. */
+  /** Eine Zeile zum Lesen — die Frage, die Antwort, und bei einer Nummer, ob ein SMS-Link sie bestätigt hat. */
   const line = (one: OwnAnswer) => {
     const row = rowOf(one.fieldId);
 
@@ -193,31 +248,14 @@ export function Submission({ values, open, token, seatKey, onSaved }: {
           {one.value ?? 'zapieczętowane'}
 
           {/*
-            NEBEN DER NUMMER, nicht in einem eigenen Abschnitt weiter
-            unten. „Ist meine Nummer bestätigt?" ist eine Frage ÜBER
-            DIESE ZEILE, und eine Antwort drei Zeilen tiefer zwingt
-            jeden, sie sich selbst zuzuordnen — bei zwei Nummern
-            (Mutter, Vater) geht das schon nicht mehr auf.
+            NUR, WAS EIN GEKLICKTER LINK BELEGT (0030/0031): dass unter DIESER
+            Nummer jemand erreichbar war. Ein eigener Knopf je Nummer steht hier
+            nicht mehr — bestätigt wird das Ganze.
           */}
-          {!editing && row !== undefined && row.kind === 'phone' && (
-            row.verifiedAt !== null ? (
-              <span className="wk-chip-ok" title={
-                row.verifiedWay === 'sms'
-                  ? 'Otworzyłeś link, który tu wysłaliśmy'
-                  : 'Potwierdziłeś tu, że numer jest aktualny'}>
-                {' '}✓ potwierdzony
-              </span>
-            ) : seatKey !== null && (
-              <>
-                {' '}
-                <button
-                  type="button" className="wk-link-btn" disabled={busy}
-                  onClick={() => void confirm(one.fieldId)}
-                >
-                  To mój numer
-                </button>
-              </>
-            )
+          {row !== undefined && row.kind === 'phone' && row.verifiedAt !== null && row.verifiedWay === 'sms' && (
+            <span className="wk-chip-ok" title="Otworzyłeś link, który wysłaliśmy na ten numer">
+              {' '}✓ potwierdzony SMS-em
+            </span>
           )}
         </dd>
       </div>
@@ -231,22 +269,40 @@ export function Submission({ values, open, token, seatKey, onSaved }: {
 
         {failed !== null && <p className="wk-error">{failed}</p>}
 
-        {/*
-          WAS DAS HÄKCHEN HEISST — einmal, unter der Liste. Ein „potwierdzony"
-          ohne Erklärung liest sich wie eine Prüfung, die jemand anders
-          bestanden hat.
-        */}
-        {values.some((v) => v.kind === 'phone' && v.verifiedAt === null) && seatKey !== null && (
-          <p className="wk-hint">
-            Potwierdzenie mówi kancelarii, że numer jest aktualny — nic poza tym
-            nie zmienia i niczego nie wysyła.
-          </p>
-        )}
+        {review && confirmedAt === null && seatKey !== null ? (
+          <>
+            <div className="wk-actions">
+              <button type="button" className="wk-btn" disabled={busy} onClick={() => void confirm()}>
+                {busy ? 'Zapisywanie…' : 'Wszystko się zgadza'}
+              </button>
+              {editable.length > 0 && (
+                <button type="button" className="wk-link-btn" disabled={busy} onClick={start}>
+                  Popraw dane
+                </button>
+              )}
+            </div>
+            {editable.length > 0 && (
+              <p className="wk-hint">
+                Po poprawce dostaniesz nowy link — obecny przestanie działać. To
+                na wypadek, gdyby trafił pod zły numer.
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            {confirmedAt !== null && !review && (
+              <p className="wk-hint">
+                ✓ Dane potwierdzone {new Date(confirmedAt).toLocaleDateString('pl-PL',
+                  { day: 'numeric', month: 'long', year: 'numeric' })}.
+              </p>
+            )}
 
-        {editable.length > 0 && (
-          <div className="wk-actions">
-            <button type="button" className="wk-btn" onClick={start}>Popraw dane</button>
-          </div>
+            {editable.length > 0 && (
+              <div className="wk-actions">
+                <button type="button" className="wk-btn" onClick={start}>Popraw dane</button>
+              </div>
+            )}
+          </>
         )}
       </>
     );
@@ -265,10 +321,7 @@ export function Submission({ values, open, token, seatKey, onSaved }: {
 
             {/*
               Wie im Formular: eine Nummer wird zum Plättchen, eine Auswahl
-              bleibt eine Auswahl, ein längerer Text ein längerer Text. Ein
-              blosses Textfeld an dieser Stelle hiesse, dass eine Berichtigung
-              andere Regeln hat als die Eingabe — und der Mensch merkte es erst
-              hinterher.
+              bleibt eine Auswahl, ein längerer Text ein längerer Text.
             */}
             {kind === 'phone' ? (
               <Phones value={value} disabled={busy} onChange={set} />
@@ -306,7 +359,8 @@ export function Submission({ values, open, token, seatKey, onSaved }: {
 
       <p className="wk-hint">
         Zmiany pieczętujemy w tej przeglądarce. Usługa zapisze je, nie mogąc ich
-        odczytać — otworzy je ta sama kancelaria co poprzednio.
+        odczytać. Po zapisaniu dostaniesz <strong>nowy link</strong> — obecny
+        przestanie działać.
       </p>
 
       <div className="wk-actions">

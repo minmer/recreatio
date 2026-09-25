@@ -1946,7 +1946,8 @@ public static class Bookings
         await using var cmd = new SqlCommand("""
             SELECT id FROM app.access
             WHERE token_sha256 = @token AND revoked_at IS NULL AND status = N'active'
-              AND (expires_at IS NULL OR expires_at > @now);
+              AND (expires_at IS NULL OR expires_at > @now)
+              AND (verify_hash IS NULL OR verified_at IS NOT NULL);
             """, connection);
 
         cmd.Parameters.AddWithValue("@token", SHA256.HashData(Encoding.UTF8.GetBytes(token.Trim())));

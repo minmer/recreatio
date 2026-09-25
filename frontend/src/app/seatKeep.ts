@@ -335,3 +335,16 @@ export function linkTo(token: string, under?: string | null): string | null {
 /** Die Plätze, die GENAU zu dieser Seite gehören — der Link hat hierher geführt. */
 export const seatsExactly = (path: string): readonly string[] =>
   read().filter((one) => one.under === path).map((one) => one.token);
+
+/** Unter welcher Seite dieser Platz behalten ist — für die Adresse eines neuen Links. */
+export const underOf = (token: string): string | null =>
+  read().find((one) => one.token === token)?.under ?? null;
+
+/*
+ * EIN LINK, DER EBEN ERSETZT WURDE (0046) — damit die Seite es EINMAL sagt.
+ * Nur für diesen Tab: nach dem Neuladen gibt es nichts mehr zu erklären.
+ */
+let replaced: string | null = null;
+
+export const markReplaced = (token: string): void => { replaced = token; };
+export const wasReplaced = (token: string): boolean => replaced === token;

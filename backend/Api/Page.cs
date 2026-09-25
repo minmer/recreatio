@@ -202,6 +202,7 @@ public static class Page
                 WHERE a.token_sha256 = @token
                   AND a.revoked_at IS NULL AND a.status = N'active'
                   AND (a.expires_at IS NULL OR a.expires_at > @now)
+                  AND (a.verify_hash IS NULL OR a.verified_at IS NOT NULL)
                   AND g.slug_id IN (@slug, @asked);
                 """, connection);
 

@@ -151,19 +151,21 @@ function OpenAll({ tokens, children }: { tokens: readonly string[]; children: Re
 }
 
 function Opened({ token, children }: { token: string; children: React.ReactNode }) {
-  const { portal, failed, seat } = useSeat(token, null);
+  const { portal, failed, seat, challenge, reload } = useSeat(token, null);
   const outer = useSeats();
   const outerStates = useSeatStates();
 
   const all = useMemo(() => (seat === null ? outer : [...outer, seat]), [outer, seat]);
 
   /* Wie es um DIESEN Platz steht — auch wenn er nicht aufging. */
-  const state: SeatState['state'] = portal === undefined ? 'loading'
+  const state: SeatState['state'] = challenge !== null ? 'verify'
+    : portal === undefined ? 'loading'
     : portal === null ? 'gone'
     : seat?.seatKey === null ? 'locked'
     : 'open';
   const states = useMemo(
-    () => [...outerStates, { token, state, failed }], [outerStates, token, state, failed]);
+    () => [...outerStates, { token, state, failed, challenge, reload }],
+    [outerStates, token, state, failed, challenge, reload]);
 
   return (
     <SeatStateContext.Provider value={states}>
