@@ -19,7 +19,7 @@
 
 import {
   useCallback, useMemo, useRef, useState,
-  type CSSProperties, type PointerEvent as ReactPointerEvent
+  type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode
 } from 'react';
 import {
   DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
@@ -34,6 +34,7 @@ import {
 } from './layout';
 import { PARTS, partLabel, partOf } from './parts/registry';
 import { PickModule } from './PickModule';
+import { PickForm, PickQuestions, pickedForm } from './FormPick';
 import { PickResource } from './PickResource';
 import type { DraftPart } from './page';
 
@@ -269,8 +270,9 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule }: {
     setSelected((s) => (s === partId ? null : s));
   };
 
-  const setConfig = (partId: string, key: string, value: string) =>
-    onChange(parts.map((p) => (p.id === partId ? { ...p, config: { ...p.config, [key]: value } } : p)));
+  /* Mehrere Schlüssel auf einmal — ein anderes Formular wählen setzt auch die Auswahl seiner Fragen zurück. */
+  const setConfigMany = (partId: string, patch: Record<string, string>) =>
+    onChange(parts.map((p) => (p.id === partId ? { ...p, config: { ...p.config, ...patch } } : p)));
 
   /* WELCHEN Baustein diese Stelle zeigt. Der Inhalt zieht damit mit: er
      hängt am Baustein, nicht an der Stelle. */
@@ -401,7 +403,7 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule }: {
           <Fields
             part={chosen}
             busy={busy}
-            onSet={(key, value) => setConfig(chosen.id, key, value)}
+            onSet={(patch) => setConfigMany(chosen.id, patch)}
           />
         )
       )}
@@ -466,7 +468,12 @@ function Item({ part, frame, columns, selected, onSelect, onResizeStart, onRemov
   const colSpan = snapColSpan(frame.size.colSpan, columns);
   const rowSpan = snapRowSpan(frame.size.rowSpan);
 
-  const empty = Object.values(part.config).every((v) => v.trim() === '');
+  /*
+   * UNFERTIG heisst: nichts eingetragen — oder es fehlt, was die Art verlangt
+   * (`missing`), etwa bei „Zgłoszenie osoby" das Formular.
+   */
+  const empty = Object.values(part.config).every((v) => v.trim() === '')
+    || (partOf(part.kind)?.missing(part.config) ?? null) !== null;
 
   return (
     <div
@@ -515,7 +522,7 @@ function Item({ part, frame, columns, selected, onSelect, onResizeStart, onRemov
 function Fields({ part, busy, onSet }: {
   part: DraftPart;
   busy: boolean;
-  onSet: (key: string, value: string) => void;
+  onSet: (patch: Record<string, string>) => void;
 }) {
   const def = partOf(part.kind);
 
@@ -530,23 +537,36 @@ function Fields({ part, busy, onSet }: {
   return (
     <section className="pb-fields">
       <h4 className="pb-h">{def.label}</h4>
+      <p className="wk-hint">{def.use}</p>
+
+      {def.missing(part.config) !== null && <p className="wk-blocker">{def.missing(part.config)}</p>}
 
       {def.fields.map((field) => {
         const value = part.config[field.key] ?? '';
         const empty = value.trim() === '';
 
         return (
-          <label className={`wk-field${empty ? ' is-empty' : ''}`} key={field.key}>
+          /* Eine Auswahl mit mehreren Knöpfen darin ist kein <label>: ein Klick daneben träfe den ersten. */
+          <Wrap as={field.kind === 'questions' || field.kind === 'form' ? 'div' : 'label'} className={`wk-field${empty ? ' is-empty' : ''}`} key={field.key}>
             <span>{field.label}</span>
 
             {field.kind === 'resource' ? (
-              <PickResource value={value} busy={busy} onPick={(id) => onSet(field.key, id)} />
+              <PickResource value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
+            ) : field.kind === 'form' ? (
+              <PickForm value={value} busy={busy} onPick={(id) => onSet(pickedForm(def, field.key, id))} />
+            ) : field.kind === 'questions' ? (
+              <PickQuestions
+                formId={part.config[field.of ?? ''] ?? ''}
+                value={value}
+                busy={busy}
+                onPick={(next) => onSet({ [field.key]: next })}
+              />
             ) : field.kind === 'line' ? (
               <input
                 value={value}
                 placeholder={field.hint}
                 disabled={busy}
-                onChange={(e) => onSet(field.key, e.target.value)}
+                onChange={(e) => onSet({ [field.key]: e.target.value })}
               />
             ) : (
               <textarea
@@ -554,14 +574,19 @@ function Fields({ part, busy, onSet }: {
                 value={value}
                 placeholder={field.hint}
                 disabled={busy}
-                onChange={(e) => onSet(field.key, e.target.value)}
+                onChange={(e) => onSet({ [field.key]: e.target.value })}
               />
             )}
-          </label>
+          </Wrap>
         );
       })}
     </section>
   );
+}
+
+/** Ein Feld — als `<label>`, wo es EIN Eingabeelement umschliesst, sonst als `<div>`. */
+function Wrap({ as, className, children }: { as: 'label' | 'div'; className: string; children: ReactNode }) {
+  return as === 'label' ? <label className={className}>{children}</label> : <div className={className}>{children}</div>;
 }
 
 export default PageBuilder;

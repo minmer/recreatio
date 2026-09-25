@@ -60,7 +60,15 @@ export interface PartContext {
  * Kennung ist eine UUID, und wer eine abtippen soll, schreibt stattdessen,
  * wie er das Ding nennt.
  */
-export type FieldKind = 'line' | 'text' | 'resource';
+/**
+ * Wie ein Feld eingegeben wird.
+ *
+ * `form` wählt ein Formular (einen Baustein der Art `form`); `questions`
+ * wählt dessen Fragen — welches Formular, steht im Feld, das `of` nennt.
+ * Gespeichert wird `*` (alle, auch später hinzugefügte) oder die Kennungen,
+ * durch Kommas getrennt.
+ */
+export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions';
 
 export interface FieldDef {
   readonly key: string;
@@ -69,6 +77,9 @@ export interface FieldDef {
 
   /** Ein Beispiel, kein Vorgabewert — es wird nicht gespeichert. */
   readonly hint?: string;
+
+  /** Bei `questions`: der Schlüssel des Feldes, das das Formular nennt. */
+  readonly of?: string;
 }
 
 /* -- Ein Baustein, so wie ihn das Verzeichnis hält -------------------------- */
@@ -110,6 +121,16 @@ export interface PartModule {
    */
   readonly hasContent: (raw: RawConfig) => boolean;
 
+  /**
+   * WAS NOCH FEHLT, in Worten — oder `null`.
+   *
+   * `hasContent` fragt, ob die Kachel etwas zu zeigen hat; das hier, ob sie
+   * vollständig eingestellt ist. Nicht dasselbe: ein Portalbaustein zeigt
+   * immer etwas, muss aber sagen, AUS WELCHEM Formular. Der Editor schreibt
+   * es an die Kachel („do uzupełnienia") und darüber, was zu tun ist.
+   */
+  readonly missing: (raw: RawConfig) => string | null;
+
   readonly View: ComponentType<{ readonly raw: RawConfig; readonly ctx: PartContext }>;
 
   /**
@@ -138,6 +159,7 @@ export function definePart<C>(spec: {
   fields: readonly FieldDef[];
   read: (raw: RawConfig) => C;
   hasContent: (config: C) => boolean;
+  missing?: (config: C) => string | null;
   View: ComponentType<{ config: C; ctx: PartContext }>;
 }): PartModule {
   /*
@@ -158,6 +180,7 @@ export function definePart<C>(spec: {
     takes: spec.takes ?? false,
     fields: spec.fields,
     hasContent: (raw) => spec.hasContent(spec.read(raw)),
+    missing: (raw) => spec.missing?.(spec.read(raw)) ?? null,
     View,
     read: spec.read
   };
@@ -191,6 +214,22 @@ export function maybeNumber(raw: RawConfig, key: string): number | null {
 
   const parsed = Number.parseInt(said, 10);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Eine Auswahl von Kennungen (`questions`).
+ *
+ * `null` — nichts gewählt; `'all'` — alle, auch später hinzugefügte (`*`);
+ * sonst die genannten. Leere Teile fallen weg: ein Komma zu viel ist kein
+ * zusätzliches Feld.
+ */
+export function picked(raw: RawConfig, key: string): 'all' | ReadonlySet<string> | null {
+  const said = text(raw, key);
+  if (said === '') return null;
+  if (said === '*') return 'all';
+
+  const ids = said.split(',').map((one) => one.trim()).filter((one) => one !== '');
+  return ids.length === 0 ? null : new Set(ids);
 }
 
 /**

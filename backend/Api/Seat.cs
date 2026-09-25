@@ -482,6 +482,44 @@ public static class Seat
             }
         }
 
+        /*
+         * WAS BERICHTIGT WERDEN DARF (0044) — gefragt wird die FRAGE, nicht
+         * die Seite. Was das Portal zeigt, war bisher nur eine Bitte an den
+         * Browser: der Dienst nahm jede Berichtigung an, auch fuer eine Frage,
+         * die die Kanzlei festgelegt hatte — und sogar fuer eine Frage aus
+         * einem ANDEREN Formular, solange es sie gab.
+         */
+        var askable = new Dictionary<Guid, bool>();
+
+        await using (var ask = new SqlCommand("""
+            SELECT f.id, f.self_edit
+            FROM app.registration r
+            JOIN app.slug_field f ON f.part_id = r.part_id
+            WHERE r.id = @reg;
+            """, connection))
+        {
+            ask.Parameters.AddWithValue("@reg", registrationId);
+
+            await using var reader = await ask.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted)) askable[reader.GetGuid(0)] = reader.GetBoolean(1);
+        }
+
+        foreach (var (fieldId, _, _, _) in parsed)
+        {
+            if (!askable.TryGetValue(fieldId, out var mayEdit))
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, "To pytanie nie należy do tego zgłoszenia.");
+                return;
+            }
+
+            if (!mayEdit)
+            {
+                await Fail(ctx, StatusCodes.Status403Forbidden,
+                    "Tej odpowiedzi nie można poprawić samodzielnie — zmienić ją może kancelaria.");
+                return;
+            }
+        }
+
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
         try
@@ -846,7 +884,10 @@ public static class Seat
         await using var cmd = new SqlCommand("""
             SELECT f.id, f.kind, f.position, f.area_id, f.epoch, f.label_sealed,
                    v.value_sealed, v.seat_key_sealed, r.submitted_at, r.id,
-                   c.verified_at, c.origin
+                   c.verified_at, c.origin,
+                   r.part_id,
+                   COALESCE(f.label_area_id, f.area_id), COALESCE(f.label_epoch, f.epoch),
+                   f.options_sealed, f.self_edit
             FROM app.registration r
             JOIN app.registration_value v ON v.registration_id = r.id
             JOIN app.slug_field f         ON f.id = v.field_id
@@ -892,7 +933,29 @@ public static class Seat
                  * sonst drueckt er auf einen Knopf, der laengst nichts mehr tut.
                  */
                 verifiedAt = reader.IsDBNull(10) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(10),
-                verifiedWay = reader.IsDBNull(11) ? null : reader.GetString(11)
+                verifiedWay = reader.IsDBNull(11) ? null : reader.GetString(11),
+
+                /*
+                 * AUS WELCHEM FORMULAR (0041: der Baustein). Ein Platz kann
+                 * Einsendungen aus mehreren tragen, und der Baustein, der sie
+                 * im Portal zeigt, nennt EINES davon.
+                 */
+                formId = Ids.ToText(reader.GetGuid(12)),
+
+                /*
+                 * UNTER WELCHEM SCHLUESSEL DIE FRAGE LIEGT (0042) — dem des
+                 * Formulars, nicht dem der Antworten. Vorher ging nur
+                 * `areaId` mit, und die Beschriftung blieb zu, sobald die
+                 * Antworten in einem nicht jawnen Bereich lagen.
+                 */
+                labelAreaId = Ids.ToText(reader.GetGuid(13)),
+                labelEpoch = reader.GetInt32(14),
+
+                /* Die Auswahl — damit eine Berichtigung dieselbe Liste zeigt wie das Formular. */
+                optionsSealed = reader.IsDBNull(15) ? null : Base64Url.Encode((byte[])reader[15]),
+
+                /* Darf er sie selbst berichtigen (0044)? Der Dienst prueft es ohnehin. */
+                selfEdit = reader.GetBoolean(16)
             });
         }
 

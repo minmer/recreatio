@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { loadPublicKey } from './area';
 import { loadPublic, type Occurrence } from './calendar';
 import { aad, Field, fromBase64Url, openText } from './crypto';
-import { openSubmitted } from './form';
+import { openSubmitted, type OwnAnswer } from './form';
 import { loadPortal, openGrants, openPortal, type Portal } from './seat';
 import type { SeatView } from './seatContext';
 import { recall, remember } from './seatKeep';
@@ -57,9 +57,7 @@ export function useSeat(token: string, keyText: string | null): Opened {
   const [sharedNames, setSharedNames] = useState<readonly string[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
 
-  const [mine, setMine] = useState<
-    readonly { fieldId: string; label: string | null; value: string | null }[]
-  >([]);
+  const [mine, setMine] = useState<readonly OwnAnswer[]>([]);
 
   const look = useCallback(async () => {
     try {
@@ -99,15 +97,15 @@ export function useSeat(token: string, keyText: string | null): Opened {
       /*
        * WAS ER SELBST EINGETRAGEN HAT (0027) — beim Firmling sein Formular.
        *
-       * Der Wert hängt am Platz, die FRAGE dagegen an der Epoche des Bereichs.
-       * Die liegt bei einem öffentlichen Formular offen — sonst hätte er es nie
-       * ausfüllen können. Bleibt sie zu, steht die Antwort trotzdem da, nur
-       * ohne Beschriftung.
+       * Der Wert hängt am Platz, die FRAGE dagegen am Schlüssel des
+       * FORMULARbereichs (0042). Der liegt bei einem öffentlichen Formular
+       * offen — sonst hätte er es nie ausfüllen können. Bleibt er zu, steht
+       * die Antwort trotzdem da, nur ohne Beschriftung.
        */
       if (found.submitted.length > 0) {
         const epochs = new Map<string, Uint8Array>();
 
-        for (const areaId of new Set(found.submitted.map((s) => s.areaId))) {
+        for (const areaId of new Set(found.submitted.map((s) => s.labelAreaId ?? s.areaId))) {
           try {
             epochs.set(areaId, fromBase64Url((await loadPublicKey(areaId)).key));
           } catch {
@@ -162,6 +160,7 @@ export function useSeat(token: string, keyText: string | null): Opened {
 
   const seat: SeatView | null = portal === undefined || portal === null ? null : {
     token,
+    seatId: portal.seatId,
     seatKey,
     recipientName: portal.recipientName,
     note,

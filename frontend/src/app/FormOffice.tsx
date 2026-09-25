@@ -566,7 +566,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
       await saveField(f, {
         label: f.label, help: f.help, options: f.options, kind: f.kind,
         isRequired: f.isRequired, isHalfWidth: f.isHalfWidth, identityRole: f.identityRole,
-        areaId: f.areaId
+        selfEdit: f.selfEdit, areaId: f.areaId
       });
     }
   };
@@ -665,6 +665,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
       labelArea: module?.areaId == null ? null : { areaId: module.areaId, epoch },
       label: change.label, help: change.help, options: change.options,
       kind: change.kind, isRequired: change.isRequired, isHalfWidth: change.isHalfWidth,
+      selfEdit: change.selfEdit,
       identityRole: change.identityRole,
       moveTo
     });
@@ -847,6 +848,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
                     <span className="wk-row-side">
                       {' · '}{KIND_LABEL[f.kind]}
                       {f.isRequired && ' · wymagane'}
+                      {!f.selfEdit && ' · po wysłaniu tylko do odczytu'}
                       {f.identityRole !== 'none' && ` · ${IDENTITY_LABEL[f.identityRole]}`}
                       {' · → '}{areaLabel(f.areaId)}
                     </span>
@@ -1386,6 +1388,7 @@ function NewFieldForm({
   const [kind, setKind] = useState<FieldKind>('line');
   const [areaId, setAreaId] = useState('');
   const [required, setRequired] = useState(false);
+  const [selfEdit, setSelfEdit] = useState(true);
   const [identity, setIdentity] = useState<IdentityRole>('none');
   const [options, setOptions] = useState('');
   const [working, setWorking] = useState(false);
@@ -1453,7 +1456,8 @@ function NewFieldForm({
         kind, position, label,
         options: kind === 'choice' ? options.split('\n') : undefined,
         isRequired: required,
-        identityRole: identity
+        identityRole: identity,
+        selfEdit
       });
 
       setLabel('');
@@ -1534,6 +1538,8 @@ function NewFieldForm({
           {' '}Wymagane
         </span>
       </label>
+
+      <SelfEditBox value={selfEdit} onChange={setSelfEdit} />
 
       <p className="wk-hint">
         {formAreaId !== null
@@ -1673,6 +1679,9 @@ interface FieldChange {
   readonly isHalfWidth: boolean;
   readonly identityRole: IdentityRole;
 
+  /** Darf der Mensch die Antwort über seinen Link berichtigen (0044)? */
+  readonly selfEdit: boolean;
+
   /** Wohin die Antworten gehen — ein anderer als bisher heisst: umziehen. */
   readonly areaId: string;
 }
@@ -1698,6 +1707,7 @@ function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
   const [kind, setKind] = useState<FieldKind>(field.kind);
   const [identity, setIdentity] = useState<IdentityRole>(field.identityRole);
   const [required, setRequired] = useState(field.isRequired);
+  const [selfEdit, setSelfEdit] = useState(field.selfEdit);
   const [options, setOptions] = useState(field.options.join('\n'));
   const [areaId, setAreaId] = useState(field.areaId);
 
@@ -1719,7 +1729,7 @@ function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
         onSave({
           label, help: help.trim() === '' ? null : help,
           options: kind === 'choice' ? options.split('\n') : [],
-          kind, isRequired: required, isHalfWidth: field.isHalfWidth, identityRole: identity, areaId
+          kind, isRequired: required, isHalfWidth: field.isHalfWidth, identityRole: identity, selfEdit, areaId
         });
       }}
     >
@@ -1781,6 +1791,8 @@ function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
         </span>
       </label>
 
+      <SelfEditBox value={selfEdit} onChange={setSelfEdit} />
+
       <div className="wk-actions">
         <button type="submit" className="wk-btn" disabled={busy || label.trim() === ''}>
           {moving ? 'Zapisz i przenieś odpowiedzi' : 'Zapisz'}
@@ -1788,6 +1800,29 @@ function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
         <button type="button" className="wk-link-btn" disabled={busy} onClick={onCancel}>Anuluj</button>
       </div>
     </form>
+  );
+}
+
+/**
+ * DARF ER DAS SPÄTER SELBST ÄNDERN? (0044)
+ *
+ * Eine Eigenschaft der Frage, nicht der Seite, auf der die Antwort erscheint —
+ * und der Dienst prüft sie bei jeder Berichtigung über den Link. Die Kanzlei
+ * selbst ändert weiter alles.
+ */
+function SelfEditBox({ value, onChange }: { value: boolean; onChange: (next: boolean) => void }) {
+  return (
+    <label className="wk-field">
+      <span>
+        <input type="checkbox" checked={value} onChange={() => onChange(!value)} />
+        {' '}Osoba może później sama poprawić tę odpowiedź
+      </span>
+      <span className="wk-hint">
+        {value
+          ? 'W swoim portalu (link po wysłaniu) zobaczy przycisk „Popraw dane".'
+          : 'Odpowiedź zobaczy, ale zmienić ją może tylko kancelaria.'}
+      </span>
+    </label>
   );
 }
 

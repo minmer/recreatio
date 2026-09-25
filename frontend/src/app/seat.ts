@@ -32,6 +32,7 @@ import {
 import { epochAad } from './area';
 import type { Ring, SealedRole } from './keys';
 import type { PagePart } from './page';
+import { pageLink } from './seatKeep';
 import { call } from './session';
 
 /* -- Die Etiketten, an EINER Stelle ---------------------------------------- */
@@ -76,12 +77,14 @@ export const seatPath = (link: Link, under?: string | null): string => {
   const tail = `${encodeURIComponent(link.token)}/${encodeURIComponent(link.key)}`;
 
   /*
-   * Unter einer Seite liest sich die Adresse so, wie der Mensch sie erwartet:
-   * erst seine Schule, dann sein Platz. Ohne Seite bleibt die allgemeine Form.
+   * DIE SEITE SELBST, mit dem Platz daran (`seatKeep.pageLink`) — nicht eine
+   * eingebaute Portalansicht unter ihr. Der Link öffnet, was die Kanzlei als
+   * Seite nach dem Absenden gewählt hat; die persönlichen Bausteine dort
+   * zeigen, was diesem Menschen gehört. Ohne Seite bleibt die eigene Ansicht.
    */
   return under === undefined || under === null || under === ''
     ? `#/seat/${tail}`
-    : `#/${under.split('/').map(encodeURIComponent).join('/')}/portal/${tail}`;
+    : pageLink(under, link.token, link.key);
 };
 
 /* -- Was ein Platz AUSSERDEM aufschliesst ---------------------------------- */
@@ -332,6 +335,19 @@ export interface SubmittedValue {
   /** `null` heisst: noch nicht bestätigt. Ein echter Zustand (0030/0031). */
   readonly verifiedAt: string | null;
   readonly verifiedWay: 'sms' | 'self' | null;
+
+  /** Aus welchem Formular (dem Baustein) — ein Platz kann mehrere tragen. */
+  readonly formId: string;
+
+  /** Unter welchem Schlüssel die FRAGE liegt (0042) — der des Formulars. */
+  readonly labelAreaId: string;
+  readonly labelEpoch: number;
+
+  /** Die Auswahl, versiegelt wie die Frage — für eine Berichtigung. */
+  readonly optionsSealed: string | null;
+
+  /** Darf er die Antwort selbst berichtigen (0044)? Der Dienst prüft es ohnehin. */
+  readonly selfEdit: boolean;
 }
 
 /*

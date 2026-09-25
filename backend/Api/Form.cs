@@ -164,7 +164,10 @@ public static class Form
         string FieldId, string AreaId, int Epoch, string Kind, int Position,
         string LabelSealed, string? HelpSealed, string? OptionsSealed,
         bool? IsRequired, bool? IsHalfWidth, string? IdentityRole,
-        string? LabelAreaId = null, int? LabelEpoch = null);
+        string? LabelAreaId = null, int? LabelEpoch = null,
+
+        /* Darf der Mensch die Antwort ueber seinen Link berichtigen (0044)? Vorgabe: ja. */
+        bool? SelfEdit = null);
 
     /// <summary>
     /// Ein Feld anlegen.
@@ -271,10 +274,10 @@ public static class Form
             INSERT INTO app.slug_field
                 (id, part_id, area_id, kind, position, label_sealed, help_sealed, options_sealed,
                  epoch, is_required, is_half_width, identity_role, created_at,
-                 label_area_id, label_epoch)
+                 label_area_id, label_epoch, self_edit)
             VALUES (@id, @part, @area, @kind, @pos, @label, @help, @options,
                     @epoch, @required, @half, @identity, @now,
-                    @labelArea, @labelEpoch);
+                    @labelArea, @labelEpoch, @selfEdit);
             """, connection);
 
         insert.Parameters.AddWithValue("@labelArea", (object?)labelArea ?? DBNull.Value);
@@ -291,6 +294,7 @@ public static class Form
         insert.Parameters.AddWithValue("@epoch", body.Epoch);
         insert.Parameters.AddWithValue("@required", body.IsRequired ?? false);
         insert.Parameters.AddWithValue("@half", body.IsHalfWidth ?? false);
+        insert.Parameters.AddWithValue("@selfEdit", body.SelfEdit ?? true);
         insert.Parameters.AddWithValue("@identity", identity);
         insert.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
 
@@ -1319,7 +1323,7 @@ public static class Form
     internal sealed record FieldRow(
         Guid Id, Guid AreaId, string Kind, int Position, byte[] Label, byte[]? Help,
         byte[]? Options, int Epoch, bool IsRequired, bool IsHalfWidth, string IdentityRole,
-        Guid? LabelAreaId = null, int? LabelEpoch = null);
+        Guid? LabelAreaId = null, int? LabelEpoch = null, bool SelfEdit = true);
 
     /// <summary>
     /// Wie eine Frage hinausgeht. <c>labelAreaId</c> / <c>labelEpoch</c> sind
@@ -1341,7 +1345,8 @@ public static class Form
         labelEpoch = f.LabelEpoch ?? f.Epoch,
         isRequired = f.IsRequired,
         isHalfWidth = f.IsHalfWidth,
-        identityRole = f.IdentityRole
+        identityRole = f.IdentityRole,
+        selfEdit = f.SelfEdit
     };
 
     /// <summary>
@@ -1392,7 +1397,8 @@ public static class Form
 
         await using var cmd = new SqlCommand("""
             SELECT id, area_id, kind, position, label_sealed, help_sealed, options_sealed,
-                   epoch, is_required, is_half_width, identity_role, label_area_id, label_epoch
+                   epoch, is_required, is_half_width, identity_role, label_area_id, label_epoch,
+                   self_edit
             FROM app.slug_field
             WHERE part_id = @part
             ORDER BY position;
@@ -1410,7 +1416,8 @@ public static class Form
                 reader.IsDBNull(6) ? null : (byte[])reader[6],
                 reader.GetInt32(7), reader.GetBoolean(8), reader.GetBoolean(9), reader.GetString(10),
                 reader.IsDBNull(11) ? null : reader.GetGuid(11),
-                reader.IsDBNull(12) ? null : reader.GetInt32(12)));
+                reader.IsDBNull(12) ? null : reader.GetInt32(12),
+                reader.GetBoolean(13)));
         }
 
         return fields;
@@ -2480,7 +2487,10 @@ public static class Form
         string LabelSealed, string? HelpSealed, string? OptionsSealed,
         string? LabelAreaId, int? LabelEpoch,
         string? Kind, bool? IsRequired, bool? IsHalfWidth, string? IdentityRole,
-        string? MoveTo = null, IReadOnlyList<MovedValue>? Moved = null);
+        string? MoveTo = null, IReadOnlyList<MovedValue>? Moved = null,
+
+        /* Fehlt es, bleibt es, wie es war (0044). */
+        bool? SelfEdit = null);
 
     /// <summary>
     /// Eine vorhandene Frage aendern.
@@ -2689,6 +2699,7 @@ public static class Form
                        label_area_id = @labelArea, label_epoch = @labelEpoch,
                        kind = @kind, is_required = @required, is_half_width = @half,
                        identity_role = @identity,
+                       self_edit = COALESCE(@selfEdit, self_edit),
                        area_id = COALESCE(@moveTo, area_id)
                  WHERE id = @id;
                 """, connection, tx))
@@ -2703,6 +2714,7 @@ public static class Form
                 save.Parameters.AddWithValue("@half", body.IsHalfWidth ?? false);
                 save.Parameters.AddWithValue("@identity", identity);
                 save.Parameters.AddWithValue("@moveTo", (object?)moveTo ?? DBNull.Value);
+                save.Parameters.Add("@selfEdit", System.Data.SqlDbType.Bit).Value = (object?)body.SelfEdit ?? DBNull.Value;
                 save.Parameters.AddWithValue("@id", id);
                 await save.ExecuteNonQueryAsync(ctx.RequestAborted);
             }

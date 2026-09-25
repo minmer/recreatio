@@ -21,8 +21,9 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { loadPage, toDraft, type PageContent } from './page';
 import { PageParts } from './PageParts';
-import { SeatContext, useSeats } from './seatContext';
-import { seatsFor } from './seatKeep';
+import { PersonalSections, SeatBar } from './SeatBar';
+import { SeatContext, SeatStateContext, useSeats, useSeatStates, type SeatState } from './seatContext';
+import { freshSeat, seatsExactly, seatsFor } from './seatKeep';
 import { useSeat } from './seatView';
 import { WorkspaceError } from './session';
 import { loadSite } from './site';
@@ -88,7 +89,14 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
       {page.lead !== null && <p className="wk-lede wk-page-lead">{page.lead}</p>}
 
       <WithSeat path={page.path}>
+        <SeatBar path={page.path} />
         <PageParts parts={parts} />
+
+        {/*
+          Keine persönlichen Bausteine auf dieser Seite? Dann die eingebauten
+          Abschnitte — für den Platz, dessen Link HIERHER geführt hat.
+        */}
+        {!parts.some((one) => one.kind.startsWith('seat-')) && <Fallback path={page.path} />}
       </WithSeat>
     </>
   );
@@ -112,7 +120,9 @@ function WithSeat({ path, children }: { path: string; children: React.ReactNode 
    * auf, und die Reihenfolge hängt daran — neu gelesen bei jedem Zeichnen,
    * wanderten die Plätze zwischen den Bauteilen und jeder würde neu geholt.
    */
-  const tokens = useMemo(() => seatsFor(path), [path]);
+  /* Ein neuer Link auf DIESELBE Seite bringt einen neuen Platz — also auch nach ihm neu lesen. */
+  const arrived = freshSeat()?.token ?? null;
+  const tokens = useMemo(() => seatsFor(path), [path, arrived]);
 
   return <OpenAll tokens={tokens}>{children}</OpenAll>;
 }
@@ -134,12 +144,39 @@ function OpenAll({ tokens, children }: { tokens: readonly string[]; children: Re
 }
 
 function Opened({ token, children }: { token: string; children: React.ReactNode }) {
-  const { seat } = useSeat(token, null);
+  const { portal, failed, seat } = useSeat(token, null);
   const outer = useSeats();
+  const outerStates = useSeatStates();
 
   const all = useMemo(() => (seat === null ? outer : [...outer, seat]), [outer, seat]);
 
-  return <SeatContext.Provider value={all}>{children}</SeatContext.Provider>;
+  /* Wie es um DIESEN Platz steht — auch wenn er nicht aufging. */
+  const state: SeatState['state'] = portal === undefined ? 'loading'
+    : portal === null ? 'gone'
+    : seat?.seatKey === null ? 'locked'
+    : 'open';
+  const states = useMemo(
+    () => [...outerStates, { token, state, failed }], [outerStates, token, state, failed]);
+
+  return (
+    <SeatStateContext.Provider value={states}>
+      <SeatContext.Provider value={all}>{children}</SeatContext.Provider>
+    </SeatStateContext.Provider>
+  );
+}
+
+/** Die eingebauten Abschnitte für die Plätze, deren Link GENAU hierher geführt hat. */
+function Fallback({ path }: { path: string }) {
+  const seats = useSeats();
+  const exact = useMemo(() => new Set(seatsExactly(path)), [path, seats]);
+
+  return (
+    <>
+      {seats.filter((seat) => exact.has(seat.token) && seat.seatKey !== null).map((seat) => (
+        <PersonalSections seat={seat} key={seat.token} />
+      ))}
+    </>
+  );
 }
 
 export default PublicPage;

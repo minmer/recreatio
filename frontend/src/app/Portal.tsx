@@ -240,7 +240,8 @@ export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: 
         moduleId: null,
         kind: one.kind,
         layout: fullWidth(at === 0 ? 1 : 1 + SEED[0].rowSpan, one.rowSpan),
-        config: one.config
+        /* Das Portal entsteht AUS diesem Formular — also zeigt es dessen Antworten, alle. */
+        config: one.kind === 'seat-submission' ? { ...one.config, form: moduleId, show: '*' } : one.config
       }));
 
       await saveParts(where, parts);
@@ -294,6 +295,17 @@ export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: 
           {!has && ' — tak wychodzi z ustawień, nikt tego nie wybrał.'}
         </p>
       )}
+
+      {/*
+        WAS DER LINK TUT — er öffnet DIESE Seite selbst, mit dem Schlüssel des
+        Menschen daran (`?miejsce=…`), keine Unterseite mit einem Portal.
+      */}
+      <p className="wk-hint">
+        Osoba dostaje link do tej strony z własnym kluczem. Bloki „Zgłoszenie osoby" i
+        „Wiadomość dla osoby" na tej stronie pokażą jej dane; jeśli ich tam nie ma, jej
+        zgłoszenie pojawi się pod treścią strony. Klucz zostaje w jej przeglądarce i działa
+        też na innych stronach tej organizacji.
+      </p>
 
       {astray && (
         <p className="wk-blocker">

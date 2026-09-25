@@ -19,9 +19,9 @@
 
 import type { ReactNode } from 'react';
 
-import { definePart, flag, text, type RawConfig } from '../part';
+import { definePart, picked, text, type RawConfig } from '../part';
 import { seatName, useSeats, type SeatView } from '../seatContext';
-import { Submission } from '../Submission';
+import { OwnSubmissions } from '../Submission';
 
 /**
  * Die zwei Zustände, die alle drei kennen — und der Inhalt danach.
@@ -71,30 +71,49 @@ interface SubmissionConfig {
   readonly title: string;
 
   /**
-   * <b>Vorgabe JA.</b> Die Angabe gehört dem Menschen; wer sie festnageln will,
-   * soll das ausdrücklich tun.
+   * AUS WELCHEM FORMULAR — Pflicht.
+   *
+   * Ein Platz kann Einsendungen aus mehreren Formularen tragen. Ein Portal
+   * der Firmung soll die Anmeldung zur Firmung zeigen und nicht, was derselbe
+   * Mensch sonst noch irgendwo ausgefüllt hat. Ohne Angabe zeigt die Kachel
+   * vorerst alles, wie bisher — und der Editor sagt, dass sie unfertig ist.
    */
-  readonly mayEdit: boolean;
+  readonly form: string | null;
+
+  /** WELCHE Antworten — 'all' (auch später hinzugefügte Fragen) oder die genannten. */
+  readonly show: 'all' | ReadonlySet<string> | null;
 }
 
 export const seatSubmissionPart = definePart<SubmissionConfig>({
   kind: 'seat-submission',
   label: 'Zgłoszenie osoby',
-  use: 'Pokazuje tej osobie to, co sama wysłała.',
+  use: 'Pokazuje tej osobie to, co sama wysłała w wybranym formularzu.',
   box: { colSpan: 3, rowSpan: 3 },
   takes: true,
 
+  /*
+   * Ob eine Antwort berichtigt werden darf, steht NICHT hier, sondern an der
+   * Frage (0044) — und dort prüft es der Dienst. Hier stand vorher „Czy można
+   * poprawiać: tak / nie", und das galt nur für den Knopf.
+   */
   fields: [
-    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Twoje zgłoszenie' },
-    { key: 'editable', label: 'Czy można poprawiać', kind: 'line', hint: 'tak / nie — puste: tak' }
+    { key: 'form', label: 'Z którego formularza', kind: 'form' },
+    { key: 'show', label: 'Które odpowiedzi widać', kind: 'questions', of: 'form' },
+    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Twoje zgłoszenie' }
   ],
 
   read: (raw: RawConfig): SubmissionConfig => ({
     title: text(raw, 'title'),
-    mayEdit: flag(raw, 'editable', true)
+    form: text(raw, 'form') === '' ? null : text(raw, 'form'),
+    show: picked(raw, 'show')
   }),
 
   hasContent: () => true,
+
+  missing: (config) =>
+    config.form === null ? 'Wybierz formularz, z którego pochodzą odpowiedzi.'
+    : config.show === null ? 'Wybierz, które odpowiedzi ta osoba zobaczy.'
+    : null,
 
   View: ({ config }) => (
     <OnSeat
@@ -102,15 +121,14 @@ export const seatSubmissionPart = definePart<SubmissionConfig>({
       fallback="Twoje zgłoszenie"
       empty="Tu pojawi się zgłoszenie osoby, która otworzy swój link."
     >
-      {(seat) => seat.submitted.length === 0 ? (
-        <p className="wk-empty">Jeszcze nic nie wysłano z tego miejsca.</p>
-      ) : (
-        <Submission
+      {(seat) => (
+        <OwnSubmissions
           values={seat.submitted}
           open={seat.opened}
           token={seat.token}
-          seatKey={seat.seatKey!}
-          mayEdit={config.mayEdit}
+          seatKey={seat.seatKey}
+          formId={config.form}
+          show={config.show === 'all' ? null : config.show}
           onSaved={seat.reload}
         />
       )}

@@ -40,12 +40,13 @@ interface Held {
   readonly key: string;
 
   /**
-   * Zu WELCHER Seite dieser Platz gehört — aus dem Link, der ihn brachte.
+   * Zu WELCHER Seite dieser Platz gehört — die, an der sein Link hing.
    *
    * <b>Damit eine Seite ihren Platz findet, ohne zu fragen.</b> Sonst
    * müsste jede öffentliche Seite für jeden behaltenen Platz beim Dienst
    * nachschlagen, wohin er gehört — zwölf Aufrufe, um meistens nichts zu
-   * finden. Im Link steht es ohnehin: alles vor `portal` ist die Seite.
+   * finden. Im Link steht es ohnehin: `#/<seite>?miejsce=…` (und in alten
+   * Links alles vor `portal`).
    */
   readonly under: string | null;
 
@@ -177,6 +178,43 @@ export const heldSeats = (): readonly string[] =>
 /* -- Der Weg aus der Adresse heraus ---------------------------------------- */
 
 /**
+ * Das Wort, hinter dem ein Platz an JEDER Seite hängt: `#/<seite>?miejsce=<token>.<key>`.
+ *
+ * <b>Vorher war der Platz eine eigene Unterseite</b> — `…/candidate/portal/<token>/<key>`
+ * —, und der Link öffnete nicht die Seite, die die Kanzlei gewählt hatte,
+ * sondern eine eingebaute Ansicht UNTER ihr. Jetzt öffnet er die Seite
+ * selbst: mit ihren Bausteinen, und die persönlichen darunter zeigen, was
+ * diesem Menschen gehört.
+ *
+ * <b>Hinter der Raute, hinter einem `?`.</b> Beides geht nie an einen Server;
+ * `parsePath` liest den Pfad nur bis zum `?`. So lässt sich der Schlüssel an
+ * jede Adresse hängen, ohne dass sie dadurch eine andere Seite würde.
+ */
+const PARAM = 'miejsce';
+
+/** Die Adresse einer Seite MIT einem Platz — was verschickt wird. */
+export function pageLink(under: string, token: string, keyText: string): string {
+  return `#/${under.split('/').map(encodeURIComponent).join('/')}?${PARAM}=${encodeURIComponent(token)}.${encodeURIComponent(keyText)}`;
+}
+
+/**
+ * Welcher Platz gerade ÜBER EINEN LINK hereinkam — damit die Seite sagen kann,
+ * wenn er nicht aufgeht. Ein behaltener Platz, der nicht aufgeht, bleibt still;
+ * einer, den jemand gerade angeklickt hat, darf das nicht.
+ */
+export interface FreshSeat {
+  readonly token: string;
+  readonly under: string | null;
+
+  /** Der Link trug keinen Schlüssel — etwa ein altes Lesezeichen `…/portal/<token>`. */
+  readonly keyless: boolean;
+}
+
+let fresh: FreshSeat | null = null;
+
+export const freshSeat = (): FreshSeat | null => fresh;
+
+/**
  * Trägt diese Adresse einen Platzschlüssel? Dann wegräumen — und sagen, wie die
  * Adresse ohne ihn heisst.
  *
@@ -184,47 +222,81 @@ export const heldSeats = (): readonly string[] =>
  * ist. Jede andere Antwort ist die aufgeräumte Fassung, die der Aufrufer an
  * die Stelle der alten setzt.
  *
- * <b>Der Abdruck bleibt stehen.</b> `…/portal/<token>` ist weiterhin die
- * Adresse dieses Platzes — sie geht ohnehin an den Dienst, sie ist kein
- * Geheimnis, und ohne sie wüsste die Seite nicht mehr, welcher Platz gemeint
- * ist. Fort kommt nur der zweite Teil.
+ * <b>Drei Formen, eine Richtung.</b>
+ *
+ * <code>
+ *   #/<seite>?miejsce=<token>.<key>     die Seite, mit dem Platz          (neu)
+ *   #/<seite>/portal/<token>[/<key>]    dieselbe Seite — alte Links gelten weiter
+ *   #/seat/<token>/<key>                ein Platz ohne Seite — seine eigene Ansicht
+ * </code>
+ *
+ * Die ersten beiden enden auf der SEITE; der Schlüssel liegt danach im
+ * Browser und gilt dort wie auf jeder anderen Seite desselben Hauses.
  */
 export function keepFromAddress(hash: string): string | null {
   const marker = hash.indexOf('#');
-  const path = marker >= 0 ? hash.slice(marker + 1) : hash;
+  const after = marker >= 0 ? hash.slice(marker + 1) : hash;
 
-  const raw = path.split(/[?&]/)[0];
+  const cut = after.search(/[?&]/);
+  const raw = cut >= 0 ? after.slice(0, cut) : after;
+  const params = cut >= 0 ? after.slice(cut + 1).split('&').filter((one) => one !== '') : [];
   const segments = raw.split('/').filter((one) => one.length > 0);
 
-  /*
-   * ZWEI FORMEN, EIN SCHLÜSSEL.
-   *
-   * `…/<seite>/portal/<token>/<key>` gehört einer Seite — der Schüler liest
-   * die Adresse seiner Schule und dahinter seinen Platz. `#/seat/<token>/<key>`
-   * bleibt für Plätze, die unter keiner Seite hängen. Nur die erste hier zu
-   * kennen hiesse, den Schlüssel in der zweiten stehen zu lassen.
-   */
-  const at = segments[0] === 'seat' ? 0 : segments.indexOf('portal');
+  const decoded = (one: string) => { try { return decodeURIComponent(one); } catch { return one; } };
+  const pathOf = (parts: readonly string[]) => parts.map(decoded).join('/');
 
-  /* `<marker>/<token>/<key>` — ohne den dritten Teil ist nichts wegzuräumen. */
-  if (at < 0 || segments.length < at + 3) return null;
+  /** Behalten, was geht — und merken, dass es gerade über einen Link kam. */
+  const keep = (token: string, keyText: string | undefined, under: string | null) => {
+    let keyless = true;
 
-  const token = segments[at + 1];
-  const key = segments[at + 2];
+    if (keyText !== undefined && keyText !== '') {
+      try {
+        remember(token, fromBase64Url(decoded(keyText)), under);
+        keyless = false;
+      } catch {
+        /* Kein lesbarer Schlüssel — dann steht er auch nicht in der Adresse herum. */
+      }
+    }
 
-  if (token === '' || key === '') return null;
+    fresh = { token, under, keyless };
+  };
 
-  try {
-    /* Alles VOR dem Wegweiser ist die Seite — bei `#/seat/…` ist es nichts. */
-    const under = at === 0 ? null : segments.slice(0, at).join('/');
+  /* 1. `?miejsce=<token>.<key>` — an jeder Seite. */
+  const carried = params.find((one) => one.startsWith(`${PARAM}=`));
 
-    remember(token, fromBase64Url(key), under);
-  } catch {
-    /* Kein lesbarer Schlüssel. Dann steht er auch nicht in der Adresse
-       herum — was nicht aufgeht, nützt dort niemandem. */
+  if (carried !== undefined) {
+    const [token, keyText] = decoded(carried.slice(PARAM.length + 1)).split('.');
+    const under = pathOf(segments);
+
+    if (token !== undefined && token !== '') keep(token, keyText, under === '' ? null : under);
+
+    const rest = params.filter((one) => one !== carried);
+    return `#/${raw.replace(/^\/+/, '')}${rest.length > 0 ? `?${rest.join('&')}` : ''}`;
   }
 
-  return `#/${segments.slice(0, at + 2).join('/')}`;
+  const at = segments[0] === 'seat' ? 0 : segments.indexOf('portal');
+  if (at < 0) return null;
+
+  const token = segments[at + 1];
+  const keyText = segments[at + 2];
+
+  if (token === undefined || token === '') return null;
+
+  /* 3. `#/seat/<token>/<key>` — ohne Seite; seine Ansicht braucht das Token im Pfad. */
+  if (at === 0) {
+    if (keyText === undefined || keyText === '') return null;
+    keep(token, keyText, null);
+    return `#/seat/${token}`;
+  }
+
+  /*
+   * 2. `…/<seite>/portal/<token>[/<key>]` — ein Link von vorher, oder das
+   * Lesezeichen, das nach dem Aufräumen stehen blieb. Er öffnet jetzt die
+   * Seite selbst, wie jeder neue.
+   */
+  const page = segments.slice(0, at);
+  keep(token, keyText, pathOf(page));
+  return `#/${page.join('/')}`;
 }
 
 /* -- Und wieder hinein ----------------------------------------------------- */
@@ -254,15 +326,12 @@ export function linkTo(token: string, under?: string | null): string | null {
     ? read().find((one) => one.token === token)?.under ?? null
     : under;
 
-  const tail = `${encodeURIComponent(token)}/${encodeURIComponent(toBase64Url(key))}`;
-
-  /*
-   * Dieselbe Form wie `seat.seatPath`, und das ist kein Zufall: es IST dieselbe
-   * Adresse. Sie hier nachzubauen statt sie zu holen wäre eine zweite Meinung
-   * über eine Form, die schon eine hat — aber `seatPath` nimmt einen `Link`,
-   * und hier liegt ein Schlüssel. Wer die eine ändert, ändert die andere mit.
-   */
+  /* Dieselbe Form wie `seat.seatPath` — beide bauen auf `pageLink`. */
   return where === null || where === ''
-    ? `#/seat/${tail}`
-    : `#/${where.split('/').map(encodeURIComponent).join('/')}/portal/${tail}`;
+    ? `#/seat/${encodeURIComponent(token)}/${encodeURIComponent(toBase64Url(key))}`
+    : pageLink(where, token, toBase64Url(key));
 }
+
+/** Die Plätze, die GENAU zu dieser Seite gehören — der Link hat hierher geführt. */
+export const seatsExactly = (path: string): readonly string[] =>
+  read().filter((one) => one.under === path).map((one) => one.token);

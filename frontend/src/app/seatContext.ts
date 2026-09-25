@@ -18,10 +18,14 @@
 
 import { createContext, useContext } from 'react';
 
+import type { OwnAnswer } from './form';
 import type { SubmittedValue } from './seat';
 
 export interface SeatView {
   readonly token: string;
+
+  /** Die Kennung des Platzes — zum Binden an eine eigene Person. */
+  readonly seatId: string;
 
   /** `null`, wenn der Schlüssel im Link fehlt — dann bleibt alles zu. */
   readonly seatKey: Uint8Array | null;
@@ -34,8 +38,8 @@ export interface SeatView {
   /** Die eigene Einsendung, roh — zum Berichtigen braucht es die Hüllen. */
   readonly submitted: readonly SubmittedValue[];
 
-  /** Dieselbe Einsendung, aufgemacht: Frage und Antwort. */
-  readonly opened: readonly { fieldId: string; label: string | null; value: string | null }[];
+  /** Dieselbe Einsendung, aufgemacht: Frage und Antwort — je Einsendung und Formular. */
+  readonly opened: readonly OwnAnswer[];
 
   /** Was dieser Platz ausserdem aufschliesst — Termine der Gruppe. */
   readonly shared: readonly { name: string; when: string; what: string | null }[];
@@ -48,6 +52,24 @@ export interface SeatView {
 }
 
 export const SeatContext = createContext<readonly SeatView[]>([]);
+
+/**
+ * WIE ES UM JEDEN PLATZ STEHT, den diese Seite aufzumachen versucht — auch um
+ * die, die nicht aufgingen.
+ *
+ * `SeatContext` trägt nur die offenen; eine Seite, auf die gerade ein Link
+ * geführt hat, muss aber sagen können, warum ER nicht aufging: zurückgenommen,
+ * abgelaufen, oder ein Schlüssel, der beim Kopieren abgeschnitten wurde.
+ */
+export interface SeatState {
+  readonly token: string;
+  readonly state: 'loading' | 'open' | 'gone' | 'locked';
+  readonly failed: string | null;
+}
+
+export const SeatStateContext = createContext<readonly SeatState[]>([]);
+
+export const useSeatStates = (): readonly SeatState[] => useContext(SeatStateContext);
 
 /** Alle geöffneten Plätze — der für diese Seite zuerst. */
 export const useSeats = (): readonly SeatView[] => useContext(SeatContext);

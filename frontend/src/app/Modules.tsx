@@ -37,6 +37,7 @@ import {
 } from './module';
 import { setPartConfig } from './form';
 import { PARTS, partLabel, partOf, takesEntries } from './parts/registry';
+import { PickForm, PickQuestions, pickedForm } from './FormPick';
 import { PickResource } from './PickResource';
 import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
@@ -349,11 +350,15 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
     );
   }
 
-  const save = async (key: string, value: string) => {
+  const save = async (key: string, value: string) => saveMany({ [key]: value });
+
+  /* Mehrere Schlüssel in EINEM Gang — ein anderes Formular setzt auch die Auswahl seiner Fragen zurück. */
+  const saveMany = async (patch: Record<string, string>) => {
     setFailed(null);
+    setConfig({ ...config, ...patch });
 
     try {
-      const done = await setPartConfig(row.moduleId, { [key]: value });
+      const done = await setPartConfig(row.moduleId, patch);
       setConfig(done.config);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
@@ -364,38 +369,50 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
     <section className="wk-form">
       <h2 className="wk-h2">Treść</h2>
 
+      {def.missing(config) !== null && <p className="wk-blocker">{def.missing(config)}</p>}
+
       {def.fields.map((field) => {
         const value = config[field.key] ?? '';
 
-        return (
-          <label className="wk-field" key={field.key}>
-            <span>{field.label}</span>
+        const input = field.kind === 'resource' ? (
+          <PickResource
+            value={value}
+            busy={busy}
+            onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }}
+          />
+        ) : field.kind === 'form' ? (
+          <PickForm value={value} busy={busy} onPick={(id) => void saveMany(pickedForm(def, field.key, id))} />
+        ) : field.kind === 'questions' ? (
+          <PickQuestions
+            formId={config[field.of ?? ''] ?? ''}
+            value={value}
+            busy={busy}
+            onPick={(next) => void save(field.key, next)}
+          />
+        ) : field.kind === 'line' ? (
+          <input
+            value={value}
+            placeholder={field.hint}
+            disabled={busy}
+            onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
+            onBlur={(e) => { void save(field.key, e.target.value); }}
+          />
+        ) : (
+          <textarea
+            rows={5}
+            value={value}
+            placeholder={field.hint}
+            disabled={busy}
+            onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
+            onBlur={(e) => { void save(field.key, e.target.value); }}
+          />
+        );
 
-            {field.kind === 'resource' ? (
-              <PickResource
-                value={value}
-                busy={busy}
-                onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }}
-              />
-            ) : field.kind === 'line' ? (
-              <input
-                value={value}
-                placeholder={field.hint}
-                disabled={busy}
-                onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
-                onBlur={(e) => { void save(field.key, e.target.value); }}
-              />
-            ) : (
-              <textarea
-                rows={5}
-                value={value}
-                placeholder={field.hint}
-                disabled={busy}
-                onChange={(e) => setConfig({ ...config, [field.key]: e.target.value })}
-                onBlur={(e) => { void save(field.key, e.target.value); }}
-              />
-            )}
-          </label>
+        /* Mehrere Knöpfe darin — kein <label>, sonst träfe ein Klick daneben den ersten. */
+        return field.kind === 'questions' || field.kind === 'form' ? (
+          <div className="wk-field" key={field.key}><span>{field.label}</span>{input}</div>
+        ) : (
+          <label className="wk-field" key={field.key}><span>{field.label}</span>{input}</label>
         );
       })}
 

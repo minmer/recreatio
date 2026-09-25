@@ -114,6 +114,9 @@ export interface NewField {
   readonly isRequired?: boolean;
   readonly isHalfWidth?: boolean;
   readonly identityRole?: IdentityRole;
+
+  /** Darf der Mensch die Antwort später über seinen Link berichtigen (0044)? Vorgabe: ja. */
+  readonly selfEdit?: boolean;
 }
 
 export async function addField(partId: string, what: NewField): Promise<{ fieldId: string }> {
@@ -133,7 +136,8 @@ export async function addField(partId: string, what: NewField): Promise<{ fieldI
       labelEpoch: what.labelArea?.epoch ?? null,
       isRequired: what.isRequired ?? false,
       isHalfWidth: what.isHalfWidth ?? false,
-      identityRole: what.identityRole ?? 'none'
+      identityRole: what.identityRole ?? 'none',
+      selfEdit: what.selfEdit ?? true
     })
   });
 }
@@ -176,6 +180,9 @@ export interface FieldEdit {
   readonly isHalfWidth: boolean;
   readonly identityRole: IdentityRole;
 
+  /** Darf der Mensch sie selbst berichtigen (0044)? Fehlt es, bleibt es, wie es war. */
+  readonly selfEdit?: boolean;
+
   /** Wohin die Antworten ab jetzt gehen — mit JEDER vorhandenen neu verpackt (`moveAnswers`). */
   readonly moveTo?: { readonly areaId: string; readonly moved: readonly MovedValue[] };
 }
@@ -191,6 +198,7 @@ export async function editField(fieldId: string, e: FieldEdit): Promise<{ areaId
       isRequired: e.isRequired,
       isHalfWidth: e.isHalfWidth,
       identityRole: e.identityRole,
+      selfEdit: e.selfEdit ?? null,
       moveTo: e.moveTo?.areaId ?? null,
       moved: e.moveTo?.moved ?? null
     })
@@ -265,6 +273,9 @@ export interface SealedField {
   readonly isRequired: boolean;
   readonly isHalfWidth: boolean;
   readonly identityRole: IdentityRole;
+
+  /** Darf der Mensch die Antwort über seinen Link berichtigen (0044)? */
+  readonly selfEdit: boolean;
 }
 
 export const loadFields = (partId: string): Promise<{
@@ -540,8 +551,10 @@ export async function submitForm(
  * Die EIGENEN Antworten aufmachen — was das Portal eines Firmlings zeigt.
  *
  * <b>Zwei Schlüssel, und sie kommen von verschiedenen Seiten.</b> Der Wert
- * hängt am Platz (mein Link), die Frage an der Epoche des Bereichs (öffentlich,
- * sonst wäre das Formular nie lesbar gewesen).
+ * hängt am Platz (mein Link), die Frage am Schlüssel des FORMULARbereichs
+ * (0042; öffentlich, sonst wäre das Formular nie lesbar gewesen). Vorher wurde
+ * sie mit dem Schlüssel der ANTWORTEN aufgemacht — und blieb zu, sobald die
+ * Antworten in einem nicht jawnen Bereich lagen.
  *
  * <b>Die Frage darf zubleiben, die Antwort nicht.</b> Wer später ohne den
  * Epochenschlüssel wiederkommt, sieht trotzdem, was er geschrieben hat — nur
@@ -550,26 +563,44 @@ export async function submitForm(
  */
 export async function openSubmitted(
   values: readonly SubmittedValue[], seatKey: Uint8Array,
-  epochKeys: ReadonlyMap<string, Uint8Array>
-): Promise<readonly { fieldId: string; label: string | null; value: string | null }[]> {
-  const out: { fieldId: string; label: string | null; value: string | null }[] = [];
+  labelKeys: ReadonlyMap<string, Uint8Array>
+): Promise<readonly OwnAnswer[]> {
+  const out: OwnAnswer[] = [];
 
   for (const one of values) {
     const valueKey = await quiet(() =>
       open(seatKey, valueAad(one.fieldId), fromBase64Url(one.valueKeySealed)));
 
-    const epochKey = epochKeys.get(one.areaId);
+    /* Die Frage liegt unter dem Schlüssel des FORMULARS (0042), nicht der Antworten. */
+    const labelKey = labelKeys.get(one.labelAreaId ?? one.areaId);
 
     out.push({
+      registrationId: one.registrationId,
+      formId: one.formId,
       fieldId: one.fieldId,
-      label: epochKey === undefined ? null : await quietly(() =>
-        openText(epochKey, labelAad(one.fieldId), fromBase64Url(one.labelSealed))),
+      label: labelKey === undefined ? null : await quietly(() =>
+        openText(labelKey, labelAad(one.fieldId), fromBase64Url(one.labelSealed))),
+      options: labelKey === undefined || one.optionsSealed === null ? [] : ((await quietly(() =>
+        openText(labelKey, optionsAad(one.fieldId), fromBase64Url(one.optionsSealed!)))) ?? '')
+        .split('\n').filter((o) => o !== ''),
       value: valueKey === null ? null : await quietly(() =>
         openText(valueKey, valueAad(one.fieldId), fromBase64Url(one.valueSealed)))
     });
   }
 
   return out;
+}
+
+/** Eine eigene Antwort, aufgemacht — mit der Einsendung und dem Formular, zu denen sie gehört. */
+export interface OwnAnswer {
+  readonly registrationId: string;
+  readonly formId: string;
+  readonly fieldId: string;
+
+  /** `null`: der Schlüssel der Frage liegt nicht offen. Die Antwort bleibt trotzdem lesbar. */
+  readonly label: string | null;
+  readonly options: readonly string[];
+  readonly value: string | null;
 }
 
 /* -- Was die Kanzlei sieht -------------------------------------------------- */
