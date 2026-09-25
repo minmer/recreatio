@@ -26,6 +26,22 @@
      definiert sein: eine Farbe, die nur im hellen steht, färbt im dunklen
      nichts und lässt die Fläche verschwinden. */
   --wk-soft: #efebe3;
+
+  /*
+     DIE DREI ZUSTÄNDE EINES TERMINS — wie im Firmungsportal des Altbestands:
+     grün frei, gelb mit Gastgeber, rot voll oder zu. Fläche, Kante und Schrift
+     je Zustand, in BEIDEN Themen; die Farbe trägt die Aussage nie allein, der
+     Satz auf der Karte sagt sie auch.
+  */
+  --wk-free-bg: #ecfdf3;
+  --wk-free-line: #16a34a;
+  --wk-free-ink: #166534;
+  --wk-held-bg: #fff7e5;
+  --wk-held-line: #f59e0b;
+  --wk-held-ink: #92400e;
+  --wk-shut-bg: #fef2f2;
+  --wk-shut-line: #dc2626;
+  --wk-shut-ink: #991b1b;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -38,6 +54,15 @@
     --wk-accent: #d3a25e;
     --wk-ok: #7fc68d;
     --wk-soft: #272319;
+    --wk-free-bg: #13261a;
+    --wk-free-line: #3fb468;
+    --wk-free-ink: #86efac;
+    --wk-held-bg: #2c2312;
+    --wk-held-line: #d99a2b;
+    --wk-held-ink: #fcd34d;
+    --wk-shut-bg: #2c1616;
+    --wk-shut-line: #e05252;
+    --wk-shut-ink: #fca5a5;
   }
 }
 
@@ -1635,3 +1660,76 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 
 .wk-slot-rules { display: grid; gap: 0.4rem; margin-bottom: 0.6rem; }
 .wk-field-num input { width: 6rem; }
+
+
+/* ===========================================================================
+   Termine als Karten — grün, gelb, rot (wie im Firmungsportal des Altbestands)
+   =========================================================================== */
+
+.wk-slot-list { display: grid; gap: 0.6rem; }
+
+.wk-slot {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 8px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+}
+
+.wk-slot p { margin: 0; }
+
+.wk-slot.is-free { border-color: var(--wk-free-line); background: var(--wk-free-bg); }
+.wk-slot.is-hosted { border-color: var(--wk-held-line); background: var(--wk-held-bg); }
+.wk-slot.is-closed { border-color: var(--wk-shut-line); background: var(--wk-shut-bg); }
+.wk-slot.is-closed .wk-slot-when { opacity: 0.75; }
+
+/* Der eigene: die Kante des Hauses, damit er sich von den Angeboten abhebt. */
+.wk-slot.is-mine { border: 2px solid var(--wk-accent); background: var(--wk-surface); gap: 0.4rem; }
+.wk-slot.is-mine.is-waiting { border-style: dashed; }
+
+.wk-slot-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--wk-muted); }
+.wk-slot-when { font-weight: 600; font-size: 1.02rem; }
+.wk-slot-note { font-size: 0.84rem; color: var(--wk-muted); }
+.wk-slot-say { font-size: 0.88rem; }
+
+.wk-slot.is-free .wk-slot-say { color: var(--wk-free-ink); }
+.wk-slot.is-hosted .wk-slot-say { color: var(--wk-held-ink); }
+.wk-slot.is-closed .wk-slot-say { color: var(--wk-shut-ink); }
+
+.wk-slot-ok { color: var(--wk-free-ink); font-weight: 600; }
+.wk-slot-wait { color: var(--wk-held-ink); font-weight: 600; }
+
+.wk-slot-take { justify-self: start; margin-top: 0.3rem; }
+.wk-slot-join { display: grid; gap: 0.4rem; margin-top: 0.3rem; }
+.wk-slot-join input { max-width: 10rem; letter-spacing: 0.2em; text-transform: uppercase; }
+
+/* Als Gastgeber: der gelbe Kasten — bis wann, der Code, wer bittet, und wie man abgibt. */
+.wk-slot-host {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.6rem 0.75rem;
+  border-left: 3px solid var(--wk-held-line);
+  background: var(--wk-held-bg);
+  border-radius: 0 6px 6px 0;
+  font-size: 0.9rem;
+}
+
+.wk-slot-code { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
+.wk-slot-asks { display: grid; gap: 0.2rem; }
+.wk-slot-resign { font-size: 0.86rem; color: var(--wk-ink); }
+.wk-slot-confirm { font-size: 0.88rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+
+.wk-slot-pickhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem; }
+
+/* Was die Farben heissen — klein, über der Liste. */
+.wk-slot-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.8rem; margin: 0; font-size: 0.8rem; color: var(--wk-muted); }
+.wk-slot-dot { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 50%; border: 1px solid; margin-right: -0.4rem; vertical-align: -0.05rem; }
+.wk-slot-dot.is-free { background: var(--wk-free-bg); border-color: var(--wk-free-line); }
+.wk-slot-dot.is-hosted { background: var(--wk-held-bg); border-color: var(--wk-held-line); }
+.wk-slot-dot.is-closed { background: var(--wk-shut-bg); border-color: var(--wk-shut-line); }
+
+/* Ein Knopf, der da ist, aber nicht drängt: „Zmień termin", „Pokaż opcje dołączenia". */
+.wk-btn.wk-btn-quiet { background: transparent; color: var(--wk-accent); }
+.wk-btn.wk-btn-quiet:hover:not(:disabled) { background: var(--wk-soft); }

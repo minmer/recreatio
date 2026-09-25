@@ -66,6 +66,7 @@ public static class Bookings
         app.MapPost("/resource/release", ReleaseAsync);
         app.MapPost("/resource/ask", AskAsync);
         app.MapPost("/resource/decide", HostDecideAsync);
+        app.MapPost("/resource/unhost", UnhostAsync);
     }
 
     /* ======================================================================
@@ -233,6 +234,7 @@ public static class Bookings
     ///   belegt >= Plaetze                   Full
     ///   belegt == 0                         Open   (und er wird Gastgeber)
     ///   keine Einladungen (invite_hours 0)  Open
+    ///   niemand haelt das Vorrecht          Open   (abgegeben, oder der Gastgeber ging)
     ///   Fenster offen:
     ///       richtiger Code                  Open
     ///       sonst                           InviteNeeded
@@ -247,6 +249,13 @@ public static class Bookings
     /// auf dem erst einer sitzt, wieder an alle: sonst blockierte ein einzelner
     /// Platz einen ganzen Termin, bloss weil niemand seinen Code bekommen hat.
     /// </para>
+    ///
+    /// <para>
+    /// <b>Wer nicht einladen will, gibt das Vorrecht ab</b> (<see cref="UnhostAsync"/>).
+    /// Dann gibt es keinen Gastgeber mehr, und was frei ist, ist frei — sofort,
+    /// nicht erst nach dem Fenster. Dasselbe, wenn der Gastgeber seinen Termin
+    /// zurueckgibt: die anderen sitzen weiter, die freien Plaetze gehoeren allen.
+    /// </para>
     /// </summary>
     public static Verdict JudgeOffer(
         int capacity, int inviteHours, int taken, bool mine,
@@ -255,6 +264,7 @@ public static class Bookings
         if (mine) return Verdict.Mine;
         if (taken >= capacity) return Verdict.Full;
         if (taken == 0 || inviteHours == 0) return Verdict.Open;
+        if (hostHash is null) return Verdict.Open;
 
         var windowOpen = inviteUntil is not null && inviteUntil > now;
 
@@ -1103,6 +1113,108 @@ public static class Bookings
         {
             claimId = Ids.ToText(claimId),
             status = body.Accept ? "confirmed" : "declined"
+        });
+    }
+
+    public sealed record UnhostRequest(string ClaimId, string? Seat, string? RoleId = null);
+
+    /// <summary>
+    /// DAS VORRECHT ABGEBEN — „ich lade niemanden ein".
+    ///
+    /// <para>
+    /// Der Gastgeber hielt die freien Plaetze fuer die, denen er seinen Code
+    /// gibt. Will er niemanden mitbringen, blockierte er sie bis zum Ende des
+    /// Fensters fuer nichts. Gibt er ab, gehoeren sie sofort allen.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Wer ihn schon gebeten hat, wartet nicht ins Leere.</b> Es gibt
+    /// niemanden mehr, der ja sagen koennte — also werden die Bitten der Reihe
+    /// nach angenommen, solange Platz ist, und die uebrigen abgelehnt. Unter
+    /// derselben Sperre wie jedes Nehmen.
+    /// </para>
+    /// </summary>
+    private static async Task UnhostAsync(HttpContext ctx, Db db, UnhostRequest body)
+    {
+        if (!Guid.TryParse(body.ClaimId, out var claimId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna rezerwacja.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var holder = await HolderAsync(ctx, db, connection, body.Seat, body.RoleId, ctx.RequestAborted);
+        var claim = holder is null ? null : await ClaimByIdAsync(connection, null, claimId, ctx.RequestAborted);
+
+        if (claim is null || !claim.HeldBy(holder!.Value.Id) || claim.InviteSha256 is null
+            || claim.Status != "confirmed" || claim.ItemId is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Nie jesteś gospodarzem tego terminu.");
+            return;
+        }
+
+        var resource = await ResourceAsync(connection, claim.ResourceId, ctx.RequestAborted);
+        if (resource is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Nie jesteś gospodarzem tego terminu.");
+            return;
+        }
+
+        var tree = await TreeAsync(connection, null, resource, ctx.RequestAborted);
+        var accepted = new List<Guid>();
+        var declined = new List<Guid>();
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            await using (var hold = new SqlCommand(
+                "SELECT id FROM app.resource WITH (UPDLOCK, HOLDLOCK) WHERE id = @root;", connection, tx))
+            {
+                hold.Parameters.AddWithValue("@root", tree.Root);
+                await hold.ExecuteScalarAsync(ctx.RequestAborted);
+            }
+
+            await using (var drop = new SqlCommand("""
+                UPDATE app.claim
+                   SET invite_sha256 = NULL, invite_until = NULL, invite_sealed = NULL
+                 WHERE id = @id;
+                """, connection, tx))
+            {
+                drop.Parameters.AddWithValue("@id", claimId);
+                await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            var claims = await OfferClaimsAsync(connection, tx, resource.Id, claim.ItemId.Value,
+                claim.OccurrenceAt!.Value, ctx.RequestAborted);
+
+            var counted = claims.Count(Counts);
+
+            /* Die Kennungen sind zeitlich geordnet — wer zuerst bat, kommt zuerst. */
+            foreach (var ask in claims.Where(c => c.Status == "pending" && c.Awaits == "host").OrderBy(c => c.Id))
+            {
+                if (counted < resource.Capacity) { accepted.Add(ask.Id); counted++; }
+                else declined.Add(ask.Id);
+            }
+
+            if (accepted.Count > 0) await Decided(connection, tx, accepted, true, ctx.RequestAborted);
+            if (declined.Count > 0) await Decided(connection, tx, declined, false, ctx.RequestAborted);
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            claimId = Ids.ToText(claimId),
+            hosting = false,
+            accepted = accepted.Count,
+            declined = declined.Count
         });
     }
 

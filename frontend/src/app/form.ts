@@ -782,6 +782,46 @@ export async function readSubmission(
   return { values, sent: submission.values.length, opened: values.size, toRewrap };
 }
 
+/** Der Schlüssel EINES Antwortbereichs — seine private Annahmehälfte und, wenn gehalten, der der Amtsrolle. */
+export interface IntakeKey {
+  readonly areaId: string;
+  readonly privateKey: Uint8Array;
+  readonly officeKey?: Uint8Array;
+}
+
+/**
+ * EINE Einsendung über ALLE Antwortbereiche aufmachen, deren Schlüssel man hält.
+ *
+ * <b>Jede Antwort mit dem Schlüssel IHRES Bereichs</b> — nicht jede mit jedem:
+ * ein RSA-Umschlag, der nicht aufgeht, kostet so viel wie einer, der aufgeht.
+ * Nur eine Antwort, deren Frage es nicht mehr gibt, probiert alle.
+ *
+ * Vorher las die Kanzlei einen Bereich nach dem anderen, und die Tabelle
+ * zeigte immer nur die Antworten des zuletzt gewählten — die Hälfte eines
+ * Menschen.
+ */
+export async function readAcross(
+  submission: Submission, keys: readonly IntakeKey[], areaOf: ReadonlyMap<string, string>
+): Promise<{
+  readonly values: Map<string, string>;
+  readonly toRewrap: readonly { fieldId: string; officeKeySealed: string }[];
+}> {
+  const values = new Map<string, string>();
+  const toRewrap: { fieldId: string; officeKeySealed: string }[] = [];
+
+  for (const key of keys) {
+    const mine = submission.values.filter((v) => (areaOf.get(v.fieldId) ?? key.areaId) === key.areaId
+      && !values.has(v.fieldId));
+    if (mine.length === 0) continue;
+
+    const reading = await openAndRewrap({ ...submission, values: mine }, key.privateKey, key.officeKey);
+    for (const [fieldId, value] of reading.values) values.set(fieldId, value);
+    toRewrap.push(...reading.toRewrap);
+  }
+
+  return { values, toRewrap };
+}
+
 /* -- Kleinkram -------------------------------------------------------------- */
 
 async function sha256Of(text: string): Promise<Uint8Array> {

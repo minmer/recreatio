@@ -249,6 +249,16 @@ export const askToJoin = (resourceId: string, offer: Pick<Offer, 'itemId' | 'occ
     body: JSON.stringify({ resourceId, itemId: offer.itemId, occurrenceAt: offer.occurrenceAt, ...who(holder) })
   });
 
+/**
+ * DAS VORRECHT ABGEBEN — „ich lade niemanden ein". Die freien Plätze gehören
+ * sofort allen; wer schon um Mitnahme gebeten hat, wird der Reihe nach
+ * aufgenommen, solange Platz ist.
+ */
+export const resignHost = (claimId: string, holder: Holder) =>
+  call<{ hosting: false; accepted: number; declined: number }>('/resource/unhost', {
+    method: 'POST', body: JSON.stringify({ claimId, ...who(holder) })
+  });
+
 /** Der Gastgeber sagt ja oder nein. */
 export const hostDecides = (claimId: string, accept: boolean, holder: Holder) =>
   call<{ status: Status }>('/resource/decide', {

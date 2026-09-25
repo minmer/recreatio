@@ -9,7 +9,7 @@
  *
  * <code>
  *   SeatBar           oben auf der Seite: nur, wenn ein Link nicht aufging
- *   SeatTools         der eigene Link und das Binden an ein Konto
+ *   SeatTools         das Binden an ein Konto
  *   PersonalSections  die eingebauten Abschnitte — wo die Seite keine eigenen hat
  *   MyLink, BindSeat  einzeln, für die Ansicht eines Platzes ohne Seite
  * </code>
@@ -57,13 +57,16 @@ export function SeatBar({ path }: { path: string }) {
 }
 
 /**
- * Der eigene Link und das Binden — klein, unter dem, was der Mensch geschickt
- * hat. Dort sucht er, wie er wieder hierher kommt.
+ * Das Binden an ein Konto — klein, unter dem, was der Mensch geschickt hat.
+ *
+ * <b>Der eigene Link steht hier NICHT mehr.</b> Wer auf dieser Seite ist, ist
+ * über seinen Link gekommen und hat ihn; ein aufklappbares „Twój link" unter
+ * seinen Angaben war ein Kasten mehr ohne Anlass. Die Ansicht eines Platzes
+ * ohne Seite (`SeatPortal`) behält ihn.
  */
 export function SeatTools({ seat }: { seat: SeatView }) {
   return (
     <div className="wk-seat-tools">
-      <MyLink token={seat.token} />
       <BindSeat seat={seat} />
       {seat.expiresAt !== null && (
         <p className="wk-hint">

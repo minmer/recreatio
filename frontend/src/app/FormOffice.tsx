@@ -26,7 +26,7 @@ import { fromBase64Url } from './crypto';
 import {
   CHOOSABLE_IDENTITY, FIELD_KINDS, IDENTITY_LABEL, KIND_LABEL,
   addField, loadFields, loadRegistrations, openFields,
-  armCheck, hideSubmission, readSubmission, removeField, removeSubmission, reviseAsOffice,
+  armCheck, hideSubmission, readAcross, removeField, removeSubmission, reviseAsOffice,
   rewrapToOffice, setPartConfig,
   type ValueCheck,
   type FieldKind, type IdentityRole, type OpenField, type SealedField, type Submission,
@@ -117,11 +117,15 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
   const [note, setNote] = useState<string | null>(null);
 
   /**
-   * Welcher Bereich zuletzt aufgemacht wurde — damit „ukryj" und „usuń"
-   * danach dieselbe Liste neu holen können, ohne dass jemand erneut auf
-   * „Otwórz zgłoszenia" klicken muss.
+   * Welche Antwortbereiche aufgemacht sind — `null`: noch keiner. ALLE auf
+   * einmal (`read`), nicht einer nach dem anderen: vorher stand je Bereich
+   * ein Knopf „Otwórz: …", und die Tabelle zeigte nur die Antworten des
+   * zuletzt gewählten — die Hälfte eines Menschen.
    */
-  const [lastArea, setLastArea] = useState<string | null>(null);
+  const [readAreas, setReadAreas] = useState<readonly string[] | null>(null);
+
+  /** Bereiche, deren Annahme dieser Browser nicht öffnen kann — gesagt, nicht verschwiegen. */
+  const [shutAreas, setShutAreas] = useState<readonly string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
 
   /**
@@ -300,39 +304,57 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    * auspacken, damit den Wert öffnen. Genau deshalb kann der Dienst nichts
    * davon lesen — er hat den ersten nie gesehen.
    */
-  const read = async (areaId: string) => {
+  const read = async (hidden: boolean = showHidden) => {
     if (ring === null) throw new WorkspaceError('Bez hasła w tej karcie nie da się otworzyć odpowiedzi.');
 
-    const intake = await loadIntake(areaId);
-    const privateKey = await openIntakeKey(intake, ring);
-
     /*
+     * JEDER ANTWORTBEREICH MIT SEINEM EIGENEN SCHLÜSSEL — alle, die dieser
+     * Browser öffnen kann, und jeder in seinem eigenen Versuch: ein Bereich
+     * ohne Zuteilung lässt nur seine eigenen Antworten zu.
+     *
      * Der Schlüssel der AMTSROLLE — nicht der Epochenschlüssel. 0005 nennt den
      * Grund: läge die Annahme unter der Epoche, könnte jeder Helfer sämtliche
      * Anmeldungen lesen, ohne dass ihm jemand etwas gegeben hätte. Der Umbau
      * auf AES darf diese Trennung nicht nebenbei aufheben.
      */
-    const officeKey = ring.has(intake.sealedForRoleId) ? ring.keyOf(intake.sealedForRoleId) : null;
+    const keys: { areaId: string; privateKey: Uint8Array; officeKey: Uint8Array | undefined }[] = [];
+    const shut: string[] = [];
+
+    for (const areaId of areasHere) {
+      try {
+        const intake = await loadIntake(areaId);
+        keys.push({
+          areaId,
+          privateKey: await openIntakeKey(intake, ring),
+          officeKey: ring.has(intake.sealedForRoleId) ? ring.keyOf(intake.sealedForRoleId) : undefined
+        });
+      } catch {
+        shut.push(areaId);
+      }
+    }
+
+    setReadAreas(keys.map((one) => one.areaId));
+    setShutAreas(shut);
+
     const pending: { fieldId: string; registrationId: string; officeKeySealed: string }[] = [];
 
-    setLastArea(areaId);
-
-    const { registrations } = await loadRegistrations(partId, showHidden);
+    const { registrations } = await loadRegistrations(partId, hidden);
     setSubmissions(registrations);
+
+    const areaOf = new Map(fields.map((f) => [f.fieldId, f.areaId]));
 
     const out = new Map<string, Map<string, string>>();
     let sent = 0;
     let got = 0;
 
     for (const one of registrations) {
-      const reading = await readSubmission(one, privateKey, officeKey ?? undefined);
-      out.set(one.registrationId, reading.values);
-      sent += reading.sent;
-      got += reading.opened;
+      const { values: merged, toRewrap } = await readAcross(one, keys, areaOf);
+      sent += one.values.length;
 
-      for (const one2 of reading.toRewrap) {
-        pending.push({ ...one2, registrationId: one.registrationId });
-      }
+      for (const one2 of toRewrap) pending.push({ ...one2, registrationId: one.registrationId });
+
+      out.set(one.registrationId, merged);
+      got += merged.size;
     }
 
     setOpened(out);
@@ -377,7 +399,9 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
         + 'wersją strony — takich wpisów nie da się już odzyskać, trzeba je zebrać '
         + 'ponownie.');
     } else if (got < sent) {
-      setNote(`Otwarto ${got} z ${sent} odpowiedzi. Reszta nie pasuje do tego klucza.`);
+      setNote(`Otwarto ${got} z ${sent} odpowiedzi.${shut.length > 0
+        ? ` Nie masz klucza przyjmowania obszaru ${shut.map((id) => `„${areaLabel(id)}"`).join(', ')} — jego odpowiedzi zostają zamknięte.`
+        : ' Reszta nie pasuje do tych kluczy.'}`);
     } else {
       setNote(null);
     }
@@ -416,7 +440,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    */
   const straighten = async () => {
     if (ring === null) throw new WorkspaceError('Bez hasła nie da się poprawić.');
-    if (lastArea === null) throw new WorkspaceError('Najpierw otwórz zgłoszenia.');
+    if (readAreas === null) throw new WorkspaceError('Najpierw otwórz zgłoszenia.');
 
     /*
      * WIE VIELE ES WAREN, bevor es keine mehr sind. Nach dem Neulesen ist
@@ -426,29 +450,38 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     const howMany = crooked.length;
     const people = new Set(crooked.map((one) => one.registrationId)).size;
 
-    const intake = await loadPublicIntake(lastArea);
-    const byRegistration = new Map<string, { fieldId: string; value: string }[]>();
+    /*
+     * Je Einsendung UND Bereich: eine Nummer wird unter der Annahme IHRES
+     * Bereichs neu verpackt — bei mehreren Bereichen nicht unter irgendeiner.
+     */
+    const areaOf = new Map(fields.map((f) => [f.fieldId, f.areaId]));
+    const groups = new Map<string, { registrationId: string; areaId: string; answers: { fieldId: string; value: string }[] }>();
 
     for (const one of crooked) {
-      const list = byRegistration.get(one.registrationId) ?? [];
-      list.push({ fieldId: one.fieldId, value: one.tidy });
-      byRegistration.set(one.registrationId, list);
+      const areaId = areaOf.get(one.fieldId);
+      if (areaId === undefined) continue;
+
+      const slot = `${one.registrationId}|${areaId}`;
+      const entry = groups.get(slot) ?? { registrationId: one.registrationId, areaId, answers: [] };
+      entry.answers.push({ fieldId: one.fieldId, value: one.tidy });
+      groups.set(slot, entry);
     }
 
-    for (const [registrationId, answers] of byRegistration) {
+    const intakes = new Map<string, Uint8Array>();
+
+    for (const { registrationId, areaId, answers } of groups.values()) {
       const seatId = submissions.find((s) => s.registrationId === registrationId)?.seatId ?? null;
 
       const seatKey = seatId === null
         ? null
         : await seatRowOf(seatId, ring).then((r) => r.key).catch(() => null);
 
-      await reviseAsOffice(registrationId, answers, {
-        intakePublic: fromBase64Url(intake.publicKey),
-        seatKey
-      });
+      if (!intakes.has(areaId)) intakes.set(areaId, fromBase64Url((await loadPublicIntake(areaId)).publicKey));
+
+      await reviseAsOffice(registrationId, answers, { intakePublic: intakes.get(areaId)!, seatKey });
     }
 
-    await read(lastArea);
+    await read();
 
     /*
      * ERST NACH `read` — es setzt seine eigene Auskunft und würde diese sonst
@@ -471,17 +504,17 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
   /*
    * AUFMACHEN, SOBALD MAN HINSIEHT. Wer den Reiter „Zgłoszenia" oder „Osoby"
    * öffnet, will die Einsendungen sehen — ein eigener Knopf davor war ein
-   * Klick, der nichts entschied. Einmal, mit dem ersten Bereich; hat das
-   * Formular mehrere, stehen ihre Knöpfe darüber.
+   * Klick, der nichts entschied. Einmal — und ALLE Bereiche zugleich, die
+   * dieser Browser öffnen kann.
    */
   const [autoTried, setAutoTried] = useState(false);
 
   useEffect(() => {
     if ((tab !== 'entries' && tab !== 'people') || autoTried || ring === null
-      || lastArea !== null || areasHere.length === 0) return;
+      || readAreas !== null || areasHere.length === 0) return;
     setAutoTried(true);
-    void act('Otwieranie zgłoszeń…', () => read(areasHere[0]));
-  }, [tab, autoTried, ring, lastArea, areasHere.length]);
+    void act('Otwieranie zgłoszeń…', read);
+  }, [tab, autoTried, ring, readAreas, areasHere.length]);
 
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -671,10 +704,10 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     });
 
     /* Die geöffneten Antworten gehören jetzt zu einer anderen Annahme — neu öffnen. */
-    if (moveTo !== undefined) { setLastArea(null); setOpened(new Map()); setSubmissions([]); setAutoTried(false); }
+    if (moveTo !== undefined) { setReadAreas(null); setOpened(new Map()); setSubmissions([]); setAutoTried(false); }
   };
 
-  const reread = async () => { if (lastArea !== null) await read(lastArea); };
+  const reread = async () => { if (readAreas !== null) await read(); };
 
   return (
     <>
@@ -934,31 +967,36 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
         <>
           {areasHere.length === 0 ? (
             <p className="wk-empty">Najpierw pytania — bez nich nie ma zgłoszeń.</p>
-          ) : (lastArea === null || areasHere.length > 1) && (
+          ) : readAreas === null ? (
             <div className="wk-actions">
-              {areasHere.map((areaId) => (
-                <button
-                  key={areaId} type="button"
-                  className={areaId === lastArea ? 'wk-btn' : 'wk-link-btn'}
-                  disabled={busy !== null || ring === null}
-                  onClick={() => void act('Otwieranie…', () => read(areaId))}
-                >
-                  {areasHere.length > 1 ? `Otwórz: ${areaLabel(areaId)}` : 'Otwórz zgłoszenia'}
-                </button>
-              ))}
+              <button
+                type="button" className="wk-btn"
+                disabled={busy !== null || ring === null}
+                onClick={() => void act('Otwieranie…', read)}
+              >
+                Otwórz zgłoszenia
+              </button>
             </div>
+          ) : areasHere.length > 1 && (
+            /* Welche Bereiche offen sind — ALLE zugleich — und welche nicht. */
+            <p className="wk-hint">
+              Otwarte razem: {readAreas.map((id) => areaLabel(id)).join(' · ') || 'żaden'}
+              {shutAreas.length > 0 && <> · bez klucza: {shutAreas.map((id) => areaLabel(id)).join(' · ')}</>}
+            </p>
           )}
 
           {note !== null && <p className="wk-note">{note}</p>}
 
-          {lastArea !== null && (
+          {readAreas !== null && (
             <label className="wk-field">
               <span>
                 <input
                   type="checkbox" checked={showHidden}
                   onChange={(e) => {
-                    setShowHidden(e.target.checked);
-                    void act('Wczytywanie…', reread);
+                    /* Mit dem NEUEN Wert lesen — der Zustand ist beim Aufruf noch der alte. */
+                    const hidden = e.target.checked;
+                    setShowHidden(hidden);
+                    void act('Wczytywanie…', () => read(hidden));
                   }}
                 />
                 {' '}Pokaż też ukryte
@@ -970,7 +1008,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
       {/* == 2. LESEN ======================================================= */}
 
-      {tab === 'entries' && lastArea !== null && (
+      {tab === 'entries' && readAreas !== null && (
         <FormTable
           fields={fields}
           submissions={submissions}
@@ -981,7 +1019,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
       {/* == 3. HANDELN ===================================================== */}
 
-      {tab === 'people' && lastArea !== null && (
+      {tab === 'people' && readAreas !== null && (
         <>
           {/*
             „NORMALIZUJ NUMERY" STEHT IMMER DA, sobald das Formular überhaupt
@@ -1012,7 +1050,6 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             opened={opened}
             fields={fields}
             template={conf.sms ?? ''}
-            areaId={lastArea}
             ring={ring}
             busy={busy !== null}
             onHide={(s) => void act(s.hidden ? 'Przywracanie…' : 'Ukrywanie…', async () => {
@@ -1096,13 +1133,12 @@ function whoIn(
  * <b>Die Nummer ist ein Anruf</b>, ein Tipp auf dem Telefon.
  */
 function People({
-  submissions, opened, fields, template, areaId, ring, busy, onHide, onRemove, onError, onChanged
+  submissions, opened, fields, template, ring, busy, onHide, onRemove, onError, onChanged
 }: {
   submissions: readonly Submission[];
   opened: Map<string, Map<string, string>>;
   fields: readonly OpenField[];
   template: string;
-  areaId: string | null;
   ring: Ring | null;
   busy: boolean;
   onHide: (s: Submission) => void;
@@ -1172,7 +1208,6 @@ function People({
                       values={values}
                       fieldsByLabel={fields}
                       template={template}
-                      areaId={areaId}
                       ring={ring}
                       onError={onError}
                       onChanged={onChanged}
@@ -1901,16 +1936,13 @@ function numbersOf(
 }
 
 function SendPanel({
-  seatId, registrationId, areaId, values, fieldsByLabel, checks, template, ring,
+  seatId, registrationId, values, fieldsByLabel, checks, template, ring,
   onError, onChanged
 }: {
   seatId: string;
 
   /** Welche Einsendung — eine Bestätigung hängt am WERT, nicht am Menschen. */
   readonly registrationId: string;
-
-  /** Wohin die Antworten gehen — für den Annahmeschlüssel beim Umschreiben. */
-  areaId: string | null;
 
   values: Map<string, string> | undefined;
   fieldsByLabel: readonly OpenField[];
@@ -2048,13 +2080,12 @@ function SendPanel({
   const rebind = async () => {
     if (livePhone === undefined) return;
     if (ring === null) { onError('Bez hasła nie da się przepisać.'); return; }
-    if (areaId === null) { onError('Najpierw otwórz zgłoszenia.'); return; }
-
     setBusy(true);
     onError(null);
 
     try {
-      const intake = await loadPublicIntake(areaId);
+      /* Die Annahme des Bereichs, in den DIESE Frage schreibt — bei mehreren nicht irgendeine. */
+      const intake = await loadPublicIntake(livePhone.areaId);
       const seatKey = await seatRowOf(seatId, ring).then((r) => r.key).catch(() => null);
 
       /* Was schon unter der heutigen Frage steht, bleibt — und geht voran. */
