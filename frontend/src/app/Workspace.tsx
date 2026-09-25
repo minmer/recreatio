@@ -299,6 +299,9 @@ function Pages({ desk, who, trail, onClaimed }: {
    */
   const [module, setModule] = useState<ModuleRow | null>(null);
 
+  /* Nach einer Änderung am Baustein neu holen — sein Bereich, seine Klausel. */
+  const [moduleTick, setModuleTick] = useState(0);
+
   useEffect(() => {
     if (moduleId === null) { setModule(null); return; }
 
@@ -312,7 +315,7 @@ function Pages({ desk, who, trail, onClaimed }: {
       .catch(() => { if (!dropped) setModule(null); });
 
     return () => { dropped = true; };
-  }, [moduleId]);
+  }, [moduleId, moduleTick]);
 
   /*
    * Und derselbe Weg steht oben im Kopf — Stufe für Stufe. Der Baustein
@@ -422,7 +425,8 @@ function Pages({ desk, who, trail, onClaimed }: {
               config={readConfig(module.config)}
               who={who}
               standsOn={module.pages}
-              title={module.name}
+              module={module}
+              onModuleChanged={() => setModuleTick((n) => n + 1)}
             />
           </>
         )

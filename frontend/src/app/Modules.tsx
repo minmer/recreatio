@@ -33,8 +33,7 @@ import { useCrumbs, type Crumb } from './crumbTrail';
 import { FormOffice } from './FormOffice';
 import { newId } from './ids';
 import {
-  createModule, loadModules, readConfig, removeModule, SUBJECT_LABEL, SUBJECTS,
-  updateModule, type Subject, type ModuleRow
+  createModule, loadModules, readConfig, SUBJECT_LABEL, SUBJECTS, type Subject, type ModuleRow
 } from './module';
 import { setPartConfig } from './form';
 import { PARTS, partLabel, partOf, takesEntries } from './parts/registry';
@@ -42,6 +41,7 @@ import { PickResource } from './PickResource';
 import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { AreaOptions } from './AreaOptions';
+import { ModuleSettings } from './ModuleSettings';
 
 const NEW = 'new';
 
@@ -250,7 +250,7 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
   return (
     <>
       {head}
-      <ModulePage module={mine} areas={areas} who={who} busy={busy !== null} onAct={act} />
+      <ModulePage module={mine} areas={areas} who={who} busy={busy !== null} onAct={act} onReload={look} />
     </>
   );
 }
@@ -266,15 +266,14 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
  * alles andere hat Felder, und die stehen hier. Ein `if` über zwei Fälle, und
  * beide sind echte Fälle — kein Katalog, der jede Art einzeln aufzählt.
  */
-function ModulePage({ module: row, areas, who, busy, onAct }: {
+function ModulePage({ module: row, areas, who, busy, onAct, onReload }: {
   module: ModuleRow;
   areas: readonly AreaRow[];
   who: Who;
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+  onReload: () => Promise<void>;
 }) {
-  const settings = <ModuleSettings row={row} areas={areas} busy={busy} onAct={onAct} />;
-
   return (
     <>
       <h1 className="wk-h1">{row.name}</h1>
@@ -310,120 +309,16 @@ function ModulePage({ module: row, areas, who, busy, onAct }: {
           config={readConfig(row.config)}
           who={who}
           standsOn={row.pages}
-          title={row.name}
-          settings={settings}
+          module={row}
+          onModuleChanged={onReload}
         />
       ) : (
         <>
-          {settings}
+          <ModuleSettings row={row} areas={areas} busy={busy} onAct={onAct} />
           <Content module={row} busy={busy} />
         </>
       )}
     </>
-  );
-}
-
-/**
- * Was ein Baustein IST — Name, Bereich, wessen Formular. Eigene Funktion,
- * weil es bei einem Formular im ersten Reiter steht und bei allem anderen
- * über dem Inhalt.
- */
-function ModuleSettings({ row, areas, busy, onAct }: {
-  row: ModuleRow;
-  areas: readonly AreaRow[];
-  busy: boolean;
-  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
-}) {
-  const [name, setName] = useState(row.name);
-  const [areaId, setAreaId] = useState(row.areaId ?? '');
-  const [forKind, setForKind] = useState<Subject>(row.forKind);
-
-  useEffect(() => {
-    setName(row.name);
-    setAreaId(row.areaId ?? '');
-    setForKind(row.forKind);
-  }, [row.moduleId, row.name, row.areaId, row.forKind]);
-
-  /* Umziehen geht nur, solange nichts darunter liegt — der Dienst kann nicht
-     umschlüsseln. Das gehört VOR den Knopf, nicht in die Absage danach. */
-  const carries = row.fields > 0 || row.entries > 0;
-
-  /* Wovon er handelt, steht fest, sobald etwas eingegangen ist. */
-  const asks = takesEntries(row.kind);
-
-  const changed =
-    name.trim() !== row.name
-    || areaId !== (row.areaId ?? '')
-    || forKind !== row.forKind;
-
-  return (
-    <section className="wk-form">
-      <label className="wk-field">
-        <span>Nazwa</span>
-        <input value={name} disabled={busy} onChange={(e) => setName(e.target.value)} />
-      </label>
-
-      <label className="wk-field">
-        <span>Obszar</span>
-        <select
-          value={areaId}
-          disabled={busy || carries}
-          onChange={(e) => setAreaId(e.target.value)}
-        >
-          <option value="">— bez obszaru —</option>
-          <AreaOptions areas={areas} />
-        </select>
-      </label>
-
-      {asks && (
-        <label className="wk-field">
-          <span>Czyj to formularz</span>
-          <select
-            value={forKind}
-            disabled={busy || row.entries > 0}
-            onChange={(e) => setForKind(e.target.value as Subject)}
-          >
-            {SUBJECTS.map((one) => (
-              <option key={one} value={one}>{SUBJECT_LABEL[one]}</option>
-            ))}
-          </select>
-        </label>
-      )}
-
-      {carries && (
-        <p className="wk-hint">
-          Ten moduł ma już dane — obszaru nie da się zmienić. To, co
-          zapieczętowano starym kluczem, zostaje pod nim.
-        </p>
-      )}
-
-      <div className="wk-actions">
-        {changed && (
-          <button
-            type="button" className="wk-btn" disabled={busy || name.trim() === ''}
-            onClick={() => void onAct('Zapisywanie…', () => updateModule(row.moduleId, {
-              name: name.trim(),
-              ...(forKind === row.forKind ? {} : { forKind }),
-              ...(areaId === '' ? (row.areaId === null ? {} : { clearArea: true }) : { areaId })
-            }))}
-          >
-            Zapisz
-          </button>
-        )}
-
-        {/* Löschen nur, wenn nichts daran hängt — der Dienst lehnt es sonst
-            ab, und ein Knopf, der absagt, ist schlimmer als keiner. */}
-        {row.usedOnPages === 0 && row.entries === 0 && (
-          <button
-            type="button" className="wk-link-btn" disabled={busy}
-            onClick={() => void onAct('Usuwanie…', () => removeModule(row.moduleId))
-              .then(() => { window.location.hash = viewPath('modules', row.kind); })}
-          >
-            Usuń moduł
-          </button>
-        )}
-      </div>
-    </section>
   );
 }
 

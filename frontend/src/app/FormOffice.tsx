@@ -29,9 +29,10 @@ import {
   armCheck, hideSubmission, readSubmission, removeField, removeSubmission, reviseAsOffice,
   rewrapToOffice, setPartConfig,
   type ValueCheck,
-  type FieldKind, type IdentityRole, type OpenField, type SealedField, type Submission
+  type FieldKind, type IdentityRole, type OpenField, type SealedField, type Submission,
+  editField, moveAnswers, sealQuestion, type MovedValue
 } from './form';
-import { createIntake, loadIntake, loadPublicIntake, openIntakeKey, setController } from './intake';
+import { createIntake, loadIntake, loadPublicIntake, openIntakeKey } from './intake';
 import type { Ring, SealedRole } from './keys';
 import { Portal } from './Portal';
 import { keysFor } from './ringOf';
@@ -45,11 +46,13 @@ import { dialable, joinPhones, normalisePhone, splitPhones, tidyPhones, withPhon
 import { holesFor, missingIn, renderSms, smsHref, usesHole, VERIFY } from './sms';
 import { AreaOptions } from './AreaOptions';
 import { FormTable } from './FormTable';
+import { ModuleSettings } from './ModuleSettings';
+import { updateModule, type ModuleRow, type ResealIn } from './module';
 
-/** Die drei Reiter eines Formulars. */
-type FormTabName = 'edit' | 'entries' | 'people';
+/** Die vier Reiter eines Formulars. */
+type FormTabName = 'settings' | 'questions' | 'entries' | 'people';
 
-export function FormOffice({ partId, config, who, standsOn, settings, title }: {
+export function FormOffice({ partId, config, who, standsOn, module, onModuleChanged }: {
   partId: string;
 
   /** Der Baustein selbst — daraus kommt die Vorlage der Nachricht. */
@@ -68,13 +71,14 @@ export function FormOffice({ partId, config, who, standsOn, settings, title }: {
   standsOn?: readonly string[];
 
   /**
-   * Was der Baustein selbst einstellt — Name, Bereich, wessen Formular. Es
-   * steht im ersten Reiter, zusammen mit allem anderen, was man EINRICHTET.
+   * Der Baustein selbst — sein Bereich, seine Klausel, ob er offen ist. Sein
+   * Name, Bereich und „wessen Formular" stehen im ersten Reiter, zusammen mit
+   * allem anderen, was das Formular als GANZES betrifft.
    */
-  settings?: ReactNode;
+  module?: ModuleRow;
 
-  /** Wie das Formular heisst — für den Namen der CSV-Datei. */
-  title?: string;
+  /** Nach einer Änderung am Baustein — der Aufrufer holt ihn neu. */
+  onModuleChanged?: () => Promise<void> | void;
 }) {
   /*
    * DREI REITER, wie im Altbestand der Veranstaltungen (`events/admin`:
@@ -83,7 +87,10 @@ export function FormOffice({ partId, config, who, standsOn, settings, title }: {
    * Einsendungen —, und wer nur jemanden anrufen wollte, scrollte durch die
    * Einrichtung.
    */
-  const [tab, setTab] = useState<FormTabName>('edit');
+  const [tab, setTab] = useState<FormTabName>(module !== undefined ? 'settings' : 'questions');
+
+  /* Welche Antwortbereiche schon annehmen können (0022) — je Bereich ein Paar. */
+  const [intakes, setIntakes] = useState<ReadonlyMap<string, boolean>>(new Map());
 
   const [ring, setRing] = useState<Ring | null>(null);
   const [person, setPerson] = useState<SealedRole | null>(null);
@@ -207,7 +214,7 @@ export function FormOffice({ partId, config, who, standsOn, settings, title }: {
      * Schlüssel nachgeschlagen, und zwar nur für die Bereiche, die oben nichts
      * hergegeben haben: die Zuteilung bleibt der erste Weg.
      */
-    for (const areaId of new Set(sealed.map((f) => f.areaId))) {
+    for (const areaId of new Set(sealed.flatMap((f) => [f.labelAreaId ?? f.areaId, f.areaId]))) {
       if (keys.has(areaId)) continue;
 
       try {
@@ -218,6 +225,13 @@ export function FormOffice({ partId, config, who, standsOn, settings, title }: {
     }
 
     setFields(await openFields(sealed, keys));
+
+    /* Welche Antwortbereiche schon eine Annahme haben — ohne sie nimmt eine Frage nichts an. */
+    const taking = new Map<string, boolean>();
+    for (const areaId of new Set(sealed.map((f) => f.areaId))) {
+      taking.set(areaId, await loadPublicIntake(areaId).then(() => true, () => false));
+    }
+    setIntakes(taking);
   }, [who, partId]);
 
   useEffect(() => { void look(); }, [look]);
@@ -420,10 +434,118 @@ export function FormOffice({ partId, config, who, standsOn, settings, title }: {
   const [autoTried, setAutoTried] = useState(false);
 
   useEffect(() => {
-    if (tab === 'edit' || autoTried || ring === null || lastArea !== null || areasHere.length === 0) return;
+    if (tab === 'settings' || tab === 'questions' || autoTried || ring === null
+      || lastArea !== null || areasHere.length === 0) return;
     setAutoTried(true);
     void act('Otwieranie zgłoszeń…', () => read(areasHere[0]));
   }, [tab, autoTried, ring, lastArea, areasHere.length]);
+
+  const [editing, setEditing] = useState<string | null>(null);
+
+  /*
+   * Eine Änderung am Baustein — hier ausgeführt (damit ein Fehler hier steht,
+   * wo er passiert ist), und danach holt der Aufrufer den Baustein neu.
+   */
+  const moduleAct = (what: string, todo: () => Promise<unknown>) =>
+    act(what, async () => { await todo(); await onModuleChanged?.(); });
+
+  const formArea = module?.areaId == null ? undefined : areas.find((a) => a.areaId === module.areaId);
+
+  /** Der Epochenschlüssel eines Bereichs, den ich halte — oder eine klare Absage. */
+  const keyOf = async (areaId: string): Promise<{ key: Uint8Array; epoch: number }> => {
+    if (ring === null) throw new WorkspaceError('Bez hasła nie da się zapieczętować pytania.');
+    const area = areas.find((a) => a.areaId === areaId);
+    const key = area === undefined ? undefined : (await myEpochKeys(ring, areaId)).get(area.currentEpoch);
+    if (area === undefined || key === undefined) {
+      throw new WorkspaceError(`Nie masz klucza obszaru „${areaLabel(areaId)}".`);
+    }
+    return { key, epoch: area.currentEpoch };
+  };
+
+  /**
+   * ALLE Fragen unter dem Schlüssel eines neuen Formularbereichs (0042) — für
+   * den Umzug des Formulars. Eine Frage, die hier nicht aufging, kann nicht
+   * mit: dann lieber gar nicht umziehen.
+   */
+  const resealFor = async (target: string): Promise<readonly ResealIn[]> => {
+    const { key, epoch } = await keyOf(target);
+    const unread = fields.filter((f) => f.label === null);
+    if (unread.length > 0) {
+      throw new WorkspaceError('Nie każde pytanie da się teraz odczytać — bez tego nie da się ich przepieczętować.');
+    }
+
+    const out: ResealIn[] = [];
+    for (const f of fields) {
+      out.push({
+        fieldId: f.fieldId,
+        ...(await sealQuestion(key, f.fieldId, { label: f.label!, help: f.help, options: f.options })),
+        labelEpoch: epoch
+      });
+    }
+    return out;
+  };
+
+  /* Fragen, die noch unter dem Schlüssel ihrer Antworten liegen, nicht des Formulars. */
+  const stale = module?.areaId == null ? [] : fields.filter((f) => f.labelAreaId !== module.areaId);
+
+  const resealStale = async () => {
+    for (const f of stale) {
+      if (f.label === null) throw new WorkspaceError('Nie każde pytanie da się teraz odczytać.');
+      await saveField(f, {
+        label: f.label, help: f.help, options: f.options, kind: f.kind,
+        isRequired: f.isRequired, isHalfWidth: f.isHalfWidth, identityRole: f.identityRole,
+        areaId: f.areaId
+      });
+    }
+  };
+
+  /**
+   * Eine Frage speichern — neu versiegelt unter dem Schlüssel des Formulars,
+   * und wenn ihre Antworten woandershin sollen, mit JEDER Antwort neu verpackt.
+   */
+  const saveField = async (f: OpenField, change: FieldChange) => {
+    const place = module?.areaId ?? change.areaId;
+    const { key, epoch } = await keyOf(place);
+    let moveTo: { areaId: string; moved: readonly MovedValue[] } | undefined;
+
+    if (change.areaId !== f.areaId) {
+      if (ring === null) throw new WorkspaceError('Bez hasła nie da się przenieść odpowiedzi.');
+      if (person === null) throw new WorkspaceError('Konto nie prowadzi jeszcze żadnej osoby.');
+
+      /* Der neue Bereich braucht eine Annahme — sonst gäbe es nichts, wofür zu verpacken wäre. */
+      const target = await loadPublicIntake(change.areaId).catch(async () => {
+        await createIntake(ring, change.areaId, person.id);
+        return loadPublicIntake(change.areaId);
+      });
+
+      /* Alle Einsendungen, auch die ausgeblendeten — keine Antwort darf zurückbleiben. */
+      const { registrations } = await loadRegistrations(partId, true);
+      const answered = registrations.filter((r) => r.values.some((v) => v.fieldId === f.fieldId));
+      let moved: readonly MovedValue[] = [];
+
+      if (answered.length > 0) {
+        const intake = await loadIntake(f.areaId);
+        moved = await moveAnswers(f.fieldId, answered, {
+          intakePrivate: await openIntakeKey(intake, ring),
+          officeKey: ring.has(intake.sealedForRoleId) ? ring.keyOf(intake.sealedForRoleId) : undefined
+        }, { intakePublic: fromBase64Url(target.publicKey) });
+      }
+
+      moveTo = { areaId: change.areaId, moved };
+    }
+
+    await editField(f.fieldId, {
+      key,
+      labelArea: module?.areaId == null ? null : { areaId: module.areaId, epoch },
+      label: change.label, help: change.help, options: change.options,
+      kind: change.kind, isRequired: change.isRequired, isHalfWidth: change.isHalfWidth,
+      identityRole: change.identityRole,
+      moveTo
+    });
+
+    /* Die geöffneten Antworten gehören jetzt zu einer anderen Annahme — neu öffnen. */
+    if (moveTo !== undefined) { setLastArea(null); setOpened(new Map()); setSubmissions([]); setAutoTried(false); }
+  };
 
   const areaLabel = (areaId: string) =>
     areaPath(areas, areaId).short || areas.find((a) => a.areaId === areaId)?.name || areaId.slice(0, 8);
@@ -449,23 +571,62 @@ export function FormOffice({ partId, config, who, standsOn, settings, title }: {
       )}
 
       <div className="wk-tabs" role="tablist">
-        <FormTab now={tab} mine="edit" onPick={setTab}>Formularz</FormTab>
+        {module !== undefined && <FormTab now={tab} mine="settings" onPick={setTab}>Ustawienia</FormTab>}
+        <FormTab now={tab} mine="questions" onPick={setTab}>Pytania</FormTab>
         <FormTab now={tab} mine="entries" onPick={setTab}>
           Zgłoszenia{submissions.length > 0 ? ` (${submissions.length})` : ''}
         </FormTab>
         <FormTab now={tab} mine="people" onPick={setTab}>Osoby</FormTab>
       </div>
 
-      {/* == 1. EINRICHTEN ================================================== */}
+      {/* == 1. DAS FORMULAR ALS GANZES ======================================= */}
 
-      {tab === 'edit' && (
+      {tab === 'settings' && module !== undefined && (
         <>
-          {settings}
+          <ModuleSettings
+            row={module}
+            areas={areas}
+            busy={busy !== null}
+            onAct={moduleAct}
+            reseal={resealFor}
+          />
 
           {/*
-            DIE ÜBERSCHRIFT DES BOGENS. Sie stand im Rastereditor, solange ein
-            Bogen dort seine Felder hatte — seit er dort nur noch ausgewählt
-            wird, gehört sie hierher, zu allem anderen, was ihm gehört.
+            OFFEN ODER GESCHLOSSEN (0042). Geschlossen nimmt das Formular
+            nichts mehr an — es bleibt stehen, mit allem, was eingegangen ist.
+          */}
+          <div className="wk-field">
+            <span>Przyjmowanie zgłoszeń</span>
+            <div className="wk-seg" role="group" aria-label="Przyjmowanie zgłoszeń">
+              {([false, true] as const).map((closed) => (
+                <button
+                  key={String(closed)}
+                  type="button"
+                  aria-pressed={module.closed === closed}
+                  className={module.closed === closed ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
+                  disabled={busy !== null || module.closed === closed}
+                  onClick={() => void moduleAct(closed ? 'Zamykanie…' : 'Otwieranie…',
+                    () => updateModule(module.moduleId, { closed }))}
+                >
+                  {closed ? 'Zamknięte' : 'Otwarte'}
+                </button>
+              ))}
+            </div>
+            {module.closed && (
+              <span className="wk-hint">Formularz stoi na stronie, ale nie przyjmuje nowych zgłoszeń.</span>
+            )}
+          </div>
+
+          <ControllerForm
+            value={module.controller}
+            busy={busy !== null}
+            onSave={(controller) => moduleAct('Zapisywanie klauzuli…',
+              () => updateModule(module.moduleId, { controller }))}
+          />
+
+          {/*
+            DIE ÜBERSCHRIFT DES BOGENS — wie er auf der Seite heisst. Der Name
+            oben ist der, unter dem man ihn in der Liste wiederfindet.
           */}
           <Naming
             partId={partId}
@@ -475,13 +636,100 @@ export function FormOffice({ partId, config, who, standsOn, settings, title }: {
             onError={setFailed}
           />
 
-          <h3 className="wk-h2">Pytania</h3>
+          {/* WAS NACH DEM ABSENDEN KOMMT — und was der Mensch mit seinem Link bekommt. */}
+          <Portal
+            moduleId={partId}
+            standsOn={standsOn ?? []}
+            portalUnder={(conf.portalUnder ?? '').trim()}
+            ownerRoleId={person?.id ?? null}
+            onSet={(where) => setSaved({ ...conf, portalUnder: where })}
+          />
+
+          <Template
+            partId={partId}
+            value={conf.sms ?? ''}
+            labels={fields.map((f) => f.label)}
+            busy={busy !== null}
+            onSaved={setSaved}
+            onError={setFailed}
+          />
+        </>
+      )}
+
+      {/* == 2. DIE FRAGEN ================================================= */}
+
+      {tab === 'questions' && (
+        <>
+          {/*
+            WO DIE FRAGEN LIEGEN (0042). Unter dem Schlüssel des Formulars —
+            lesen kann sie, wer diesen Bereich liest. Ist er nicht jawny, sieht
+            draussen niemand die Fragen, und das muss man VOR dem Veröffentlichen
+            erfahren, nicht danach.
+          */}
+          {module !== undefined && module.areaId === null && (
+            <p className="wk-warn">
+              Formularz nie ma własnego obszaru — pytania trafiają pod klucz obszaru odpowiedzi.
+              Ustaw obszar formularza w zakładce „Ustawienia".
+            </p>
+          )}
+
+          {formArea !== undefined && formArea.publicLevel === 'none' && (
+            <p className="wk-hint">
+              Obszar formularza „{areaLabel(formArea.areaId)}" nie jest jawny — pytania
+              przeczyta tylko ten, kto ma jego klucz. Na stronie publicznej będą zapieczętowane.
+            </p>
+          )}
+
+          {stale.length > 0 && ring !== null && (
+            <div className="wk-warn">
+              <p>
+                {stale.length === 1 ? 'Jedno pytanie jest' : `${stale.length} pytań jest`} zapieczętowanych
+                jeszcze kluczem obszaru odpowiedzi, a nie formularza.
+              </p>
+              <button
+                type="button" className="wk-link-btn" disabled={busy !== null}
+                onClick={() => void act('Przepieczętowywanie pytań…', resealStale)}
+              >
+                Przepieczętuj kluczem formularza
+              </button>
+            </div>
+          )}
+
+          {/* Antwortbereiche ohne Annahme — dort nimmt eine Frage nichts an. */}
+          {ring !== null && person !== null && areasHere
+            .filter((areaId) => intakes.get(areaId) === false)
+            .map((areaId) => (
+              <IntakeMissing
+                key={areaId}
+                areaId={areaId}
+                areaName={areaLabel(areaId)}
+                ring={ring}
+                officeRoleId={person.id}
+                busy={busy !== null}
+                onAct={act}
+              />
+            ))}
 
           {fields.length === 0 ? (
             <p className="wk-empty">Jeszcze żadnego pytania.</p>
           ) : (
             <ul className="wk-list">
-              {fields.map((f) => (
+              {fields.map((f) => editing === f.fieldId && ring !== null ? (
+                <li className="wk-row wk-row-open" key={f.fieldId}>
+                  <FieldEditor
+                    field={f}
+                    areas={areas}
+                    taken={fields.filter((o) => o.fieldId !== f.fieldId)
+                      .map((o) => o.identityRole).filter((r) => r !== 'none')}
+                    busy={busy !== null}
+                    onCancel={() => setEditing(null)}
+                    onSave={(change) => void act('Zapisywanie pytania…', async () => {
+                      await saveField(f, change);
+                      setEditing(null);
+                    })}
+                  />
+                </li>
+              ) : (
                 <li className="wk-row" key={f.fieldId}>
                   <span>
                     <strong>{f.label ?? 'zapieczętowane'}</strong>
@@ -489,15 +737,25 @@ export function FormOffice({ partId, config, who, standsOn, settings, title }: {
                       {' · '}{KIND_LABEL[f.kind]}
                       {f.isRequired && ' · wymagane'}
                       {f.identityRole !== 'none' && ` · ${IDENTITY_LABEL[f.identityRole]}`}
+                      {' · → '}{areaLabel(f.areaId)}
                     </span>
                   </span>
 
-                  <button
-                    type="button" className="wk-link-btn" disabled={busy !== null}
-                    onClick={() => void act('Usuwanie…', () => removeField(f.fieldId))}
-                  >
-                    Usuń
-                  </button>
+                  <span className="wk-row-side">
+                    <button
+                      type="button" className="wk-link-btn" disabled={busy !== null || ring === null || f.label === null}
+                      onClick={() => setEditing(f.fieldId)}
+                    >
+                      Edytuj
+                    </button>
+                    {' · '}
+                    <button
+                      type="button" className="wk-link-btn" disabled={busy !== null}
+                      onClick={() => void act('Usuwanie…', () => removeField(f.fieldId))}
+                    >
+                      Usuń
+                    </button>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -510,53 +768,19 @@ export function FormOffice({ partId, config, who, standsOn, settings, title }: {
               partId={partId}
               position={fields.length}
               taken={fields.map((f) => f.identityRole).filter((r) => r !== 'none')}
+              formAreaId={module?.areaId ?? null}
+              officeRoleId={person?.id ?? null}
               busy={busy !== null}
               onAdded={() => void look()}
               onError={setFailed}
             />
           )}
-
-          {/* -- Annahme und Klausel -------------------------------------- */}
-
-          {ring !== null && person !== null && areasHere.map((areaId) => (
-            <IntakeSetup
-              key={areaId}
-              areaId={areaId}
-              areaName={areaLabel(areaId)}
-              ring={ring}
-              officeRoleId={person.id}
-              busy={busy !== null}
-              onAct={act}
-            />
-          ))}
-
-          {/*
-            DIE NACHRICHT UND DAS PORTAL — was der Mensch bekommt, wenn ihm ein
-            Link geschickt wird, und wohin der Link führt. Beides wird EINMAL
-            eingerichtet; benutzt wird es drüben, bei den Osoby.
-          */}
-          <Template
-            partId={partId}
-            value={conf.sms ?? ''}
-            labels={fields.map((f) => f.label)}
-            busy={busy !== null}
-            onSaved={setSaved}
-            onError={setFailed}
-          />
-
-          <Portal
-            moduleId={partId}
-            standsOn={standsOn ?? []}
-            portalUnder={(conf.portalUnder ?? '').trim()}
-            ownerRoleId={person?.id ?? null}
-            onSet={(where) => setSaved({ ...conf, portalUnder: where })}
-          />
         </>
       )}
 
       {/* == 2 und 3: was dafür aufgemacht werden muss ======================== */}
 
-      {tab !== 'edit' && (
+      {(tab === 'entries' || tab === 'people') && (
         <>
           {areasHere.length === 0 ? (
             <p className="wk-empty">Najpierw pytania — bez nich nie ma zgłoszeń.</p>
@@ -601,7 +825,7 @@ export function FormOffice({ partId, config, who, standsOn, settings, title }: {
           fields={fields}
           submissions={submissions}
           opened={opened}
-          fileName={title ?? conf.title ?? 'zgloszenia'}
+          fileName={module?.name ?? conf.title ?? 'zgloszenia'}
         />
       )}
 
@@ -991,12 +1215,21 @@ const KIND_OF: Partial<Record<IdentityRole, FieldKind>> = {
  * <b>Was schon gefragt wird, wird nicht zweimal angeboten.</b> Zwei Fragen
  * nach dem Vornamen füllten sich beide aus derselben Angabe.
  */
-function NewFieldForm({ areas, ring, partId, position, taken, busy, onAdded, onError }: {
+function NewFieldForm({
+  areas, ring, partId, position, taken, formAreaId, officeRoleId, busy, onAdded, onError
+}: {
   areas: readonly AreaRow[];
   ring: Ring;
   partId: string;
   position: number;
   taken: readonly IdentityRole[];
+
+  /** Der Bereich des FORMULARS — unter seinem Schlüssel liegt die Frage (0042). */
+  formAreaId: string | null;
+
+  /** Wer die Annahme eines neuen Antwortbereichs hält — die eigene Person. */
+  officeRoleId: string | null;
+
   busy: boolean;
   onAdded: () => void;
   onError: (message: string | null) => void;
@@ -1008,6 +1241,7 @@ function NewFieldForm({ areas, ring, partId, position, taken, busy, onAdded, onE
   const [identity, setIdentity] = useState<IdentityRole>('none');
   const [options, setOptions] = useState('');
   const [working, setWorking] = useState(false);
+  const [stage, setStage] = useState<string | null>(null);
 
   const usable = areas.filter((a) => a.heldEpochs > 0);
 
@@ -1038,7 +1272,35 @@ function NewFieldForm({ areas, ring, partId, position, taken, busy, onAdded, onE
 
       if (areaKey === undefined) throw new WorkspaceError('Nie masz klucza tej epoki.');
 
+      /*
+       * DIE ANNAHME ENTSTEHT MIT DER ERSTEN FRAGE. Vorher stand dafür ein
+       * eigener Kasten mit einem eigenen Knopf — und ein Formular, dessen
+       * Fragen schon dastanden, nahm trotzdem nichts an, bis jemand ihn fand.
+       */
+      const takes = await loadPublicIntake(area.areaId).then(() => true, () => false);
+      if (!takes) {
+        if (officeRoleId === null) throw new WorkspaceError('Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach.');
+        setStage('Tworzenie klucza przyjmowania — kilka sekund…');
+        await createIntake(ring, area.areaId, officeRoleId);
+      }
+
+      /* Die Frage unter dem Schlüssel des FORMULARS (0042), wenn es einen Bereich hat. */
+      let labelArea: { areaId: string; key: Uint8Array; epoch: number } | undefined;
+      if (formAreaId !== null) {
+        const formArea = areas.find((a) => a.areaId === formAreaId);
+        const formKey = formArea === undefined
+          ? undefined
+          : (await myEpochKeys(ring, formAreaId)).get(formArea.currentEpoch);
+        if (formArea === undefined || formKey === undefined) {
+          throw new WorkspaceError('Nie masz klucza obszaru formularza — pytania nie da się zapieczętować.');
+        }
+        labelArea = { areaId: formAreaId, key: formKey, epoch: formArea.currentEpoch };
+      }
+
+      setStage('Pieczętowanie pytania…');
+
       await addField(partId, {
+        labelArea,
         areaId: area.areaId, areaKey, epoch: area.currentEpoch,
         kind, position, label,
         options: kind === 'choice' ? options.split('\n') : undefined,
@@ -1055,6 +1317,7 @@ function NewFieldForm({ areas, ring, partId, position, taken, busy, onAdded, onE
       onError(e instanceof WorkspaceError ? e.message : 'Nie udało się dodać pytania.');
     } finally {
       setWorking(false);
+      setStage(null);
     }
   };
 
@@ -1125,10 +1388,14 @@ function NewFieldForm({ areas, ring, partId, position, taken, busy, onAdded, onE
       </label>
 
       <p className="wk-hint">
-        Pytanie zostanie zapieczętowane kluczem tego obszaru. Publicznie
-        czytelne będzie tylko wtedy, gdy epoka obszaru jest ujawniona — inaczej
-        nikt z zewnątrz nie odczyta nawet pytania.
+        {formAreaId !== null
+          ? 'Odpowiedzi trafią do wybranego obszaru — przeczyta je tylko ten, kto ma do niego dostęp. '
+            + 'Samo pytanie leży w obszarze formularza.'
+          : 'Pytanie zostanie zapieczętowane kluczem tego obszaru — publicznie czytelne tylko, gdy obszar jest jawny.'}
+        {' '}Jeśli obszar nie przyjmuje jeszcze odpowiedzi, klucz przyjmowania powstanie przy dodaniu pytania.
       </p>
+
+      {stage !== null && <p className="wk-working">{stage}</p>}
 
       <div className="wk-actions">
         <button
@@ -1142,9 +1409,17 @@ function NewFieldForm({ areas, ring, partId, position, taken, busy, onAdded, onE
   );
 }
 
-/* -- Annahme und Klausel ---------------------------------------------------- */
+/* -- Eine Annahme, die fehlt ------------------------------------------------ */
 
-function IntakeSetup({ areaId, areaName, ring, officeRoleId, busy, onAct }: {
+/**
+ * Ein Antwortbereich ohne Annahme — dort nimmt eine Frage nichts an.
+ *
+ * <b>Nur noch als Hinweis</b>, wo es fehlt. Die Annahme entsteht sonst mit der
+ * ersten Frage für einen Bereich (`NewFieldForm`); hier landen Formulare, die
+ * ihre Fragen bekamen, bevor es so war. Die Klausel steht nicht mehr hier: sie
+ * gehört dem Formular, nicht dem Bereich (0042).
+ */
+function IntakeMissing({ areaId, areaName, ring, officeRoleId, busy, onAct }: {
   areaId: string;
   areaName: string;
   ring: Ring;
@@ -1152,75 +1427,219 @@ function IntakeSetup({ areaId, areaName, ring, officeRoleId, busy, onAct }: {
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
-  const [has, setHas] = useState<boolean | null>(null);
-  const [name, setName] = useState('');
-  const [address, setAddress] = useState('');
+  return (
+    <div className="wk-warn">
+      <p>
+        Obszar „{areaName}" nie przyjmuje jeszcze odpowiedzi — brakuje mu klucza,
+        którym odpowiedzi zamyka się tak, żeby otworzył je tylko ten, kto prowadzi zgłoszenia.
+      </p>
+      <button
+        type="button" className="wk-link-btn" disabled={busy}
+        onClick={() => void onAct('Tworzenie klucza przyjmowania — kilka sekund…',
+          () => createIntake(ring, areaId, officeRoleId))}
+      >
+        Utwórz klucz przyjmowania
+      </button>
+    </div>
+  );
+}
+
+/* -- Die Klausel — EINE je Formular (0042) ---------------------------------- */
+
+/**
+ * Wer für die Daten steht.
+ *
+ * <b>Einmal, für das ganze Formular.</b> Sie stand je Bereich der Antworten —
+ * ein Formular mit Fragen in zwei Bereichen fragte zweimal nach derselben
+ * Pfarrei. Klartext, und das muss sie sein: sie steht unter dem Formular,
+ * bevor jemand etwas eingetragen hat. Ohne sie sammelt das Formular nichts.
+ */
+function ControllerForm({ value, busy, onSave }: {
+  value: ModuleRow['controller'];
+  busy: boolean;
+  onSave: (controller: { name: string; address?: string; email?: string }) => Promise<void>;
+}) {
+  const [name, setName] = useState(value?.name ?? '');
+  const [address, setAddress] = useState(value?.address ?? '');
+  const [email, setEmail] = useState(value?.email ?? '');
 
   useEffect(() => {
-    let alive = true;
-    void loadIntake(areaId)
-      .then(() => { if (alive) setHas(true); })
-      .catch(() => { if (alive) setHas(false); });
-    return () => { alive = false; };
-  }, [areaId]);
+    setName(value?.name ?? '');
+    setAddress(value?.address ?? '');
+    setEmail(value?.email ?? '');
+  }, [value?.name, value?.address, value?.email]);
+
+  const changed = name.trim() !== (value?.name ?? '')
+    || address.trim() !== (value?.address ?? '')
+    || email.trim() !== (value?.email ?? '');
 
   return (
     <section className="wk-form">
-      <h4 className="wk-h2">Przyjmowanie — {areaName}</h4>
+      <h4 className="wk-h2">Kto odpowiada za dane</h4>
 
-      {has === false && (
-        <>
-          <p className="wk-hint">
-            Ten obszar nie ma jeszcze klucza przyjmowania. Bez niego nikt z
-            zewnątrz nie zamknie odpowiedzi tak, żeby tylko kancelaria je
-            otworzyła.
-          </p>
-          <div className="wk-actions">
-            <button
-              type="button" className="wk-btn" disabled={busy}
-              onClick={() => void onAct('Tworzenie klucza — to potrwa…',
-                () => createIntake(ring, areaId, officeRoleId).then(() => setHas(true)))}
-            >
-              Utwórz klucz przyjmowania
-            </button>
-          </div>
-          <p className="wk-hint">
-            Powstaje RSA-4096 — kilka sekund. Klucz prywatny zostanie
-            zapieczętowany kluczem Twojej roli, nie epoką: inaczej każdy członek
-            obszaru czytałby wszystkie zgłoszenia.
-          </p>
-        </>
-      )}
+      <label className="wk-field">
+        <span>Nazwa</span>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="np. Parafia św. Kazimierza" />
+      </label>
 
-      {has === true && (
-        <>
-          <label className="wk-field">
-            <span>Kto odpowiada za dane</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="np. Parafia św. Anny" />
-          </label>
+      <label className="wk-field">
+        <span>Adres</span>
+        <input value={address} onChange={(e) => setAddress(e.target.value)} />
+      </label>
 
-          <label className="wk-field">
-            <span>Adres</span>
-            <input value={address} onChange={(e) => setAddress(e.target.value)} />
-          </label>
+      <label className="wk-field">
+        <span>E-mail (opcjonalnie)</span>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </label>
 
-          <p className="wk-hint">
-            To jest jawne i musi takie być: klauzula stoi pod formularzem, zanim
-            ktokolwiek cokolwiek wpisze. Bez niej formularz nic nie zbiera.
-          </p>
+      <p className="wk-hint">
+        {value === null
+          ? 'Bez tego formularz nic nie zbiera. '
+          : ''}
+        To jest jawne i musi takie być: klauzula stoi pod formularzem, zanim ktokolwiek cokolwiek wpisze.
+      </p>
 
-          <div className="wk-actions">
-            <button
-              type="button" className="wk-btn" disabled={busy || name.trim() === ''}
-              onClick={() => void onAct('Zapisywanie…',
-                () => setController(areaId, { name, address }))}
-            >
-              Zapisz klauzulę
-            </button>
-          </div>
-        </>
+      {changed && (
+        <div className="wk-actions">
+          <button
+            type="button" className="wk-btn" disabled={busy || name.trim() === ''}
+            onClick={() => void onSave({ name, address, email })}
+          >
+            Zapisz klauzulę
+          </button>
+        </div>
       )}
     </section>
+  );
+}
+
+/* -- Eine Frage ändern (0042) ------------------------------------------------ */
+
+/** Was an einer Frage geändert wird — alles, was der Browser neu versiegelt. */
+interface FieldChange {
+  readonly label: string;
+  readonly help: string | null;
+  readonly options: readonly string[];
+  readonly kind: FieldKind;
+  readonly isRequired: boolean;
+  readonly isHalfWidth: boolean;
+  readonly identityRole: IdentityRole;
+
+  /** Wohin die Antworten gehen — ein anderer als bisher heisst: umziehen. */
+  readonly areaId: string;
+}
+
+/**
+ * Eine vorhandene Frage bearbeiten.
+ *
+ * <b>Fast alles.</b> Der Text, die Hilfe, die Auswahl, Pflicht oder nicht,
+ * welche Angabe sie ist. Die FORM nur, solange niemand geantwortet hat — das
+ * sagt der Dienst, wenn es so ist. Und wohin die Antworten gehen: dann werden
+ * die vorhandenen mitgenommen, im Browser neu verpackt für den neuen Bereich.
+ */
+function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
+  field: OpenField;
+  areas: readonly AreaRow[];
+  taken: readonly IdentityRole[];
+  busy: boolean;
+  onCancel: () => void;
+  onSave: (change: FieldChange) => void;
+}) {
+  const [label, setLabel] = useState(field.label ?? '');
+  const [help, setHelp] = useState(field.help ?? '');
+  const [kind, setKind] = useState<FieldKind>(field.kind);
+  const [identity, setIdentity] = useState<IdentityRole>(field.identityRole);
+  const [required, setRequired] = useState(field.isRequired);
+  const [options, setOptions] = useState(field.options.join('\n'));
+  const [areaId, setAreaId] = useState(field.areaId);
+
+  const usable = areas.filter((a) => a.heldEpochs > 0);
+  const fixed = KIND_OF[identity] !== undefined;
+  const moving = areaId !== field.areaId;
+
+  const about = (next: IdentityRole) => {
+    const shaped = KIND_OF[next];
+    if (shaped !== undefined) setKind(shaped);
+    setIdentity(next);
+  };
+
+  return (
+    <form
+      className="wk-form wk-field-edit"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave({
+          label, help: help.trim() === '' ? null : help,
+          options: kind === 'choice' ? options.split('\n') : [],
+          kind, isRequired: required, isHalfWidth: field.isHalfWidth, identityRole: identity, areaId
+        });
+      }}
+    >
+      <label className="wk-field">
+        <span>Czego dotyczy</span>
+        <select value={identity} onChange={(e) => about(e.target.value as IdentityRole)}>
+          {CHOOSABLE_IDENTITY.map((r) => (
+            <option key={r} value={r} disabled={r !== 'none' && taken.includes(r)}>
+              {IDENTITY_LABEL[r]}{r !== 'none' && taken.includes(r) ? ' — już jest w formularzu' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="wk-field">
+        <span>Pytanie</span>
+        <input value={label} onChange={(e) => setLabel(e.target.value)} />
+      </label>
+
+      <label className="wk-field">
+        <span>Podpowiedź pod pytaniem (opcjonalnie)</span>
+        <input value={help} onChange={(e) => setHelp(e.target.value)} />
+      </label>
+
+      <label className="wk-field">
+        <span>Rodzaj</span>
+        <select value={kind} disabled={fixed} onChange={(e) => setKind(e.target.value as FieldKind)}>
+          {FIELD_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+        </select>
+        <span className="wk-hint">
+          {fixed ? 'Wynika z tego, czego dotyczy pytanie.' : 'Rodzaj zmienisz tylko, dopóki nikt nie odpowiedział.'}
+        </span>
+      </label>
+
+      {kind === 'choice' && (
+        <label className="wk-field">
+          <span>Możliwości — jedna w wierszu</span>
+          <textarea rows={3} value={options} onChange={(e) => setOptions(e.target.value)} />
+        </label>
+      )}
+
+      <label className="wk-field">
+        <span>Odpowiedzi trafiają do obszaru</span>
+        <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
+          <AreaOptions areas={areas} only={usable} />
+        </select>
+        {moving && (
+          <span className="wk-hint">
+            Zebrane odpowiedzi zostaną przeniesione: każda zostanie przepakowana w tej przeglądarce
+            kluczem przyjmowania nowego obszaru. Treść odpowiedzi się nie zmienia.
+          </span>
+        )}
+      </label>
+
+      <label className="wk-field">
+        <span>
+          <input type="checkbox" checked={required} onChange={() => setRequired(!required)} />
+          {' '}Wymagane
+        </span>
+      </label>
+
+      <div className="wk-actions">
+        <button type="submit" className="wk-btn" disabled={busy || label.trim() === ''}>
+          {moving ? 'Zapisz i przenieś odpowiedzi' : 'Zapisz'}
+        </button>
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={onCancel}>Anuluj</button>
+      </div>
+    </form>
   );
 }
 

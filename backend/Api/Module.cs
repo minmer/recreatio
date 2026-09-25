@@ -74,6 +74,7 @@ public static class Module
         await using var cmd = new SqlCommand($"""
             SELECT m.id, m.area_id, m.kind, m.name, m.config, m.created_at, m.for_kind,
                    a.name AS area_name,
+                   m.closed_at, m.controller_name, m.controller_address, m.controller_email,
 
                    /* Auf wie vielen Seiten er steht — „nirgends" ist eine Auskunft. */
                    (SELECT COUNT(*) FROM app.slug_part p WHERE p.module_id = m.id) AS used,
@@ -151,15 +152,24 @@ public static class Module
                 forKind = reader.GetString(6),
                 areaName = reader.IsDBNull(7) ? null : reader.GetString(7),
 
-                usedOnPages = reader.GetInt32(8),
+                /* Das Formular als Ganzes (0042): geschlossen? wer steht fuer die Daten? */
+                closed = !reader.IsDBNull(8),
+                controller = reader.IsDBNull(9) ? null : new
+                {
+                    name = reader.GetString(9),
+                    address = reader.IsDBNull(10) ? null : reader.GetString(10),
+                    email = reader.IsDBNull(11) ? null : reader.GetString(11)
+                },
+
+                usedOnPages = reader.GetInt32(12),
 
                 /* Leer heisst: nirgends. Kein `null` nach draussen — eine
                    leere Liste ist dieselbe Auskunft ohne Sonderfall. */
-                pages = reader.IsDBNull(9)
+                pages = reader.IsDBNull(13)
                     ? Array.Empty<string>()
-                    : reader.GetString(9).Split((char)10, StringSplitOptions.RemoveEmptyEntries),
-                fields = reader.GetInt32(10),
-                entries = reader.GetInt32(11)
+                    : reader.GetString(13).Split((char)10, StringSplitOptions.RemoveEmptyEntries),
+                fields = reader.GetInt32(14),
+                entries = reader.GetInt32(15)
             });
         }
 
@@ -291,9 +301,19 @@ public static class Module
 
     /* -- Aendern ------------------------------------------------------------- */
 
+    /// <summary>Eine Frage, unter dem Schluessel des NEUEN Bereichs versiegelt (0042).</summary>
+    public sealed record ResealIn(
+        string FieldId, string LabelSealed, string? HelpSealed, string? OptionsSealed, int LabelEpoch);
+
+    /// <summary>Die Klausel: wer fuer die Daten steht. Ein leerer Name nimmt sie weg.</summary>
+    public sealed record ControllerIn(string? Name, string? Address, string? Email);
+
     public sealed record UpdateRequest(
         string? Name, string? AreaId, bool ClearArea = false, string? Config = null,
-        string? ForKind = null);
+        string? ForKind = null,
+
+        /* 0042 — das Formular als Ganzes. */
+        bool? Closed = null, ControllerIn? Controller = null, IReadOnlyList<ResealIn>? Reseal = null);
 
     /// <summary>
     /// Umbenennen, den Bereich setzen, die Einstellung aendern.
@@ -373,15 +393,67 @@ public static class Module
         }
 
         /*
-         * UMZIEHEN NUR, SOLANGE ER LEER IST. Der Dienst kann nichts
-         * umschluesseln — was unter dem alten Schluessel liegt, bliebe dort.
+         * UMZIEHEN MIT NEU VERSIEGELTEN FRAGEN (0042).
+         *
+         * Der Dienst kann nichts umschluesseln — der Browser aber schon: er
+         * hat den alten Schluessel und den neuen, oeffnet jede Frage und
+         * versiegelt sie neu. Kommen ALLE Fragen mit, ist der Umzug erlaubt;
+         * die ANTWORTEN bleiben ohnehin, wo sie sind — sie gehoeren dem
+         * Bereich ihrer Frage, nicht dem des Formulars.
+         *
+         * Ins Nichts nicht: ohne Bereich haette eine Frage keinen Schluessel,
+         * unter dem sie liegen koennte.
          */
-        if (moving && (found.Value.Fields > 0 || found.Value.Entries > 0))
+        var resealed = new Dictionary<Guid, (byte[] Label, byte[]? Help, byte[]? Options, int Epoch)>();
+
+        if (moving && found.Value.Fields > 0)
         {
-            await Fail(ctx, StatusCodes.Status409Conflict,
-                "Ten moduł ma już dane — obszaru nie da się zmienić. "
-                + "To, co zapieczętowano starym kluczem, zostaje pod nim.");
-            return;
+            if (areaId is null)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "Formularz z pytaniami potrzebuje obszaru — pytania są zapieczętowane jego kluczem.");
+                return;
+            }
+
+            foreach (var one in body.Reseal ?? [])
+            {
+                if (!Guid.TryParse(one.FieldId, out var fieldId) || one.LabelEpoch < 1)
+                {
+                    await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelne pytanie do przepieczętowania.");
+                    return;
+                }
+
+                try
+                {
+                    var label = Base64Url.Decode(one.LabelSealed ?? string.Empty);
+                    if (label.Length == 0) throw new FormatException();
+
+                    resealed[fieldId] = (label,
+                        string.IsNullOrWhiteSpace(one.HelpSealed) ? null : Base64Url.Decode(one.HelpSealed),
+                        string.IsNullOrWhiteSpace(one.OptionsSealed) ? null : Base64Url.Decode(one.OptionsSealed),
+                        one.LabelEpoch);
+                }
+                catch (FormatException)
+                {
+                    await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelne pytanie do przepieczętowania.");
+                    return;
+                }
+            }
+
+            var all = new HashSet<Guid>();
+            await using (var ask = new SqlCommand("SELECT id FROM app.slug_field WHERE part_id = @id;", connection))
+            {
+                ask.Parameters.AddWithValue("@id", id);
+                await using var reader = await ask.ExecuteReaderAsync(ctx.RequestAborted);
+                while (await reader.ReadAsync(ctx.RequestAborted)) all.Add(reader.GetGuid(0));
+            }
+
+            if (!all.SetEquals(resealed.Keys))
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "Żeby zmienić obszar, trzeba przepieczętować wszystkie pytania — odśwież i spróbuj jeszcze raz.");
+                return;
+            }
         }
 
         /*
@@ -423,22 +495,92 @@ public static class Module
             return;
         }
 
-        await using var cmd = new SqlCommand("""
-            UPDATE app.module
-               SET name = @name,
-                   area_id = @area,
-                   for_kind = @for,
-                   config = CASE WHEN @config IS NULL THEN config ELSE @config END
-             WHERE id = @id;
-            """, connection);
+        /*
+         * DIE KLAUSEL (0042) — Klartext, und das muss sie sein: sie steht unter
+         * dem Formular, bevor jemand etwas eingetragen hat.
+         */
+        string? controllerName = null, controllerAddress = null, controllerEmail = null;
+        var touchController = body.Controller is not null;
 
-        cmd.Parameters.AddWithValue("@name", name);
-        cmd.Parameters.AddWithValue("@for", forKind);
-        cmd.Parameters.AddWithValue("@area", (object?)areaId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@config", (object?)body.Config ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@id", id);
+        if (body.Controller is { } said)
+        {
+            controllerName = string.IsNullOrWhiteSpace(said.Name) ? null : said.Name.Trim();
+            controllerAddress = string.IsNullOrWhiteSpace(said.Address) ? null : said.Address.Trim();
+            controllerEmail = string.IsNullOrWhiteSpace(said.Email) ? null : said.Email.Trim();
 
-        await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+            if (controllerName is { Length: > 200 } || controllerAddress is { Length: > 400 }
+                || controllerEmail is { Length: > 200 })
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Klauzula: nazwa do 200, adres do 400, e-mail do 200 znaków.");
+                return;
+            }
+
+            if (controllerName is null && (controllerAddress is not null || controllerEmail is not null))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Klauzula potrzebuje nazwy tego, kto odpowiada za dane.");
+                return;
+            }
+        }
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            await using (var cmd = new SqlCommand("""
+                UPDATE app.module
+                   SET name = @name,
+                       area_id = @area,
+                       for_kind = @for,
+                       config = CASE WHEN @config IS NULL THEN config ELSE @config END,
+                       closed_at = CASE WHEN @closed IS NULL THEN closed_at
+                                        WHEN @closed = 1 THEN COALESCE(closed_at, @now)
+                                        ELSE NULL END,
+                       controller_name    = CASE WHEN @touch = 1 THEN @cName ELSE controller_name END,
+                       controller_address = CASE WHEN @touch = 1 THEN @cAddress ELSE controller_address END,
+                       controller_email   = CASE WHEN @touch = 1 THEN @cEmail ELSE controller_email END
+                 WHERE id = @id;
+                """, connection, tx))
+            {
+                cmd.Parameters.AddWithValue("@name", name);
+                cmd.Parameters.AddWithValue("@for", forKind);
+                cmd.Parameters.AddWithValue("@area", (object?)areaId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@config", (object?)body.Config ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@closed", body.Closed is null ? DBNull.Value : body.Closed.Value);
+                cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+                cmd.Parameters.AddWithValue("@touch", touchController ? 1 : 0);
+                cmd.Parameters.AddWithValue("@cName", (object?)controllerName ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@cAddress", (object?)controllerAddress ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@cEmail", (object?)controllerEmail ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@id", id);
+
+                await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            foreach (var (fieldId, (label, help, options, epoch)) in resealed)
+            {
+                await using var seal = new SqlCommand("""
+                    UPDATE app.slug_field
+                       SET label_sealed = @label, help_sealed = @help, options_sealed = @options,
+                           label_area_id = @area, label_epoch = @epoch
+                     WHERE id = @field AND part_id = @id;
+                    """, connection, tx);
+                seal.Parameters.AddWithValue("@label", label);
+                seal.Parameters.AddBlob("@help", help);
+                seal.Parameters.AddBlob("@options", options);
+                seal.Parameters.AddWithValue("@area", areaId!.Value);
+                seal.Parameters.AddWithValue("@epoch", epoch);
+                seal.Parameters.AddWithValue("@field", fieldId);
+                seal.Parameters.AddWithValue("@id", id);
+                await seal.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
 
         await ctx.Response.WriteAsJsonAsync(new
         {

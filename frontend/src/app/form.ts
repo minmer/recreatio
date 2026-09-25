@@ -91,10 +91,18 @@ const valueAad = (fieldId: string) => aad('form', 'value', fieldId, Field.EventA
 /* -- Felder pflegen --------------------------------------------------------- */
 
 export interface NewField {
+  /** Wohin die Antworten gehen. */
   readonly areaId: string;
-  /** Der Epochenschlüssel des Bereichs, unter dem die Frage liegen soll. */
+  /** Der Epochenschlüssel dieses Bereichs — ohne `labelArea` liegt die Frage darunter. */
   readonly areaKey: Uint8Array;
   readonly epoch: number;
+
+  /**
+   * Der Bereich des FORMULARS (0042) — die Frage liegt unter SEINEM Schlüssel,
+   * damit sie lesen kann, wer das Formular sieht, und nicht nur, wer die
+   * Antworten liest.
+   */
+  readonly labelArea?: { readonly areaId: string; readonly key: Uint8Array; readonly epoch: number };
 
   readonly kind: FieldKind;
   readonly position: number;
@@ -109,7 +117,7 @@ export interface NewField {
 
 export async function addField(partId: string, what: NewField): Promise<{ fieldId: string }> {
   const fieldId = newId();
-  const options = (what.options ?? []).filter((o) => o.trim() !== '');
+  const key = what.labelArea?.key ?? what.areaKey;
 
   return call(`/workspace/part/${encodeURIComponent(partId)}/field`, {
     method: 'POST',
@@ -119,13 +127,9 @@ export async function addField(partId: string, what: NewField): Promise<{ fieldI
       epoch: what.epoch,
       kind: what.kind,
       position: what.position,
-      labelSealed: toBase64Url(await sealText(what.areaKey, labelAad(fieldId), what.label.trim())),
-      helpSealed: (what.help ?? '').trim() === ''
-        ? null
-        : toBase64Url(await sealText(what.areaKey, helpAad(fieldId), what.help!.trim())),
-      optionsSealed: options.length === 0
-        ? null
-        : toBase64Url(await sealText(what.areaKey, optionsAad(fieldId), options.join('\n'))),
+      ...(await sealQuestion(key, fieldId, { label: what.label, help: what.help, options: what.options })),
+      labelAreaId: what.labelArea?.areaId ?? null,
+      labelEpoch: what.labelArea?.epoch ?? null,
       isRequired: what.isRequired ?? false,
       isHalfWidth: what.isHalfWidth ?? false,
       identityRole: what.identityRole ?? 'none'
@@ -133,9 +137,124 @@ export async function addField(partId: string, what: NewField): Promise<{ fieldI
   });
 }
 
+/**
+ * Eine Frage versiegeln — Text, Hilfe, Auswahl — unter EINEM Schlüssel.
+ *
+ * Die Etiketten nennen die Frage, nicht den Bereich: dieselbe Frage lässt
+ * sich deshalb unter einem anderen Schlüssel neu versiegeln (0042), ohne
+ * dass sich an ihr sonst etwas ändert.
+ */
+export async function sealQuestion(
+  key: Uint8Array, fieldId: string,
+  q: { readonly label: string; readonly help?: string | null; readonly options?: readonly string[] }
+): Promise<{ labelSealed: string; helpSealed: string | null; optionsSealed: string | null }> {
+  const options = (q.options ?? []).map((o) => o.trim()).filter((o) => o !== '');
+  const help = (q.help ?? '').trim();
+
+  return {
+    labelSealed: toBase64Url(await sealText(key, labelAad(fieldId), q.label.trim())),
+    helpSealed: help === '' ? null : toBase64Url(await sealText(key, helpAad(fieldId), help)),
+    optionsSealed: options.length === 0
+      ? null
+      : toBase64Url(await sealText(key, optionsAad(fieldId), options.join('\n')))
+  };
+}
+
+/* -- Eine Frage ändern (0042) ------------------------------------------------ */
+
+export interface FieldEdit {
+  /** Der Schlüssel, unter dem die Frage NEU versiegelt wird — der des Formulars. */
+  readonly key: Uint8Array;
+  readonly labelArea: { readonly areaId: string; readonly epoch: number } | null;
+
+  readonly label: string;
+  readonly help?: string | null;
+  readonly options?: readonly string[];
+  readonly kind: FieldKind;
+  readonly isRequired: boolean;
+  readonly isHalfWidth: boolean;
+  readonly identityRole: IdentityRole;
+
+  /** Wohin die Antworten ab jetzt gehen — mit JEDER vorhandenen neu verpackt (`moveAnswers`). */
+  readonly moveTo?: { readonly areaId: string; readonly moved: readonly MovedValue[] };
+}
+
+export async function editField(fieldId: string, e: FieldEdit): Promise<{ areaId: string; moved: number }> {
+  return call(`/workspace/field/${encodeURIComponent(fieldId)}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      ...(await sealQuestion(e.key, fieldId, { label: e.label, help: e.help, options: e.options })),
+      labelAreaId: e.labelArea?.areaId ?? null,
+      labelEpoch: e.labelArea?.epoch ?? null,
+      kind: e.kind,
+      isRequired: e.isRequired,
+      isHalfWidth: e.isHalfWidth,
+      identityRole: e.identityRole,
+      moveTo: e.moveTo?.areaId ?? null,
+      moved: e.moveTo?.moved ?? null
+    })
+  });
+}
+
+/** Ein Wertschlüssel, für die Annahme eines anderen Bereichs neu verpackt. */
+export interface MovedValue {
+  readonly registrationId: string;
+  readonly wrappedKey: string;
+  readonly officeKeySealed: string | null;
+}
+
+/**
+ * Die Antworten EINER Frage in einen anderen Bereich — ohne sie anzufassen.
+ *
+ * Jede Antwort hat ihren eigenen Schlüssel. Er wird hier aufgemacht (mit der
+ * Annahme des alten Bereichs, oder dem Amtsschlüssel, wo er schon so liegt)
+ * und unter der öffentlichen Hälfte der NEUEN Annahme verpackt. Der Wert
+ * bleibt, wie er ist, und die Hülle des Menschen (`seat_key_sealed`) auch —
+ * er liest seine Antwort danach wie vorher.
+ *
+ * Die symmetrische Amtshülle fällt dabei weg; beim nächsten Öffnen durch das
+ * Amt des neuen Bereichs entsteht sie wieder (0037).
+ */
+export async function moveAnswers(
+  fieldId: string,
+  submissions: readonly Submission[],
+  from: { readonly intakePrivate: Uint8Array; readonly officeKey?: Uint8Array },
+  to: { readonly intakePublic: Uint8Array }
+): Promise<readonly MovedValue[]> {
+  const out: MovedValue[] = [];
+  const label = valueAad(fieldId);
+
+  for (const one of submissions) {
+    const value = one.values.find((v) => v.fieldId === fieldId);
+    if (value === undefined) continue;
+
+    const key = value.officeKeySealed !== null && value.officeKeySealed !== undefined && from.officeKey !== undefined
+      ? await open(from.officeKey, officeValueAad(fieldId), fromBase64Url(value.officeKeySealed))
+      : await unwrapKey(from.intakePrivate, label, fromBase64Url(value.wrappedKey!));
+
+    out.push({
+      registrationId: one.registrationId,
+      wrappedKey: toBase64Url(await wrapKey(to.intakePublic, label, key)),
+      officeKeySealed: null
+    });
+  }
+
+  return out;
+}
+
 export interface SealedField {
   readonly fieldId: string;
+
+  /** Wohin die ANTWORTEN gehen. */
   readonly areaId: string;
+
+  /**
+   * Unter welchem Schlüssel die FRAGE liegt (0042) — der Bereich des
+   * Formulars. Bei einer Frage von davor derselbe wie `areaId`; der Dienst
+   * setzt beides immer.
+   */
+  readonly labelAreaId: string;
+  readonly labelEpoch: number;
   readonly kind: FieldKind;
   readonly position: number;
   readonly labelSealed: string;
@@ -171,6 +290,12 @@ export interface PublicForm {
   readonly forKind: 'none' | 'person' | 'group' | 'role';
   readonly fields: readonly SealedField[];
   readonly areas: readonly FormArea[];
+
+  /** Geschlossen: das Formular steht da, nimmt aber nichts an (0042). */
+  readonly closed: boolean;
+
+  /** EINE Klausel für das ganze Formular (0042) — ohne sie sammelt es nichts. */
+  readonly controller: Controller | null;
 }
 
 export const loadForm = (partId: string): Promise<PublicForm> =>
@@ -197,7 +322,8 @@ export async function openFields(
   const out: OpenField[] = [];
 
   for (const f of fields) {
-    const key = keys.get(f.areaId);
+    /* Die Frage liegt unter dem Schlüssel des FORMULARS (0042), nicht der Antworten. */
+    const key = keys.get(f.labelAreaId ?? f.areaId);
 
     if (key === undefined) {
       out.push({ ...f, label: null, help: null, options: [] });

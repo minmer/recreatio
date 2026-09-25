@@ -91,9 +91,24 @@ export interface ModuleRow {
    */
   readonly pages: readonly string[];
 
-  /** Wie viel er trägt — ein Bogen mit Antworten lässt sich nicht mehr umziehen. */
+  /** Wie viel er trägt. */
   readonly fields: number;
   readonly entries: number;
+
+  /** Geschlossen: ein Formular, das nichts mehr annimmt (0042). */
+  readonly closed: boolean;
+
+  /** Wer für die Daten steht — EINE Klausel je Formular (0042). */
+  readonly controller: { readonly name: string; readonly address: string | null; readonly email: string | null } | null;
+}
+
+/** Eine Frage, unter dem Schlüssel des NEUEN Formularbereichs versiegelt (0042). */
+export interface ResealIn {
+  readonly fieldId: string;
+  readonly labelSealed: string;
+  readonly helpSealed: string | null;
+  readonly optionsSealed: string | null;
+  readonly labelEpoch: number;
 }
 
 export const loadModules = (): Promise<{ modules: readonly ModuleRow[] }> =>
@@ -109,12 +124,12 @@ export const createModule = (
   });
 
 /**
- * Umbenennen, den Bereich setzen, die Einstellung ändern.
+ * Umbenennen, den Bereich setzen, die Einstellung ändern — und beim
+ * Formular: öffnen, schliessen, die Klausel.
  *
- * <b>Den Bereich zu WECHSELN geht nur, solange er leer ist.</b> Was unter dem
- * alten Schlüssel liegt, bleibt darunter — der Dienst kann es nicht
- * umschlüsseln, er hat keinen Schlüssel. Der Dienst lehnt das ab; hier steht
- * es, damit die Oberfläche es vorher sagen kann.
+ * <b>Den Bereich eines Formulars zu wechseln geht, wenn der Browser jede
+ * Frage neu versiegelt mitschickt</b> (`reseal`, 0042). Der Dienst selbst
+ * kann nichts umschlüsseln; ohne die neuen Hüllen lehnt er ab.
  */
 export const updateModule = (
   moduleId: string,
@@ -123,6 +138,10 @@ export const updateModule = (
 
     /** Nur solange nichts eingegangen ist — sonst lehnt der Dienst ab (409). */
     forKind?: Subject;
+
+    closed?: boolean;
+    controller?: { name: string; address?: string; email?: string };
+    reseal?: readonly ResealIn[];
   }
 ): Promise<{ moduleId: string; areaId: string | null; name: string }> =>
   call(`/workspace/module/${encodeURIComponent(moduleId)}`, {

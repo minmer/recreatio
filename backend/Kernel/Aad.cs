@@ -76,6 +76,13 @@ public enum Field
     EventFieldHelp,
     EventFieldOptions,
 
+    /// <summary>
+    /// 0043 — der Aufbau eines Formulars und seine Logik: Gruppen, Seiten,
+    /// Texte, Bedingungen. Unter dem Schluessel des Formularbereichs, wie die
+    /// Fragen — die Logik verraet oft mehr als die Frage selbst.
+    /// </summary>
+    FormDesign,
+
     /// <summary>Eine eingesandte Antwort. Besondere Kategorie, bis das Gegenteil gesagt wird.</summary>
     EventAnswer,
 
@@ -362,6 +369,7 @@ public readonly record struct Aad
         Field.EventFieldLabel         => "field_label",
         Field.EventFieldHelp          => "field_help",
         Field.EventFieldOptions       => "field_options",
+        Field.FormDesign              => "form_design",
         Field.EventAnswer             => "answer",
         Field.EventIntakeKey          => "intake_key",
         Field.OfficeValueKey          => "office_value_key",

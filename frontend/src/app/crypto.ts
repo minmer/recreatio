@@ -124,7 +124,10 @@ export const Field = {
   HeldGrant: 'held_grant',
   EventFieldLabel: 'field_label',
   EventFieldHelp: 'field_help',
-  EventFieldOptions: 'field_options'
+  EventFieldOptions: 'field_options',
+
+  /* 0043 — Aufbau und Logik eines Formulars, unter dem Schlüssel seines Bereichs. */
+  FormDesign: 'form_design'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

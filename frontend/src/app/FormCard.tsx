@@ -77,16 +77,18 @@ export function FormCard({ partId, title, portalUnder: under }: {
       setForm(found);
 
       /*
-       * Die offengelegten Schlüssel — je Bereich einer. Ein Bereich, der
-       * nichts offengelegt hat, fehlt hier einfach; `openFields` lässt sein
-       * Feld dann zu.
+       * Die offengelegten Schlüssel — je Bereich einer, und zwar für die
+       * Bereiche, unter denen die FRAGEN liegen (0042: der des Formulars).
+       * Die Bereiche der Antworten brauchen hier keinen: dorthin geht nur,
+       * was unter ihrer Annahme verpackt wird. Ein Bereich, der nichts
+       * offengelegt hat, fehlt einfach; `openFields` lässt sein Feld dann zu.
        */
       const keys = new Map<string, Uint8Array>();
 
-      for (const area of found.areas) {
+      for (const areaId of new Set(found.fields.map((f) => f.labelAreaId ?? f.areaId))) {
         try {
-          const open = await loadPublicKey(area.areaId);
-          keys.set(area.areaId, fromBase64Url(open.key));
+          const open = await loadPublicKey(areaId);
+          keys.set(areaId, fromBase64Url(open.key));
         } catch {
           // Nicht offengelegt. Kein Fehler — eine Auskunft.
         }
@@ -182,7 +184,7 @@ export function FormCard({ partId, title, portalUnder: under }: {
    * Bedingung: Art. 13 verlangt, dass der Mensch VORHER weiss, wer seine Daten
    * verarbeitet. Ein Formular, das das nicht sagen kann, darf nicht fragen.
    */
-  const nameless = form.areas.filter((a) => a.controller === null);
+  const nameless = form.controller === null;
 
   /*
    * DAS PORTAL GIBT ES IMMER, und das ist eine Entscheidung gegen einen
@@ -343,15 +345,24 @@ export function FormCard({ partId, title, portalUnder: under }: {
     <>
       {title !== '' && <h2 className="wk-card-title">{title}</h2>}
 
-      {form.areas.map((area) => area.controller === null ? null : (
-        <p className="wk-hint" key={area.areaId}>
-          Administratorem danych jest <strong>{area.controller.name}</strong>
-          {area.controller.address !== null && `, ${area.controller.address}`}
-          {area.controller.email !== null && ` (${area.controller.email})`}.
+      {/* EINE Klausel für das ganze Formular (0042), nicht eine je Bereich. */}
+      {form.controller !== null && (
+        <p className="wk-hint">
+          Administratorem danych jest <strong>{form.controller.name}</strong>
+          {form.controller.address !== null && `, ${form.controller.address}`}
+          {form.controller.email !== null && ` (${form.controller.email})`}.
         </p>
-      ))}
+      )}
 
-      {nameless.length > 0 && (
+      {/*
+        GESCHLOSSEN (0042): das Formular bleibt stehen und sagt es, statt
+        Fragen zu zeigen, deren Antworten niemand mehr annimmt.
+      */}
+      {form.closed && (
+        <p className="wk-note">Zapisy przez ten formularz są zamknięte.</p>
+      )}
+
+      {nameless && (
         <p className="wk-error">
           Ten formularz nie mówi, kto odpowiada za dane, więc nic nie zbiera.
           Prowadzący stronę musi to uzupełnić.
@@ -368,7 +379,7 @@ export function FormCard({ partId, title, portalUnder: under }: {
         Es gibt sie nur für Angemeldete, die überhaupt mehr als nichts
         halten. Alle anderen füllen den Bogen aus wie immer.
       */}
-      {subjects.length > 0 && nameless.length === 0 && (
+      {subjects.length > 0 && !nameless && !form.closed && (
         <label className="wk-field">
           <span>{form.forKind === 'person' ? 'Kogo dotyczy zgłoszenie'
             : form.forKind === 'group' ? 'Której grupy dotyczy' : 'Której roli dotyczy'}</span>
@@ -394,7 +405,7 @@ export function FormCard({ partId, title, portalUnder: under }: {
         </label>
       )}
 
-      {nameless.length === 0 && (
+      {!nameless && !form.closed && (
         <form className="wk-form" onSubmit={(e) => { e.preventDefault(); void send(); }}>
           {fields.map((f) => (
             <label className="wk-field" key={f.fieldId}>

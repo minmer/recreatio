@@ -66,6 +66,13 @@ public static class Form
         app.MapGet("/workspace/part/{id:guid}/fields", FieldsAsync);
         app.MapPost("/workspace/field/{id:guid}/remove", RemoveFieldAsync);
 
+        /*
+         * EINE FRAGE AENDERN (0042) — ihren Text, ihre Form, und wohin ihre
+         * Antworten gehen. Der Dienst legt ab, was der Browser neu versiegelt
+         * und neu verpackt hat; er selbst kann beides nicht.
+         */
+        app.MapPost("/workspace/field/{id:guid}", UpdateFieldAsync);
+
         app.MapGet("/workspace/part/{id:guid}/registrations", RegistrationsAsync);
 
         /*
@@ -141,10 +148,17 @@ public static class Form
 
     /* -- Felder pflegen ----------------------------------------------------- */
 
+    /// <summary>
+    /// <c>AreaId</c> ist, wohin die ANTWORTEN gehen. <c>LabelAreaId</c> /
+    /// <c>LabelEpoch</c> (0042), unter welchem Schluessel die FRAGE liegt — der
+    /// Bereich des Formulars. Fehlen sie, liegt die Frage wie vor 0042 unter
+    /// <c>AreaId</c> / <c>Epoch</c>.
+    /// </summary>
     public sealed record FieldRequest(
         string FieldId, string AreaId, int Epoch, string Kind, int Position,
         string LabelSealed, string? HelpSealed, string? OptionsSealed,
-        bool? IsRequired, bool? IsHalfWidth, string? IdentityRole);
+        bool? IsRequired, bool? IsHalfWidth, string? IdentityRole,
+        string? LabelAreaId = null, int? LabelEpoch = null);
 
     /// <summary>
     /// Ein Feld anlegen.
@@ -240,13 +254,25 @@ public static class Form
             return;
         }
 
+        var (labelArea, labelEpoch, labelFail) = LabelPlace(sheet, body.LabelAreaId, body.LabelEpoch);
+        if (labelFail is not null)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, labelFail);
+            return;
+        }
+
         await using var insert = new SqlCommand("""
             INSERT INTO app.slug_field
                 (id, part_id, area_id, kind, position, label_sealed, help_sealed, options_sealed,
-                 epoch, is_required, is_half_width, identity_role, created_at)
+                 epoch, is_required, is_half_width, identity_role, created_at,
+                 label_area_id, label_epoch)
             VALUES (@id, @part, @area, @kind, @pos, @label, @help, @options,
-                    @epoch, @required, @half, @identity, @now);
+                    @epoch, @required, @half, @identity, @now,
+                    @labelArea, @labelEpoch);
             """, connection);
+
+        insert.Parameters.AddWithValue("@labelArea", (object?)labelArea ?? DBNull.Value);
+        insert.Parameters.AddWithValue("@labelEpoch", (object?)labelEpoch ?? DBNull.Value);
 
         insert.Parameters.AddWithValue("@id", fieldId);
         insert.Parameters.AddWithValue("@part", id);
@@ -470,19 +496,24 @@ public static class Form
          * nur drinnen, raet der Browser — und raet fuer jemanden, dem danach
          * ein Link gehoert.
          */
-        var forKind = "none";
-
-        await using (var ask = new SqlCommand(
-            "SELECT for_kind FROM app.module WHERE id = @id;", connection))
-        {
-            ask.Parameters.AddWithValue("@id", id);
-            if (await ask.ExecuteScalarAsync(ctx.RequestAborted) is string said) forKind = said;
-        }
+        var whole = await WholeAsync(connection, id, ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new
         {
             partId = Ids.ToText(id),
-            forKind,
+            forKind = whole?.ForKind ?? "none",
+
+            /* Geschlossen: das Formular steht da, nimmt aber nichts an (0042). */
+            closed = whole?.Closed ?? false,
+
+            /* EINE Klausel fuer das ganze Formular (0042). */
+            controller = whole?.Controller is null ? null : new
+            {
+                name = whole.Controller.Value.Name,
+                address = whole.Controller.Value.Address,
+                email = whole.Controller.Value.Email
+            },
+
             fields = fields.Select(Told),
             areas
         });
@@ -564,6 +595,26 @@ public static class Form
         if (fields.Count == 0)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Tu nie ma formularza.");
+            return;
+        }
+
+        /*
+         * GESCHLOSSEN heisst geschlossen — und ohne Klausel sammelt das
+         * Formular nichts (0042). Beides stand bisher nur im Browser; ein
+         * Aufruf an ihm vorbei haette trotzdem eingesandt.
+         */
+        var whole = await WholeAsync(connection, id, ctx.RequestAborted);
+
+        if (whole?.Closed == true)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, "Zapisy przez ten formularz są zamknięte.");
+            return;
+        }
+
+        if (whole?.Controller is null)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Ten formularz nie ma jeszcze klauzuli — nie wiadomo, kto odpowiada za dane.");
             return;
         }
 
@@ -1272,8 +1323,15 @@ public static class Form
 
     internal sealed record FieldRow(
         Guid Id, Guid AreaId, string Kind, int Position, byte[] Label, byte[]? Help,
-        byte[]? Options, int Epoch, bool IsRequired, bool IsHalfWidth, string IdentityRole);
+        byte[]? Options, int Epoch, bool IsRequired, bool IsHalfWidth, string IdentityRole,
+        Guid? LabelAreaId = null, int? LabelEpoch = null);
 
+    /// <summary>
+    /// Wie eine Frage hinausgeht. <c>labelAreaId</c> / <c>labelEpoch</c> sind
+    /// IMMER gesetzt: der Schluessel, der die Frage oeffnet — der des
+    /// Formulars (0042) oder, bei einer Frage von davor, der ihrer Antworten.
+    /// Der Browser muss den Unterschied nicht kennen.
+    /// </summary>
     private static object Told(FieldRow f) => new
     {
         fieldId = Ids.ToText(f.Id),
@@ -1284,10 +1342,40 @@ public static class Form
         helpSealed = f.Help is null ? null : Base64Url.Encode(f.Help),
         optionsSealed = f.Options is null ? null : Base64Url.Encode(f.Options),
         epoch = f.Epoch,
+        labelAreaId = Ids.ToText(f.LabelAreaId ?? f.AreaId),
+        labelEpoch = f.LabelEpoch ?? f.Epoch,
         isRequired = f.IsRequired,
         isHalfWidth = f.IsHalfWidth,
         identityRole = f.IdentityRole
     };
+
+    /// <summary>
+    /// Unter welchem Schluessel die Frage liegen MUSS.
+    ///
+    /// <para>
+    /// Hat das Formular einen Bereich, dann unter seinem — sonst waere die
+    /// Frage nur fuer die lesbar, die die Antworten lesen, und ein
+    /// oeffentliches Formular zeigte „zapieczętowane". Ohne Bereich wie vor
+    /// 0042: unter dem der Antworten (NULL).
+    /// </para>
+    /// </summary>
+    private static (Guid? Area, int? Epoch, string? Fail) LabelPlace(
+        Sheet sheet, string? labelAreaId, int? labelEpoch)
+    {
+        if (string.IsNullOrWhiteSpace(labelAreaId)) return (null, null, null);
+
+        if (!Guid.TryParse(labelAreaId, out var area) || labelEpoch is null or < 1)
+        {
+            return (null, null, "Nieczytelny obszar albo epoka pytania.");
+        }
+
+        if (sheet.AreaId is not Guid own || own != area)
+        {
+            return (null, null, "Pytanie pieczętuje się kluczem obszaru formularza.");
+        }
+
+        return (area, labelEpoch, null);
+    }
 
     /// <summary>
     /// Die Zeilen, wie sie in der Datenbank stehen.
@@ -1309,7 +1397,7 @@ public static class Form
 
         await using var cmd = new SqlCommand("""
             SELECT id, area_id, kind, position, label_sealed, help_sealed, options_sealed,
-                   epoch, is_required, is_half_width, identity_role
+                   epoch, is_required, is_half_width, identity_role, label_area_id, label_epoch
             FROM app.slug_field
             WHERE part_id = @part
             ORDER BY position;
@@ -1325,7 +1413,9 @@ public static class Form
                 (byte[])reader[4],
                 reader.IsDBNull(5) ? null : (byte[])reader[5],
                 reader.IsDBNull(6) ? null : (byte[])reader[6],
-                reader.GetInt32(7), reader.GetBoolean(8), reader.GetBoolean(9), reader.GetString(10)));
+                reader.GetInt32(7), reader.GetBoolean(8), reader.GetBoolean(9), reader.GetString(10),
+                reader.IsDBNull(11) ? null : reader.GetGuid(11),
+                reader.IsDBNull(12) ? null : reader.GetInt32(12)));
         }
 
         return fields;
@@ -2226,6 +2316,317 @@ public static class Form
         }
 
         return false;
+    }
+
+    /// <summary>Das Formular als Ganzes: wovon es handelt, ob es offen ist, wer fuer die Daten steht.</summary>
+    private sealed record Whole(string ForKind, bool Closed, (string Name, string? Address, string? Email)? Controller);
+
+    /// <summary>
+    /// <para>
+    /// <b>Die Klausel des Formulars</b> (0042) — und fuer eines, das (noch)
+    /// keine hat, die seines ersten Antwortbereichs. So sammelt ein Formular,
+    /// das vor 0042 gesammelt hat, weiter, bis jemand seine eigene eintraegt.
+    /// </para>
+    /// </summary>
+    private static async Task<Whole?> WholeAsync(SqlConnection connection, Guid moduleId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("""
+            SELECT m.for_kind, m.closed_at, m.controller_name, m.controller_address, m.controller_email,
+                   c.name, c.address, c.email
+            FROM app.module m
+            OUTER APPLY (
+                SELECT TOP 1 ac.name, ac.address, ac.email
+                  FROM app.area_controller ac
+                 WHERE ac.area_id IN (SELECT f.area_id FROM app.slug_field f WHERE f.part_id = m.id)
+            ) c
+            WHERE m.id = @id;
+            """, connection);
+
+        cmd.Parameters.AddWithValue("@id", moduleId);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return null;
+
+        string? Text(int i) => reader.IsDBNull(i) ? null : reader.GetString(i);
+
+        (string, string?, string?)? controller =
+            Text(2) is string own ? (own, Text(3), Text(4))
+            : Text(5) is string area ? (area, Text(6), Text(7))
+            : null;
+
+        return new Whole(reader.GetString(0), !reader.IsDBNull(1), controller);
+    }
+
+    /* -- Eine Frage aendern (0042) ------------------------------------------ */
+
+    /// <summary>Ein Wertschluessel, fuer die Annahme eines ANDEREN Bereichs neu verpackt.</summary>
+    public sealed record MovedValue(string RegistrationId, string WrappedKey, string? OfficeKeySealed);
+
+    /// <summary>
+    /// <c>MoveTo</c>: wohin die Antworten ab jetzt gehen — mit JEDER vorhandenen
+    /// Antwort neu verpackt (<c>Moved</c>). Der Wert selbst bleibt, wie er ist:
+    /// jede Antwort hat ihren eigenen Schluessel, und nur dessen Huellen
+    /// wechseln. Auch die des Menschen (<c>seat_key_sealed</c>) bleibt.
+    /// </summary>
+    public sealed record FieldUpdate(
+        string LabelSealed, string? HelpSealed, string? OptionsSealed,
+        string? LabelAreaId, int? LabelEpoch,
+        string? Kind, bool? IsRequired, bool? IsHalfWidth, string? IdentityRole,
+        string? MoveTo = null, IReadOnlyList<MovedValue>? Moved = null);
+
+    /// <summary>
+    /// Eine vorhandene Frage aendern.
+    ///
+    /// <para>
+    /// <b>Fast alles geht.</b> Text, Hilfe, Auswahl — neu versiegelt im
+    /// Browser, unter dem Schluessel des Formulars. Pflicht, halbe Breite,
+    /// welche Angabe sie ist. Die FORM nur, solange niemand geantwortet hat:
+    /// aus einer Datumsantwort wird durch eine neue Form kein Datum.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Und wohin die Antworten gehen.</b> Der Dienst kann nichts
+    /// umschluesseln — aber er muss es auch nicht: der Browser der Kanzlei hat
+    /// jeden Wertschluessel geoeffnet und fuer die Annahme des neuen Bereichs
+    /// verpackt. Der Dienst prueft, dass es ALLE sind, und tauscht die Huellen
+    /// in einer Transaktion. Eine Antwort, die vergessen wuerde, laege danach
+    /// unter einem Schluessel, den niemand mehr zur Hand nimmt.
+    /// </para>
+    /// </summary>
+    private static async Task UpdateFieldAsync(HttpContext ctx, Db db, Guid id, FieldUpdate body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        byte[] label;
+        try { label = Base64Url.Decode(body.LabelSealed ?? string.Empty); }
+        catch (FormatException)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna zapieczętowana etykieta.");
+            return;
+        }
+
+        if (label.Length == 0)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Pole potrzebuje etykiety.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        Guid partId, areaNow;
+        string kindNow;
+
+        await using (var find = new SqlCommand(
+            "SELECT part_id, area_id, kind FROM app.slug_field WHERE id = @id;", connection))
+        {
+            find.Parameters.AddWithValue("@id", id);
+            await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
+            if (!await reader.ReadAsync(ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Takiego pola nie ma.");
+                return;
+            }
+
+            partId = reader.GetGuid(0);
+            areaNow = reader.GetGuid(1);
+            kindNow = reader.GetString(2);
+        }
+
+        var sheet = await SheetAsync(connection, partId, ctx.RequestAborted);
+        if (sheet is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego bloku nie ma.");
+            return;
+        }
+
+        if (!await MayWriteSheetAsync(connection, who.Value.AccountId, sheet, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, NotYours);
+            return;
+        }
+
+        /*
+         * Die Frage muss unter dem Schluessel des FORMULARS liegen, wenn es
+         * einen Bereich hat. Hat es keinen, unter dem ihrer Antworten — dann
+         * kommt nichts mit, und die Zeile bleibt, wie vor 0042.
+         */
+        var (labelArea, labelEpoch, labelFail) = LabelPlace(sheet, body.LabelAreaId, body.LabelEpoch);
+        if (labelFail is not null)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, labelFail);
+            return;
+        }
+
+        if (sheet.AreaId is not null && labelArea is null)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Pytanie pieczętuje się kluczem obszaru formularza.");
+            return;
+        }
+
+        var identity = (body.IdentityRole ?? "none").Trim().ToLowerInvariant();
+        if (!IdentityRoles.Contains(identity))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                "Rola pola: none albo jedna z danych osoby (given_name, surname, …).");
+            return;
+        }
+
+        var kind = (body.Kind ?? kindNow).Trim().ToLowerInvariant();
+        if (!Kinds.Contains(kind))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieznany rodzaj pola.");
+            return;
+        }
+
+        var answered = new List<Guid>();
+
+        await using (var who2 = new SqlCommand(
+            "SELECT registration_id FROM app.registration_value WHERE field_id = @id;", connection))
+        {
+            who2.Parameters.AddWithValue("@id", id);
+            await using var reader = await who2.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted)) answered.Add(reader.GetGuid(0));
+        }
+
+        if (kind != kindNow && answered.Count > 0)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Na to pytanie już odpowiadano — rodzaju odpowiedzi nie da się zmienić.");
+            return;
+        }
+
+        /* -- Wohin die Antworten gehen ------------------------------------- */
+
+        Guid? moveTo = null;
+        var moved = new Dictionary<Guid, (byte[] Wrapped, byte[]? Office)>();
+
+        if (!string.IsNullOrWhiteSpace(body.MoveTo))
+        {
+            if (!Guid.TryParse(body.MoveTo, out var target))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny obszar docelowy.");
+                return;
+            }
+
+            if (target != areaNow)
+            {
+                if (!await Area.MayAsync(connection, who.Value.AccountId, target, Capability.Write, ctx.RequestAborted))
+                {
+                    await Fail(ctx, StatusCodes.Status403Forbidden,
+                        "Pod obszar, w którym nie możesz pisać, nie skierujesz odpowiedzi.");
+                    return;
+                }
+
+                await using (var has = new SqlCommand(
+                    "SELECT TOP 1 1 FROM app.intake WHERE area_id = @a;", connection))
+                {
+                    has.Parameters.AddWithValue("@a", target);
+                    if (await has.ExecuteScalarAsync(ctx.RequestAborted) is null)
+                    {
+                        await Fail(ctx, StatusCodes.Status409Conflict,
+                            "Obszar docelowy nie ma klucza przyjmowania — najpierw go utwórz.");
+                        return;
+                    }
+                }
+
+                foreach (var one in body.Moved ?? [])
+                {
+                    if (!Guid.TryParse(one.RegistrationId, out var reg))
+                    {
+                        await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelne zgłoszenie.");
+                        return;
+                    }
+
+                    try
+                    {
+                        var wrapped = Base64Url.Decode(one.WrappedKey ?? string.Empty);
+                        if (wrapped.Length == 0) throw new FormatException();
+                        moved[reg] = (wrapped, Optional(one.OfficeKeySealed));
+                    }
+                    catch (FormatException)
+                    {
+                        await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna koperta odpowiedzi.");
+                        return;
+                    }
+                }
+
+                /* ALLE — sonst bliebe eine Antwort unter dem alten Schluessel zurueck. */
+                if (!moved.Keys.ToHashSet().SetEquals(answered))
+                {
+                    await Fail(ctx, StatusCodes.Status409Conflict,
+                        "Nie wszystkie odpowiedzi zostały przepakowane — otwórz zgłoszenia i spróbuj jeszcze raz.");
+                    return;
+                }
+
+                moveTo = target;
+            }
+        }
+
+        /* Ohne Formularbereich liegt die Frage unter dem ihrer Antworten — also dem neuen. */
+        if (sheet.AreaId is null && moveTo is not null)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Formularz nie ma własnego obszaru — ustaw go najpierw, wtedy pytanie da się przenieść.");
+            return;
+        }
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            await using (var save = new SqlCommand("""
+                UPDATE app.slug_field
+                   SET label_sealed = @label, help_sealed = @help, options_sealed = @options,
+                       label_area_id = @labelArea, label_epoch = @labelEpoch,
+                       kind = @kind, is_required = @required, is_half_width = @half,
+                       identity_role = @identity,
+                       area_id = COALESCE(@moveTo, area_id)
+                 WHERE id = @id;
+                """, connection, tx))
+            {
+                save.Parameters.AddWithValue("@label", label);
+                save.Parameters.AddBlob("@help", Optional(body.HelpSealed));
+                save.Parameters.AddBlob("@options", Optional(body.OptionsSealed));
+                save.Parameters.AddWithValue("@labelArea", (object?)labelArea ?? DBNull.Value);
+                save.Parameters.AddWithValue("@labelEpoch", (object?)labelEpoch ?? DBNull.Value);
+                save.Parameters.AddWithValue("@kind", kind);
+                save.Parameters.AddWithValue("@required", body.IsRequired ?? false);
+                save.Parameters.AddWithValue("@half", body.IsHalfWidth ?? false);
+                save.Parameters.AddWithValue("@identity", identity);
+                save.Parameters.AddWithValue("@moveTo", (object?)moveTo ?? DBNull.Value);
+                save.Parameters.AddWithValue("@id", id);
+                await save.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            foreach (var (reg, (wrapped, office)) in moved)
+            {
+                await using var swap = new SqlCommand("""
+                    UPDATE app.registration_value
+                       SET wrapped_key = @wrapped, office_key_sealed = @office
+                     WHERE registration_id = @reg AND field_id = @id;
+                    """, connection, tx);
+                swap.Parameters.AddWithValue("@wrapped", wrapped);
+                swap.Parameters.AddBlob("@office", office);
+                swap.Parameters.AddWithValue("@reg", reg);
+                swap.Parameters.AddWithValue("@id", id);
+                await swap.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            fieldId = Ids.ToText(id),
+            areaId = Ids.ToText(moveTo ?? areaNow),
+            moved = moved.Count
+        });
     }
 
     private static byte[]? Optional(string? text)
