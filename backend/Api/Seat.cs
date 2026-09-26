@@ -87,6 +87,9 @@ public static class Seat
         app.MapPost("/seat/{token}/verify", VerifyAsync);
         app.MapPost("/seat/{token}/confirm", ConfirmAsync);
         app.MapPost("/seat/{token}/rotate", RotateAsync);
+
+        /* 0047 — einen Schritt selbst abhaken, den der Mensch selbst abhakt. */
+        app.MapPost("/seat/{token}/step", OwnStepAsync);
     }
 
     /*
@@ -375,6 +378,41 @@ public static class Seat
         }
 
         await ctx.Response.WriteAsJsonAsync(new { registrationId = Ids.ToText(registrationId), confirmed = true });
+    }
+
+    public sealed record OwnStepRequest(string RegistrationId, string StepId, bool Done);
+
+    /// <summary>
+    /// „ZROBIONE" — ein Schritt, den der Mensch selbst abhakt (0047). Nur einer,
+    /// der dafuer angelegt ist, und nur an einer Einsendung seines Platzes.
+    /// </summary>
+    private static async Task OwnStepAsync(HttpContext ctx, Db db, string token, OwnStepRequest body)
+    {
+        if (!Guid.TryParse(body.RegistrationId, out var registrationId) || !Guid.TryParse(body.StepId, out var stepId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny krok.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var seat = await LiveSeatAsync(connection, token, gated: true, ctx.RequestAborted);
+        if (seat is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
+            return;
+        }
+
+        var done = await Form.SetMarkAsync(connection, stepId, registrationId, body.Done, byPerson: true,
+            personOnly: true, seatId: seat.Value.Id, ctx.RequestAborted);
+
+        if (done is null)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego kroku nie odhaczasz sam.");
+            return;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { stepId = Ids.ToText(stepId), doneAt = done.Value.At });
     }
 
     public sealed record RotateRequest(string TokenSha256, string SeatKeySealed, string? LinkSealed);
@@ -1208,7 +1246,10 @@ public static class Seat
 
             grants = bySeat.TryGetValue(seatId, out var list) ? list : [],
             submitted,
-            template
+            template,
+
+            /* 0047 — was dieser Mensch noch tun muss: Erweiterungen, die er ausfüllt, und Schritte. */
+            forms = await Form.SeatFormsAsync(connection, seatId, ctx.RequestAborted)
         });
     }
 

@@ -68,6 +68,7 @@ export function PickForm({ value, busy, onPick }: {
         {rows.map((r) => (
           <option key={r.moduleId} value={r.moduleId}>
             {r.name}{r.fields > 0 ? ` · ${r.fields} pyt.` : ''}
+            {r.extendsId !== null ? (r.audience === 'office' ? ' · rozszerzenie (koordynator)' : ' · rozszerzenie (osoba)') : ''}
           </option>
         ))}
       </select>
@@ -96,7 +97,7 @@ export function PickForm({ value, busy, onPick }: {
  * Formular), sonst der öffentliche. Die Schlüssel: veröffentlicht, sonst die
  * eigenen.
  */
-async function questionsOf(formId: string): Promise<readonly OpenField[]> {
+export async function questionsOf(formId: string): Promise<readonly OpenField[]> {
   let sealed: readonly SealedField[];
 
   try {

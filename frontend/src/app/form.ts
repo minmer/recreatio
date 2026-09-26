@@ -360,7 +360,26 @@ export interface PublicForm {
 
   /** Aufbau und Logik (0043) — versiegelt unter dem Schlüssel des Formularbereichs. */
   readonly design: SealedDesign | null;
+
+  /**
+   * WER ES AUSFÜLLT (0047): jeder (`public`), der Mensch über seinen Link als
+   * Ergänzung seiner Einsendung (`person`), oder nur die Kanzlei (`office`) —
+   * dann kommen weder Fragen noch Annahme heraus.
+   */
+  readonly audience: Audience;
+
+  /** Welches Formular dieses ergänzt — `null` bei einem gewöhnlichen. */
+  readonly extendsId: string | null;
 }
+
+/** Wer ein Formular ausfüllt (0047). */
+export type Audience = 'public' | 'person' | 'office';
+
+export const AUDIENCE_LABEL: Record<Audience, string> = {
+  public: 'każdy, kto je zobaczy',
+  person: 'osoba — przez swój link, jako uzupełnienie zgłoszenia',
+  office: 'tylko koordynator — osoba tego nie widzi'
+};
 
 export const loadForm = (partId: string): Promise<PublicForm> =>
   call(`/form/${encodeURIComponent(partId)}`);
@@ -452,6 +471,12 @@ export interface SubmitTo {
     readonly recipientName?: string;
     readonly underPath?: string;
   };
+
+  /**
+   * DIE ERGÄNZUNG (0047): welche Einsendung dieses Formular erweitert. Nur mit
+   * `seat` — der Mensch ergänzt über SEINEN Link seine eigene Einsendung.
+   */
+  readonly baseRegistrationId?: string;
 }
 
 /**
@@ -585,7 +610,8 @@ export async function submitForm(
         claimSha256: claim === null ? null : toBase64Url(await sha256Of(claim)),
         seatToken: to.seat?.token ?? null,
         roleId: to.roleId ?? null,
-        seat
+        seat,
+        baseRegistrationId: to.baseRegistrationId ?? null
       })
     });
 
@@ -684,6 +710,27 @@ export interface Submission {
 
   /** Der Mensch hat seine GANZE Einsendung durchgesehen und bestätigt (0046). */
   readonly confirmedAt: string | null;
+
+  /** Bei einer Ergänzung (0047): die Einsendung, die sie erweitert. */
+  readonly baseId: string | null;
+
+  /** Was diese Einsendung ergänzt — je Erweiterung höchstens eine (0047). */
+  readonly extensions: readonly {
+    readonly moduleId: string;
+    readonly registrationId: string;
+    readonly submittedAt: string;
+    readonly confirmedAt: string | null;
+  }[];
+
+  /** Welche von Hand angelegten Schritte abgehakt sind (0047). */
+  readonly marks: readonly StepMark[];
+}
+
+/** Ein abgehakter Schritt (0047). */
+export interface StepMark {
+  readonly stepId: string;
+  readonly doneAt: string;
+  readonly byPerson: boolean;
 }
 
 export const loadRegistrations = (
@@ -960,6 +1007,75 @@ export async function reviseAsOffice(
         : toBase64Url(await seal(keys.seatKey, label, key))
     };
   }));
+
+  return call(`/workspace/registration/${encodeURIComponent(registrationId)}/values`, {
+    method: 'POST',
+    body: JSON.stringify({ values })
+  });
+}
+
+/**
+ * Werte versiegeln — jeder unter der Annahme SEINES Bereichs, und, wenn ein
+ * Platz im Spiel ist, ein zweites Mal für ihn.
+ */
+async function sealEach(
+  answers: readonly Answer[],
+  keys: {
+    readonly intakes: ReadonlyMap<string, Uint8Array>;
+    readonly areaOf: ReadonlyMap<string, string>;
+    readonly seatKey: Uint8Array | null;
+  }
+): Promise<object[]> {
+  return Promise.all(answers.map(async (one) => {
+    const areaId = keys.areaOf.get(one.fieldId);
+    const intake = areaId === undefined ? undefined : keys.intakes.get(areaId);
+    if (intake === undefined) throw new Error(`Pole ${one.fieldId} nie ma klucza przyjmowania.`);
+
+    const key = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
+    const label = valueAad(one.fieldId);
+
+    return {
+      fieldId: one.fieldId,
+      sealed: toBase64Url(await sealText(key, label, one.value.trim())),
+      wrappedKey: toBase64Url(await wrapKey(intake, label, key)),
+      seatKeySealed: keys.seatKey === null ? null : toBase64Url(await seal(keys.seatKey, label, key))
+    };
+  }));
+}
+
+/**
+ * DIE KANZLEI FÜLLT EINE ERWEITERUNG AUS (0047) — für einen Menschen, zu
+ * seiner Einsendung. Bei einer, die nur sie sieht, ohne Hülle für den Platz.
+ */
+export async function addOfficeEntry(
+  extensionId: string, baseRegistrationId: string, answers: readonly Answer[],
+  keys: {
+    readonly intakes: ReadonlyMap<string, Uint8Array>;
+    readonly areaOf: ReadonlyMap<string, string>;
+    readonly seatKey: Uint8Array | null;
+  }
+): Promise<{ registrationId: string }> {
+  const values = await sealEach(answers.filter((a) => a.value.trim() !== ''), keys);
+
+  return call(`/workspace/part/${encodeURIComponent(extensionId)}/entry`, {
+    method: 'POST',
+    body: JSON.stringify({ baseRegistrationId, values })
+  });
+}
+
+/**
+ * Berichtigen über MEHRERE Antwortbereiche — jede Antwort unter der Annahme
+ * ihres eigenen (`reviseAsOffice` kennt nur einen).
+ */
+export async function reviseAcrossAsOffice(
+  registrationId: string, answers: readonly Answer[],
+  keys: {
+    readonly intakes: ReadonlyMap<string, Uint8Array>;
+    readonly areaOf: ReadonlyMap<string, string>;
+    readonly seatKey: Uint8Array | null;
+  }
+): Promise<{ revised: number }> {
+  const values = await sealEach(answers, keys);
 
   return call(`/workspace/registration/${encodeURIComponent(registrationId)}/values`, {
     method: 'POST',

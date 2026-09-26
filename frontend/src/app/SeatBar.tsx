@@ -20,11 +20,13 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type { SealedRole } from './keys';
 import { keysFor } from './ringOf';
+import { useRoleNames } from './roleNames';
 import { bindSeat } from './seat';
 import { FirstOpen } from './FirstOpen';
 import { seatName, useSeats, useSeatStates, type SeatView } from './seatContext';
 import { freshSeat, linkTo, seatsExactly, wasReplaced } from './seatKeep';
 import { whoIsThere, WorkspaceError, type Who } from './session';
+import { SeatSteps } from './StepList';
 import { OwnSubmissions, ReviewSubmissions } from './Submission';
 
 /* -- Oben auf der Seite ----------------------------------------------------- */
@@ -160,6 +162,13 @@ export function PersonalSections({ seat }: { seat: SeatView }) {
         </Zone>
       )}
 
+      {/* WAS ER NOCH TUN MUSS (0047) — nur, wenn es überhaupt etwas gibt. */}
+      {seat.forms.some((f) => f.extensions.length > 0 || f.steps.length > 0) && (
+        <Zone title="Twoje kroki" who="Widzisz to Ty i kancelaria.">
+          <SeatSteps seat={seat} formId={null} />
+        </Zone>
+      )}
+
       {seat.shared.length > 0 && (
         <Zone title="Wspólne dla grupy" who={`Widzą to wszyscy: ${seat.sharedNames.join(', ')}.`}>
           <ul className="wk-tile-lines">
@@ -247,6 +256,7 @@ export function BindSeat({ seat }: { seat: SeatView }) {
   const [busy, setBusy] = useState(false);
   const [bound, setBound] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const names = useRoleNames(who);
 
   useEffect(() => {
     let alive = true;
@@ -322,7 +332,7 @@ export function BindSeat({ seat }: { seat: SeatView }) {
         <span>Przypisz do siebie — kogo dotyczy to miejsce</span>
         <select value={chosen} onChange={(e) => setChosen(e.target.value)}>
           {persons.map((p) => (
-            <option key={p.id} value={p.id}>Osoba · {p.id.slice(0, 8)}</option>
+            <option key={p.id} value={p.id}>{names.get(p.id) ?? `Osoba · ${p.id.slice(0, 8)}`}</option>
           ))}
         </select>
       </label>

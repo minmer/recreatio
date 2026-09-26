@@ -17,9 +17,10 @@
 
 import { useState } from 'react';
 
-import { bindDomain, declareAlias, kindName, takers, type Desk } from './desk';
+import { bindDomain, declareAlias, takers, type Desk } from './desk';
+import { roleLabel, useRoleNames } from './roleNames';
 import { PATH_SHAPE, pagePath } from './routes';
-import { WorkspaceError } from './session';
+import { WorkspaceError, type Who } from './session';
 
 /**
  * Wohin eine eigene Domain zeigen muss.
@@ -35,7 +36,8 @@ const PAGES_CNAME = 'minmer.github.io';
 /** Klein, mit Punkt, ohne Schema und ohne Pfad — wie `Slug.IsHostName` im Dienst. */
 const HOST_SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\.[a-z0-9]+(?:-[a-z0-9]+)*)+$/;
 
-export function Addresses({ desk, onChanged }: { desk: Desk; onChanged: () => void }) {
+export function Addresses({ desk, who, onChanged }: { desk: Desk; who: Who; onChanged: () => void }) {
+  const names = useRoleNames(who);
   /* Nur Adressen, auf denen Inhalt LIEGT, taugen als Ziel. Ein Alias auf einen
      Alias wäre eine Kette, und die liesse sich im Kreis legen. */
   const roots = desk.pages.filter((page) => page.aliasOf === null);
@@ -72,7 +74,7 @@ export function Addresses({ desk, onChanged }: { desk: Desk; onChanged: () => vo
         </ul>
       )}
 
-      <AliasForm desk={desk} roots={roots} onDone={onChanged} />
+      <AliasForm desk={desk} names={names} roots={roots} onDone={onChanged} />
 
       <h2 className="wk-h2">Własne domeny</h2>
 
@@ -139,7 +141,8 @@ function HowItWorks() {
 
 /* -- Alias ----------------------------------------------------------------- */
 
-function AliasForm({ desk, roots, onDone }: {
+function AliasForm({ desk, names, roots, onDone }: {
+  names: ReadonlyMap<string, string>;
   desk: Desk;
   roots: readonly { path: string }[];
   onDone: () => void;
@@ -216,7 +219,7 @@ function AliasForm({ desk, roots, onDone }: {
         <span>Kto będzie odpowiadał</span>
         <select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
           {takers(desk.roles).map((role) => (
-            <option key={role.id} value={role.id}>{kindName(role)} · {role.id.slice(0, 8)}</option>
+            <option key={role.id} value={role.id}>{roleLabel(role, names)}</option>
           ))}
         </select>
       </label>

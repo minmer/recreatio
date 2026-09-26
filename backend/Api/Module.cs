@@ -113,7 +113,10 @@ public static class Module
                    /* Und wie viel er traegt: ein Bogen mit Antworten laesst sich
                       nicht mehr beliebig umbauen. */
                    (SELECT COUNT(*) FROM app.slug_field f WHERE f.part_id = m.id) AS fields,
-                   (SELECT COUNT(*) FROM app.registration g WHERE g.part_id = m.id) AS entries
+                   (SELECT COUNT(*) FROM app.registration g WHERE g.part_id = m.id) AS entries,
+
+                   /* 0047 — erweitert es ein anderes Formular, und wer füllt es aus? */
+                   m.extends_id, m.audience
             FROM app.module m
             LEFT JOIN app.area a ON a.id = m.area_id
             WHERE
@@ -169,7 +172,11 @@ public static class Module
                     ? Array.Empty<string>()
                     : reader.GetString(13).Split((char)10, StringSplitOptions.RemoveEmptyEntries),
                 fields = reader.GetInt32(14),
-                entries = reader.GetInt32(15)
+                entries = reader.GetInt32(15),
+
+                /* 0047 — die Erweiterung: wessen, und wer sie ausfüllt. */
+                extendsId = reader.IsDBNull(16) ? null : Ids.ToText(reader.GetGuid(16)),
+                audience = reader.GetString(17)
             });
         }
 
@@ -189,7 +196,14 @@ public static class Module
     /// </summary>
     public sealed record CreateRequest(
         string ModuleId, string Kind, string Name, string? AreaId, string? Config,
-        string? ForKind = null);
+        string? ForKind = null,
+
+        /*
+         * 0047 — ein Formular, das ein anderes ERWEITERT, und wer es
+         * ausfüllt: `person` (der Mensch über seinen Link) oder `office`
+         * (nur die Kanzlei).
+         */
+        string? ExtendsId = null, string? Audience = null);
 
     /// <summary>Wovon ein Baustein handeln kann (0038).</summary>
     private static readonly string[] Subjects = ["none", "person", "group", "role"];
@@ -265,6 +279,56 @@ public static class Module
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
+        /*
+         * DIE ERWEITERUNG (0047). Sie gehört zu ihrem Formular: derselbe
+         * Bereich (dort liegen seine Fragen, und wer es pflegt, pflegt auch
+         * sie), dasselbe „wovon" — und nur, wer das Formular pflegt, darf ihm
+         * etwas anhängen. Eine Ebene: eine Erweiterung erweitert nichts.
+         */
+        Guid? extendsId = null;
+        var audience = "public";
+
+        if (!string.IsNullOrWhiteSpace(body.ExtendsId))
+        {
+            if (!Guid.TryParse(body.ExtendsId, out var baseId) || kind != "form")
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Rozszerzyć można tylko formularz.");
+                return;
+            }
+
+            audience = (body.Audience ?? string.Empty).Trim().ToLowerInvariant();
+            if (audience is not ("person" or "office"))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest,
+                    "Rozszerzenie wypełnia osoba (person) albo koordynator (office).");
+                return;
+            }
+
+            var based = await ReadAsync(connection, baseId, ctx.RequestAborted);
+            if (based is null || based.Value.Kind != "form")
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Takiego formularza nie ma.");
+                return;
+            }
+
+            if (based.Value.ExtendsId is not null)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "To już jest rozszerzenie — rozszerza się formularz, nie rozszerzenie.");
+                return;
+            }
+
+            if (!await MayTendAsync(ctx, db, connection, based.Value, who.Value.AccountId))
+            {
+                await Fail(ctx, StatusCodes.Status403Forbidden, "Tego formularza nie prowadzisz.");
+                return;
+            }
+
+            extendsId = baseId;
+            areaId ??= based.Value.AreaId;
+            forKind = based.Value.ForKind;
+        }
+
         if (areaId is not null
             && !await Area.MayAsync(connection, who.Value.AccountId, areaId.Value,
                     Capability.Write, ctx.RequestAborted))
@@ -274,9 +338,12 @@ public static class Module
         }
 
         await using var cmd = new SqlCommand("""
-            INSERT INTO app.module (id, area_id, kind, name, config, created_at, for_kind)
-            VALUES (@id, @area, @kind, @name, @config, @now, @for);
+            INSERT INTO app.module (id, area_id, kind, name, config, created_at, for_kind, extends_id, audience)
+            VALUES (@id, @area, @kind, @name, @config, @now, @for, @extends, @audience);
             """, connection);
+
+        cmd.Parameters.AddWithValue("@extends", (object?)extendsId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@audience", audience);
 
         cmd.Parameters.AddWithValue("@id", moduleId);
         cmd.Parameters.AddWithValue("@area", (object?)areaId ?? DBNull.Value);
@@ -688,9 +755,22 @@ public static class Module
             return;
         }
 
+        await using (var ext = new SqlCommand(
+            "SELECT COUNT(*) FROM app.module WHERE extends_id = @id;", connection))
+        {
+            ext.Parameters.AddWithValue("@id", id);
+            if ((int)(await ext.ExecuteScalarAsync(ctx.RequestAborted) ?? 0) > 0)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "Ten formularz ma rozszerzenia — najpierw usuń je.");
+                return;
+            }
+        }
+
         await using var cmd = new SqlCommand("""
             DELETE FROM app.slug_field WHERE part_id = @id;
             DELETE FROM app.form_design WHERE module_id = @id;
+            DELETE FROM app.form_step WHERE module_id = @id;
             DELETE FROM app.module WHERE id = @id;
             """, connection);
 
@@ -704,7 +784,7 @@ public static class Module
 
     internal readonly record struct Row(
         Guid Id, Guid? AreaId, string Kind, string Name, string ForKind,
-        int Used, int Fields, int Entries);
+        int Used, int Fields, int Entries, Guid? ExtendsId = null, string Audience = "public");
 
     internal static async Task<Row?> ReadAsync(
         SqlConnection connection, Guid id, CancellationToken ct)
@@ -713,7 +793,8 @@ public static class Module
             SELECT m.id, m.area_id, m.kind, m.name, m.for_kind,
                    (SELECT COUNT(*) FROM app.slug_part p WHERE p.module_id = m.id),
                    (SELECT COUNT(*) FROM app.slug_field f WHERE f.part_id = m.id),
-                   (SELECT COUNT(*) FROM app.registration g WHERE g.part_id = m.id)
+                   (SELECT COUNT(*) FROM app.registration g WHERE g.part_id = m.id),
+                   m.extends_id, m.audience
             FROM app.module m WHERE m.id = @id;
             """, connection);
 
@@ -726,7 +807,8 @@ public static class Module
             reader.GetGuid(0),
             reader.IsDBNull(1) ? null : reader.GetGuid(1),
             reader.GetString(2), reader.GetString(3), reader.GetString(4),
-            reader.GetInt32(5), reader.GetInt32(6), reader.GetInt32(7));
+            reader.GetInt32(5), reader.GetInt32(6), reader.GetInt32(7),
+            reader.IsDBNull(8) ? null : reader.GetGuid(8), reader.GetString(9));
     }
 
     /// <summary>

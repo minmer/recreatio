@@ -22,7 +22,7 @@ import { hoursPart } from './hours';
 import { linksPart } from './links';
 import { formPart, massesPart, slotsPart } from './live';
 import { noticePart } from './notice';
-import { seatNotePart, seatSharedPart, seatSubmissionPart } from './seat';
+import { seatNotePart, seatSharedPart, seatStepsPart, seatSubmissionPart } from './seat';
 import { textPart } from './text';
 
 export const PARTS: readonly PartModule[] = [
@@ -40,6 +40,7 @@ export const PARTS: readonly PartModule[] = [
 
   /* Was nur hinter einem persönlichen Link etwas zeigt (0028). */
   seatSubmissionPart,
+  seatStepsPart,
   seatNotePart,
   seatSharedPart
 ];

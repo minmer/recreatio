@@ -22,6 +22,7 @@ import {
   byReadingOrder, COLUMNS, frameFor, snapColSpan, snapRowSpan, useBreakpoint
 } from './layout';
 import type { DraftPart } from './page';
+import { usePageLogic } from './pageLogic';
 import { partOf } from './parts/registry';
 
 /*
@@ -40,7 +41,16 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
    * nicht zeichnen kann, ist eine Auskunft. Sie stillschweigend wegzulassen
    * hiesse, eine Seite zu zeigen, die vollständig aussieht und keine ist.
    */
+  /*
+   * DIE KARTE DER SEITE (0048): was für den oben Gewählten gerade nicht gilt,
+   * steht nicht da — oder an seiner Stelle der Satz, den die Karte dafür hat.
+   */
+  const logic = usePageLogic();
+  const hidden = logic?.outcome.hidden ?? new Set<string>();
+  const messages = logic?.outcome.messages ?? new Map<string, string>();
+
   const shown = byReadingOrder(parts.filter((part) => {
+    if (hidden.has(part.id) && !messages.has(part.id)) return false;
     const def = partOf(part.kind);
     return def === undefined || def.hasContent(part.config);
   }));
@@ -67,13 +77,16 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
         return (
           <article
             key={part.id}
+            id={`part-${part.id}`}
             className={`wk-card wk-card-${part.kind}`}
             style={{
               gridColumn: `${frame.position.col} / span ${box.colSpan}`,
               gridRow: `span ${box.rowSpan}`
             }}
           >
-            {def === undefined ? (
+            {hidden.has(part.id) ? (
+              <p className="wk-card-muted">{messages.get(part.id)}</p>
+            ) : def === undefined ? (
               <p className="wk-card-unknown">
                 Moduł „{part.kind}" nie jest znany tej wersji strony.
               </p>

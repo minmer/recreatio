@@ -95,6 +95,13 @@ public enum Field
     /// </summary>
     SeatLink,
 
+    /// <summary>
+    /// 0047 — ein von Hand angelegter Schritt eines Formulars (Beschriftung und
+    /// Erklaerung), versiegelt unter dem Schluessel des Formularbereichs.
+    /// </summary>
+    StepLabel,
+    StepHelp,
+
     /// <summary>Eine eingesandte Antwort. Besondere Kategorie, bis das Gegenteil gesagt wird.</summary>
     EventAnswer,
 
@@ -384,6 +391,8 @@ public readonly record struct Aad
         Field.FormDesign              => "form_design",
         Field.ClaimInvite             => "claim_invite",
         Field.SeatLink                => "seat_link",
+        Field.StepLabel               => "step_label",
+        Field.StepHelp                => "step_help",
         Field.EventAnswer             => "answer",
         Field.EventIntakeKey          => "intake_key",
         Field.OfficeValueKey          => "office_value_key",

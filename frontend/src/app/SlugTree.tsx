@@ -30,6 +30,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { openSubpage } from './access';
 import { kindName, moveSlug, takers, type Desk, type PageCard } from './desk';
+import { myRoleNames, roleLabel } from './roleNames';
 import type { Ring } from './keys';
 import { keysFor } from './ringOf';
 import { pagePath, PATH_SHAPE } from './routes';
@@ -66,7 +67,8 @@ export function SlugTree({ nodes, desk, who, editing, onEdit, onChanged }: {
     void keysFor(who)
       .then(async ({ ring: bund }) => {
         if (!alive || bund === null) return;
-        const open = await bund.names();
+        /* Personen mit Vor- und Nachnamen, Rollen mit ihrem Namen — überall derselbe (`roleNames`). */
+        const open = await myRoleNames(who);
         if (alive) { setRing(bund); setNames(open); }
       })
       .catch(() => undefined);
@@ -282,7 +284,7 @@ function Row({ node, depth, desk, names, editing, dragging, over, allowed, busy,
       {open && page !== null && (
         <div className="wk-form" style={{ flexBasis: '100%' }}>
           <Rename page={page} busy={busy} onAct={onAct} />
-          <AddChild parent={node.path} desk={desk} busy={busy} onAct={onAct} />
+          <AddChild parent={node.path} desk={desk} names={names} busy={busy} onAct={onAct} />
         </div>
       )}
     </div>
@@ -393,7 +395,8 @@ function Rename({ page, busy, onAct }: {
  * <b>Ohne Code.</b> Wer die Adresse darüber führt, erreicht sich selbst; ein
  * Geheimnis, das man sich selbst schickt, wäre Umstand ohne Gewinn (0017).
  */
-function AddChild({ parent, desk, busy, onAct }: {
+function AddChild({ parent, desk, names, busy, onAct }: {
+  names: ReadonlyMap<string, string>;
   parent: string;
   desk: Desk;
   busy: boolean;
@@ -432,7 +435,7 @@ function AddChild({ parent, desk, busy, onAct }: {
         <span>Kto będzie odpowiadał</span>
         <select value={roleId} disabled={busy} onChange={(e) => setRoleId(e.target.value)}>
           {takers(desk.roles).map((r) => (
-            <option key={r.id} value={r.id}>{kindName(r)} · {r.id.slice(0, 8)}</option>
+            <option key={r.id} value={r.id}>{roleLabel(r, names)}</option>
           ))}
         </select>
       </label>

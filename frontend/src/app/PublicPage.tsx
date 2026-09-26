@@ -22,6 +22,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { loadPage, toDraft, type PageContent } from './page';
 import { PageParts } from './PageParts';
 import { PersonPicker, PersonProvider, usePerson } from './pagePerson';
+import { PageLogicProvider } from './PageLogicView';
 import { PersonalSections, SeatBar } from './SeatBar';
 import { SeatContext, SeatStateContext, useSeats, useSeatStates, type SeatState } from './seatContext';
 import { freshSeat, seatsExactly, seatsFor } from './seatKeep';
@@ -87,23 +88,25 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
   return (
     <WithSeat path={page.path}>
       <PersonProvider path={page.path}>
-        {/*
-          FÜR WEN — einmal, oben, für die ganze Seite. Die Rezerwacja, das
-          Formular und die persönlichen Bausteine lesen dieselbe Wahl.
-        */}
-        <div className="wk-page-top"><PersonPicker /></div>
+        <PageLogicProvider logic={page.logic}>
+          {/*
+            FÜR WEN — einmal, oben, für die ganze Seite. Die Rezerwacja, das
+            Formular und die persönlichen Bausteine lesen dieselbe Wahl.
+          */}
+          <div className="wk-page-top"><PersonPicker /></div>
 
-        {page.title !== null && <h1 className="wk-h1">{page.title}</h1>}
-        {page.lead !== null && <p className="wk-lede wk-page-lead">{page.lead}</p>}
+          {page.title !== null && <h1 className="wk-h1">{page.title}</h1>}
+          {page.lead !== null && <p className="wk-lede wk-page-lead">{page.lead}</p>}
 
-        <SeatBar path={page.path} />
-        <PageParts parts={parts} />
+          <SeatBar path={page.path} />
+          <PageParts parts={parts} />
 
-        {/*
-          Keine persönlichen Bausteine auf dieser Seite? Dann die eingebauten
-          Abschnitte — für den Gewählten, wenn sein Link HIERHER geführt hat.
-        */}
-        {!parts.some((one) => one.kind.startsWith('seat-')) && <Fallback path={page.path} />}
+          {/*
+            Keine persönlichen Bausteine auf dieser Seite? Dann die eingebauten
+            Abschnitte — für den Gewählten, wenn sein Link HIERHER geführt hat.
+          */}
+          {!parts.some((one) => one.kind.startsWith('seat-')) && <Fallback path={page.path} />}
+        </PageLogicProvider>
       </PersonProvider>
     </WithSeat>
   );

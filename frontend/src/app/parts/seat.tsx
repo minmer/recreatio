@@ -23,6 +23,7 @@ import { definePart, picked, text, type RawConfig } from '../part';
 import { usePerson } from '../pagePerson';
 import { SeatTools } from '../SeatBar';
 import { seatName, useSeats, type SeatView } from '../seatContext';
+import { PageSteps } from '../PageLogicView';
 import { OwnSubmissions } from '../Submission';
 
 /**
@@ -240,4 +241,56 @@ export const seatSharedPart = definePart<SharedConfig>({
       )}
     </OnSeat>
   )
+});
+
+/* -- Was er noch tun muss (0047/0048) ------------------------------------------ */
+
+interface StepsConfig {
+  readonly title: string;
+}
+
+/**
+ * „KROKI OSOBY" — die Liste entsteht auf der KARTE DER SEITE (0048): jeder
+ * Knoten „Krok" ist eine Zeile, erledigt, wenn gilt, was an seinem Eingang
+ * hängt. Der Baustein selbst hat nichts einzustellen ausser der Überschrift.
+ */
+function StepsCard({ title }: { title: string }) {
+  const person = usePerson();
+  const seats = useSeats();
+  const head = <h2 className="wk-card-title">{title === '' ? 'Twoje kroki' : title}</h2>;
+
+  /* Die Wahl oben gilt; ohne Wahl (die Ansicht eines Platzes) der eine offene Platz. */
+  const seat = person !== null
+    ? (person.chosen?.kind === 'seat' ? person.chosen.seat : null)
+    : (seats[0] ?? null);
+
+  if (person !== null ? person.chosen === null : seat === null) {
+    return (
+      <>
+        {head}
+        <p className="wk-card-muted">
+          {seats.length > 0 ? 'Wybierz u góry strony, za kogo.' : 'Tu pojawi się lista kroków osoby, która otworzy swój link.'}
+        </p>
+      </>
+    );
+  }
+
+  return <>{head}<PageSteps seat={seat} /></>;
+}
+
+export const seatStepsPart = definePart<StepsConfig>({
+  kind: 'seat-steps',
+  label: 'Kroki osoby',
+  use: 'Lista kroków osoby — układasz ją na mapie logiki strony, pod modułami.',
+  box: { colSpan: 3, rowSpan: 3 },
+
+  fields: [
+    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Twoje kroki' }
+  ],
+
+  read: (raw: RawConfig): StepsConfig => ({ title: text(raw, 'title') }),
+
+  hasContent: () => true,
+
+  View: ({ config }) => <StepsCard title={config.title} />
 });

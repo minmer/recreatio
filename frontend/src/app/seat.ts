@@ -33,6 +33,7 @@ import { epochAad } from './area';
 import type { Ring, SealedRole } from './keys';
 import type { PagePart } from './page';
 import { checkFor, sealLink, type CheckAnswer, type SeatChallenge } from './seatCheck';
+import type { SeatFormSealed } from './steps';
 import { pageLink } from './seatKeep';
 import { call } from './session';
 
@@ -343,6 +344,9 @@ export interface Portal {
 
   /** Was über diesen Platz eingesandt wurde — beim Firmling sein Formular. */
   readonly submitted: readonly SubmittedValue[];
+
+  /** Was dieser Mensch noch tun muss (0047): Ergänzungen, die er ausfüllt, und Schritte. */
+  readonly forms: readonly SeatFormSealed[];
 
   /**
    * Die VORLAGE, aus der sich dieses Portal zeichnet (0028) — oder `null`.

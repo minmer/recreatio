@@ -33,18 +33,28 @@ import {
 import type { Ring } from './keys';
 import { evaluate, layoutWith, missingIn, openDesign, type FormDesign } from './formDesign';
 import { FormFlow, isRequired } from './FormFlow';
+import { ExtensionSheet } from './ExtensionSheet';
 import { keysFor } from './ringOf';
 import { bindSeat, seatPath, type Link } from './seat';
-import { whoIsThere, WorkspaceError } from './session';
+import { useSeats, type SeatView } from './seatContext';
+import { whoIsThere, WorkspaceError, type Who } from './session';
 import { usePerson } from './pagePerson';
 import { detailsOf, personFieldOf, subjectsFor, type Subject } from './subject';
+import { OwnSubmissions } from './Submission';
 
-export function FormCard({ partId, title, portalUnder: under }: {
+export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }: {
   partId: string;
   title: string;
 
   /** Unter welcher Seite die Plätze hängen. Leer: eine Ebene höher. */
   portalUnder: string;
+
+  /**
+   * FÜR WELCHEN PLATZ eine Ergänzung (0047) ausgefüllt wird — wenn der
+   * Aufrufer es weiss (die Schritte eines Menschen). Sonst gilt die Wahl oben
+   * auf der Seite.
+   */
+  seat?: SeatView | null;
 }) {
   const [form, setForm] = useState<PublicForm | null | undefined>(undefined);
   const [fields, setFields] = useState<readonly OpenField[]>([]);
@@ -88,6 +98,7 @@ export function FormCard({ partId, title, portalUnder: under }: {
    *   niemand              wie immer: selbst eintragen, neuer Link
    */
   const person = usePerson();
+  const openSeats = useSeats();
   const pageDecides = person !== null && form != null && form.forKind === 'person';
   const pageRole = pageDecides && person.chosen?.kind === 'role' ? person.chosen : null;
   const pageSeat = pageDecides && person.chosen?.kind === 'seat' ? person.chosen.seat : null;
@@ -219,6 +230,62 @@ export function FormCard({ partId, title, portalUnder: under }: {
   }
 
   /*
+   * WAS NUR DER KOORDINATOR AUSFÜLLT (0047) — an dieser Stelle seine Liste,
+   * für alle anderen nichts als der Satz, dass es das gibt.
+   */
+  if (form.audience === 'office' && form.extendsId !== null) {
+    return <OfficeOnly partId={partId} baseId={form.extendsId} title={title} />;
+  }
+
+  /*
+   * EINE ERGÄNZUNG, die der Mensch ausfüllt (0047): zu SEINER Einsendung,
+   * über SEINEN Platz. Welcher, sagt der Aufrufer oder die Wahl oben.
+   */
+  const extension = form.audience === 'person' && form.extendsId !== null;
+  const extSeat = !extension ? null
+    : givenSeat ?? (person?.chosen?.kind === 'seat' ? person.chosen.seat : null)
+      ?? (openSeats.length === 1 ? openSeats[0] : null);
+  const extBase = extSeat?.forms.find((f) => f.formId === form.extendsId) ?? null;
+  const extDone = extBase?.extensions.find((e) => e.moduleId === partId)?.registrationId ?? null;
+
+  if (extension) {
+    const head = title !== '' && <h2 className="wk-card-title">{title}</h2>;
+
+    if (extSeat === null || extSeat.seatKey === null) {
+      return (
+        <>
+          {head}
+          <p className="wk-card-muted">
+            To uzupełnia osoba zapisana wcześniej — przez swój link. Otwórz link, który dostałeś
+            {person !== null && openSeats.length > 1 ? ', albo wybierz u góry strony, za kogo' : ''}.
+          </p>
+        </>
+      );
+    }
+
+    if (extBase === null) {
+      return (
+        <>
+          {head}
+          <p className="wk-card-muted">
+            To uzupełnia zgłoszenie, którego pod tym linkiem nie ma.
+          </p>
+        </>
+      );
+    }
+
+    if (extDone !== null || sent) {
+      return (
+        <>
+          {head}
+          <p className="wk-done">Uzupełnione — dziękujemy.</p>
+          <OwnSubmissions seat={extSeat} formId={partId} show={null} />
+        </>
+      );
+    }
+  }
+
+  /*
    * OHNE Klausel wird nichts gesammelt. Das ist keine Vorsicht, sondern die
    * Bedingung: Art. 13 verlangt, dass der Mensch VORHER weiss, wer seine Daten
    * verarbeitet. Ein Formular, das das nicht sagen kann, darf nicht fragen.
@@ -332,6 +399,24 @@ export function FormCard({ partId, title, portalUnder: under }: {
         .filter((f) => !outcome.hidden.has(f.fieldId))
         .map((f) => ({ fieldId: f.fieldId, value: answers[f.fieldId] ?? '' }))
         .filter((a) => a.value.trim() !== '');
+
+      /*
+       * DIE ERGÄNZUNG (0047): an denselben Platz, zu seiner Einsendung — kein
+       * neuer Link, keine Quittung. Danach sieht er sie wie seine erste.
+       */
+      if (extension) {
+        if (extSeat === null || extSeat.seatKey === null || extBase === null) return;
+
+        await submitForm(partId, given, {
+          areas: form.areas, fields: form.fields,
+          seat: { token: extSeat.token, key: extSeat.seatKey },
+          baseRegistrationId: extBase.registrationId
+        });
+
+        setSent(true);
+        extSeat.reload();
+        return;
+      }
 
       /*
        * Der Platz gehört dem Bereich, in den dieses Formular schreibt. Fragen
@@ -464,7 +549,7 @@ export function FormCard({ partId, title, portalUnder: under }: {
         halten. Alle anderen füllen den Bogen aus wie immer.
       */}
       {/* Die Wahl oben gilt — hier nur, WER es ist. */}
-      {pageDecides && person.chosen !== null && !nameless && !form.closed && (
+      {!extension && pageDecides && person.chosen !== null && !nameless && !form.closed && (
         <p className="wk-hint">
           {person.chosen.kind === 'seat'
             ? <>Zgłoszenie zostanie dopisane do miejsca <strong>{person.chosen.name}</strong> (ten sam link).</>
@@ -473,7 +558,14 @@ export function FormCard({ partId, title, portalUnder: under }: {
         </p>
       )}
 
-      {!pageDecides && subjects.length > 0 && !nameless && !form.closed && (
+      {extension && extSeat !== null && (
+        <p className="wk-hint">
+          Uzupełnienie dla: <strong>{extSeat.recipientName ?? 'Twojego zgłoszenia'}</strong> — dołączy do
+          zgłoszenia pod tym samym linkiem.
+        </p>
+      )}
+
+      {!extension && !pageDecides && subjects.length > 0 && !nameless && !form.closed && (
         <label className="wk-field">
           <span>{form.forKind === 'person' ? 'Kogo dotyczy zgłoszenie'
             : form.forKind === 'group' ? 'Której grupy dotyczy' : 'Której roli dotyczy'}</span>
@@ -537,6 +629,36 @@ export function FormCard({ partId, title, portalUnder: under }: {
             kancelarię.
           </p>
         </form>
+      )}
+    </>
+  );
+}
+
+/**
+ * Die Stelle eines Formulars, das NUR der Koordinator ausfüllt (0047).
+ *
+ * Wer angemeldet ist und es führt, bekommt hier seine Liste — alle Menschen
+ * des erweiterten Formulars, je mit seinen Notizen. Alle anderen sehen einen
+ * Satz: ein leerer Kasten sähe kaputt aus.
+ */
+function OfficeOnly({ partId, baseId, title }: { partId: string; baseId: string; title: string }) {
+  const [who, setWho] = useState<Who | null | undefined>(undefined);
+
+  useEffect(() => {
+    let alive = true;
+    void whoIsThere().then((found) => { if (alive) setWho(found); }).catch(() => { if (alive) setWho(null); });
+    return () => { alive = false; };
+  }, []);
+
+  return (
+    <>
+      {title !== '' && <h2 className="wk-card-title">{title}</h2>}
+      {who === undefined ? (
+        <p className="wk-card-text">Wczytywanie…</p>
+      ) : who === null ? (
+        <p className="wk-card-muted">Ten formularz wypełnia koordynator — po zalogowaniu.</p>
+      ) : (
+        <ExtensionSheet extensionId={partId} baseId={baseId} audience="office" who={who} />
       )}
     </>
   );

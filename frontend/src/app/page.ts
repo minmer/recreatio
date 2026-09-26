@@ -45,6 +45,12 @@ export interface PageContent {
   readonly lead: string | null;
   readonly updatedAt: string | null;
   readonly parts: readonly PagePart[];
+
+  /**
+   * DIE KARTE DER SEITE (0048) — was wann zu sehen ist, und die Schritte des
+   * Bausteins „Kroki osoby". JSON, oder `null`: keine Karte, alles steht da.
+   */
+  readonly logic?: string | null;
 }
 
 /* Jeder Teil für sich kodiert: ein Schrägstrich TRENNT die Teile und darf
@@ -62,6 +68,13 @@ export const savePage = (
   call<PageContent>(`/workspace/page/${encodePath(path)}`, {
     method: 'PUT',
     body: JSON.stringify(body)
+  });
+
+/** Die Karte der Seite speichern (0048) — als Ganzes; `null` nimmt sie weg. */
+export const savePageLogic = (path: string, logic: string | null): Promise<{ saved: boolean }> =>
+  call(`/workspace/page-logic/${encodePath(path)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ logic })
   });
 
 /** Ein Baustein, wie ihn der Editor hält: ausgepackt. */

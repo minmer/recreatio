@@ -31,7 +31,8 @@ import { PageEditor } from './PageEditor';
 import { RoleGraph } from './RoleGraph';
 import { WorkspaceError, type Who } from './session';
 import { SlugTree } from './SlugTree';
-import { claimSlug, kindName, loadDesk, takers, type Desk } from './desk';
+import { claimSlug, loadDesk, takers, type Desk } from './desk';
+import { roleLabel, useRoleNames } from './roleNames';
 import { treeOf } from './tree';
 
 export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
@@ -108,12 +109,13 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
     );
   }
 
-  return <Tiles desk={desk} />;
+  return <Tiles desk={desk} who={who} />;
 }
 
 /* -- Die Kacheln ----------------------------------------------------------- */
 
-function Tiles({ desk }: { desk: Desk }) {
+function Tiles({ desk, who }: { desk: Desk; who: Who }) {
+  const names = useRoleNames(who);
   return (
     <>
       <h1 className="wk-h1">Warsztat</h1>
@@ -166,7 +168,7 @@ function Tiles({ desk }: { desk: Desk }) {
 
         <Tile view="roles" count={desk.roles.length}>
           <ul className="wk-tile-lines">
-            {desk.roles.map((role) => <li key={role.id}>{kindName(role)}</li>)}
+            {desk.roles.map((role) => <li key={role.id}>{roleLabel(role, names)}</li>)}
           </ul>
         </Tile>
 
@@ -215,7 +217,7 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'pages') {
     return <Pages desk={desk} who={who} trail={trail} onClaimed={onChanged} />;
   }
-  if (view === 'addresses') return <Addresses desk={desk} onChanged={onChanged} />;
+  if (view === 'addresses') return <Addresses desk={desk} who={who} onChanged={onChanged} />;
   if (view === 'roles') return <RoleGraph who={who} />;
   if (view === 'areas') return <Areas who={who} trail={trail} />;
   if (view === 'calendar') return <MassOffice />;
@@ -292,6 +294,7 @@ function Pages({ desk, who, trail, onClaimed }: {
    */
   const known = new Set(desk.pages.map((one) => one.path));
   const { path: editing, moduleId } = splitTrail(trail, known);
+  const names = useRoleNames(who);
 
   /*
    * Der aufgeschlagene Baustein. Geholt wird er nur, wenn einer
@@ -478,7 +481,7 @@ function Pages({ desk, who, trail, onClaimed }: {
             <span>Kto będzie odpowiadał</span>
             <select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
               {takers(desk.roles).map((role) => (
-                <option key={role.id} value={role.id}>{kindName(role)} · {short(role.id)}</option>
+                <option key={role.id} value={role.id}>{roleLabel(role, names)}</option>
               ))}
             </select>
           </label>
@@ -509,9 +512,5 @@ function Pages({ desk, who, trail, onClaimed }: {
     </>
   );
 }
-
-/* -- Namen ----------------------------------------------------------------- */
-
-const short = (id: string): string => id.slice(0, 8);
 
 export default Workspace;

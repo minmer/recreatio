@@ -21,6 +21,7 @@ import { createContext, useContext } from 'react';
 import type { OwnAnswer } from './form';
 import type { SubmittedValue } from './seat';
 import type { SeatChallenge } from './seatCheck';
+import type { SeatForm } from './steps';
 
 export interface SeatView {
   readonly token: string;
@@ -41,6 +42,9 @@ export interface SeatView {
 
   /** Dieselbe Einsendung, aufgemacht: Frage und Antwort — je Einsendung und Formular. */
   readonly opened: readonly OwnAnswer[];
+
+  /** Was er noch tun muss (0047) — je Einsendung, die Schritte schon aufgemacht. */
+  readonly forms: readonly SeatForm[];
 
   /** Was dieser Platz ausserdem aufschliesst — Termine der Gruppe. */
   readonly shared: readonly { name: string; when: string; what: string | null }[];

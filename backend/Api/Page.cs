@@ -47,6 +47,9 @@ public static class Page
          * etwas.
          */
         app.MapPut("/workspace/parts", SavePartsAsync);
+
+        /* 0048 — die Logik der Seite, als Ganzes. */
+        app.MapPut("/workspace/page-logic/{*path}", SaveLogicAsync);
     }
 
     public sealed record SaveRequest(string Title, string? Lead);
@@ -231,7 +234,7 @@ public static class Page
     {
         Guid slugId, askedId;
         Guid? internalFor;
-        string? title = null, lead = null, aliasOf = null;
+        string? title = null, lead = null, aliasOf = null, logic = null;
         DateTimeOffset? updatedAt = null;
 
         /*
@@ -249,7 +252,8 @@ public static class Page
                    COALESCE(t.claimed_by_role_id, s.claimed_by_role_id),
                    p.title, p.lead, p.updated_at, s.alias_of,
                    COALESCE(t.internal_for_role_id, s.internal_for_role_id),
-                   s.id
+                   s.id,
+                   CASE WHEN t.id IS NULL THEN s.page_logic ELSE t.page_logic END
             FROM app.slug s
             LEFT JOIN app.slug t ON s.alias_of IS NOT NULL AND t.path = s.alias_of
             LEFT JOIN app.slug_page p ON p.slug_id = COALESCE(t.id, s.id)
@@ -279,6 +283,7 @@ public static class Page
             aliasOf = reader.IsDBNull(5) ? null : reader.GetString(5);
             internalFor = reader.IsDBNull(6) ? null : reader.GetGuid(6);
             askedId = reader.GetGuid(7);
+            logic = reader.IsDBNull(8) ? null : reader.GetString(8);
         }
 
         /*
@@ -303,7 +308,8 @@ public static class Page
          */
         var parts = await PartsOfAsync(connection, slugId, ctx.RequestAborted);
 
-        await ctx.Response.WriteAsJsonAsync(new { path = wanted, aliasOf, title, lead, updatedAt, parts });
+        /* 0048 — die Karte der Seite: was wann zu sehen ist, und die Schritte. */
+        await ctx.Response.WriteAsJsonAsync(new { path = wanted, aliasOf, title, lead, updatedAt, parts, logic });
     }
 
     /* -- Schreiben ---------------------------------------------------------- */
@@ -408,6 +414,82 @@ public static class Page
         await save.ExecuteNonQueryAsync(ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new { path = wanted, title, lead, updatedAt = now });
+    }
+
+    public sealed record LogicRequest(string? Logic);
+
+    /// <summary>Grösser wird keine Karte, die ein Mensch noch überblickt.</summary>
+    private const int MaxLogic = 200_000;
+
+    /// <summary>
+    /// DIE KARTE DER SEITE speichern (0048) — als Ganzes, wie die Anordnung.
+    ///
+    /// <para>
+    /// Der Dienst versteht sie nicht und muss es nicht: ausgewertet wird im
+    /// Browser. Er prüft nur, dass es JSON ist und nicht zu gross — eine
+    /// Zeichenkette, die kein JSON ist, legte jede Seite lahm, die sie liest.
+    /// </para>
+    /// </summary>
+    private static async Task SaveLogicAsync(HttpContext ctx, Db db, string path, LogicRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var wanted = Slug.Normalise(path);
+        if (!Slug.IsWellFormed(wanted))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "To nie jest adres.");
+            return;
+        }
+
+        var logic = string.IsNullOrWhiteSpace(body.Logic) ? null : body.Logic;
+
+        if (logic is not null)
+        {
+            if (logic.Length > MaxLogic)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Mapa jest za duża.");
+                return;
+            }
+
+            try { using var _ = System.Text.Json.JsonDocument.Parse(logic); }
+            catch (System.Text.Json.JsonException)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna mapa.");
+                return;
+            }
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var row = await RowAsync(connection, wanted, ctx.RequestAborted);
+        if (row is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+            return;
+        }
+
+        if (row.Value.AliasOf is not null)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                $"Ten adres jest tylko innym wejściem do „{row.Value.AliasOf}” — mapa zmienia się tam.");
+            return;
+        }
+
+        var grip = await Access.OfAsync(connection, who.Value.AccountId, wanted, ctx.RequestAborted);
+        if (!grip.MayWrite)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden,
+                "Tego adresu nie prowadzi żadna z Twoich ról i nie masz do niego prawa zapisu.");
+            return;
+        }
+
+        await using var save = new SqlCommand("UPDATE app.slug SET page_logic = @logic WHERE id = @id;", connection);
+        save.Parameters.AddWithValue("@logic", (object?)logic ?? DBNull.Value);
+        save.Parameters.AddWithValue("@id", row.Value.Id);
+        await save.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await ctx.Response.WriteAsJsonAsync(new { path = wanted, saved = true });
     }
 
     /* -- Die Bausteine setzen ----------------------------------------------- */

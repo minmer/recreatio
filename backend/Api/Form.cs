@@ -35,7 +35,7 @@ namespace Api;
 /// (<see cref="Intake"/>). Er legt sie hin.
 /// </para>
 /// </summary>
-public static class Form
+public static partial class Form
 {
     /// <summary>
     /// Was ein Feld ueber die Person sagt, die den Bogen ausfuellt (0038).
@@ -151,6 +151,9 @@ public static class Form
         /* Ohne Konto — das ist der Zweck. */
         app.MapGet("/form/{id:guid}", PublicAsync);
         app.MapPost("/form/{id:guid}/submit", SubmitAsync);
+
+        /* 0047 — Erweiterungen und Schritte (Form.Extension.cs). */
+        MapExtension(app);
     }
 
     /* -- Felder pflegen ----------------------------------------------------- */
@@ -464,6 +467,30 @@ public static class Form
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
+        /*
+         * WAS NUR DIE KANZLEI AUSFÜLLT (0047), geht nicht hinaus — keine Frage,
+         * keine Annahme. Nur DASS es so ist: die Seite, auf der es steht, zeigt
+         * dem Koordinator an dieser Stelle seine Liste, allen anderen nichts.
+         */
+        var shape = await ShapeAsync(connection, id, ctx.RequestAborted);
+
+        if (shape?.Audience == "office")
+        {
+            await ctx.Response.WriteAsJsonAsync(new
+            {
+                partId = Ids.ToText(id),
+                audience = shape.Value.Audience,
+                extendsId = Ids.ToText(shape.Value.ExtendsId!.Value),
+                forKind = "none",
+                closed = false,
+                controller = (object?)null,
+                fields = Array.Empty<object>(),
+                areas = Array.Empty<object>(),
+                design = (object?)null
+            });
+            return;
+        }
+
         var fields = await ReadFieldsAsync(connection, id, ctx.RequestAborted);
         if (fields.Count == 0)
         {
@@ -530,7 +557,11 @@ public static class Form
             areas,
 
             /* Aufbau und Logik (0043) — versiegelt wie die Fragen. */
-            design = await DesignAsync(connection, id, ctx.RequestAborted)
+            design = await DesignAsync(connection, id, ctx.RequestAborted),
+
+            /* 0047 — ein Formular, das ein anderes erweitert, und wer es ausfüllt. */
+            audience = shape?.Audience ?? "public",
+            extendsId = shape?.ExtendsId is Guid based ? Ids.ToText(based) : null
         });
     }
 
@@ -590,7 +621,10 @@ public static class Form
 
     public sealed record SubmitRequest(
         IReadOnlyList<ValueIn> Values, string? ClaimSha256, string? SeatToken, string? RoleId,
-        SelfSeat? Seat);
+        SelfSeat? Seat,
+
+        /* 0047 — welche Einsendung eine Erweiterung ergänzt. */
+        string? BaseRegistrationId = null);
 
     /// <summary>
     /// Eine Einsendung — ohne Konto.
@@ -800,6 +834,61 @@ public static class Form
             return;
         }
 
+        /*
+         * DIE ERWEITERUNG (0047). Was die Kanzlei ausfüllt, kommt hier nicht
+         * herein. Was der Mensch ausfüllt, kommt über SEINEN Platz und zu
+         * SEINER Einsendung — einmal; danach berichtigt er, wie bei der ersten.
+         */
+        var shape = await ShapeAsync(connection, id, ctx.RequestAborted);
+        Guid? baseId = null;
+
+        if (shape?.Audience == "office")
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Ten formularz wypełnia koordynator.");
+            return;
+        }
+
+        if (shape?.Audience == "person")
+        {
+            if (seatId is null || mint is not null || !Guid.TryParse(body.BaseRegistrationId, out var wanted))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest,
+                    "To uzupełnienie wysyła się ze swojego linku — do swojego zgłoszenia.");
+                return;
+            }
+
+            await using (var find = new SqlCommand("""
+                SELECT COUNT(*) FROM app.registration
+                WHERE id = @base AND part_id = @part AND access_id = @seat AND withdrawn_at IS NULL;
+                """, connection))
+            {
+                find.Parameters.AddWithValue("@base", wanted);
+                find.Parameters.AddWithValue("@part", shape.Value.ExtendsId!.Value);
+                find.Parameters.AddWithValue("@seat", seatId.Value);
+
+                if ((int)(await find.ExecuteScalarAsync(ctx.RequestAborted) ?? 0) == 0)
+                {
+                    await Fail(ctx, StatusCodes.Status404NotFound, "Nie ma zgłoszenia, które to uzupełnia.");
+                    return;
+                }
+            }
+
+            if (await ExtensionOfAsync(connection, id, wanted, ctx.RequestAborted) is not null)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    "To jest już uzupełnione — popraw odpowiedzi w swoim zgłoszeniu.");
+                return;
+            }
+
+            baseId = wanted;
+            claim = null;
+        }
+        else if (!string.IsNullOrWhiteSpace(body.BaseRegistrationId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Ten formularz niczego nie uzupełnia.");
+            return;
+        }
+
         var registrationId = Ids.NewId();
         var now = DateTimeOffset.UtcNow;
 
@@ -895,8 +984,8 @@ public static class Form
 
             await using (var insert = new SqlCommand("""
                 INSERT INTO app.registration
-                    (id, part_id, access_id, role_id, claim_sha256, submitted_at)
-                VALUES (@id, @part, @access, @role, @claim, @now);
+                    (id, part_id, access_id, role_id, claim_sha256, submitted_at, base_id, confirmed_at)
+                VALUES (@id, @part, @access, @role, @claim, @now, @base, @confirmed);
                 """, connection, tx))
             {
                 insert.Parameters.AddWithValue("@id", registrationId);
@@ -905,6 +994,10 @@ public static class Form
                 insert.Parameters.AddWithValue("@role", (object?)roleId ?? DBNull.Value);
                 insert.Parameters.AddBlob("@claim", claim);
                 insert.Parameters.AddWithValue("@now", now);
+                insert.Parameters.AddWithValue("@base", (object?)baseId ?? DBNull.Value);
+
+                /* Eine Ergänzung hat er eben selbst getippt — sie muss er nicht noch einmal durchsehen. */
+                insert.Parameters.AddWithValue("@confirmed", baseId is null ? DBNull.Value : now);
 
                 await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
             }
@@ -927,6 +1020,13 @@ public static class Form
             }
 
             await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch (SqlException e) when (e.Number is 2601 or 2627 && baseId is not null)
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "To jest już uzupełnione — popraw odpowiedzi w swoim zgłoszeniu.");
+            return;
         }
         catch
         {
@@ -1211,7 +1311,7 @@ public static class Form
          */
         var readable = fields.Where(f => mine.Contains(f.AreaId)).Select(f => f.Id).ToHashSet();
 
-        var rows = new List<(Guid Id, Guid? Seat, DateTimeOffset At, DateTimeOffset? Gone, bool Hidden, DateTimeOffset? Confirmed)>();
+        var rows = new List<(Guid Id, Guid? Seat, DateTimeOffset At, DateTimeOffset? Gone, bool Hidden, DateTimeOffset? Confirmed, Guid? Base)>();
 
         /*
          * Versteckte kommen nur mit, wenn danach gefragt wird — sonst waere
@@ -1221,7 +1321,7 @@ public static class Form
         var withHidden = ctx.Request.Query["hidden"] == "1";
 
         await using (var cmd = new SqlCommand($"""
-            SELECT id, access_id, submitted_at, withdrawn_at, is_hidden, confirmed_at
+            SELECT id, access_id, submitted_at, withdrawn_at, is_hidden, confirmed_at, base_id
             FROM app.registration
             WHERE part_id = @part {(withHidden ? "" : "AND is_hidden = 0")}
             ORDER BY submitted_at DESC;
@@ -1238,7 +1338,8 @@ public static class Form
                     reader.GetDateTimeOffset(2),
                     reader.IsDBNull(3) ? null : reader.GetDateTimeOffset(3),
                     reader.GetBoolean(4),
-                    reader.IsDBNull(5) ? null : reader.GetDateTimeOffset(5)));
+                    reader.IsDBNull(5) ? null : reader.GetDateTimeOffset(5),
+                    reader.IsDBNull(6) ? null : reader.GetGuid(6)));
             }
         }
 
@@ -1324,12 +1425,22 @@ public static class Form
             }
         }
 
+        /* 0047 — was diese Einsendungen erweitert, und was an ihnen abgehakt ist. */
+        var ids = rows.Select(r => r.Id).ToList();
+        var extensions = await ExtensionsOfAsync(connection, ids, ctx.RequestAborted);
+        var stepMarks = await MarksOfAsync(connection, ids, ctx.RequestAborted);
+
         await ctx.Response.WriteAsJsonAsync(new
         {
             partId = Ids.ToText(id),
             registrations = rows.Select(r => new
             {
                 registrationId = Ids.ToText(r.Id),
+
+                /* Bei einer Erweiterung: die Einsendung, die sie ergänzt (0047). */
+                baseId = r.Base is null ? null : Ids.ToText(r.Base.Value),
+                extensions = extensions.TryGetValue(r.Id, out var ext) ? ext : [],
+                marks = stepMarks.TryGetValue(r.Id, out var done) ? done : [],
                 seatId = r.Seat is null ? null : Ids.ToText(r.Seat.Value),
                 submittedAt = r.At,
                 withdrawnAt = r.Gone,
@@ -1521,8 +1632,20 @@ public static class Form
         {
             int values;
 
+            /*
+             * MIT IHREN ERWEITERUNGEN (0047): was der Koordinator oder der
+             * Mensch zu dieser Einsendung ergänzt hat, gehört zu ihr und geht
+             * mit ihr — samt allem, was daran abgehakt war.
+             */
             await using (var cmd = new SqlCommand("""
-                DELETE FROM app.registration_value WHERE registration_id = @id;
+                DELETE FROM app.step_mark WHERE registration_id = @id
+                    OR registration_id IN (SELECT id FROM app.registration WHERE base_id = @id);
+                DELETE FROM app.value_check
+                 WHERE registration_id = @id
+                    OR registration_id IN (SELECT id FROM app.registration WHERE base_id = @id);
+                DELETE FROM app.registration_value
+                 WHERE registration_id = @id
+                    OR registration_id IN (SELECT id FROM app.registration WHERE base_id = @id);
                 SELECT @@ROWCOUNT;
                 """, connection, tx))
             {
@@ -1530,8 +1653,10 @@ public static class Form
                 values = (int)(await cmd.ExecuteScalarAsync(ctx.RequestAborted) ?? 0);
             }
 
-            await using (var cmd = new SqlCommand(
-                "DELETE FROM app.registration WHERE id = @id;", connection, tx))
+            await using (var cmd = new SqlCommand("""
+                DELETE FROM app.registration WHERE base_id = @id;
+                DELETE FROM app.registration WHERE id = @id;
+                """, connection, tx))
             {
                 cmd.Parameters.AddWithValue("@id", id);
                 await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
@@ -2481,9 +2606,14 @@ public static class Form
     private static async Task<Whole?> WholeAsync(SqlConnection connection, Guid moduleId, CancellationToken ct)
     {
         await using var cmd = new SqlCommand("""
-            SELECT m.for_kind, m.closed_at, m.controller_name, m.controller_address, m.controller_email,
+            SELECT m.for_kind, m.closed_at,
+                   /* 0047 — eine Erweiterung ohne eigene Klausel steht unter der ihres Formulars. */
+                   COALESCE(m.controller_name, b.controller_name),
+                   CASE WHEN m.controller_name IS NULL THEN b.controller_address ELSE m.controller_address END,
+                   CASE WHEN m.controller_name IS NULL THEN b.controller_email ELSE m.controller_email END,
                    c.name, c.address, c.email
             FROM app.module m
+            LEFT JOIN app.module b ON b.id = m.extends_id
             OUTER APPLY (
                 SELECT TOP 1 ac.name, ac.address, ac.email
                   FROM app.area_controller ac

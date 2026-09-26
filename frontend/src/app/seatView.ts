@@ -21,6 +21,7 @@ import { openSubmitted, type OwnAnswer } from './form';
 import { isChallenge, loadPortal, openGrants, openPortal, type Portal } from './seat';
 import type { SeatChallenge } from './seatCheck';
 import type { SeatView } from './seatContext';
+import { openSteps, type SeatForm } from './steps';
 import { recall, remember } from './seatKeep';
 import { WorkspaceError } from './session';
 
@@ -65,6 +66,7 @@ export function useSeat(token: string, keyText: string | null): Opened {
   const [failed, setFailed] = useState<string | null>(null);
 
   const [mine, setMine] = useState<readonly OwnAnswer[]>([]);
+  const [forms, setForms] = useState<readonly SeatForm[]>([]);
   const [challenge, setChallenge] = useState<SeatChallenge | null>(null);
 
   const look = useCallback(async () => {
@@ -140,6 +142,33 @@ export function useSeat(token: string, keyText: string | null): Opened {
       }
 
       /*
+       * WAS ER NOCH TUN MUSS (0047). Die von Hand angelegten Schritte liegen
+       * unter dem Schlüssel des Formulars — offen, wie seine Fragen; einer aus
+       * einer älteren Epoche bleibt ohne Beschriftung, aber er steht da.
+       */
+      const stepKeys = new Map<string, { epoch: number; key: Uint8Array }>();
+      for (const areaId of new Set((found.forms ?? []).flatMap((f) => f.steps.map((one) => one.areaId)))) {
+        try {
+          const open = await loadPublicKey(areaId);
+          stepKeys.set(areaId, { epoch: open.epoch, key: fromBase64Url(open.key) });
+        } catch {
+          // Nicht offengelegt — die Schritte stehen ohne Beschriftung da.
+        }
+      }
+
+      const opened: SeatForm[] = [];
+      for (const form of found.forms ?? []) {
+        opened.push({
+          ...form,
+          steps: await openSteps(form.steps, (areaId, epoch) => {
+            const held = stepKeys.get(areaId);
+            return held !== undefined && held.epoch === epoch ? held.key : undefined;
+          })
+        });
+      }
+      setForms(opened);
+
+      /*
        * Das Gemeinsame. Der Klassenschlüssel steckt im Platz; das Token sagt
        * dem Dienst, welche Bereiche er herausgeben darf — der Schlüssel selbst
        * geht nie hinaus.
@@ -193,6 +222,7 @@ export function useSeat(token: string, keyText: string | null): Opened {
     note,
     submitted: portal.submitted,
     opened: mine,
+    forms,
     shared,
     sharedNames,
     expiresAt: portal.expiresAt,

@@ -1859,3 +1859,84 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-sms-go:disabled { opacity: 0.5; cursor: default; }
 .wk-sms-go:focus-visible { outline: 2px solid var(--wk-ink); outline-offset: 2px; }
 .wk-sms-go.is-sent { border-color: var(--wk-ok); background: var(--wk-ok); color: var(--wk-surface); }
+
+/* ==========================================================================
+   0047 — SCHRITTE UND ERWEITERUNGEN
+   ========================================================================== */
+
+.wk-steps { display: grid; gap: 0.5rem; }
+
+.wk-step-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+
+/*
+   EIN SCHRITT: Zeichen, Text, und rechts, was man tun kann. Der Zustand steht
+   im Zeichen UND im Wort daneben — ✓ erledigt, ! überfällig, ○ offen.
+*/
+.wk-step {
+  border: 1px solid var(--wk-line);
+  border-radius: 8px;
+  background: var(--wk-surface);
+  padding: 0.5rem 0.7rem;
+}
+
+.wk-step.is-done { background: var(--wk-free-bg); border-color: var(--wk-free-line); }
+.wk-step.is-overdue { background: var(--wk-shut-bg); border-color: var(--wk-shut-line); }
+
+.wk-step-head { display: flex; align-items: flex-start; gap: 0.6rem; flex-wrap: wrap; }
+.wk-step-text { flex: 1; min-width: 12rem; }
+.wk-step-text .wk-hint { margin: 0.2rem 0 0; }
+
+.wk-step-mark {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--wk-line);
+  color: var(--wk-muted);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.wk-step-mark.is-done { border-color: var(--wk-free-line); background: var(--wk-free-line); color: var(--wk-surface); }
+.wk-step-mark.is-overdue { border-color: var(--wk-shut-line); color: var(--wk-shut-ink); }
+
+.wk-step-body { margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid var(--wk-line); display: grid; gap: 0.5rem; }
+
+/* Die Schritte bearbeiten — eine Karte je Schritt. */
+.wk-step-edit { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.wk-step-edit-row {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 8px;
+  background: var(--wk-soft);
+}
+
+.wk-step-edit-row input:not([type="checkbox"]),
+.wk-step-edit-row select { background: var(--wk-surface); }
+
+/* Was eine Erweiterung über einen Menschen weiss — in seiner Zeile. */
+.wk-ext-entry { display: grid; gap: 0.35rem; padding-top: 0.5rem; border-top: 1px dashed var(--wk-line); }
+.wk-ext-entry .wk-h3 { margin: 0; }
+
+/* ==========================================================================
+   0048 — DIE KARTE EINER SEITE
+   ========================================================================== */
+
+/* Ein Eingang mit seinem Wort — „pokaż, gdy". Der Punkt sitzt am Rand des Knotens. */
+.wk-pport {
+  position: relative;
+  display: block;
+  margin-left: -0.8rem;
+  padding: 0.1rem 0 0.1rem 0.9rem;
+  font-size: 0.7rem;
+  color: var(--wk-muted);
+}
+
+.wk-pport .wk-lhandle.react-flow__handle { left: -5px; top: 50%; }
+
+/* Ein Schritt ist ein Ausgang wie ein Baustein — nur mit gestrichelter Kante, man sieht ihn als Zeile einer Liste. */
+.wk-lnode-step { border-style: dashed; border-right-style: solid; }

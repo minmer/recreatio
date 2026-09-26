@@ -131,7 +131,11 @@ export const Field = {
   ClaimInvite: 'claim_invite',
 
   /* 0046 — der Link eines Platzes, versiegelt unter dem Platzschlüssel. */
-  SeatLink: 'seat_link'
+  SeatLink: 'seat_link',
+
+  /* 0047 — ein von Hand angelegter Schritt: Beschriftung und Erklärung. */
+  StepLabel: 'step_label',
+  StepHelp: 'step_help'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

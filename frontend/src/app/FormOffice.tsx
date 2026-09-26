@@ -30,8 +30,15 @@ import {
   rewrapToOffice, setLinkCheck, setPartConfig,
   type ValueCheck,
   type FieldKind, type IdentityRole, type OpenField, type SealedField, type Submission,
-  editField, moveAnswers, sealQuestion, type MovedValue
+  editField, moveAnswers, sealQuestion, type MovedValue,
+  AUDIENCE_LABEL
 } from './form';
+import { ExtensionEntry, ExtensionSheet } from './ExtensionSheet';
+import { readForm, type ReadForm } from './formRead';
+import { newId } from './ids';
+import { viewPath } from './routes';
+import { loadSteps, openSteps, progressOf, stepsFor, type ExtensionInfo, type OpenStep, type StepState } from './steps';
+import { PersonSteps, StepsEditor, stepsKey } from './StepList';
 import { createIntake, loadIntake, loadPublicIntake, openIntakeKey } from './intake';
 import type { Ring, SealedRole } from './keys';
 import { Portal } from './Portal';
@@ -48,7 +55,7 @@ import { LINK, renderSms, smsHref, usesHole, VERIFY } from './sms';
 import { AreaOptions } from './AreaOptions';
 import { FormTable } from './FormTable';
 import { ModuleSettings } from './ModuleSettings';
-import { updateModule, type ModuleRow, type Resealed, type ResealIn } from './module';
+import { createModule, updateModule, type ModuleRow, type Resealed, type ResealIn } from './module';
 import {
   EMPTY_DESIGN, layoutWith, openDesign, saveDesign, sealDesign,
   type FormDesign, type SealedDesign
@@ -57,7 +64,7 @@ import { FormLayout } from './FormLayout';
 import { FormLogic } from './FormLogic';
 
 /** Die Reiter eines Formulars: einrichten (vier) — lesen — handeln. */
-type FormTabName = 'settings' | 'questions' | 'layout' | 'logic' | 'entries' | 'people';
+type FormTabName = 'settings' | 'questions' | 'layout' | 'logic' | 'entries' | 'steps' | 'people';
 
 export function FormOffice({ partId, config, who, standsOn, module, onModuleChanged }: {
   partId: string;
@@ -137,6 +144,18 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    * Speichern wieder der alte Text da — als wäre nichts angekommen.
    */
   const [saved, setSaved] = useState<Record<string, string> | null>(null);
+
+  /*
+   * DIE ERWEITERUNGEN UND SCHRITTE (0047). `stepInfo`: die von Hand
+   * angelegten Schritte (aufgemacht) und die Erweiterungen, aus denen sich die
+   * übrigen ergeben. `extData`: was je Erweiterung eingetragen ist — für die
+   * Zeile eines Menschen.
+   */
+  const [stepInfo, setStepInfo] = useState<{ steps: readonly OpenStep[]; extensions: readonly ExtensionInfo[] } | null>(null);
+  const [extData, setExtData] = useState<ReadonlyMap<string, ReadForm>>(new Map());
+
+  /** Eine Erweiterung (0047) — dann ist manches anders: keine eigene Liste, keine Schritte, kein Portal. */
+  const isExtension = module !== undefined && module.extendsId !== null;
   const conf = saved ?? config;
 
   /*
@@ -164,6 +183,32 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    * sich: erst die Fragen (auch unlesbar sind sie besser als keine), dann die
    * Schlüssel, Bereich für Bereich und jeder in seinem eigenen Versuch.
    */
+  /**
+   * Die Schritte laden und aufmachen — mit dem Epochenschlüssel, mit dem jeder
+   * versiegelt wurde (aus der Zuteilung, sonst dem veröffentlichten).
+   */
+  const loadStepInfo = useCallback(async (bund: Ring) => {
+    try {
+      const { steps, extensions } = await loadSteps(partId);
+      const held = new Map<string, Map<number, Uint8Array>>();
+
+      for (const areaId of new Set(steps.map((one) => one.areaId))) {
+        const keys = await myEpochKeys(bund, areaId).catch(() => new Map<number, Uint8Array>());
+        try {
+          const open = await loadPublicKey(areaId);
+          if (!keys.has(open.epoch)) keys.set(open.epoch, fromBase64Url(open.key));
+        } catch {
+          // Nicht offengelegt.
+        }
+        held.set(areaId, keys);
+      }
+
+      setStepInfo({ steps: await openSteps(steps, (areaId, epoch) => held.get(areaId)?.get(epoch)), extensions });
+    } catch {
+      setStepInfo(null);
+    }
+  }, [partId]);
+
   const look = useCallback(async () => {
     let sealed: readonly SealedField[] = [];
     let shut: SealedDesign | null = null;
@@ -280,7 +325,10 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
       taking.set(areaId, await loadPublicIntake(areaId).then(() => true, () => false));
     }
     setIntakes(taking);
-  }, [who, partId]);
+
+    /* Die Schritte (0047) — nur ein Formular, das nicht selbst eine Erweiterung ist, hat welche. */
+    await loadStepInfo(bund);
+  }, [who, partId, loadStepInfo]);
 
   useEffect(() => { void look(); }, [look]);
 
@@ -364,6 +412,21 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     }
 
     setOpened(out);
+
+    /*
+     * WAS DIE ERWEITERUNGEN ÜBER DIESE MENSCHEN WISSEN (0047) — jede in ihrem
+     * eigenen Versuch: eine, deren Bereich dieser Browser nicht liest, fehlt
+     * nur selbst.
+     */
+    const exts = new Map<string, ReadForm>();
+    for (const ext of (await loadSteps(partId).catch(() => null))?.extensions ?? []) {
+      try {
+        exts.set(ext.moduleId, await readForm(ext.moduleId, ring));
+      } catch {
+        // Nicht lesbar — die Zeile sagt es.
+      }
+    }
+    setExtData(exts);
 
     /*
      * IMIĘ I NAZWISKO AN DEN PLATZ. Der Name am Platz stand bisher oft nur als
@@ -526,11 +589,11 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
   const [autoTried, setAutoTried] = useState(false);
 
   useEffect(() => {
-    if ((tab !== 'entries' && tab !== 'people') || autoTried || ring === null
+    if ((tab !== 'entries' && tab !== 'people') || isExtension || autoTried || ring === null
       || readAreas !== null || areasHere.length === 0) return;
     setAutoTried(true);
     void act('Otwieranie zgłoszeń…', read);
-  }, [tab, autoTried, ring, readAreas, areasHere.length]);
+  }, [tab, isExtension, autoTried, ring, readAreas, areasHere.length]);
 
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -748,9 +811,12 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
         <FormTab now={tab} mine="questions" onPick={setTab}>Pytania</FormTab>
         {module !== undefined && <FormTab now={tab} mine="layout" onPick={setTab}>Układ</FormTab>}
         {module !== undefined && <FormTab now={tab} mine="logic" onPick={setTab}>Logika</FormTab>}
-        <FormTab now={tab} mine="entries" onPick={setTab}>
-          Zgłoszenia{submissions.length > 0 ? ` (${submissions.length})` : ''}
-        </FormTab>
+        {!isExtension && (
+          <FormTab now={tab} mine="entries" onPick={setTab}>
+            Zgłoszenia{submissions.length > 0 ? ` (${submissions.length})` : ''}
+          </FormTab>
+        )}
+        {module !== undefined && !isExtension && <FormTab now={tab} mine="steps" onPick={setTab}>Znaczniki</FormTab>}
         <FormTab now={tab} mine="people" onPick={setTab}>Osoby</FormTab>
       </div>
 
@@ -815,28 +881,81 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             onError={setFailed}
           />
 
-          {/* WAS NACH DEM ABSENDEN KOMMT — und was der Mensch mit seinem Link bekommt. */}
-          <Portal
-            moduleId={partId}
-            standsOn={standsOn ?? []}
-            portalUnder={(conf.portalUnder ?? '').trim()}
-            ownerRoleId={person?.id ?? null}
-            onSet={(where) => setSaved({ ...conf, portalUnder: where })}
-          />
+          {isExtension ? (
+            /*
+             * EINE ERWEITERUNG (0047): wessen, und wer sie ausfüllt. Portal und
+             * Link gehören dem erweiterten Formular — die Ergänzung kommt über
+             * denselben Link.
+             */
+            <ExtensionOf row={module!} />
+          ) : (
+            <>
+              {/* WAS NACH DEM ABSENDEN KOMMT — und was der Mensch mit seinem Link bekommt. */}
+              <Portal
+                moduleId={partId}
+                standsOn={standsOn ?? []}
+                portalUnder={(conf.portalUnder ?? '').trim()}
+                ownerRoleId={person?.id ?? null}
+                onSet={(where) => setSaved({ ...conf, portalUnder: where })}
+              />
 
-          {/*
-            DAS ERSTE ÖFFNEN EINES LINKS (0046) — was gefragt wird. Die
-            Nachricht selbst schreibt die Kanzlei dort, wo sie sie verschickt:
-            unter „Osoby", mit „Napisz SMS".
-          */}
-          <LinkCheckBox
+              {/*
+                DAS ERSTE ÖFFNEN EINES LINKS (0046) — was gefragt wird. Die
+                Nachricht selbst schreibt die Kanzlei dort, wo sie sie verschickt:
+                unter „Osoby", mit „Napisz SMS".
+              */}
+              <LinkCheckBox
+                partId={partId}
+                fields={fields}
+                busy={busy !== null}
+                onSaved={() => void look()}
+                onError={setFailed}
+              />
+
+              {/* WAS DIESES FORMULAR ERWEITERT (0047) — für die Kanzlei, und für den Menschen später. */}
+              <Extensions
+                base={module!}
+                extensions={stepInfo?.extensions ?? []}
+                busy={busy !== null}
+                onCreated={() => act('Zakładanie rozszerzenia…', async () => { await onModuleChanged?.(); })}
+                onError={setFailed}
+              />
+            </>
+          )}
+        </>
+      )}
+
+      {/* == DIE SCHRITTE (0047) =============================================== */}
+
+      {tab === 'steps' && module !== undefined && !isExtension && (
+        stepInfo === null ? (
+          <p className="wk-empty">Wczytywanie kroków…</p>
+        ) : (
+          <StepsEditor
+            key={stepsKey(stepInfo.steps)}
             partId={partId}
-            fields={fields}
+            steps={stepInfo.steps}
+            extensions={stepInfo.extensions}
+            formKey={module.areaId === null || ring === null ? null : async () => {
+              const { key, epoch } = await keyOf(module.areaId!);
+              return { areaId: module.areaId!, epoch, key };
+            }}
             busy={busy !== null}
-            onSaved={() => void look()}
+            onSaved={async () => { if (ring !== null) await loadStepInfo(ring); }}
             onError={setFailed}
           />
-        </>
+        )
+      )}
+
+      {/* == DIE ERWEITERUNG: je Mensch des erweiterten Formulars (0047) ======== */}
+
+      {tab === 'people' && isExtension && (
+        <ExtensionSheet
+          extensionId={partId}
+          baseId={module!.extendsId!}
+          audience={module!.audience}
+          who={who}
+        />
       )}
 
       {/* == 2. DIE FRAGEN ================================================= */}
@@ -983,7 +1102,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
       {/* == 2 und 3: was dafür aufgemacht werden muss ======================== */}
 
-      {(tab === 'entries' || tab === 'people') && (
+      {(tab === 'entries' || tab === 'people') && !isExtension && (
         <>
           {areasHere.length === 0 ? (
             <p className="wk-empty">Najpierw pytania — bez nich nie ma zgłoszeń.</p>
@@ -1039,7 +1158,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
       {/* == 3. HANDELN ===================================================== */}
 
-      {tab === 'people' && readAreas !== null && (
+      {tab === 'people' && readAreas !== null && !isExtension && (
         <>
           {/*
             „NORMALIZUJ NUMERY" STEHT IMMER DA, sobald das Formular überhaupt
@@ -1073,6 +1192,8 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             opened={opened}
             fields={fields}
             seatAreas={areasHere}
+            stepInfo={stepInfo}
+            extData={extData}
             ring={ring}
             busy={busy !== null}
             onHide={(s) => void act(s.hidden ? 'Przywracanie…' : 'Ukrywanie…', async () => {
@@ -1209,7 +1330,7 @@ const base = () => `${window.location.origin}${window.location.pathname}`;
  * Öffnen fragen und tut es noch nicht, entsteht beim Tipp ein neuer.
  */
 function People({
-  partId, config, onConfig, submissions, opened, fields, seatAreas, ring, busy,
+  partId, config, onConfig, submissions, opened, fields, seatAreas, stepInfo, extData, ring, busy,
   onHide, onRemove, onError, onChanged
 }: {
   partId: string;
@@ -1224,6 +1345,12 @@ function People({
 
   /** Die Bereiche, in denen die Plätze dieses Formulars liegen. */
   seatAreas: readonly string[];
+
+  /** Die Schritte und Erweiterungen (0047) — `null`: noch nicht geladen. */
+  stepInfo: { steps: readonly OpenStep[]; extensions: readonly ExtensionInfo[] } | null;
+
+  /** Was jede Erweiterung über diese Menschen weiss (0047). */
+  extData: ReadonlyMap<string, ReadForm>;
 
   ring: Ring | null;
   busy: boolean;
@@ -1248,11 +1375,37 @@ function People({
 
   const links = useSeatLinks(seatAreas, ring);
 
-  const rows = submissions
-    .map((s) => ({ s, values: opened.get(s.registrationId), ...whoIn(opened.get(s.registrationId), fields) }))
+  /*
+   * NACH SCHRITTEN FILTERN (0047) — „wer hat die Zustimmung noch nicht
+   * gebracht". Die Liste zeigt dann nur sie, und „Napisz SMS" schreibt nur
+   * ihnen: das Filtern ist der erste Schritt jeder Erinnerung.
+   */
+  const [stepFilter, setStepFilter] = useState('');
+
+  const statesOf = (s: Submission): readonly StepState[] => stepInfo === null ? [] : stepsFor({
+    hasSeat: s.seatId !== null,
+    confirmedAt: s.confirmedAt,
+    extensions: stepInfo.extensions,
+    filled: new Map(s.extensions.map((e) => [e.moduleId, e.submittedAt])),
+    steps: stepInfo.steps,
+    marks: s.marks
+  });
+
+  const everyone = submissions
+    .map((s) => ({ s, values: opened.get(s.registrationId), states: statesOf(s), ...whoIn(opened.get(s.registrationId), fields) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
 
-  if (rows.length === 0) return <p className="wk-empty">Nikt się jeszcze nie zapisał.</p>;
+  /* Welche Schritte es gibt — aus der ersten Zeile, die welche hat (alle haben dieselben, bis auf den Link). */
+  const stepKinds = [...new Map(everyone.flatMap((r) => r.states).map((st) => [st.key, st.label])).entries()];
+
+  const rows = everyone.filter((r) =>
+    stepFilter === '' ? true
+    : stepFilter === 'open' ? r.states.some((st) => st.status !== 'done')
+    : stepFilter === 'done' ? r.states.length > 0 && r.states.every((st) => st.status === 'done')
+    : stepFilter === 'overdue' ? r.states.some((st) => st.status === 'overdue')
+    : r.states.some((st) => `todo:${st.key}` === stepFilter && st.status !== 'done'));
+
+  if (everyone.length === 0) return <p className="wk-empty">Nikt się jeszcze nie zapisał.</p>;
 
   const templates = templatesOf(config);
 
@@ -1313,12 +1466,28 @@ function People({
     return row.linkSealed === null || row.locked || (wantsQuestion && !row.asks);
   }).length;
 
-  const first = rows[0];
+  /* Die Vorschau gilt dem ersten Menschen, den die Liste gerade zeigt — ein Filter kann sie leeren. */
+  const first = rows.length > 0 ? rows[0] : undefined;
 
   return (
     <section className="wk-panel">
       <div className="wk-sms-bar">
-        <h3 className="wk-h2">Osoby ({rows.length})</h3>
+        <h3 className="wk-h2">Osoby ({rows.length === everyone.length ? rows.length : `${rows.length} z ${everyone.length}`})</h3>
+
+        {stepKinds.length > 0 && (
+          <label className="wk-inline">
+            <span className="wk-hint">Pokaż:</span>
+            <select value={stepFilter} onChange={(e) => setStepFilter(e.target.value)} aria-label="Filtr kroków">
+              <option value="">wszystkie osoby</option>
+              <option value="open">komuś czegoś brakuje</option>
+              <option value="overdue">coś po terminie</option>
+              <option value="done">wszystko zrobione</option>
+              {stepKinds.map(([key, label]) => (
+                <option key={key} value={`todo:${key}`}>brakuje: {label}</option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <button
           type="button"
@@ -1346,8 +1515,8 @@ function People({
           onConfig={onConfig}
           fields={fields}
           hasPhones={fields.some((f) => f.kind === 'phone')}
-          preview={smsText.trim() === '' ? null : renderSms(smsText, holesOf(first.values, fields), '…link…')}
-          previewName={first.name}
+          preview={smsText.trim() === '' || first === undefined ? null : renderSms(smsText, holesOf(first.values, fields), '…link…')}
+          previewName={first?.name ?? ''}
           withoutSeat={withoutSeat}
           willRenew={willRenew}
           sentCount={sent.size}
@@ -1356,9 +1525,12 @@ function People({
         />
       )}
 
+      {rows.length === 0 && <p className="wk-empty">Nikt nie pasuje do tego filtra.</p>}
+
       <ul className="wk-entry-list">
-        {rows.map(({ s, values, name, phones }) => {
+        {rows.map(({ s, values, name, phones, states }) => {
           const open = openId === s.registrationId;
+          const progress = progressOf(states);
           const bySms = s.checks.some((c) => c.verifiedAt !== null && c.origin === 'sms');
           const seat = s.seatId === null ? undefined : links.rows.get(s.seatId);
 
@@ -1414,6 +1586,14 @@ function People({
                     </span>
                   )}
                   {bySms && <span className="wk-tag wk-tag-open">numer potwierdzony SMS-em</span>}
+                  {progress.total > 0 && (
+                    <span
+                      className={progress.done === progress.total ? 'wk-tag wk-tag-open' : 'wk-tag'}
+                      title={states.filter((st) => st.status !== 'done').map((st) => st.label).join(', ') || 'Wszystko zrobione'}
+                    >
+                      postęp {progress.done}/{progress.total}{progress.overdue > 0 ? ' · po terminie!' : ''}
+                    </span>
+                  )}
                 </span>
 
                 <button
@@ -1432,6 +1612,41 @@ function People({
                   </p>
 
                   <Answers values={values} fields={fields} sealed={s.values.length} checks={s.checks} />
+
+                  {/* WAS NOCH ZU TUN IST (0047) — und hier abhaken, was die Kanzlei abhakt. */}
+                  <PersonSteps registrationId={s.registrationId} states={states} onChanged={onChanged} onError={onError} />
+
+                  {/*
+                    DIE ERWEITERUNGEN (0047) — was der Mensch ergänzt hat, und
+                    was der Koordinator zu ihm notiert. Das Zweite schreibt er
+                    gleich hier.
+                  */}
+                  {(stepInfo?.extensions ?? []).map((ext) => {
+                    const data = extData.get(ext.moduleId);
+
+                    return (
+                      <section key={ext.moduleId} className="wk-ext-entry">
+                        <h4 className="wk-h3">
+                          {ext.name}
+                          <span className="wk-row-side">
+                            {ext.audience === 'office' ? ' · tylko koordynator' : ' · uzupełnia osoba'}
+                          </span>
+                        </h4>
+                        {data === undefined ? (
+                          <p className="wk-empty">Tego rozszerzenia nie otworzysz tym kluczem.</p>
+                        ) : (
+                          <ExtensionEntry
+                            extensionId={ext.moduleId}
+                            ext={data}
+                            baseRegistrationId={s.registrationId}
+                            entry={data.registrations.find((r) => r.baseId === s.registrationId)}
+                            editable={ext.audience === 'office'}
+                            onSaved={() => void onChanged()}
+                          />
+                        )}
+                      </section>
+                    );
+                  })}
 
                   {/*
                     DER LINK — nur, wo es einen Platz gibt. Eine Einsendung ohne
@@ -1484,6 +1699,119 @@ function People({
         })}
       </ul>
     </section>
+  );
+}
+
+/* -- Die Erweiterungen eines Formulars (0047) ------------------------------- */
+
+/**
+ * WAS DIESES FORMULAR ERWEITERT — und eine neue Erweiterung anlegen.
+ *
+ * <b>Zwei Arten, nach dem, wer ausfüllt:</b> der Mensch selbst (eine
+ * Ergänzung, die er über seinen Link bekommt — „Uzupełnij" steht dann von
+ * selbst unter seinen Schritten), oder nur der Koordinator (Notizen je
+ * Mensch, die der Mensch nie sieht). Beide sind gewöhnliche Formulare mit
+ * eigenen Fragen, Aufbau und Logik.
+ */
+function Extensions({ base, extensions, busy, onCreated, onError }: {
+  base: ModuleRow;
+  extensions: readonly ExtensionInfo[];
+  busy: boolean;
+  onCreated: () => Promise<void> | void;
+  onError: (message: string | null) => void;
+}) {
+  const [name, setName] = useState('');
+  const [audience, setAudience] = useState<'person' | 'office'>('person');
+  const [saving, setSaving] = useState(false);
+  const [made, setMade] = useState<string | null>(null);
+
+  const create = async () => {
+    setSaving(true);
+    onError(null);
+
+    try {
+      const moduleId = newId();
+      await createModule(moduleId, 'form', name.trim(), base.areaId, base.forKind, '{}',
+        { extendsId: base.moduleId, audience });
+      setMade(moduleId);
+      setName('');
+      await onCreated();
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się założyć rozszerzenia.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="wk-field">
+      <span>Rozszerzenia formularza</span>
+      <p className="wk-hint">
+        Formularze, które dopisują się do zgłoszeń z tego: osoba uzupełnia je później przez
+        swój link, albo wypełnia je tylko koordynator — dla siebie. Każde ma własne pytania.
+        Na mapie logiki strony możesz z nich zrobić krok („Zgłoszenie wysłane").
+      </p>
+
+      {extensions.length > 0 && (
+        <ul className="wk-list">
+          {extensions.map((e) => (
+            <li className="wk-row" key={e.moduleId}>
+              <span>
+                <strong>{e.name}</strong>
+                <span className="wk-row-side"> · {AUDIENCE_LABEL[e.audience]}{e.closed ? ' · zamknięte' : ''}</span>
+              </span>
+              <a className="wk-link-btn" href={viewPath('modules', 'form', e.moduleId)}>Otwórz</a>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form className="wk-inline" onSubmit={(e) => { e.preventDefault(); if (name.trim() !== '') void create(); }}>
+        <input
+          value={name}
+          placeholder="np. Dane do bierzmowania albo Notatki koordynatora"
+          aria-label="Nazwa rozszerzenia"
+          disabled={busy || saving}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <select
+          value={audience}
+          aria-label="Kto wypełnia"
+          disabled={busy || saving}
+          onChange={(e) => setAudience(e.target.value === 'office' ? 'office' : 'person')}
+        >
+          <option value="person">wypełnia osoba</option>
+          <option value="office">tylko koordynator</option>
+        </select>
+        <button type="submit" className="wk-btn" disabled={busy || saving || name.trim() === ''}>
+          {saving ? 'Zakładanie…' : 'Dodaj rozszerzenie'}
+        </button>
+      </form>
+
+      {made !== null && (
+        <p className="wk-done">
+          Założone. <a className="wk-link" href={viewPath('modules', 'form', made)}>Dodaj mu pytania</a>.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Eine Erweiterung sagt, wessen sie ist und wer sie ausfüllt. */
+function ExtensionOf({ row }: { row: ModuleRow }) {
+  return (
+    <div className="wk-note">
+      <p>
+        <strong>To jest rozszerzenie formularza</strong>{' '}
+        <a className="wk-link" href={viewPath('modules', 'form', row.extendsId ?? '')}>otwórz formularz główny</a>.
+        {' '}Wypełnia: <strong>{row.audience === 'public' ? AUDIENCE_LABEL.public : AUDIENCE_LABEL[row.audience]}</strong>.
+      </p>
+      <p className="wk-hint">
+        {row.audience === 'office'
+          ? 'Odpowiedzi widzi tylko kancelaria. W zakładce „Osoby" wpisujesz je przy każdej osobie; możesz też postawić ten formularz na swojej stronie koordynatora — pokaże tam tę samą listę.'
+          : 'Osoba zobaczy to w swoich krokach jako „Uzupełnij" i wypełni przez swój link. Klauzula i link są te same co w formularzu głównym.'}
+      </p>
+    </div>
   );
 }
 

@@ -100,6 +100,12 @@ export interface ModuleRow {
 
   /** Wer für die Daten steht — EINE Klausel je Formular (0042). */
   readonly controller: { readonly name: string; readonly address: string | null; readonly email: string | null } | null;
+
+  /** Welches Formular dieses ERWEITERT (0047) — `null` bei einem gewöhnlichen. */
+  readonly extendsId: string | null;
+
+  /** Wer es ausfüllt (0047): jeder, der Mensch selbst als Ergänzung, oder nur die Kanzlei. */
+  readonly audience: 'public' | 'person' | 'office';
 }
 
 /**
@@ -125,11 +131,21 @@ export const loadModules = (): Promise<{ modules: readonly ModuleRow[] }> =>
 
 export const createModule = (
   moduleId: string, kind: string, name: string, areaId: string | null,
-  forKind: Subject = 'none', config?: string
+  forKind: Subject = 'none', config?: string,
+
+  /**
+   * EINE ERWEITERUNG (0047): welches Formular, und wer sie ausfüllt. Bereich
+   * und „wovon" übernimmt der Dienst vom erweiterten Formular.
+   */
+  extension?: { readonly extendsId: string; readonly audience: 'person' | 'office' }
 ): Promise<{ moduleId: string }> =>
   call('/workspace/module', {
     method: 'POST',
-    body: JSON.stringify({ moduleId, kind, name, areaId, forKind, config: config ?? '{}' })
+    body: JSON.stringify({
+      moduleId, kind, name, areaId, forKind, config: config ?? '{}',
+      extendsId: extension?.extendsId ?? null,
+      audience: extension?.audience ?? null
+    })
   });
 
 /**

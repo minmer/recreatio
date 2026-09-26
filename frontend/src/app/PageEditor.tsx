@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { loadPage, savePage, saveParts, toDraft, type DraftPart } from './page';
 import { MassOffice } from './MassOffice';
 import { PageBuilder } from './PageBuilder';
+import { logicKey, PageLogicEditor } from './PageLogicEditor';
 import { pagePath } from './routes';
 import { WorkspaceError, type Who } from './session';
 
@@ -31,6 +32,10 @@ export function PageEditor({ path, who, onOpenModule }: {
   const [title, setTitle] = useState('');
   const [lead, setLead] = useState('');
   const [parts, setParts] = useState<readonly DraftPart[]>([]);
+
+  /* Die Karte der Seite (0048) — und ob sie gerade aufgeklappt ist. */
+  const [logic, setLogic] = useState<string | null>(null);
+  const [mapOpen, setMapOpen] = useState(false);
 
   /* Die Anordnung geht als GANZES hinaus. Ein Knopf, der immer anklickbar ist,
      sagt nicht, ob noch etwas offen ist — deshalb merkt sich das der Editor. */
@@ -49,11 +54,13 @@ export function PageEditor({ path, who, onOpenModule }: {
       setTitle(page.title ?? '');
       setLead(page.lead ?? '');
       setParts(page.parts.map(toDraft));
+      setLogic(page.logic ?? null);
     } catch {
       // Eine Adresse ohne Seite ist der Normalfall beim ersten Mal.
       setTitle('');
       setLead('');
       setParts([]);
+      setLogic(null);
     }
 
     setDirty(false);
@@ -160,6 +167,33 @@ export function PageEditor({ path, who, onOpenModule }: {
 
         {!dirty && busy === null && <span className="wk-blocker">Nic się nie zmieniło.</span>}
       </div>
+
+      {/*
+        DIE KARTE DER SEITE (0048): wann welcher Baustein zu sehen ist, und
+        die Schritte, aus denen „Kroki osoby" seine Liste zeichnet. Zugeklappt
+        — sie ist gross, und nicht jede Seite braucht sie.
+      */}
+      <h3 className="wk-h2">
+        Mapa logiki strony{' '}
+        <button type="button" className="wk-link-btn" aria-expanded={mapOpen} onClick={() => setMapOpen(!mapOpen)}>
+          {mapOpen ? 'Zwiń' : logic === null ? 'Otwórz' : 'Otwórz (ustawiona)'}
+        </button>
+      </h3>
+
+      {mapOpen && (
+        dirty ? (
+          <p className="wk-warn">Najpierw zapisz moduły — mapa łączy się z modułami, które są już na stronie.</p>
+        ) : (
+          <PageLogicEditor
+            key={logicKey(logic, parts)}
+            path={path}
+            parts={parts}
+            logic={logic}
+            who={who}
+            onSaved={setLogic}
+          />
+        )
+      )}
 
       {/*
         Die Kanzlei erscheint erst, wenn die Seite einen Messplan ZEIGT.
