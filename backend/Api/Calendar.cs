@@ -583,12 +583,37 @@ public static class Calendar
 
         await upsert.ExecuteNonQueryAsync(ctx.RequestAborted);
 
+        /*
+         * WER AUF EINEM ABGESAGTEN TERMIN SASS, sitzt auf nichts mehr. Die
+         * Ansprueche darauf werden abgelehnt — sonst stuende bei ihm weiter
+         * „Twój termin: …" fuer einen Termin, den es nicht gibt, und die Grenze
+         * je Person zaehlte ihn mit.
+         */
+        var declined = 0;
+
+        if (cancelled)
+        {
+            await using var drop = new SqlCommand("""
+                UPDATE app.claim
+                   SET status = N'declined', awaits = NULL, decided_at = @now,
+                       invite_sha256 = NULL, invite_until = NULL, invite_sealed = NULL
+                 WHERE item_id = @item AND occurrence_at = @at
+                   AND status IN (N'pending', N'confirmed');
+                """, connection);
+
+            drop.Parameters.AddWithValue("@item", id);
+            drop.Parameters.AddWithValue("@at", original);
+            drop.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            declined = await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
         await ctx.Response.WriteAsJsonAsync(new
         {
             itemId = Ids.ToText(id),
             originalStart = original,
             cancelled,
-            movedTo
+            movedTo,
+            declined
         });
     }
 

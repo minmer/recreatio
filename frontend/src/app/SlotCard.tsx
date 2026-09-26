@@ -205,9 +205,15 @@ export function SlotCard({ title, resource }: {
         />
       ))}
 
+      {/*
+        Abgelehnt ODER abgesagt: steht der Termin nicht mehr im Angebot, hat
+        die Kanzlei ihn entfernt — das ist etwas anderes als ein „nein".
+      */}
       {declined.map((c) => (
         <p className="wk-note" key={c.claimId}>
-          Prośba o termin {span(c.startsAt, c.endsAt, rules)} nie została przyjęta — wybierz inny.
+          {offerOf(c) === undefined
+            ? <>Termin {span(c.startsAt, c.endsAt, rules)} został odwołany — wybierz inny.</>
+            : <>Prośba o termin {span(c.startsAt, c.endsAt, rules)} nie została przyjęta — wybierz inny.</>}
         </p>
       ))}
 

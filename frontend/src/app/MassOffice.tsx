@@ -40,7 +40,7 @@ import {
   dayKey, dayLabel, firstOnOrAfter, hour, loadOffice, loadPlan, massesOnly, positionInDay,
   updateIntention, type IntentionKind, type OfficeIntention, type OfficeMass
 } from './mass';
-import { createCalendar, loadCalendars as loadAllCalendars } from './calendar';
+import { createCalendar, loadCalendars as loadAllCalendars, setOccurrence } from './calendar';
 import { loadAreas, type AreaRow } from './area';
 import { printIntentions, sheetWeek } from './sheet';
 import { loadClaims, loadResources, updateResource, type OfficeClaim, type ResourceRow } from './resource';
@@ -467,6 +467,10 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
   const [claims, setClaims] = useState<readonly OfficeClaim[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
 
+  /** Welcher Termin gerade entfernt wird — „Klucz Termin|Beginn". */
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [removed, setRemoved] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       const start = new Date(`${from}T00:00:00`);
@@ -492,6 +496,37 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
 
   useEffect(() => { void load(); }, [load]);
 
+  /**
+   * EINEN TERMIN ENTFERNEN — dieses eine Vorkommen.
+   *
+   * <b>Abgesagt, nicht gelöscht.</b> Der Termin fällt aus der Reihe (eine
+   * Ausnahme am Kalendereintrag): bei einem einmaligen ist er damit fort, bei
+   * einer Reihe fällt nur dieser Tag. Wer darauf sass, wird ausgetragen — das
+   * sagt die Frage vorher, mit Namen.
+   */
+  const remove = async (one: OfficeMass, names: readonly string[]) => {
+    const when = stamp(one.startsAt);
+    const ask = names.length === 0
+      ? `Usunąć termin ${when}?`
+      : `Usunąć termin ${when}? Zapisane osoby (${names.join(', ')}) zostaną z niego wypisane.`;
+    if (!window.confirm(ask)) return;
+
+    const key = `${one.itemId}|${one.occurrenceAt}`;
+    setRemoving(key);
+    setFailed(null);
+    setRemoved(null);
+
+    try {
+      await setOccurrence(one.itemId, one.occurrenceAt, { cancelled: true });
+      setRemoved(`Usunięto termin ${when}${names.length > 0 ? ` — wypisano: ${names.join(', ')}` : ''}.`);
+      await load();
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć terminu.');
+    } finally {
+      setRemoving(null);
+    }
+  };
+
   /* Wer auf welchem Termin sitzt — je Vorkommen, am ursprünglichen Beginn. */
   const on = (one: OfficeMass) => claims.filter((c) => c.itemId === one.itemId
     && c.occurrenceAt !== null && new Date(c.occurrenceAt).getTime() === new Date(one.occurrenceAt).getTime()
@@ -502,6 +537,7 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
       <h4 className="wk-h2">Terminy</h4>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
+      {removed !== null && <p className="wk-done">{removed}</p>}
 
       {/*
         WER SICH WORAUF GESETZT HAT, steht bei den Rezerwacje (0039) — und jetzt
@@ -563,6 +599,16 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
                     </span>
                   )}
                 </span>
+
+                <button
+                  type="button"
+                  className="wk-link-btn wk-danger"
+                  disabled={removing !== null}
+                  title={here.length > 0 ? 'Zapisane osoby zostaną wypisane' : 'Termin zniknie z listy do wyboru'}
+                  onClick={() => void remove(one, here.map((c) => c.name ?? 'bez nazwy'))}
+                >
+                  {removing === `${one.itemId}|${one.occurrenceAt}` ? 'Usuwanie…' : 'Usuń'}
+                </button>
               </li>
             );
           })}
