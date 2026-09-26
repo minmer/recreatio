@@ -47,6 +47,12 @@ export interface Rules {
 
   /** Wie viele Termine EINER halten darf — 0: keine Grenze (0045). */
   readonly perPerson: number;
+
+  /**
+   * Ab wie vielen Menschen ein Termin nach dem Fenster des Gastgebers NICHT
+   * an alle zurückfällt — und ab wann der Gastgeber ihn schliessen darf (0049).
+   */
+  readonly minPersons: number;
 }
 
 /**
@@ -58,9 +64,10 @@ export interface Rules {
  *   locked         das Fenster ist zu und es sitzen schon zwei darauf
  *   full           voll
  *   mine           er gehört schon dir
+ *   closed         geschlossen — von der Kanzlei oder vom Gastgeber (0049)
  * </code>
  */
-export type OfferState = 'open' | 'inviteneeded' | 'locked' | 'full' | 'mine';
+export type OfferState = 'open' | 'inviteneeded' | 'locked' | 'full' | 'mine' | 'closed';
 
 export interface Offer {
   readonly itemId: string;
@@ -77,6 +84,9 @@ export interface Offer {
 
   /** Wer um Mitnahme bittet — nur für den Gastgeber, und nur der Name des Platzes. */
   readonly asks: readonly { claimId: string; name: string | null }[];
+
+  /** Geschlossen — und von wem (0049). Der Gastgeber öffnet nur, was er selbst geschlossen hat. */
+  readonly closedBy?: 'office' | 'host' | null;
 }
 
 export type Status = 'pending' | 'confirmed' | 'declined' | 'released';
@@ -139,7 +149,9 @@ export function loadOffers(resource: string, holder?: Holder | null,
   if (from) q.set('from', from.toISOString());
   if (to) q.set('to', to.toISOString());
 
-  return call(`/resource/offers?${q.toString()}`);
+  /* Ein Dienst von vor 0049 nennt keine Mindestzahl — 2 ist, was damals galt. */
+  return call<Offers>(`/resource/offers?${q.toString()}`)
+    .then((got) => ({ ...got, resource: { ...got.resource, minPersons: got.resource.minPersons ?? 2 } }));
 }
 
 export interface Taken {
@@ -259,6 +271,15 @@ export const resignHost = (claimId: string, holder: Holder) =>
     method: 'POST', body: JSON.stringify({ claimId, ...who(holder) })
   });
 
+/**
+ * Der Gastgeber schliesst seinen Termin — sobald genug darauf sitzen — oder
+ * öffnet ihn wieder (0049).
+ */
+export const hostClose = (claimId: string, closed: boolean, holder: Holder) =>
+  call<{ closed: boolean }>('/resource/close', {
+    method: 'POST', body: JSON.stringify({ claimId, closed, ...who(holder) })
+  });
+
 /** Der Gastgeber sagt ja oder nein. */
 export const hostDecides = (claimId: string, accept: boolean, holder: Holder) =>
   call<{ status: Status }>('/resource/decide', {
@@ -296,6 +317,7 @@ export type ResourceChange = Partial<{
   inviteHours: number;
   leadDays: number;
   perPerson: number;
+  minPersons: number;
 }>;
 
 export const createResource = (resourceId: string, areaId: string, change: ResourceChange) =>
@@ -324,10 +346,48 @@ export interface OfficeClaim {
   readonly itemId: string | null;
   readonly occurrenceAt: string | null;
   readonly inviteUntil: string | null;
+
+  /** Von der Kanzlei eingetragen (0049) — und ob mit Link oder nur mit Namen. */
+  readonly byOffice?: boolean;
+  readonly withLink?: boolean;
 }
 
-export const loadClaims = (resourceId: string): Promise<{ resource: ResourceRow; claims: readonly OfficeClaim[] }> =>
+/** Ein geschlossener Termin (0049) — und wer ihn geschlossen hat. */
+export interface ClosedTerm {
+  readonly itemId: string;
+  readonly occurrenceAt: string;
+  readonly closedBy: 'office' | 'host';
+}
+
+export const loadClaims = (resourceId: string): Promise<{
+  resource: ResourceRow;
+  claims: readonly OfficeClaim[];
+  closed?: readonly ClosedTerm[];
+}> =>
   call(`/workspace/resource/${encodeURIComponent(resourceId)}/claims`);
+
+/**
+ * Die Kanzlei trägt jemanden ein (0049) — auch über die Plätze hinaus. Mit
+ * `seatId` einen Menschen mit Link, sonst nur einen Namen.
+ */
+export const officeAdd = (
+  resourceId: string, term: { itemId: string; occurrenceAt: string },
+  who: { seatId?: string; name?: string }
+) =>
+  call<{ claimId: string; name: string | null; taken: number; capacity: number; over: boolean }>(
+    `/workspace/resource/${encodeURIComponent(resourceId)}/add`, {
+      method: 'POST', body: JSON.stringify({ ...term, seatId: who.seatId ?? null, name: who.name ?? null })
+    });
+
+/** Die Kanzlei trägt jemanden aus (0049). */
+export const officeRemove = (claimId: string) =>
+  call<{ removed: boolean }>(`/workspace/claim/${encodeURIComponent(claimId)}/remove`, { method: 'POST' });
+
+/** Die Kanzlei schliesst einen Termin — auch mit freien Plätzen — oder öffnet ihn (0049). */
+export const officeClose = (resourceId: string, term: { itemId: string; occurrenceAt: string }, closed: boolean) =>
+  call<{ closed: boolean }>(`/workspace/resource/${encodeURIComponent(resourceId)}/close`, {
+    method: 'POST', body: JSON.stringify({ ...term, closed })
+  });
 
 /** Ja oder nein zur ganzen Anfrage — alle Teile auf einmal. */
 export const officeDecides = (claimId: string, accept: boolean) =>

@@ -1659,6 +1659,40 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-slot-host { display: block; margin-top: 0.2rem; }
 
 .wk-slot-rules { display: grid; gap: 0.4rem; margin-bottom: 0.6rem; }
+
+/* Termine in der Kanzlei (0049): eintragen — auch über die Plätze hinaus —,
+   austragen, schliessen. Die Knöpfe stehen rechts; auf dem Telefon rutschen
+   sie unter den Termin. */
+.wk-appt > span:first-child { flex: 1 1 18rem; min-width: 0; }
+.wk-appt-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.wk-slot-people .wk-chip-x { padding-right: 0; }
+
+.wk-appt-add {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px dashed var(--wk-line);
+  border-radius: 3px;
+}
+
+.wk-appt-add .wk-inline input { flex: 1 1 12rem; min-width: 0; }
+.wk-appt-hits { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+
+.wk-appt-hit {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  color: inherit;
+  cursor: pointer;
+}
+
+.wk-appt-hit:hover:not(:disabled) { border-color: var(--wk-accent); color: var(--wk-accent); }
+.wk-appt-hit:disabled { cursor: default; opacity: 0.5; }
+.wk-appt-hit:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
 .wk-field-num input { width: 6rem; }
 
 

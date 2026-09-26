@@ -32,7 +32,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { usePerson } from './pagePerson';
 import {
   askToJoin, hostDecides, loadOffers, minutesToTime, nightsToSpan, openInvite, releaseClaim,
-  resignHost, takeOffer, takeSpan, type Busy, type Holder, type MyClaim, type Offer, type Offers,
+  hostClose, resignHost, takeOffer, takeSpan, type Busy, type Holder, type MyClaim, type Offer, type Offers,
   type Rules
 } from './resource';
 import { useSeats } from './seatContext';
@@ -281,7 +281,9 @@ function RulesLine({ rules }: { rules: Rules }) {
     `na termin: ${people(rules.capacity)}`,
     rules.perPerson === 0 ? null : `na osobę: ${rules.perPerson === 1 ? 'jeden termin' : `do ${rules.perPerson} terminów`}`,
     rules.inviteHours === 0 || rules.capacity < 2 ? null
-      : `pierwszy zapisany przez ${rules.inviteHours} h sam dobiera pozostałych`
+      : `pierwszy zapisany przez ${rules.inviteHours} h sam dobiera pozostałych`,
+    rules.inviteHours === 0 || rules.capacity < 2 ? null
+      : `grupa od ${rules.minPersons} ${rules.minPersons === 1 ? 'osoby' : 'osób'} zatrzymuje termin dla siebie`
   ].filter((one): one is string => one !== null);
 
   return <p className="wk-row-side">{parts.join(' · ')}</p>;
@@ -357,7 +359,7 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
           <p>
             <strong>Jesteś gospodarzem tego terminu</strong> do <strong>{moment(claim.inviteUntil!)}</strong>.
             {left !== null && left > 0
-              ? ` Do tego czasu ${left === 1 ? 'wolne miejsce zajmie' : `${left} wolne miejsca zajmą`} tylko osoby z Twoim kodem albo te, które przyjmiesz. Potem otworzą się dla wszystkich.`
+              ? ` Do tego czasu ${left === 1 ? 'wolne miejsce zajmie' : `${left} wolne miejsca zajmą`} tylko osoby z Twoim kodem albo te, które przyjmiesz. Potem — jeśli będzie Was mniej niż ${rules.minPersons} — otworzą się dla wszystkich.`
               : ' Termin jest już pełny.'}
           </p>
 
@@ -433,7 +435,21 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
       )}
 
       {claim.hosting && !hostOpen && claim.inviteUntil !== null && (
-        <p className="wk-slot-note">Czas gospodarza minął {moment(claim.inviteUntil)} — wolne miejsca są dostępne dla wszystkich.</p>
+        <p className="wk-slot-note">
+          Czas gospodarza minął {moment(claim.inviteUntil)}
+          {offer !== undefined && offer.taken >= rules.minPersons
+            ? ' — Wasza grupa jest skompletowana, termin zostaje dla Was.'
+            : ' — wolne miejsca są dostępne dla wszystkich.'}
+        </p>
+      )}
+
+      {/*
+        ZAMKNIĘCIE TERMINU (0049) — dla gospodarza, gdy grupa ma już minimum.
+        Kto zamknie, ten może też otworzyć; co zamknęła kancelaria, otwiera
+        tylko ona.
+      */}
+      {claim.hosting && claim.status === 'confirmed' && offer !== undefined && (
+        <HostClosing claim={claim} offer={offer} rules={rules} holder={holder} busy={busy} onAct={onAct} />
       )}
 
       {/* -- Ändern, zurückgeben ------------------------------------------ */}
@@ -461,6 +477,52 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
   );
 }
 
+/** Der Gastgeber schliesst seinen Termin — oder öffnet ihn wieder (0049). */
+function HostClosing({ claim, offer, rules, holder, busy, onAct }: {
+  claim: MyClaim;
+  offer: Offer;
+  rules: Rules;
+  holder: Holder;
+  busy: boolean;
+  onAct: Act;
+}) {
+  if (offer.closedBy === 'office') {
+    return <p className="wk-slot-note">Ten termin zamknęła kancelaria — nikt więcej się nie dopisze.</p>;
+  }
+
+  if (offer.closedBy === 'host') {
+    return (
+      <p className="wk-slot-resign">
+        <strong>Zamknąłeś ten termin</strong> — nikt więcej się nie dopisze i nie otworzy się on dla innych.{' '}
+        <button type="button" className="wk-link-btn" disabled={busy}
+          onClick={() => void onAct('Otwieranie terminu…', () => hostClose(claim.claimId, false, holder))}>
+          Otwórz ponownie
+        </button>
+      </p>
+    );
+  }
+
+  if (offer.taken >= rules.minPersons) {
+    return (
+      <p className="wk-slot-resign">
+        Zapisanych jest {offer.taken} (minimum to {rules.minPersons}). Możesz zamknąć termin — nikt więcej
+        się nie dopisze, a po Twoim czasie termin nie otworzy się dla innych.{' '}
+        <button type="button" className="wk-btn wk-btn-quiet" disabled={busy}
+          onClick={() => void onAct('Zamykanie terminu…', () => hostClose(claim.claimId, true, holder))}>
+          Zamknij termin
+        </button>
+      </p>
+    );
+  }
+
+  return (
+    <p className="wk-row-side">
+      Termin możesz zamknąć dla swojej grupy, gdy zapiszą się co najmniej {people(rules.minPersons)}
+      {' '}(teraz: {offer.taken}).
+    </p>
+  );
+}
+
 /* -- Die Termine zur Wahl --------------------------------------------------- */
 
 const SHADE: Record<Offer['state'], string> = {
@@ -468,7 +530,8 @@ const SHADE: Record<Offer['state'], string> = {
   inviteneeded: 'is-hosted',
   locked: 'is-closed',
   full: 'is-closed',
-  mine: 'is-mine'
+  mine: 'is-mine',
+  closed: 'is-closed'
 };
 
 export function OfferList({ offers, rules, holder, replaces, busy, onAct, onTaken }: {
@@ -531,6 +594,8 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
         ? ` — ma na to czas do ${moment(offer.inviteUntil)}` : ''}. Wolnych miejsc: ${left}.`
     : offer.state === 'full' ? 'Pełny.'
     : offer.state === 'locked' ? 'Zamknięty — grupa jest już skompletowana.'
+    : offer.state === 'closed'
+      ? offer.closedBy === 'office' ? 'Zamknięty przez kancelarię.' : 'Zamknięty — grupa jest już skompletowana.'
     : 'Twój termin.';
 
   return (

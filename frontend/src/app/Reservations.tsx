@@ -214,6 +214,9 @@ function ResourcePage({ row, all, areas, calendars, onChanged }: {
         <div className="wk-fact"><dt>Czas wybiera</dt><dd>{row.mode === 'offered' ? 'kancelaria' : 'pytający'}</dd></div>
         <div className="wk-fact"><dt>Naraz</dt><dd>{row.capacity}</dd></div>
         <div className="wk-fact"><dt>Na osobę</dt><dd>{row.perPerson === 0 ? 'bez limitu' : row.perPerson}</dd></div>
+        {row.mode === 'offered' && row.inviteHours > 0 && (
+          <div className="wk-fact"><dt>Grupa od</dt><dd>{row.minPersons}</dd></div>
+        )}
         <div className="wk-fact"><dt>Potwierdza</dt><dd>{row.approval === 'office' ? 'kancelaria' : 'nikt'}</dd></div>
       </dl>
 
@@ -349,6 +352,7 @@ function Editor({ was, all, areas, calendars, onSaved }: {
   const [approval, setApproval] = useState<'none' | 'office'>(was?.approval ?? 'none');
   const [inviteHours, setInviteHours] = useState(String(was?.inviteHours ?? 0));
   const [perPerson, setPerPerson] = useState(String(was?.perPerson ?? 0));
+  const [minPersons, setMinPersons] = useState(String(was?.minPersons ?? 2));
   const [byNight, setByNight] = useState(was?.byNight ?? false);
   const [checkIn, setCheckIn] = useState(minutesToTime(was?.checkInMin ?? 960));
   const [checkOut, setCheckOut] = useState(minutesToTime(was?.checkOutMin ?? 600));
@@ -389,7 +393,8 @@ function Editor({ was, all, areas, calendars, onSaved }: {
       bufferBefore: Math.max(0, Number(before) || 0),
       bufferAfter: Math.max(0, Number(after) || 0),
       leadDays: Math.max(0, Number(lead) || 0),
-      perPerson: Math.max(0, Number(perPerson) || 0)
+      perPerson: Math.max(0, Number(perPerson) || 0),
+      minPersons: Math.min(1000, Math.max(1, Number(minPersons) || 2))
     };
 
     try {
@@ -470,6 +475,18 @@ function Editor({ was, all, areas, calendars, onSaved }: {
             <input type="number" min={0} value={inviteHours} onChange={(e) => setInviteHours(e.target.value)} />
             <span className="wk-hint">Tyle czasu pierwszy zapisany jest gospodarzem terminu. 0 — bez gospodarza.</span>
           </label>
+
+          {/* DIE MINDESTZAHL (0049) — nur mit einem Gastgeber von Belang. */}
+          {Number(inviteHours) > 0 && (
+            <label className="wk-field">
+              <span>Od ilu osób grupa zatrzymuje termin</span>
+              <input type="number" min={1} value={minPersons} onChange={(e) => setMinPersons(e.target.value)} />
+              <span className="wk-hint">
+                Gdy po czasie gospodarza na terminie jest co najmniej tyle osób, wolne miejsca nie otwierają się
+                dla innych — a gospodarz może sam zamknąć termin. Przy mniejszej liczbie otwierają się dla wszystkich.
+              </span>
+            </label>
+          )}
 
           <PerPersonField value={perPerson} onChange={setPerPerson} />
         </>

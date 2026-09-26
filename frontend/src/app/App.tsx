@@ -29,6 +29,7 @@ import { PublicPage } from './PublicPage';
 import { SeatPortal } from './SeatPortal';
 import { SignIn } from './SignIn';
 import { Verify } from './Verify';
+import { ViewGuard } from './ViewGuard';
 import { Workspace } from './Workspace';
 
 export function App() {
@@ -224,7 +225,9 @@ function Shell({
           )}
         </div>
       </header>
-      <main className={wide ? 'wk-main wk-main-wide' : 'wk-main'}>{children}</main>
+      <main className={wide ? 'wk-main wk-main-wide' : 'wk-main'}>
+        <ViewGuard>{children}</ViewGuard>
+      </main>
     </div>
   );
 }

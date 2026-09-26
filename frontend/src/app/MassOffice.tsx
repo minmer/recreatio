@@ -43,7 +43,11 @@ import {
 import { createCalendar, loadCalendars as loadAllCalendars, setOccurrence } from './calendar';
 import { loadAreas, type AreaRow } from './area';
 import { printIntentions, sheetWeek } from './sheet';
-import { loadClaims, loadResources, updateResource, type OfficeClaim, type ResourceRow } from './resource';
+import {
+  loadClaims, loadResources, officeAdd, officeClose, officeRemove, updateResource,
+  type OfficeClaim, type ResourceRow
+} from './resource';
+import { loadSeats } from './seat';
 import { loadRoles, selfOf } from './roles';
 import { viewPath } from './routes';
 import { WorkspaceError } from './session';
@@ -467,6 +471,9 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
   const [claims, setClaims] = useState<readonly OfficeClaim[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
 
+  /** Welche Termine geschlossen sind (0049) — „Termin|Beginn" → wer. */
+  const [closed, setClosed] = useState<ReadonlyMap<string, 'office' | 'host'>>(new Map());
+
   /** Welcher Termin gerade entfernt wird — „Klucz Termin|Beginn". */
   const [removing, setRemoving] = useState<string | null>(null);
   const [removed, setRemoved] = useState<string | null>(null);
@@ -486,7 +493,9 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
 
       setItems(plan.masses);
       setResource(mine);
-      setClaims(mine === null ? [] : (await loadClaims(mine.resourceId).catch(() => ({ claims: [] }))).claims);
+      const office = mine === null ? null : await loadClaims(mine.resourceId).catch(() => null);
+      setClaims(office?.claims ?? []);
+      setClosed(new Map((office?.closed ?? []).map((one) => [termKey(one.itemId, one.occurrenceAt), one.closedBy])));
       setFailed(null);
     } catch (e) {
       setItems([]);
@@ -527,6 +536,55 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
     }
   };
 
+  /* -- 0049: dopisać, wypisać, zamknąć -------------------------------------------- */
+
+  const [adding, setAdding] = useState<string | null>(null);
+  const [working, setWorking] = useState<string | null>(null);
+
+  const officeAct = async (what: string, todo: () => Promise<string | null>) => {
+    setWorking(what);
+    setFailed(null);
+    setRemoved(null);
+
+    try {
+      const said = await todo();
+      if (said !== null) setRemoved(said);
+      await load();
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  /** Jemanden eintragen — mit Link (ein Platz) oder nur mit Namen; auch über die Plätze hinaus. */
+  const seat = (one: OfficeMass, who: { seatId?: string; name?: string }) => {
+    if (resource == null) return;
+    void officeAct('Dopisywanie…', async () => {
+      const done = await officeAdd(resource.resourceId, { itemId: one.itemId, occurrenceAt: one.occurrenceAt }, who);
+      setAdding(null);
+      return `Dopisano: ${done.name ?? 'osobę'} — ${stamp(one.startsAt)}${done.over ? ` (ponad limit: ${done.taken} z ${done.capacity})` : ''}.`;
+    });
+  };
+
+  /** Jemanden austragen. */
+  const unseat = (c: OfficeClaim) => {
+    if (!window.confirm(`Wypisać z terminu: ${c.name ?? 'bez nazwy'}?${c.hosting ? ' To gospodarz — wolne miejsca otworzą się dla wszystkich.' : ''}`)) return;
+    void officeAct('Wypisywanie…', async () => {
+      await officeRemove(c.claimId);
+      return `Wypisano: ${c.name ?? 'bez nazwy'}.`;
+    });
+  };
+
+  /** Schliessen — auch mit freien Plätzen — oder wieder öffnen. */
+  const closeTerm = (one: OfficeMass, close: boolean) => {
+    if (resource == null) return;
+    void officeAct(close ? 'Zamykanie…' : 'Otwieranie…', async () => {
+      await officeClose(resource.resourceId, { itemId: one.itemId, occurrenceAt: one.occurrenceAt }, close);
+      return close ? `Zamknięto termin ${stamp(one.startsAt)} — nikt więcej się nie zapisze.` : `Termin ${stamp(one.startsAt)} znów przyjmuje zapisy.`;
+    });
+  };
+
   /* Wer auf welchem Termin sitzt — je Vorkommen, am ursprünglichen Beginn. */
   const on = (one: OfficeMass) => claims.filter((c) => c.itemId === one.itemId
     && c.occurrenceAt !== null && new Date(c.occurrenceAt).getTime() === new Date(one.occurrenceAt).getTime()
@@ -538,6 +596,7 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
 
       {failed !== null && <p className="wk-error">{failed}</p>}
       {removed !== null && <p className="wk-done">{removed}</p>}
+      {working !== null && <p className="wk-hint" role="status">{working}</p>}
 
       {/*
         WER SICH WORAUF GESETZT HAT, steht bei den Rezerwacje (0039) — und jetzt
@@ -563,9 +622,10 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
             const here = on(one);
             const host = here.find((c) => c.hosting);
             const counted = here.filter((c) => c.status === 'confirmed' || c.awaits === 'office').length;
+            const closedBy = closed.get(termKey(one.itemId, one.occurrenceAt)) ?? null;
 
             return (
-              <li className="wk-row" key={`${one.itemId}:${one.occurrenceAt}`}>
+              <li className="wk-row wk-appt" key={`${one.itemId}:${one.occurrenceAt}`}>
                 <span>
                   <strong>
                     {when.toLocaleDateString('pl-PL',
@@ -576,29 +636,78 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
                   {one.title !== null && <> — {one.title}</>}
 
                   {resource != null && (
-                    <span className="wk-row-side"> · {counted} z {resource.capacity}</span>
+                    <span className="wk-row-side">
+                      {' · '}{counted} z {resource.capacity}
+                      {counted > resource.capacity && ' · ponad limit'}
+                    </span>
                   )}
 
+                  {closedBy !== null && (
+                    <span className="wk-tag"> zamknięty{closedBy === 'office' ? ' przez kancelarię' : ' przez gospodarza'}</span>
+                  )}
+
+                  {/*
+                    WER SIEDZI NA TERMINIE — a przy każdym ×, żeby go wypisać
+                    (0049). Kancelaria może wypisać każdego, także gospodarza:
+                    wtedy wolne miejsca należą do wszystkich.
+                  */}
                   {here.length > 0 && (
                     <span className="wk-slot-people">
                       {here.map((c) => (
                         <span className={c.hosting ? 'wk-tag wk-tag-open' : 'wk-tag'} key={c.claimId}>
                           {c.name ?? 'bez nazwy'}
                           {c.hosting && ' · gospodarz'}
+                          {c.byOffice === true && (c.withLink === true ? ' · dopisany' : ' · dopisany, bez linku')}
                           {c.status === 'pending' && (c.awaits === 'host' ? ' · prosi gospodarza' : ' · czeka')}
+                          <button
+                            type="button" className="wk-chip-x" disabled={working !== null}
+                            aria-label={`Wypisz: ${c.name ?? 'bez nazwy'}`} title="Wypisz z terminu"
+                            onClick={() => unseat(c)}
+                          >
+                            ×
+                          </button>
                         </span>
                       ))}
                     </span>
                   )}
 
+                  {adding === termKey(one.itemId, one.occurrenceAt) && resource != null && (
+                    <AddPerson
+                      full={counted >= resource.capacity}
+                      busy={working !== null}
+                      onAdd={(who) => seat(one, who)}
+                      onCancel={() => setAdding(null)}
+                    />
+                  )}
+
                   {host !== undefined && host.inviteUntil !== null && (
                     <span className="wk-hint wk-slot-host">
                       {new Date(host.inviteUntil).getTime() > Date.now()
-                        ? `Gospodarz (${host.name ?? 'bez nazwy'}) sam dobiera osoby do ${stamp(host.inviteUntil)} — potem wolne miejsca otworzą się dla wszystkich. Kod zna tylko on.`
-                        : `Czas gospodarza minął ${stamp(host.inviteUntil)} — wolne miejsca są dla wszystkich.`}
+                        ? `Gospodarz (${host.name ?? 'bez nazwy'}) sam dobiera osoby do ${stamp(host.inviteUntil)} — potem, jeśli będzie ich mniej niż ${resource?.minPersons ?? 2}, wolne miejsca otworzą się dla wszystkich. Kod zna tylko on.`
+                        : counted >= (resource?.minPersons ?? 2)
+                          ? `Czas gospodarza minął ${stamp(host.inviteUntil)} — grupa jest skompletowana, termin zostaje dla niej.`
+                          : `Czas gospodarza minął ${stamp(host.inviteUntil)} — wolne miejsca są dla wszystkich.`}
                     </span>
                   )}
                 </span>
+
+                {resource != null && (
+                  <span className="wk-appt-actions">
+                    <button
+                      type="button" className="wk-link-btn" disabled={working !== null}
+                      onClick={() => setAdding(adding === termKey(one.itemId, one.occurrenceAt) ? null : termKey(one.itemId, one.occurrenceAt))}
+                    >
+                      Dopisz osobę
+                    </button>
+                    <button
+                      type="button" className="wk-link-btn" disabled={working !== null}
+                      title={closedBy === null ? 'Nikt więcej się nie zapisze — także gdy są wolne miejsca' : 'Termin znów przyjmuje zapisy'}
+                      onClick={() => closeTerm(one, closedBy === null)}
+                    >
+                      {closedBy === null ? 'Zamknij' : 'Otwórz'}
+                    </button>
+                  </span>
+                )}
 
                 <button
                   type="button"
@@ -615,6 +724,96 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
         </ul>
       )}
     </>
+  );
+}
+
+/** Die Kennung eines Termins — Eintrag und ursprünglicher Beginn, am Zeitpunkt verglichen. */
+const termKey = (itemId: string, occurrenceAt: string) => `${itemId}|${new Date(occurrenceAt).getTime()}`;
+
+interface Pickable { readonly seatId: string; readonly name: string }
+
+/**
+ * Alle Menschen mit Link, die diese Kanzlei sieht — für „Dopisz osobę". Eine
+ * Minute lang gemerkt: wer mehrere Termine hintereinander füllt, wartet nicht
+ * jedes Mal auf alle Bereiche.
+ */
+let pickable: { at: number; seats: Promise<readonly Pickable[]> } | null = null;
+
+function loadPickable(): Promise<readonly Pickable[]> {
+  if (pickable !== null && Date.now() - pickable.at < 60_000) return pickable.seats;
+
+  const seats = (async () => {
+    const out = new Map<string, Pickable>();
+    for (const area of (await loadAreas()).areas) {
+      try {
+        for (const one of (await loadSeats(area.areaId)).seats) {
+          if (one.revokedAt !== null || one.status !== 'active' || (one.recipientName ?? '').trim() === '') continue;
+          out.set(one.seatId, { seatId: one.seatId, name: one.recipientName!.trim() });
+        }
+      } catch {
+        // Diesen Bereich lese ich nicht.
+      }
+    }
+    return [...out.values()].sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+  })();
+
+  pickable = { at: Date.now(), seats };
+  seats.catch(() => { pickable = null; });
+  return seats;
+}
+
+/**
+ * „DOPISZ OSOBĘ" (0049) — ktoś z linkiem (widzi wtedy termin u siebie) albo
+ * samo imię i nazwisko, dla kogoś bez linku. Także ponad limit miejsc.
+ */
+function AddPerson({ full, busy, onAdd, onCancel }: {
+  full: boolean;
+  busy: boolean;
+  onAdd: (who: { seatId?: string; name?: string }) => void;
+  onCancel: () => void;
+}) {
+  const [text, setText] = useState('');
+  const [all, setAll] = useState<readonly Pickable[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void loadPickable().then((found) => { if (alive) setAll(found); }).catch(() => { if (alive) setAll([]); });
+    return () => { alive = false; };
+  }, []);
+
+  const wanted = text.trim().toLocaleLowerCase('pl');
+  const hits = all === null || wanted === '' ? [] : all.filter((one) => one.name.toLocaleLowerCase('pl').includes(wanted)).slice(0, 8);
+
+  return (
+    <span className="wk-appt-add">
+      {full && <span className="wk-hint">Termin jest pełny — dopiszesz ponad limit.</span>}
+      <span className="wk-inline">
+        <input
+          value={text} autoFocus placeholder="Szukaj osoby albo wpisz imię i nazwisko"
+          aria-label="Kogo dopisać" onChange={(e) => setText(e.target.value)}
+        />
+        <button type="button" className="wk-link-btn" onClick={onCancel}>Anuluj</button>
+      </span>
+
+      {all === null && <span className="wk-hint">Wczytywanie osób…</span>}
+
+      {hits.length > 0 && (
+        <span className="wk-appt-hits">
+          {hits.map((one) => (
+            <button key={one.seatId} type="button" className="wk-appt-hit" disabled={busy}
+              onClick={() => onAdd({ seatId: one.seatId })}>
+              + {one.name}
+            </button>
+          ))}
+        </span>
+      )}
+
+      {wanted !== '' && (
+        <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onAdd({ name: text.trim() })}>
+          Dopisz „{text.trim()}" bez linku
+        </button>
+      )}
+    </span>
   );
 }
 
@@ -641,6 +840,7 @@ function SlotRules({ row, onSaved }: { row: ResourceRow; onSaved: (row: Resource
   const [capacity, setCapacity] = useState(String(row.capacity));
   const [perPerson, setPerPerson] = useState(String(row.perPerson));
   const [hours, setHours] = useState(String(row.inviteHours));
+  const [minimum, setMinimum] = useState(String(row.minPersons));
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -649,10 +849,11 @@ function SlotRules({ row, onSaved }: { row: ResourceRow; onSaved: (row: Resource
     setCapacity(String(row.capacity));
     setPerPerson(String(row.perPerson));
     setHours(String(row.inviteHours));
-  }, [row.resourceId, row.capacity, row.perPerson, row.inviteHours]);
+    setMinimum(String(row.minPersons));
+  }, [row.resourceId, row.capacity, row.perPerson, row.inviteHours, row.minPersons]);
 
   const changed = capacity !== String(row.capacity) || perPerson !== String(row.perPerson)
-    || hours !== String(row.inviteHours);
+    || hours !== String(row.inviteHours) || minimum !== String(row.minPersons);
 
   const save = async () => {
     setBusy(true);
@@ -661,7 +862,8 @@ function SlotRules({ row, onSaved }: { row: ResourceRow; onSaved: (row: Resource
 
     try {
       onSaved(await updateResource(row.resourceId, {
-        capacity: Number(capacity), perPerson: Number(perPerson), inviteHours: Number(hours)
+        capacity: Number(capacity), perPerson: Number(perPerson), inviteHours: Number(hours),
+        minPersons: Number(minimum)
       }));
       setDone(true);
     } catch (e) {
@@ -691,6 +893,10 @@ function SlotRules({ row, onSaved }: { row: ResourceRow; onSaved: (row: Resource
           <span>Godzin gospodarza</span>
           <input type="number" min={0} value={hours} disabled={busy} onChange={(e) => setHours(e.target.value)} />
         </label>
+        <label className="wk-field wk-field-num">
+          <span>Minimum osób</span>
+          <input type="number" min={1} value={minimum} disabled={busy} onChange={(e) => setMinimum(e.target.value)} />
+        </label>
         {changed && <button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Zapisywanie…' : 'Zapisz'}</button>}
         {done && !changed && <span className="wk-row-side">Zapisano.</span>}
       </div>
@@ -701,6 +907,8 @@ function SlotRules({ row, onSaved }: { row: ResourceRow; onSaved: (row: Resource
         {' '}
         {Number(hours) === 0 ? 'Bez gospodarza: każdy zapisuje się sam.'
           : `Pierwszy zapisany na termin przez ${hours} h sam dobiera pozostałych — swoim kodem albo zgodą na prośbę.`}
+        {' '}
+        {Number(hours) > 0 && `Po tym czasie termin z co najmniej ${minimum} osobami zostaje dla grupy (gospodarz może go też sam zamknąć); z mniejszą liczbą wolne miejsca otwierają się dla wszystkich.`}
       </p>
 
       {failed !== null && <p className="wk-error">{failed}</p>}

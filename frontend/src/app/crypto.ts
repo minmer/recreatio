@@ -350,13 +350,33 @@ export async function wrapKey(spki: Uint8Array, a: Aad, keyToWrap: Uint8Array): 
   return concat(header, ct);
 }
 
+/**
+ * Der eingelesene private Schlüssel — EINMAL je Schlüssel, nicht je Hülle.
+ *
+ * Die Kanzlei öffnet beim Lesen der Einsendungen Hunderte Hüllen unter
+ * demselben Annahmeschlüssel. Jede las ihn bisher neu ein; auf einem Telefon
+ * ist das spürbar. Gemerkt wird an genau diesem Byte-Objekt (nicht an seinem
+ * Inhalt): fällt es weg, fällt der Eintrag mit — und der Schlüssel selbst ist
+ * nicht exportierbar, er verlässt WebCrypto nie.
+ */
+const imported = new WeakMap<Uint8Array, Promise<CryptoKey>>();
+
+function rsaPrivate(pkcs8: Uint8Array): Promise<CryptoKey> {
+  let key = imported.get(pkcs8);
+  if (key === undefined) {
+    key = crypto.subtle.importKey('pkcs8', view(pkcs8), { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']);
+    imported.set(pkcs8, key);
+    key.catch(() => imported.delete(pkcs8));
+  }
+  return key;
+}
+
 /** Die Gegenrichtung. Fehlte im Altbestand — der Browser packte dort nie aus. */
 export async function unwrapKey(pkcs8: Uint8Array, a: Aad, blob: Uint8Array): Promise<Uint8Array> {
   const header = readHeader(blob);
   if (header.alg !== Alg.RsaOaep4096) throw new SealedError('Erwartet wurde eine RSA-verpackte Hülle.');
 
-  const privateKey = await crypto.subtle.importKey(
-    'pkcs8', view(pkcs8), { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']);
+  const privateKey = await rsaPrivate(pkcs8);
 
   let payload: Uint8Array;
   try {

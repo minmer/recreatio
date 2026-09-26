@@ -134,6 +134,13 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
   /** Bereiche, deren Annahme dieser Browser nicht öffnen kann — gesagt, nicht verschwiegen. */
   const [shutAreas, setShutAreas] = useState<readonly string[]>([]);
+
+  /**
+   * Wie weit das Öffnen ist — `null`: es läuft gerade keins. Auf einem
+   * Telefon dauert das erste Öffnen vieler Einsendungen spürbar; ohne Zahl sah
+   * es aus, als käme nichts.
+   */
+  const [reading, setReading] = useState<{ done: number; total: number } | null>(null);
   const [showHidden, setShowHidden] = useState(false);
 
   /**
@@ -382,13 +389,17 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
       }
     }
 
-    setReadAreas(keys.map((one) => one.areaId));
-    setShutAreas(shut);
-
-    const pending: { fieldId: string; registrationId: string; officeKeySealed: string }[] = [];
-
     const { registrations } = await loadRegistrations(partId, hidden);
+
+    /*
+     * ERST JETZT GILT DIE LISTE ALS OFFEN. Vorher stand der Bereich schon als
+     * gelesen da, bevor die Einsendungen überhaupt angekommen waren — und der
+     * Reiter sagte „Nikt się jeszcze nie zapisał", solange das Telefon noch
+     * lud. Schlug das Laden fehl, blieb genau dieser Satz stehen.
+     */
+    setShutAreas(shut);
     setSubmissions(registrations);
+    setReadAreas(keys.map((one) => one.areaId));
 
     const areaOf = new Map(fields.map((f) => [f.fieldId, f.areaId]));
     const named: { seatId: string; name: string }[] = [];
@@ -397,21 +408,55 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     let sent = 0;
     let got = 0;
 
-    for (const one of registrations) {
-      const { values: merged, toRewrap } = await readAcross(one, keys, areaOf);
-      sent += one.values.length;
+    /*
+     * IN HAPPEN, UND JEDER HAPPEN ZÄHLT.
+     *
+     * Was noch im RSA-Umschlag liegt (0037), kostet je Wert eine RSA-Operation
+     * — auf einem Telefon das Zehnfache. Deshalb: eine Zahl, die sagt, wie weit
+     * es ist; zwischen den Happen darf die Seite zeichnen; und was aufging, wird
+     * GLEICH umgestellt, nicht erst am Ende. Wird das Lesen unterbrochen — der
+     * Tab verschwindet, während die SMS-App offen ist —, ist das Geschaffte
+     * nicht verloren, und das nächste Öffnen geht schneller.
+     */
+    const CHUNK = 8;
+    setReading({ done: 0, total: registrations.length });
 
-      for (const one2 of toRewrap) pending.push({ ...one2, registrationId: one.registrationId });
+    try {
+      for (let at = 0; at < registrations.length; at += CHUNK) {
+        const pending: { fieldId: string; registrationId: string; officeKeySealed: string }[] = [];
 
-      out.set(one.registrationId, merged);
+        for (const one of registrations.slice(at, at + CHUNK)) {
+          const { values: merged, toRewrap } = await readAcross(one, keys, areaOf);
+          sent += one.values.length;
 
-      /* Der volle Name, für den Platz dieser Einsendung — gleich unten ergänzt. */
-      const full = one.seatId === null ? null : fullNameOf(fields, (fieldId) => merged.get(fieldId));
-      if (full !== null && one.seatId !== null) named.push({ seatId: one.seatId, name: full });
-      got += merged.size;
+          for (const one2 of toRewrap) pending.push({ ...one2, registrationId: one.registrationId });
+
+          out.set(one.registrationId, merged);
+
+          /* Der volle Name, für den Platz dieser Einsendung — gleich unten ergänzt. */
+          const full = one.seatId === null ? null : fullNameOf(fields, (fieldId) => merged.get(fieldId));
+          if (full !== null && one.seatId !== null) named.push({ seatId: one.seatId, name: full });
+          got += merged.size;
+        }
+
+        setReading({ done: Math.min(at + CHUNK, registrations.length), total: registrations.length });
+
+        /*
+         * RSA IST DER UMSCHLAG, NICHT DER TRESOR (0037). Was gerade aufging,
+         * lag noch unter dem RSA-Umschlag der Annahme. Genau jetzt liegt der
+         * Schlüssel offen — also wird er unter dem Schlüssel der Amtsrolle neu
+         * versiegelt, und der Umschlag fällt. Still: es ändert nicht, wer lesen
+         * darf. Schlägt es fehl, bleibt alles, wie es war — beim nächsten Öffnen
+         * wieder.
+         */
+        if (pending.length > 0) await rewrapToOffice(partId, pending).catch(() => undefined);
+
+        await new Promise((done) => setTimeout(done, 0));
+      }
+    } finally {
+      setOpened(out);
+      setReading(null);
     }
-
-    setOpened(out);
 
     /*
      * WAS DIE ERWEITERUNGEN ÜBER DIESE MENSCHEN WISSEN (0047) — jede in ihrem
@@ -437,26 +482,6 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
      * wer was lesen darf.
      */
     if (named.length > 0) void nameSeats(named).catch(() => undefined);
-
-    /*
-     * RSA IST DER UMSCHLAG, NICHT DER TRESOR (0037).
-     *
-     * Was gerade aufging, lag noch unter dem RSA-Umschlag der Annahme. Genau
-     * jetzt liegt der Schlüssel offen — also wird er unter dem Schlüssel der
-     * Amtsrolle neu versiegelt, und der Umschlag fällt.
-     *
-     * <b>Still und ohne Rückfrage</b>, weil nichts daran eine Entscheidung
-     * ist: es ändert nicht, wer lesen darf, sondern nur, wogegen das
-     * Gespeicherte auf Jahre standhalten muss. Schlägt es fehl, bleibt alles,
-     * wie es war — gelesen wurde ohnehin schon.
-     */
-    if (pending.length > 0) {
-      try {
-        await rewrapToOffice(partId, pending);
-      } catch {
-        // Der alte Weg steht noch; beim nächsten Öffnen wieder.
-      }
-    }
 
     /*
      * WARUM NICHTS DASTEHT, wenn nichts dasteht. Ein leerer Kasten sieht aus
@@ -588,11 +613,30 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    */
   const [autoTried, setAutoTried] = useState(false);
 
+  /**
+   * NUR LESEN — ohne danach alles andere neu zu holen, wie `act` es tut. Am
+   * Formular hat sich nichts geändert; auf einem Telefon hiess das zweite
+   * Laden ein paar Sekunden mehr „Otwieranie…" für nichts.
+   *
+   * Und ein Fehler sagt, WAS schiefging: „Nie udało się." allein half
+   * niemandem, der es am Telefon sah.
+   */
+  const openAll = (what: string, hidden?: boolean) => {
+    setBusy(what);
+    setFailed(null);
+
+    void read(hidden)
+      .catch((e: unknown) => setFailed(
+        e instanceof WorkspaceError ? e.message
+        : `Nie udało się otworzyć zgłoszeń${e instanceof Error && e.message !== '' ? `: ${e.message}` : '.'}`))
+      .finally(() => setBusy(null));
+  };
+
   useEffect(() => {
     if ((tab !== 'entries' && tab !== 'people') || isExtension || autoTried || ring === null
       || readAreas !== null || areasHere.length === 0) return;
     setAutoTried(true);
-    void act('Otwieranie zgłoszeń…', read);
+    openAll('Otwieranie zgłoszeń…');
   }, [tab, isExtension, autoTried, ring, readAreas, areasHere.length]);
 
   const [editing, setEditing] = useState<string | null>(null);
@@ -791,7 +835,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
   return (
     <>
       {failed !== null && <p className="wk-error">{failed}</p>}
-      {busy !== null && <p className="wk-hint">{busy}</p>}
+      {busy !== null && <p className="wk-hint" role="status">{busy}</p>}
 
       {/*
         NICHT NUR SAGEN, SONDERN ÖFFNEN. Hier stand bloss der Satz — und wer
@@ -1111,7 +1155,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
               <button
                 type="button" className="wk-btn"
                 disabled={busy !== null || ring === null}
-                onClick={() => void act('Otwieranie…', read)}
+                onClick={() => openAll('Otwieranie zgłoszeń…')}
               >
                 Otwórz zgłoszenia
               </button>
@@ -1121,6 +1165,12 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
             <p className="wk-hint">
               Otwarte razem: {readAreas.map((id) => areaLabel(id)).join(' · ') || 'żaden'}
               {shutAreas.length > 0 && <> · bez klucza: {shutAreas.map((id) => areaLabel(id)).join(' · ')}</>}
+            </p>
+          )}
+
+          {reading !== null && (
+            <p className="wk-hint" role="status">
+              Otwieranie zgłoszeń: {reading.done} z {reading.total}…
             </p>
           )}
 
@@ -1135,7 +1185,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
                     /* Mit dem NEUEN Wert lesen — der Zustand ist beim Aufruf noch der alte. */
                     const hidden = e.target.checked;
                     setShowHidden(hidden);
-                    void act('Wczytywanie…', () => read(hidden));
+                    openAll('Wczytywanie…', hidden);
                   }}
                 />
                 {' '}Pokaż też ukryte
@@ -1147,7 +1197,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
       {/* == 2. LESEN ======================================================= */}
 
-      {tab === 'entries' && readAreas !== null && (
+      {tab === 'entries' && readAreas !== null && reading === null && (
         <FormTable
           fields={fields}
           submissions={submissions}
@@ -1158,7 +1208,7 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
       {/* == 3. HANDELN ===================================================== */}
 
-      {tab === 'people' && readAreas !== null && !isExtension && (
+      {tab === 'people' && readAreas !== null && reading === null && !isExtension && (
         <>
           {/*
             „NORMALIZUJ NUMERY" STEHT IMMER DA, sobald das Formular überhaupt
