@@ -11,12 +11,28 @@
    =========================================================================== */
 
 :root {
+  /*
+     DAS THEMA SAGT DER SEITE AUCH, WIE DER BROWSER SELBST ZEICHNET — Felder,
+     Auswahllisten, Kästchen, Kalender, Bildlaufleisten. Ohne diese Angabe
+     blieben sie hell auf dunklem Grund, und ein Telefon mit „Strony w trybie
+     ciemnym" dunkelte die Seite ein ZWEITES Mal ab, über das eigene dunkle
+     Thema hinweg.
+  */
+  color-scheme: light;
+
   --wk-ground: #f7f5f1;
   --wk-surface: #ffffff;
   --wk-ink: #1a1815;
   --wk-muted: #5b554c;
   --wk-line: #dcd7cd;
   --wk-accent: #7a5a2e;
+
+  /* Schrift AUF der Akzentfläche (Hauptknopf, gewählter Schalter). Im dunklen
+     Thema ist der Akzent hell — weisse Schrift darauf war kaum zu lesen. */
+  --wk-on-accent: #ffffff;
+
+  /* Fehler, Sperrgründe, „Usuń" — im dunklen Thema heller, sonst verschwindet es. */
+  --wk-danger: #a5361c;
 
   /* Bestätigt — neben einer Angabe, nie als einziges Zeichen (0030/0031). */
   --wk-ok: #2f6b3a;
@@ -46,12 +62,16 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
+
     --wk-ground: #16140f;
     --wk-surface: #1f1c16;
     --wk-ink: #f0ebe0;
     --wk-muted: #b0a695;
-    --wk-line: #353027;
+    --wk-line: #4a4337;
     --wk-accent: #d3a25e;
+    --wk-on-accent: #1a1510;
+    --wk-danger: #f0876a;
     --wk-ok: #7fc68d;
     --wk-soft: #272319;
     --wk-free-bg: #13261a;
@@ -65,6 +85,34 @@
     --wk-shut-ink: #fca5a5;
   }
 }
+
+/*
+   DER GRUND UNTER ALLEM. Ohne ihn blieb um die Seite ein weisser Rand (der
+   Standardabstand des <body>), und wer auf dem Telefon über das Ende hinaus
+   zog, sah Weiss.
+*/
+html,
+body {
+  margin: 0;
+  background: var(--wk-ground);
+  color: var(--wk-ink);
+}
+
+/*
+   JEDES FELD IN DEN FARBEN DES THEMAS — auch eines ohne eigene Regel. Mit
+   `:where` ohne jedes Gewicht: jede Regel weiter unten, die ein Feld anders
+   haben will, gewinnt. Vorher stand ein Feld ohne Regel (das SMS-Textfeld, die
+   Auswahl „Pokaż") mit schwarzer Schrift auf dunklem Grund.
+*/
+:where(.wk-root) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea) {
+  background-color: var(--wk-surface);
+  color: var(--wk-ink);
+  border: 1px solid var(--wk-line);
+  border-radius: 3px;
+}
+
+:where(.wk-root) :where(input, textarea)::placeholder { color: var(--wk-muted); opacity: 0.8; }
+:where(.wk-root) :where(input[type="checkbox"], input[type="radio"]) { accent-color: var(--wk-accent); }
 
 .wk-root {
   min-height: 100vh;
@@ -179,7 +227,7 @@ code {
 .wk-field input:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
 
 .wk-hint { margin: 0; font-size: 0.82rem; color: var(--wk-muted); }
-.wk-error { margin: 0; font-size: 0.9rem; color: #a5361c; }
+.wk-error { margin: 0; font-size: 0.9rem; color: var(--wk-danger); }
 
 .wk-actions { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
 
@@ -189,7 +237,7 @@ code {
   border: 1px solid var(--wk-accent);
   border-radius: 3px;
   background: var(--wk-accent);
-  color: #fff;
+  color: var(--wk-on-accent);
   cursor: pointer;
 }
 
@@ -202,7 +250,7 @@ code {
 .wk-btn:focus-visible { outline: 2px solid var(--wk-ink); outline-offset: 2px; }
 
 /* Ein grauer Knopf muss sagen, warum — sonst wirkt das Konto gesperrt. */
-.wk-blocker { font-size: 0.82rem; color: #a5361c; }
+.wk-blocker { font-size: 0.82rem; color: var(--wk-danger); }
 
 .wk-swap { margin: 0; font-size: 0.9rem; color: var(--wk-muted); }
 
@@ -609,7 +657,7 @@ code {
   cursor: pointer;
 }
 
-.pb-drop:hover { color: #a5361c; }
+.pb-drop:hover { color: var(--wk-danger); }
 
 .pb-ghost {
   display: grid;
@@ -802,7 +850,7 @@ code {
   cursor: pointer;
 }
 
-.wk-chip-x:hover { color: #a5361c; }
+.wk-chip-x:hover { color: var(--wk-danger); }
 .wk-chip-x:disabled { cursor: default; opacity: 0.5; }
 .wk-chip-x:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; border-radius: 999px; }
 
@@ -891,7 +939,7 @@ code {
 
 .wk-crumbs li { display: flex; align-items: baseline; gap: 0.35rem; }
 
-.wk-crumb-sep { color: var(--wk-line); }
+.wk-crumb-sep { color: var(--wk-muted); opacity: 0.6; }
 
 .wk-crumb-link {
   color: var(--wk-muted);
@@ -1204,7 +1252,7 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-seg-on:disabled {
   background: var(--wk-accent);
   border-left-color: var(--wk-accent);
-  color: #fff;
+  color: var(--wk-on-accent);
   opacity: 1;
   cursor: default;
 }
@@ -1278,7 +1326,7 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-entry-more { margin-left: auto; }
 .wk-entry-body { display: grid; gap: 0.6rem; padding: 0 0.2rem 1rem; }
 
-.wk-danger { color: #a5361c; }
+.wk-danger { color: var(--wk-danger); }
 
 /* Mehrere geöffnete Plätze auf einer Seite: je einer ein Abschnitt, mit Namen. */
 .wk-seat-one { display: grid; gap: 0.4rem; padding-top: 0.6rem; }
@@ -1579,7 +1627,7 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
   border: 2px solid var(--wk-muted);
 }
 
-.wk-lhandle.react-flow__handle-connecting { border-color: #a5361c; }
+.wk-lhandle.react-flow__handle-connecting { border-color: var(--wk-danger); }
 .wk-lhandle.react-flow__handle-valid { border-color: var(--wk-ok); }
 
 .wk-lport {
@@ -1722,6 +1770,13 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 /* Der eigene: die Kante des Hauses, damit er sich von den Angeboten abhebt. */
 .wk-slot.is-mine { border: 2px solid var(--wk-accent); background: var(--wk-surface); gap: 0.4rem; }
 .wk-slot.is-mine.is-waiting { border-style: dashed; }
+
+/* Ein Termin, der schon war: noch seiner, aber still. */
+.wk-slot.is-mine.is-past { border-width: 1px; border-color: var(--wk-line); }
+
+/* Die Frage an den Ersten (0050): zwei Antworten, jede mit dem, was sie bewirkt. */
+.wk-slot-decide { border-left-color: var(--wk-held-line); }
+.wk-slot-choices { margin: 0.3rem 0 0.2rem; padding-left: 1.2rem; display: grid; gap: 0.25rem; }
 
 .wk-slot-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--wk-muted); }
 .wk-slot-when { font-weight: 600; font-size: 1.02rem; }

@@ -569,10 +569,10 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
 
   /** Jemanden austragen. */
   const unseat = (c: OfficeClaim) => {
-    if (!window.confirm(`Wypisać z terminu: ${c.name ?? 'bez nazwy'}?${c.hosting ? ' To gospodarz — wolne miejsca otworzą się dla wszystkich.' : ''}`)) return;
+    if (!window.confirm(`Wypisać z terminu: ${nameOf(c)}?${c.hosting ? ' To gospodarz — wolne miejsca otworzą się dla wszystkich.' : ''}`)) return;
     void officeAct('Wypisywanie…', async () => {
       await officeRemove(c.claimId);
-      return `Wypisano: ${c.name ?? 'bez nazwy'}.`;
+      return `Wypisano: ${nameOf(c)}.`;
     });
   };
 
@@ -655,13 +655,13 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
                     <span className="wk-slot-people">
                       {here.map((c) => (
                         <span className={c.hosting ? 'wk-tag wk-tag-open' : 'wk-tag'} key={c.claimId}>
-                          {c.name ?? 'bez nazwy'}
-                          {c.hosting && ' · gospodarz'}
+                          {nameOf(c)}
+                          {c.hosting && (c.hostPending === true ? ' · pierwszy, decyduje' : ' · gospodarz')}
                           {c.byOffice === true && (c.withLink === true ? ' · dopisany' : ' · dopisany, bez linku')}
                           {c.status === 'pending' && (c.awaits === 'host' ? ' · prosi gospodarza' : ' · czeka')}
                           <button
                             type="button" className="wk-chip-x" disabled={working !== null}
-                            aria-label={`Wypisz: ${c.name ?? 'bez nazwy'}`} title="Wypisz z terminu"
+                            aria-label={`Wypisz: ${nameOf(c)}`} title="Wypisz z terminu"
                             onClick={() => unseat(c)}
                           >
                             ×
@@ -682,8 +682,10 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
 
                   {host !== undefined && host.inviteUntil !== null && (
                     <span className="wk-hint wk-slot-host">
-                      {new Date(host.inviteUntil).getTime() > Date.now()
-                        ? `Gospodarz (${host.name ?? 'bez nazwy'}) sam dobiera osoby do ${stamp(host.inviteUntil)} — potem, jeśli będzie ich mniej niż ${resource?.minPersons ?? 2}, wolne miejsca otworzą się dla wszystkich. Kod zna tylko on.`
+                      {host.hostPending === true
+                        ? `${nameOf(host)} wybrał(a) ten termin jako pierwszy i do ${stamp(host.inviteUntil)} decyduje, czy zaprosi znajomych. Jeśli nie odpowie, termin otworzy się dla wszystkich.`
+                        : new Date(host.inviteUntil).getTime() > Date.now()
+                        ? `Gospodarz (${nameOf(host)}) sam dobiera osoby do ${stamp(host.inviteUntil)} — potem, jeśli będzie ich mniej niż ${resource?.minPersons ?? 2}, wolne miejsca otworzą się dla wszystkich. Kod zna tylko on.`
                         : counted >= (resource?.minPersons ?? 2)
                           ? `Czas gospodarza minął ${stamp(host.inviteUntil)} — grupa jest skompletowana, termin zostaje dla niej.`
                           : `Czas gospodarza minął ${stamp(host.inviteUntil)} — wolne miejsca są dla wszystkich.`}
@@ -726,6 +728,17 @@ function Appointments({ calendar, from }: { calendar: CalendarRow; from: string 
     </>
   );
 }
+
+/**
+ * WER DA SITZT — der Name, sonst wenigstens, wann er sich angemeldet hat.
+ *
+ * Ein Platz ohne Namen (eine frühe Anmeldung, deren Namensfragen es so nicht
+ * mehr gibt) stand bisher als „bez nazwy" da, und die Kanzlei konnte ihn
+ * nirgends wiederfinden. Mit der Zeit der Anmeldung findet sie ihn unter
+ * „Osoby".
+ */
+const nameOf = (c: OfficeClaim): string =>
+  c.name ?? (c.registeredAt != null ? `bez nazwy (zgłoszenie z ${stamp(c.registeredAt)})` : 'bez nazwy');
 
 /** Die Kennung eines Termins — Eintrag und ursprünglicher Beginn, am Zeitpunkt verglichen. */
 const termKey = (itemId: string, occurrenceAt: string) => `${itemId}|${new Date(occurrenceAt).getTime()}`;

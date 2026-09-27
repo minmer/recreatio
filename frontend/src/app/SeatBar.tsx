@@ -102,7 +102,8 @@ export function SeatBar({ path }: { path: string }) {
         <FirstOpen key={one.token} token={one.token} challenge={one.challenge!} onPassed={one.reload} />
       ))}
 
-      {reviewing.map((seat, i) => (
+      {/* Solange ein Link fragt, wer da ist, steht KEINE Angabe da — auch keine zum Durchsehen. */}
+      {asking.length === 0 && reviewing.map((seat, i) => (
         <ReviewSubmissions key={seat.token} seat={seat} who={reviewing.length > 1 ? seatName(seat, i) : null} />
       ))}
     </>

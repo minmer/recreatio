@@ -73,6 +73,9 @@ public static class Bookings
         app.MapPost("/resource/decide", HostDecideAsync);
         app.MapPost("/resource/unhost", UnhostAsync);
 
+        /* 0050 — der Erste sagt, ob er Gastgeber sein will. */
+        app.MapPost("/resource/host", HostConfirmAsync);
+
         /* 0049 — der Gastgeber schliesst seinen Termin, sobald genug darauf sitzen. */
         app.MapPost("/resource/close", HostCloseAsync);
     }
@@ -176,7 +179,11 @@ public static class Bookings
         Guid Id, Guid ResourceId, DateTimeOffset StartsAt, DateTimeOffset EndsAt,
         Guid? ItemId, DateTimeOffset? OccurrenceAt, Guid? AccessId, Guid? RoleId, Guid GroupId,
         string Status, string? Awaits, byte[]? InviteSha256, DateTimeOffset? InviteUntil,
-        byte[]? InviteSealed, string? HolderName)
+        byte[]? InviteSealed, string? HolderName,
+
+        /* Wann der Erste ja gesagt hat — NULL: er entscheidet noch (0050). */
+        DateTimeOffset? HostConfirmedAt = null,
+        DateTimeOffset? CreatedAt = null)
     {
         /// <summary>
         /// Haelt DIESER ihn — ein Platz oder eine Rolle (0045)? Die Kennungen
@@ -187,7 +194,8 @@ public static class Bookings
 
     private const string ClaimColumns = """
         id, resource_id, starts_at, ends_at, item_id, occurrence_at, access_id, role_id,
-        group_id, status, awaits, invite_sha256, invite_until, invite_sealed, holder_name
+        group_id, status, awaits, invite_sha256, invite_until, invite_sealed, holder_name,
+        host_confirmed_at, created_at
         """;
 
     private static ClaimRow ReadClaim(SqlDataReader r) => new(
@@ -201,7 +209,9 @@ public static class Bookings
         r.IsDBNull(11) ? null : (byte[])r[11],
         r.IsDBNull(12) ? null : r.GetDateTimeOffset(12),
         r.IsDBNull(13) ? null : (byte[])r[13],
-        r.IsDBNull(14) ? null : r.GetString(14));
+        r.IsDBNull(14) ? null : r.GetString(14),
+        r.IsDBNull(15) ? null : r.GetDateTimeOffset(15),
+        r.IsDBNull(16) ? null : r.GetDateTimeOffset(16));
 
     /// <summary>
     /// ZAEHLT GEGEN DIE GRENZE?
@@ -218,6 +228,42 @@ public static class Bookings
         c.Status == "confirmed" || (c.Status == "pending" && c.Awaits == "office");
 
     private static bool Live(ClaimRow c) => c.Status is "confirmed" or "pending";
+
+    /// <summary>
+    /// Wie lange der Erste Zeit hat, sich zu entscheiden, ob er Gastgeber sein
+    /// will (0050). Solange haelt er die freien Plaetze wie ein Gastgeber;
+    /// antwortet er nicht, gehoeren sie danach allen.
+    /// </summary>
+    private const int HostDecisionMinutes = 15;
+
+    /// <summary>
+    /// IST ER GASTGEBER? Wer ja gesagt hat — oder wer noch innerhalb seiner 15
+    /// Minuten ueberlegt. Wer sie verstreichen liess, ist es nicht: dann gibt es
+    /// keinen Gastgeber, und was frei ist, ist frei.
+    /// </summary>
+    private static bool Hosts(ClaimRow c, DateTimeOffset now) =>
+        c.Status == "confirmed" && c.InviteSha256 is not null
+        && (SaidYes(c) || (c.InviteUntil is not null && c.InviteUntil > now));
+
+    /// <summary>Er hat den Termin als Erster, und die Frage „Gastgeber oder nicht" ist noch offen.</summary>
+    private static bool HostUndecided(ClaimRow c, DateTimeOffset now) =>
+        c.InviteSha256 is not null && !SaidYes(c)
+        && c.InviteUntil is not null && c.InviteUntil > now;
+
+    /// <summary>
+    /// HAT ER JA GESAGT? Mit Zeitpunkt — oder nach der alten Regel: ein
+    /// Fenster, das beim Nehmen gleich Stunden lang war, hat ein Dienst von
+    /// vor 0050 gesetzt (etwa zwischen der Umstellung der Datenbank und der
+    /// des Dienstes). Solche Gastgeber wurden nie gefragt und bleiben es.
+    /// </summary>
+    private static bool SaidYes(ClaimRow c) =>
+        c.HostConfirmedAt is not null
+        || (c.InviteUntil is not null && c.CreatedAt is not null
+            && c.InviteUntil.Value - c.CreatedAt.Value > TimeSpan.FromMinutes(HostDecisionMinutes + 5));
+
+    /// <summary>Haelt gerade jemand die freien Plaetze — mit seinem Fenster oder seiner Bedenkzeit?</summary>
+    private static bool HostWindowOpen(IEnumerable<ClaimRow> claims, DateTimeOffset now) =>
+        claims.Any(c => Hosts(c, now) && c.InviteUntil is not null && c.InviteUntil > now);
 
     /* ======================================================================
        DIE REGEL
@@ -838,8 +884,13 @@ public static class Bookings
                 insert.Parameters.AddWithValue("@awaits",
                     status == "pending" ? (asking ? "host" : "office") : DBNull.Value);
                 insert.Parameters.AddBlob("@hash", hash);
+                /*
+                 * ERST DIE BEDENKZEIT (0050) — nicht gleich das ganze Fenster.
+                 * Sagt er ja, beginnt es dann; sagt er nichts, faellt der
+                 * Termin nach 15 Minuten an alle.
+                 */
                 insert.Parameters.AddWithValue("@until",
-                    hash is null ? DBNull.Value : now.AddHours(resource.InviteHours));
+                    hash is null ? DBNull.Value : now.AddMinutes(HostDecisionMinutes));
                 insert.Parameters.AddBlob("@sealed", sealedCode);
                 insert.Parameters.AddWithValue("@name", (object?)name ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@now", now);
@@ -877,7 +928,8 @@ public static class Bookings
              */
             inviteCode = code,
             hosting = hash is not null,
-            inviteUntil = hash is null ? (DateTimeOffset?)null : now.AddHours(resource.InviteHours),
+            hostPending = hash is not null,
+            inviteUntil = hash is null ? (DateTimeOffset?)null : now.AddMinutes(HostDecisionMinutes),
             replaced = replaces is null ? null : Ids.ToText(replaces.Value)
         });
     }
@@ -888,7 +940,7 @@ public static class Bookings
     {
         var claims = await OfferClaimsAsync(connection, tx, resource.Id, itemId, occurrenceAt, ct);
 
-        var host = claims.FirstOrDefault(c => c.Status == "confirmed" && c.InviteSha256 is not null);
+        var host = claims.FirstOrDefault(c => Hosts(c, now));
 
         return JudgeOffer(
             resource.Capacity, resource.InviteHours,
@@ -980,19 +1032,32 @@ public static class Bookings
         DateTimeOffset occurrenceAt, CancellationToken ct) =>
         (await OfferClaimsAsync(connection, tx, resourceId, itemId, occurrenceAt, ct)).Count(Counts);
 
-    private static Task Refuse(HttpContext ctx, Verdict verdict, string? message) =>
-        Fail(ctx, verdict switch
+    /// <summary>
+    /// Nein — mit dem Grund in Worten UND als Wort fuer die Oberflaeche
+    /// (`verdict`): nur so kann sie sagen, dass in der Zwischenzeit jemand
+    /// anderes schneller war, statt einen Satz zu zeigen, der nicht dazu passt.
+    /// </summary>
+    private static Task Refuse(HttpContext ctx, Verdict verdict, string? message)
+    {
+        ctx.Response.StatusCode = verdict switch
         {
             Verdict.Mine or Verdict.Full => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status403Forbidden
-        }, message ?? verdict switch
+        };
+
+        return ctx.Response.WriteAsJsonAsync(new
         {
-            Verdict.Mine => "To już jest Twoje.",
-            Verdict.Full => "Nie ma już miejsca w tym czasie.",
-            Verdict.InviteNeeded => "Ten termin trzyma teraz ktoś inny — potrzebny jest kod od niego. Możesz też poprosić.",
-            Verdict.Closed => "Ten termin jest zamknięty — nie da się już na niego zapisać.",
-            _ => "Na ten termin nie da się już dopisać."
+            error = message ?? verdict switch
+            {
+                Verdict.Mine => "To już jest Twoje.",
+                Verdict.Full => "Nie ma już miejsca w tym czasie.",
+                Verdict.InviteNeeded => "Ten termin trzyma teraz ktoś inny — potrzebny jest kod od niego. Możesz też poprosić.",
+                Verdict.Closed => "Ten termin jest zamknięty — nie da się już na niego zapisać.",
+                _ => "Na ten termin nie da się już dopisać."
+            },
+            verdict = verdict.ToString().ToLowerInvariant()
         });
+    }
 
     /* ======================================================================
        ZURUECKGEBEN
@@ -1116,7 +1181,7 @@ public static class Bookings
                 ask.OccurrenceAt!.Value, ctx.RequestAborted);
 
             /* Nur wer den Termin HAELT, entscheidet — nicht wer bloss darauf sitzt. */
-            var host = claims.FirstOrDefault(c => c.Status == "confirmed" && c.InviteSha256 is not null);
+            var host = claims.FirstOrDefault(c => Hosts(c, DateTimeOffset.UtcNow));
 
             if (host is null || !host.HeldBy(me))
             {
@@ -1250,6 +1315,147 @@ public static class Bookings
             accepted = accepted.Count,
             declined = declined.Count
         });
+    }
+
+    public sealed record HostConfirmRequest(string ClaimId, string? Seat, string? RoleId = null);
+
+    /// <summary>
+    /// „TAK — ZAPRASZAM ZNAJOMYCH" (0050). Der Erste sagt ja, und sein Fenster
+    /// beginnt JETZT, mit so vielen Stunden, wie die Kanzlei gesetzt hat. Ein
+    /// Nein ist das Abgeben des Vorrechts (`/resource/unhost`).
+    ///
+    /// <para>
+    /// <b>Nur in der Bedenkzeit.</b> Sind die 15 Minuten um, gehoeren die
+    /// freien Plaetze schon allen — ein spaetes Ja naehme sie ihnen wieder weg.
+    /// </para>
+    /// </summary>
+    private static async Task HostConfirmAsync(HttpContext ctx, Db db, HostConfirmRequest body)
+    {
+        if (!Guid.TryParse(body.ClaimId, out var claimId))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna rezerwacja.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var holder = await HolderAsync(ctx, db, connection, body.Seat, body.RoleId, ctx.RequestAborted);
+        var claim = holder is null ? null : await ClaimByIdAsync(connection, null, claimId, ctx.RequestAborted);
+
+        if (claim is null || !claim.HeldBy(holder!.Value.Id) || claim.InviteSha256 is null
+            || claim.Status != "confirmed" || claim.ItemId is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Nie jesteś pierwszą osobą na tym terminie.");
+            return;
+        }
+
+        var resource = await ResourceAsync(connection, claim.ResourceId, ctx.RequestAborted);
+        if (resource is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Nie jesteś pierwszą osobą na tym terminie.");
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        /* Schon ja gesagt — dann bleibt es dabei, mit dem Fenster von damals. */
+        if (SaidYes(claim))
+        {
+            await ctx.Response.WriteAsJsonAsync(new { claimId = Ids.ToText(claimId), hosting = true, inviteUntil = claim.InviteUntil });
+            return;
+        }
+
+        var until = now.AddHours(resource.InviteHours);
+
+        await using var cmd = new SqlCommand("""
+            UPDATE app.claim
+               SET host_confirmed_at = @now, invite_until = @until
+             WHERE id = @id AND status = N'confirmed' AND invite_sha256 IS NOT NULL
+               AND host_confirmed_at IS NULL AND invite_until > @now;
+            """, connection);
+        cmd.Parameters.AddWithValue("@id", claimId);
+        cmd.Parameters.AddWithValue("@now", now);
+        cmd.Parameters.AddWithValue("@until", until);
+
+        if (await cmd.ExecuteNonQueryAsync(ctx.RequestAborted) == 0)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                $"Minęło {HostDecisionMinutes} minut bez odpowiedzi — wolne miejsca są już dostępne dla wszystkich.");
+            return;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { claimId = Ids.ToText(claimId), hosting = true, inviteUntil = until });
+    }
+
+    /// <summary>
+    /// BITTEN, UEBER DIE NIEMAND MEHR ENTSCHEIDET (0050).
+    ///
+    /// <para>
+    /// Wer um Mitnahme bat, wartet auf den Gastgeber. Laesst der Erste seine
+    /// 15 Minuten verstreichen oder laeuft das Fenster eines Gastgebers ab, ist
+    /// niemand mehr da, der ja sagen koennte — und die Bitte hinge fuer immer.
+    /// Deshalb bekommt sie hier ihre Antwort, genau wie beim Abgeben des
+    /// Vorrechts: der Reihe nach angenommen, solange Platz ist — ausser die
+    /// Gruppe ist komplett (Mindestzahl erreicht) oder der Termin geschlossen;
+    /// dann abgelehnt.
+    /// </para>
+    ///
+    /// <para>
+    /// Nachgeholt beim Lesen, unter derselben Sperre wie jedes Nehmen.
+    /// <c>true</c>: es wurde etwas entschieden.
+    /// </para>
+    /// </summary>
+    private static async Task<bool> SettleAsksAsync(
+        SqlConnection connection, ResourceRow resource, Guid itemId, DateTimeOffset at,
+        List<ClaimRow> seen, DateTimeOffset now, CancellationToken ct)
+    {
+        if (!seen.Any(c => c.Status == "pending" && c.Awaits == "host") || HostWindowOpen(seen, now)) return false;
+
+        var tree = await TreeAsync(connection, null, resource, ct);
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ct);
+
+        try
+        {
+            await using (var hold = new SqlCommand(
+                "SELECT id FROM app.resource WITH (UPDLOCK, HOLDLOCK) WHERE id = @root;", connection, tx))
+            {
+                hold.Parameters.AddWithValue("@root", tree.Root);
+                await hold.ExecuteScalarAsync(ct);
+            }
+
+            var claims = await OfferClaimsAsync(connection, tx, resource.Id, itemId, at, ct);
+            var asks = claims.Where(c => c.Status == "pending" && c.Awaits == "host").OrderBy(c => c.Id).ToList();
+
+            if (asks.Count == 0 || HostWindowOpen(claims, now))
+            {
+                await tx.CommitAsync(ct);
+                return false;
+            }
+
+            var counted = claims.Count(Counts);
+            var shut = await ClosedByAsync(connection, tx, itemId, at, ct) is not null
+                       || (claims.Any(c => Hosts(c, now)) && counted >= Math.Max(1, resource.MinPersons));
+
+            var accepted = new List<Guid>();
+            var declined = new List<Guid>();
+
+            foreach (var ask in asks)
+            {
+                if (!shut && counted < resource.Capacity) { accepted.Add(ask.Id); counted++; }
+                else declined.Add(ask.Id);
+            }
+
+            if (accepted.Count > 0) await Decided(connection, tx, accepted, true, ct);
+            if (declined.Count > 0) await Decided(connection, tx, declined, false, ct);
+
+            await tx.CommitAsync(ct);
+            return true;
+        }
+        catch
+        {
+            await tx.RollbackAsync(ct);
+            throw;
+        }
     }
 
     public sealed record OfficeDecideRequest(bool Accept);
@@ -1396,11 +1602,6 @@ public static class Bookings
             minPersons = found.MinPersons
         };
 
-        /* Was DIESER Platz haelt — in jedem Fall. */
-        var mine = me is null
-            ? []
-            : await MineAsync(connection, found.Id, me.Value, ctx.RequestAborted);
-
         if (found.Mode == "offered")
         {
             var offers = await OffersOfAsync(connection, found, since, till, null, ctx.RequestAborted);
@@ -1412,8 +1613,16 @@ public static class Bookings
                 var claims = await OfferClaimsAsync(connection, null, found.Id, offer.ItemId,
                     offer.OccurrenceAt, ctx.RequestAborted);
 
+                /* Bitten, ueber die niemand mehr entscheidet, bekommen jetzt ihre Antwort (0050). */
+                if (await SettleAsksAsync(connection, found, offer.ItemId, offer.OccurrenceAt, claims, now,
+                        ctx.RequestAborted))
+                {
+                    claims = await OfferClaimsAsync(connection, null, found.Id, offer.ItemId,
+                        offer.OccurrenceAt, ctx.RequestAborted);
+                }
+
                 var taken = claims.Count(Counts);
-                var host = claims.FirstOrDefault(c => c.Status == "confirmed" && c.InviteSha256 is not null);
+                var host = claims.FirstOrDefault(c => Hosts(c, now));
                 var myClaim = me is null ? null : claims.FirstOrDefault(c => c.HeldBy(me.Value));
 
                 closedAll.TryGetValue((offer.ItemId, offer.OccurrenceAt), out var closedBy);
@@ -1435,6 +1644,9 @@ public static class Bookings
                     state = verdict.ToString().ToLowerInvariant(),
                     inviteUntil = host?.InviteUntil,
 
+                    /* Der Erste entscheidet noch, ob er einlaedt — bis `inviteUntil` (0050). */
+                    hostPending = host is not null && HostUndecided(host, now),
+
                     myClaimId = myClaim is null ? null : Ids.ToText(myClaim.Id),
                     myStatus = myClaim?.Status,
                     hosting,
@@ -1450,9 +1662,14 @@ public static class Bookings
                 });
             }
 
-            await ctx.Response.WriteAsJsonAsync(new { resource = rules, offers = shown, mine });
+            /* Was DIESER Platz haelt — nach dem Beantworten der Bitten, damit es stimmt. */
+            var mineNow = me is null ? [] : await MineAsync(connection, found.Id, me.Value, now, ctx.RequestAborted);
+
+            await ctx.Response.WriteAsJsonAsync(new { resource = rules, offers = shown, mine = mineNow });
             return;
         }
+
+        var mine = me is null ? [] : await MineAsync(connection, found.Id, me.Value, now, ctx.RequestAborted);
 
         /* -- frei gewaehlt: was belegt ist, ohne Namen ------------------------ */
 
@@ -1498,7 +1715,7 @@ public static class Bookings
     }
 
     private static async Task<List<object>> MineAsync(
-        SqlConnection connection, Guid resourceId, Guid me, CancellationToken ct)
+        SqlConnection connection, Guid resourceId, Guid me, DateTimeOffset now, CancellationToken ct)
     {
         var mine = new List<object>();
 
@@ -1525,7 +1742,10 @@ public static class Bookings
                 groupId = Ids.ToText(c.GroupId),
                 status = c.Status,
                 awaits = c.Awaits,
-                hosting = c.InviteSha256 is not null,
+                hosting = Hosts(c, now),
+
+                /* Er hat ihn als Erster und soll sagen, ob er einlaedt — bis `inviteUntil` (0050). */
+                hostPending = HostUndecided(c, now),
                 inviteUntil = c.InviteUntil,
 
                 /* Der Code, versiegelt unter dem Schluessel des Halters — lesen kann ihn nur er (0045). */
@@ -1901,13 +2121,38 @@ public static class Bookings
 
         var since = DateTimeOffset.TryParse(from, out var f) ? f : DateTimeOffset.UtcNow.AddDays(-7);
         var till = DateTimeOffset.TryParse(to, out var t) && t > since ? t : since.AddDays(120);
+        var now = DateTimeOffset.UtcNow;
+
+        /* Bitten, ueber die niemand mehr entscheidet — erst beantworten, dann zeigen (0050). */
+        var waiting = new List<(Guid Item, DateTimeOffset At)>();
+        await using (var find = new SqlCommand("""
+            SELECT DISTINCT item_id, occurrence_at FROM app.claim
+            WHERE resource_id = @r AND status = N'pending' AND awaits = N'host'
+              AND item_id IS NOT NULL AND ends_at > @now;
+            """, connection))
+        {
+            find.Parameters.AddWithValue("@r", id);
+            find.Parameters.AddWithValue("@now", now);
+            await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted)) waiting.Add((reader.GetGuid(0), reader.GetDateTimeOffset(1)));
+        }
+
+        foreach (var (item, at) in waiting)
+        {
+            var onIt = await OfferClaimsAsync(connection, null, resource.Id, item, at, ctx.RequestAborted);
+            await SettleAsksAsync(connection, resource, item, at, onIt, now, ctx.RequestAborted);
+        }
 
         var claims = new List<object>();
 
         await using (var cmd = new SqlCommand($"""
             SELECT c.id, c.starts_at, c.ends_at, c.status, c.awaits, c.group_id,
                    c.invite_sha256, COALESCE(a.recipient_name, c.holder_name), c.role_id, c.created_at,
-                   c.item_id, c.occurrence_at, c.invite_until, c.by_office, c.access_id
+                   c.item_id, c.occurrence_at, c.invite_until, c.by_office, c.access_id,
+                   c.host_confirmed_at,
+
+                   /* Ein Platz ohne Namen: wann er sich angemeldet hat — damit die Kanzlei ihn findet. */
+                   (SELECT MIN(g.submitted_at) FROM app.registration g WHERE g.access_id = c.access_id)
             FROM app.claim c
             LEFT JOIN app.access a ON a.id = c.access_id
             WHERE c.resource_id = @r AND c.status <> N'released'
@@ -1925,6 +2170,17 @@ public static class Bookings
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
             while (await reader.ReadAsync(ctx.RequestAborted))
             {
+                /* Nur was die Regel des Gastgebers braucht — dieselbe wie beim Nehmen. */
+                var office = new ClaimRow(
+                    reader.GetGuid(0), id, reader.GetDateTimeOffset(1), reader.GetDateTimeOffset(2),
+                    null, null, null, null, reader.GetGuid(5), reader.GetString(3),
+                    reader.IsDBNull(4) ? null : reader.GetString(4),
+                    reader.IsDBNull(6) ? null : (byte[])reader[6],
+                    reader.IsDBNull(12) ? null : reader.GetDateTimeOffset(12),
+                    null, null,
+                    reader.IsDBNull(15) ? null : reader.GetDateTimeOffset(15),
+                    reader.GetDateTimeOffset(9));
+
                 claims.Add(new
                 {
                     claimId = Ids.ToText(reader.GetGuid(0)),
@@ -1933,8 +2189,11 @@ public static class Bookings
                     status = reader.GetString(3),
                     awaits = reader.IsDBNull(4) ? null : reader.GetString(4),
                     groupId = Ids.ToText(reader.GetGuid(5)),
-                    hosting = !reader.IsDBNull(6),
+                    /* Gastgeber — wer ja sagte, oder wer noch in seiner Bedenkzeit ist (0050). */
+                    hosting = Hosts(office, now),
+                    hostPending = HostUndecided(office, now),
                     name = reader.IsDBNull(7) ? null : reader.GetString(7),
+                    registeredAt = reader.IsDBNull(16) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(16),
                     roleId = reader.IsDBNull(8) ? null : Ids.ToText(reader.GetGuid(8)),
                     createdAt = reader.GetDateTimeOffset(9),
 
@@ -2263,10 +2522,16 @@ public static class Bookings
         var holder = await HolderAsync(ctx, db, connection, body.Seat, body.RoleId, ctx.RequestAborted);
         var claim = holder is null ? null : await ClaimByIdAsync(connection, null, claimId, ctx.RequestAborted);
 
-        if (claim is null || !claim.HeldBy(holder!.Value.Id) || claim.InviteSha256 is null
-            || claim.Status != "confirmed" || claim.ItemId is null)
+        if (claim is null || !claim.HeldBy(holder!.Value.Id) || !Hosts(claim, DateTimeOffset.UtcNow)
+            || claim.ItemId is null)
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "Zamknąć termin może tylko jego gospodarz.");
+            return;
+        }
+
+        if (!SaidYes(claim))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, "Najpierw zdecyduj, czy chcesz być gospodarzem tego terminu.");
             return;
         }
 

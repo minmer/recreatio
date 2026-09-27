@@ -35,8 +35,30 @@ function tidyAddress(): void {
   window.history.replaceState(null, '', cleaned);
 }
 
+/**
+ * Die Leiste des Telefons in der Farbe des Grundes — hell oder dunkel, wie die
+ * Seite selbst. `index.html` sagt Weiss, und das gilt für den Altbestand
+ * weiter; im dunklen Thema des Neubaus stand darüber ein weisser Balken.
+ *
+ * Die Farbe kommt aus dem Stilblatt (`--wk-ground`), nicht noch einmal von hier.
+ */
+function followTheme(): void {
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (meta === null) return;
+
+  const dark = window.matchMedia('(prefers-color-scheme: dark)');
+  const paint = () => {
+    const ground = getComputedStyle(document.documentElement).getPropertyValue('--wk-ground').trim();
+    if (ground !== '') meta.content = ground;
+  };
+
+  paint();
+  dark.addEventListener('change', paint);
+}
+
 export function mountApp(node: HTMLElement): void {
   tidyAddress();
+  followTheme();
 
   ReactDOM.createRoot(node).render(
     <React.StrictMode>

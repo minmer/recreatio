@@ -31,7 +31,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { usePerson } from './pagePerson';
 import {
-  askToJoin, hostDecides, loadOffers, minutesToTime, nightsToSpan, openInvite, releaseClaim,
+  askToJoin, confirmHost, hostDecides, loadOffers, minutesToTime, nightsToSpan, openInvite, releaseClaim,
   hostClose, resignHost, takeOffer, takeSpan, type Busy, type Holder, type MyClaim, type Offer, type Offers,
   type Rules
 } from './resource';
@@ -120,6 +120,12 @@ export function SlotCard({ title, resource }: {
       await todo();
       await look();
     } catch (e) {
+      /*
+       * AUCH NACH EINEM NEIN NEU LADEN — meist hat sich in der Zwischenzeit
+       * etwas geändert (jemand war schneller), und die Karten zeigten sonst
+       * noch den alten Stand. Die Meldung erst danach: `look` räumt sie weg.
+       */
+      await look();
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się.');
     } finally {
       setBusy(null);
@@ -147,6 +153,16 @@ export function SlotCard({ title, resource }: {
   /* Am Zeitpunkt verglichen, nicht am Text: dieselbe Zeit kann mit anderem Versatz geschrieben stehen. */
   const offerOf = (c: MyClaim) => (data.offers ?? []).find((o) => o.itemId === c.itemId
     && c.occurrenceAt !== null && new Date(o.occurrenceAt).getTime() === new Date(c.occurrenceAt).getTime());
+
+  /*
+   * DER TERMIN, DER SCHON WAR. Er zählt nicht mehr als gehalten (`live`) —
+   * aber wer ihn hatte, soll ihn sehen und nicht die Liste, als hätte er nie
+   * gewählt. Einen weiteren wählt er, wenn er will, mit einem Klick.
+   */
+  const past = holder === null ? [] : data.mine
+    .filter((c) => c.status === 'confirmed' && new Date(c.endsAt).getTime() <= Date.now())
+    .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
+  const lastPast = held.length === 0 ? past[0] ?? null : null;
 
   /* Was abgelehnt wurde, bleibt als Satz — sonst wüsste man nicht, warum nichts dasteht. */
   const declined = holder === null ? [] : data.mine.filter((c) => c.status === 'declined' && new Date(c.endsAt).getTime() > Date.now());
@@ -179,7 +195,7 @@ export function SlotCard({ title, resource }: {
 
   /* -- Angebotene Termine ---------------------------------------------------- */
 
-  const choosing = held.length === 0 || picking !== null;
+  const choosing = (held.length === 0 && lastPast === null) || picking !== null;
 
   return (
     <>
@@ -216,6 +232,22 @@ export function SlotCard({ title, resource }: {
             : <>Prośba o termin {span(c.startsAt, c.endsAt, rules)} nie została przyjęta — wybierz inny.</>}
         </p>
       ))}
+
+      {lastPast !== null && picking === null && (
+        <article className="wk-slot is-mine is-past">
+          <p className="wk-slot-label">Twój termin</p>
+          <p className="wk-slot-when">{span(lastPast.startsAt, lastPast.endsAt, rules)}</p>
+          <p className="wk-slot-note">Ten termin już się odbył.</p>
+          {!atLimit && (
+            <div className="wk-actions">
+              <button type="button" className="wk-link-btn" disabled={busy !== null}
+                onClick={() => setPicking({ replaces: null })}>
+                Wybierz kolejny termin
+              </button>
+            </div>
+          )}
+        </article>
+      )}
 
       {holder !== null && held.length > 0 && picking === null && !atLimit && (
         <div className="wk-actions">
@@ -281,7 +313,7 @@ function RulesLine({ rules }: { rules: Rules }) {
     `na termin: ${people(rules.capacity)}`,
     rules.perPerson === 0 ? null : `na osobę: ${rules.perPerson === 1 ? 'jeden termin' : `do ${rules.perPerson} terminów`}`,
     rules.inviteHours === 0 || rules.capacity < 2 ? null
-      : `pierwszy zapisany przez ${rules.inviteHours} h sam dobiera pozostałych`,
+      : `pierwszy zapisany może przez ${rules.inviteHours} h sam dobierać pozostałych`,
     rules.inviteHours === 0 || rules.capacity < 2 ? null
       : `grupa od ${rules.minPersons} ${rules.minPersons === 1 ? 'osoby' : 'osób'} zatrzymuje termin dla siebie`
   ].filter((one): one is string => one !== null);
@@ -294,7 +326,7 @@ function Legend({ rules }: { rules: Rules }) {
   return (
     <p className="wk-slot-legend">
       <span className="wk-slot-dot is-free" /> wolny
-      {rules.inviteHours > 0 && rules.capacity > 1 && <><span className="wk-slot-dot is-hosted" /> z gospodarzem — kod albo zgoda</>}
+      {rules.inviteHours > 0 && rules.capacity > 1 && <><span className="wk-slot-dot is-hosted" /> z gospodarzem — nie do wybrania, tylko prośba albo kod</>}
       <span className="wk-slot-dot is-closed" /> pełny albo zamknięty
     </p>
   );
@@ -332,7 +364,21 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
   useEffect(() => { if (fresh !== null) setCode(fresh.code); }, [fresh]);
 
   const minutes = Math.round((new Date(claim.endsAt).getTime() - new Date(claim.startsAt).getTime()) / 60000);
-  const hostOpen = claim.hosting && claim.inviteUntil !== null && new Date(claim.inviteUntil).getTime() > Date.now();
+  const deciding = claim.hostPending === true;
+  const hostOpen = claim.hosting && !deciding && claim.inviteUntil !== null && new Date(claim.inviteUntil).getTime() > Date.now();
+  const asked = claim.status === 'pending' && claim.awaits === 'host';
+
+  /*
+   * DIE 15 MINUTEN LAUFEN AUCH OHNE KLICK AB. Danach gehört der Termin allen —
+   * und die Frage soll dann nicht weiter dastehen, als ginge sie noch.
+   */
+  const until = claim.inviteUntil;
+  useEffect(() => {
+    if (!deciding || until === null) return;
+    const wait = new Date(until).getTime() - Date.now() + 1500;
+    const timer = window.setTimeout(() => void onAct('Odświeżanie…', async () => {}), Math.max(1000, wait));
+    return () => window.clearTimeout(timer);
+  }, [deciding, until]);
   const left = offer === undefined ? null : Math.max(0, offer.capacity - offer.taken);
 
   const copy = async () => {
@@ -342,7 +388,7 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
 
   return (
     <article className={`wk-slot is-mine${claim.status === 'pending' ? ' is-waiting' : ''}`}>
-      <p className="wk-slot-label">Twój termin</p>
+      <p className="wk-slot-label">{asked ? 'Twoja prośba o dołączenie' : 'Twój termin'}</p>
       <p className="wk-slot-when">{span(claim.startsAt, claim.endsAt, rules)}</p>
       <p className="wk-slot-note">
         {!rules.byNight && `Czas: ${minutes} min`}
@@ -352,6 +398,56 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
           {claim.status === 'confirmed' ? 'potwierdzony' : WAITS[claim.awaits ?? 'office'] ?? 'czeka'}
         </span>
       </p>
+
+      {/*
+        NUR EINE PROŚBA — und das steht da, klar. Der Termin ist nicht seiner,
+        solange der Gastgeber nicht ja sagt; er kann auch nein sagen.
+      */}
+      {asked && (
+        <p className="wk-slot-explain">
+          <strong>To jeszcze nie jest Twój termin.</strong> Poprosiłeś o dołączenie — decyduje osoba,
+          która wybrała ten termin jako pierwsza
+          {offer?.inviteUntil != null && <>, najpóźniej do <strong>{moment(offer.inviteUntil)}</strong></>}.
+          Może się zgodzić albo odmówić. Jeśli nie odpowie, a grupa nie będzie jeszcze pełna, zostaniesz
+          dopisany po kolei, o ile starczy miejsc.
+        </p>
+      )}
+
+      {/*
+        DIE FRAGE AN DEN ERSTEN (0050) — gleich nach dem Wählen. Ja: er lädt
+        ein, und seine Stunden beginnen. Nein, oder keine Antwort in 15
+        Minuten: jeder kann sich dazuschreiben.
+      */}
+      {deciding && claim.status === 'confirmed' && (
+        <div className="wk-slot-host wk-slot-decide">
+          <p>
+            <strong>Czy chcesz zaprosić znajomych na ten termin?</strong> Jesteś pierwszą osobą, która go
+            wybrała.
+          </p>
+          <ul className="wk-slot-choices">
+            <li>
+              <strong>Tak</strong> — zostaniesz gospodarzem: przez {rules.inviteHours} h wolne miejsca zajmą
+              tylko osoby z Twoim kodem albo te, które przyjmiesz.
+            </li>
+            <li><strong>Nie</strong> — każdy będzie mógł od razu dopisać się na wolne miejsca.</li>
+          </ul>
+          {until !== null && (
+            <p className="wk-hint">
+              Jeśli nie odpowiesz do <strong>{moment(until)}</strong>, termin otworzy się dla wszystkich.
+            </p>
+          )}
+          <div className="wk-actions">
+            <button type="button" className="wk-btn" disabled={busy}
+              onClick={() => void onAct('Zapisywanie…', () => confirmHost(claim.claimId, holder))}>
+              Tak, zapraszam znajomych
+            </button>
+            <button type="button" className="wk-btn wk-btn-quiet" disabled={busy}
+              onClick={() => void onAct('Zapisywanie…', () => resignHost(claim.claimId, holder))}>
+              Nie, niech każdy może się dopisać
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* -- Gastgeber ---------------------------------------------------- */}
       {hostOpen && (
@@ -434,7 +530,7 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
         </div>
       )}
 
-      {claim.hosting && !hostOpen && claim.inviteUntil !== null && (
+      {claim.hosting && !deciding && !hostOpen && claim.inviteUntil !== null && (
         <p className="wk-slot-note">
           Czas gospodarza minął {moment(claim.inviteUntil)}
           {offer !== undefined && offer.taken >= rules.minPersons
@@ -448,7 +544,7 @@ export function MyTerm({ claim, offer, rules, holder, fresh, picking, busy, onAc
         Kto zamknie, ten może też otworzyć; co zamknęła kancelaria, otwiera
         tylko ona.
       */}
-      {claim.hosting && claim.status === 'confirmed' && offer !== undefined && (
+      {claim.hosting && !deciding && claim.status === 'confirmed' && offer !== undefined && (
         <HostClosing claim={claim} offer={offer} rules={rules} holder={holder} busy={busy} onAct={onAct} />
       )}
 
@@ -525,6 +621,17 @@ function HostClosing({ claim, offer, rules, holder, busy, onAct }: {
 
 /* -- Die Termine zur Wahl --------------------------------------------------- */
 
+/**
+ * Was gesagt wird, wenn ein grün gezeigter Termin beim Klick nicht mehr frei
+ * war — je nach dem Grund, den der Dienst nennt. Die Liste ist danach neu.
+ */
+const MEANTIME: Record<string, string> = {
+  inviteneeded: 'W międzyczasie ktoś inny wybrał ten termin — nie jest już wolny. Teraz ta osoba decyduje, kto dołączy; możesz poprosić o dołączenie.',
+  full: 'W międzyczasie ktoś zajął ostatnie wolne miejsce — ten termin nie jest już wolny.',
+  locked: 'W międzyczasie ten termin został zajęty przez grupę — nie jest już wolny.',
+  closed: 'W międzyczasie ten termin został zamknięty — nie jest już wolny.'
+};
+
 const SHADE: Record<Offer['state'], string> = {
   open: 'is-free',
   inviteneeded: 'is-hosted',
@@ -580,18 +687,32 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
   const left = Math.max(0, offer.capacity - offer.taken);
 
   const take = (withCode?: string) => holder !== null && void onAct(replaces !== null ? 'Zamienianie…' : 'Zapisywanie…', async () => {
-    const done = await takeOffer(rules.resourceId, offer, holder, withCode, replaces ?? undefined);
-    onTaken(done.claimId, done.inviteCode, holder.key !== null);
+    try {
+      const done = await takeOffer(rules.resourceId, offer, holder, withCode, replaces ?? undefined);
+      onTaken(done.claimId, done.inviteCode, holder.key !== null);
+    } catch (e) {
+      /*
+       * W MIĘDZYCZASIE — die Karte war grün, aber jemand war schneller. Das
+       * sagt ein eigener Satz; der des Dienstes allein („potrzebny jest kod")
+       * klang, als hätte man etwas falsch gemacht.
+       */
+      const meantime = offer.state === 'open' && withCode === undefined && e instanceof WorkspaceError
+        ? MEANTIME[e.verdict ?? ''] : undefined;
+      throw meantime === undefined ? e : new WorkspaceError(meantime, e instanceof WorkspaceError ? e.verdict : null);
+    }
   });
 
   const said =
     offer.state === 'open'
       ? offer.taken === 0 && rules.inviteHours > 0 && rules.capacity > 1
-        ? `Wolny. Będziesz pierwszy — przez ${rules.inviteHours} h sam dobierzesz pozostałych.`
+        ? `Wolny. Będziesz pierwszy — zdecydujesz, czy chcesz sam zaprosić pozostałych (wtedy przez ${rules.inviteHours} h tylko Ty decydujesz, kto dołączy).`
         : `Wolny — zostało miejsc: ${left}.`
     : offer.state === 'inviteneeded'
-      ? `Pierwsza osoba, która wybrała ten termin, zaprasza teraz znajomych${offer.inviteUntil !== null
-        ? ` — ma na to czas do ${moment(offer.inviteUntil)}` : ''}. Wolnych miejsc: ${left}.`
+      ? offer.hostPending === true
+        ? `Nie można go teraz wybrać. Osoba, która wybrała go jako pierwsza, decyduje właśnie${offer.inviteUntil !== null
+          ? ` (najpóźniej do ${moment(offer.inviteUntil)})` : ''}, czy zaprosi znajomych. Jeśli nie — termin otworzy się dla wszystkich. Wolnych miejsc: ${left}.`
+        : `Nie można go wybrać bezpośrednio. Pierwsza osoba, która go wybrała, ${offer.inviteUntil !== null
+          ? `do ${moment(offer.inviteUntil)} ` : ''}sama decyduje, kto dołączy — możesz tylko poprosić o dołączenie albo użyć jej kodu. Wolnych miejsc: ${left}.`
     : offer.state === 'full' ? 'Pełny.'
     : offer.state === 'locked' ? 'Zamknięty — grupa jest już skompletowana.'
     : offer.state === 'closed'
@@ -627,7 +748,8 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
               verstehen, dass das eine Frist ist und keine Absage.
             */}
             <p className="wk-slot-explain">
-              Pierwsza osoba, która wybrała ten termin, ma czas, żeby zaprosić znajomych
+              <strong>Tego terminu nie wybierzesz sam.</strong> O tym, kto dołączy, decyduje osoba, która
+              wybrała go jako pierwsza
               {offer.inviteUntil !== null && <> — <strong>do {moment(offer.inviteUntil)}</strong></>}.
               {' '}Do tego czasu możesz dołączyć na jeden z dwóch sposobów:
             </p>
@@ -638,8 +760,9 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
                 <section className="wk-slot-way">
                   <strong>Nie masz kodu?</strong>
                   <p>
-                    Poproś tę osobę o dołączenie. Zobaczy Twoją prośbę u siebie i może ją przyjąć —
-                    odpowiedź pojawi się tutaj, przy Twoim terminie.
+                    Poproś tę osobę o dołączenie. To tylko prośba — <strong>nie masz pewności, że zostanie
+                    przyjęta</strong>: ta osoba może się zgodzić albo odmówić. Dopóki się nie zgodzi, termin
+                    nie jest Twój. Odpowiedź pojawi się tutaj.
                   </p>
                   <button type="button" className="wk-btn" disabled={busy}
                     onClick={() => void onAct('Wysyłanie prośby…', () => askToJoin(rules.resourceId, offer, holder))}>
@@ -675,7 +798,7 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
             */}
             <p className="wk-hint">
               {replaces !== null && 'Prośbę o dołączenie wyślesz, gdy nie będziesz mieć innego terminu. '}
-              Jeśli do tego czasu nikt nie dołączy, termin otworzy się dla wszystkich i wybierzesz go bez kodu.
+              Jeśli do tego czasu nikt więcej nie dołączy, termin otworzy się dla wszystkich i wybierzesz go bez kodu.
               {' '}
               <button type="button" className="wk-link-btn" onClick={() => setOpen(false)}>Ukryj</button>
             </p>
@@ -683,7 +806,7 @@ function OfferCard({ offer, rules, holder, replaces, busy, onAct, onTaken }: {
         ) : (
           /* Ein richtiger Knopf, kein leiser: hier hinein geht es — nur anders als bei einem grünen. */
           <button type="button" className="wk-btn wk-slot-take" disabled={busy} onClick={() => setOpen(true)}>
-            Chcę dołączyć do tego terminu
+            Poproś o dołączenie albo wpisz kod
           </button>
         )
       )}

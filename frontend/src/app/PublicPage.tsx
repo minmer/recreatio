@@ -89,23 +89,26 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
     <WithSeat path={page.path}>
       <PersonProvider path={page.path}>
         <PageLogicProvider logic={page.logic}>
-          {/*
-            FÜR WEN — einmal, oben, für die ganze Seite. Die Rezerwacja, das
-            Formular und die persönlichen Bausteine lesen dieselbe Wahl.
-          */}
-          <div className="wk-page-top"><PersonPicker /></div>
-
           {page.title !== null && <h1 className="wk-h1">{page.title}</h1>}
           {page.lead !== null && <p className="wk-lede wk-page-lead">{page.lead}</p>}
 
           <SeatBar path={page.path} />
-          <PageParts parts={parts} />
 
-          {/*
-            Keine persönlichen Bausteine auf dieser Seite? Dann die eingebauten
-            Abschnitte — für den Gewählten, wenn sein Link HIERHER geführt hat.
-          */}
-          {!parts.some((one) => one.kind.startsWith('seat-')) && <Fallback path={page.path} />}
+          <UntilConfirmed path={page.path}>
+            {/*
+              FÜR WEN — einmal, oben, für die ganze Seite. Die Rezerwacja, das
+              Formular und die persönlichen Bausteine lesen dieselbe Wahl.
+            */}
+            <div className="wk-page-top"><PersonPicker /></div>
+
+            <PageParts parts={parts} />
+
+            {/*
+              Keine persönlichen Bausteine auf dieser Seite? Dann die eingebauten
+              Abschnitte — für den Gewählten, wenn sein Link HIERHER geführt hat.
+            */}
+            {!parts.some((one) => one.kind.startsWith('seat-')) && <Fallback path={page.path} />}
+          </UntilConfirmed>
         </PageLogicProvider>
       </PersonProvider>
     </WithSeat>
@@ -175,6 +178,27 @@ function Opened({ token, children }: { token: string; children: React.ReactNode 
       <SeatContext.Provider value={all}>{children}</SeatContext.Provider>
     </SeatStateContext.Provider>
   );
+}
+
+/**
+ * ERST BESTÄTIGEN, DANN SEHEN (0046) — die ganze Seite, nicht nur der Link.
+ *
+ * Wartet ein Link, der HIERHER geführt hat, auf „Potwierdź, że to Ty", steht
+ * nur die Frage da. Vorher erschienen darunter die Angaben eines ANDEREN
+ * Platzes, den dieser Browser noch hielt (etwa ein früher geöffneter Link auf
+ * einem geteilten Telefon) — mit Namen, Geburtsdatum und Adresse, obwohl
+ * gerade niemand gezeigt hatte, wer er ist.
+ */
+export function UntilConfirmed({ path, children }: { path: string; children: React.ReactNode }) {
+  const states = useSeatStates();
+  const fresh = freshSeat();
+  const hereToken = fresh !== null && fresh.under === path ? fresh.token : null;
+  const mine = useMemo(
+    () => new Set([...(hereToken === null ? [] : [hereToken]), ...seatsExactly(path)]),
+    [hereToken, path]);
+
+  const asking = states.some((one) => one.state === 'verify' && mine.has(one.token));
+  return asking ? null : <>{children}</>;
 }
 
 /** Die eingebauten Abschnitte — für den Gewählten, wenn sein Link GENAU hierher geführt hat. */

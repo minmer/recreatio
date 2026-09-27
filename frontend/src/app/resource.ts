@@ -85,6 +85,9 @@ export interface Offer {
   /** Wer um Mitnahme bittet — nur für den Gastgeber, und nur der Name des Platzes. */
   readonly asks: readonly { claimId: string; name: string | null }[];
 
+  /** Der Erste entscheidet noch, ob er einlädt — bis `inviteUntil` (0050). */
+  readonly hostPending?: boolean;
+
   /** Geschlossen — und von wem (0049). Der Gastgeber öffnet nur, was er selbst geschlossen hat. */
   readonly closedBy?: 'office' | 'host' | null;
 }
@@ -102,6 +105,12 @@ export interface MyClaim {
   readonly awaits: 'office' | 'host' | null;
   readonly hosting: boolean;
   readonly inviteUntil: string | null;
+
+  /**
+   * Als Erster genommen — und die Frage „Gastgeber oder nicht" ist noch offen
+   * (0050). `inviteUntil` ist dann die Frist dafür: 15 Minuten.
+   */
+  readonly hostPending?: boolean;
 
   /** Der eigene Code, versiegelt unter dem Schlüssel des Halters (0045) — oder `null`. */
   readonly inviteSealed: string | null;
@@ -266,6 +275,15 @@ export const askToJoin = (resourceId: string, offer: Pick<Offer, 'itemId' | 'occ
  * sofort allen; wer schon um Mitnahme gebeten hat, wird der Reihe nach
  * aufgenommen, solange Platz ist.
  */
+/**
+ * „TAK — ZAPRASZAM ZNAJOMYCH" (0050): der Erste will Gastgeber sein. Sein
+ * Fenster beginnt jetzt. Das Nein ist `resignHost`.
+ */
+export const confirmHost = (claimId: string, holder: Holder) =>
+  call<{ hosting: true; inviteUntil: string }>('/resource/host', {
+    method: 'POST', body: JSON.stringify({ claimId, ...who(holder) })
+  });
+
 export const resignHost = (claimId: string, holder: Holder) =>
   call<{ hosting: false; accepted: number; declined: number }>('/resource/unhost', {
     method: 'POST', body: JSON.stringify({ claimId, ...who(holder) })
@@ -346,6 +364,12 @@ export interface OfficeClaim {
   readonly itemId: string | null;
   readonly occurrenceAt: string | null;
   readonly inviteUntil: string | null;
+
+  /** Der Erste entscheidet noch, ob er Gastgeber sein will (0050). */
+  readonly hostPending?: boolean;
+
+  /** Ein Platz ohne Namen: wann er sich angemeldet hat — damit man ihn findet. */
+  readonly registeredAt?: string | null;
 
   /** Von der Kanzlei eingetragen (0049) — und ob mit Link oder nur mit Namen. */
   readonly byOffice?: boolean;

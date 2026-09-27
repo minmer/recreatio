@@ -134,8 +134,18 @@ async function derivePasswordKey(password: string, salt: Uint8Array): Promise<Ui
   return out;
 }
 
-/** Die Antwort des Dienstes, oder eine Meldung, die man zeigen kann. */
-export class WorkspaceError extends Error {}
+/**
+ * Die Antwort des Dienstes, oder eine Meldung, die man zeigen kann.
+ *
+ * `verdict`: bei einem Nein zu einem Termin das Wort des Dienstes dafür
+ * (`inviteneeded`, `full`, …) — damit die Seite sagen kann, dass in der
+ * Zwischenzeit jemand anderes schneller war.
+ */
+export class WorkspaceError extends Error {
+  constructor(message: string, readonly verdict: string | null = null) {
+    super(message);
+  }
+}
 
 /** In der Entwicklung ist die Ursache fast immer, dass der Dienst nicht läuft. */
 const UNREACHABLE = import.meta.env.DEV
@@ -168,7 +178,8 @@ export async function call<T>(path: string, init: RequestInit = {}): Promise<T> 
     const said = await response.json().catch(() => null);
 
     if (said !== null && typeof said === 'object' && 'error' in said) {
-      throw new WorkspaceError(String((said as { error: unknown }).error));
+      const verdict = (said as { verdict?: unknown }).verdict;
+      throw new WorkspaceError(String((said as { error: unknown }).error), typeof verdict === 'string' ? verdict : null);
     }
 
     // Keine Antwort des Dienstes, sondern des Weiterleiters: der Dienst läuft
