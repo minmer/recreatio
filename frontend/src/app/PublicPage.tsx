@@ -17,15 +17,16 @@
  * weiterging, und es sah aus, als hätte man den Link nie geöffnet.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { loadPage, toDraft, type PageContent } from './page';
 import { PageParts } from './PageParts';
-import { PersonPicker, PersonProvider, usePerson } from './pagePerson';
+import { PersonAccessGate, PersonPicker, PersonProvider, usePerson } from './pagePerson';
+import { NoAccess, PageAccessContext } from './pageAccess';
 import { PageLogicProvider } from './PageLogicView';
 import { PersonalSections, SeatBar } from './SeatBar';
 import { SeatContext, SeatStateContext, useSeats, useSeatStates, type SeatState } from './seatContext';
-import { freshSeat, seatsExactly, seatsFor } from './seatKeep';
+import { freshSeat, heldSeats, seatsExactly, seatsFor } from './seatKeep';
 import { useSeat } from './seatView';
 import { WorkspaceError } from './session';
 import { loadSite } from './site';
@@ -40,26 +41,65 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
   const [page, setPage] = useState<PageContent | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
 
+  /* Nur mit Zugang — und ohne ihn (0050): „trzeba mieć dostęp", nicht „nic tu nie ma". */
+  const [denied, setDenied] = useState<'needsaccess' | 'noaccess' | null>(null);
+
+  /* Neu laden, sobald ein Link hier bestätigt wurde — dann gilt er. */
+  const [round, setRound] = useState(0);
+
+  /*
+   * UND SOBALD EIN NEUER LINK HIERHER FÜHRT — auch auf dieselbe Adresse. Wer
+   * erst ohne Link auf der Seite stand („trzeba mieć dostęp“) und dann seinen
+   * Link öffnet, bleibt auf demselben Pfad; ohne das bliebe die Absage stehen.
+   */
+  const arrived = freshSeat()?.token ?? null;
+
   useEffect(() => {
     // Wer schnell zwischen zwei Adressen wechselt, bekommt sonst die Antwort
     // der ersten auf die zweite Seite geschrieben.
     let alive = true;
     setPage(undefined);
+    setDenied(null);
+
+    /*
+     * DIE LINKS DIESES BROWSERS gehen mit: auf einer Seite nur mit Zugang
+     * entscheiden sie, ob und für wen man sie sieht. Unter einer eigenen
+     * Domain ist das Haus erst nach der Antwort bekannt — dann alle.
+     */
+    const seats = host !== undefined ? heldSeats() : seatsFor(path ?? '');
 
     // Unter einer eigenen Domain ist der Pfad LOKAL: was die Wurzel ist, setzt
     // der Dienst davor (`routes.localPath`).
-    (host !== undefined ? loadSite(host, local ?? '') : loadPage(path ?? ''))
+    (host !== undefined ? loadSite(host, local ?? '', seats) : loadPage(path ?? '', seats))
       .then((found) => { if (alive) setPage(found); })
       .catch((e) => {
         if (!alive) return;
+        const verdict = e instanceof WorkspaceError ? e.verdict : null;
+        if (verdict === 'needsaccess' || verdict === 'noaccess') setDenied(verdict);
         setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać strony.');
         setPage(null);
       });
 
     return () => { alive = false; };
-  }, [path, host, local]);
+  }, [path, host, local, round, arrived]);
 
   if (page === undefined) return <p className="wk-lede">Wczytywanie…</p>;
+
+  /*
+   * KEIN ZUGANG. Führte ein Link hierher, der erst fragt, wer da ist, steht
+   * zuerst die Frage — danach wird die Seite neu geholt, und der Link gilt.
+   */
+  if (page === null && denied !== null) {
+    if (path === undefined) return <NoAccess verdict={denied} />;
+
+    return (
+      <WithSeat path={path}>
+        <SeatBar path={path} />
+        <UntilConfirmed path={path}><NoAccess verdict={denied} /></UntilConfirmed>
+        <ReloadWhenConfirmed path={path} onConfirmed={() => setRound((n) => n + 1)} />
+      </WithSeat>
+    );
+  }
 
   if (page === null) {
     return (
@@ -87,6 +127,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
 
   return (
     <WithSeat path={page.path}>
+      <PageAccessContext.Provider value={page.access ?? null}>
       <PersonProvider path={page.path}>
         <PageLogicProvider logic={page.logic}>
           {page.title !== null && <h1 className="wk-h1">{page.title}</h1>}
@@ -101,16 +142,23 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
             */}
             <div className="wk-page-top"><PersonPicker /></div>
 
-            <PageParts parts={parts} />
-
             {/*
-              Keine persönlichen Bausteine auf dieser Seite? Dann die eingebauten
-              Abschnitte — für den Gewählten, wenn sein Link HIERHER geführt hat.
+              WER OBEN GEWÄHLT IST, MUSS ZUGANG HABEN — auf einer Seite nur mit
+              Zugang. Sonst steht statt der Bausteine, dass es ihn braucht.
             */}
-            {!parts.some((one) => one.kind.startsWith('seat-')) && <Fallback path={page.path} />}
+            <PersonAccessGate>
+              <PageParts parts={parts} />
+
+              {/*
+                Keine persönlichen Bausteine auf dieser Seite? Dann die eingebauten
+                Abschnitte — für den Gewählten, wenn sein Link HIERHER geführt hat.
+              */}
+              {!parts.some((one) => one.kind.startsWith('seat-')) && <Fallback path={page.path} />}
+            </PersonAccessGate>
           </UntilConfirmed>
         </PageLogicProvider>
       </PersonProvider>
+      </PageAccessContext.Provider>
     </WithSeat>
   );
 }
@@ -199,6 +247,29 @@ export function UntilConfirmed({ path, children }: { path: string; children: Rea
 
   const asking = states.some((one) => one.state === 'verify' && mine.has(one.token));
   return asking ? null : <>{children}</>;
+}
+
+/**
+ * Ein Link, der hierher führte, hat eben die Frage beantwortet — dann die
+ * Seite neu holen. NUR beim Übergang „fragt" → „offen": sonst lüde eine Seite,
+ * die man nicht sehen darf, immer wieder.
+ */
+function ReloadWhenConfirmed({ path, onConfirmed }: { path: string; onConfirmed: () => void }) {
+  const states = useSeatStates();
+  const asked = useRef(new Set<string>());
+  const exact = useMemo(() => new Set(seatsExactly(path)), [path]);
+
+  useEffect(() => {
+    for (const one of states) {
+      if (one.state === 'verify') asked.current.add(one.token);
+      else if (one.state === 'open' && asked.current.has(one.token) && exact.has(one.token)) {
+        asked.current.delete(one.token);
+        onConfirmed();
+      }
+    }
+  }, [states, exact, onConfirmed]);
+
+  return null;
 }
 
 /** Die eingebauten Abschnitte — für den Gewählten, wenn sein Link GENAU hierher geführt hat. */

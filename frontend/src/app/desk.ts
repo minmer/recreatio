@@ -67,6 +67,12 @@ export interface PageCard {
    * sondern nicht.
    */
   readonly internalForRoleId: string | null;
+
+  /**
+   * NUR MIT ZUGANG (0051): die Bereiche, an die die Seite gebunden ist. Leer —
+   * und keine alte Rolle — heisst öffentlich.
+   */
+  readonly accessAreaIds?: readonly string[];
 }
 
 export interface Desk {
@@ -147,6 +153,16 @@ export const setInternal = (
   call('/workspace/slug/internal', {
     method: 'POST',
     body: JSON.stringify({ path, roleId })
+  });
+
+/**
+ * WER EINE SEITE ÖFFNEN DARF — die Bereiche (0051). Leer macht sie öffentlich.
+ * Ersetzt dabei eine alte Rollenbindung (`setInternal`).
+ */
+export const setPageAreas = (path: string, areaIds: readonly string[]): Promise<{ path: string; areaIds: string[] }> =>
+  call('/workspace/slug/areas', {
+    method: 'POST',
+    body: JSON.stringify({ path, areaIds })
   });
 
 /** Eine eigene Domain anhängen — oder sie abnehmen (`host` = `null`). */

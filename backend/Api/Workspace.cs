@@ -86,6 +86,26 @@ public static class Workspace
         var roles = await RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
         var pages = await PagesOfAsync(connection, roles, ctx.RequestAborted);
 
+        var areasOf = new Dictionary<string, List<string>>();
+        if (pages.Count > 0)
+        {
+            var names = string.Join(", ", pages.Select((_, i) => $"@p{i}"));
+            await using var cmd = new SqlCommand($"""
+                SELECT s.path, w.area_id FROM app.slug_area w
+                JOIN app.slug s ON s.id = w.slug_id
+                WHERE s.path IN ({names});
+                """, connection);
+            for (var i = 0; i < pages.Count; i++) cmd.Parameters.AddWithValue($"@p{i}", pages[i].Item1);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                var path = reader.GetString(0);
+                if (!areasOf.TryGetValue(path, out var list)) areasOf[path] = list = [];
+                list.Add(Ids.ToText(reader.GetGuid(1)));
+            }
+        }
+
         await ctx.Response.WriteAsJsonAsync(new
         {
             roles = roles.Select(r => new { id = Ids.ToText(r.Id), kind = r.Kind, isPersonal = r.IsPersonal, depth = r.Depth }),
@@ -106,7 +126,10 @@ public static class Workspace
                  * zeigt alle drei nebeneinander, sonst muesste er zweimal
                  * fragen und zweimal zeichnen.
                  */
-                internalForRoleId = p.InternalFor is null ? null : Ids.ToText(p.InternalFor.Value)
+                internalForRoleId = p.InternalFor is null ? null : Ids.ToText(p.InternalFor.Value),
+
+                /* Nur mit Zugang (0051): an welche Bereiche die Seite gebunden ist — leer: oeffentlich. */
+                accessAreaIds = areasOf.TryGetValue(p.Path, out var bound) ? bound : []
             })
         });
     }

@@ -73,7 +73,7 @@ public static class Page
 
     /* -- Zeigen ------------------------------------------------------------- */
 
-    private static async Task ShowAsync(HttpContext ctx, Db db, string? path, string? seat)
+    private static async Task ShowAsync(HttpContext ctx, Db db, string? path, string? seat, string? seats)
     {
         var wanted = Slug.Normalise(path);
 
@@ -84,8 +84,21 @@ public static class Page
         }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        await WritePageAsync(ctx, db, connection, wanted, seat);
+        await WritePageAsync(ctx, db, connection, wanted, Tokens(seat, seats));
     }
+
+    /// <summary>
+    /// Die Links, die dieser Browser fuer das Haus haelt — der eine (`seat`,
+    /// wie bisher) und die uebrigen (`seats`, durch Kommas). Hoechstens zwanzig:
+    /// mehr haelt kein Mensch, und mehr zu pruefen waere Arbeit fuer nichts.
+    /// </summary>
+    private static List<string> Tokens(string? seat, string? seats) =>
+        new[] { seat }.Concat((seats ?? string.Empty).Split(','))
+            .Select(one => (one ?? string.Empty).Trim())
+            .Where(one => one.Length is > 0 and <= 200)
+            .Distinct()
+            .Take(20)
+            .ToList();
 
     /// <summary>
     /// Welche Seite ein eigener Name zeigt.
@@ -98,7 +111,7 @@ public static class Page
     /// dabei herauskommt, ist ohnehin öffentlich.
     /// </para>
     /// </summary>
-    private static async Task SiteAsync(HttpContext ctx, Db db, string? host, string? path, string? seat)
+    private static async Task SiteAsync(HttpContext ctx, Db db, string? host, string? path, string? seat, string? seats)
     {
         var name = (host ?? string.Empty).Trim().ToLowerInvariant();
 
@@ -165,7 +178,7 @@ public static class Page
             return;
         }
 
-        await WritePageAsync(ctx, db, connection, wanted, seat);
+        await WritePageAsync(ctx, db, connection, wanted, Tokens(seat, seats));
     }
 
     /// <summary>
@@ -178,59 +191,130 @@ public static class Page
     /// </para>
     /// </summary>
     /// <summary>
-    /// Darf dieser Aufrufer eine INTERNE Adresse sehen? Drei Wege, und kein vierter.
-    ///
-    /// <code>
-    ///   ein PLATZ            der Link, ohne Konto — `app.access_slug`
-    ///   die Rolle halten     ueber das Konto, im Rollengraphen erreichbar
-    ///   schreiben duerfen    das Amt, das die Adresse fuehrt
-    /// </code>
+    /// WER HIER HINEINDARF — je Link und je Person, nicht bloss ja oder nein.
     ///
     /// <para>
-    /// Der erste steht zuerst, weil er der haeufigste ist: ein Vierzehnjaehriger
-    /// hat kein Konto, und eine Rollenpruefung allein sperrte genau den aus,
-    /// fuer den die Seite gemacht wurde.
+    /// Die Seite fragt nicht nur „darf dieser Browser", sondern auch „fuer
+    /// WEN darf er hier handeln". Ein Link einer anderen Seite desselben
+    /// Hauses (ein alter Link aus einem anderen Formular) oder eine eigene
+    /// Person ohne Zugang soll hier keinen Termin nehmen und nichts eintragen —
+    /// die Seite sagt dann, dass es Zugang braucht.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Gebunden an BEREICHE</b> (0051, Wunsch der Kanzlei): Zugang hat ein
+    /// Link, dessen Platz in einem der Bereiche der Seite liegt (oder der an
+    /// genau diese Seite gehaengt ist), eine Person, die einen dieser Bereiche
+    /// lesen darf, und wer die Seite fuehrt. Die alte Rollenbindung (0026)
+    /// gilt daneben weiter, solange eine Seite sie noch traegt.
     /// </para>
     /// </summary>
-    private static async Task<bool> MaySeeAsync(
-        HttpContext ctx, Db db, SqlConnection connection,
-        Guid internalFor, Guid slugId, Guid askedId, string path, string? seat)
+    private sealed record Seen(List<string> Seats, List<string> Roles, bool Manages, bool SignedIn)
     {
-        if (!string.IsNullOrWhiteSpace(seat))
+        public bool Any => Seats.Count > 0 || Roles.Count > 0 || Manages;
+    }
+
+    private static async Task<Seen> SeenByAsync(
+        HttpContext ctx, Db db, SqlConnection connection,
+        Guid? internalFor, Guid slugId, Guid askedId, string path, IReadOnlyList<string> tokens)
+    {
+        /*
+         * 1. JE LINK — schon bestaetigt, und: sein Platz liegt in einem der
+         * Bereiche der Seite, oder er haengt an genau dieser Seite.
+         */
+        var seats = new List<string>();
+
+        foreach (var token in tokens)
         {
             await using var cmd = new SqlCommand("""
                 SELECT TOP 1 1
                 FROM app.access a
-                JOIN app.access_slug g ON g.access_id = a.id
                 WHERE a.token_sha256 = @token
                   AND a.revoked_at IS NULL AND a.status = N'active'
                   AND (a.expires_at IS NULL OR a.expires_at > @now)
                   AND (a.verify_hash IS NULL OR a.verified_at IS NOT NULL)
-                  AND g.slug_id IN (@slug, @asked);
+                  AND (EXISTS (SELECT 1 FROM app.access_slug g
+                                WHERE g.access_id = a.id AND g.slug_id IN (@slug, @asked))
+                       OR a.area_id IN (SELECT w.area_id FROM app.slug_area w WHERE w.slug_id = @slug));
                 """, connection);
 
             cmd.Parameters.AddWithValue("@token",
-                System.Security.Cryptography.SHA256.HashData(
-                    System.Text.Encoding.UTF8.GetBytes(seat.Trim())));
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token)));
             cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
             cmd.Parameters.AddWithValue("@slug", slugId);
             cmd.Parameters.AddWithValue("@asked", askedId);
 
-            if (await cmd.ExecuteScalarAsync(ctx.RequestAborted) is not null) return true;
+            if (await cmd.ExecuteScalarAsync(ctx.RequestAborted) is not null) seats.Add(token);
         }
 
         var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) return false;
+        if (who is null) return new Seen(seats, [], false, false);
 
-        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
-        if (mine.Any(r => r.Id == internalFor)) return true;
-
+        /* 2. WER DIE SEITE FUEHRT — er sieht sie, auch ohne Person mit Zugang. */
         var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
-        return grip.MayWrite;
+
+        /*
+         * 3. JE EIGENE PERSON: darf eine ihrer Rollen (im Rollengraphen, nur
+         * ueber „holds") einen der Bereiche der Seite lesen — ein Zertifikat
+         * read, write oder admin? Haelt sie die alte Rolle der Seite? Oder
+         * einen Link dafuer, den sie sich zugeordnet hat („Przypisz do siebie")?
+         */
+        var persons = (await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted))
+            .Where(r => r.Kind == "person").Select(r => r.Id).ToList();
+
+        var roles = new List<string>();
+
+        if (persons.Count > 0)
+        {
+            var names = string.Join(", ", persons.Select((_, i) => $"@p{i}"));
+
+            await using var cmd = new SqlCommand($"""
+                WITH reach (start, id, depth) AS (
+                    SELECT r.id, r.id, 0 FROM app.role r WHERE r.id IN ({names})
+                    UNION ALL
+                    SELECT h.start, e.to_role_id, h.depth + 1
+                    FROM reach h
+                    JOIN app.role_edge e ON e.from_role_id = h.id AND e.revoked_at IS NULL
+                                        AND e.edge_kind = N'holds'
+                    JOIN app.role x      ON x.id = e.to_role_id AND x.revoked_at IS NULL
+                    WHERE h.depth < {RoleGraph.MaxDepth}
+                )
+                SELECT DISTINCT start FROM reach WHERE @internal IS NOT NULL AND id = @internal
+                UNION
+                SELECT DISTINCT h.start
+                FROM reach h
+                JOIN app.certificate c ON c.subject_role_id = h.id
+                WHERE c.scope_kind = N'area' AND c.revoked_at IS NULL AND c.expires_at > @now
+                  AND c.capability IN (N'read', N'write', N'admin')
+                  AND c.scope_id IN (SELECT w.area_id FROM app.slug_area w WHERE w.slug_id = @slug)
+                UNION
+                SELECT DISTINCT h.role_id
+                FROM app.access_holder h
+                JOIN app.access a ON a.id = h.access_id
+                WHERE h.until IS NULL AND h.role_id IN ({names})
+                  AND a.revoked_at IS NULL AND a.status = N'active'
+                  AND (EXISTS (SELECT 1 FROM app.access_slug g
+                                WHERE g.access_id = a.id AND g.slug_id IN (@slug, @asked))
+                       OR a.area_id IN (SELECT w.area_id FROM app.slug_area w WHERE w.slug_id = @slug))
+                OPTION (MAXRECURSION {RoleGraph.MaxDepth + 1});
+                """, connection);
+
+            for (var i = 0; i < persons.Count; i++) cmd.Parameters.AddWithValue($"@p{i}", persons[i]);
+            cmd.Parameters.Add("@internal", System.Data.SqlDbType.UniqueIdentifier).Value =
+                (object?)internalFor ?? DBNull.Value;
+            cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            cmd.Parameters.AddWithValue("@slug", slugId);
+            cmd.Parameters.AddWithValue("@asked", askedId);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted)) roles.Add(Ids.ToText(reader.GetGuid(0)));
+        }
+
+        return new Seen(seats, roles, grip.MayWrite, true);
     }
 
     private static async Task WritePageAsync(
-        HttpContext ctx, Db db, SqlConnection connection, string wanted, string? seat = null)
+        HttpContext ctx, Db db, SqlConnection connection, string wanted, IReadOnlyList<string> seat)
     {
         Guid slugId, askedId;
         Guid? internalFor;
@@ -287,17 +371,44 @@ public static class Page
         }
 
         /*
-         * EINE INTERNE ADRESSE GEHOERT EINER ROLLE (0026).
+         * NUR MIT ZUGANG — und das wird GESAGT (auf Wunsch der Kanzlei, 2026-09-28).
          *
-         * Wer nicht hineindarf, bekommt dieselbe Antwort wie fuer eine Adresse,
-         * die es nicht gibt. Ein 403 verriete, dass unter `lo13/anna` jemand
-         * gefuehrt wird — und das ist bereits eine Auskunft ueber Anna.
+         * Vorher bekam, wer nicht hineindurfte, dieselbe Antwort wie fuer eine
+         * Adresse, die es nicht gibt. Das verbarg, dass hier jemand gefuehrt
+         * wird — liess aber jeden, der seinen Link nur nicht dabei hatte, vor
+         * „Nic tu jeszcze nie ma" stehen, und der dachte, die Seite sei fort.
+         * Jetzt steht da: es braucht Zugang — ueber den eigenen Link oder ein
+         * Konto, das ihn hat. Titel und Inhalt gehen trotzdem nicht hinaus.
          */
-        if (internalFor is not null
-            && !await MaySeeAsync(ctx, db, connection, internalFor.Value, slugId, askedId, wanted, seat))
+        object access = new { restricted = false };
+
+        /* Die Bereiche der Seite (0051) — keiner, und keine alte Rolle: oeffentlich. */
+        var areas = new List<Guid>();
+        await using (var cmd = new SqlCommand("SELECT area_id FROM app.slug_area WHERE slug_id = @slug;", connection))
         {
-            await Fail(ctx, StatusCodes.Status404NotFound, "Pod tym adresem nie ma jeszcze strony.");
-            return;
+            cmd.Parameters.AddWithValue("@slug", slugId);
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted)) areas.Add(reader.GetGuid(0));
+        }
+
+        if (internalFor is not null || areas.Count > 0)
+        {
+            var seen = await SeenByAsync(ctx, db, connection, internalFor, slugId, askedId, wanted, seat);
+
+            if (!seen.Any)
+            {
+                ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await ctx.Response.WriteAsJsonAsync(new
+                {
+                    error = seen.SignedIn
+                        ? "Twoje konto nie ma dostępu do tej strony."
+                        : "Ta strona jest dostępna tylko dla osób, które mają do niej dostęp.",
+                    verdict = seen.SignedIn ? "noaccess" : "needsaccess"
+                });
+                return;
+            }
+
+            access = new { restricted = true, seats = seen.Seats, roles = seen.Roles, manages = seen.Manages };
         }
 
         /*
@@ -309,7 +420,7 @@ public static class Page
         var parts = await PartsOfAsync(connection, slugId, ctx.RequestAborted);
 
         /* 0048 — die Karte der Seite: was wann zu sehen ist, und die Schritte. */
-        await ctx.Response.WriteAsJsonAsync(new { path = wanted, aliasOf, title, lead, updatedAt, parts, logic });
+        await ctx.Response.WriteAsJsonAsync(new { path = wanted, aliasOf, title, lead, updatedAt, parts, logic, access });
     }
 
     /* -- Schreiben ---------------------------------------------------------- */

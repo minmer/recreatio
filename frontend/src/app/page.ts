@@ -51,6 +51,26 @@ export interface PageContent {
    * Bausteins „Kroki osoby". JSON, oder `null`: keine Karte, alles steht da.
    */
   readonly logic?: string | null;
+
+  /** Wer hier handeln darf — auf einer Seite nur mit Zugang (siehe `pageAccess`). */
+  readonly access?: PageAccess;
+}
+
+/**
+ * DER ZUGANG ZU EINER SEITE, wie ihn der Dienst beim Laden nennt.
+ *
+ * <code>
+ *   restricted  die Seite ist nur für Menschen mit Zugang
+ *   seats       welche der mitgeschickten Links zu GENAU dieser Seite gehören
+ *   roles       welche eigenen Personen die Rolle der Seite halten
+ *   manages     dieses Konto führt die Seite
+ * </code>
+ */
+export interface PageAccess {
+  readonly restricted: boolean;
+  readonly seats?: readonly string[];
+  readonly roles?: readonly string[];
+  readonly manages?: boolean;
 }
 
 /* Jeder Teil für sich kodiert: ein Schrägstrich TRENNT die Teile und darf
@@ -59,8 +79,12 @@ export interface PageContent {
 const encodePath = (path: string): string =>
   path.split('/').map(encodeURIComponent).join('/');
 
-export const loadPage = (path: string): Promise<PageContent> =>
-  call<PageContent>(`/page/${encodePath(path)}`);
+/**
+ * Eine Seite holen — mit den Links, die dieser Browser für ihr Haus hält.
+ * Auf einer Seite nur mit Zugang entscheiden sie, ob (und für wen) man sie sieht.
+ */
+export const loadPage = (path: string, seats: readonly string[] = []): Promise<PageContent> =>
+  call<PageContent>(`/page/${encodePath(path)}${seats.length === 0 ? '' : `?seats=${encodeURIComponent(seats.join(','))}`}`);
 
 export const savePage = (
   path: string, body: { readonly title: string; readonly lead: string | null }

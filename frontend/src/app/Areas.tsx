@@ -35,6 +35,9 @@ import {
   PUBLIC_LEVELS, SEAT_LEVELS, type AreaRow, type Member, type PublicLevel
 } from './area';
 import { namesInArea, type Called } from './called';
+import {
+  areaKeys, loadAreaNames, loadChats, looksLikeCode, openNames, roleCard, setMemberName, startAreaChat
+} from './chat';
 import { useCrumbs, type Crumb } from './crumbTrail';
 import type { Ring, SealedRole } from './keys';
 import { keysFor, forgetKeys } from './ringOf';
@@ -365,6 +368,20 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
       if (ring === null || graph === null) return;
 
       const read = await namesInArea(ring, graph, area.areaId, found.map((m) => m.roleId));
+
+      /*
+       * UND DIE NAMEN, DIE MENSCHEN IN DIESEM BEREICH TRAGEN (0052) — auch
+       * die aus anderen Konten, versiegelt unter dem Schlüssel des Bereichs.
+       * Ohne sie stünde hier für jeden Fremden nur die halbe Kennung.
+       */
+      try {
+        const sealed = (await loadAreaNames(area.areaId)).names;
+        const open = await openNames(await areaKeys(ring, area.areaId), area.areaId, sealed);
+        for (const [roleId, name] of open) if (!read.has(roleId)) read.set(roleId, { name, also: null });
+      } catch {
+        // Ohne Schlüssel oder ohne Namen — dann eben die Kennung.
+      }
+
       if (!dropped) setNames(read);
     })();
 
@@ -425,6 +442,7 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
             <a className="wk-crumb-link" href={viewPath('areas', parent.areaId)}>{parent.name}</a>
           </Fact>
         )}
+        <Fact label="Rozmowa"><AreaChat area={area} ring={ring} busy={busy} onAct={onAct} /></Fact>
       </dl>
 
       <div className="wk-tabs" role="tablist">
@@ -609,7 +627,9 @@ function AddRole({ area, ring, graph, self, members, names, busy, onAct }: {
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
-  const [from, setFrom] = useState<'new' | 'mine'>('new');
+  const [from, setFrom] = useState<'new' | 'mine' | 'code'>('new');
+  const [code, setCode] = useState('');
+  const [codeName, setCodeName] = useState('');
   const [name, setName] = useState('');
   const [kind, setKind] = useState<'role' | 'group'>('role');
   const [pick, setPick] = useState('');
@@ -635,6 +655,8 @@ function AddRole({ area, ring, graph, self, members, names, busy, onAct }: {
     : from === 'new' && self === null ? 'Konto nie prowadzi jeszcze żadnej osoby — załóż ją w Rolach.'
     : from === 'new' && name.trim() === '' ? 'Nazwij rolę.'
     : from === 'mine' && chosen === null ? 'Wszystkie Twoje role już tu są.'
+    : from === 'code' && !looksLikeCode(code) ? 'Wklej kod do rozmów tej osoby — w całości.'
+    : from === 'code' && codeName.trim() === '' ? 'Wpisz, jak ta osoba ma się tu nazywać.'
     : null;
 
   if (!open) {
@@ -651,6 +673,22 @@ function AddRole({ area, ring, graph, self, members, names, busy, onAct }: {
     let done = false;
 
     await onAct(from === 'new' ? 'Liczenie kluczy nowej roli…' : 'Dodawanie…', async () => {
+      /*
+       * KTOŚ Z INNEGO KONTA — po jego kodzie do rozmów (0052). Dostaje klucz
+       * obszaru i zaświadczenie jak każda rola, a nazwa, pod którą go
+       * wpisujesz, zostaje zapieczętowana kluczem obszaru.
+       */
+      if (from === 'code') {
+        const card = await roleCard(code);
+        if (present.has(card.roleId)) throw new WorkspaceError('Ta osoba już jest w tym obszarze.');
+        await joinArea(ring, area.areaId, { id: card.roleId, kind: card.kind, wrapPublicKey: card.wrapPublicKey }, issuer, level);
+        await setMemberName(area.areaId, await areaKeys(ring, area.areaId, true), card.roleId, codeName, issuer).catch(() => undefined);
+        setCode('');
+        setCodeName('');
+        done = true;
+        return;
+      }
+
       let role: SealedRole;
 
       if (from === 'new') {
@@ -685,7 +723,8 @@ function AddRole({ area, ring, graph, self, members, names, busy, onAct }: {
         now={from}
         options={[
           { value: 'new' as const, label: 'Nowa dla tego obszaru' },
-          { value: 'mine' as const, label: 'Jedna z moich' }
+          { value: 'mine' as const, label: 'Jedna z moich' },
+          { value: 'code' as const, label: 'Osoba z kodem' }
         ]}
         busy={busy}
         onPick={setFrom}
@@ -715,6 +754,19 @@ function AddRole({ area, ring, graph, self, members, names, busy, onAct }: {
           {self !== null && (
             <p className="wk-hint">Prowadzi ją {who(self.id)}. Komu ją przekazać, ustawisz w Rolach.</p>
           )}
+        </>
+      ) : from === 'code' ? (
+        <>
+          <label className="wk-field">
+            <span>Kod do rozmów tej osoby</span>
+            <input value={code} placeholder="np. 01a0…" autoComplete="off" onChange={(e) => setCode(e.target.value)} />
+            <span className="wk-hint">Każda osoba ma go u siebie w „Rozmowach". Kod pozwala tylko zaprosić — niczego nie otwiera.</span>
+          </label>
+          <label className="wk-field">
+            <span>Jak ma się tu nazywać</span>
+            <input value={codeName} placeholder="np. Anna Nowak" autoComplete="off" onChange={(e) => setCodeName(e.target.value)} />
+            <span className="wk-hint">Nazwę widzą tylko osoby z tego obszaru — jest zaszyfrowana jego kluczem.</span>
+          </label>
         </>
       ) : candidates.length > 0 ? (
         <label className="wk-field">
@@ -749,6 +801,45 @@ function AddRole({ area, ring, graph, self, members, names, busy, onAct }: {
         <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setOpen(false)}>Anuluj</button>
       </div>
     </form>
+  );
+}
+
+/**
+ * ROZMOWA TEGO OBSZARU (0052) — dieselben Menschen, dieselben Schlüssel. Wer
+ * hier hineinkommt, ist in der Rozmowa; wer dort hinzugefügt wird, steht hier.
+ */
+function AreaChat({ area, ring, busy, onAct }: {
+  area: AreaRow;
+  ring: Ring | null;
+  busy: boolean;
+  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+}) {
+  const [chatId, setChatId] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    let alive = true;
+    void loadChats()
+      .then((found) => { if (alive) setChatId(found.chats.find((c) => c.areaId === area.areaId)?.chatId ?? null); })
+      .catch(() => { if (alive) setChatId(null); });
+    return () => { alive = false; };
+  }, [area.areaId]);
+
+  if (chatId === undefined) return <>…</>;
+  if (chatId !== null) return <a className="wk-crumb-link" href={viewPath('chat', chatId)}>Otwórz</a>;
+  if (ring === null || (area.myLevel !== 'write' && area.myLevel !== 'admin')) return <>—</>;
+
+  return (
+    <button type="button" className="wk-link-btn" disabled={busy}
+      onClick={() => void onAct('Zakładanie rozmowy…', async () => {
+        const { members } = await loadMembers(area.areaId);
+        /* Welche MEINER Rollen hier schreibt — sie legt die Rozmowa an. */
+        const writer = members.find((m) => ring.has(m.roleId) && (m.capabilities.includes('write') || m.capabilities.includes('admin')));
+        if (writer === undefined) throw new WorkspaceError('Żadna z Twoich ról nie pisze w tym obszarze.');
+        const made = await startAreaChat(area.areaId, writer.roleId);
+        window.location.hash = viewPath('chat', made);
+      })}>
+      Załóż
+    </button>
   );
 }
 
@@ -789,7 +880,7 @@ function Tab({ now, mine, onPick, children }: {
  * drücken soll. Hier ist es ein Feld mit Abteilungen, und die eingeschaltete
  * ist erkennbar eingeschaltet.
  */
-function Segment<T extends string>({ now, options, busy, onPick }: {
+export function Segment<T extends string>({ now, options, busy, onPick }: {
   now: T;
   options: readonly { value: T; label: string }[];
   busy: boolean;

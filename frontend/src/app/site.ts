@@ -14,8 +14,9 @@
 import type { PageContent } from './page';
 import { call } from './session';
 
-export const loadSite = (host: string, path = ''): Promise<PageContent> =>
+export const loadSite = (host: string, path = '', seats: readonly string[] = []): Promise<PageContent> =>
   call<PageContent>(
     `/site?host=${encodeURIComponent(host)}`
     + (path === '' ? '' : `&path=${encodeURIComponent(path)}`)
+    + (seats.length === 0 ? '' : `&seats=${encodeURIComponent(seats.join(','))}`)
   );

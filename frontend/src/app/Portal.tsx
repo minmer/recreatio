@@ -59,13 +59,13 @@ const STEP = 'moje';
  * Kette nach oben. Dieselbe Organisation, einmal mehr und einmal weniger
  * Seiten.
  *
- * <b>Nie eine interne Seite</b> — sie gehört einem Menschen, und ein Platz dort
- * trüge JEDEN Einsendenden hinein. Ein Verweis zeigt woandershin: nur, wenn er
- * verwandt ist.
+ * <b>Auch eine Seite nur mit Zugang</b> (2026-09-28) — weil HIER die Kanzlei
+ * wählt. Wer sich über den Bogen anmeldet, bekommt dann Zugang zu genau dieser
+ * Seite; ein Einsendender allein kann eine solche Seite nie nennen (der Dienst
+ * prüft das). Ein Verweis zeigt woandershin: nur, wenn er verwandt ist.
  */
 const mayCarry = (formPage: string, one: PageCard, pages: readonly PageCard[]): boolean => {
   const path = one.path;
-  if (one.internalForRoleId !== null) return false;
   if (path === formPage || formPage.startsWith(path + '/') || path.startsWith(formPage + '/')) return true;
   if (one.aliasOf !== null) return false;
   const owner = pages.find((page) => page.path === formPage)?.roleId;
@@ -157,7 +157,7 @@ export function Portal({ moduleId, standsOn, portalUnder, ownerRoleId, onSet }: 
    * nirgends, gibt es nichts zu prüfen: dann alles, was mir gehört.
    */
   const choices = nowhere
-    ? pages.filter((one) => one.internalForRoleId === null)
+    ? pages
     : pages.filter((one) => standsOn.some((page) => mayCarry(page, one, pages)));
 
   /* Was eingestellt ist, aber (nicht mehr) passt — der Bogen ist umgezogen. */

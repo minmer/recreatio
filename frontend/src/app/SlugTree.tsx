@@ -29,7 +29,8 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { openSubpage } from './access';
-import { kindName, moveSlug, takers, type Desk, type PageCard } from './desk';
+import { loadAreas, type AreaRow } from './area';
+import { kindName, moveSlug, setPageAreas, takers, type Desk, type PageCard } from './desk';
 import { myRoleNames, roleLabel } from './roleNames';
 import type { Ring } from './keys';
 import { keysFor } from './ringOf';
@@ -60,6 +61,14 @@ export function SlugTree({ nodes, desk, who, editing, onEdit, onChanged }: {
    */
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [ring, setRing] = useState<Ring | null>(null);
+
+  /* Die Bereiche, die ich sehe — für „Kto może otworzyć tę stronę" (0051). */
+  const [areas, setAreas] = useState<readonly AreaRow[]>([]);
+  useEffect(() => {
+    let alive = true;
+    loadAreas().then((found) => { if (alive) setAreas(found.areas); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -117,7 +126,7 @@ export function SlugTree({ nodes, desk, who, editing, onEdit, onChanged }: {
   };
 
   const shared: Shared = {
-    desk, names, ring, editing,
+    desk, names, ring, editing, areas,
     dragging, over, allowed,
     busy: busy !== null,
     onEdit,
@@ -153,6 +162,7 @@ const parentOf = (path: string): string => {
 
 interface Shared {
   readonly desk: Desk;
+  readonly areas: readonly AreaRow[];
   readonly names: ReadonlyMap<string, string>;
   readonly ring: Ring | null;
   readonly editing: string | null;
@@ -189,7 +199,7 @@ function Branch({ nodes, depth, ...rest }: Shared & {
 
 /* -- Eine Zeile ------------------------------------------------------------ */
 
-function Row({ node, depth, desk, names, editing, dragging, over, allowed, busy,
+function Row({ node, depth, desk, names, areas, editing, dragging, over, allowed, busy,
   onEdit, onDragStart, onDragEnd, onOver, onDrop, onAct }: Shared & {
   node: Node;
   depth: number;
@@ -260,9 +270,11 @@ function Row({ node, depth, desk, names, editing, dragging, over, allowed, busy,
         */}
         {page !== null && (
           <span className="wk-badge">
-            {page.internalForRoleId === null
-              ? 'publiczny'
-              : `tylko: ${whose(page.internalForRoleId, names, desk)}`}
+            {(page.accessAreaIds ?? []).length > 0
+              ? `tylko z dostępem: ${(page.accessAreaIds ?? []).map((id) => areas.find((a) => a.areaId === id)?.name ?? 'obszar').join(', ')}`
+              : page.internalForRoleId === null
+                ? 'publiczny'
+                : `tylko: ${whose(page.internalForRoleId, names, desk)}`}
           </span>
         )}
       </span>
@@ -284,6 +296,7 @@ function Row({ node, depth, desk, names, editing, dragging, over, allowed, busy,
       {open && page !== null && (
         <div className="wk-form" style={{ flexBasis: '100%' }}>
           <Rename page={page} busy={busy} onAct={onAct} />
+          <Visibility page={page} areas={areas} desk={desk} names={names} busy={busy} onAct={onAct} />
           <AddChild parent={node.path} desk={desk} names={names} busy={busy} onAct={onAct} />
         </div>
       )}
@@ -320,15 +333,100 @@ function whose(roleId: string, names: ReadonlyMap<string, string>, desk: Desk): 
  * der Auswahl der eigenen Rollen ein Feld für eine fremde Kennung. Ohne das
  * liesse sich der Fall, für den das Ganze gebaut ist, gar nicht eintragen.
  */
-/*
-   „KTO MA WIDZIEĆ TĘ STRONĘ" — FORT.
+/* -- Wer die Seite öffnen darf ----------------------------------------------- */
 
-   Es war ein zweites Schloss neben dem einzigen, das schliesst. Was
-   geschützt ist, liegt unter einem Bereichsschlüssel; Titel, Text und
-   Einstellungen einer Seite gehen offen hinaus. Eine Adresse zu verbergen
-   schützte damit nichts — und sah aus, als täte es das, was schlimmer ist
-   als gar kein Schloss.
-*/
+/**
+ * „KTO MOŻE OTWORZYĆ TĘ STRONĘ" — wieder da, mit dem, was es bewirkt, und
+ * gebunden an BEREICHE, nicht an eine Rolle (Wunsch der Kanzlei, 2026-09-28).
+ *
+ * <b>Was es schützt.</b> Nicht die Daten der Menschen — die liegen ohnehin
+ * unter Bereichsschlüsseln —, sondern WER HIER HANDELN DARF. Auf einer Seite
+ * mit Terminen und Formularen nahm vorher auch ein alter Link aus einem
+ * ANDEREN Formular einen Termin, und in der Kanzlei stand „bez nazwy". Nur
+ * mit Zugang gilt hier: ein Link aus einem der gewählten Bereiche (oder zu
+ * genau dieser Seite), eine Person mit Zugang zu einem dieser Bereiche, und
+ * wer die Seite führt. Alle anderen lesen, dass es Zugang braucht.
+ */
+function Visibility({ page, areas, desk, names, busy, onAct }: {
+  page: PageCard;
+  areas: readonly AreaRow[];
+  desk: Desk;
+  names: ReadonlyMap<string, string>;
+  busy: boolean;
+  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+}) {
+  const now = page.accessAreaIds ?? [];
+  const [restricted, setRestricted] = useState(now.length > 0 || page.internalForRoleId !== null);
+  const [chosen, setChosen] = useState<readonly string[]>(now);
+
+  const same = restricted === (now.length > 0 || page.internalForRoleId !== null)
+    && chosen.length === now.length && chosen.every((id) => now.includes(id))
+    && !(restricted && page.internalForRoleId !== null && chosen.length > 0);
+  const toggle = (id: string) =>
+    setChosen((was) => (was.includes(id) ? was.filter((one) => one !== id) : [...was, id]));
+
+  /* Ein Bereich, der gebunden ist, den ich aber nicht (mehr) sehe, bleibt stehen. */
+  const unseen = now.filter((id) => !areas.some((a) => a.areaId === id));
+
+  return (
+    <fieldset className="wk-field wk-access-pick">
+      <legend>Kto może otworzyć tę stronę</legend>
+
+      <label className="wk-check">
+        <input type="radio" name={`access-${page.path}`} checked={!restricted} disabled={busy}
+          onChange={() => setRestricted(false)} />
+        <span>Każdy — strona publiczna</span>
+      </label>
+      <label className="wk-check">
+        <input type="radio" name={`access-${page.path}`} checked={restricted} disabled={busy}
+          onChange={() => setRestricted(true)} />
+        <span>Tylko osoby z dostępem do obszarów:</span>
+      </label>
+
+      {restricted && (
+        <div className="wk-access-areas">
+          {areas.map((a) => (
+            <label key={a.areaId} className="wk-check">
+              <input type="checkbox" checked={chosen.includes(a.areaId)} disabled={busy}
+                onChange={() => toggle(a.areaId)} />
+              <span>{a.name}</span>
+            </label>
+          ))}
+          {unseen.map((id) => (
+            <label key={id} className="wk-check">
+              <input type="checkbox" checked={chosen.includes(id)} disabled={busy} onChange={() => toggle(id)} />
+              <span>obszar, którego nie widzisz</span>
+            </label>
+          ))}
+          {page.internalForRoleId !== null && chosen.length === 0 && (
+            <span className="wk-hint">
+              Dziś stronę otwiera rola: {whose(page.internalForRoleId, names, desk)}. Wybierz obszary — zastąpią ją.
+            </span>
+          )}
+        </div>
+      )}
+
+      <span className="wk-hint">
+        {restricted
+          ? 'Otworzą ją tylko: osoby z linkiem z tych obszarów (np. zapisane formularzem, którego odpowiedzi trafiają do obszaru), osoby z dostępem do tych obszarów i ci, którzy prowadzą stronę. Inni zobaczą, że potrzebny jest dostęp — także zalogowani, gdy wybiorą osobę bez dostępu. Stronę z formularzem do samodzielnego zapisu zostaw publiczną.'
+          : 'Każdy może ją otworzyć. Terminy i formularze na niej działają dla każdego, kto ma jakikolwiek link tego adresu.'}
+      </span>
+
+      {!same && (restricted ? chosen.length > 0 : true) && (
+        <span className="wk-actions">
+          <button type="button" className="wk-btn" disabled={busy}
+            onClick={() => void onAct('Zapisywanie…', () => setPageAreas(page.path, restricted ? chosen : []))}>
+            Zapisz
+          </button>
+        </span>
+      )}
+      {restricted && chosen.length === 0 && page.internalForRoleId === null && (
+        <span className="wk-hint">Zaznacz co najmniej jeden obszar.</span>
+      )}
+    </fieldset>
+  );
+}
+
 /* -- Umbenennen ------------------------------------------------------------ */
 
 /**

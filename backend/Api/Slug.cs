@@ -42,6 +42,114 @@ public static partial class Slug
         /* Der Unterbau einer uebernommenen Adresse — umhaengen und zuordnen. */
         app.MapPost("/workspace/slug/move", MoveAsync);
         app.MapPost("/workspace/slug/internal", InternalAsync);
+
+        /* 0051 — nur mit Zugang: an Bereiche gebunden, nicht an eine Rolle. */
+        app.MapPost("/workspace/slug/areas", AreasAsync);
+    }
+
+    public sealed record AreasRequest(string Path, IReadOnlyList<string>? AreaIds);
+
+    /// <summary>
+    /// WER DIESE SEITE OEFFNEN DARF — die Bereiche, an die sie gebunden ist
+    /// (0051). Leer heisst: oeffentlich.
+    ///
+    /// <para>
+    /// <b>Ersetzt die alte Rollenbindung</b> (0026): wer Bereiche waehlt oder
+    /// die Seite oeffentlich macht, nimmt die Rolle gleich mit weg. Zwei
+    /// Regeln nebeneinander liessen niemanden sagen, wer eigentlich hinein darf.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Nur Bereiche, die man selbst sieht.</b> Wer eine Seite an einen
+    /// fremden Bereich bindet, entschiede, wem dessen Menschen Zutritt geben —
+    /// ohne je in diesen Bereich zu gehoeren.
+    /// </para>
+    /// </summary>
+    private static async Task AreasAsync(HttpContext ctx, Db db, AreasRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var path = Normalise(body.Path);
+
+        var areas = new List<Guid>();
+        foreach (var text in body.AreaIds ?? [])
+        {
+            if (!Guid.TryParse(text, out var area))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny obszar.");
+                return;
+            }
+            if (!areas.Contains(area)) areas.Add(area);
+        }
+
+        if (areas.Count > 20)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Najwyżej 20 obszarów.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
+        if (!grip.MayWrite)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Tego adresu nie prowadzisz.");
+            return;
+        }
+
+        foreach (var area in areas)
+        {
+            if (!await Area.MayAsync(connection, who.Value.AccountId, area, Capability.Read, ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma — albo go nie widzisz.");
+                return;
+            }
+        }
+
+        Guid slugId;
+        await using (var find = new SqlCommand("SELECT id FROM app.slug WHERE path = @path;", connection))
+        {
+            find.Parameters.AddWithValue("@path", path);
+            if (await find.ExecuteScalarAsync(ctx.RequestAborted) is not Guid found)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+                return;
+            }
+            slugId = found;
+        }
+
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            await using (var drop = new SqlCommand("""
+                DELETE FROM app.slug_area WHERE slug_id = @slug;
+                UPDATE app.slug SET internal_for_role_id = NULL WHERE id = @slug;
+                """, connection, tx))
+            {
+                drop.Parameters.AddWithValue("@slug", slugId);
+                await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            foreach (var area in areas)
+            {
+                await using var add = new SqlCommand(
+                    "INSERT INTO app.slug_area (slug_id, area_id) VALUES (@slug, @area);", connection, tx);
+                add.Parameters.AddWithValue("@slug", slugId);
+                add.Parameters.AddWithValue("@area", area);
+                await add.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { path, areaIds = areas.Select(Ids.ToText) });
     }
 
     public sealed record MoveRequest(string Path, string NewPath);

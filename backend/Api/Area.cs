@@ -989,7 +989,7 @@ public static class Area
         bool isInternal;
 
         await using (var find = new SqlCommand(
-            "SELECT id, internal_for_role_id FROM app.slug WHERE path = @p;", connection))
+            "SELECT s.id, COALESCE(CAST(s.internal_for_role_id AS nvarchar(36)), (SELECT TOP 1 N'area' FROM app.slug_area w WHERE w.slug_id = s.id)) FROM app.slug s WHERE s.path = @p;", connection))
         {
             find.Parameters.AddWithValue("@p", path);
 
@@ -1029,7 +1029,7 @@ public static class Area
              */
             warning = isInternal ? null
                 : "Ta strona jest publiczna — każdy, kto zna jej adres, zobaczy szablon portalu. "
-                  + "Przypisz ją roli w drzewie adresów, żeby zniknęła dla postronnych."
+                  + "Ustaw w drzewie adresów „Tylko z dostępem” (obszary), żeby zniknęła dla postronnych."
         });
     }
 

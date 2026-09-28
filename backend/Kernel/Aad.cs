@@ -102,6 +102,15 @@ public enum Field
     StepLabel,
     StepHelp,
 
+    /// <summary>
+    /// 0052 — eine Nachricht einer Rozmowa, versiegelt unter dem Epochenschluessel
+    /// des Bereichs, an dem der Chat liegt. Der Dienst liest sie nie.
+    /// </summary>
+    ChatMessage,
+
+    /// <summary>0052 — wie ein Mitglied in einem Bereich heisst, fuer die anderen Mitglieder.</summary>
+    AreaMemberName,
+
     /// <summary>Eine eingesandte Antwort. Besondere Kategorie, bis das Gegenteil gesagt wird.</summary>
     EventAnswer,
 
@@ -393,6 +402,8 @@ public readonly record struct Aad
         Field.SeatLink                => "seat_link",
         Field.StepLabel               => "step_label",
         Field.StepHelp                => "step_help",
+        Field.ChatMessage             => "chat_message",
+        Field.AreaMemberName          => "area_member_name",
         Field.EventAnswer             => "answer",
         Field.EventIntakeKey          => "intake_key",
         Field.OfficeValueKey          => "office_value_key",

@@ -2390,7 +2390,8 @@ public static partial class Form
 
     private const string NotAnchorable =
         "Portalem może być strona z tym formularzem, strona nad nią lub pod nią — albo inna "
-        + "strona tego samego właściciela, wybrana w ustawieniach formularza. Nigdy strona wewnętrzna.";
+        + "strona tego samego właściciela, wybrana w ustawieniach formularza. Strona tylko z dostępem "
+        + "— wyłącznie wtedy, gdy wybierze ją kancelaria w ustawieniach formularza.";
 
     /// <summary>
     /// Wo die Kanzlei das Portal dieses Bogens haben will — `portalUnder` am
@@ -2438,13 +2439,15 @@ public static partial class Form
     /// </para>
     ///
     /// <para>
-    /// <b>Nie eine interne Seite</b> — auch keine verwandte. Eine interne Seite
-    /// gehoert einem Menschen (`lo13/anna`), und `access_slug` ist ein Weg
-    /// hinein (0026): ein Platz dort gaebe JEDEM Einsendenden Zutritt zu ihr.
-    /// Seit „darunter" erlaubt ist, reichte dafuer ein Formular auf `lo13` und
-    /// ein selbst genannter Pfad. Wer einem Menschen einen Platz auf seiner
-    /// internen Seite gibt, tut das als Kanzlei, nicht ueber ein Formular.
-    /// Ein Verweis nur, wenn er verwandt ist.
+    /// <b>Eine Seite nur mit Zugang — nur, wenn die KANZLEI sie gewaehlt hat.</b>
+    /// `access_slug` ist ein Weg hinein (0026): ein Platz dort gibt dem
+    /// Einsendenden Zutritt. Nennt er die Seite selbst, darf das nie genuegen —
+    /// sonst reichte ein Formular auf `lo13` und ein selbst genannter Pfad, um
+    /// in `lo13/anna` zu kommen. Hat aber die Kanzlei in den Einstellungen des
+    /// Formulars GENAU diese Seite als Portal gewaehlt (die Terminseite der
+    /// Kandidaten, 2026-09-28), dann ist das ihre Entscheidung: wer sich hier
+    /// anmeldet, bekommt Zugang zu ihr — und ein alter Link aus einem anderen
+    /// Formular eben nicht.
     /// </para>
     /// </summary>
     private static async Task<bool> MayAnchorAsync(
@@ -2452,10 +2455,15 @@ public static partial class Form
         CancellationToken ct)
     {
         await using (var look = new SqlCommand(
-            "SELECT 1 FROM app.slug WHERE path = @p AND internal_for_role_id IS NOT NULL;", connection))
+            """
+            SELECT 1 FROM app.slug s
+            WHERE s.path = @p
+              AND (s.internal_for_role_id IS NOT NULL
+                   OR EXISTS (SELECT 1 FROM app.slug_area w WHERE w.slug_id = s.id));
+            """, connection))
         {
             look.Parameters.AddWithValue("@p", wanted);
-            if (await look.ExecuteScalarAsync(ct) is not null) return false;
+            if (await look.ExecuteScalarAsync(ct) is not null && !chosenByOffice) return false;
         }
 
         foreach (var page in formPaths)

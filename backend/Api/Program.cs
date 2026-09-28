@@ -105,6 +105,9 @@ Form.Map(app);
    ein Haus in Hortus Dei sind dieselbe Sache mit anderen Regeln. */
 Bookings.Map(app);
 
+/* 0052 — Rozmowy: Chats auf dem Kern der Bereiche. */
+Chat.Map(app);
+
 /* Bausteine als eigene Dinge — die Seite zeigt sie nur (0036). */
 Module.Map(app);
 

@@ -26,6 +26,7 @@ import { Addresses } from './Addresses';
 import { Areas } from './Areas';
 import { Modules } from './Modules';
 import { Reservations } from './Reservations';
+import { ChatTileBody, ChatView } from './ChatPage';
 import { MassOffice } from './MassOffice';
 import { PageEditor } from './PageEditor';
 import { RoleGraph } from './RoleGraph';
@@ -137,7 +138,7 @@ function Tiles({ desk, who }: { desk: Desk; who: Who }) {
         </Tile>
 
         <Tile view="chat">
-          <p className="wk-empty">Żadnej rozmowy.</p>
+          <ChatTileBody />
         </Tile>
 
         <Tile view="modules">
@@ -223,21 +224,10 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'calendar') return <MassOffice />;
   if (view === 'bookings') return <Reservations trail={trail} />;
   if (view === 'account') return <Account who={who} />;
+  if (view === 'chat') return <ChatView who={who} trail={trail} />;
 
-  /*
-   * Rozmowy: die Kachel steht, die Quelle nicht. Das hier auszuschreiben ist
-   * ehrlicher als eine leere Liste, die aussieht, als wäre nichts eingetragen.
-   *
-   * Der Kalender stand bis eben daneben, mit der Begründung, ein Bereich
-   * entstehe „mit der ersten Organisation". Das stimmt nicht mehr: ein Bereich
-   * ist eine eigene Achse und wird unter „Obszary" angelegt.
-   */
-  return (
-    <p className="wk-note">
-      Rozmowy należą do obszaru. Załóż obszar w zakładce „Obszary" — wtedy będzie
-      czym rozmawiać.
-    </p>
-  );
+  /* Jede Ansicht steht oben; was hier ankommt, gibt es (noch) nicht. */
+  return <p className="wk-note">Tej części warsztatu jeszcze nie ma.</p>;
 }
 
 /* -- Strony: übernehmen, nicht anlegen ------------------------------------- */

@@ -24,6 +24,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { calledFrom } from './called';
+import { allows, usePageAccess } from './pageAccess';
 import type { Ring } from './keys';
 import { loadPerson, openMine } from './person';
 import { keysFor } from './ringOf';
@@ -113,6 +114,7 @@ function keepChoice(house: string, id: string | null): void {
 
 export function PersonProvider({ path, children }: { path: string; children: ReactNode }) {
   const seats = useSeats();
+  const access = usePageAccess();
   const [own, setOwn] = useState<readonly Own[] | null>(null);
   const house = path.split('/')[0] ?? '';
 
@@ -143,11 +145,16 @@ export function PersonProvider({ path, children }: { path: string; children: Rea
   const fallback = useMemo(() => {
     const fresh = freshSeat();
     const exact = new Set(seatsExactly(path));
-    return options.find((one) => one.kind === 'seat' && one.id === fresh?.token && fresh.under === path)
-      ?? options.find((one) => one.kind === 'seat' && exact.has(one.id))
-      ?? options.find((one) => one.kind === 'role' && one.isMine)
+    /* Auf einer Seite nur mit Zugang: zuerst wer ihn hat. */
+    const usable = options.filter((one) => allows(access, one));
+    return usable.find((one) => one.kind === 'seat' && one.id === fresh?.token && fresh.under === path)
+      ?? usable.find((one) => one.kind === 'seat' && exact.has(one.id))
+      ?? usable.find((one) => one.kind === 'role' && one.isMine)
+      /* Nur mit Zugang: dann lieber irgendwer, der ihn hat, als niemand. Sonst bleibt es leer —
+         ein Formular auf einer fremden Seite soll nicht aus Versehen für jemanden ausgefüllt werden. */
+      ?? (access?.restricted === true ? usable[0] : undefined)
       ?? null;
-  }, [options, path]);
+  }, [options, path, access]);
 
   const chosen = picked === undefined
     ? fallback
@@ -163,6 +170,31 @@ export function PersonProvider({ path, children }: { path: string; children: Rea
   return <PersonContext.Provider value={choice}>{children}</PersonContext.Provider>;
 }
 
+/**
+ * Die Bausteine — oder, wenn oben jemand ohne Zugang gewählt ist, der Satz,
+ * dass es ihn braucht. Die Auswahl oben bleibt stehen: man kann umschalten.
+ */
+export function PersonAccessGate({ children }: { children: ReactNode }) {
+  const access = usePageAccess();
+  const chosen = usePerson()?.chosen ?? null;
+
+  if (chosen === null || allows(access, chosen)) return <>{children}</>;
+
+  return (
+    <section className="wk-note wk-access-note" role="status">
+      <p>
+        <strong>{chosen.name} nie ma dostępu do tej strony.</strong> Ta strona jest tylko dla osób,
+        które mają do niej dostęp — przez swój link do tej strony albo przez konto, któremu go nadano.
+      </p>
+      <p>
+        {chosen.kind === 'seat'
+          ? 'Ten link należy do innej strony albo do innego formularza. Wybierz u góry osobę, która ma dostęp, albo otwórz link, który dostałeś do tej strony.'
+          : 'Wybierz u góry osobę, która ma dostęp. Jeśli ta osoba powinna go mieć, poproś o niego tych, którzy prowadzą tę stronę.'}
+      </p>
+    </section>
+  );
+}
+
 /* -- Die Auswahl, oben ---------------------------------------------------- */
 
 /**
@@ -172,6 +204,8 @@ export function PersonProvider({ path, children }: { path: string; children: Rea
  */
 export function PersonPicker() {
   const choice = usePerson();
+  const access = usePageAccess();
+  const mark = (one: PagePerson) => (allows(access, one) ? '' : ' — brak dostępu');
   /* Eine Liste mit EINEM Eintrag nur dann, wenn er nicht schon gewählt ist. */
   if (choice === null || choice.options.length === 0) return null;
   if (choice.options.length === 1 && choice.chosen?.id === choice.options[0].id) return null;
@@ -189,13 +223,13 @@ export function PersonPicker() {
         <option value="">— nikt z listy —</option>
         {seats.length > 0 && (
           <optgroup label="Z linku">
-            {seats.map((one) => <option key={one.id} value={one.id}>{one.name}</option>)}
+            {seats.map((one) => <option key={one.id} value={one.id}>{one.name}{mark(one)}</option>)}
           </optgroup>
         )}
         {roles.length > 0 && (
           <optgroup label="Z konta">
             {roles.map((one) => (
-              <option key={one.id} value={one.id}>{one.name}{one.kind === 'role' && one.isMine ? ' (ja)' : ''}</option>
+              <option key={one.id} value={one.id}>{one.name}{one.kind === 'role' && one.isMine ? ' (ja)' : ''}{mark(one)}</option>
             ))}
           </optgroup>
         )}

@@ -135,7 +135,11 @@ export const Field = {
 
   /* 0047 — ein von Hand angelegter Schritt: Beschriftung und Erklärung. */
   StepLabel: 'step_label',
-  StepHelp: 'step_help'
+  StepHelp: 'step_help',
+
+  /* 0052 — eine Nachricht einer Rozmowa, und wie jemand in einem Bereich heisst. */
+  ChatMessage: 'chat_message',
+  AreaMemberName: 'area_member_name'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];
