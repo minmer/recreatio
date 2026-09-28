@@ -111,6 +111,13 @@ public enum Field
     /// <summary>0052 — wie ein Mitglied in einem Bereich heisst, fuer die anderen Mitglieder.</summary>
     AreaMemberName,
 
+    /// <summary>
+    /// 0053 — der Chatschluessel einer Epoche, verpackt fuer einen Platz (den
+    /// Menschen mit dem Link), und dessen private Schluessel unter dem Platzschluessel.
+    /// </summary>
+    ChatSeatKey,
+    SeatIdentity,
+
     /// <summary>Eine eingesandte Antwort. Besondere Kategorie, bis das Gegenteil gesagt wird.</summary>
     EventAnswer,
 
@@ -404,6 +411,8 @@ public readonly record struct Aad
         Field.StepHelp                => "step_help",
         Field.ChatMessage             => "chat_message",
         Field.AreaMemberName          => "area_member_name",
+        Field.ChatSeatKey             => "chat_seat_key",
+        Field.SeatIdentity            => "seat_identity",
         Field.EventAnswer             => "answer",
         Field.EventIntakeKey          => "intake_key",
         Field.OfficeValueKey          => "office_value_key",

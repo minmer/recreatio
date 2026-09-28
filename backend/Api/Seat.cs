@@ -474,7 +474,7 @@ public static class Seat
     /// Der Platz hinter einem Token — lebendig, und mit <paramref name="gated"/>
     /// nur, wenn er nicht mehr auf seine erste Bestaetigung wartet.
     /// </summary>
-    private static async Task<(Guid Id, Guid AreaId)?> LiveSeatAsync(
+    internal static async Task<(Guid Id, Guid AreaId)?> LiveSeatAsync(
         SqlConnection connection, string token, bool gated, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(token)) return null;

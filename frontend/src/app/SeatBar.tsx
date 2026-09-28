@@ -24,6 +24,7 @@ import { useRoleNames } from './roleNames';
 import { bindSeat } from './seat';
 import { FirstOpen } from './FirstOpen';
 import { seatName, useSeats, useSeatStates, type SeatView } from './seatContext';
+import { SeatChatSections } from './SeatChatView';
 import { freshSeat, linkTo, seatsExactly, wasReplaced } from './seatKeep';
 import { whoIsThere, WorkspaceError, type Who } from './session';
 import { SeatSteps } from './StepList';
@@ -183,6 +184,11 @@ export function PersonalSections({ seat }: { seat: SeatView }) {
           </ul>
         </Zone>
       )}
+
+      {/* 0053 — die Rozmowa seiner Gruppe, wenn sie eine hat. */}
+      <SeatChatSections seat={seat} frame={(title, who, body, key) => (
+        <Zone key={key} title={title} who={who}>{body}</Zone>
+      )} />
     </>
   );
 }

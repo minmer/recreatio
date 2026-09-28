@@ -14,16 +14,22 @@
  *   direct   zu zweit — zwei Personen oder Rollen, ebenfalls mit Bereich
  * </code>
  *
- * <b>Der Dienst liest keine Nachricht.</b> Sie wird HIER versiegelt, unter dem
- * Epochenschlüssel des Bereichs, und von der Rolle des Verfassers
- * unterschrieben — über genau dieselben Bytes wie `Kernel.MessageVersionRecord`
- * (Version 1). Der Dienst prüft die Unterschrift; fälschen kann er sie nicht.
+ * <b>Der Dienst liest keine Nachricht.</b> Sie wird HIER versiegelt und von der
+ * Rolle des Verfassers unterschrieben — über genau dieselben Bytes wie
+ * `Kernel.MessageVersionRecord` (Version 1). Der Dienst prüft die
+ * Unterschrift; fälschen kann er sie nicht.
+ *
+ * <b>Versiegelt unter dem CHATSCHLÜSSEL (0053)</b>, nicht unter dem des
+ * Bereichs: abgeleitet aus dem Epochenschlüssel, je Chat und Epoche. Wer den
+ * Bereich hält, rechnet ihn sich aus; der Mensch mit dem Link bekommt NUR ihn
+ * (`seatChat.ts`) — unter dem Bereichsschlüssel liegt mehr als der Chat.
  */
 
 import { createArea, joinArea, myEpochKeys, type Member } from './area';
 import { I, O, S, type Canon } from './canonical';
 import {
-  aad, Field, fromBase64Url, openText, sealText, sha256Bytes, signCanonical, toBase64Url
+  aad, derive, Field, fromBase64Url, KEY_SIZE, openText, sealText, sha256Bytes, signCanonical, toBase64Url,
+  wrapKeyP256
 } from './crypto';
 import { newId } from './ids';
 import type { Ring, SealedRole } from './keys';
@@ -55,20 +61,41 @@ export interface ChatRow {
   readonly unread: number;
   readonly members: readonly ChatMember[];
   readonly names: readonly SealedName[];
+
+  /** 0053 — die Menschen mit Link in der Rozmowa eines Bereichs, und wie viele auf ihren Schlüssel warten. */
+  readonly seats: number;
+  readonly pendingSeats: number;
 }
 
-export interface ChatDetail extends Omit<ChatRow, 'unread'> {
+/** Ein Mensch mit Link in der Rozmowa seines Bereichs (0053). */
+export interface ChatSeat {
+  readonly seatId: string;
+  readonly name: string | null;
+
+  /** `null`: er hat die Rozmowa noch nie geöffnet — dann ist nichts zu verpacken. */
+  readonly wrapPublicKey: string | null;
+
+  /** Für welche Epochen sein Chatschlüssel schon bei ihm ist. */
+  readonly epochs: readonly number[];
+}
+
+export interface ChatDetail extends Omit<ChatRow, 'unread' | 'seats' | 'pendingSeats'> {
   readonly currentEpoch: number;
   readonly readAt: string | null;
 
   /** Welche meiner Rollen hier schreiben dürfen — und welche hineinlassen. */
   readonly writers: readonly string[];
   readonly certifiers: readonly string[];
+
+  readonly seats: readonly ChatSeat[];
 }
 
 export interface SealedMessage {
   readonly messageId: string;
-  readonly authorRoleId: string;
+
+  /** Eine Rolle ODER ein Platz (0053) — genau eines. */
+  readonly authorRoleId: string | null;
+  readonly authorSeatId: string | null;
   readonly epoch: number;
   readonly bodySealed: string | null;
   readonly createdAt: string;
@@ -111,7 +138,18 @@ export const loadAreaNames = (areaId: string): Promise<{ names: readonly SealedN
 
 /* -- Versiegeln ------------------------------------------------------------ */
 
-const messageAad = (messageId: string) => aad('chat', 'message', messageId, Field.ChatMessage, 1);
+/**
+ * Das Etikett einer Nachricht — MIT ihrem Verfasser. Schöbe der Dienst eine
+ * Nachricht einem anderen unter, ginge sie nicht mehr auf.
+ */
+const messageAad = (messageId: string, authorId: string) =>
+  aad('chat', 'message', `${messageId}.${authorId}`, Field.ChatMessage, 1);
+
+/** Der Chatschlüssel einer Epoche, verpackt für einen Platz. */
+export const chatSeatAad = (chatId: string, seatId: string, epoch: number) =>
+  aad('chat', 'seat_key', `${chatId}.${seatId}.${epoch}`, Field.ChatSeatKey, 1);
+
+export const authorOf = (message: SealedMessage): string => message.authorRoleId ?? message.authorSeatId ?? '';
 const nameAad = (areaId: string, roleId: string) =>
   aad('area', 'member_name', `${areaId}.${roleId}`, Field.AreaMemberName, 1);
 
@@ -128,13 +166,51 @@ export function areaKeys(ring: Ring, areaId: string, fresh = false): Promise<Map
   return found;
 }
 
+/**
+ * DIE CHATSCHLÜSSEL, aus denen des Bereichs abgeleitet — je Epoche einer.
+ * Einbahnstrasse: wer nur sie hält, kommt nicht zum Bereich zurück.
+ */
+export async function chatKeysOf(
+  chatId: string, areaKeys: ReadonlyMap<number, Uint8Array>
+): Promise<Map<number, Uint8Array>> {
+  const out = new Map<number, Uint8Array>();
+  for (const [epoch, key] of areaKeys) {
+    out.set(epoch, await derive(key, `recreatio:v1:chat:${chatId}:${epoch}`, KEY_SIZE));
+  }
+  return out;
+}
+
+/**
+ * WAS IN DER HÜLLE STEHT: der Text, und wie sich der Verfasser nennt. Der
+ * Name reist mit, weil nicht jeder die Namen des Bereichs lesen kann — der
+ * Mensch mit dem Link hält nur den Chatschlüssel.
+ */
+export interface Opened {
+  readonly text: string;
+  readonly name: string | null;
+}
+
+const encodeBody = (text: string, name: string | null) => JSON.stringify({ text, name });
+
+function decodeBody(plain: string): Opened {
+  try {
+    const found = JSON.parse(plain) as { text?: unknown; name?: unknown };
+    if (typeof found.text === 'string') {
+      return { text: found.text, name: typeof found.name === 'string' && found.name.trim() !== '' ? found.name : null };
+    }
+  } catch {
+    // Kein Umschlag — dann ist es der Text selbst.
+  }
+  return { text: plain, name: null };
+}
+
 /** Eine Nachricht öffnen — `null`, wenn der Schlüssel dieser Epoche fehlt oder sie beschädigt ist. */
-export async function openMessage(keys: ReadonlyMap<number, Uint8Array>, message: SealedMessage): Promise<string | null> {
+export async function openMessage(keys: ReadonlyMap<number, Uint8Array>, message: SealedMessage): Promise<Opened | null> {
   if (message.bodySealed === null) return null;
   const key = keys.get(message.epoch);
   if (key === undefined) return null;
   try {
-    return await openText(key, messageAad(message.messageId), fromBase64Url(message.bodySealed));
+    return decodeBody(await openText(key, messageAad(message.messageId, authorOf(message)), fromBase64Url(message.bodySealed)));
   } catch {
     return null;
   }
@@ -173,7 +249,7 @@ export function newestKey(keys: ReadonlyMap<number, Uint8Array>): { epoch: numbe
  */
 const hex = (bytes: Uint8Array) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 
-const versionValue = (v: {
+export const versionValue = (v: {
   messageId: string; authorRoleId: string; bodyHash: Uint8Array; createdAt: number;
 }): Canon => O({
   authorRoleId: S(v.authorRoleId),
@@ -184,27 +260,104 @@ const versionValue = (v: {
   version: I(1)
 });
 
-export async function sendMessage(
-  ring: Ring, chatId: string, keys: ReadonlyMap<number, Uint8Array>, authorRoleId: string, text: string
-): Promise<{ messageId: string; createdAt: string }> {
+/** Eine Nachricht versiegeln — unter dem jüngsten Chatschlüssel, mit Verfasser im Etikett. */
+export async function sealMessage(
+  keys: ReadonlyMap<number, Uint8Array>, authorId: string, text: string, name: string | null
+): Promise<{ messageId: string; epoch: number; sealedBody: Uint8Array; signedAt: number; bodyHash: Uint8Array }> {
   const newest = newestKey(keys);
   if (newest === null) throw new WorkspaceError('Nie masz klucza tej rozmowy — nie da się napisać.');
-  if (!ring.maySign(authorRoleId)) throw new WorkspaceError('Ta rola nie może tu podpisywać wiadomości.');
 
   const messageId = newId();
-  const sealedBody = await sealText(newest.key, messageAad(messageId), text);
-  const signedAt = Math.floor(Date.now() / 1000);
+  const sealedBody = await sealText(newest.key, messageAad(messageId, authorId), encodeBody(text, name));
+  return {
+    messageId, epoch: newest.epoch, sealedBody,
+    signedAt: Math.floor(Date.now() / 1000),
+    bodyHash: await sha256Bytes(sealedBody)
+  };
+}
+
+export async function sendMessage(
+  ring: Ring, chatId: string, keys: ReadonlyMap<number, Uint8Array>, authorRoleId: string, text: string,
+  name: string | null
+): Promise<{ messageId: string; createdAt: string; epoch: number }> {
+  if (!ring.maySign(authorRoleId)) throw new WorkspaceError('Ta rola nie może tu podpisywać wiadomości.');
+
+  const { messageId, epoch, sealedBody, signedAt, bodyHash } = await sealMessage(keys, authorRoleId, text, name);
   const signature = await signCanonical(await ring.signKey(authorRoleId), versionValue({
-    messageId, authorRoleId, bodyHash: await sha256Bytes(sealedBody), createdAt: signedAt
+    messageId, authorRoleId, bodyHash, createdAt: signedAt
   }));
 
-  return call(`/workspace/chat/${encodeURIComponent(chatId)}/messages`, {
+  const done = await call<{ messageId: string; createdAt: string }>(`/workspace/chat/${encodeURIComponent(chatId)}/messages`, {
     method: 'POST',
     body: JSON.stringify({
-      messageId, authorRoleId, epoch: newest.epoch,
+      messageId, authorRoleId, epoch,
       bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt
     })
   });
+  return { ...done, epoch };
+}
+
+/* -- Die Menschen mit dem Link (0053) --------------------------------------- */
+
+/**
+ * DEN CHATSCHLÜSSEL WEITERGEBEN — an jeden Platz des Bereichs, der die
+ * Rozmowa schon einmal geöffnet hat (und damit einen öffentlichen Schlüssel
+ * trägt), aber den Schlüssel einer Epoche noch nicht hat.
+ *
+ * <b>Das tut jedes Mitglied, das den Bereich hält</b>, sobald es die Rozmowa
+ * sieht — der Mensch mit dem Link kann niemanden fragen, und der Schlüssel
+ * soll nicht davon abhängen, dass die Kanzlei an etwas denkt.
+ *
+ * Gibt zurück, wie vielen er gegeben wurde.
+ */
+export async function deliverSeatKeys(
+  chat: ChatDetail, areaKeys: ReadonlyMap<number, Uint8Array>, byRoleId: string
+): Promise<number> {
+  if (chat.kind !== 'area') return 0;
+
+  const mine = await chatKeysOf(chat.chatId, areaKeys);
+  const keys: { seatId: string; epoch: number; keyWrapped: string }[] = [];
+
+  for (const seat of chat.seats) {
+    if (seat.wrapPublicKey === null) continue;
+    for (const [epoch, key] of mine) {
+      if (seat.epochs.includes(epoch)) continue;
+      try {
+        keys.push({
+          seatId: seat.seatId, epoch,
+          keyWrapped: toBase64Url(await wrapKeyP256(fromBase64Url(seat.wrapPublicKey), chatSeatAad(chat.chatId, seat.seatId, epoch), key))
+        });
+      } catch {
+        // Ein kaputter Schlüssel an einem Platz hält die übrigen nicht auf.
+      }
+    }
+  }
+
+  if (keys.length === 0) return 0;
+
+  const done = await call<{ granted: number }>(`/workspace/chat/${encodeURIComponent(chat.chatId)}/seats`, {
+    method: 'POST',
+    body: JSON.stringify({ byRoleId, keys })
+  });
+  return done.granted;
+}
+
+/**
+ * Für jede Rozmowa aus der Liste, in der jemand mit Link wartet: nachsehen
+ * und weitergeben. Leise — was nicht klappt, klappt beim nächsten Mal.
+ */
+export async function deliverPending(ring: Ring, chats: readonly ChatRow[]): Promise<void> {
+  for (const row of chats) {
+    if (row.kind !== 'area' || row.pendingSeats === 0) continue;
+    try {
+      const chat = await loadChat(row.chatId);
+      const by = chat.writers[0];
+      if (by === undefined) continue;
+      await deliverSeatKeys(chat, await areaKeys(ring, chat.areaId), by);
+    } catch {
+      // Beim nächsten Mal.
+    }
+  }
 }
 
 /** Wie jemand in diesem Bereich heisst — versiegelt, nur für seine Mitglieder lesbar. */

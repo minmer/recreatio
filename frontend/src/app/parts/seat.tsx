@@ -24,6 +24,7 @@ import { usePerson } from '../pagePerson';
 import { SeatTools } from '../SeatBar';
 import { seatName, useSeats, type SeatView } from '../seatContext';
 import { PageSteps } from '../PageLogicView';
+import { SeatChatBody } from '../SeatChatView';
 import { OwnSubmissions } from '../Submission';
 
 /**
@@ -293,4 +294,37 @@ export const seatStepsPart = definePart<StepsConfig>({
   hasContent: () => true,
 
   View: ({ config }) => <StepsCard title={config.title} />
+});
+
+/* -- Die Rozmowa seiner Gruppe (0053) ------------------------------------------ */
+
+interface ChatConfig {
+  readonly title: string;
+}
+
+/**
+ * „ROZMOWA GRUPY" — die Rozmowa des Bereichs, in den der Link führt. Wer
+ * dort einen Link hat, liest und schreibt mit; welche Rozmowa, sagt sein
+ * Platz, nicht der Baustein.
+ */
+export const seatChatPart = definePart<ChatConfig>({
+  kind: 'seat-chat',
+  label: 'Rozmowa grupy',
+  use: 'Rozmowa obszaru, do którego prowadzi link — osoba z linkiem czyta w niej i pisze.',
+  box: { colSpan: 3, rowSpan: 5 },
+
+  fields: [{ key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Rozmowa grupy' }],
+
+  read: (raw: RawConfig): ChatConfig => ({ title: text(raw, 'title') }),
+  hasContent: () => true,
+
+  View: ({ config }) => (
+    <OnSeat
+      title={config.title}
+      fallback="Rozmowa grupy"
+      empty="Tu pojawi się rozmowa grupy — dla osoby, która otworzy swój link."
+    >
+      {(seat) => <SeatChatBody seat={seat} />}
+    </OnSeat>
+  )
 });

@@ -10,6 +10,10 @@
  * <b>Wer im Chat ist, ist im Bereich</b> — und umgekehrt. Die Einstellungen
  * hier und die Seite des Bereichs unter „Obszary" sind zwei Türen zu
  * denselben Schlüsseln und Zertifikaten (`chat.ts`).
+ *
+ * <b>In der Rozmowa eines Bereichs schreiben auch die Menschen mit Link</b>
+ * (0053). Wer sie hier öffnet, gibt ihnen nebenbei den Chatschlüssel weiter —
+ * sie selbst können niemanden darum bitten.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -18,9 +22,9 @@ import { areaPath, dropFromArea, loadAreas, loadMembers, type AreaRow } from './
 import { AreaOptions } from './AreaOptions';
 import { Segment } from './Areas';
 import {
-  addToChat, areaKeys, deleteMessage, loadChat, loadChats, loadMessages, looksLikeCode, markRead,
-  openMessage, openNames, roleCard, sendMessage, setMemberName, startAreaChat, startOwnChat,
-  type ChatDetail, type ChatRow, type Invitee, type SealedMessage
+  addToChat, areaKeys, authorOf, chatKeysOf, deleteMessage, deliverPending, deliverSeatKeys, loadChat, loadChats,
+  loadMessages, looksLikeCode, markRead, openMessage, openNames, roleCard, sendMessage, setMemberName, startAreaChat,
+  startOwnChat, type ChatDetail, type ChatRow, type Invitee, type Opened, type SealedMessage
 } from './chat';
 import type { Ring, SealedRole } from './keys';
 import { keysFor } from './ringOf';
@@ -146,12 +150,16 @@ function ChatList({ me }: { me: Me }) {
 
   const look = useCallback(async () => {
     try {
-      setChats((await loadChats()).chats);
+      const found = (await loadChats()).chats;
+      setChats(found);
       setFailed(null);
+
+      /* Wer mit Link auf seinen Schlüssel wartet, bekommt ihn jetzt — leise, im Hintergrund. */
+      void deliverPending(me.ring, found);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać rozmów.');
     }
-  }, []);
+  }, [me.ring]);
 
   useEffect(() => {
     void look();
@@ -187,7 +195,7 @@ function ChatList({ me }: { me: Me }) {
                 <span className="wk-chat-row-main">
                   <strong>{titles.get(chat.chatId) ?? chat.areaName}</strong>
                   <span className="wk-row-side">
-                    {chat.kind === 'direct' ? 'we dwoje' : chat.kind === 'group' ? `grupa · ${chat.members.length} os.` : `obszar · ${chat.members.length} os.`}
+                    {chat.kind === 'direct' ? 'we dwoje' : chat.kind === 'group' ? `grupa · ${chat.members.length} os.` : `obszar · ${chat.members.length} os.${chat.seats > 0 ? ` · ${chat.seats} z linkiem` : ''}`}
                   </span>
                 </span>
                 <span className="wk-chat-row-side">
@@ -506,13 +514,16 @@ function InviteePicker({ known, chosen, single, busy, onChange }: {
 
 interface Shown {
   readonly message: SealedMessage;
-  readonly text: string | null;
+  readonly opened: Opened | null;
 }
 
 function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   const areas = useAreas();
   const [chat, setChat] = useState<ChatDetail | null | undefined>(undefined);
   const [keys, setKeys] = useState<ReadonlyMap<number, Uint8Array>>(new Map());
+
+  /* Die Schlüssel der NACHRICHTEN — aus denen des Bereichs abgeleitet (0053). */
+  const [talk, setTalk] = useState<ReadonlyMap<number, Uint8Array>>(new Map());
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [shown, setShown] = useState<readonly Shown[]>([]);
   const [more, setMore] = useState(true);
@@ -526,10 +537,18 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
     try {
       const found = await loadChat(chatId);
       const held = await areaKeys(me.ring, found.areaId, freshKeys);
+      const derived = await chatKeysOf(found.chatId, held);
       setChat(found);
       setKeys(held);
+      setTalk(derived);
       setNames(await openNames(held, found.areaId, found.names));
-      return { found, held };
+
+      /* Wer mit Link wartet, bekommt seinen Schlüssel, sobald jemand von hier hereinschaut. */
+      const by = found.writers[0];
+      if (by !== undefined && found.seats.some((one) => one.wrapPublicKey !== null && !one.epochs.includes(found.currentEpoch))) {
+        void deliverSeatKeys(found, held, by).catch(() => undefined);
+      }
+      return { found, held: derived };
     } catch (e) {
       setChat(null);
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć rozmowy.');
@@ -538,7 +557,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   }, [chatId, me.ring]);
 
   const open = async (held: ReadonlyMap<number, Uint8Array>, messages: readonly SealedMessage[]) =>
-    Promise.all(messages.map(async (message) => ({ message, text: await openMessage(held, message) })));
+    Promise.all(messages.map(async (message) => ({ message, opened: await openMessage(held, message) })));
 
   /* Das erste Bild: der Chat und die letzten Nachrichten. */
   useEffect(() => {
@@ -577,7 +596,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
         try {
           const { messages } = await loadMessages(chatId, last === null ? {} : { after: last });
           if (messages.length === 0) return;
-          let held = keys;
+          let held = talk;
           if (messages.some((m) => !held.has(m.epoch))) held = (await lookChat(true))?.held ?? held;
           const opened = await open(held, messages);
           setShown((was) => [...was, ...opened.filter((o) => !was.some((w) => w.message.messageId === o.message.messageId))]);
@@ -588,7 +607,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
       })();
     }, 4000);
     return () => window.clearInterval(timer);
-  }, [chat, chatId, last, keys, lookChat]);
+  }, [chat, chatId, last, talk, lookChat]);
 
   /* Unten bleiben, wenn man unten war. */
   useEffect(() => {
@@ -600,7 +619,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
     const first = shown[0]?.message.createdAt;
     if (first === undefined) return;
     const { messages } = await loadMessages(chatId, { before: first });
-    const opened = await open(keys, messages);
+    const opened = await open(talk, messages);
     stick.current = false;
     setShown((was) => [...opened, ...was]);
     setMore(messages.length >= 60);
@@ -620,13 +639,27 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   const title = other !== undefined ? nameOf(other.roleId, other.kind, names, me.names) : titleOfArea(areas, chat.areaId, chat.areaName);
   const kindOf = (roleId: string) => chat.members.find((m) => m.roleId === roleId)?.kind;
 
+  /*
+   * WER SCHREIBT. Eine Rolle heisst, wie der Bereich sie nennt — sonst wie sie
+   * sich in der Nachricht selbst nennt. Ein Platz heisst, wie er sich nennt,
+   * sonst wie die Kanzlei ihn am Platz führt.
+   */
+  const authorName = (message: SealedMessage, opened: Opened | null) => {
+    if (message.authorSeatId !== null) {
+      return opened?.name ?? chat.seats.find((one) => one.seatId === message.authorSeatId)?.name ?? 'osoba z linkiem';
+    }
+    const roleId = message.authorRoleId ?? '';
+    return names.get(roleId) ?? me.names.get(roleId) ?? opened?.name ?? nameOf(roleId, kindOf(roleId), names, me.names);
+  };
+
   return (
     <div className="wk-chat-room">
       <div className="wk-chat-head">
         <a className="wk-link" href={viewPath('chat')}>← Rozmowy</a>
         <h1 className="wk-h1">{title}</h1>
         <button type="button" className="wk-link-btn" onClick={() => setSettings(!settings)}>
-          {settings ? 'Zamknij ustawienia' : `Uczestnicy (${chat.members.length}) i ustawienia`}
+          {settings ? 'Zamknij ustawienia'
+            : `Uczestnicy (${chat.members.length}${chat.seats.length > 0 ? ` + ${chat.seats.length} z linkiem` : ''}) i ustawienia`}
         </button>
       </div>
 
@@ -651,10 +684,10 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
         )}
         {shown.length === 0 && <p className="wk-empty">Jeszcze nikt nic nie napisał.</p>}
 
-        {shown.map(({ message, text }, i) => {
-          const mine = me.ring.has(message.authorRoleId);
+        {shown.map(({ message, opened }, i) => {
+          const mine = message.authorRoleId !== null && me.ring.has(message.authorRoleId);
           const prev = shown[i - 1]?.message;
-          const same = prev !== undefined && prev.authorRoleId === message.authorRoleId
+          const same = prev !== undefined && authorOf(prev) === authorOf(message)
             && new Date(message.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60_000;
           const mayDelete = message.deletedAt === null && (mine || (chat.certifiers.length > 0 && chat.kind !== 'direct'));
 
@@ -662,23 +695,24 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
             <div key={message.messageId} className={`wk-msg${mine ? ' is-mine' : ''}${same ? ' is-follow' : ''}`}>
               {!same && (
                 <p className="wk-msg-author">
-                  {nameOf(message.authorRoleId, kindOf(message.authorRoleId), names, me.names)}
+                  {authorName(message, opened)}
+                  {message.authorSeatId !== null && <span className="wk-msg-link"> · z linku</span>}
                   <span className="wk-msg-time"> · {when(message.createdAt)}</span>
                 </p>
               )}
               <div className="wk-msg-body">
                 {message.deletedAt !== null
                   ? <em className="wk-row-side">wiadomość usunięta</em>
-                  : text === null
+                  : opened === null
                     ? <em className="wk-row-side">Nie do odczytania — brak klucza tej epoki obszaru.</em>
-                    : text}
+                    : opened.text}
                 {mayDelete && (
                   <button type="button" className="wk-chip-x wk-msg-drop" aria-label="Usuń wiadomość" title="Usuń wiadomość"
                     onClick={() => {
                       if (!window.confirm('Usunąć tę wiadomość? Zobaczą, że była, ale nie jej treść.')) return;
                       void deleteMessage(message.messageId).then(() => setShown((was) => was.map((w) =>
                         w.message.messageId === message.messageId
-                          ? { message: { ...w.message, deletedAt: new Date().toISOString(), bodySealed: null }, text: null }
+                          ? { message: { ...w.message, deletedAt: new Date().toISOString(), bodySealed: null }, opened: null }
                           : w)));
                     }}>
                     ×
@@ -693,10 +727,11 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
       <Composer
         me={me}
         chat={chat}
-        keys={keys}
-        onSent={(message, text) => {
+        keys={talk}
+        names={names}
+        onSent={(message, opened) => {
           stick.current = true;
-          setShown((was) => [...was, { message, text }]);
+          setShown((was) => [...was, { message, opened }]);
         }}
       />
     </div>
@@ -704,11 +739,12 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
 }
 
 /** Schreiben — als eine meiner Rollen, die hier schreiben darf. */
-function Composer({ me, chat, keys, onSent }: {
+function Composer({ me, chat, keys, names, onSent }: {
   me: Me;
   chat: ChatDetail;
   keys: ReadonlyMap<number, Uint8Array>;
-  onSent: (message: SealedMessage, text: string) => void;
+  names: ReadonlyMap<string, string>;
+  onSent: (message: SealedMessage, opened: Opened) => void;
 }) {
   const speakers = useMemo(() => chat.writers.filter((id) => me.ring.maySign(id)), [chat.writers, me.ring]);
   const [as, setAs] = useState(speakers.find((id) => me.roles.find((r) => r.id === id)?.kind === 'person') ?? speakers[0] ?? '');
@@ -726,11 +762,13 @@ function Composer({ me, chat, keys, onSent }: {
     setBusy(true);
     setFailed(null);
     try {
-      const done = await sendMessage(me.ring, chat.chatId, keys, as, body);
+      /* Der Name reist in der Nachricht mit — für die, die die Namen des Bereichs nicht lesen (0053). */
+      const name = names.get(as) ?? me.names.get(as) ?? null;
+      const done = await sendMessage(me.ring, chat.chatId, keys, as, body, name);
       onSent({
-        messageId: done.messageId, authorRoleId: as, epoch: Math.max(...keys.keys()),
+        messageId: done.messageId, authorRoleId: as, authorSeatId: null, epoch: done.epoch,
         bodySealed: '', createdAt: done.createdAt, deletedAt: null
-      }, body);
+      }, { text: body, name });
       setText('');
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać.');
@@ -838,6 +876,8 @@ function ChatSettings({ me, chat, names, keys, onChanged }: {
         })}
       </ul>
 
+      {chat.kind === 'area' && <LinkPeople chat={chat} />}
+
       {issuer !== null && chat.kind !== 'direct' && (
         <form className="wk-form" onSubmit={(e) => {
           e.preventDefault();
@@ -880,6 +920,47 @@ function ChatSettings({ me, chat, names, keys, onChanged }: {
       {done !== null && <p className="wk-done">{done}</p>}
       {busy !== null && <p className="wk-hint" role="status">{busy}</p>}
     </section>
+  );
+}
+
+/**
+ * DIE MENSCHEN MIT LINK — wer über ein Formular in den Bereich kam und damit
+ * in dieser Rozmowa mitschreibt (0053). Hinzugefügt wird hier niemand: wer
+ * einen Link zu diesem Bereich hat, ist dabei; wer ihn nicht mehr haben soll,
+ * dem nimmt die Kanzlei den Link.
+ */
+function LinkPeople({ chat }: { chat: ChatDetail }) {
+  if (chat.seats.length === 0) {
+    return (
+      <p className="wk-hint">
+        Osoby z linkiem do tego obszaru (np. z formularza) też tu piszą — na razie nie ma żadnej.
+      </p>
+    );
+  }
+
+  const state = (one: ChatDetail['seats'][number]) =>
+    one.wrapPublicKey === null ? 'jeszcze nie otworzyła rozmowy'
+    : one.epochs.includes(chat.currentEpoch) ? 'ma dostęp'
+    : 'czeka na klucz — dostanie go, gdy ktoś z uczestników zajrzy tutaj';
+
+  return (
+    <>
+      <h2 className="wk-h2">Osoby z linkiem ({chat.seats.length})</h2>
+      <p className="wk-hint">
+        Każdy, kto ma link do tego obszaru, czyta i pisze w tej rozmowie — bez konta. Klucz do niej
+        przekazuje im przeglądarka uczestnika, który zajrzy tutaj; do reszty obszaru nie dostają dostępu.
+      </p>
+      <ul className="wk-list">
+        {chat.seats.map((one, i) => (
+          <li key={one.seatId} className="wk-row">
+            <span>
+              <strong>{one.name ?? `Osoba z linkiem ${i + 1}`}</strong>
+              <span className="wk-row-side"> · {state(one)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 

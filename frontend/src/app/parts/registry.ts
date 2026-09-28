@@ -22,7 +22,7 @@ import { hoursPart } from './hours';
 import { linksPart } from './links';
 import { formPart, massesPart, slotsPart } from './live';
 import { noticePart } from './notice';
-import { seatNotePart, seatSharedPart, seatStepsPart, seatSubmissionPart } from './seat';
+import { seatChatPart, seatNotePart, seatSharedPart, seatStepsPart, seatSubmissionPart } from './seat';
 import { textPart } from './text';
 
 export const PARTS: readonly PartModule[] = [
@@ -42,7 +42,8 @@ export const PARTS: readonly PartModule[] = [
   seatSubmissionPart,
   seatStepsPart,
   seatNotePart,
-  seatSharedPart
+  seatSharedPart,
+  seatChatPart
 ];
 
 const BY_KIND = new Map(PARTS.map((one) => [one.kind, one]));

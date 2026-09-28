@@ -29,6 +29,13 @@ namespace Api;
 /// Unterschrift wird hier geprueft — der Dienst kann niemandem ein Wort in
 /// den Mund legen.
 /// </para>
+///
+/// <para>
+/// <b>In der Rozmowa eines Bereichs schreibt jeder, der dazugehoert (0053)</b>
+/// — jede Rolle, die ihn lesen darf, und jeder PLATZ des Bereichs, der Mensch
+/// mit dem Link. Der Platz haelt dafuer nicht den Bereichsschluessel, sondern
+/// nur den des Chats, abgeleitet und ihm von einem Mitglied verpackt.
+/// </para>
 /// </summary>
 public static class Chat
 {
@@ -64,7 +71,27 @@ public static class Chat
          * Bereich nehmen: der Browser verpackt ihm den Schluessel.
          */
         app.MapGet("/workspace/role/{id:guid}/card", CardAsync);
+
+        /* 0053 — den Plaetzen des Bereichs den Chatschluessel weitergeben. */
+        app.MapPost("/workspace/chat/{id:guid}/seats", GrantSeatsAsync);
+
+        /*
+         * 0053 — DER MENSCH MIT DEM LINK. Ohne Konto; der Link (sein Token)
+         * ist der Ausweis, wie bei allem anderen unter `/seat/`.
+         */
+        app.MapGet("/seat/{token}/chats", SeatChatsAsync);
+        app.MapPost("/seat/{token}/identity", SeatIdentityAsync);
+        app.MapGet("/seat/{token}/chat/{id:guid}/messages", SeatMessagesAsync);
+        app.MapPost("/seat/{token}/chat/{id:guid}/messages", SeatPostAsync);
+        app.MapPost("/seat/{token}/chat/message/{id:guid}/delete", SeatDeleteAsync);
     }
+
+    /// <summary>
+    /// Wer in einem Chat schreibt. In der Rozmowa eines BEREICHS jeder, der ihn
+    /// lesen darf (0053) — sie gehoert allen darin; in einer eigenen (Gruppe, zu
+    /// zweit) sagen es die Einstellungen.
+    /// </summary>
+    private static string[] SpeakersOf(ChatRow chat) => chat.Kind == "area" ? Readers : Writers;
 
     /* ======================================================================
        WER DARF
@@ -159,14 +186,31 @@ public static class Chat
         }
 
         var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
-        var rows = new List<(Guid Id, Guid Area, string AreaName, string Kind, DateTimeOffset Created, DateTimeOffset? Last, int Unread)>();
+        var rows = new List<(Guid Id, Guid Area, string AreaName, string Kind, DateTimeOffset Created, DateTimeOffset? Last,
+            int Unread, int Seats, int Pending)>();
 
+        /*
+         * Ungelesen ist, was nicht von MIR kommt — auch was ein Platz schrieb
+         * (0053): dort ist die Rolle NULL, und `NULL NOT IN (…)` ist nicht wahr.
+         *
+         * Und je Rozmowa eines Bereichs: wie viele Menschen mit Link dazu
+         * gehoeren, und wie viele davon noch auf ihren Schluessel warten — der
+         * Browser eines Mitglieds gibt ihn weiter, sobald er das sieht.
+         */
         await using (var cmd = new SqlCommand($"""
             SELECT c.id, c.area_id, a.name, c.kind, c.created_at, c.last_message_at,
                    (SELECT COUNT(*) FROM app.chat_message m
                      WHERE m.chat_id = c.id AND m.deleted_at IS NULL
                        AND (r.read_at IS NULL OR m.created_at > r.read_at)
-                       AND m.author_role_id NOT IN ({names})) AS unread
+                       AND (m.author_role_id IS NULL OR m.author_role_id NOT IN ({names}))) AS unread,
+                   (SELECT COUNT(*) FROM app.access s
+                     WHERE c.kind = N'area' AND {LiveSeat("s")} AND s.area_id = c.area_id) AS seats,
+                   (SELECT COUNT(*) FROM app.access s
+                     JOIN app.seat_identity i ON i.access_id = s.id
+                     WHERE c.kind = N'area' AND {LiveSeat("s")} AND s.area_id = c.area_id
+                       AND NOT EXISTS (SELECT 1 FROM app.chat_seat_key k
+                                        WHERE k.chat_id = c.id AND k.access_id = s.id
+                                          AND k.epoch = a.current_epoch)) AS pending
             FROM app.chat c
             JOIN app.area a ON a.id = c.area_id
             LEFT JOIN app.chat_read r ON r.chat_id = c.id AND r.account_id = @account
@@ -187,7 +231,7 @@ public static class Chat
             {
                 rows.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3),
                     reader.GetDateTimeOffset(4), reader.IsDBNull(5) ? null : reader.GetDateTimeOffset(5),
-                    reader.GetInt32(6)));
+                    reader.GetInt32(6), reader.GetInt32(7), reader.GetInt32(8)));
             }
         }
 
@@ -205,6 +249,8 @@ public static class Chat
                 createdAt = r.Created,
                 lastMessageAt = r.Last,
                 unread = r.Unread,
+                seats = r.Seats,
+                pendingSeats = r.Pending,
                 members = members.TryGetValue(r.Area, out var m) ? m : [],
                 names = sealedNames.TryGetValue(r.Area, out var n) ? n : []
             })
@@ -454,11 +500,82 @@ public static class Chat
             readAt,
 
             /* Welche meiner Rollen hier schreiben duerfen — die Oberflaeche bietet nur sie an. */
-            writers = (await HoldingAsync(connection, mine, chat.AreaId, Writers, ctx.RequestAborted)).Select(Ids.ToText),
+            writers = (await HoldingAsync(connection, mine, chat.AreaId, SpeakersOf(chat), ctx.RequestAborted)).Select(Ids.ToText),
             certifiers = (await HoldingAsync(connection, mine, chat.AreaId, ["admin", "certify"], ctx.RequestAborted)).Select(Ids.ToText),
             members = members.TryGetValue(chat.AreaId, out var m) ? m : [],
-            names = names.TryGetValue(chat.AreaId, out var n) ? n : []
+            names = names.TryGetValue(chat.AreaId, out var n) ? n : [],
+
+            /* 0053 — die Menschen mit Link, und ob ihr Schluessel schon bei ihnen ist. */
+            seats = chat.Kind == "area" ? await SeatsOfAsync(connection, chat, ctx.RequestAborted) : []
         });
+    }
+
+    /// <summary>
+    /// Ein lebendiger Platz, der nicht mehr auf seine erste Bestaetigung wartet
+    /// — dieselbe Bedingung wie <c>Seat.LiveSeatAsync(gated: true)</c>, als SQL
+    /// fuer eine Unterabfrage. Braucht <c>@now</c>.
+    /// </summary>
+    private static string LiveSeat(string a) =>
+        $"{a}.revoked_at IS NULL AND {a}.status = N'active' AND ({a}.expires_at IS NULL OR {a}.expires_at > @now) "
+        + $"AND ({a}.verify_hash IS NULL OR {a}.verified_at IS NOT NULL)";
+
+    /// <summary>
+    /// DIE PLAETZE EINES BEREICHS, die in seiner Rozmowa mitschreiben — mit dem
+    /// oeffentlichen Schluessel, unter den ein Mitglied ihnen den Chatschluessel
+    /// verpackt, und den Epochen, fuer die er schon da ist.
+    ///
+    /// <para>
+    /// Der Name ist der, den die Kanzlei am Platz fuehrt (`recipient_name`) —
+    /// er steht ohnehin offen da, damit sie ihre Plaetze zuordnen kann.
+    /// </para>
+    /// </summary>
+    private static async Task<List<object>> SeatsOfAsync(SqlConnection connection, ChatRow chat, CancellationToken ct)
+    {
+        var rows = new List<(Guid Id, string? Name, byte[]? Wrap)>();
+
+        await using (var cmd = new SqlCommand($"""
+            SELECT s.id, s.recipient_name, i.wrap_public_key
+            FROM app.access s
+            LEFT JOIN app.seat_identity i ON i.access_id = s.id
+            WHERE s.area_id = @area AND {LiveSeat("s")}
+            ORDER BY s.recipient_name, s.created_at;
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("@area", chat.AreaId);
+            cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                rows.Add((reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1),
+                    reader.IsDBNull(2) ? null : (byte[])reader[2]));
+            }
+        }
+
+        var epochs = new Dictionary<Guid, List<int>>();
+        await using (var cmd = new SqlCommand(
+            "SELECT access_id, epoch FROM app.chat_seat_key WHERE chat_id = @chat;", connection))
+        {
+            cmd.Parameters.AddWithValue("@chat", chat.Id);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var seat = reader.GetGuid(0);
+                if (!epochs.TryGetValue(seat, out var list)) epochs[seat] = list = [];
+                list.Add(reader.GetInt32(1));
+            }
+        }
+
+        return rows.Select(r => (object)new
+        {
+            seatId = Ids.ToText(r.Id),
+            name = r.Name,
+
+            /* `null`: er hat die Rozmowa noch nie geoeffnet — dann gibt es nichts, wofuer man verpacken koennte. */
+            wrapPublicKey = r.Wrap is null ? null : Base64Url.Encode(r.Wrap),
+            epochs = epochs.TryGetValue(r.Id, out var e) ? e : []
+        }).ToList();
     }
 
     /// <summary>
@@ -472,6 +589,20 @@ public static class Chat
         var seen = await ReadableAsync(ctx, db, connection, id);
         if (seen is null) return;
 
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            chatId = Ids.ToText(id),
+            messages = await ReadMessagesAsync(connection, id, before, after, limit, ctx.RequestAborted)
+        });
+    }
+
+    /// <summary>
+    /// Die Nachrichten eines Chats, versiegelt — fuer ein Mitglied und fuer
+    /// einen Platz dieselben. Verfasser ist eine Rolle ODER ein Platz (0053).
+    /// </summary>
+    private static async Task<List<object>> ReadMessagesAsync(
+        SqlConnection connection, Guid id, string? before, string? after, int? limit, CancellationToken ct)
+    {
         var take = Math.Clamp(limit ?? 60, 1, 200);
         var hasBefore = DateTimeOffset.TryParse(before, out var b);
         var hasAfter = DateTimeOffset.TryParse(after, out var a);
@@ -479,7 +610,8 @@ public static class Chat
         var messages = new List<object>();
 
         await using (var cmd = new SqlCommand($"""
-            SELECT TOP {take} id, author_role_id, epoch, body_sealed, created_at, deleted_at, signature, signed_at
+            SELECT TOP {take} id, author_role_id, epoch, body_sealed, created_at, deleted_at, signature, signed_at,
+                   author_access_id
             FROM app.chat_message
             WHERE chat_id = @chat
               {(hasBefore ? "AND created_at < @before" : "")}
@@ -491,13 +623,14 @@ public static class Chat
             if (hasBefore) cmd.Parameters.AddWithValue("@before", b);
             if (hasAfter) cmd.Parameters.AddWithValue("@after", a);
 
-            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
-            while (await reader.ReadAsync(ctx.RequestAborted))
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
             {
                 messages.Add(new
                 {
                     messageId = Ids.ToText(reader.GetGuid(0)),
-                    authorRoleId = Ids.ToText(reader.GetGuid(1)),
+                    authorRoleId = reader.IsDBNull(1) ? null : Ids.ToText(reader.GetGuid(1)),
+                    authorSeatId = reader.IsDBNull(8) ? null : Ids.ToText(reader.GetGuid(8)),
                     epoch = reader.GetInt32(2),
                     bodySealed = reader.IsDBNull(3) ? null : Base64Url.Encode((byte[])reader[3]),
                     createdAt = reader.GetDateTimeOffset(4),
@@ -511,51 +644,145 @@ public static class Chat
         /* Immer in der Reihenfolge, in der sie geschrieben wurden — die aelteste zuerst. */
         if (!hasAfter) messages.Reverse();
 
-        await ctx.Response.WriteAsJsonAsync(new { chatId = Ids.ToText(id), messages });
+        return messages;
     }
 
     public sealed record PostRequest(string MessageId, string AuthorRoleId, int Epoch, string BodySealed,
         string Signature, long SignedAt);
 
-    /// <summary>
-    /// EINE NACHRICHT — versiegelt im Browser, von der Rolle des Verfassers
-    /// unterschrieben. Schreiben darf eine Rolle, die SELBST im Bereich
-    /// schreibt; die Unterschrift wird hier gegen ihren oeffentlichen Schluessel
-    /// geprueft.
-    /// </summary>
-    private static async Task PostAsync(HttpContext ctx, Db db, Guid id, PostRequest body)
+    /// <summary>Was an einer Nachricht zu pruefen ist, bevor jemand gefragt wird, wer sie schreibt.</summary>
+    private sealed record Incoming(Guid MessageId, int Epoch, byte[] Body, byte[] BodyHash, byte[] Signature,
+        DateTimeOffset SignedAt);
+
+    /// <summary>Die Huelle, die Unterschrift und die Uhr — gleich, ob eine Rolle oder ein Platz schreibt.</summary>
+    private static async Task<Incoming?> IncomingAsync(
+        HttpContext ctx, string? messageIdText, int epoch, string? bodyText, string? signatureText, long signedAtUnix)
     {
-        if (!Guid.TryParse(body.MessageId, out var messageId) || !Guid.TryParse(body.AuthorRoleId, out var author))
+        if (!Guid.TryParse(messageIdText, out var messageId))
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung.");
-            return;
+            return null;
         }
 
         byte[] sealedBody, signature;
         try
         {
-            sealedBody = Base64Url.Decode(body.BodySealed ?? string.Empty);
-            signature = Base64Url.Decode(body.Signature ?? string.Empty);
+            sealedBody = Base64Url.Decode(bodyText ?? string.Empty);
+            signature = Base64Url.Decode(signatureText ?? string.Empty);
         }
         catch (FormatException)
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna wiadomość albo podpis.");
-            return;
+            return null;
         }
 
         if (sealedBody.Length is 0 or > MaxBody)
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Wiadomość jest pusta albo za długa.");
-            return;
+            return null;
         }
 
-        var signedAt = DateTimeOffset.FromUnixTimeSeconds(body.SignedAt);
+        var signedAt = DateTimeOffset.FromUnixTimeSeconds(signedAtUnix);
         var now = DateTimeOffset.UtcNow;
         if (signedAt > now + ClockSlack || signedAt < now - ClockSlack)
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Czas podpisu nie zgadza się z zegarem.");
+            return null;
+        }
+
+        return new Incoming(messageId, epoch, sealedBody, SHA256.HashData(sealedBody), signature, signedAt);
+    }
+
+    /// <summary>Gibt es die Epoche, unter der geschrieben wurde? Sonst 400.</summary>
+    private static async Task<bool> EpochExistsAsync(
+        HttpContext ctx, SqlConnection connection, ChatRow chat, int epoch)
+    {
+        await using var cmd = new SqlCommand("SELECT current_epoch FROM app.area WHERE id = @id;", connection);
+        cmd.Parameters.AddWithValue("@id", chat.AreaId);
+        var current = (int)(await cmd.ExecuteScalarAsync(ctx.RequestAborted))!;
+
+        if (epoch >= 1 && epoch <= current) return true;
+
+        await Fail(ctx, StatusCodes.Status400BadRequest, "Nie ma takiej epoki obszaru.");
+        return false;
+    }
+
+    /// <summary>
+    /// Was unterschrieben wird — fuer eine Rolle und fuer einen Platz derselbe
+    /// Datensatz; im Feld des Verfassers steht die Kennung dessen, der schreibt.
+    /// </summary>
+    private static MessageVersionRecord RecordOf(Incoming message, Guid author) => new()
+    {
+        Id = message.MessageId,
+        MessageId = message.MessageId,
+        Version = 1,
+        AuthorRoleId = author,
+        BodyHash = message.BodyHash,
+        CreatedUtc = message.SignedAt
+    };
+
+    /// <summary>Die Zeile — und der Chat bekommt seinen Zeitpunkt. 409, wenn es sie schon gibt.</summary>
+    private static async Task<DateTimeOffset?> InsertAsync(
+        HttpContext ctx, SqlConnection connection, ChatRow chat, Incoming message, Guid? authorRole, Guid? authorSeat)
+    {
+        var now = DateTimeOffset.UtcNow;
+        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
+
+        try
+        {
+            await using (var insert = new SqlCommand("""
+                INSERT INTO app.chat_message
+                    (id, chat_id, author_role_id, author_access_id, epoch, body_sealed, body_sha256,
+                     signature, signed_at, created_at)
+                VALUES (@id, @chat, @author, @seat, @epoch, @body, @hash, @sig, @signed, @now);
+                UPDATE app.chat SET last_message_at = @now WHERE id = @chat;
+                """, connection, tx))
+            {
+                insert.Parameters.AddWithValue("@id", message.MessageId);
+                insert.Parameters.AddWithValue("@chat", chat.Id);
+                insert.Parameters.AddWithValue("@author", (object?)authorRole ?? DBNull.Value);
+                insert.Parameters.AddWithValue("@seat", (object?)authorSeat ?? DBNull.Value);
+                insert.Parameters.AddWithValue("@epoch", message.Epoch);
+                insert.Parameters.AddWithValue("@body", message.Body);
+                insert.Parameters.AddWithValue("@hash", message.BodyHash);
+                insert.Parameters.AddWithValue("@sig", message.Signature);
+                insert.Parameters.AddWithValue("@signed", message.SignedAt);
+                insert.Parameters.AddWithValue("@now", now);
+                await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            await tx.CommitAsync(ctx.RequestAborted);
+            return now;
+        }
+        catch (SqlException e) when (e.Number is 2601 or 2627)
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict, "Ta wiadomość już jest.");
+            return null;
+        }
+        catch
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// EINE NACHRICHT — versiegelt im Browser, von der Rolle des Verfassers
+    /// unterschrieben. Schreiben darf eine Rolle, die SELBST im Bereich
+    /// schreibt — in der Rozmowa eines Bereichs jede, die ihn liest (0053); die
+    /// Unterschrift wird hier gegen ihren oeffentlichen Schluessel geprueft.
+    /// </summary>
+    private static async Task PostAsync(HttpContext ctx, Db db, Guid id, PostRequest body)
+    {
+        if (!Guid.TryParse(body.AuthorRoleId, out var author))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung.");
             return;
         }
+
+        var message = await IncomingAsync(ctx, body.MessageId, body.Epoch, body.BodySealed, body.Signature, body.SignedAt);
+        if (message is null) return;
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
@@ -569,24 +796,13 @@ public static class Chat
             return;
         }
 
-        if (!(await HoldingAsync(connection, [author], chat.AreaId, Writers, ctx.RequestAborted)).Contains(author))
+        if (!(await HoldingAsync(connection, [author], chat.AreaId, SpeakersOf(chat), ctx.RequestAborted)).Contains(author))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "Ta rola w tej rozmowie tylko czyta.");
             return;
         }
 
-        int currentEpoch;
-        await using (var cmd = new SqlCommand("SELECT current_epoch FROM app.area WHERE id = @id;", connection))
-        {
-            cmd.Parameters.AddWithValue("@id", chat.AreaId);
-            currentEpoch = (int)(await cmd.ExecuteScalarAsync(ctx.RequestAborted))!;
-        }
-
-        if (body.Epoch < 1 || body.Epoch > currentEpoch)
-        {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Nie ma takiej epoki obszaru.");
-            return;
-        }
+        if (!await EpochExistsAsync(ctx, connection, chat, message.Epoch)) return;
 
         byte[]? signKey;
         await using (var cmd = new SqlCommand("SELECT sign_public_key FROM app.role WHERE id = @id AND revoked_at IS NULL;", connection))
@@ -595,64 +811,19 @@ public static class Chat
             signKey = await cmd.ExecuteScalarAsync(ctx.RequestAborted) as byte[];
         }
 
-        var bodyHash = SHA256.HashData(sealedBody);
-        var record = new MessageVersionRecord
-        {
-            Id = messageId,
-            MessageId = messageId,
-            Version = 1,
-            AuthorRoleId = author,
-            BodyHash = bodyHash,
-            CreatedUtc = signedAt
-        };
-
-        if (signKey is null || !VerifySignature(record, signKey, signature))
+        if (signKey is null || !VerifySignature(RecordOf(message, author), signKey, message.Signature))
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Podpis wiadomości się nie zgadza.");
             return;
         }
 
-        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
-
-        try
-        {
-            await using (var insert = new SqlCommand("""
-                INSERT INTO app.chat_message
-                    (id, chat_id, author_role_id, epoch, body_sealed, body_sha256, signature, signed_at, created_at)
-                VALUES (@id, @chat, @author, @epoch, @body, @hash, @sig, @signed, @now);
-                UPDATE app.chat SET last_message_at = @now WHERE id = @chat;
-                """, connection, tx))
-            {
-                insert.Parameters.AddWithValue("@id", messageId);
-                insert.Parameters.AddWithValue("@chat", chat.Id);
-                insert.Parameters.AddWithValue("@author", author);
-                insert.Parameters.AddWithValue("@epoch", body.Epoch);
-                insert.Parameters.AddWithValue("@body", sealedBody);
-                insert.Parameters.AddWithValue("@hash", bodyHash);
-                insert.Parameters.AddWithValue("@sig", signature);
-                insert.Parameters.AddWithValue("@signed", signedAt);
-                insert.Parameters.AddWithValue("@now", now);
-                await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
-            }
-
-            await tx.CommitAsync(ctx.RequestAborted);
-        }
-        catch (SqlException e) when (e.Number is 2601 or 2627)
-        {
-            await tx.RollbackAsync(ctx.RequestAborted);
-            await Fail(ctx, StatusCodes.Status409Conflict, "Ta wiadomość już jest.");
-            return;
-        }
-        catch
-        {
-            await tx.RollbackAsync(ctx.RequestAborted);
-            throw;
-        }
+        var at = await InsertAsync(ctx, connection, chat, message, author, null);
+        if (at is null) return;
 
         /* Was ich selbst schreibe, habe ich gelesen — ausserhalb der Nachricht: ein Streit darum darf sie nicht kosten. */
-        await MarkReadAsync(connection, null, chat.Id, account, now, ctx.RequestAborted);
+        await MarkReadAsync(connection, null, chat.Id, account, at.Value, ctx.RequestAborted);
 
-        await ctx.Response.WriteAsJsonAsync(new { messageId = Ids.ToText(messageId), createdAt = now });
+        await ctx.Response.WriteAsJsonAsync(new { messageId = Ids.ToText(message.MessageId), createdAt = at.Value });
     }
 
     private static bool VerifySignature(MessageVersionRecord record, byte[] spki, byte[] signature)
@@ -662,6 +833,24 @@ public static class Chat
             using var rsa = RSA.Create();
             rsa.ImportSubjectPublicKeyInfo(spki, out _);
             return record.Verify(rsa, signature);
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Die Unterschrift eines PLATZES (0053) — ECDSA P-256 ueber denselben
+    /// Abdruck, im Format, das WebCrypto liefert (r‖s, IEEE P1363).
+    /// </summary>
+    private static bool VerifySeatSignature(MessageVersionRecord record, byte[] spki, byte[] signature)
+    {
+        try
+        {
+            using var ecdsa = ECDsa.Create();
+            ecdsa.ImportSubjectPublicKeyInfo(spki, out _);
+            return ecdsa.KeySize == 256 && ecdsa.VerifyHash(record.Hash(), signature);
         }
         catch (CryptographicException)
         {
@@ -723,7 +912,8 @@ public static class Chat
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        Guid chatId, author;
+        Guid chatId;
+        Guid? author;
         await using (var cmd = new SqlCommand(
             "SELECT chat_id, author_role_id FROM app.chat_message WHERE id = @id AND deleted_at IS NULL;", connection))
         {
@@ -735,7 +925,9 @@ public static class Chat
                 return;
             }
             chatId = reader.GetGuid(0);
-            author = reader.GetGuid(1);
+
+            /* NULL: ein Platz hat sie geschrieben (0053) — dann nimmt sie nur er selbst zurueck, oder wer moderiert. */
+            author = reader.IsDBNull(1) ? null : reader.GetGuid(1);
         }
 
         var seen = await ReadableAsync(ctx, db, connection, chatId);
@@ -745,7 +937,7 @@ public static class Chat
         /* Zu zweit loescht niemand die Worte des anderen — auch nicht, wer den Bereich angelegt hat. */
         var mayModerate = chat.Kind != "direct"
             && (await HoldingAsync(connection, mine, chat.AreaId, ["admin", "certify"], ctx.RequestAborted)).Count > 0;
-        if (!mine.Contains(author) && !mayModerate)
+        if (!(author is Guid role && mine.Contains(role)) && !mayModerate)
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "Usunąć może tylko autor albo ten, kto prowadzi rozmowę.");
             return;
@@ -887,6 +1079,417 @@ public static class Chat
             kind = reader.GetString(0),
             wrapPublicKey = Base64Url.Encode((byte[])reader[1])
         });
+    }
+
+    /* ======================================================================
+       0053 — DER MENSCH MIT DEM LINK
+       ====================================================================== */
+
+    /// <summary>Eine verpackte Huelle fasst einen Schluessel von 32 Bytes — mehr nimmt niemand an.</summary>
+    private const int MaxWrapped = 512;
+
+    /// <summary>Die privaten Haelften eines Platzes, versiegelt — zwei P-256-Schluessel.</summary>
+    private const int MaxIdentity = 2048;
+
+    public sealed record SeatKeyIn(string SeatId, int Epoch, string KeyWrapped);
+
+    public sealed record GrantSeatsRequest(string ByRoleId, IReadOnlyList<SeatKeyIn>? Keys);
+
+    /// <summary>
+    /// DEN CHATSCHLUESSEL WEITERGEBEN — an die Plaetze des Bereichs, die darauf
+    /// warten. Verpackt hat ihn der Browser eines Mitglieds, unter dem
+    /// oeffentlichen Schluessel des Platzes; hier wird er nur abgelegt.
+    ///
+    /// <para>
+    /// <b>Wer weitergibt, entscheidet nicht, wer dazugehoert.</b> Das sagt der
+    /// Bereich: annehmen kann nur ein lebendiger Platz DIESES Bereichs. Das
+    /// Mitglied liefert bloss den Schluessel, den es ohnehin haelt — deshalb
+    /// darf das jedes, nicht erst, wer hineinlaesst.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Die erste Huelle bleibt.</b> Eine zweite derselben Epoche ersetzt sie
+    /// nicht — sonst koennte ein Mitglied eine gute durch eine leere ersetzen.
+    /// </para>
+    /// </summary>
+    private static async Task GrantSeatsAsync(HttpContext ctx, Db db, Guid id, GrantSeatsRequest body)
+    {
+        if (!Guid.TryParse(body.ByRoleId, out var byRole))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung.");
+            return;
+        }
+
+        var keys = body.Keys ?? [];
+        if (keys.Count > 500)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Za dużo naraz — najwyżej 500.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var seen = await ReadableAsync(ctx, db, connection, id);
+        if (seen is null) return;
+        var (chat, mine, _) = seen.Value;
+
+        if (chat.Kind != "area")
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Osoby z linkiem są tylko w rozmowie obszaru.");
+            return;
+        }
+
+        if (!mine.Contains(byRole)
+            || !(await HoldingAsync(connection, [byRole], chat.AreaId, Readers, ctx.RequestAborted)).Contains(byRole))
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Ta rola nie ma klucza tego obszaru.");
+            return;
+        }
+
+        int current;
+        await using (var cmd = new SqlCommand("SELECT current_epoch FROM app.area WHERE id = @id;", connection))
+        {
+            cmd.Parameters.AddWithValue("@id", chat.AreaId);
+            current = (int)(await cmd.ExecuteScalarAsync(ctx.RequestAborted))!;
+        }
+
+        var parsed = new List<(Guid Seat, int Epoch, byte[] Key)>();
+        foreach (var one in keys)
+        {
+            byte[] wrapped;
+            try { wrapped = Base64Url.Decode(one.KeyWrapped ?? string.Empty); }
+            catch (FormatException) { wrapped = []; }
+
+            if (!Guid.TryParse(one.SeatId, out var seatId) || one.Epoch < 1 || one.Epoch > current
+                || wrapped.Length is 0 or > MaxWrapped)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny klucz dla osoby z linkiem.");
+                return;
+            }
+
+            parsed.Add((seatId, one.Epoch, wrapped));
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var granted = 0;
+
+        foreach (var (seatId, epoch, wrapped) in parsed)
+        {
+            await using var insert = new SqlCommand($"""
+                INSERT INTO app.chat_seat_key (chat_id, access_id, epoch, key_wrapped, granted_by_role_id, granted_at)
+                SELECT @chat, s.id, @epoch, @key, @by, @now
+                FROM app.access s
+                JOIN app.seat_identity i ON i.access_id = s.id
+                WHERE s.id = @seat AND s.area_id = @area AND {LiveSeat("s")}
+                  AND NOT EXISTS (SELECT 1 FROM app.chat_seat_key k
+                                   WHERE k.chat_id = @chat AND k.access_id = @seat AND k.epoch = @epoch);
+                """, connection);
+
+            insert.Parameters.AddWithValue("@chat", chat.Id);
+            insert.Parameters.AddWithValue("@seat", seatId);
+            insert.Parameters.AddWithValue("@area", chat.AreaId);
+            insert.Parameters.AddWithValue("@epoch", epoch);
+            insert.Parameters.AddWithValue("@key", wrapped);
+            insert.Parameters.AddWithValue("@by", byRole);
+            insert.Parameters.AddWithValue("@now", now);
+
+            try
+            {
+                granted += await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+            catch (SqlException e) when (e.Number is 2601 or 2627)
+            {
+                // Ein zweites Fenster war schneller — die erste Huelle bleibt, und sie ist da.
+            }
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { chatId = Ids.ToText(chat.Id), granted });
+    }
+
+    /// <summary>Der Platz hinter dem Token und der Chat — wenn der Chat seinem Bereich gehoert. Sonst 404.</summary>
+    private static async Task<((Guid Id, Guid AreaId) Seat, ChatRow Chat)?> SeatChatAsync(
+        HttpContext ctx, SqlConnection connection, string token, Guid chatId)
+    {
+        var seat = await Seat.LiveSeatAsync(connection, token, gated: true, ctx.RequestAborted);
+        var chat = seat is null ? null : await ChatOfAsync(connection, chatId, ctx.RequestAborted);
+
+        if (seat is null || chat is null || chat.Kind != "area" || chat.AreaId != seat.Value.AreaId)
+        {
+            // Wie ueberall unter `/seat/`: was es nicht gibt und was nicht zu diesem Link gehoert, sieht gleich aus.
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiej rozmowy nie ma.");
+            return null;
+        }
+
+        return (seat.Value, chat);
+    }
+
+    /// <summary>
+    /// DIE ROZMOWY DIESES LINKS — die seines Bereichs, mit den Huellen des
+    /// Chatschluessels, soweit ein Mitglied sie schon weitergegeben hat, und
+    /// mit seiner eigenen Identitaet (oder <c>null</c>: noch keine).
+    /// </summary>
+    private static async Task SeatChatsAsync(HttpContext ctx, Db db, string token)
+    {
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var seat = await Seat.LiveSeatAsync(connection, token, gated: true, ctx.RequestAborted);
+        if (seat is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
+            return;
+        }
+
+        var identity = await IdentityOfAsync(connection, seat.Value.Id, ctx.RequestAborted);
+
+        var chats = new List<(Guid Id, Guid Area, string Name, int Epoch, DateTimeOffset? Last)>();
+        await using (var cmd = new SqlCommand("""
+            SELECT c.id, c.area_id, a.name, a.current_epoch, c.last_message_at
+            FROM app.chat c
+            JOIN app.area a ON a.id = c.area_id
+            WHERE c.kind = N'area' AND c.area_id = @area;
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("@area", seat.Value.AreaId);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                chats.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetInt32(3),
+                    reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4)));
+            }
+        }
+
+        var keys = new Dictionary<Guid, List<object>>();
+        await using (var cmd = new SqlCommand(
+            "SELECT chat_id, epoch, key_wrapped FROM app.chat_seat_key WHERE access_id = @seat;", connection))
+        {
+            cmd.Parameters.AddWithValue("@seat", seat.Value.Id);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                var chat = reader.GetGuid(0);
+                if (!keys.TryGetValue(chat, out var list)) keys[chat] = list = [];
+                list.Add(new { epoch = reader.GetInt32(1), keyWrapped = Base64Url.Encode((byte[])reader[2]) });
+            }
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            seatId = Ids.ToText(seat.Value.Id),
+            identity,
+            chats = chats.Select(c => new
+            {
+                chatId = Ids.ToText(c.Id),
+                areaId = Ids.ToText(c.Area),
+                areaName = c.Name,
+                currentEpoch = c.Epoch,
+                lastMessageAt = c.Last,
+                keys = keys.TryGetValue(c.Id, out var k) ? k : []
+            })
+        });
+    }
+
+    private static async Task<object?> IdentityOfAsync(SqlConnection connection, Guid seatId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand(
+            "SELECT wrap_public_key, sign_public_key, private_sealed FROM app.seat_identity WHERE access_id = @seat;",
+            connection);
+        cmd.Parameters.AddWithValue("@seat", seatId);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return null;
+
+        return new
+        {
+            wrapPublicKey = Base64Url.Encode((byte[])reader[0]),
+            signPublicKey = Base64Url.Encode((byte[])reader[1]),
+            privateSealed = Base64Url.Encode((byte[])reader[2])
+        };
+    }
+
+    public sealed record IdentityRequest(string WrapPublicKey, string SignPublicKey, string PrivateSealed);
+
+    /// <summary>Ist das ein oeffentlicher P-256-Schluessel — zum Empfangen oder zum Pruefen?</summary>
+    private static bool IsP256(byte[] spki, bool forSigning)
+    {
+        try
+        {
+            if (forSigning)
+            {
+                using var ecdsa = ECDsa.Create();
+                ecdsa.ImportSubjectPublicKeyInfo(spki, out var read);
+                return read == spki.Length && ecdsa.KeySize == 256;
+            }
+
+            using var ecdh = ECDiffieHellman.Create();
+            ecdh.ImportSubjectPublicKeyInfo(spki, out var used);
+            return used == spki.Length && ecdh.KeySize == 256;
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// DIE IDENTITAET EINES PLATZES — beim ersten Oeffnen einer Rozmowa im
+    /// Browser erzeugt. Die erste bleibt: wer sie ersetzen koennte, koennte
+    /// sich die Schluessel eines anderen verpacken lassen. Zurueck kommt die,
+    /// die gilt — auch wenn es nicht die eben geschickte ist.
+    /// </summary>
+    private static async Task SeatIdentityAsync(HttpContext ctx, Db db, string token, IdentityRequest body)
+    {
+        byte[] wrap, sign, sealedPrivate;
+        try
+        {
+            wrap = Base64Url.Decode(body.WrapPublicKey ?? string.Empty);
+            sign = Base64Url.Decode(body.SignPublicKey ?? string.Empty);
+            sealedPrivate = Base64Url.Decode(body.PrivateSealed ?? string.Empty);
+        }
+        catch (FormatException)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny klucz.");
+            return;
+        }
+
+        if (wrap.Length > 256 || sign.Length > 256 || !IsP256(wrap, false) || !IsP256(sign, true)
+            || sealedPrivate.Length is 0 or > MaxIdentity)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny klucz.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var seat = await Seat.LiveSeatAsync(connection, token, gated: true, ctx.RequestAborted);
+        if (seat is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma.");
+            return;
+        }
+
+        await using (var insert = new SqlCommand("""
+            INSERT INTO app.seat_identity (access_id, wrap_public_key, sign_public_key, private_sealed, created_at)
+            SELECT @seat, @wrap, @sign, @private, @now
+            WHERE NOT EXISTS (SELECT 1 FROM app.seat_identity WHERE access_id = @seat);
+            """, connection))
+        {
+            insert.Parameters.AddWithValue("@seat", seat.Value.Id);
+            insert.Parameters.AddWithValue("@wrap", wrap);
+            insert.Parameters.AddWithValue("@sign", sign);
+            insert.Parameters.AddWithValue("@private", sealedPrivate);
+            insert.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+
+            try
+            {
+                await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+            catch (SqlException e) when (e.Number is 2601 or 2627)
+            {
+                // Ein zweites Fenster desselben Links war schneller — dessen gilt.
+            }
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            seatId = Ids.ToText(seat.Value.Id),
+            identity = await IdentityOfAsync(connection, seat.Value.Id, ctx.RequestAborted)
+        });
+    }
+
+    private static async Task SeatMessagesAsync(
+        HttpContext ctx, Db db, string token, Guid id, string? before, string? after, int? limit)
+    {
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var found = await SeatChatAsync(ctx, connection, token, id);
+        if (found is null) return;
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            chatId = Ids.ToText(id),
+            messages = await ReadMessagesAsync(connection, id, before, after, limit, ctx.RequestAborted)
+        });
+    }
+
+    public sealed record SeatPostRequest(string MessageId, int Epoch, string BodySealed, string Signature, long SignedAt);
+
+    /// <summary>
+    /// EINE NACHRICHT VOM LINK — versiegelt unter dem Chatschluessel,
+    /// unterschrieben mit dem Schluessel des Platzes. Verfasser ist der Platz;
+    /// welcher, sagt das Token und nicht der Absender.
+    /// </summary>
+    private static async Task SeatPostAsync(HttpContext ctx, Db db, string token, Guid id, SeatPostRequest body)
+    {
+        var message = await IncomingAsync(ctx, body.MessageId, body.Epoch, body.BodySealed, body.Signature, body.SignedAt);
+        if (message is null) return;
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var found = await SeatChatAsync(ctx, connection, token, id);
+        if (found is null) return;
+        var (seat, chat) = found.Value;
+
+        if (!await EpochExistsAsync(ctx, connection, chat, message.Epoch)) return;
+
+        byte[]? signKey;
+        await using (var cmd = new SqlCommand(
+            "SELECT sign_public_key FROM app.seat_identity WHERE access_id = @seat;", connection))
+        {
+            cmd.Parameters.AddWithValue("@seat", seat.Id);
+            signKey = await cmd.ExecuteScalarAsync(ctx.RequestAborted) as byte[];
+        }
+
+        if (signKey is null || !VerifySeatSignature(RecordOf(message, seat.Id), signKey, message.Signature))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Podpis wiadomości się nie zgadza.");
+            return;
+        }
+
+        var at = await InsertAsync(ctx, connection, chat, message, null, seat.Id);
+        if (at is null) return;
+
+        await ctx.Response.WriteAsJsonAsync(new { messageId = Ids.ToText(message.MessageId), createdAt = at.Value });
+    }
+
+    /// <summary>Die eigene Nachricht zuruecknehmen — nur die eigene.</summary>
+    private static async Task SeatDeleteAsync(HttpContext ctx, Db db, string token, Guid id)
+    {
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        Guid chatId;
+        Guid? author;
+        await using (var cmd = new SqlCommand(
+            "SELECT chat_id, author_access_id FROM app.chat_message WHERE id = @id AND deleted_at IS NULL;", connection))
+        {
+            cmd.Parameters.AddWithValue("@id", id);
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            if (!await reader.ReadAsync(ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Takiej wiadomości nie ma.");
+                return;
+            }
+            chatId = reader.GetGuid(0);
+            author = reader.IsDBNull(1) ? null : reader.GetGuid(1);
+        }
+
+        var found = await SeatChatAsync(ctx, connection, token, chatId);
+        if (found is null) return;
+
+        if (author != found.Value.Seat.Id)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden, "Usunąć możesz tylko swoją wiadomość.");
+            return;
+        }
+
+        await using var drop = new SqlCommand(
+            "UPDATE app.chat_message SET body_sealed = NULL, deleted_at = @now WHERE id = @id;", connection);
+        drop.Parameters.AddWithValue("@id", id);
+        drop.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+        await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await ctx.Response.WriteAsJsonAsync(new { messageId = Ids.ToText(id), deleted = true });
     }
 
     private static Task Fail(HttpContext ctx, int status, string message)

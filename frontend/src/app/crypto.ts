@@ -139,7 +139,11 @@ export const Field = {
 
   /* 0052 — eine Nachricht einer Rozmowa, und wie jemand in einem Bereich heisst. */
   ChatMessage: 'chat_message',
-  AreaMemberName: 'area_member_name'
+  AreaMemberName: 'area_member_name',
+
+  /* 0053 — der Chatschlüssel für einen Platz, und dessen eigene private Schlüssel. */
+  ChatSeatKey: 'chat_seat_key',
+  SeatIdentity: 'seat_identity'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];
@@ -514,4 +518,93 @@ export async function sha256Bytes(bytes: Uint8Array): Promise<Uint8Array> {
 export async function hmacSha256(key: Uint8Array, message: Uint8Array): Promise<Uint8Array> {
   const k = await crypto.subtle.importKey('raw', view(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return new Uint8Array(await crypto.subtle.sign('HMAC', k, view(message)));
+}
+
+/* -- 0053 — P-256 für den Menschen mit dem Link ---------------------------------- */
+
+/**
+ * DIE KLEINE IDENTITÄT EINES PLATZES — zwei Paare P-256: ECDH zum Empfangen,
+ * ECDSA zum Unterschreiben.
+ *
+ * <b>Nicht `newRolePair`.</b> Zwei RSA-4096-Paare dauern auf einem Telefon zehn
+ * Sekunden; hier entstehen sie, während ein Firmling seine Seite öffnet, und
+ * müssen sofort da sein. P-256 kann WebCrypto ohne Wartezeit, und der Dienst
+ * prüft es mit Bordmitteln.
+ */
+export interface SeatPairs {
+  readonly wrapPublicKey: Uint8Array;
+  readonly wrapPrivateKey: Uint8Array;
+  readonly signPublicKey: Uint8Array;
+  readonly signPrivateKey: Uint8Array;
+}
+
+const P256 = { namedCurve: 'P-256' } as const;
+
+export async function newSeatPairs(): Promise<SeatPairs> {
+  const [wrap, sign] = await Promise.all([
+    crypto.subtle.generateKey({ name: 'ECDH', ...P256 }, true, ['deriveBits']),
+    crypto.subtle.generateKey({ name: 'ECDSA', ...P256 }, true, ['sign', 'verify'])
+  ]);
+
+  const [wrapPublicKey, wrapPrivateKey, signPublicKey, signPrivateKey] = await Promise.all([
+    crypto.subtle.exportKey('spki', wrap.publicKey),
+    crypto.subtle.exportKey('pkcs8', wrap.privateKey),
+    crypto.subtle.exportKey('spki', sign.publicKey),
+    crypto.subtle.exportKey('pkcs8', sign.privateKey)
+  ]);
+
+  return {
+    wrapPublicKey: new Uint8Array(wrapPublicKey),
+    wrapPrivateKey: new Uint8Array(wrapPrivateKey),
+    signPublicKey: new Uint8Array(signPublicKey),
+    signPrivateKey: new Uint8Array(signPrivateKey)
+  };
+}
+
+/** Ein unkomprimierter P-256-Punkt: 0x04 ‖ x ‖ y. */
+const POINT_SIZE = 65;
+
+/** Aus dem gemeinsamen Geheimnis und dem Punkt des Absenders der Schlüssel, der verpackt. */
+const eciesKey = (shared: Uint8Array, ephemeral: Uint8Array) =>
+  derive(concat(shared, ephemeral), 'recreatio:v1:ecies-p256', KEY_SIZE);
+
+/**
+ * Einen Schlüssel für einen öffentlichen P-256-Schlüssel verpacken (ECIES):
+ * ein Wegwerfpaar, ECDH, HKDF, AES-GCM — mit derselben AAD wie jede Hülle.
+ *
+ * <code>
+ *   Punkt des Wegwerfpaars (65)  ‖  seal(abgeleitet, aad, schlüssel)
+ * </code>
+ */
+export async function wrapKeyP256(spki: Uint8Array, a: Aad, keyToWrap: Uint8Array): Promise<Uint8Array> {
+  const peer = await crypto.subtle.importKey('spki', view(spki), { name: 'ECDH', ...P256 }, false, []);
+  const ephemeral = await crypto.subtle.generateKey({ name: 'ECDH', ...P256 }, true, ['deriveBits']);
+
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: peer }, ephemeral.privateKey, 256));
+  const point = new Uint8Array(await crypto.subtle.exportKey('raw', ephemeral.publicKey));
+
+  return concat(point, await seal(await eciesKey(shared, point), a, keyToWrap));
+}
+
+/** Die Gegenrichtung — mit dem eigenen privaten ECDH-Schlüssel. */
+export async function unwrapKeyP256(pkcs8: Uint8Array, a: Aad, blob: Uint8Array): Promise<Uint8Array> {
+  if (blob.length <= POINT_SIZE) throw new SealedError('Hülle zu kurz.');
+
+  const point = blob.slice(0, POINT_SIZE);
+  const mine = await crypto.subtle.importKey('pkcs8', view(pkcs8), { name: 'ECDH', ...P256 }, false, ['deriveBits']);
+  const peer = await crypto.subtle.importKey('raw', view(point), { name: 'ECDH', ...P256 }, false, []);
+
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: peer }, mine, 256));
+  return open(await eciesKey(shared, point), a, blob.slice(POINT_SIZE));
+}
+
+/**
+ * Eine kanonische Form mit ECDSA P-256 unterschreiben — wie `signCanonical`,
+ * nur für einen Platz. WebCrypto hasht selbst (SHA-256) und liefert r ‖ s;
+ * der Dienst prüft genau das (`ECDsa.VerifyHash`, IEEE P1363).
+ */
+export async function signCanonicalP256(pkcs8: Uint8Array, value: Canon): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey('pkcs8', view(pkcs8), { name: 'ECDSA', ...P256 }, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' }, key, view(utf8.encode(serialize(value)))));
 }

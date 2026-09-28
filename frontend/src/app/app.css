@@ -2127,3 +2127,6 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-chat-compose-row { display: flex; gap: 0.5rem; align-items: flex-end; }
 .wk-chat-compose-row textarea { flex: 1 1 auto; min-width: 0; padding: 0.5rem 0.6rem; font: inherit; resize: vertical; }
 .wk-chat-settings { gap: 0.7rem; }
+.wk-msg-link { font-weight: 400; }
+.wk-seat-chat-room .wk-chat-log { height: min(50vh, 26rem); }
+.wk-seat-chat { display: grid; gap: 0.4rem; }
