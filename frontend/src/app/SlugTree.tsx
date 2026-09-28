@@ -29,7 +29,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { openSubpage } from './access';
-import { loadAreas, type AreaRow } from './area';
+import { areaPath, inOrder, loadAreas, type AreaRow } from './area';
 import { kindName, moveSlug, setPageAreas, takers, type Desk, type PageCard } from './desk';
 import { myRoleNames, roleLabel } from './roleNames';
 import type { Ring } from './keys';
@@ -271,7 +271,7 @@ function Row({ node, depth, desk, names, areas, editing, dragging, over, allowed
         {page !== null && (
           <span className="wk-badge">
             {(page.accessAreaIds ?? []).length > 0
-              ? `tylko z dostępem: ${(page.accessAreaIds ?? []).map((id) => areas.find((a) => a.areaId === id)?.name ?? 'obszar').join(', ')}`
+              ? `tylko z dostępem: ${(page.accessAreaIds ?? []).map((id) => areas.some((a) => a.areaId === id) ? areaPath(areas, id).short : 'obszar').join(', ')}`
               : page.internalForRoleId === null
                 ? 'publiczny'
                 : `tylko: ${whose(page.internalForRoleId, names, desk)}`}
@@ -385,13 +385,25 @@ function Visibility({ page, areas, desk, names, busy, onAct }: {
 
       {restricted && (
         <div className="wk-access-areas">
-          {areas.map((a) => (
-            <label key={a.areaId} className="wk-check">
-              <input type="checkbox" checked={chosen.includes(a.areaId)} disabled={busy}
-                onChange={() => toggle(a.areaId)} />
-              <span>{a.name}</span>
+          {/*
+            DER GANZE BAUM, nicht eine flache Liste: „Kandydaci" gibt es in der
+            Firmung und in der Erstkommunion, und nebeneinander sähen sie gleich
+            aus. Eingerückt, wie sie ineinander liegen — der ganze Weg steht
+            darunter bei dem, was gewählt ist, und im Tooltip.
+          */}
+          {inOrder(areas).map(({ area, depth }) => (
+            <label key={area.areaId} className="wk-check wk-access-area" style={{ paddingLeft: `${depth * 1.25}rem` }}
+              title={areaPath(areas, area.areaId).full}>
+              <input type="checkbox" checked={chosen.includes(area.areaId)} disabled={busy}
+                onChange={() => toggle(area.areaId)} />
+              <span>{depth > 0 && <span className="wk-access-branch" aria-hidden="true">└ </span>}{area.name}</span>
             </label>
           ))}
+          {chosen.filter((id) => areas.some((a) => a.areaId === id)).length > 0 && (
+            <span className="wk-hint">
+              Wybrane: {chosen.filter((id) => areas.some((a) => a.areaId === id)).map((id) => areaPath(areas, id).full).join(' · ')}
+            </span>
+          )}
           {unseen.map((id) => (
             <label key={id} className="wk-check">
               <input type="checkbox" checked={chosen.includes(id)} disabled={busy} onChange={() => toggle(id)} />

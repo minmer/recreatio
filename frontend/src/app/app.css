@@ -1778,6 +1778,7 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-access-pick { border: 0; padding: 0; margin: 0; display: grid; gap: 0.3rem; min-width: 0; }
 .wk-access-pick legend { padding: 0; margin-bottom: 0.2rem; font-size: 0.82rem; color: var(--wk-muted); }
 .wk-access-areas { display: grid; gap: 0.2rem; padding-left: 1.6rem; }
+.wk-access-branch { color: var(--wk-muted); }
 
 /* Die Frage an den Ersten (0050): zwei Antworten, jede mit dem, was sie bewirkt. */
 .wk-slot-decide { border-left-color: var(--wk-held-line); }

@@ -14,7 +14,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { dropFromArea, loadAreas, loadMembers, type AreaRow } from './area';
+import { areaPath, dropFromArea, loadAreas, loadMembers, type AreaRow } from './area';
+import { AreaOptions } from './AreaOptions';
 import { Segment } from './Areas';
 import {
   addToChat, areaKeys, deleteMessage, loadChat, loadChats, loadMessages, looksLikeCode, markRead,
@@ -73,6 +74,24 @@ const when = (at: string) => {
     : d.toLocaleString('pl-PL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
 
+/** Die Bereiche, die ich sehe — für den Weg, in dem ein Bereich liegt. */
+function useAreas(): readonly AreaRow[] {
+  const [areas, setAreas] = useState<readonly AreaRow[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void loadAreas().then((found) => { if (alive) setAreas(found.areas); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+  return areas;
+}
+
+/**
+ * Wie ein Chat eines Bereichs heisst: der GANZE Weg — „Parafia › Bierzmowanie
+ * › Kandydaci", nicht bloss „Kandydaci", das es zweimal gibt.
+ */
+const titleOfArea = (areas: readonly AreaRow[], areaId: string, fallback: string) =>
+  areas.some((a) => a.areaId === areaId) ? areaPath(areas, areaId).full : fallback;
+
 /* -- Die Ansicht ------------------------------------------------------------------ */
 
 export function ChatView({ who, trail }: { who: Who; trail: readonly string[] }) {
@@ -92,16 +111,16 @@ export function ChatView({ who, trail }: { who: Who; trail: readonly string[] })
 /* -- Die Liste --------------------------------------------------------------------- */
 
 /** Wie ein Chat in der Liste heisst: zu zweit der Name der anderen Seite, sonst der Bereich. */
-function useTitles(me: Me, chats: readonly ChatRow[]): ReadonlyMap<string, string> {
+function useTitles(me: Me, chats: readonly ChatRow[], areas: readonly AreaRow[]): ReadonlyMap<string, string> {
   const [titles, setTitles] = useState<ReadonlyMap<string, string>>(new Map());
-  const key = chats.map((c) => c.chatId).join(',');
+  const key = chats.map((c) => c.chatId).join(',') + '|' + areas.length;
 
   useEffect(() => {
     let alive = true;
     void (async () => {
       const out = new Map<string, string>();
       for (const chat of chats) {
-        if (chat.kind !== 'direct') { out.set(chat.chatId, chat.areaName); continue; }
+        if (chat.kind !== 'direct') { out.set(chat.chatId, titleOfArea(areas, chat.areaId, chat.areaName)); continue; }
         const other = chat.members.find((m) => !me.ring.has(m.roleId)) ?? chat.members.find((m) => !me.roles.some((r) => r.id === m.roleId));
         if (other === undefined) { out.set(chat.chatId, 'Rozmowa'); continue; }
         try {
@@ -123,6 +142,7 @@ function useTitles(me: Me, chats: readonly ChatRow[]): ReadonlyMap<string, strin
 function ChatList({ me }: { me: Me }) {
   const [chats, setChats] = useState<readonly ChatRow[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const areas = useAreas();
 
   const look = useCallback(async () => {
     try {
@@ -139,7 +159,7 @@ function ChatList({ me }: { me: Me }) {
     return () => window.clearInterval(timer);
   }, [look]);
 
-  const titles = useTitles(me, chats ?? []);
+  const titles = useTitles(me, chats ?? [], areas);
 
   return (
     <>
@@ -342,7 +362,7 @@ function NewChat({ me }: { me: Me }) {
               <span>Obszar</span>
               <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
                 <option value="">— wybierz —</option>
-                {writable.map((a) => <option key={a.areaId} value={a.areaId}>{a.name}</option>)}
+                <AreaOptions areas={areas} only={writable} />
               </select>
             </label>
             {writable.length === 0 && <p className="wk-empty">Każdy obszar, w którym piszesz, ma już swoją rozmowę.</p>}
@@ -490,6 +510,7 @@ interface Shown {
 }
 
 function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
+  const areas = useAreas();
   const [chat, setChat] = useState<ChatDetail | null | undefined>(undefined);
   const [keys, setKeys] = useState<ReadonlyMap<number, Uint8Array>>(new Map());
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
@@ -596,7 +617,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   }
 
   const other = chat.kind === 'direct' ? chat.members.find((m) => !me.ring.has(m.roleId)) : undefined;
-  const title = other !== undefined ? nameOf(other.roleId, other.kind, names, me.names) : chat.areaName;
+  const title = other !== undefined ? nameOf(other.roleId, other.kind, names, me.names) : titleOfArea(areas, chat.areaId, chat.areaName);
   const kindOf = (roleId: string) => chat.members.find((m) => m.roleId === roleId)?.kind;
 
   return (
