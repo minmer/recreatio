@@ -2706,27 +2706,35 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-ev:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; z-index: 2; }
 .wk-ev.is-claim { border-left-style: dashed; }
 .wk-ev.is-cancelled { text-decoration: line-through; opacity: 0.6; }
-.wk-ev.is-task { border-left-width: 0; box-shadow: inset 0 0 0 1px hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); }
-.wk-ev.is-task-done { opacity: 0.55; }
-.wk-ev.is-task-done .wk-ev-title { text-decoration: line-through; }
-.wk-ev.is-task-missed { box-shadow: inset 0 0 0 1px var(--wk-danger); }
-.wk-ev.is-task-late { box-shadow: inset 0 0 0 2px var(--wk-danger); }
 .wk-ev-time { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
 .wk-ev-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.wk-ev-tick {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 0.95rem;
-  height: 0.95rem;
-  margin-top: 0.05rem;
-  font-size: 0.7rem;
-  border: 1.5px solid currentColor;
-  border-radius: 3px;
-  cursor: pointer;
+.wk-ev-line { display: flex; align-items: center; gap: 0.3rem; min-width: 0; }
+.wk-ev-sub { font-size: 0.72rem; opacity: 0.85; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/*
+   0057 — RESERVIERUNGEN AM TERMIN. Ein angebotener Termin zeigt, wie viel
+   besetzt ist („2/3") und ob jemand auf ein Ja wartet („1?", bernsteinfarben
+   wie überall, wo etwas gehalten wird). Leer: nur umrissen — ein Angebot,
+   noch kein Treffen. Voll: kräftig. Geschlossen: gestreift.
+*/
+.wk-ev-badges { display: inline-flex; gap: 3px; margin-left: auto; flex: none; }
+.wk-ev-seats, .wk-ev-wait {
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.12rem 0.3rem;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
 }
-.wk-ev-tick.is-done { background: currentColor; color: var(--wk-surface); }
-.wk-ev-tick:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-ev-seats { background: var(--wk-surface); color: hsl(var(--ev-h, 30) 35% var(--ev-ink-l)); box-shadow: inset 0 0 0 1px hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); }
+.wk-ev-wait { background: var(--wk-held-bg); color: var(--wk-held-ink); box-shadow: inset 0 0 0 1px var(--wk-held-line); }
+.wk-ev.is-offer.is-empty { background: var(--wk-surface); border-left-style: dotted; }
+.wk-ev.is-offer.is-full .wk-ev-seats { background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); color: var(--wk-surface); }
+.wk-ev.is-offer.is-closed {
+  background-image: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--wk-muted) 14%, transparent) 6px 8px);
+}
+.wk-ev.has-waiting { box-shadow: inset 0 0 0 1.5px var(--wk-held-line); }
+.wk-ev.is-booking { border-left-style: double; border-left-width: 4px; }
 
 /* Tag und Woche: Kopf, Ganztägiges, und das Stundenraster, das in sich rollt. */
 .wk-cal2-grid {
@@ -2782,12 +2790,102 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
   cursor: copy;
 }
 .wk-cal2-col.is-today { background-color: color-mix(in srgb, var(--wk-accent) 5%, transparent); }
-.wk-cal2-col > .wk-ev { position: absolute; flex-direction: column; gap: 0; z-index: 1; }
-.wk-cal2-col > .wk-ev .wk-ev-tick { position: absolute; top: 0.2rem; right: 0.2rem; }
+.wk-cal2-col > .wk-ev { position: absolute; flex-direction: column; align-items: stretch; gap: 0; z-index: 1; }
 
 /* Kurz (unter einer Dreiviertelstunde): Zeit und Titel in EINER Zeile — für zwei ist kein Platz. */
 .wk-cal2-col > .wk-ev.is-short { flex-direction: row; align-items: center; gap: 0.3rem; padding-block: 0; line-height: 1.1; white-space: nowrap; }
-.wk-cal2-col > .wk-ev.is-short .wk-ev-tick { position: static; order: -1; margin: 0; }
+.wk-cal2-col > .wk-ev.is-short .wk-ev-title { order: 1; }
+.wk-cal2-col > .wk-ev.is-short .wk-ev-line { display: contents; }
+.wk-cal2-col > .wk-ev.is-short .wk-ev-badges { order: 2; }
+
+/*
+   0057 — DIE SCHIENE DER AUFGABEN: links am Tag, so schmal, dass sie den
+   Terminen nichts wegnimmt. Jedes Fenster ein Strich im Stand seiner Farbe;
+   was gerade offen ist, leuchtet, was erledigt ist, tritt zurück.
+*/
+.wk-cal2-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--rail);
+  padding: 0;
+  border: 0;
+  border-right: 1px dashed color-mix(in srgb, var(--wk-line) 70%, transparent);
+  background: none;
+  cursor: pointer;
+  z-index: 2;
+}
+.wk-cal2-rail:hover { background: color-mix(in srgb, var(--wk-accent) 7%, transparent); }
+.wk-cal2-rail:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-rail-bar {
+  position: absolute;
+  width: 3px;
+  border-radius: 2px;
+  background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l));
+  opacity: 0.45;
+}
+.wk-rail-bar::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1.5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: inherit;
+}
+.wk-rail-bar.is-open, .wk-rail-bar.is-due { opacity: 1; background: var(--wk-accent); }
+.wk-rail-bar.is-missed, .wk-rail-bar.is-late { opacity: 0.8; background: var(--wk-danger); }
+.wk-rail-bar.is-done { opacity: 0.25; }
+.wk-rail-bar.is-skipped { opacity: 0.2; background: var(--wk-muted); }
+
+/* Der Anfangspunkt nur, wo es jetzt drängt — sonst wäre die Schiene eine Perlenkette. */
+.wk-rail-bar:not(.is-open):not(.is-due)::before { display: none; }
+
+/* Vergangene Tage treten zurück — auch was dort liegen blieb. */
+.wk-cal2-rail.is-past .wk-rail-bar { opacity: 0.22; }
+.wk-taskpill.is-past .wk-taskpill-note.is-behind { color: var(--wk-muted); font-weight: 600; }
+.wk-taskpill.is-past .wk-taskpill-dot { background: var(--wk-muted); }
+
+/* Die Zeile „zadania" über dem Raster: je Tag der Stand, ein Klick öffnet die Liste. */
+.wk-cal2-taskrow {
+  display: grid;
+  grid-template-columns: 3.4rem repeat(var(--days), minmax(0, 1fr));
+  border-bottom: 1px solid var(--wk-line);
+  background: color-mix(in srgb, var(--wk-soft) 50%, transparent);
+}
+.wk-cal2-taskcell { display: flex; align-items: center; padding: 3px; border-left: 1px solid var(--wk-line); min-width: 0; }
+
+.wk-taskpill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  font: inherit;
+  font-size: 0.74rem;
+  line-height: 1.2;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  color: var(--wk-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.wk-taskpill:hover { border-color: var(--wk-accent); color: var(--wk-ink); }
+.wk-taskpill:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-taskpill-tick { font-weight: 700; }
+.wk-taskpill-count { font-weight: 700; font-variant-numeric: tabular-nums; }
+.wk-taskpill-note { overflow: hidden; text-overflow: ellipsis; }
+.wk-taskpill-note.is-pressing { color: var(--wk-accent); font-weight: 700; }
+.wk-taskpill-note.is-behind { color: var(--wk-danger); font-weight: 700; }
+.wk-taskpill.is-pressing { border-color: var(--wk-accent); }
+.wk-taskpill.is-clear { color: var(--wk-ok); border-color: color-mix(in srgb, var(--wk-ok) 45%, var(--wk-line)); }
+.wk-taskpill.is-mini { font-size: 0.68rem; padding: 0.05rem 0.35rem; gap: 0.2rem; }
+.wk-taskpill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--wk-accent); }
+.wk-taskpill.is-behind .wk-taskpill-dot { background: var(--wk-danger); }
 .wk-cal2-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--wk-danger); z-index: 3; pointer-events: none; }
 .wk-cal2-now::before { content: ''; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--wk-danger); }
 
@@ -2834,7 +2932,9 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-cal2-listtime { flex: none; min-width: 7rem; font-variant-numeric: tabular-nums; color: var(--wk-muted); font-size: 0.9rem; }
 .wk-cal2-listtitle { font-weight: 600; text-align: left; }
 .wk-cal2-listtitle.is-cancelled { text-decoration: line-through; }
-.wk-cal2-listrow .wk-ev-tick { color: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); }
+.wk-cal2-listhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.3rem 0.8rem; }
+.wk-cal2-listhead > .wk-mass-day-name { margin: 0; }
+.wk-cal2-cellhead { display: flex; align-items: center; justify-content: space-between; gap: 0.2rem; min-width: 0; }
 
 @media (max-width: 640px) {
   .wk-cal2-head, .wk-cal2-allday, .wk-cal2-body { grid-template-columns: 2.4rem repeat(var(--days), minmax(0, 1fr)); }
@@ -3091,3 +3191,103 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-menued-btn:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
 .wk-menued-preview { flex-basis: 100%; font-size: 0.8rem; color: var(--wk-muted); }
 .wk-menued-row input, .wk-menued-row select { padding: 0.35rem 0.5rem; font: inherit; }
+
+
+/* ===========================================================================
+   0057 — Reservierungen im Kalender, die Aufgaben eines Tages
+   =========================================================================== */
+
+.wk-cal2-waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.2rem 0.4rem 0.2rem 0.7rem;
+  border: 1px solid var(--wk-held-line);
+  border-radius: 999px;
+  background: var(--wk-held-bg);
+  color: var(--wk-held-ink);
+  cursor: pointer;
+}
+.wk-cal2-waiting:hover { filter: brightness(0.97); }
+.wk-cal2-waiting:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-cal2-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--wk-held-ink);
+  color: var(--wk-held-bg);
+  font-variant-numeric: tabular-nums;
+}
+.wk-cal2-tick { font-weight: 700; }
+.wk-cal2-tasks-toggle { margin-left: auto; }
+
+/* Der Termin mit seinen Plätzen. */
+.wk-res-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; }
+.wk-res-seats { display: inline-flex; gap: 3px; }
+.wk-res-seat { width: 0.8rem; height: 0.8rem; border-radius: 50%; border: 1.5px solid var(--wk-accent); }
+.wk-res-seat.is-taken { background: var(--wk-accent); }
+.wk-res-waitnote { color: var(--wk-held-ink); font-weight: 700; }
+.wk-res-block { display: grid; gap: 0.35rem; }
+.wk-res-h { margin: 0.3rem 0 0; font-size: 0.8rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--wk-muted); }
+.wk-res-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.wk-res-claim {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.8rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+}
+.wk-res-claim.is-waiting { border-color: var(--wk-held-line); background: var(--wk-held-bg); }
+.wk-res-who { display: grid; gap: 0.1rem; flex: 1 1 12rem; min-width: 0; }
+.wk-res-state { font-size: 0.8rem; color: var(--wk-muted); }
+.wk-res-claim.is-waiting .wk-res-state { color: var(--wk-held-ink); }
+.wk-res-tools { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.wk-res-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; }
+.wk-res-add .wk-field { flex: 1 1 14rem; margin: 0; }
+.wk-btn-small { padding: 0.25rem 0.65rem; font-size: 0.85rem; }
+
+/* Die Aufgaben eines Tages. */
+.wk-taskday { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.wk-taskday-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.7rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+}
+.wk-taskday-row.is-open, .wk-taskday-row.is-due { border-color: var(--wk-accent); }
+.wk-taskday-row.is-missed, .wk-taskday-row.is-late { border-color: color-mix(in srgb, var(--wk-danger) 60%, var(--wk-line)); }
+.wk-taskday-row.is-done, .wk-taskday-row.is-skipped { opacity: 0.65; }
+.wk-taskday-row.is-done .wk-taskday-title { text-decoration: line-through; }
+.wk-taskday-main {
+  flex: 1 1 10rem;
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.wk-taskday-main:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-taskday-title { font-weight: 600; }
+.wk-taskday-when { font-size: 0.8rem; color: var(--wk-muted); }
+.wk-taskday-state { font-size: 0.78rem; font-weight: 700; color: var(--wk-muted); white-space: nowrap; }
+.wk-taskday-state.is-open, .wk-taskday-state.is-due { color: var(--wk-accent); }
+.wk-taskday-state.is-missed, .wk-taskday-state.is-late { color: var(--wk-danger); }
+.wk-taskday-state.is-done { color: var(--wk-ok); }

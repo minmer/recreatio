@@ -79,21 +79,60 @@ function load(): Promise<void> {
   return loaded;
 }
 
+/*
+ * VERSIEGELT WIRD SOFORT, GESCHICKT GEBÜNDELT. Jede Änderung wird gleich
+ * versiegelt und liegt fertig da (`ready`); hinaus geht sie eine Sekunde
+ * nach der letzten Änderung — oder sofort, wenn die Karte verschwindet. Dann
+ * bleibt keine Zeit mehr zum Verschlüsseln: was geht, muss schon fertig sein.
+ */
+let ready: string | null = null;
+let sealing = 0;
+
+async function reseal(): Promise<void> {
+  await load();
+  if (sealer === null) return;
+  const mine = ++sealing;
+  try {
+    const sealed = toBase64Url(await sealText(sealer.key, stateAad(sealer.accountId), JSON.stringify(state)));
+    if (mine === sealing) ready = sealed;
+  } catch {
+    // Dann eben beim nächsten Mal.
+  }
+}
+
+/** Was fertig ist, hinaus — `keepalive`: auch wenn die Karte gerade geschlossen wird. */
+function post(): void {
+  if (ready === null) return;
+  const body = JSON.stringify({ stateSealed: ready });
+  ready = null;
+  call('/workspace/state', { method: 'POST', keepalive: true, body }).catch(() => undefined);
+}
+
 function save(): void {
+  void reseal();
   if (timer !== null) window.clearTimeout(timer);
   timer = window.setTimeout(() => {
     timer = null;
-    void (async () => {
-      await load();
-      if (sealer === null) return;
-      try {
-        const sealed = await sealText(sealer.key, stateAad(sealer.accountId), JSON.stringify(state));
-        await call('/workspace/state', { method: 'POST', body: JSON.stringify({ stateSealed: toBase64Url(sealed) }) });
-      } catch {
-        // Beim nächsten Mal wieder — der Stand ist ein Komfort, keine Pflicht.
-      }
-    })();
+    void reseal().then(post);
   }, 1000);
+}
+
+/*
+ * WER DIE KARTE SCHLIESST, VERLIERT NICHTS. Wer die Ansicht umschaltet und
+ * gleich schliesst, fände sonst beim nächsten Mal den Stand von davor. Sobald
+ * die Karte verschwindet (Schliessen, Wechsel, Telefon gesperrt), geht, was
+ * noch wartet, sofort hinaus.
+ */
+function flush(): void {
+  if (timer === null) return;
+  window.clearTimeout(timer);
+  timer = null;
+  post();
+}
+
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+  window.addEventListener('pagehide', flush);
 }
 
 /** Etwas wurde benutzt: nach vorn. */
@@ -115,6 +154,11 @@ export function setValue(scope: string, value: string): void {
 
 /** Für Prüfstände und die Abmeldung: alles vergessen. */
 export function forget(): void {
+  /* Was noch wartet, gehört dem, der geht — es darf nicht unter dem Nächsten hinausgehen. */
+  if (timer !== null) window.clearTimeout(timer);
+  timer = null;
+  ready = null;
+  sealing++;
   state = EMPTY;
   loaded = null;
   sealer = null;

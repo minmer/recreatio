@@ -86,6 +86,9 @@ export interface OpenedItem {
 
   /** Darf ich die Reihe ändern? Eigene Art, und Schreibrecht im Bereich des Terminarzes. */
   readonly editable: boolean;
+
+  /** Hat er einen eigenen Titel — oder steht da nur die Art („Termin")? Ein angebotener Termin heisst dann wie sein Ding. */
+  readonly named: boolean;
 }
 
 const fieldAad = (itemId: string, field: string) =>
@@ -129,6 +132,7 @@ export async function openAgenda(
     return {
       occurrence: one,
       title: fields.title ?? one.titlePublic ?? KIND_WORD[one.kind] ?? 'Termin',
+      named: fields.title !== null || (one.titlePublic ?? '') !== '',
       location: fields.location,
       notes: fields.notes,
       editable: OWN_KINDS.includes(one.kind) && (level === 'write' || level === 'admin')

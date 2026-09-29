@@ -10,28 +10,44 @@
  * </code>
  *
  * <b>Was hier steht</b>: die Termine jeder Gruppe, deren Schlüssel ich halte
- * (auch Messen, wenn ich eine solche Gruppe halte), meine Buchungen, meine
- * Aufgaben — jede Gruppe in ihrer eigenen Farbe, und jede lässt sich
- * ausblenden. Welche Ansicht und welche Gruppen, merkt sich der Arbeitsplatz
- * (versiegelt, `prefs.ts`).
+ * (auch Messen, wenn ich eine solche Gruppe halte), meine Buchungen — jede
+ * Gruppe in ihrer eigenen Farbe, und jede lässt sich ausblenden. Welche
+ * Ansicht und welche Gruppen, merkt sich der Arbeitsplatz (versiegelt, `prefs.ts`).
+ *
+ * <b>Die Termine sind die Hauptsache</b> (0057). Aufgaben stehen daneben, nicht
+ * darin: als schmale Schiene am Rand jedes Tages (wann ein Fenster offen ist)
+ * und als eine Zeile „zadania" mit dem Stand des Tages — ein Klick darauf,
+ * und die Liste des Tages zum Abhaken geht auf (`TaskDay.tsx`). Ganz
+ * ausblenden lassen sie sich auch.
+ *
+ * <b>Reservierungen stehen am Termin</b> (0057): an einem angebotenen Termin,
+ * wie viele Plätze besetzt sind und wer wartet; ein Klick zeigt die
+ * Kandidaten und lässt die Kanzlei entscheiden (`ReservationDialog.tsx`).
+ * Was irgendwo auf ein Ja wartet, sammelt „Do potwierdzenia".
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { loadAgenda, openAgenda, type AgendaClaim, type OpenedItem } from './agenda';
 import { loadAreas, type AreaRow } from './area';
 import {
-  buildEvents, hueOf, onDay as happensOn, placeDay, stepView, viewRange, wholeDay, type CalEvent, type CalView
+  holderName, loadBookings, NO_BOOKINGS, waitingOn, waitsForOffice, type AgendaBookings
+} from './calendarBookings';
+import {
+  buildEvents, hueOf, marksOn, onDay as happensOn, placeDay, railDay, stepView, taskMarks, viewRange, wholeDay,
+  type CalEvent, type CalView, type TaskMark
 } from './calendarModel';
 import { addDays, keyOf, longDate, monthTitle, rangeTitle, sameDay, sameMonth, startOfDay, WEEK_HEADS } from './dayMath';
 import { EventDialog, type EventTarget } from './EventDialog';
 import { useNow } from './MassParts';
 import { useMe, type Me } from './me';
 import { useRemembered } from './prefs';
+import { ReservationDialog, WaitingDialog } from './ReservationDialog';
 import type { Who } from './session';
 import { WorkspaceError } from './session';
+import { TaskDay, TaskPill } from './TaskDay';
 import { TaskDialog } from './TaskDialog';
-import { loadTasks, markDone, markUndone, openTasks, type OpenTask } from './tasks';
+import { loadTasks, openTasks, type OpenTask } from './tasks';
 import { groupName } from './WhoSees';
 
 const VIEWS: readonly { value: CalView; label: string }[] = [
@@ -41,6 +57,9 @@ const VIEWS: readonly { value: CalView; label: string }[] = [
 
 /** Wie hoch eine Stunde im Raster ist. */
 const HOUR = 48;
+
+/** Wie breit die Schiene der Aufgaben am Rand eines Tages ist. */
+const RAIL = 13;
 
 const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 
@@ -61,13 +80,16 @@ interface Loaded {
   readonly items: readonly OpenedItem[];
   readonly claims: readonly AgendaClaim[];
   readonly tasks: readonly OpenTask[];
+  readonly bookings: AgendaBookings;
 }
 
 function Calendar({ me }: { me: Me }) {
   const [viewText, setViewText] = useRemembered('calendar.view', 'week');
   const [hiddenText, setHiddenText] = useRemembered('calendar.hidden', '');
+  const [tasksText, setTasksText] = useRemembered('calendar.tasks', 'on');
   const view: CalView = (['day', 'week', 'month', 'list'] as const).includes(viewText as CalView) ? viewText as CalView : 'week';
   const hidden = new Set(hiddenText.split(',').filter((one) => one !== ''));
+  const tasksShown = tasksText !== 'off';
 
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const now = useNow();
@@ -76,6 +98,9 @@ function Calendar({ me }: { me: Me }) {
   const [failed, setFailed] = useState<string | null>(null);
   const [dialog, setDialog] = useState<EventTarget | null>(null);
   const [taskDialog, setTaskDialog] = useState<{ task: OpenTask | null; at?: Date } | null>(null);
+  const [taskDay, setTaskDay] = useState<Date | null>(null);
+  const [reservation, setReservation] = useState<string | null>(null);
+  const [waitingOpen, setWaitingOpen] = useState(false);
   const [tick, setTick] = useState(0);
 
   const range = viewRange(view, anchor);
@@ -88,12 +113,16 @@ function Calendar({ me }: { me: Me }) {
       try {
         const from = new Date(fromMs);
         const to = new Date(toMs);
-        const [found, agenda, tasks] = await Promise.all([loadAreas(), loadAgenda(from, to), loadTasks(from, to)]);
+        const [found, agenda, tasks, bookings] = await Promise.all([
+          loadAreas(), loadAgenda(from, to), loadTasks(from, to),
+          /* Ohne Reservierungen ist der Kalender immer noch ein Kalender. */
+          loadBookings(from, to).catch(() => NO_BOOKINGS)
+        ]);
         const items = await openAgenda(me.ring, agenda.occurrences, found.areas);
         const opened = await openTasks(me.ring, tasks.tasks);
         if (!alive) return;
         setAreas(found.areas);
-        setData({ from: fromMs, to: toMs, items, claims: agenda.claims, tasks: opened });
+        setData({ from: fromMs, to: toMs, items, claims: agenda.claims, tasks: opened, bookings });
         setFailed(null);
       } catch (e) {
         if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać kalendarza.');
@@ -104,9 +133,13 @@ function Calendar({ me }: { me: Me }) {
 
   const reload = useCallback(() => setTick((n) => n + 1), []);
 
-  const all = data === null ? [] : buildEvents(data.items, data.claims, data.tasks, now, { from: new Date(data.from), to: new Date(data.to) });
+  const bookings = data?.bookings ?? NO_BOOKINGS;
+  const all = data === null ? [] : buildEvents(data.items, data.claims, bookings);
   const events = all.filter((e) => !hidden.has(e.areaId));
-  const groups = [...new Set(all.map((e) => e.areaId))]
+  const allMarks = data === null ? [] : taskMarks(data.tasks, now, { from: new Date(data.from), to: new Date(data.to) });
+  const marks = tasksShown ? allMarks.filter((m) => !hidden.has(m.areaId)) : [];
+
+  const groups = [...new Set([...all.map((e) => e.areaId), ...allMarks.map((m) => m.areaId)])]
     .map((areaId) => ({ areaId, name: groupName(areas, areaId) }))
     .sort((a, b) => (a.name === 'Tylko ja' ? -1 : b.name === 'Tylko ja' ? 1 : a.name.localeCompare(b.name, 'pl')));
 
@@ -124,26 +157,15 @@ function Calendar({ me }: { me: Me }) {
     setDialog({ at: 'new', start, end: allDay ? addDays(start, 1) : new Date(start.getTime() + 3600_000), allDay });
 
   const open = (event: CalEvent) => {
-    if (event.source === 'task' && event.task !== undefined) setTaskDialog({ task: event.task });
+    if (event.source === 'offer' || event.source === 'booking') setReservation(event.key);
     else setDialog({ at: 'event', event });
   };
 
-  const toggleTask = async (event: CalEvent) => {
-    if (event.task === undefined) return;
-    try {
-      if (event.taskOccurrence !== undefined) {
-        if (event.taskOccurrence.doneAt !== null) await markUndone(event.task.taskId, event.taskOccurrence.at);
-        else await markDone(event.task.taskId, me.person.id, event.taskOccurrence.at);
-      } else {
-        await markDone(event.task.taskId, me.person.id);
-      }
-      reload();
-    } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się odhaczyć.');
-    }
-  };
+  /* Der Termin, dessen Reservierungen offen sind — aus den FRISCHEN Daten, damit ein Ja sofort dasteht. */
+  const shownReservation = reservation === null ? null : all.find((e) => e.key === reservation) ?? null;
 
   const days = view === 'day' ? [anchor] : Array.from({ length: 7 }, (_, i) => addDays(range.from, i));
+  const waiting = bookings.waiting.length;
 
   return (
     <div className="wk-cal2">
@@ -176,8 +198,13 @@ function Calendar({ me }: { me: Me }) {
         </div>
       </div>
 
-      {groups.length > 0 && (
-        <div className="wk-cal2-groups" role="group" aria-label="Pokaż grupy">
+      {(groups.length > 0 || waiting > 0 || allMarks.length > 0) && (
+        <div className="wk-cal2-groups" role="group" aria-label="Co pokazać">
+          {waiting > 0 && (
+            <button type="button" className="wk-cal2-waiting" onClick={() => setWaitingOpen(true)}>
+              Do potwierdzenia <span className="wk-cal2-count">{waiting}</span>
+            </button>
+          )}
           {groups.map((g) => (
             <button key={g.areaId} type="button" className={`wk-cal2-group${hidden.has(g.areaId) ? ' is-off' : ''}`}
               aria-pressed={!hidden.has(g.areaId)} style={{ '--ev-h': hueOf(g.areaId) } as CSSProperties}
@@ -186,6 +213,13 @@ function Calendar({ me }: { me: Me }) {
               {g.name}
             </button>
           ))}
+          {allMarks.length > 0 && (
+            <button type="button" className={`wk-cal2-group wk-cal2-tasks-toggle${tasksShown ? '' : ' is-off'}`}
+              aria-pressed={tasksShown} onClick={() => setTasksText(tasksShown ? 'off' : 'on')}>
+              <span className="wk-cal2-tick" aria-hidden="true">✓</span>
+              Zadania
+            </button>
+          )}
         </div>
       )}
 
@@ -193,18 +227,18 @@ function Calendar({ me }: { me: Me }) {
       {data === null && failed === null && <p className="wk-hint">Wczytywanie…</p>}
 
       {data !== null && (view === 'day' || view === 'week') && (
-        <TimeGrid days={days} events={events} now={now}
+        <TimeGrid days={days} events={events} marks={marks} now={now}
           onDay={(day) => { setAnchor(day); setViewText('day'); }}
-          onSlot={(at, allDay) => newAt(at, allDay)} onOpen={open} onToggle={(e) => void toggleTask(e)} areas={areas} />
+          onSlot={(at, allDay) => newAt(at, allDay)} onOpen={open} onTasks={setTaskDay} areas={areas} />
       )}
 
       {data !== null && view === 'month' && (
-        <MonthGrid anchor={anchor} from={range.from} events={events} now={now}
-          onDay={(day) => { setAnchor(day); setViewText('day'); }} onSlot={(at) => newAt(at)} onOpen={open} />
+        <MonthGrid anchor={anchor} from={range.from} events={events} marks={marks} now={now}
+          onDay={(day) => { setAnchor(day); setViewText('day'); }} onSlot={(at) => newAt(at)} onOpen={open} onTasks={setTaskDay} />
       )}
 
       {data !== null && view === 'list' && (
-        <ListView from={range.from} events={events} now={now} areas={areas} onOpen={open} onToggle={(e) => void toggleTask(e)} />
+        <ListView from={range.from} events={events} marks={marks} now={now} areas={areas} onOpen={open} onTasks={setTaskDay} />
       )}
 
       {dialog !== null && (
@@ -215,6 +249,25 @@ function Calendar({ me }: { me: Me }) {
         <TaskDialog me={me} areas={areas} task={taskDialog.task} at={taskDialog.at}
           onClose={() => setTaskDialog(null)} onSaved={reload} />
       )}
+
+      {taskDay !== null && (
+        <TaskDay me={me} day={taskDay} marks={marksOn(marks, taskDay)} areas={areas} now={now}
+          onClose={() => setTaskDay(null)} onChanged={reload}
+          onOpenTask={(task) => { setTaskDay(null); setTaskDialog({ task }); }}
+          onNew={() => { const at = new Date(taskDay); at.setHours(Math.max(now.getHours(), 8), 0, 0, 0); setTaskDay(null); setTaskDialog({ task: null, at }); }} />
+      )}
+
+      {shownReservation !== null && (
+        <ReservationDialog event={shownReservation} onClose={() => setReservation(null)} onChanged={reload}
+          onEdit={shownReservation.item?.editable === true
+            ? () => { setReservation(null); setDialog({ at: 'event', event: { ...shownReservation, source: 'item' } }); }
+            : undefined} />
+      )}
+
+      {waitingOpen && (
+        <WaitingDialog reservations={bookings} onClose={() => setWaitingOpen(false)} onChanged={reload}
+          onShow={(at) => { setWaitingOpen(false); setAnchor(startOfDay(at)); if (view === 'list' || view === 'month') setViewText('week'); }} />
+      )}
     </div>
   );
 }
@@ -222,45 +275,67 @@ function Calendar({ me }: { me: Me }) {
 /* -- Ein Termin, gezeichnet ----------------------------------------------------------- */
 
 function chipClass(event: CalEvent): string {
+  const offer = event.offer;
+  const waits = offer !== undefined ? waitingOn(offer) > 0 : event.booking !== undefined && waitsForOffice(event.booking);
   return ['wk-ev', `is-${event.source}`,
     event.cancelled && 'is-cancelled',
-    event.taskState !== undefined && `is-task-${event.taskState}`]
+    offer !== undefined && offer.taken >= offer.capacity && 'is-full',
+    offer !== undefined && offer.taken === 0 && 'is-empty',
+    offer?.closedBy != null && 'is-closed',
+    waits && 'has-waiting']
     .filter(Boolean).join(' ');
 }
 
-/** Das Häkchen einer Aufgabe — im Raster, im Monat, in der Liste dasselbe. */
-function TaskTick({ event, onToggle }: { event: CalEvent; onToggle: (event: CalEvent) => void }) {
-  const done = event.taskState === 'done';
-  return (
-    <span
-      role="checkbox"
-      aria-checked={done}
-      tabIndex={0}
-      className={`wk-ev-tick${done ? ' is-done' : ''}`}
-      title={done ? 'Cofnij odhaczenie' : 'Odhacz jako zrobione'}
-      onClick={(e) => { e.stopPropagation(); onToggle(event); }}
-      onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); onToggle(event); } }}
-    >
-      {done ? '✓' : ''}
-    </span>
-  );
+/** Wer auf einem Termin sitzt — für die zweite Zeile und den Hinweis beim Darüberfahren. */
+function whoIsOn(event: CalEvent): string | null {
+  if (event.offer !== undefined) {
+    return event.offer.claims.length === 0 ? null : event.offer.claims.map(holderName).join(', ');
+  }
+  if (event.booking !== undefined) return holderName(event.booking);
+  return null;
+}
+
+/** Plätze und Wartende als kleine Zeichen am Termin: „2/3", „1?". */
+function Badges({ event }: { event: CalEvent }) {
+  const offer = event.offer;
+  if (offer !== undefined) {
+    const waits = waitingOn(offer);
+    return (
+      <span className="wk-ev-badges">
+        <span className="wk-ev-seats" title={`zajęte ${offer.taken} z ${offer.capacity}`}>{offer.taken}/{offer.capacity}</span>
+        {waits > 0 && <span className="wk-ev-wait" title={`${waits} czeka na potwierdzenie`}>{waits}?</span>}
+      </span>
+    );
+  }
+  if (event.booking !== undefined && waitsForOffice(event.booking)) {
+    return <span className="wk-ev-badges"><span className="wk-ev-wait" title="czeka na potwierdzenie">?</span></span>;
+  }
+  return null;
+}
+
+function hint(event: CalEvent, areas: readonly AreaRow[]): string {
+  const who = whoIsOn(event);
+  const when = wholeDay(event) ? '' : `${time(event.start)}–${time(event.end)} `;
+  return `${when}${event.title} · ${groupName(areas, event.areaId)}${who === null ? '' : `\n${who}`}`;
 }
 
 /* -- Tag und Woche: das Stundenraster ----------------------------------------------------- */
 
-function TimeGrid({ days, events, now, onDay, onSlot, onOpen, onToggle, areas }: {
+function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTasks, areas }: {
   days: readonly Date[];
   events: readonly CalEvent[];
+  marks: readonly TaskMark[];
   now: Date;
   onDay: (day: Date) => void;
   onSlot: (at: Date, allDay: boolean) => void;
   onOpen: (event: CalEvent) => void;
-  onToggle: (event: CalEvent) => void;
+  onTasks: (day: Date) => void;
   areas: readonly AreaRow[];
 }) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const first = keyOf(days[0]);
   const count = days.length;
+  const rail = marks.length > 0 ? RAIL : 0;
 
   /* Beim Öffnen und beim Blättern: dorthin, wo der Tag beginnt — nicht um Mitternacht. */
   useLayoutEffect(() => {
@@ -282,7 +357,7 @@ function TimeGrid({ days, events, now, onDay, onSlot, onOpen, onToggle, areas }:
   };
 
   return (
-    <div className="wk-cal2-grid" style={{ '--days': days.length, '--hour': `${HOUR}px` } as CSSProperties}>
+    <div className="wk-cal2-grid" style={{ '--days': days.length, '--hour': `${HOUR}px`, '--rail': `${rail}px` } as CSSProperties}>
       <div className="wk-cal2-head">
         <span className="wk-cal2-corner" />
         {days.map((day) => (
@@ -301,13 +376,25 @@ function TimeGrid({ days, events, now, onDay, onSlot, onOpen, onToggle, areas }:
             onClick={(e) => { if (e.target === e.currentTarget) onSlot(startOfDay(day), true); }}>
             {events.filter((e) => wholeDay(e) && happensOn(e, day)).map((e) => (
               <button key={e.key} type="button" className={chipClass(e)} style={{ '--ev-h': hueOf(e.areaId) } as CSSProperties}
-                title={`${e.title} · ${groupName(areas, e.areaId)}`} onClick={() => onOpen(e)}>
-                {e.title}
+                title={hint(e, areas)} onClick={() => onOpen(e)}>
+                <span className="wk-ev-title">{e.title}</span>
+                <Badges event={e} />
               </button>
             ))}
           </div>
         ))}
       </div>
+
+      {marks.length > 0 && (
+        <div className="wk-cal2-taskrow">
+          <span className="wk-cal2-corner wk-cal2-alllabel">zadania</span>
+          {days.map((day) => (
+            <div key={keyOf(day)} className="wk-cal2-taskcell">
+              <TaskPill marks={marksOn(marks, day)} onOpen={() => onTasks(day)} />
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="wk-cal2-scroll" ref={scroller}>
         <div className="wk-cal2-body">
@@ -318,22 +405,30 @@ function TimeGrid({ days, events, now, onDay, onSlot, onOpen, onToggle, areas }:
           {days.map((day) => (
             <div key={keyOf(day)} className={`wk-cal2-col${sameDay(day, now) ? ' is-today' : ''}`}
               onClick={(e) => { if (e.target === e.currentTarget) slotFrom(day, e); }}>
-              {placeDay(events, day).map((p) => (
-                <button key={p.event.key} type="button" className={`${chipClass(p.event)}${p.height < 45 ? ' is-short' : ''}`}
-                  style={{
-                    '--ev-h': hueOf(p.event.areaId),
-                    top: `${(p.top / 60) * HOUR}px`,
-                    height: `${Math.max((p.height / 60) * HOUR - 2, 18)}px`,
-                    left: `calc(${(p.column / p.columns) * 100}% + 2px)`,
-                    width: `calc(${100 / p.columns}% - 4px)`
-                  } as CSSProperties}
-                  title={`${time(p.event.start)}–${time(p.event.end)} ${p.event.title} · ${groupName(areas, p.event.areaId)}`}
-                  onClick={() => onOpen(p.event)}>
-                  {p.event.source === 'task' && <TaskTick event={p.event} onToggle={onToggle} />}
-                  <span className="wk-ev-time">{time(p.event.start)}</span>
-                  <span className="wk-ev-title">{p.event.title}</span>
-                </button>
-              ))}
+              {rail > 0 && <Rail marks={marks} day={day} onOpen={() => onTasks(day)} />}
+
+              {placeDay(events, day).map((p) => {
+                const who = whoIsOn(p.event);
+                return (
+                  <button key={p.event.key} type="button" className={`${chipClass(p.event)}${p.height < 45 ? ' is-short' : ''}`}
+                    style={{
+                      '--ev-h': hueOf(p.event.areaId),
+                      top: `${(p.top / 60) * HOUR}px`,
+                      height: `${Math.max((p.height / 60) * HOUR - 2, 18)}px`,
+                      left: `calc(var(--rail) + (100% - var(--rail)) * ${p.column / p.columns} + 2px)`,
+                      width: `calc((100% - var(--rail)) / ${p.columns} - 4px)`
+                    } as CSSProperties}
+                    title={hint(p.event, areas)}
+                    onClick={() => onOpen(p.event)}>
+                    <span className="wk-ev-line">
+                      <span className="wk-ev-time">{time(p.event.start)}</span>
+                      <Badges event={p.event} />
+                    </span>
+                    <span className="wk-ev-title">{p.event.title}</span>
+                    {who !== null && p.height >= 60 && <span className="wk-ev-sub">{who}</span>}
+                  </button>
+                );
+              })}
 
               {sameDay(day, now) && (
                 <span className="wk-cal2-now" style={{ top: `${((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR}px` }} aria-hidden="true" />
@@ -346,16 +441,43 @@ function TimeGrid({ days, events, now, onDay, onSlot, onOpen, onToggle, areas }:
   );
 }
 
+/**
+ * DIE SCHIENE — jedes Fenster ein Strich am linken Rand des Tages, im Stand
+ * seiner Farbe: offen, erledigt, versäumt, kommend. Sie nimmt den Terminen
+ * keinen Platz; ein Klick öffnet die Aufgaben des Tages.
+ */
+function Rail({ marks, day, onOpen }: { marks: readonly TaskMark[]; day: Date; onOpen: () => void }) {
+  const railed = railDay(marks, day);
+  if (railed.length === 0) return null;
+
+  return (
+    <button type="button" className={`wk-cal2-rail${day < startOfDay(new Date()) ? ' is-past' : ''}`} aria-label={`Zadania: ${longDate(day)}`} onClick={onOpen}>
+      {railed.map((r) => (
+        <span key={r.mark.key} className={`wk-rail-bar is-${r.mark.state}`}
+          title={`${r.mark.task.title} · ${time(r.mark.start)}${r.mark.end > r.mark.start ? `–${time(r.mark.end)}` : ''}`}
+          style={{
+            '--ev-h': hueOf(r.mark.areaId),
+            top: `${(r.top / 60) * HOUR}px`,
+            height: `${(r.height / 60) * HOUR}px`,
+            left: `${2 + r.lane * 4}px`
+          } as CSSProperties} />
+      ))}
+    </button>
+  );
+}
+
 /* -- Der Monat --------------------------------------------------------------------------- */
 
-function MonthGrid({ anchor, from, events, now, onDay, onSlot, onOpen }: {
+function MonthGrid({ anchor, from, events, marks, now, onDay, onSlot, onOpen, onTasks }: {
   anchor: Date;
   from: Date;
   events: readonly CalEvent[];
+  marks: readonly TaskMark[];
   now: Date;
   onDay: (day: Date) => void;
   onSlot: (at: Date) => void;
   onOpen: (event: CalEvent) => void;
+  onTasks: (day: Date) => void;
 }) {
   const days = Array.from({ length: 42 }, (_, i) => addDays(from, i));
   const SHOWN = 3;
@@ -369,12 +491,16 @@ function MonthGrid({ anchor, from, events, now, onDay, onSlot, onOpen }: {
           <div key={keyOf(day)}
             className={`wk-cal2-cell${sameMonth(day, anchor) ? '' : ' is-out'}${sameDay(day, now) ? ' is-today' : ''}`}
             onClick={(e) => { if (e.target === e.currentTarget) { const at = new Date(day); at.setHours(9, 0, 0, 0); onSlot(at); } }}>
-            <button type="button" className="wk-cal2-cellday" aria-label={longDate(day)} onClick={() => onDay(day)}>{day.getDate()}</button>
+            <span className="wk-cal2-cellhead">
+              <button type="button" className="wk-cal2-cellday" aria-label={longDate(day)} onClick={() => onDay(day)}>{day.getDate()}</button>
+              <TaskPill marks={marksOn(marks, day)} onOpen={() => onTasks(day)} mini />
+            </span>
             {mine.slice(0, SHOWN).map((e) => (
               <button key={e.key} type="button" className={`${chipClass(e)} is-line`} style={{ '--ev-h': hueOf(e.areaId) } as CSSProperties}
                 title={e.title} onClick={() => onOpen(e)}>
                 {!wholeDay(e) && <span className="wk-ev-time">{time(e.start)}</span>}
                 <span className="wk-ev-title">{e.title}</span>
+                <Badges event={e} />
               </button>
             ))}
             {mine.length > SHOWN && (
@@ -389,34 +515,46 @@ function MonthGrid({ anchor, from, events, now, onDay, onSlot, onOpen }: {
 
 /* -- Die Liste ------------------------------------------------------------------------------- */
 
-function ListView({ from, events, now, areas, onOpen, onToggle }: {
+function ListView({ from, events, marks, now, areas, onOpen, onTasks }: {
   from: Date;
   events: readonly CalEvent[];
+  marks: readonly TaskMark[];
   now: Date;
   areas: readonly AreaRow[];
   onOpen: (event: CalEvent) => void;
-  onToggle: (event: CalEvent) => void;
+  onTasks: (day: Date) => void;
 }) {
   const days = Array.from({ length: 30 }, (_, i) => addDays(from, i))
-    .map((day) => ({ day, list: events.filter((e) => happensOn(e, day)) }))
-    .filter((one) => one.list.length > 0);
+    .map((day) => ({ day, list: events.filter((e) => happensOn(e, day)), tasks: marksOn(marks, day) }))
+    .filter((one) => one.list.length > 0 || one.tasks.length > 0);
 
   if (days.length === 0) return <p className="wk-empty">W tych dniach nic nie ma.</p>;
 
+  const side = (e: CalEvent): ReactNode => {
+    if (e.offer !== undefined) {
+      const waits = waitingOn(e.offer);
+      return <>{e.offer.taken}/{e.offer.capacity} zajęte{waits > 0 && <strong className="wk-res-waitnote"> · {waits} czeka</strong>}</>;
+    }
+    if (e.booking !== undefined) return <>{holderName(e.booking)}{waitsForOffice(e.booking) && <strong className="wk-res-waitnote"> · czeka</strong>}</>;
+    return <>{groupName(areas, e.areaId)}{e.source === 'claim' ? ' · rezerwacja' : ''}</>;
+  };
+
   return (
     <div className="wk-cal2-list">
-      {days.map(({ day, list }) => (
+      {days.map(({ day, list, tasks }) => (
         <section key={keyOf(day)} className={`wk-cal2-listday${sameDay(day, now) ? ' is-today' : ''}`}>
-          <h3 className="wk-mass-day-name">{longDate(day)}</h3>
+          <div className="wk-cal2-listhead">
+            <h3 className="wk-mass-day-name">{longDate(day)}</h3>
+            <TaskPill marks={tasks} onOpen={() => onTasks(day)} />
+          </div>
           {list.map((e) => (
             <div key={e.key} className="wk-cal2-listrow" style={{ '--ev-h': hueOf(e.areaId) } as CSSProperties}>
               <span className="wk-cal2-dot" aria-hidden="true" />
               <span className="wk-cal2-listtime">{wholeDay(e) ? 'cały dzień' : `${time(e.start)}–${time(e.end)}`}</span>
-              {e.source === 'task' && <TaskTick event={e} onToggle={onToggle} />}
               <button type="button" className={`wk-link-btn wk-cal2-listtitle${e.cancelled ? ' is-cancelled' : ''}`} onClick={() => onOpen(e)}>
                 {e.title}
               </button>
-              <span className="wk-row-side">{groupName(areas, e.areaId)}{e.source === 'claim' ? ' · rezerwacja' : ''}</span>
+              <span className="wk-row-side">{side(e)}</span>
             </div>
           ))}
         </section>

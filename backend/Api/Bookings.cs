@@ -33,7 +33,7 @@ namespace Api;
 /// darin nimmt, muss mit ihm in dieselbe Schlange.
 /// </para>
 /// </summary>
-public static class Bookings
+public static partial class Bookings
 {
     /// <summary>Sechs Zeichen, wie in 0029: er wird abgetippt, nicht kopiert.</summary>
     private const int CodeLength = 6;
@@ -78,6 +78,9 @@ public static class Bookings
 
         /* 0049 — der Gastgeber schliesst seinen Termin, sobald genug darauf sitzen. */
         app.MapPost("/resource/close", HostCloseAsync);
+
+        /* 0057 — die Reservierungen im eigenen Kalender (Bookings.Agenda.cs). */
+        app.MapGet("/workspace/agenda/bookings", AgendaAsync);
     }
 
     /* ======================================================================
@@ -2124,24 +2127,7 @@ public static class Bookings
         var now = DateTimeOffset.UtcNow;
 
         /* Bitten, ueber die niemand mehr entscheidet — erst beantworten, dann zeigen (0050). */
-        var waiting = new List<(Guid Item, DateTimeOffset At)>();
-        await using (var find = new SqlCommand("""
-            SELECT DISTINCT item_id, occurrence_at FROM app.claim
-            WHERE resource_id = @r AND status = N'pending' AND awaits = N'host'
-              AND item_id IS NOT NULL AND ends_at > @now;
-            """, connection))
-        {
-            find.Parameters.AddWithValue("@r", id);
-            find.Parameters.AddWithValue("@now", now);
-            await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
-            while (await reader.ReadAsync(ctx.RequestAborted)) waiting.Add((reader.GetGuid(0), reader.GetDateTimeOffset(1)));
-        }
-
-        foreach (var (item, at) in waiting)
-        {
-            var onIt = await OfferClaimsAsync(connection, null, resource.Id, item, at, ctx.RequestAborted);
-            await SettleAsksAsync(connection, resource, item, at, onIt, now, ctx.RequestAborted);
-        }
+        await SettleWaitingAsync(connection, resource, now, ctx.RequestAborted);
 
         var claims = new List<object>();
 

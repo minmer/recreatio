@@ -3,12 +3,22 @@
  * prüfen lässt: welche Tage eine Ansicht zeigt, was ein Termin für eine Farbe
  * hat, und wie sich Termine, die sich überschneiden, eine Spalte teilen.
  *
- * <b>Termine, Buchungen und Aufgaben sind hier EIN Ding</b> (`CalEvent`):
- * etwas, das zu einer Zeit ist und Leuten gehört. Woher es kommt, sagt
- * `source` — gezeichnet wird es gleich, bedient verschieden.
+ * <b>Termine und Reservierungen sind hier EIN Ding</b> (`CalEvent`): etwas,
+ * das zu einer Zeit ist und Leuten gehört. Woher es kommt, sagt `source` —
+ * gezeichnet wird es gleich, bedient verschieden.
+ *
+ * <b>Aufgaben sind es nicht</b> (0057). Ein Gebet mit einem Fenster von
+ * sechs Stunden ist kein Termin, der sechs Stunden dauert: als Kasten im
+ * Raster nahm es den Terminen den Platz, und an einem Tag mit fünf Horen
+ * bestand die Woche aus Gebetszeiten. Aufgaben sind darum Marken
+ * (`TaskMark`): eine schmale Schiene am Rand des Tages, eine Zeile mit dem
+ * Stand je Tag — und die Liste zum Abhaken, wenn man sie aufmacht.
  */
 
 import type { AgendaClaim, OpenedItem } from './agenda';
+import {
+  sameInstant, type AgendaBookings, type AgendaOffer, type BookingResource, type HeldClaim
+} from './calendarBookings';
 import { addDays, addMonths, firstOfMonth, mondayOf, startOfDay } from './dayMath';
 import { afterState, windowState, type OpenTask, type TaskOccurrence, type WindowState } from './tasks';
 
@@ -16,7 +26,15 @@ export type CalView = 'day' | 'week' | 'month' | 'list';
 
 export interface CalEvent {
   readonly key: string;
-  readonly source: 'item' | 'claim' | 'task';
+  /**
+   * <code>
+   *   item      ein Termin
+   *   offer     ein angebotener Termin eines Dings — mit dem, was an ihm hängt
+   *   booking   eine frei gewählte Zeit an einem Ding (ein Haus, ein Saal)
+   *   claim     meine eigene Reservierung
+   * </code>
+   */
+  readonly source: 'item' | 'offer' | 'booking' | 'claim';
   readonly title: string;
   readonly start: Date;
   readonly end: Date;
@@ -28,9 +46,9 @@ export interface CalEvent {
 
   readonly item?: OpenedItem;
   readonly claim?: AgendaClaim;
-  readonly task?: OpenTask;
-  readonly taskOccurrence?: TaskOccurrence;
-  readonly taskState?: WindowState | 'due' | 'late';
+  readonly offer?: AgendaOffer;
+  readonly booking?: HeldClaim;
+  readonly resource?: BookingResource;
 }
 
 /** Welche Tage eine Ansicht zeigt. Das Ende ist ausschliesslich. */
@@ -68,29 +86,87 @@ export function hueOf(areaId: string): number {
   return Math.abs(hash) % 360;
 }
 
-/** Alles in eine Liste: Termine, Buchungen, Aufgaben — jedes mit seiner Zeit. */
+/**
+ * Alles, was zu einer Zeit ist, in eine Liste: Termine, angebotene Termine mit
+ * ihren Reservierungen, frei gewählte Zeiten an Dingen, meine eigenen
+ * Reservierungen.
+ *
+ * <b>Ein angebotener Termin ist der Termin selbst</b> — er steht nicht ein
+ * zweites Mal da. Heisst er nur „Termin", bekommt er den Namen seines Dings
+ * („Spotkanie z księdzem"). Meine eigene Reservierung auf ihm steht nicht
+ * doppelt: sie ist schon unter seinen Plätzen.
+ */
 export function buildEvents(
-  items: readonly OpenedItem[], claims: readonly AgendaClaim[], tasks: readonly OpenTask[], now: Date,
-  range: { from: Date; to: Date }
+  items: readonly OpenedItem[], claims: readonly AgendaClaim[], reservations: AgendaBookings
 ): CalEvent[] {
   const out: CalEvent[] = [];
+  const resources = new Map(reservations.resources.map((r) => [r.resourceId, r]));
+  const used = new Set<AgendaOffer>();
 
   for (const one of items) {
     const o = one.occurrence;
+    const offer = reservations.offers.find((x) => x.itemId === o.itemId && sameInstant(x.occurrenceAt, o.occurrenceAt));
+    const resource = offer === undefined ? undefined : resources.get(offer.resourceId);
+    if (offer !== undefined) used.add(offer);
+
     out.push({
       key: `i:${o.itemId}:${o.occurrenceAt}`,
-      source: 'item',
-      title: one.title,
+      source: offer === undefined ? 'item' : 'offer',
+      title: !one.named && resource !== undefined ? resource.name : one.title,
       start: new Date(o.startsAt),
       end: new Date(o.endsAt),
       allDay: o.allDay,
       areaId: o.visibilityAreaId,
       cancelled: o.status === 'cancelled',
-      item: one
+      item: one,
+      offer,
+      resource
     });
   }
 
+  /* Angebote in einem Terminarz, den ich nicht halte, aber am Ding lesen darf. */
+  for (const offer of reservations.offers) {
+    if (used.has(offer)) continue;
+    const resource = resources.get(offer.resourceId);
+    if (resource === undefined) continue;
+    out.push({
+      key: `o:${offer.itemId}:${offer.occurrenceAt}`,
+      source: 'offer',
+      title: resource.name,
+      start: new Date(offer.startsAt),
+      end: new Date(offer.endsAt),
+      allDay: false,
+      areaId: resource.areaId,
+      cancelled: false,
+      offer,
+      resource
+    });
+  }
+
+  for (const { resourceId, claim } of reservations.bookings) {
+    const resource = resources.get(resourceId);
+    if (resource === undefined) continue;
+    out.push({
+      key: `b:${claim.claimId}`,
+      source: 'booking',
+      title: resource.name,
+      start: new Date(claim.startsAt),
+      end: new Date(claim.endsAt),
+      allDay: false,
+      areaId: resource.areaId,
+      cancelled: false,
+      booking: claim,
+      resource
+    });
+  }
+
+  const shown = new Set([
+    ...reservations.offers.flatMap((o) => o.claims.map((c) => c.claimId)),
+    ...reservations.bookings.map((b) => b.claim.claimId)
+  ]);
+
   for (const claim of claims) {
+    if (shown.has(claim.claimId)) continue;
     out.push({
       key: `c:${claim.claimId}`,
       source: 'claim',
@@ -104,22 +180,47 @@ export function buildEvents(
     });
   }
 
+  return out.sort((a, b) => a.start.getTime() - b.start.getTime() || b.end.getTime() - a.end.getTime());
+}
+
+/* -- Aufgaben: Marken, keine Termine (0057) ------------------------------------------- */
+
+export type TaskState = WindowState | 'due' | 'late';
+
+export interface TaskMark {
+  readonly key: string;
+  readonly task: OpenTask;
+  /** Das Vorkommen eines Fensters — `null` bei „co pewien czas" (after). */
+  readonly occurrence: TaskOccurrence | null;
+  readonly start: Date;
+  /** Ende des Fensters; bei „after" gleich dem Anfang. */
+  readonly end: Date;
+  readonly state: TaskState;
+  readonly areaId: string;
+}
+
+/** Erledigt oder abgesagt — dann drängt es nicht mehr. */
+export const settled = (mark: TaskMark): boolean => mark.state === 'done' || mark.state === 'skipped';
+
+/** Jetzt dran — offen im Fenster, oder fällig. */
+export const pressing = (mark: TaskMark): boolean => mark.state === 'open' || mark.state === 'due';
+
+/** Versäumt — das Fenster ist vorbei, oder es ist überfällig. */
+export const behind = (mark: TaskMark): boolean => mark.state === 'missed' || mark.state === 'late';
+
+export function taskMarks(tasks: readonly OpenTask[], now: Date, range: { from: Date; to: Date }): TaskMark[] {
+  const out: TaskMark[] = [];
+
   for (const task of tasks) {
     if (task.kind === 'window') {
-      for (const occ of task.occurrences) {
-        const start = new Date(occ.at);
-        const end = new Date(Math.max(new Date(occ.endsAt).getTime(), start.getTime() + 15 * 60_000));
+      for (const occurrence of task.occurrences) {
+        const start = new Date(occurrence.at);
         out.push({
-          key: `t:${task.taskId}:${occ.at}`,
-          source: 'task',
-          title: task.title,
-          start, end,
-          allDay: false,
-          areaId: task.areaId,
-          cancelled: false,
-          task,
-          taskOccurrence: occ,
-          taskState: windowState(occ, now)
+          key: `t:${task.taskId}:${occurrence.at}`,
+          task, occurrence, start,
+          end: new Date(Math.max(new Date(occurrence.endsAt).getTime(), start.getTime())),
+          state: windowState(occurrence, now),
+          areaId: task.areaId
         });
       }
     } else {
@@ -127,23 +228,69 @@ export function buildEvents(
       /* Ist sie überfällig, steht sie HEUTE da — nicht an einem vergangenen Tag, den niemand mehr ansieht. */
       const shown = late && due < startOfDay(now) ? now : due;
       if (shown >= range.from && shown < range.to) {
-        out.push({
-          key: `a:${task.taskId}`,
-          source: 'task',
-          title: task.title,
-          start: shown,
-          end: new Date(shown.getTime() + 30 * 60_000),
-          allDay: false,
-          areaId: task.areaId,
-          cancelled: false,
-          task,
-          taskState: late ? 'late' : 'due'
-        });
+        out.push({ key: `a:${task.taskId}`, task, occurrence: null, start: shown, end: shown, state: late ? 'late' : 'due', areaId: task.areaId });
       }
     }
   }
 
-  return out.sort((a, b) => a.start.getTime() - b.start.getTime() || b.end.getTime() - a.end.getTime());
+  return out.sort((a, b) => a.start.getTime() - b.start.getTime());
+}
+
+/** Die Aufgaben EINES Tages — nach ihrem Anfang; ein Fenster über Mitternacht gehört zu dem Tag, an dem es aufgeht. */
+export const marksOn = (marks: readonly TaskMark[], day: Date): TaskMark[] => {
+  const from = startOfDay(day).getTime();
+  const to = addDays(startOfDay(day), 1).getTime();
+  return marks.filter((m) => m.start.getTime() >= from && m.start.getTime() < to);
+};
+
+/** Der Stand eines Tages, für die Zeile über dem Raster und die Monatszelle. */
+export function tally(marks: readonly TaskMark[]): { total: number; settled: number; pressing: number; behind: number } {
+  return {
+    total: marks.length,
+    settled: marks.filter(settled).length,
+    pressing: marks.filter(pressing).length,
+    behind: marks.filter(behind).length
+  };
+}
+
+export interface Railed {
+  readonly mark: TaskMark;
+  /** Minuten ab Mitternacht dieses Tages. */
+  readonly top: number;
+  readonly height: number;
+  readonly lane: number;
+}
+
+/** Wie viele Fenster nebeneinander auf der Schiene stehen — mehr passt in ihre Breite nicht. */
+export const RAIL_LANES = 3;
+
+/**
+ * DIE SCHIENE eines Tages: jedes Fenster ein Strich am Rand, nebeneinander,
+ * wenn sie sich überschneiden — höchstens `RAIL_LANES`, dann teilen sie sich
+ * einen. Ein Fenster über Mitternacht steht an beiden Tagen, jeweils bis zum Rand.
+ */
+export function railDay(marks: readonly TaskMark[], day: Date): Railed[] {
+  const from = startOfDay(day).getTime();
+  const to = addDays(startOfDay(day), 1).getTime();
+  const ends: number[] = [];
+  const out: Railed[] = [];
+
+  for (const mark of marks) {
+    const start = mark.start.getTime();
+    const end = Math.max(mark.end.getTime(), start + 20 * 60_000);
+    if (end <= from || start >= to) continue;
+
+    const top = (Math.max(start, from) - from) / 60_000;
+    const bottom = (Math.min(end, to) - from) / 60_000;
+
+    let lane = ends.findIndex((until) => until <= top);
+    if (lane < 0) lane = ends.length < RAIL_LANES ? ends.length : out.length % RAIL_LANES;
+    ends[lane] = Math.max(ends[lane] ?? 0, bottom);
+
+    out.push({ mark, top, height: Math.max(bottom - top, 10), lane });
+  }
+
+  return out;
 }
 
 /** Ob etwas an diesem Tag stattfindet — auch ein Stück eines mehrtägigen. */
