@@ -619,6 +619,18 @@ code {
 .pb-item-size { font-size: 0.74rem; color: var(--wk-muted); font-variant-numeric: tabular-nums; }
 .pb-item-todo { font-size: 0.74rem; color: var(--wk-accent); }
 
+/* Was die Kachel in dieser Grösse zeigt — klein, und höchstens drei Zeilen. */
+.pb-item-shows {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--wk-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pb-shows { margin: 0; padding: 0.5rem 0.7rem; border-left: 3px solid var(--wk-accent); background: var(--wk-soft); border-radius: 0 4px 4px 0; }
+
 /* Die Griffe liegen AUF der Kante: halb drinnen, halb draussen, damit man sie
    trifft, ohne den Baustein zu verfehlen. */
 .pb-handle {
@@ -675,12 +687,16 @@ code {
 
 /* -- Die öffentliche Seite ------------------------------------------------- */
 
+/* Gestreckt, nicht oben angeheftet: zwei Kacheln, die dieselben Zeilen
+   überspannen, sind gleich hoch — sonst endet die eine mitten neben der
+   anderen, und das Raster sieht aus wie ein Versehen. Die Höhe selbst bleibt
+   beim Inhalt; eine leere Zeile wird nicht aufgebläht. */
 .wk-page-grid {
   display: grid;
   grid-template-columns: repeat(var(--page-cols), minmax(0, 1fr));
   gap: 1rem;
   margin-top: 1.2rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .wk-card {
@@ -696,6 +712,93 @@ code {
 .wk-card-title { margin: 0; font-size: 1.05rem; font-weight: 600; }
 .wk-card-text { margin: 0; }
 .wk-card-lines { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; }
+.wk-card-sub { margin: 0.5rem 0 0; font-size: 0.98rem; font-weight: 600; }
+.wk-card-more { justify-self: start; }
+
+/* -- Die Grösse einer Kachel (part.ts: PartSize) ---------------------------
+   Jede Art entscheidet selbst, WAS sie je Grösse zeigt; hier steht, wie das
+   Gemeinsame liegt. Ein STREIFEN ist eine Zeile: die Überschrift wird zum
+   kleinen Etikett davor, Listen laufen hintereinander statt untereinander. */
+
+.wk-card[data-h='strip'] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  align-content: center;
+  gap: 0.25rem 0.9rem;
+  padding: 0.75rem 1.1rem;
+}
+
+.wk-card[data-h='strip'] > .wk-card-title {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wk-muted);
+}
+
+.wk-card[data-h='strip'] > .wk-card-text { flex: 1 1 16rem; }
+.wk-card[data-h='strip'] .wk-card-lines { display: flex; flex-wrap: wrap; gap: 0.2rem 0; }
+.wk-card[data-h='strip'] .wk-card-lines > li + li::before { content: '·'; margin: 0 0.6rem; color: var(--wk-muted); }
+.wk-card-open { margin-left: auto; }
+
+/* Fliesstext: hoch über die ganze Breite in zwei Spalten wie eine Zeitung —
+   eine Zeile über 1200 Pixel verliert man beim Sprung in die nächste. Die
+   Überschrift bleibt über beiden. */
+.wk-card[data-w='full'][data-h='tall']:has(> .wk-card-text) { display: block; columns: 2 26rem; column-gap: 2.5rem; }
+.wk-card[data-w='full'][data-h='tall'] > .wk-card-title { column-span: all; margin-bottom: 0.6rem; }
+.wk-card[data-w='full'][data-h='tall'] > .wk-card-text { margin-bottom: 0.5rem; }
+.wk-card[data-w='full'][data-h='tall'] > .wk-card-sub { break-after: avoid; }
+
+/* Godziny: schmal eine Tafel mit zwei Spalten, breit auf mehrere verteilt;
+   die Zeile von heute hervorgehoben. */
+.wk-hours > li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 0.8rem; }
+.wk-card[data-h='strip'] .wk-hours > li { display: inline; }
+.wk-card[data-h='strip'] .wk-hours-value::before { content: ' '; }
+.wk-hours-label { font-weight: 600; }
+.wk-hours-value { font-variant-numeric: tabular-nums; }
+.wk-hours > li.is-today { color: var(--wk-accent); }
+.wk-hours-today { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+/* Breit in Spalten, die man von oben nach unten liest — Montag unter Sonntag
+   wäre falsch herum. Tag und Zeit stehen dann beieinander, nicht an zwei Rändern. */
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-hours,
+.wk-card[data-w='full']:not([data-h='strip']) .wk-hours { display: block; column-gap: 2.5rem; }
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-hours { columns: 2; }
+.wk-card[data-w='full']:not([data-h='strip']) .wk-hours { columns: 3; }
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-hours > li,
+.wk-card[data-w='full']:not([data-h='strip']) .wk-hours > li { justify-content: flex-start; gap: 0 0.7rem; padding: 0.12rem 0; break-inside: avoid; }
+
+/* Kontakt: schmal untereinander mit Beschriftung, breit nebeneinander. */
+.wk-contact > li { display: grid; gap: 0.05rem; }
+.wk-contact-label { font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted); }
+.wk-contact-map { font-size: 0.88rem; }
+.wk-card[data-h='strip'] .wk-contact > li { display: inline; }
+.wk-card[data-h='strip'] .wk-contact-label { display: none; }
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-contact,
+.wk-card[data-w='full']:not([data-h='strip']) .wk-contact { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem 1.5rem; }
+
+/* Odnośniki: breit als Knöpfe nebeneinander. */
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-links,
+.wk-card[data-w='full']:not([data-h='strip']) .wk-links { grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.6rem; }
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-links a,
+.wk-card[data-w='full']:not([data-h='strip']) .wk-links a {
+  display: block;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.wk-card[data-w='wide']:not([data-h='strip']) .wk-links a:hover,
+.wk-card[data-w='full']:not([data-h='strip']) .wk-links a:hover { border-color: var(--wk-accent); }
+.wk-card[data-h='tall'] .wk-links a { padding: 1.1rem 1rem; }
+
+/* Rezerwacja: breit stehen die Termine nebeneinander. */
+.wk-card[data-w='wide'] .wk-slot-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.wk-card[data-w='full'] .wk-slot-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* Rozmowa grupy: hoch mit längerem Verlauf. */
+.wk-card[data-h='tall'] .wk-seat-chat-room .wk-chat-log { height: min(70vh, 38rem); }
 
 /* -- Der Messplan auf der Seite -------------------------------------------
    Dieselbe Ordnung wie auf dem gedruckten Bogen (`sheet.ts`): die Uhrzeit in
@@ -715,8 +818,18 @@ code {
   letter-spacing: 0.05em;
 }
 
-/* Die Kachel hat eine feste Hoehe; was nicht hineinpasst, rollt. */
-.wk-mass-days { display: grid; gap: 0.6rem; overflow-y: auto; min-width: 0; }
+/* Untereinander: Tag unter Tag. Die Kachel wächst mit — sie hat auf der Seite
+   keine feste Höhe, und ein Messplan, der in sich rollt, wird überlesen. */
+.wk-mass-days { display: grid; gap: 0.9rem; min-width: 0; }
+
+/* Nebeneinander: so viele Spalten, wie die Grösse sagt (massShape.ts). */
+.wk-mass-cols {
+  display: grid;
+  grid-template-columns: repeat(var(--mass-cols), minmax(0, 1fr));
+  gap: 1rem 1.4rem;
+  min-width: 0;
+}
+.wk-mass-cols > .wk-mass-day { align-content: start; }
 .wk-mass-day { display: grid; gap: 0.15rem; }
 .wk-mass-day-name { margin: 0; font-size: 0.85rem; font-weight: 600; }
 
@@ -731,8 +844,73 @@ code {
 .wk-mass-ints li { counter-increment: intencja; padding-left: 1.4rem; text-indent: -1.4rem; }
 .wk-mass-ints li::before { content: counter(intencja) ") "; }
 
-/* Der Verweis auf die zusammengelegten — kein Eintrag, sondern ein Hinweis. */
-.wk-mass-many { font-variant: small-caps; letter-spacing: 0.04em; font-size: 0.9rem; }
+/* Die zusammengelegten: gezählt und aufklappbar — da, aber nicht im Weg. */
+.wk-mass-many summary,
+.wk-mass-past summary { cursor: pointer; font-size: 0.86rem; color: var(--wk-muted); }
+.wk-mass-many summary:focus-visible,
+.wk-mass-past summary:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-mass-many[open] > summary { margin-bottom: 0.15rem; }
+.wk-mass-past { display: grid; gap: 0.15rem; }
+.wk-mass-past[open] > summary { margin-bottom: 0.2rem; }
+
+/* Jetzt: die nächste Messe, und wann. */
+.wk-mass-next { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.55rem; }
+.wk-mass-big { font-size: 1.4rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.wk-mass-soon {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--wk-accent);
+  white-space: nowrap;
+}
+.wk-mass-dayname { color: var(--wk-muted); font-variant: small-caps; letter-spacing: 0.05em; font-weight: 600; }
+.wk-mass-where { font-size: 0.85rem; color: var(--wk-muted); }
+.wk-mass-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wk-muted);
+}
+
+/* Uhrzeiten hintereinander: vorbei blass, die nächste betont, abgesagt durchgestrichen. */
+.wk-mass-strip { display: flex; flex-wrap: wrap; gap: 0.2rem 1.6rem; }
+.wk-mass-hours { margin: 0; font-variant-numeric: tabular-nums; }
+.wk-mass-sep { color: var(--wk-muted); }
+.wk-mass-t.is-past { color: var(--wk-muted); }
+.wk-mass-t.is-next { font-weight: 700; color: var(--wk-accent); }
+.wk-mass-t.is-cancelled { color: var(--wk-muted); text-decoration: line-through; }
+
+/* Über die ganze Breite: die nächste mit Intention, dahinter was folgt. */
+.wk-mass-ticker { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.3rem 2rem; flex: 1 1 auto; }
+.wk-mass-ticker .wk-mass-int { flex: 1 1 18rem; min-width: 0; }
+.wk-mass-then-line { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 1.1rem; font-variant-numeric: tabular-nums; }
+
+/* Schmal: die nächste hervorgehoben, darunter die Uhrzeiten der kommenden Tage. */
+.wk-mass-feature {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid var(--wk-accent);
+  border-radius: 0 4px 4px 0;
+  background: var(--wk-soft);
+}
+.wk-mass-then { display: grid; gap: 0.2rem; margin-top: 0.3rem; }
+.wk-mass-then-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.15rem; }
+.wk-mass-then-list > li { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr); gap: 0.5rem; font-variant-numeric: tabular-nums; }
+
+/* Der folgende Tag in einer Zeile, unter dem ganzen. */
+.wk-mass-after { margin: 0.3rem 0 0; padding-top: 0.45rem; border-top: 1px solid var(--wk-line); font-variant-numeric: tabular-nums; }
+
+/* Eine Messe im Tag: die nächste markiert, vorbei blass, abgesagt gestrichen, Beichte leise. */
+.wk-mass-row { padding: 0.15rem 0.35rem 0.15rem 0; border-radius: 4px; }
+.wk-mass-row.is-next { background: var(--wk-soft); box-shadow: inset 3px 0 0 var(--wk-accent); }
+.wk-mass-row.is-past { color: var(--wk-muted); }
+.wk-mass-row.is-cancelled .wk-mass-hour { text-decoration: line-through; color: var(--wk-muted); }
+.wk-mass-row.is-confession { color: var(--wk-muted); font-size: 0.9rem; }
+.wk-mass-row.is-confession .wk-mass-hour { font-weight: 400; }
+.wk-mass-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.5rem; }
+.wk-mass-off { font-size: 0.78rem; font-weight: 700; color: var(--wk-danger); }
 
 /* -- Die Kanzlei ----------------------------------------------------------
    Hier wird ABGETIPPT, nicht ausgefuellt: das Eingabefeld ist breit, die Art
@@ -773,6 +951,14 @@ code {
   border-left: 3px solid var(--wk-accent);
   font-weight: 600;
 }
+
+/* Derselbe Satz, lauter je Grösse: Block grösser, hoch wie ein Plakat,
+   über die ganze Breite als Band. */
+.wk-card[data-h='block'] > p.wk-card-notice { font-size: 1.3rem; line-height: 1.35; text-wrap: balance; }
+.wk-card[data-h='tall'] > p.wk-card-notice { font-size: clamp(1.5rem, 3vw, 2.1rem); line-height: 1.25; text-wrap: balance; }
+.wk-card[data-h='tall']:has(> p.wk-card-notice) { align-content: center; }
+.wk-card[data-w='full'][data-h='strip']:has(> p.wk-card-notice) { justify-content: center; background: var(--wk-soft); }
+.wk-card[data-w='full'][data-h='strip'] > p.wk-card-notice { border-left: 0; padding-left: 0; text-align: center; }
 
 /* Absaetze kommen aus einem Textfeld: was jemand mit der Eingabetaste getrennt
    hat, soll auch getrennt dastehen. */

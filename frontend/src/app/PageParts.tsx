@@ -16,12 +16,13 @@
  * der die Seite führt: der eine soll ihn füllen, dem anderen sagt er nichts.
  */
 
-import { type CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 
 import {
   byReadingOrder, COLUMNS, frameFor, snapColSpan, snapRowSpan, useBreakpoint
 } from './layout';
 import type { DraftPart } from './page';
+import { partSize, text, type PartModule, type PartSize, type RawConfig } from './part';
 import { usePageLogic } from './pageLogic';
 import { partOf } from './parts/registry';
 
@@ -46,6 +47,10 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
    * steht nicht da — oder an seiner Stelle der Satz, den die Karte dafür hat.
    */
   const logic = usePageLogic();
+
+  /* Was jemand aus einem Streifen aufgeklappt hat — es bleibt offen, bis er die Seite verlässt. */
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(new Set());
+
   const hidden = logic?.outcome.hidden ?? new Set<string>();
   const messages = logic?.outcome.messages ?? new Map<string, string>();
 
@@ -74,11 +79,21 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
 
         const def = partOf(part.kind);
 
+        /*
+         * AUFGEKLAPPT gilt der Streifen als Block: der Baustein zeigt dann,
+         * was er als Block zeigt, und die Kachel wächst mit.
+         */
+        const open = unfolded.has(part.id);
+        const size = partSize(open ? { colSpan: box.colSpan, rowSpan: Math.max(box.rowSpan, 3) } : box);
+        const folded = def !== undefined && def.strip !== null && size.height === 'strip';
+
         return (
           <article
             key={part.id}
             id={`part-${part.id}`}
             className={`wk-card wk-card-${part.kind}`}
+            data-w={size.width}
+            data-h={size.height}
             style={{
               gridColumn: `${frame.position.col} / span ${box.colSpan}`,
               gridRow: `span ${box.rowSpan}`
@@ -90,16 +105,49 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
               <p className="wk-card-unknown">
                 Moduł „{part.kind}" nie jest znany tej wersji strony.
               </p>
+            ) : folded ? (
+              <Folded
+                def={def}
+                raw={part.config}
+                size={size}
+                onOpen={() => setUnfolded((was) => new Set([...was, part.id]))}
+              />
             ) : (
               <def.View
                 raw={part.config}
-                ctx={{ moduleId: part.moduleId ?? part.id, box }}
+                ctx={{ moduleId: part.moduleId ?? part.id, size }}
               />
             )}
           </article>
         );
       })}
     </div>
+  );
+}
+
+/**
+ * EIN BAUSTEIN IM STREIFEN, DER DORT NICHT HINEINPASST — ein Formular, eine
+ * Buchung, eine Rozmowa. Seine Überschrift und ein Knopf; aufgeklappt wird er
+ * an Ort und Stelle, und die Kachel wächst mit.
+ *
+ * Kein Abschneiden: ein halbes Formular ist schlechter als ein Knopf, der
+ * sagt, dass hier eines ist.
+ */
+function Folded({ def, raw, size, onOpen }: {
+  def: PartModule;
+  raw: RawConfig;
+  size: PartSize;
+  onOpen: () => void;
+}) {
+  const title = text(raw, 'title') || def.strip?.title || def.label;
+
+  return (
+    <>
+      <h2 className="wk-card-title">{title}</h2>
+      <button type="button" className="wk-btn wk-card-open" onClick={onOpen} title={def.shows(raw, size)}>
+        {def.strip?.open ?? 'Pokaż'}
+      </button>
+    </>
   );
 }
 

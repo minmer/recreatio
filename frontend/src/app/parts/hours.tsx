@@ -11,6 +11,7 @@
  */
 
 import { definePart, lines, text, type RawConfig } from '../part';
+import { splitRow, weekdaysIn } from '../weekday';
 
 interface Config {
   readonly title: string;
@@ -39,12 +40,39 @@ export const hoursPart = definePart<Config>({
   read,
   hasContent: (c) => c.rows.length > 0,
 
-  View: ({ config }) => (
-    <>
-      {config.title !== '' && <h2 className="wk-card-title">{config.title}</h2>}
-      <ul className="wk-card-lines">
-        {config.rows.map((row, i) => <li key={i}>{row}</li>)}
-      </ul>
-    </>
-  )
+  /*
+   * IMMER ALLE ZEILEN — eine Öffnungszeit wegzulassen hiesse, dass jemand an
+   * dem Tag vor verschlossener Tür steht. Was sich mit der Grösse ändert, ist
+   * die Anordnung: im Streifen hintereinander, schmal als Tafel mit zwei
+   * Spalten, breit auf zwei oder drei Spalten verteilt. Die Zeile, die HEUTE
+   * gilt, ist hervorgehoben — nach ihr sucht, wer die Kachel aufschlägt.
+   */
+  shows: (_config, size) =>
+    size.height === 'strip' ? 'Wszystkie pozycje w jednym ciągu; dzisiejsza wyróżniona.'
+    : size.width === 'wide' ? 'Tabela w dwóch kolumnach; dzisiejsza pozycja wyróżniona.'
+    : size.width === 'full' ? 'Tabela w trzech kolumnach; dzisiejsza pozycja wyróżniona.'
+    : 'Tabela: dzień i godziny; dzisiejsza pozycja wyróżniona.',
+
+  View: ({ config }) => {
+    const today = new Date().getDay();
+
+    return (
+      <>
+        {config.title !== '' && <h2 className="wk-card-title">{config.title}</h2>}
+        <ul className="wk-card-lines wk-hours">
+          {config.rows.map((row, i) => {
+            const { label, value } = splitRow(row);
+            const now = weekdaysIn(label).has(today);
+
+            return (
+              <li key={i} className={now ? 'is-today' : undefined}>
+                <span className="wk-hours-label">{label}{now && <span className="wk-hours-today"> dziś</span>}</span>
+                {value !== null && <span className="wk-hours-value">{value}</span>}
+              </li>
+            );
+          })}
+        </ul>
+      </>
+    );
+  }
 });

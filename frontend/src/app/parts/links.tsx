@@ -42,10 +42,20 @@ export const linksPart = definePart<Config>({
   read,
   hasContent: (c) => c.links.length > 0,
 
+  /*
+   * Im Streifen hintereinander, schmal als Liste — und breit als Kacheln
+   * nebeneinander, die man trifft, ohne zu zielen: eine breite Kachel voller
+   * kurzer Zeilen links und leerer Fläche rechts sähe aus wie ein Versehen.
+   */
+  shows: (_config, size) =>
+    size.height === 'strip' ? 'Odnośniki w jednym wierszu.'
+    : size.width === 'wide' || size.width === 'full' ? 'Odnośniki jako przyciski obok siebie.'
+    : 'Odnośniki jeden pod drugim.',
+
   View: ({ config }) => (
     <>
       {config.title !== '' && <h2 className="wk-card-title">{config.title}</h2>}
-      <ul className="wk-card-lines">
+      <ul className="wk-card-lines wk-links">
         {config.links.map((one, i) => (
           <li key={i}><a className="wk-link" href={pagePath(one.path)}>{one.label}</a></li>
         ))}

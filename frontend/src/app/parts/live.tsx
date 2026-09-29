@@ -20,6 +20,7 @@
 import { definePart, maybeNumber, text, type RawConfig } from '../part';
 import { FormCard } from '../FormCard';
 import { MassCard } from '../MassCard';
+import { massSays, massView } from '../massShape';
 import { SlotCard } from '../SlotCard';
 
 /* -- Messen und Intentionen ------------------------------------------------- */
@@ -56,14 +57,11 @@ export const massesPart = definePart<MassConfig>({
 
   hasContent: () => true,
 
+  /* Zwölf Grössen, zwölf Antworten — welche, steht in `massShape.ts`. */
+  shows: (config, size) => massSays(massView(size, config.days)),
+
   View: ({ config, ctx }) => (
-    <MassCard
-      title={config.title}
-      calendar={config.calendar}
-      days={config.days}
-      colSpan={ctx.box.colSpan}
-      rowSpan={ctx.box.rowSpan}
-    />
+    <MassCard title={config.title} calendar={config.calendar} days={config.days} size={ctx.size} />
   )
 });
 
@@ -99,6 +97,12 @@ export const formPart = definePart<FormConfig>({
   }),
 
   hasContent: () => true,
+
+  /* Ein halbes Formular gibt es nicht: im Streifen ein Knopf, sonst das ganze. */
+  strip: { title: 'Formularz', open: 'Wypełnij formularz' },
+  shows: (_config, size) => size.height === 'strip'
+    ? 'Nagłówek i przycisk — formularz rozwija się po kliknięciu.'
+    : 'Cały formularz.',
 
   View: ({ config, ctx }) => (
     <FormCard partId={ctx.moduleId} title={config.title} portalUnder={config.portalUnder} />
@@ -147,6 +151,17 @@ export const slotsPart = definePart<SlotConfig>({
   }),
 
   hasContent: () => true,
+
+  /*
+   * Im Streifen ein Knopf; sonst die Termine — breiter nebeneinander, damit
+   * eine Woche Termine nicht zu einer Spalte wird, die man hinunterscrollt.
+   */
+  strip: { title: 'Rezerwacja', open: 'Wybierz termin' },
+  shows: (_config, size) =>
+    size.height === 'strip' ? 'Nagłówek i przycisk — terminy rozwijają się po kliknięciu.'
+    : size.width === 'wide' ? 'Terminy w dwóch kolumnach.'
+    : size.width === 'full' ? 'Terminy w trzech kolumnach.'
+    : 'Terminy jeden pod drugim.',
 
   View: ({ config }) => <SlotCard title={config.title} resource={config.resource} />
 });

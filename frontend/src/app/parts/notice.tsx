@@ -28,5 +28,17 @@ export const noticePart = definePart<Config>({
   read,
   hasContent: (c) => c.body !== '',
 
+  /*
+   * DERSELBE SATZ, ANDERS LAUT. Mehr Inhalt hat eine Ankündigung nicht —
+   * eine grössere Kachel heisst hier: sie soll lauter sein. Im Streifen eine
+   * Zeile mit Randstrich, als Block grösser gesetzt, hoch wie ein Plakat; über
+   * die ganze Breite als Band (`app.css`, nach `data-w`/`data-h`).
+   */
+  shows: (_config, size) =>
+    size.height === 'strip'
+      ? (size.width === 'full' ? 'Zdanie jako pas przez całą stronę.' : 'Zdanie w jednym wierszu, wyróżnione kreską.')
+      : size.height === 'block' ? 'Zdanie większą czcionką.'
+      : 'Zdanie jak plakat — duża czcionka, na środku.',
+
   View: ({ config }) => <p className="wk-card-notice">{config.body}</p>
 });

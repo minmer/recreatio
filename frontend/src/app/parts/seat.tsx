@@ -140,6 +140,10 @@ export const seatSubmissionPart = definePart<SubmissionConfig>({
   }),
 
   hasContent: () => true,
+  strip: { title: 'Twoje zgłoszenie', open: 'Pokaż zgłoszenie' },
+  shows: (_config, size) => size.height === 'strip'
+    ? 'Nagłówek i przycisk — zgłoszenie rozwija się po kliknięciu.'
+    : 'Wszystkie wybrane odpowiedzi osoby, z możliwością poprawienia.',
 
   missing: (config) =>
     config.form === null ? 'Wybierz formularz, z którego pochodzą odpowiedzi.'
@@ -182,6 +186,7 @@ export const seatNotePart = definePart<NoteConfig>({
 
   read: (raw: RawConfig): NoteConfig => ({ title: text(raw, 'title') }),
   hasContent: () => true,
+  shows: (_config, size) => size.height === 'strip' ? 'Wiadomość w jednym wierszu, obok nagłówka.' : 'Wiadomość od kancelarii.',
 
   View: ({ config }) => (
     <OnSeat
@@ -212,6 +217,10 @@ export const seatSharedPart = definePart<SharedConfig>({
 
   read: (raw: RawConfig): SharedConfig => ({ title: text(raw, 'title') }),
   hasContent: () => true,
+  strip: { title: 'Wspólne terminy', open: 'Pokaż terminy' },
+  shows: (_config, size) => size.height === 'strip'
+    ? 'Nagłówek i przycisk — terminy rozwijają się po kliknięciu.'
+    : 'Terminy grupy na najbliższe tygodnie.',
 
   View: ({ config }) => (
     <OnSeat
@@ -292,6 +301,10 @@ export const seatStepsPart = definePart<StepsConfig>({
   read: (raw: RawConfig): StepsConfig => ({ title: text(raw, 'title') }),
 
   hasContent: () => true,
+  strip: { title: 'Twoje kroki', open: 'Pokaż kroki' },
+  shows: (_config, size) => size.height === 'strip'
+    ? 'Nagłówek i przycisk — kroki rozwijają się po kliknięciu.'
+    : 'Lista kroków osoby, z tym, co już zrobione.',
 
   View: ({ config }) => <StepsCard title={config.title} />
 });
@@ -317,6 +330,11 @@ export const seatChatPart = definePart<ChatConfig>({
 
   read: (raw: RawConfig): ChatConfig => ({ title: text(raw, 'title') }),
   hasContent: () => true,
+  /* Eine Rozmowa im Streifen wäre ein Guckloch — dort ein Knopf; sonst der Verlauf, hoch mit mehr davon. */
+  strip: { title: 'Rozmowa grupy', open: 'Otwórz rozmowę' },
+  shows: (_config, size) => size.height === 'strip'
+    ? 'Nagłówek i przycisk — rozmowa rozwija się po kliknięciu.'
+    : size.height === 'tall' ? 'Rozmowa z dłuższym widokiem wiadomości.' : 'Rozmowa: ostatnie wiadomości i pole do pisania.',
 
   View: ({ config }) => (
     <OnSeat

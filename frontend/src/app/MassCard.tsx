@@ -1,49 +1,69 @@
 /**
  * Der Messplan auf einer Seite — der eine Baustein, der seinen Inhalt holt.
  *
- * <b>Er steht auch dann da, wenn sein `config` leer ist.</b> Alles andere
- * blendet die Seite aus, wenn nichts eingetragen wurde (`isEmpty`), und das ist
- * richtig: eine Überschrift ohne Inhalt sieht aus wie ein Fehler. Hier steht im
- * `config` aber nur, WELCHER Kalender und wie er aussehen soll — die Messen
- * selbst kommen erst beim Aufruf. Deshalb sagt der Katalog `live`, und die
- * Seite lässt ihn stehen.
+ * <b>Er steht auch dann da, wenn sein `config` leer ist.</b> Im `config` steht
+ * nur, WELCHER Kalender und wie viele Tage — die Messen selbst kommen erst
+ * beim Aufruf. Deshalb hat er immer etwas zu zeigen (`hasContent`).
  *
  * <b>Der Baustein nennt einen KALENDER, nicht eine Adresse.</b> Das ist die
  * Antwort auf „welcher Bereich trägt den Messplan": der Kalender gehört einem
  * Bereich, und wer dessen Epochenschlüssel offengelegt hat, dessen Messen
  * hängen im Schaukasten — auf JEDER Seite, die den Kalender nennt, auch einer
- * fremden. Eine Seite bekommt damit den Plan einer anderen, ohne dass irgendwo
- * etwas geteilt werden müsste; geteilt wurde der Schlüssel.
+ * fremden.
  *
  * <b>Ohne Kalender wird gesammelt.</b> Steht kein Kalender im `config`, zeigt
  * der Baustein alle Messen, die offen liegen, mit der Angabe woher. Das ist
  * kein Notbehelf, sondern der Dekanatsplan.
  *
- * <b>Was gezeigt wird, entscheidet die GRÖSSE</b> und nicht ein Schalter:
- * `massShape` übersetzt Felder in Inhalt. Eine halbierte Liste von Messzeiten
- * wäre kein Ausschnitt, sondern eine Falschauskunft — wer „7:00, 9:00" liest,
- * kommt um 9 Uhr und weiss nichts von 18:00.
+ * <b>Was gezeigt wird, entscheidet die GRÖSSE</b> (`massShape.ts`) — zwölf
+ * Grössen, zwölf Antworten — und die UHR: die Ansicht beginnt bei der
+ * nächsten Messe, die noch nicht vorbei ist, und rückt von selbst weiter.
  *
  * <b>Ein Fehlschlag schweigt nicht.</b> Der Besucher bekommt eine ruhige Zeile
  * statt einer leeren Kachel: eine Kachel, die nichts sagt, sieht für den, der
  * die Seite führt, genauso aus wie eine, die nichts zu sagen hat.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 
 import {
-  byDay, dayLabel, hour, massesOnly, type PublicMass, loadPlan
+  byDay, CONFESSION, dayKey, fullDayLabel, hour, loadPlan, massesOnly, shortDayLabel, type PublicMass
 } from './mass';
-import { massDays, massShape, showsIntentions } from './massShape';
+import { daysToLoad, isAhead, massView, nextOf, soon, type MassView } from './massShape';
+import type { PartSize } from './part';
 
 /** Mitternacht des heutigen Tages — der Aushang beginnt nicht „vor einer Stunde". */
-function startOfToday(): Date {
-  const at = new Date();
+function startOfToday(now: Date): Date {
+  const at = new Date(now);
   at.setHours(0, 0, 0, 0);
   return at;
 }
 
-export function MassCard({ title, calendar, days: wanted, colSpan, rowSpan }: {
+/**
+ * DIE UHR — alle halbe Minute, und sobald die Karte wieder sichtbar wird.
+ * Ohne sie stünde um 18:05 noch „za 5 min" da, und nach Mitternacht der
+ * gestrige Tag als „dziś".
+ */
+function useNow(): Date {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    const timer = window.setInterval(tick, 30_000);
+    const onShow = () => { if (document.visibilityState === 'visible') tick(); };
+    document.addEventListener('visibilitychange', onShow);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', onShow); };
+  }, []);
+
+  return now;
+}
+
+interface Day {
+  readonly day: string;
+  readonly masses: readonly PublicMass[];
+}
+
+export function MassCard({ title, calendar, days: wanted, size }: {
   title: string;
   calendar: string;
 
@@ -56,20 +76,12 @@ export function MassCard({ title, calendar, days: wanted, colSpan, rowSpan }: {
    */
   days: number | null;
 
-  colSpan: number;
-  rowSpan: number;
+  size: PartSize;
 }) {
-  const shape = massShape(colSpan, rowSpan);
-
-  /*
-   * Wie viele Tage: was eingetragen wurde, sonst was in die Grösse passt. Eine
-   * Angabe, die nicht hineinpasst, wird nicht überschrieben — wer sieben Tage
-   * will, bekommt sieben und eine Kachel, die scrollt, statt stillschweigend
-   * drei.
-   */
-  const days = wanted !== null && wanted > 0
-    ? Math.min(wanted, 31)
-    : massDays(shape, rowSpan);
+  const shown = massView(size, wanted);
+  const load = daysToLoad(shown);
+  const now = useNow();
+  const today = dayKey(now.toISOString());
 
   const [plan, setPlan] = useState<readonly PublicMass[] | null | undefined>(undefined);
 
@@ -77,21 +89,22 @@ export function MassCard({ title, calendar, days: wanted, colSpan, rowSpan }: {
     // Wer schnell zwischen zwei Seiten wechselt, bekommt sonst den Plan der
     // ersten auf der zweiten zu sehen.
     let alive = true;
-    setPlan(undefined);
 
-    const from = startOfToday();
+    const from = startOfToday(new Date());
     const to = new Date(from);
-    to.setDate(to.getDate() + days);
+    to.setDate(to.getDate() + load);
 
     loadPlan(calendar === '' ? undefined : calendar, from, to)
       .then((found) => { if (alive) setPlan(found.masses); })
       .catch(() => { if (alive) setPlan(null); });
 
     return () => { alive = false; };
-  }, [calendar, days]);
+
+    // `today`: nach Mitternacht beginnt der Plan einen Tag später.
+  }, [calendar, load, today]);
 
   if (plan === undefined) {
-    return <Frame title={title}><p className="wk-card-text">Wczytywanie…</p></Frame>;
+    return <Frame title={title}><p className="wk-card-muted">Wczytywanie…</p></Frame>;
   }
 
   if (plan === null) {
@@ -99,6 +112,7 @@ export function MassCard({ title, calendar, days: wanted, colSpan, rowSpan }: {
   }
 
   const masses = massesOnly(plan);
+  const next = nextOf(masses, now);
 
   /*
    * „Keine Messen" heisst bei einem Messplan fast immer eines von zwei Dingen:
@@ -106,35 +120,56 @@ export function MassCard({ title, calendar, days: wanted, colSpan, rowSpan }: {
    * Das zweite sieht wie das erste aus — deshalb steht es dabei, sonst sucht
    * jemand den Fehler bei den Messen statt beim Schlüssel.
    */
-  if (masses.length === 0) {
+  if (next === null) {
     return (
       <Frame title={title}>
         <p className="wk-card-muted">
-          Brak mszy w planie.
-          {calendar !== '' && ' Jeśli msze są wpisane, sprawdź, czy epoka obszaru jest opublikowana.'}
+          {masses.length === 0 ? 'Brak mszy w planie.' : 'W najbliższych dniach nie ma już mszy.'}
+          {masses.length === 0 && calendar !== '' && ' Jeśli msze są wpisane, sprawdź, czy epoka obszaru jest opublikowana.'}
         </p>
       </Frame>
     );
   }
 
+  /*
+   * DIE TAGE, ab dem Tag der nächsten Messe — mit der Beichte darin, wo sie
+   * dazugehört. Ein Tag ohne Messe (nur Beichte) ist kein Tag des Messplans.
+   */
+  const services = shown.confessions ? plan : masses;
+  const days: Day[] = byDay(services)
+    .filter((one) => one.day >= dayKey(next.startsAt) && one.masses.some((m) => m.kind !== CONFESSION));
+
+  /*
+   * DAS WO nur, wenn es etwas unterscheidet: im Sammelplan aus mehreren
+   * Kalendern. Kommt alles aus einem, stünde unter jeder Uhrzeit derselbe Name.
+   */
+  const place = calendar === '' && new Set(masses.map((m) => m.calendarId)).size > 1;
+  const ctx: Ctx = { now, next, place, shown };
+
   return (
     <Frame title={title}>
-      {shape === 'next' && <Next masses={masses} />}
-      {shape === 'hours' && <Hours masses={masses} />}
-      {shape === 'list' && <List masses={masses} />}
-      {(shape === 'today' || shape === 'days') && (
-        <Days
-          masses={masses}
-          days={shape === 'today' ? 1 : days}
-          withIntentions={showsIntentions(shape)}
-          withPlace={calendar === ''}
-        />
-      )}
+      {shown.form === 'next' && <Next ctx={ctx} />}
+      {shown.form === 'hours' && <HoursStrip ctx={ctx} days={days.slice(0, shown.days)} />}
+      {shown.form === 'ticker' && <Ticker ctx={ctx} masses={masses} />}
+      {shown.form === 'spotlight' && <Spotlight ctx={ctx} days={days.slice(0, shown.days)} />}
+      {shown.form === 'day' && <OneDay ctx={ctx} days={days.slice(0, 2)} />}
+      {shown.form === 'stack' && <Several ctx={ctx} days={days.slice(0, shown.days)} columns={1} />}
+      {shown.form === 'columns' && <Several ctx={ctx} days={days.slice(0, shown.days)} columns={shown.columns} />}
     </Frame>
   );
 }
 
-function Frame({ title, children }: { title: string; children: React.ReactNode }) {
+/** Was jede Form wissen muss. */
+interface Ctx {
+  readonly now: Date;
+  readonly next: PublicMass;
+
+  /** Im Sammelplan gehört das WO dazu: eine Uhrzeit ohne Ort ist keine Auskunft, sondern ein Rätsel. */
+  readonly place: boolean;
+  readonly shown: MassView;
+}
+
+function Frame({ title, children }: { title: string; children: ReactNode }) {
   return (
     <>
       {title !== '' && <h2 className="wk-card-title">{title}</h2>}
@@ -143,90 +178,243 @@ function Frame({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-/* -- Die Formen ------------------------------------------------------------ */
+const same = (a: PublicMass, b: PublicMass) => a.itemId === b.itemId && a.occurrenceAt === b.occurrenceAt;
+const keyOf = (m: PublicMass) => `${m.itemId}-${m.occurrenceAt}`;
 
-/** Die eine nächste Messe. Mehr passt in eine Zeile nicht, und weniger hilft nicht. */
-function Next({ masses }: { masses: readonly PublicMass[] }) {
-  const next = masses[0];
+/* -- Streifen ---------------------------------------------------------------- */
+
+/** Die eine nächste Messe, und wann. Mehr passt in eine schmale Zeile nicht, und weniger hilft nicht. */
+function Next({ ctx }: { ctx: Ctx }) {
+  const { next, now, place } = ctx;
+  const when = soon(next, now);
 
   return (
-    <p className="wk-card-next">
-      <span className="wk-card-next-day">{dayLabel(next.startsAt)}</span>
-      {' '}
-      <strong>{hour(next.startsAt)}</strong>
-      {(next.title ?? '') !== '' && <span className="wk-card-muted"> · {next.title}</span>}
+    <p className="wk-mass-next">
+      <span className="wk-mass-dayname">{shortDayLabel(next.startsAt, now)}</span>
+      <strong className="wk-mass-big">{hour(next.startsAt)}</strong>
+      {when !== null && <span className="wk-mass-soon">{when}</span>}
+      {place && <span className="wk-mass-where">{next.calendarTitle}</span>}
     </p>
   );
 }
 
 /**
- * Nur die Uhrzeiten des ersten Tages, nebeneinander.
- *
- * Ohne Intentionen, aber ohne Lücke — und genau das ist der Unterschied
- * zwischen einer Kürzung und einem Verschweigen.
+ * Die Uhrzeiten eines Tages (breiter: zweier) nebeneinander. Die vergangenen
+ * stehen blass da und nicht gar nicht — sonst hiesse „7:00 · 18:00" am Abend
+ * „18:00", und morgen früh sucht jemand die Messe um sieben.
  */
-function Hours({ masses }: { masses: readonly PublicMass[] }) {
-  const first = byDay(masses)[0];
-
+function HoursStrip({ ctx, days }: { ctx: Ctx; days: readonly Day[] }) {
   return (
-    <p className="wk-card-hours">
-      <span className="wk-card-next-day">{dayLabel(first.masses[0].startsAt)}</span>
-      {': '}
-      {first.masses.map((m) => hour(m.startsAt)).join(' · ')}
-    </p>
+    <div className="wk-mass-strip">
+      {days.map((one) => (
+        <p className="wk-mass-hours" key={one.day}>
+          <span className="wk-mass-dayname">{shortDayLabel(one.masses[0].startsAt, ctx.now)}</span>
+          {' '}
+          <Times masses={one.masses} ctx={ctx} />
+        </p>
+      ))}
+    </div>
   );
 }
 
-/** Schmal und hoch: die Uhrzeiten untereinander, mit dem Namen daneben. */
-function List({ masses }: { masses: readonly PublicMass[] }) {
-  const first = byDay(masses)[0];
-
+function Times({ masses, ctx }: { masses: readonly PublicMass[]; ctx: Ctx }) {
   return (
     <>
-      <p className="wk-card-next-day">{dayLabel(first.masses[0].startsAt)}</p>
-      <ul className="wk-card-lines">
-        {first.masses.map((m) => (
-          <li key={`${m.itemId}-${m.occurrenceAt}`}>
-            <strong>{hour(m.startsAt)}</strong>
-            {(m.title ?? '') !== '' && <span className="wk-card-muted"> {m.title}</span>}
-          </li>
-        ))}
-      </ul>
+      {masses.map((m, i) => (
+        <span key={keyOf(m)}>
+          {i > 0 && <span className="wk-mass-sep"> · </span>}
+          <span className={`wk-mass-t${timeClass(m, ctx)}`} title={m.title ?? undefined}>{hour(m.startsAt)}</span>
+        </span>
+      ))}
     </>
   );
 }
 
-/** Ein Tag oder mehrere, jeder mit seinen Messen — und, wenn Platz ist, Intentionen. */
-function Days({ masses, days, withIntentions, withPlace }: {
-  masses: readonly PublicMass[];
-  days: number;
-  withIntentions: boolean;
-  withPlace: boolean;
-}) {
+const timeClass = (m: PublicMass, ctx: Ctx) =>
+  m.status === 'cancelled' ? ' is-cancelled'
+  : same(m, ctx.next) ? ' is-next'
+  : !isAhead(m, ctx.now) ? ' is-past'
+  : '';
+
+/**
+ * Über die ganze Breite: die nächste Messe MIT ihrer Intention — nach ihr
+ * fragt, wer eine gegeben hat —, und dahinter, was danach kommt.
+ */
+function Ticker({ ctx, masses }: { ctx: Ctx; masses: readonly PublicMass[] }) {
+  const { next, now, place } = ctx;
+  const when = soon(next, now);
+  const after = masses.filter((m) => isAhead(m, now) && !same(m, next)).slice(0, 4);
+  const ones = next.intentions.filter((i) => i.kind !== 'collective');
+  const many = next.intentions.length - ones.length;
+
   return (
-    <div className="wk-mass-days">
-      {byDay(masses).slice(0, days).map((group) => (
-        <section key={group.day} className="wk-mass-day">
-          <h3 className="wk-mass-day-name">{dayLabel(group.masses[0].startsAt)}</h3>
+    <div className="wk-mass-ticker">
+      <p className="wk-mass-next">
+        <span className="wk-mass-label">Najbliższa</span>
+        <span className="wk-mass-dayname">{shortDayLabel(next.startsAt, now)}</span>
+        <strong className="wk-mass-big">{hour(next.startsAt)}</strong>
+        {when !== null && <span className="wk-mass-soon">{when}</span>}
+        {place && <span className="wk-mass-where">{next.calendarTitle}</span>}
+        {(ones.length > 0 || many > 0) && (
+          <span className="wk-mass-int">
+            {ones.map((i) => i.text).join('; ')}
+            {many > 0 && `${ones.length > 0 ? ' · ' : ''}intencje zbiorowe (${many})`}
+          </span>
+        )}
+      </p>
 
-          {group.masses.map((mass) => (
-            <div className="wk-mass-row" key={`${mass.itemId}-${mass.occurrenceAt}`}>
-              <span className="wk-mass-hour">{hour(mass.startsAt)}</span>
-              <span className="wk-mass-what">
-                {(mass.title ?? '') !== '' && <span className="wk-mass-title">{mass.title}</span>}
-
-                {/*
-                  * Im Sammelplan gehört das WO dazu: eine Uhrzeit ohne Ort ist
-                  * keine Auskunft, sondern ein Rätsel.
-                  */}
-                {withPlace && <span className="wk-mass-where">{mass.calendarTitle}</span>}
-
-                {withIntentions && <Intentions mass={mass} />}
-              </span>
-            </div>
+      {/* Je Tag einmal genannt: „jutro 7:00 · 18:00", nicht „jutro 7:00 · jutro 18:00". */}
+      {after.length > 0 && (
+        <p className="wk-mass-then-line">
+          <span className="wk-mass-label">Potem</span>
+          {byDay(after).map((one) => (
+            <span key={one.day} className="wk-mass-then-day">
+              {one.day !== dayKey(next.startsAt) && (
+                <span className="wk-mass-dayname">{shortDayLabel(one.masses[0].startsAt, now)} </span>
+              )}
+              {one.masses.map((m) => hour(m.startsAt)).join(' · ')}
+            </span>
           ))}
-        </section>
-      ))}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* -- Blöcke ------------------------------------------------------------------- */
+
+/**
+ * Schmal: die nächste Messe hervorgehoben, mit ihren Intentionen; darunter
+ * die Uhrzeiten, die danach kommen — der Rest ihres Tages und die nächsten
+ * Tage, je eine Zeile.
+ */
+function Spotlight({ ctx, days }: { ctx: Ctx; days: readonly Day[] }) {
+  const { next, now, place } = ctx;
+  const when = soon(next, now);
+  const rest = days.map((one, i) => ({
+    day: one.day,
+    masses: i === 0 ? one.masses.filter((m) => new Date(m.startsAt) > new Date(next.startsAt)) : one.masses
+  })).filter((one) => one.masses.length > 0);
+
+  return (
+    <>
+      <div className="wk-mass-feature">
+        <p className="wk-mass-next">
+          <span className="wk-mass-dayname">{shortDayLabel(next.startsAt, now)}</span>
+          <strong className="wk-mass-big">{hour(next.startsAt)}</strong>
+          {when !== null && <span className="wk-mass-soon">{when}</span>}
+        </p>
+        {(next.title ?? '') !== '' && <span className="wk-mass-title">{next.title}</span>}
+        {place && <span className="wk-mass-where">{next.calendarTitle}</span>}
+        <Intentions mass={next} />
+      </div>
+
+      {rest.length > 0 && (
+        <div className="wk-mass-then">
+          <p className="wk-mass-label">Potem</p>
+          <ul className="wk-mass-then-list">
+            {rest.map((one) => (
+              <li key={one.day}>
+                <span className="wk-mass-dayname">{shortDayLabel(one.masses[0].startsAt, now)}</span>
+                <span><Times masses={one.masses} ctx={ctx} /></span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Ein ganzer Tag, Messe für Messe; der folgende in einer Zeile darunter. */
+function OneDay({ ctx, days }: { ctx: Ctx; days: readonly Day[] }) {
+  const [first, second] = days;
+
+  return (
+    <>
+      <DayBlock ctx={ctx} day={first} />
+      {second !== undefined && (
+        <p className="wk-mass-after">
+          <span className="wk-mass-dayname">{shortDayLabel(second.masses[0].startsAt, ctx.now)}</span>
+          {' '}
+          <Times masses={second.masses.filter((m) => m.kind !== CONFESSION)} ctx={ctx} />
+        </p>
+      )}
+    </>
+  );
+}
+
+/** Mehrere Tage — untereinander (`columns` 1) oder nebeneinander. */
+function Several({ ctx, days, columns }: { ctx: Ctx; days: readonly Day[]; columns: number }) {
+  return (
+    <div
+      className={columns > 1 ? 'wk-mass-cols' : 'wk-mass-days'}
+      style={columns > 1 ? { '--mass-cols': columns } as CSSProperties : undefined}
+    >
+      {days.map((one) => <DayBlock key={one.day} ctx={ctx} day={one} />)}
+    </div>
+  );
+}
+
+/**
+ * EIN TAG. Was heute schon war, ist zugeklappt („Wcześniej: 7:00") — da, aber
+ * nicht im Weg; die nächste Messe ist hervorgehoben und sagt, wann.
+ */
+function DayBlock({ ctx, day }: { ctx: Ctx; day: Day }) {
+  const past = day.masses.filter((m) => m.status !== 'cancelled' && new Date(m.endsAt) <= ctx.now);
+  const ahead = day.masses.filter((m) => !past.includes(m));
+
+  return (
+    <section className="wk-mass-day">
+      <h3 className="wk-mass-day-name">{fullDayLabel(day.masses[0].startsAt, ctx.now)}</h3>
+
+      {past.length > 0 && (
+        <details className="wk-mass-past">
+          <summary>
+            Wcześniej: {past.filter((m) => m.kind !== CONFESSION).map((m) => hour(m.startsAt)).join(' · ')
+              || past.map((m) => hour(m.startsAt)).join(' · ')}
+          </summary>
+          {past.map((m) => <Row key={keyOf(m)} ctx={ctx} mass={m} />)}
+        </details>
+      )}
+
+      {ahead.map((m) => <Row key={keyOf(m)} ctx={ctx} mass={m} />)}
+    </section>
+  );
+}
+
+/** Eine Messe (oder Beichte) in einem Tag: Uhrzeit links, alles andere daneben. */
+function Row({ ctx, mass }: { ctx: Ctx; mass: PublicMass }) {
+  const confession = mass.kind === CONFESSION;
+  const cancelled = mass.status === 'cancelled';
+  const isNext = same(mass, ctx.next);
+  const when = isNext ? soon(mass, ctx.now) : null;
+  const past = !cancelled && !isAhead(mass, ctx.now);
+
+  const cls = ['wk-mass-row',
+    confession && 'is-confession', cancelled && 'is-cancelled', isNext && 'is-next', past && 'is-past']
+    .filter(Boolean).join(' ');
+
+  return (
+    <div className={cls}>
+      <span className="wk-mass-hour">{hour(mass.startsAt)}</span>
+      <span className="wk-mass-what">
+        {confession ? (
+          <span className="wk-mass-title">Spowiedź do {hour(mass.endsAt)}</span>
+        ) : (
+          <>
+            {((mass.title ?? '') !== '' || when !== null || cancelled) && (
+              <span className="wk-mass-head">
+                {(mass.title ?? '') !== '' && <span className="wk-mass-title">{mass.title}</span>}
+                {when !== null && <span className="wk-mass-soon">{when}</span>}
+                {cancelled && <span className="wk-mass-off">odwołana</span>}
+              </span>
+            )}
+            {ctx.place && <span className="wk-mass-where">{mass.calendarTitle}</span>}
+            {!cancelled && ctx.shown.intentions === 'all' && <Intentions mass={mass} />}
+          </>
+        )}
+      </span>
     </div>
   );
 }
@@ -234,10 +422,11 @@ function Days({ masses, days, withIntentions, withPlace }: {
 /**
  * Die Intentionen einer Messe.
  *
- * <b>Zusammengelegte werden benannt, nicht aufgezählt.</b> Ihre Liste wächst
- * die ganze Woche über; sie hier auszuschreiben schöbe den Rest des Plans aus
- * der Kachel. Dass es sie GIBT, gehört aber hierher: wer eine Intention gibt,
- * hat ein Recht zu wissen, ob sie allein oder mit anderen gelesen wird.
+ * <b>Zusammengelegte werden gezählt und aufklappbar, nicht ausgeschrieben.</b>
+ * Ihre Liste wächst die ganze Woche über; sie hier auszuschreiben schöbe den
+ * Rest des Plans aus der Kachel. Dass es sie GIBT — und welche —, gehört aber
+ * hierher: wer eine Intention gibt, hat ein Recht zu wissen, ob sie allein
+ * oder mit anderen gelesen wird, und ob seine dabei ist.
  */
 function Intentions({ mass }: { mass: PublicMass }) {
   const ones = mass.intentions.filter((i) => i.kind !== 'collective');
@@ -256,9 +445,12 @@ function Intentions({ mass }: { mass: PublicMass }) {
       )}
 
       {many.length > 0 && (
-        <span className="wk-mass-many">
-          {(mass.title ?? '').trim() === '' ? 'Intencje zbiorowe' : mass.title}
-        </span>
+        <details className="wk-mass-many">
+          <summary>Intencje zbiorowe ({many.length})</summary>
+          <ol className="wk-mass-ints">
+            {many.map((i) => <li key={i.ordinal}>{i.text}</li>)}
+          </ol>
+        </details>
       )}
     </>
   );

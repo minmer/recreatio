@@ -38,14 +38,42 @@ export const contactPart = definePart<Config>({
   read,
   hasContent: (c) => c.address !== '' || c.phone !== '' || c.email !== '',
 
-  View: ({ config }) => (
+  /*
+   * DIESELBEN DREI ANGABEN, anders gelegt: im Streifen hintereinander, schmal
+   * untereinander mit Beschriftung, breit nebeneinander. Hoch kommt der Weg
+   * dazu — ein Verweis auf die Karte, erst beim Anklicken geht die Anschrift
+   * hinaus.
+   */
+  shows: (_config, size) =>
+    size.height === 'strip' ? 'Adres, telefon i e-mail w jednym wierszu.'
+    : size.width === 'wide' || size.width === 'full'
+      ? `Adres, telefon i e-mail obok siebie${size.height === 'tall' ? ', z odnośnikiem do mapy' : ''}.`
+      : `Adres, telefon i e-mail jeden pod drugim${size.height === 'tall' ? ', z odnośnikiem do mapy' : ''}.`,
+
+  View: ({ config, ctx }) => (
     <>
       <h2 className="wk-card-title">Kontakt</h2>
-      <ul className="wk-card-lines">
-        {config.address !== '' && <li>{config.address}</li>}
+      <ul className="wk-card-lines wk-contact">
+        {config.address !== '' && (
+          <li>
+            <span className="wk-contact-label">Adres</span>
+            <span>{config.address}</span>
+            {ctx.size.height === 'tall' && (
+              <a
+                className="wk-link wk-contact-map"
+                href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(config.address)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Pokaż na mapie ↗
+              </a>
+            )}
+          </li>
+        )}
 
         {config.phone !== '' && (
           <li>
+            <span className="wk-contact-label">Telefon</span>
             <a className="wk-link" href={`tel:${config.phone.replace(/\s+/g, '')}`}>
               {config.phone}
             </a>
@@ -53,7 +81,10 @@ export const contactPart = definePart<Config>({
         )}
 
         {config.email !== '' && (
-          <li><a className="wk-link" href={`mailto:${config.email}`}>{config.email}</a></li>
+          <li>
+            <span className="wk-contact-label">E-mail</span>
+            <a className="wk-link" href={`mailto:${config.email}`}>{config.email}</a>
+          </li>
         )}
       </ul>
     </>

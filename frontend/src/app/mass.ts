@@ -272,6 +272,33 @@ export function dayLabel(iso: string, today: Date = new Date()): string {
   return `${WEEKDAYS[at.getDay()]}, ${at.getDate()} ${MONTHS[at.getMonth()]}`;
 }
 
+const WEEKDAYS_SHORT = ['nd', 'pn', 'wt', 'śr', 'czw', 'pt', 'sob'];
+
+/**
+ * Kurz, für eine Zeile Uhrzeiten: „dziś", „jutro", „śr 1.10". In eine
+ * schmale Kachel passt „środa, 1 października" nicht neben drei Uhrzeiten.
+ */
+export function shortDayLabel(iso: string, today: Date = new Date()): string {
+  const near = dayLabel(iso, today);
+  if (near === 'dziś' || near === 'jutro' || near === '') return near;
+
+  const at = new Date(iso);
+  return `${WEEKDAYS_SHORT[at.getDay()]} ${at.getDate()}.${at.getMonth() + 1}`;
+}
+
+/**
+ * Mit Wochentag und Datum auch bei heute und morgen: „dziś, wtorek 29
+ * września". Über einer ganzen Tagesspalte ist Platz dafür, und wer am
+ * Aushang eine Intention sucht, sucht sie nach dem Datum.
+ */
+export function fullDayLabel(iso: string, today: Date = new Date()): string {
+  const near = dayLabel(iso, today);
+  if (near !== 'dziś' && near !== 'jutro') return near;
+
+  const at = new Date(iso);
+  return `${near}, ${WEEKDAYS[at.getDay()]} ${at.getDate()} ${MONTHS[at.getMonth()]}`;
+}
+
 export const monthName = (index: number): string => MONTHS[index] ?? '';
 export const weekdayName = (index: number): string => WEEKDAYS[index] ?? '';
 

@@ -32,6 +32,7 @@ import {
   MIN_COL_SPAN, MIN_ROW_SPAN, pixelSize, resized, snapColSpan, snapRowSpan, validCells, withFrame,
   type Breakpoint, type Frame, type Handle, type Layout
 } from './layout';
+import { partSize, SIZE_WORD, type PartSize } from './part';
 import { PARTS, partLabel, partOf } from './parts/registry';
 import { PickModule } from './PickModule';
 import { PickForm, PickQuestions, pickedForm } from './FormPick';
@@ -402,6 +403,10 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule }: {
         ) : (
           <Fields
             part={chosen}
+            size={partSize({
+              colSpan: snapColSpan(frameFor(chosen, breakpoint).size.colSpan, columns),
+              rowSpan: snapRowSpan(frameFor(chosen, breakpoint).size.rowSpan)
+            })}
             busy={busy}
             onSet={(patch) => setConfigMany(chosen.id, patch)}
           />
@@ -475,6 +480,8 @@ function Item({ part, frame, columns, selected, onSelect, onResizeStart, onRemov
   const empty = Object.values(part.config).every((v) => v.trim() === '')
     || (partOf(part.kind)?.missing(part.config) ?? null) !== null;
 
+  const shows = partOf(part.kind)?.shows(part.config, partSize({ colSpan, rowSpan })) ?? null;
+
   return (
     <div
       ref={setNodeRef}
@@ -490,6 +497,13 @@ function Item({ part, frame, columns, selected, onSelect, onResizeStart, onRemov
       <span className="pb-item-name">{partLabel(part.kind)}</span>
       <span className="pb-item-size">{colSpan}×{rowSpan}</span>
       {empty && <span className="pb-item-todo">do uzupełnienia</span>}
+
+      {/*
+        WAS DIESE GRÖSSE ZEIGT — an der Kachel selbst. Wer an der Kante zieht,
+        sieht den Satz wechseln und weiss, was er wählt, bevor er die Seite
+        öffnet.
+      */}
+      {shows !== null && <span className="pb-item-shows" title={shows}>{shows}</span>}
 
       {selected && (
         <>
@@ -519,8 +533,9 @@ function Item({ part, frame, columns, selected, onSelect, onResizeStart, onRemov
   );
 }
 
-function Fields({ part, busy, onSet }: {
+function Fields({ part, size, busy, onSet }: {
   part: DraftPart;
+  size: PartSize;
   busy: boolean;
   onSet: (patch: Record<string, string>) => void;
 }) {
@@ -538,6 +553,13 @@ function Fields({ part, busy, onSet }: {
     <section className="pb-fields">
       <h4 className="pb-h">{def.label}</h4>
       <p className="wk-hint">{def.use}</p>
+
+      {/* Dieselbe Art zeigt je Grösse etwas anderes — hier steht, was in DIESER. */}
+      <p className="pb-shows">
+        <strong>{size.colSpan}×{size.rowSpan} · {SIZE_WORD.width[size.width]} {SIZE_WORD.height[size.height]}:</strong>
+        {' '}{def.shows(part.config, size)}
+        {' '}<span className="wk-hint">Zmień rozmiar, ciągnąc za krawędź — widok zmieni się razem z nim.</span>
+      </p>
 
       {def.missing(part.config) !== null && <p className="wk-blocker">{def.missing(part.config)}</p>}
 

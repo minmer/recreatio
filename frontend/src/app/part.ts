@@ -27,6 +27,60 @@
 
 import { createElement, type ComponentType } from 'react';
 
+/* -- Wie gross er ist — in Worten ------------------------------------------ */
+
+/**
+ * DIE GRÖSSE EINES BAUSTEINS, als das, was sie für den Inhalt bedeutet.
+ *
+ * <b>Eine grössere Kachel ist nicht dieselbe Ansicht, aufgeblasen — und eine
+ * kleinere nicht dieselbe, abgeschnitten.</b> Jede Grösse ist eine eigene
+ * Zusage: ein Streifen sagt EINE Sache, ein Block eine Übersicht, eine hohe
+ * Kachel das Ganze. Jede Art entscheidet selbst, was das für sie heisst, und
+ * sagt es dem Editor (`shows`), damit man beim Ziehen an der Kante sieht, was
+ * man gerade wählt.
+ *
+ * Die Stufen folgen dem Raster (`layout.ts`): Breiten rasten auf 2, 3, 4, 6
+ * Spalten, Höhen auf 1, 3, 5 Zeilen. Eine Spalte ist auf jedem Gerät ungefähr
+ * gleich breit — sechs am Schreibtisch, zwei auf dem Telefon —, also heisst
+ * „schmal" überall ungefähr dasselbe: eine Handbreit Text.
+ *
+ * <code>
+ *   Breite   narrow 2 · medium 3 · wide 4 · full 6
+ *   Höhe     strip 1 (eine Zeile) · block 3 (eine Übersicht) · tall 5 (alles)
+ * </code>
+ *
+ * Auf der Seite ist die Höhe keine feste Pixelzahl: die Kachel wächst mit
+ * ihrem Inhalt. Die Zeilenzahl ist die Frage „wie viel davon" — und genau
+ * deshalb muss jede Art sie beantworten.
+ */
+export type PartWidth = 'narrow' | 'medium' | 'wide' | 'full';
+export type PartHeight = 'strip' | 'block' | 'tall';
+
+export interface PartSize {
+  readonly colSpan: number;
+  readonly rowSpan: number;
+  readonly width: PartWidth;
+  readonly height: PartHeight;
+}
+
+export function partSize(box: { readonly colSpan: number; readonly rowSpan: number }): PartSize {
+  const colSpan = Math.max(1, Math.trunc(box.colSpan));
+  const rowSpan = Math.max(1, Math.trunc(box.rowSpan));
+
+  return {
+    colSpan,
+    rowSpan,
+    width: colSpan <= 2 ? 'narrow' : colSpan === 3 ? 'medium' : colSpan === 4 ? 'wide' : 'full',
+    height: rowSpan <= 1 ? 'strip' : rowSpan <= 3 ? 'block' : 'tall'
+  };
+}
+
+/** Wie die Grösse im Editor heisst — „wąski blok", „pełna szerokość · pasek". */
+export const SIZE_WORD: { readonly width: Record<PartWidth, string>; readonly height: Record<PartHeight, string> } = {
+  width: { narrow: 'wąski', medium: 'średni', wide: 'szeroki', full: 'na całą szerokość' },
+  height: { strip: 'pasek', block: 'blok', tall: 'wysoki' }
+};
+
 /* -- Was ein Baustein über seine Umgebung wissen darf ----------------------- */
 
 /**
@@ -49,8 +103,8 @@ export interface PartContext {
    */
   readonly moduleId: string;
 
-  /** Wie viele Rasterfelder er belegt. Der Messplan entscheidet daran, was hineinpasst. */
-  readonly box: { readonly colSpan: number; readonly rowSpan: number };
+  /** Wie gross er ist — und damit, WAS er zeigt, nicht nur wie gross. */
+  readonly size: PartSize;
 }
 
 /* -- Die Felder, mit denen man ihn füllt ------------------------------------ */
@@ -134,6 +188,20 @@ export interface PartModule {
   readonly View: ComponentType<{ readonly raw: RawConfig; readonly ctx: PartContext }>;
 
   /**
+   * WAS ER IN DIESER GRÖSSE ZEIGT, in einem Satz — für den Editor, der ihn an
+   * die Kachel schreibt. Wer an der Kante zieht, soll sehen, was er wählt, und
+   * nicht erst auf der fertigen Seite.
+   */
+  readonly shows: (raw: RawConfig, size: PartSize) => string;
+
+  /**
+   * IN EINEN STREIFEN PASST ER NICHT — ein Formular, eine Buchung, eine
+   * Rozmowa. Dann steht dort seine Überschrift und ein Knopf, der ihn an Ort
+   * und Stelle aufklappt; `null`: er hat für den Streifen eine eigene Gestalt.
+   */
+  readonly strip: { readonly title: string; readonly open: string } | null;
+
+  /**
    * Der duldsame Leser allein, Tafel hinein und Gestalt heraus.
    *
    * Er steht hier, damit sich prüfen lässt, was ein halb ausgefüllter Baustein
@@ -161,6 +229,8 @@ export function definePart<C>(spec: {
   hasContent: (config: C) => boolean;
   missing?: (config: C) => string | null;
   View: ComponentType<{ config: C; ctx: PartContext }>;
+  shows: (config: C, size: PartSize) => string;
+  strip?: { title: string; open: string };
 }): PartModule {
   /*
    * Als echtes Bauteil eingehängt und nicht als Funktion aufgerufen: sonst
@@ -182,6 +252,8 @@ export function definePart<C>(spec: {
     hasContent: (raw) => spec.hasContent(spec.read(raw)),
     missing: (raw) => spec.missing?.(spec.read(raw)) ?? null,
     View,
+    shows: (raw, size) => spec.shows(spec.read(raw), size),
+    strip: spec.strip ?? null,
     read: spec.read
   };
 }
