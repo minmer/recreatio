@@ -141,7 +141,9 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
   /* Wie mich die Gruppe sieht: der Name, den sie von mir kennt; sonst der meiner Person oder Rolle. */
   const nameOf = (id: string): string | null => names.get(id) ?? persons.get(id) ?? own.get(id) ?? null;
 
-  const speakers = chat == null ? [] : chat.writers.filter((id) => ring.maySign(id));
+  /* Die eigenen Personen zuerst, dann die Rollen — so steht man selbst oben in der Wahl. */
+  const speakers = chat == null ? []
+    : chat.writers.filter((id) => ring.maySign(id)).sort((a, b) => Number(persons.has(b)) - Number(persons.has(a)));
   const speaker = (speakers.includes(picked) ? picked : null)
     ?? (speakers.includes(asRoleId) ? asRoleId : null)
     ?? speakers.find((id) => persons.has(id))
@@ -256,10 +258,18 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
     }
   };
 
-  const authorName = (message: SealedMessage, opened: Opened | null) =>
-    message.authorRoleId !== null && ring.has(message.authorRoleId) ? 'Ty'
-    : message.authorRoleId !== null ? names.get(message.authorRoleId) ?? opened?.name ?? 'ktoś z grupy'
-    : opened?.name ?? 'osoba z linkiem';
+  const authorName = (message: SealedMessage, opened: Opened | null): string => {
+    const id = message.authorRoleId;
+    if (id === null) return opened?.name ?? 'osoba z linkiem';
+
+    /* Meine eigenen: mit dem Namen, unter dem sie hinausgingen — ich schreibe vielleicht als mehr als eine Rolle. */
+    if (ring.has(id)) {
+      const as = nameOf(id) ?? opened?.name ?? null;
+      return as === null ? 'Ty' : `${as} (Ty)`;
+    }
+
+    return names.get(id) ?? opened?.name ?? 'ktoś z grupy';
+  };
 
   return (
     <div className="wk-chat-room wk-page-chat-room">

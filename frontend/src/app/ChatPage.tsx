@@ -748,7 +748,9 @@ function Composer({ me, chat, keys, names, onSent }: {
   names: ReadonlyMap<string, string>;
   onSent: (message: SealedMessage, opened: Opened) => void;
 }) {
-  const speakers = useMemo(() => chat.writers.filter((id) => me.ring.maySign(id)), [chat.writers, me.ring]);
+  const speakers = useMemo(() => chat.writers.filter((id) => me.ring.maySign(id))
+    .sort((a, b) => Number(me.roles.find((r) => r.id === b)?.kind === 'person') - Number(me.roles.find((r) => r.id === a)?.kind === 'person')),
+  [chat.writers, me.ring, me.roles]);
   /* Als wen zuletzt — dieselbe Wahl wie auf der Seite (`chat.as.<id>`); sonst die eigene Person. */
   const [picked, setAs] = useRemembered(`chat.as.${chat.chatId}`, '');
   const as = speakers.includes(picked) ? picked
