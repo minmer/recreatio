@@ -7,13 +7,20 @@
  * Knopf „Menu"</b>, darunter der ganze Baum eingerückt: eine Leiste mit fünf
  * Einträgen passt nicht in eine Handbreite.
  *
- * Wo man gerade ist, ist markiert (`aria-current`) — auch am Dach, unter dem
- * die Seite liegt.
+ * <b>Wo man gerade ist, ist markiert</b> — und zwar einmal: der Eintrag, der
+ * genau auf diese Seite zeigt (`aria-current="page"`), sonst der Abschnitt,
+ * unter dem sie liegt. Das Dach darüber wird mitmarkiert, damit der Weg auch
+ * dann zu sehen ist, wenn das Untermenü zugeklappt ist.
+ *
+ * <b>Seit 0056 steht dasselbe Menü auf vielen Seiten</b>, und damit ist der
+ * zweite Fall der häufige: nicht jede Seite hat einen eigenen Eintrag, aber
+ * jede liegt unter einem. Wer auf „parish/oaza/terminy" steht, soll „Oaza"
+ * hervorgehoben sehen — die Rechnung dazu steht in `menuPath.ts`.
  */
 
 import { useEffect, useRef, useState } from 'react';
 
-import { hrefOf, leadsTo, registryPath, type MenuItem } from './menu';
+import { hereIn, hrefOf, under, type MenuItem, type Spot } from './menu';
 
 export function SiteMenu({ items, from, here }: {
   items: readonly MenuItem[];
@@ -38,6 +45,9 @@ export function SiteMenu({ items, from, here }: {
 
   if (items.length === 0) return null;
 
+  /* Einmal für das ganze Menü: zwei Einträge können nicht beide „hier" sein. */
+  const spot = hereIn(items, from, here);
+
   return (
     <nav ref={nav} className={`wk-sitemenu${mobile ? ' is-open' : ''}`} aria-label="Menu strony">
       <button type="button" className="wk-sitemenu-toggle" aria-expanded={mobile} onClick={() => setMobile(!mobile)}>
@@ -46,7 +56,7 @@ export function SiteMenu({ items, from, here }: {
 
       <ul className="wk-sitemenu-list">
         {items.map((item, i) => (
-          <Entry key={`${i}-${item.label}`} item={item} from={from} here={here} depth={0}
+          <Entry key={`${i}-${item.label}`} item={item} from={from} spot={spot} depth={0}
             path={String(i)} open={open} onOpen={setOpen} />
         ))}
       </ul>
@@ -54,18 +64,25 @@ export function SiteMenu({ items, from, here }: {
   );
 }
 
-function Entry({ item, from, here, depth, path, open, onOpen }: {
+function Entry({ item, from, spot, depth, path, open, onOpen }: {
   item: MenuItem;
   from: string;
-  here: string;
+  /** Wo man ist — für das ganze Menü einmal ausgerechnet. */
+  spot: Spot | null;
   depth: number;
   path: string;
   open: string | null;
   onOpen: (path: string | null) => void;
 }) {
   const href = hrefOf(item, from);
-  const current = registryPath(item, from) === here;
-  const within = !current && leadsTo(item, from, here);
+
+  /*
+     „Hier" IST dieser Eintrag, wenn die Stelle er selbst ist und genau passt;
+     „im Weg" ist er, wenn die Seite unter ihm liegt — als Abschnitt oder als
+     Dach über dem Eintrag, der gemeint ist.
+  */
+  const current = spot !== null && spot.exact && spot.at === path;
+  const within = spot !== null && !current && (spot.at === path || under(path, spot.at));
   const expanded = open !== null && (open === path || open.startsWith(`${path}.`));
   const external = item.kind === 'url' && /^https?:/i.test(item.target);
 
@@ -98,7 +115,7 @@ function Entry({ item, from, here, depth, path, open, onOpen }: {
       {item.children.length > 0 && (
         <ul className={`wk-sitemenu-list is-sub is-depth-${depth + 1}`}>
           {item.children.map((child, i) => (
-            <Entry key={`${i}-${child.label}`} item={child} from={from} here={here} depth={depth + 1}
+            <Entry key={`${i}-${child.label}`} item={child} from={from} spot={spot} depth={depth + 1}
               path={`${path}.${i}`} open={open} onOpen={onOpen} />
           ))}
         </ul>

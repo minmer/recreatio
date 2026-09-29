@@ -28,6 +28,20 @@ namespace Api;
 /// öffentlich an ihr. Der Dienst prüft seine Form (Tiefe, Anzahl, Ziele) —
 /// deuten tut es der Browser.
 /// </para>
+///
+/// <para>
+/// <b>Mehrere Seiten, ein Menü (0056).</b> Eine Zeile ist entweder ein Menü
+/// oder ein VERWEIS auf die Seite, deren Menü hier gelten soll. Der Verweis
+/// geht immer auf ein EIGENES Menü, nie auf einen zweiten Verweis: so ist das
+/// Auflösen ein Schritt, und es kann keinen Kreis geben.
+/// </para>
+///
+/// <para>
+/// Relative Ziele bleiben dabei an der Seite, die das Menü TRÄGT. Nimmt die
+/// Schule das Menü der Pfarrei, heisst „oaza" darin weiterhin die Oaza der
+/// Pfarrei — sonst wäre es kein geteiltes Menü, sondern eine Kopie, die sich
+/// bei jedem anders liest.
+/// </para>
 /// </summary>
 public static class Menu
 {
@@ -42,7 +56,12 @@ public static class Menu
 
     public sealed record Clean(string Label, string Kind, string Target, IReadOnlyList<Clean> Children);
 
-    public sealed record SaveRequest(string Path, IReadOnlyList<Item>? Items);
+    /// <summary>
+    /// Entweder <c>Items</c> (ein eigenes Menü) oder <c>Uses</c> (der Pfad der
+    /// Seite, deren Menü hier gelten soll). Beides leer: die Seite hat keines
+    /// mehr, und es gilt wieder das von oben.
+    /// </summary>
+    public sealed record SaveRequest(string Path, IReadOnlyList<Item>? Items, string? Uses);
 
     public static void Map(WebApplication app)
     {
@@ -157,9 +176,60 @@ public static class Menu
     }
 
     /// <summary>
+    /// Das EIGENE Menü einer Seite — nie ein Verweis. Ein Verweis zeigt immer
+    /// hierauf, und damit endet das Auflösen nach einem Schritt.
+    /// </summary>
+    private static async Task<(string From, JsonElement Items)?> OwnAsync(
+        SqlConnection connection, Guid slugId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("""
+            SELECT s.path, m.menu FROM app.slug_menu m JOIN app.slug s ON s.id = m.slug_id
+            WHERE m.slug_id = @id AND m.menu IS NOT NULL;
+            """, connection);
+        cmd.Parameters.AddWithValue("@id", slugId);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return null;
+
+        using var document = JsonDocument.Parse(reader.GetString(1));
+        return (reader.GetString(0), document.RootElement.Clone());
+    }
+
+    /// <summary>
+    /// Das Menü, das diese Seite sich von einer anderen HOLT — mit dem Pfad
+    /// der Quelle, auch wenn dort inzwischen keines mehr steht.
+    /// </summary>
+    /// <remarks>
+    /// Der Pfad steht auch dann da, wenn <c>Items</c> fehlt: „hier gilt das
+    /// Menü von X, und X hat keines mehr" ist die Auskunft, die der Editor
+    /// braucht. Ohne sie sähe die Seite aus, als hätte sie nie eines gehabt.
+    /// </remarks>
+    private static async Task<(string From, JsonElement? Items)?> UsesAsync(
+        SqlConnection connection, Guid slugId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("""
+            SELECT s.id, s.path FROM app.slug_menu m JOIN app.slug s ON s.id = m.uses_slug_id
+            WHERE m.slug_id = @id;
+            """, connection);
+        cmd.Parameters.AddWithValue("@id", slugId);
+
+        Guid source;
+        string path;
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        {
+            if (!await reader.ReadAsync(ct)) return null;
+            source = reader.GetGuid(0);
+            path = reader.GetString(1);
+        }
+
+        return (path, (await OwnAsync(connection, source, ct))?.Items);
+    }
+
+    /// <summary>
     /// Das Menü, das auf dieser Seite gilt: ihr eigenes oder das der nächsten
     /// Seite darüber, die eines hat. <c>From</c> ist der Pfad, von dem aus
-    /// relative Ziele gelten.
+    /// relative Ziele gelten — bei einem Verweis der Pfad der Seite, VON DER
+    /// das Menü stammt, nicht der eigene.
     /// </summary>
     internal static async Task<(string From, JsonElement Items)?> ForPageAsync(
         SqlConnection connection, string path, bool includeSelf, CancellationToken ct)
@@ -170,25 +240,103 @@ public static class Menu
 
         var names = string.Join(", ", candidates.Select((_, i) => $"@p{i}"));
         await using var cmd = new SqlCommand($"""
-            SELECT s.path, m.menu FROM app.slug_menu m JOIN app.slug s ON s.id = m.slug_id
+            SELECT s.path, m.menu, m.uses_slug_id FROM app.slug_menu m JOIN app.slug s ON s.id = m.slug_id
             WHERE s.path IN ({names});
             """, connection);
         for (var i = 0; i < candidates.Count; i++) cmd.Parameters.AddWithValue($"@p{i}", candidates[i]);
 
         string? bestPath = null, bestMenu = null;
+        Guid? bestUses = null;
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
             while (await reader.ReadAsync(ct))
             {
                 var found = reader.GetString(0);
-                if (bestPath is null || found.Length > bestPath.Length) { bestPath = found; bestMenu = reader.GetString(1); }
+                if (bestPath is not null && found.Length <= bestPath.Length) continue;
+
+                bestPath = found;
+                bestMenu = reader.IsDBNull(1) ? null : reader.GetString(1);
+                bestUses = reader.IsDBNull(2) ? null : reader.GetGuid(2);
             }
         }
 
-        if (bestPath is null || bestMenu is null) return null;
+        if (bestPath is null) return null;
+
+        /*
+            Ein Verweis, dessen Ziel sein eigenes Menü inzwischen abgelegt hat,
+            zeigt NICHTS — und fällt nicht auf das von weiter oben zurück. Das
+            Menü einer Seite ist eine Ansage; stillschweigend ein anderes
+            hinzustellen hiesse, die Ansage zu überhören.
+        */
+        if (bestMenu is null)
+        {
+            return bestUses is null ? null : await OwnAsync(connection, bestUses.Value, ct);
+        }
 
         using var document = JsonDocument.Parse(bestMenu);
         return (bestPath, document.RootElement.Clone());
+    }
+
+    /// <summary>
+    /// Die Seiten mit einem EIGENEN Menü, die dieses Konto führt — die Liste,
+    /// aus der im Editor eines ausgewählt wird.
+    /// </summary>
+    /// <remarks>
+    /// Nur eigene: ein Menü von einer fremden Seite zu nehmen hiesse, die
+    /// eigene Seite an etwas zu hängen, das jemand anders jederzeit ändert.
+    /// Was einem gehört, steht meist schon in den eigenen Rollen; nur was
+    /// darüber hinausgeht, wird einzeln gefragt (Zertifikat).
+    /// </remarks>
+    private static async Task<List<(string Path, int Count)>> UsableAsync(
+        SqlConnection connection, Guid accountId, string except, CancellationToken ct)
+    {
+        var found = new List<(string Path, Guid? Owner, int Count)>();
+
+        await using (var cmd = new SqlCommand("""
+            SELECT TOP (200) s.path, s.claimed_by_role_id, m.menu
+            FROM app.slug_menu m JOIN app.slug s ON s.id = m.slug_id
+            WHERE m.menu IS NOT NULL
+            ORDER BY s.path;
+            """, connection))
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                var path = reader.GetString(0);
+                if (path == except) continue;
+
+                var count = 0;
+                try
+                {
+                    using var document = JsonDocument.Parse(reader.GetString(2));
+                    count = document.RootElement.GetArrayLength();
+                }
+                catch (JsonException)
+                {
+                    // Unlesbar gespeichert — dann steht eben keine Zahl daneben.
+                }
+
+                found.Add((path, reader.IsDBNull(1) ? null : reader.GetGuid(1), count));
+            }
+        }
+
+        var mine = (await Workspace.RolesOfAsync(connection, accountId, ct)).Select(r => r.Id).ToHashSet();
+        var usable = new List<(string Path, int Count)>();
+
+        foreach (var one in found)
+        {
+            /* Die eigene Rolle führt sie — das ist der Normalfall und kostet keine Frage. */
+            if (one.Owner is not null && mine.Contains(one.Owner.Value))
+            {
+                usable.Add((one.Path, one.Count));
+                continue;
+            }
+
+            var grip = await Access.OfAsync(connection, accountId, one.Path, ct);
+            if (grip.MayWrite) usable.Add((one.Path, one.Count));
+        }
+
+        return usable;
     }
 
     /// <summary>Für den Editor: das eigene Menü der Seite, und was sie sonst von oben erbt.</summary>
@@ -207,14 +355,25 @@ public static class Menu
             return;
         }
 
-        var own = await ForPageAsync(connection, wanted, includeSelf: true, ctx.RequestAborted);
         var above = await ForPageAsync(connection, wanted, includeSelf: false, ctx.RequestAborted);
+
+        /*
+            Drei verschiedene Dinge, und der Editor muss sie auseinanderhalten:
+            das EIGENE Menü dieser Seite, das Menü, das sie sich von einer
+            anderen HOLT, und das, was ohne beides von oben gälte.
+        */
+        var slugId = await SlugIdAsync(connection, wanted, ctx.RequestAborted);
+        var own = slugId is null ? null : await OwnAsync(connection, slugId.Value, ctx.RequestAborted);
+        var uses = slugId is null ? null : await UsesAsync(connection, slugId.Value, ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new
         {
             path = wanted,
-            items = own is not null && own.Value.From == wanted ? own.Value.Items : (JsonElement?)null,
-            inherited = above is null ? null : new { from = above.Value.From, items = above.Value.Items }
+            items = own?.Items,
+            uses = uses is null ? null : new { from = uses.Value.From, items = uses.Value.Items },
+            inherited = above is null ? null : new { from = above.Value.From, items = above.Value.Items },
+            usable = (await UsableAsync(connection, who.Value.AccountId, wanted, ctx.RequestAborted))
+                .Select(one => new { path = one.Path, items = one.Count })
         });
     }
 
@@ -228,7 +387,15 @@ public static class Menu
         var clean = Validate(body.Items, 1, ref count, out var error);
         if (clean is null) { await Fail(ctx, StatusCodes.Status400BadRequest, error); return; }
 
+        var borrowed = (body.Uses ?? string.Empty).Trim();
         var wanted = Slug.Normalise(body.Path);
+
+        if (borrowed != string.Empty && clean.Count > 0)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest,
+                "Albo własne menu, albo menu innej strony — nie oba naraz.");
+            return;
+        }
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         var grip = await Access.OfAsync(connection, who.Value.AccountId, wanted, ctx.RequestAborted);
@@ -245,7 +412,7 @@ public static class Menu
             return;
         }
 
-        if (clean.Count == 0)
+        if (clean.Count == 0 && borrowed == string.Empty)
         {
             await using var drop = new SqlCommand("DELETE FROM app.slug_menu WHERE slug_id = @slug;", connection);
             drop.Parameters.AddWithValue("@slug", slugId.Value);
@@ -254,15 +421,59 @@ public static class Menu
             return;
         }
 
-        var json = JsonSerializer.Serialize(clean, Web);
+        Guid? uses = null;
+
+        if (borrowed != string.Empty)
+        {
+            var source = Slug.Normalise(borrowed);
+
+            if (source == wanted)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Strona nie może wziąć menu sama od siebie.");
+                return;
+            }
+
+            var sourceId = await SlugIdAsync(connection, source, ctx.RequestAborted);
+            if (sourceId is null)
+            {
+                await Fail(ctx, StatusCodes.Status404NotFound, "Tej strony nie ma w rejestrze.");
+                return;
+            }
+
+            /*
+                Nur von einer Seite, die man selbst führt: sonst hinge die
+                eigene Seite an einem Menü, das jemand anders jederzeit
+                umbaut, ohne davon zu wissen.
+            */
+            var there = await Access.OfAsync(connection, who.Value.AccountId, source, ctx.RequestAborted);
+            if (!there.MayWrite)
+            {
+                await Fail(ctx, StatusCodes.Status403Forbidden, "Tamtej strony nie prowadzisz.");
+                return;
+            }
+
+            /* Nur auf ein EIGENES Menü — ein Verweis auf einen Verweis wäre eine Kette. */
+            if (await OwnAsync(connection, sourceId.Value, ctx.RequestAborted) is null)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest,
+                    "Tamta strona nie ma własnego menu — nie ma czego stąd pokazać.");
+                return;
+            }
+
+            uses = sourceId.Value;
+        }
+
+        var json = uses is null ? JsonSerializer.Serialize(clean, Web) : null;
 
         await using var save = new SqlCommand("""
-            UPDATE app.slug_menu SET menu = @menu, updated_at = @now WHERE slug_id = @slug;
+            UPDATE app.slug_menu SET menu = @menu, uses_slug_id = @uses, updated_at = @now WHERE slug_id = @slug;
             IF @@ROWCOUNT = 0
-                INSERT INTO app.slug_menu (slug_id, menu, updated_at) VALUES (@slug, @menu, @now);
+                INSERT INTO app.slug_menu (slug_id, menu, uses_slug_id, updated_at)
+                VALUES (@slug, @menu, @uses, @now);
             """, connection);
         save.Parameters.AddWithValue("@slug", slugId.Value);
-        save.Parameters.AddWithValue("@menu", json);
+        save.Parameters.AddWithValue("@menu", (object?)json ?? DBNull.Value);
+        save.Parameters.AddWithValue("@uses", (object?)uses ?? DBNull.Value);
         save.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
 
         try
@@ -274,7 +485,7 @@ public static class Menu
             // Zwei Fenster haben gleichzeitig gespeichert — das andere gilt; wer noch einmal speichert, gewinnt.
         }
 
-        await ctx.Response.WriteAsJsonAsync(new { path = wanted, items = count });
+        await ctx.Response.WriteAsJsonAsync(new { path = wanted, items = count, uses = borrowed });
     }
 
     private static Task Fail(HttpContext ctx, int status, string message)

@@ -32,8 +32,10 @@ import {
 } from './chat';
 import type { Ring } from './keys';
 import { usePerson, type PagePerson } from './pagePerson';
+import { useRemembered } from './prefs';
+import { myRoleNames } from './roleNames';
 import { SeatChatBody } from './SeatChatView';
-import { WorkspaceError } from './session';
+import { whoIsThere, WorkspaceError } from './session';
 
 type RolePerson = Extract<PagePerson, { kind: 'role' }>;
 
@@ -108,14 +110,43 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
   const stick = useRef(true);
 
   /*
-     WER HIER SCHREIBT: die oben gewählte Person, wenn sie darf; sonst die
-     erste eigene Rolle, die es darf. Welche das sind, sagt der Dienst
-     (`writers`) — er kennt die Rechte im Bereich.
+     WER HIER SCHREIBT — und das steht über dem Feld, samt Wahl, wenn es mehr
+     als eine gibt. Bisher wählte die Seite still: die oben gewählte Person,
+     sonst irgendeine eigene Rolle, die schreiben darf. Wer dann als „Rada"
+     statt als er selbst schrieb, erfuhr es erst aus der Antwort — und im
+     Vollbild sieht man die Wahl oben gar nicht.
+
+     Wer schreiben darf, sagt der Dienst (`writers`); wofür ich unterschreiben
+     kann, der Schlüsselbund. Eine Wahl HIER merkt sich die Rozmowa —
+     versiegelt, je Rozmowa, im Arbeitsplatz und auf der Seite dieselbe
+     (`chat.as.<id>`); ohne sie gilt die oben gewählte Person.
   */
-  const speaker = chat == null ? null
-    : chat.writers.find((id) => id === asRoleId && ring.maySign(id))
-      ?? chat.writers.find((id) => ring.maySign(id))
-      ?? null;
+  const person = usePerson();
+  const [picked, pick] = useRemembered(`chat.as.${chatId}`, '');
+  const [own, setOwn] = useState<ReadonlyMap<string, string>>(new Map());
+
+  useEffect(() => {
+    let alive = true;
+    void whoIsThere()
+      .then((who) => (who === null ? new Map<string, string>() : myRoleNames(who)))
+      .then((found) => { if (alive) setOwn(found); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+
+  const persons = new Map((person?.options ?? [])
+    .filter((one): one is RolePerson => one.kind === 'role')
+    .map((one) => [one.id, one.name] as const));
+
+  /* Wie mich die Gruppe sieht: der Name, den sie von mir kennt; sonst der meiner Person oder Rolle. */
+  const nameOf = (id: string): string | null => names.get(id) ?? persons.get(id) ?? own.get(id) ?? null;
+
+  const speakers = chat == null ? [] : chat.writers.filter((id) => ring.maySign(id));
+  const speaker = (speakers.includes(picked) ? picked : null)
+    ?? (speakers.includes(asRoleId) ? asRoleId : null)
+    ?? speakers.find((id) => persons.has(id))
+    ?? speakers[0]
+    ?? null;
 
   const look = useCallback(async (fresh = false) => {
     try {
@@ -207,7 +238,7 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
     setFailed(null);
     try {
       /* Der Name reist in der Nachricht mit — für die, die die Namen des Bereichs nicht lesen (0053). */
-      const name = names.get(speaker) ?? null;
+      const name = nameOf(speaker);
       const done = await sendMessage(ring, chatId, talk, speaker, body, name);
       stick.current = true;
       setShown((was) => [...was, {
@@ -290,6 +321,13 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
         <p className="wk-hint wk-chat-compose">W tej rozmowie tylko czytasz.</p>
       ) : (
         <form className="wk-chat-compose" onSubmit={(e) => { e.preventDefault(); void send(); }}>
+          <SpeakingAs
+            speakers={speakers}
+            speaker={speaker}
+            nameOf={nameOf}
+            onPick={pick}
+            asked={speaker !== asRoleId && !speakers.includes(asRoleId) && persons.has(asRoleId) ? persons.get(asRoleId)! : null}
+          />
           <div className="wk-chat-compose-row">
             <textarea
               value={text}
@@ -307,6 +345,40 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
         </form>
       )}
     </div>
+  );
+}
+
+/**
+ * „PISZESZ JAKO …" — über dem Feld, in der Rozmowa des Arbeitsplatzes und auf
+ * der Seite gleich. Mit einer Wahl, wenn ich hier als mehr als eine meiner
+ * Rollen schreiben darf; der Name ist der, den die anderen an der Nachricht sehen.
+ *
+ * `asked`: die oben gewählte Person, wenn SIE hier nicht schreiben darf — damit
+ * niemand glaubt, er schreibe als sie.
+ */
+export function SpeakingAs({ speakers, speaker, nameOf, onPick, asked = null }: {
+  speakers: readonly string[];
+  speaker: string;
+  nameOf: (id: string) => string | null;
+  onPick: (id: string) => void;
+  asked?: string | null;
+}) {
+  const label = (id: string) => nameOf(id) ?? `rola ${id.slice(0, 8)}`;
+
+  return (
+    <p className="wk-hint wk-chat-as">
+      {speakers.length > 1 ? (
+        <label>
+          Piszesz jako{' '}
+          <select value={speaker} aria-label="Piszesz jako" onChange={(e) => onPick(e.target.value)}>
+            {speakers.map((id) => <option key={id} value={id}>{label(id)}</option>)}
+          </select>
+        </label>
+      ) : (
+        <>Piszesz jako <strong>{label(speaker)}</strong></>
+      )}
+      {asked !== null && <span className="wk-chat-as-note"> · {asked} nie pisze w tej grupie</span>}
+    </p>
   );
 }
 

@@ -1,6 +1,6 @@
 /**
- * DAS MENÜ EINER SEITE (0054) — die Browserseite: wohin ein Eintrag führt,
- * und das Speichern.
+ * DAS MENÜ EINER SEITE (0054, 0056) — die Browserseite: wohin ein Eintrag
+ * führt, und das Speichern.
  *
  * <code>
  *   abs   ein Pfad im Register — „parish/grzegorzki/oaza"
@@ -10,36 +10,21 @@
  * </code>
  *
  * <b>Relativ zur Seite, die das Menü trägt</b>, nicht zu der, auf der man
- * steht: das Menü gilt auch für alle Seiten darunter, und „oaza" soll dort
- * dasselbe bleiben, statt mit jedem Schritt tiefer zu wandern.
+ * steht: das Menü gilt auch für alle Seiten darunter — und seit 0056 für jede
+ * Seite, die es sich holt. „oaza" soll überall dasselbe bleiben, statt mit
+ * jedem Ort mitzuwandern.
+ *
+ * <b>Das Rechnen mit Pfaden steht in `menuPath.ts`</b> und wird dort gemessen;
+ * hier bleibt, was den Dienst und das Adressfeld des Browsers braucht.
  */
 
+import { hereIn, joinPath, registryPath, under, type Spot } from './menuPath';
 import type { MenuItem } from './page';
 import { pagePath } from './routes';
 import { call } from './session';
 
-export type { MenuItem };
-
-/**
- * Wohin ein relativer Pfad von `from` aus führt — „.." geht eine Seite
- * hinauf, „." bleibt. Über die Wurzel hinaus geht es nicht.
- */
-export function joinPath(from: string, target: string): string {
-  const steps = from.split('/').filter((one) => one !== '');
-  for (const step of target.split('/').filter((one) => one !== '')) {
-    if (step === '.') continue;
-    if (step === '..') steps.pop();
-    else steps.push(step.toLowerCase());
-  }
-  return steps.join('/');
-}
-
-/** Der Pfad im Register, auf den ein Eintrag zeigt — oder `null` (draussen, oder nur ein Dach). */
-export function registryPath(item: MenuItem, from: string): string | null {
-  if (item.kind === 'abs') return item.target.replace(/^\/+|\/+$/g, '');
-  if (item.kind === 'rel') return joinPath(from, item.target);
-  return null;
-}
+export type { MenuItem, Spot };
+export { hereIn, joinPath, registryPath, under };
 
 /** Die Adresse, auf die ein Eintrag verweist — `null`, wenn er nur Untereinträge trägt. */
 export function hrefOf(item: MenuItem, from: string): string | null {
@@ -49,16 +34,31 @@ export function hrefOf(item: MenuItem, from: string): string | null {
   return path === '' ? '#/' : pagePath(path);
 }
 
-/** Führt ein Eintrag (oder einer darunter) auf diese Seite? Dann ist er „hier". */
-export function leadsTo(item: MenuItem, from: string, here: string): boolean {
-  return registryPath(item, from) === here || item.children.some((child) => leadsTo(child, from, here));
+/**
+ * Was der Editor über das Menü einer Seite wissen muss.
+ *
+ * <code>
+ *   items      ihr EIGENES Menü — oder nichts
+ *   uses       das Menü, das sie sich von einer anderen Seite holt (0056);
+ *              `items` darin fehlt, wenn jene inzwischen keines mehr hat
+ *   inherited  was ohne beides von oben gälte
+ *   usable     die Seiten mit eigenem Menü, die dieses Konto führt
+ * </code>
+ */
+export interface MenuState {
+  readonly path: string;
+  readonly items: readonly MenuItem[] | null;
+  readonly uses: { readonly from: string; readonly items: readonly MenuItem[] | null } | null;
+  readonly inherited: { readonly from: string; readonly items: readonly MenuItem[] } | null;
+  readonly usable: readonly { readonly path: string; readonly items: number }[];
 }
 
-export const loadMenu = (path: string): Promise<{
-  path: string;
-  items: readonly MenuItem[] | null;
-  inherited: { from: string; items: readonly MenuItem[] } | null;
-}> => call(`/workspace/menu?path=${encodeURIComponent(path)}`);
+export const loadMenu = (path: string): Promise<MenuState> =>
+  call(`/workspace/menu?path=${encodeURIComponent(path)}`);
 
 export const saveMenu = (path: string, items: readonly MenuItem[]): Promise<{ items: number }> =>
   call('/workspace/menu', { method: 'POST', body: JSON.stringify({ path, items }) });
+
+/** Das Menü einer anderen Seite hier gelten lassen — leer: den Verweis lösen. */
+export const useMenuOf = (path: string, from: string): Promise<{ items: number }> =>
+  call('/workspace/menu', { method: 'POST', body: JSON.stringify({ path, items: [], uses: from }) });

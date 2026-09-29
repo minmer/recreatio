@@ -40,6 +40,13 @@ export interface PagePart {
 export interface PageContent {
   readonly path: string;
 
+  /**
+   * Der Pfad, für den diese Seite nur ein zweiter Name ist (0014) — sonst
+   * nichts. Menü und Karte gelten für den ECHTEN Pfad; wer hier den
+   * Zweitnamen nähme, sähe im Menü keinen Eintrag hervorgehoben.
+   */
+  readonly aliasOf?: string | null;
+
   /** `null` heisst: die Adresse ist übernommen, aber noch nichts geschrieben. */
   readonly title: string | null;
   readonly lead: string | null;

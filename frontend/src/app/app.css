@@ -2519,6 +2519,22 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 @media (hover: none) { .wk-msg-drop { visibility: visible; } }
 
 .wk-chat-compose { display: grid; gap: 0.35rem; }
+
+/* „Piszesz jako …" über dem Feld (0054). */
+.wk-chat-as { margin: 0; }
+.wk-chat-as strong { color: var(--wk-ink); }
+.wk-chat-as select {
+  font: inherit;
+  font-weight: 600;
+  margin-left: 0.2rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+}
+.wk-chat-as select:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-chat-as-note { color: var(--wk-danger); }
 .wk-chat-compose-row { display: flex; gap: 0.5rem; align-items: flex-end; }
 .wk-chat-compose-row textarea { flex: 1 1 auto; min-width: 0; padding: 0.5rem 0.6rem; font: inherit; resize: vertical; }
 .wk-chat-settings { gap: 0.7rem; }
@@ -3045,6 +3061,16 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 
 .wk-menued-fold { margin: 0.4rem 0 1rem; }
 .wk-menued { display: grid; gap: 0.6rem; margin-top: 0.6rem; }
+/* Woher das Menue kommt — abgesetzt, weil es vor dem Inhalt kommt (0056). */
+.wk-menued-source {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  border-left: 3px solid var(--wk-line);
+  background: var(--wk-soft);
+  border-radius: 4px;
+}
+.wk-menued-source > .wk-note, .wk-menued-source > .wk-hint { margin: 0; }
 .wk-menued-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
 .wk-menued-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; }
 .wk-menued-label { flex: 1 1 10rem; min-width: 0; }

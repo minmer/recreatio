@@ -8,11 +8,21 @@
  *
  * <b>Hat die Seite kein eigenes Menü, gilt das der nächsten darüber</b>; das
  * steht hier, samt dem Weg, es zu übernehmen und abzuwandeln.
+ *
+ * <b>Oder sie HOLT sich eines (0056).</b> „Das Menü der Pfarrei gilt auch
+ * hier" — dann steht dieselbe Leiste auf beiden Seiten, und wer einen
+ * Eintrag hinzufügt, fügt ihn für beide hinzu. Das ist nicht dasselbe wie
+ * „von oben": es geht quer durch das Register, zwischen Seiten, die nichts
+ * übereinander wissen müssen.
+ *
+ * <b>Drei Zustände, und die Seite ist immer genau in einem:</b> eigenes Menü,
+ * geholtes Menü, keines (dann gilt das von oben). Deshalb steht oben, WOHER
+ * das Menü kommt, bevor darunter steht, was darin ist.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { hrefOf, joinPath, loadMenu, saveMenu, type MenuItem } from './menu';
+import { hrefOf, joinPath, loadMenu, saveMenu, useMenuOf, type MenuItem } from './menu';
 import { WorkspaceError } from './session';
 
 interface Draft {
@@ -71,6 +81,8 @@ const KINDS: readonly { value: MenuItem['kind']; label: string; hint: string }[]
 export function MenuEditor({ path }: { path: string }) {
   const [items, setItems] = useState<Draft[] | null>(null);
   const [own, setOwn] = useState(false);
+  const [uses, setUses] = useState<{ from: string; items: readonly MenuItem[] | null } | null>(null);
+  const [usable, setUsable] = useState<readonly { path: string; items: number }[]>([]);
   const [inherited, setInherited] = useState<{ from: string; items: readonly MenuItem[] } | null>(null);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -82,6 +94,8 @@ export function MenuEditor({ path }: { path: string }) {
       const found = await loadMenu(path);
       setOwn(found.items !== null);
       setItems(toDraft(found.items ?? []));
+      setUses(found.uses);
+      setUsable(found.usable);
       setInherited(found.inherited);
       setDirty(false);
       setFailed(null);
@@ -106,6 +120,35 @@ export function MenuEditor({ path }: { path: string }) {
       setSaved(true);
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać menu.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /* Das Menü einer anderen Seite hier gelten lassen — ein Verweis, keine Kopie. */
+  const take = async (from: string) => {
+    setBusy(true);
+    setFailed(null);
+    try {
+      await useMenuOf(path, from);
+      await look();
+      setSaved(true);
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wziąć tego menu.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /* Den Verweis lösen: die Seite hat wieder keines, und es gilt das von oben. */
+  const release = async () => {
+    setBusy(true);
+    setFailed(null);
+    try {
+      await saveMenu(path, []);
+      await look();
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się odłączyć menu.');
     } finally {
       setBusy(false);
     }
@@ -172,11 +215,67 @@ export function MenuEditor({ path }: { path: string }) {
 
   return (
     <section className="wk-menued">
-      {!own && items.length === 0 && (
+      {uses !== null ? (
+        <div className="wk-menued-source">
+          <p className="wk-note">
+            To menu jest ze strony <code>{uses.from}</code>
+            {uses.items === null
+              ? <> — a tamta strona nie ma już własnego menu, więc tutaj nie pokazuje się nic.</>
+              : <> ({uses.items.length} poz.). Zmiany tam pokazują się także tutaj.</>}
+          </p>
+
+          {uses.items !== null && (
+            <p className="wk-hint">
+              {uses.items.map((one) => one.label).join(' · ')}
+            </p>
+          )}
+
+          <div className="wk-actions">
+            {uses.items !== null && (
+              <button type="button" className="wk-link-btn" disabled={busy}
+                onClick={() => change(toDraft(absolutise(uses.items!, uses.from)))}>
+                Skopiuj je tutaj i zmień
+              </button>
+            )}
+            <button type="button" className="wk-link-btn wk-danger" disabled={busy} onClick={() => void release()}>
+              Odłącz
+            </button>
+          </div>
+        </div>
+      ) : !own && items.length === 0 ? (
+        <div className="wk-menued-source">
+          <p className="wk-hint">
+            {inherited === null
+              ? 'Ta strona nie ma menu. Dodaj pozycje — menu pokaże się nad nią i nad wszystkimi stronami pod nią.'
+              : <>Ta strona pokazuje menu strony <code>{inherited.from}</code> ({inherited.items.length} poz.). Własne menu je zastąpi — tutaj i niżej.</>}
+          </p>
+
+          {/* Ein Menü, das es schon gibt, statt eines zweiten daneben. */}
+          {usable.length > 0 && (
+            <label className="wk-field">
+              <span>Albo weź menu z innej swojej strony</span>
+              <select value="" disabled={busy} onChange={(e) => { if (e.target.value !== '') void take(e.target.value); }}>
+                <option value="">— wybierz stronę —</option>
+                {usable.map((one) => (
+                  <option key={one.path} value={one.path}>{one.path} ({one.items} poz.)</option>
+                ))}
+              </select>
+              <span className="wk-hint">
+                Ta sama belka na obu stronach: co dopiszesz tam, pojawi się i tutaj. Ścieżki względne liczą się
+                dalej od tamtej strony.
+              </span>
+            </label>
+          )}
+        </div>
+      ) : (
+        /*
+           Ein eigenes Menü: hier steht, dass es sich teilen lässt. Sonst wüsste
+           niemand davon — die Auswahl steht auf der ANDEREN Seite, und wer
+           dieses Menü gebaut hat, kommt dort nie vorbei.
+        */
         <p className="wk-hint">
-          {inherited === null
-            ? 'Ta strona nie ma menu. Dodaj pozycje — menu pokaże się nad nią i nad wszystkimi stronami pod nią.'
-            : <>Ta strona pokazuje menu strony <code>{inherited.from}</code> ({inherited.items.length} poz.). Własne menu je zastąpi — tutaj i niżej.</>}
+          To menu może pokazywać także inna Twoja strona — wybiera je u siebie, w swoim edytorze menu.
+          Żeby zamiast tego wziąć menu skądinąd, usuń najpierw to.
         </p>
       )}
 
@@ -184,7 +283,8 @@ export function MenuEditor({ path }: { path: string }) {
 
       <p className="wk-hint">
         Ścieżka względna liczy się od tej strony (<code>{path}</code>): „oaza" to <code>{path}/oaza</code>, „../" to strona wyżej.
-        Menu obowiązuje też na stronach pod tą, dopóki któraś nie ma własnego.
+        Menu obowiązuje też na stronach pod tą, dopóki któraś nie ma własnego — a inne Twoje strony mogą je u siebie
+        wybrać, wtedy wszystkie pokazują to samo.
       </p>
 
       {failed !== null && <p className="wk-error">{failed}</p>}

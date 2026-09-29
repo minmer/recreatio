@@ -28,8 +28,10 @@ import {
 } from './chat';
 import type { Ring, SealedRole } from './keys';
 import { keysFor } from './ringOf';
+import { useRemembered } from './prefs';
 import { myRoleNames } from './roleNames';
 import { viewPath } from './routes';
+import { SpeakingAs } from './PageChatView';
 import { WorkspaceError, type Who } from './session';
 
 /* -- Gemeinsam ----------------------------------------------------------------- */
@@ -747,7 +749,10 @@ function Composer({ me, chat, keys, names, onSent }: {
   onSent: (message: SealedMessage, opened: Opened) => void;
 }) {
   const speakers = useMemo(() => chat.writers.filter((id) => me.ring.maySign(id)), [chat.writers, me.ring]);
-  const [as, setAs] = useState(speakers.find((id) => me.roles.find((r) => r.id === id)?.kind === 'person') ?? speakers[0] ?? '');
+  /* Als wen zuletzt — dieselbe Wahl wie auf der Seite (`chat.as.<id>`); sonst die eigene Person. */
+  const [picked, setAs] = useRemembered(`chat.as.${chat.chatId}`, '');
+  const as = speakers.includes(picked) ? picked
+    : speakers.find((id) => me.roles.find((r) => r.id === id)?.kind === 'person') ?? speakers[0] ?? '';
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -779,14 +784,7 @@ function Composer({ me, chat, keys, names, onSent }: {
 
   return (
     <form className="wk-chat-compose" onSubmit={(e) => { e.preventDefault(); void send(); }}>
-      {speakers.length > 1 && (
-        <label className="wk-inline">
-          <span className="wk-hint">Jako</span>
-          <select value={as} onChange={(e) => setAs(e.target.value)} aria-label="Piszesz jako">
-            {speakers.map((id) => <option key={id} value={id}>{me.names.get(id) ?? shortId(id)}</option>)}
-          </select>
-        </label>
-      )}
+      <SpeakingAs speakers={speakers} speaker={as} nameOf={(id) => names.get(id) ?? me.names.get(id) ?? null} onPick={setAs} />
       <div className="wk-chat-compose-row">
         <textarea
           value={text}
