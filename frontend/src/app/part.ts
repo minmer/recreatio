@@ -121,8 +121,14 @@ export interface PartContext {
  * wählt dessen Fragen — welches Formular, steht im Feld, das `of` nennt.
  * Gespeichert wird `*` (alle, auch später hinzugefügte) oder die Kennungen,
  * durch Kommas getrennt.
+ *
+ * `chat` wählt eine Rozmowa einer Gruppe — dieselbe Überlegung wie bei
+ * `calendar`: eine Kennung tippt niemand ab, also steht dort der Name der
+ * Gruppe. Gewählt wird im Editor UND im Bausteinverwalter; beide zeichnen
+ * dieselben Felder, und eine Art, die nur einer von beiden kennt, ist ein
+ * Feld, das an der anderen Stelle zum Textkasten wird.
  */
-export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'calendar';
+export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'calendar' | 'chat';
 
 export interface FieldDef {
   readonly key: string;

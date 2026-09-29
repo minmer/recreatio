@@ -18,12 +18,11 @@ import { WorkspaceError } from './session';
 import { archiveTask, saveTask, type OpenTask, type TaskKind } from './tasks';
 import { bitOf, fromLocal, localDate, localTime, PRIVATE, Weekdays, WhoSees } from './WhoSees';
 
-const WINDOWS: readonly { minutes: number; label: string }[] = [
-  { minutes: 0, label: 'chwila' }, { minutes: 5, label: '5 min' }, { minutes: 10, label: '10 min' },
-  { minutes: 15, label: '15 min' }, { minutes: 30, label: '30 min' }, { minutes: 60, label: '1 godz.' },
-  { minutes: 120, label: '2 godz.' }, { minutes: 240, label: '4 godz.' }, { minutes: 720, label: '12 godz.' },
-  { minutes: 1440, label: 'cały dzień' }
-];
+/** Das Ende eines Fensters, aus Anfang und Länge — nur für das erste Anzeigen. */
+const endOf = (from: Date, minutes: number): Date => new Date(from.getTime() + Math.max(0, minutes) * 60_000);
+
+/** Ein Jahr; darüber ist es kein Fenster mehr, sondern ein Vorsatz (0055). */
+const MAX_WINDOW_MINUTES = 366 * 24 * 60;
 
 const UNITS: readonly { minutes: number; label: string }[] = [
   { minutes: 60, label: 'godzin' }, { minutes: 1440, label: 'dni' }, { minutes: 10080, label: 'tygodni' }
@@ -61,7 +60,17 @@ export function TaskDialog({ me, areas, task, at, onClose, onSaved }: {
   const [who, setWho] = useState(task?.areaId ?? personal?.areaId ?? PRIVATE);
   const [date, setDate] = useState(localDate(start));
   const [time, setTime] = useState(localTime(start));
-  const [windowMinutes, setWindowMinutes] = useState(task?.windowMinutes ?? 15);
+  /*
+     Anfang UND Ende, beide frei wählbar.
+  
+     Vorher gab es eine Liste fertiger Längen — fünf Minuten, eine Stunde, ein
+     ganzer Tag. Das reicht für ein Gebet um 21:00 und für nichts, was über
+     einen Tag hinausgeht: „zwischen dem 1. und dem 15. Oktober" liess sich
+     nicht sagen. Aus zwei Zeitpunkten ergibt sich die Länge von selbst, und
+     die Dringlichkeit weiss damit, worüber sie steigen soll.
+  */
+  const [endDate, setEndDate] = useState(localDate(endOf(start, task?.windowMinutes ?? 15)));
+  const [endTime, setEndTime] = useState(localTime(endOf(start, task?.windowMinutes ?? 15)));
   const [repeat, setRepeat] = useState<RepeatKind>(task?.repeatKind ?? 'daily');
   const [weekdays, setWeekdays] = useState(task?.repeatWeekdays ?? bitOf(start));
   const [amount, setAmount] = useState(every.amount);
@@ -83,8 +92,33 @@ export function TaskDialog({ me, areas, task, at, onClose, onSaved }: {
     }
   };
 
+  const startsAt = fromLocal(date, time);
+  const endsAt = fromLocal(endDate, endTime);
+  const windowMinutes = Math.max(0, Math.round((endsAt.getTime() - startsAt.getTime()) / 60_000));
+
+  /*
+     Verschiebt man den Anfang, wandert das Ende mit und das Fenster behält
+     seine Länge. Sonst stünde nach jedem Umstellen des Tages „Koniec wypada
+     przed początkiem" — und der Mensch müsste zwei Felder pflegen, wo er eines
+     gemeint hat.
+  */
+  const moveStart = (nextDate: string, nextTime: string) => {
+    const span = Math.max(0, endsAt.getTime() - startsAt.getTime());
+    const shifted = new Date(fromLocal(nextDate, nextTime).getTime() + span);
+    setDate(nextDate);
+    setTime(nextTime);
+    setEndDate(localDate(shifted));
+    setEndTime(localTime(shifted));
+  };
+
   const save = () => run(async () => {
     if (title.trim() === '') throw new WorkspaceError('Nazwij zadanie.');
+    if (kind === 'window' && endsAt.getTime() < startsAt.getTime()) {
+      throw new WorkspaceError('Koniec wypada przed początkiem.');
+    }
+    if (kind === 'window' && windowMinutes > MAX_WINDOW_MINUTES) {
+      throw new WorkspaceError('Okno dłuższe niż rok — to już nie termin, tylko postanowienie.');
+    }
     const areaId = who === PRIVATE ? await ensurePrivateArea(me.ring, me.person, areas) : who;
     if (who !== PRIVATE && areas.find((a) => a.areaId === who)?.personal !== true) recent.touch(who);
 
@@ -123,17 +157,19 @@ export function TaskDialog({ me, areas, task, at, onClose, onSaved }: {
             <div className="wk-ev-when-row">
               <label className="wk-field">
                 <span>Od dnia</span>
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                <input type="date" value={date} onChange={(e) => moveStart(e.target.value, time)} />
               </label>
               <label className="wk-field">
                 <span>o godz.</span>
-                <input type="time" value={time} step={300} onChange={(e) => setTime(e.target.value)} />
+                <input type="time" value={time} step={300} onChange={(e) => moveStart(date, e.target.value)} />
               </label>
               <label className="wk-field">
-                <span>przez</span>
-                <select value={windowMinutes} onChange={(e) => setWindowMinutes(Number(e.target.value))}>
-                  {WINDOWS.map((one) => <option key={one.minutes} value={one.minutes}>{one.label}</option>)}
-                </select>
+                <span>Do dnia</span>
+                <input type="date" value={endDate} min={date} onChange={(e) => setEndDate(e.target.value)} />
+              </label>
+              <label className="wk-field">
+                <span>o godz.</span>
+                <input type="time" value={endTime} step={300} onChange={(e) => setEndTime(e.target.value)} />
               </label>
               <label className="wk-field">
                 <span>Jak często</span>

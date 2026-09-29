@@ -17,6 +17,7 @@
 
 import type { PartModule } from '../part';
 
+import { chatPart } from './chat';
 import { contactPart } from './contact';
 import { hoursPart } from './hours';
 import { linksPart } from './links';
@@ -37,6 +38,7 @@ export const PARTS: readonly PartModule[] = [
   massesPart,
   formPart,
   slotsPart,
+  chatPart,
 
   /* Was nur hinter einem persönlichen Link etwas zeigt (0028). */
   seatSubmissionPart,

@@ -818,8 +818,13 @@ code {
 .wk-card[data-w='wide'] .wk-slot-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .wk-card[data-w='full'] .wk-slot-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
-/* Rozmowa grupy: hoch mit längerem Verlauf. */
-.wk-card[data-h='tall'] .wk-seat-chat-room .wk-chat-log { height: min(70vh, 38rem); }
+/* Rozmowa: hoch mit längerem Verlauf — beide Bausteine, derselbe Verlauf. */
+.wk-card[data-h='tall'] .wk-seat-chat-room .wk-chat-log,
+.wk-card[data-h='tall'] .wk-page-chat-room .wk-chat-log { height: min(70vh, 38rem); }
+
+/* Im ganzen Fenster darf sie so hoch sein, wie das Fenster ist. */
+.wk-full-body .wk-seat-chat-room .wk-chat-log,
+.wk-full-body .wk-page-chat-room .wk-chat-log { height: min(72vh, 46rem); }
 
 /* -- Der Messplan auf der Seite -------------------------------------------
    Dieselbe Ordnung wie auf dem gedruckten Bogen (`sheet.ts`): die Uhrzeit in
@@ -2518,7 +2523,8 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-chat-compose-row textarea { flex: 1 1 auto; min-width: 0; padding: 0.5rem 0.6rem; font: inherit; resize: vertical; }
 .wk-chat-settings { gap: 0.7rem; }
 .wk-msg-link { font-weight: 400; }
-.wk-seat-chat-room .wk-chat-log { height: min(50vh, 26rem); }
+.wk-seat-chat-room .wk-chat-log,
+.wk-page-chat-room .wk-chat-log { height: min(50vh, 26rem); }
 .wk-seat-chat { display: grid; gap: 0.4rem; }
 
 
@@ -2902,8 +2908,25 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-task-badge { flex: none; font-size: 0.78rem; font-weight: 700; color: var(--wk-muted); white-space: nowrap; }
 .wk-task-badge.is-open { color: var(--wk-accent); }
 .wk-task-badge.is-missed { color: var(--wk-danger); }
+.wk-task-badge.is-skipped { color: var(--wk-muted); }
+.wk-task.is-skipped { opacity: 0.7; }
+.wk-task.is-skipped .wk-task-title { text-decoration: line-through; text-decoration-style: dotted; }
+.wk-task-skip { flex: none; font-size: 0.8rem; color: var(--wk-muted); }
+.wk-task-skip:hover { color: var(--wk-accent); }
+.wk-task-skip:disabled { cursor: default; opacity: 0.5; }
 .wk-task-meter { display: block; height: 0.35rem; border-radius: 999px; background: var(--wk-soft); overflow: hidden; margin-top: 0.2rem; }
-.wk-task-fill { display: block; height: 100%; border-radius: 999px; background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); }
+.wk-task-fill { display: block; height: 100%; border-radius: 999px; background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); transition: width 0.3s linear; }
+
+/*
+   Die Dringlichkeit als Farbe: je naeher das Ende, desto lauter. „late" und
+   „overdue" sehen gleich rot aus — der Balken ist dann ohnehin voll, und um
+   wie viel es zu spaet ist, steht im Abzeichen daneben.
+*/
+.wk-task-fill.is-later { background: var(--wk-muted); }
+.wk-task-fill.is-soon { background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); }
+.wk-task-fill.is-due { background: var(--wk-accent); }
+.wk-task-fill.is-late, .wk-task-fill.is-overdue { background: var(--wk-danger); }
+.wk-task.is-urge-overdue { border-left-color: var(--wk-danger); }
 .wk-task.is-late .wk-task-fill { background: var(--wk-danger); }
 
 @media (max-width: 640px) {

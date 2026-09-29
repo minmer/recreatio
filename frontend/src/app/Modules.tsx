@@ -37,6 +37,7 @@ import {
 } from './module';
 import { setPartConfig } from './form';
 import { PARTS, partLabel, partOf, takesEntries } from './parts/registry';
+import { PickChat } from './PickChat';
 import { PickForm, PickQuestions, pickedForm } from './FormPick';
 import { PickResource } from './PickResource';
 import { viewPath } from './routes';
@@ -382,7 +383,9 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
       {def.fields.map((field) => {
         const value = config[field.key] ?? '';
 
-        const input = field.kind === 'resource' ? (
+        const input = field.kind === 'chat' ? (
+          <PickChat value={value} busy={busy} onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }} />
+        ) : field.kind === 'resource' ? (
           <PickResource
             value={value}
             busy={busy}

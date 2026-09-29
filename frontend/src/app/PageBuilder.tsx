@@ -37,6 +37,7 @@ import { PARTS, partLabel, partOf } from './parts/registry';
 import { PickModule } from './PickModule';
 import { PickForm, PickQuestions, pickedForm } from './FormPick';
 import { PickCalendar } from './PickCalendar';
+import { PickChat } from './PickChat';
 import { PickResource } from './PickResource';
 import type { DraftPart } from './page';
 
@@ -575,6 +576,8 @@ function Fields({ part, size, busy, onSet }: {
 
             {field.kind === 'calendar' ? (
               <PickCalendar value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
+            ) : field.kind === 'chat' ? (
+              <PickChat value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'resource' ? (
               <PickResource value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'form' ? (

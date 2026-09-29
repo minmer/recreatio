@@ -42,6 +42,7 @@ public static class Tasks
         app.MapPost("/workspace/task/{id:guid}", UpdateAsync);
         app.MapPost("/workspace/task/{id:guid}/archive", ArchiveAsync);
         app.MapPost("/workspace/task/{id:guid}/done", DoneAsync);
+        app.MapPost("/workspace/task/{id:guid}/skip", SkipAsync);
         app.MapPost("/workspace/task/{id:guid}/undone", UndoneAsync);
     }
 
@@ -331,12 +332,12 @@ public static class Tasks
         }
 
         /* Was erledigt wurde — im Zeitraum (und für `after` das jeweils letzte, gleich wann). */
-        var done = new Dictionary<Guid, List<(DateTimeOffset At, DateTimeOffset DoneAt, Guid By)>>();
+        var done = new Dictionary<Guid, List<(DateTimeOffset At, DateTimeOffset DoneAt, Guid By, string State)>>();
         if (tasks.Count > 0)
         {
             var names = string.Join(", ", tasks.Select((_, i) => $"@t{i}"));
             await using var cmd = new SqlCommand($"""
-                SELECT d.task_id, d.occurrence_at, d.done_at, d.done_by_role_id
+                SELECT d.task_id, d.occurrence_at, d.done_at, d.done_by_role_id, d.state
                 FROM app.task_done d
                 WHERE d.task_id IN ({names})
                   AND (d.occurrence_at BETWEEN @from AND @to
@@ -352,7 +353,7 @@ public static class Tasks
             {
                 var task = reader.GetGuid(0);
                 if (!done.TryGetValue(task, out var list)) done[task] = list = [];
-                list.Add((reader.GetDateTimeOffset(1), reader.GetDateTimeOffset(2), reader.GetGuid(3)));
+                list.Add((reader.GetDateTimeOffset(1), reader.GetDateTimeOffset(2), reader.GetGuid(3), reader.GetString(4)));
             }
         }
 
@@ -366,7 +367,17 @@ public static class Tasks
             tasks = tasks.Select(task =>
             {
                 var mine = done.TryGetValue(task.Id, out var list) ? list : [];
-                var last = mine.Count == 0 ? ((DateTimeOffset At, DateTimeOffset DoneAt, Guid By)?)null : mine.MaxBy(d => d.At);
+
+                /*
+                    Zwei „zuletzt": das letzte ERLEDIGEN steht in der Geschichte
+                    und zählt als getan; die letzte ENTSCHEIDUNG — erledigt oder
+                    abgesagt — stellt die Uhr. Wer „dieses Mal nicht" sagt, hat
+                    die Blumen nicht gegossen, soll aber auch nicht in zehn
+                    Minuten wieder gefragt werden.
+                */
+                var settled = mine.Count == 0 ? ((DateTimeOffset At, DateTimeOffset DoneAt, Guid By, string State)?)null : mine.MaxBy(d => d.At);
+                var doneOnes = mine.Where(d => d.State == "done").ToList();
+                var last = doneOnes.Count == 0 ? ((DateTimeOffset At, DateTimeOffset DoneAt, Guid By, string State)?)null : doneOnes.MaxBy(d => d.At);
 
                 return new
                 {
@@ -393,12 +404,17 @@ public static class Tasks
                         .Select(at =>
                         {
                             var hit = mine.FirstOrDefault(d => d.At == at);
+                            var settledHere = hit != default;
+                            var skipped = settledHere && hit.State == "skipped";
+
                             return new
                             {
                                 at,
                                 endsAt = at.AddMinutes(task.WindowMinutes),
-                                doneAt = hit == default ? (DateTimeOffset?)null : hit.DoneAt,
-                                doneBy = hit == default ? null : Ids.ToText(hit.By)
+                                doneAt = settledHere && !skipped ? hit.DoneAt : (DateTimeOffset?)null,
+                                doneBy = settledHere && !skipped ? Ids.ToText(hit.By) : null,
+                                skippedAt = skipped ? hit.DoneAt : (DateTimeOffset?)null,
+                                skippedBy = skipped ? Ids.ToText(hit.By) : null
                             };
                         }).ToList(),
 
@@ -406,9 +422,17 @@ public static class Tasks
                     lastDoneAt = last?.DoneAt,
                     lastDoneBy = last is null ? null : Ids.ToText(last.Value.By),
                     dueAt = task.Kind != "after" ? (DateTimeOffset?)null
-                        : last is null ? task.StartsAt
-                        : last.Value.DoneAt.AddMinutes(task.EveryMinutes ?? 0),
-                    history = (task.Kind == "after" ? mine : new List<(DateTimeOffset At, DateTimeOffset DoneAt, Guid By)>()).OrderByDescending(d => d.At).Take(10)
+                        : settled is null ? task.StartsAt
+                        : settled.Value.DoneAt.AddMinutes(task.EveryMinutes ?? 0),
+                    skippedAt = task.Kind == "after" && settled is not null && settled.Value.State == "skipped" ? settled.Value.DoneAt : (DateTimeOffset?)null,
+
+                    /*
+                        Der NAME der letzten Entscheidung, nicht ihr Augenblick:
+                        wer sich umentscheidet, behaelt das Vorkommen und bekommt
+                        ein neues done_at. Zum Zuruecknehmen zaehlt der Name.
+                    */
+                    lastSettledAt = task.Kind == "after" ? settled?.At : (DateTimeOffset?)null,
+                    history = (task.Kind == "after" ? doneOnes : new List<(DateTimeOffset At, DateTimeOffset DoneAt, Guid By, string State)>()).OrderByDescending(d => d.At).Take(10)
                         .Select(d => new { doneAt = d.DoneAt, doneBy = Ids.ToText(d.By) }).ToList()
                 };
             })
@@ -422,7 +446,29 @@ public static class Tasks
     /// der Reihe wirklich gibt; bei <c>after</c> jetzt, und die Uhr beginnt neu.
     /// Wer im Bereich schreibt, darf es — und es steht dabei, wer.
     /// </summary>
-    private static async Task DoneAsync(HttpContext ctx, Db db, Guid id, DoneRequest body)
+    private static Task DoneAsync(HttpContext ctx, Db db, Guid id, DoneRequest body) =>
+        SettleAsync(ctx, db, id, body, "done");
+
+    /// <summary>
+    /// ABSAGEN — „dieses eine Mal nicht".
+    ///
+    /// <para>
+    /// Derselbe Vorgang wie das Abhaken, mit dem anderen Ausgang: das Vorkommen
+    /// ist entschieden und drängt nicht mehr, aber es behauptet niemand, es sei
+    /// getan. Es steht auch nicht in der Geschichte der Erledigungen — wer nach
+    /// einem Jahr nachsieht, wie oft die Blumen gegossen wurden, soll die Male
+    /// gezählt bekommen, an denen sie gegossen wurden.
+    /// </para>
+    ///
+    /// <para>
+    /// Bei <c>after</c> stellt es trotzdem die Uhr: sonst stünde die Aufgabe
+    /// zehn Minuten später wieder da und die Absage wäre keine.
+    /// </para>
+    /// </summary>
+    private static Task SkipAsync(HttpContext ctx, Db db, Guid id, DoneRequest body) =>
+        SettleAsync(ctx, db, id, body, "skipped");
+
+    private static async Task SettleAsync(HttpContext ctx, Db db, Guid id, DoneRequest body, string state)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
@@ -478,15 +524,25 @@ public static class Tasks
             at = now;
         }
 
+        /*
+            Umentscheiden geht: wer erst absagt und dann doch giesst, hakt ab,
+            und die Zeile nimmt den neuen Ausgang an. Nur das erste Mal legt sie
+            an — deshalb UPDATE statt eines zweiten Eintrags.
+        */
         await using var insert = new SqlCommand("""
+            UPDATE app.task_done
+               SET state = @state, done_at = @now, done_by_role_id = @by
+             WHERE task_id = @task AND occurrence_at = @at AND state <> @state;
+
             IF NOT EXISTS (SELECT 1 FROM app.task_done WHERE task_id = @task AND occurrence_at = @at)
-                INSERT INTO app.task_done (task_id, occurrence_at, done_at, done_by_role_id)
-                VALUES (@task, @at, @now, @by);
+                INSERT INTO app.task_done (task_id, occurrence_at, done_at, done_by_role_id, state)
+                VALUES (@task, @at, @now, @by, @state);
             """, connection);
         insert.Parameters.AddWithValue("@task", id);
         insert.Parameters.AddWithValue("@at", at);
         insert.Parameters.AddWithValue("@now", now);
         insert.Parameters.AddWithValue("@by", by);
+        insert.Parameters.AddWithValue("@state", state);
 
         try
         {
@@ -497,7 +553,7 @@ public static class Tasks
             // Zwei Fenster, ein Häkchen — es steht schon da.
         }
 
-        await ctx.Response.WriteAsJsonAsync(new { taskId = Ids.ToText(id), occurrenceAt = at, doneAt = now });
+        await ctx.Response.WriteAsJsonAsync(new { taskId = Ids.ToText(id), occurrenceAt = at, doneAt = now, state });
     }
 
     public sealed record UndoneRequest(string OccurrenceAt);

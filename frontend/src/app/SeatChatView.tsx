@@ -92,11 +92,21 @@ export function SeatChatSections({ seat, frame }: {
   );
 }
 
-/** Für den Baustein: die Rozmowa, oder dass es keine gibt. */
-export function SeatChatBody({ seat }: { seat: SeatView }) {
-  const { chats, identity, failed } = useSeatChats(seat);
+/**
+ * Für den Baustein: die Rozmowa, oder dass es keine gibt.
+ *
+ * <b>`only`</b> — der Baustein „Rozmowa" nennt EINE beim Namen; dann steht
+ * hier auch nur sie, und nicht jede Rozmowa, die dieser Platz sonst noch hat.
+ * Ohne `only` (der Baustein „Rozmowa grupy") stehen alle da wie bisher.
+ */
+export function SeatChatBody({ seat, only }: { seat: SeatView; only?: string }) {
+  const { chats: found, identity, failed } = useSeatChats(seat);
+  const chats = found === undefined || only === undefined ? found : found.filter((one) => one.row.chatId === only);
 
   if (chats === undefined) return <p className="wk-card-muted">Wczytywanie rozmowy…</p>;
+  if (chats.length === 0 && only !== undefined && (found?.length ?? 0) > 0) {
+    return <p className="wk-card-muted">Ta rozmowa nie należy do Twojej grupy — dla Ciebie nic tu nie ma.</p>;
+  }
   if (chats.length === 0) {
     return failed !== null
       ? <p className="wk-error">{failed}</p>
