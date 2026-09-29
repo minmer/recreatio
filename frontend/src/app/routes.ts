@@ -355,7 +355,15 @@ export const VIEWS = {
    * zuerst sucht, findet hier, woran er hängt.
    */
   areas: 'Obszary',
+
+  /*
+   * 0054 — DER EIGENE KALENDER: alles, was ich sehe, und meine eigenen
+   * Termine. Die Messen mit ihren Intentionen haben ihre eigene Kanzlei
+   * (`masses`) — dort tippt man Zettel ab, hier plant man seinen Tag.
+   */
   calendar: 'Kalendarz',
+  tasks: 'Zadania',
+  masses: 'Msze i intencje',
 
   /*
    * Was man sich für eine Zeit nehmen kann (0039) — das Treffen mit dem

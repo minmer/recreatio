@@ -332,6 +332,7 @@ export const seatChatPart = definePart<ChatConfig>({
   hasContent: () => true,
   /* Eine Rozmowa im Streifen wäre ein Guckloch — dort ein Knopf; sonst der Verlauf, hoch mit mehr davon. */
   strip: { title: 'Rozmowa grupy', open: 'Otwórz rozmowę' },
+  fullscreen: true,
   shows: (_config, size) => size.height === 'strip'
     ? 'Nagłówek i przycisk — rozmowa rozwija się po kliknięciu.'
     : size.height === 'tall' ? 'Rozmowa z dłuższym widokiem wiadomości.' : 'Rozmowa: ostatnie wiadomości i pole do pisania.',

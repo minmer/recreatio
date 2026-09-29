@@ -33,10 +33,25 @@
  * nebeneinander, ins Quadrat Messen untereinander. Deshalb entscheidet zuerst
  * die Höhe.
  *
+ * <b>Die grossen blättern.</b> Wer wissen will, wann am Donnerstag in zwei
+ * Wochen Messe ist, oder welche Intention letzten Sonntag gelesen wurde, soll
+ * dafür nicht die Kachel verlassen müssen. Deshalb bekommen die grossen
+ * Grössen Werkzeuge (`browse`):
+ *
+ * <code>
+ *   none   Streifen, schmaler Block — ein Blick auf JETZT, nichts zu bedienen
+ *   step   mittlerer und breiter Block — vor, zurück, heute, und ein Kalender
+ *          für ein beliebiges Datum; gezeigt wird dieselbe Form ab diesem Tag
+ *   full   jede hohe Grösse und der Block über die ganze Breite — dazu die
+ *          Ansichten Tag und Woche, bei viel Breite auch der Monat; ist die
+ *          Kachel breit genug, steht der Kalender daneben statt hinter einem Knopf
+ * </code>
+ *
  * Diese Entscheidung steht getrennt vom Zeichnen, weil sie sich nur so prüfen
  * lässt — eine Kachel mit zwölf Grössen sieht sich niemand zwölfmal an.
  */
 
+import { addDays, addMonths, firstOfMonth, mondayOf, startOfDay } from './dayMath';
 import type { PartSize } from './part';
 
 /** Wie die Kachel zeichnet. */
@@ -70,10 +85,33 @@ export interface MassView {
 
   /** Die Beichte dazwischen — wo ein ganzer Tag dasteht, gehört sie dazu. */
   readonly confessions: boolean;
+
+  /** Was man bedienen kann: nichts, blättern, oder alle Ansichten. */
+  readonly browse: 'none' | 'step' | 'full';
+
+  /** Die Ansichten, zwischen denen man wählt — die erste ist die, mit der die Kachel beginnt. */
+  readonly modes: readonly MassMode[];
 }
 
-const view = (form: MassForm, days: number, columns: number, intentions: MassView['intentions'], confessions: boolean): MassView =>
-  ({ form, days, columns, intentions, confessions });
+/**
+ * Die Ansichten der grossen Kachel.
+ *
+ * <code>
+ *   soon    die Form ihrer Grösse, ab jetzt (oder ab dem gewählten Tag)
+ *   day     ein Tag, jede Messe mit ihren Intentionen
+ *   week    Montag bis Sonntag
+ *   month   das Monatsblatt, in jedem Tag die Uhrzeiten
+ * </code>
+ */
+export type MassMode = 'soon' | 'day' | 'week' | 'month';
+
+const view = (
+  form: MassForm, days: number, columns: number, intentions: MassView['intentions'], confessions: boolean,
+  browse: MassView['browse'] = 'none', modes: readonly MassMode[] = ['soon']
+): MassView => ({ form, days, columns, intentions, confessions, browse, modes });
+
+const ALL: readonly MassMode[] = ['soon', 'day', 'week', 'month'];
+const NO_MONTH: readonly MassMode[] = ['soon', 'day', 'week'];
 
 /**
  * Die Ansicht für eine Grösse.
@@ -111,12 +149,19 @@ export function massView(size: PartSize, wanted: number | null = null): MassView
 
     /* MITTEL — ein ganzer Tag. Wer mehr Tage eingetragen hat, bekommt sie untereinander. */
     if (width === 'medium') {
-      return wanted !== null && wanted > 1 ? view('stack', days(1), 1, 'all', true) : view('day', 1, 1, 'all', true);
+      return wanted !== null && wanted > 1
+        ? view('stack', days(1), 1, 'all', true, 'step')
+        : view('day', 1, 1, 'all', true, 'step');
     }
 
-    /* BREIT und GANZ — die Tage nebeneinander, so viele, wie Spalten lesbar bleiben. */
-    if (width === 'wide') return view('columns', days(2), 2, 'all', true);
-    return view('columns', days(3), 3, 'all', true);
+    /*
+     * BREIT und GANZ — die Tage nebeneinander, so viele, wie Spalten lesbar
+     * bleiben. Über die ganze Breite ist es die zweitgrösste Kachel: sie
+     * bekommt Tag und Woche dazu (ein Monatsblatt in drei Zeilen Höhe wäre
+     * ein Guckloch).
+     */
+    if (width === 'wide') return view('columns', days(2), 2, 'all', true, 'step');
+    return view('columns', days(3), 3, 'all', true, 'full', NO_MONTH);
   }
 
   /*
@@ -124,10 +169,15 @@ export function massView(size: PartSize, wanted: number | null = null): MassView
    * breiter, desto weniger bricht eine Intention um, desto mehr Tage passen
    * in dieselbe Höhe: schmal drei, mittel vier, breit sechs in zwei Spalten.
    */
-  if (width === 'narrow') return view('stack', days(3), 1, 'all', true);
-  if (width === 'medium') return view('stack', days(4), 1, 'all', true);
-  if (width === 'wide') return view('columns', days(6), 2, 'all', true);
-  return view('columns', days(7), 4, 'all', true);
+  /*
+   * Und jede hohe Kachel hat ALLES zum Blättern — auch die schmale: auf dem
+   * Telefon ist sie die grösste, die es gibt. Das Monatsblatt erst ab
+   * „breit": sieben Spalten in einer Handbreite trügen keine Uhrzeiten mehr.
+   */
+  if (width === 'narrow') return view('stack', days(3), 1, 'all', true, 'full', NO_MONTH);
+  if (width === 'medium') return view('stack', days(4), 1, 'all', true, 'full', NO_MONTH);
+  if (width === 'wide') return view('columns', days(6), 2, 'all', true, 'full', ALL);
+  return view('columns', days(7), 4, 'all', true, 'full', ALL);
 }
 
 /**
@@ -139,6 +189,20 @@ export const daysToLoad = (shown: MassView): number => Math.min(33, shown.days +
 
 /** Was die Kachel in dieser Grösse zeigt — ein Satz für den Editor. */
 export function massSays(shown: MassView): string {
+  const tools = shown.browse === 'step'
+    ? ' Strzałki i kalendarz: dowolny dzień.'
+    : shown.browse === 'full'
+      ? ` Widoki: ${shown.modes.map((m) => MODE_WORD[m].toLowerCase()).join(', ')}; kalendarz do wyboru daty.`
+      : '';
+  return glanceSays(shown) + tools;
+}
+
+/** Wie die Ansichten in der Kachel heissen. */
+export const MODE_WORD: Record<MassMode, string> = {
+  soon: 'Najbliższe', day: 'Dzień', week: 'Tydzień', month: 'Miesiąc'
+};
+
+function glanceSays(shown: MassView): string {
   const days = (n: number) => (n === 1 ? '1 dzień' : `${n} dni`);
 
   switch (shown.form) {
@@ -151,6 +215,45 @@ export function massSays(shown: MassView): string {
     case 'day': return 'Jeden dzień msza po mszy, z intencjami i spowiedzią; następny w jednym wierszu.';
     case 'columns': return `${days(shown.days)} obok siebie (${shown.columns} kolumny), z intencjami i spowiedzią.`;
     case 'stack': return `${days(shown.days)} jeden pod drugim, z intencjami i spowiedzią.`;
+  }
+}
+
+/* -- Blättern ---------------------------------------------------------------- */
+
+/**
+ * WELCHE TAGE eine Ansicht zeigt — und damit, was zu holen ist. Das Ende ist
+ * ausschliesslich.
+ *
+ * @param anchor Der gewählte Tag — oder `null`: jetzt. In der Ansicht
+ *   „soon" heisst `null` wirklich JETZT (die Form beginnt bei der nächsten
+ *   Messe, Vergangenes zugeklappt); ein gewählter Tag zeigt seine Tage ganz.
+ */
+export function rangeOf(mode: MassMode, anchor: Date | null, shown: MassView, now: Date): { from: Date; to: Date } {
+  const at = startOfDay(anchor ?? now);
+
+  switch (mode) {
+    case 'soon': return { from: at, to: addDays(at, anchor === null ? daysToLoad(shown) : Math.max(1, shown.days)) };
+    case 'day': return { from: at, to: addDays(at, 1) };
+    case 'week': return { from: mondayOf(at), to: addDays(mondayOf(at), 7) };
+    case 'month': {
+      const start = mondayOf(firstOfMonth(at));
+      return { from: start, to: addDays(start, 42) };
+    }
+  }
+}
+
+/**
+ * Ein Schritt vor oder zurück: so weit, wie die Ansicht zeigt — ein Tag,
+ * eine Woche, ein Monat, oder so viele Tage, wie die Form ihrer Grösse hat.
+ */
+export function stepAnchor(mode: MassMode, anchor: Date | null, shown: MassView, now: Date, direction: 1 | -1): Date {
+  const at = startOfDay(anchor ?? now);
+
+  switch (mode) {
+    case 'soon': return addDays(at, direction * Math.max(1, shown.days));
+    case 'day': return addDays(at, direction);
+    case 'week': return addDays(at, direction * 7);
+    case 'month': return addMonths(at, direction);
   }
 }
 

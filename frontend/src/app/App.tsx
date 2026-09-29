@@ -23,6 +23,8 @@ import {
   foreignHost, localPath, needsIdentity, parsePath, path, spotOf,
   type Address, type Spot
 } from './routes';
+import { forgetAreaKeys } from './chat';
+import { forget as forgetState } from './prefs';
 import { keepFromAddress } from './seatKeep';
 import { signOut, whoIsThere, type Who } from './session';
 import { PublicPage } from './PublicPage';
@@ -170,7 +172,7 @@ export function App() {
       who={who}
       wide
       spot={spot}
-      onSignOut={() => { void signOut().then(() => setWho(null)); }}
+      onSignOut={() => { void signOut().then(() => { forgetState(); forgetAreaKeys(); setWho(null); }); }}
     >
       <Workspace spot={spot} who={who} />
     </Shell>

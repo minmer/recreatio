@@ -419,8 +419,18 @@ public static class Page
          */
         var parts = await PartsOfAsync(connection, slugId, ctx.RequestAborted);
 
+        /*
+         * 0054 — DAS MENÜ, das hier gilt: das eigene der Seite oder das der nächsten
+         * darüber, mit dem Pfad, von dem aus seine relativen Ziele gelten.
+         */
+        var menu = await Menu.ForPageAsync(connection, aliasOf ?? wanted, includeSelf: true, ctx.RequestAborted);
+
         /* 0048 — die Karte der Seite: was wann zu sehen ist, und die Schritte. */
-        await ctx.Response.WriteAsJsonAsync(new { path = wanted, aliasOf, title, lead, updatedAt, parts, logic, access });
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            path = wanted, aliasOf, title, lead, updatedAt, parts, logic, access,
+            menu = menu is null ? null : new { from = menu.Value.From, items = menu.Value.Items }
+        });
     }
 
     /* -- Schreiben ---------------------------------------------------------- */

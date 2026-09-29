@@ -45,7 +45,7 @@ export const massesPart = definePart<MassConfig>({
 
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Porządek mszy' },
-    { key: 'calendar', label: 'Kalendarz', kind: 'line', hint: 'Kennung — puste: wszystkie jawne' },
+    { key: 'calendar', label: 'Terminarz której grupy', kind: 'calendar' },
     { key: 'days', label: 'Ile dni pokazać', kind: 'line', hint: 'Puste: ile zmieści się w kafelku' }
   ],
 
@@ -59,6 +59,7 @@ export const massesPart = definePart<MassConfig>({
 
   /* Zwölf Grössen, zwölf Antworten — welche, steht in `massShape.ts`. */
   shows: (config, size) => massSays(massView(size, config.days)),
+  fullscreen: true,
 
   View: ({ config, ctx }) => (
     <MassCard title={config.title} calendar={config.calendar} days={config.days} size={ctx.size} />
@@ -100,6 +101,7 @@ export const formPart = definePart<FormConfig>({
 
   /* Ein halbes Formular gibt es nicht: im Streifen ein Knopf, sonst das ganze. */
   strip: { title: 'Formularz', open: 'Wypełnij formularz' },
+  fullscreen: true,
   shows: (_config, size) => size.height === 'strip'
     ? 'Nagłówek i przycisk — formularz rozwija się po kliknięciu.'
     : 'Cały formularz.',
@@ -157,6 +159,7 @@ export const slotsPart = definePart<SlotConfig>({
    * eine Woche Termine nicht zu einer Spalte wird, die man hinunterscrollt.
    */
   strip: { title: 'Rezerwacja', open: 'Wybierz termin' },
+  fullscreen: true,
   shows: (_config, size) =>
     size.height === 'strip' ? 'Nagłówek i przycisk — terminy rozwijają się po kliknięciu.'
     : size.width === 'wide' ? 'Terminy w dwóch kolumnach.'

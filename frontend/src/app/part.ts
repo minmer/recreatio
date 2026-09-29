@@ -122,7 +122,7 @@ export interface PartContext {
  * Gespeichert wird `*` (alle, auch später hinzugefügte) oder die Kennungen,
  * durch Kommas getrennt.
  */
-export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions';
+export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'calendar';
 
 export interface FieldDef {
   readonly key: string;
@@ -202,6 +202,14 @@ export interface PartModule {
   readonly strip: { readonly title: string; readonly open: string } | null;
 
   /**
+   * 0054 — KANN ER DAS GANZE FENSTER BRAUCHEN? Ein Messplan mit Kalender,
+   * eine Buchung, ein langes Formular, eine Rozmowa, ein langer Text: an der
+   * Kachel steht dann ein Knopf, und im ganzen Fenster zeigt er sich in seiner
+   * grössten Gestalt — gleich, wie klein er auf der Seite steht.
+   */
+  readonly fullscreen: boolean;
+
+  /**
    * Der duldsame Leser allein, Tafel hinein und Gestalt heraus.
    *
    * Er steht hier, damit sich prüfen lässt, was ein halb ausgefüllter Baustein
@@ -231,6 +239,7 @@ export function definePart<C>(spec: {
   View: ComponentType<{ config: C; ctx: PartContext }>;
   shows: (config: C, size: PartSize) => string;
   strip?: { title: string; open: string };
+  fullscreen?: boolean;
 }): PartModule {
   /*
    * Als echtes Bauteil eingehängt und nicht als Funktion aufgerufen: sonst
@@ -254,6 +263,7 @@ export function definePart<C>(spec: {
     View,
     shows: (raw, size) => spec.shows(spec.read(raw), size),
     strip: spec.strip ?? null,
+    fullscreen: spec.fullscreen ?? false,
     read: spec.read
   };
 }

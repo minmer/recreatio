@@ -54,6 +54,20 @@ export interface PageContent {
 
   /** Wer hier handeln darf — auf einer Seite nur mit Zugang (siehe `pageAccess`). */
   readonly access?: PageAccess;
+
+  /**
+   * 0054 — DAS MENÜ, das hier gilt: das eigene der Seite oder das der nächsten
+   * darüber (`from`), von wo aus seine relativen Ziele gelten.
+   */
+  readonly menu?: { readonly from: string; readonly items: readonly MenuItem[] } | null;
+}
+
+/** Ein Eintrag des Menüs (siehe `menu.ts`). */
+export interface MenuItem {
+  readonly label: string;
+  readonly kind: 'abs' | 'rel' | 'url' | 'none';
+  readonly target: string;
+  readonly children: readonly MenuItem[];
 }
 
 /**

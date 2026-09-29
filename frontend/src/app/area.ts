@@ -83,6 +83,12 @@ export interface AreaRow {
 
   /** Ob ich hier hineinlassen darf — mit `certify` oder mit `admin`, das es einschliesst. */
   readonly mayCertify: boolean;
+
+  /**
+   * 0054 — DER EIGENE: „Tylko ja". Ein Bereich mit genau einem Mitglied, als
+   * solcher markiert; er wird nirgends angeboten, wo etwas geteilt wird.
+   */
+  readonly personal?: boolean;
 }
 
 export interface Member {
@@ -284,7 +290,7 @@ export async function signedCertificate(ring: Ring, what: {
  * bekommen; der hat nur die Hülle.
  */
 export async function createArea(
-  ring: Ring, person: SealedRole, name: string, parentAreaId?: string
+  ring: Ring, person: SealedRole, name: string, parentAreaId?: string, options: { personal?: boolean } = {}
 ): Promise<{ areaId: string; epoch: number; key: Uint8Array }> {
   const areaId = newId();
   const key = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
@@ -300,6 +306,9 @@ export async function createArea(
 
       /* Worin er liegt — `undefined` heisst: ganz aussen (0035). */
       parentAreaId: parentAreaId ?? null,
+
+      /* 0054 — der eigene Bereich einer Person: „Tylko ja". */
+      personal: options.personal === true ? true : null,
       wrappedKey: toBase64Url(wrapped),
       certificates: [
         await signedCertificate(ring, {

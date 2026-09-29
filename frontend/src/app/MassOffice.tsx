@@ -52,6 +52,7 @@ import { loadRoles, selfOf } from './roles';
 import { viewPath } from './routes';
 import { WorkspaceError } from './session';
 import { AreaOptions } from './AreaOptions';
+import { useRecent } from './prefs';
 
 /**
  * Wie weit vorausgeladen wird — zwei Wochen, nicht ein Tag.
@@ -66,6 +67,11 @@ const todayKey = (): string => dayKey(new Date().toISOString());
 const keyOf = (mass: OfficeMass): string => `${mass.itemId}-${mass.occurrenceAt}`;
 
 export function MassOffice() {
+  /*
+   * 0054 — WELCHER TERMINARZ ZULETZT: nach dem Neuladen steht der, an dem man
+   * gerade arbeitete, und nicht der alphabetisch erste. Gemerkt versiegelt.
+   */
+  const recent = useRecent('masses.calendar');
   const [calendars, setCalendars] = useState<readonly CalendarRow[] | null>(null);
 
   /* Für das Anlegen: ein Kalender gehört in einen Bereich, und welche das sein
@@ -81,7 +87,6 @@ export function MassOffice() {
     loadCalendars()
       .then((found) => {
         setCalendars(found.calendars);
-        setChosen((current) => (current === '' ? (found.calendars[0]?.calendarId ?? '') : current));
       })
       .catch(() => setCalendars([]));
 
@@ -125,12 +130,17 @@ export function MassOffice() {
       await todo();
       const found = await loadAllCalendars();
       setCalendars(found.calendars);
-      setChosen((now) => (now === '' ? found.calendars[0]?.calendarId ?? '' : now));
       await load();
     } catch (e) {
       setError(e instanceof WorkspaceError ? e.message : `Nie udało się: ${what}`);
     }
   };
+
+  useEffect(() => {
+    if (chosen !== '' || calendars === null || calendars.length === 0 || !recent.ready) return;
+    const last = recent.last(calendars, (c) => c.calendarId);
+    setChosen((last ?? calendars[0]).calendarId);
+  }, [calendars, chosen, recent]);
 
   const calendar = (calendars ?? []).find((c) => c.calendarId === chosen);
   const mass = masses[at];
@@ -162,8 +172,8 @@ export function MassOffice() {
     return (
       <>
         <p className="wk-note">
-          Nie prowadzisz żadnego kalendarza. Kalendarz należy do obszaru —
-          wybierzesz go zakładając.
+          Nie masz jeszcze żadnego terminarza. Terminarz to terminy jednej grupy
+          (obszaru) — wybierz grupę, a powstanie sam.
         </p>
         <NewCalendar areas={areas} busy={false} onAct={act} />
       </>
@@ -176,11 +186,11 @@ export function MassOffice() {
 
       <div className="wk-mo-top">
         <label className="wk-field">
-          <span>Kalendarz</span>
-          <select value={chosen} onChange={(e) => { setChosen(e.target.value); setAt(0); }}>
-            {calendars.map((c) => (
+          <span>Terminarz grupy</span>
+          <select value={chosen} onChange={(e) => { setChosen(e.target.value); recent.touch(e.target.value); setAt(0); }}>
+            {recent.order(calendars, (c) => c.calendarId).map((c) => (
               <option key={c.calendarId} value={c.calendarId}>
-                {c.title} — {c.areaName}
+                {c.areaName}{c.title !== c.areaName ? ` (${c.title})` : ''}
               </option>
             ))}
           </select>
@@ -948,8 +958,6 @@ function NewCalendar({ areas, busy, onAct }: {
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [zone, setZone] = useState('Europe/Warsaw');
   const [areaId, setAreaId] = useState('');
 
   /* Anlegen darf, wer den Bereich führt oder beschreibt. */
@@ -962,7 +970,7 @@ function NewCalendar({ areas, busy, onAct }: {
           type="button" className="wk-link-btn" disabled={busy}
           onClick={() => { setOpen(true); setAreaId(mine[0]?.areaId ?? ''); }}
         >
-          Nowy kalendarz
+          Terminarz innej grupy
         </button>
       </div>
     );
@@ -971,7 +979,7 @@ function NewCalendar({ areas, busy, onAct }: {
   if (mine.length === 0) {
     return (
       <p className="wk-note">
-        Kalendarz należy do obszaru — a Ty nie prowadzisz żadnego. Załóż go
+        Terminarz należy do grupy (obszaru) — a Ty w żadnej nie piszesz. Załóż ją
         w zakładce „Obszary", potem wróć tutaj.
         {' '}
         <button type="button" className="wk-link-btn" onClick={() => setOpen(false)}>
@@ -986,45 +994,37 @@ function NewCalendar({ areas, busy, onAct }: {
       className="wk-form"
       onSubmit={(e) => {
         e.preventDefault();
-        if (title.trim() === '' || areaId === '') return;
+        if (areaId === '') return;
 
-        void onAct('Zakładanie kalendarza…',
-          () => createCalendar({ areaId, title: title.trim(), timeZone: zone }))
-          .then(() => { setTitle(''); setOpen(false); });
+        /*
+         * 0054 — EIN TERMINARZ JE GRUPPE. Er heisst wie sie; hat sie schon
+         * einen, ist es dieser (der Dienst gibt ihn zurück, statt einen
+         * zweiten anzulegen).
+         */
+        const name = areas.find((a) => a.areaId === areaId)?.name ?? 'Terminy';
+        void onAct('Otwieranie terminarza…',
+          () => createCalendar({ areaId, title: name, timeZone: 'Europe/Warsaw' }))
+          .then(() => setOpen(false));
       }}
     >
-      <h4 className="wk-h2">Nowy kalendarz</h4>
+      <h4 className="wk-h2">Terminarz innej grupy</h4>
 
       <label className="wk-field">
-        <span>Nazwa</span>
-        <input value={title} placeholder="np. Porządek mszy" onChange={(e) => setTitle(e.target.value)} />
-      </label>
-
-      <label className="wk-field">
-        <span>W obszarze</span>
+        <span>Grupa (obszar)</span>
         <select value={areaId} onChange={(e) => setAreaId(e.target.value)}>
           <AreaOptions areas={areas} only={mine} />
         </select>
       </label>
 
       <p className="wk-hint">
-        Obszar decyduje, kto zobaczy ten plan. Jeśli ma być w gablocie, wybierz
-        taki, który jest jawny — albo otwórz go potem.
-      </p>
-
-      <label className="wk-field">
-        <span>Strefa czasowa</span>
-        <input value={zone} onChange={(e) => setZone(e.target.value)} />
-      </label>
-
-      <p className="wk-hint">
-        Strefa należy do kalendarza, nie do czytelnika: msza o 18:00 jest o 18:00
-        tam, gdzie się odprawia — także po zmianie czasu.
+        Grupa decyduje, kto zobaczy ten plan. Jeśli ma być w gablocie, wybierz
+        taką, która jest jawna — albo otwórz ją potem. Terminarz każdej grupy
+        jest jeden i powstaje sam; godziny liczą się w czasie polskim.
       </p>
 
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={busy || title.trim() === ''}>
-          Załóż kalendarz
+        <button type="submit" className="wk-btn" disabled={busy || areaId === ''}>
+          Otwórz terminarz
         </button>
         <button type="button" className="wk-link-btn" onClick={() => setOpen(false)}>
           Anuluj

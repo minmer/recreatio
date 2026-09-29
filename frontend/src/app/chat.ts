@@ -156,6 +156,11 @@ const nameAad = (areaId: string, roleId: string) =>
 /** Die Schlüssel eines Bereichs, einmal je Tab ausgepackt — der RSA-Schritt ist der teure. */
 const keyCache = new Map<string, Promise<Map<number, Uint8Array>>>();
 
+/** Bei der Abmeldung: die Schlüssel des einen gehören nicht in die Karte des nächsten. */
+export function forgetAreaKeys(): void {
+  keyCache.clear();
+}
+
 export function areaKeys(ring: Ring, areaId: string, fresh = false): Promise<Map<number, Uint8Array>> {
   let found = fresh ? undefined : keyCache.get(areaId);
   if (found === undefined) {

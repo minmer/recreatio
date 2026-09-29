@@ -21,6 +21,7 @@ import { useState, type CSSProperties } from 'react';
 import {
   byReadingOrder, COLUMNS, frameFor, snapColSpan, snapRowSpan, useBreakpoint
 } from './layout';
+import { Fullscreen } from './Modal';
 import type { DraftPart } from './page';
 import { partSize, text, type PartModule, type PartSize, type RawConfig } from './part';
 import { usePageLogic } from './pageLogic';
@@ -50,6 +51,9 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
 
   /* Was jemand aus einem Streifen aufgeklappt hat — es bleibt offen, bis er die Seite verlässt. */
   const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(new Set());
+
+  /* 0054 — welcher Baustein gerade das ganze Fenster hat. */
+  const [whole, setWhole] = useState<string | null>(null);
 
   const hidden = logic?.outcome.hidden ?? new Set<string>();
   const messages = logic?.outcome.messages ?? new Map<string, string>();
@@ -86,12 +90,13 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
         const open = unfolded.has(part.id);
         const size = partSize(open ? { colSpan: box.colSpan, rowSpan: Math.max(box.rowSpan, 3) } : box);
         const folded = def !== undefined && def.strip !== null && size.height === 'strip';
+        const canFull = def !== undefined && def.fullscreen && !hidden.has(part.id);
 
         return (
           <article
             key={part.id}
             id={`part-${part.id}`}
-            className={`wk-card wk-card-${part.kind}`}
+            className={`wk-card wk-card-${part.kind}${canFull ? ' has-full' : ''}`}
             data-w={size.width}
             data-h={size.height}
             style={{
@@ -118,10 +123,46 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
                 ctx={{ moduleId: part.moduleId ?? part.id, size }}
               />
             )}
+
+            {canFull && (
+              <button type="button" className="wk-card-full" aria-label="Pokaż na całym ekranie" title="Pełny ekran"
+                onClick={() => setWhole(part.id)}>
+                <FullIcon />
+              </button>
+            )}
           </article>
         );
       })}
+
+      {/*
+        IM GANZEN FENSTER zeigt sich ein Baustein in seiner grössten Gestalt —
+        der Messplan mit Kalender daneben, die Rozmowa mit langem Verlauf —,
+        gleich, wie klein er auf der Seite steht. Die Kachel bleibt, wo sie war.
+      */}
+      {whole !== null && (() => {
+        const part = shown.find((one) => one.id === whole);
+        const def = part === undefined ? undefined : partOf(part.kind);
+        if (part === undefined || def === undefined) return null;
+        const full = partSize({ colSpan: 6, rowSpan: 5 });
+
+        return (
+          <Fullscreen title={text(part.config, 'title') || def.label} onClose={() => setWhole(null)}>
+            <article className={`wk-card wk-card-${part.kind} is-whole`} data-w={full.width} data-h={full.height}>
+              <def.View raw={part.config} ctx={{ moduleId: part.moduleId ?? part.id, size: full }} />
+            </article>
+          </Fullscreen>
+        );
+      })()}
     </div>
+  );
+}
+
+/** Vier Ecken nach aussen — „grösser", ohne Emoji, auf jedem Gerät gleich. */
+function FullIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+      <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
   );
 }
 

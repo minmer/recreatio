@@ -26,12 +26,15 @@ import { Addresses } from './Addresses';
 import { Areas } from './Areas';
 import { Modules } from './Modules';
 import { Reservations } from './Reservations';
+import { CalendarApp } from './CalendarApp';
 import { ChatTileBody, ChatView } from './ChatPage';
 import { MassOffice } from './MassOffice';
 import { PageEditor } from './PageEditor';
 import { RoleGraph } from './RoleGraph';
 import { WorkspaceError, type Who } from './session';
+import { RecentRow, useTouched } from './Recent';
 import { SlugTree } from './SlugTree';
+import { TasksView } from './TasksView';
 import { claimSlug, loadDesk, takers, type Desk } from './desk';
 import { roleLabel, useRoleNames } from './roleNames';
 import { treeOf } from './tree';
@@ -134,6 +137,14 @@ function Tiles({ desk, who }: { desk: Desk; who: Who }) {
         </Tile>
 
         <Tile view="calendar">
+          <p className="wk-empty">Twoje terminy i terminy Twoich grup — dzień, tydzień, miesiąc.</p>
+        </Tile>
+
+        <Tile view="tasks">
+          <p className="wk-empty">Co masz zrobić: o określonej porze albo co pewien czas.</p>
+        </Tile>
+
+        <Tile view="masses">
           <p className="wk-empty">Msze, intencje i wydruk do gabloty.</p>
         </Tile>
 
@@ -221,7 +232,9 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'addresses') return <Addresses desk={desk} who={who} onChanged={onChanged} />;
   if (view === 'roles') return <RoleGraph who={who} />;
   if (view === 'areas') return <Areas who={who} trail={trail} />;
-  if (view === 'calendar') return <MassOffice />;
+  if (view === 'calendar') return <CalendarApp who={who} />;
+  if (view === 'tasks') return <TasksView who={who} />;
+  if (view === 'masses') return <MassOffice />;
   if (view === 'bookings') return <Reservations trail={trail} />;
   if (view === 'account') return <Account who={who} />;
   if (view === 'chat') return <ChatView who={who} trail={trail} />;
@@ -285,6 +298,9 @@ function Pages({ desk, who, trail, onClaimed }: {
   const known = new Set(desk.pages.map((one) => one.path));
   const { path: editing, moduleId } = splitTrail(trail, known);
   const names = useRoleNames(who);
+
+  /* 0054 — die zuletzt bearbeiteten Seiten stehen über dem Baum (gemerkt versiegelt). */
+  useTouched('pages', editing);
 
   /*
    * Der aufgeschlagene Baustein. Geholt wird er nur, wenn einer
@@ -387,6 +403,10 @@ function Pages({ desk, who, trail, onClaimed }: {
           na liście i trzeba mieć do niego kod.
         </p>
       ) : (
+        <>
+        <RecentRow scope="pages" items={desk.pages.map((one) => ({
+          id: one.path, label: one.path, href: viewPath('pages', ...one.path.split('/'))
+        }))} />
         <SlugTree
           nodes={treeOf(desk.pages)}
           desk={desk}
@@ -400,6 +420,7 @@ function Pages({ desk, who, trail, onClaimed }: {
           }}
           onChanged={onClaimed}
         />
+        </>
       )}
 
       {/*

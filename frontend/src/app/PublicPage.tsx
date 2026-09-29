@@ -25,6 +25,7 @@ import { PersonAccessGate, PersonPicker, PersonProvider, usePerson } from './pag
 import { NoAccess, PageAccessContext } from './pageAccess';
 import { PageLogicProvider } from './PageLogicView';
 import { PersonalSections, SeatBar } from './SeatBar';
+import { SiteMenu } from './SiteMenu';
 import { SeatContext, SeatStateContext, useSeats, useSeatStates, type SeatState } from './seatContext';
 import { freshSeat, heldSeats, seatsExactly, seatsFor } from './seatKeep';
 import { useSeat } from './seatView';
@@ -130,6 +131,11 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
       <PageAccessContext.Provider value={page.access ?? null}>
       <PersonProvider path={page.path}>
         <PageLogicProvider logic={page.logic}>
+          {/* 0054 — das Menü dieser Seite oder der nächsten darüber. */}
+          {page.menu != null && page.menu.items.length > 0 && (
+            <SiteMenu items={page.menu.items} from={page.menu.from} here={page.path} />
+          )}
+
           {page.title !== null && <h1 className="wk-h1">{page.title}</h1>}
           {page.lead !== null && <p className="wk-lede wk-page-lead">{page.lead}</p>}
 

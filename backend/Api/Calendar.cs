@@ -115,6 +115,30 @@ public static class Calendar
             return;
         }
 
+        /*
+         * 0054 — EIN TERMINARZ JE BEREICH. Hat der Bereich schon einen, ist es
+         * dieser: wer „Nowy kalendarz" drückt, meint die Termine dieser Leute,
+         * und die gibt es nur einmal.
+         */
+        await using (var had = new SqlCommand(
+            "SELECT id, title, time_zone FROM app.calendar WHERE area_id = @area;", connection))
+        {
+            had.Parameters.AddWithValue("@area", areaId);
+            await using var reader = await had.ExecuteReaderAsync(ctx.RequestAborted);
+            if (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                await ctx.Response.WriteAsJsonAsync(new
+                {
+                    calendarId = Ids.ToText(reader.GetGuid(0)),
+                    areaId = Ids.ToText(areaId),
+                    title = reader.GetString(1),
+                    timeZone = reader.GetString(2),
+                    existed = true
+                });
+                return;
+            }
+        }
+
         var id = Ids.NewId();
 
         await using var insert = new SqlCommand("""
@@ -212,7 +236,10 @@ public static class Calendar
          * beim Oeffnen wiederholt wurde: der Pruefstand versiegelte und oeffnete
          * mit SEINER Kennung und war sich mit sich selbst einig.
          */
-        string? ItemId);
+        string? ItemId,
+
+        /* 0054 — die Zone, falls der Terminarz des Bereichs dabei erst entsteht. */
+        string? TimeZone = null);
 
     /// <summary>
     /// Einen Eintrag anlegen.
@@ -230,7 +257,7 @@ public static class Calendar
     /// die einem nicht gehoert.
     /// </para>
     /// </summary>
-    private static async Task AddItemAsync(HttpContext ctx, Db db, Guid id, ItemRequest body)
+    internal static async Task AddItemAsync(HttpContext ctx, Db db, Guid id, ItemRequest body)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
@@ -366,7 +393,10 @@ public static class Calendar
         var zone = Zones.Of(zoneId);
         var allDay = body.AllDay ?? false;
         var starts = Zones.AtLocal(day.ToDateTime(allDay ? new TimeOnly(0, 0) : hour), zone);
-        var ends = starts.AddMinutes(allDay ? 24 * 60 : Math.Clamp(body.Minutes ?? 60, 1, 24 * 60));
+        /* 0054 — ein ganztägiger Termin kann mehrere Tage dauern, ein anderer bis zu zwei Wochen (eine Rüstzeit). */
+        var ends = starts.AddMinutes(allDay
+            ? 24 * 60 * Math.Clamp((body.Minutes ?? 1440) / 1440, 1, 60)
+            : Math.Clamp(body.Minutes ?? 60, 1, 24 * 60 * 14));
 
         /*
          * EINE REIHE MUSS EIN ENDE HABEN — ein Datum oder eine Anzahl
@@ -1018,7 +1048,7 @@ public static class Calendar
 
     internal sealed record Held(string Field, Guid AreaId, int Epoch, byte[] Blob);
 
-    private static async Task<Dictionary<Guid, List<Held>>> FieldsAsync(
+    internal static async Task<Dictionary<Guid, List<Held>>> FieldsAsync(
         SqlConnection connection, List<Guid> itemIds, CancellationToken ct)
     {
         var map = new Dictionary<Guid, List<Held>>();

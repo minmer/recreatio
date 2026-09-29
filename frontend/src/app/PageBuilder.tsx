@@ -36,6 +36,7 @@ import { partSize, SIZE_WORD, type PartSize } from './part';
 import { PARTS, partLabel, partOf } from './parts/registry';
 import { PickModule } from './PickModule';
 import { PickForm, PickQuestions, pickedForm } from './FormPick';
+import { PickCalendar } from './PickCalendar';
 import { PickResource } from './PickResource';
 import type { DraftPart } from './page';
 
@@ -572,7 +573,9 @@ function Fields({ part, size, busy, onSet }: {
           <Wrap as={field.kind === 'questions' || field.kind === 'form' ? 'div' : 'label'} className={`wk-field${empty ? ' is-empty' : ''}`} key={field.key}>
             <span>{field.label}</span>
 
-            {field.kind === 'resource' ? (
+            {field.kind === 'calendar' ? (
+              <PickCalendar value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
+            ) : field.kind === 'resource' ? (
               <PickResource value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'form' ? (
               <PickForm value={value} busy={busy} onPick={(id) => onSet(pickedForm(def, field.key, id))} />

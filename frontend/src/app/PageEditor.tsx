@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { loadPage, savePage, saveParts, toDraft, type DraftPart } from './page';
 import { MassOffice } from './MassOffice';
+import { MenuEditor } from './MenuEditor';
 import { PageBuilder } from './PageBuilder';
 import { logicKey, PageLogicEditor } from './PageLogicEditor';
 import { pagePath } from './routes';
@@ -92,6 +93,15 @@ export function PageEditor({ path, who, onOpenModule }: {
   return (
     <div className="wk-page-edit">
       <h3 className="wk-h2">recreatio.pl/{path}</h3>
+
+      {/*
+        0054 — DAS MENÜ, über allem anderen: es steht auch über der Seite, und
+        es gilt für sie und alle darunter. Zugeklappt, bis man es braucht.
+      */}
+      <details className="wk-fold wk-menued-fold">
+        <summary>Menu strony</summary>
+        <MenuEditor path={path} />
+      </details>
 
       <form
         className="wk-form"

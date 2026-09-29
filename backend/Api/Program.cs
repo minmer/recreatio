@@ -108,6 +108,12 @@ Bookings.Map(app);
 /* 0052 — Rozmowy: Chats auf dem Kern der Bereiche. */
 Chat.Map(app);
 
+/* 0054 — persönlich: der eigene Kalender, Aufgaben, der gemerkte Stand, das Menü einer Seite. */
+Agenda.Map(app);
+Tasks.Map(app);
+State.Map(app);
+Menu.Map(app);
+
 /* Bausteine als eigene Dinge — die Seite zeigt sie nur (0036). */
 Module.Map(app);
 

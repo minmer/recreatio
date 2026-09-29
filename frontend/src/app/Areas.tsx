@@ -30,7 +30,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-  besideIt, chainTo, createArea, dropFromArea, inOrder, joinArea, loadAreas, loadMembers, myEpochKeys,
+  areaPath, besideIt, chainTo, createArea, dropFromArea, inOrder, joinArea, loadAreas, loadMembers, myEpochKeys,
   setPublicLevel, setSeatLevel,
   PUBLIC_LEVELS, SEAT_LEVELS, type AreaRow, type Member, type PublicLevel
 } from './area';
@@ -46,6 +46,7 @@ import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
 import { AreaOptions } from './AreaOptions';
+import { RecentRow, useTouched } from './Recent';
 
 /**
  * Die Stufen in der Sprache, die im Haus gesprochen wird.
@@ -107,6 +108,10 @@ export function Areas({ who, trail }: { who: Who; trail: readonly string[] }) {
   const [person, setPerson] = useState<SealedRole | null>(null);
   const [graph, setGraph] = useState<RoleGraphData | null>(null);
   const view = viewOf(trail);
+
+  /* 0054 — was offen ist, kommt in „Ostatnio" nach vorn (gemerkt versiegelt). */
+  useTouched('areas', view.at === 'area' ? view.areaId : null);
+
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -248,6 +253,10 @@ export function Areas({ who, trail }: { who: Who; trail: readonly string[] }) {
     <>
       {head}
 
+      <RecentRow scope="areas" items={areas.map((a) => ({
+        id: a.areaId, label: a.personal === true ? 'Tylko ja (prywatne)' : areaPath(areas, a.areaId).full, href: viewPath('areas', a.areaId)
+      }))} />
+
       {/*
         DIE TIEFE STEHT AN DER ZEILE, nicht im Markup. Verschachtelte Listen
         wären eine zweite Struktur neben `parent_area_id`, und zwei Strukturen
@@ -262,6 +271,7 @@ export function Areas({ who, trail }: { who: Who; trail: readonly string[] }) {
               style={{ '--depth': depth } as React.CSSProperties}
             >
               <span className="wk-tree-name">{area.name}</span>
+              {area.personal === true && <span className="wk-tag">tylko Ty — prywatny</span>}
               <Tags area={area} />
               {area.myLevel !== null && (
                 <span className="wk-tree-mine">{LEVEL_NAME[area.myLevel]}</span>
@@ -445,15 +455,26 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
         <Fact label="Rozmowa"><AreaChat area={area} ring={ring} busy={busy} onAct={onAct} /></Fact>
       </dl>
 
-      <div className="wk-tabs" role="tablist">
-        <Tab now={section} mine="roles" onPick={setSection}>Role</Tab>
-        <Tab now={section} mine="forms" onPick={setSection}>Z formularza</Tab>
-        <Tab now={section} mine="public" onPick={setSection}>Dla wszystkich</Tab>
-      </div>
+      {/*
+        „TYLKO JA" (0054): der eigene Bereich nimmt niemanden auf und öffnet
+        sich nicht — also stehen hier auch keine Knöpfe, die es versprächen.
+      */}
+      {area.personal === true ? (
+        <p className="wk-note">
+          To Twoja prywatna przestrzeń: terminy i zadania zapisane jako „Tylko ja" widzisz tylko Ty.
+          Nikogo tu nie dodasz i nie otworzysz jej dla innych — żeby coś pokazać innym, wybierz ich grupę.
+        </p>
+      ) : (
+        <div className="wk-tabs" role="tablist">
+          <Tab now={section} mine="roles" onPick={setSection}>Role</Tab>
+          <Tab now={section} mine="forms" onPick={setSection}>Z formularza</Tab>
+          <Tab now={section} mine="public" onPick={setSection}>Dla wszystkich</Tab>
+        </div>
+      )}
 
       {/* -- Wer hier ist ---------------------------------------------- */}
 
-      {section === 'roles' && (
+      {area.personal !== true && section === 'roles' && (
         <div className="wk-panel">
           {members === null ? (
             <p className="wk-empty">Wczytywanie…</p>
@@ -528,7 +549,7 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
 
       {/* -- Wer über ein Formular hereinkommt -------------------------- */}
 
-      {section === 'forms' && (
+      {area.personal !== true && section === 'forms' && (
         <div className="wk-panel">
           {mine ? (
             <Segment
@@ -566,7 +587,7 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
 
       {/* -- Nach aussen ------------------------------------------------ */}
 
-      {section === 'public' && (
+      {area.personal !== true && section === 'public' && (
         <div className="wk-panel">
           {mine ? (
             <Segment

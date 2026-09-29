@@ -43,6 +43,8 @@ import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { AreaOptions } from './AreaOptions';
 import { ModuleSettings } from './ModuleSettings';
+import { useRecent } from './prefs';
+import { RecentRow, useTouched } from './Recent';
 
 const NEW = 'new';
 
@@ -77,6 +79,10 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
   const [failed, setFailed] = useState<string | null>(null);
 
   const view = viewOf(trail);
+
+  /* 0054 — zuletzt benutzte Bausteine zuerst, gemerkt versiegelt. */
+  useTouched('modules', view.at === 'one' ? view.moduleId : null);
+  const recent = useRecent('modules');
 
   const look = useCallback(async () => {
     try {
@@ -149,6 +155,8 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
       <>
         {head}
 
+        <RecentRow scope="modules" items={all.map((m) => ({ id: m.moduleId, label: `${m.name} · ${partLabel(m.kind)}`, href: viewPath('modules', m.kind, m.moduleId) }))} />
+
         <ul className="wk-tree">
           {PARTS.map((one) => {
             const count = all.filter((m) => m.kind === one.kind).length;
@@ -170,7 +178,7 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
     );
   }
 
-  const ofKind = all.filter((one) => one.kind === view.kind);
+  const ofKind = recent.order(all.filter((one) => one.kind === view.kind), (one) => one.moduleId);
 
   /* -- 2. Die Bausteine dieser Art ----------------------------------------- */
 

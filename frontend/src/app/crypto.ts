@@ -143,7 +143,12 @@ export const Field = {
 
   /* 0053 — der Chatschlüssel für einen Platz, und dessen eigene private Schlüssel. */
   ChatSeatKey: 'chat_seat_key',
-  SeatIdentity: 'seat_identity'
+  SeatIdentity: 'seat_identity',
+
+  /* 0054 — eine Aufgabe, und was man zuletzt offen hatte. */
+  TaskTitle: 'task_title',
+  TaskNotes: 'task_notes',
+  WorkspaceState: 'workspace_state'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

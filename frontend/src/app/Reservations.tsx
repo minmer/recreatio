@@ -29,6 +29,7 @@ import {
 import { viewPath } from './routes';
 import { WorkspaceError } from './session';
 import { AreaOptions } from './AreaOptions';
+import { RecentRow, useTouched } from './Recent';
 
 const NEW = 'new';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -53,6 +54,9 @@ export function Reservations({ trail }: { trail: readonly string[] }) {
   const [failed, setFailed] = useState<string | null>(null);
 
   const view = viewOf(trail);
+
+  /* 0054 — was offen ist, kommt in „Ostatnio" nach vorn (gemerkt versiegelt). */
+  useTouched('bookings', view.at === 'one' ? view.resourceId : null);
 
   const look = useCallback(async () => {
     try {
@@ -130,6 +134,8 @@ export function Reservations({ trail }: { trail: readonly string[] }) {
   return (
     <>
       {head}
+
+      <RecentRow scope="bookings" items={all.map((r) => ({ id: r.resourceId, label: r.name, href: viewPath('bookings', r.resourceId) }))} />
 
       <ul className="wk-tree">
         {ordered.map((r) => (

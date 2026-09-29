@@ -118,6 +118,13 @@ public enum Field
     ChatSeatKey,
     SeatIdentity,
 
+    /// <summary>0054 — eine Aufgabe: Titel und Notiz, unter dem Schluessel ihres Bereichs.</summary>
+    TaskTitle,
+    TaskNotes,
+
+    /// <summary>0054 — was man zuletzt offen hatte, unter dem Schluessel des Kontos.</summary>
+    WorkspaceState,
+
     /// <summary>Eine eingesandte Antwort. Besondere Kategorie, bis das Gegenteil gesagt wird.</summary>
     EventAnswer,
 
@@ -413,6 +420,9 @@ public readonly record struct Aad
         Field.AreaMemberName          => "area_member_name",
         Field.ChatSeatKey             => "chat_seat_key",
         Field.SeatIdentity            => "seat_identity",
+        Field.TaskTitle               => "task_title",
+        Field.TaskNotes               => "task_notes",
+        Field.WorkspaceState          => "workspace_state",
         Field.EventAnswer             => "answer",
         Field.EventIntakeKey          => "intake_key",
         Field.OfficeValueKey          => "office_value_key",

@@ -92,7 +92,13 @@ public static class Area
         string AreaId, string Name, string RoleId, string WrappedKey, IReadOnlyList<Proof> Certificates,
 
         /// <summary>Unter welchem Bereich er liegt — `null` heisst: ganz aussen (0035).</summary>
-        string? ParentAreaId = null);
+        string? ParentAreaId = null,
+
+        /// <summary>
+        /// 0054 — DER EIGENE: „Tylko ja". Je Person höchstens einer, ganz
+        /// aussen; die Oberfläche legt ihn beim ersten privaten Termin selbst an.
+        /// </summary>
+        bool? Personal = null);
 
     /// <summary>
     /// Einen Bereich anlegen.
@@ -150,6 +156,12 @@ public static class Area
             parentId = asked;
         }
 
+        if (body.Personal == true && body.ParentAreaId is not null)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Prywatny obszar nie leży w żadnym innym.");
+            return;
+        }
+
         byte[] wrapped;
         try { wrapped = Base64Url.Decode(body.WrappedKey ?? string.Empty); }
         catch (FormatException)
@@ -203,6 +215,12 @@ public static class Area
                     Capability.Admin, ctx.RequestAborted))
             {
                 await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nadrzędnego nie ma.");
+                return;
+            }
+
+            if (await PersonalOwnerAsync(connection, parentId.Value, ctx.RequestAborted) is not null)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, PersonalStaysPersonal);
                 return;
             }
         }
@@ -284,14 +302,15 @@ public static class Area
         try
         {
             await using (var area = new SqlCommand("""
-                INSERT INTO app.area (id, name, current_epoch, created_at, parent_area_id)
-                VALUES (@id, @name, 1, @now, @parent);
+                INSERT INTO app.area (id, name, current_epoch, created_at, parent_area_id, personal_role_id)
+                VALUES (@id, @name, 1, @now, @parent, @personal);
                 """, connection, tx))
             {
                 area.Parameters.AddWithValue("@id", areaId);
                 area.Parameters.AddWithValue("@name", name);
                 area.Parameters.AddWithValue("@now", now);
                 area.Parameters.AddWithValue("@parent", (object?)parentId ?? DBNull.Value);
+                area.Parameters.AddWithValue("@personal", body.Personal == true ? roleId : DBNull.Value);
                 await area.ExecuteNonQueryAsync(ctx.RequestAborted);
             }
 
@@ -318,6 +337,20 @@ public static class Area
         catch (SqlException e) when (e.Number is 2601 or 2627)
         {
             await tx.RollbackAsync(ctx.RequestAborted);
+
+            /* Der eigene Bereich doppelt: zwei Fenster, ein erster privater Termin. Der erste gilt. */
+            if (body.Personal == true)
+            {
+                ctx.Response.StatusCode = StatusCodes.Status409Conflict;
+                await ctx.Response.WriteAsJsonAsync(new
+                {
+                    error = "Ta osoba ma już swój prywatny obszar.",
+                    verdict = "personal-exists",
+                    areaId = await PersonalAreaOfAsync(connection, roleId, ctx.RequestAborted) is Guid had ? Ids.ToText(had) : null
+                });
+                return;
+            }
+
             await Fail(ctx, StatusCodes.Status409Conflict, "Taki obszar już istnieje.");
             return;
         }
@@ -334,6 +367,25 @@ public static class Area
             epoch = 1,
             roleId = Ids.ToText(roleId)
         });
+    }
+
+    internal const string PersonalStaysPersonal =
+        "To Twoja prywatna przestrzeń — tylko Ty ją widzisz. Żeby coś pokazać innym, wybierz ich grupę.";
+
+    /// <summary>Wem ein Bereich als eigener gehört — oder <c>null</c>: ein gewöhnlicher Bereich (0054).</summary>
+    internal static async Task<Guid?> PersonalOwnerAsync(SqlConnection connection, Guid areaId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("SELECT personal_role_id FROM app.area WHERE id = @id;", connection);
+        cmd.Parameters.AddWithValue("@id", areaId);
+        return await cmd.ExecuteScalarAsync(ct) is Guid owner ? owner : null;
+    }
+
+    /// <summary>Der eigene Bereich einer Person — oder <c>null</c>: noch keiner (0054).</summary>
+    internal static async Task<Guid?> PersonalAreaOfAsync(SqlConnection connection, Guid roleId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("SELECT id FROM app.area WHERE personal_role_id = @role;", connection);
+        cmd.Parameters.AddWithValue("@role", roleId);
+        return await cmd.ExecuteScalarAsync(ct) is Guid found ? found : null;
     }
 
     /* -- Zeigen ------------------------------------------------------------- */
@@ -395,7 +447,10 @@ public static class Area
                          WHERE c.scope_kind = N'area' AND c.scope_id = a.id
                            AND c.revoked_at IS NULL AND c.expires_at > @now
                            AND c.capability IN (N'certify', N'admin')
-                           AND c.subject_role_id IN ({names})) THEN 1 ELSE 0 END AS bit) AS mayCertify
+                           AND c.subject_role_id IN ({names})) THEN 1 ELSE 0 END AS bit) AS mayCertify,
+
+                   /* 0054 — der eigene Bereich einer MEINER Personen. */
+                   CAST(CASE WHEN a.personal_role_id IN ({names}) THEN 1 ELSE 0 END AS bit) AS personal
             FROM app.area a
             WHERE EXISTS (
                 SELECT 1 FROM app.certificate c
@@ -432,7 +487,10 @@ public static class Area
 
                 /* Und was ICH hier darf — damit die Oberflaeche nicht raet. */
                 myLevel = reader.IsDBNull(8) ? null : reader.GetString(8),
-                mayCertify = reader.GetBoolean(9)
+                mayCertify = reader.GetBoolean(9),
+
+                /* 0054 — „Tylko ja": nirgends anbieten, wo etwas geteilt wird. */
+                personal = reader.GetBoolean(10)
             });
         }
 
@@ -672,6 +730,18 @@ public static class Area
         if (!await MayAsync(connection, who.Value.AccountId, id, Capability.Certify, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "Tu nikogo nie wpuszczasz.");
+            return;
+        }
+
+        /*
+         * „TYLKO JA" (0054) HEISST: NUR ICH. Der eigene Bereich nimmt die
+         * Person, der er gehört — eine neue Epoche für sie selbst —, sonst
+         * niemanden. Wer etwas mit anderen teilen will, wählt deren Gruppe.
+         */
+        var personalOwner = await PersonalOwnerAsync(connection, id, ctx.RequestAborted);
+        if (personalOwner is not null && personalOwner != subjectId)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, PersonalStaysPersonal);
             return;
         }
 
@@ -1134,6 +1204,12 @@ public static class Area
         if (!await MayAsync(connection, who.Value.AccountId, id, Capability.Admin, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
+            return;
+        }
+
+        if (level != "none" && await PersonalOwnerAsync(connection, id, ctx.RequestAborted) is not null)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, PersonalStaysPersonal);
             return;
         }
 
