@@ -2,6 +2,7 @@ namespace Recreatio.Api.Options;
 
 public sealed class CalendarOptions
 {
+    public bool ReminderDispatcherEnabled { get; set; } = true;
     public int ReminderPollSeconds { get; set; } = 60;
     public int ReminderLookbackMinutes { get; set; } = 5;
     public int ReminderLookaheadMinutes { get; set; } = 60;

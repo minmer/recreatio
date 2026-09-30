@@ -15,6 +15,7 @@ public sealed class CalendarReminderDispatcherHostedService : BackgroundService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<CalendarReminderDispatcherHostedService> _logger;
     private readonly CalendarOptions _options;
+    private bool _schemaUnavailable;
 
     public CalendarReminderDispatcherHostedService(
         IServiceScopeFactory scopeFactory,
@@ -30,6 +31,12 @@ public sealed class CalendarReminderDispatcherHostedService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!_options.ReminderDispatcherEnabled)
+        {
+            _logger.LogInformation("Legacy calendar reminder dispatcher disabled by Calendar:ReminderDispatcherEnabled.");
+            return;
+        }
+
         var pollSeconds = Math.Clamp(_options.ReminderPollSeconds, 10, 3600);
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -61,6 +68,26 @@ public sealed class CalendarReminderDispatcherHostedService : BackgroundService
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<RecreatioDbContext>();
+        if (!await HasReminderSchemaAsync(dbContext, ct))
+        {
+            if (!_schemaUnavailable)
+            {
+                _logger.LogWarning(
+                    "Legacy calendar reminders are paused: calendar.CalendarReminderDispatches, "
+                    + "calendar.CalendarEventReminders and calendar.CalendarEvents must all exist. "
+                    + "For an app-schema deployment, run backend/Api instead of the legacy Recreatio.Api host, "
+                    + "or set Calendar:ReminderDispatcherEnabled=false. "
+                    + "If legacy reminders are required, apply the legacy calendar migrations to the configured database. "
+                    + "The dispatcher will resume when its schema becomes available.");
+                _schemaUnavailable = true;
+            }
+            return;
+        }
+        if (_schemaUnavailable)
+        {
+            _logger.LogInformation("Legacy calendar reminder schema is available; dispatching resumed.");
+            _schemaUnavailable = false;
+        }
         var graphRuntimeService = scope.ServiceProvider.GetRequiredService<ICalendarGraphRuntimeService>();
 
         var now = DateTimeOffset.UtcNow;
@@ -107,6 +134,26 @@ public sealed class CalendarReminderDispatcherHostedService : BackgroundService
 
                 await UpsertDispatchAsync(dbContext, reminder, item, occurrence.StartUtc, dueUtc, ct);
             }
+        }
+    }
+
+    private static async Task<bool> HasReminderSchemaAsync(RecreatioDbContext dbContext, CancellationToken ct)
+    {
+        await dbContext.Database.OpenConnectionAsync(ct);
+        try
+        {
+            await using var command = dbContext.Database.GetDbConnection().CreateCommand();
+            command.CommandText = """
+                SELECT CASE WHEN OBJECT_ID(N'calendar.CalendarReminderDispatches', N'U') IS NOT NULL
+                             AND OBJECT_ID(N'calendar.CalendarEventReminders', N'U') IS NOT NULL
+                             AND OBJECT_ID(N'calendar.CalendarEvents', N'U') IS NOT NULL
+                            THEN 1 ELSE 0 END;
+                """;
+            return Convert.ToInt32(await command.ExecuteScalarAsync(ct)) == 1;
+        }
+        finally
+        {
+            await dbContext.Database.CloseConnectionAsync();
         }
     }
 
