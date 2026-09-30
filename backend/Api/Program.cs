@@ -60,6 +60,7 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors(BrowserOrigins);
+app.UseMiddleware<ApiErrorMiddleware>();
 
 /*
  * Lebt der Dienst — und rechnet er richtig? Die zweite Hälfte ist die

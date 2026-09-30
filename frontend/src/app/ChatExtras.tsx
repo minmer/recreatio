@@ -9,17 +9,29 @@ import { chatEndpoint } from './chatFeatures';
 export function useChatExtras(endpoint: string) {
   const [features, setFeatures] = useState<Features | null>(null);
   const [search, setSearch] = useState('');
+  const [loadError, setLoadError] = useState<string | null>(null);
   const lastMessage = useRef<string | null | undefined>(undefined);
   const [filter, setFilter] = useState('all');
-  const refresh = () => call<Features>(`${endpoint}/features`).then(setFeatures);
+  const refresh = () => call<Features>(`${endpoint}/features`).then(f => { setFeatures(f); setLoadError(null); });
   useEffect(() => {
     let live = true;
-    const load = () => call<Features>(`${endpoint}/features`).then(f => { if (live) {
+    let loading = false;
+    let retryAt = 0;
+    let failures = 0;
+    setFeatures(null); setLoadError(null); lastMessage.current = undefined;
+    const load = () => {
+      if (loading || Date.now() < retryAt) return;
+      loading = true;
+      return call<Features>(`${endpoint}/features`).then(f => { if (live) {
       if (lastMessage.current !== undefined && f.lastMessageAt !== lastMessage.current && f.lastMessageAt
         && document.visibilityState !== 'visible' && !f.effective.muted && !f.effective.archived && availableNow(f.effective))
         notices.show({ title: 'Nowa wiadomość', body: 'W rozmowie pojawiła się wiadomość.', tag: endpoint });
-      lastMessage.current = f.lastMessageAt; setFeatures(f);
-    } }).catch(() => undefined);
+      lastMessage.current = f.lastMessageAt; setFeatures(f); setLoadError(null); failures = 0;
+    } }).catch(e => {
+      if (live) setLoadError(e instanceof Error ? e.message : 'Nie udało się wczytać ustawień rozmowy.');
+      retryAt = Date.now() + Math.min(60000, 5000 * 2 ** Math.min(++failures, 4));
+    }).finally(() => { loading = false; });
+    };
     void load(); const timer = window.setInterval(load, 5000);
     const changed = () => void load(); window.addEventListener('chat-feature-changed', changed);
     return () => { live = false; clearInterval(timer); window.removeEventListener('chat-feature-changed', changed); };
@@ -27,7 +39,7 @@ export function useChatExtras(endpoint: string) {
   const matches = (id: string, opened: Opened | null) =>
     (search === '' || `${opened?.text ?? ''} ${(opened?.attachments ?? []).map(a => a.name).join(' ')}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
     && (filter === 'all' || features?.marks.some(m => m.messageId === id && m.kind === filter && (filter !== 'star' || m.mine)));
-  return { features, search, setSearch, filter, setFilter, refresh, matches };
+  return { features, loadError, search, setSearch, filter, setFilter, refresh, matches };
 }
 export function ChatToolbar({ endpoint, extras, keys, canModerate = false, onPolicy }: {
   endpoint: string; extras: ReturnType<typeof useChatExtras>; keys: ReadonlyMap<number, Uint8Array>; canModerate?: boolean; onPolicy?: () => void;
@@ -42,12 +54,13 @@ export function ChatToolbar({ endpoint, extras, keys, canModerate = false, onPol
   }, [endpoint, keys]);
   const f = extras.features;
   return <section className="wk-chat-extras">
+    {extras.loadError && <p className="wk-error" role="alert">Nie udało się wczytać funkcji rozmowy. {extras.loadError}</p>}
     <div className="wk-actions">
       <input aria-label="Szukaj we wczytanych wiadomościach" placeholder="Szukaj we wczytanych wiadomościach…" value={extras.search} onChange={e => extras.setSearch(e.target.value)} />
       <select aria-label="Filtr wiadomości" value={extras.filter} onChange={e => extras.setFilter(e.target.value)}>
-        <option value="all">Wszystkie</option><option value="star">Zapisane</option><option value="pin">Przypięte</option>
+        <option value="all">Wszystkie</option><option value="star" disabled={!f}>Zapisane</option><option value="pin" disabled={!f}>Przypięte</option>
       </select>
-      <button type="button" onClick={() => setSettings(!settings)}>Dostępność i powiadomienia</button>
+      <button type="button" disabled={!f} onClick={() => setSettings(!settings)}>Dostępność i powiadomienia</button>
     </div>
     {f?.receipts.some(r => r.available !== null) && <p className="wk-hint">Dostępni uczestnicy: {f.receipts.filter(r => r.available === true).length} · poza godzinami: {f.receipts.filter(r => r.available === false).length}</p>}
     {f?.typing ? <p role="status">Ktoś pisze…</p> : null}
