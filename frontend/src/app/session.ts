@@ -418,6 +418,55 @@ export async function register(loginId: string, password: string): Promise<Who> 
   return who;
 }
 
+/* -- Das Konto löschen ----------------------------------------------------- */
+
+/** Was das Löschen mitnähme — die Vorschau des Dienstes (`AccountDeletion.cs`). */
+export interface DeletionPreview {
+  readonly loginId: string;
+  readonly persons: number;
+  readonly messages: number;
+  readonly devices: number;
+  /** Ämter, die nur dieses Konto hält — die Namen öffnet der Browser selbst. */
+  readonly offices: readonly string[];
+  /** Bereiche, die mitgehen: der eigene Kalender, private Gruppen. */
+  readonly deletedAreas: readonly { id: string; name: string; personal: boolean }[];
+  /** Gemeinsame Bereiche, die danach niemand mehr öffnet. */
+  readonly orphanedAreas: readonly { id: string; name: string }[];
+  /** Seiten, die dieses Konto führt — sie bleiben online. */
+  readonly pages: readonly string[];
+}
+
+export const deletionPreview = (): Promise<DeletionPreview> =>
+  call<DeletionPreview>('/auth/account/deletion');
+
+/**
+ * Das Konto löschen — endgültig.
+ *
+ * <b>Mit dem Passwort, nicht nur mit der Sitzung:</b> der Browser rechnet den
+ * PasswordKey neu, und der Dienst prüft ihn wie beim Anmelden. Ein offen
+ * liegengelassenes Telefon löscht kein Konto.
+ *
+ * Danach ist hier nichts mehr zu halten: der Schlüssel im Speicher geht, und
+ * die übrigen Tabs lassen ihn auch fallen. Der Öffner in der Ablage bleibt —
+ * er gehört dem Gerät, nicht dem Konto, und andere Konten auf diesem Gerät
+ * brauchen ihn noch.
+ */
+export async function deleteAccount(who: Who, typedLoginId: string, password: string): Promise<void> {
+  const key = await keyFor(who.loginId, password);
+  try {
+    await call<{ ok: boolean }>('/auth/account/delete', {
+      method: 'POST',
+      body: JSON.stringify({ loginId: typedLoginId, passwordKeyBase64Url: toBase64Url(key) })
+    });
+  } finally {
+    key.fill(0);
+  }
+
+  const was = held;
+  held = null;
+  if (was !== null) announceForget(was.loginId);
+}
+
 export async function signOut(): Promise<void> {
   // Zuerst der Schlüssel, dann der Dienst: scheitert der Aufruf, soll trotzdem
   // nichts mehr im Speicher liegen.

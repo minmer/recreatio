@@ -83,6 +83,8 @@ app.MapGet("/health", () =>
 });
 
 Auth.Map(app);
+/* Das Konto löschen — selbst, in der App wie im Browser (Google Play verlangt beides). */
+AccountDeletion.Map(app);
 Keeping.Map(app);
 Workspace.Map(app);
 Slug.Map(app);

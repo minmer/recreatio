@@ -6,6 +6,8 @@ public static partial class Chat
     private const long MaxAttachment = 50 * 1024 * 1024;
     private static string AttachmentRoot(IConfiguration config) => Path.GetFullPath(config["Chat:AttachmentDirectory"] ?? Path.Combine(AppContext.BaseDirectory, "private-chat-files"));
     private static string AttachmentPath(IConfiguration config, Guid id) => Path.Combine(AttachmentRoot(config), id.ToString("N") + ".sealed");
+    /// <summary>Wo ein Anhang liegt — für das Löschen eines Kontos (<see cref="AccountDeletion"/>).</summary>
+    internal static string AttachmentFile(IConfiguration config, Guid id) => AttachmentPath(config, id);
     private static async Task UploadAsync(HttpContext ctx, Db db, IConfiguration config, Guid id)
     {
         var requestLimit = ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();

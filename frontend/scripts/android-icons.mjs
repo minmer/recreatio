@@ -26,7 +26,8 @@ const res = join(root, 'android', 'app', 'src', 'main', 'res');
 const DENSITIES = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
 
 /* Das Logo ist schwarz auf durchsichtig/weiss — erst auf Weiss, dann als Graustufe. */
-const flat = '[0]format=rgba[s];color=white:s=512x512:d=1,format=rgba[w];[w][s]overlay=format=auto,format=gray';
+/* Fast-Weiss (≥ 236) wird Weiss: sonst zeichnet sich das Quadrat des Logos als Schatten ab. */
+const flat = "[0]format=rgba[s];color=white:s=512x512:d=1,format=rgba[w];[w][s]overlay=format=auto,format=gray,lut=c0='if(gt(val,235),255,val)'";
 
 /** Die Schrift allein, in einer Farbe, mit Deckkraft aus der Helligkeit. */
 const glyph = (logo, color, canvas) =>
@@ -59,3 +60,19 @@ for (const [name, d] of Object.entries(DENSITIES)) {
 
 render(glyph(240, 'black', 288), join(res, 'drawable-nodpi', 'splash_logo.png'));
 render(glyph(240, '0xf0ebe0', 288), join(res, 'drawable-night-nodpi', 'splash_logo.png'));
+
+/*
+ * Für den Eintrag in Google Play: das Symbol (512 × 512, randlos — Play
+ * rundet selbst ab) und die Grafik über dem Eintrag (1024 × 500, ohne
+ * Transparenz) mit dem breiten Logo.
+ */
+const images = join(root, 'android', 'play', 'listings', 'pl-PL', 'images');
+render(onWhite(400, 512), join(images, 'icon.png'));
+
+const wide = join(root, 'public', 'logo_new.png');
+mkdirSync(images, { recursive: true });
+execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', wide, '-filter_complex',
+  '[0]format=rgba[s];color=white:s=3721x1311:d=1,format=rgba[w];[w][s]overlay=format=auto,format=rgb24,'
+  + 'scale=860:-2:flags=lanczos,pad=1024:500:(ow-iw)/2:(oh-ih)/2:color=white',
+  '-frames:v', '1', join(images, 'featureGraphic.png')], { stdio: 'inherit' });
+console.log('✓', join(images, 'featureGraphic.png').slice(root.length + 1));

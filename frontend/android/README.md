@@ -25,8 +25,12 @@ The scripts find Android Studio and Visual Studio installs by themselves. Otherw
 cd frontend
 npm run android:keystore        # once — creates the signing key outside the repo
 npm run android:apk             # signed release  → android-out/recreatio-<version>.apk
+npm run android:release         # APK + AAB (for Google Play) → android-out/
+npm run android:publish         # newest AAB → Google Play, internal testing, draft
 npm run android:apk -- --debug  # debug build, WebView inspectable via chrome://inspect
 ```
+
+**`deploy-frontend.bat` builds the app too.** It deploys the site to `docs/`, then builds the APK and AAB from the same `dist/` (`--skip-web`), and uploads the AAB to Google Play if `~/.recreatio/android/play-service-account.json` exists. Without the signing key it skips the app; `deploy-frontend.bat --web-only` skips it on purpose.
 
 `android:apk` does four things:
 
@@ -86,8 +90,9 @@ For Google Play, the same key becomes the upload key.
 ## Not there yet
 
 - **Push while the app is closed.** GrapheneOS has no FCM without sandboxed Play. The route there would be UnifiedPush (e.g. ntfy) or Web Push behind the same `notices` abstraction. Today notifications work only while the app is running, as in the browser.
-- **Google Play.** Still needed:
-  - an `.aab` (`gradlew bundleRelease`);
-  - the Data Safety form;
-  - the store listing, including an honest statement of the encryption limit;
-  - the age rating.
+
+## Google Play
+
+Everything for the store is in [`play/`](play/): listing texts (pl-PL, en-US), icon, feature graphic, phone screenshots, release notes, and [`play/PLAY_CONSOLE.md`](play/PLAY_CONSOLE.md). That file walks through the Play Console step by step: app signing, the answers for App content and Data safety, the review account, the first manual upload, and the service account for automatic uploads.
+
+The account deletion Google requires is in the app and on the web: *Konto → Usunięcie konta* (`backend/Api/AccountDeletion.cs`), and `https://recreatio.pl/usun-konto/`. The privacy policy is at `https://recreatio.pl/prywatnosc/`.

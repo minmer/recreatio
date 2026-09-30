@@ -1,0 +1,27 @@
+REcreatio to miejsce pracy parafii i wspólnot — grup, schol, oaz, zespołów duszpasterskich — i ich członków.
+
+CO ZNAJDZIESZ W APLIKACJI
+• Kalendarz: Twoje terminy i terminy Twoich grup w widoku dnia, tygodnia, miesiąca i listy; terminy powtarzające się, przypięcie osób, które mają być obecne.
+• Rezerwacje: terminy u księdza, sale, dom rekolekcyjny — z potwierdzaniem przez prowadzącego lub kancelarię.
+• Zadania: to, co trzeba zrobić, z oknem czasowym — od razu widać, co jest do zrobienia teraz.
+• Rozmowy: rozmowy grup z odpowiedziami, reakcjami, wiadomościami głosowymi i plikami; edycja wiadomości z historią zmian.
+• Grupy i role: kto do czego należy i kto co prowadzi — z uprawnieniami nadawanymi przez wspólnotę.
+• Formularze i zgłoszenia prowadzone przez parafię lub wspólnotę.
+
+SZYFROWANIE NA TWOIM URZĄDZENIU
+Hasło nie opuszcza telefonu. Liczy się z niego klucz, a nim telefon szyfruje imiona, dane osobowe, treść wiadomości, załączniki, prywatne terminy i notatki, zanim cokolwiek wyśle. Usługa przechowuje te dane, ale nie może ich odczytać.
+Klucz urządzenia jest chroniony magazynem kluczy Androida. Aplikacja nie robi kopii zapasowych w chmurze.
+
+GRANICE SZYFROWANIA — UCZCIWIE
+• Usługa widzi metadane: nazwę konta, nazwy grup, kto do jakiej grupy należy, czasy terminów, jawne tytuły (np. godziny Mszy), kiedy i ile napisano.
+• Hasła nie da się odzyskać. Bez hasła i bez zachowanego klucza na urządzeniu dostępu do zaszyfrowanych danych nie przywróci nikt — także my.
+• Kto ma Twój odblokowany telefon z otwartą sesją, widzi to, co Ty.
+
+BEZ REKLAM I ŚLEDZENIA
+Brak reklam, analityki i bibliotek śledzących. Aplikacja łączy się tylko z usługą REcreatio. Działa także bez usług Google (np. na GrapheneOS).
+
+KONTO
+Do korzystania potrzebne jest konto — zakładasz je w aplikacji (od 16 lat). Konto usuniesz sam w każdej chwili: Konto → Usunięcie konta.
+
+Polityka prywatności: https://recreatio.pl/prywatnosc/
+Kontakt: kontakt@recreatio.pl

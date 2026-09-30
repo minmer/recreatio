@@ -1,0 +1,27 @@
+REcreatio is the workplace of parishes and communities — groups, choirs, youth groups, pastoral teams — and their members. The app is in Polish.
+
+WHAT'S INSIDE
+• Calendar: your events and your groups' events by day, week, month or as a list; recurring events; pin the people who need to be there.
+• Bookings: appointments with the priest, rooms, a retreat house — confirmed by the host or the parish office.
+• Tasks: what needs doing, with a time window — you see at a glance what is due now.
+• Chat: group conversations with replies, reactions, voice messages and files; message editing with a change history.
+• Groups and roles: who belongs where and who leads what, with permissions granted by the community.
+• Forms and registrations run by the parish or community.
+
+ENCRYPTED ON YOUR DEVICE
+Your password never leaves the phone. It derives a key with which the phone encrypts names, personal data, message content, attachments, private events and notes before anything is sent. The service stores this data but cannot read it.
+The device key is protected by the Android Keystore. The app makes no cloud backups.
+
+THE LIMITS OF ENCRYPTION — HONESTLY
+• The service sees metadata: account name, group names, who belongs to which group, event times, public titles (e.g. Mass times), when and how much was written.
+• A lost password cannot be recovered. Without the password and without a kept key on a device, nobody — including us — can restore access to encrypted data.
+• Whoever has your unlocked phone with an open session sees what you see.
+
+NO ADS, NO TRACKING
+No ads, no analytics, no tracking libraries. The app talks only to the REcreatio service. It also works without Google services (e.g. on GrapheneOS).
+
+ACCOUNT
+An account is required; you create it in the app (16+). You can delete it yourself at any time: Konto → Usunięcie konta.
+
+Privacy policy: https://recreatio.pl/prywatnosc/
+Contact: kontakt@recreatio.pl

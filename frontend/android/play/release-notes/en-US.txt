@@ -1,0 +1,1 @@
+First Android release of REcreatio: calendar, tasks, chat and bookings. Device key in the Android Keystore. Account deletion in the app.

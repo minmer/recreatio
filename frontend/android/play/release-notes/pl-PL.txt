@@ -1,0 +1,1 @@
+Pierwsza wersja REcreatio na Androida: kalendarz, zadania, rozmowy i rezerwacje terminów. Klucz urządzenia w magazynie kluczy Androida. Usuwanie konta w aplikacji.

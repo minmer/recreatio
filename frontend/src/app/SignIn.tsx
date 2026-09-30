@@ -187,6 +187,11 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
             Imię jest zapieczętowane Twoim kluczem — usługa go nie zna i nie
             może poznać. Zmienisz je kiedy zechcesz, także wstecz.
           </p>
+
+          <p className="wk-hint">
+            Zakładając konto, przyjmujesz <a href="/prywatnosc/">politykę prywatności</a>.
+            Konto usuniesz sam w każdej chwili (Konto → Usunięcie konta).
+          </p>
         </>
       )}
 

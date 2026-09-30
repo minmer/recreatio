@@ -3466,3 +3466,13 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-chat-attachment img, .wk-chat-attachment video { max-width: min(100%, 28rem); max-height: 24rem; object-fit: contain; border-radius: .5rem; }
 .wk-chat-attachment audio { max-width: 100%; }
 .wk-msg-body blockquote { margin: .3rem 0 .7rem; border-left: 3px solid currentColor; padding-left: .7rem; opacity: .8; }
+
+/* Konto löschen — rot, weil es endgültig ist; die Liste sagt, was geht. */
+.wk-btn.wk-btn-danger { background: var(--wk-danger); border-color: var(--wk-danger); color: var(--wk-on-accent); }
+.wk-link-btn.wk-danger-link { color: var(--wk-danger); }
+.wk-delete-list { margin: 0.2rem 0 0.8rem; padding-left: 1.2rem; display: grid; gap: 0.25rem; }
+.wk-note.wk-delete-warn { border-left-color: var(--wk-danger); margin: 0.6rem 0; }
+.wk-note.wk-delete-warn ul { margin: 0.3rem 0; padding-left: 1.2rem; }
+
+/* In der App (shell.ts setzt .is-app): kein Bau-Etikett im Kopf — im Laden ist sie „REcreatio", nicht „Neubau". */
+.is-app .wk-stage { display: none; }

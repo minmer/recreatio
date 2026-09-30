@@ -18,7 +18,9 @@
     "public:check": "tsc -p tsconfig.public.json --noEmit",
     "android:apk": "node scripts/android-apk.mjs",
     "android:keystore": "node scripts/android-keystore.mjs",
-    "android:icons": "node scripts/android-icons.mjs"
+    "android:icons": "node scripts/android-icons.mjs",
+    "android:release": "node scripts/android-apk.mjs --bundle",
+    "android:publish": "node scripts/android-publish.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

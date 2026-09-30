@@ -1,0 +1,1 @@
+Parish and community app: calendar, bookings and chat, end-to-end encrypted.

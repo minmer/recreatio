@@ -20,11 +20,17 @@ import { useCallback, useEffect, useState } from 'react';
 import { forgetKept, loadKept, setKeyKeeping, type KeptDevice } from './keeping';
 import { knownDevice } from './kept';
 import type { Ring, SealedRole } from './keys';
+import { Modal } from './Modal';
 import { PersonCard } from './PersonCard';
+import { forget as forgetState } from './prefs';
 import { keysFor } from './ringOf';
+import { myRoleNames } from './roleNames';
 import { selfOf } from './roles';
 import { loadMySeats, openMine as openMySeat, type MySeat } from './seat';
-import { keepHeldKey, WorkspaceError, type KeyKeeping, type Who } from './session';
+import {
+  deleteAccount, deletionPreview, keepHeldKey, WorkspaceError,
+  type DeletionPreview, type KeyKeeping, type Who
+} from './session';
 
 export function Account({ who }: { who: Who }) {
   const [mode, setMode] = useState<KeyKeeping | null>(null);
@@ -233,6 +239,167 @@ export function Account({ who }: { who: Who }) {
       )}
 
       {ring !== null && <MySeats ring={ring} />}
+
+      <h2 className="wk-h2">Prywatność</h2>
+      <p className="wk-hint">
+        Co przechowujemy, kto jest administratorem danych i jakie masz prawa:{' '}
+        <a href="/prywatnosc/">polityka prywatności</a>.
+      </p>
+
+      <DeleteAccount who={who} />
+    </>
+  );
+}
+
+/* -- Das Konto löschen -------------------------------------------------------- */
+
+/**
+ * Das Konto löschen — vom Menschen selbst (Google Play verlangt es in der App
+ * und im Netz; hier ist beides dieselbe Seite).
+ *
+ * <b>Erst sagen, was geschieht, dann fragen.</b> Die Vorschau kommt vom Dienst
+ * und nennt besonders, was danach NIEMAND mehr öffnet — eine Gruppe, deren
+ * einziger Schlüsselhalter dieses Konto ist. Wer das nicht will, gibt vorher
+ * jemandem Zugang.
+ *
+ * <b>Name tippen und Passwort:</b> das eine gegen den falschen Knopf, das
+ * andere gegen das offen liegengelassene Telefon.
+ */
+function DeleteAccount({ who }: { who: Who }) {
+  const [open, setOpen] = useState(false);
+  const [preview, setPreview] = useState<DeletionPreview | null>(null);
+  const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
+  const [typed, setTyped] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [gone, setGone] = useState(false);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    let alive = true;
+    setPreview(null);
+    setFailed(null);
+    void deletionPreview()
+      .then((found) => { if (alive) setPreview(found); })
+      .catch((e: unknown) => { if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się sprawdzić konta.'); });
+    void myRoleNames(who).then((found) => { if (alive) setNames(found); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [open, who]);
+
+  const ready = typed.trim().toLowerCase() === who.loginId.toLowerCase() && password !== '' && !busy;
+
+  /* Gruppen, die mitgehen — getrennt vom eigenen Kalender, weil sie anderen etwas bedeuten können. */
+  const groups = preview?.deletedAreas.filter((a) => !a.personal) ?? [];
+
+  const go = async () => {
+    setBusy(true);
+    setFailed(null);
+    try {
+      await deleteAccount(who, typed.trim(), password);
+      forgetState();
+      setPassword('');
+      setGone(true);
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć konta.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /* Danach gibt es hier nichts mehr: neu laden, und die Anmeldung steht da. */
+  if (gone) {
+    return (
+      <Modal title="Konto usunięte" onClose={() => window.location.reload()}>
+        <p>Konto <strong>{who.loginId}</strong> zostało usunięte. Na tym urządzeniu nie ma już jego kluczy.</p>
+        <div className="wk-actions">
+          <button type="button" className="wk-btn" onClick={() => window.location.reload()}>Zakończ</button>
+        </div>
+      </Modal>
+    );
+  }
+
+  return (
+    <>
+      <h2 className="wk-h2">Usunięcie konta</h2>
+      <p className="wk-hint">
+        Usuwa konto na zawsze — na wszystkich urządzeniach. Nie da się tego cofnąć.
+      </p>
+      <div className="wk-actions">
+        <button type="button" className="wk-link-btn wk-danger-link" onClick={() => setOpen(true)}>Usuń konto…</button>
+      </div>
+
+      {open && (
+        <Modal title="Usunąć konto?" onClose={() => { if (!busy) setOpen(false); }}>
+          {preview === null && failed === null && <p className="wk-hint">Sprawdzanie, co zostanie usunięte…</p>}
+
+          {preview !== null && (
+            <>
+              <p><strong>Zostanie usunięte:</strong></p>
+              <ul className="wk-delete-list">
+                <li>
+                  konto <strong>{preview.loginId}</strong>, logowanie i sesje na wszystkich urządzeniach
+                  {preview.devices > 0 ? ` (zachowane klucze: ${preview.devices})` : ''};
+                </li>
+                <li>
+                  {preview.persons === 1 ? 'Twoja osoba i jej dane' : `Twoje osoby (${preview.persons}) i ich dane`}
+                  {' '}— klucze, nazwy, dane osobowe;
+                </li>
+                {preview.deletedAreas.some((a) => a.personal) && <li>Twój osobisty kalendarz i zadania;</li>}
+                {preview.messages > 0 && (
+                  <li>treść Twoich wiadomości ({preview.messages}) — w rozmowach zostanie „wiadomość usunięta”;</li>
+                )}
+                <li>Twoje przyszłe rezerwacje terminów.</li>
+              </ul>
+
+              <p>
+                <strong>Zostaje</strong>, bo należy do wspólnot: zgłoszenia wysłane w formularzach, minione terminy
+                {preview.pages.length > 0 ? `, strony: ${preview.pages.join(', ')}` : ''}.
+              </p>
+
+              {(groups.length > 0 || preview.orphanedAreas.length > 0 || preview.offices.length > 0) && (
+                <div className="wk-note wk-delete-warn">
+                  <p><strong>Uwaga — tylko Ty masz do tego klucze.</strong></p>
+                  {groups.length > 0 && (
+                    <>
+                      <p>Te grupy zostaną <strong>usunięte</strong> razem z kontem — z kalendarzami, zadaniami i rozmowami:</p>
+                      <ul>{groups.map((a) => <li key={a.id}>„{a.name}”</li>)}</ul>
+                    </>
+                  )}
+                  {(preview.orphanedAreas.length > 0 || preview.offices.length > 0) && (
+                    <>
+                      <p>To zostanie, ale nikt już tego nie otworzy ani nie poprowadzi:</p>
+                      <ul>
+                        {preview.orphanedAreas.map((a) => <li key={a.id}>obszar „{a.name}”</li>)}
+                        {preview.offices.map((id) => <li key={id}>rola „{names.get(id) ?? 'bez nazwy'}”</li>)}
+                      </ul>
+                    </>
+                  )}
+                  <p>Jeśli mają działać dalej, najpierw nadaj komuś dostęp.</p>
+                </div>
+              )}
+
+              <label className="wk-field">
+                <span>Wpisz nazwę konta: <strong>{who.loginId}</strong></span>
+                <input value={typed} autoComplete="off" autoCapitalize="none" onChange={(e) => setTyped(e.target.value)} />
+              </label>
+              <label className="wk-field">
+                <span>Hasło</span>
+                <input type="password" value={password} autoComplete="current-password" onChange={(e) => setPassword(e.target.value)} />
+              </label>
+            </>
+          )}
+
+          {failed !== null && <p className="wk-error">{failed}</p>}
+
+          <div className="wk-actions">
+            <button type="button" className="wk-btn wk-btn-danger" disabled={!ready || preview === null} onClick={() => void go()}>
+              {busy ? 'Usuwanie…' : 'Usuń konto na zawsze'}
+            </button>
+            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setOpen(false)}>Anuluj</button>
+          </div>
+        </Modal>
+      )}
     </>
   );
 }

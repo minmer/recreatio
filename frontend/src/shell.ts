@@ -127,6 +127,9 @@ function onDownload(event: MouseEvent): void {
 }
 
 export async function startShell(): Promise<void> {
+  /* Die App erkennt sich an dieser Klasse (app.css: was in der App anders aussieht). */
+  document.documentElement.classList.add('is-app');
+
   let launched: string | null = null;
   try {
     launched = (await App.getLaunchUrl())?.url ?? null;
