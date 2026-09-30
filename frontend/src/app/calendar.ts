@@ -89,11 +89,44 @@ export interface Occurrence {
 
 export interface Days {
   readonly calendarId: string;
+  /** 0058 — wie der Kalender heisst und wie seine Termine gemeint sind. */
+  readonly title?: string | null;
+  readonly description?: string | null;
+  readonly itemKind?: string | null;
   readonly timeZone: string;
   readonly fromUtc: string;
   readonly toUtc: string;
   readonly occurrences: readonly Occurrence[];
 }
+
+/**
+ * RESERVIEREN AN EINEM KALENDER (0058).
+ *
+ * <code>
+ *   all      jeder Termin ist ein Angebot (ein einzelner kann „nein" sagen)
+ *   marked   nur Termine, die es sagen
+ * </code>
+ *
+ * Keine Regeln (`booking: null`): niemand reserviert.
+ */
+export interface CalendarBooking {
+  readonly resourceId: string;
+  readonly mode: 'all' | 'marked';
+  readonly capacity: number;
+  readonly approval: 'none' | 'office';
+  /** Nur Leute aus dieser Gruppe (und den Gruppen darunter) — `null`: jeder, der den Termin findet. */
+  readonly reserveAreaId: string | null;
+  readonly perPerson: number;
+}
+
+export type CalendarKind = 'appointment' | 'mass' | 'confession' | 'visit';
+
+export const CALENDAR_KIND_LABEL: Record<CalendarKind, string> = {
+  appointment: 'spotkania',
+  mass: 'msze',
+  confession: 'spowiedzi',
+  visit: 'odwiedziny'
+};
 
 export interface CalendarRow {
   readonly calendarId: string;
@@ -101,14 +134,72 @@ export interface CalendarRow {
   readonly title: string;
   readonly timeZone: string;
   readonly areaName: string;
+
+  /* 0058 — wie die Termine dieses Kalenders funktionieren. Ältere Dienste nennen sie nicht. */
+  readonly description?: string | null;
+  readonly itemKind?: CalendarKind;
+  /** Wer sie sieht — `null`: wer den Bereich des Kalenders hat. */
+  readonly visibilityAreaId?: string | null;
+  readonly visibilityAreaName?: string | null;
+  readonly durationMinutes?: number;
+  readonly isDefault?: boolean;
+  readonly archived?: boolean;
+  /** Schreibe ich darin — trage ein, ändere, stelle die Regeln? */
+  readonly mayWrite?: boolean;
+  readonly booking?: CalendarBooking | null;
+}
+
+/** Die Regeln, mit denen ein Kalender angelegt oder geändert wird. */
+export interface CalendarRules {
+  readonly title?: string;
+  readonly description?: string;
+  readonly itemKind?: CalendarKind;
+  /** "" = wer den Bereich hat. */
+  readonly visibilityAreaId?: string;
+  readonly durationMinutes?: number;
+  readonly booking?: {
+    readonly mode: 'none' | 'all' | 'marked';
+    readonly capacity?: number;
+    readonly approval?: 'none' | 'office';
+    /** "" = jeder, der den Termin findet. */
+    readonly reserveAreaId?: string;
+    readonly perPerson?: number;
+  };
+  readonly archived?: boolean;
 }
 
 /* -- Kalender -------------------------------------------------------------- */
 
+/** Der Terminarz eines Bereichs — der vorhandene (Standard), sonst jetzt angelegt (0054). */
 export const createCalendar = (
   body: { areaId: string; title: string; timeZone?: string }
 ): Promise<CalendarRow> =>
   call<CalendarRow>('/workspace/calendar', { method: 'POST', body: JSON.stringify(body) });
+
+/** 0058 — einen WEITEREN Kalender anlegen, mit seinen Regeln. */
+export const addCalendar = (
+  areaId: string, title: string, rules: CalendarRules
+): Promise<{ calendarId: string }> =>
+  call('/workspace/calendar', {
+    method: 'POST',
+    body: JSON.stringify({ areaId, title, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, create: true, ...rules })
+  });
+
+/** 0058 — die Regeln eines Kalenders ändern (nur, was genannt ist). */
+export const saveCalendarRules = (calendarId: string, rules: CalendarRules): Promise<{ saved: boolean }> =>
+  call(`/workspace/calendar/${encodeURIComponent(calendarId)}/settings`, { method: 'POST', body: JSON.stringify(rules) });
+
+/** 0058 — wer bei einem Termin da sein muss: für die Reihe (ohne `occurrenceAt`) oder ein Vorkommen. */
+export type Duty = 'present' | 'celebrant' | 'lead';
+
+export const DUTY_LABEL: Record<Duty, string> = { present: 'obecny', celebrant: 'celebrans', lead: 'prowadzi' };
+
+export const setPeople = (
+  itemId: string, people: readonly { roleId: string; duty: Duty }[], occurrenceAt?: string
+): Promise<{ people: number }> =>
+  call(`/workspace/item/${encodeURIComponent(itemId)}/people`, {
+    method: 'POST', body: JSON.stringify({ occurrenceAt: occurrenceAt ?? null, people })
+  });
 
 export const loadCalendars = (): Promise<{ calendars: readonly CalendarRow[] }> =>
   call<{ calendars: readonly CalendarRow[] }>('/workspace/calendars');

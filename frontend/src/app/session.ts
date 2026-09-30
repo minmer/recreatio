@@ -65,7 +65,7 @@ function serviceOrigin(): string {
   return `https://api.${host}`;
 }
 
-const API = serviceOrigin().replace(/\/+$/, '');
+export const API = serviceOrigin().replace(/\/+$/, '');
 
 /** Muss mit `Password` im Kernel übereinstimmen. */
 const ARGON = { memoryKiB: 64 * 1024, iterations: 3, parallelism: 1, outputBytes: 32, saltBytes: 16 } as const;

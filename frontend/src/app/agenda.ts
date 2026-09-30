@@ -53,6 +53,15 @@ export interface AgendaOccurrence {
   readonly moved: boolean;
   readonly series: Series;
   readonly fields: readonly SealedField[];
+
+  /* 0058 — was dieser Termin fürs Reservieren für sich sagt (`null`: wie der Kalender). */
+  readonly bookable?: boolean | null;
+  readonly capacity?: number | null;
+  readonly reserveAreaId?: string | null;
+
+  /* 0058 — wer da sein muss (für dieses Vorkommen), und ob ich es bin. */
+  readonly people?: readonly { readonly roleId: string; readonly duty: 'present' | 'celebrant' | 'lead' }[];
+  readonly mine?: boolean;
 }
 
 export interface AgendaClaim {
@@ -186,6 +195,18 @@ export interface EventDraft {
   /** Letzter Tag der Reihe — `null` mit `count`, oder „bez końca" (dann weit voraus). */
   readonly until: string | null;
   readonly count: number | null;
+
+  /*
+   * 0058 — IN WELCHEN KALENDER. Genannt: dieser (er gibt die Art vor, und
+   * `areaId` ist dann nur noch, wer den Termin sieht). Fehlt er: der
+   * Terminarz des Bereichs `areaId`, wie seit 0054.
+   */
+  readonly calendarId?: string;
+
+  /* 0058 — fürs Reservieren: `null`/fehlt heisst „wie der Kalender". */
+  readonly bookable?: boolean | null;
+  readonly capacity?: number | null;
+  readonly reserveAreaId?: string | null;
 }
 
 /** „Bez końca" — eine Reihe braucht am Dienst ein Ende; zehn Jahre sind im Kalender keins. */
@@ -221,7 +242,12 @@ export async function saveEvent(ring: Ring, draft: EventDraft, itemId?: string):
     itemId: id,
     ownerRoleId: draft.ownerRoleId,
     visibilityAreaId: draft.areaId,
-    kind: 'appointment',
+    /* Neu in einem Kalender: seine Art (Treffen, Messe …). Ändern geht hier nur bei Treffen und Besuchen. */
+    kind: itemId === undefined && draft.calendarId !== undefined ? null : 'appointment',
+    calendarId: draft.calendarId ?? null,
+    bookable: draft.bookable ?? null,
+    capacity: draft.capacity ?? null,
+    reserveAreaId: draft.reserveAreaId ?? null,
     date: draft.date,
     time: draft.allDay ? '00:00' : draft.time,
     minutes: draft.minutes,
@@ -237,7 +263,9 @@ export async function saveEvent(ring: Ring, draft: EventDraft, itemId?: string):
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
   };
 
-  if (itemId === undefined) {
+  if (itemId === undefined && draft.calendarId !== undefined) {
+    await call(`/workspace/calendar/${encodeURIComponent(draft.calendarId)}/item`, { method: 'POST', body: JSON.stringify(body) });
+  } else if (itemId === undefined) {
     await call(`/workspace/area/${encodeURIComponent(draft.areaId)}/item`, { method: 'POST', body: JSON.stringify(body) });
   } else {
     await call(`/workspace/item/${encodeURIComponent(itemId)}`, { method: 'POST', body: JSON.stringify(body) });

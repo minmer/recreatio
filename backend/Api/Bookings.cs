@@ -100,12 +100,23 @@ public static partial class Bookings
          * NICHT an alle zurueckfaellt — und ab wann der Gastgeber ihn selbst
          * schliessen darf (0049).
          */
-        int MinPersons = 2);
+        int MinPersons = 2,
+
+        /*
+         * 0058 — WER RESERVIEREN DARF: Mitglieder und Plätze dieses Bereichs
+         * und der Bereiche darunter. NULL: jeder, der den Termin findet (wie
+         * bisher). Die Kandidaten beim Priester sind der Fall „Bereich
+         * Kandydaci" — nicht mehr der einzige.
+         */
+        Guid? ReserveAreaId = null,
+
+        /* 0058 — sind die Termine des Kalenders von selbst Angebote? Ein Termin kann es für sich anders sagen. */
+        bool BookableDefault = true);
 
     private const string ResourceColumns = """
         id, area_id, parent_id, calendar_id, name, kind, mode, by_night, check_in_min,
         check_out_min, capacity, buffer_before, buffer_after, approval, invite_hours, lead_days,
-        per_person, min_persons
+        per_person, min_persons, reserve_area_id, bookable_default
         """;
 
     private static ResourceRow ReadResource(SqlDataReader r) => new(
@@ -114,7 +125,8 @@ public static partial class Bookings
         r.IsDBNull(3) ? null : r.GetGuid(3),
         r.GetString(4), r.GetString(5), r.GetString(6), r.GetBoolean(7),
         r.GetInt32(8), r.GetInt32(9), r.GetInt32(10), r.GetInt32(11), r.GetInt32(12),
-        r.GetString(13), r.GetInt32(14), r.GetInt32(15), r.GetInt32(16), r.GetInt32(17));
+        r.GetString(13), r.GetInt32(14), r.GetInt32(15), r.GetInt32(16), r.GetInt32(17),
+        r.IsDBNull(18) ? null : r.GetGuid(18), r.GetBoolean(19));
 
     private static async Task<ResourceRow?> ResourceAsync(
         SqlConnection connection, Guid id, CancellationToken ct)
@@ -414,8 +426,87 @@ public static partial class Bookings
        EIN ANGEBOT IST EIN TERMIN IM KALENDER
        ====================================================================== */
 
+    /// <summary>
+    /// Ein angebotenes Vorkommen. <c>Capacity</c> und <c>ReserveAreaId</c>:
+    /// was DIESER Termin für sich sagt (0058) — NULL heisst: wie das Ding.
+    /// </summary>
     private sealed record Offer(Guid ItemId, DateTimeOffset OccurrenceAt,
-        DateTimeOffset StartsAt, DateTimeOffset EndsAt);
+        DateTimeOffset StartsAt, DateTimeOffset EndsAt, int? Capacity = null, Guid? ReserveAreaId = null);
+
+    /// <summary>Das Ding, wie es für DIESEN Termin gilt — mit dessen eigenen Plätzen.</summary>
+    private static ResourceRow ForOffer(ResourceRow resource, Offer offer) =>
+        offer.Capacity is int capacity ? resource with { Capacity = capacity } : resource;
+
+    /// <summary>Wie viele Plätze ein Termin hat — seine eigenen, sonst die des Dings.</summary>
+    private static async Task<int> ItemCapacityAsync(
+        SqlConnection connection, SqlTransaction? tx, ResourceRow resource, Guid itemId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("SELECT capacity FROM app.calendar_item WHERE id = @id;", connection, tx);
+        cmd.Parameters.AddWithValue("@id", itemId);
+        return await cmd.ExecuteScalarAsync(ct) is int own ? own : resource.Capacity;
+    }
+
+    /// <summary>
+    /// DARF DIESER HALTER HIER RESERVIEREN (0058)? Ein Platz, wenn er zu dem
+    /// Bereich gehört (oder einem darunter) oder ihn aufschliesst; eine Person,
+    /// wenn eine der Rollen ihres Kontos dort steht. „Darunter", weil eine
+    /// Gruppe in der Pfarrei zur Pfarrei gehört: offen für die Pfarrei heisst
+    /// auch offen für die Firmgruppe darin.
+    /// </summary>
+    internal static async Task<bool> MayReserveAsync(
+        SqlConnection connection, SqlTransaction? tx, Guid areaId, Guid holder, bool isRole,
+        IReadOnlyList<Guid> accountRoles, CancellationToken ct)
+    {
+        var family = new List<Guid> { areaId };
+        await using (var below = new SqlCommand("""
+            WITH down AS (
+                SELECT id FROM app.area WHERE parent_area_id = @a
+                UNION ALL
+                SELECT c.id FROM app.area c JOIN down d ON c.parent_area_id = d.id
+            )
+            SELECT id FROM down OPTION (MAXRECURSION 32);
+            """, connection, tx))
+        {
+            below.Parameters.AddWithValue("@a", areaId);
+            await using var reader = await below.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) family.Add(reader.GetGuid(0));
+        }
+
+        var areas = string.Join(", ", family.Select((_, i) => $"@f{i}"));
+
+        if (!isRole)
+        {
+            await using var seat = new SqlCommand($"""
+                SELECT CASE WHEN EXISTS (SELECT 1 FROM app.access WHERE id = @h AND area_id IN ({areas}))
+                              OR EXISTS (SELECT 1 FROM app.access_grant WHERE access_id = @h AND area_id IN ({areas}))
+                            THEN 1 ELSE 0 END;
+                """, connection, tx);
+            seat.Parameters.AddWithValue("@h", holder);
+            for (var i = 0; i < family.Count; i++) seat.Parameters.AddWithValue($"@f{i}", family[i]);
+            return (int)(await seat.ExecuteScalarAsync(ct))! == 1;
+        }
+
+        var roles = accountRoles.Count > 0 ? accountRoles : [holder];
+        var names = string.Join(", ", roles.Select((_, i) => $"@r{i}"));
+        await using var cmd = new SqlCommand($"""
+            SELECT CASE WHEN EXISTS (
+                SELECT 1 FROM app.certificate
+                 WHERE scope_kind = N'area' AND scope_id IN ({areas})
+                   AND revoked_at IS NULL AND expires_at > @now
+                   AND subject_role_id IN ({names})) THEN 1 ELSE 0 END;
+            """, connection, tx);
+        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+        for (var i = 0; i < family.Count; i++) cmd.Parameters.AddWithValue($"@f{i}", family[i]);
+        for (var i = 0; i < roles.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", roles[i]);
+        return (int)(await cmd.ExecuteScalarAsync(ct))! == 1;
+    }
+
+    private static async Task<string> AreaNameAsync(SqlConnection connection, Guid areaId, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("SELECT name FROM app.area WHERE id = @id;", connection);
+        cmd.Parameters.AddWithValue("@id", areaId);
+        return await cmd.ExecuteScalarAsync(ct) as string ?? "wybranej grupy";
+    }
 
     /// <summary>
     /// Die angebotenen Termine eines Dings in einem Zeitraum.
@@ -445,11 +536,20 @@ public static partial class Bookings
             zoneName = await zone.ExecuteScalarAsync(ct) as string ?? Zones.Home;
         }
 
+        /*
+         * 0058 — NICHT JEDER TERMIN IST EIN ANGEBOT. Einer sagt es für sich
+         * (`bookable`), sonst gilt, was das Ding für seinen Kalender sagt
+         * (`bookable_default`, bisher immer ja). So steht die Ratssitzung nicht
+         * mehr zur Buchung, nur weil sie im selben Kalender liegt.
+         */
+        var own = new Dictionary<Guid, (int? Capacity, Guid? ReserveAreaId)>();
+
         await using (var cmd = new SqlCommand($"""
             SELECT id, starts_at, ends_at, repeat_kind, repeat_every, repeat_weekdays,
-                   repeat_until, repeat_count
+                   repeat_until, repeat_count, capacity, reserve_area_id
             FROM app.calendar_item
             WHERE calendar_id = @c AND kind = N'appointment' AND status <> N'cancelled'
+              AND COALESCE(bookable, @default) = 1
               AND starts_at <= @to
               AND (repeat_kind = N'none' OR repeat_until IS NULL OR repeat_until >= @from)
               {(onlyItem is null ? "" : "AND id = @item")};
@@ -458,6 +558,7 @@ public static partial class Bookings
             cmd.Parameters.AddWithValue("@c", resource.CalendarId.Value);
             cmd.Parameters.AddWithValue("@from", from);
             cmd.Parameters.AddWithValue("@to", to);
+            cmd.Parameters.AddWithValue("@default", resource.BookableDefault);
             if (onlyItem is not null) cmd.Parameters.AddWithValue("@item", onlyItem.Value);
 
             await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -468,6 +569,8 @@ public static partial class Bookings
                     reader.IsDBNull(5) ? null : reader.GetByte(5),
                     reader.IsDBNull(6) ? null : reader.GetDateTimeOffset(6),
                     reader.IsDBNull(7) ? null : reader.GetInt32(7)));
+                own[reader.GetGuid(0)] = (reader.IsDBNull(8) ? null : reader.GetInt32(8),
+                    reader.IsDBNull(9) ? null : reader.GetGuid(9));
             }
         }
 
@@ -490,7 +593,8 @@ public static partial class Bookings
                     if (exception.MovedTo is not null) starts = exception.MovedTo.Value;
                 }
 
-                offers.Add(new Offer(item.Id, at, starts, starts + span));
+                var (capacity, audience) = own[item.Id];
+                offers.Add(new Offer(item.Id, at, starts, starts + span, capacity, audience));
             }
         }
 
@@ -609,6 +713,7 @@ public static partial class Bookings
         DateTimeOffset starts, ends;
         Guid? itemId = null;
         DateTimeOffset? occurrenceAt = null;
+        Guid? audience = resource.ReserveAreaId;
 
         if (resource.Mode == "offered")
         {
@@ -627,6 +732,10 @@ public static partial class Bookings
             }
 
             (starts, ends, itemId, occurrenceAt) = (offer.StartsAt, offer.EndsAt, item, at);
+
+            /* 0058 — ab hier gelten die Plätze dieses Termins, und nur seine Leute dürfen ihn nehmen. */
+            resource = ForOffer(resource, offer);
+            audience = offer.ReserveAreaId ?? resource.ReserveAreaId;
         }
         else
         {
@@ -656,6 +765,26 @@ public static partial class Bookings
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Ten termin już minął.");
             return;
+        }
+
+        /*
+         * 0058 — FÜR WEN DER TERMIN IST. Offen für einen Bereich heisst: für
+         * seine Mitglieder und Plätze (und die der Bereiche darunter) — für
+         * niemanden sonst, auch wenn er den Termin auf einer Seite findet.
+         */
+        if (audience is Guid only)
+        {
+            var roles = holder.Value.IsRole
+                ? (await Workspace.RolesOfAsync(connection, (await Auth.WhoAsync(ctx, db))!.Value.AccountId, ctx.RequestAborted))
+                    .Select(r => r.Id).ToList()
+                : new List<Guid>();
+
+            if (!await MayReserveAsync(connection, null, only, me, holder.Value.IsRole, roles, ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status403Forbidden,
+                    $"Ten termin mogą rezerwować tylko osoby z grupy „{await AreaNameAsync(connection, only, ctx.RequestAborted)}”.");
+                return;
+            }
         }
 
         Guid? group = null;
@@ -1193,7 +1322,7 @@ public static partial class Bookings
                 return;
             }
 
-            if (body.Accept && claims.Count(Counts) >= resource.Capacity)
+            if (body.Accept && claims.Count(Counts) >= await ItemCapacityAsync(connection, tx, resource, ask.ItemId.Value, ctx.RequestAborted))
             {
                 await tx.RollbackAsync(ctx.RequestAborted);
                 await Refuse(ctx, Verdict.Full, "Termin jest już pełny — nie da się nikogo dopisać.");
@@ -1290,11 +1419,12 @@ public static partial class Bookings
                 claim.OccurrenceAt!.Value, ctx.RequestAborted);
 
             var counted = claims.Count(Counts);
+            var capacity = await ItemCapacityAsync(connection, tx, resource, claim.ItemId.Value, ctx.RequestAborted);
 
             /* Die Kennungen sind zeitlich geordnet — wer zuerst bat, kommt zuerst. */
             foreach (var ask in claims.Where(c => c.Status == "pending" && c.Awaits == "host").OrderBy(c => c.Id))
             {
-                if (counted < resource.Capacity) { accepted.Add(ask.Id); counted++; }
+                if (counted < capacity) { accepted.Add(ask.Id); counted++; }
                 else declined.Add(ask.Id);
             }
 
@@ -1441,10 +1571,11 @@ public static partial class Bookings
 
             var accepted = new List<Guid>();
             var declined = new List<Guid>();
+            var capacity = await ItemCapacityAsync(connection, tx, resource, itemId, ct);
 
             foreach (var ask in asks)
             {
-                if (!shut && counted < resource.Capacity) { accepted.Add(ask.Id); counted++; }
+                if (!shut && counted < capacity) { accepted.Add(ask.Id); counted++; }
                 else declined.Add(ask.Id);
             }
 
@@ -1584,7 +1715,16 @@ public static partial class Bookings
         if (till > since.AddDays(400)) till = since.AddDays(400);
 
         /* Ein Platz — oder eine eigene Person, mit Anmeldung (0045). */
-        var me = (await HolderAsync(ctx, db, connection, seat, role, ctx.RequestAborted))?.Id;
+        var holderRow = await HolderAsync(ctx, db, connection, seat, role, ctx.RequestAborted);
+        var me = holderRow?.Id;
+
+        /* 0058 — für „wer darf reservieren": die Rollen des Kontos hinter der Person. */
+        var holderRoles = new List<Guid>();
+        if (holderRow is { IsRole: true } && await Auth.WhoAsync(ctx, db) is { } signedIn)
+        {
+            holderRoles = (await Workspace.RolesOfAsync(connection, signedIn.AccountId, ctx.RequestAborted))
+                .Select(r => r.Id).ToList();
+        }
 
         var rules = new
         {
@@ -1602,7 +1742,9 @@ public static partial class Bookings
             inviteHours = found.InviteHours,
             leadDays = found.LeadDays,
             perPerson = found.PerPerson,
-            minPersons = found.MinPersons
+            minPersons = found.MinPersons,
+            reserveAreaId = found.ReserveAreaId is null ? null : Ids.ToText(found.ReserveAreaId.Value),
+            bookableDefault = found.BookableDefault
         };
 
         if (found.Mode == "offered")
@@ -1630,9 +1772,19 @@ public static partial class Bookings
 
                 closedAll.TryGetValue((offer.ItemId, offer.OccurrenceAt), out var closedBy);
 
-                var verdict = JudgeOffer(found.Capacity, found.InviteHours, taken,
+                /*
+                 * 0058 — FÜR WEN: ist der Termin für eine Gruppe, und gehört
+                 * dieser Halter nicht dazu (oder ist keiner bekannt), steht er
+                 * für ihn geschlossen da — nehmen liesse ihn der Dienst ohnehin nicht.
+                 */
+                var audience = offer.ReserveAreaId ?? found.ReserveAreaId;
+                var notForMe = audience is Guid only && myClaim is null
+                    && (holderRow is null || !await MayReserveAsync(connection, null, only, holderRow.Value.Id,
+                        holderRow.Value.IsRole, holderRoles, ctx.RequestAborted));
+
+                var verdict = JudgeOffer(offer.Capacity ?? found.Capacity, found.InviteHours, taken,
                     myClaim is not null, host?.InviteSha256, host?.InviteUntil, null, now,
-                    found.MinPersons, closedBy is not null);
+                    found.MinPersons, closedBy is not null || notForMe);
 
                 var hosting = host is not null && me is not null && host.HeldBy(me.Value);
 
@@ -1643,8 +1795,9 @@ public static partial class Bookings
                     startsAt = offer.StartsAt,
                     endsAt = offer.EndsAt,
                     taken,
-                    capacity = found.Capacity,
+                    capacity = offer.Capacity ?? found.Capacity,
                     state = verdict.ToString().ToLowerInvariant(),
+                    forOthers = notForMe,
                     inviteUntil = host?.InviteUntil,
 
                     /* Der Erste entscheidet noch, ob er einlaedt — bis `inviteUntil` (0050). */
@@ -1856,6 +2009,8 @@ public static partial class Bookings
             leadDays = row.LeadDays,
             perPerson = row.PerPerson,
             minPersons = row.MinPersons,
+            reserveAreaId = row.ReserveAreaId is null ? null : Ids.ToText(row.ReserveAreaId.Value),
+            bookableDefault = row.BookableDefault,
 
             /* Was auf ein Ja der Kanzlei wartet — die Zahl, die zuerst zaehlt. */
             pending
@@ -1866,7 +2021,10 @@ public static partial class Bookings
         string? ResourceId, string? AreaId, string? ParentId, string? CalendarId,
         string? Name, string? Kind, string? Mode, bool? ByNight, int? CheckInMin, int? CheckOutMin,
         int? Capacity, int? BufferBefore, int? BufferAfter, string? Approval,
-        int? InviteHours, int? LeadDays, int? PerPerson = null, int? MinPersons = null);
+        int? InviteHours, int? LeadDays, int? PerPerson = null, int? MinPersons = null,
+
+        /* 0058 — "" löscht: dann darf wieder jeder, der den Termin findet. */
+        string? ReserveAreaId = null, bool? BookableDefault = null);
 
     private static async Task CreateAsync(HttpContext ctx, Db db, ResourceBody body)
     {
@@ -1901,10 +2059,10 @@ public static partial class Bookings
             INSERT INTO app.resource
                 (id, area_id, parent_id, calendar_id, name, kind, mode, by_night, check_in_min,
                  check_out_min, capacity, buffer_before, buffer_after, approval, invite_hours,
-                 lead_days, per_person, min_persons, created_at, updated_at)
+                 lead_days, per_person, min_persons, reserve_area_id, bookable_default, created_at, updated_at)
             VALUES
                 (@id, @area, @parent, @cal, @name, @kind, @mode, @night, @in, @out,
-                 @cap, @bb, @ba, @appr, @inv, @lead, @pp, @min, @now, @now);
+                 @cap, @bb, @ba, @appr, @inv, @lead, @pp, @min, @reserve, @bookable, @now, @now);
             """, connection))
         {
             Bind(cmd, row);
@@ -1955,7 +2113,8 @@ public static partial class Bookings
                SET parent_id = @parent, calendar_id = @cal, name = @name, kind = @kind,
                    mode = @mode, by_night = @night, check_in_min = @in, check_out_min = @out,
                    capacity = @cap, buffer_before = @bb, buffer_after = @ba, approval = @appr,
-                   invite_hours = @inv, lead_days = @lead, per_person = @pp, min_persons = @min, updated_at = @now
+                   invite_hours = @inv, lead_days = @lead, per_person = @pp, min_persons = @min,
+                   reserve_area_id = @reserve, bookable_default = @bookable, updated_at = @now
              WHERE id = @id;
             """, connection))
         {
@@ -2038,6 +2197,20 @@ public static partial class Bookings
         if (mode == "offered" && calendar is null)
             return (null, "Kto podaje terminy, potrzebuje kalendarza, w którym one stoją.");
 
+        var audience = was.ReserveAreaId;
+        if (body.ReserveAreaId is not null)
+        {
+            if (body.ReserveAreaId == "") audience = null;
+            else if (!Guid.TryParse(body.ReserveAreaId, out var a)) return (null, "Nieczytelna grupa, która może rezerwować.");
+            else
+            {
+                await using var cmd = new SqlCommand("SELECT COUNT(*) FROM app.area WHERE id = @a;", connection);
+                cmd.Parameters.AddWithValue("@a", a);
+                if ((int)(await cmd.ExecuteScalarAsync(ct))! == 0) return (null, "Takiej grupy nie ma.");
+                audience = a;
+            }
+        }
+
         int pick(int? given, int before) => given ?? before;
 
         /*
@@ -2066,7 +2239,9 @@ public static partial class Bookings
             InviteHours = pick(body.InviteHours, was.InviteHours),
             LeadDays = pick(body.LeadDays, was.LeadDays),
             PerPerson = pick(body.PerPerson, was.PerPerson),
-            MinPersons = pick(body.MinPersons, was.MinPersons)
+            MinPersons = pick(body.MinPersons, was.MinPersons),
+            ReserveAreaId = audience,
+            BookableDefault = body.BookableDefault ?? was.BookableDefault
         }, null);
     }
 
@@ -2090,6 +2265,8 @@ public static partial class Bookings
         cmd.Parameters.AddWithValue("@lead", row.LeadDays);
         cmd.Parameters.AddWithValue("@pp", row.PerPerson);
         cmd.Parameters.AddWithValue("@min", row.MinPersons);
+        cmd.Parameters.AddWithValue("@reserve", (object?)row.ReserveAreaId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@bookable", row.BookableDefault);
     }
 
     /* ======================================================================
@@ -2359,6 +2536,9 @@ public static partial class Bookings
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego terminu nie ma — albo go odwołano.");
             return;
         }
+
+        /* 0058 — die Plätze DIESES Termins. */
+        resource = ForOffer(resource, offer);
 
         Guid? seatId = null;
         string? name = string.IsNullOrWhiteSpace(body.Name) ? null : body.Name.Trim();

@@ -187,6 +187,8 @@ public static partial class Bookings
                 mode = row.Mode,
                 capacity = row.Capacity,
                 approval = row.Approval,
+                reserveAreaId = row.ReserveAreaId is null ? null : Ids.ToText(row.ReserveAreaId.Value),
+                bookableDefault = row.BookableDefault,
                 minPersons = row.MinPersons,
                 mayDecide
             });
@@ -213,8 +215,9 @@ public static partial class Bookings
                             occurrenceAt = slot.OccurrenceAt,
                             startsAt = slot.StartsAt,
                             endsAt = slot.EndsAt,
-                            capacity = row.Capacity,
+                            capacity = slot.Capacity ?? row.Capacity,
                             taken = on.Count(h => Counts(h.Row)),
+                            reserveAreaId = (slot.ReserveAreaId ?? row.ReserveAreaId) is Guid audience ? Ids.ToText(audience) : null,
                             closedBy,
                             claims = on.Select(h => ShapeHeld(h, now))
                         });

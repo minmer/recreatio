@@ -40,7 +40,7 @@ namespace Api;
 /// waere.
 /// </para>
 /// </summary>
-public static class Calendar
+public static partial class Calendar
 {
     public const int MaxTitle = 200;
 
@@ -62,6 +62,10 @@ public static class Calendar
 
         app.MapPost("/workspace/item/{id:guid}/occurrence", ExceptionAsync);
 
+        /* 0058 — die Regeln eines Kalenders als Ganzes, und wer bei einem Termin da sein muss (Calendar.Settings.cs). */
+        app.MapPost("/workspace/calendar/{id:guid}/settings", SettingsAsync);
+        app.MapPost("/workspace/item/{id:guid}/people", PeopleAsync);
+
         /*
          * Der Aushang — ohne Konto. Sichtbar ist, was unter einem Bereich mit
          * offengelegter Epoche liegt; alles andere faellt hier nicht bloss
@@ -72,7 +76,16 @@ public static class Calendar
 
     /* -- Anlegen ------------------------------------------------------------ */
 
-    public sealed record CreateRequest(string AreaId, string Title, string? TimeZone);
+    public sealed record CreateRequest(string AreaId, string Title, string? TimeZone,
+
+        /*
+         * 0058 — `Create`: wirklich einen WEITEREN Kalender anlegen. Ohne das
+         * bleibt es beim Terminarz des Bereichs (0054): wer „Otwórz terminarz"
+         * drückt, meint die Termine dieser Leute, und den gibt es einmal.
+         */
+        bool? Create = null,
+        string? Description = null, string? ItemKind = null, string? VisibilityAreaId = null,
+        int? DurationMinutes = null, BookingRules? Booking = null);
 
     private static async Task CreateAsync(HttpContext ctx, Db db, CreateRequest body)
     {
@@ -115,13 +128,21 @@ public static class Calendar
             return;
         }
 
+        /* 0058 — ein weiterer Kalender mit eigenen Regeln. */
+        if (body.Create == true)
+        {
+            await CreateWithRulesAsync(ctx, connection, who.Value.AccountId, areaId, title, zoneId, body);
+            return;
+        }
+
         /*
-         * 0054 — EIN TERMINARZ JE BEREICH. Hat der Bereich schon einen, ist es
-         * dieser: wer „Nowy kalendarz" drückt, meint die Termine dieser Leute,
-         * und die gibt es nur einmal.
+         * 0054 — DER TERMINARZ DES BEREICHS. Hat der Bereich schon einen, ist es
+         * dieser: wer „Otwórz terminarz" drückt, meint die Termine dieser Leute.
+         * (Seit 0058 kann ein Bereich mehrere Kalender haben — dieser ist sein
+         * Standard.)
          */
         await using (var had = new SqlCommand(
-            "SELECT id, title, time_zone FROM app.calendar WHERE area_id = @area;", connection))
+            "SELECT TOP 1 id, title, time_zone FROM app.calendar WHERE area_id = @area AND archived_at IS NULL ORDER BY is_default DESC, created_at;", connection))
         {
             had.Parameters.AddWithValue("@area", areaId);
             await using var reader = await had.ExecuteReaderAsync(ctx.RequestAborted);
@@ -142,8 +163,9 @@ public static class Calendar
         var id = Ids.NewId();
 
         await using var insert = new SqlCommand("""
-            INSERT INTO app.calendar (id, area_id, title, time_zone, created_at)
-            VALUES (@id, @area, @title, @zone, @now);
+            INSERT INTO app.calendar (id, area_id, title, time_zone, created_at, is_default)
+            VALUES (@id, @area, @title, @zone, @now,
+                    CASE WHEN EXISTS (SELECT 1 FROM app.calendar WHERE area_id = @area AND is_default = 1) THEN 0 ELSE 1 END);
             """, connection);
 
         insert.Parameters.AddWithValue("@id", id);
@@ -179,16 +201,36 @@ public static class Calendar
 
         var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
 
+        /*
+         * 0058 — WELCHE KALENDER: die der Bereiche, in denen ich stehe, UND die,
+         * die ich über ihre Sichtbarkeit sehe (der Kalender des Pfarrers, den
+         * die ganze Pfarrei sieht). Ob ich darin schreibe, steht dabei.
+         */
         await using var cmd = new SqlCommand($"""
-            SELECT c.id, c.area_id, c.title, c.time_zone, a.name
+            SELECT c.id, c.area_id, c.title, c.time_zone, a.name,
+                   c.description, c.item_kind, c.visibility_area_id, c.duration_minutes, c.is_default, c.archived_at,
+                   CASE WHEN EXISTS (
+                       SELECT 1 FROM app.certificate t
+                        WHERE t.scope_kind = N'area' AND t.scope_id = c.area_id
+                          AND t.revoked_at IS NULL AND t.expires_at > @now
+                          AND t.capability IN (N'write', N'admin')
+                          AND t.subject_role_id IN ({names})) THEN 1 ELSE 0 END AS may_write,
+                   r.id, r.capacity, r.approval, r.reserve_area_id, r.bookable_default, r.per_person,
+                   v.name
             FROM app.calendar c
             JOIN app.area a ON a.id = c.area_id
+            LEFT JOIN app.area v ON v.id = c.visibility_area_id
+            OUTER APPLY (
+                SELECT TOP 1 x.id, x.capacity, x.approval, x.reserve_area_id, x.bookable_default, x.per_person
+                FROM app.resource x WHERE x.calendar_id = c.id AND x.mode = N'offered'
+                ORDER BY x.created_at
+            ) r
             WHERE EXISTS (
                 SELECT 1 FROM app.certificate t
-                 WHERE t.scope_kind = N'area' AND t.scope_id = c.area_id
+                 WHERE t.scope_kind = N'area' AND t.scope_id IN (c.area_id, c.visibility_area_id)
                    AND t.revoked_at IS NULL AND t.expires_at > @now
                    AND t.subject_role_id IN ({names}))
-            ORDER BY a.name, c.title;
+            ORDER BY a.name, c.is_default DESC, c.title;
             """, connection);
 
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
@@ -199,13 +241,33 @@ public static class Calendar
         await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
         while (await reader.ReadAsync(ctx.RequestAborted))
         {
+            var bookable = !reader.IsDBNull(12);
             calendars.Add(new
             {
                 calendarId = Ids.ToText(reader.GetGuid(0)),
                 areaId = Ids.ToText(reader.GetGuid(1)),
                 title = reader.GetString(2),
                 timeZone = reader.GetString(3),
-                areaName = reader.GetString(4)
+                areaName = reader.GetString(4),
+
+                /* 0058 — wie die Termine dieses Kalenders funktionieren. */
+                description = reader.IsDBNull(5) ? null : reader.GetString(5),
+                itemKind = reader.GetString(6),
+                visibilityAreaId = reader.IsDBNull(7) ? null : Ids.ToText(reader.GetGuid(7)),
+                visibilityAreaName = reader.IsDBNull(18) ? null : reader.GetString(18),
+                durationMinutes = reader.GetInt32(8),
+                isDefault = reader.GetBoolean(9),
+                archived = !reader.IsDBNull(10),
+                mayWrite = reader.GetInt32(11) == 1,
+                booking = !bookable ? null : new
+                {
+                    resourceId = Ids.ToText(reader.GetGuid(12)),
+                    mode = reader.GetBoolean(16) ? "all" : "marked",
+                    capacity = reader.GetInt32(13),
+                    approval = reader.GetString(14),
+                    reserveAreaId = reader.IsDBNull(15) ? null : Ids.ToText(reader.GetGuid(15)),
+                    perPerson = reader.GetInt32(17)
+                }
             });
         }
 
@@ -239,7 +301,17 @@ public static class Calendar
         string? ItemId,
 
         /* 0054 — die Zone, falls der Terminarz des Bereichs dabei erst entsteht. */
-        string? TimeZone = null);
+        string? TimeZone = null,
+
+        /*
+         * 0058 — WAS DIESER TERMIN FÜR SICH SAGT (NULL: wie der Kalender):
+         * ob man ihn reservieren kann, wie viele Plätze er hat, und wer ihn
+         * reservieren darf ("" = jeder, der ihn findet).
+         */
+        bool? Bookable = null, int? Capacity = null, string? ReserveAreaId = null,
+
+        /* 0058 — beim Ändern: in DIESEN Kalender (sonst bleibt er, wo er ist). */
+        string? CalendarId = null);
 
     /// <summary>
     /// Einen Eintrag anlegen.
@@ -262,9 +334,21 @@ public static class Calendar
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
-        var kind = (body.Kind ?? "appointment").Trim().ToLowerInvariant();
+        var kind = (body.Kind ?? string.Empty).Trim().ToLowerInvariant();
         var status = (body.Status ?? "planned").Trim().ToLowerInvariant();
         var repeat = (body.Repeat ?? "none").Trim().ToLowerInvariant();
+
+        /* 0058 — ohne Angabe: was ein Termin in DIESEM Kalender ist. */
+        if (kind == "")
+        {
+            await using var connectionForKind = await db.OpenAsync(ctx.RequestAborted);
+            await using var find = new SqlCommand("SELECT item_kind FROM app.calendar WHERE id = @id;", connectionForKind);
+            find.Parameters.AddWithValue("@id", id);
+            kind = await find.ExecuteScalarAsync(ctx.RequestAborted) as string ?? "appointment";
+        }
+
+        var ownRules = await ItemRulesAsync(ctx, db, body);
+        if (ownRules is null) return;
 
         if (kind is not ("appointment" or "task" or "mass" or "confession" or "visit"))
         {
@@ -459,13 +543,18 @@ public static class Calendar
                     (id, calendar_id, owner_role_id, kind, starts_at, ends_at, all_day,
                      title_public, visibility_area_id, status,
                      repeat_kind, repeat_every, repeat_weekdays, repeat_until, repeat_count,
+                     bookable, capacity, reserve_area_id,
                      created_at, updated_at)
                 VALUES (@id, @cal, @owner, @kind, @starts, @ends, @allday,
                         @public, @varea, @status,
                         @rkind, @revery, @rdays, @runtil, @rcount,
+                        @bookable, @capacity, @reserve,
                         @now, @now);
                 """, connection, tx))
             {
+                insert.Parameters.AddWithValue("@bookable", (object?)ownRules.Value.Bookable ?? DBNull.Value);
+                insert.Parameters.AddWithValue("@capacity", (object?)ownRules.Value.Capacity ?? DBNull.Value);
+                insert.Parameters.AddWithValue("@reserve", (object?)ownRules.Value.ReserveAreaId ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@id", itemId);
                 insert.Parameters.AddWithValue("@cal", id);
                 insert.Parameters.AddWithValue("@owner", ownerRoleId);
@@ -621,6 +710,25 @@ public static class Calendar
          */
         var declined = 0;
 
+        /*
+         * 0058 — WER AUF EINEM VERSCHOBENEN TERMIN SITZT, sitzt auf der neuen
+         * Zeit. Der Name des Vorkommens bleibt (sein ursprünglicher Beginn);
+         * die Zeit an der Reservierung folgt, damit „Twój termin" stimmt.
+         */
+        if (!cancelled && movedTo is not null)
+        {
+            await using var follow = new SqlCommand("""
+                UPDATE c
+                   SET starts_at = @moved, ends_at = DATEADD(second, DATEDIFF(second, c.starts_at, c.ends_at), @moved)
+                  FROM app.claim c
+                 WHERE c.item_id = @item AND c.occurrence_at = @at AND c.status IN (N'pending', N'confirmed');
+                """, connection);
+            follow.Parameters.AddWithValue("@item", id);
+            follow.Parameters.AddWithValue("@at", original);
+            follow.Parameters.AddWithValue("@moved", movedTo.Value);
+            await follow.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
         if (cancelled)
         {
             await using var drop = new SqlCommand("""
@@ -734,11 +842,28 @@ public static class Calendar
          */
         var readable = await ReadableAreasAsync(connection, accountId, ctx.RequestAborted, seatId);
 
+        /* 0058 — der Kalender stellt sich vor: sein Name und wie seine Termine gemeint sind (für den Baustein auf einer Seite). */
+        string? calendarTitle = null, calendarDescription = null, calendarKind = null;
+        await using (var about = new SqlCommand("SELECT title, description, item_kind FROM app.calendar WHERE id = @id;", connection))
+        {
+            about.Parameters.AddWithValue("@id", calendarId);
+            await using var reader = await about.ExecuteReaderAsync(ctx.RequestAborted);
+            if (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                calendarTitle = reader.GetString(0);
+                calendarDescription = reader.IsDBNull(1) ? null : reader.GetString(1);
+                calendarKind = reader.GetString(2);
+            }
+        }
+
         if (readable.Count == 0)
         {
             await ctx.Response.WriteAsJsonAsync(new
             {
                 calendarId = Ids.ToText(calendarId),
+                title = calendarTitle,
+                description = calendarDescription,
+                itemKind = calendarKind,
                 timeZone = found.Value.Zone,
                 fromUtc = since,
                 toUtc = till,
@@ -825,6 +950,9 @@ public static class Calendar
         await ctx.Response.WriteAsJsonAsync(new
         {
             calendarId = Ids.ToText(calendarId),
+            title = calendarTitle,
+            description = calendarDescription,
+            itemKind = calendarKind,
             timeZone = found.Value.Zone,
             fromUtc = since,
             toUtc = till,

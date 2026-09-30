@@ -40,8 +40,14 @@ export interface CalEvent {
   readonly end: Date;
   readonly allDay: boolean;
 
-  /** Wer es sieht — daran hängt die Farbe und der Filter. */
+  /** Wer es sieht. */
   readonly areaId: string;
+
+  /** 0058 — in welchem Kalender (daran hängen Farbe und Filter); Buchungen ohne Kalender: fehlt. */
+  readonly calendarId?: string;
+
+  /** 0058 — eine meiner Rollen muss da sein (die Messe, die ICH feiere). */
+  readonly mine?: boolean;
   readonly cancelled: boolean;
 
   readonly item?: OpenedItem;
@@ -81,9 +87,17 @@ export function stepView(view: CalView, anchor: Date, direction: 1 | -1): Date {
  * und Sättigung setzt das Thema (hell oder dunkel).
  */
 export function hueOf(areaId: string): number {
-  let hash = 0;
-  for (let i = 0; i < areaId.length; i++) hash = (hash * 31 + areaId.charCodeAt(i)) | 0;
-  return Math.abs(hash) % 360;
+  /*
+   * FNV-1a, nicht die einfache Summe (0058): Kennungen, die kurz nacheinander
+   * entstehen (UUIDv7), unterscheiden sich nur in den letzten Zeichen — mit
+   * der Summe bekamen zwei Kalender derselben Gruppe fast dieselbe Farbe.
+   */
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < areaId.length; i++) {
+    hash ^= areaId.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0) % 360;
 }
 
 /**
@@ -117,6 +131,8 @@ export function buildEvents(
       end: new Date(o.endsAt),
       allDay: o.allDay,
       areaId: o.visibilityAreaId,
+      calendarId: o.calendarId,
+      mine: o.mine === true,
       cancelled: o.status === 'cancelled',
       item: one,
       offer,
@@ -137,6 +153,7 @@ export function buildEvents(
       end: new Date(offer.endsAt),
       allDay: false,
       areaId: resource.areaId,
+      calendarId: resource.calendarId ?? undefined,
       cancelled: false,
       offer,
       resource

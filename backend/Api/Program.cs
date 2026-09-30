@@ -39,6 +39,7 @@ if (args.Length > 0 && args[0].Equals("slug", StringComparison.OrdinalIgnoreCase
 }
 
 builder.Services.AddSingleton<Db>();
+builder.Services.AddHostedService<ChatDelivery>();
 
 /*
  * Browser und Dienst liegen auf verschiedenen Herkünften, und die Sitzung reist

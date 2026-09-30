@@ -148,7 +148,7 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
         return (
           <Fullscreen title={text(part.config, 'title') || def.label} onClose={() => setWhole(null)}>
             <article className={`wk-card wk-card-${part.kind} is-whole`} data-w={full.width} data-h={full.height}>
-              <def.View raw={part.config} ctx={{ moduleId: part.moduleId ?? part.id, size: full }} />
+              <def.View raw={part.config} ctx={{ moduleId: part.moduleId ?? part.id, size: full, whole: true }} />
             </article>
           </Fullscreen>
         );

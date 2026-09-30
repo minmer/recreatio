@@ -24,13 +24,17 @@
  * dass jemand an den Arbeitsplatz denkt.
  */
 
+import { ChatToolbar, ComposerExtras, MessageContent, useChatExtras, useComposerExtras } from './ChatExtras';
+import { chatEndpoint, reportChatSeen } from './chatFeatures';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
-  areaKeys, authorOf, chatKeysOf, deleteMessage, deliverSeatKeys, loadChat, loadMessages, markRead, openMessage,
-  openNames, sendMessage, type ChatDetail, type Opened, type SealedMessage
+  areaKeys, authorOf, chatKeysOf, deleteMessage, deliverSeatKeys, editMessage, loadChat, loadMessages, loadVersions,
+  markRead, openMessage, openNames, openVersion, restoreMessage, sendMessage,
+  type ChatDetail, type Opened, type SealedMessage, type SealedVersion
 } from './chat';
 import type { Ring } from './keys';
+import { DeletedBody, EditBox, EditedMark, HistoryDialog, MessageTools } from './MessageBits';
 import { usePerson, type PagePerson } from './pagePerson';
 import { useRemembered } from './prefs';
 import { myRoleNames } from './roleNames';
@@ -123,6 +127,17 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
   */
   const person = usePerson();
   const [picked, pick] = useRemembered(`chat.as.${chatId}`, '');
+  const endpoint = chatEndpoint(chatId);
+  const extras = useChatExtras(endpoint);
+  const compose = useComposerExtras(endpoint);
+
+  /* 0058 — bearbeiten, die Geschichte, und bis wann Änderungen geholt sind. */
+  const [editing, setEditing] = useState<string | null>(null);
+  const [history, setHistory] = useState<{
+    load: () => Promise<{ versions: readonly SealedVersion[] }>;
+    open: (version: SealedVersion) => Promise<Opened | null>;
+  } | null>(null);
+  const asOf = useRef<string | null>(null);
   const [own, setOwn] = useState<ReadonlyMap<string, string>>(new Map());
 
   useEffect(() => {
@@ -181,18 +196,31 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
     void (async () => {
       const keys = await look();
       if (keys === null || !alive) return;
-      const { messages } = await loadMessages(chatId);
+      const { messages, asOf: at } = await loadMessages(chatId);
       const opened = await open(keys, messages);
       if (!alive) return;
+      asOf.current = at ?? null;
       setShown(opened);
+      reportChatSeen(endpoint, opened[opened.length - 1]?.message.createdAt ?? null);
       setMore(messages.length >= 60);
       void markRead(chatId).catch(() => undefined);
     })();
     return () => { alive = false; };
   }, [chatId, look, open]);
 
+  /* 0059 — was sich an schon gezeigten Nachrichten geändert hat: an ihrer Stelle ersetzen. */
+  const pullChanged = useCallback(async (keys: ReadonlyMap<number, Uint8Array>) => {
+    if (asOf.current === null) return;
+    const { messages, asOf: at } = await loadMessages(chatId, { changed: asOf.current });
+    if (at !== undefined) asOf.current = at;
+    if (messages.length === 0) return;
+    const opened = await open(keys, messages);
+    setShown((was) => was.map((w) => opened.find((o) => o.message.messageId === w.message.messageId) ?? w));
+  }, [chatId, open]);
+
   /* Nachladen, solange die Seite sichtbar ist. Eine unbekannte Epoche holt neue Schlüssel. */
   const last = shown.length === 0 ? null : shown[shown.length - 1].message.createdAt;
+  const lastId = shown && shown.length > 0 ? shown[shown.length - 1].message.messageId : undefined;
   const ready = chat != null;
   useEffect(() => {
     if (!ready) return;
@@ -200,18 +228,21 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
       if (document.visibilityState !== 'visible') return;
       void (async () => {
         try {
-          const { messages } = await loadMessages(chatId, last === null ? {} : { after: last });
-          if (messages.length === 0) return;
+          const { messages } = await loadMessages(chatId, last === null ? {} : { after: last, afterId: lastId });
           const keys = messages.some((m) => !talk.has(m.epoch)) ? (await look(true)) ?? talk : talk;
-          const opened = await open(keys, messages);
-          setShown((was) => [...was, ...opened.filter((o) => !was.some((w) => w.message.messageId === o.message.messageId))]);
+          if (messages.length > 0) {
+            const opened = await open(keys, messages);
+            setShown((was) => [...was, ...opened.filter((o) => !was.some((w) => w.message.messageId === o.message.messageId))]);
+          }
+          reportChatSeen(endpoint, messages[messages.length - 1]?.createdAt ?? last);
+          await pullChanged(keys);
         } catch {
           // Beim nächsten Mal wieder.
         }
       })();
     }, 4000);
     return () => window.clearInterval(timer);
-  }, [ready, chatId, last, talk, look, open]);
+  }, [ready, chatId, last, lastId, talk, look, open, pullChanged]);
 
   useEffect(() => {
     const el = log.current;
@@ -226,7 +257,7 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
   const earlier = async () => {
     const first = shown[0]?.message.createdAt;
     if (first === undefined) return;
-    const { messages } = await loadMessages(chatId, { before: first });
+    const { messages } = await loadMessages(chatId, { before: first, beforeId: shown?.[0]?.message.messageId });
     const opened = await open(talk, messages);
     stick.current = false;
     setShown((was) => [...opened, ...was]);
@@ -235,21 +266,23 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
 
   const send = async () => {
     const body = text.trim();
-    if (body === '' || busy || speaker === null) return;
+    if ((body === '' && compose.files.length === 0) || busy || speaker === null) return;
     setBusy(true);
     setFailed(null);
     try {
       /* Der Name reist in der Nachricht mit — für die, die die Namen des Bereichs nicht lesen (0053). */
       const name = nameOf(speaker);
-      const done = await sendMessage(ring, chatId, talk, speaker, body, name);
+      const options = await compose.prepare();
+      const done = await sendMessage(ring, chatId, talk, speaker, body, name, options);
       stick.current = true;
-      setShown((was) => [...was, {
+      if (!options.sendAt) setShown((was) => [...was, {
         message: {
           messageId: done.messageId, authorRoleId: speaker, authorSeatId: null, epoch: done.epoch,
           bodySealed: '', createdAt: done.createdAt, deletedAt: null
         },
-        opened: { text: body, name }
+        opened: { text: body, name, ...options }
       }]);
+      compose.done();
       setText('');
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać.');
@@ -293,9 +326,12 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
           const prev = shown[i - 1]?.message;
           const same = prev !== undefined && authorOf(prev) === authorOf(message)
             && new Date(message.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60_000;
+          const id = message.messageId;
+          const mayEdit = mine && message.deletedAt === null && opened !== null && speakers.includes(message.authorRoleId ?? '');
 
+          if (!extras.matches(id, opened)) return null;
           return (
-            <div key={message.messageId} className={`wk-msg${mine ? ' is-mine' : ''}${same ? ' is-follow' : ''}`}>
+            <div id={`message-${id}`} key={id} className={`wk-msg${mine ? ' is-mine' : ''}${same ? ' is-follow' : ''}`}>
               {!same && (
                 <p className="wk-msg-author">
                   {authorName(message, opened)}
@@ -304,22 +340,39 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
                 </p>
               )}
               <div className="wk-msg-body">
-                {message.deletedAt !== null
-                  ? <em className="wk-row-side">wiadomość usunięta</em>
-                  : opened === null
-                    ? <em className="wk-row-side">Nie do odczytania — brak klucza tej epoki obszaru.</em>
-                    : opened.text}
-                {mine && message.deletedAt === null && (
-                  <button type="button" className="wk-chip-x wk-msg-drop" aria-label="Usuń wiadomość" title="Usuń wiadomość"
-                    onClick={() => {
-                      if (!window.confirm('Usunąć tę wiadomość? Inni zobaczą, że była, ale nie jej treść.')) return;
-                      void deleteMessage(message.messageId).then(() => setShown((was) => was.map((w) =>
-                        w.message.messageId === message.messageId
-                          ? { message: { ...w.message, deletedAt: new Date().toISOString(), bodySealed: null }, opened: null }
+                {message.deletedAt !== null ? (
+                  <DeletedBody message={message} canRestore={mine && message.deletedBy === 'author'}
+                    onRestore={async () => { await restoreMessage(id); await pullChanged(talk); }} />
+                ) : editing === id && opened !== null ? (
+                  <EditBox initial={opened.text} onCancel={() => setEditing(null)} onSave={async (text) => {
+                    const done = await editMessage(ring, id, talk, message.authorRoleId!, text, opened.name, (message.version ?? 1) + 1, opened);
+                    setShown((was) => was.map((w) => w.message.messageId === id
+                      ? { message: { ...w.message, version: done.version, editedAt: done.editedAt, epoch: done.epoch, bodySealed: done.bodySealed },
+                          opened: { ...opened, text, name: opened.name } }
+                      : w));
+                    setEditing(null);
+                  }} />
+                ) : opened === null ? (
+                  <em className="wk-row-side">Nie do odczytania — brak klucza tej epoki obszaru.</em>
+                ) : (
+                  <>
+                    <MessageContent endpoint={endpoint} id={id} opened={opened} features={extras.features} sentAt={message.createdAt} ring={ring} canModerate={(chat?.certifiers.length ?? 0) > 0 && chat?.kind !== 'direct'} />
+                    <EditedMark message={message} onOpen={() => setHistory({
+                      load: () => loadVersions(id),
+                      open: (version) => openVersion(talk, id, authorOf(message), version)
+                    })} />
+                  </>
+                )}
+                {editing !== id && (
+                  <MessageTools canEdit={mayEdit} canDelete={mine && message.deletedAt === null}
+                    onEdit={() => setEditing(id)}
+                    onDelete={() => {
+                      if (!window.confirm('Usunąć tę wiadomość? Inni zobaczą, że była, ale nie jej treść. Możesz ją później przywrócić.')) return;
+                      void deleteMessage(id).then(() => setShown((was) => was.map((w) =>
+                        w.message.messageId === id
+                          ? { message: { ...w.message, deletedAt: new Date().toISOString(), bodySealed: null, deletedBy: 'author' }, opened: null }
                           : w)));
-                    }}>
-                    ×
-                  </button>
+                    }} />
                 )}
               </div>
             </div>
@@ -327,7 +380,8 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
         })}
       </div>
 
-      {speaker === null ? (
+      <ChatToolbar endpoint={endpoint} extras={extras} keys={talk} canModerate={(chat?.certifiers.length ?? 0) > 0 && chat?.kind !== 'direct'} onPolicy={() => void look()} />
+      {speaker === null || extras.features?.canWrite === false ? (
         <p className="wk-hint wk-chat-compose">W tej rozmowie tylko czytasz.</p>
       ) : (
         <form className="wk-chat-compose" onSubmit={(e) => { e.preventDefault(); void send(); }}>
@@ -338,22 +392,25 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
             onPick={pick}
             asked={speaker !== asRoleId && !speakers.includes(asRoleId) && persons.has(asRoleId) ? persons.get(asRoleId)! : null}
           />
-          <div className="wk-chat-compose-row">
+          <ComposerExtras state={compose} busy={busy} />
+      <div className="wk-chat-compose-row">
             <textarea
               value={text}
               rows={2}
               placeholder="Napisz wiadomość… (Enter wysyła, Shift+Enter — nowa linia)"
               aria-label="Wiadomość"
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => { setText(e.target.value); compose.typing(); }}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
             />
-            <button type="submit" className="wk-btn" disabled={busy || text.trim() === ''}>
+            <button type="submit" className="wk-btn" disabled={busy || (text.trim() === '' && compose.files.length === 0)}>
               {busy ? 'Wysyłanie…' : 'Wyślij'}
             </button>
           </div>
           {failed !== null && <p className="wk-error">{failed}</p>}
         </form>
       )}
+
+      {history !== null && <HistoryDialog load={history.load} open={history.open} onClose={() => setHistory(null)} />}
     </div>
   );
 }

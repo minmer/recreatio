@@ -22,7 +22,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { hrefOf, joinPath, loadMenu, saveMenu, useMenuOf, type MenuItem } from './menu';
+import { adoptMenuOf, hrefOf, joinPath, loadMenu, saveMenu, type MenuItem } from './menu';
 import { WorkspaceError } from './session';
 
 interface Draft {
@@ -130,7 +130,7 @@ export function MenuEditor({ path }: { path: string }) {
     setBusy(true);
     setFailed(null);
     try {
-      await useMenuOf(path, from);
+      await adoptMenuOf(path, from);
       await look();
       setSaved(true);
     } catch (e) {
@@ -140,7 +140,7 @@ export function MenuEditor({ path }: { path: string }) {
     }
   };
 
-  /* Den Verweis lösen: die Seite hat wieder keines, und es gilt das von oben. */
+  /* Den Verweis lösen: die Seite hat wieder keines — und dann auch keine Leiste (0058: geerbt wird nicht). */
   const release = async () => {
     setBusy(true);
     setFailed(null);
@@ -245,10 +245,18 @@ export function MenuEditor({ path }: { path: string }) {
       ) : !own && items.length === 0 ? (
         <div className="wk-menued-source">
           <p className="wk-hint">
-            {inherited === null
-              ? 'Ta strona nie ma menu. Dodaj pozycje — menu pokaże się nad nią i nad wszystkimi stronami pod nią.'
-              : <>Ta strona pokazuje menu strony <code>{inherited.from}</code> ({inherited.items.length} poz.). Własne menu je zastąpi — tutaj i niżej.</>}
+            Ta strona nie ma menu — i nie dostaje go sama od strony wyżej. Dodaj pozycje albo użyj menu innej strony.
           </p>
+
+          {/* 0058 — die Seite darüber hat eines: als Vorschlag, nicht von selbst. */}
+          {inherited !== null && (
+            <div className="wk-actions">
+              <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => void take(inherited.from)}>
+                Użyj menu strony {inherited.from}
+              </button>
+              <span className="wk-hint">({inherited.items.length} poz.; zmiany tam pokażą się także tutaj)</span>
+            </div>
+          )}
 
           {/* Ein Menü, das es schon gibt, statt eines zweiten daneben. */}
           {usable.length > 0 && (
@@ -283,8 +291,8 @@ export function MenuEditor({ path }: { path: string }) {
 
       <p className="wk-hint">
         Ścieżka względna liczy się od tej strony (<code>{path}</code>): „oaza" to <code>{path}/oaza</code>, „../" to strona wyżej.
-        Menu obowiązuje też na stronach pod tą, dopóki któraś nie ma własnego — a inne Twoje strony mogą je u siebie
-        wybrać, wtedy wszystkie pokazują to samo.
+        Menu pokazuje się tylko na tej stronie — podstrony go same nie dostają. Inne Twoje strony (także podstrony)
+        mogą je u siebie wybrać w swoim edytorze menu; wtedy wszystkie pokazują to samo.
       </p>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
@@ -294,7 +302,7 @@ export function MenuEditor({ path }: { path: string }) {
         <button type="button" className="wk-btn wk-btn-quiet" onClick={() => change([...items, blank()])}>+ Pozycja</button>
         {!own && inherited !== null && items.length === 0 && (
           <button type="button" className="wk-link-btn" onClick={() => change(toDraft(absolutise(inherited.items, inherited.from)))}>
-            Skopiuj menu z góry i zmień
+            Skopiuj menu strony wyżej i zmień
           </button>
         )}
         <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => void save()}>

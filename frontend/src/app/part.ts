@@ -105,6 +105,13 @@ export interface PartContext {
 
   /** Wie gross er ist — und damit, WAS er zeigt, nicht nur wie gross. */
   readonly size: PartSize;
+
+  /**
+   * 0058 — IM VOLLBILD. Dieselbe Grösse wie eine 6×5-Kachel, aber mehr als
+   * sie: hier darf ein Baustein mehr anbieten — der Kalender etwa das
+   * Eintragen für die, die ihn führen.
+   */
+  readonly whole?: boolean;
 }
 
 /* -- Die Felder, mit denen man ihn füllt ------------------------------------ */
@@ -128,7 +135,7 @@ export interface PartContext {
  * dieselben Felder, und eine Art, die nur einer von beiden kennt, ist ein
  * Feld, das an der anderen Stelle zum Textkasten wird.
  */
-export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'calendar' | 'chat';
+export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'calendar' | 'calendars' | 'chat';
 
 export interface FieldDef {
   readonly key: string;

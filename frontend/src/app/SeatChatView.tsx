@@ -11,13 +11,16 @@
  * die Rozmowa öffnet. Bis dahin sagt die Seite das — und sieht selbst nach.
  */
 
+import { ChatToolbar, ComposerExtras, MessageContent, useChatExtras, useComposerExtras } from './ChatExtras';
+import { chatEndpoint, reportChatSeen } from './chatFeatures';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { authorOf, openMessage, type Opened, type SealedMessage } from './chat';
+import { authorOf, openMessage, openVersion, type Opened, type SealedMessage, type SealedVersion } from './chat';
+import { DeletedBody, EditBox, EditedMark, HistoryDialog, MessageTools } from './MessageBits';
 import type { SeatView } from './seatContext';
 import {
-  chatNameFor, deleteSeatMessage, keepChatName, loadSeatChats, loadSeatMessages, seatChatKeys, seatIdentity,
-  sendSeatMessage, type SeatChatRow, type SeatIdentity
+  chatNameFor, deleteSeatMessage, editSeatMessage, keepChatName, loadSeatChats, loadSeatMessages, loadSeatVersions,
+  restoreSeatMessage, seatChatKeys, seatIdentity, sendSeatMessage, type SeatChatRow, type SeatIdentity
 } from './seatChat';
 import { WorkspaceError } from './session';
 
@@ -142,6 +145,9 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
   const { token, seatId } = seat;
   const { chatId } = chat.row;
   const keys = chat.keys;
+  const endpoint = chatEndpoint(chatId, token);
+  const extras = useChatExtras(endpoint);
+  const compose = useComposerExtras(endpoint);
 
   const [shown, setShown] = useState<readonly Shown[] | undefined>(undefined);
   const [more, setMore] = useState(false);
@@ -153,8 +159,26 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
   const log = useRef<HTMLDivElement | null>(null);
   const stick = useRef(true);
 
+  /* 0058 — bearbeiten, die Geschichte, und bis wann Änderungen geholt sind. */
+  const [editing, setEditing] = useState<string | null>(null);
+  const [history, setHistory] = useState<{
+    load: () => Promise<{ versions: readonly SealedVersion[] }>;
+    open: (version: SealedVersion) => Promise<Opened | null>;
+  } | null>(null);
+  const asOf = useRef<string | null>(null);
+
   const open = useCallback(async (messages: readonly SealedMessage[]) =>
     Promise.all(messages.map(async (message) => ({ message, opened: await openMessage(keys, message) }))), [keys]);
+
+  /* 0059 — was sich an schon gezeigten Nachrichten geändert hat: an ihrer Stelle ersetzen. */
+  const pullChanged = useCallback(async () => {
+    if (asOf.current === null) return;
+    const { messages, asOf: at } = await loadSeatMessages(token, chatId, { changed: asOf.current });
+    if (at !== undefined) asOf.current = at;
+    if (messages.length === 0) return;
+    const opened = await open(messages);
+    setShown((was) => (was ?? []).map((w) => opened.find((o) => o.message.messageId === w.message.messageId) ?? w));
+  }, [token, chatId, open]);
 
   /* Das erste Bild — sobald der Schlüssel da ist. */
   useEffect(() => {
@@ -162,10 +186,12 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
     let alive = true;
     void (async () => {
       try {
-        const { messages } = await loadSeatMessages(token, chatId);
+        const { messages, asOf: at } = await loadSeatMessages(token, chatId);
         const opened = await open(messages);
         if (!alive) return;
+        asOf.current = at ?? null;
         setShown(opened);
+      reportChatSeen(endpoint, opened[opened.length - 1]?.message.createdAt ?? null);
         setMore(messages.length >= 60);
       } catch (e) {
         if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać wiadomości.');
@@ -176,6 +202,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
 
   /* Nachladen, alle paar Sekunden, solange die Seite sichtbar ist. */
   const last = shown === undefined || shown.length === 0 ? null : shown[shown.length - 1].message.createdAt;
+  const lastId = shown && shown.length > 0 ? shown[shown.length - 1].message.messageId : undefined;
   const loaded = shown !== undefined;
   useEffect(() => {
     if (!loaded) return;
@@ -183,17 +210,20 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
       if (document.visibilityState !== 'visible') return;
       void (async () => {
         try {
-          const { messages } = await loadSeatMessages(token, chatId, last === null ? {} : { after: last });
-          if (messages.length === 0) return;
-          const opened = await open(messages);
-          setShown((was) => [...(was ?? []), ...opened.filter((o) => !(was ?? []).some((w) => w.message.messageId === o.message.messageId))]);
+          const { messages } = await loadSeatMessages(token, chatId, last === null ? {} : { after: last, afterId: lastId });
+          if (messages.length > 0) {
+            const opened = await open(messages);
+            setShown((was) => [...(was ?? []), ...opened.filter((o) => !(was ?? []).some((w) => w.message.messageId === o.message.messageId))]);
+          }
+          reportChatSeen(endpoint, messages[messages.length - 1]?.createdAt ?? last);
+          await pullChanged();
         } catch {
           // Beim nächsten Mal wieder.
         }
       })();
     }, 4000);
     return () => window.clearInterval(timer);
-  }, [loaded, token, chatId, last, open]);
+  }, [loaded, token, chatId, last, lastId, open, pullChanged]);
 
   useEffect(() => {
     const el = log.current;
@@ -212,7 +242,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
   const earlier = async () => {
     const first = shown?.[0]?.message.createdAt;
     if (first === undefined) return;
-    const { messages } = await loadSeatMessages(token, chatId, { before: first });
+    const { messages } = await loadSeatMessages(token, chatId, { before: first, beforeId: shown?.[0]?.message.messageId });
     const opened = await open(messages);
     stick.current = false;
     setShown((was) => [...opened, ...(was ?? [])]);
@@ -223,21 +253,24 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
 
   const send = async () => {
     const body = text.trim();
-    if (body === '' || busy || identity === null) return;
+    if (extras.features?.canWrite === false) return;
+    if ((body === '' && compose.files.length === 0) || busy || identity === null) return;
     if (signed === '') { setNaming(true); return; }
     setBusy(true);
     setFailed(null);
     try {
       keepChatName(seatId, signed);
-      const done = await sendSeatMessage(token, seatId, chatId, keys, identity, body, signed);
+      const options = await compose.prepare();
+      const done = await sendSeatMessage(token, seatId, chatId, keys, identity, body, signed, options);
       stick.current = true;
-      setShown((was) => [...(was ?? []), {
+      if (!options.sendAt) setShown((was) => [...(was ?? []), {
         message: {
           messageId: done.messageId, authorRoleId: null, authorSeatId: seatId, epoch: done.epoch,
           bodySealed: '', createdAt: done.createdAt, deletedAt: null
         },
-        opened: { text: body, name: signed }
+        opened: { text: body, name: signed, ...options }
       }]);
+      compose.done();
       setText('');
       setNaming(false);
     } catch (e) {
@@ -256,6 +289,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
 
   return (
     <div className="wk-chat-room wk-seat-chat-room">
+      <ChatToolbar endpoint={endpoint} extras={extras} keys={keys} />
       <div
         className="wk-chat-log"
         ref={log}
@@ -273,13 +307,15 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
         {shown !== undefined && list.length === 0 && <p className="wk-empty">Jeszcze nikt nic nie napisał — możesz zacząć.</p>}
 
         {list.map(({ message, opened }, i) => {
+          const id = message.messageId;
+          if (!extras.matches(id, opened)) return null;
           const mine = message.authorSeatId === seatId;
           const prev = list[i - 1]?.message;
           const same = prev !== undefined && authorOf(prev) === authorOf(message)
             && new Date(message.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60_000;
 
           return (
-            <div key={message.messageId} className={`wk-msg${mine ? ' is-mine' : ''}${same ? ' is-follow' : ''}`}>
+            <div id={`message-${message.messageId}`} key={message.messageId} className={`wk-msg${mine ? ' is-mine' : ''}${same ? ' is-follow' : ''}`}>
               {!same && (
                 <p className="wk-msg-author">
                   {authorName(message, opened)}
@@ -287,22 +323,41 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
                 </p>
               )}
               <div className="wk-msg-body">
-                {message.deletedAt !== null
-                  ? <em className="wk-row-side">wiadomość usunięta</em>
-                  : opened === null
-                    ? <em className="wk-row-side">Nie do odczytania.</em>
-                    : opened.text}
-                {mine && message.deletedAt === null && (
-                  <button type="button" className="wk-chip-x wk-msg-drop" aria-label="Usuń wiadomość" title="Usuń wiadomość"
-                    onClick={() => {
-                      if (!window.confirm('Usunąć tę wiadomość? Inni zobaczą, że była, ale nie jej treść.')) return;
+                {message.deletedAt !== null ? (
+                  <DeletedBody message={message} canRestore={mine && message.deletedBy === 'author'}
+                    onRestore={async () => { await restoreSeatMessage(token, message.messageId); await pullChanged(); }} />
+                ) : editing === message.messageId && opened !== null && identity !== null ? (
+                  <EditBox initial={opened.text} onCancel={() => setEditing(null)} onSave={async (text) => {
+                    const id = message.messageId;
+                    const done = await editSeatMessage(token, seatId, id, keys, identity, text, opened.name, (message.version ?? 1) + 1, opened);
+                    setShown((was) => (was ?? []).map((w) => w.message.messageId === id
+                      ? { message: { ...w.message, version: done.version, editedAt: done.editedAt, epoch: done.epoch, bodySealed: done.bodySealed },
+                          opened: { ...opened, text, name: opened.name } }
+                      : w));
+                    setEditing(null);
+                  }} />
+                ) : opened === null ? (
+                  <em className="wk-row-side">Nie do odczytania.</em>
+                ) : (
+                  <>
+                    <MessageContent endpoint={endpoint} id={id} opened={opened} features={extras.features} sentAt={message.createdAt} />
+                    <EditedMark message={message} onOpen={() => setHistory({
+                      load: () => loadSeatVersions(token, message.messageId),
+                      open: (version) => openVersion(keys, message.messageId, authorOf(message), version)
+                    })} />
+                  </>
+                )}
+                {editing !== message.messageId && (
+                  <MessageTools canEdit={mine && message.deletedAt === null && opened !== null && identity !== null}
+                    canDelete={mine && message.deletedAt === null}
+                    onEdit={() => setEditing(message.messageId)}
+                    onDelete={() => {
+                      if (!window.confirm('Usunąć tę wiadomość? Inni zobaczą, że była, ale nie jej treść. Możesz ją później przywrócić.')) return;
                       void deleteSeatMessage(token, message.messageId).then(() => setShown((was) => (was ?? []).map((w) =>
                         w.message.messageId === message.messageId
-                          ? { message: { ...w.message, deletedAt: new Date().toISOString(), bodySealed: null }, opened: null }
+                          ? { message: { ...w.message, deletedAt: new Date().toISOString(), bodySealed: null, deletedBy: 'author' }, opened: null }
                           : w)));
-                    }}>
-                    ×
-                  </button>
+                    }} />
                 )}
               </div>
             </div>
@@ -310,7 +365,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
         })}
       </div>
 
-      <form className="wk-chat-compose" onSubmit={(e) => { e.preventDefault(); void send(); }}>
+      {extras.features?.canWrite === false ? <p>Ten kanał pozwala Ci tylko czytać.</p> : <form className="wk-chat-compose" onSubmit={(e) => { e.preventDefault(); void send(); }}>
         {naming || signed === '' ? (
           <label className="wk-field">
             <span>Jak się podpisać</span>
@@ -323,21 +378,24 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
             <button type="button" className="wk-link-btn" onClick={() => setNaming(true)}>zmień</button>
           </p>
         )}
-        <div className="wk-chat-compose-row">
+        <ComposerExtras state={compose} busy={busy} />
+      <div className="wk-chat-compose-row">
           <textarea
             value={text}
             rows={2}
             placeholder="Napisz wiadomość… (Enter wysyła, Shift+Enter — nowa linia)"
             aria-label="Wiadomość"
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => { setText(e.target.value); compose.typing(); }}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
           />
-          <button type="submit" className="wk-btn" disabled={busy || text.trim() === '' || signed === ''}>
+          <button type="submit" className="wk-btn" disabled={busy || (text.trim() === '' && compose.files.length === 0) || signed === ''}>
             {busy ? 'Wysyłanie…' : 'Wyślij'}
           </button>
         </div>
         {failed !== null && <p className="wk-error">{failed}</p>}
-      </form>
+      </form>}
+
+      {history !== null && <HistoryDialog load={history.load} open={history.open} onClose={() => setHistory(null)} />}
     </div>
   );
 }

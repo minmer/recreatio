@@ -18,9 +18,9 @@ namespace Api;
 ///
 /// <para>
 /// <b>Relativ heisst: von der Seite, die das Menü trägt</b> — nicht von der,
-/// auf der man gerade steht. Das Menü gilt für seine Seite und alle darunter,
-/// bis eine eigenes hat; „oaza" soll unter jeder Unterseite dasselbe bleiben
-/// und nicht mit jedem Schritt tiefer wandern.
+/// auf der man gerade steht. Andere Seiten können dasselbe Menü übernehmen
+/// (`uses_slug_id`, 0056) — geerbt wird es nicht (0058); „oaza" soll auf
+/// jeder Seite, die es zeigt, dasselbe bleiben.
 /// </para>
 ///
 /// <para>
@@ -59,7 +59,7 @@ public static class Menu
     /// <summary>
     /// Entweder <c>Items</c> (ein eigenes Menü) oder <c>Uses</c> (der Pfad der
     /// Seite, deren Menü hier gelten soll). Beides leer: die Seite hat keines
-    /// mehr, und es gilt wieder das von oben.
+    /// mehr (0058: und dann auch keine Leiste — geerbt wird nicht).
     /// </summary>
     public sealed record SaveRequest(string Path, IReadOnlyList<Item>? Items, string? Uses);
 
@@ -226,16 +226,29 @@ public static class Menu
     }
 
     /// <summary>
-    /// Das Menü, das auf dieser Seite gilt: ihr eigenes oder das der nächsten
-    /// Seite darüber, die eines hat. <c>From</c> ist der Pfad, von dem aus
-    /// relative Ziele gelten — bei einem Verweis der Pfad der Seite, VON DER
-    /// das Menü stammt, nicht der eigene.
+    /// Das Menü einer Seite. <c>From</c> ist der Pfad, von dem aus relative
+    /// Ziele gelten — bei einem Verweis der Pfad der Seite, VON DER das Menü
+    /// stammt, nicht der eigene.
+    ///
+    /// <para>
+    /// <b>Nur die Seite selbst</b> (<paramref name="includeSelf"/>): ihr
+    /// eigenes Menü oder das, das sie sich ausdrücklich geholt hat. Eine
+    /// Unterseite erbt nichts mehr von selbst (0058) — wer dort dasselbe Menü
+    /// will, wählt es im Editor; sonst stand auf jeder Unterseite plötzlich
+    /// eine Leiste, die dort niemand hingestellt hatte.
+    /// </para>
+    ///
+    /// <para>
+    /// Ohne die Seite selbst: die nächste Seite DARÜBER mit einem Menü — nur
+    /// noch als Vorschlag für den Editor („weź menu strony wyżej").
+    /// </para>
     /// </summary>
     internal static async Task<(string From, JsonElement Items)?> ForPageAsync(
         SqlConnection connection, string path, bool includeSelf, CancellationToken ct)
     {
         var candidates = Upwards(path);
-        if (!includeSelf && candidates.Count > 0) candidates.RemoveAt(0);
+        if (includeSelf) candidates = candidates.Take(1).ToList();
+        else if (candidates.Count > 0) candidates.RemoveAt(0);
         if (candidates.Count == 0) return null;
 
         var names = string.Join(", ", candidates.Select((_, i) => $"@p{i}"));
@@ -377,7 +390,7 @@ public static class Menu
         });
     }
 
-    /// <summary>Das Menü einer Seite speichern — als Ganzes. Leer heisst: keines (dann gilt das von oben).</summary>
+    /// <summary>Das Menü einer Seite speichern — als Ganzes. Leer heisst: keines (dann hat die Seite keine Leiste).</summary>
     private static async Task SaveAsync(HttpContext ctx, Db db, SaveRequest body)
     {
         var who = await Auth.WhoAsync(ctx, db);

@@ -24,10 +24,12 @@ export interface Me {
 }
 
 /** `undefined`: wird geholt. `null`: der Schlüssel ist zu (die Karte fragt nach dem Passwort) oder es gibt keine Person. */
-export function useMe(who: Who): Me | null | undefined {
+/** `who` darf fehlen (0058: ein Baustein auf einer Seite weiss nicht, ob jemand angemeldet ist) — dann `null`. */
+export function useMe(who: Who | null | undefined): Me | null | undefined {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
 
   useEffect(() => {
+    if (who == null) return undefined;
     let alive = true;
     void (async () => {
       try {
@@ -45,5 +47,5 @@ export function useMe(who: Who): Me | null | undefined {
     return () => { alive = false; };
   }, [who]);
 
-  return me;
+  return who === null ? null : me;
 }

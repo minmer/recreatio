@@ -55,6 +55,7 @@ export interface ChatRow {
   readonly chatId: string;
   readonly areaId: string;
   readonly areaName: string;
+  readonly preferences?: import('./chatFeatures').Preferences;
   readonly kind: ChatKind;
   readonly createdAt: string;
   readonly lastMessageAt: string | null;
@@ -80,6 +81,7 @@ export interface ChatSeat {
 }
 
 export interface ChatDetail extends Omit<ChatRow, 'unread' | 'seats' | 'pendingSeats'> {
+  readonly postingPolicy: string;
   readonly currentEpoch: number;
   readonly readAt: string | null;
 
@@ -100,6 +102,22 @@ export interface SealedMessage {
   readonly bodySealed: string | null;
   readonly createdAt: string;
   readonly deletedAt: string | null;
+
+  /** 0058 — die wievielte Fassung (1: nie bearbeitet), und seit wann bearbeitet. */
+  readonly version?: number;
+  readonly editedAt?: string | null;
+
+  /** Wer gelöscht hat — davon hängt ab, wer zurückholen darf. */
+  readonly deletedBy?: 'author' | 'moderator' | null;
+}
+
+/** Eine Fassung aus der Geschichte einer Nachricht (0058). */
+export interface SealedVersion {
+  readonly version: number;
+  readonly epoch: number;
+  readonly bodySealed: string;
+  readonly signedAt: string;
+  readonly createdAt: string;
 }
 
 /* -- Der Dienst ------------------------------------------------------------ */
@@ -110,11 +128,15 @@ export const loadChat = (chatId: string): Promise<ChatDetail> =>
   call(`/workspace/chat/${encodeURIComponent(chatId)}`);
 
 export const loadMessages = (
-  chatId: string, page: { before?: string; after?: string } = {}
-): Promise<{ messages: readonly SealedMessage[] }> => {
+  chatId: string, page: { before?: string; after?: string; changed?: string; beforeId?: string; afterId?: string } = {}
+): Promise<{ messages: readonly SealedMessage[]; asOf?: string }> => {
   const q = new URLSearchParams();
+  if (page.beforeId !== undefined) q.set('beforeId', page.beforeId);
+  if (page.afterId !== undefined) q.set('afterId', page.afterId);
   if (page.before !== undefined) q.set('before', page.before);
   if (page.after !== undefined) q.set('after', page.after);
+  /* 0059 — was sich an schon gezeigten Nachrichten geändert hat (bearbeitet, gelöscht, zurückgeholt). */
+  if (page.changed !== undefined) q.set('changed', page.changed);
   const tail = q.toString();
   return call(`/workspace/chat/${encodeURIComponent(chatId)}/messages${tail === '' ? '' : `?${tail}`}`);
 };
@@ -124,6 +146,14 @@ export const markRead = (chatId: string): Promise<{ read: boolean }> =>
 
 export const deleteMessage = (messageId: string): Promise<{ deleted: boolean }> =>
   call(`/workspace/chat/message/${encodeURIComponent(messageId)}/delete`, { method: 'POST' });
+
+/** 0058 — eine gelöschte Nachricht zurückholen (Verfasser, wenn er selbst löschte; wer moderiert). */
+export const restoreMessage = (messageId: string): Promise<{ restored: boolean }> =>
+  call(`/workspace/chat/message/${encodeURIComponent(messageId)}/restore`, { method: 'POST' });
+
+/** 0058 — alle Fassungen einer Nachricht, versiegelt. */
+export const loadVersions = (messageId: string): Promise<{ versions: readonly SealedVersion[] }> =>
+  call(`/workspace/chat/message/${encodeURIComponent(messageId)}/versions`);
 
 /**
  * DIE VISITENKARTE zu einem Kod do rozmów — Art und öffentlicher Schlüssel.
@@ -190,18 +220,28 @@ export async function chatKeysOf(
  * Name reist mit, weil nicht jeder die Namen des Bereichs lesen kann — der
  * Mensch mit dem Link hält nur den Chatschlüssel.
  */
-export interface Opened {
+export interface Attachment { id: string; name: string; type: string; size: number; key: string; }
+export interface MessageExtras { forwarded?: boolean; attachments?: readonly Attachment[]; replyTo?: string; replyText?: string; }
+export interface SendOptions extends MessageExtras { sendAt?: string; }
+
+export interface Opened extends MessageExtras {
   readonly text: string;
   readonly name: string | null;
 }
 
-const encodeBody = (text: string, name: string | null) => JSON.stringify({ text, name });
+const encodeBody = (text: string, name: string | null, extras: MessageExtras = {}) => JSON.stringify({ text, name, forwarded: extras.forwarded, attachments: extras.attachments, replyTo: extras.replyTo, replyText: extras.replyText });
 
 function decodeBody(plain: string): Opened {
   try {
-    const found = JSON.parse(plain) as { text?: unknown; name?: unknown };
+    const found = JSON.parse(plain) as { text?: unknown; name?: unknown } & MessageExtras;
     if (typeof found.text === 'string') {
-      return { text: found.text, name: typeof found.name === 'string' && found.name.trim() !== '' ? found.name : null };
+      const attachments = Array.isArray(found.attachments) ? found.attachments.filter((a): a is Attachment =>
+        a !== null && typeof a === 'object' && typeof a.id === 'string' && /^[0-9a-f-]{36}$/i.test(a.id)
+        && typeof a.name === 'string' && a.name.length <= 512 && typeof a.type === 'string'
+        && typeof a.key === 'string' && /^[A-Za-z0-9_-]{43}$/.test(a.key) && typeof a.size === 'number' && a.size >= 0
+      ).slice(0, 8) : [];
+      return { attachments, forwarded: found.forwarded === true, replyTo: typeof found.replyTo === 'string' ? found.replyTo : undefined,
+        replyText: typeof found.replyText === 'string' ? found.replyText.slice(0, 500) : undefined, text: found.text, name: typeof found.name === 'string' && found.name.trim() !== '' ? found.name : null };
     }
   } catch {
     // Kein Umschlag — dann ist es der Text selbst.
@@ -255,25 +295,68 @@ export function newestKey(keys: ReadonlyMap<number, Uint8Array>): { epoch: numbe
 const hex = (bytes: Uint8Array) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 
 export const versionValue = (v: {
-  messageId: string; authorRoleId: string; bodyHash: Uint8Array; createdAt: number;
+  messageId: string; authorRoleId: string; bodyHash: Uint8Array; createdAt: number; version?: number;
 }): Canon => O({
   authorRoleId: S(v.authorRoleId),
   bodyHash: S(hex(v.bodyHash)),
   createdAt: I(v.createdAt),
   id: S(v.messageId),
   messageId: S(v.messageId),
-  version: I(1)
+  version: I(v.version ?? 1)
 });
+
+/**
+ * EINE NEUE FASSUNG versiegeln — dieselbe Nachricht, dieselbe Kennung in der
+ * AAD; die Nummer steht in dem, was unterschrieben wird (0058).
+ */
+export async function sealVersion(
+  keys: ReadonlyMap<number, Uint8Array>, messageId: string, authorId: string, text: string, name: string | null, extras: MessageExtras = {}
+): Promise<{ epoch: number; sealedBody: Uint8Array; signedAt: number; bodyHash: Uint8Array }> {
+  const newest = newestKey(keys);
+  if (newest === null) throw new WorkspaceError('Nie masz klucza tej rozmowy — nie da się zmienić.');
+  const sealedBody = await sealText(newest.key, messageAad(messageId, authorId), encodeBody(text, name, extras));
+  return { epoch: newest.epoch, sealedBody, signedAt: Math.floor(Date.now() / 1000), bodyHash: await sha256Bytes(sealedBody) };
+}
+
+/** Eine Fassung aus der Geschichte öffnen. */
+export async function openVersion(
+  keys: ReadonlyMap<number, Uint8Array>, messageId: string, authorId: string, version: SealedVersion
+): Promise<Opened | null> {
+  const key = keys.get(version.epoch);
+  if (key === undefined) return null;
+  try {
+    return decodeBody(await openText(key, messageAad(messageId, authorId), fromBase64Url(version.bodySealed)));
+  } catch {
+    return null;
+  }
+}
+
+/** Die eigene Nachricht bearbeiten — als Fassung `version` (die bisherige + 1). */
+export async function editMessage(
+  ring: Ring, messageId: string, keys: ReadonlyMap<number, Uint8Array>, authorRoleId: string, text: string,
+  name: string | null, version: number, extras: MessageExtras = {}
+): Promise<{ version: number; editedAt: string; epoch: number; bodySealed: string }> {
+  if (!ring.maySign(authorRoleId)) throw new WorkspaceError('Ta rola nie może tu podpisywać wiadomości.');
+  const { epoch, sealedBody, signedAt, bodyHash } = await sealVersion(keys, messageId, authorRoleId, text, name, extras);
+  const signature = await signCanonical(await ring.signKey(authorRoleId), versionValue({
+    messageId, authorRoleId, bodyHash, createdAt: signedAt, version
+  }));
+  const done = await call<{ version: number; editedAt: string }>(`/workspace/chat/message/${encodeURIComponent(messageId)}/edit`, {
+    method: 'POST',
+    body: JSON.stringify({ version, epoch, bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt })
+  });
+  return { ...done, epoch, bodySealed: toBase64Url(sealedBody) };
+}
 
 /** Eine Nachricht versiegeln — unter dem jüngsten Chatschlüssel, mit Verfasser im Etikett. */
 export async function sealMessage(
-  keys: ReadonlyMap<number, Uint8Array>, authorId: string, text: string, name: string | null
+  keys: ReadonlyMap<number, Uint8Array>, authorId: string, text: string, name: string | null, extras: MessageExtras = {}
 ): Promise<{ messageId: string; epoch: number; sealedBody: Uint8Array; signedAt: number; bodyHash: Uint8Array }> {
   const newest = newestKey(keys);
   if (newest === null) throw new WorkspaceError('Nie masz klucza tej rozmowy — nie da się napisać.');
 
   const messageId = newId();
-  const sealedBody = await sealText(newest.key, messageAad(messageId, authorId), encodeBody(text, name));
+  const sealedBody = await sealText(newest.key, messageAad(messageId, authorId), encodeBody(text, name, extras));
   return {
     messageId, epoch: newest.epoch, sealedBody,
     signedAt: Math.floor(Date.now() / 1000),
@@ -283,11 +366,11 @@ export async function sealMessage(
 
 export async function sendMessage(
   ring: Ring, chatId: string, keys: ReadonlyMap<number, Uint8Array>, authorRoleId: string, text: string,
-  name: string | null
+  name: string | null, options: SendOptions = {}
 ): Promise<{ messageId: string; createdAt: string; epoch: number }> {
   if (!ring.maySign(authorRoleId)) throw new WorkspaceError('Ta rola nie może tu podpisywać wiadomości.');
 
-  const { messageId, epoch, sealedBody, signedAt, bodyHash } = await sealMessage(keys, authorRoleId, text, name);
+  const { messageId, epoch, sealedBody, signedAt, bodyHash } = await sealMessage(keys, authorRoleId, text, name, options);
   const signature = await signCanonical(await ring.signKey(authorRoleId), versionValue({
     messageId, authorRoleId, bodyHash, createdAt: signedAt
   }));
@@ -296,7 +379,7 @@ export async function sendMessage(
     method: 'POST',
     body: JSON.stringify({
       messageId, authorRoleId, epoch,
-      bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt
+      bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt, sendAt: options.sendAt
     })
   });
   return { ...done, epoch };
@@ -392,13 +475,13 @@ export interface Invitee {
 }
 
 const createChat = (body: {
-  chatId: string; areaId: string; kind: ChatKind; asRoleId: string; withRoleId?: string;
+  chatId: string; areaId: string; kind: ChatKind; asRoleId: string; withRoleId?: string; postingPolicy?: string;
 }) => call<{ chatId: string }>('/workspace/chats', { method: 'POST', body: JSON.stringify(body) });
 
 /** Der Chat eines BESTEHENDEN Bereichs — wer dort schreibt, legt ihn an. */
-export async function startAreaChat(areaId: string, asRoleId: string): Promise<string> {
+export async function startAreaChat(areaId: string, asRoleId: string, channel = false): Promise<string> {
   const chatId = newId();
-  await createChat({ chatId, areaId, kind: 'area', asRoleId });
+  await createChat({ chatId, areaId, kind: 'area', asRoleId, postingPolicy: channel ? 'writers' : 'legacy' });
   return chatId;
 }
 
@@ -414,6 +497,7 @@ export async function startOwnChat(ring: Ring, me: { role: SealedRole; name: str
   kind: 'group' | 'direct';
   title: string;
   invitees: readonly Invitee[];
+  channel?: boolean;
 }): Promise<string> {
   if (what.kind === 'direct' && what.invitees.length !== 1) {
     throw new WorkspaceError('Rozmowa we dwoje to dokładnie jedna druga osoba albo rola.');
@@ -429,13 +513,13 @@ export async function startOwnChat(ring: Ring, me: { role: SealedRole; name: str
   for (const one of what.invitees) {
     const member: Member = { roleId: one.roleId, kind: one.kind, wrapPublicKey: one.wrapPublicKey, capabilities: [] };
     await joinArea(ring, area.areaId, { id: member.roleId, kind: member.kind, wrapPublicKey: member.wrapPublicKey },
-      me.role.id, 'write');
+      me.role.id, what.channel ? 'read' : 'write');
   }
 
   const chatId = newId();
   await createChat({
     chatId, areaId: area.areaId, kind: what.kind, asRoleId: me.role.id,
-    withRoleId: what.kind === 'direct' ? what.invitees[0].roleId : undefined
+    withRoleId: what.kind === 'direct' ? what.invitees[0].roleId : undefined, postingPolicy: what.channel ? 'writers' : 'legacy'
   });
 
   await setMemberName(area.areaId, keys, me.role.id, me.name, me.role.id).catch(() => undefined);

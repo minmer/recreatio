@@ -17,6 +17,7 @@
 
 import type { PartModule } from '../part';
 
+import { calendarPart } from './calendar';
 import { chatPart } from './chat';
 import { contactPart } from './contact';
 import { hoursPart } from './hours';
@@ -36,6 +37,7 @@ export const PARTS: readonly PartModule[] = [
 
   /* Was seinen Inhalt woanders herholt. */
   massesPart,
+  calendarPart,
   formPart,
   slotsPart,
   chatPart,

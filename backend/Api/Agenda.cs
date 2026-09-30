@@ -56,7 +56,8 @@ public static class Agenda
     {
         for (var attempt = 0; attempt < 2; attempt++)
         {
-            await using (var find = new SqlCommand("SELECT id FROM app.calendar WHERE area_id = @area;", connection))
+            await using (var find = new SqlCommand(
+                "SELECT TOP 1 id FROM app.calendar WHERE area_id = @area AND archived_at IS NULL ORDER BY is_default DESC, created_at;", connection))
             {
                 find.Parameters.AddWithValue("@area", areaId);
                 if (await find.ExecuteScalarAsync(ct) is Guid found) return found;
@@ -71,8 +72,9 @@ public static class Agenda
 
             var id = Ids.NewId();
             await using var insert = new SqlCommand("""
-                INSERT INTO app.calendar (id, area_id, title, time_zone, created_at)
-                VALUES (@id, @area, @title, @zone, @now);
+                INSERT INTO app.calendar (id, area_id, title, time_zone, created_at, is_default)
+                VALUES (@id, @area, @title, @zone, @now,
+                        CASE WHEN EXISTS (SELECT 1 FROM app.calendar WHERE area_id = @area AND is_default = 1) THEN 0 ELSE 1 END);
                 """, connection);
             insert.Parameters.AddWithValue("@id", id);
             insert.Parameters.AddWithValue("@area", areaId);
@@ -150,7 +152,8 @@ public static class Agenda
         Guid Id, Guid OwnerRoleId, string Kind, DateTimeOffset StartsAt, DateTimeOffset EndsAt, bool AllDay,
         string? TitlePublic, Guid VisibilityAreaId, string Status,
         string RepeatKind, int RepeatEvery, int? Weekdays, DateTimeOffset? Until, int? Count,
-        Guid CalendarId, Guid AreaId, string Zone);
+        Guid CalendarId, Guid AreaId, string Zone,
+        bool? Bookable = null, int? Capacity = null, Guid? ReserveAreaId = null);
 
     /// <summary>
     /// DER EIGENE KALENDER: jedes Vorkommen jedes Termins in meinen Bereichen,
@@ -181,15 +184,22 @@ public static class Agenda
             var heldNames = string.Join(", ", held.Select((_, i) => $"@h{i}"));
             var readNames = string.Join(", ", readable.Select((_, i) => $"@a{i}"));
 
+            /*
+             * 0058 — WAS ICH SEHE: Termine der Kalender meiner Bereiche — UND
+             * Termine anderer Kalender, die unter einem meiner Bereiche sichtbar
+             * sind (der Kalender des Pfarrers, den die Pfarrei sieht). Die
+             * Schranke bleibt der Schlüssel: `visibility_area_id` muss lesbar sein.
+             */
             await using var cmd = new SqlCommand($"""
                 SELECT i.id, i.owner_role_id, i.kind, i.starts_at, i.ends_at, i.all_day,
                        i.title_public, i.visibility_area_id, i.status,
                        i.repeat_kind, i.repeat_every, i.repeat_weekdays, i.repeat_until, i.repeat_count,
-                       i.calendar_id, c.area_id, c.time_zone
+                       i.calendar_id, c.area_id, c.time_zone, i.bookable, i.capacity, i.reserve_area_id
                 FROM app.calendar_item i
                 JOIN app.calendar c ON c.id = i.calendar_id
-                WHERE c.area_id IN ({heldNames})
+                WHERE (c.area_id IN ({heldNames}) OR i.visibility_area_id IN ({heldNames}))
                   AND i.visibility_area_id IN ({readNames})
+                  AND c.archived_at IS NULL
                   AND i.starts_at <= @to
                   AND (i.repeat_kind = N'none' OR i.repeat_until IS NULL OR i.repeat_until >= @from);
                 """, connection);
@@ -210,13 +220,20 @@ public static class Agenda
                     reader.IsDBNull(11) ? null : reader.GetByte(11),
                     reader.IsDBNull(12) ? null : reader.GetDateTimeOffset(12),
                     reader.IsDBNull(13) ? null : reader.GetInt32(13),
-                    reader.GetGuid(14), reader.GetGuid(15), reader.GetString(16)));
+                    reader.GetGuid(14), reader.GetGuid(15), reader.GetString(16),
+                    reader.IsDBNull(17) ? null : reader.GetBoolean(17),
+                    reader.IsDBNull(18) ? null : reader.GetInt32(18),
+                    reader.IsDBNull(19) ? null : reader.GetGuid(19)));
             }
         }
 
         var itemIds = rows.Select(r => r.Id).ToList();
         var exceptions = await Calendar.ExceptionsAsync(connection, itemIds, ctx.RequestAborted);
         var fields = await Calendar.FieldsAsync(connection, itemIds, ctx.RequestAborted);
+
+        /* 0058 — wer bei welchem Termin da sein muss, und ob ich es bin. */
+        var people = await Calendar.PeopleOfAsync(connection, itemIds, ctx.RequestAborted);
+        var myRoles = mine.Select(r => r.Id).ToHashSet();
 
         var occurrences = new List<object>();
         foreach (var row in rows)
@@ -238,6 +255,8 @@ public static class Agenda
 
                 if (starts + span < since || starts > till) continue;
 
+                var present = Calendar.PeopleAt(people, row.Id, at);
+
                 occurrences.Add(new
                 {
                     itemId = Ids.ToText(row.Id),
@@ -253,6 +272,15 @@ public static class Agenda
                     titlePublic = row.TitlePublic,
                     visibilityAreaId = Ids.ToText(row.VisibilityAreaId),
                     moved,
+
+                    /* 0058 — was dieser Termin fürs Reservieren für sich sagt (NULL: wie der Kalender). */
+                    bookable = row.Bookable,
+                    capacity = row.Capacity,
+                    reserveAreaId = row.ReserveAreaId is null ? null : Ids.ToText(row.ReserveAreaId.Value),
+
+                    /* 0058 — wer da sein muss; `mine`: eine meiner Rollen. */
+                    people = present.Select(p => new { roleId = Ids.ToText(p.Role), duty = p.Duty }),
+                    mine = present.Any(p => myRoles.Contains(p.Role)),
 
                     /* Die Reihe dahinter — wer „całą serię" ändert, braucht sie ganz. */
                     series = new
@@ -371,6 +399,85 @@ public static class Agenda
         DateTimeOffset StartsAt, DateTimeOffset EndsAt, bool AllDay,
         string RepeatKind, int RepeatEvery, int? Weekdays, DateTimeOffset? Until, int? Count);
 
+    /// <summary>
+    /// 0058 — DIE RESERVIERUNGEN WANDERN MIT. Ändert sich die Zeit eines
+    /// Termins, an dem Reservierungen hängen, rücken sie mit: das n-te
+    /// Vorkommen der alten Reihe wird das n-te der neuen. Wer auf einem
+    /// Vorkommen sass, das es nicht mehr gibt (die Reihe wurde kürzer), wird
+    /// abgelehnt — er soll es erfahren, statt auf nichts zu sitzen. Dasselbe
+    /// gilt für geschlossene Termine (`offer_state`) und für „wer da sein muss".
+    /// </summary>
+    private static async Task<(int Moved, int Dropped)> CarryAlongAsync(
+        SqlConnection connection, SqlTransaction tx, Guid itemId, Existing was,
+        DateTimeOffset starts, DateTimeOffset ends, string repeat, int every, int? weekdays,
+        DateTimeOffset? until, int? count, CancellationToken ct)
+    {
+        var keys = new List<DateTimeOffset>();
+        await using (var find = new SqlCommand("""
+            SELECT DISTINCT occurrence_at FROM app.claim WHERE item_id = @id AND occurrence_at IS NOT NULL
+            UNION SELECT occurrence_at FROM app.offer_state WHERE item_id = @id
+            UNION SELECT occurrence_at FROM app.calendar_presence WHERE item_id = @id AND occurrence_at IS NOT NULL;
+            """, connection, tx))
+        {
+            find.Parameters.AddWithValue("@id", itemId);
+            await using var reader = await find.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) keys.Add(reader.GetDateTimeOffset(0));
+        }
+
+        if (keys.Count == 0) return (0, 0);
+
+        var zone = Zones.Of(was.Zone);
+        var last = keys.Max();
+        var old = Calendar.Occurrences(was.StartsAt, was.RepeatKind, was.RepeatEvery, was.Weekdays, was.Until, was.Count,
+            was.StartsAt, last, zone);
+        var fresh = Calendar.Occurrences(starts, repeat, every, weekdays, until, count,
+            starts, until ?? starts.AddYears(10), zone);
+        var span = ends - starts;
+
+        var moved = 0;
+        var dropped = 0;
+
+        foreach (var key in keys)
+        {
+            var index = old.FindIndex(o => o == key);
+            DateTimeOffset? target = index >= 0 && index < fresh.Count ? fresh[index] : null;
+
+            if (target is null)
+            {
+                await using var drop = new SqlCommand("""
+                    UPDATE app.claim
+                       SET status = N'declined', awaits = NULL, decided_at = @now,
+                           invite_sha256 = NULL, invite_until = NULL, invite_sealed = NULL
+                     WHERE item_id = @id AND occurrence_at = @at AND status IN (N'pending', N'confirmed');
+                    DELETE FROM app.offer_state WHERE item_id = @id AND occurrence_at = @at;
+                    DELETE FROM app.calendar_presence WHERE item_id = @id AND occurrence_at = @at;
+                    """, connection, tx);
+                drop.Parameters.AddWithValue("@id", itemId);
+                drop.Parameters.AddWithValue("@at", key);
+                drop.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+                dropped += await drop.ExecuteNonQueryAsync(ct) > 0 ? 1 : 0;
+                continue;
+            }
+
+            if (target.Value == key && span == was.EndsAt - was.StartsAt) continue;
+
+            await using var move = new SqlCommand("""
+                UPDATE app.claim SET occurrence_at = @to, starts_at = @to, ends_at = @end
+                 WHERE item_id = @id AND occurrence_at = @at;
+                UPDATE app.offer_state SET occurrence_at = @to WHERE item_id = @id AND occurrence_at = @at;
+                UPDATE app.calendar_presence SET occurrence_at = @to WHERE item_id = @id AND occurrence_at = @at;
+                """, connection, tx);
+            move.Parameters.AddWithValue("@id", itemId);
+            move.Parameters.AddWithValue("@at", key);
+            move.Parameters.AddWithValue("@to", target.Value);
+            move.Parameters.AddWithValue("@end", target.Value + span);
+            await move.ExecuteNonQueryAsync(ct);
+            moved++;
+        }
+
+        return (moved, dropped);
+    }
+
     private static async Task<Existing?> ExistingAsync(SqlConnection connection, Guid id, CancellationToken ct)
     {
         await using var cmd = new SqlCommand("""
@@ -471,29 +578,42 @@ public static class Agenda
             || parsed.Repeat != was.RepeatKind || every != was.RepeatEvery || weekdays != was.Weekdays
             || until != was.Until || count != was.Count;
 
-        if (timing)
-        {
-            await using var booked = new SqlCommand("SELECT COUNT(*) FROM app.claim WHERE item_id = @id;", connection);
-            booked.Parameters.AddWithValue("@id", id);
-            if ((int)(await booked.ExecuteScalarAsync(ctx.RequestAborted))! > 0)
-            {
-                await Fail(ctx, StatusCodes.Status409Conflict,
-                    "Na ten termin są rezerwacje — jego czasu nie da się już zmienić. Odwołaj go albo zmień tylko opis.");
-                return;
-            }
-        }
+        /*
+         * 0058 — DIE ZEIT DARF SICH ÄNDERN, auch wenn schon jemand reserviert
+         * hat: die Reservierungen rücken mit (`CarryAlongAsync`). Bisher blieb
+         * der Termin dann stehen, und wer ihn wirklich verlegen musste, konnte
+         * nur absagen und neu anlegen — und alle verloren ihren Platz.
+         */
+        var ownRules = await Calendar.ItemRulesAsync(ctx, db, body);
+        if (ownRules is null) return;
 
         /*
-         * ANDERE LEUTE, ANDERER TERMINARZ. Wer einen Termin einem anderen Bereich
-         * gibt, meint: jetzt gehört er DIESEN Leuten — also wandert er in deren
-         * Terminarz, der dabei entsteht, wenn es ihn noch nicht gibt.
+         * WELCHER KALENDER. Ausdrücklich genannt (0058): dieser, wenn man darin
+         * schreibt. Sonst wie 0054: andere Leute, anderer Terminarz — wer einen
+         * Termin einem anderen Bereich gibt, meint: jetzt gehört er DIESEN Leuten.
          */
-        var calendarId = parsed.Visibility == was.AreaId
-            ? was.CalendarId
-            : await EnsureCalendarAsync(connection, parsed.Visibility, was.Zone, ctx.RequestAborted);
+        Guid calendarId;
+        if (!string.IsNullOrWhiteSpace(body.CalendarId))
+        {
+            if (!Guid.TryParse(body.CalendarId, out var target)
+                || await Calendar.CalendarOfAsync(connection, target, ctx.RequestAborted) is not { } targetCalendar
+                || !await Area.MayAsync(connection, who.Value.AccountId, targetCalendar.AreaId, Capability.Write, ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status403Forbidden, "Do tego kalendarza nie możesz wpisywać.");
+                return;
+            }
+            calendarId = target;
+        }
+        else
+        {
+            calendarId = parsed.Visibility == was.AreaId
+                ? was.CalendarId
+                : await EnsureCalendarAsync(connection, parsed.Visibility, was.Zone, ctx.RequestAborted);
+        }
 
         var now = DateTimeOffset.UtcNow;
         var titlePublic = (body.TitlePublic ?? string.Empty).Trim();
+        (int Moved, int Dropped) carried = (0, 0);
 
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
         try
@@ -503,11 +623,15 @@ public static class Agenda
                    SET calendar_id = @cal, owner_role_id = @owner, kind = @kind, starts_at = @starts, ends_at = @ends, all_day = @allday,
                        title_public = @public, visibility_area_id = @varea, status = @status,
                        repeat_kind = @rkind, repeat_every = @revery, repeat_weekdays = @rdays,
-                       repeat_until = @runtil, repeat_count = @rcount, updated_at = @now
+                       repeat_until = @runtil, repeat_count = @rcount,
+                       bookable = @bookable, capacity = @capacity, reserve_area_id = @reserve, updated_at = @now
                  WHERE id = @id;
                 DELETE FROM app.calendar_field WHERE item_id = @id;
                 """, connection, tx))
             {
+                update.Parameters.AddWithValue("@bookable", (object?)ownRules.Value.Bookable ?? DBNull.Value);
+                update.Parameters.AddWithValue("@capacity", (object?)ownRules.Value.Capacity ?? DBNull.Value);
+                update.Parameters.AddWithValue("@reserve", (object?)ownRules.Value.ReserveAreaId ?? DBNull.Value);
                 update.Parameters.AddWithValue("@id", id);
                 update.Parameters.AddWithValue("@cal", calendarId);
                 update.Parameters.AddWithValue("@owner", parsed.Owner);
@@ -544,6 +668,9 @@ public static class Agenda
 
             if (timing)
             {
+                carried = await CarryAlongAsync(connection, tx, id, was, starts, ends, parsed.Repeat, every, weekdays,
+                    until, count, ctx.RequestAborted);
+
                 await using var drop = new SqlCommand("DELETE FROM app.calendar_exception WHERE item_id = @id;", connection, tx);
                 drop.Parameters.AddWithValue("@id", id);
                 await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
@@ -557,7 +684,12 @@ public static class Agenda
             throw;
         }
 
-        await ctx.Response.WriteAsJsonAsync(new { itemId = Ids.ToText(id), startsAt = starts, endsAt = ends, timing });
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            itemId = Ids.ToText(id), startsAt = starts, endsAt = ends, timing,
+            /* 0058 — wie viele Reservierungen mitgerückt sind, und wie viele keinen Termin mehr hatten. */
+            claimsMoved = carried.Moved, claimsDropped = carried.Dropped
+        });
     }
 
     /// <summary>
@@ -591,6 +723,7 @@ public static class Agenda
             await using var drop = new SqlCommand("""
                 DELETE FROM app.calendar_field WHERE item_id = @id;
                 DELETE FROM app.calendar_exception WHERE item_id = @id;
+                DELETE FROM app.calendar_presence WHERE item_id = @id;
                 DELETE FROM app.calendar_item WHERE id = @id;
                 """, connection, tx);
             drop.Parameters.AddWithValue("@id", id);

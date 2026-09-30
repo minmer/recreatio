@@ -2514,9 +2514,62 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 }
 
 .wk-msg.is-mine .wk-msg-body { background: var(--wk-held-bg); border-color: var(--wk-held-line); }
-.wk-msg-drop { position: absolute; top: -0.55rem; right: -0.55rem; background: var(--wk-surface); border-radius: 999px; visibility: hidden; }
-.wk-msg-body:hover .wk-msg-drop, .wk-msg-drop:focus-visible { visibility: visible; }
-@media (hover: none) { .wk-msg-drop { visibility: visible; } }
+/*
+   0058 — DIE KNÖPFE AN EINER NACHRICHT: bearbeiten (✎) und löschen (×), oben
+   am Rand der Blase, beim Darüberfahren. Auf dem Telefon immer da — dort gibt
+   es kein Darüberfahren.
+*/
+.wk-msg-tools {
+  position: absolute;
+  top: -0.7rem;
+  right: -0.4rem;
+  display: inline-flex;
+  gap: 2px;
+  visibility: hidden;
+}
+.wk-msg-body:hover .wk-msg-tools, .wk-msg-tools:focus-within { visibility: visible; }
+@media (hover: none) { .wk-msg-tools { visibility: visible; } }
+.wk-msg-tool {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  color: var(--wk-muted);
+  cursor: pointer;
+}
+.wk-msg-tool:hover { color: var(--wk-accent); border-color: var(--wk-accent); }
+.wk-msg-tool.wk-msg-drop:hover { color: var(--wk-danger); border-color: var(--wk-danger); }
+.wk-msg-tool:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+
+.wk-msg-edited {
+  margin-left: 0.35rem;
+  padding: 0;
+  font: inherit;
+  font-size: 0.72rem;
+  border: 0;
+  background: none;
+  color: var(--wk-muted);
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+.wk-msg-edited:hover { color: var(--wk-accent); }
+.wk-msg-edited:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-msg-deleted { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.6rem; }
+.wk-msg-editbox { display: grid; gap: 0.35rem; min-width: min(22rem, 70vw); }
+.wk-msg-editbox textarea { font: inherit; padding: 0.4rem 0.5rem; border: 1px solid var(--wk-accent); border-radius: 4px; background: var(--wk-surface); color: var(--wk-ink); resize: vertical; }
+.wk-msg-editbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; }
+.wk-msg-history { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.wk-msg-history > li { display: grid; gap: 0.2rem; padding: 0.5rem 0.6rem; border: 1px solid var(--wk-line); border-radius: 4px; background: var(--wk-surface); }
+.wk-msg-history > li.is-current { border-color: var(--wk-accent); }
+.wk-msg-history-head { font-size: 0.78rem; font-weight: 700; color: var(--wk-muted); }
+.wk-msg-history-body { white-space: pre-wrap; }
 
 .wk-chat-compose { display: grid; gap: 0.35rem; }
 
@@ -3072,7 +3125,21 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 
 /* -- Das Menü über der Seite --------------------------------------------------------- */
 
-.wk-sitemenu { position: relative; margin: 0 0 1rem; }
+/*
+   0058 — OBEN UND FEST. Die Leiste steht gleich unter dem Kopf und bleibt beim
+   Scrollen oben stehen: ein Menü, das man erst suchen muss, wenn man unten
+   angekommen ist, ist keines. Der Grund hinter ihr ist der der Seite, damit
+   nichts durch den Spalt darüber scheint.
+*/
+.wk-sitemenu {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: -1.9rem 0 0.6rem;
+  padding: 0.5rem 0;
+  background: var(--wk-ground);
+}
+.wk-sitemenu > .wk-sitemenu-list { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06); }
 .wk-sitemenu-toggle {
   display: none;
   font: inherit;
@@ -3291,3 +3358,111 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .wk-taskday-state.is-open, .wk-taskday-state.is-due { color: var(--wk-accent); }
 .wk-taskday-state.is-missed, .wk-taskday-state.is-late { color: var(--wk-danger); }
 .wk-taskday-state.is-done { color: var(--wk-ok); }
+
+/* ===========================================================================
+   0058 — Kalender mit eigenen Regeln, wer da sein muss, der Kalender-Baustein
+   =========================================================================== */
+
+/* Termine, bei denen ich da sein muss: kräftiger Rand und ein Punkt. */
+.wk-ev.is-mine { border-left-width: 5px; font-weight: 600; }
+.wk-ev.is-mine .wk-ev-title::before { content: '● '; font-size: 0.7em; vertical-align: 0.1em; }
+.wk-cal2-mine .wk-cal2-me { font-size: 0.7rem; color: var(--wk-accent); }
+
+/* Nur zum Ansehen: ein Klick ins Leere legt nichts an. */
+.wk-cal2-grid.is-readonly .wk-cal2-col,
+.wk-cal2-grid.is-readonly .wk-cal2-allcell,
+.wk-cal2-month.is-readonly .wk-cal2-cell { cursor: default; }
+
+/* Die Kalender und ihre Regeln. */
+.wk-callist { display: grid; gap: 0.35rem; }
+.wk-callist-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.wk-callist-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--wk-line);
+  border-left: 4px solid hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l));
+  border-radius: 4px;
+  background: var(--wk-surface);
+}
+.wk-callist-row .wk-cal2-dot { margin-top: 0.45rem; }
+.wk-callist-main { flex: 1 1 auto; display: grid; gap: 0.2rem; min-width: 0; }
+.wk-callist-rules { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.wk-callist-desc { font-size: 0.85rem; color: var(--wk-muted); white-space: pre-wrap; }
+
+.wk-calset { max-width: none; }
+.wk-calset-row { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; }
+.wk-calset-row > .wk-field { flex: 1 1 12rem; margin: 0; }
+.wk-calset-fixed { padding: 0.45rem 0; }
+.wk-calset-booking, .wk-ev-booking {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.7rem 0.8rem 0.8rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 4px;
+}
+.wk-calset-booking > legend, .wk-ev-booking > legend { padding: 0 0.3rem; font-weight: 700; font-size: 0.9rem; }
+
+/* Am Termin: wie der Kalender gemeint ist, und wer da sein muss. */
+.wk-ev-rules {
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border-left: 3px solid var(--wk-accent);
+  background: var(--wk-soft);
+  font-size: 0.88rem;
+  white-space: pre-wrap;
+}
+.wk-ev-more > summary { cursor: pointer; font-size: 0.9rem; color: var(--wk-muted); }
+.wk-ev-more[open] > summary { margin-bottom: 0.4rem; }
+.wk-ev-people { display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; margin: 0; }
+.wk-ev-person { font-size: 0.9rem; }
+.wk-ev-person.is-me strong { color: var(--wk-accent); }
+.wk-ev-pin { display: grid; gap: 0.6rem; padding: 0.6rem; border: 1px solid var(--wk-line); border-radius: 4px; }
+
+.wk-people-pick { display: grid; gap: 0.4rem; }
+.wk-people-pinned { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.wk-people-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.3rem 0.2rem 0.6rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 999px;
+  background: var(--wk-surface);
+  font-size: 0.88rem;
+}
+.wk-people-chip select { font: inherit; font-size: 0.8rem; padding: 0.05rem 0.2rem; border: 1px solid var(--wk-line); border-radius: 4px; background: var(--wk-surface); color: var(--wk-ink); }
+.wk-people-pick > select { justify-self: start; font: inherit; padding: 0.35rem 0.5rem; }
+
+/* Der Baustein „Kalendarz" auf einer Seite. */
+.wk-cal-part { display: grid; gap: 0.6rem; min-width: 0; }
+.wk-cal-part .wk-cal2-scroll { height: min(55vh, 30rem); }
+.wk-cal-part.is-whole .wk-cal2-scroll { height: min(68vh, 42rem); }
+.wk-cal-part-rules { display: grid; gap: 0.3rem; }
+.wk-cal-part-rules > p {
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  border-left: 3px solid hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l));
+  font-size: 0.88rem;
+  color: var(--wk-muted);
+  white-space: pre-wrap;
+}
+.wk-cal-part-next { margin: 0; }
+.wk-card-calendar .wk-cal2-list { gap: 0.6rem; }
+.wk-pick-cals { display: grid; gap: 0.25rem; }
+
+/* Shared encrypted-chat controls: workspace, public page and seat link. */
+.wk-chat-extras { padding: .65rem 0; display: grid; gap: .55rem; font-size: .9rem; }
+.wk-chat-extras input[type="datetime-local"], .wk-chat-extras input[type="time"], .wk-chat-extras select { max-width: 100%; padding: .4rem; }
+.wk-chat-extras .wk-actions { flex-wrap: wrap; }
+.wk-chat-preferences { display: grid; gap: .6rem; padding: .8rem; border: 1px solid currentColor; border-radius: .5rem; }
+.wk-chat-preferences > label { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.wk-msg-extras { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .5rem; font-size: .75rem; opacity: .85; }
+.wk-msg-extras button { background: transparent; color: inherit; border: 1px solid currentColor; border-radius: .7rem; padding: .2rem .45rem; cursor: pointer; }
+.wk-msg-extras button[aria-pressed="true"] { background: #dcece4; color: #183d2d; }
+.wk-chat-attachment { display: grid; gap: .5rem; margin: .6rem 0; overflow-wrap: anywhere; }
+.wk-chat-attachment img, .wk-chat-attachment video { max-width: min(100%, 28rem); max-height: 24rem; object-fit: contain; border-radius: .5rem; }
+.wk-chat-attachment audio { max-width: 100%; }
+.wk-msg-body blockquote { margin: .3rem 0 .7rem; border-left: 3px solid currentColor; padding-left: .7rem; opacity: .8; }

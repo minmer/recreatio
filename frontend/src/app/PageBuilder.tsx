@@ -36,7 +36,7 @@ import { partSize, SIZE_WORD, type PartSize } from './part';
 import { PARTS, partLabel, partOf } from './parts/registry';
 import { PickModule } from './PickModule';
 import { PickForm, PickQuestions, pickedForm } from './FormPick';
-import { PickCalendar } from './PickCalendar';
+import { PickCalendar, PickCalendars } from './PickCalendar';
 import { PickChat } from './PickChat';
 import { PickResource } from './PickResource';
 import type { DraftPart } from './page';
@@ -571,11 +571,13 @@ function Fields({ part, size, busy, onSet }: {
 
         return (
           /* Eine Auswahl mit mehreren Knöpfen darin ist kein <label>: ein Klick daneben träfe den ersten. */
-          <Wrap as={field.kind === 'questions' || field.kind === 'form' ? 'div' : 'label'} className={`wk-field${empty ? ' is-empty' : ''}`} key={field.key}>
+          <Wrap as={field.kind === 'questions' || field.kind === 'form' || field.kind === 'calendars' ? 'div' : 'label'} className={`wk-field${empty ? ' is-empty' : ''}`} key={field.key}>
             <span>{field.label}</span>
 
             {field.kind === 'calendar' ? (
               <PickCalendar value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
+            ) : field.kind === 'calendars' ? (
+              <PickCalendars value={value} busy={busy} onPick={(ids) => onSet({ [field.key]: ids })} />
             ) : field.kind === 'chat' ? (
               <PickChat value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'resource' ? (

@@ -59,6 +59,9 @@ export const loadMenu = (path: string): Promise<MenuState> =>
 export const saveMenu = (path: string, items: readonly MenuItem[]): Promise<{ items: number }> =>
   call('/workspace/menu', { method: 'POST', body: JSON.stringify({ path, items }) });
 
-/** Das Menü einer anderen Seite hier gelten lassen — leer: den Verweis lösen. */
-export const useMenuOf = (path: string, from: string): Promise<{ items: number }> =>
+/**
+ * Das Menü einer anderen Seite hier gelten lassen — leer: den Verweis lösen.
+ * (Hiess `useMenuOf` — wie ein React-Haken, und der Prüfer hielt es dafür.)
+ */
+export const adoptMenuOf = (path: string, from: string): Promise<{ items: number }> =>
   call('/workspace/menu', { method: 'POST', body: JSON.stringify({ path, items: [], uses: from }) });

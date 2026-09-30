@@ -20,7 +20,7 @@
  * </code>
  */
 
-import { chatSeatAad, sealMessage, versionValue, type SealedMessage } from './chat';
+import { chatSeatAad, sealMessage, sealVersion, versionValue, type SendOptions, type MessageExtras, type SealedMessage, type SealedVersion } from './chat';
 import {
   aad, Field, fromBase64Url, newSeatPairs, openText, sealText, signCanonicalP256, toBase64Url, unwrapKeyP256
 } from './crypto';
@@ -109,11 +109,14 @@ export async function seatChatKeys(
 }
 
 export const loadSeatMessages = (
-  token: string, chatId: string, page: { before?: string; after?: string } = {}
-): Promise<{ messages: readonly SealedMessage[] }> => {
+  token: string, chatId: string, page: { before?: string; after?: string; changed?: string; beforeId?: string; afterId?: string } = {}
+): Promise<{ messages: readonly SealedMessage[]; asOf?: string }> => {
   const q = new URLSearchParams();
+  if (page.beforeId !== undefined) q.set('beforeId', page.beforeId);
+  if (page.afterId !== undefined) q.set('afterId', page.afterId);
   if (page.before !== undefined) q.set('before', page.before);
   if (page.after !== undefined) q.set('after', page.after);
+  if (page.changed !== undefined) q.set('changed', page.changed);
   const tail = q.toString();
   return call(`${seatPath(token)}/chat/${encodeURIComponent(chatId)}/messages${tail === '' ? '' : `?${tail}`}`);
 };
@@ -124,9 +127,9 @@ export const loadSeatMessages = (
  */
 export async function sendSeatMessage(
   token: string, seatId: string, chatId: string, keys: ReadonlyMap<number, Uint8Array>,
-  identity: SeatIdentity, text: string, name: string | null
+  identity: SeatIdentity, text: string, name: string | null, options: SendOptions = {}
 ): Promise<{ messageId: string; createdAt: string; epoch: number }> {
-  const { messageId, epoch, sealedBody, signedAt, bodyHash } = await sealMessage(keys, seatId, text, name);
+  const { messageId, epoch, sealedBody, signedAt, bodyHash } = await sealMessage(keys, seatId, text, name, options);
   const signature = await signCanonicalP256(identity.signPrivateKey, versionValue({
     messageId, authorRoleId: seatId, bodyHash, createdAt: signedAt
   }));
@@ -135,7 +138,7 @@ export async function sendSeatMessage(
     `${seatPath(token)}/chat/${encodeURIComponent(chatId)}/messages`, {
       method: 'POST',
       body: JSON.stringify({
-        messageId, epoch, bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt
+        messageId, epoch, bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt, sendAt: options.sendAt
       })
     });
   return { ...done, epoch };
@@ -143,6 +146,30 @@ export async function sendSeatMessage(
 
 export const deleteSeatMessage = (token: string, messageId: string): Promise<{ deleted: boolean }> =>
   call(`${seatPath(token)}/chat/message/${encodeURIComponent(messageId)}/delete`, { method: 'POST' });
+
+/* -- 0058: bearbeiten, zurückholen, die Geschichte ------------------------------------------------ */
+
+export const restoreSeatMessage = (token: string, messageId: string): Promise<{ restored: boolean }> =>
+  call(`${seatPath(token)}/chat/message/${encodeURIComponent(messageId)}/restore`, { method: 'POST' });
+
+export const loadSeatVersions = (token: string, messageId: string): Promise<{ versions: readonly SealedVersion[] }> =>
+  call(`${seatPath(token)}/chat/message/${encodeURIComponent(messageId)}/versions`);
+
+export async function editSeatMessage(
+  token: string, seatId: string, messageId: string, keys: ReadonlyMap<number, Uint8Array>,
+  identity: SeatIdentity, text: string, name: string | null, version: number, extras: MessageExtras = {}
+): Promise<{ version: number; editedAt: string; epoch: number; bodySealed: string }> {
+  const { epoch, sealedBody, signedAt, bodyHash } = await sealVersion(keys, messageId, seatId, text, name, extras);
+  const signature = await signCanonicalP256(identity.signPrivateKey, versionValue({
+    messageId, authorRoleId: seatId, bodyHash, createdAt: signedAt, version
+  }));
+  const done = await call<{ version: number; editedAt: string }>(
+    `${seatPath(token)}/chat/message/${encodeURIComponent(messageId)}/edit`, {
+      method: 'POST',
+      body: JSON.stringify({ version, epoch, bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt })
+    });
+  return { ...done, epoch, bodySealed: toBase64Url(sealedBody) };
+}
 
 /*
  * WIE ER SICH NENNT — in diesem Browser gemerkt, je Platz. Ein Komfort und

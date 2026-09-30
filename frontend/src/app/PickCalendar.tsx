@@ -51,3 +51,47 @@ export function PickCalendar({ value, busy, onPick }: {
 }
 
 export default PickCalendar;
+
+/**
+ * MEHRERE KALENDER WÄHLEN (0058) — für den Baustein „Kalendarz": welche
+ * Termine er zeigt. Gespeichert als Kennungen mit Komma.
+ */
+export function PickCalendars({ value, busy, onPick }: {
+  value: string;
+  busy: boolean;
+  onPick: (calendarIds: string) => void;
+}) {
+  const [rows, setRows] = useState<readonly CalendarRow[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    loadCalendars()
+      .then(({ calendars }) => { if (alive) setRows(calendars.filter((c) => c.archived !== true)); })
+      .catch(() => { if (alive) setRows([]); });
+    return () => { alive = false; };
+  }, []);
+
+  if (rows === null) return <p className="wk-hint">Wczytywanie kalendarzy…</p>;
+
+  const chosen = value.split(',').map((one) => one.trim()).filter((one) => one !== '');
+  const toggle = (id: string) => onPick((chosen.includes(id) ? chosen.filter((one) => one !== id) : [...chosen, id]).join(','));
+
+  if (rows.length === 0) return <p className="wk-hint">Nie masz jeszcze żadnego kalendarza grupy.</p>;
+
+  return (
+    <div className="wk-pick-cals">
+      {rows.map((r) => (
+        <label key={r.calendarId} className="wk-check">
+          <input type="checkbox" checked={chosen.includes(r.calendarId)} disabled={busy} onChange={() => toggle(r.calendarId)} />
+          <span>{r.title}{r.title !== r.areaName ? <span className="wk-hint"> · {r.areaName}</span> : null}</span>
+        </label>
+      ))}
+      {chosen.some((id) => !rows.some((r) => r.calendarId === id)) && (
+        <span className="wk-blocker">Jeden z wybranych kalendarzy nie jest już dostępny — zaznacz właściwe.</span>
+      )}
+      <span className="wk-hint">
+        Na stronie każdy zobaczy terminy, które może widzieć. W pełnym ekranie osoby prowadzące kalendarz mogą też dodawać i zmieniać terminy.
+      </span>
+    </div>
+  );
+}

@@ -38,8 +38,11 @@ import {
   type CalEvent, type CalView, type TaskMark
 } from './calendarModel';
 import { addDays, keyOf, longDate, monthTitle, rangeTitle, sameDay, sameMonth, startOfDay, WEEK_HEADS } from './dayMath';
-import { EventDialog, type EventTarget } from './EventDialog';
+import { CALENDAR_KIND_LABEL, loadCalendars, type CalendarRow } from './calendar';
+import { CalendarSettings } from './CalendarSettings';
+import { calendarLabel, EventDialog, type EventTarget } from './EventDialog';
 import { useNow } from './MassParts';
+import { Modal } from './Modal';
 import { useMe, type Me } from './me';
 import { useRemembered } from './prefs';
 import { ReservationDialog, WaitingDialog } from './ReservationDialog';
@@ -81,15 +84,27 @@ interface Loaded {
   readonly claims: readonly AgendaClaim[];
   readonly tasks: readonly OpenTask[];
   readonly bookings: AgendaBookings;
+  readonly calendars: readonly CalendarRow[];
 }
 
-function Calendar({ me }: { me: Me }) {
-  const [viewText, setViewText] = useRemembered('calendar.view', 'week');
-  const [hiddenText, setHiddenText] = useRemembered('calendar.hidden', '');
+/**
+ * DER KALENDER — im Arbeitsplatz über alles, was ich sehe; als Baustein einer
+ * Seite (0058, `scope`) nur über die Kalender, die der Baustein zeigt. Dann
+ * gibt es keine Aufgaben und keine eigenen Buchungen darin, und neue Termine
+ * gehen nur in diese Kalender.
+ */
+export function Calendar({ me, scope }: { me: Me; scope?: readonly string[] }) {
+  const scoped = scope !== undefined;
+  const [viewText, setViewText] = useRemembered(scoped ? 'calendar.part.view' : 'calendar.view', 'week');
+  const [hiddenText, setHiddenText] = useRemembered('calendar.hiddenCals', '');
   const [tasksText, setTasksText] = useRemembered('calendar.tasks', 'on');
+  const [mineText, setMineText] = useRemembered('calendar.mine', 'off');
   const view: CalView = (['day', 'week', 'month', 'list'] as const).includes(viewText as CalView) ? viewText as CalView : 'week';
   const hidden = new Set(hiddenText.split(',').filter((one) => one !== ''));
-  const tasksShown = tasksText !== 'off';
+  const tasksShown = tasksText !== 'off' && !scoped;
+  const mineOnly = mineText === 'on';
+  const [settings, setSettings] = useState<CalendarRow | 'new' | null>(null);
+  const [calendarsOpen, setCalendarsOpen] = useState(false);
 
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const now = useNow();
@@ -113,39 +128,57 @@ function Calendar({ me }: { me: Me }) {
       try {
         const from = new Date(fromMs);
         const to = new Date(toMs);
-        const [found, agenda, tasks, bookings] = await Promise.all([
-          loadAreas(), loadAgenda(from, to), loadTasks(from, to),
+        const [found, agenda, tasks, bookings, calendars] = await Promise.all([
+          loadAreas(), loadAgenda(from, to), scoped ? Promise.resolve({ tasks: [] }) : loadTasks(from, to),
           /* Ohne Reservierungen ist der Kalender immer noch ein Kalender. */
-          loadBookings(from, to).catch(() => NO_BOOKINGS)
+          loadBookings(from, to).catch(() => NO_BOOKINGS),
+          loadCalendars().then((got) => got.calendars).catch(() => [] as readonly CalendarRow[])
         ]);
         const items = await openAgenda(me.ring, agenda.occurrences, found.areas);
         const opened = await openTasks(me.ring, tasks.tasks);
         if (!alive) return;
         setAreas(found.areas);
-        setData({ from: fromMs, to: toMs, items, claims: agenda.claims, tasks: opened, bookings });
+        setData({ from: fromMs, to: toMs, items, claims: scoped ? [] : agenda.claims, tasks: opened, bookings, calendars });
         setFailed(null);
       } catch (e) {
         if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać kalendarza.');
       }
     })();
     return () => { alive = false; };
-  }, [me.ring, fromMs, toMs, tick]);
+  }, [me.ring, fromMs, toMs, tick, scoped]);
 
   const reload = useCallback(() => setTick((n) => n + 1), []);
 
-  const bookings = data?.bookings ?? NO_BOOKINGS;
-  const all = data === null ? [] : buildEvents(data.items, data.claims, bookings);
-  const events = all.filter((e) => !hidden.has(e.areaId));
+  const calendars = data?.calendars ?? [];
+  const inScope = (calendarId: string | undefined) => !scoped || (calendarId !== undefined && scope.includes(calendarId));
+  const allBookings = data?.bookings ?? NO_BOOKINGS;
+
+  /* Als Baustein: nur, was an SEINEN Kalendern hängt. */
+  const bookings: AgendaBookings = scoped ? {
+    resources: allBookings.resources.filter((r) => inScope(r.calendarId ?? undefined)),
+    offers: allBookings.offers.filter((o) => inScope(allBookings.resources.find((r) => r.resourceId === o.resourceId)?.calendarId ?? undefined)),
+    bookings: [],
+    waiting: allBookings.waiting.filter((w) => inScope(allBookings.resources.find((r) => r.resourceId === w.resourceId)?.calendarId ?? undefined))
+  } : allBookings;
+
+  const all = data === null ? [] : buildEvents(data.items, data.claims, bookings).filter((e) => e.calendarId === undefined ? !scoped : inScope(e.calendarId));
+
+  /* 0058 — gefiltert wird nach KALENDER; „przypisane do mnie" zeigt nur, wobei ich da sein muss. */
+  const events = all.filter((e) => (e.calendarId === undefined || !hidden.has(e.calendarId)) && (!mineOnly || e.mine === true));
   const allMarks = data === null ? [] : taskMarks(data.tasks, now, { from: new Date(data.from), to: new Date(data.to) });
-  const marks = tasksShown ? allMarks.filter((m) => !hidden.has(m.areaId)) : [];
+  const marks = tasksShown && !mineOnly ? allMarks : [];
 
-  const groups = [...new Set([...all.map((e) => e.areaId), ...allMarks.map((m) => m.areaId)])]
-    .map((areaId) => ({ areaId, name: groupName(areas, areaId) }))
-    .sort((a, b) => (a.name === 'Tylko ja' ? -1 : b.name === 'Tylko ja' ? 1 : a.name.localeCompare(b.name, 'pl')));
+  const shownCalendars = [...new Set(all.map((e) => e.calendarId).filter((id): id is string => id !== undefined))]
+    .map((calendarId) => {
+      const row = calendars.find((c) => c.calendarId === calendarId);
+      return { calendarId, name: row !== undefined ? calendarLabel(areas, row) : 'kalendarz', personal: areas.find((a) => a.areaId === row?.areaId)?.personal === true };
+    })
+    .sort((a, b) => Number(b.personal) - Number(a.personal) || a.name.localeCompare(b.name, 'pl'));
+  const anyMine = all.some((e) => e.mine === true);
 
-  const toggleGroup = (areaId: string) => {
+  const toggleCalendar = (calendarId: string) => {
     const next = new Set(hidden);
-    if (next.has(areaId)) next.delete(areaId); else next.add(areaId);
+    if (next.has(calendarId)) next.delete(calendarId); else next.add(calendarId);
     setHiddenText([...next].join(','));
   };
 
@@ -154,7 +187,9 @@ function Calendar({ me }: { me: Me }) {
     : rangeTitle(range.from, range.to);
 
   const newAt = (start: Date, allDay = false) =>
-    setDialog({ at: 'new', start, end: allDay ? addDays(start, 1) : new Date(start.getTime() + 3600_000), allDay });
+    setDialog({ at: 'new', start, end: allDay ? addDays(start, 1) : new Date(start.getTime() + 3600_000), allDay,
+      calendarId: scoped ? scope.find((id) => calendars.some((c) => c.calendarId === id && c.mayWrite === true)) : undefined });
+  const mayAdd = !scoped || scope.some((id) => calendars.some((c) => c.calendarId === id && c.mayWrite === true));
 
   const open = (event: CalEvent) => {
     if (event.source === 'offer' || event.source === 'booking') setReservation(event.key);
@@ -188,31 +223,42 @@ function Calendar({ me }: { me: Me }) {
           ))}
         </div>
         <div className="wk-cal2-add">
-          <button type="button" className="wk-btn" onClick={() => {
-            const at = new Date(Math.max(now.getTime(), anchor.getTime()));
-            at.setMinutes(0, 0, 0);
-            at.setHours(at.getHours() + 1);
-            newAt(at);
-          }}>+ Termin</button>
-          <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setTaskDialog({ task: null })}>+ Zadanie</button>
+          {mayAdd && (
+            <button type="button" className="wk-btn" onClick={() => {
+              const at = new Date(Math.max(now.getTime(), anchor.getTime()));
+              at.setMinutes(0, 0, 0);
+              at.setHours(at.getHours() + 1);
+              newAt(at);
+            }}>+ Termin</button>
+          )}
+          {!scoped && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setTaskDialog({ task: null })}>+ Zadanie</button>}
+          {!scoped && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => setCalendarsOpen(true)}>Kalendarze</button>}
         </div>
       </div>
 
-      {(groups.length > 0 || waiting > 0 || allMarks.length > 0) && (
+      {(shownCalendars.length > 0 || waiting > 0 || allMarks.length > 0) && (
         <div className="wk-cal2-groups" role="group" aria-label="Co pokazać">
           {waiting > 0 && (
             <button type="button" className="wk-cal2-waiting" onClick={() => setWaitingOpen(true)}>
               Do potwierdzenia <span className="wk-cal2-count">{waiting}</span>
             </button>
           )}
-          {groups.map((g) => (
-            <button key={g.areaId} type="button" className={`wk-cal2-group${hidden.has(g.areaId) ? ' is-off' : ''}`}
-              aria-pressed={!hidden.has(g.areaId)} style={{ '--ev-h': hueOf(g.areaId) } as CSSProperties}
-              onClick={() => toggleGroup(g.areaId)}>
+          {shownCalendars.length > 1 && shownCalendars.map((g) => (
+            <button key={g.calendarId} type="button" className={`wk-cal2-group${hidden.has(g.calendarId) ? ' is-off' : ''}`}
+              aria-pressed={!hidden.has(g.calendarId)} style={{ '--ev-h': hueOf(g.calendarId) } as CSSProperties}
+              onClick={() => toggleCalendar(g.calendarId)}>
               <span className="wk-cal2-dot" aria-hidden="true" />
               {g.name}
             </button>
           ))}
+          {(anyMine || mineOnly) && (
+            <button type="button" className={`wk-cal2-group wk-cal2-mine${mineOnly ? '' : ' is-off'}`} aria-pressed={mineOnly}
+              title="Tylko terminy, przy których musisz być (np. msze, które odprawiasz)"
+              onClick={() => setMineText(mineOnly ? 'off' : 'on')}>
+              <span className="wk-cal2-me" aria-hidden="true">●</span>
+              Przypisane do mnie
+            </button>
+          )}
           {allMarks.length > 0 && (
             <button type="button" className={`wk-cal2-group wk-cal2-tasks-toggle${tasksShown ? '' : ' is-off'}`}
               aria-pressed={tasksShown} onClick={() => setTasksText(tasksShown ? 'off' : 'on')}>
@@ -242,7 +288,18 @@ function Calendar({ me }: { me: Me }) {
       )}
 
       {dialog !== null && (
-        <EventDialog me={me} areas={areas} target={dialog} onClose={() => setDialog(null)} onSaved={reload} />
+        <EventDialog me={me} areas={areas} calendars={calendars} scope={scope} target={dialog} onClose={() => setDialog(null)} onSaved={reload} />
+      )}
+
+      {calendarsOpen && (
+        <CalendarsList areas={areas} calendars={calendars} onClose={() => setCalendarsOpen(false)}
+          onNew={() => { setCalendarsOpen(false); setSettings('new'); }}
+          onEdit={(row) => { setCalendarsOpen(false); setSettings(row); }} />
+      )}
+
+      {settings !== null && (
+        <CalendarSettings me={me} areas={areas} calendar={settings === 'new' ? null : settings}
+          onClose={() => setSettings(null)} onSaved={reload} />
       )}
 
       {taskDialog !== null && (
@@ -274,11 +331,15 @@ function Calendar({ me }: { me: Me }) {
 
 /* -- Ein Termin, gezeichnet ----------------------------------------------------------- */
 
+/** 0058 — die Farbe eines Termins: die seines Kalenders. */
+const hueOfEvent = (event: CalEvent) => hueOf(event.calendarId ?? event.areaId);
+
 function chipClass(event: CalEvent): string {
   const offer = event.offer;
   const waits = offer !== undefined ? waitingOn(offer) > 0 : event.booking !== undefined && waitsForOffice(event.booking);
   return ['wk-ev', `is-${event.source}`,
     event.cancelled && 'is-cancelled',
+    event.mine === true && 'is-mine',
     offer !== undefined && offer.taken >= offer.capacity && 'is-full',
     offer !== undefined && offer.taken === 0 && 'is-empty',
     offer?.closedBy != null && 'is-closed',
@@ -321,7 +382,8 @@ function hint(event: CalEvent, areas: readonly AreaRow[]): string {
 
 /* -- Tag und Woche: das Stundenraster ----------------------------------------------------- */
 
-function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTasks, areas }: {
+/** Tag und Woche — auch für den Kalender-Baustein einer Seite (0058: `readOnly`, dann legt ein Klick nichts an). */
+export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTasks, areas, readOnly = false }: {
   days: readonly Date[];
   events: readonly CalEvent[];
   marks: readonly TaskMark[];
@@ -331,6 +393,7 @@ function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTasks, ar
   onOpen: (event: CalEvent) => void;
   onTasks: (day: Date) => void;
   areas: readonly AreaRow[];
+  readOnly?: boolean;
 }) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const first = keyOf(days[0]);
@@ -357,7 +420,7 @@ function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTasks, ar
   };
 
   return (
-    <div className="wk-cal2-grid" style={{ '--days': days.length, '--hour': `${HOUR}px`, '--rail': `${rail}px` } as CSSProperties}>
+    <div className={`wk-cal2-grid${readOnly ? ' is-readonly' : ''}`} style={{ '--days': days.length, '--hour': `${HOUR}px`, '--rail': `${rail}px` } as CSSProperties}>
       <div className="wk-cal2-head">
         <span className="wk-cal2-corner" />
         {days.map((day) => (
@@ -375,7 +438,7 @@ function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTasks, ar
           <div key={keyOf(day)} className="wk-cal2-allcell"
             onClick={(e) => { if (e.target === e.currentTarget) onSlot(startOfDay(day), true); }}>
             {events.filter((e) => wholeDay(e) && happensOn(e, day)).map((e) => (
-              <button key={e.key} type="button" className={chipClass(e)} style={{ '--ev-h': hueOf(e.areaId) } as CSSProperties}
+              <button key={e.key} type="button" className={chipClass(e)} style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}
                 title={hint(e, areas)} onClick={() => onOpen(e)}>
                 <span className="wk-ev-title">{e.title}</span>
                 <Badges event={e} />
@@ -412,7 +475,7 @@ function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTasks, ar
                 return (
                   <button key={p.event.key} type="button" className={`${chipClass(p.event)}${p.height < 45 ? ' is-short' : ''}`}
                     style={{
-                      '--ev-h': hueOf(p.event.areaId),
+                      '--ev-h': hueOfEvent(p.event),
                       top: `${(p.top / 60) * HOUR}px`,
                       height: `${Math.max((p.height / 60) * HOUR - 2, 18)}px`,
                       left: `calc(var(--rail) + (100% - var(--rail)) * ${p.column / p.columns} + 2px)`,
@@ -468,7 +531,7 @@ function Rail({ marks, day, onOpen }: { marks: readonly TaskMark[]; day: Date; o
 
 /* -- Der Monat --------------------------------------------------------------------------- */
 
-function MonthGrid({ anchor, from, events, marks, now, onDay, onSlot, onOpen, onTasks }: {
+export function MonthGrid({ anchor, from, events, marks, now, onDay, onSlot, onOpen, onTasks, readOnly = false }: {
   anchor: Date;
   from: Date;
   events: readonly CalEvent[];
@@ -478,12 +541,13 @@ function MonthGrid({ anchor, from, events, marks, now, onDay, onSlot, onOpen, on
   onSlot: (at: Date) => void;
   onOpen: (event: CalEvent) => void;
   onTasks: (day: Date) => void;
+  readOnly?: boolean;
 }) {
   const days = Array.from({ length: 42 }, (_, i) => addDays(from, i));
   const SHOWN = 3;
 
   return (
-    <div className="wk-cal2-month">
+    <div className={`wk-cal2-month${readOnly ? ' is-readonly' : ''}`}>
       {WEEK_HEADS.map((head) => <span key={head} className="wk-mass-month-dow" aria-hidden="true">{head}</span>)}
       {days.map((day) => {
         const mine = events.filter((e) => happensOn(e, day)).sort((a, b) => Number(wholeDay(b)) - Number(wholeDay(a)));
@@ -496,7 +560,7 @@ function MonthGrid({ anchor, from, events, marks, now, onDay, onSlot, onOpen, on
               <TaskPill marks={marksOn(marks, day)} onOpen={() => onTasks(day)} mini />
             </span>
             {mine.slice(0, SHOWN).map((e) => (
-              <button key={e.key} type="button" className={`${chipClass(e)} is-line`} style={{ '--ev-h': hueOf(e.areaId) } as CSSProperties}
+              <button key={e.key} type="button" className={`${chipClass(e)} is-line`} style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}
                 title={e.title} onClick={() => onOpen(e)}>
                 {!wholeDay(e) && <span className="wk-ev-time">{time(e.start)}</span>}
                 <span className="wk-ev-title">{e.title}</span>
@@ -515,7 +579,7 @@ function MonthGrid({ anchor, from, events, marks, now, onDay, onSlot, onOpen, on
 
 /* -- Die Liste ------------------------------------------------------------------------------- */
 
-function ListView({ from, events, marks, now, areas, onOpen, onTasks }: {
+export function ListView({ from, events, marks, now, areas, onOpen, onTasks }: {
   from: Date;
   events: readonly CalEvent[];
   marks: readonly TaskMark[];
@@ -548,7 +612,7 @@ function ListView({ from, events, marks, now, areas, onOpen, onTasks }: {
             <TaskPill marks={tasks} onOpen={() => onTasks(day)} />
           </div>
           {list.map((e) => (
-            <div key={e.key} className="wk-cal2-listrow" style={{ '--ev-h': hueOf(e.areaId) } as CSSProperties}>
+            <div key={e.key} className="wk-cal2-listrow" style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}>
               <span className="wk-cal2-dot" aria-hidden="true" />
               <span className="wk-cal2-listtime">{wholeDay(e) ? 'cały dzień' : `${time(e.start)}–${time(e.end)}`}</span>
               <button type="button" className={`wk-link-btn wk-cal2-listtitle${e.cancelled ? ' is-cancelled' : ''}`} onClick={() => onOpen(e)}>
@@ -560,6 +624,75 @@ function ListView({ from, events, marks, now, areas, onOpen, onTasks }: {
         </section>
       ))}
     </div>
+  );
+}
+
+/* -- Die Kalender (0058) --------------------------------------------------------------------- */
+
+/**
+ * WELCHE KALENDER ES GIBT — meine privaten und die meiner Gruppen, jeder mit
+ * dem, wie seine Termine funktionieren. Wer einen führt, stellt hier seine
+ * Regeln; ein neuer bekommt sie, bevor der erste Termin darin steht.
+ */
+function CalendarsList({ areas, calendars, onClose, onNew, onEdit }: {
+  areas: readonly AreaRow[];
+  calendars: readonly CalendarRow[];
+  onClose: () => void;
+  onNew: () => void;
+  onEdit: (row: CalendarRow) => void;
+}) {
+  const personal = areas.find((a) => a.personal === true);
+  const live = calendars.filter((c) => c.archived !== true);
+  const mine = live.filter((c) => c.areaId === personal?.areaId);
+  const groups = live.filter((c) => c.areaId !== personal?.areaId);
+
+  const line = (c: CalendarRow) => (
+    <li key={c.calendarId} className="wk-callist-row" style={{ '--ev-h': hueOf(c.calendarId) } as CSSProperties}>
+      <span className="wk-cal2-dot" aria-hidden="true" />
+      <span className="wk-callist-main">
+        <strong>{calendarLabel(areas, c)}</strong>
+        <span className="wk-callist-rules">
+          {c.itemKind !== undefined && c.itemKind !== 'appointment' && <span className="wk-tag">{CALENDAR_KIND_LABEL[c.itemKind]}</span>}
+          {c.booking != null && (
+            <span className="wk-tag">
+              rezerwacje: {c.booking.mode === 'all' ? 'każdy termin' : 'oznaczone'} · {c.booking.capacity} miejsc
+              {c.booking.reserveAreaId !== null ? ` · tylko ${groupName(areas, c.booking.reserveAreaId)}` : ''}
+            </span>
+          )}
+          {c.visibilityAreaId != null && <span className="wk-tag">widzą: {groupName(areas, c.visibilityAreaId)}</span>}
+          {c.mayWrite !== true && <span className="wk-tag">tylko podgląd</span>}
+        </span>
+        {c.description && <span className="wk-callist-desc">{c.description}</span>}
+      </span>
+      {c.mayWrite === true && (
+        <button type="button" className="wk-link-btn" onClick={() => onEdit(c)}>Ustawienia</button>
+      )}
+    </li>
+  );
+
+  return (
+    <Modal title="Kalendarze" onClose={onClose} wide>
+      <p className="wk-hint">
+        Grupa ma swój kalendarz od razu — a może mieć ich więcej (np. msze i spotkania osobno). Każdy mówi, jak działają
+        jego terminy: kto je widzi, jak długo trwają i kto może je rezerwować.
+      </p>
+      {mine.length > 0 && (
+        <section className="wk-callist">
+          <h3 className="wk-res-h">Tylko ja</h3>
+          <ul className="wk-callist-list">{mine.map(line)}</ul>
+        </section>
+      )}
+      {groups.length > 0 && (
+        <section className="wk-callist">
+          <h3 className="wk-res-h">Kalendarze grup</h3>
+          <ul className="wk-callist-list">{groups.map(line)}</ul>
+        </section>
+      )}
+      <div className="wk-actions">
+        <button type="button" className="wk-btn" onClick={onNew}>+ Nowy kalendarz</button>
+        <button type="button" className="wk-btn wk-btn-quiet" onClick={onClose}>Zamknij</button>
+      </div>
+    </Modal>
   );
 }
 
