@@ -92,6 +92,8 @@ Slug.Map(app);
 Roles.Map(app);
 HandOver.Map(app);
 Page.Map(app);
+/* 0061 — Bilder einer Seite, vor allem die Hintergründe der Slajdy. */
+PageImage.Map(app);
 Access.Map(app);
 Mass.Map(app);
 Area.Map(app);

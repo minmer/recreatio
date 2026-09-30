@@ -42,3 +42,11 @@ Database-backed acceptance checks before release:
 - Test channel read/write/admin/certify certificates and a seat link against posting, edit, restore, typing, upload, scheduling and rescheduling. Read-only members may react and save messages; only moderators may pin.
 - Download an attachment as a member, outsider, revoked member and unrelated seat. Only the current chat member/seat should receive ciphertext. Inspect storage and SQL to confirm only the disk contains file bytes.
 - Verify availability inheritance and override reset, mute/archive controls, read-receipt opt-in and opt-out, and quiet-hour boundaries with two accounts and a seat link.
+
+## HTTP 500 on `/features` or `/seen`
+
+A browser may report a missing CORS header when the endpoint actually threw a server exception. Check the API exception at that time; changing allowed origins does not repair a failing database query.
+
+Run `backend/Api/Sql/diagnostics/chat_features.sql` against the database used by the deployed API. It is read-only and reports missing columns and type mismatches. Apply `0060_chat_features.sql` if chat tables are absent. Apply `0061_chat_presence_columns.sql` for older presence tables missing `read_at` or `is_seat`; it preserves existing rows. The screenshot alone cannot establish which SQL object or other server operation failed.
+
+The API now handles endpoint exceptions inside CORS, returning a safe JSON error with a trace ID while logging the actual exception server-side. The chat toolbar displays feature-loading errors and backs off retries rather than silently hiding failures. Redeploy the backend/frontend to use this diagnostic behavior; SQL schema repairs must still be applied to the target database separately.

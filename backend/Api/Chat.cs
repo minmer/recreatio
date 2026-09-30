@@ -386,9 +386,9 @@ public static partial class Chat
             return;
         }
 
-        if (body.Kind is not ("area" or "group" or "direct") || body.PostingPolicy is not ("legacy" or "members" or "writers"))
+        if (body.Kind is not ("area" or "group" or "direct" or "self") || body.PostingPolicy is not ("legacy" or "members" or "writers"))
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Rodzaj rozmowy: area, group albo direct.");
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Rodzaj rozmowy: area, group, direct albo self.");
             return;
         }
 
@@ -408,6 +408,22 @@ public static partial class Chat
                 ? "Rozmowę obszaru zakłada ktoś, kto w nim pisze."
                 : "Ta rola nie prowadzi obszaru tej rozmowy.");
             return;
+        }
+
+        /*
+         * 0061 — NOTATKI: die Rozmowa mit sich selbst. Sie liegt im EIGENEN
+         * Bereich dieser Person (0054) — dort ist niemand sonst, und je Person
+         * gibt es ihn nur einmal, also auch nur eine solche Rozmowa.
+         */
+        if (body.Kind == "self")
+        {
+            await using var own = new SqlCommand("SELECT personal_role_id FROM app.area WHERE id = @area;", connection);
+            own.Parameters.AddWithValue("@area", areaId);
+            if (await own.ExecuteScalarAsync(ctx.RequestAborted) is not Guid owner || owner != asRole)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Notatki należą do własnego obszaru tej osoby.");
+                return;
+            }
         }
 
         string? pair = null;

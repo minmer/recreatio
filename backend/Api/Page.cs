@@ -50,6 +50,9 @@ public static class Page
 
         /* 0048 — die Logik der Seite, als Ganzes. */
         app.MapPut("/workspace/page-logic/{*path}", SaveLogicAsync);
+
+        /* 0061 — Seite oder Slajdy, und ihr Aussehen. */
+        app.MapPut("/workspace/page-look/{*path}", SaveLookAsync);
     }
 
     public sealed record SaveRequest(string Title, string? Lead);
@@ -68,7 +71,8 @@ public static class Page
 
     /// <summary>So viele Bausteine trägt keine Seite — und wer es versucht, meint es nicht gut.</summary>
     public const int MaxParts = 60;
-    public const int MaxLayout = 2000;
+    /// <summary>0061 — die Hintergründe eines Slajds liegen mit in der Anordnung.</summary>
+    public const int MaxLayout = 8000;
     public const int MaxConfig = 8000;
 
     /* -- Zeigen ------------------------------------------------------------- */
@@ -318,7 +322,7 @@ public static class Page
     {
         Guid slugId, askedId;
         Guid? internalFor;
-        string? title = null, lead = null, aliasOf = null, logic = null;
+        string? title = null, lead = null, aliasOf = null, logic = null, mode = null, theme = null;
         DateTimeOffset? updatedAt = null;
 
         /*
@@ -337,7 +341,9 @@ public static class Page
                    p.title, p.lead, p.updated_at, s.alias_of,
                    COALESCE(t.internal_for_role_id, s.internal_for_role_id),
                    s.id,
-                   CASE WHEN t.id IS NULL THEN s.page_logic ELSE t.page_logic END
+                   CASE WHEN t.id IS NULL THEN s.page_logic ELSE t.page_logic END,
+                   CASE WHEN t.id IS NULL THEN s.page_mode ELSE t.page_mode END,
+                   CASE WHEN t.id IS NULL THEN s.page_theme ELSE t.page_theme END
             FROM app.slug s
             LEFT JOIN app.slug t ON s.alias_of IS NOT NULL AND t.path = s.alias_of
             LEFT JOIN app.slug_page p ON p.slug_id = COALESCE(t.id, s.id)
@@ -368,6 +374,8 @@ public static class Page
             internalFor = reader.IsDBNull(6) ? null : reader.GetGuid(6);
             askedId = reader.GetGuid(7);
             logic = reader.IsDBNull(8) ? null : reader.GetString(8);
+            mode = reader.IsDBNull(9) ? null : reader.GetString(9);
+            theme = reader.IsDBNull(10) ? null : reader.GetString(10);
         }
 
         /*
@@ -429,6 +437,9 @@ public static class Page
         await ctx.Response.WriteAsJsonAsync(new
         {
             path = wanted, aliasOf, title, lead, updatedAt, parts, logic, access,
+
+            /* 0061 — Seite oder Slajdy, und wie sie aussehen. */
+            mode = mode ?? "page", theme,
             menu = menu is null ? null : new { from = menu.Value.From, items = menu.Value.Items }
         });
     }
@@ -611,6 +622,85 @@ public static class Page
         await save.ExecuteNonQueryAsync(ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new { path = wanted, saved = true });
+    }
+
+    public sealed record LookRequest(string? Mode, string? Theme);
+
+    private const int MaxTheme = 8000;
+
+    /// <summary>
+    /// 0061 — WIE DIE SEITE ERSCHEINT: als Seite mit Bausteinen im Raster, oder
+    /// als Folge von Slajdy, in der jeder Baustein einen Bildschirm für sich hat.
+    ///
+    /// <para>
+    /// Wie die Karte an der ADRESSE und nicht am Inhalt: ein Alias zeigt, was
+    /// sein Ziel zeigt. Das Aussehen (<c>theme</c>) ist JSON, das der Browser
+    /// liest; hier wird nur geprüft, dass es JSON ist und nicht zu gross.
+    /// </para>
+    /// </summary>
+    private static async Task SaveLookAsync(HttpContext ctx, Db db, string path, LookRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var wanted = Slug.Normalise(path);
+        if (!Slug.IsWellFormed(wanted))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "To nie jest adres.");
+            return;
+        }
+
+        var mode = body.Mode is "slides" ? "slides" : "page";
+        var theme = string.IsNullOrWhiteSpace(body.Theme) ? null : body.Theme;
+
+        if (theme is not null)
+        {
+            if (theme.Length > MaxTheme)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Wygląd strony jest za duży.");
+                return;
+            }
+
+            try { using var _ = System.Text.Json.JsonDocument.Parse(theme); }
+            catch (System.Text.Json.JsonException)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny wygląd strony.");
+                return;
+            }
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var row = await RowAsync(connection, wanted, ctx.RequestAborted);
+        if (row is null)
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Tego adresu nie ma w rejestrze.");
+            return;
+        }
+
+        if (row.Value.AliasOf is not null)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                $"Ten adres jest tylko innym wejściem do „{row.Value.AliasOf}” — wygląd zmienia się tam.");
+            return;
+        }
+
+        var grip = await Access.OfAsync(connection, who.Value.AccountId, wanted, ctx.RequestAborted);
+        if (!grip.MayWrite)
+        {
+            await Fail(ctx, StatusCodes.Status403Forbidden,
+                "Tego adresu nie prowadzi żadna z Twoich ról i nie masz do niego prawa zapisu.");
+            return;
+        }
+
+        await using var save = new SqlCommand(
+            "UPDATE app.slug SET page_mode = @mode, page_theme = @theme WHERE id = @id;", connection);
+        save.Parameters.AddWithValue("@mode", mode);
+        save.Parameters.AddWithValue("@theme", (object?)theme ?? DBNull.Value);
+        save.Parameters.AddWithValue("@id", row.Value.Id);
+        await save.ExecuteNonQueryAsync(ctx.RequestAborted);
+
+        await ctx.Response.WriteAsJsonAsync(new { path = wanted, mode, theme });
     }
 
     /* -- Die Bausteine setzen ----------------------------------------------- */
