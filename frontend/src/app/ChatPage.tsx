@@ -32,6 +32,7 @@ import {
 import { DeletedBody, EditBox, EditedMark, HistoryDialog, MessageTools } from './MessageBits';
 import type { Ring, SealedRole } from './keys';
 import { keysFor } from './ringOf';
+import { notices } from './platform';
 import { useRemembered } from './prefs';
 import { myRoleNames } from './roleNames';
 import { viewPath } from './routes';
@@ -159,12 +160,11 @@ function ChatList({ me }: { me: Me }) {
   const look = useCallback(async () => {
     try {
       const found = (await loadChats()).chats;
-      if (previous.current !== null && 'Notification' in window && Notification.permission === 'granted') {
+      if (previous.current !== null && notices.allowed()) {
         for (const chat of found) {
           if (chat.unread > 0 && chat.lastMessageAt !== previous.current.get(chat.chatId) && chat.preferences
             && !chat.preferences.muted && !chat.preferences.archived && availableNow(chat.preferences)) {
-            const notification = new Notification('Nowa wiadomość', { body: 'Masz nową wiadomość w rozmowie.', tag: chat.chatId });
-            notification.onclick = () => { window.focus(); window.location.hash = viewPath('chat', chat.chatId); notification.close(); };
+            notices.show({ title: 'Nowa wiadomość', body: 'Masz nową wiadomość w rozmowie.', tag: chat.chatId, open: viewPath('chat', chat.chatId) });
           }
         }
       }

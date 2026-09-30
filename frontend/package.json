@@ -15,9 +15,16 @@
     "rc:walk": "node scripts/rc-walk.mjs",
     "rc:vector": "node scripts/rc-wrap-vector.mjs",
     "events:check": "node scripts/events-add-check.mjs && node scripts/events-image-check.mjs",
-    "public:check": "tsc -p tsconfig.public.json --noEmit"
+    "public:check": "tsc -p tsconfig.public.json --noEmit",
+    "android:apk": "node scripts/android-apk.mjs",
+    "android:keystore": "node scripts/android-keystore.mjs",
+    "android:icons": "node scripts/android-icons.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/local-notifications": "^8.3.1",
     "@dnd-kit/core": "^6.3.1",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-query": "^5.96.2",
@@ -32,6 +39,7 @@
     "reactflow": "^11.11.4"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@types/node": "^26.4.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

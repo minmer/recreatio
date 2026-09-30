@@ -24,6 +24,7 @@
 import { useMemo, useState } from 'react';
 
 import type { OpenField, Submission } from './form';
+import { saveBlob } from './platform';
 
 /** Wie viele verschiedene Antworten eine Frage höchstens haben darf, um einen Filter zu bekommen. */
 const FILTERABLE = 8;
@@ -253,19 +254,13 @@ function download(
   ];
 
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
 
   const base = name.trim().toLocaleLowerCase('pl')
     .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'zgloszenia';
 
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${base}-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  /* In der App fragt das System, wohin; im Browser lädt es herunter wie immer. */
+  void saveBlob(blob, `${base}-${new Date().toISOString().slice(0, 10)}.csv`).catch(() => undefined);
 }
 
 export default FormTable;

@@ -2,7 +2,8 @@
  * Der PasswordKey soll einen NEUSTART überstehen — ohne dass der Dienst ihn liest.
  *
  * <b>Zwei Hälften, und keine genügt allein.</b> Dieses Gerät behält einen
- * Zufallsschlüssel im `localStorage`; der Dienst behält den PasswordKey, unter
+ * Zufallsschlüssel in seiner Ablage (`vault`: im Browser der `localStorage`,
+ * in der App der Android Keystore); der Dienst behält den PasswordKey, unter
  * genau diesem Schlüssel versiegelt. Was wo liegt, entscheidet, was ein
  * Angreifer davon hat:
  *
@@ -21,14 +22,17 @@
  * Konto auf. Der Kontoname trennt sie.
  *
  * <b>Was hier NICHT geschieht.</b> Der Schlüssel wird nicht im Klartext
- * abgelegt, weder hier noch dort. Was im `localStorage` liegt, ist der Öffner —
- * für sich genommen wertlos, solange niemand angemeldet ist.
+ * abgelegt, weder hier noch dort. Was in der Ablage liegt, ist der Öffner —
+ * für sich genommen wertlos, solange niemand angemeldet ist. In der App liegt
+ * selbst er nur versiegelt, unter einem Schlüssel, der die Hardware nicht
+ * verlässt (KeyVaultPlugin).
  *
  * Die strenge Betriebsart (`tab`) benutzt diese Datei gar nicht: dort lebt der
  * Schlüssel nur im Speicher, und beim Umschalten wirft der Dienst die Hüllen weg.
  */
 
 import { aad, Field, fromBase64Url, KEY_SIZE, open, seal, toBase64Url } from './crypto';
+import { vault } from './platform';
 
 /** Die Fassung steht im Namen: ändert sich die Form, beginnt ein neues Gerät. */
 const SLOT = 'recreatio:device:v1';
@@ -50,16 +54,17 @@ const keptAad = (accountId: string) =>
   aad('kernel', 'account_key', accountId, Field.AccountKeptKey, 1);
 
 /**
- * Was im Speicher dieses Browsers liegt — oder `null`.
+ * Was in der Ablage dieses Geräts liegt — oder `null`.
  *
- * <b>Jeder Zugriff ist eingefasst.</b> `localStorage` wirft, wenn der Browser
- * ihn sperrt (privates Fenster, abgeschaltete Seitendaten). Das ist kein
- * Fehler, sondern eine Einstellung — und die richtige Antwort darauf ist, den
- * Schlüssel eben nicht aufzubewahren, nicht ein Absturz.
+ * <b>Jeder Zugriff ist eingefasst.</b> Die Ablage kann gesperrt sein (privates
+ * Fenster, abgeschaltete Seitendaten) oder ihren Schlüssel verloren haben (die
+ * App neu installiert). Das ist kein Fehler, sondern eine Lage — und die
+ * richtige Antwort darauf ist, den Schlüssel eben nicht aufzubewahren, nicht
+ * ein Absturz.
  */
-function stored(): Device | null {
+async function stored(): Promise<Device | null> {
   try {
-    const raw = localStorage.getItem(SLOT);
+    const raw = await vault.get(SLOT);
     if (raw === null) return null;
 
     const parsed: unknown = JSON.parse(raw);
@@ -88,23 +93,18 @@ function stored(): Device | null {
  * bloss prüft, ob etwas verwahrt liegt, soll dabei keine Gerätekennung in den
  * Speicher schreiben.
  */
-export const knownDevice = (): Device | null => stored();
+export const knownDevice = (): Promise<Device | null> => stored();
 
-export function device(): Device | null {
-  const found = stored();
+export async function device(): Promise<Device | null> {
+  const found = await stored();
   if (found !== null) return found;
 
-  try {
-    const made: Device = {
-      id: crypto.randomUUID(),
-      key: crypto.getRandomValues(new Uint8Array(KEY_SIZE))
-    };
+  const made: Device = {
+    id: crypto.randomUUID(),
+    key: crypto.getRandomValues(new Uint8Array(KEY_SIZE))
+  };
 
-    localStorage.setItem(SLOT, JSON.stringify({ id: made.id, key: toBase64Url(made.key) }));
-    return made;
-  } catch {
-    return null;
-  }
+  return (await vault.put(SLOT, JSON.stringify({ id: made.id, key: toBase64Url(made.key) }))) ? made : null;
 }
 
 /**
@@ -114,9 +114,7 @@ export function device(): Device | null {
  * dieses Geräts. Gedacht für „dieses Gerät vergessen", nicht fürs Abmelden:
  * beim Abmelden geht die Hülle weg, nicht der Öffner.
  */
-export function forgetDevice(): void {
-  try { localStorage.removeItem(SLOT); } catch { /* gesperrt heisst: liegt ohnehin nichts */ }
-}
+export const forgetDevice = (): Promise<void> => vault.drop(SLOT);
 
 /** Den PasswordKey versiegeln — fertig für den Dienst, der ihn nicht öffnet. */
 export const sealKept = async (

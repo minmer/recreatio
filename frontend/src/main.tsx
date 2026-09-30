@@ -54,7 +54,23 @@ window.addEventListener('hashchange', () => {
   }
 });
 
+/*
+ * In der Android-App steht vor allem anderen die Hülle (`shell.ts`): sie
+ * setzt die Adresse, mit der die App gestartet wurde. Nachgesehen wird am
+ * Objekt, das die App selbst einsetzt — so lädt der Browser davon nichts.
+ */
+const inShell = (): boolean =>
+  (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() === true;
+
 async function mount(): Promise<void> {
+  if (inShell()) {
+    const { startShell } = await import('./shell');
+    await startShell();
+
+    // Die Hülle kann die Adresse gewechselt haben, ohne dass `hashchange` kam.
+    wasNew = isNew();
+  }
+
   if (isNew()) {
     const { mountApp } = await import('./app/mount');
     mountApp(document.getElementById('root')!);

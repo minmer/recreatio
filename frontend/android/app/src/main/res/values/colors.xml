@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Der Grund der Seite (app.css: wk-ground): hinter Statusleiste und Startbild dieselbe Farbe wie darunter. -->
+    <color name="ground">#F7F5F1</color>
+    <color name="accent">#7A5A2E</color>
+</resources>

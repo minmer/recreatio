@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { areaKeys, chatKeysOf, loadChat, loadChats, openNames, sendMessage, openMessage, type ChatDetail, type ChatRow, type SealedMessage, type Attachment, type Opened, type SendOptions } from './chat';
 import { availableNow, defaultPreferences, downloadAttachment, uploadAttachment, type Features, type Preferences } from './chatFeatures';
+import { notices } from './platform';
 import { call } from './session';
 import type { Ring } from './keys';
 import { chatEndpoint } from './chatFeatures';
@@ -15,8 +16,8 @@ export function useChatExtras(endpoint: string) {
     let live = true;
     const load = () => call<Features>(`${endpoint}/features`).then(f => { if (live) {
       if (lastMessage.current !== undefined && f.lastMessageAt !== lastMessage.current && f.lastMessageAt
-        && document.visibilityState !== 'visible' && !f.effective.muted && !f.effective.archived && availableNow(f.effective)
-        && 'Notification' in window && Notification.permission === 'granted') new Notification('Nowa wiadomość', { body: 'W rozmowie pojawiła się wiadomość.', tag: endpoint });
+        && document.visibilityState !== 'visible' && !f.effective.muted && !f.effective.archived && availableNow(f.effective))
+        notices.show({ title: 'Nowa wiadomość', body: 'W rozmowie pojawiła się wiadomość.', tag: endpoint });
       lastMessage.current = f.lastMessageAt; setFeatures(f);
     } }).catch(() => undefined);
     void load(); const timer = window.setInterval(load, 5000);
@@ -112,7 +113,7 @@ function PreferencesEditor({ value, inherited, onSave }: { value: Preferences; i
     {inherited !== undefined && <label><input type="checkbox" checked={p.archived} onChange={e => setP({ ...p, archived: e.target.checked })} /> Archiwizuj rozmowę</label>}
     <label><input type="checkbox" checked={p.readReceipts} onChange={e => setP({ ...p, readReceipts: e.target.checked })} /> Udostępniaj potwierdzenia odczytania</label>
     <label><input type="checkbox" checked={p.shareAvailability ?? false} onChange={e => setP({ ...p, shareAvailability: e.target.checked })} /> Pokazuj uczestnikom, czy jestem w godzinach dostępności</label>
-    {'Notification' in window && <button type="button" onClick={() => void Notification.requestPermission().then(result => setStatus(result === 'granted' ? 'Powiadomienia włączone, gdy aplikacja jest otwarta.' : 'Powiadomienia przeglądarki nie są włączone.'))}>Włącz powiadomienia przeglądarki</button>}
+    {notices.available && <button type="button" onClick={() => void notices.ask().then(ok => setStatus(ok ? 'Powiadomienia włączone, gdy aplikacja jest otwarta.' : 'Powiadomienia nie są włączone.'))}>Włącz powiadomienia</button>}
     <button type="button" onClick={() => void save(p)}>Zapisz</button>
     {inherited !== undefined && <button type="button" onClick={() => void save(null)}>Przywróć wspólne ustawienia</button>}
     <p role="status">{status}</p>

@@ -282,7 +282,7 @@ export const heldPasswordKey = (): Uint8Array | null => held?.key ?? null;
 export async function keepHeldKey(who: Who): Promise<boolean> {
   if (held === null) return false;
 
-  const on = device();
+  const on = await device();
   if (on === null) return false;
 
   await call('/workspace/key', {
@@ -297,7 +297,7 @@ export async function keepHeldKey(who: Who): Promise<boolean> {
 async function keepIfWanted(who: Who, key: Uint8Array): Promise<void> {
   if (!keepsKey(who)) return;
 
-  const on = device();
+  const on = await device();
   if (on === null) return; // Der Browser lässt nichts ablegen. Dann eben nicht.
 
   await call('/workspace/key', {
@@ -318,7 +318,7 @@ async function restoreKept(who: Who): Promise<Uint8Array | null> {
 
   // `knownDevice` und nicht `device`: beim blossen Nachsehen soll keine
   // Gerätekennung entstehen.
-  const on = knownDevice();
+  const on = await knownDevice();
   if (on === null) return null;
 
   try {
@@ -436,10 +436,10 @@ export async function signOut(): Promise<void> {
    * Sitzung mehr, mit der sie sich noch wegräumen liesse, und sie bliebe für
    * den nächsten liegen, der an dieses Gerät kommt.
    *
-   * Der Öffner im `localStorage` bleibt: ohne Hülle ist er wertlos, und beim
+   * Der Öffner in der Ablage bleibt: ohne Hülle ist er wertlos, und beim
    * nächsten Anmelden wird er wieder gebraucht.
    */
-  const on = knownDevice();
+  const on = await knownDevice();
   if (on !== null) {
     try { await call(`/workspace/key?device=${encodeURIComponent(on.id)}`, { method: 'DELETE' }); }
     catch { /* Bleibt sie liegen, ist sie beim nächsten Anmelden ohnehin überschrieben. */ }

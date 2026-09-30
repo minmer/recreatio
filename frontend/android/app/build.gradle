@@ -1,0 +1,104 @@
+apply plugin: 'com.android.application'
+
+/*
+ * FASSUNG UND UNTERSCHRIFT (Kapitel 13.5) — festgelegt vor der ersten
+ * Auslieferung, weil keines von beiden sich danach noch ändern lässt.
+ *
+ *   applicationId  pl.recreatio.app
+ *   versionName    die Fassung aus package.json + Zeitpunkt des Baus (UTC),
+ *                  z. B. 0.1.0+20260930.1412
+ *   versionCode    Minuten seit 2026-01-01 UTC. Steigt mit jedem Bau von
+ *                  selbst — eine APK ersetzt die vorige nur, wenn ihre Zahl
+ *                  grösser ist —, und bleibt für Jahrtausende unter 2^31.
+ *                  `-PversionCode=…` setzt sie von Hand.
+ *
+ * Die UNTERSCHRIFT liegt nicht in diesem Verzeichnis. Wer den Schlüssel
+ * verliert, kann die App nie wieder aktualisieren — und wer ihn aus dem
+ * Repository liest, kann eine eigene ausliefern, die das Telefon für diese
+ * hält. Deshalb liegt er dort, wo `npm run android:keystore` ihn anlegt:
+ *
+ *   ~/.recreatio/android/signing.properties   (oder $RECREATIO_SIGNING)
+ */
+
+def web = new groovy.json.JsonSlurper().parse(file('../../package.json'))
+
+def builtAt = new Date()
+def minutesSince2026 = (int) ((builtAt.time - 1767225600000L).intdiv(60000L))
+def versionCodeValue = project.hasProperty('versionCode') ? project.property('versionCode').toString().toInteger() : minutesSince2026
+def versionNameValue = "${web.version}+${builtAt.format('yyyyMMdd.HHmm', TimeZone.getTimeZone('UTC'))}"
+
+def signingFile = file(System.getenv('RECREATIO_SIGNING') ?: "${System.getProperty('user.home')}/.recreatio/android/signing.properties")
+def signing = new Properties()
+if (signingFile.exists()) {
+    signingFile.withInputStream { signing.load(it) }
+}
+
+android {
+    namespace = "pl.recreatio.app"
+    compileSdk = rootProject.ext.compileSdkVersion
+    /* Fest, damit Gradle nicht versucht, eine andere Fassung in ein schreibgeschütztes SDK nachzuladen. */
+    buildToolsVersion = rootProject.ext.buildToolsVersion
+    defaultConfig {
+        applicationId "pl.recreatio.app"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode versionCodeValue
+        versionName versionNameValue
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+
+    signingConfigs {
+        release {
+            if (signingFile.exists()) {
+                storeFile new File(signingFile.parentFile, signing.getProperty('storeFile'))
+                storePassword signing.getProperty('storePassword')
+                keyAlias signing.getProperty('keyAlias')
+                keyPassword signing.getProperty('keyPassword')
+            }
+            /* v3 dazu: erlaubt später, den Schlüssel zu wechseln, ohne dass installierte Apps ihn verlieren. */
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+
+    buildTypes {
+        release {
+            if (signingFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    /*
+     * Kein Abhängigkeitsverzeichnis in der APK. Es ist mit einem Schlüssel von
+     * Google verschlüsselt und nur für Google lesbar — auf einem Telefon ohne
+     * Google-Dienste hat es nichts verloren.
+     */
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'

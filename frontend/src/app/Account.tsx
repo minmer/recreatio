@@ -33,7 +33,13 @@ export function Account({ who }: { who: Who }) {
   const [failed, setFailed] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
 
-  const here = knownDevice()?.id ?? null;
+  /* Welches der verwahrten Geräte dieses ist — die Ablage antwortet in der App erst nach einer Runde. */
+  const [here, setHere] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void knownDevice().then((found) => { if (alive) setHere(found?.id ?? null); });
+    return () => { alive = false; };
+  }, []);
 
   /*
    * Der Bund und die eigene Person. Beides wird für „Moje dane" gebraucht: die

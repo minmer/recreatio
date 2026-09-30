@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "pl.recreatio.app",
+      "sha256_cert_fingerprints": [
+        "69:0E:01:3E:6F:97:63:81:AE:0D:DF:1A:E1:52:00:05:52:5A:9B:D1:1C:31:C6:5D:97:64:81:56:BE:2C:72:1C"
+      ]
+    }
+  }
+]
