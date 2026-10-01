@@ -230,6 +230,34 @@ export interface PartModule {
    * frisch angelegter Eintrag, und der Knopf sah aus, als täte er nichts.
    */
   readonly read: (raw: RawConfig) => unknown;
+
+  /**
+   * 0063 — EIN EIGENER EDITOR, wo Felder nicht reichen.
+   *
+   * Die Bausteine aus den Ereignisseiten des Altbestands tragen Listen von
+   * Listen: ein Plan hat Etappen, jede Etappe Punkte; eine Mapa Strecken und
+   * Punkte. Das sind keine Zeilen einer Tafel. Ihr Editor schreibt dieselbe
+   * Tafel (`onSet`) — nur eben nicht Feld für Feld. `null`: es reichen die
+   * Felder (`fields`).
+   */
+  readonly Editor: ComponentType<EditorProps> | null;
+}
+
+/** 0063 — was ein eigener Editor über seine Umgebung wissen darf. */
+export interface EditorContext {
+  /**
+   * Die Adresse der Seite, an der er steht — Bilder und Dateien gehören einer
+   * Seite (`PageImage.cs`). `null`: im Bausteinverwalter, solange der
+   * Baustein noch nirgends steht; dann lassen sich nur Adressen eintragen.
+   */
+  readonly path: string | null;
+}
+
+export interface EditorProps {
+  readonly raw: RawConfig;
+  readonly onSet: (patch: RawConfig) => void;
+  readonly ctx: EditorContext;
+  readonly busy: boolean;
 }
 
 /**
@@ -253,6 +281,7 @@ export function definePart<C>(spec: {
   shows: (config: C, size: PartSize) => string;
   strip?: { title: string; open: string };
   fullscreen?: boolean;
+  Editor?: ComponentType<EditorProps>;
 }): PartModule {
   /*
    * Als echtes Bauteil eingehängt und nicht als Funktion aufgerufen: sonst
@@ -277,7 +306,8 @@ export function definePart<C>(spec: {
     shows: (raw, size) => spec.shows(spec.read(raw), size),
     strip: spec.strip ?? null,
     fullscreen: spec.fullscreen ?? false,
-    read: spec.read
+    read: spec.read,
+    Editor: spec.Editor ?? null
   };
 }
 

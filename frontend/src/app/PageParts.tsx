@@ -25,7 +25,25 @@ import { Fullscreen } from './Modal';
 import type { DraftPart } from './page';
 import { partSize, text, type PartModule, type PartSize, type RawConfig } from './part';
 import { usePageLogic } from './pageLogic';
+import { slideLabelOf } from './PageSlides';
 import { partOf } from './parts/registry';
+import { anchorOf } from './slides';
+
+/**
+ * 0063 — „#zapisy" IM RASTER. Ein Knopf im Tytuł oder ein Verweis im Text, der
+ * auf einen Baustein zeigt, springt zu ihm — wie im Deck zum Slajd dieses
+ * Namens. Ohne das wäre „#zapisy" eine neue Adresse der Seite, und die Weiche
+ * der App führte ins Leere.
+ */
+function jumpWithin(event: React.MouseEvent<HTMLElement>) {
+  const link = (event.target as HTMLElement).closest('a');
+  const href = link?.getAttribute('href') ?? '';
+  if (link === null || !href.startsWith('#') || href.startsWith('#/')) return;
+  event.preventDefault();
+  const name = decodeURIComponent(href.slice(1)).toLowerCase();
+  const target = event.currentTarget.querySelector<HTMLElement>(`[data-anchor="${CSS.escape(name)}"]`);
+  target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 /*
  * OHNE die Adresse der Seite. Sie stand hier, weil der Messplan sie brauchte —
@@ -67,7 +85,7 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
   if (shown.length === 0) return null;
 
   return (
-    <div className="wk-page-grid" style={{ '--page-cols': columns } as CSSProperties}>
+    <div className="wk-page-grid" style={{ '--page-cols': columns } as CSSProperties} onClick={jumpWithin}>
       {shown.map((part) => {
         const frame = frameFor(part, breakpoint);
 
@@ -96,6 +114,7 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
           <article
             key={part.id}
             id={`part-${part.id}`}
+            data-anchor={anchorOf(slideLabelOf(part))}
             className={`wk-card wk-card-${part.kind}${canFull ? ' has-full' : ''}`}
             data-w={size.width}
             data-h={size.height}

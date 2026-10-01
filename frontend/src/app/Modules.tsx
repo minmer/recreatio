@@ -26,14 +26,14 @@
  * dorthin.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { areaPath, loadAreas, type AreaRow } from './area';
 import { useCrumbs, type Crumb } from './crumbTrail';
 import { FormOffice } from './FormOffice';
 import { newId } from './ids';
 import {
-  createModule, loadModules, readConfig, SUBJECT_LABEL, SUBJECTS, type Subject, type ModuleRow
+  createModule, loadModules, readConfig, removeModule, SUBJECT_LABEL, SUBJECTS, type Subject, type ModuleRow
 } from './module';
 import { setPartConfig } from './form';
 import { PARTS, partLabel, partOf, takesEntries } from './parts/registry';
@@ -157,6 +157,8 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
         {head}
 
         <RecentRow scope="modules" items={all.map((m) => ({ id: m.moduleId, label: `${m.name} · ${partLabel(m.kind)}`, href: viewPath('modules', m.kind, m.moduleId) }))} />
+
+        <Unused modules={all} busy={busy !== null} onAct={act} />
 
         <ul className="wk-tree">
           {PARTS.map((one) => {
@@ -348,7 +350,56 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
   const [config, setConfig] = useState<Record<string, string>>(() => readConfig(row.config));
   const [failed, setFailed] = useState<string | null>(null);
 
-  useEffect(() => { setConfig(readConfig(row.config)); }, [row.moduleId, row.config]);
+  /*
+   * 0063 — EIN EIGENER EDITOR SCHREIBT BEI JEDEM TASTENDRUCK. Gespeichert wird
+   * gesammelt, kurz nachdem das Tippen aufhört — und was die Antwort
+   * zurückbringt, überschreibt nicht, was inzwischen schon wieder getippt ist.
+   */
+  const queued = useRef<Record<string, string>>({});
+  const timer = useRef<number | undefined>(undefined);
+  const [saving, setSaving] = useState(false);
+
+  const flush = useCallback(async () => {
+    window.clearTimeout(timer.current);
+    const patch = queued.current;
+    queued.current = {};
+    if (Object.keys(patch).length === 0) return;
+    setSaving(true);
+    try {
+      const done = await setPartConfig(row.moduleId, patch);
+      setConfig({ ...done.config, ...queued.current });
+      setFailed(null);
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się zapisać.');
+    } finally {
+      setSaving(false);
+    }
+  }, [row.moduleId]);
+
+  const queue = (patch: Record<string, string>) => {
+    setConfig((was) => ({ ...was, ...patch }));
+    queued.current = { ...queued.current, ...patch };
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => { void flush(); }, 700);
+  };
+
+  /* Wer die Seite verlässt, während noch etwas wartet, verliert es nicht. */
+  useEffect(() => () => { void flush(); }, [flush]);
+
+  useEffect(() => { setConfig({ ...readConfig(row.config), ...queued.current }); }, [row.moduleId, row.config]);
+
+  if (def !== undefined && def.Editor !== null) {
+    const Editor = def.Editor;
+    return (
+      <section className="wk-form">
+        <h2 className="wk-h2">Treść</h2>
+        {def.missing(config) !== null && <p className="wk-blocker">{def.missing(config)}</p>}
+        <Editor raw={config} onSet={queue} busy={busy} ctx={{ path: row.pages[0] ?? null }} />
+        <p className="wk-hint" role="status">{saving ? 'Zapisywanie…' : 'Zmiany zapisują się same.'}</p>
+        {failed !== null && <p className="wk-error">{failed}</p>}
+      </section>
+    );
+  }
 
   if (def === undefined || def.fields.length === 0) {
     return (
@@ -428,6 +479,74 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
       })}
 
       {failed !== null && <p className="wk-error">{failed}</p>}
+    </section>
+  );
+}
+
+/**
+ * 0063 — WAS NIRGENDS STEHT, auf einmal weg.
+ *
+ * Ein Baustein bleibt in der Liste, wenn er von einer Seite genommen wird
+ * (0041) — er soll sich woanders wieder hinsetzen lassen. Mit der Zeit sammeln
+ * sich so Bausteine an, die niemand mehr braucht: „text — …", „seat-shared —
+ * …", nebenbei angelegt und vergessen. Hier gehen sie alle, nach einer
+ * Rückfrage, die sie beim Namen nennt.
+ *
+ * <b>Was Einsendungen trägt, bleibt</b> — sie gehören denen, die sie geschickt
+ * haben; der Dienst lehnt es ohnehin ab (`Module.RemoveAsync`). Es steht dabei,
+ * damit niemand rätselt, warum es nicht verschwindet.
+ */
+function Unused({ modules, busy, onAct }: {
+  modules: readonly ModuleRow[];
+  busy: boolean;
+  onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
+}) {
+  const [asking, setAsking] = useState(false);
+  const idle = modules.filter((one) => one.usedOnPages === 0);
+  const free = idle.filter((one) => one.entries === 0);
+  const kept = idle.filter((one) => one.entries > 0);
+
+  if (idle.length === 0) return null;
+
+  const removeAll = async () => {
+    const refused: string[] = [];
+    for (const one of free) {
+      try {
+        await removeModule(one.moduleId);
+      } catch (e) {
+        refused.push(`${one.name}: ${e instanceof WorkspaceError ? e.message : 'nie udało się'}`);
+      }
+    }
+    if (refused.length > 0) throw new WorkspaceError(`Nie usunięto: ${refused.join(' · ')}`);
+  };
+
+  return (
+    <section className="wk-unused">
+      <p className="wk-unused-line">
+        <strong>Nieużywane moduły: {idle.length}</strong>
+        <span className="wk-hint"> — nie stoją na żadnej stronie.</span>
+        {free.length > 0 && !asking && (
+          <button type="button" className="wk-link-btn" disabled={busy} onClick={() => setAsking(true)}>Usuń nieużywane…</button>
+        )}
+      </p>
+      {asking && (
+        <div className="wk-unused-ask">
+          <p>Usunąć te moduły? Nie da się tego cofnąć.</p>
+          <ul>{free.map((one) => <li key={one.moduleId}>{one.name} <span className="wk-hint">· {partLabel(one.kind)}</span></li>)}</ul>
+          <div className="wk-actions">
+            <button type="button" className="wk-btn wk-btn-danger" disabled={busy}
+              onClick={() => { setAsking(false); void onAct(`Usuwanie modułów (${free.length})…`, removeAll); }}>
+              Usuń {free.length}
+            </button>
+            <button type="button" className="wk-link-btn" onClick={() => setAsking(false)}>Anuluj</button>
+          </div>
+        </div>
+      )}
+      {kept.length > 0 && (
+        <p className="wk-hint">
+          Zostają, bo mają zgłoszenia: {kept.map((one) => `${one.name} (${one.entries})`).join(', ')}. Zgłoszenia należą do osób, które je wysłały.
+        </p>
+      )}
     </section>
   );
 }

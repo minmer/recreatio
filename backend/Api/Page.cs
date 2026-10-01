@@ -73,7 +73,8 @@ public static class Page
     public const int MaxParts = 60;
     /// <summary>0062 — die Hintergründe eines Slajds liegen mit in der Anordnung.</summary>
     public const int MaxLayout = 8000;
-    public const int MaxConfig = 8000;
+    /// <summary>0063 — 64 000: eine Mapa trägt ihre Strecken, ein Plan seine Tage, ein Słownik Fragen und Antworten.</summary>
+    public const int MaxConfig = 64000;
 
     /* -- Zeigen ------------------------------------------------------------- */
 
@@ -842,8 +843,18 @@ public static class Page
             while (await reader.ReadAsync(ctx.RequestAborted)) here.Add(reader.GetGuid(0));
         }
 
+        /* 0063 — die Bausteine der Stellen, die gehen (siehe unten, vor dem Abschluss). */
+        var dropped = new List<Guid>();
+
         foreach (var going in here.Where(id => !ids.Contains(id)))
         {
+            await using (var which = new SqlCommand(
+                "SELECT module_id FROM app.slug_part WHERE id = @part;", connection, tx))
+            {
+                which.Parameters.AddWithValue("@part", going);
+                if (await which.ExecuteScalarAsync(ctx.RequestAborted) is Guid module) dropped.Add(module);
+            }
+
             /*
              * NUR DIE VERWENDUNG GEHT (0041). Fragen und Einsendungen gehoeren
              * dem BAUSTEIN; er bleibt in der Bausteinliste stehen, mit allem,
@@ -955,6 +966,35 @@ public static class Page
             }
 
             await save.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
+        /*
+         * 0063 — WAS NEBENBEI ENTSTAND UND NIRGENDS MEHR STEHT, GEHT MIT.
+         *
+         * Ein Baustein ohne Bereich steht nur in der Bausteinliste, solange er
+         * auf einer Seite steht (`Module.ListAsync`: Bereich, den ich lese, oder
+         * Adresse, die ich führe). Nimmt man ihn von seiner letzten Seite, sieht
+         * ihn niemand mehr — und niemand kann ihn wieder hinsetzen oder löschen.
+         * So sammelten sich „text — …", „seat-shared — …" an. Er geht deshalb
+         * mit, sobald nichts mehr an ihm hängt: keine Stelle (auch keine eben
+         * neu gesetzte), keine Fragen, keine Einsendungen, keine Schritte, keine
+         * Gestaltung, keine Erweiterung. Wer einen Bereich hat, bleibt — den
+         * sieht seine Gruppe in der Liste und entscheidet selbst.
+         */
+        foreach (var module in dropped.Distinct())
+        {
+            await using var orphan = new SqlCommand("""
+                DELETE FROM app.module
+                 WHERE id = @module AND area_id IS NULL
+                   AND NOT EXISTS (SELECT 1 FROM app.slug_part p WHERE p.module_id = @module)
+                   AND NOT EXISTS (SELECT 1 FROM app.slug_field f WHERE f.part_id = @module)
+                   AND NOT EXISTS (SELECT 1 FROM app.registration g WHERE g.part_id = @module)
+                   AND NOT EXISTS (SELECT 1 FROM app.form_step s WHERE s.module_id = @module)
+                   AND NOT EXISTS (SELECT 1 FROM app.form_design d WHERE d.module_id = @module)
+                   AND NOT EXISTS (SELECT 1 FROM app.module x WHERE x.extends_id = @module);
+                """, connection, tx);
+            orphan.Parameters.AddWithValue("@module", module);
+            await orphan.ExecuteNonQueryAsync(ctx.RequestAborted);
         }
 
         await tx.CommitAsync(ctx.RequestAborted);

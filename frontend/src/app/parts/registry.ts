@@ -9,10 +9,17 @@
  * ungefähr die, in der man sie braucht: erst was jede Seite trägt, dann was
  * lebt, zuletzt was nur hinter einem persönlichen Link etwas zeigt.
  *
+ * <b>0063 — die Bausteine der Ereignisseiten</b> sind herübergekommen: Tytuł,
+ * Krótkie informacje, Plan, Mapa, Koszty, Pytania, Osoby, Pliki, Galeria
+ * (`event/kit.tsx`). Was dort an einem eigenen Dienst hing — Zgłoszenia,
+ * Karta uczestnika, Lista, Tematy —, hat im Neubau seine Entsprechung schon:
+ * Formularz, Twoje zgłoszenie, Kroki, Rozmowa. Memy und die Bilder, die
+ * Teilnehmer selbst in die Galerie legen, warten auf einen eigenen Dienst.
+ *
  * <b>Nur, was sich heute zeigen lässt.</b> Der Altbestand hatte zwölf Arten;
  * mehrere hingen an Quellen, die es im Neubau nicht gibt. Eine Kachel
  * anzubieten, die dauerhaft leer bleibt, ist keine Vorbereitung, sondern ein
- * Versprechen, das die Seite nicht hält — die Galerie fehlt deshalb weiterhin.
+ * Versprechen, das die Seite nicht hält.
  */
 
 import type { PartModule } from '../part';
@@ -20,10 +27,19 @@ import type { PartModule } from '../part';
 import { calendarPart } from './calendar';
 import { chatPart } from './chat';
 import { contactPart } from './contact';
+import { costsPart } from './costs';
+import { factsPart } from './facts';
+import { faqPart } from './faq';
+import { filesPart } from './files';
+import { galleryPart } from './gallery';
+import { heroPart } from './hero';
 import { hoursPart } from './hours';
 import { linksPart } from './links';
+import { mapPart } from './map';
 import { formPart, massesPart, slotsPart } from './live';
 import { noticePart } from './notice';
+import { peoplePart } from './people';
+import { planPart } from './plan';
 import { seatChatPart, seatNotePart, seatSharedPart, seatStepsPart, seatSubmissionPart } from './seat';
 import { textPart } from './text';
 
@@ -34,6 +50,17 @@ export const PARTS: readonly PartModule[] = [
   hoursPart,
   contactPart,
   linksPart,
+
+  /* Was eine Ereignisseite trägt (0063, aus dem Altbestand). */
+  heroPart,
+  factsPart,
+  planPart,
+  mapPart,
+  costsPart,
+  faqPart,
+  peoplePart,
+  filesPart,
+  galleryPart,
 
   /* Was seinen Inhalt woanders herholt. */
   massesPart,

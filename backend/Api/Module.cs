@@ -32,7 +32,7 @@ public static class Module
     public const int MaxName = 200;
 
     /// <summary>Dieselbe Grenze wie fuer die Einstellung einer Seite (<see cref="Page"/>).</summary>
-    private const int MaxConfig = 8000;
+    private const int MaxConfig = Page.MaxConfig;
 
     public static void Map(WebApplication app)
     {

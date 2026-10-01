@@ -22,6 +22,7 @@ import { PageBuilder } from './PageBuilder';
 import { logicKey, PageLogicEditor } from './PageLogicEditor';
 import { pagePath } from './routes';
 import { SlidesEditor } from './SlidesEditor';
+import { SlidesImport } from './SlidesImport';
 import { NO_LOOK, readLook, writeLook, type Look } from './slides';
 import { WorkspaceError, type Who } from './session';
 
@@ -191,6 +192,7 @@ export function PageEditor({ path, who, onOpenModule }: {
       ) : (
       <PageBuilder
         parts={parts}
+        path={path}
         busy={busy !== null}
         onChange={(next) => { setParts(next); setDirty(true); }}
 
@@ -211,6 +213,14 @@ export function PageEditor({ path, who, onOpenModule }: {
         }}
       />
       )}
+
+      {/* 0063 — ein Ereignis des Altbestands als JSON: jede Część wird ein Baustein, mit Slajd und Hintergrund. */}
+      <SlidesImport
+        parts={parts}
+        look={pageLook}
+        onParts={(next) => { setParts(next); setDirty(true); }}
+        onLook={(next) => { setPageLook(next); setLookDirty(true); }}
+      />
 
       <div className="wk-actions">
         <button

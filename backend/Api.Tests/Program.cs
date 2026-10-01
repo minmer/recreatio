@@ -36,4 +36,5 @@ Check(Chat.AvailableAt(fold, DateTimeOffset.Parse("2026-10-25T00:30:00Z")), "fir
 Check(Chat.AvailableAt(fold, DateTimeOffset.Parse("2026-10-25T01:30:00Z")), "second repeated hour");
 await ApiErrorChecks.RunAsync(Check);
 FileLoggerChecks.Run(Check);
+PageFileChecks.Run(Check);
 Console.WriteLine($"Passed {checks} chat authorization, scheduling and availability checks.");

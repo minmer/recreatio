@@ -55,8 +55,11 @@ const HANDLES: readonly Handle[] = [
   'top-left', 'top', 'top-right', 'left', 'right', 'bottom-left', 'bottom', 'bottom-right'
 ];
 
-export function PageBuilder({ parts, onChange: report, busy, onOpenModule }: {
+export function PageBuilder({ parts, onChange: report, busy, onOpenModule, path = null }: {
   parts: readonly DraftPart[];
+
+  /** 0063 — die Adresse der Seite: an ihr liegen die Bilder und Dateien der Bausteine. */
+  path?: string | null;
   onChange: (next: readonly DraftPart[]) => void;
   busy: boolean;
 
@@ -397,6 +400,7 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule }: {
             rowSpan: snapRowSpan(frameFor(chosen, breakpoint).size.rowSpan)
           })}
           busy={busy}
+          path={path}
           onSet={(patch) => setConfigMany(chosen.id, patch)}
           onPickModule={(moduleId) => setModule(chosen.id, moduleId)}
           onMadeModule={(moduleId) => {
@@ -532,10 +536,11 @@ function Item({ part, frame, columns, selected, onSelect, onResizeStart, onRemov
  * Slajdy (0062) im aufgeklappten Slajd. Ein Bogen wird gewählt, nicht hier
  * gestellt (siehe oben); alles andere füllt man hier.
  */
-export function PartSettings({ part, size, busy, onSet, onPickModule, onMadeModule }: {
+export function PartSettings({ part, size, busy, onSet, onPickModule, onMadeModule, path = null }: {
   part: DraftPart;
   size: PartSize;
   busy: boolean;
+  path?: string | null;
   onSet: (patch: Record<string, string>) => void;
   onPickModule: (moduleId: string) => void;
   onMadeModule: (moduleId: string) => void;
@@ -543,14 +548,15 @@ export function PartSettings({ part, size, busy, onSet, onPickModule, onMadeModu
   return part.kind === 'form' ? (
     <PickModule kind={part.kind} chosen={part.moduleId} busy={busy} onPick={onPickModule} onMade={onMadeModule} />
   ) : (
-    <Fields part={part} size={size} busy={busy} onSet={onSet} />
+    <Fields part={part} size={size} busy={busy} onSet={onSet} path={path} />
   );
 }
 
-function Fields({ part, size, busy, onSet }: {
+function Fields({ part, size, busy, onSet, path }: {
   part: DraftPart;
   size: PartSize;
   busy: boolean;
+  path: string | null;
   onSet: (patch: Record<string, string>) => void;
 }) {
   const def = partOf(part.kind);
@@ -576,6 +582,9 @@ function Fields({ part, size, busy, onSet }: {
       </p>
 
       {def.missing(part.config) !== null && <p className="wk-blocker">{def.missing(part.config)}</p>}
+
+      {/* 0063 — ein Baustein mit eigenem Editor (Listen von Listen) bringt ihn selbst mit. */}
+      {def.Editor !== null && <def.Editor raw={part.config} onSet={onSet} ctx={{ path }} busy={busy} />}
 
       {def.fields.map((field) => {
         const value = part.config[field.key] ?? '';

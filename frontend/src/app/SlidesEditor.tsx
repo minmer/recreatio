@@ -13,7 +13,7 @@
  * ein neuer Slajd bekommt deshalb auch eine Stelle im Raster.
  */
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useRef, useState } from 'react';
 
 import { newId } from './ids';
 import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Layout } from './layout';
@@ -21,14 +21,11 @@ import { type DraftPart } from './page';
 import { PartSettings } from './PageBuilder';
 import { PageSlides, slideLabelOf } from './PageSlides';
 import { partSize } from './part';
-import {
-  deletePageImage, imageRef, loadPageImages, uploadPageImage, type PageImageRow
-} from './pageImages';
+import { ImagePicker } from './PageFiles';
 import { PARTS, partLabel, partOf } from './parts/registry';
-import { WorkspaceError } from './session';
 import { usePrefersDark, type DeckControl } from './SlideDeck';
 import {
-  BLENDS, blankLayer, DEFAULT_THEMES, defaultLayers, imageUrl, readSlide, resolveTheme, withSlide,
+  BLENDS, blankLayer, DEFAULT_THEMES, defaultLayers, readSlide, resolveTheme, withSlide,
   type Blend, type Layer, type LayerKind, type Look, type Theme, type ThemeMode
 } from './slides';
 
@@ -147,6 +144,7 @@ export function SlidesEditor({ path, parts, look, title, lead, busy, onChange, o
                         part={part}
                         size={FULL}
                         busy={busy}
+                        path={path}
                         onSet={(patch) => replace(part.id, { ...part, config: { ...part.config, ...patch } })}
                         onPickModule={(moduleId) => replace(part.id, { ...part, moduleId })}
                         onMadeModule={(moduleId) => {
@@ -411,75 +409,6 @@ function Slider({ label, value, busy, hint, onChange }: {
         onChange={(e) => onChange(Number(e.target.value))} />
       <output>{value.toFixed(2)}</output>
     </label>
-  );
-}
-
-/* -- Bilder der Seite ---------------------------------------------------------------- */
-
-/**
- * Ein Bild wählen oder hochladen (Altbestand: ImagePicker). Die Bilder gehören
- * der Seite und sind öffentlich wie sie — das steht dabei.
- */
-function ImagePicker({ path, value, busy, onPick }: {
-  path: string;
-  value: string;
-  busy: boolean;
-  onPick: (url: string) => void;
-}) {
-  const [images, setImages] = useState<readonly PageImageRow[] | null>(null);
-  const [working, setWorking] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
-  const input = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    loadPageImages(path)
-      .then((found) => { if (alive) setImages(found.images); })
-      .catch(() => { if (alive) setImages([]); });
-    return () => { alive = false; };
-  }, [path]);
-
-  const upload = async (file: File) => {
-    setWorking(true);
-    setFailed(null);
-    try {
-      const made = await uploadPageImage(path, file);
-      setImages((was) => [made, ...(was ?? [])]);
-      onPick(imageRef(made.id));
-    } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wgrać obrazu.');
-    } finally {
-      setWorking(false);
-    }
-  };
-
-  return (
-    <div className="se-images">
-      <div className="se-thumbs">
-        {(images ?? []).map((one) => {
-          const ref = imageRef(one.id);
-          return (
-            <span key={one.id} className={`se-thumb${value === ref ? ' is-on' : ''}`}>
-              <button type="button" disabled={busy} title={one.name ?? ''} onClick={() => onPick(ref)}
-                style={{ backgroundImage: `url(${JSON.stringify(imageUrl(ref))})` } as CSSProperties} aria-label={`Wybierz ${one.name ?? 'obraz'}`} />
-              <button type="button" className="se-thumb-x" disabled={busy} aria-label="Usuń obraz"
-                onClick={() => {
-                  if (!window.confirm('Usunąć ten obraz ze strony? Slajdy, które go używają, stracą to tło.')) return;
-                  void deletePageImage(one.id).then(() => setImages((was) => (was ?? []).filter((x) => x.id !== one.id)))
-                    .catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się usunąć.'));
-                }}>×</button>
-            </span>
-          );
-        })}
-        <button type="button" className="se-thumb se-thumb-add" disabled={busy || working} onClick={() => input.current?.click()}>
-          {working ? 'Wgrywanie…' : '+ Wgraj obraz'}
-        </button>
-        <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" hidden
-          onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void upload(file); }} />
-      </div>
-      <span className="wk-hint">Obrazy strony są publiczne jak sama strona (do 8 MB: JPEG, PNG, WebP, GIF, AVIF).</span>
-      {failed !== null && <span className="wk-error">{failed}</span>}
-    </div>
   );
 }
 

@@ -2126,7 +2126,7 @@ public static partial class Form
     }
 
     /// <summary>Dieselbe Grenze wie beim Speichern der ganzen Seite (<see cref="Page"/>).</summary>
-    private const int MaxConfigLength = 8000;
+    private const int MaxConfigLength = Page.MaxConfig;
 
     public sealed record ArmRequest(string FieldId, string TokenSha256, int? Days);
 
