@@ -390,29 +390,21 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule }: {
         wird deshalb weiterhin hier gefüllt.
       */}
       {chosen !== null && (
-        chosen.kind === 'form' ? (
-          <PickModule
-            kind={chosen.kind}
-            chosen={chosen.moduleId}
-            busy={busy}
-            onPick={(moduleId) => setModule(chosen.id, moduleId)}
-            onMade={(moduleId) => {
-              const next = withModule(chosen.id, moduleId);
-              onChange(next);
-              onOpenModule(moduleId, next);
-            }}
-          />
-        ) : (
-          <Fields
-            part={chosen}
-            size={partSize({
-              colSpan: snapColSpan(frameFor(chosen, breakpoint).size.colSpan, columns),
-              rowSpan: snapRowSpan(frameFor(chosen, breakpoint).size.rowSpan)
-            })}
-            busy={busy}
-            onSet={(patch) => setConfigMany(chosen.id, patch)}
-          />
-        )
+        <PartSettings
+          part={chosen}
+          size={partSize({
+            colSpan: snapColSpan(frameFor(chosen, breakpoint).size.colSpan, columns),
+            rowSpan: snapRowSpan(frameFor(chosen, breakpoint).size.rowSpan)
+          })}
+          busy={busy}
+          onSet={(patch) => setConfigMany(chosen.id, patch)}
+          onPickModule={(moduleId) => setModule(chosen.id, moduleId)}
+          onMadeModule={(moduleId) => {
+            const next = withModule(chosen.id, moduleId);
+            onChange(next);
+            onOpenModule(moduleId, next);
+          }}
+        />
       )}
     </div>
   );
@@ -532,6 +524,26 @@ function Item({ part, frame, columns, selected, onSelect, onResizeStart, onRemov
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * WAS EIN BAUSTEIN TRÄGT — im Raster unter der gewählten Kachel, bei den
+ * Slajdy (0062) im aufgeklappten Slajd. Ein Bogen wird gewählt, nicht hier
+ * gestellt (siehe oben); alles andere füllt man hier.
+ */
+export function PartSettings({ part, size, busy, onSet, onPickModule, onMadeModule }: {
+  part: DraftPart;
+  size: PartSize;
+  busy: boolean;
+  onSet: (patch: Record<string, string>) => void;
+  onPickModule: (moduleId: string) => void;
+  onMadeModule: (moduleId: string) => void;
+}) {
+  return part.kind === 'form' ? (
+    <PickModule kind={part.kind} chosen={part.moduleId} busy={busy} onPick={onPickModule} onMade={onMadeModule} />
+  ) : (
+    <Fields part={part} size={size} busy={busy} onSet={onSet} />
   );
 }
 

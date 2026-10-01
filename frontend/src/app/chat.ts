@@ -12,6 +12,7 @@
  *   area     ein bestehender Bereich bekommt seinen Chat
  *   group    für die Gruppe entsteht hier ein eigener Bereich
  *   direct   zu zweit — zwei Personen oder Rollen, ebenfalls mit Bereich
+ *   self     Notatki (0062) — mit sich selbst, im eigenen Bereich der Person
  * </code>
  *
  * <b>Der Dienst liest keine Nachricht.</b> Sie wird HIER versiegelt und von der
@@ -35,7 +36,7 @@ import { newId } from './ids';
 import type { Ring, SealedRole } from './keys';
 import { call, WorkspaceError } from './session';
 
-export type ChatKind = 'area' | 'group' | 'direct';
+export type ChatKind = 'area' | 'group' | 'direct' | 'self';
 
 export interface ChatMember {
   readonly roleId: string;
@@ -483,6 +484,24 @@ export async function startAreaChat(areaId: string, asRoleId: string, channel = 
   const chatId = newId();
   await createChat({ chatId, areaId, kind: 'area', asRoleId, postingPolicy: channel ? 'writers' : 'legacy' });
   return chatId;
+}
+
+/**
+ * 0062 — NOTATKI: die Rozmowa mit sich selbst. Sie liegt im EIGENEN Bereich
+ * der Person (`ensurePrivateArea`) — dort ist niemand sonst, und je Person
+ * gibt es ihn nur einmal. Hat er schon eine Rozmowa (zwei Fenster, ein
+ * Doppelklick), dann ist SIE es.
+ */
+export async function startSelfChat(areaId: string, personRoleId: string): Promise<string> {
+  const chatId = newId();
+  try {
+    await createChat({ chatId, areaId, kind: 'self', asRoleId: personRoleId, postingPolicy: 'legacy' });
+    return chatId;
+  } catch (e) {
+    const had = (await loadChats().catch(() => ({ chats: [] as readonly ChatRow[] }))).chats.find((c) => c.areaId === areaId);
+    if (had !== undefined) return had.chatId;
+    throw e;
+  }
 }
 
 /**

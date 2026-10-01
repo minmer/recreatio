@@ -24,17 +24,21 @@
  * dass jemand an den Arbeitsplatz denkt.
  */
 
-import { ChatToolbar, ComposerExtras, MessageContent, useChatExtras, useComposerExtras } from './ChatExtras';
+import { ForwardDialog, useChatExtras } from './ChatExtras';
+import {
+  ChatHeader, ChatLog, Composer, lastEditable, plural, SendAs, useChatChrome, withDelete, withEdit,
+  type ComposerHandle, type MessageHandlers, type MessageRules, type ReplyTarget, type Shown
+} from './ChatKit';
 import { chatEndpoint, reportChatSeen } from './chatFeatures';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   areaKeys, authorOf, chatKeysOf, deleteMessage, deliverSeatKeys, editMessage, loadChat, loadMessages, loadVersions,
   markRead, openMessage, openNames, openVersion, restoreMessage, sendMessage,
-  type ChatDetail, type Opened, type SealedMessage, type SealedVersion
+  type ChatDetail, type Opened, type SealedMessage, type SealedVersion, type SendOptions
 } from './chat';
 import type { Ring } from './keys';
-import { DeletedBody, EditBox, EditedMark, HistoryDialog, MessageTools } from './MessageBits';
+import { HistoryDialog } from './MessageBits';
 import { usePerson, type PagePerson } from './pagePerson';
 import { useRemembered } from './prefs';
 import { myRoleNames } from './roleNames';
@@ -89,36 +93,21 @@ export function PageChatCard({ title, chatId }: { title: string; chatId: string 
 
 /* -- Die Rozmowa für jemanden mit Konto ------------------------------------ */
 
-interface Shown {
-  readonly message: SealedMessage;
-  readonly opened: Opened | null;
-}
-
-const when = (at: string) => {
-  const d = new Date(at);
-  return d.toDateString() === new Date().toDateString()
-    ? d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleString('pl-PL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-};
-
 export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring: Ring; asRoleId: string }) {
   const [chat, setChat] = useState<ChatDetail | null | undefined>(undefined);
   const [talk, setTalk] = useState<ReadonlyMap<number, Uint8Array>>(new Map());
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
-  const [shown, setShown] = useState<readonly Shown[]>([]);
+  const [shown, setShown] = useState<readonly Shown[] | undefined>(undefined);
   const [more, setMore] = useState(false);
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
-  const log = useRef<HTMLDivElement | null>(null);
-  const stick = useRef(true);
 
   /*
-     WER HIER SCHREIBT — und das steht über dem Feld, samt Wahl, wenn es mehr
-     als eine gibt. Bisher wählte die Seite still: die oben gewählte Person,
-     sonst irgendeine eigene Rolle, die schreiben darf. Wer dann als „Rada"
-     statt als er selbst schrieb, erfuhr es erst aus der Antwort — und im
-     Vollbild sieht man die Wahl oben gar nicht.
+     WER HIER SCHREIBT — links neben dem Feld (Telegram: „Wyślij jako"), samt
+     Wahl, wenn es mehr als eine gibt, und im Feld selbst („Wiadomość jako …").
+     Bisher wählte die Seite still: die oben gewählte Person, sonst irgendeine
+     eigene Rolle, die schreiben darf. Wer dann als „Rada" statt als er selbst
+     schrieb, erfuhr es erst aus der Antwort — und im Vollbild sieht man die
+     Wahl oben gar nicht.
 
      Wer schreiben darf, sagt der Dienst (`writers`); wofür ich unterschreiben
      kann, der Schlüsselbund. Eine Wahl HIER merkt sich die Rozmowa —
@@ -129,10 +118,15 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
   const [picked, pick] = useRemembered(`chat.as.${chatId}`, '');
   const endpoint = chatEndpoint(chatId);
   const extras = useChatExtras(endpoint);
-  const compose = useComposerExtras(endpoint);
 
-  /* 0058 — bearbeiten, die Geschichte, und bis wann Änderungen geholt sind. */
-  const [editing, setEditing] = useState<string | null>(null);
+  /* 0062 — worauf geantwortet, was bearbeitet, was weitergegeben wird. */
+  const [reply, setReply] = useState<ReplyTarget | null>(null);
+  const [editing, setEditing] = useState<{ message: SealedMessage; opened: Opened } | null>(null);
+  const [forward, setForward] = useState<Opened | null>(null);
+  const [unreadAfter, setUnreadAfter] = useState<string | null | undefined>(undefined);
+  const composer = useRef<ComposerHandle | null>(null);
+
+  /* 0058 — die Geschichte, und bis wann Änderungen geholt sind. */
   const [history, setHistory] = useState<{
     load: () => Promise<{ versions: readonly SealedVersion[] }>;
     open: (version: SealedVersion) => Promise<Opened | null>;
@@ -173,6 +167,7 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
       setChat(found);
       setTalk(derived);
       setNames(await openNames(held, found.areaId, found.names));
+      setUnreadAfter((was) => (was === undefined ? found.readAt : was));
 
       /* Wer mit Link wartet, bekommt seinen Schlüssel, sobald ein Mitglied hereinschaut. */
       const by = found.writers[0];
@@ -215,12 +210,13 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
     if (at !== undefined) asOf.current = at;
     if (messages.length === 0) return;
     const opened = await open(keys, messages);
-    setShown((was) => was.map((w) => opened.find((o) => o.message.messageId === w.message.messageId) ?? w));
+    setShown((was) => (was ?? []).map((w) => opened.find((o) => o.message.messageId === w.message.messageId) ?? w));
   }, [chatId, open]);
 
   /* Nachladen, solange die Seite sichtbar ist. Eine unbekannte Epoche holt neue Schlüssel. */
-  const last = shown.length === 0 ? null : shown[shown.length - 1].message.createdAt;
-  const lastId = shown && shown.length > 0 ? shown[shown.length - 1].message.messageId : undefined;
+  const list = shown ?? [];
+  const last = list.length === 0 ? null : list[list.length - 1].message.createdAt;
+  const lastId = list.length > 0 ? list[list.length - 1].message.messageId : undefined;
   const ready = chat != null;
   useEffect(() => {
     if (!ready) return;
@@ -232,7 +228,7 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
           const keys = messages.some((m) => !talk.has(m.epoch)) ? (await look(true)) ?? talk : talk;
           if (messages.length > 0) {
             const opened = await open(keys, messages);
-            setShown((was) => [...was, ...opened.filter((o) => !was.some((w) => w.message.messageId === o.message.messageId))]);
+            setShown((was) => [...(was ?? []), ...opened.filter((o) => !(was ?? []).some((w) => w.message.messageId === o.message.messageId))]);
           }
           reportChatSeen(endpoint, messages[messages.length - 1]?.createdAt ?? last);
           await pullChanged(keys);
@@ -244,52 +240,25 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
     return () => window.clearInterval(timer);
   }, [ready, chatId, last, lastId, talk, look, open, pullChanged]);
 
-  useEffect(() => {
-    const el = log.current;
-    if (el !== null && stick.current) el.scrollTop = el.scrollHeight;
-  }, [shown]);
+  const earlier = useCallback(async () => {
+    const first = shown?.[0];
+    if (first === undefined) return;
+    const { messages } = await loadMessages(chatId, { before: first.message.createdAt, beforeId: first.message.messageId });
+    const opened = await open(talk, messages);
+    setShown((was) => [...opened, ...(was ?? [])]);
+    setMore(messages.length >= 60);
+  }, [chatId, shown, talk, open]);
+
+  const moderates = (chat?.certifiers.length ?? 0) > 0 && chat?.kind !== 'direct';
+  const chrome = useChatChrome({ endpoint, extras, keys: talk, canModerate: moderates && chat?.kind !== 'self', onPolicy: () => void look() });
 
   if (chat === undefined) return <p className="wk-card-muted">Wczytywanie rozmowy…</p>;
   if (chat === null) {
     return <p className="wk-card-muted">{failed ?? 'Ta rozmowa nie jest dla Ciebie — albo już jej nie ma.'}</p>;
   }
 
-  const earlier = async () => {
-    const first = shown[0]?.message.createdAt;
-    if (first === undefined) return;
-    const { messages } = await loadMessages(chatId, { before: first, beforeId: shown?.[0]?.message.messageId });
-    const opened = await open(talk, messages);
-    stick.current = false;
-    setShown((was) => [...opened, ...was]);
-    setMore(messages.length >= 60);
-  };
-
-  const send = async () => {
-    const body = text.trim();
-    if ((body === '' && compose.files.length === 0) || busy || speaker === null) return;
-    setBusy(true);
-    setFailed(null);
-    try {
-      /* Der Name reist in der Nachricht mit — für die, die die Namen des Bereichs nicht lesen (0053). */
-      const name = nameOf(speaker);
-      const options = await compose.prepare();
-      const done = await sendMessage(ring, chatId, talk, speaker, body, name, options);
-      stick.current = true;
-      if (!options.sendAt) setShown((was) => [...was, {
-        message: {
-          messageId: done.messageId, authorRoleId: speaker, authorSeatId: null, epoch: done.epoch,
-          bodySealed: '', createdAt: done.createdAt, deletedAt: null
-        },
-        opened: { text: body, name, ...options }
-      }]);
-      compose.done();
-      setText('');
-    } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać.');
-    } finally {
-      setBusy(false);
-    }
-  };
+  const mine = (message: SealedMessage) => message.authorRoleId !== null && ring.has(message.authorRoleId);
+  const label = (id: string) => nameOf(id) ?? `rola ${id.slice(0, 8)}`;
 
   const authorName = (message: SealedMessage, opened: Opened | null): string => {
     const id = message.authorRoleId;
@@ -298,154 +267,119 @@ export function PageChatRoom({ chatId, ring, asRoleId }: { chatId: string; ring:
     /* Meine eigenen: mit dem Namen, unter dem sie hinausgingen — ich schreibe vielleicht als mehr als eine Rolle. */
     if (ring.has(id)) {
       const as = nameOf(id) ?? opened?.name ?? null;
-      return as === null ? 'Ty' : `${as} (Ty)`;
+      return as === null || speakers.length < 2 ? 'Ty' : `${as} (Ty)`;
     }
 
     return names.get(id) ?? opened?.name ?? 'ktoś z grupy';
   };
 
+  const rules: MessageRules = {
+    mine,
+    author: authorName,
+    note: (message) => (message.authorSeatId !== null ? 'z linku' : null),
+    canEdit: (message, opened) => mine(message) && message.deletedAt === null && opened !== null && speakers.includes(message.authorRoleId ?? ''),
+    canDelete: (message) => mine(message) && message.deletedAt === null,
+    canRestore: (message) => message.deletedAt !== null && mine(message) && message.deletedBy === 'author',
+    canPin: moderates,
+    group: chat.kind !== 'direct' && chat.kind !== 'self',
+    receipts: chat.kind !== 'self'
+  };
+
+  const on: MessageHandlers = {
+    reply: (message, opened, author) => { setEditing(null); setReply({ id: message.messageId, text: opened.text, author }); },
+    edit: (message, opened) => { setReply(null); setEditing({ message, opened }); },
+    remove: async (message) => {
+      await deleteMessage(message.messageId);
+      setShown((was) => withDelete(was ?? [], message.messageId, 'author'));
+    },
+    restore: async (message) => { await restoreMessage(message.messageId); await pullChanged(talk); },
+    history: (message) => setHistory({
+      load: () => loadVersions(message.messageId),
+      open: (version) => openVersion(talk, message.messageId, authorOf(message), version)
+    }),
+    forward: (opened) => setForward(opened)
+  };
+
+  const send = async (body: string, options: SendOptions) => {
+    if (speaker === null) throw new WorkspaceError('W tej rozmowie tylko czytasz.');
+    /* Der Name reist in der Nachricht mit — für die, die die Namen des Bereichs nicht lesen (0053). */
+    const name = nameOf(speaker);
+    const done = await sendMessage(ring, chatId, talk, speaker, body, name, options);
+    if (options.sendAt === undefined) {
+      setShown((was) => [...(was ?? []), {
+        message: { messageId: done.messageId, authorRoleId: speaker, authorSeatId: null, epoch: done.epoch, bodySealed: '', createdAt: done.createdAt, deletedAt: null },
+        opened: { text: body, name, ...options }
+      }]);
+    }
+  };
+
+  const saveEdit = async (text: string) => {
+    if (editing === null) return;
+    const { message, opened } = editing;
+    const done = await editMessage(ring, message.messageId, talk, message.authorRoleId!, text, opened.name, (message.version ?? 1) + 1, opened);
+    setShown((was) => withEdit(was ?? [], message.messageId, done, text));
+    setEditing(null);
+  };
+
+  const n = chat.members.length;
+  const subtitle = chrome.status.typing ? <span className="ch-typing">ktoś pisze…</span> : [
+    `${n} ${plural(n, 'uczestnik', 'uczestnicy', 'uczestników')}`,
+    chat.seats.length > 0 ? `${chat.seats.length} z linkiem` : null,
+    chrome.status.channel ? 'kanał' : null
+  ].filter(Boolean).join(' · ');
+
+  /* Die oben gewählte Person, wenn SIE hier nicht schreiben darf — damit niemand glaubt, er schreibe als sie. */
+  const asked = speaker !== null && speaker !== asRoleId && !speakers.includes(asRoleId) && persons.has(asRoleId) ? persons.get(asRoleId)! : null;
+
   return (
-    <div className="wk-chat-room wk-page-chat-room">
-      <div
-        className="wk-chat-log"
-        ref={log}
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    <div className="ch-room is-embedded">
+      <ChatHeader compact subtitle={subtitle} menu={chrome.items} search={extras.search} onSearch={extras.setSearch} quiet={chrome.status.quiet} />
+      {chrome.banner}
+
+      <ChatLog
+        endpoint={endpoint}
+        items={shown}
+        features={extras.features}
+        matches={extras.matches}
+        rules={rules}
+        on={on}
+        more={more}
+        onEarlier={earlier}
+        empty="Jeszcze nikt nic nie napisał — możesz zacząć."
+        onFiles={(files) => composer.current?.addFiles(files)}
+        unreadAfter={unreadAfter ?? null}
+        search={extras.search}
+        filter={extras.filter}
+      />
+
+      <Composer
+        ref={composer}
+        endpoint={endpoint}
+        readOnly={speaker === null ? 'W tej rozmowie tylko czytasz.' : extras.features?.canWrite === false ? 'Ten kanał pozwala Ci tylko czytać.' : null}
+        placeholder={speaker !== null && speakers.length > 1 ? `Wiadomość jako ${label(speaker)}` : 'Wiadomość'}
+        reply={reply}
+        onClearReply={() => setReply(null)}
+        editing={editing === null ? null : { id: editing.message.messageId, text: editing.opened.text }}
+        onCancelEdit={() => setEditing(null)}
+        onSaveEdit={saveEdit}
+        onSend={send}
+        onEditLast={() => {
+          const one = lastEditable(list, rules.canEdit);
+          if (one !== null && one.opened !== null) on.edit(one.message, one.opened);
         }}
-      >
-        {more && shown.length > 0 && (
-          <button type="button" className="wk-link-btn wk-chat-earlier" onClick={() => void earlier()}>
-            Wczytaj wcześniejsze
-          </button>
-        )}
-        {shown.length === 0 && <p className="wk-empty">Jeszcze nikt nic nie napisał — możesz zacząć.</p>}
+        onScheduled={chrome.scheduled.refresh}
+        before={<>
+          {asked !== null && <p className="ch-note">{asked} nie pisze w tej grupie — piszesz jako <strong>{label(speaker!)}</strong>.</p>}
+          {chrome.chip}
+        </>}
+        sendAs={speaker !== null && speakers.length > 1 ? <SendAs speakers={speakers} speaker={speaker} nameOf={label} onPick={pick} /> : null}
+      />
 
-        {shown.map(({ message, opened }, i) => {
-          const mine = message.authorRoleId !== null && ring.has(message.authorRoleId);
-          const prev = shown[i - 1]?.message;
-          const same = prev !== undefined && authorOf(prev) === authorOf(message)
-            && new Date(message.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60_000;
-          const id = message.messageId;
-          const mayEdit = mine && message.deletedAt === null && opened !== null && speakers.includes(message.authorRoleId ?? '');
-
-          if (!extras.matches(id, opened)) return null;
-          return (
-            <div id={`message-${id}`} key={id} className={`wk-msg${mine ? ' is-mine' : ''}${same ? ' is-follow' : ''}`}>
-              {!same && (
-                <p className="wk-msg-author">
-                  {authorName(message, opened)}
-                  {message.authorSeatId !== null && <span className="wk-msg-link"> · z linku</span>}
-                  <span className="wk-msg-time"> · {when(message.createdAt)}</span>
-                </p>
-              )}
-              <div className="wk-msg-body">
-                {message.deletedAt !== null ? (
-                  <DeletedBody message={message} canRestore={mine && message.deletedBy === 'author'}
-                    onRestore={async () => { await restoreMessage(id); await pullChanged(talk); }} />
-                ) : editing === id && opened !== null ? (
-                  <EditBox initial={opened.text} onCancel={() => setEditing(null)} onSave={async (text) => {
-                    const done = await editMessage(ring, id, talk, message.authorRoleId!, text, opened.name, (message.version ?? 1) + 1, opened);
-                    setShown((was) => was.map((w) => w.message.messageId === id
-                      ? { message: { ...w.message, version: done.version, editedAt: done.editedAt, epoch: done.epoch, bodySealed: done.bodySealed },
-                          opened: { ...opened, text, name: opened.name } }
-                      : w));
-                    setEditing(null);
-                  }} />
-                ) : opened === null ? (
-                  <em className="wk-row-side">Nie do odczytania — brak klucza tej epoki obszaru.</em>
-                ) : (
-                  <>
-                    <MessageContent endpoint={endpoint} id={id} opened={opened} features={extras.features} sentAt={message.createdAt} ring={ring} canModerate={(chat?.certifiers.length ?? 0) > 0 && chat?.kind !== 'direct'} />
-                    <EditedMark message={message} onOpen={() => setHistory({
-                      load: () => loadVersions(id),
-                      open: (version) => openVersion(talk, id, authorOf(message), version)
-                    })} />
-                  </>
-                )}
-                {editing !== id && (
-                  <MessageTools canEdit={mayEdit} canDelete={mine && message.deletedAt === null}
-                    onEdit={() => setEditing(id)}
-                    onDelete={() => {
-                      if (!window.confirm('Usunąć tę wiadomość? Inni zobaczą, że była, ale nie jej treść. Możesz ją później przywrócić.')) return;
-                      void deleteMessage(id).then(() => setShown((was) => was.map((w) =>
-                        w.message.messageId === id
-                          ? { message: { ...w.message, deletedAt: new Date().toISOString(), bodySealed: null, deletedBy: 'author' }, opened: null }
-                          : w)));
-                    }} />
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <ChatToolbar endpoint={endpoint} extras={extras} keys={talk} canModerate={(chat?.certifiers.length ?? 0) > 0 && chat?.kind !== 'direct'} onPolicy={() => void look()} />
-      {speaker === null || extras.features?.canWrite === false ? (
-        <p className="wk-hint wk-chat-compose">W tej rozmowie tylko czytasz.</p>
-      ) : (
-        <form className="wk-chat-compose" onSubmit={(e) => { e.preventDefault(); void send(); }}>
-          <SpeakingAs
-            speakers={speakers}
-            speaker={speaker}
-            nameOf={nameOf}
-            onPick={pick}
-            asked={speaker !== asRoleId && !speakers.includes(asRoleId) && persons.has(asRoleId) ? persons.get(asRoleId)! : null}
-          />
-          <ComposerExtras state={compose} busy={busy} />
-      <div className="wk-chat-compose-row">
-            <textarea
-              value={text}
-              rows={2}
-              placeholder="Napisz wiadomość… (Enter wysyła, Shift+Enter — nowa linia)"
-              aria-label="Wiadomość"
-              onChange={(e) => { setText(e.target.value); compose.typing(); }}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
-            />
-            <button type="submit" className="wk-btn" disabled={busy || (text.trim() === '' && compose.files.length === 0)}>
-              {busy ? 'Wysyłanie…' : 'Wyślij'}
-            </button>
-          </div>
-          {failed !== null && <p className="wk-error">{failed}</p>}
-        </form>
-      )}
-
+      {chrome.dialogs}
+      {forward !== null && <ForwardDialog endpoint={endpoint} opened={forward} ring={ring} onClose={() => setForward(null)} />}
       {history !== null && <HistoryDialog load={history.load} open={history.open} onClose={() => setHistory(null)} />}
+      {failed !== null && <p className="ch-bar is-error">{failed}</p>}
     </div>
-  );
-}
-
-/**
- * „PISZESZ JAKO …" — über dem Feld, in der Rozmowa des Arbeitsplatzes und auf
- * der Seite gleich. Mit einer Wahl, wenn ich hier als mehr als eine meiner
- * Rollen schreiben darf; der Name ist der, den die anderen an der Nachricht sehen.
- *
- * `asked`: die oben gewählte Person, wenn SIE hier nicht schreiben darf — damit
- * niemand glaubt, er schreibe als sie.
- */
-export function SpeakingAs({ speakers, speaker, nameOf, onPick, asked = null }: {
-  speakers: readonly string[];
-  speaker: string;
-  nameOf: (id: string) => string | null;
-  onPick: (id: string) => void;
-  asked?: string | null;
-}) {
-  const label = (id: string) => nameOf(id) ?? `rola ${id.slice(0, 8)}`;
-
-  return (
-    <p className="wk-hint wk-chat-as">
-      {speakers.length > 1 ? (
-        <label>
-          Piszesz jako{' '}
-          <select value={speaker} aria-label="Piszesz jako" onChange={(e) => onPick(e.target.value)}>
-            {speakers.map((id) => <option key={id} value={id}>{label(id)}</option>)}
-          </select>
-        </label>
-      ) : (
-        <>Piszesz jako <strong>{label(speaker)}</strong></>
-      )}
-      {asked !== null && <span className="wk-chat-as-note"> · {asked} nie pisze w tej grupie</span>}
-    </p>
   );
 }
 

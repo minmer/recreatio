@@ -1,5 +1,5 @@
 /*
-    NOTATKI UND SLAJDY (0061).
+    NOTATKI UND SLAJDY (0062).
 
     1. DIE ROZMOWA MIT SICH SELBST — `chat.kind = 'self'`. Sie liegt im
        eigenen Bereich der Person (`area.personal_role_id`, 0054), in dem
@@ -34,7 +34,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'ck_slug_page_mo
 GO
 
 IF COL_LENGTH('app.slug', 'page_theme') IS NULL
-    ALTER TABLE app.slug ADD page_theme nvarchar(8000) NULL;
+    ALTER TABLE app.slug ADD page_theme nvarchar(max) NULL;
 GO
 
 IF OBJECT_ID('app.page_image', 'U') IS NULL

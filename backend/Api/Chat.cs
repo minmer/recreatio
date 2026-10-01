@@ -411,7 +411,7 @@ public static partial class Chat
         }
 
         /*
-         * 0061 — NOTATKI: die Rozmowa mit sich selbst. Sie liegt im EIGENEN
+         * 0062 — NOTATKI: die Rozmowa mit sich selbst. Sie liegt im EIGENEN
          * Bereich dieser Person (0054) — dort ist niemand sonst, und je Person
          * gibt es ihn nur einmal, also auch nur eine solche Rozmowa.
          */

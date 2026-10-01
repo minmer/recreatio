@@ -35,3 +35,6 @@ frontend/src/public/content/local/
 
 # Gebaute APKs (npm run android:apk)
 android-out/
+
+# Local API diagnostic log files
+/backend/Api/logs/

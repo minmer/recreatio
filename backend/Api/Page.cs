@@ -51,7 +51,7 @@ public static class Page
         /* 0048 — die Logik der Seite, als Ganzes. */
         app.MapPut("/workspace/page-logic/{*path}", SaveLogicAsync);
 
-        /* 0061 — Seite oder Slajdy, und ihr Aussehen. */
+        /* 0062 — Seite oder Slajdy, und ihr Aussehen. */
         app.MapPut("/workspace/page-look/{*path}", SaveLookAsync);
     }
 
@@ -71,7 +71,7 @@ public static class Page
 
     /// <summary>So viele Bausteine trägt keine Seite — und wer es versucht, meint es nicht gut.</summary>
     public const int MaxParts = 60;
-    /// <summary>0061 — die Hintergründe eines Slajds liegen mit in der Anordnung.</summary>
+    /// <summary>0062 — die Hintergründe eines Slajds liegen mit in der Anordnung.</summary>
     public const int MaxLayout = 8000;
     public const int MaxConfig = 8000;
 
@@ -438,7 +438,7 @@ public static class Page
         {
             path = wanted, aliasOf, title, lead, updatedAt, parts, logic, access,
 
-            /* 0061 — Seite oder Slajdy, und wie sie aussehen. */
+            /* 0062 — Seite oder Slajdy, und wie sie aussehen. */
             mode = mode ?? "page", theme,
             menu = menu is null ? null : new { from = menu.Value.From, items = menu.Value.Items }
         });
@@ -629,7 +629,7 @@ public static class Page
     private const int MaxTheme = 8000;
 
     /// <summary>
-    /// 0061 — WIE DIE SEITE ERSCHEINT: als Seite mit Bausteinen im Raster, oder
+    /// 0062 — WIE DIE SEITE ERSCHEINT: als Seite mit Bausteinen im Raster, oder
     /// als Folge von Slajdy, in der jeder Baustein einen Bildschirm für sich hat.
     ///
     /// <para>

@@ -15,12 +15,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { loadPage, savePage, saveParts, toDraft, type DraftPart } from './page';
+import { loadPage, savePage, savePageLook, saveParts, toDraft, type DraftPart } from './page';
 import { MassOffice } from './MassOffice';
 import { MenuEditor } from './MenuEditor';
 import { PageBuilder } from './PageBuilder';
 import { logicKey, PageLogicEditor } from './PageLogicEditor';
 import { pagePath } from './routes';
+import { SlidesEditor } from './SlidesEditor';
+import { NO_LOOK, readLook, writeLook, type Look } from './slides';
 import { WorkspaceError, type Who } from './session';
 
 export function PageEditor({ path, who, onOpenModule }: {
@@ -33,6 +35,11 @@ export function PageEditor({ path, who, onOpenModule }: {
   const [title, setTitle] = useState('');
   const [lead, setLead] = useState('');
   const [parts, setParts] = useState<readonly DraftPart[]>([]);
+
+  /* 0062 — Seite oder Slajdy, und ihr Aussehen. Gespeichert mit den Modulen. */
+  const [mode, setMode] = useState<'page' | 'slides'>('page');
+  const [pageLook, setPageLook] = useState<Look>(NO_LOOK);
+  const [lookDirty, setLookDirty] = useState(false);
 
   /* Die Karte der Seite (0048) — und ob sie gerade aufgeklappt ist. */
   const [logic, setLogic] = useState<string | null>(null);
@@ -56,15 +63,20 @@ export function PageEditor({ path, who, onOpenModule }: {
       setLead(page.lead ?? '');
       setParts(page.parts.map(toDraft));
       setLogic(page.logic ?? null);
+      setMode(page.mode === 'slides' ? 'slides' : 'page');
+      setPageLook(readLook(page.theme));
     } catch {
       // Eine Adresse ohne Seite ist der Normalfall beim ersten Mal.
       setTitle('');
       setLead('');
       setParts([]);
       setLogic(null);
+      setMode('page');
+      setPageLook(NO_LOOK);
     }
 
     setDirty(false);
+    setLookDirty(false);
 
 
     setReady(true);
@@ -143,6 +155,40 @@ export function PageEditor({ path, who, onOpenModule }: {
 
       <h3 className="wk-h2">Moduły</h3>
 
+      {/*
+        0062 — WIE DIE SEITE ERSCHEINT. Als Seite: die Bausteine im Raster, wie
+        bisher. Als Slajdy: jeder Baustein ein Bildschirm, mit eigenem Hintergrund
+        — wie die Ereignisseiten des Altbestands.
+      */}
+      <div className="wk-seg" role="group" aria-label="Rodzaj strony">
+        {([['page', 'Strona z modułami'], ['slides', 'Slajdy — każdy moduł osobno']] as const).map(([value, label]) => (
+          <button key={value} type="button" aria-pressed={mode === value} disabled={busy !== null}
+            className={mode === value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
+            onClick={() => { if (mode !== value) { setMode(value); setLookDirty(true); } }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'slides' ? (
+        <SlidesEditor
+          path={path}
+          parts={parts}
+          look={pageLook}
+          title={title}
+          lead={lead}
+          busy={busy !== null}
+          onChange={(next) => { setParts(next); setDirty(true); }}
+          onLook={(next) => { setPageLook(next); setLookDirty(true); }}
+          onOpenModule={(moduleId, next) => {
+            setParts(next);
+            void act('Zapisywanie modułów…', () => saveParts(path, next)).then(() => {
+              setDirty(false);
+              onOpenModule(moduleId);
+            });
+          }}
+        />
+      ) : (
       <PageBuilder
         parts={parts}
         busy={busy !== null}
@@ -164,18 +210,22 @@ export function PageEditor({ path, who, onOpenModule }: {
           });
         }}
       />
+      )}
 
       <div className="wk-actions">
         <button
           type="button"
           className="wk-btn"
-          disabled={busy !== null || !dirty}
-          onClick={() => void act('Zapisywanie modułów…', () => saveParts(path, parts))}
+          disabled={busy !== null || (!dirty && !lookDirty)}
+          onClick={() => void act(mode === 'slides' ? 'Zapisywanie slajdów…' : 'Zapisywanie modułów…', async () => {
+            if (dirty) await saveParts(path, parts);
+            if (lookDirty) await savePageLook(path, { mode, theme: writeLook(pageLook) });
+          })}
         >
-          {busy ?? 'Zapisz moduły'}
+          {busy ?? (mode === 'slides' ? 'Zapisz slajdy' : 'Zapisz moduły')}
         </button>
 
-        {!dirty && busy === null && <span className="wk-blocker">Nic się nie zmieniło.</span>}
+        {!dirty && !lookDirty && busy === null && <span className="wk-blocker">Nic się nie zmieniło.</span>}
       </div>
 
       {/*
@@ -191,7 +241,7 @@ export function PageEditor({ path, who, onOpenModule }: {
       </h3>
 
       {mapOpen && (
-        dirty ? (
+        dirty || lookDirty ? (
           <p className="wk-warn">Najpierw zapisz moduły — mapa łączy się z modułami, które są już na stronie.</p>
         ) : (
           <PageLogicEditor

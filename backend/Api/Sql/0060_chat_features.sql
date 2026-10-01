@@ -22,7 +22,7 @@ IF OBJECT_ID('app.chat_preference', 'U') IS NULL
 CREATE TABLE app.chat_preference (
     principal_id uniqueidentifier NOT NULL,
     scope_id uniqueidentifier NOT NULL,
-    settings nvarchar(6000) NOT NULL,
+    settings nvarchar(max) NOT NULL,
     CONSTRAINT pk_chat_preference PRIMARY KEY(principal_id, scope_id)
 );
 /* scope_id = zero GUID means the common account/seat settings. */

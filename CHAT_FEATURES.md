@@ -10,6 +10,31 @@ Implemented:
 - Replies, forwarding between account chats (attachments are decrypted and re-encrypted for the destination), microphone voice messages (up to five minutes), reactions, shared moderator pins, private saved messages, search of loaded/decrypted history (including attachment names), typing indicators, archive filtering, mute controls and opt-in browser notifications. Existing edit/delete/restore/version-history and unread features continue to work.
 - Files, images, audio/music and video. The browser creates a random AES-256-GCM key per file using the existing authenticated encryption format. Only ciphertext is uploaded as a binary body. File names, media types and keys travel inside the encrypted, signed message. The database stores an opaque file identifier, chat, uploader, size and timestamp—not file bytes. Downloads require current chat access. Decryption happens in the browser; object URLs are revoked when the preview is removed. Eight attachments per composer, up to approximately 50 MiB each; the API enforces a 50 MiB ciphertext limit and 1 GiB daily upload quota per account/seat.
 
+## Where the controls are (0062)
+
+All three chats use the same messenger-style UI (`frontend/src/app/ChatKit.tsx`):
+
+- **Workspace layout.** On wide screens the chat list is on the left and the open chat on the right. On narrow screens only one of them is shown. "Notatki" is pinned at the top of the list: a chat with yourself, kind `self`, kept in your own private area and created on first open. Archived chats are behind "Zarchiwizowane".
+- **Message menu.** Opened by right-click, by long-press on touch screens, or by the ⌄ button that appears on hover. It holds:
+  - six reactions;
+  - reply, copy, forward and save/unsave;
+  - pin/unpin (for moderators only);
+  - edit, version history, delete (asks for confirmation) and restore (where allowed).
+
+  Swiping a message to the right also replies.
+- **Editing.** The text is edited in the composer, not inside the bubble. Esc cancels. Arrow-up in an empty composer edits your last message.
+- **Composer.**
+  - Emoji, 📎 (photos/videos, file, music), paste and drag-and-drop for attachments.
+  - The round button records a voice message while the composer is empty, and sends once something is typed.
+  - Scheduling: right-click or long-press the send button → "Zaplanuj wysłanie…".
+- **Header ⋮ menu.**
+  - Saved and pinned filters, the list of scheduled messages, and per-chat notifications/availability.
+  - Moderators also get "Kto może pisać" (posting policy).
+  - In the workspace: participants and settings, and a link to the chat's area.
+  - The magnifier searches loaded messages and highlights the matches.
+- **Common preferences.** Settings shared by all chats are in the ⋮ menu of the list ("Moja dostępność i powiadomienia"). Your chat code is there as well.
+- **Inside slides.** A chat in a slide deck scrolls its own history with the wheel or a finger. The slide moves only on a new gesture after the history has reached its end.
+
 ## Deployment
 
 1. Back up the database and apply the normal API migrations, including `0060_chat_features.sql`, before starting the new API:
@@ -50,3 +75,20 @@ A browser may report a missing CORS header when the endpoint actually threw a se
 Run `backend/Api/Sql/diagnostics/chat_features.sql` against the database used by the deployed API. It is read-only and reports missing columns and type mismatches. Apply `0060_chat_features.sql` if chat tables are absent. Apply `0061_chat_presence_columns.sql` for older presence tables missing `read_at` or `is_seat`; it preserves existing rows. The screenshot alone cannot establish which SQL object or other server operation failed.
 
 The API now handles endpoint exceptions inside CORS, returning a safe JSON error with a trace ID while logging the actual exception server-side. The chat toolbar displays feature-loading errors and backs off retries rather than silently hiding failures. Redeploy the backend/frontend to use this diagnostic behavior; SQL schema repairs must still be applied to the target database separately.
+
+
+## Capturing the server exception
+
+`backend/Api/appsettings.json` enables `Logging:File`. The API writes warning/error
+records and full exceptions to `logs/api-YYYYMMDD-PID-NNN.log` relative to the deployed
+API directory. Files rotate at 10 MiB; logs older than seven days are removed on a
+subsequent day's write. `Logging:File:Directory` can instead name an absolute private
+path. Give the API/IIS application-pool identity write permission there. The startup
+entry confirms that logging is enabled. No HTTP bodies, cookies or authorization
+headers are added to these diagnostic records.
+
+Deploy the updated API binary along with the logging settings, restart it, reproduce
+the failing chat request, and locate the `Api.ApiErrorMiddleware` exception with the
+same trace ID shown in the chat. An `appsettings.Production.json` or environment
+variable can override the base logging settings. Logging captures the cause; it does
+not itself repair a failing database query.

@@ -31,7 +31,8 @@ const isNew = (): boolean => {
    */
   if (foreignHost() !== null) return true;
 
-  const hash = window.location.hash;
+  // 0062 — hinter `?` steht nur, welcher Slajd (`?s=3`): für die Weiche zählt der Pfad davor.
+  const hash = window.location.hash.split('?')[0];
   if (hash === BASE || hash.startsWith(`${BASE}/`)) return true;
 
   // Die Wurzel gehört dem Neubau: `recreatio.pl` zeigt die Seite, die im

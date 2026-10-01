@@ -67,6 +67,13 @@ export interface PageContent {
    * darüber (`from`), von wo aus seine relativen Ziele gelten.
    */
   readonly menu?: { readonly from: string; readonly items: readonly MenuItem[] } | null;
+
+  /**
+   * 0062 — WIE DIE SEITE ERSCHEINT: `page` — Bausteine im Raster, `slides` —
+   * jeder Baustein ein Slajd. `theme` ist das Aussehen als JSON (`slides.ts`).
+   */
+  readonly mode?: 'page' | 'slides';
+  readonly theme?: string | null;
 }
 
 /** Ein Eintrag des Menüs (siehe `menu.ts`). */
@@ -113,6 +120,15 @@ export const savePage = (
   call<PageContent>(`/workspace/page/${encodePath(path)}`, {
     method: 'PUT',
     body: JSON.stringify(body)
+  });
+
+/** 0062 — Seite oder Slajdy, und ihr Aussehen. `theme: null` — automatisch. */
+export const savePageLook = (
+  path: string, look: { readonly mode: 'page' | 'slides'; readonly theme: string | null }
+): Promise<{ mode: string; theme: string | null }> =>
+  call(`/workspace/page-look/${encodePath(path)}`, {
+    method: 'PUT',
+    body: JSON.stringify(look)
   });
 
 /** Die Karte der Seite speichern (0048) — als Ganzes; `null` nimmt sie weg. */

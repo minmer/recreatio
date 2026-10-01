@@ -11,12 +11,16 @@
  * die Rozmowa öffnet. Bis dahin sagt die Seite das — und sieht selbst nach.
  */
 
-import { ChatToolbar, ComposerExtras, MessageContent, useChatExtras, useComposerExtras } from './ChatExtras';
+import { useChatExtras } from './ChatExtras';
+import {
+  Avatar, ChatHeader, ChatLog, Composer, lastEditable, useChatChrome, withDelete, withEdit,
+  type ComposerHandle, type MessageHandlers, type MessageRules, type ReplyTarget, type Shown
+} from './ChatKit';
 import { chatEndpoint, reportChatSeen } from './chatFeatures';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { authorOf, openMessage, openVersion, type Opened, type SealedMessage, type SealedVersion } from './chat';
-import { DeletedBody, EditBox, EditedMark, HistoryDialog, MessageTools } from './MessageBits';
+import { authorOf, openMessage, openVersion, type Opened, type SealedMessage, type SealedVersion, type SendOptions } from './chat';
+import { HistoryDialog } from './MessageBits';
 import type { SeatView } from './seatContext';
 import {
   chatNameFor, deleteSeatMessage, editSeatMessage, keepChatName, loadSeatChats, loadSeatMessages, loadSeatVersions,
@@ -129,38 +133,26 @@ export function SeatChatBody({ seat, only }: { seat: SeatView; only?: string }) 
   );
 }
 
-interface Shown {
-  readonly message: SealedMessage;
-  readonly opened: Opened | null;
-}
-
-const when = (at: string) => {
-  const d = new Date(at);
-  return d.toDateString() === new Date().toDateString()
-    ? d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleString('pl-PL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-};
-
 function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; identity: SeatIdentity | null }) {
   const { token, seatId } = seat;
   const { chatId } = chat.row;
   const keys = chat.keys;
   const endpoint = chatEndpoint(chatId, token);
   const extras = useChatExtras(endpoint);
-  const compose = useComposerExtras(endpoint);
+  const chrome = useChatChrome({ endpoint, extras, keys });
 
   const [shown, setShown] = useState<readonly Shown[] | undefined>(undefined);
   const [more, setMore] = useState(false);
-  const [text, setText] = useState('');
   const [name, setName] = useState(() => chatNameFor(seatId) ?? seat.recipientName ?? '');
   const [naming, setNaming] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
-  const log = useRef<HTMLDivElement | null>(null);
-  const stick = useRef(true);
 
-  /* 0058 — bearbeiten, die Geschichte, und bis wann Änderungen geholt sind. */
-  const [editing, setEditing] = useState<string | null>(null);
+  /* 0062 — worauf geantwortet und was bearbeitet wird. */
+  const [reply, setReply] = useState<ReplyTarget | null>(null);
+  const [editing, setEditing] = useState<{ message: SealedMessage; opened: Opened } | null>(null);
+  const composer = useRef<ComposerHandle | null>(null);
+
+  /* 0058 — die Geschichte, und bis wann Änderungen geholt sind. */
   const [history, setHistory] = useState<{
     load: () => Promise<{ versions: readonly SealedVersion[] }>;
     open: (version: SealedVersion) => Promise<Opened | null>;
@@ -191,7 +183,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
         if (!alive) return;
         asOf.current = at ?? null;
         setShown(opened);
-      reportChatSeen(endpoint, opened[opened.length - 1]?.message.createdAt ?? null);
+        reportChatSeen(endpoint, opened[opened.length - 1]?.message.createdAt ?? null);
         setMore(messages.length >= 60);
       } catch (e) {
         if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać wiadomości.');
@@ -201,8 +193,9 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
   }, [token, chatId, keys, open]);
 
   /* Nachladen, alle paar Sekunden, solange die Seite sichtbar ist. */
-  const last = shown === undefined || shown.length === 0 ? null : shown[shown.length - 1].message.createdAt;
-  const lastId = shown && shown.length > 0 ? shown[shown.length - 1].message.messageId : undefined;
+  const list = shown ?? [];
+  const last = list.length === 0 ? null : list[list.length - 1].message.createdAt;
+  const lastId = list.length > 0 ? list[list.length - 1].message.messageId : undefined;
   const loaded = shown !== undefined;
   useEffect(() => {
     if (!loaded) return;
@@ -225,10 +218,14 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
     return () => window.clearInterval(timer);
   }, [loaded, token, chatId, last, lastId, open, pullChanged]);
 
-  useEffect(() => {
-    const el = log.current;
-    if (el !== null && stick.current) el.scrollTop = el.scrollHeight;
-  }, [shown]);
+  const earlier = useCallback(async () => {
+    const first = shown?.[0];
+    if (first === undefined) return;
+    const { messages } = await loadSeatMessages(token, chatId, { before: first.message.createdAt, beforeId: first.message.messageId });
+    const opened = await open(messages);
+    setShown((was) => [...opened, ...(was ?? [])]);
+    setMore(messages.length >= 60);
+  }, [token, chatId, shown, open]);
 
   if (keys.size === 0) {
     return (
@@ -239,162 +236,123 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
     );
   }
 
-  const earlier = async () => {
-    const first = shown?.[0]?.message.createdAt;
-    if (first === undefined) return;
-    const { messages } = await loadSeatMessages(token, chatId, { before: first, beforeId: shown?.[0]?.message.messageId });
-    const opened = await open(messages);
-    stick.current = false;
-    setShown((was) => [...opened, ...(was ?? [])]);
-    setMore(messages.length >= 60);
+  const signed = name.trim();
+  const mine = (message: SealedMessage) => message.authorSeatId === seatId;
+
+  /* Wer schreibt: ich, ein anderer mit Link, oder jemand aus der Gruppe mit Konto. */
+  const rules: MessageRules = {
+    mine,
+    author: (message, opened) => (mine(message) ? 'Ty' : opened?.name ?? (message.authorSeatId !== null ? 'osoba z linkiem' : 'prowadzący')),
+    note: (message) => (message.authorSeatId !== null && !mine(message) ? 'z linku' : null),
+    canEdit: (message, opened) => mine(message) && message.deletedAt === null && opened !== null && identity !== null,
+    canDelete: (message) => mine(message) && message.deletedAt === null,
+    canRestore: (message) => message.deletedAt !== null && mine(message) && message.deletedBy === 'author',
+    canPin: false,
+    group: true,
+    receipts: true
   };
 
-  const signed = name.trim();
+  const on: MessageHandlers = {
+    reply: (message, opened, author) => { setEditing(null); setReply({ id: message.messageId, text: opened.text, author }); },
+    edit: (message, opened) => { setReply(null); setEditing({ message, opened }); },
+    remove: async (message) => {
+      await deleteSeatMessage(token, message.messageId);
+      setShown((was) => withDelete(was ?? [], message.messageId, 'author'));
+    },
+    restore: async (message) => { await restoreSeatMessage(token, message.messageId); await pullChanged(); },
+    history: (message) => setHistory({
+      load: () => loadSeatVersions(token, message.messageId),
+      open: (version) => openVersion(keys, message.messageId, authorOf(message), version)
+    })
+  };
 
-  const send = async () => {
-    const body = text.trim();
-    if (extras.features?.canWrite === false) return;
-    if ((body === '' && compose.files.length === 0) || busy || identity === null) return;
-    if (signed === '') { setNaming(true); return; }
-    setBusy(true);
-    setFailed(null);
-    try {
-      keepChatName(seatId, signed);
-      const options = await compose.prepare();
-      const done = await sendSeatMessage(token, seatId, chatId, keys, identity, body, signed, options);
-      stick.current = true;
-      if (!options.sendAt) setShown((was) => [...(was ?? []), {
-        message: {
-          messageId: done.messageId, authorRoleId: null, authorSeatId: seatId, epoch: done.epoch,
-          bodySealed: '', createdAt: done.createdAt, deletedAt: null
-        },
+  const send = async (body: string, options: SendOptions) => {
+    if (identity === null) throw new WorkspaceError('Rozmowa jeszcze się otwiera — spróbuj za chwilę.');
+    keepChatName(seatId, signed);
+    const done = await sendSeatMessage(token, seatId, chatId, keys, identity, body, signed, options);
+    setNaming(false);
+    if (options.sendAt === undefined) {
+      setShown((was) => [...(was ?? []), {
+        message: { messageId: done.messageId, authorRoleId: null, authorSeatId: seatId, epoch: done.epoch, bodySealed: '', createdAt: done.createdAt, deletedAt: null },
         opened: { text: body, name: signed, ...options }
       }]);
-      compose.done();
-      setText('');
-      setNaming(false);
-    } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać.');
-    } finally {
-      setBusy(false);
     }
   };
 
-  /* Wer schreibt: ich, ein anderer mit Link, oder jemand aus der Gruppe mit Konto. */
-  const authorName = (message: SealedMessage, opened: Opened | null) =>
-    message.authorSeatId === seatId ? 'Ty'
-    : opened?.name ?? (message.authorSeatId !== null ? 'osoba z linkiem' : 'prowadzący');
+  const saveEdit = async (text: string) => {
+    if (editing === null || identity === null) return;
+    const { message, opened } = editing;
+    const done = await editSeatMessage(token, seatId, message.messageId, keys, identity, text, opened.name, (message.version ?? 1) + 1, opened);
+    setShown((was) => withEdit(was ?? [], message.messageId, done, text));
+    setEditing(null);
+  };
 
-  const list = shown ?? [];
+  const subtitle = chrome.status.typing ? <span className="ch-typing">ktoś pisze…</span>
+    : chrome.status.channel ? `kanał grupy „${chat.row.areaName}"` : `grupa „${chat.row.areaName}"`;
+
+  /* JAK SIĘ PODPISAĆ — nad polem, dopóki nie ma podpisu albo gdy ktoś chce go zmienić. */
+  const nameBar = naming || signed === '' ? (
+    <div className="ch-namebar">
+      <label>
+        <span>Jak się podpisać</span>
+        <input value={name} maxLength={80} placeholder="np. Jan Kowalski" autoFocus={naming} onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (name.trim() !== '') { keepChatName(seatId, name.trim()); setNaming(false); composer.current?.focus(); } } }} />
+      </label>
+      {signed !== '' && (
+        <button type="button" className="wk-link-btn" onClick={() => { keepChatName(seatId, signed); setNaming(false); composer.current?.focus(); }}>Gotowe</button>
+      )}
+      <span className="wk-hint">Tę nazwę zobaczą inni przy Twoich wiadomościach.</span>
+    </div>
+  ) : null;
 
   return (
-    <div className="wk-chat-room wk-seat-chat-room">
-      <ChatToolbar endpoint={endpoint} extras={extras} keys={keys} />
-      <div
-        className="wk-chat-log"
-        ref={log}
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    <div className="ch-room is-embedded wk-seat-chat-room">
+      <ChatHeader compact subtitle={subtitle} menu={chrome.items} search={extras.search} onSearch={extras.setSearch} quiet={chrome.status.quiet} />
+      {chrome.banner}
+      {failed !== null && <p className="ch-bar is-error">{failed}</p>}
+
+      <ChatLog
+        endpoint={endpoint}
+        items={shown}
+        features={extras.features}
+        matches={extras.matches}
+        rules={rules}
+        on={on}
+        more={more}
+        onEarlier={earlier}
+        empty="Jeszcze nikt nic nie napisał — możesz zacząć."
+        onFiles={(files) => composer.current?.addFiles(files)}
+        search={extras.search}
+        filter={extras.filter}
+      />
+
+      <Composer
+        ref={composer}
+        endpoint={endpoint}
+        readOnly={extras.features?.canWrite === false ? 'Ten kanał pozwala Ci tylko czytać.' : null}
+        placeholder={signed !== '' ? `Wiadomość jako ${signed}` : 'Wiadomość'}
+        reply={reply}
+        onClearReply={() => setReply(null)}
+        editing={editing === null ? null : { id: editing.message.messageId, text: editing.opened.text }}
+        onCancelEdit={() => setEditing(null)}
+        onSaveEdit={saveEdit}
+        onSend={send}
+        onEditLast={() => {
+          const one = lastEditable(list, rules.canEdit);
+          if (one !== null && one.opened !== null) on.edit(one.message, one.opened);
         }}
-      >
-        {more && list.length > 0 && (
-          <button type="button" className="wk-link-btn wk-chat-earlier" onClick={() => void earlier()}>
-            Wczytaj wcześniejsze
+        onScheduled={chrome.scheduled.refresh}
+        before={<>{nameBar}{chrome.chip}</>}
+        blocked={signed === '' ? 'Najpierw wpisz, jak się podpisać.' : identity === null ? 'Rozmowa jeszcze się otwiera — spróbuj za chwilę.' : null}
+        sendAs={signed !== '' && !naming ? (
+          <button type="button" className="ch-sendas" aria-label={`Piszesz jako ${signed} — zmień podpis`} title={`Piszesz jako ${signed} — zmień podpis`}
+            onClick={() => setNaming(true)}>
+            <Avatar seed={seatId} name={signed} size="sm" />
           </button>
-        )}
-        {shown === undefined && <p className="wk-hint">Wczytywanie…</p>}
-        {shown !== undefined && list.length === 0 && <p className="wk-empty">Jeszcze nikt nic nie napisał — możesz zacząć.</p>}
+        ) : null}
+      />
 
-        {list.map(({ message, opened }, i) => {
-          const id = message.messageId;
-          if (!extras.matches(id, opened)) return null;
-          const mine = message.authorSeatId === seatId;
-          const prev = list[i - 1]?.message;
-          const same = prev !== undefined && authorOf(prev) === authorOf(message)
-            && new Date(message.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60_000;
-
-          return (
-            <div id={`message-${message.messageId}`} key={message.messageId} className={`wk-msg${mine ? ' is-mine' : ''}${same ? ' is-follow' : ''}`}>
-              {!same && (
-                <p className="wk-msg-author">
-                  {authorName(message, opened)}
-                  <span className="wk-msg-time"> · {when(message.createdAt)}</span>
-                </p>
-              )}
-              <div className="wk-msg-body">
-                {message.deletedAt !== null ? (
-                  <DeletedBody message={message} canRestore={mine && message.deletedBy === 'author'}
-                    onRestore={async () => { await restoreSeatMessage(token, message.messageId); await pullChanged(); }} />
-                ) : editing === message.messageId && opened !== null && identity !== null ? (
-                  <EditBox initial={opened.text} onCancel={() => setEditing(null)} onSave={async (text) => {
-                    const id = message.messageId;
-                    const done = await editSeatMessage(token, seatId, id, keys, identity, text, opened.name, (message.version ?? 1) + 1, opened);
-                    setShown((was) => (was ?? []).map((w) => w.message.messageId === id
-                      ? { message: { ...w.message, version: done.version, editedAt: done.editedAt, epoch: done.epoch, bodySealed: done.bodySealed },
-                          opened: { ...opened, text, name: opened.name } }
-                      : w));
-                    setEditing(null);
-                  }} />
-                ) : opened === null ? (
-                  <em className="wk-row-side">Nie do odczytania.</em>
-                ) : (
-                  <>
-                    <MessageContent endpoint={endpoint} id={id} opened={opened} features={extras.features} sentAt={message.createdAt} />
-                    <EditedMark message={message} onOpen={() => setHistory({
-                      load: () => loadSeatVersions(token, message.messageId),
-                      open: (version) => openVersion(keys, message.messageId, authorOf(message), version)
-                    })} />
-                  </>
-                )}
-                {editing !== message.messageId && (
-                  <MessageTools canEdit={mine && message.deletedAt === null && opened !== null && identity !== null}
-                    canDelete={mine && message.deletedAt === null}
-                    onEdit={() => setEditing(message.messageId)}
-                    onDelete={() => {
-                      if (!window.confirm('Usunąć tę wiadomość? Inni zobaczą, że była, ale nie jej treść. Możesz ją później przywrócić.')) return;
-                      void deleteSeatMessage(token, message.messageId).then(() => setShown((was) => (was ?? []).map((w) =>
-                        w.message.messageId === message.messageId
-                          ? { message: { ...w.message, deletedAt: new Date().toISOString(), bodySealed: null, deletedBy: 'author' }, opened: null }
-                          : w)));
-                    }} />
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {extras.features?.canWrite === false ? <p>Ten kanał pozwala Ci tylko czytać.</p> : <form className="wk-chat-compose" onSubmit={(e) => { e.preventDefault(); void send(); }}>
-        {naming || signed === '' ? (
-          <label className="wk-field">
-            <span>Jak się podpisać</span>
-            <input value={name} maxLength={80} placeholder="np. Jan Kowalski" onChange={(e) => setName(e.target.value)} />
-            <span className="wk-hint">Tę nazwę zobaczą inni przy Twoich wiadomościach.</span>
-          </label>
-        ) : (
-          <p className="wk-hint">
-            Piszesz jako <strong>{signed}</strong>{' '}
-            <button type="button" className="wk-link-btn" onClick={() => setNaming(true)}>zmień</button>
-          </p>
-        )}
-        <ComposerExtras state={compose} busy={busy} />
-      <div className="wk-chat-compose-row">
-          <textarea
-            value={text}
-            rows={2}
-            placeholder="Napisz wiadomość… (Enter wysyła, Shift+Enter — nowa linia)"
-            aria-label="Wiadomość"
-            onChange={(e) => { setText(e.target.value); compose.typing(); }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
-          />
-          <button type="submit" className="wk-btn" disabled={busy || (text.trim() === '' && compose.files.length === 0) || signed === ''}>
-            {busy ? 'Wysyłanie…' : 'Wyślij'}
-          </button>
-        </div>
-        {failed !== null && <p className="wk-error">{failed}</p>}
-      </form>}
-
+      {chrome.dialogs}
       {history !== null && <HistoryDialog load={history.load} open={history.open} onClose={() => setHistory(null)} />}
     </div>
   );

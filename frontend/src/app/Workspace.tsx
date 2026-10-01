@@ -100,7 +100,8 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
            „Obszary", und die Seite zeigte Schola. Was offen ist, trägt seinen
           eigenen Namen (`AreaPage`), und der ist der richtige.
         */}
-        {spot.trail.length === 0 && <h1 className="wk-h1">{VIEWS[spot.view]}</h1>}
+        {/* Rozmowy (0062) tragen ihren Namen selbst — oben in der Liste, wie in einer Chat-App. */}
+        {spot.trail.length === 0 && spot.view !== 'chat' && <h1 className="wk-h1">{VIEWS[spot.view]}</h1>}
 
         <Inside
           view={spot.view}

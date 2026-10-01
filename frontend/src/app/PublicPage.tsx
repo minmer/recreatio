@@ -20,7 +20,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { loadPage, toDraft, type PageContent } from './page';
+import { InHeader } from './headerSlot';
 import { PageParts } from './PageParts';
+import { PageSlides } from './PageSlides';
 import { PersonAccessGate, PersonPicker, PersonProvider, usePerson } from './pagePerson';
 import { NoAccess, PageAccessContext } from './pageAccess';
 import { PageLogicProvider } from './PageLogicView';
@@ -31,6 +33,7 @@ import { freshSeat, heldSeats, seatsExactly, seatsFor } from './seatKeep';
 import { useSeat } from './seatView';
 import { WorkspaceError } from './session';
 import { loadSite } from './site';
+import { readLook } from './slides';
 
 /**
  * Entweder eine Adresse — oder eine eigene Domain, die eine zeigt.
@@ -131,11 +134,24 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
       <PageAccessContext.Provider value={page.access ?? null}>
       <PersonProvider path={page.path}>
         <PageLogicProvider logic={page.logic}>
-          {/* 0054 — das Menü dieser Seite oder der nächsten darüber. */}
+          {/* 0054 — das Menü dieser Seite oder der nächsten darüber; es steht in der Kopfleiste. */}
           {page.menu != null && page.menu.items.length > 0 && (
-            <SiteMenu items={page.menu.items} from={page.menu.from} here={page.aliasOf ?? page.path} />
+            <InHeader>
+              <SiteMenu items={page.menu.items} from={page.menu.from} here={page.aliasOf ?? page.path} />
+            </InHeader>
           )}
 
+          {/*
+            0062 — ALS SLAJDY: jeder Baustein ein Bildschirm, Titel und Vorspann
+            auf dem ersten. Dieselben Schranken davor wie auf der Seite.
+          */}
+          {page.mode === 'slides' ? (
+            <UntilConfirmed path={page.path}>
+              <PersonAccessGate>
+                <SlidesBody path={page.path} parts={parts} theme={page.theme ?? null} title={page.title} lead={page.lead} />
+              </PersonAccessGate>
+            </UntilConfirmed>
+          ) : (<>
           {page.title !== null && <h1 className="wk-h1">{page.title}</h1>}
           {page.lead !== null && <p className="wk-lede wk-page-lead">{page.lead}</p>}
 
@@ -162,6 +178,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
               {!parts.some((one) => one.kind.startsWith('seat-')) && <Fallback path={page.path} />}
             </PersonAccessGate>
           </UntilConfirmed>
+          </>)}
         </PageLogicProvider>
       </PersonProvider>
       </PageAccessContext.Provider>
@@ -276,6 +293,35 @@ function ReloadWhenConfirmed({ path, onConfirmed }: { path: string; onConfirmed:
   }, [states, exact, onConfirmed]);
 
   return null;
+}
+
+/**
+ * 0062 — DIE SEITE ALS SLAJDY. Für wen gehandelt wird und die Links stehen auf
+ * dem ersten Slajd; die eingebauten Abschnitte, wenn sie gelten, auf dem letzten.
+ */
+function SlidesBody({ path, parts, theme, title, lead }: {
+  path: string;
+  parts: ReturnType<typeof toDraft>[];
+  theme: string | null;
+  title: string | null;
+  lead: string | null;
+}) {
+  const chosen = usePerson()?.chosen ?? null;
+  const exact = useMemo(() => new Set(seatsExactly(path)), [path, chosen]);
+  const look = useMemo(() => readLook(theme), [theme]);
+  const personal = !parts.some((one) => one.kind.startsWith('seat-'))
+    && chosen?.kind === 'seat' && exact.has(chosen.seat.token) ? chosen.seat : null;
+
+  return (
+    <PageSlides
+      parts={parts}
+      look={look}
+      title={title}
+      lead={lead}
+      extra={<><SeatBar path={path} /><div className="wk-page-top"><PersonPicker /></div></>}
+      after={personal === null ? undefined : <PersonalSections seat={personal} />}
+    />
+  );
 }
 
 /** Die eingebauten Abschnitte — für den Gewählten, wenn sein Link GENAU hierher geführt hat. */

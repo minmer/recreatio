@@ -14,29 +14,38 @@
  * <b>In der Rozmowa eines Bereichs schreiben auch die Menschen mit Link</b>
  * (0053). Wer sie hier öffnet, gibt ihnen nebenbei den Chatschlüssel weiter —
  * sie selbst können niemanden darum bitten.
+ *
+ * <b>0062 — wie eine Chat-App.</b> Auf breitem Schirm links die Liste, rechts
+ * die Rozmowa; schmal das eine oder das andere. Oben in der Liste „Notatki":
+ * die Rozmowa mit sich selbst, im eigenen Bereich (`startSelfChat`).
  */
 
-import { ChatToolbar, ComposerExtras, MessageContent, useChatExtras, useComposerExtras, CommonChatPreferences } from './ChatExtras';
+import { CommonPreferencesDialog, ForwardDialog, useChatExtras } from './ChatExtras';
+import {
+  Avatar, ChatHeader, ChatLog, Composer, Icon, lastEditable, listTime, plural, PopMenu, SendAs, useButtonMenu, useChatChrome,
+  withDelete, withEdit, type ComposerHandle, type MenuItem, type MessageHandlers, type MessageRules, type ReplyTarget, type Shown
+} from './ChatKit';
 import { availableNow, chatEndpoint, reportChatSeen } from './chatFeatures';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
+import { ensurePrivateArea } from './agenda';
 import { areaPath, dropFromArea, loadAreas, loadMembers, type AreaRow } from './area';
 import { AreaOptions } from './AreaOptions';
 import { Segment } from './Areas';
 import {
   addToChat, areaKeys, authorOf, chatKeysOf, deleteMessage, deliverPending, deliverSeatKeys, editMessage, loadChat, loadChats,
   loadMessages, loadVersions, looksLikeCode, markRead, openMessage, openNames, openVersion, restoreMessage, roleCard,
-  sendMessage, setMemberName, startAreaChat, startOwnChat,
-  type ChatDetail, type ChatRow, type Invitee, type Opened, type SealedMessage, type SealedVersion
+  sendMessage, setMemberName, startAreaChat, startOwnChat, startSelfChat,
+  type ChatDetail, type ChatRow, type Invitee, type Opened, type SealedMessage, type SealedVersion, type SendOptions
 } from './chat';
-import { DeletedBody, EditBox, EditedMark, HistoryDialog, MessageTools } from './MessageBits';
+import { HistoryDialog } from './MessageBits';
+import { Modal } from './Modal';
 import type { Ring, SealedRole } from './keys';
 import { keysFor } from './ringOf';
 import { notices } from './platform';
 import { useRemembered } from './prefs';
 import { myRoleNames } from './roleNames';
 import { viewPath } from './routes';
-import { SpeakingAs } from './PageChatView';
 import { WorkspaceError, type Who } from './session';
 
 /* -- Gemeinsam ----------------------------------------------------------------- */
@@ -77,14 +86,6 @@ const shortId = (id: string) => id.slice(0, 8);
 const nameOf = (roleId: string, kind: string | undefined, names: ReadonlyMap<string, string>, mine: ReadonlyMap<string, string>) =>
   names.get(roleId) ?? mine.get(roleId) ?? `${KIND[kind ?? 'person'] ?? 'osoba'} · ${shortId(roleId)}`;
 
-const when = (at: string) => {
-  const d = new Date(at);
-  const today = new Date();
-  return d.toDateString() === today.toDateString()
-    ? d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleString('pl-PL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-};
-
 /** Die Bereiche, die ich sehe — für den Weg, in dem ein Bereich liegt. */
 function useAreas(): readonly AreaRow[] {
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
@@ -105,23 +106,47 @@ const titleOfArea = (areas: readonly AreaRow[], areaId: string, fallback: string
 
 /* -- Die Ansicht ------------------------------------------------------------------ */
 
+/** Wie hoch der Kopf der App ist — die Rozmowa füllt, was darunter bleibt. */
+function useTopOffset(): number {
+  const [top, setTop] = useState(56);
+  useEffect(() => {
+    const bar = document.querySelector<HTMLElement>('.wk-top');
+    if (bar === null) return undefined;
+    const measure = () => setTop(Math.round(bar.getBoundingClientRect().height));
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const watch = new ResizeObserver(measure);
+    watch.observe(bar);
+    return () => watch.disconnect();
+  }, []);
+  return top;
+}
+
 export function ChatView({ who, trail }: { who: Who; trail: readonly string[] }) {
   const me = useMe(who);
   const at = trail[0];
+  const top = useTopOffset();
 
   if (me === undefined) return <p className="wk-lede">Wczytywanie…</p>;
   if (me === null) {
     return <p className="wk-note">Bez hasła w tej karcie rozmowy są zamknięte — zaloguj się ponownie albo odblokuj klucz.</p>;
   }
 
-  if (at === 'nowa') return <NewChat me={me} />;
-  if (at !== undefined) return <ChatRoom key={at} me={me} chatId={at} />;
-  return <ChatList me={me} />;
+  const room = at === 'nowa' ? <div className="ch-page"><NewChat me={me} /></div>
+    : at !== undefined ? <ChatRoom key={at} me={me} chatId={at} />
+    : null;
+
+  return (
+    <div className={`ch-app${room !== null ? ' has-room' : ''}`} style={{ '--ch-top': `${top}px` } as CSSProperties}>
+      <ChatList me={me} current={at} />
+      <section className="ch-main" aria-label="Rozmowa">{room ?? <ChatWelcome me={me} />}</section>
+    </div>
+  );
 }
 
 /* -- Die Liste --------------------------------------------------------------------- */
 
-/** Wie ein Chat in der Liste heisst: zu zweit der Name der anderen Seite, sonst der Bereich. */
+/** Wie ein Chat in der Liste heisst: zu zweit der Name der anderen Seite, sonst der Bereich; mit sich selbst „Notatki". */
 function useTitles(me: Me, chats: readonly ChatRow[], areas: readonly AreaRow[]): ReadonlyMap<string, string> {
   const [titles, setTitles] = useState<ReadonlyMap<string, string>>(new Map());
   const key = chats.map((c) => c.chatId).join(',') + '|' + areas.length;
@@ -131,6 +156,7 @@ function useTitles(me: Me, chats: readonly ChatRow[], areas: readonly AreaRow[])
     void (async () => {
       const out = new Map<string, string>();
       for (const chat of chats) {
+        if (chat.kind === 'self') { out.set(chat.chatId, 'Notatki'); continue; }
         if (chat.kind !== 'direct') { out.set(chat.chatId, titleOfArea(areas, chat.areaId, chat.areaName)); continue; }
         const other = chat.members.find((m) => !me.ring.has(m.roleId)) ?? chat.members.find((m) => !me.roles.some((r) => r.id === m.roleId));
         if (other === undefined) { out.set(chat.chatId, 'Rozmowa'); continue; }
@@ -150,12 +176,28 @@ function useTitles(me: Me, chats: readonly ChatRow[], areas: readonly AreaRow[])
   return titles;
 }
 
-function ChatList({ me }: { me: Me }) {
+/** Zu zweit das Gesicht der anderen Seite — dieselbe Farbe wie an ihren Nachrichten. */
+const seedOf = (me: Me, chat: Pick<ChatRow, 'chatId' | 'kind' | 'members'>) =>
+  chat.kind === 'direct' ? chat.members.find((m) => !me.ring.has(m.roleId))?.roleId ?? chat.chatId : chat.chatId;
+
+const kindText = (chat: ChatRow) => {
+  const n = chat.members.length;
+  const people = `${n} ${plural(n, 'osoba', 'osoby', 'osób')}`;
+  if (chat.kind === 'direct') return 'rozmowa we dwoje';
+  if (chat.kind === 'group') return `grupa · ${people}`;
+  return `obszar · ${people}${chat.seats > 0 ? ` · ${chat.seats} z linkiem` : ''}`;
+};
+
+function ChatList({ me, current }: { me: Me; current: string | undefined }) {
   const [archived, setArchived] = useState(false);
+  const [query, setQuery] = useState('');
+  const [panel, setPanel] = useState<'prefs' | 'codes' | null>(null);
+  const [opening, setOpening] = useState(false);
   const previous = useRef<Map<string, string | null> | null>(null);
   const [chats, setChats] = useState<readonly ChatRow[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const areas = useAreas();
+  const more = useButtonMenu();
 
   const look = useCallback(async () => {
     try {
@@ -185,51 +227,170 @@ function ChatList({ me }: { me: Me }) {
     return () => window.clearInterval(timer);
   }, [look]);
 
+  /* Eine Rozmowa geöffnet: ihre Zahl der neuen stimmt gleich danach nicht mehr. */
+  useEffect(() => {
+    if (current === undefined) return undefined;
+    const timer = window.setTimeout(() => { void look(); }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [current, look]);
+
   const titles = useTitles(me, chats ?? [], areas);
+  const self = chats?.find((c) => c.kind === 'self');
+  const others = (chats ?? []).filter((c) => c.kind !== 'self');
+  const inArchive = others.filter((c) => c.preferences?.archived === true);
+  const needle = query.trim().toLocaleLowerCase('pl-PL');
+  const fits = (title: string) => needle === '' || title.toLocaleLowerCase('pl-PL').includes(needle);
+  const rows = (archived ? inArchive : others.filter((c) => c.preferences?.archived !== true))
+    .filter((c) => fits(titles.get(c.chatId) ?? c.areaName));
+
+  /* NOTATKI — beim ersten Mal entstehen der eigene Bereich (falls nötig) und die Rozmowa darin. */
+  const openSelf = async () => {
+    const person = me.roles.find((r) => r.kind === 'person' && me.ring.maySign(r.id));
+    if (person === undefined) { setFailed('Notatki prowadzi osoba — to konto nie ma jeszcze osoby.'); return; }
+    setOpening(true);
+    setFailed(null);
+    try {
+      const areaId = await ensurePrivateArea(me.ring, person, areas.length > 0 ? areas : (await loadAreas()).areas);
+      const { members } = await loadMembers(areaId);
+      const owner = members.find((m) => m.kind === 'person' && me.ring.maySign(m.roleId))?.roleId ?? person.id;
+      const chatId = await startSelfChat(areaId, owner);
+      window.location.hash = viewPath('chat', chatId);
+      void look();
+    } catch (e) {
+      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć notatek.');
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  const menu: MenuItem[] = [
+    { label: 'Nowa rozmowa', icon: 'compose', onSelect: () => { window.location.hash = viewPath('chat', 'nowa'); } },
+    { label: 'Notatki', icon: 'bookmark', onSelect: () => { if (self !== undefined) window.location.hash = viewPath('chat', self.chatId); else void openSelf(); } },
+    { label: inArchive.length > 0 ? `Archiwum (${inArchive.length})` : 'Archiwum', icon: 'archive', checked: archived, onSelect: () => setArchived(!archived) },
+    { label: 'Moja dostępność i powiadomienia', icon: 'bell', onSelect: () => setPanel('prefs') },
+    { label: 'Twój kod do rozmów', icon: 'hash', onSelect: () => setPanel('codes') }
+  ];
+
+  const selfRow = (
+    <>
+      <Avatar seed="self" name="Notatki" icon="bookmark" />
+      <span className="ch-item-main">
+        <span className="ch-item-top">
+          <strong className="ch-item-title">Notatki</strong>
+          {self?.lastMessageAt != null && <time className="ch-item-time">{listTime(self.lastMessageAt)}</time>}
+        </span>
+        <span className="ch-item-bottom">
+          <span className="ch-item-sub">{opening ? 'Zakładanie…' : 'Wiadomości do siebie — tylko Ty je widzisz'}</span>
+          {self !== undefined && self.unread > 0 && <span className="ch-badge">{self.unread}</span>}
+        </span>
+      </span>
+    </>
+  );
 
   return (
-    <>
-      <h1 className="wk-h1">Rozmowy</h1>
-      <CommonChatPreferences />
-      <label><input type="checkbox" checked={archived} onChange={e => setArchived(e.target.checked)} /> Pokaż archiwum</label>
-      <p className="wk-lede">
-        Każda rozmowa należy do obszaru: kto ma dostęp do obszaru, jest w rozmowie. Treść szyfruje Twoja
-        przeglądarka — serwer jej nie czyta.
-      </p>
-
-      <div className="wk-actions">
-        <a className="wk-btn" href={viewPath('chat', 'nowa')}>Nowa rozmowa</a>
+    <aside className="ch-side" aria-label="Lista rozmów">
+      <div className="ch-side-head">
+        {archived && (
+          <button type="button" className="ch-icon-btn" aria-label="Wróć do rozmów" onClick={() => setArchived(false)}><Icon name="back" /></button>
+        )}
+        <h1 className="ch-side-title">{archived ? 'Archiwum' : 'Rozmowy'}</h1>
+        <a className="ch-icon-btn" href={viewPath('chat', 'nowa')} aria-label="Nowa rozmowa" title="Nowa rozmowa"><Icon name="compose" /></a>
+        <button type="button" className="ch-icon-btn" aria-label="Więcej" title="Więcej" aria-haspopup="menu" aria-expanded={more.open !== null}
+          onClick={(e) => more.toggle(e.currentTarget)}>
+          <Icon name="more" />
+        </button>
+        {more.open !== null && <PopMenu anchor={{ rect: more.open.rect }} from={more.open.from} label="Rozmowy" items={menu} onClose={more.close} />}
       </div>
 
-      {failed !== null && <p className="wk-error">{failed}</p>}
+      <label className="ch-side-search">
+        <Icon name="search" />
+        <input type="search" value={query} placeholder="Szukaj rozmowy" aria-label="Szukaj rozmowy" onChange={(e) => setQuery(e.target.value)} />
+      </label>
 
-      {chats === null ? (
-        <p className="wk-hint">Wczytywanie…</p>
-      ) : chats.length === 0 ? (
-        <p className="wk-empty">Nie masz jeszcze żadnej rozmowy.</p>
-      ) : (
-        <ul className="wk-chat-list">
-          {chats.filter(chat => Boolean(chat.preferences?.archived) === archived).map((chat) => (
+      {failed !== null && <p className="ch-bar is-error" role="alert">{failed}</p>}
+
+      <ul className="ch-list">
+        {!archived && fits('Notatki') && (
+          <li>
+            {self !== undefined ? (
+              <a className={`ch-item is-self${current === self.chatId ? ' is-current' : ''}`} href={viewPath('chat', self.chatId)}
+                aria-current={current === self.chatId ? 'page' : undefined}>
+                {selfRow}
+              </a>
+            ) : (
+              <button type="button" className="ch-item is-self" disabled={opening} onClick={() => void openSelf()}>{selfRow}</button>
+            )}
+          </li>
+        )}
+
+        {!archived && inArchive.length > 0 && needle === '' && (
+          <li>
+            <button type="button" className="ch-item is-archive" onClick={() => setArchived(true)}>
+              <span className="ch-ava is-md is-icon is-plain" aria-hidden="true"><Icon name="archive" /></span>
+              <span className="ch-item-main">
+                <span className="ch-item-top"><strong className="ch-item-title">Zarchiwizowane</strong><span className="ch-item-time">{inArchive.length}</span></span>
+              </span>
+            </button>
+          </li>
+        )}
+
+        {chats === null && <li className="ch-list-note">Wczytywanie…</li>}
+        {chats !== null && rows.length === 0 && (
+          <li className="ch-list-note">
+            {needle !== '' ? 'Żadna rozmowa nie pasuje.' : archived ? 'Archiwum jest puste.' : 'Nie masz jeszcze żadnej rozmowy — zacznij nową.'}
+          </li>
+        )}
+
+        {rows.map((chat) => {
+          const title = titles.get(chat.chatId) ?? chat.areaName;
+          const here = current === chat.chatId;
+          return (
             <li key={chat.chatId}>
-              <a className="wk-chat-row" href={viewPath('chat', chat.chatId)}>
-                <span className="wk-chat-row-main">
-                  <strong>{titles.get(chat.chatId) ?? chat.areaName}</strong>
-                  <span className="wk-row-side">
-                    {chat.kind === 'direct' ? 'we dwoje' : chat.kind === 'group' ? `grupa · ${chat.members.length} os.` : `obszar · ${chat.members.length} os.${chat.seats > 0 ? ` · ${chat.seats} z linkiem` : ''}`}
+              <a className={`ch-item${here ? ' is-current' : ''}${chat.unread > 0 ? ' is-unread' : ''}`} href={viewPath('chat', chat.chatId)}
+                aria-current={here ? 'page' : undefined}>
+                <Avatar seed={seedOf(me, chat)} name={title} />
+                <span className="ch-item-main">
+                  <span className="ch-item-top">
+                    <strong className="ch-item-title">{title}</strong>
+                    {chat.lastMessageAt !== null && <time className="ch-item-time" dateTime={chat.lastMessageAt}>{listTime(chat.lastMessageAt)}</time>}
                   </span>
-                </span>
-                <span className="wk-chat-row-side">
-                  {chat.lastMessageAt !== null && <span className="wk-row-side">{when(chat.lastMessageAt)}</span>}
-                  {chat.unread > 0 && <span className="wk-chat-unread" aria-label={`${chat.unread} nowych`}>{chat.unread}</span>}
+                  <span className="ch-item-bottom">
+                    <span className="ch-item-sub">{kindText(chat)}</span>
+                    {chat.preferences?.muted === true && <span className="ch-item-muted"><Icon name="bell-off" label="wyciszona" /></span>}
+                    {chat.unread > 0 && <span className="ch-badge" aria-label={`${chat.unread} nowych`}>{chat.unread}</span>}
+                  </span>
                 </span>
               </a>
             </li>
-          ))}
-        </ul>
-      )}
+          );
+        })}
+      </ul>
 
+      <p className="ch-side-foot"><Icon name="lock" /> Treść szyfruje Twoja przeglądarka — serwer jej nie czyta.</p>
+
+      {panel === 'prefs' && <CommonPreferencesDialog onClose={() => setPanel(null)} />}
+      {panel === 'codes' && (
+        <Modal title="Twój kod do rozmów" onClose={() => setPanel(null)}>
+          <MyCodes me={me} bare />
+        </Modal>
+      )}
+    </aside>
+  );
+}
+
+/** Rechts, solange keine Rozmowa offen ist — nur auf breitem Schirm zu sehen. */
+function ChatWelcome({ me }: { me: Me }) {
+  return (
+    <div className="ch-welcome">
+      <span className="ch-welcome-ic"><Icon name="lock" /></span>
+      <h2 className="ch-welcome-title">Wybierz rozmowę</h2>
+      <p className="ch-welcome-text">
+        Każda rozmowa należy do obszaru: kto ma dostęp do obszaru, jest w rozmowie. Treść szyfruje Twoja
+        przeglądarka — serwer jej nie czyta.
+      </p>
+      <a className="wk-btn" href={viewPath('chat', 'nowa')}>Nowa rozmowa</a>
       <MyCodes me={me} />
-    </>
+    </div>
   );
 }
 
@@ -238,7 +399,7 @@ function ChatList({ me }: { me: Me }) {
  * kann mich in eine Rozmowa nehmen: der Dienst gibt dazu nur meinen
  * öffentlichen Schlüssel heraus.
  */
-function MyCodes({ me }: { me: Me }) {
+function MyCodes({ me, bare = false }: { me: Me; bare?: boolean }) {
   const [copied, setCopied] = useState<string | null>(null);
   const [all, setAll] = useState(false);
   const shown = me.roles.filter((r) => all || r.kind === 'person');
@@ -248,8 +409,8 @@ function MyCodes({ me }: { me: Me }) {
   };
 
   return (
-    <section className="wk-panel wk-chat-codes">
-      <h2 className="wk-h2">Twój kod do rozmów</h2>
+    <section className="wk-chat-codes">
+      {!bare && <h2 className="wk-h2">Twój kod do rozmów</h2>}
       <p className="wk-hint">
         Podaj go komuś, kto chce Cię dodać do rozmowy. Kod nie otwiera niczego — pozwala tylko zaprosić.
       </p>
@@ -534,11 +695,6 @@ function InviteePicker({ known, chosen, single, busy, onChange }: {
 
 /* -- Eine Rozmowa -------------------------------------------------------------------- */
 
-interface Shown {
-  readonly message: SealedMessage;
-  readonly opened: Opened | null;
-}
-
 function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   const endpoint = chatEndpoint(chatId);
   const extras = useChatExtras(endpoint);
@@ -549,20 +705,27 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   /* Die Schlüssel der NACHRICHTEN — aus denen des Bereichs abgeleitet (0053). */
   const [talk, setTalk] = useState<ReadonlyMap<number, Uint8Array>>(new Map());
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
-  const [shown, setShown] = useState<readonly Shown[]>([]);
+  const [shown, setShown] = useState<readonly Shown[] | undefined>(undefined);
   const [more, setMore] = useState(true);
   const [failed, setFailed] = useState<string | null>(null);
   const [settings, setSettings] = useState(false);
-  const log = useRef<HTMLDivElement | null>(null);
-  const stick = useRef(true);
 
-  /* 0058 — was gerade bearbeitet wird, welche Geschichte offen ist, und bis wann Änderungen geholt sind. */
-  const [editing, setEditing] = useState<string | null>(null);
+  /* 0062 — worauf geantwortet, was bearbeitet, was weitergegeben wird; bis wann gelesen war. */
+  const [reply, setReply] = useState<ReplyTarget | null>(null);
+  const [editing, setEditing] = useState<{ message: SealedMessage; opened: Opened } | null>(null);
+  const [forward, setForward] = useState<Opened | null>(null);
+  const [unreadAfter, setUnreadAfter] = useState<string | null | undefined>(undefined);
+  const composer = useRef<ComposerHandle | null>(null);
+
+  /* 0058 — welche Geschichte offen ist, und bis wann Änderungen geholt sind. */
   const [history, setHistory] = useState<{
     load: () => Promise<{ versions: readonly SealedVersion[] }>;
     open: (version: SealedVersion) => Promise<Opened | null>;
   } | null>(null);
   const asOf = useRef<string | null>(null);
+
+  /* Als wen zuletzt — dieselbe Wahl wie auf der Seite (`chat.as.<id>`); sonst die eigene Person. */
+  const [picked, setAs] = useRemembered(`chat.as.${chatId}`, '');
 
   /* Der Chat, seine Schlüssel, die Namen darin. */
   const lookChat = useCallback(async (freshKeys = false) => {
@@ -574,6 +737,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
       setKeys(held);
       setTalk(derived);
       setNames(await openNames(held, found.areaId, found.names));
+      setUnreadAfter((was) => (was === undefined ? found.readAt : was));
 
       /* Wer mit Link wartet, bekommt seinen Schlüssel, sobald jemand von hier hereinschaut. */
       const by = found.writers[0];
@@ -630,12 +794,13 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
     if (at !== undefined) asOf.current = at;
     if (messages.length === 0) return;
     const opened = await open(held, messages);
-    setShown((was) => was.map((w) => opened.find((o) => o.message.messageId === w.message.messageId) ?? w));
+    setShown((was) => (was ?? []).map((w) => opened.find((o) => o.message.messageId === w.message.messageId) ?? w));
   }, [chatId]);
 
   /* NACHLADEN — alle paar Sekunden, solange die Karte sichtbar ist. */
-  const last = shown.length === 0 ? null : shown[shown.length - 1].message.createdAt;
-  const lastId = shown && shown.length > 0 ? shown[shown.length - 1].message.messageId : undefined;
+  const list = shown ?? [];
+  const last = list.length === 0 ? null : list[list.length - 1].message.createdAt;
+  const lastId = list.length > 0 ? list[list.length - 1].message.messageId : undefined;
   useEffect(() => {
     if (chat == null) return;
     const timer = window.setInterval(() => {
@@ -647,7 +812,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
           if (messages.some((m) => !held.has(m.epoch))) held = (await lookChat(true))?.held ?? held;
           if (messages.length > 0) {
             const opened = await open(held, messages);
-            setShown((was) => [...was, ...opened.filter((o) => !was.some((w) => w.message.messageId === o.message.messageId))]);
+            setShown((was) => [...(was ?? []), ...opened.filter((o) => !(was ?? []).some((w) => w.message.messageId === o.message.messageId))]);
             void markRead(chatId).catch(() => undefined);
           }
           reportChatSeen(endpoint, messages[messages.length - 1]?.createdAt ?? last);
@@ -660,228 +825,188 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
     return () => window.clearInterval(timer);
   }, [chat, chatId, last, lastId, talk, lookChat, pullChanged]);
 
-  /* Unten bleiben, wenn man unten war. */
-  useEffect(() => {
-    const el = log.current;
-    if (el !== null && stick.current) el.scrollTop = el.scrollHeight;
-  }, [shown]);
-
-  const earlier = async () => {
-    const first = shown[0]?.message.createdAt;
+  const earlier = useCallback(async () => {
+    const first = shown?.[0];
     if (first === undefined) return;
-    const { messages } = await loadMessages(chatId, { before: first, beforeId: shown?.[0]?.message.messageId });
+    const { messages } = await loadMessages(chatId, { before: first.message.createdAt, beforeId: first.message.messageId });
     const opened = await open(talk, messages);
-    stick.current = false;
-    setShown((was) => [...opened, ...was]);
+    setShown((was) => [...opened, ...(was ?? [])]);
     setMore(messages.length >= 60);
-  };
+  }, [chatId, shown, talk]);
 
-  if (chat === undefined) return <p className="wk-lede">Wczytywanie…</p>;
+  const moderates = chat != null && chat.certifiers.length > 0 && chat.kind !== 'direct';
+  const chrome = useChatChrome({ endpoint, extras, keys: talk, canModerate: moderates && chat?.kind !== 'self', onPolicy: () => void lookChat() });
+
+  const speakers = useMemo(() => (chat == null ? [] : chat.writers.filter((id) => me.ring.maySign(id))
+    .sort((a, b) => Number(me.roles.find((r) => r.id === b)?.kind === 'person') - Number(me.roles.find((r) => r.id === a)?.kind === 'person'))),
+  [chat, me.ring, me.roles]);
+  const as = speakers.includes(picked) ? picked
+    : speakers.find((id) => me.roles.find((r) => r.id === id)?.kind === 'person') ?? speakers[0] ?? '';
+
+  if (chat === undefined) return <p className="ch-empty">Wczytywanie…</p>;
   if (chat === null) {
     return (
-      <>
+      <div className="ch-page">
         <p><a className="wk-link" href={viewPath('chat')}>← Rozmowy</a></p>
         <p className="wk-error">{failed ?? 'Takiej rozmowy nie ma.'}</p>
-      </>
+      </div>
     );
   }
 
+  const self = chat.kind === 'self';
   const other = chat.kind === 'direct' ? chat.members.find((m) => !me.ring.has(m.roleId)) : undefined;
-  const title = other !== undefined ? nameOf(other.roleId, other.kind, names, me.names) : titleOfArea(areas, chat.areaId, chat.areaName);
+  const title = self ? 'Notatki' : other !== undefined ? nameOf(other.roleId, other.kind, names, me.names) : titleOfArea(areas, chat.areaId, chat.areaName);
   const kindOf = (roleId: string) => chat.members.find((m) => m.roleId === roleId)?.kind;
+  const label = (id: string) => names.get(id) ?? me.names.get(id) ?? `rola ${shortId(id)}`;
+  const mine = (message: SealedMessage) => message.authorRoleId !== null && me.ring.has(message.authorRoleId);
 
   /*
    * WER SCHREIBT. Eine Rolle heisst, wie der Bereich sie nennt — sonst wie sie
    * sich in der Nachricht selbst nennt. Ein Platz heisst, wie er sich nennt,
-   * sonst wie die Kanzlei ihn am Platz führt.
+   * sonst wie die Kanzlei ihn am Platz führt. Die eigenen: „Ty" — mit Namen,
+   * wenn ich hier als mehr als eine Rolle schreibe.
    */
   const authorName = (message: SealedMessage, opened: Opened | null) => {
     if (message.authorSeatId !== null) {
       return opened?.name ?? chat.seats.find((one) => one.seatId === message.authorSeatId)?.name ?? 'osoba z linkiem';
     }
     const roleId = message.authorRoleId ?? '';
+    if (mine(message)) return speakers.length > 1 ? `${label(roleId)} (Ty)` : 'Ty';
     return names.get(roleId) ?? me.names.get(roleId) ?? opened?.name ?? nameOf(roleId, kindOf(roleId), names, me.names);
   };
 
-  return (
-    <div className="wk-chat-room">
-      <div className="wk-chat-head">
-        <a className="wk-link" href={viewPath('chat')}>← Rozmowy</a>
-        <h1 className="wk-h1">{title}</h1>
-        <button type="button" className="wk-link-btn" onClick={() => setSettings(!settings)}>
-          {settings ? 'Zamknij ustawienia'
-            : `Uczestnicy (${chat.members.length}${chat.seats.length > 0 ? ` + ${chat.seats.length} z linkiem` : ''}) i ustawienia`}
-        </button>
-      </div>
+  const rules: MessageRules = {
+    mine,
+    author: authorName,
+    note: (message) => (message.authorSeatId !== null ? 'z linku' : null),
+    /* 0058 — bearbeiten nur die eigene; zurückholen der Verfasser (wenn er selbst löschte) oder wer moderiert. */
+    canEdit: (message, opened) => mine(message) && message.deletedAt === null && opened !== null && chat.writers.includes(message.authorRoleId ?? ''),
+    canDelete: (message) => message.deletedAt === null && (mine(message) || moderates),
+    canRestore: (message) => message.deletedAt !== null && ((mine(message) && message.deletedBy === 'author') || moderates),
+    canPin: moderates,
+    group: chat.kind === 'group' || chat.kind === 'area',
+    receipts: !self
+  };
 
-      <ChatToolbar endpoint={endpoint} extras={extras} keys={talk} canModerate={chat.certifiers.length > 0 && chat.kind !== 'direct'} onPolicy={() => void lookChat()} />
-      {settings && (
-        <ChatSettings me={me} chat={chat} names={names} keys={keys} onChanged={() => void lookChat(true)} />
-      )}
+  const on: MessageHandlers = {
+    reply: (message, opened, author) => { setEditing(null); setReply({ id: message.messageId, text: opened.text, author }); },
+    edit: (message, opened) => { setReply(null); setEditing({ message, opened }); },
+    remove: async (message) => {
+      await deleteMessage(message.messageId);
+      setShown((was) => withDelete(was ?? [], message.messageId, mine(message) ? 'author' : 'moderator'));
+    },
+    restore: async (message) => { await restoreMessage(message.messageId); await pullChanged(talk); },
+    history: (message) => setHistory({
+      load: () => loadVersions(message.messageId),
+      open: (version) => openVersion(talk, message.messageId, authorOf(message), version)
+    }),
+    forward: (opened) => setForward(opened)
+  };
 
-      {failed !== null && <p className="wk-error">{failed}</p>}
-
-      <div
-        className="wk-chat-log"
-        ref={log}
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
-        }}
-      >
-        {more && shown.length > 0 && (
-          <button type="button" className="wk-link-btn wk-chat-earlier" onClick={() => void earlier()}>
-            Wczytaj wcześniejsze
-          </button>
-        )}
-        {shown.length === 0 && <p className="wk-empty">Jeszcze nikt nic nie napisał.</p>}
-
-        {shown.map(({ message, opened }, i) => {
-          const mine = message.authorRoleId !== null && me.ring.has(message.authorRoleId);
-          const prev = shown[i - 1]?.message;
-          const same = prev !== undefined && authorOf(prev) === authorOf(message)
-            && new Date(message.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60_000;
-          const moderates = chat.certifiers.length > 0 && chat.kind !== 'direct';
-          const mayDelete = message.deletedAt === null && (mine || moderates);
-
-          /* 0058 — bearbeiten nur die eigene; zurückholen der Verfasser (wenn er selbst löschte) oder wer moderiert. */
-          const mayEdit = mine && message.deletedAt === null && opened !== null && chat.writers.includes(message.authorRoleId ?? '');
-          const mayRestore = message.deletedAt !== null && ((mine && message.deletedBy === 'author') || moderates);
-          const id = message.messageId;
-
-          if (!extras.matches(id, opened)) return null;
-          return (
-            <div id={`message-${id}`} key={id} className={`wk-msg${mine ? ' is-mine' : ''}${same ? ' is-follow' : ''}`}>
-              {!same && (
-                <p className="wk-msg-author">
-                  {authorName(message, opened)}
-                  {message.authorSeatId !== null && <span className="wk-msg-link"> · z linku</span>}
-                  <span className="wk-msg-time"> · {when(message.createdAt)}</span>
-                </p>
-              )}
-              <div className="wk-msg-body">
-                {message.deletedAt !== null ? (
-                  <DeletedBody message={message} canRestore={mayRestore}
-                    onRestore={async () => { await restoreMessage(id); await pullChanged(talk); }} />
-                ) : editing === id && opened !== null ? (
-                  <EditBox initial={opened.text} onCancel={() => setEditing(null)} onSave={async (text) => {
-                    const done = await editMessage(me.ring, id, talk, message.authorRoleId!, text, opened.name, (message.version ?? 1) + 1, opened);
-                    setShown((was) => was.map((w) => w.message.messageId === id
-                      ? { message: { ...w.message, version: done.version, editedAt: done.editedAt, epoch: done.epoch, bodySealed: done.bodySealed },
-                          opened: { ...opened, text, name: opened.name } }
-                      : w));
-                    setEditing(null);
-                  }} />
-                ) : opened === null ? (
-                  <em className="wk-row-side">Nie do odczytania — brak klucza tej epoki obszaru.</em>
-                ) : (
-                  <>
-                    <MessageContent endpoint={endpoint} id={id} opened={opened} features={extras.features} sentAt={message.createdAt} ring={me.ring} canModerate={moderates} />
-                    <EditedMark message={message} onOpen={() => setHistory({
-                      load: () => loadVersions(id),
-                      open: (version) => openVersion(talk, id, authorOf(message), version)
-                    })} />
-                  </>
-                )}
-                {editing !== id && (
-                  <MessageTools canEdit={mayEdit} canDelete={mayDelete}
-                    onEdit={() => setEditing(id)}
-                    onDelete={() => {
-                      if (!window.confirm('Usunąć tę wiadomość? Zobaczą, że była, ale nie jej treść. Możesz ją później przywrócić.')) return;
-                      void deleteMessage(id).then(() => setShown((was) => was.map((w) =>
-                        w.message.messageId === id
-                          ? { message: { ...w.message, deletedAt: new Date().toISOString(), bodySealed: null, deletedBy: mine ? 'author' : 'moderator' }, opened: null }
-                          : w)));
-                    }} />
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <Composer
-        me={me}
-        chat={chat}
-        keys={talk}
-        names={names}
-        onSent={(message, opened) => {
-          stick.current = true;
-          setShown((was) => [...was, { message, opened }]);
-        }}
-      />
-
-      {history !== null && <HistoryDialog load={history.load} open={history.open} onClose={() => setHistory(null)} />}
-    </div>
-  );
-}
-
-/** Schreiben — als eine meiner Rollen, die hier schreiben darf. */
-function Composer({ me, chat, keys, names, onSent }: {
-  me: Me;
-  chat: ChatDetail;
-  keys: ReadonlyMap<number, Uint8Array>;
-  names: ReadonlyMap<string, string>;
-  onSent: (message: SealedMessage, opened: Opened) => void;
-}) {
-  const compose = useComposerExtras(chatEndpoint(chat.chatId));
-  const speakers = useMemo(() => chat.writers.filter((id) => me.ring.maySign(id))
-    .sort((a, b) => Number(me.roles.find((r) => r.id === b)?.kind === 'person') - Number(me.roles.find((r) => r.id === a)?.kind === 'person')),
-  [chat.writers, me.ring, me.roles]);
-  /* Als wen zuletzt — dieselbe Wahl wie auf der Seite (`chat.as.<id>`); sonst die eigene Person. */
-  const [picked, setAs] = useRemembered(`chat.as.${chat.chatId}`, '');
-  const as = speakers.includes(picked) ? picked
-    : speakers.find((id) => me.roles.find((r) => r.id === id)?.kind === 'person') ?? speakers[0] ?? '';
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string | null>(null);
-
-  if (speakers.length === 0) {
-    return <p className="wk-hint wk-chat-compose">W tej rozmowie tylko czytasz.</p>;
-  }
-
-  const send = async () => {
-    const body = text.trim();
-    if ((body === '' && compose.files.length === 0) || busy) return;
-    setBusy(true);
-    setFailed(null);
-    try {
-      /* Der Name reist in der Nachricht mit — für die, die die Namen des Bereichs nicht lesen (0053). */
-      const name = names.get(as) ?? me.names.get(as) ?? null;
-      const options = await compose.prepare();
-      const done = await sendMessage(me.ring, chat.chatId, keys, as, body, name, options);
-      if (!options.sendAt) onSent({
-        messageId: done.messageId, authorRoleId: as, authorSeatId: null, epoch: done.epoch,
-        bodySealed: '', createdAt: done.createdAt, deletedAt: null
-      }, { text: body, name, ...options });
-      compose.done();
-      setText('');
-    } catch (e) {
-      setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać.');
-    } finally {
-      setBusy(false);
+  const send = async (body: string, options: SendOptions) => {
+    if (as === '') throw new WorkspaceError('W tej rozmowie tylko czytasz.');
+    /* Der Name reist in der Nachricht mit — für die, die die Namen des Bereichs nicht lesen (0053). */
+    const name = names.get(as) ?? me.names.get(as) ?? null;
+    const done = await sendMessage(me.ring, chat.chatId, talk, as, body, name, options);
+    if (options.sendAt === undefined) {
+      setShown((was) => [...(was ?? []), {
+        message: { messageId: done.messageId, authorRoleId: as, authorSeatId: null, epoch: done.epoch, bodySealed: '', createdAt: done.createdAt, deletedAt: null },
+        opened: { text: body, name, ...options }
+      }]);
     }
   };
 
+  const saveEdit = async (text: string) => {
+    if (editing === null) return;
+    const { message, opened } = editing;
+    const done = await editMessage(me.ring, message.messageId, talk, message.authorRoleId!, text, opened.name, (message.version ?? 1) + 1, opened);
+    setShown((was) => withEdit(was ?? [], message.messageId, done, text));
+    setEditing(null);
+  };
+
+  /* Unter dem Namen: wer gerade schreibt, sonst wer dabei ist. */
+  const n = chat.members.length;
+  const theirs = other === undefined ? undefined : extras.features?.receipts.find((r) => r.roleIds.includes(other.roleId))?.available;
+  const subtitle = chrome.status.typing ? <span className="ch-typing">{chat.kind === 'direct' ? 'pisze…' : 'ktoś pisze…'}</span>
+    : self ? 'tylko Ty · szyfrowane w przeglądarce'
+    : chat.kind === 'direct' ? (theirs === true ? 'w godzinach dostępności' : theirs === false ? 'poza godzinami dostępności' : 'rozmowa we dwoje')
+    : [
+      `${n} ${plural(n, 'uczestnik', 'uczestnicy', 'uczestników')}`,
+      chat.seats.length > 0 ? `${chat.seats.length} z linkiem` : null,
+      chrome.status.channel ? 'kanał' : null,
+      chrome.status.available + chrome.status.away > 0 ? `dostępnych: ${chrome.status.available}` : null
+    ].filter(Boolean).join(' · ');
+
+  const menu: MenuItem[] = [
+    ...chrome.items,
+    ...(self ? [] : [{ label: `Uczestnicy i ustawienia`, icon: 'users' as const, onSelect: () => setSettings(true) }]),
+    { label: self ? 'Mój prywatny obszar' : 'Obszar tej rozmowy', icon: 'area', onSelect: () => { window.location.hash = viewPath('areas', chat.areaId); } }
+  ];
+
+  const readOnly = speakers.length === 0 ? 'W tej rozmowie tylko czytasz.'
+    : extras.features?.canWrite === false ? 'Ten kanał pozwala Ci tylko czytać.'
+    : null;
+
   return (
-    <form className="wk-chat-compose" onSubmit={(e) => { e.preventDefault(); void send(); }}>
-      <SpeakingAs speakers={speakers} speaker={as} nameOf={(id) => names.get(id) ?? me.names.get(id) ?? null} onPick={setAs} />
-      <ComposerExtras state={compose} busy={busy} />
-      <div className="wk-chat-compose-row">
-        <textarea
-          value={text}
-          rows={2}
-          placeholder="Napisz wiadomość… (Enter wysyła, Shift+Enter — nowa linia)"
-          aria-label="Wiadomość"
-          onChange={(e) => { setText(e.target.value); compose.typing(); }}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
-        />
-        <button type="submit" className="wk-btn" disabled={busy || (text.trim() === '' && compose.files.length === 0)}>
-          {busy ? 'Wysyłanie…' : 'Wyślij'}
-        </button>
-      </div>
-      {failed !== null && <p className="wk-error">{failed}</p>}
-    </form>
+    <div className="ch-room">
+      <ChatHeader
+        back={viewPath('chat')}
+        title={title}
+        avatar={<Avatar seed={self ? 'self' : other?.roleId ?? chat.chatId} name={title} icon={self ? 'bookmark' : undefined} />}
+        subtitle={subtitle}
+        menu={menu}
+        search={extras.search}
+        onSearch={extras.setSearch}
+        quiet={chrome.status.quiet}
+      />
+      {chrome.banner}
+      {failed !== null && <p className="ch-bar is-error">{failed}</p>}
+
+      <ChatLog
+        endpoint={endpoint}
+        items={shown}
+        features={extras.features}
+        matches={extras.matches}
+        rules={rules}
+        on={on}
+        more={more}
+        onEarlier={earlier}
+        empty={self ? 'Zapisuj tu myśli, linki i pliki dla siebie — nikt inny ich nie zobaczy.' : 'Jeszcze nikt nic nie napisał — możesz zacząć.'}
+        onFiles={(files) => composer.current?.addFiles(files)}
+        unreadAfter={unreadAfter ?? null}
+        search={extras.search}
+        filter={extras.filter}
+      />
+
+      <Composer
+        ref={composer}
+        endpoint={endpoint}
+        readOnly={readOnly}
+        placeholder={speakers.length > 1 ? `Wiadomość jako ${label(as)}` : self ? 'Notatka' : 'Wiadomość'}
+        reply={reply}
+        onClearReply={() => setReply(null)}
+        editing={editing === null ? null : { id: editing.message.messageId, text: editing.opened.text }}
+        onCancelEdit={() => setEditing(null)}
+        onSaveEdit={saveEdit}
+        onSend={send}
+        onEditLast={() => {
+          const one = lastEditable(list, rules.canEdit);
+          if (one !== null && one.opened !== null) on.edit(one.message, one.opened);
+        }}
+        onScheduled={chrome.scheduled.refresh}
+        before={chrome.chip}
+        sendAs={speakers.length > 1 ? <SendAs speakers={speakers} speaker={as} nameOf={label} onPick={setAs} /> : null}
+      />
+
+      {chrome.dialogs}
+      {settings && (
+        <Modal title={`Uczestnicy (${chat.members.length}${chat.seats.length > 0 ? ` + ${chat.seats.length} z linkiem` : ''}) i ustawienia`} wide onClose={() => setSettings(false)}>
+          <ChatSettings me={me} chat={chat} names={names} keys={keys} onChanged={() => void lookChat(true)} />
+        </Modal>
+      )}
+      {forward !== null && <ForwardDialog endpoint={endpoint} opened={forward} ring={me.ring} onClose={() => setForward(null)} />}
+      {history !== null && <HistoryDialog load={history.load} open={history.open} onClose={() => setHistory(null)} />}
+    </div>
   );
 }
 
@@ -924,7 +1049,7 @@ function ChatSettings({ me, chat, names, keys, onChanged }: {
   };
 
   return (
-    <section className="wk-panel wk-chat-settings">
+    <section className="wk-chat-settings">
       <p className="wk-hint">
         {chat.kind === 'area'
           ? 'To rozmowa obszaru: są w niej wszyscy, którzy mają dostęp do obszaru.'

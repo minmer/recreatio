@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { Crumbs } from './Crumbs';
+import { HeaderSlotContext } from './headerSlot';
 import {
   foreignHost, localPath, needsIdentity, parsePath, path, spotOf,
   type Address, type Spot
@@ -197,6 +198,9 @@ function Shell({
   spot?: Spot;
   onSignOut?: () => void;
 }) {
+  /* Der Platz in der Kopfleiste, in den eine Seite ihr Menü zeichnet (`headerSlot.tsx`). */
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+
   return (
     <div className="wk-root">
       {/*
@@ -215,6 +219,9 @@ function Shell({
           <a className="wk-brand" href={path('workspace')}>REcreatio</a>
           <span className="wk-stage">Neubau</span>
 
+          {/* Das Menü der Seite — direkt in der Kopfleiste, nicht als zweiter Streifen darunter. */}
+          <div className="wk-top-menu" ref={setSlot} />
+
           {spot !== undefined && <Crumbs spot={spot} />}
 
           {who !== undefined && (
@@ -228,7 +235,9 @@ function Shell({
         </div>
       </header>
       <main className={wide ? 'wk-main wk-main-wide' : 'wk-main'}>
-        <ViewGuard>{children}</ViewGuard>
+        <HeaderSlotContext.Provider value={slot}>
+          <ViewGuard>{children}</ViewGuard>
+        </HeaderSlotContext.Provider>
       </main>
     </div>
   );

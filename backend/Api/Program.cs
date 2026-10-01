@@ -14,6 +14,9 @@
 using Api;
 
 var builder = WebApplication.CreateBuilder(args);
+var fileLogging = builder.Configuration.GetSection("Logging:File");
+if (fileLogging.GetValue<bool>("Enabled"))
+    builder.Logging.AddProvider(new FileLoggerProvider(builder.Environment.ContentRootPath, fileLogging));
 
 if (args.Length > 0 && args[0].Equals("migrate", StringComparison.OrdinalIgnoreCase))
 {
@@ -58,6 +61,10 @@ builder.Services.AddCors(options =>
     }));
 
 var app = builder.Build();
+if (fileLogging.GetValue<bool>("Enabled"))
+    app.Logger.LogWarning("API file logging enabled. Directory: {Directory}; retention: {Days} days.",
+        Path.GetFullPath(fileLogging["Directory"] ?? "logs", builder.Environment.ContentRootPath),
+        fileLogging.GetValue<int?>("RetainedDays") ?? 7);
 
 app.UseCors(BrowserOrigins);
 app.UseMiddleware<ApiErrorMiddleware>();
@@ -92,7 +99,7 @@ Slug.Map(app);
 Roles.Map(app);
 HandOver.Map(app);
 Page.Map(app);
-/* 0061 — Bilder einer Seite, vor allem die Hintergründe der Slajdy. */
+/* 0062 — Bilder einer Seite, vor allem die Hintergründe der Slajdy. */
 PageImage.Map(app);
 Access.Map(app);
 Mass.Map(app);

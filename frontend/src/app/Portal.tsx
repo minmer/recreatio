@@ -29,7 +29,7 @@ import { openSubpage } from './access';
 import { loadDesk, type PageCard } from './desk';
 import { setPartConfig } from './form';
 import { newId } from './ids';
-import { COLUMNS, type Layout } from './layout';
+import { COLUMNS, type Breakpoint, type Frame, type Layout } from './layout';
 import { saveParts, type DraftPart } from './page';
 import { PATH_SHAPE, viewPath } from './routes';
 import { WorkspaceError } from './session';
@@ -96,10 +96,10 @@ const SEED: readonly { kind: string; rowSpan: number; config: Record<string, str
 
 /** Dieselbe Anordnung in jeder Grösse — volle Breite, der Reihe nach. */
 function fullWidth(row: number, rowSpan: number): Layout {
-  const out: Layout = {};
+  const out: Partial<Record<Breakpoint, Frame>> = {};
 
   for (const [breakpoint, columns] of Object.entries(COLUMNS)) {
-    out[breakpoint as keyof Layout] = {
+    out[breakpoint as Breakpoint] = {
       position: { row, col: 1 },
       size: { colSpan: columns, rowSpan }
     };
