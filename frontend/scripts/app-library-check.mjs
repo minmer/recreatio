@@ -354,7 +354,7 @@ try {
     assert.equal(fresh.text, 'Kto jak Bóg? Nikt jak Bóg — to imię jest modlitwą.', 'hyphenation and line breaks are joined');
     assert.equal(fresh.locator, 's. 23–24');
     assert.deepEqual(fresh.topics, [{ id: 't-modlitwa', name: 'Modlitwa' }, { name: 'Aniołowie' }], 'known topics by name, new ones stay names');
-    assert.equal(fresh.photo, 2);
+    assert.equal(fresh.photo, undefined, 'no photo numbers: the photos stay in the own chat');
     assert.equal(fresh.uncertain, true);
     assert.deepEqual(m.newTopics(qp.items), ['Aniołowie']);
     assert.ok(m.planQuotes({ quotes: [{ text: 'x' }], work: { title: 'Zupełnie inna' } }, book, shelf).warnings.some((w) => w.includes('Zupełnie inna')), 'written for another book: said, not refused');
@@ -386,13 +386,14 @@ try {
       if (field.key === 'work') assert.ok(!description.includes(`"work" — `), 'the book is not a field of a quote here');
       else assert.ok(description.includes(`"${field.key}" — `), `quotes description explains ${field.key}`);
     }
-    for (const extra of ['page', 'uncertain', 'photo', 'id']) assert.ok(description.includes(`"${extra}" — `), `quotes description explains ${extra}`);
-    const promptMarked = m.quotesPrompt(book, shelf, 'marked', true);
+    assert.ok(!description.includes('"photo" — '), 'no photo field any more');
+    for (const extra of ['page', 'uncertain', 'id']) assert.ok(description.includes(`"${extra}" — `), `quotes description explains ${extra}`);
+    const promptMarked = m.quotesPrompt(book, shelf, 'marked');
     assert.ok(promptMarked.includes('ołówkiem') && promptMarked.includes('Wielkość świętego Michała Archanioła') && promptMarked.includes('Modlitwa'), 'the prompt names the book, the pencil and the topics');
-    assert.ok(promptMarked.includes(m.QUOTES_FORMAT), 'for another chat the format goes along');
-    const promptWhole = m.quotesPrompt(book, shelf, 'whole', false);
-    assert.ok(promptWhole.includes('cały tekst') && !promptWhole.includes('"format"'), 'here the tool gives the shape');
-    assert.deepEqual(m.QUOTES_TOOL.input_schema.required, ['quotes']);
+    assert.ok(promptMarked.includes(m.QUOTES_FORMAT), 'the format goes along to the own chat');
+    const promptWhole = m.quotesPrompt(book, shelf, 'whole');
+    assert.ok(promptWhole.includes('cały tekst') && promptWhole.includes(m.QUOTES_FORMAT), 'also when the whole photo is the quote');
+    assert.equal(m.QUOTES_TOOL, undefined, 'no AI is called from the app');
     ok('quotes of a book: duplicates, hyphenation, pages, topics by name, import with new topics, export → import, description from the kind, prompt');
   }
 } finally {

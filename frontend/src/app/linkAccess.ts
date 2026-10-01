@@ -32,7 +32,7 @@ import { epochAad, joinArea, loadMembers } from './area';
 import {
   aad, derive, Field, fromBase64Url, open, seal, sha256Bytes, toBase64Url, unwrapKey, wrapKey, KEY_SIZE
 } from './crypto';
-import { heldLinks, linkHref, nameLink } from './linkKeep';
+import { heldLinks, linkGeneration, linkHref, nameLink } from './linkKeep';
 import { newId } from './ids';
 import type { Ring, SealedRole } from './keys';
 import { createRoleWithKeys, signEdge } from './roles';
@@ -177,8 +177,8 @@ export async function createLink(
   holder: SealedRole,
   what: {
     label: string;
-    areaIds: readonly string[];
-    capability: LinkLevel;
+    /** 0074 — je Bereich seine eigene Stufe: in der Rada lesen, in der Oaza schreiben. */
+    areas: readonly { readonly areaId: string; readonly capability: LinkLevel }[];
     /** Nach dem ersten Einlösen gilt er nicht mehr. */
     once: boolean;
     maxUses?: number | null;
@@ -188,11 +188,13 @@ export async function createLink(
   },
   progress: (step: string) => void = () => undefined
 ): Promise<{ url: string; invitationId: string; token: string }> {
-  if (what.areaIds.length === 0) throw new WorkspaceError('Wybierz co najmniej jeden obszar.');
+  if (what.areas.length === 0) throw new WorkspaceError('Wybierz co najmniej jeden obszar.');
+  /* Die stärkste Stufe steht am Link selbst — sie entscheidet, ob der Signierschlüssel mitgeht. */
+  const strongest = highestLevel(what.areas.map((a) => a.capability));
 
   /* Erst prüfen, ob ich überall hineinlassen darf — bevor eine Rolle entsteht, die dann nirgends hinein kann. */
   const issuers = new Map<string, string>();
-  for (const areaId of what.areaIds) {
+  for (const { areaId } of what.areas) {
     const issuer = await issuerIn(ring, areaId);
     if (issuer === null) throw new WorkspaceError('W jednym z wybranych obszarów nie możesz nikogo wpuścić.');
     issuers.set(areaId, issuer);
@@ -202,10 +204,10 @@ export async function createLink(
   const label = what.label.trim() === '' ? 'Link' : what.label.trim();
   const role = await createRoleWithKeys(ring, holder, { kind: 'role', name: `Link: ${label}` });
 
-  for (const areaId of what.areaIds) {
+  for (const { areaId, capability } of what.areas) {
     progress('Otwieranie obszarów dla linku…');
     await joinArea(ring, areaId, { id: role.id, kind: 'role', wrapPublicKey: role.wrapPublicKey },
-      issuers.get(areaId)!, what.capability);
+      issuers.get(areaId)!, capability);
   }
 
   progress('Pieczętowanie linku…');
@@ -215,7 +217,7 @@ export async function createLink(
   const sealed = await seal(sealKey, keysAad(invitationId), new TextEncoder().encode(JSON.stringify({
     roleKey: toBase64Url(role.roleKey),
     /* Den Signierschlüssel nur, wenn der Link „prowadzi" — sonst verlässt er diesen Browser nicht. */
-    signKey: what.capability === 'admin' ? toBase64Url(role.signKey) : null
+    signKey: strongest === 'admin' ? toBase64Url(role.signKey) : null
   })));
 
   const tokenSealed = await seal(role.roleKey, tokenAad(invitationId), new TextEncoder().encode(token));
@@ -231,7 +233,7 @@ export async function createLink(
       label,
       maxUses: what.once ? 1 : what.maxUses ?? null,
       expiresDays: what.expiresDays,
-      capability: what.capability,
+      capability: strongest,
       aim: what.aim ?? null
     })
   });
@@ -280,6 +282,15 @@ export function linkState(row: Pick<LinkRow, 'revokedAt' | 'expiresAt' | 'maxUse
 }
 
 export const LEVEL_WORD: Record<string, string> = { read: 'czyta', write: 'pisze', admin: 'prowadzi' };
+
+const RANK: Record<LinkLevel, number> = { read: 1, write: 2, admin: 3 };
+
+export const highestLevel = (levels: readonly LinkLevel[]): LinkLevel =>
+  levels.reduce<LinkLevel>((best, one) => (RANK[one] > RANK[best] ? one : best), 'read');
+
+/** 0074 — was ein Link gibt, je Bereich: „Oaza — pisze · Rada — czyta". */
+export const accessWords = (areas: readonly LinkArea[]): string =>
+  areas.length === 0 ? 'bez obszarów' : areas.map((a) => `${a.name} — ${LEVEL_WORD[a.capability] ?? a.capability}`).join(' · ');
 
 /* -- Links in diesem Browser (0073) ------------------------------------------------------- */
 
@@ -353,7 +364,7 @@ let keysCache: { stamp: string; keys: Promise<HeldKeys> } | null = null;
  */
 export function heldLinkKeys(): Promise<HeldKeys> {
   const held = heldLinks();
-  const stamp = held.map((h) => h.token).sort().join(',');
+  const stamp = `${linkGeneration()}:${held.map((h) => h.token).sort().join(',')}`;
   if (keysCache !== null && keysCache.stamp === stamp) return keysCache.keys;
   const keys = (async (): Promise<HeldKeys> => {
     if (held.length === 0) return { links: [], areaKeys: new Map() };

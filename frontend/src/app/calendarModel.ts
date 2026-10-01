@@ -51,6 +51,8 @@ export interface CalEvent {
   readonly cancelled: boolean;
 
   readonly item?: OpenedItem;
+  /** 0074 — Teil welches Termins (auf einer Seite, ohne `item`; im Arbeitsplatz steht es am Termin). */
+  readonly program?: ProgramPlace;
   /** 0073 — wohin „Więcej informacji" führt (auf einer Seite, ohne `item`). */
   readonly link?: { readonly url: string; readonly label: string | null };
   readonly claim?: AgendaClaim;
@@ -60,6 +62,56 @@ export interface CalEvent {
 }
 
 /** Welche Tage eine Ansicht zeigt. Das Ende ist ausschliesslich. */
+/** 0074 — wo ein Termin im Programm steht: er selbst, sein Ganzes, seine Stelle. */
+export interface ProgramPlace {
+  readonly itemId: string;
+  readonly parentItemId: string | null;
+  readonly position: number | null;
+}
+
+export const programOf = (e: CalEvent): ProgramPlace | null =>
+  e.program ?? (e.item === undefined ? null : {
+    itemId: e.item.occurrence.itemId,
+    parentItemId: e.item.occurrence.parentItemId ?? null,
+    position: e.item.occurrence.position ?? null
+  });
+
+/**
+ * 0074 — DIE TERMINE EINES TAGES ALS BAUM: jedes Ganze, darunter seine Teile
+ * (nach Stelle, dann Zeit), beliebig tief. Ein Teil, dessen Ganzes an diesem
+ * Tag nicht dasteht, steht für sich. Für Liste und Monat.
+ */
+export function treeOrder(events: readonly CalEvent[]): { event: CalEvent; depth: number; parts: number }[] {
+  const ids = new Set(events.map((e) => programOf(e)?.itemId).filter((id): id is string => id !== undefined));
+  const childrenOf = new Map<string, CalEvent[]>();
+  const roots: CalEvent[] = [];
+  for (const e of events) {
+    const parent = programOf(e)?.parentItemId ?? null;
+    if (parent !== null && ids.has(parent) && parent !== programOf(e)?.itemId) {
+      childrenOf.set(parent, [...(childrenOf.get(parent) ?? []), e]);
+    } else {
+      roots.push(e);
+    }
+  }
+  const byPlace = (a: CalEvent, b: CalEvent) =>
+    ((programOf(a)?.position ?? 1e9) - (programOf(b)?.position ?? 1e9)) || a.start.getTime() - b.start.getTime();
+  const count = (e: CalEvent): number => {
+    const id = programOf(e)?.itemId;
+    return id === undefined ? 0 : (childrenOf.get(id) ?? []).reduce((n, c) => n + 1 + count(c), 0);
+  };
+  const out: { event: CalEvent; depth: number; parts: number }[] = [];
+  const walk = (e: CalEvent, depth: number, seen: Set<string>) => {
+    out.push({ event: e, depth, parts: count(e) });
+    const id = programOf(e)?.itemId;
+    if (id === undefined || seen.has(id)) return;
+    seen.add(id);
+    for (const child of [...(childrenOf.get(id) ?? [])].sort(byPlace)) walk(child, depth + 1, seen);
+  };
+  /* Gleich früh: das längere zuerst — wie im Raster, wo es links steht. */
+  for (const root of [...roots].sort((a, b) => Number(wholeDay(b)) - Number(wholeDay(a)) || a.start.getTime() - b.start.getTime() || b.end.getTime() - a.end.getTime())) walk(root, 0, new Set());
+  return out;
+}
+
 /** Der Link eines Termins — aus dem geöffneten Termin oder vom Baustein mitgegeben. */
 export const linkOfEvent = (e: CalEvent): { url: string; label: string | null } | null =>
   e.link ?? (e.item?.link != null ? { url: e.item.link, label: e.item.linkLabel } : null);
@@ -334,7 +386,17 @@ export interface Placed {
   readonly height: number;
   readonly column: number;
   readonly columns: number;
+  /** 0074 — Lage als Anteil der Tagesbreite (0…1); Teile stehen IN ihrem Ganzen, eingerückt. */
+  readonly x: number;
+  readonly w: number;
+  /** 0 — ein Termin für sich; 1 — ein Teil; 2 — ein Teil eines Teils … */
+  readonly depth: number;
+  /** Stehen Teile in ihm? Dann trägt er Zeit und Titel in EINER Kopfzeile. */
+  readonly nested: boolean;
 }
+
+/** Wie weit ein Teil in seinem Ganzen eingerückt ist — als Anteil der Breite des Ganzen. */
+const PART_INSET = 0.12;
 
 /**
  * WER NEBEN WEM STEHT. Termine eines Tages, die sich überschneiden, bilden
@@ -342,7 +404,7 @@ export interface Placed {
  * der gerade nichts ist. So bleibt jeder lesbar, und keiner liegt über dem
  * anderen — wie in jedem Kalender, den man kennt.
  */
-export function placeDay(events: readonly CalEvent[], day: Date): Placed[] {
+export function placeDay(events: readonly CalEvent[], day: Date, headerMinutes = 0): Placed[] {
   const from = startOfDay(day).getTime();
   const to = addDays(startOfDay(day), 1).getTime();
 
@@ -355,31 +417,69 @@ export function placeDay(events: readonly CalEvent[], day: Date): Placed[] {
     })
     .sort((a, b) => a.top - b.top || b.bottom - a.bottom);
 
-  const placed: Placed[] = [];
-  let group: { top: number; bottom: number; column: number }[] = [];
-  let groupEnd = -1;
+  /*
+   * 0074 — TEILE STEHEN IN IHREM GANZEN. Ein Termin, dessen Ganzes an diesem
+   * Tag dasteht und dessen Zeit es berührt, bekommt keine eigene Spalte neben
+   * ihm, sondern steht eingerückt darin — und seine Teile wieder in ihm.
+   */
+  type Timed = (typeof timed)[number];
+  const byItem = new Map<string, Timed>();
+  for (const one of timed) {
+    const id = programOf(one.event)?.itemId;
+    if (id !== undefined && !byItem.has(id)) byItem.set(id, one);
+  }
+  const parentOf = (one: Timed): Timed | null => {
+    const place = programOf(one.event);
+    const parent = place?.parentItemId == null ? undefined : byItem.get(place.parentItemId);
+    if (parent === undefined || parent === one) return null;
+    return parent.top < one.bottom && one.top < parent.bottom ? parent : null;
+  };
+  const children = new Map<Timed, Timed[]>();
+  const roots: Timed[] = [];
+  for (const one of timed) {
+    const parent = parentOf(one);
+    if (parent === null) roots.push(one);
+    else children.set(parent, [...(children.get(parent) ?? []), one]);
+  }
 
-  const flush = () => {
-    const columns = Math.max(1, ...group.map((g) => g.column + 1));
-    for (let i = placed.length - group.length; i < placed.length; i++) {
-      placed[i] = { ...placed[i], columns };
+  const placed: Placed[] = [];
+
+  /** Geschwister nebeneinander, wo sie sich überschneiden — in der Breite `w0` ab `x0`. */
+  const layout = (siblings: readonly Timed[], x0: number, w0: number, depth: number, floor: number, seen: Set<Timed>) => {
+    const list = [...siblings].sort((a, b) => a.top - b.top || b.bottom - a.bottom);
+    let group: { one: Timed; top: number; bottom: number; column: number }[] = [];
+    let groupEnd = -1;
+
+    const flush = () => {
+      const columns = Math.max(1, ...group.map((g) => g.column + 1));
+      for (const g of group) {
+        const x = x0 + (w0 * g.column) / columns;
+        const w = w0 / columns;
+        /* Ein Teil, das mit seinem Ganzen beginnt, rückt unter dessen Kopfzeile. */
+        const top = Math.max(g.top, Math.min(floor, g.bottom - 15));
+        const inner = children.get(g.one) ?? [];
+        placed.push({ event: g.one.event, top, height: g.bottom - top, column: g.column, columns, x, w, depth, nested: inner.length > 0 });
+        if (inner.length > 0 && !seen.has(g.one)) {
+          seen.add(g.one);
+          const inset = w * PART_INSET;
+          layout(inner, x + inset, w - inset, depth + 1, top + headerMinutes, seen);
+        }
+      }
+      group = [];
+    };
+
+    for (const one of list) {
+      if (one.top >= groupEnd && group.length > 0) flush();
+      if (group.length === 0) groupEnd = one.bottom;
+      const taken = new Set(group.filter((g) => g.bottom > one.top).map((g) => g.column));
+      let column = 0;
+      while (taken.has(column)) column++;
+      group.push({ one, top: one.top, bottom: one.bottom, column });
+      groupEnd = Math.max(groupEnd, one.bottom);
     }
-    group = [];
+    if (group.length > 0) flush();
   };
 
-  for (const one of timed) {
-    if (one.top >= groupEnd && group.length > 0) flush();
-    if (group.length === 0) groupEnd = one.bottom;
-
-    const taken = new Set(group.filter((g) => g.bottom > one.top).map((g) => g.column));
-    let column = 0;
-    while (taken.has(column)) column++;
-
-    group.push({ top: one.top, bottom: one.bottom, column });
-    groupEnd = Math.max(groupEnd, one.bottom);
-    placed.push({ event: one.event, top: one.top, height: one.bottom - one.top, column, columns: 1 });
-  }
-  if (group.length > 0) flush();
-
+  layout(roots, 0, 1, 0, -Infinity, new Set());
   return placed;
 }

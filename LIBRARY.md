@@ -85,26 +85,26 @@ The library is meant to work with real shelves:
 The usual way of collecting quotes:
 1. Read and mark passages in pencil.
 2. After a few pages, photograph the marked pages.
-3. An AI transcribes them.
-4. The quotes come in as JSON, all bound to that book.
+3. Give the photos and the prompt to your own AI chat (ChatGPT, Claude, Gemini…). It transcribes them as JSON.
+4. Import that JSON. All the quotes are bound to that book.
+
+The app calls no AI and uploads no photos. Only the JSON comes in.
 
 `QuoteIntake.tsx` sits under a work's fields as "Cytaty z tej książki" (quotes from this book). It has three parts:
 
 - **The list**, sorted by page.
 - **Quick add**: text and page; the page stays for the next quote.
-- **"Dodaj ze zdjęć (AI)"** (add from photos):
-  1. Take or choose photos. Choose what counts as a quote: pencil-marked passages, or the whole text of each photo.
-  2. Read them in one of two ways:
-     - **Here.** `libraryAi.ts` sends the photos straight from the browser to Anthropic with the user's own API key. The key is kept in the sealed remembered state (`prefs.ts`). The service never sees photos or text, and a tool schema forces JSON back.
-     - **In any chat.** Copy the prompt (`quotesPrompt`) and give it to ChatGPT, Claude or Gemini with the photos, then paste the JSON back.
-  3. Review each quote next to its photo:
+- **"Import cytatów z JSON"** (import quotes from JSON):
+  1. Choose what counts as a quote: pencil-marked passages, or the whole text of each photo. Copy the prompt (`quotesPrompt`). It names the book, explains the transcription rules and carries the JSON format.
+  2. Paste the AI's answer, or load it as a file.
+  3. Review each quote:
      - Uncertain readings are marked "do sprawdzenia" (to check).
      - Quotes already in the book are unchecked.
      - Page ranges become `s. 23–24`.
      - New topic names can become topics.
   4. Save them all at once.
 
-The format is `recreatio/quotes` (`libraryQuotes.ts`). Its description is generated from the `quote` kind's fields plus `page`, `uncertain`, `photo` and `id`, and is shown beside the paste box. "Eksportuj cytaty tej książki" (export this book's quotes) writes the same format with ids. Re-importing it changes those quotes in place.
+The format is `recreatio/quotes` (`libraryQuotes.ts`). Its description is generated from the `quote` kind's fields plus `page`, `uncertain` and `id`, and is shown beside the paste box. "Eksportuj cytaty tej książki" (export this book's quotes) writes the same format with ids. Re-importing it changes those quotes in place.
 
 ## Printing: LaTeX
 

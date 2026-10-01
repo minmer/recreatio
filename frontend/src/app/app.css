@@ -6895,30 +6895,14 @@ h5.lib-h { font-size: 1rem; font-style: italic; }
 .lib-intake-step { display: grid; gap: 0.55rem; padding-top: 0.8rem; border-top: 1px dashed var(--wk-line); min-width: 0; }
 .lib-intake-step .wk-json-h { margin: 0; }
 
-.lib-photos { list-style: none; margin: 0; padding: 0.4rem 0 0; display: flex; flex-wrap: wrap; gap: 0.6rem; }
-.lib-photos li { position: relative; }
-.lib-photo { position: relative; display: block; width: 5.5rem; height: 7rem; padding: 0; border: 1px solid var(--wk-line); border-radius: 4px; overflow: hidden; background: var(--wk-soft); cursor: zoom-in; }
-.lib-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.lib-photo.is-small { width: 3.6rem; height: 4.6rem; flex: none; }
-.lib-photo:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
-.lib-photo-n { position: absolute; left: 0.25rem; top: 0.25rem; min-width: 1.3rem; padding: 0 0.3rem; border-radius: 999px; background: rgba(0, 0, 0, 0.66); color: #fff; font: 600 0.72rem/1.3rem system-ui, sans-serif; text-align: center; }
-.lib-photo-x { position: absolute; right: -0.45rem; top: -0.45rem; width: 1.5rem; height: 1.5rem; padding: 0; border: 1px solid var(--wk-line); border-radius: 50%; background: var(--wk-surface); color: var(--wk-ink); line-height: 1; cursor: pointer; }
-.lib-photo-x:hover { color: var(--wk-danger); border-color: var(--wk-danger); }
-.lib-photo-big { display: block; max-width: 100%; max-height: 75vh; margin: 0 auto; }
 
 .lib-mode { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; }
 .lib-mode legend { padding: 0; margin-bottom: 0.25rem; font-size: 0.84rem; color: var(--wk-muted); }
 
-.lib-intake-ways { display: grid; gap: 0.7rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
-.lib-intake-way { display: grid; gap: 0.45rem; align-content: start; padding: 0.7rem 0.8rem; border: 1px solid var(--wk-line); border-radius: 5px; background: var(--wk-soft); }
-.lib-intake-way .wk-actions { margin: 0; }
-.lib-ai-settings { display: grid; gap: 0.5rem 0.8rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); padding: 0.7rem 0.8rem; border: 1px solid var(--wk-line); border-radius: 5px; }
-.lib-ai-settings .wk-field { margin: 0; }
-.lib-ai-settings .wk-hint { grid-column: 1 / -1; }
 .lib-prompt { max-height: 18rem; }
 
 .lib-review { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
-.lib-review > li { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 0.6rem; align-items: start; padding: 0.65rem; border: 1px solid var(--wk-line); border-radius: 5px; background: var(--wk-surface); }
+.lib-review > li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.6rem; align-items: start; padding: 0.65rem; border: 1px solid var(--wk-line); border-radius: 5px; background: var(--wk-surface); }
 .lib-review > li.is-off { opacity: 0.55; }
 .lib-review > li.is-unsure { border-left: 3px solid var(--wk-accent); }
 .lib-review-keep { padding-top: 0.3rem; }
@@ -6940,8 +6924,6 @@ h5.lib-h { font-size: 1rem; font-style: italic; }
 @media (max-width: 36rem) {
   .lib-scan-btn { flex: 1 1 auto; justify-content: center; }
   .lib-quick-quote { grid-template-columns: minmax(0, 1fr); }
-  .lib-review > li { grid-template-columns: auto minmax(0, 1fr); }
-  .lib-review-body { grid-column: 1 / -1; }
   .lib-intake { padding: 0.75rem; }
 }
 
@@ -6984,3 +6966,36 @@ h5.lib-h { font-size: 1rem; font-style: italic; }
 .wk-ev-link .wk-field input { width: 100%; box-sizing: border-box; }
 .wk-ev-link .wk-warn, .wk-ev-link .wk-hint { grid-column: 1 / -1; margin: 0; }
 @media (max-width: 36rem) { .wk-ev-link { grid-template-columns: minmax(0, 1fr); } }
+
+/* -- 0074: Teile in ihrem Ganzen; Zugang je Bereich ------------------------------------------- */
+
+/* Im Raster steht ein Teil IN seinem Ganzen: etwas dunkler, mit einem Rand zur Fläche des Ganzen. */
+.wk-cal2-col .wk-ev.is-part {
+  background: hsl(var(--ev-h, 30) var(--ev-s) calc(var(--ev-bg-l) - 6%));
+  box-shadow: 0 0 0 1px var(--wk-surface), 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+/* Ein Ganzes mit Teilen trägt Zeit und Titel in EINER Kopfzeile — darunter stehen die Teile. */
+.wk-cal2-col .wk-ev.has-parts { flex-direction: column; }
+.wk-cal2-col .wk-ev.has-parts .wk-ev-line { width: 100%; }
+.wk-ev-title.is-head { flex: 1 1 auto; white-space: nowrap; font-weight: 600; }
+
+/* In der Liste: eingerückt unter dem Ganzen, mit einem Haken. */
+.wk-cal2-listrow.is-part { padding-left: calc(var(--depth, 1) * 1.1rem); }
+.wk-cal2-partmark { color: var(--wk-muted); font-size: 0.85rem; margin-right: -0.2rem; }
+
+/* Im Monat: die Teile als Zahl am Ganzen. */
+.wk-ev-parts {
+  flex: none; margin-left: auto; padding: 0 0.3rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700;
+  background: hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l)); color: var(--wk-surface);
+}
+
+.wk-ev-program .wk-field { margin: 0 0 0.4rem; }
+.wk-ev-program-add { align-items: center; margin: 0.3rem 0 0; }
+.wk-ev-program-add select { font: inherit; padding: 0.3rem 0.45rem; border: 1px solid var(--wk-line); border-radius: 4px; background: var(--wk-surface); color: var(--wk-ink); max-width: 100%; }
+
+/* Ein Link: je Bereich seine Stufe. */
+.wk-link-levels ul { list-style: none; margin: 0.2rem 0 0; padding: 0; display: grid; gap: 0.45rem; }
+.wk-link-levels li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; padding: 0.45rem 0.6rem; border: 1px solid var(--wk-line); border-radius: 5px; }
+.wk-link-levels li strong { flex: 1 1 10rem; min-width: 0; overflow-wrap: anywhere; }
+.wk-link-levels li .wk-hint { flex: 1 1 100%; margin: 0; }
+.wk-link-access { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }

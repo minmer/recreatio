@@ -34,7 +34,7 @@ import {
   holderName, loadBookings, NO_BOOKINGS, waitingOn, waitsForOffice, type AgendaBookings
 } from './calendarBookings';
 import {
-  buildEvents, hueOf, linkOfEvent, marksOn, onDay as happensOn, placeDay, railDay, stepView, taskMarks, viewRange, wholeDay,
+  buildEvents, hueOf, linkOfEvent, marksOn, treeOrder, onDay as happensOn, placeDay, railDay, stepView, taskMarks, viewRange, wholeDay,
   type CalEvent, type CalView, type TaskMark
 } from './calendarModel';
 import { addDays, keyOf, longDate, monthTitle, rangeTitle, sameDay, sameMonth, startOfDay, WEEK_HEADS } from './dayMath';
@@ -61,6 +61,9 @@ const VIEWS: readonly { value: CalView; label: string }[] = [
 
 /** Wie hoch eine Stunde im Raster ist. */
 const HOUR = 48;
+
+/** 0074 — die Kopfzeile eines Termins mit Teilen, in Minuten des Rasters: so weit rücken seine Teile, die mit ihm beginnen, nach unten. */
+const PART_HEAD = (20 / HOUR) * 60;
 
 /** Wie breit die Schiene der Aufgaben am Rand eines Tages ist. */
 const RAIL = 13;
@@ -97,9 +100,15 @@ interface Loaded {
 export function Calendar({ me, scope }: { me: Me; scope?: readonly string[] }) {
   const scoped = scope !== undefined;
   const [viewText, setViewText] = useRemembered(scoped ? 'calendar.part.view' : 'calendar.view', 'week');
-  const [hiddenText, setHiddenText] = useRemembered('calendar.hiddenCals', '');
+  /*
+   * 0074 — WAS AUSGEBLENDET IST, GILT NUR HIER. Ein Baustein auf einer Seite
+   * merkt sich seine eigene Auswahl (je Satz Kalender): wer im Arbeitsplatz
+   * einen Kalender abwählt, soll ihn auf der Seite der Gruppe nicht verlieren.
+   */
+  const scopeKey = scoped ? [...scope].map((id) => id.slice(0, 8)).sort().join('.') : '';
+  const [hiddenText, setHiddenText] = useRemembered(scoped ? `calendar.part.hidden.${scopeKey}` : 'calendar.hiddenCals', '');
   const [tasksText, setTasksText] = useRemembered('calendar.tasks', 'on');
-  const [mineText, setMineText] = useRemembered('calendar.mine', 'off');
+  const [mineText, setMineText] = useRemembered(scoped ? `calendar.part.mine.${scopeKey}` : 'calendar.mine', 'off');
   const view: CalView = (['day', 'week', 'month', 'list'] as const).includes(viewText as CalView) ? viewText as CalView : 'week';
   const hidden = new Set(hiddenText.split(',').filter((one) => one !== ''));
   const tasksShown = tasksText !== 'off' && !scoped;
@@ -244,7 +253,8 @@ export function Calendar({ me, scope }: { me: Me; scope?: readonly string[] }) {
               Do potwierdzenia <span className="wk-cal2-count">{waiting}</span>
             </button>
           )}
-          {shownCalendars.length > 1 && shownCalendars.map((g) => (
+          {/* Auch ein einzelner Kalender bekommt seinen Knopf, wenn er abgewählt ist — sonst käme man nicht mehr an ihn heran. */}
+          {(shownCalendars.length > 1 || shownCalendars.some((g) => hidden.has(g.calendarId))) && shownCalendars.map((g) => (
             <button key={g.calendarId} type="button" className={`wk-cal2-group${hidden.has(g.calendarId) ? ' is-off' : ''}`}
               aria-pressed={!hidden.has(g.calendarId)} style={{ '--ev-h': hueOf(g.calendarId) } as CSSProperties}
               onClick={() => toggleCalendar(g.calendarId)}>
@@ -476,24 +486,27 @@ export function TimeGrid({ days, events, marks, now, onDay, onSlot, onOpen, onTa
               onClick={(e) => { if (e.target === e.currentTarget) slotFrom(day, e); }}>
               {rail > 0 && <Rail marks={marks} day={day} onOpen={() => onTasks(day)} />}
 
-              {placeDay(events, day).map((p) => {
+              {placeDay(events, day, PART_HEAD).map((p) => {
                 const who = whoIsOn(p.event);
                 return (
-                  <button key={p.event.key} type="button" className={`${chipClass(p.event)}${p.height < 45 ? ' is-short' : ''}`}
+                  <button key={p.event.key} type="button"
+                    className={`${chipClass(p.event)}${p.height < 45 ? ' is-short' : ''}${p.depth > 0 ? ' is-part' : ''}${p.nested ? ' has-parts' : ''}`}
                     style={{
                       '--ev-h': hueOfEvent(p.event),
                       top: `${(p.top / 60) * HOUR}px`,
                       height: `${Math.max((p.height / 60) * HOUR - 2, 18)}px`,
-                      left: `calc(var(--rail) + (100% - var(--rail)) * ${p.column / p.columns} + 2px)`,
-                      width: `calc((100% - var(--rail)) / ${p.columns} - 4px)`
+                      left: `calc(var(--rail) + (100% - var(--rail)) * ${p.x} + 2px)`,
+                      width: `calc((100% - var(--rail)) * ${p.w} - 4px)`,
+                      zIndex: 1 + p.depth
                     } as CSSProperties}
                     title={hint(p.event, areas)}
                     onClick={() => onOpen(p.event)}>
                     <span className="wk-ev-line">
                       <span className="wk-ev-time">{time(p.event.start)}</span>
+                      {p.nested && <span className="wk-ev-title is-head">{p.event.title}</span>}
                       <Badges event={p.event} />
                     </span>
-                    <span className="wk-ev-title">{p.event.title}</span>
+                    {!p.nested && <span className="wk-ev-title">{p.event.title}</span>}
                     {who !== null && p.height >= 60 && <span className="wk-ev-sub">{who}</span>}
                   </button>
                 );
@@ -556,7 +569,8 @@ export function MonthGrid({ anchor, from, events, marks, now, onDay, onSlot, onO
     <div className={`wk-cal2-month${readOnly ? ' is-readonly' : ''}`}>
       {WEEK_HEADS.map((head) => <span key={head} className="wk-mass-month-dow" aria-hidden="true">{head}</span>)}
       {days.map((day) => {
-        const mine = events.filter((e) => happensOn(e, day)).sort((a, b) => Number(wholeDay(b)) - Number(wholeDay(a)));
+        /* 0074 — Teile stehen im Monat nicht einzeln: ihr Ganzes sagt, wie viele es hat. */
+        const mine = treeOrder(events.filter((e) => happensOn(e, day))).filter((t) => t.depth === 0);
         return (
           <div key={keyOf(day)}
             className={`wk-cal2-cell${sameMonth(day, anchor) ? '' : ' is-out'}${sameDay(day, now) ? ' is-today' : ''}`}
@@ -565,11 +579,12 @@ export function MonthGrid({ anchor, from, events, marks, now, onDay, onSlot, onO
               <button type="button" className="wk-cal2-cellday" aria-label={longDate(day)} onClick={() => onDay(day)}>{day.getDate()}</button>
               <TaskPill marks={marksOn(marks, day)} onOpen={() => onTasks(day)} mini />
             </span>
-            {mine.slice(0, SHOWN).map((e) => (
+            {mine.slice(0, SHOWN).map(({ event: e, parts }) => (
               <button key={e.key} type="button" className={`${chipClass(e)} is-line`} style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}
-                title={e.title} onClick={() => onOpen(e)}>
+                title={parts > 0 ? `${e.title} — punkty programu: ${parts}` : e.title} onClick={() => onOpen(e)}>
                 {!wholeDay(e) && <span className="wk-ev-time">{time(e.start)}</span>}
                 <span className="wk-ev-title">{e.title}</span>
+                {parts > 0 && <span className="wk-ev-parts">+{parts}</span>}
                 <Badges event={e} />
               </button>
             ))}
@@ -617,8 +632,9 @@ export function ListView({ from, events, marks, now, areas, onOpen, onTasks }: {
             <h3 className="wk-mass-day-name">{longDate(day)}</h3>
             <TaskPill marks={tasks} onOpen={() => onTasks(day)} />
           </div>
-          {list.map((e) => (
-            <div key={e.key} className="wk-cal2-listrow" style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}>
+          {treeOrder(list).map(({ event: e, depth }) => (
+            <div key={e.key} className={`wk-cal2-listrow${depth > 0 ? ' is-part' : ''}`} style={{ '--ev-h': hueOfEvent(e), '--depth': depth } as CSSProperties}>
+              {depth > 0 && <span className="wk-cal2-partmark" aria-hidden="true">↳</span>}
               <span className="wk-cal2-dot" aria-hidden="true" />
               <span className="wk-cal2-listtime">{wholeDay(e) ? 'cały dzień' : `${time(e.start)}–${time(e.end)}`}</span>
               <button type="button" className={`wk-link-btn wk-cal2-listtitle${e.cancelled ? ' is-cancelled' : ''}`} onClick={() => onOpen(e)}>

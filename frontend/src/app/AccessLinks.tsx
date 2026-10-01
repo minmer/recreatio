@@ -22,7 +22,7 @@ import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
 import {
-  aimOf, createLink, heldLinkKeys, linkState, linkUrl, linkUrlOf, loadLinks, revokeLink, setLinkAim, LEVEL_WORD, LINK_LEVELS,
+  accessWords, aimOf, createLink, heldLinkKeys, linkState, linkUrl, linkUrlOf, loadLinks, revokeLink, setLinkAim, LINK_LEVELS,
   type HeldInfo, type LinkLevel, type LinkRow
 } from './linkAccess';
 import { forgetLink } from './linkKeep';
@@ -200,15 +200,16 @@ function NewLink({ ring, self, areas, focusAreaId, busy, onCreate }: {
   areas: readonly AreaRow[];
   focusAreaId?: string;
   busy: boolean;
-  onCreate: (what: { label: string; areaIds: string[]; capability: LinkLevel; once: boolean; expiresDays: number; aim: string | null }) => Promise<void>;
+  onCreate: (what: { label: string; areas: { areaId: string; capability: LinkLevel }[]; once: boolean; expiresDays: number; aim: string | null }) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
-  const [level, setLevel] = useState<LinkLevel>('read');
   const [once, setOnce] = useState(true);
   const [days, setDays] = useState(30);
   const [aimText, setAimText] = useState('');
-  const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set(focusAreaId === undefined ? [] : [focusAreaId]));
+  /* 0074 — je gewähltem Bereich seine Stufe; gewählt ist, was hier steht. */
+  const [levels, setLevels] = useState<ReadonlyMap<string, LinkLevel>>(() => new Map(focusAreaId === undefined ? [] : [[focusAreaId, 'read']]));
+  const picked = useMemo(() => new Set(levels.keys()), [levels]);
   const choices = useAimChoices(picked);
   const aim = aimOf(aimText);
 
@@ -235,7 +236,7 @@ function NewLink({ ring, self, areas, focusAreaId, busy, onCreate }: {
     <form className="wk-form wk-add-role" onSubmit={(e) => {
       e.preventDefault();
       if (blocker !== null || 'error' in aim) return;
-      void onCreate({ label, areaIds: [...picked], capability: level, once, expiresDays: days, aim: aim.aim }).then(() => {
+      void onCreate({ label, areas: [...levels].map(([areaId, capability]) => ({ areaId, capability })), once, expiresDays: days, aim: aim.aim }).then(() => {
         setOpen(false);
         setLabel('');
         setAimText('');
@@ -253,9 +254,9 @@ function NewLink({ ring, self, areas, focusAreaId, busy, onCreate }: {
         <legend>Obszary</legend>
         {possible.map((a) => (
           <label key={a.areaId} className="wk-check">
-            <input type="checkbox" checked={picked.has(a.areaId)} onChange={(e) => setPicked((was) => {
-              const next = new Set(was);
-              if (e.target.checked) next.add(a.areaId); else next.delete(a.areaId);
+            <input type="checkbox" checked={picked.has(a.areaId)} onChange={(e) => setLevels((was) => {
+              const next = new Map(was);
+              if (e.target.checked) next.set(a.areaId, 'read'); else next.delete(a.areaId);
               return next;
             })} />
             <span>{a.name}</span>
@@ -263,12 +264,21 @@ function NewLink({ ring, self, areas, focusAreaId, busy, onCreate }: {
         ))}
       </fieldset>
 
-      <div className="wk-field">
-        <span>Co może</span>
-        <Segment now={level} busy={busy} onPick={setLevel}
-          options={LINK_LEVELS.map((l) => ({ value: l.value, label: l.label }))} />
-        <span className="wk-hint">{LINK_LEVELS.find((l) => l.value === level)?.says}.</span>
-      </div>
+      {levels.size > 0 && (
+        <div className="wk-field wk-link-levels">
+          <span>Co może — w każdym obszarze osobno</span>
+          <ul>
+            {[...levels].map(([areaId, level]) => (
+              <li key={areaId}>
+                <strong>{possible.find((a) => a.areaId === areaId)?.name ?? 'obszar'}</strong>
+                <Segment now={level} busy={busy} onPick={(next: LinkLevel) => setLevels((was) => new Map(was).set(areaId, next))}
+                  options={LINK_LEVELS.map((l) => ({ value: l.value, label: l.label }))} />
+                <span className="wk-hint">{LINK_LEVELS.find((l) => l.value === level)?.says}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <AimField value={aimText} onChange={setAimText} choices={choices} />
 
@@ -340,11 +350,10 @@ function LinkItem({ row, ring, busy, shown, onShow, onHide, onAim, onRevoke }: {
     <li className="wk-link-item">
       <div className="wk-link-head">
         <strong>{row.label ?? 'Link'}</strong>
-        <span className="wk-tag">{LEVEL_WORD[row.capability ?? 'read'] ?? row.capability}</span>
         <span className={state === 'działa' ? 'wk-tag wk-tag-open' : 'wk-tag'}>{state}</span>
       </div>
       <p className="wk-hint">
-        {row.areas.map((a) => a.name).join(' · ') || 'bez obszarów'}
+        {accessWords(row.areas)}
         {' · '}{row.maxUses === 1 ? 'jednorazowy' : row.maxUses === null ? 'wielokrotny' : `do ${row.maxUses} osób`}
         {' · '}użyty {row.used}×{active > 0 ? `, ${active} z dostępem` : ''}
         {' · '}ważny do {new Date(row.expiresAt).toLocaleDateString('pl-PL')}

@@ -2,17 +2,17 @@
  * DIE ZITATE EINES BUCHES — wie sie aus dem Lesen in die Bibliothek kommen.
  *
  * <b>Der gewöhnliche Weg:</b> lesen, mit dem Bleistift anstreichen, nach
- * ein paar Seiten die angestrichenen Seiten fotografieren. Eine KI liest die
- * Fotos und schreibt die Zitate als JSON — entweder gleich hier (mit eigenem
- * Schlüssel, `libraryAi.ts`) oder in einem beliebigen Chat, dem man das
- * Polecenie (`quotesPrompt`) und die Fotos gibt. Das JSON kommt auf der Seite
+ * ein paar Seiten die angestrichenen Seiten fotografieren. Die Fotos und das
+ * Polecenie (`quotesPrompt`) gehen in den eigenen Chat mit einer KI — HIER
+ * wird keine KI aufgerufen (auf Wunsch, 2026-10-02: „ich mache das selbst im
+ * Chat, am Ende wird nur das JSON importiert"). Das JSON kommt auf der Seite
  * des Buches herein; jedes Zitat lässt sich vor dem Speichern prüfen, ändern
  * oder abwählen.
  *
  * <code>
  *   { "format": "recreatio/quotes", "version": 1,
  *     "work": { "key", "title", "isbn" },
- *     "quotes": [ { "text", "page", "description", "topics", "notes", "uncertain", "photo" } ] }
+ *     "quotes": [ { "text", "page", "description", "topics", "notes", "uncertain" } ] }
  * </code>
  *
  * Alle Zitate gehören dem Buch, auf dessen Seite importiert wird — das
@@ -52,8 +52,6 @@ export interface QuoteItem {
   readonly notes: string;
   /** Die KI war sich nicht sicher — Wort, Seite oder Grenze des Anstrichs. */
   readonly uncertain: boolean;
-  /** Von welchem Foto (ab 1). */
-  readonly photo?: number;
   /** Wird gespeichert. */
   readonly keep: boolean;
   /** Dasselbe Zitat steht schon im Buch. */
@@ -160,7 +158,6 @@ export function planQuotes(doc: unknown, work: LibEntry, base: QuoteBase): Quote
     const key = quoteKey(text);
     const duplicateOf = update === undefined ? seen.get(key) : undefined;
     if (update === undefined && duplicateOf === undefined) seen.set(key, `doc:${index}`);
-    const photo = typeof raw.photo === 'number' && Number.isInteger(raw.photo) && raw.photo > 0 ? raw.photo : undefined;
     items.push({
       n: index,
       ...(update === undefined ? {} : { id: update.id }),
@@ -172,7 +169,6 @@ export function planQuotes(doc: unknown, work: LibEntry, base: QuoteBase): Quote
       translation: line(raw.translation),
       notes: line(raw.notes),
       uncertain: raw.uncertain === true,
-      ...(photo === undefined ? {} : { photo }),
       keep: duplicateOf === undefined,
       ...(duplicateOf === undefined ? {} : { duplicateOf })
     });
@@ -284,7 +280,6 @@ const workSummary = (work: LibEntry): Record<string, string> => {
 const EXTRA_SAYS: readonly [string, string][] = [
   ['page', 'Strona, np. "23" albo "23–24" — zamiast "locator" (staje się „s. 23”)'],
   ['uncertain', 'true, gdy odczyt słowa, strona albo granica zaznaczenia jest niepewna (do sprawdzenia przed zapisem)'],
-  ['photo', 'Numer zdjęcia (1, 2, …), na którym jest ten fragment'],
   ['id', 'Tylko przy poprawianiu wyeksportowanych cytatów: ich "id" — wtedy cytat jest zmieniany, nie dodawany']
 ];
 
@@ -313,7 +308,7 @@ export function quotesDescription(work: LibEntry): string {
 
 Co robi import (na stronie książki „${summary.title}”):
 - Każdy cytat staje się wpisem „Cytat” z tą książką jako źródłem; klucz cytowania nadaje się sam (${work.key ?? 'klucz'}-1, ${work.key ?? 'klucz'}-2, …).
-- Przed zapisem widać listę: każdy cytat można poprawić, odznaczyć, sprawdzić ze zdjęciem.
+- Przed zapisem widać listę: każdy cytat można poprawić albo odznaczyć.
 - Cytat, który już jest w tej książce (ten sam tekst), jest odznaczony. Cytat z "id" z eksportu jest zmieniany w miejscu.
 - Nic nie jest usuwane ani publikowane.
 Zwróć JEDEN obiekt JSON, bez komentarzy.
@@ -340,11 +335,10 @@ export type MarkMode = 'marked' | 'whole';
 const bookLineFor = (work: LibEntry, look: Lookup): string => segText(citeSegs(work, '', look, newCiteState())) || str(work.data, 'title');
 
 /**
- * Das Polecenie für die KI: was auf den Fotos zu lesen ist und wie. Mit
- * `withFormat` hängt die Beschreibung des JSON daran (für einen fremden
- * Chat); hier im Haus gibt das Werkzeug die Form vor (`libraryAi.ts`).
+ * Das Polecenie für die KI im eigenen Chat: was auf den Fotos zu lesen ist
+ * und wie — und darunter die Beschreibung des JSON, das zurückkommen soll.
  */
-export function quotesPrompt(work: LibEntry, look: QuoteBase, mode: MarkMode, withFormat: boolean): string {
+export function quotesPrompt(work: LibEntry, look: QuoteBase, mode: MarkMode): string {
   const topics = look.all().filter((e) => e.kind === 'topic').map((e) => str(e.data, 'name')).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pl')).slice(0, 120);
   const what = mode === 'marked'
     ? `Czytelnik zaznaczył w książce ołówkiem fragmenty, które chce zachować: podkreślenia, pionowe kreski albo nawiasy na marginesie, wykrzykniki, haczyki. Przepisz KAŻDY zaznaczony fragment jako osobny cytat. Tekstu niezaznaczonego nie przepisuj.`
@@ -362,36 +356,7 @@ Zasady:
 - Gdy nie masz pewności co do słowa albo granic zaznaczenia: "uncertain": true i krótko w "notes", co sprawdzić.
 - "description": jedno krótkie zdanie po polsku — o czym jest fragment.
 - "topics": 1–3 krótkie tematy${topics.length > 0 ? `; jeśli pasują, użyj istniejących: ${topics.join(', ')}` : ''}.
-- "photo": numer zdjęcia, na którym jest fragment (zdjęcia liczone od 1, w kolejności).
-- Kolejność cytatów: według stron.${withFormat ? `
+- Kolejność cytatów: według stron.
 
-${quotesDescription(work)}` : ''}`;
+${quotesDescription(work)}`;
 }
-
-/** Die Form, die die KI im Haus ausfüllt (Werkzeug mit Schema — so kommt sicher JSON zurück). */
-export const QUOTES_TOOL = {
-  name: 'zapisz_cytaty',
-  description: 'Zapisuje cytaty odczytane ze zdjęć stron książki.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      quotes: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            text: { type: 'string', description: 'Dokładne brzmienie fragmentu' },
-            page: { type: 'string', description: 'Strona, np. "23" albo "23–24"; puste, gdy nie widać' },
-            description: { type: 'string', description: 'Jedno krótkie zdanie — o czym jest fragment' },
-            topics: { type: 'array', items: { type: 'string' }, description: '1–3 tematy' },
-            notes: { type: 'string', description: 'Dopisek czytelnika albo co sprawdzić' },
-            uncertain: { type: 'boolean', description: 'Odczyt albo zaznaczenie niepewne' },
-            photo: { type: 'integer', description: 'Numer zdjęcia, od 1' }
-          },
-          required: ['text']
-        }
-      }
-    },
-    required: ['quotes']
-  }
-} as const;

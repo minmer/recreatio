@@ -74,40 +74,8 @@ public static partial class Calendar
 
         if (!keepParent && body.ParentItemId!.Trim().Length > 0)
         {
-            if (!Guid.TryParse(body.ParentItemId, out var wanted))
-            {
-                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung terminu nadrzędnego.");
-                return null;
-            }
-
-            var area = await AreaOfItemAsync(connection, wanted, ctx.RequestAborted);
-            if (area is null || !await Area.MayAsync(connection, accountId, area.Value, Capability.Write, ctx.RequestAborted))
-            {
-                await Fail(ctx, StatusCodes.Status404NotFound, "Terminu nadrzędnego nie ma — albo nie możesz w nim pisać.");
-                return null;
-            }
-
-            /* Den Weg nach oben gehen: trifft er sich selbst, wäre es ein Kreis; ist er zu lang, ein Irrtum. */
-            Guid? current = wanted;
-            for (var depth = 0; current is not null; depth++)
-            {
-                if (current == itemId)
-                {
-                    await Fail(ctx, StatusCodes.Status409Conflict, "Termin nie może być częścią samego siebie.");
-                    return null;
-                }
-
-                if (depth >= MaxProgramDepth)
-                {
-                    await Fail(ctx, StatusCodes.Status409Conflict, $"Program może mieć najwyżej {MaxProgramDepth} poziomów.");
-                    return null;
-                }
-
-                await using var up = new SqlCommand("SELECT parent_item_id FROM app.calendar_item WHERE id = @id;", connection);
-                up.Parameters.AddWithValue("@id", current.Value);
-                current = await up.ExecuteScalarAsync(ctx.RequestAborted) as Guid?;
-            }
-
+            var wanted = await ParentAllowedAsync(ctx, connection, accountId, itemId, body.ParentItemId);
+            if (wanted is null) return null;
             parent = wanted;
         }
 
@@ -136,6 +104,96 @@ public static partial class Calendar
 
         int? position = body.Position is null ? null : Math.Clamp(body.Position.Value, 0, 100_000);
         return new ProgramLink(keepParent, parent, position, keepChat, chat, topic);
+    }
+
+    /// <summary>
+    /// Darf dieser Termin unter jenen? Das Ganze muss es geben und darin
+    /// geschrieben werden dürfen; der Weg nach oben darf weder sich selbst
+    /// treffen (ein Kreis) noch zu lang werden. <c>null</c>: abgelehnt, die
+    /// Antwort ist geschrieben.
+    /// </summary>
+    private static async Task<Guid?> ParentAllowedAsync(HttpContext ctx, SqlConnection connection, Guid accountId, Guid? itemId, string? text)
+    {
+        if (!Guid.TryParse(text, out var wanted))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung terminu nadrzędnego.");
+            return null;
+        }
+
+        var area = await AreaOfItemAsync(connection, wanted, ctx.RequestAborted);
+        if (area is null || !await Area.MayAsync(connection, accountId, area.Value, Capability.Write, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Terminu nadrzędnego nie ma — albo nie możesz w nim pisać.");
+            return null;
+        }
+
+        Guid? current = wanted;
+        for (var depth = 0; current is not null; depth++)
+        {
+            if (current == itemId)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, "Termin nie może być częścią samego siebie ani swojej części.");
+                return null;
+            }
+
+            if (depth >= MaxProgramDepth)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict, $"Program może mieć najwyżej {MaxProgramDepth} poziomów.");
+                return null;
+            }
+
+            await using var up = new SqlCommand("SELECT parent_item_id FROM app.calendar_item WHERE id = @id;", connection);
+            up.Parameters.AddWithValue("@id", current.Value);
+            current = await up.ExecuteScalarAsync(ctx.RequestAborted) as Guid?;
+        }
+
+        return wanted;
+    }
+
+    public sealed record ProgramMoveRequest(string? ParentItemId, int? Position);
+
+    /// <summary>
+    /// 0074 — EINEN BESTEHENDEN TERMIN EINHÄNGEN (oder lösen): nur sein Ganzes
+    /// und seine Stelle ändern sich, nichts an seinen Feldern — deshalb geht
+    /// das auch vom Ganzen aus („Podłącz istniejący termin"), ohne den Teil zu
+    /// öffnen. Auch eine Messe kann so ein Punkt eines Programms sein.
+    /// <c>parentItemId</c> leer: der Termin steht wieder für sich.
+    /// </summary>
+    private static async Task MoveInProgramAsync(HttpContext ctx, Db db, Guid id, ProgramMoveRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var area = await AreaOfItemAsync(connection, id, ctx.RequestAborted);
+        if (area is null || !await Area.MayAsync(connection, who.Value.AccountId, area.Value, Capability.Write, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego terminu nie ma — albo nie możesz go zmieniać.");
+            return;
+        }
+
+        Guid? parent = null;
+        if (!string.IsNullOrWhiteSpace(body.ParentItemId))
+        {
+            parent = await ParentAllowedAsync(ctx, connection, who.Value.AccountId, id, body.ParentItemId);
+            if (parent is null) return;
+        }
+
+        int? position = parent is null || body.Position is null ? null : Math.Clamp(body.Position.Value, 0, 100_000);
+        await using (var cmd = new SqlCommand("UPDATE app.calendar_item SET parent_item_id = @parent, position = @position WHERE id = @id;", connection))
+        {
+            cmd.Parameters.AddWithValue("@id", id);
+            cmd.Parameters.AddWithValue("@parent", (object?)parent ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@position", (object?)position ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            itemId = Ids.ToText(id),
+            parentItemId = parent is null ? null : Ids.ToText(parent.Value),
+            position
+        });
     }
 
     /// <summary>

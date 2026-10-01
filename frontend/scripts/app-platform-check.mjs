@@ -30,6 +30,7 @@ export { keepLinkFromAddress, linkHref, freshLink } from '${app}linkKeep';
 export { safeLink, itemFieldAad, linkWord, putText, emptyTexts } from '${app}calendar';
 export { latexEscape, textToLatex, projectToLatex, missingKeys } from '${app}libraryLatex';
 export { openProgram, countParts } from '${app}program';
+export { placeDay, treeOrder } from '${app}calendarModel';
 export { titleFrom } from '${app}chatTopics';
 export { sha256Bytes, toBase64Url } from '${app}crypto';
 `);
@@ -207,6 +208,36 @@ try {
   assert.equal(tree.children[1].children[0].itemId, 'a1');
   assert.equal(m.countParts(tree), 4);
   ok('program: parts under their whole, by position then time, any depth');
+
+  /* 0074 — Teile stehen im Raster IN ihrem Ganzen, in Liste und Monat darunter. */
+  const ev = (key, startH, endH, itemId, parentItemId = null, position = null) => ({
+    key, source: 'item', title: key, start: new Date(2026, 9, 10, Math.floor(startH), (startH % 1) * 60), end: new Date(2026, 9, 10, Math.floor(endH), (endH % 1) * 60),
+    allDay: false, areaId: 'a', cancelled: false, program: { itemId, parentItemId, position }
+  });
+  const trip = ev('Wycieczka', 10, 16.5, 'p');
+  const ride = ev('Przejazd', 10, 11, 'c1', 'p');
+  const game = ev('Gra', 11, 12.5, 'c2', 'p');
+  const team = ev('Drużyna', 11.5, 12, 'g1', 'c2');
+  const other = ev('Inny', 10, 11, 'o');
+  const day = new Date(2026, 9, 10);
+  const placed = Object.fromEntries(m.placeDay([trip, ride, game, team, other], day, 25).map((p) => [p.event.key, p]));
+  assert.equal(placed.Wycieczka.depth, 0);
+  assert.ok(placed.Wycieczka.nested && !placed.Inny.nested, 'a parent with parts carries one header line');
+  assert.equal(placed.Wycieczka.columns, 2, 'the unrelated appointment still stands beside it');
+  assert.equal(placed.Przejazd.depth, 1);
+  assert.ok(placed.Przejazd.x > placed.Wycieczka.x && placed.Przejazd.x + placed.Przejazd.w <= placed.Wycieczka.x + placed.Wycieczka.w + 1e-9, 'a part stands inside its whole');
+  assert.equal(placed.Przejazd.top, 10 * 60 + 25, 'a part starting with its whole moves below the header');
+  assert.equal(placed.Gra.top, 11 * 60, 'a later part keeps its time');
+  assert.equal(placed.Przejazd.columns, 1, 'parts that do not overlap share the full inner width');
+  assert.equal(placed.Drużyna.depth, 2, 'a part of a part goes one deeper');
+  assert.ok(placed.Drużyna.x > placed.Gra.x, '… inside its own whole');
+  const list = m.treeOrder([team, game, other, ride, trip]).map((t) => `${'  '.repeat(t.depth)}${t.event.key}`);
+  assert.deepEqual(list, ['Wycieczka', '  Przejazd', '  Gra', '    Drużyna', 'Inny'], 'the list shows each whole with its parts below');
+  assert.equal(m.treeOrder([trip, ride, game, team])[0].parts, 3, 'the month counts all parts of a whole');
+  const lonely = m.treeOrder([ride]);
+  assert.equal(lonely[0].depth, 0, 'a part without its whole that day stands alone');
+  ok('program in the calendar: parts inside their whole (deeper inside deeper), header kept, list as a tree, month counts');
+
 
   assert.equal(m.titleFrom('Trzeba zamówić autokar. Kto się zajmie?'), 'Trzeba zamówić autokar.');
   ok('chat: a task or appointment from a message takes its first sentence as title');

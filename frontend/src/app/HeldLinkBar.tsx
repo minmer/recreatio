@@ -10,7 +10,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { heldLinkKeys, LEVEL_WORD, type HeldInfo } from './linkAccess';
+import { accessWords, heldLinkKeys, type HeldInfo } from './linkAccess';
 import { dismissFresh, forgetLink, freshLink, heldLinks } from './linkKeep';
 import { keysFor } from './ringOf';
 import { whoIsThere, type Who } from './session';
@@ -32,7 +32,7 @@ export function useHeldLinksStamp(): string {
 }
 
 export const describeLink = (info: NonNullable<HeldInfo['info']>): string =>
-  `${LEVEL_WORD[info.capability ?? 'read'] ?? info.capability}: ${info.areas.map((a) => a.name).join(', ') || '—'}`;
+  accessWords(info.areas);
 
 export function HeldLinkBar({ who }: { who?: Who }) {
   const [arrived, setArrived] = useState(freshLink);
@@ -40,11 +40,18 @@ export function HeldLinkBar({ who }: { who?: Who }) {
   /* Auch ein Link, der in einen schon offenen Tab kommt (die Adresse wechselt nur hinter der Raute). */
   useEffect(() => {
     const look = () => { const now = freshLink(); if (now !== null) setArrived((was) => (was?.token === now.token ? was : now)); };
+    /* Weiter weg vom Ziel: die Leiste hat gesagt, was sie zu sagen hatte. */
+    const moved = () => {
+      const now = freshLink();
+      if (now === null) return;
+      if (now.aim !== null && window.location.hash.replace(/^#\/?/, '') !== now.aim) { dismissFresh(); setArrived(null); return; }
+      look();
+    };
     window.addEventListener('recreatio:links-changed', look);
-    window.addEventListener('hashchange', look);
+    window.addEventListener('hashchange', moved);
     return () => {
       window.removeEventListener('recreatio:links-changed', look);
-      window.removeEventListener('hashchange', look);
+      window.removeEventListener('hashchange', moved);
     };
   }, []);
   const [held, setHeld] = useState<HeldInfo | null | undefined>(undefined);

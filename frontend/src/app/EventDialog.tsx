@@ -27,8 +27,8 @@ import {
 } from './agenda';
 import { areaPath, type AreaRow } from './area';
 import { AreaOptions } from './AreaOptions';
-import { CALENDAR_KIND_LABEL, DUTY_LABEL, safeLink, setPeople, type CalendarRow, type Duty } from './calendar';
-import type { CalEvent } from './calendarModel';
+import { CALENDAR_KIND_LABEL, DUTY_LABEL, safeLink, setPeople, setProgramParent, type CalendarRow, type Duty } from './calendar';
+import { programOf, type CalEvent } from './calendarModel';
 import { longDate } from './dayMath';
 import type { Me } from './me';
 import { ItemLink } from './ItemLink';
@@ -97,48 +97,91 @@ export function EventDialog({ me, areas, calendars, scope, target, events, onClo
  * 0070 — DAS PROGRAMM EINES TERMINS: seine Teile (aus den geladenen
  * Terminen), in Reihenfolge — und, wenn er selbst ein Teil ist, sein Ganzes.
  */
-function ProgramOf({ item, events, onAdd, onDetach }: {
-  item: OpenedItem;
+function ProgramOf({ itemId, start, events, parentId, onParent, onAdd, onLink, onUnlink }: {
+  /** `null`: ein neuer Termin — er kann ein Teil werden, aber noch keine haben. */
+  itemId: string | null;
+  start: Date;
   events: readonly CalEvent[];
+  /** Das Ganze, wie es im Formular steht (gespeichert wird mit dem Termin). */
+  parentId: string | null;
+  onParent: (parentId: string | null) => void;
   onAdd?: () => void;
-  onDetach?: () => void;
+  /** 0074 — einen BESTEHENDEN Termin als Punkt einhängen (sofort, ohne ihn zu öffnen). */
+  onLink?: (childItemId: string) => Promise<void>;
+  onUnlink?: (childItemId: string) => Promise<void>;
 }) {
-  const id = item.occurrence.itemId;
-  const seen = new Set<string>();
-  const parts = events
-    .filter((e) => e.item?.occurrence.parentItemId === id)
-    .filter((e) => { const key = e.item!.occurrence.itemId; if (seen.has(key)) return false; seen.add(key); return true; })
-    .sort((a, b) => ((a.item!.occurrence.position ?? 1e9) - (b.item!.occurrence.position ?? 1e9)) || a.start.getTime() - b.start.getTime());
-  const parentId = item.occurrence.parentItemId ?? null;
-  const parent = parentId === null ? undefined : events.find((e) => e.item?.occurrence.itemId === parentId);
+  const [linking, setLinking] = useState(false);
 
-  if (parentId === null && parts.length === 0 && onAdd === undefined) return null;
+  /* Je Termin einmal — eine Reihe steht sonst mit jedem Vorkommen da. */
+  const items = new Map<string, CalEvent>();
+  for (const e of events) {
+    const place = programOf(e);
+    if (place !== null && e.source === 'item' && !items.has(place.itemId)) items.set(place.itemId, e);
+  }
+  const parentOf = (id: string) => (items.get(id) === undefined ? null : programOf(items.get(id)!)?.parentItemId ?? null);
+  const ancestors = new Set<string>();
+  for (let up = parentId, depth = 0; up !== null && depth < 10; up = parentOf(up), depth += 1) ancestors.add(up);
+  const isBelow = (id: string): boolean => {
+    for (let up: string | null = id, depth = 0; up !== null && depth < 10; up = parentOf(up), depth += 1) if (up === itemId) return true;
+    return false;
+  };
+
+  const parts = itemId === null ? [] : [...items.values()]
+    .filter((e) => programOf(e)?.parentItemId === itemId)
+    .sort((a, b) => ((programOf(a)?.position ?? 1e9) - (programOf(b)?.position ?? 1e9)) || a.start.getTime() - b.start.getTime());
+
+  /* Nach Nähe in der Zeit — wer einen Ausflug baut, sucht die Termine desselben Tages. */
+  const near = (a: CalEvent, b: CalEvent) => Math.abs(a.start.getTime() - start.getTime()) - Math.abs(b.start.getTime() - start.getTime());
+  const parentChoices = [...items.entries()].filter(([id]) => id !== itemId && (itemId === null || !isBelow(id))).map(([, e]) => e).sort(near).slice(0, 60);
+  const childChoices = itemId === null ? [] : [...items.entries()]
+    .filter(([id, e]) => id !== itemId && !ancestors.has(id) && programOf(e)?.parentItemId !== itemId)
+    .map(([, e]) => e).sort(near).slice(0, 60);
+  const label = (e: CalEvent) => `${e.title} · ${e.allDay ? longDate(e.start) : `${longDate(e.start)} ${time(e.start)}`}`;
 
   return (
     <section className="wk-ev-program">
-      {parentId !== null && (
-        <p className="wk-hint">
-          Część terminu: <strong>{parent?.item?.title ?? 'inny termin'}</strong>
-          {onDetach !== undefined && <> · <button type="button" className="wk-link-btn" onClick={onDetach}>Odłącz</button></>}
-        </p>
-      )}
-      {(parts.length > 0 || onAdd !== undefined) && (
+      <label className="wk-field">
+        <span>Część programu</span>
+        <select value={parentId ?? ''} onChange={(e) => onParent(e.target.value === '' ? null : e.target.value)}>
+          <option value="">— osobny termin —</option>
+          {parentId !== null && !items.has(parentId) && <option value={parentId}>(termin spoza widoku)</option>}
+          {parentChoices.map((e) => <option key={programOf(e)!.itemId} value={programOf(e)!.itemId}>{label(e)}</option>)}
+        </select>
+        <span className="wk-hint">Punkt programu pokazuje się w kalendarzu wewnątrz swojego terminu.</span>
+      </label>
+
+      {itemId !== null && (
         <>
           <h3 className="wk-h3">Program</h3>
           {parts.length > 0 ? (
             <ol className="wk-ev-parts">
               {parts.map((p) => (
-                <li key={p.item!.occurrence.itemId}>
+                <li key={programOf(p)!.itemId}>
                   <span className="wk-ev-part-time">{p.allDay ? longDate(p.start) : `${longDate(p.start)} ${time(p.start)}`}</span>
-                  {' '}<span>{p.item!.title}</span>
-                  {p.item!.location !== null && <span className="wk-hint"> · {p.item!.location}</span>}
+                  {' '}<span>{p.title}</span>
+                  {p.item?.location != null && <span className="wk-hint"> · {p.item.location}</span>}
+                  {onUnlink !== undefined && (
+                    <> · <button type="button" className="wk-link-btn" disabled={linking}
+                      onClick={() => { setLinking(true); void onUnlink(programOf(p)!.itemId).finally(() => setLinking(false)); }}>odłącz</button></>
+                  )}
                 </li>
               ))}
             </ol>
           ) : <p className="wk-hint">Ten termin nie ma jeszcze punktów programu.</p>}
-          {onAdd !== undefined && (
-            <button type="button" className="wk-link-btn" onClick={onAdd}>+ Dodaj punkt programu</button>
-          )}
+          <div className="wk-actions wk-ev-program-add">
+            {onAdd !== undefined && <button type="button" className="wk-link-btn" onClick={onAdd}>+ Nowy punkt programu</button>}
+            {onLink !== undefined && childChoices.length > 0 && (
+              <select value="" disabled={linking} aria-label="Podłącz istniejący termin"
+                onChange={(e) => {
+                  if (e.target.value === '') return;
+                  setLinking(true);
+                  void onLink(e.target.value).finally(() => setLinking(false));
+                }}>
+                <option value="">{linking ? 'Podłączanie…' : '+ Podłącz istniejący termin…'}</option>
+                {childChoices.map((e) => <option key={programOf(e)!.itemId} value={programOf(e)!.itemId}>{label(e)}</option>)}
+              </select>
+            )}
+          </div>
         </>
       )}
     </section>
@@ -618,7 +661,7 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
             <div className="wk-ev-link">
               <label className="wk-field">
                 <span>Link do informacji</span>
-                <input type="url" inputMode="url" value={link} maxLength={1000} placeholder="https://… albo adres strony na recreatio.pl"
+                <input type="text" inputMode="url" autoComplete="url" spellCheck={false} value={link} maxLength={1000} placeholder="https://… albo adres strony na recreatio.pl"
                   onChange={(e) => setLink(e.target.value)} />
               </label>
               <label className="wk-field">
@@ -630,16 +673,28 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
             </div>
 
             {/* 0070 — Teil eines Programms, oder ein Ganzes mit Teilen. */}
-            {target.at === 'new' && target.parentItemId !== undefined && (
+            {target.at === 'new' && target.parentItemId !== undefined && parentItemId === target.parentItemId && (
               <p className="wk-note">Punkt programu: <strong>{target.parentTitle ?? 'termin nadrzędny'}</strong></p>
             )}
             {target.at === 'new' && target.origin !== undefined && (
               <p className="wk-note">Z rozmowy — termin zapamięta, z której wiadomości powstał.</p>
             )}
-            {item !== undefined && events !== undefined && (
-              <ProgramOf item={item} events={events}
+            {events !== undefined && (
+              <ProgramOf
+                itemId={item?.occurrence.itemId ?? null}
+                start={fromLocal(date, allDay ? '00:00' : from)}
+                events={events}
+                parentId={parentItemId === undefined ? item?.occurrence.parentItemId ?? null : parentItemId}
+                onParent={setParentItemId}
                 onAdd={onAddPart === undefined || target.at !== 'event' ? undefined : () => onAddPart(target.event)}
-                onDetach={item.occurrence.parentItemId != null ? () => setParentItemId(null) : undefined} />
+                onLink={item === undefined ? undefined : async (child) => {
+                  try { await setProgramParent(child, item.occurrence.itemId); onSaved(); }
+                  catch (e) { setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się podłączyć terminu.'); }
+                }}
+                onUnlink={item === undefined ? undefined : async (child) => {
+                  try { await setProgramParent(child, null); onSaved(); }
+                  catch (e) { setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się odłączyć terminu.'); }
+                }} />
             )}
             {parentItemId === null && item?.occurrence.parentItemId != null && (
               <p className="wk-hint">Po zapisaniu ten termin nie będzie już częścią programu.</p>

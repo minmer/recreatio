@@ -51,7 +51,12 @@ function read(): HeldLink[] {
   }
 }
 
+/** Zählt jede Änderung — auch dasselbe Geheimnis noch einmal geöffnet: dann wird neu nachgefragt, ob es noch gilt. */
+let generation = 0;
+export const linkGeneration = (): number => generation;
+
 function write(held: readonly HeldLink[]): void {
+  generation += 1;
   try {
     window.localStorage.setItem(SLOT, JSON.stringify([...held].sort((a, b) => b.at - a.at).slice(0, KEEP_LINKS)));
   } catch {

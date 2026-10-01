@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { LEVEL_WORD, linkSecrets, redeemLink, showLink, type LinkInfo } from './linkAccess';
+import { accessWords, linkSecrets, redeemLink, showLink, type LinkInfo } from './linkAccess';
 import type { SealedRole } from './keys';
 import { forgetKeys, keysFor } from './ringOf';
 import { personsOf } from './roles';
@@ -17,6 +17,13 @@ import { tilesPath, viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
 import type { Ring } from './keys';
+
+/** 0074 — was eine Stufe in einem Bereich heisst, ausführlich. */
+const LEVEL_SAYS: Record<string, string> = {
+  read: 'czyta (widzi, co jest w obszarze)',
+  write: 'pisze (widzi i dopisuje)',
+  admin: 'prowadzi (może też wpuszczać innych)'
+};
 
 const STATE_WORD: Record<string, string> = {
   revoked: 'Ten link został wyłączony przez osobę, która go utworzyła.',
@@ -79,7 +86,7 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
     return (
       <>
         <h1 className="wk-h1">Dołączono</h1>
-        <p className="wk-lede">Masz teraz dostęp: {info.areas.map((a) => a.name).join(', ')}. Działa na każdym urządzeniu, na którym się zalogujesz.</p>
+        <p className="wk-lede">Masz teraz dostęp: {accessWords(info.areas)}. Działa na każdym urządzeniu, na którym się zalogujesz.</p>
         <div className="wk-actions">
           {info.aim !== null && <a className="wk-btn" href={`#/${info.aim}`}>Przejdź dalej</a>}
           <a className={info.aim !== null ? 'wk-link-btn' : 'wk-btn'} href={viewPath('areas')}>Zobacz obszary</a>
@@ -93,8 +100,7 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
       <h1 className="wk-h1">Zaproszenie{info.label !== null ? `: ${info.label}` : ''}</h1>
 
       <dl className="wk-facts">
-        <div className="wk-fact"><dt>Dostęp</dt><dd>{LEVEL_WORD[info.capability ?? 'read'] ?? info.capability}</dd></div>
-        <div className="wk-fact"><dt>Obszary</dt><dd>{info.areas.map((a) => a.name).join(' · ') || '—'}</dd></div>
+        <div className="wk-fact"><dt>Dostęp</dt><dd><ul className="wk-link-access">{info.areas.length === 0 ? <li>—</li> : info.areas.map((a) => <li key={a.areaId}><strong>{a.name}</strong> — {LEVEL_SAYS[a.capability] ?? a.capability}</li>)}</ul></dd></div>
         <div className="wk-fact"><dt>Ważne do</dt><dd>{new Date(info.expiresAt).toLocaleDateString('pl-PL')}</dd></div>
         {info.once && <div className="wk-fact"><dt>Link</dt><dd>jednorazowy</dd></div>}
         {info.aim !== null && <div className="wk-fact"><dt>Otwiera</dt><dd><a href={`#/${info.aim}`}>recreatio.pl/#/{info.aim}</a></dd></div>}
@@ -151,7 +157,7 @@ export function JoinWithoutAccount({ token }: { token: string | null }) {
   if (info === null || info.state !== null) return null;
   return (
     <div className="wk-note wk-join-free">
-      <p><strong>{info.label ?? 'Link'}</strong> — {LEVEL_WORD[info.capability ?? 'read'] ?? info.capability}: {info.areas.map((a) => a.name).join(', ')}.</p>
+      <p><strong>{info.label ?? 'Link'}</strong> — {accessWords(info.areas)}.</p>
       <p>Bez konta ten dostęp działa w tej przeglądarce (do czytania).{info.aim !== null && <> <a href={`#/${info.aim}`}>Otwórz bez logowania</a>.</>} Z kontem — na każdym urządzeniu i do pisania.</p>
     </div>
   );

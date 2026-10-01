@@ -377,6 +377,13 @@ export const loadPublic = (
  * nicht seinen (womöglich schon verschobenen) Beginn. Ein zweiter Aufruf zu
  * demselben Vorkommen ersetzt den ersten.
  */
+/**
+ * 0074 — einen bestehenden Termin in ein Programm hängen (oder lösen, `null`).
+ * Nur Ganzes und Stelle — seine Felder bleiben, wie sie sind.
+ */
+export const setProgramParent = (itemId: string, parentItemId: string | null, position: number | null = null): Promise<{ itemId: string; parentItemId: string | null }> =>
+  call(`/workspace/item/${encodeURIComponent(itemId)}/program`, { method: 'POST', body: JSON.stringify({ parentItemId, position }) });
+
 export const setOccurrence = (
   itemId: string,
   originalStart: string,

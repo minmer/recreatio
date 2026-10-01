@@ -149,6 +149,8 @@ function ReadOnlyCalendar({ calendarIds, me, ctx }: { calendarIds: readonly stri
               areaId: o.visibilityAreaId,
               calendarId: day.calendarId,
               cancelled: o.status === 'cancelled',
+              /* 0074 — Teile stehen in ihrem Ganzen, auch hier. */
+              program: { itemId: o.itemId, parentItemId: o.parentItemId ?? null, position: o.position ?? null },
               ...(found.link === null ? {} : { link: { url: found.link, label: found.linkLabel } })
             });
           }

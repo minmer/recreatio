@@ -75,6 +75,7 @@ public static partial class Calendar
 
         /* 0070 — ein Termin mit seinen Teilen (Calendar.Program.cs); mit Konto mehr, ohne der Aushang. */
         app.MapGet("/calendar/program/{id:guid}", ProgramAsync);
+        app.MapPost("/workspace/item/{id:guid}/program", MoveInProgramAsync);
     }
 
     /* -- Anlegen ------------------------------------------------------------ */
