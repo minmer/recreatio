@@ -37,4 +37,5 @@ Check(Chat.AvailableAt(fold, DateTimeOffset.Parse("2026-10-25T01:30:00Z")), "sec
 await ApiErrorChecks.RunAsync(Check);
 FileLoggerChecks.Run(Check);
 PageFileChecks.Run(Check);
+LibraryChecks.Run(Check);
 Console.WriteLine($"Passed {checks} chat authorization, scheduling and availability checks.");

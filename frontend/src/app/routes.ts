@@ -373,6 +373,13 @@ export const VIEWS = {
    */
   bookings: 'Rezerwacje',
   chat: 'Rozmowy',
+
+  /*
+   * 0064 — DIE BIBLIOTHEK: Werke, Zitate, Personen, Themen und die eigenen
+   * Texte. Vor den Bausteinen, weil Seiten aus ihr zeigen (Predigten,
+   * Zitatsammlung) — und weil Cogita auf ihr aufbaut.
+   */
+  library: 'Biblioteka',
   /*
    * Bausteine stehen VOR den Seiten, weil sie unter ihnen liegen: eine
    * Seite zeigt Bausteine, sie besitzt sie nicht (0036). Wer den Bogen

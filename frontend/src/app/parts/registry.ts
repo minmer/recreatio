@@ -16,6 +16,10 @@
  * Formularz, Twoje zgłoszenie, Kroki, Rozmowa. Memy und die Bilder, die
  * Teilnehmer selbst in die Galerie legen, warten auf einen eigenen Dienst.
  *
+ * <b>0064 — aus der Bibliothek:</b> Tekst z biblioteki (eine Predigt mit
+ * Fussnoten und Quellen), Archiwum tekstów, Zbiór cytatów. Sie zeigen, was
+ * in der Bibliothek veröffentlicht ist (`LibraryPublic.tsx`).
+ *
  * <b>Nur, was sich heute zeigen lässt.</b> Der Altbestand hatte zwölf Arten;
  * mehrere hingen an Quellen, die es im Neubau nicht gibt. Eine Kachel
  * anzubieten, die dauerhaft leer bleibt, ist keine Vorbereitung, sondern ein
@@ -42,6 +46,9 @@ import { peoplePart } from './people';
 import { planPart } from './plan';
 import { seatChatPart, seatNotePart, seatSharedPart, seatStepsPart, seatSubmissionPart } from './seat';
 import { textPart } from './text';
+import { quotesPart } from './quotes';
+import { writingPart } from './writing';
+import { writingsPart } from './writings';
 
 export const PARTS: readonly PartModule[] = [
   /* Was auf jeder Seite steht. */
@@ -61,6 +68,11 @@ export const PARTS: readonly PartModule[] = [
   peoplePart,
   filesPart,
   galleryPart,
+
+  /* Was aus der Bibliothek kommt (0064): Predigten mit ihren Quellen, das Archiv, die Zitate. */
+  writingPart,
+  writingsPart,
+  quotesPart,
 
   /* Was seinen Inhalt woanders herholt. */
   massesPart,

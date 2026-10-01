@@ -25,7 +25,7 @@ import { SlideDeck, type DeckSlide } from './SlideDeck';
 import { readSlide, type Look } from './slides';
 
 /** Diese Arten brauchen Breite — ein Kalender in 52 rem ist ein gequetschter Kalender. */
-const WIDE = new Set(['calendar', 'masses', 'slots', 'chat', 'form', 'hero', 'shortinfos', 'plan', 'map', 'costs', 'people', 'gallery']);
+const WIDE = new Set(['calendar', 'masses', 'slots', 'chat', 'form', 'hero', 'shortinfos', 'plan', 'map', 'costs', 'people', 'gallery', 'writing', 'writings', 'quotes']);
 
 /** Wie ein Slajd im Menü heisst: sein eigener Name, sonst der Titel des Bausteins, sonst seine Art. */
 export const slideLabelOf = (part: DraftPart): string =>

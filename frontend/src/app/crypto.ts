@@ -148,7 +148,11 @@ export const Field = {
   /* 0054 — eine Aufgabe, und was man zuletzt offen hatte. */
   TaskTitle: 'task_title',
   TaskNotes: 'task_notes',
-  WorkspaceState: 'workspace_state'
+  WorkspaceState: 'workspace_state',
+
+  /* 0064 — die Bibliothek: ihr Name, und ein Eintrag als EIN Dokument. */
+  LibraryName: 'library_name',
+  LibraryEntry: 'library_entry'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

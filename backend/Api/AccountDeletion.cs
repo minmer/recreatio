@@ -444,6 +444,16 @@ public static class AccountDeletion
         DELETE FROM app.task_done WHERE task_id IN (SELECT id FROM app.task WHERE area_id IN (SELECT id FROM #dead));
         DELETE FROM app.task      WHERE area_id IN (SELECT id FROM #dead);
 
+        -- Bibliotheken (0064) — mit allem, was darin steht, auch dem Veröffentlichten
+        IF OBJECT_ID('app.library', 'U') IS NOT NULL
+        BEGIN
+            DELETE FROM app.library_public_ref
+             WHERE entry_id IN (SELECT e.id FROM app.library_entry e JOIN app.library l ON l.id = e.library_id WHERE l.area_id IN (SELECT id FROM #dead))
+                OR ref_id   IN (SELECT e.id FROM app.library_entry e JOIN app.library l ON l.id = e.library_id WHERE l.area_id IN (SELECT id FROM #dead));
+            DELETE FROM app.library_entry WHERE library_id IN (SELECT id FROM app.library WHERE area_id IN (SELECT id FROM #dead));
+            DELETE FROM app.library       WHERE area_id IN (SELECT id FROM #dead);
+        END
+
         -- Formulare und Bausteine
         DELETE FROM app.step_mark
          WHERE step_id IN (SELECT id FROM app.form_step

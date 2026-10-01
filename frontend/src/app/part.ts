@@ -135,7 +135,7 @@ export interface PartContext {
  * dieselben Felder, und eine Art, die nur einer von beiden kennt, ist ein
  * Feld, das an der anderen Stelle zum Textkasten wird.
  */
-export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'calendar' | 'calendars' | 'chat';
+export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'calendar' | 'calendars' | 'chat' | 'library' | 'libraryEntry';
 
 export interface FieldDef {
   readonly key: string;
@@ -145,8 +145,14 @@ export interface FieldDef {
   /** Ein Beispiel, kein Vorgabewert — es wird nicht gespeichert. */
   readonly hint?: string;
 
-  /** Bei `questions`: der Schlüssel des Feldes, das das Formular nennt. */
+  /** Bei `questions`: der Schlüssel des Feldes, das das Formular nennt. Bei `libraryEntry`: das die Bibliothek nennt. */
   readonly of?: string;
+
+  /** 0064 — bei `libraryEntry`: welche Arten von Einträgen zur Wahl stehen (`text`, `project`, `topic`). */
+  readonly entryKinds?: readonly string[];
+
+  /** Darf leer bleiben (dann: alle) — der Wähler bietet „wszystkie" an. */
+  readonly optional?: boolean;
 }
 
 /* -- Ein Baustein, so wie ihn das Verzeichnis hält -------------------------- */
@@ -311,7 +317,9 @@ const FIELD_SAYS: Record<FieldKind, string> = {
   questions: '"*" (wszystkie pytania, także dodane później) albo lista identyfikatorów pytań',
   calendar: 'identyfikator kalendarza grupy — najprościej wybrać w edytorze',
   calendars: 'lista identyfikatorów kalendarzy — najprościej wybrać w edytorze',
-  chat: 'identyfikator rozmowy grupy — najprościej wybrać w edytorze'
+  chat: 'identyfikator rozmowy grupy — najprościej wybrać w edytorze',
+  library: 'identyfikator biblioteki — najprościej wybrać w edytorze',
+  libraryEntry: 'identyfikator opublikowanego wpisu biblioteki — najprościej wybrać w edytorze'
 };
 
 /** Eine Zeile des JSON als gespeicherter Wert — oder `null`: nichts. */

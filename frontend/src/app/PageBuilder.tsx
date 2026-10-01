@@ -41,6 +41,7 @@ import { PickChat } from './PickChat';
 import { PickResource } from './PickResource';
 import type { DraftPart } from './page';
 import { PartJson } from './PageJsonPanel';
+import { PickLibrary, PickLibraryEntry } from './LibraryPick';
 
 const ROW_H = 84;
 const GAP = 8;
@@ -602,6 +603,10 @@ function Fields({ part, size, busy, onSet, path }: {
               <PickCalendars value={value} busy={busy} onPick={(ids) => onSet({ [field.key]: ids })} />
             ) : field.kind === 'chat' ? (
               <PickChat value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
+            ) : field.kind === 'library' ? (
+              <PickLibrary value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
+            ) : field.kind === 'libraryEntry' ? (
+              <PickLibraryEntry library={part.config[field.of ?? ''] ?? ''} kinds={field.entryKinds ?? ['text']} value={value} busy={busy} optional={field.optional} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'resource' ? (
               <PickResource value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'form' ? (

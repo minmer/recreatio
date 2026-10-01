@@ -315,7 +315,14 @@ public enum Field
     /// Bereiche stuende ploetzlich, wer den Sakristeischluessel hat. Genau
     /// diesen Tausch schliesst 3.13 aus, und er kostet nur eine Zeile.
     /// </summary>
-    ParishGroupNote
+    ParishGroupNote,
+
+    /// <summary>
+    /// 0064 — die Bibliothek: ihr Name, und ein Eintrag (Werk, Person, Zitat,
+    /// Thema, Text, Projekt) als EIN Dokument unter dem Schluessel ihres Bereichs.
+    /// </summary>
+    LibraryName,
+    LibraryEntry
 }
 
 /// <summary>
@@ -475,6 +482,8 @@ public readonly record struct Aad
         Field.EnquiryNote             => "enquiry_note",
         Field.EnquiryIntakeKey        => "enquiry_intake_key",
         Field.ParishGroupNote         => "parish_group_note",
+        Field.LibraryName             => "library_name",
+        Field.LibraryEntry            => "library_entry",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

@@ -40,6 +40,7 @@ import { PARTS, partLabel, partOf, takesEntries } from './parts/registry';
 import { PickChat } from './PickChat';
 import { PickForm, PickQuestions, pickedForm } from './FormPick';
 import { PickResource } from './PickResource';
+import { PickLibrary, PickLibraryEntry } from './LibraryPick';
 import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { AreaOptions } from './AreaOptions';
@@ -444,6 +445,10 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
 
         const input = field.kind === 'chat' ? (
           <PickChat value={value} busy={busy} onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }} />
+        ) : field.kind === 'library' ? (
+          <PickLibrary value={value} busy={busy} onPick={(id) => void save(field.key, id)} />
+        ) : field.kind === 'libraryEntry' ? (
+          <PickLibraryEntry library={config[field.of ?? ''] ?? ''} kinds={field.entryKinds ?? ['text']} value={value} busy={busy} optional={field.optional} onPick={(id) => void save(field.key, id)} />
         ) : field.kind === 'resource' ? (
           <PickResource
             value={value}
