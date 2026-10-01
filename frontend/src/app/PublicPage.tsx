@@ -30,6 +30,8 @@ import { PersonalSections, SeatBar } from './SeatBar';
 import { SiteMenu } from './SiteMenu';
 import { SeatContext, SeatStateContext, useSeats, useSeatStates, type SeatState } from './seatContext';
 import { freshSeat, heldSeats, seatsExactly, seatsFor } from './seatKeep';
+import { heldProofs } from './linkAccess';
+import { useHeldLinksStamp } from './HeldLinkBar';
 import { useSeat } from './seatView';
 import { WorkspaceError } from './session';
 import { loadSite } from './site';
@@ -58,6 +60,9 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
    */
   const arrived = freshSeat()?.token ?? null;
 
+  /* 0073 — und sobald dieser Browser einen Link mit Zugang dazubekommt (oder vergisst). */
+  const linksStamp = useHeldLinksStamp();
+
   useEffect(() => {
     // Wer schnell zwischen zwei Adressen wechselt, bekommt sonst die Antwort
     // der ersten auf die zweite Seite geschrieben.
@@ -74,7 +79,8 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
 
     // Unter einer eigenen Domain ist der Pfad LOKAL: was die Wurzel ist, setzt
     // der Dienst davor (`routes.localPath`).
-    (host !== undefined ? loadSite(host, local ?? '', seats) : loadPage(path ?? '', seats))
+    heldProofs()
+      .then((links) => (host !== undefined ? loadSite(host, local ?? '', seats, links) : loadPage(path ?? '', seats, links)))
       .then((found) => { if (alive) setPage(found); })
       .catch((e) => {
         if (!alive) return;
@@ -85,7 +91,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
       });
 
     return () => { alive = false; };
-  }, [path, host, local, round, arrived]);
+  }, [path, host, local, round, arrived, linksStamp]);
 
   if (page === undefined) return <p className="wk-lede">Wczytywanie…</p>;
 

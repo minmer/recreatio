@@ -51,6 +51,8 @@ export interface CalEvent {
   readonly cancelled: boolean;
 
   readonly item?: OpenedItem;
+  /** 0073 — wohin „Więcej informacji" führt (auf einer Seite, ohne `item`). */
+  readonly link?: { readonly url: string; readonly label: string | null };
   readonly claim?: AgendaClaim;
   readonly offer?: AgendaOffer;
   readonly booking?: HeldClaim;
@@ -58,6 +60,10 @@ export interface CalEvent {
 }
 
 /** Welche Tage eine Ansicht zeigt. Das Ende ist ausschliesslich. */
+/** Der Link eines Termins — aus dem geöffneten Termin oder vom Baustein mitgegeben. */
+export const linkOfEvent = (e: CalEvent): { url: string; label: string | null } | null =>
+  e.link ?? (e.item?.link != null ? { url: e.item.link, label: e.item.linkLabel } : null);
+
 export function viewRange(view: CalView, anchor: Date): { from: Date; to: Date } {
   const at = startOfDay(anchor);
   switch (view) {

@@ -20,11 +20,14 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 
 import { loadAreas, loadPublicKey, type AreaRow } from './area';
-import { ITEM_LABEL, loadItems, loadPublic, type Days, type ItemKind } from './calendar';
+import { emptyTexts, ITEM_LABEL, itemFieldAad, loadItems, loadPublic, putText, type Days, type ItemKind, type ItemTexts } from './calendar';
 import { Calendar, ListView, MonthGrid, TimeGrid } from './CalendarApp';
 import { hueOf, stepView, viewRange, type CalEvent, type CalView } from './calendarModel';
 import { areaKeys } from './chat';
-import { aad, Field, fromBase64Url, openText } from './crypto';
+import { fromBase64Url, openText } from './crypto';
+import { useHeldLinksStamp } from './HeldLinkBar';
+import { ItemLink } from './ItemLink';
+import { heldAreaKey, heldProofs } from './linkAccess';
 import { addDays, longDate, monthTitle, rangeTitle, sameDay, startOfDay } from './dayMath';
 import { useNow } from './MassParts';
 import { useMe, type Me } from './me';
@@ -35,13 +38,11 @@ import { whoIsThere, type Who } from './session';
 
 const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 
-const fieldAad = (itemId: string, field: string) =>
-  aad('calendar', 'item', itemId,
-    field === 'title' ? Field.CalendarEventTitle : field === 'location' ? Field.CalendarEventLocation : Field.CalendarItemNotes, 1);
+interface Detail { location: string | null; notes: string | null; link: string | null; linkLabel: string | null }
 
 interface Opened {
   readonly events: readonly CalEvent[];
-  readonly details: ReadonlyMap<string, { location: string | null; notes: string | null }>;
+  readonly details: ReadonlyMap<string, Detail>;
   readonly calendars: readonly { id: string; title: string | null; description: string | null }[];
 }
 
@@ -86,6 +87,7 @@ function ReadOnlyCalendar({ calendarIds, me, ctx }: { calendarIds: readonly stri
   const [data, setData] = useState<(Opened & { from: number; to: number }) | null>(null);
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState<CalEvent | null>(null);
+  const linksStamp = useHeldLinksStamp();
 
   const shownView: CalView = big ? view : 'list';
   const range = shownView === 'list' ? { from: startOfDay(now), to: addDays(startOfDay(now), 30) } : viewRange(shownView, anchor);
@@ -100,49 +102,54 @@ function ReadOnlyCalendar({ calendarIds, me, ctx }: { calendarIds: readonly stri
         const from = new Date(fromMs);
         const to = new Date(toMs);
         const list = ids.split(',').filter((one) => one !== '');
+        /* 0073 — ohne Konto auch die Links mit Zugang, die dieser Browser hält. */
+        const links = me === null ? await heldProofs().catch(() => []) : [];
         const days: Days[] = await Promise.all(list.map((id) => (me !== null
           ? loadItems(id, from, to)
-          : loadPublic(id, from, to, undefined, seat)).catch(() => null))).then((all) => all.filter((d): d is Days => d !== null));
+          : loadPublic(id, from, to, undefined, seat, links)).catch(() => null))).then((all) => all.filter((d): d is Days => d !== null));
 
-        /* Die Schlüssel: meine — oder die offen ausgehängten. */
+        /* Die Schlüssel: meine — oder die offen ausgehängten, oder die der Links in diesem Browser. */
         const publicKeys = new Map<string, Promise<Uint8Array | null>>();
         const keyOf = async (areaId: string, epoch: number): Promise<Uint8Array | null> => {
           if (me !== null) return (await areaKeys(me.ring, areaId)).get(epoch) ?? null;
           if (!publicKeys.has(areaId)) {
             publicKeys.set(areaId, loadPublicKey(areaId).then((k) => (k.epoch === epoch ? fromBase64Url(k.key) : null)).catch(() => null));
           }
-          return publicKeys.get(areaId)!;
+          return (await publicKeys.get(areaId)!) ?? (links.length > 0 ? heldAreaKey(areaId, epoch) : null);
         };
 
         const events: CalEvent[] = [];
-        const details = new Map<string, { location: string | null; notes: string | null }>();
-        const titles = new Map<string, string | null>();
+        const details = new Map<string, Detail>();
+        /* Je Termin EINMAL geöffnet — auch für sein zweites, drittes Vorkommen (vorher blieben dort Ort und Notiz leer). */
+        const texts = new Map<string, ItemTexts>();
 
         for (const day of days) {
           for (const o of day.occurrences) {
-            const found: Record<string, string | null> = { title: null, location: null, notes: null };
-            if (!titles.has(o.itemId)) {
+            let found = texts.get(o.itemId);
+            if (found === undefined) {
+              found = emptyTexts();
               for (const f of o.fields) {
                 try {
                   const key = await keyOf(f.areaId, f.epoch);
-                  if (key !== null) found[f.field] = await openText(key, fieldAad(o.itemId, f.field), fromBase64Url(f.sealed));
+                  if (key !== null) putText(found, f.field, await openText(key, itemFieldAad(o.itemId, f.field), fromBase64Url(f.sealed)));
                 } catch { /* nicht für mich */ }
               }
-              titles.set(o.itemId, found.title);
+              texts.set(o.itemId, found);
             }
             const key = `p:${o.itemId}:${o.occurrenceAt}`;
-            details.set(key, { location: found.location, notes: found.notes });
+            details.set(key, { location: found.location, notes: found.notes, link: found.link, linkLabel: found.linkLabel });
             events.push({
               key,
               source: 'item',
               /* Ohne eigenen Titel: der Name des Kalenders („Spotkania z kandydatami") — nicht bloss die Art. */
-              title: titles.get(o.itemId) ?? o.titlePublic ?? day.title ?? ITEM_LABEL[o.kind as ItemKind] ?? 'termin',
+              title: found.title ?? o.titlePublic ?? day.title ?? ITEM_LABEL[o.kind as ItemKind] ?? 'termin',
               start: new Date(o.startsAt),
               end: new Date(o.endsAt),
               allDay: o.allDay,
               areaId: o.visibilityAreaId,
               calendarId: day.calendarId,
-              cancelled: o.status === 'cancelled'
+              cancelled: o.status === 'cancelled',
+              ...(found.link === null ? {} : { link: { url: found.link, label: found.linkLabel } })
             });
           }
         }
@@ -158,7 +165,7 @@ function ReadOnlyCalendar({ calendarIds, me, ctx }: { calendarIds: readonly stri
       }
     })();
     return () => { alive = false; };
-  }, [ids, me, seat, fromMs, toMs]);
+  }, [ids, me, seat, fromMs, toMs, linksStamp]);
 
   if (failed) return <p className="wk-card-muted">Nie udało się wczytać terminów.</p>;
   if (data === null) return <p className="wk-card-muted">Wczytywanie…</p>;
@@ -224,6 +231,7 @@ function ReadOnlyCalendar({ calendarIds, me, ctx }: { calendarIds: readonly stri
           <p className="wk-ev-when">{longDate(open.start)}{open.allDay ? '' : `, ${time(open.start)}–${time(open.end)}`}</p>
           {detail?.location && <p><strong>Miejsce:</strong> {detail.location}</p>}
           {detail?.notes && <p className="wk-ev-notes">{detail.notes}</p>}
+          {detail?.link && <p><ItemLink url={detail.link} label={detail.linkLabel} /></p>}
           {open.cancelled && <p className="wk-note">Ten termin jest odwołany.</p>}
           <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => setOpen(null)}>Zamknij</button></div>
         </Modal>

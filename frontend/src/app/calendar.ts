@@ -21,6 +21,7 @@
  * ausgehängte.
  */
 
+import { aad, Field, type FieldName } from './crypto';
 import { newId } from './ids';
 import { call } from './session';
 
@@ -63,6 +64,61 @@ export interface SealedField {
   /** Base64URL. Nur der Browser bekommt das auf. */
   readonly sealed: string;
 }
+
+/** Die Felder eines Termins, die versiegelt liegen — wie `ck_calendar_field_name` (0073: dazu der Link und sein Wort). */
+export type ItemField = 'title' | 'location' | 'notes' | 'link' | 'link_label';
+
+const FIELD_OF: Record<ItemField, FieldName> = {
+  title: Field.CalendarEventTitle,
+  location: Field.CalendarEventLocation,
+  notes: Field.CalendarItemNotes,
+  link: Field.CalendarItemLink,
+  link_label: Field.CalendarItemLinkLabel
+};
+
+/**
+ * Das Etikett eines Feldes — an EINER Stelle. Vorher hatten drei Dateien je
+ * eine Kopie, und jede machte aus einem unbekannten Feld eine Notiz.
+ */
+export const itemFieldAad = (itemId: string, field: string) =>
+  aad('calendar', 'item', itemId, FIELD_OF[field as ItemField] ?? Field.CalendarItemNotes, 1);
+
+/** Die offenen Felder eines Termins. */
+export interface ItemTexts {
+  title: string | null;
+  location: string | null;
+  notes: string | null;
+  link: string | null;
+  linkLabel: string | null;
+}
+
+export const emptyTexts = (): ItemTexts => ({ title: null, location: null, notes: null, link: null, linkLabel: null });
+
+/** Ein geöffnetes Feld an seinen Platz. */
+export function putText(into: ItemTexts, field: string, text: string): void {
+  if (field === 'title') into.title = text;
+  else if (field === 'location') into.location = text;
+  else if (field === 'notes') into.notes = text;
+  else if (field === 'link') into.link = text;
+  else if (field === 'link_label') into.linkLabel = text;
+}
+
+/**
+ * Wohin ein Link eines Termins führen darf — eine Adresse im Netz oder eine
+ * Seite hier (`#/…`). `null`: lieber gar kein Knopf als einer, der
+ * `javascript:` ausführt.
+ */
+export function safeLink(text: string | null | undefined): { href: string; external: boolean } | null {
+  const t = (text ?? '').trim();
+  if (t === '') return null;
+  if (/^https?:\/\/[^\s]+$/i.test(t)) return { href: t, external: true };
+  if (/^www\.[^\s]+$/i.test(t)) return { href: `https://${t}`, external: true };
+  if (/^\/?#\/[^\s]*$/.test(t)) return { href: t.replace(/^\//, ''), external: false };
+  return null;
+}
+
+/** Das Wort auf dem Knopf — eigenes oder „Więcej informacji". */
+export const linkWord = (label: string | null | undefined): string => (label ?? '').trim() || 'Więcej informacji';
 
 export interface Occurrence {
   readonly itemId: string;
@@ -301,11 +357,13 @@ export const loadItems = (
  * Schlüssel bleibt hier; was zurückkommt, ist versiegelt wie immer.
  */
 export const loadPublic = (
-  calendarId: string, from?: Date, to?: Date, kind?: ItemKind, seat?: string
+  calendarId: string, from?: Date, to?: Date, kind?: ItemKind, seat?: string, links: readonly string[] = []
 ): Promise<Days> => {
   const query = new URLSearchParams(window_(from, to));
   if (kind !== undefined) query.set('kind', kind);
   if (seat !== undefined && seat !== '') query.set('seat', seat);
+  /* 0073 — die Beweise der Links mit Zugang in diesem Browser: was ihre Rollen lesen, kommt mit. */
+  if (links.length > 0) query.set('links', links.join(','));
 
   return call<Days>(`/calendar/${encodeURIComponent(calendarId)}/public?${query}`);
 };

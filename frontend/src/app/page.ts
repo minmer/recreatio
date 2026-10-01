@@ -99,6 +99,8 @@ export interface PageAccess {
   readonly seats?: readonly string[];
   readonly roles?: readonly string[];
   readonly manages?: boolean;
+  /** 0073 — die Linkrollen der Links in diesem Browser, die hier Zugang geben. */
+  readonly links?: readonly string[];
 }
 
 /* Jeder Teil für sich kodiert: ein Schrägstrich TRENNT die Teile und darf
@@ -111,8 +113,14 @@ const encodePath = (path: string): string =>
  * Eine Seite holen — mit den Links, die dieser Browser für ihr Haus hält.
  * Auf einer Seite nur mit Zugang entscheiden sie, ob (und für wen) man sie sieht.
  */
-export const loadPage = (path: string, seats: readonly string[] = []): Promise<PageContent> =>
-  call<PageContent>(`/page/${encodePath(path)}${seats.length === 0 ? '' : `?seats=${encodeURIComponent(seats.join(','))}`}`);
+/** `links`: die Beweise der Links mit Zugang in diesem Browser (0073, `linkAccess.heldProofs`). */
+export const loadPage = (path: string, seats: readonly string[] = [], links: readonly string[] = []): Promise<PageContent> => {
+  const query = [
+    ...(seats.length === 0 ? [] : [`seats=${encodeURIComponent(seats.join(','))}`]),
+    ...(links.length === 0 ? [] : [`links=${encodeURIComponent(links.join(','))}`])
+  ];
+  return call<PageContent>(`/page/${encodePath(path)}${query.length === 0 ? '' : `?${query.join('&')}`}`);
+};
 
 export const savePage = (
   path: string, body: { readonly title: string; readonly lead: string | null }

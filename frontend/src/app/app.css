@@ -6944,3 +6944,43 @@ h5.lib-h { font-size: 1rem; font-style: italic; }
   .lib-review-body { grid-column: 1 / -1; }
   .lib-intake { padding: 0.75rem; }
 }
+
+/* -- 0073: Links mit Ziel — „Otwarto z linku", Ziel, Links in diesem Browser; Link eines Termins ------- */
+
+.wk-heldlink {
+  position: relative; display: grid; gap: 0.45rem; margin: 0 0 1rem; padding: 0.75rem 2.6rem 0.75rem 0.9rem;
+  border: 1px solid var(--wk-line); border-left: 3px solid var(--wk-accent); border-radius: 0 6px 6px 0; background: var(--wk-surface);
+}
+.wk-heldlink p { margin: 0; }
+.wk-heldlink .wk-actions { margin: 0; align-items: center; }
+.wk-heldlink.is-dead { border-left-color: var(--wk-danger); }
+.wk-heldlink-x {
+  position: absolute; top: 0.4rem; right: 0.45rem; width: 1.8rem; height: 1.8rem; padding: 0;
+  border: 0; border-radius: 50%; background: transparent; color: var(--wk-muted); font-size: 1.15rem; line-height: 1; cursor: pointer;
+}
+.wk-heldlink-x:hover { background: var(--wk-soft); color: var(--wk-ink); }
+.wk-heldlink-x:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+
+.wk-link-aim input { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 0.88rem; }
+.wk-link-aim-now { overflow-wrap: anywhere; }
+.wk-link-aim-edit { display: grid; gap: 0.45rem; padding: 0.6rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 5px; background: var(--wk-soft); }
+.wk-link-aim-edit .wk-actions { margin: 0; }
+.wk-held-here { margin-top: 1.4rem; padding-top: 1rem; border-top: 1px dashed var(--wk-line); }
+.wk-join-free p { margin: 0.2rem 0; }
+
+/* Der Knopf „Więcej informacji" — als Knopf im Dialog, klein in Listen und im Programm. */
+.wk-item-link { text-decoration: none; }
+.wk-item-link.is-compact {
+  display: inline-flex; align-items: center; gap: 0.15rem; padding: 0.05rem 0.5rem; border: 1px solid var(--wk-accent);
+  border-radius: 999px; color: var(--wk-accent); font-size: 0.8rem; font-weight: 600; white-space: nowrap; background: transparent;
+}
+.wk-item-link.is-compact:hover { background: var(--wk-soft); }
+.wk-item-link:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-cal2-listrow .wk-item-link.is-compact { margin-left: 0.4rem; }
+.wk-program-what .wk-item-link.is-compact { justify-self: start; margin-top: 0.2rem; }
+
+.wk-ev-link { display: grid; gap: 0.4rem 0.8rem; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: end; }
+.wk-ev-link .wk-field { margin: 0; min-width: 0; }
+.wk-ev-link .wk-field input { width: 100%; box-sizing: border-box; }
+.wk-ev-link .wk-warn, .wk-ev-link .wk-hint { grid-column: 1 / -1; margin: 0; }
+@media (max-width: 36rem) { .wk-ev-link { grid-template-columns: minmax(0, 1fr); } }

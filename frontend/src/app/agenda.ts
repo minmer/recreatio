@@ -16,9 +16,9 @@
  */
 
 import { createArea, loadAreas, type AreaRow } from './area';
-import { setOccurrence, type SealedField } from './calendar';
+import { emptyTexts, itemFieldAad, putText, setOccurrence, type ItemField, type ItemTexts, type SealedField } from './calendar';
 import { areaKeys, newestKey } from './chat';
-import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from './crypto';
+import { fromBase64Url, openText, sealText, toBase64Url } from './crypto';
 import { newId } from './ids';
 import type { Ring, SealedRole } from './keys';
 import { call, WorkspaceError } from './session';
@@ -98,6 +98,9 @@ export interface OpenedItem {
   readonly title: string;
   readonly location: string | null;
   readonly notes: string | null;
+  /** 0073 — der Link zu weiteren Informationen und das Wort auf seinem Knopf. */
+  readonly link: string | null;
+  readonly linkLabel: string | null;
 
   /** Darf ich die Reihe ändern? Eigene Art, und Schreibrecht im Bereich des Terminarzes. */
   readonly editable: boolean;
@@ -106,9 +109,7 @@ export interface OpenedItem {
   readonly named: boolean;
 }
 
-const fieldAad = (itemId: string, field: string) =>
-  aad('calendar', 'item', itemId,
-    field === 'title' ? Field.CalendarEventTitle : field === 'location' ? Field.CalendarEventLocation : Field.CalendarItemNotes, 1);
+const fieldAad = itemFieldAad;
 
 /**
  * Die Termine aufmachen — jedes Feld mit dem Schlüssel SEINES Bereichs.
@@ -119,20 +120,17 @@ export async function openAgenda(
   ring: Ring, occurrences: readonly AgendaOccurrence[], areas: readonly AreaRow[]
 ): Promise<OpenedItem[]> {
   const byArea = new Map(areas.map((a) => [a.areaId, a]));
-  const opened = new Map<string, { title: string | null; location: string | null; notes: string | null }>();
+  const opened = new Map<string, ItemTexts>();
 
   for (const one of occurrences) {
     if (opened.has(one.itemId)) continue;
-    const found = { title: null as string | null, location: null as string | null, notes: null as string | null };
+    const found = emptyTexts();
 
     for (const field of one.fields) {
       try {
         const key = (await areaKeys(ring, field.areaId)).get(field.epoch);
         if (key === undefined) continue;
-        const text = await openText(key, fieldAad(one.itemId, field.field), fromBase64Url(field.sealed));
-        if (field.field === 'title') found.title = text;
-        else if (field.field === 'location') found.location = text;
-        else if (field.field === 'notes') found.notes = text;
+        putText(found, field.field, await openText(key, fieldAad(one.itemId, field.field), fromBase64Url(field.sealed)));
       } catch {
         // Nicht lesbar — dann eben ohne.
       }
@@ -150,6 +148,8 @@ export async function openAgenda(
       named: fields.title !== null || (one.titlePublic ?? '') !== '',
       location: fields.location,
       notes: fields.notes,
+      link: fields.link,
+      linkLabel: fields.linkLabel,
       editable: OWN_KINDS.includes(one.kind) && (level === 'write' || level === 'admin')
     };
   });
@@ -183,6 +183,9 @@ export interface EventDraft {
   readonly title: string;
   readonly location: string;
   readonly notes: string;
+  /** 0073 — wohin „Więcej informacji" führt (`https://…` oder `#/…`), und was auf dem Knopf steht. */
+  readonly link?: string;
+  readonly linkLabel?: string;
 
   /** Wer ihn sieht — ein Bereich; „Tylko ja" ist der eigene. */
   readonly areaId: string;
@@ -241,7 +244,7 @@ export async function saveEvent(ring: Ring, draft: EventDraft, itemId?: string):
   const newest = newestKey(await areaKeys(ring, draft.areaId, true));
   if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
 
-  const seal = async (field: 'title' | 'location' | 'notes', text: string): Promise<SealedField> => ({
+  const seal = async (field: ItemField, text: string): Promise<SealedField> => ({
     field,
     areaId: draft.areaId,
     epoch: newest.epoch,
@@ -251,6 +254,10 @@ export async function saveEvent(ring: Ring, draft: EventDraft, itemId?: string):
   const fields: SealedField[] = [await seal('title', draft.title.trim() || 'Termin')];
   if (draft.location.trim() !== '') fields.push(await seal('location', draft.location.trim()));
   if (draft.notes.trim() !== '') fields.push(await seal('notes', draft.notes.trim()));
+  if ((draft.link ?? '').trim() !== '') {
+    fields.push(await seal('link', draft.link!.trim()));
+    if ((draft.linkLabel ?? '').trim() !== '') fields.push(await seal('link_label', draft.linkLabel!.trim()));
+  }
 
   const body = {
     itemId: id,

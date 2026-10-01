@@ -122,8 +122,9 @@ export function keepLinkFromAddress(hash: string): string | null {
   const aim = `${path}${rest.length > 0 ? `?${rest.join('&')}` : ''}`;
 
   if (TOKEN.test(token)) {
-    rememberLink(token, aim === '' ? null : aim);
+    /* Erst merken, dass er eben kam — `rememberLink` meldet die Änderung, und wer zuhört, fragt gleich danach. */
     fresh = { token, aim: aim === '' ? null : aim };
+    rememberLink(token, aim === '' ? null : aim);
   }
   return `#/${aim}`;
 }

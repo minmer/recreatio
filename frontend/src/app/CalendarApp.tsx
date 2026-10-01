@@ -34,13 +34,14 @@ import {
   holderName, loadBookings, NO_BOOKINGS, waitingOn, waitsForOffice, type AgendaBookings
 } from './calendarBookings';
 import {
-  buildEvents, hueOf, marksOn, onDay as happensOn, placeDay, railDay, stepView, taskMarks, viewRange, wholeDay,
+  buildEvents, hueOf, linkOfEvent, marksOn, onDay as happensOn, placeDay, railDay, stepView, taskMarks, viewRange, wholeDay,
   type CalEvent, type CalView, type TaskMark
 } from './calendarModel';
 import { addDays, keyOf, longDate, monthTitle, rangeTitle, sameDay, sameMonth, startOfDay, WEEK_HEADS } from './dayMath';
 import { CALENDAR_KIND_LABEL, loadCalendars, type CalendarRow } from './calendar';
 import { CalendarSettings } from './CalendarSettings';
 import { calendarLabel, EventDialog, type EventTarget } from './EventDialog';
+import { ItemLink } from './ItemLink';
 import { useNow } from './MassParts';
 import { Modal } from './Modal';
 import { useMe, type Me } from './me';
@@ -624,6 +625,7 @@ export function ListView({ from, events, marks, now, areas, onOpen, onTasks }: {
                 {e.title}
               </button>
               <span className="wk-row-side">{side(e)}</span>
+              {linkOfEvent(e) !== null && <ItemLink url={linkOfEvent(e)!.url} label={linkOfEvent(e)!.label} compact />}
             </div>
           ))}
         </section>

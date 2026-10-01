@@ -27,10 +27,11 @@ import {
 } from './agenda';
 import { areaPath, type AreaRow } from './area';
 import { AreaOptions } from './AreaOptions';
-import { CALENDAR_KIND_LABEL, DUTY_LABEL, setPeople, type CalendarRow, type Duty } from './calendar';
+import { CALENDAR_KIND_LABEL, DUTY_LABEL, safeLink, setPeople, type CalendarRow, type Duty } from './calendar';
 import type { CalEvent } from './calendarModel';
 import { longDate } from './dayMath';
 import type { Me } from './me';
+import { ItemLink } from './ItemLink';
 import { Modal } from './Modal';
 import { nameOfPinned, PeoplePicker, useAreaPeople, type Pinned } from './PeoplePicker';
 import { useRecent } from './prefs';
@@ -197,6 +198,7 @@ function Details({ me, areas, calendars, event, onClose, onSaved }: {
       {calendar?.description && <p className="wk-ev-rules">{calendar.description}</p>}
       {item?.location && <p><strong>Miejsce:</strong> {item.location}</p>}
       {item?.notes && <p className="wk-ev-notes">{item.notes}</p>}
+      {item?.link && <p><ItemLink url={item.link} label={item.linkLabel} /></p>}
 
       {/* 0058 — wer da sein muss. */}
       {occurrence !== undefined && (occurrence.people?.length ?? 0) > 0 && !editing && (
@@ -314,6 +316,9 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
     target.at === 'new' ? target.parentItemId : undefined);
   const [location, setLocation] = useState(item?.location ?? '');
   const [notes, setNotes] = useState(item?.notes ?? '');
+  /* 0073 — „Więcej informacji": wohin, und was auf dem Knopf steht. */
+  const [link, setLink] = useState(item?.link ?? '');
+  const [linkLabel, setLinkLabel] = useState(item?.linkLabel ?? '');
 
   /* Wer ihn sieht: was der Kalender sagt — ausser, dieser Termin sagt es anders. */
   const [visibility, setVisibility] = useState<string | null>(
@@ -407,7 +412,7 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
     const id = await saveEvent(me.ring, {
       parentItemId,
       origin: target.at === 'new' ? target.origin ?? undefined : undefined,
-      title, location, notes, areaId: seenBy,
+      title, location, notes, link, linkLabel, areaId: seenBy,
       ownerRoleId: me.person.id,
       date, time: from, minutes, allDay,
       repeat, every, weekdays,
@@ -609,6 +614,20 @@ function Editor({ me, areas, calendars, scope: allowed, target, events, onClose,
               <span>Notatka</span>
               <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
             </label>
+
+            <div className="wk-ev-link">
+              <label className="wk-field">
+                <span>Link do informacji</span>
+                <input type="url" inputMode="url" value={link} maxLength={1000} placeholder="https://… albo adres strony na recreatio.pl"
+                  onChange={(e) => setLink(e.target.value)} />
+              </label>
+              <label className="wk-field">
+                <span>Napis na przycisku</span>
+                <input value={linkLabel} maxLength={60} placeholder="Więcej informacji" disabled={link.trim() === ''} onChange={(e) => setLinkLabel(e.target.value)} />
+              </label>
+              {link.trim() !== '' && safeLink(link) === null && <p className="wk-warn">Link musi zaczynać się od https:// (albo #/ dla strony na recreatio.pl).</p>}
+              {link.trim() !== '' && safeLink(link) !== null && <p className="wk-hint">Na terminie: <ItemLink url={link} label={linkLabel} compact /></p>}
+            </div>
 
             {/* 0070 — Teil eines Programms, oder ein Ganzes mit Teilen. */}
             {target.at === 'new' && target.parentItemId !== undefined && (

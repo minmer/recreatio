@@ -25,7 +25,9 @@ export * from '${app}postal';
 export { planRegistryImport, registryDescription, exportRegistry } from '${app}postalJson';
 export { periodStarts, remindersOf, upcomingReminders } from '${app}tasks';
 export { nextDelay } from '${app}notify';
-export { linkSecrets } from '${app}linkAccess';
+export { linkSecrets, aimOf } from '${app}linkAccess';
+export { keepLinkFromAddress, linkHref, freshLink } from '${app}linkKeep';
+export { safeLink, itemFieldAad, linkWord, putText, emptyTexts } from '${app}calendar';
 export { latexEscape, textToLatex, projectToLatex, missingKeys } from '${app}libraryLatex';
 export { openProgram, countParts } from '${app}program';
 export { titleFrom } from '${app}chatTopics';
@@ -208,6 +210,38 @@ try {
 
   assert.equal(m.titleFrom('Trzeba zamówić autokar. Kto się zajmie?'), 'Trzeba zamówić autokar.');
   ok('chat: a task or appointment from a message takes its first sentence as title');
+
+  /* -- 8. Links mit Ziel, Link eines Termins (0073) ------------------------------------------- */
+
+  const T = m.toBase64Url(new Uint8Array(32).fill(7));
+  assert.equal(m.linkHref('https://recreatio.pl/', T, null), `https://recreatio.pl/#/dolacz/${T}`, 'no aim: the join page');
+  assert.equal(m.linkHref('https://recreatio.pl/', T, 'parish/x'), `https://recreatio.pl/#/parish/x?dostep=${T}`);
+  assert.equal(m.linkHref('https://recreatio.pl/', T, 'parish/x?s=2'), `https://recreatio.pl/#/parish/x?s=2&dostep=${T}`, 'an aim with its own query');
+  assert.equal(m.keepLinkFromAddress(`#/parish/x?s=2&dostep=${T}`), '#/parish/x?s=2', 'the secret leaves the address, the slide stays');
+  assert.deepEqual(m.freshLink(), { token: T, aim: 'parish/x?s=2' }, 'and is noted as just arrived');
+  assert.equal(m.keepLinkFromAddress('#/parish/x?s=2'), null, 'nothing to take');
+  assert.equal(m.keepLinkFromAddress(`#/dolacz/${T}`), null, 'the join page keeps its secret in the path');
+  assert.deepEqual(m.aimOf('https://recreatio.pl/#/parish/x?s=2'), { aim: 'parish/x?s=2' });
+  assert.deepEqual(m.aimOf('#/workspace/calendar'), { aim: 'workspace/calendar' });
+  assert.ok('error' in m.aimOf('https://evil.example/#/x'), 'not a foreign site');
+  assert.deepEqual(m.aimOf(''), { aim: null });
+  assert.deepEqual(m.aimOf(`#/dolacz/${T}`), { aim: null });
+  ok('links with an aim: #/<aim>?dostep=T, the secret taken out of the address, aims of ours only');
+
+  assert.deepEqual(m.safeLink('https://recreatio.pl/#/parish/x'), { href: 'https://recreatio.pl/#/parish/x', external: true });
+  assert.deepEqual(m.safeLink('www.oaza.pl'), { href: 'https://www.oaza.pl', external: true });
+  assert.deepEqual(m.safeLink('#/parish/x'), { href: '#/parish/x', external: false });
+  assert.equal(m.safeLink('javascript:alert(1)'), null, 'no script links');
+  assert.equal(m.safeLink('zapisy u księdza'), null);
+  assert.equal(m.linkWord(''), 'Więcej informacji');
+  assert.equal(m.linkWord('Zapisy'), 'Zapisy');
+  const texts = m.emptyTexts();
+  m.putText(texts, 'link', 'https://a.pl');
+  m.putText(texts, 'link_label', 'Zapisy');
+  assert.deepEqual([texts.link, texts.linkLabel, texts.notes], ['https://a.pl', 'Zapisy', null]);
+  assert.notEqual(JSON.stringify(m.itemFieldAad('i', 'link')), JSON.stringify(m.itemFieldAad('i', 'notes')), 'a link is sealed under its own label, not as a note');
+  assert.notEqual(JSON.stringify(m.itemFieldAad('i', 'link')), JSON.stringify(m.itemFieldAad('i', 'link_label')));
+  ok('appointment links: https and #/ only, own seal labels, „Więcej informacji\" by default');
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;
   await rm(workspace, { recursive: true, force: true });

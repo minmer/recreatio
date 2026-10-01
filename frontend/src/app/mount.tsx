@@ -13,6 +13,7 @@ import ReactDOM from 'react-dom/client';
 
 import { App } from './App';
 import { keepFromAddress } from './seatKeep';
+import { keepLinkFromAddress } from './linkKeep';
 import './app.css';
 
 /**
@@ -27,6 +28,10 @@ import './app.css';
  * Hier ist die letzte Stelle, an der noch nichts gezeichnet ist.
  */
 function tidyAddress(): void {
+  /* 0073 — ebenso ein Link mit Zugang (`?dostep=`). */
+  const linked = keepLinkFromAddress(window.location.hash);
+  if (linked !== null) window.history.replaceState(null, '', linked);
+
   const cleaned = keepFromAddress(window.location.hash);
   if (cleaned === null) return;
 

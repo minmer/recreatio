@@ -7,9 +7,10 @@
  */
 
 import { loadPublicKey } from './area';
-import type { SealedField } from './calendar';
+import { emptyTexts, itemFieldAad, putText, type ItemTexts, type SealedField } from './calendar';
 import { areaKeys } from './chat';
-import { aad, Field, fromBase64Url, openText } from './crypto';
+import { fromBase64Url, openText } from './crypto';
+import { heldAreaKey, heldProofs } from './linkAccess';
 import type { Ring } from './keys';
 import { call } from './session';
 
@@ -34,6 +35,9 @@ export interface ProgramNode {
   readonly title: string;
   readonly location: string | null;
   readonly notes: string | null;
+  /** 0073 — „Więcej informacji" an diesem Punkt. */
+  readonly link: string | null;
+  readonly linkLabel: string | null;
   readonly start: Date;
   readonly end: Date;
   readonly allDay: boolean;
@@ -41,13 +45,13 @@ export interface ProgramNode {
   readonly children: readonly ProgramNode[];
 }
 
-export const loadProgram = (itemId: string): Promise<{
+/** Mit den Beweisen der Links mit Zugang in diesem Browser (0073): was ihre Rollen lesen, kommt mit. */
+export const loadProgram = async (itemId: string): Promise<{
   itemId: string; calendarId: string; calendarTitle: string; timeZone: string; items: readonly ProgramRow[];
-}> => call(`/calendar/program/${encodeURIComponent(itemId)}`);
-
-const fieldAad = (itemId: string, field: string) =>
-  aad('calendar', 'item', itemId,
-    field === 'title' ? Field.CalendarEventTitle : field === 'location' ? Field.CalendarEventLocation : Field.CalendarItemNotes, 1);
+}> => {
+  const links = await heldProofs().catch(() => []);
+  return call(`/calendar/program/${encodeURIComponent(itemId)}${links.length === 0 ? '' : `?links=${encodeURIComponent(links.join(','))}`}`);
+};
 
 /** Die Reihenfolge unter einem Ganzen: erst die Stelle, sonst die Zeit. */
 export const byPlace = (a: { position: number | null; startsAt: string }, b: { position: number | null; startsAt: string }) =>
@@ -68,20 +72,17 @@ export async function openProgram(rows: readonly ProgramRow[], ring: Ring | null
       publicKeys.set(areaId, loadPublicKey(areaId).then((k) => ({ epoch: k.epoch, key: fromBase64Url(k.key) })).catch(() => null));
     }
     const found = await publicKeys.get(areaId)!;
-    return found !== null && found.epoch === epoch ? found.key : null;
+    return found !== null && found.epoch === epoch ? found.key : heldAreaKey(areaId, epoch);
   };
 
-  const opened = new Map<string, { title: string | null; location: string | null; notes: string | null }>();
+  const opened = new Map<string, ItemTexts>();
   for (const row of rows) {
-    const out = { title: null as string | null, location: null as string | null, notes: null as string | null };
+    const out = emptyTexts();
     for (const f of row.fields) {
       try {
         const key = await keyOf(f.areaId, f.epoch);
         if (key === null) continue;
-        const text = await openText(key, fieldAad(row.itemId, f.field), fromBase64Url(f.sealed));
-        if (f.field === 'title') out.title = text;
-        else if (f.field === 'location') out.location = text;
-        else if (f.field === 'notes') out.notes = text;
+        putText(out, f.field, await openText(key, itemFieldAad(row.itemId, f.field), fromBase64Url(f.sealed)));
       } catch {
         // Nicht für diesen Leser — dann der offene Titel oder „Punkt".
       }
@@ -96,6 +97,8 @@ export async function openProgram(rows: readonly ProgramRow[], ring: Ring | null
       title: o.title ?? row.titlePublic ?? (row.depth === 0 ? 'Wydarzenie' : 'Punkt programu'),
       location: o.location,
       notes: o.notes,
+      link: o.link,
+      linkLabel: o.linkLabel,
       start: new Date(row.startsAt),
       end: new Date(row.endsAt),
       allDay: row.allDay,

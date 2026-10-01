@@ -27,6 +27,8 @@ import {
 import { forgetAreaKeys } from './chat';
 import { forget as forgetState } from './prefs';
 import { keepFromAddress } from './seatKeep';
+import { keepLinkFromAddress } from './linkKeep';
+import { HeldLinkBar } from './HeldLinkBar';
 import { signOut, whoIsThere, type Who } from './session';
 import { PublicPage } from './PublicPage';
 import { SeatPortal } from './SeatPortal';
@@ -34,7 +36,7 @@ import { SignIn } from './SignIn';
 import { Verify } from './Verify';
 import { ViewGuard } from './ViewGuard';
 import { Workspace } from './Workspace';
-import { JoinLink } from './JoinLink';
+import { JoinLink, JoinWithoutAccount } from './JoinLink';
 import { NotifyBell } from './NotifyBell';
 import { Widget } from './Widget';
 import { forgetNotifications } from './notify';
@@ -60,6 +62,10 @@ export function App() {
    */
   useEffect(() => {
     const onHash = () => {
+      /* 0073 — ein Link mit Zugang: behalten, die Adresse ohne ihn. */
+      const linked = keepLinkFromAddress(window.location.hash);
+      if (linked !== null) window.history.replaceState(null, '', linked);
+
       const cleaned = keepFromAddress(window.location.hash);
 
       if (cleaned !== null) {
@@ -171,7 +177,10 @@ export function App() {
     return (
       <Shell>
         {address.route === 'dolacz' && (
-          <p className="wk-note">Masz zaproszenie. Zaloguj się albo załóż konto — potem zobaczysz, do czego zaprasza.</p>
+          <>
+            <p className="wk-note">Masz zaproszenie. Zaloguj się albo załóż konto, żeby dodać ten dostęp do konta.</p>
+            <JoinWithoutAccount token={address.slug} />
+          </>
         )}
         <SignIn onDone={setWho} />
       </Shell>
@@ -267,6 +276,7 @@ function Shell({
       </header>
       <main className={wide ? 'wk-main wk-main-wide' : 'wk-main'}>
         <HeaderSlotContext.Provider value={slot}>
+          <HeldLinkBar who={who} />
           <ViewGuard>{children}</ViewGuard>
         </HeaderSlotContext.Provider>
       </main>

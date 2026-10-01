@@ -15,6 +15,18 @@
  */
 
 import { foreignHost, PAGES, ROUTES } from './app/routes';
+import { keepLinkFromAddress } from './app/linkKeep';
+
+/*
+ * 0073 — EIN LINK MIT ZUGANG (`#/<ziel>?dostep=T`) wird behalten und aus der
+ * Adresse genommen, BEVOR die Weiche entscheidet: auch ein Ziel im Altbestand
+ * soll das Geheimnis nicht in der Adresszeile stehen lassen. `linkKeep`
+ * importiert nichts — die Trennung der beiden Häuser bleibt.
+ */
+{
+  const linked = keepLinkFromAddress(window.location.hash);
+  if (linked !== null) window.history.replaceState(null, '', linked);
+}
 
 const BASE = '#/workspace';
 
@@ -55,6 +67,8 @@ const isNew = (): boolean => {
  */
 let wasNew = isNew();
 window.addEventListener('hashchange', () => {
+  const linked = keepLinkFromAddress(window.location.hash);
+  if (linked !== null) window.history.replaceState(null, '', linked);
   if (isNew() !== wasNew) {
     wasNew = isNew();
     window.location.reload();

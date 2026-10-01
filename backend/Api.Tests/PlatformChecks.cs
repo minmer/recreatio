@@ -14,6 +14,7 @@ internal static class PlatformChecks
         TaskPeriods(check);
         Postal(check);
         Catalog(check);
+        LinkAims(check);
     }
 
     private static void Invites(Action<bool, string> check)
@@ -116,5 +117,19 @@ internal static class PlatformChecks
         check(LibraryCatalog.Isbn10("9780306406157") == "0306406152", "isbn: and back, for old records");
         check(LibraryCatalog.Isbn13("5901234123457") is null, "isbn: an EAN of a product is not a book");
         check(LibraryCatalog.Isbn13("") is null && LibraryCatalog.Isbn13("abc") is null, "isbn: nothing is nothing");
+    }
+
+    private static void LinkAims(Action<bool, string> check)
+    {
+        check(HeldLinks.NormaliseAim("parish/grzegorzki/oaza") == ("parish/grzegorzki/oaza", null), "aim: a path stays");
+        check(HeldLinks.NormaliseAim("#/parish/x?s=2").Aim == "parish/x?s=2", "aim: the hash goes, the slide stays");
+        check(HeldLinks.NormaliseAim("https://recreatio.pl/#/parish/x").Aim == "parish/x", "aim: a whole address of ours");
+        check(HeldLinks.NormaliseAim("https://evil.example/#/parish/x").Error is not null, "aim: not someone else's site");
+        check(HeldLinks.NormaliseAim("") == (null, null) && HeldLinks.NormaliseAim("#/dolacz/abc") == (null, null), "aim: empty or the join page is no aim");
+        check(HeldLinks.NormaliseAim("parish/x y").Error is not null, "aim: no spaces");
+        check(HeldLinks.NormaliseAim(new string('a', 401)).Error is not null, "aim: at most 400");
+        var proof = Kernel.Base64Url.Encode(new byte[32]);
+        check(HeldLinks.Proofs($"{proof},{proof},xx,{Kernel.Base64Url.Encode(new byte[31])}").Count == 1, "links: proofs are 32 bytes, each once");
+        check(HeldLinks.Proofs(string.Join(",", Enumerable.Range(0, 30).Select(i => Kernel.Base64Url.Encode(Enumerable.Repeat((byte)i, 32).ToArray())))).Count == HeldLinks.Max, "links: at most twenty");
     }
 }

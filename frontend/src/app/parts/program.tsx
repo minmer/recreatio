@@ -16,6 +16,7 @@
 
 import { useEffect, useState } from 'react';
 
+import { ItemLink } from '../ItemLink';
 import { definePart, text, type PartContext, type RawConfig } from '../part';
 import { countParts, loadProgram, openProgram, type ProgramNode } from '../program';
 import { keysFor } from '../ringOf';
@@ -51,6 +52,7 @@ function Points({ nodes, deep, parentDay }: { nodes: readonly ProgramNode[]; dee
               {node.cancelled && <span className="wk-tag">odwołane</span>}
               {node.location !== null && <span className="wk-program-where">{node.location}</span>}
               {deep && node.notes !== null && <span className="wk-program-notes">{node.notes}</span>}
+              {node.link !== null && <ItemLink url={node.link} label={node.linkLabel} compact />}
             </span>
             {deep && <Points nodes={node.children} deep={deep} parentDay={node.start.toDateString()} />}
             {!deep && node.children.length > 0 && <span className="wk-hint"> · {node.children.length} pkt.</span>}
@@ -106,6 +108,7 @@ function ProgramView({ config, ctx }: { config: ProgramConfig; ctx: PartContext 
         {node.location !== null && <> · {node.location}</>}
       </p>
       {deep && node.notes !== null && <p className="wk-program-notes">{node.notes}</p>}
+      {node.link !== null && <p><ItemLink url={node.link} label={node.linkLabel} /></p>}
       {parts === 0 ? <p className="wk-card-muted">Program jeszcze nie jest gotowy.</p>
         : <Points nodes={node.children} deep={deep} parentDay={node.start.toDateString()} />}
     </div>

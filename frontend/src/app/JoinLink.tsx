@@ -79,8 +79,11 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
     return (
       <>
         <h1 className="wk-h1">Dołączono</h1>
-        <p className="wk-lede">Masz teraz dostęp: {info.areas.map((a) => a.name).join(', ')}.</p>
-        <p><a className="wk-btn" href={viewPath('areas')}>Zobacz obszary</a></p>
+        <p className="wk-lede">Masz teraz dostęp: {info.areas.map((a) => a.name).join(', ')}. Działa na każdym urządzeniu, na którym się zalogujesz.</p>
+        <div className="wk-actions">
+          {info.aim !== null && <a className="wk-btn" href={`#/${info.aim}`}>Przejdź dalej</a>}
+          <a className={info.aim !== null ? 'wk-link-btn' : 'wk-btn'} href={viewPath('areas')}>Zobacz obszary</a>
+        </div>
       </>
     );
   }
@@ -94,6 +97,7 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
         <div className="wk-fact"><dt>Obszary</dt><dd>{info.areas.map((a) => a.name).join(' · ') || '—'}</dd></div>
         <div className="wk-fact"><dt>Ważne do</dt><dd>{new Date(info.expiresAt).toLocaleDateString('pl-PL')}</dd></div>
         {info.once && <div className="wk-fact"><dt>Link</dt><dd>jednorazowy</dd></div>}
+        {info.aim !== null && <div className="wk-fact"><dt>Otwiera</dt><dd><a href={`#/${info.aim}`}>recreatio.pl/#/{info.aim}</a></dd></div>}
       </dl>
 
       {info.state !== null ? (
@@ -129,6 +133,27 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
         </form>
       )}
     </>
+  );
+}
+
+/**
+ * Ohne Anmeldung, auf `#/dolacz/<T>`: der Link gilt in diesem Browser schon
+ * (`linkKeep`) — wer kein Konto will, geht gleich zum Ziel.
+ */
+export function JoinWithoutAccount({ token }: { token: string | null }) {
+  const [info, setInfo] = useState<LinkInfo | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (token === null) return undefined;
+    void linkSecrets(token).then((s) => showLink(s.lookup)).then((found) => { if (alive) setInfo(found); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [token]);
+  if (info === null || info.state !== null) return null;
+  return (
+    <div className="wk-note wk-join-free">
+      <p><strong>{info.label ?? 'Link'}</strong> — {LEVEL_WORD[info.capability ?? 'read'] ?? info.capability}: {info.areas.map((a) => a.name).join(', ')}.</p>
+      <p>Bez konta ten dostęp działa w tej przeglądarce (do czytania).{info.aim !== null && <> <a href={`#/${info.aim}`}>Otwórz bez logowania</a>.</>} Z kontem — na każdym urządzeniu i do pisania.</p>
+    </div>
   );
 }
 
