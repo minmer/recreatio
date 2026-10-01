@@ -99,6 +99,8 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
     implementation project(':capacitor-cordova-android-plugins')
+    /* 0067 — der Arbeiter, der bei geschlossener App nach Neuem fragt (NotifyWorker). */
+    implementation 'androidx.work:work-runtime:2.10.5'
 }
 
 apply from: 'capacitor.build.gradle'

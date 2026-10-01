@@ -1,0 +1,33 @@
+{
+  "_": "0071 — dieselbe Tabelle für Postal.Norm (C#, PlatformChecks.cs) und postal.ts norm (app-platform-check.mjs). Laufen beide auseinander, fände die Suche im Browser eine Straße, die der Dienst als neue anlegt.",
+  "norm": [
+    ["street", "ul. Długa", "dluga"],
+    ["street", "Ulica  Długa", "dluga"],
+    ["street", "al. Jana Pawła II", "jana pawla ii"],
+    ["street", "Aleje Jerozolimskie", "jerozolimskie"],
+    ["street", "os. Kalinowe", "kalinowe"],
+    ["street", "pl. Wolności", "wolnosci"],
+    ["street", "Księcia Józefa Poniatowskiego", "ksiecia jozefa poniatowskiego"],
+    ["street", "ŁĄKOWA", "lakowa"],
+    ["street", "3 Maja", "3 maja"],
+    ["street", "Św. Floriana", "sw floriana"],
+    ["locality", "Kraków", "krakow"],
+    ["locality", "  Bielsko-Biała ", "bielsko biala"],
+    ["locality", "Zawoja", "zawoja"],
+    ["locality", "Żywiec", "zywiec"],
+    ["post", "Kraków 1", "krakow 1"],
+    ["district", "Nowa Huta", "nowa huta"],
+    ["postcode", "31-147", "31-147"],
+    ["postcode", "31147", "31-147"],
+    ["postcode", "31 147", "31-147"],
+    ["postcode", "3114", ""],
+    ["house", "5a", "5A"],
+    ["house", " 12 B ", "12B"],
+    ["unit", "3", "3"]
+  ],
+  "keys": [
+    [["", "Kraków", "", "", "ul. Długa", "5", "3"], ["31-147", "Kraków", "Kraków", "", "Długa", "5", "3"], false],
+    [["31-147", "Kraków", "", "", "ul. Długa", "5", "3"], ["31-147", "Kraków", "Kraków", "", "Dluga", "5", "3"], true],
+    [["", "", "Zawoja", "", "", "1234", ""], ["", "", "ZAWOJA", "", "", "1234", ""], true]
+  ]
+}

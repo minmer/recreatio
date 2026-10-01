@@ -75,7 +75,23 @@ export const ROUTES = {
    * <b>Hinter der Raute</b>, wie der Platz: der Server einer statischen Seite
    * sieht das Geheimnis nie.
    */
-  verify: { slugged: true, needsIdentity: false }
+  verify: { slugged: true, needsIdentity: false },
+
+  /**
+   * Ein Link mit Zugang — `#/dolacz/<geheimnis>` (0065).
+   *
+   * <b>Mit Konto</b>: wer ihn einlöst, hängt seine Person an die Linkrolle.
+   * Wer nicht angemeldet ist, bekommt zuerst die Anmeldung — die Adresse
+   * bleibt stehen, und danach steht das Zaproszenie da.
+   */
+  dolacz: { slugged: true, needsIdentity: true },
+
+  /**
+   * Ein Baustein einer öffentlichen Seite als WIDGET — für fremde Seiten
+   * (WordPress), in einem iframe: `#/widget/<baustein>/<pfad der seite>`.
+   * Ohne Konto, ohne Kopfleiste; ein Klick führt auf recreatio.pl.
+   */
+  widget: { slugged: true, needsIdentity: false }
 } as const satisfies Readonly<Record<string, RouteDef>>;
 
 export type Route = keyof typeof ROUTES;
@@ -380,6 +396,13 @@ export const VIEWS = {
    * Zitatsammlung) — und weil Cogita auf ihr aufbaut.
    */
   library: 'Biblioteka',
+
+  /*
+   * 0071 — DIE KARTOTEKA: Adressen eines Gebiets (der Pfarrei), die Familien
+   * darin und die Kolęda Jahr für Jahr. Die Adressen in Teilen, die Familien
+   * versiegelt.
+   */
+  registry: 'Kartoteka i kolęda',
   /*
    * Bausteine stehen VOR den Seiten, weil sie unter ihnen liegen: eine
    * Seite zeigt Bausteine, sie besitzt sie nicht (0036). Wer den Bogen

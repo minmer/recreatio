@@ -288,7 +288,12 @@ export function Calendar({ me, scope }: { me: Me; scope?: readonly string[] }) {
       )}
 
       {dialog !== null && (
-        <EventDialog me={me} areas={areas} calendars={calendars} scope={scope} target={dialog} onClose={() => setDialog(null)} onSaved={reload} />
+        <EventDialog me={me} areas={areas} calendars={calendars} scope={scope} target={dialog} events={all}
+          onClose={() => setDialog(null)} onSaved={reload}
+          onAddPart={(parent) => setDialog({
+            at: 'new', start: parent.start, end: new Date(parent.start.getTime() + 3_600_000), allDay: false,
+            calendarId: parent.item?.occurrence.calendarId, parentItemId: parent.item?.occurrence.itemId, parentTitle: parent.item?.title
+          })} />
       )}
 
       {calendarsOpen && (

@@ -27,6 +27,7 @@ import {
 } from './person';
 import { WorkspaceError } from './session';
 import { AreaOptions } from './AreaOptions';
+import { PostalInput } from './PostalInput';
 
 export function PersonCard({ roleId, ring }: { roleId: string; ring: Ring }) {
   const [values, setValues] = useState<Map<PersonField, string>>(new Map());
@@ -168,10 +169,18 @@ function ValueRow({ field, value, releases, areas, ring, busy, onAct, onSaid, ro
 
         {open && (
           <div className="wk-form">
-            <label className="wk-field">
-              <span>Wartość</span>
-              <input value={draft} onChange={(e) => setDraft(e.target.value)} />
-            </label>
+            {/* 0071 — eine Anschrift in Teilen, mit Vorschlägen; gespeichert als Zeile wie bisher. */}
+            {field === 'address' ? (
+              <div className="wk-field">
+                <span>Adres</span>
+                <PostalInput value={draft} onChange={setDraft} />
+              </div>
+            ) : (
+              <label className="wk-field">
+                <span>Wartość</span>
+                <input value={draft} onChange={(e) => setDraft(e.target.value)} />
+              </label>
+            )}
 
             <div className="wk-actions">
               <button

@@ -6,16 +6,16 @@ void Check(bool condition, string message)
     if (!condition) throw new InvalidOperationException(message);
     checks++;
 }
-foreach (var kind in new[] { "area", "group", "direct" })
+foreach (var kind in new[] { "area", "group", "direct", "seat" })
 {
     Check(!ChatRules.Speakers(kind, "writers").Contains("read"), $"{kind}: channel readers cannot publish");
     Check(ChatRules.Speakers(kind, "writers").Contains("write"), $"{kind}: area writer can publish in channel");
     Check(ChatRules.Speakers(kind, "writers").Contains("admin"), $"{kind}: administrator can publish");
     Check(!ChatRules.Speakers(kind, "writers").Contains("certify"), $"{kind}: membership management alone cannot publish");
     Check(ChatRules.Speakers(kind, "members").Contains("read"), $"{kind}: all-member policy permits readers");
-    Check(ChatRules.Speakers(kind, "legacy").Contains("read") == (kind == "area"), $"{kind}: legacy behavior preserved");
+    Check(ChatRules.Speakers(kind, "legacy").Contains("read") == (kind is "area" or "seat"), $"{kind}: legacy behavior preserved");
     Check(!ChatRules.SeatCanWrite(kind, "writers"), $"{kind}: seat cannot publish in channel");
-    Check(ChatRules.SeatCanWrite(kind, "members") == (kind == "area"), $"{kind}: seats only access area chats");
+    Check(ChatRules.SeatCanWrite(kind, "members") == (kind is "area" or "seat"), $"{kind}: seats only access area and own chats");
 }
 var now = DateTimeOffset.Parse("2026-09-30T12:00:00Z");
 Check(ChatRules.ValidSchedule(null, now), "immediate message accepted");
@@ -38,4 +38,5 @@ await ApiErrorChecks.RunAsync(Check);
 FileLoggerChecks.Run(Check);
 PageFileChecks.Run(Check);
 LibraryChecks.Run(Check);
+PlatformChecks.Run(Check);
 Console.WriteLine($"Passed {checks} chat authorization, scheduling and availability checks.");

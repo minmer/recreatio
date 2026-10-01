@@ -20,6 +20,8 @@ namespace Api;
 ///   area     ein bestehender Bereich bekommt seinen Chat
 ///   group    der Browser legt fuer die Gruppe einen eigenen Bereich an
 ///   direct   zu zweit — zwei Personen oder Rollen, ebenfalls mit Bereich
+///   self     Notatki — im eigenen Bereich einer Person (0062)
+///   seat     mit EINEM Platz: der Mensch, der ein Formular ausgefuellt hat (0069)
 /// </code>
 ///
 /// <para>
@@ -53,6 +55,7 @@ public static partial class Chat
     public static void Map(WebApplication app)
     {
         MapFeatures(app);
+        MapTopics(app);
         app.MapGet("/workspace/chats", ListAsync);
         app.MapPost("/workspace/chats", CreateAsync);
         app.MapGet("/workspace/chat/{id:guid}", ShowAsync);
@@ -135,12 +138,12 @@ public static partial class Chat
     }
 
     private sealed record ChatRow(Guid Id, Guid AreaId, string Kind, string? PairKey, DateTimeOffset CreatedAt,
-        DateTimeOffset? LastMessageAt, string PostingPolicy);
+        DateTimeOffset? LastMessageAt, string PostingPolicy, Guid? SeatId = null);
 
     private static async Task<ChatRow?> ChatOfAsync(SqlConnection connection, Guid id, CancellationToken ct)
     {
         await using var cmd = new SqlCommand(
-            "SELECT id, area_id, kind, pair_key, created_at, last_message_at, posting_policy FROM app.chat WHERE id = @id;", connection);
+            "SELECT id, area_id, kind, pair_key, created_at, last_message_at, posting_policy, seat_id FROM app.chat WHERE id = @id;", connection);
         cmd.Parameters.AddWithValue("@id", id);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -148,8 +151,19 @@ public static partial class Chat
 
         return new ChatRow(reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2),
             reader.IsDBNull(3) ? null : reader.GetString(3), reader.GetDateTimeOffset(4),
-            reader.IsDBNull(5) ? null : reader.GetDateTimeOffset(5), reader.GetString(6));
+            reader.IsDBNull(5) ? null : reader.GetDateTimeOffset(5), reader.GetString(6),
+            reader.IsDBNull(7) ? null : reader.GetGuid(7));
     }
+
+    /// <summary>
+    /// Welche Plaetze in dieser Rozmowa mitschreiben — als SQL fuer eine
+    /// Unterabfrage ueber `s` (app.access) und `c` (app.chat): im Bereich
+    /// alle Plaetze des Bereichs, in der eines Platzes (0069) nur er.
+    /// </summary>
+    private const string SeatOfChat =
+        "((c.kind = N'area' AND s.area_id = c.area_id) OR (c.kind = N'seat' AND s.id = c.seat_id))";
+
+    private static bool HasSeats(ChatRow chat) => chat.Kind is "area" or "seat";
 
     /// <summary>Der Chat — wenn dieses Konto ihn lesen darf; sonst null (und 404 geschrieben).</summary>
     private static async Task<(ChatRow Chat, List<Guid> Mine, Guid Account)?> ReadableAsync(
@@ -196,7 +210,7 @@ public static partial class Chat
 
         var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
         var rows = new List<(Guid Id, Guid Area, string AreaName, string Kind, DateTimeOffset Created, DateTimeOffset? Last,
-            int Unread, int Seats, int Pending)>();
+            int Unread, int Seats, int Pending, Guid? Seat, string? SeatName)>();
 
         /*
          * Ungelesen ist, was nicht von MIR kommt — auch was ein Platz schrieb
@@ -213,13 +227,15 @@ public static partial class Chat
                        AND (r.read_at IS NULL OR m.created_at > r.read_at)
                        AND (m.author_role_id IS NULL OR m.author_role_id NOT IN ({names}))) AS unread,
                    (SELECT COUNT(*) FROM app.access s
-                     WHERE c.kind = N'area' AND {LiveSeat("s")} AND s.area_id = c.area_id) AS seats,
+                     WHERE {SeatOfChat} AND {LiveSeat("s")}) AS seats,
                    (SELECT COUNT(*) FROM app.access s
                      JOIN app.seat_identity i ON i.access_id = s.id
-                     WHERE c.kind = N'area' AND {LiveSeat("s")} AND s.area_id = c.area_id
+                     WHERE {SeatOfChat} AND {LiveSeat("s")}
                        AND NOT EXISTS (SELECT 1 FROM app.chat_seat_key k
                                         WHERE k.chat_id = c.id AND k.access_id = s.id
-                                          AND k.epoch = a.current_epoch)) AS pending
+                                          AND k.epoch = a.current_epoch)) AS pending,
+                   c.seat_id,
+                   (SELECT x.recipient_name FROM app.access x WHERE x.id = c.seat_id) AS seat_name
             FROM app.chat c
             JOIN app.area a ON a.id = c.area_id
             LEFT JOIN app.chat_read r ON r.chat_id = c.id AND r.account_id = @account
@@ -240,7 +256,8 @@ public static partial class Chat
             {
                 rows.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3),
                     reader.GetDateTimeOffset(4), reader.IsDBNull(5) ? null : reader.GetDateTimeOffset(5),
-                    reader.GetInt32(6), reader.GetInt32(7), reader.GetInt32(8)));
+                    reader.GetInt32(6), reader.GetInt32(7), reader.GetInt32(8),
+                    reader.IsDBNull(9) ? null : reader.GetGuid(9), reader.IsDBNull(10) ? null : reader.GetString(10)));
             }
         }
 
@@ -266,6 +283,10 @@ public static partial class Chat
                 preferences = preferences[r.Id],
                 seats = r.Seats,
                 pendingSeats = r.Pending,
+
+                /* 0069 — die Rozmowa mit einem Platz: mit wem (der Name, den die Kanzlei am Platz fuehrt). */
+                seatId = r.Seat is null ? null : Ids.ToText(r.Seat.Value),
+                seatName = r.SeatName,
                 members = members.TryGetValue(r.Area, out var m) ? m : [],
                 names = sealedNames.TryGetValue(r.Area, out var n) ? n : []
             })
@@ -361,7 +382,10 @@ public static partial class Chat
        ANLEGEN
        ====================================================================== */
 
-    public sealed record CreateRequest(string ChatId, string AreaId, string Kind, string AsRoleId, string? WithRoleId, string PostingPolicy = "legacy");
+    public sealed record CreateRequest(string ChatId, string AreaId, string Kind, string AsRoleId, string? WithRoleId, string PostingPolicy = "legacy",
+
+        /* 0069 — die Rozmowa mit diesem Platz (kind = seat). */
+        string? SeatId = null);
 
     /// <summary>
     /// EINEN CHAT ANLEGEN — am Bereich, den der Browser dafuer gewaehlt oder
@@ -386,9 +410,9 @@ public static partial class Chat
             return;
         }
 
-        if (body.Kind is not ("area" or "group" or "direct" or "self") || body.PostingPolicy is not ("legacy" or "members" or "writers"))
+        if (body.Kind is not ("area" or "group" or "direct" or "self" or "seat") || body.PostingPolicy is not ("legacy" or "members" or "writers"))
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Rodzaj rozmowy: area, group, direct albo self.");
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Rodzaj rozmowy: area, group, direct, self albo seat.");
             return;
         }
 
@@ -401,7 +425,8 @@ public static partial class Chat
             return;
         }
 
-        var needed = body.Kind == "area" ? Writers : ["admin"];
+        /* 0069 — mit einem Menschen vom Formular spricht, wer dessen Antworten lesen darf. */
+        var needed = body.Kind == "area" ? Writers : body.Kind == "seat" ? Readers : ["admin"];
         if (!(await HoldingAsync(connection, [asRole], areaId, needed, ctx.RequestAborted)).Contains(asRole))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, body.Kind == "area"
@@ -424,6 +449,44 @@ public static partial class Chat
                 await Fail(ctx, StatusCodes.Status400BadRequest, "Notatki należą do własnego obszaru tej osoby.");
                 return;
             }
+        }
+
+        /*
+         * 0069 — DIE ROZMOWA MIT EINEM PLATZ. Er muss leben und zu DIESEM
+         * Bereich gehoeren; je Platz gibt es sie einmal — wer eine zweite
+         * anlegen will, bekommt die erste.
+         */
+        Guid? seatId = null;
+        if (body.Kind == "seat")
+        {
+            if (!Guid.TryParse(body.SeatId, out var wanted))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Z kim? Brakuje osoby z formularza.");
+                return;
+            }
+
+            await using (var live = new SqlCommand($"SELECT 1 FROM app.access s WHERE s.id = @seat AND s.area_id = @area AND {LiveSeat("s")};", connection))
+            {
+                live.Parameters.AddWithValue("@seat", wanted);
+                live.Parameters.AddWithValue("@area", areaId);
+                live.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+                if (await live.ExecuteScalarAsync(ctx.RequestAborted) is null)
+                {
+                    await Fail(ctx, StatusCodes.Status404NotFound, "Tej osoby z linkiem nie ma w tym obszarze — albo jej link już nie działa.");
+                    return;
+                }
+            }
+
+            await using var existing = new SqlCommand("SELECT id FROM app.chat WHERE seat_id = @seat;", connection);
+            existing.Parameters.AddWithValue("@seat", wanted);
+            if (await existing.ExecuteScalarAsync(ctx.RequestAborted) is Guid already)
+            {
+                ctx.Response.StatusCode = StatusCodes.Status409Conflict;
+                await ctx.Response.WriteAsJsonAsync(new { error = "Ta rozmowa już istnieje.", verdict = "exists", chatId = Ids.ToText(already) });
+                return;
+            }
+
+            seatId = wanted;
         }
 
         string? pair = null;
@@ -461,10 +524,11 @@ public static partial class Chat
         }
 
         await using var insert = new SqlCommand("""
-            INSERT INTO app.chat (id, area_id, kind, pair_key, created_by_role_id, created_at, posting_policy)
-            VALUES (@id, @area, @kind, @pair, @by, @now, @policy);
+            INSERT INTO app.chat (id, area_id, kind, pair_key, created_by_role_id, created_at, posting_policy, seat_id)
+            VALUES (@id, @area, @kind, @pair, @by, @now, @policy, @seat);
             """, connection);
         insert.Parameters.AddWithValue("@id", chatId);
+        insert.Parameters.AddWithValue("@seat", (object?)seatId ?? DBNull.Value);
         insert.Parameters.AddWithValue("@area", areaId);
         insert.Parameters.AddWithValue("@kind", body.Kind);
         insert.Parameters.AddWithValue("@policy", body.PostingPolicy);
@@ -478,7 +542,7 @@ public static partial class Chat
         }
         catch (SqlException e) when (e.Number is 2601 or 2627)
         {
-            await Fail(ctx, StatusCodes.Status409Conflict, "Ten obszar ma już swoją rozmowę.");
+            await Fail(ctx, StatusCodes.Status409Conflict, seatId is null ? "Ten obszar ma już swoją rozmowę." : "Ta rozmowa już istnieje.");
             return;
         }
 
@@ -538,8 +602,9 @@ public static partial class Chat
             members = members.TryGetValue(chat.AreaId, out var m) ? m : [],
             names = names.TryGetValue(chat.AreaId, out var n) ? n : [],
 
-            /* 0053 — die Menschen mit Link, und ob ihr Schluessel schon bei ihnen ist. */
-            seats = chat.Kind == "area" ? await SeatsOfAsync(connection, chat, ctx.RequestAborted) : []
+            /* 0053 — die Menschen mit Link, und ob ihr Schluessel schon bei ihnen ist (0069: in der eines Platzes nur er). */
+            seatId = chat.SeatId is null ? null : Ids.ToText(chat.SeatId.Value),
+            seats = HasSeats(chat) ? await SeatsOfAsync(connection, chat, ctx.RequestAborted) : []
         });
     }
 
@@ -570,11 +635,12 @@ public static partial class Chat
             SELECT s.id, s.recipient_name, i.wrap_public_key
             FROM app.access s
             LEFT JOIN app.seat_identity i ON i.access_id = s.id
-            WHERE s.area_id = @area AND {LiveSeat("s")}
+            WHERE s.area_id = @area AND {LiveSeat("s")} {(chat.SeatId is null ? "" : "AND s.id = @only")}
             ORDER BY s.recipient_name, s.created_at;
             """, connection))
         {
             cmd.Parameters.AddWithValue("@area", chat.AreaId);
+            if (chat.SeatId is not null) cmd.Parameters.AddWithValue("@only", chat.SeatId.Value);
             cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
 
             await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -616,7 +682,7 @@ public static partial class Chat
     /// fuer das Nachladen, die nach \`after\`.
     /// </summary>
     private static async Task MessagesAsync(
-        HttpContext ctx, Db db, Guid id, string? before, string? after, int? limit, string? changed, Guid? beforeId, Guid? afterId)
+        HttpContext ctx, Db db, Guid id, string? before, string? after, int? limit, string? changed, Guid? beforeId, Guid? afterId, Guid? topic)
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
@@ -627,7 +693,7 @@ public static partial class Chat
         await ctx.Response.WriteAsJsonAsync(new
         {
             chatId = Ids.ToText(id),
-            messages = await ReadMessagesAsync(connection, id, before, after, limit, ctx.RequestAborted, changed, beforeId, afterId),
+            messages = await ReadMessagesAsync(connection, id, before, after, limit, ctx.RequestAborted, changed, beforeId, afterId, topic),
             asOf = now
         });
     }
@@ -638,7 +704,7 @@ public static partial class Chat
     /// </summary>
     private static async Task<List<object>> ReadMessagesAsync(
         SqlConnection connection, Guid id, string? before, string? after, int? limit, CancellationToken ct,
-        string? changed = null, Guid? beforeId = null, Guid? afterId = null)
+        string? changed = null, Guid? beforeId = null, Guid? afterId = null, Guid? topic = null)
     {
         var take = Math.Clamp(limit ?? 60, 1, 200);
         var hasBefore = DateTimeOffset.TryParse(before, out var b);
@@ -657,9 +723,10 @@ public static partial class Chat
 
         await using (var cmd = new SqlCommand($"""
             SELECT TOP {take} id, author_role_id, epoch, body_sealed, created_at, deleted_at, signature, signed_at,
-                   author_access_id, version, edited_at, deleted_by_role_id, deleted_by_access_id
+                   author_access_id, version, edited_at, deleted_by_role_id, deleted_by_access_id, topic_id
             FROM app.chat_message
             WHERE chat_id = @chat AND schedule_state = N'sent'
+              {(topic is null ? "" : "AND topic_id = @topic")}
               {(hasBefore ? "AND (created_at < @before OR (created_at = @before AND id < @beforeId))" : "")}
               {(hasAfter ? "AND (created_at > @after OR (created_at = @after AND id > @afterId))" : "")}
               {(hasChanged ? "AND changed_at > @changed" : "")}
@@ -670,6 +737,7 @@ public static partial class Chat
             if (hasBefore) { cmd.Parameters.AddWithValue("@before", b); cmd.Parameters.AddWithValue("@beforeId", (object?)beforeId ?? DBNull.Value); }
             if (hasAfter) { cmd.Parameters.AddWithValue("@after", a); cmd.Parameters.AddWithValue("@afterId", (object?)afterId ?? DBNull.Value); }
             if (hasChanged) cmd.Parameters.AddWithValue("@changed", c);
+            if (topic is not null) cmd.Parameters.AddWithValue("@topic", topic.Value);
 
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
@@ -699,7 +767,10 @@ public static partial class Chat
                     /* Wer gelöscht hat: der Verfasser selbst oder wer moderiert — davon hängt ab, wer zurückholen darf. */
                     deletedBy = !deleted ? null
                         : (byRole is not null && byRole == authorRole) || (bySeat is not null && bySeat == authorSeat) ? "author"
-                        : "moderator"
+                        : "moderator",
+
+                    /* 0068 — zu welchem Thema. */
+                    topicId = reader.IsDBNull(13) ? null : Ids.ToText(reader.GetGuid(13))
                 });
             }
         }
@@ -711,7 +782,7 @@ public static partial class Chat
     }
 
     public sealed record PostRequest(string MessageId, string AuthorRoleId, int Epoch, string BodySealed,
-        string Signature, long SignedAt, DateTimeOffset? SendAt = null);
+        string Signature, long SignedAt, DateTimeOffset? SendAt = null, string? TopicId = null);
 
     /// <summary>Was an einer Nachricht zu pruefen ist, bevor jemand gefragt wird, wer sie schreibt.</summary>
     private sealed record Incoming(Guid MessageId, int Epoch, byte[] Body, byte[] BodyHash, byte[] Signature,
@@ -788,8 +859,13 @@ public static partial class Chat
 
     /// <summary>Die Zeile — und der Chat bekommt seinen Zeitpunkt. 409, wenn es sie schon gibt.</summary>
     private static async Task<DateTimeOffset?> InsertAsync(
-        HttpContext ctx, SqlConnection connection, ChatRow chat, Incoming message, Guid? authorRole, Guid? authorSeat, DateTimeOffset? sendAt = null)
+        HttpContext ctx, SqlConnection connection, ChatRow chat, Incoming message, Guid? authorRole, Guid? authorSeat, DateTimeOffset? sendAt = null,
+        string? topicText = null)
     {
+        /* 0068 — das Thema muss in DIESER Rozmowa liegen. */
+        var topic = await TopicOfChatAsync(ctx, connection, chat, topicText);
+        if (topic is { Ok: false }) return null;
+
         var now = DateTimeOffset.UtcNow;
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
@@ -798,14 +874,16 @@ public static partial class Chat
             await using (var insert = new SqlCommand("""
                 INSERT INTO app.chat_message
                     (id, chat_id, author_role_id, author_access_id, epoch, body_sealed, body_sha256,
-                     signature, signed_at, created_at, scheduled_at, schedule_state)
-                VALUES (@id, @chat, @author, @seat, @epoch, @body, @hash, @sig, @signed, @now, @due, @state);
+                     signature, signed_at, created_at, scheduled_at, schedule_state, topic_id)
+                VALUES (@id, @chat, @author, @seat, @epoch, @body, @hash, @sig, @signed, @now, @due, @state, @topic);
                 INSERT INTO app.chat_message_version
                     (message_id, version, epoch, body_sealed, body_sha256, signature, signed_at, created_at)
                 VALUES (@id, 1, @epoch, @body, @hash, @sig, @signed, @now);
                 UPDATE app.chat SET last_message_at = @now WHERE id = @chat AND @state = N'sent';
+                UPDATE app.topic SET last_message_at = @now WHERE id = @topic AND @state = N'sent';
                 """, connection, tx))
             {
+                insert.Parameters.AddWithValue("@topic", (object?)topic?.Id ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@due", (object?)sendAt ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@state", sendAt is null ? "sent" : "pending");
                 insert.Parameters.AddWithValue("@id", message.MessageId);
@@ -888,7 +966,7 @@ public static partial class Chat
         }
 
         if (!await ValidSendAtAsync(ctx, body.SendAt)) return;
-        var at = await InsertAsync(ctx, connection, chat, message, author, null, body.SendAt);
+        var at = await InsertAsync(ctx, connection, chat, message, author, null, body.SendAt, body.TopicId);
         if (at is null) return;
 
         /* Was ich selbst schreibe, habe ich gelesen — ausserhalb der Nachricht: ein Streit darum darf sie nicht kosten. */
@@ -1219,9 +1297,9 @@ public static partial class Chat
         if (seen is null) return;
         var (chat, mine, _) = seen.Value;
 
-        if (chat.Kind != "area")
+        if (!HasSeats(chat))
         {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Osoby z linkiem są tylko w rozmowie obszaru.");
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Osoby z linkiem są tylko w rozmowie obszaru i w rozmowie z nimi samymi.");
             return;
         }
 
@@ -1267,6 +1345,7 @@ public static partial class Chat
                 FROM app.access s
                 JOIN app.seat_identity i ON i.access_id = s.id
                 WHERE s.id = @seat AND s.area_id = @area AND {LiveSeat("s")}
+                  AND (@only IS NULL OR s.id = @only)
                   AND NOT EXISTS (SELECT 1 FROM app.chat_seat_key k
                                    WHERE k.chat_id = @chat AND k.access_id = @seat AND k.epoch = @epoch);
                 """, connection);
@@ -1278,6 +1357,7 @@ public static partial class Chat
             insert.Parameters.AddWithValue("@key", wrapped);
             insert.Parameters.AddWithValue("@by", byRole);
             insert.Parameters.AddWithValue("@now", now);
+            insert.Parameters.Add("@only", System.Data.SqlDbType.UniqueIdentifier).Value = (object?)chat.SeatId ?? DBNull.Value;
 
             try
             {
@@ -1299,7 +1379,9 @@ public static partial class Chat
         var seat = await Seat.LiveSeatAsync(connection, token, gated: true, ctx.RequestAborted);
         var chat = seat is null ? null : await ChatOfAsync(connection, chatId, ctx.RequestAborted);
 
-        if (seat is null || chat is null || chat.Kind != "area" || chat.AreaId != seat.Value.AreaId)
+        /* 0069 — die Rozmowa seines Bereichs, oder seine eigene; keine eines anderen Platzes. */
+        if (seat is null || chat is null || chat.AreaId != seat.Value.AreaId
+            || !(chat.Kind == "area" || (chat.Kind == "seat" && chat.SeatId == seat.Value.Id)))
         {
             // Wie ueberall unter `/seat/`: was es nicht gibt und was nicht zu diesem Link gehoert, sieht gleich aus.
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiej rozmowy nie ma.");
@@ -1327,21 +1409,28 @@ public static partial class Chat
 
         var identity = await IdentityOfAsync(connection, seat.Value.Id, ctx.RequestAborted);
 
-        var chats = new List<(Guid Id, Guid Area, string Name, int Epoch, DateTimeOffset? Last)>();
+        var chats = new List<(Guid Id, Guid Area, string Name, int Epoch, DateTimeOffset? Last, string Kind, int Unread)>();
         await using (var cmd = new SqlCommand("""
-            SELECT c.id, c.area_id, a.name, a.current_epoch, c.last_message_at
+            SELECT c.id, c.area_id, a.name, a.current_epoch, c.last_message_at, c.kind,
+                   (SELECT COUNT(*) FROM app.chat_message m
+                     WHERE m.chat_id = c.id AND m.schedule_state = N'sent' AND m.deleted_at IS NULL
+                       AND (m.author_access_id IS NULL OR m.author_access_id <> @seat)
+                       AND m.created_at > COALESCE((SELECT p.read_at FROM app.chat_presence p
+                                                     WHERE p.chat_id = c.id AND p.principal_id = @seat), '0001-01-01')) AS unread
             FROM app.chat c
             JOIN app.area a ON a.id = c.area_id
-            WHERE c.kind = N'area' AND c.area_id = @area;
+            WHERE c.area_id = @area AND (c.kind = N'area' OR (c.kind = N'seat' AND c.seat_id = @seat))
+            ORDER BY CASE WHEN c.kind = N'seat' THEN 0 ELSE 1 END;
             """, connection))
         {
             cmd.Parameters.AddWithValue("@area", seat.Value.AreaId);
+            cmd.Parameters.AddWithValue("@seat", seat.Value.Id);
 
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
             while (await reader.ReadAsync(ctx.RequestAborted))
             {
                 chats.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetInt32(3),
-                    reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4)));
+                    reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4), reader.GetString(5), reader.GetInt32(6)));
             }
         }
 
@@ -1371,6 +1460,10 @@ public static partial class Chat
                 areaName = c.Name,
                 currentEpoch = c.Epoch,
                 lastMessageAt = c.Last,
+
+                /* 0069 — `seat`: die Rozmowa nur mit der Kanzlei; `area`: die mit allen im Bereich. */
+                kind = c.Kind,
+                unread = c.Unread,
                 keys = keys.TryGetValue(c.Id, out var k) ? k : []
             })
         });
@@ -1485,7 +1578,7 @@ public static partial class Chat
     }
 
     private static async Task SeatMessagesAsync(
-        HttpContext ctx, Db db, string token, Guid id, string? before, string? after, int? limit, string? changed, Guid? beforeId, Guid? afterId)
+        HttpContext ctx, Db db, string token, Guid id, string? before, string? after, int? limit, string? changed, Guid? beforeId, Guid? afterId, Guid? topic)
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
@@ -1496,12 +1589,13 @@ public static partial class Chat
         await ctx.Response.WriteAsJsonAsync(new
         {
             chatId = Ids.ToText(id),
-            messages = await ReadMessagesAsync(connection, id, before, after, limit, ctx.RequestAborted, changed, beforeId, afterId),
+            messages = await ReadMessagesAsync(connection, id, before, after, limit, ctx.RequestAborted, changed, beforeId, afterId, topic),
             asOf = now
         });
     }
 
-    public sealed record SeatPostRequest(string MessageId, int Epoch, string BodySealed, string Signature, long SignedAt, DateTimeOffset? SendAt = null);
+    public sealed record SeatPostRequest(string MessageId, int Epoch, string BodySealed, string Signature, long SignedAt, DateTimeOffset? SendAt = null,
+        string? TopicId = null);
 
     /// <summary>
     /// EINE NACHRICHT VOM LINK — versiegelt unter dem Chatschluessel,
@@ -1536,7 +1630,7 @@ public static partial class Chat
         }
 
         if (!await SeatMayPostAsync(ctx, chat) || !await ValidSendAtAsync(ctx, body.SendAt)) return;
-        var at = await InsertAsync(ctx, connection, chat, message, null, seat.Id, body.SendAt);
+        var at = await InsertAsync(ctx, connection, chat, message, null, seat.Id, body.SendAt, body.TopicId);
         if (at is null) return;
 
         await ctx.Response.WriteAsJsonAsync(new { messageId = Ids.ToText(message.MessageId), createdAt = at.Value });

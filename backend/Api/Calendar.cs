@@ -72,6 +72,9 @@ public static partial class Calendar
          * unlesbar, sondern gar nicht an.
          */
         app.MapGet("/calendar/{id:guid}/public", PublicAsync);
+
+        /* 0070 — ein Termin mit seinen Teilen (Calendar.Program.cs); mit Konto mehr, ohne der Aushang. */
+        app.MapGet("/calendar/program/{id:guid}", ProgramAsync);
     }
 
     /* -- Anlegen ------------------------------------------------------------ */
@@ -311,7 +314,13 @@ public static partial class Calendar
         bool? Bookable = null, int? Capacity = null, string? ReserveAreaId = null,
 
         /* 0058 — beim Ändern: in DIESEN Kalender (sonst bleibt er, wo er ist). */
-        string? CalendarId = null);
+        string? CalendarId = null,
+
+        /*
+         * 0070 — TEIL EINES TERMINS: unter welchem (NULL: wie bisher; "": keiner),
+         * an welcher Stelle; und aus welcher Rozmowa / welchem Thema er entstand.
+         */
+        string? ParentItemId = null, int? Position = null, string? ChatId = null, string? TopicId = null);
 
     /// <summary>
     /// Einen Eintrag anlegen.
@@ -531,6 +540,10 @@ public static partial class Calendar
             return;
         }
 
+        /* 0070 — Teil welches Termins, aus welcher Rozmowa. */
+        var link = await ProgramLinkAsync(ctx, connection, who.Value.AccountId, null, body);
+        if (link is null) return;
+
         var now = DateTimeOffset.UtcNow;
         var titlePublic = (body.TitlePublic ?? string.Empty).Trim();
 
@@ -544,12 +557,12 @@ public static partial class Calendar
                      title_public, visibility_area_id, status,
                      repeat_kind, repeat_every, repeat_weekdays, repeat_until, repeat_count,
                      bookable, capacity, reserve_area_id,
-                     created_at, updated_at)
+                     created_at, updated_at, parent_item_id, position, chat_id, topic_id)
                 VALUES (@id, @cal, @owner, @kind, @starts, @ends, @allday,
                         @public, @varea, @status,
                         @rkind, @revery, @rdays, @runtil, @rcount,
                         @bookable, @capacity, @reserve,
-                        @now, @now);
+                        @now, @now, @parent, @position, @chat, @topic);
                 """, connection, tx))
             {
                 insert.Parameters.AddWithValue("@bookable", (object?)ownRules.Value.Bookable ?? DBNull.Value);
@@ -573,6 +586,7 @@ public static partial class Calendar
                 insert.Parameters.AddWithValue("@runtil", (object?)until ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@rcount", (object?)body.Count ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@now", now);
+                BindProgramLink(insert, link.Value);
 
                 await insert.ExecuteNonQueryAsync(ctx.RequestAborted);
             }
@@ -811,12 +825,14 @@ public static partial class Calendar
     private sealed record Row(
         Guid Id, Guid OwnerRoleId, string Kind, DateTimeOffset StartsAt, DateTimeOffset EndsAt,
         bool AllDay, string? TitlePublic, Guid VisibilityAreaId, string Status,
-        string RepeatKind, int RepeatEvery, int? Weekdays, DateTimeOffset? Until, int? Count);
+        string RepeatKind, int RepeatEvery, int? Weekdays, DateTimeOffset? Until, int? Count,
+        Guid? ParentItemId = null, int? Position = null);
 
     private sealed record Shown(
         Guid ItemId, Guid OwnerRoleId, string Kind, DateTimeOffset OccurrenceAt,
         DateTimeOffset StartsAt, DateTimeOffset EndsAt, bool AllDay,
-        string? TitlePublic, Guid VisibilityAreaId, string Status);
+        string? TitlePublic, Guid VisibilityAreaId, string Status,
+        Guid? ParentItemId = null, int? Position = null);
 
     private static async Task ShowAsync(
         HttpContext ctx, SqlConnection connection, Guid calendarId, Guid? accountId,
@@ -881,7 +897,8 @@ public static partial class Calendar
         await using (var cmd = new SqlCommand($"""
             SELECT id, owner_role_id, kind, starts_at, ends_at, all_day,
                    title_public, visibility_area_id, status,
-                   repeat_kind, repeat_every, repeat_weekdays, repeat_until, repeat_count
+                   repeat_kind, repeat_every, repeat_weekdays, repeat_until, repeat_count,
+                   parent_item_id, position
             FROM app.calendar_item
             WHERE calendar_id = @cal
               AND starts_at <= @to
@@ -907,7 +924,9 @@ public static partial class Calendar
                     reader.GetInt32(10),
                     reader.IsDBNull(11) ? null : reader.GetByte(11),
                     reader.IsDBNull(12) ? null : reader.GetDateTimeOffset(12),
-                    reader.IsDBNull(13) ? null : reader.GetInt32(13)));
+                    reader.IsDBNull(13) ? null : reader.GetInt32(13),
+                    reader.IsDBNull(14) ? null : reader.GetGuid(14),
+                    reader.IsDBNull(15) ? null : reader.GetInt32(15)));
             }
         }
 
@@ -941,7 +960,8 @@ public static partial class Calendar
                 if (starts < since || starts > till) continue;
 
                 shown.Add(new Shown(row.Id, row.OwnerRoleId, row.Kind, at,
-                    starts, starts + span, row.AllDay, row.TitlePublic, row.VisibilityAreaId, row.Status));
+                    starts, starts + span, row.AllDay, row.TitlePublic, row.VisibilityAreaId, row.Status,
+                    row.ParentItemId, row.Position));
             }
         }
 
@@ -973,6 +993,10 @@ public static partial class Calendar
                 status = o.Status,
                 titlePublic = o.TitlePublic,
                 visibilityAreaId = Ids.ToText(o.VisibilityAreaId),
+
+                /* 0070 — Teil welches Termins: der Aushang zeigt Teile unter ihrem Ganzen. */
+                parentItemId = o.ParentItemId is null ? null : Ids.ToText(o.ParentItemId.Value),
+                position = o.Position,
 
                 /*
                  * Versiegelt hinaus, je Feld mit SEINEM Bereich und seiner

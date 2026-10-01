@@ -36,6 +36,7 @@ import { RecentRow, useTouched } from './Recent';
 import { SlugTree } from './SlugTree';
 import { TasksView } from './TasksView';
 import { LibraryView } from './LibraryView';
+import { Kartoteka } from './Kartoteka';
 import { claimSlug, loadDesk, takers, type Desk } from './desk';
 import { roleLabel, useRoleNames } from './roleNames';
 import { treeOf } from './tree';
@@ -158,6 +159,10 @@ function Tiles({ desk, who }: { desk: Desk; who: Who }) {
           <p className="wk-empty">Źródła, cytaty i Twoje teksty — kazania, książki — z przypisami; publikujesz, co chcesz.</p>
         </Tile>
 
+        <Tile view="registry">
+          <p className="wk-empty">Adresy parafii w częściach, rodziny pod nimi i plan kolędy — z filtrami po ulicy, dniu i stanie.</p>
+        </Tile>
+
         <Tile view="modules">
           <p className="wk-empty">
             Formularze, plany mszy, teksty — rzeczy, które strony pokazują.
@@ -245,6 +250,7 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'account') return <Account who={who} />;
   if (view === 'chat') return <ChatView who={who} trail={trail} />;
   if (view === 'library') return <LibraryView who={who} trail={trail} />;
+  if (view === 'registry') return <Kartoteka who={who} trail={trail} />;
 
   /* Jede Ansicht steht oben; was hier ankommt, gibt es (noch) nicht. */
   return <p className="wk-note">Tej części warsztatu jeszcze nie ma.</p>;

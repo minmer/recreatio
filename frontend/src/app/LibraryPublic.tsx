@@ -18,6 +18,8 @@ import { loadPublished, loadPublishedOne, summaryOf, type PublishedItem } from '
 import { str, type LibEntry, type Lookup } from './libraryKinds';
 import { excerpt } from './libraryMarkup';
 import { dateWords, publicLookup, QuoteFigure, readPublic, TextArticle } from './LibraryText';
+import { latexFileName, textToLatex } from './libraryLatex';
+import { saveBlob } from './platform';
 import type { PartSize } from './part';
 
 /* -- Ein Text --------------------------------------------------------------------------------- */
@@ -54,7 +56,20 @@ export function WritingCard({ library, entryId, size, whole = false, prefix }: {
   if (loaded === 'missing') return <p className="wk-card-text">Tego tekstu nie ma albo nie jest już opublikowany.</p>;
 
   const full = whole || open || size.height === 'tall';
-  if (full) return <TextArticle entry={loaded.entry} look={loaded.look} prefix={prefix} />;
+  if (full) {
+    return (
+      <>
+        <TextArticle entry={loaded.entry} look={loaded.look} prefix={prefix} />
+        {/* Druck: derselbe Text mit Fussnoten und Quellen als LaTeX — aus dem, was veröffentlicht ist. */}
+        <p className="lib-print">
+          <button type="button" className="wk-link-btn" onClick={() => void saveBlob(
+            new Blob([textToLatex(loaded.entry, loaded.look)], { type: 'application/x-tex' }), latexFileName(loaded.entry))}>
+            Pobierz do druku (LaTeX)
+          </button>
+        </p>
+      </>
+    );
+  }
 
   const d = loaded.entry.data;
   const lead = str(d, 'summary').trim() || excerpt(str(d, 'body'), size.width === 'narrow' ? 160 : 420);

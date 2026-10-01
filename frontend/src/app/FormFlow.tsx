@@ -20,6 +20,7 @@ import { useState } from 'react';
 import type { OpenField } from './form';
 import { missingIn, type GroupItem, type LayoutItem, type Outcome } from './formDesign';
 import { Phones } from './Phones';
+import { PostalInput } from './PostalInput';
 
 export interface FlowProps {
   readonly items: readonly LayoutItem[];
@@ -182,6 +183,21 @@ function FieldRow({ fieldId, fields, answers, outcome, onAnswer }: FlowProps & {
   const label = outcome.labels.get(fieldId) ?? f.label ?? 'zapieczętowane';
   const required = f.isRequired || outcome.required.has(fieldId);
   const set = (next: string) => onAnswer(fieldId, next);
+
+  /*
+   * 0071 — EINE ADRESSE in Teilen, mit Vorschlägen. Gespeichert wird die
+   * Zeile wie bisher; die Teile machen sie vergleichbar (Kolęda, Verzeichnis).
+   */
+  if (f.identityRole === 'address' && f.label !== null && f.kind !== 'text' && f.kind !== 'choice') {
+    return (
+      <div className={f.isHalfWidth ? 'wk-field wk-field-half' : 'wk-field'}>
+        <span>{label}{required && ' *'}</span>
+        <PostalInput value={value} onChange={set} />
+        {f.help !== null && <span className="wk-hint">{f.help}</span>}
+        {(outcome.messages.get(fieldId) ?? []).map((text, i) => <span className="wk-form-msg" key={i}>{text}</span>)}
+      </div>
+    );
+  }
 
   return (
     <label className={f.isHalfWidth ? 'wk-field wk-field-half' : 'wk-field'}>

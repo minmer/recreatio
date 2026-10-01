@@ -85,6 +85,10 @@ export interface Occurrence {
   readonly titlePublic: string | null;
   readonly visibilityAreaId: string;
   readonly fields: readonly SealedField[];
+
+  /** 0070 — Teil welches Termins, an welcher Stelle (der Aushang zeigt Teile unter ihrem Ganzen). */
+  readonly parentItemId?: string | null;
+  readonly position?: number | null;
 }
 
 export interface Days {

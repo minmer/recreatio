@@ -47,6 +47,12 @@ import { useRemembered } from './prefs';
 import { myRoleNames } from './roleNames';
 import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
+import { loadCalendars, type CalendarRow } from './calendar';
+import { createTopic, loadTopics, moveToTopic, openTopics, titleFrom, type Topic } from './chatTopics';
+import { EventDialog } from './EventDialog';
+import type { Me as Person } from './me';
+import { TaskDialog } from './TaskDialog';
+import { LinkedDialog, MoveToTopic, TopicBar } from './TopicBar';
 
 /* -- Gemeinsam ----------------------------------------------------------------- */
 
@@ -157,6 +163,8 @@ function useTitles(me: Me, chats: readonly ChatRow[], areas: readonly AreaRow[])
       const out = new Map<string, string>();
       for (const chat of chats) {
         if (chat.kind === 'self') { out.set(chat.chatId, 'Notatki'); continue; }
+        /* 0069 — mit einem Menschen vom Formular: sein Name, wie die Kanzlei ihn am Platz führt. */
+        if (chat.kind === 'seat') { out.set(chat.chatId, `Rozmowa z: ${chat.seatName ?? 'osobą z formularza'}`); continue; }
         if (chat.kind !== 'direct') { out.set(chat.chatId, titleOfArea(areas, chat.areaId, chat.areaName)); continue; }
         const other = chat.members.find((m) => !me.ring.has(m.roleId)) ?? chat.members.find((m) => !me.roles.some((r) => r.id === m.roleId));
         if (other === undefined) { out.set(chat.chatId, 'Rozmowa'); continue; }
@@ -180,10 +188,13 @@ function useTitles(me: Me, chats: readonly ChatRow[], areas: readonly AreaRow[])
 const seedOf = (me: Me, chat: Pick<ChatRow, 'chatId' | 'kind' | 'members'>) =>
   chat.kind === 'direct' ? chat.members.find((m) => !me.ring.has(m.roleId))?.roleId ?? chat.chatId : chat.chatId;
 
+const titleOfSeatArea = (chat: ChatRow) => chat.areaName;
+
 const kindText = (chat: ChatRow) => {
   const n = chat.members.length;
   const people = `${n} ${plural(n, 'osoba', 'osoby', 'osób')}`;
   if (chat.kind === 'direct') return 'rozmowa we dwoje';
+  if (chat.kind === 'seat') return `osoba z formularza · ${titleOfSeatArea(chat)}`;
   if (chat.kind === 'group') return `grupa · ${people}`;
   return `obszar · ${people}${chat.seats > 0 ? ` · ${chat.seats} z linkiem` : ''}`;
 };
@@ -727,6 +738,17 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   /* Als wen zuletzt — dieselbe Wahl wie auf der Seite (`chat.as.<id>`); sonst die eigene Person. */
   const [picked, setAs] = useRemembered(`chat.as.${chatId}`, '');
 
+  /*
+   * 0068 — TEMATY: welche es gibt, welches gewählt ist (Filter und Ziel),
+   * und was aus einer Nachricht entsteht (Aufgabe, Termin) oder wohin sie wandert.
+   */
+  const [topics, setTopics] = useState<readonly Topic[]>([]);
+  const [topic, setTopic] = useRemembered(`chat.topic.${chatId}`, '');
+  const [linked, setLinked] = useState(false);
+  const [taskFrom, setTaskFrom] = useState<{ message: SealedMessage; opened: Opened } | null>(null);
+  const [eventFrom, setEventFrom] = useState<{ message: SealedMessage; opened: Opened; calendars: readonly CalendarRow[] } | null>(null);
+  const [moving, setMoving] = useState<SealedMessage | null>(null);
+
   /* Der Chat, seine Schlüssel, die Namen darin. */
   const lookChat = useCallback(async (freshKeys = false) => {
     try {
@@ -825,6 +847,22 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
     return () => window.clearInterval(timer);
   }, [chat, chatId, last, lastId, talk, lookChat, pullChanged]);
 
+  /* 0068 — die Themen: beim Öffnen, nach jeder Änderung, und alle 30 s (sie ändern sich selten). */
+  const lookTopics = useCallback(async () => {
+    if (talk.size === 0) return;
+    try {
+      const { topics: rows } = await loadTopics(endpoint);
+      setTopics(await openTopics(talk, rows));
+    } catch {
+      // Ohne Themen bleibt die Rozmowa, wie sie war.
+    }
+  }, [endpoint, talk]);
+  useEffect(() => {
+    void lookTopics();
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void lookTopics(); }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [lookTopics]);
+
   const earlier = useCallback(async () => {
     const first = shown?.[0];
     if (first === undefined) return;
@@ -855,7 +893,15 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
 
   const self = chat.kind === 'self';
   const other = chat.kind === 'direct' ? chat.members.find((m) => !me.ring.has(m.roleId)) : undefined;
-  const title = self ? 'Notatki' : other !== undefined ? nameOf(other.roleId, other.kind, names, me.names) : titleOfArea(areas, chat.areaId, chat.areaName);
+  const seatChat = chat.kind === 'seat';
+  const title = self ? 'Notatki'
+    : seatChat ? `Rozmowa z: ${chat.seats[0]?.name ?? 'osobą z formularza'}`
+    : other !== undefined ? nameOf(other.roleId, other.kind, names, me.names) : titleOfArea(areas, chat.areaId, chat.areaName);
+
+  /* 0068 — das gewählte Thema, wenn es das noch gibt. */
+  const currentTopic = topic !== '' && topics.some((t) => t.topicId === topic) ? topic : null;
+  const person = me.roles.find((r) => r.kind === 'person') ?? null;
+  const asPerson: Person | null = person === null ? null : { ring: me.ring, roles: me.roles, person, names: me.names };
   const kindOf = (roleId: string) => chat.members.find((m) => m.roleId === roleId)?.kind;
   const label = (id: string) => names.get(id) ?? me.names.get(id) ?? `rola ${shortId(id)}`;
   const mine = (message: SealedMessage) => message.authorRoleId !== null && me.ring.has(message.authorRoleId);
@@ -900,17 +946,24 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
       load: () => loadVersions(message.messageId),
       open: (version) => openVersion(talk, message.messageId, authorOf(message), version)
     }),
-    forward: (opened) => setForward(opened)
+    forward: (opened) => setForward(opened),
+
+    /* 0066/0070 — aus einer Nachricht: eine Aufgabe, ein Termin. 0068 — in ein Thema. */
+    task: asPerson === null ? undefined : (message, opened) => setTaskFrom({ message, opened }),
+    appointment: asPerson === null ? undefined : (message, opened) => {
+      void loadCalendars().then(({ calendars }) => setEventFrom({ message, opened, calendars })).catch(() => undefined);
+    },
+    moveTopic: topics.length === 0 ? undefined : (message) => setMoving(message)
   };
 
   const send = async (body: string, options: SendOptions) => {
     if (as === '') throw new WorkspaceError('W tej rozmowie tylko czytasz.');
     /* Der Name reist in der Nachricht mit — für die, die die Namen des Bereichs nicht lesen (0053). */
     const name = names.get(as) ?? me.names.get(as) ?? null;
-    const done = await sendMessage(me.ring, chat.chatId, talk, as, body, name, options);
+    const done = await sendMessage(me.ring, chat.chatId, talk, as, body, name, { ...options, topicId: currentTopic });
     if (options.sendAt === undefined) {
       setShown((was) => [...(was ?? []), {
-        message: { messageId: done.messageId, authorRoleId: as, authorSeatId: null, epoch: done.epoch, bodySealed: '', createdAt: done.createdAt, deletedAt: null },
+        message: { messageId: done.messageId, authorRoleId: as, authorSeatId: null, epoch: done.epoch, bodySealed: '', createdAt: done.createdAt, deletedAt: null, topicId: currentTopic },
         opened: { text: body, name, ...options }
       }]);
     }
@@ -939,6 +992,7 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
 
   const menu: MenuItem[] = [
     ...chrome.items,
+    { label: 'Zadania i terminy z rozmowy', icon: 'check' as const, onSelect: () => setLinked(true) },
     ...(self ? [] : [{ label: `Uczestnicy i ustawienia`, icon: 'users' as const, onSelect: () => setSettings(true) }]),
     { label: self ? 'Mój prywatny obszar' : 'Obszar tej rozmowy', icon: 'area', onSelect: () => { window.location.hash = viewPath('areas', chat.areaId); } }
   ];
@@ -962,9 +1016,20 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
       {chrome.banner}
       {failed !== null && <p className="ch-bar is-error">{failed}</p>}
 
+      {/* 0068 — Tematy: Filter und Ziel des Schreibens. */}
+      <TopicBar
+        topics={topics}
+        current={currentTopic}
+        canCreate={speakers.length > 0 && !self}
+        canManage={moderates || speakers.length > 0}
+        onPick={(id) => setTopic(id ?? '')}
+        onCreate={async (name) => { const id = await createTopic(endpoint, talk, name, as === '' ? null : as); await lookTopics(); setTopic(id); }}
+        onChanged={() => void lookTopics()}
+      />
+
       <ChatLog
         endpoint={endpoint}
-        items={shown}
+        items={currentTopic === null || shown === undefined ? shown : shown.filter((one) => one.message.topicId === currentTopic)}
         features={extras.features}
         matches={extras.matches}
         rules={rules}
@@ -1005,6 +1070,37 @@ function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
         </Modal>
       )}
       {forward !== null && <ForwardDialog endpoint={endpoint} opened={forward} ring={me.ring} onClose={() => setForward(null)} />}
+
+      {linked && <LinkedDialog ring={me.ring} chatId={chat.chatId} topics={topics} onClose={() => setLinked(false)} />}
+      {moving !== null && (
+        <MoveToTopic topics={topics} current={moving.topicId ?? null} onClose={() => setMoving(null)}
+          onPick={(id) => {
+            const target = moving;
+            setMoving(null);
+            void moveToTopic(target.messageId, id)
+              .then(() => { setShown((was) => (was ?? []).map((w) => w.message.messageId === target.messageId ? { ...w, message: { ...w.message, topicId: id } } : w)); void lookTopics(); })
+              .catch((e: unknown) => setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się przenieść.'));
+          }} />
+      )}
+      {taskFrom !== null && asPerson !== null && (
+        <TaskDialog me={asPerson} areas={areas} task={null}
+          initialTitle={titleFrom(taskFrom.opened.text)}
+          initialArea={areas.some((a) => a.areaId === chat.areaId && (a.myLevel === 'write' || a.myLevel === 'admin')) ? chat.areaId : undefined}
+          origin={{ chatId: chat.chatId, topicId: taskFrom.message.topicId ?? currentTopic, messageId: taskFrom.message.messageId }}
+          onClose={() => setTaskFrom(null)} onSaved={() => void lookTopics()} />
+      )}
+      {eventFrom !== null && asPerson !== null && (
+        <EventDialog me={asPerson} areas={areas} calendars={eventFrom.calendars}
+          target={{
+            at: 'new', allDay: false,
+            start: new Date(Math.ceil(Date.now() / 3_600_000) * 3_600_000 + 86_400_000),
+            end: new Date(Math.ceil(Date.now() / 3_600_000) * 3_600_000 + 86_400_000 + 3_600_000),
+            calendarId: eventFrom.calendars.find((c) => c.areaId === chat.areaId && c.mayWrite === true)?.calendarId,
+            title: titleFrom(eventFrom.opened.text),
+            origin: { chatId: chat.chatId, topicId: eventFrom.message.topicId ?? currentTopic }
+          }}
+          onClose={() => setEventFrom(null)} onSaved={() => void lookTopics()} />
+      )}
       {history !== null && <HistoryDialog load={history.load} open={history.open} onClose={() => setHistory(null)} />}
     </div>
   );

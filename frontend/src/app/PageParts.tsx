@@ -16,7 +16,7 @@
  * der die Seite führt: der eine soll ihn füllen, dem anderen sagt er nichts.
  */
 
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 
 import {
   byReadingOrder, COLUMNS, frameFor, snapColSpan, snapRowSpan, useBreakpoint
@@ -72,6 +72,14 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
 
   /* 0054 — welcher Baustein gerade das ganze Fenster hat. */
   const [whole, setWhole] = useState<string | null>(null);
+
+  /* 0067 — aus einem Widget gekommen (`?part=<kennung>`): zu diesem Baustein springen. */
+  useEffect(() => {
+    const wanted = /[?&]part=([0-9a-f-]{36})/i.exec(window.location.hash)?.[1];
+    if (wanted === undefined) return undefined;
+    const timer = window.setTimeout(() => document.getElementById(`part-${wanted}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
+    return () => window.clearTimeout(timer);
+  }, [parts.length]);
 
   const hidden = logic?.outcome.hidden ?? new Set<string>();
   const messages = logic?.outcome.messages ?? new Map<string, string>();

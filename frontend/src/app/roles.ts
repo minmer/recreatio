@@ -109,13 +109,14 @@ export const edgeValue = (edge: {
 /** Sekunden, nicht Millisekunden: der Kernel unterschreibt Unix-Sekunden. */
 const nowSeconds = (): number => Math.floor(Date.now() / 1000);
 
-interface SignedEdge {
+export interface SignedEdge {
   readonly id: string;
   readonly createdAt: number;
   readonly signature: string;
 }
 
-async function signEdge(
+/** Eine Kante, vom HALTER unterschrieben — auch für das Einlösen eines Links (`linkAccess.ts`). */
+export async function signEdge(
   ring: Ring, holderRoleId: string, toRoleId: string, edgeKind: EdgeKind = 'holds'
 ): Promise<SignedEdge> {
   const id = newId();
@@ -147,6 +148,21 @@ export async function createRole(
   holder: SealedRole,
   options: { kind: NewKind; name: string }
 ): Promise<{ id: string }> {
+  const { id } = await createRoleWithKeys(ring, holder, options);
+  return { id };
+}
+
+/**
+ * Wie `createRole` — und gibt die beiden frischen Schlüssel und den
+ * öffentlichen Verpackungsschlüssel zurück. Der LINK MIT ZUGANG (0065)
+ * braucht sie: er versiegelt sie unter dem Geheimnis im Link, damit wer ihn
+ * einlöst, sie sich selbst verpacken kann. Sonst bleiben sie hier.
+ */
+export async function createRoleWithKeys(
+  ring: Ring,
+  holder: SealedRole,
+  options: { kind: NewKind; name: string }
+): Promise<{ id: string; roleKey: Uint8Array; signKey: Uint8Array; wrapPublicKey: string }> {
   const id = newId();
   const pair = await newRolePair();
   const roleKey = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
@@ -182,7 +198,7 @@ export async function createRole(
 
   const edge = await signEdge(ring, holder.id, id);
 
-  return call<{ id: string }>('/workspace/roles', {
+  await call<{ id: string }>('/workspace/roles', {
     method: 'POST',
     body: JSON.stringify({
       id,
@@ -198,6 +214,8 @@ export async function createRole(
       edge
     })
   });
+
+  return { id, roleKey, signKey, wrapPublicKey: toBase64Url(pair.wrapPublicKey) };
 }
 
 /**

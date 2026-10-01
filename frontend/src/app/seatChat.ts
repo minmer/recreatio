@@ -39,6 +39,10 @@ export interface SeatChatRow {
   readonly currentEpoch: number;
   readonly lastMessageAt: string | null;
 
+  /** 0069 — `seat`: die Rozmowa nur mit der Kanzlei; `area`: die mit allen im Bereich. Und was ungelesen ist. */
+  readonly kind?: 'area' | 'seat';
+  readonly unread?: number;
+
   /** Der Chatschlüssel je Epoche, verpackt für diesen Platz — leer, solange ihn kein Mitglied weitergegeben hat. */
   readonly keys: readonly { epoch: number; keyWrapped: string }[];
 }
@@ -138,7 +142,8 @@ export async function sendSeatMessage(
     `${seatPath(token)}/chat/${encodeURIComponent(chatId)}/messages`, {
       method: 'POST',
       body: JSON.stringify({
-        messageId, epoch, bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt, sendAt: options.sendAt
+        messageId, epoch, bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt, sendAt: options.sendAt,
+        topicId: options.topicId ?? null
       })
     });
   return { ...done, epoch };

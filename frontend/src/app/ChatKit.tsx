@@ -674,6 +674,11 @@ export interface MessageHandlers {
   readonly restore: (message: SealedMessage) => Promise<void>;
   readonly history: (message: SealedMessage) => void;
   readonly forward?: (opened: Opened) => void;
+
+  /* 0066/0068/0070 — aus einer Nachricht wird etwas: eine Aufgabe, ein Termin; oder sie wandert in ein Thema. */
+  readonly task?: (message: SealedMessage, opened: Opened) => void;
+  readonly appointment?: (message: SealedMessage, opened: Opened) => void;
+  readonly moveTopic?: (message: SealedMessage) => void;
 }
 
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
@@ -1020,6 +1025,18 @@ function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete
     }
     if (rules.canEdit(message, opened)) items.push({ label: 'Edytuj', icon: 'edit', onSelect: () => on.edit(message, opened) });
     if (message.editedAt != null) items.push({ label: 'Historia zmian', icon: 'history', onSelect: () => on.history(message) });
+    if (on.task !== undefined) {
+      const task = on.task;
+      items.push({ label: 'Utwórz zadanie', icon: 'check', onSelect: () => task(message, opened) });
+    }
+    if (on.appointment !== undefined) {
+      const appointment = on.appointment;
+      items.push({ label: 'Dodaj do kalendarza', icon: 'clock', onSelect: () => appointment(message, opened) });
+    }
+    if (on.moveTopic !== undefined) {
+      const move = on.moveTopic;
+      items.push({ label: 'Przenieś do tematu', icon: 'hash', onSelect: () => move(message) });
+    }
   }
   if (gone && rules.canRestore(message)) items.push({ label: 'Przywróć', icon: 'history', onSelect: () => onRestore(message) });
   if (!gone && rules.canDelete(message)) items.push({ label: 'Usuń', icon: 'trash', danger: true, onSelect: () => onDelete(message) });

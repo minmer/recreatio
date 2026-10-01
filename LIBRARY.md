@@ -54,6 +54,15 @@ Nothing is public until it is explicitly published (`libraryPublish.ts`).
 | `writings` — Archiwum tekstów (text archive) | published texts of a library, project or topic, newest first | strip: the newest; block: recent texts; tall: search, topics, "Więcej" (more); `?t=<id>` opens a text |
 | `quotes` — Zbiór cytatów (quote collection) | published quotes | small: "Myśl dnia" (one or two quotes, changing daily, the same for everyone); tall: search and topic filter |
 
+## Printing: LaTeX
+
+Printing goes through LaTeX (`libraryLatex.ts`). The page draws the markup as HTML; the same parse tree is written out as one self-contained `.tex` file for `pdflatex` or `lualatex` (UTF-8, Polish babel, no separate bibliography file).
+
+- **A text** becomes an `article`: title page, the meta line (type, date, occasion, place, readings), `##` → `\section*`, `###` → `\subsection*`, quotes and embedded library quotes as `quotation` with their origin, own notes and citations as `\footnote` in the Polish style (`dz. cyt.`, `Tamże`), and "Źródła" (sources) at the end.
+- **A project** becomes a `book`: outline headings → `\part*`, texts → `\chapter*` in outline order, one table of contents, footnotes counted over the whole book, sources once at the end.
+- **Where:** the editor's side panel "LaTeX" (download, copy, preview; the author line is remembered). The public `writing` module offers "Pobierz do druku (LaTeX)" (download for print) from what is published.
+- **Checks:** `scripts/app-platform-check.mjs` checks escaping, the first full citation, `Tamże`, quotes, lists, notes, sources and the book layout.
+
 ## JSON
 
 These follow the standing JSON rule.

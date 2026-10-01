@@ -152,7 +152,19 @@ export const Field = {
 
   /* 0064 — die Bibliothek: ihr Name, und ein Eintrag als EIN Dokument. */
   LibraryName: 'library_name',
-  LibraryEntry: 'library_entry'
+  LibraryEntry: 'library_entry',
+
+  /*
+   * 0065 — die beiden Schlüssel einer Linkrolle, versiegelt unter dem
+   * Geheimnis im Link (3.12: „der Rollenschlüssel, der mit einer Einladung reist").
+   */
+  InvitationRoleKey: 'invite_key',
+
+  /* 0068 — der Titel eines Themas in einer Rozmowa, unter ihrem Chatschlüssel. */
+  TopicTitle: 'title',
+
+  /* 0071 — ein Haushalt im Adressverzeichnis (Kolęda), EIN Dokument unter dem Bereichsschlüssel. */
+  Household: 'household'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

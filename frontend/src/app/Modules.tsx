@@ -41,6 +41,8 @@ import { PickChat } from './PickChat';
 import { PickForm, PickQuestions, pickedForm } from './FormPick';
 import { PickResource } from './PickResource';
 import { PickLibrary, PickLibraryEntry } from './LibraryPick';
+import { PickCalendar, PickCalendarItem } from './PickCalendar';
+import { DependencyMap } from './DependencyMap';
 import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { AreaOptions } from './AreaOptions';
@@ -50,6 +52,9 @@ import { useRecent } from './prefs';
 import { RecentRow, useTouched } from './Recent';
 
 const NEW = 'new';
+
+/** 0072 — die Karte der Zusammenhänge; kein Name einer Art (die heissen englisch). */
+const MAP = 'mapa';
 
 /** Kennungen sind UUIDs; `new` ist keine, und deshalb kollidiert nichts. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -110,7 +115,7 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
 
   /* -- Der Weg oben im Kopf ------------------------------------------------ */
 
-  const crumbs: Crumb[] = view.at === 'kinds' ? [] : [
+  const crumbs: Crumb[] = trail[0] === MAP ? [{ label: 'Mapa zależności', href: null }] : view.at === 'kinds' ? [] : [
     {
       label: partLabel(view.kind),
       href: viewPath('modules', view.kind),
@@ -144,6 +149,9 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
 
   if (modules === null) return <p className="wk-empty">Wczytywanie…</p>;
 
+  /* 0072 — die Karte: Seiten, Bausteine und ihre Quellen, zum Ansehen und Umhängen. */
+  if (trail[0] === MAP) return <DependencyMap />;
+
   const head = (
     <>
       {failed !== null && <p className="wk-error">{failed}</p>}
@@ -159,6 +167,8 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
         {head}
 
         <RecentRow scope="modules" items={all.map((m) => ({ id: m.moduleId, label: `${m.name} · ${partLabel(m.kind)}`, href: viewPath('modules', m.kind, m.moduleId) }))} />
+
+        <p><a className="wk-btn wk-btn-quiet" href={viewPath('modules', MAP)}>Mapa zależności — strony, moduły, źródła</a></p>
 
         <Unused modules={all} busy={busy !== null} onAct={act} />
 
@@ -445,6 +455,11 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
 
         const input = field.kind === 'chat' ? (
           <PickChat value={value} busy={busy} onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }} />
+        ) : field.kind === 'calendar' ? (
+          <PickCalendar value={value} busy={busy} onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }} />
+        ) : field.kind === 'calendarItem' ? (
+          <PickCalendarItem calendarId={config[field.of ?? ''] ?? ''} value={value} busy={busy}
+            onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }} />
         ) : field.kind === 'library' ? (
           <PickLibrary value={value} busy={busy} onPick={(id) => void save(field.key, id)} />
         ) : field.kind === 'libraryEntry' ? (
@@ -484,7 +499,7 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
         );
 
         /* Mehrere Knöpfe darin — kein <label>, sonst träfe ein Klick daneben den ersten. */
-        return field.kind === 'questions' || field.kind === 'form' ? (
+        return field.kind === 'questions' || field.kind === 'form' || field.kind === 'calendarItem' ? (
           <div className="wk-field" key={field.key}><span>{field.label}</span>{input}</div>
         ) : (
           <label className="wk-field" key={field.key}><span>{field.label}</span>{input}</label>

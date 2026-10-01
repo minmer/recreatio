@@ -49,6 +49,44 @@ import {
 } from './seat';
 import { checkText, openLink, type CheckAnswer } from './seatCheck';
 import { WorkspaceError, type Who } from './session';
+import { loadChats, startSeatChat } from './chat';
+import { loadMembers } from './area';
+
+/**
+ * 0069 — „NAPISZ DO TEJ OSOBY": die Rozmowa mit dem Menschen hinter diesem
+ * Platz. Gibt es sie, öffnet sie sich; sonst entsteht sie — angelegt von einer
+ * meiner Rollen, die den Bereich liest. Den Schlüssel gibt mein Browser ihm,
+ * sobald er sie das erste Mal öffnet.
+ */
+function WriteToSeat({ seatId, areaId, ring, busy, onError }: {
+  seatId: string; areaId: string | null; ring: Ring; busy: boolean; onError: (message: string | null) => void;
+}) {
+  const [working, setWorking] = useState(false);
+  const go = async () => {
+    setWorking(true);
+    onError(null);
+    try {
+      const had = (await loadChats()).chats.find((c) => c.seatId === seatId);
+      if (had !== undefined) { window.location.hash = viewPath('chat', had.chatId); return; }
+      if (areaId === null) throw new WorkspaceError('Nie widać, do którego obszaru należy ta osoba — odśwież stronę.');
+      const { members } = await loadMembers(areaId);
+      const as = members.find((m) => ring.has(m.roleId) && m.kind !== 'account'
+        && (m.capabilities.includes('read') || m.capabilities.includes('write') || m.capabilities.includes('admin')));
+      if (as === undefined) throw new WorkspaceError('Żadna z Twoich ról nie czyta tego obszaru.');
+      const chatId = await startSeatChat(areaId, as.roleId, seatId);
+      window.location.hash = viewPath('chat', chatId);
+    } catch (e) {
+      onError(e instanceof WorkspaceError ? e.message : 'Nie udało się otworzyć rozmowy.');
+    } finally {
+      setWorking(false);
+    }
+  };
+  return (
+    <button type="button" className="wk-link-btn" disabled={busy || working} onClick={() => void go()}>
+      {working ? 'Otwieranie…' : 'Napisz do tej osoby'}
+    </button>
+  );
+}
 import { Unlock } from './Unlock';
 import { dialable, joinPhones, normalisePhone, splitPhones, tidyPhones, withPhone } from './phone';
 import { LINK, renderSms, smsHref, usesHole, VERIFY } from './sms';
@@ -1723,6 +1761,10 @@ function People({
                     Bytes fort — und fragt deshalb vorher, wie der Altbestand.
                   */}
                   <div className="wk-actions">
+                    {/* 0069 — eine Rozmowa nur mit diesem Menschen; die anderen, die das Formular ausgefüllt haben, sehen sie nicht. */}
+                    {s.seatId !== null && ring !== null && (
+                      <WriteToSeat seatId={s.seatId} areaId={links.areaOf(s.seatId)} ring={ring} busy={busy} onError={onError} />
+                    )}
                     <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onHide(s)}>
                       {s.hidden ? 'Przywróć' : 'Ukryj'}
                     </button>
@@ -2561,6 +2603,9 @@ interface SeatLinks {
   readonly warm: (seatIds: readonly string[]) => void;
 
   readonly reload: () => Promise<void>;
+
+  /** 0069 — in welchem Bereich der Platz steht (für die Rozmowa mit ihm). */
+  readonly areaOf: (seatId: string) => string | null;
 }
 
 /** Die ganze Adresse eines Links — die Seite, unter der der Platz hängt, mit dem Platz daran. */
@@ -2686,7 +2731,9 @@ function useSeatLinks(areaIds: readonly string[], ring: Ring | null): SeatLinks 
     })();
   }, [peek]);
 
-  return { rows, peek, forSms, renew, key, warm, reload };
+  const areaOf = useCallback((seatId: string) => found.current.get(seatId)?.areaId ?? null, []);
+
+  return { rows, peek, forSms, renew, key, warm, reload, areaOf };
 }
 
 /* -- Der Link eines Menschen (0027/0046) ----------------------------------- */

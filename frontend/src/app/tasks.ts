@@ -8,7 +8,14 @@
  *   after    ein Abstand nach dem letzten Erledigen — Blumen gießen alle drei
  *            Tage. Wer sie erledigt, stellt die Uhr neu; bis dahin läuft sie
  *            (`progress`: 1 heisst fällig, darüber zu spät).
+ *   period   (0066) ein Zeitraum, der in festem Abstand wiederkommt — drei
+ *            Tage Zeit, alle zwei Wochen. Er steht ab Beginn da und wird
+ *            dringender, bis er endet; erledigt wird jedes Vorkommen.
  * </code>
+ *
+ * <b>Erinnerungen</b> (0066): am Anfang, in der Mitte, gegen Ende eines
+ * Vorkommens (`remind`, Bits 1/2/4). Die Zeitpunkte rechnet der Dienst
+ * (`reminders` je Vorkommen); erinnert wird von `notify.ts`.
  *
  * Titel und Notiz werden HIER versiegelt, unter dem Schlüssel des Bereichs,
  * der die Aufgabe sieht („Tylko ja" oder eine Gruppe). Wann was fällig ist,
@@ -23,7 +30,17 @@ import type { RepeatKind } from './agenda';
 import { call, WorkspaceError } from './session';
 import { levelOf, urgency, type UrgencyLevel } from './urgency';
 
-export type TaskKind = 'window' | 'after';
+export type TaskKind = 'window' | 'after' | 'period';
+
+/** 0066 — wann erinnert wird: 1 am Anfang, 2 in der Mitte, 4 gegen Ende. */
+export const REMIND = { start: 1, middle: 2, end: 4 } as const;
+export type ReminderKind = keyof typeof REMIND;
+
+export const REMIND_WORD: Record<ReminderKind, string> = {
+  start: 'na początku',
+  middle: 'w połowie',
+  end: 'pod koniec'
+};
 
 export interface TaskOccurrence {
   readonly at: string;
@@ -33,6 +50,8 @@ export interface TaskOccurrence {
   /** Abgesagt: entschieden, aber nicht getan. */
   readonly skippedAt: string | null;
   readonly skippedBy: string | null;
+  /** 0066 — wann an DIESES Vorkommen erinnert wird (leer, wenn entschieden). */
+  readonly reminders?: readonly { kind: ReminderKind; at: string }[];
 }
 
 export interface TaskRow {
@@ -62,6 +81,12 @@ export interface TaskRow {
   /** Das Vorkommen der letzten Entscheidung — das, was ein „Cofnij" loescht. */
   readonly lastSettledAt: string | null;
   readonly history: readonly { doneAt: string; doneBy: string }[];
+
+  /* 0066 — Erinnerungen und woher die Aufgabe kommt (eine Rozmowa, ein Thema, eine Nachricht). */
+  readonly remind?: number;
+  readonly chatId?: string | null;
+  readonly topicId?: string | null;
+  readonly messageId?: string | null;
 }
 
 export interface OpenTask extends TaskRow {
@@ -69,8 +94,9 @@ export interface OpenTask extends TaskRow {
   readonly notes: string | null;
 }
 
-export const loadTasks = (from: Date, to: Date): Promise<{ now: string; tasks: readonly TaskRow[] }> =>
-  call(`/workspace/tasks?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`);
+export const loadTasks = (from: Date, to: Date, chatId?: string): Promise<{ now: string; tasks: readonly TaskRow[] }> =>
+  call(`/workspace/tasks?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`
+    + (chatId === undefined ? '' : `&chat=${encodeURIComponent(chatId)}`));
 
 const titleAad = (taskId: string) => aad('task', 'task', taskId, Field.TaskTitle, 1);
 const notesAad = (taskId: string) => aad('task', 'task', taskId, Field.TaskNotes, 1);
@@ -109,6 +135,17 @@ export interface TaskDraft {
   readonly every: number;
   readonly weekdays: number;
   readonly until: string | null;
+  /** 0066 — Bits aus `REMIND`. */
+  readonly remind?: number;
+  /** 0066 — aus welcher Rozmowa sie kommt (nur beim Anlegen; beim Ändern bleibt es, wie es war). */
+  readonly origin?: TaskOrigin | null;
+}
+
+/** 0066 — die Rozmowa, das Thema, die Nachricht, aus der eine Aufgabe entstand. */
+export interface TaskOrigin {
+  readonly chatId: string;
+  readonly topicId: string | null;
+  readonly messageId: string | null;
 }
 
 /** Anlegen (ohne `taskId`) oder ändern — versiegelt unter dem jüngsten Schlüssel des gewählten Bereichs. */
@@ -124,8 +161,8 @@ export async function saveTask(ring: Ring, draft: TaskDraft, taskId?: string): P
     kind: draft.kind,
     date: draft.date,
     time: draft.time,
-    windowMinutes: draft.kind === 'window' ? draft.windowMinutes : 0,
-    everyMinutes: draft.kind === 'after' ? draft.everyMinutes : null,
+    windowMinutes: draft.kind !== 'after' ? draft.windowMinutes : 0,
+    everyMinutes: draft.kind !== 'window' ? draft.everyMinutes : null,
     repeat: draft.kind === 'window' ? draft.repeat : 'none',
     every: draft.every,
     weekdays: draft.repeat === 'weekly' ? draft.weekdays : null,
@@ -134,12 +171,19 @@ export async function saveTask(ring: Ring, draft: TaskDraft, taskId?: string): P
     epoch: newest.epoch,
     titleSealed: toBase64Url(await sealText(newest.key, titleAad(id), draft.title.trim() || 'Zadanie')),
     notesSealed: draft.notes.trim() === '' ? null : toBase64Url(await sealText(newest.key, notesAad(id), draft.notes.trim())),
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    remind: draft.remind ?? 0,
+    chatId: draft.origin?.chatId ?? null,
+    topicId: draft.origin?.topicId ?? null,
+    messageId: draft.origin?.messageId ?? null
   };
 
   await call(taskId === undefined ? '/workspace/tasks' : `/workspace/task/${encodeURIComponent(taskId)}`, {
     method: 'POST', body: JSON.stringify(body)
   });
+
+  /* 0067 — die Erinnerungen neu planen (`NotifyBell`). */
+  window.dispatchEvent(new Event('recreatio:tasks-changed'));
   return id;
 }
 
@@ -240,6 +284,68 @@ export function howLong(target: Date, now: Date): string {
     : `${Math.round(size / 1440)} dni`;
   if (size < 1) return 'teraz';
   return minutes > 0 ? `za ${word}` : `${word} temu`;
+}
+
+/**
+ * 0066 — DIE ERINNERUNGEN EINES VORKOMMENS, wie der Dienst sie rechnet
+ * (`Tasks.RemindersOf`): Anfang, Mitte, gegen Ende (eine Viertelstunde vor
+ * dem Ende; bei einem kürzeren Fenster am Ende). Ohne Dauer nur der Anfang.
+ * Hier für `after` (dessen Fälligkeit der Browser kennt) und als Probe.
+ */
+export function remindersOf(at: Date, windowMinutes: number, mask: number): { kind: ReminderKind; at: Date }[] {
+  const out: { kind: ReminderKind; at: Date }[] = [];
+  if ((mask & REMIND.start) !== 0) out.push({ kind: 'start', at });
+  if (windowMinutes > 0) {
+    if ((mask & REMIND.middle) !== 0) out.push({ kind: 'middle', at: new Date(at.getTime() + windowMinutes * 30_000) });
+    if ((mask & REMIND.end) !== 0) out.push({ kind: 'end', at: new Date(at.getTime() + (windowMinutes >= 60 ? windowMinutes - 15 : windowMinutes) * 60_000) });
+  }
+  return out;
+}
+
+/** Alle künftigen Erinnerungen einer Aufgabe — die Liste für `notify.ts`. */
+export function upcomingReminders(task: TaskRow, now: Date): { kind: ReminderKind; at: Date; occurrenceAt: string }[] {
+  const mask = task.remind ?? 0;
+  if (mask === 0) return [];
+  const out: { kind: ReminderKind; at: Date; occurrenceAt: string }[] = [];
+  if (task.kind === 'after') {
+    if (task.dueAt !== null && (mask & REMIND.start) !== 0) {
+      const due = new Date(task.dueAt);
+      if (due > now) out.push({ kind: 'start', at: due, occurrenceAt: task.dueAt });
+    }
+    return out;
+  }
+  for (const one of task.occurrences) {
+    if (one.doneAt !== null || one.skippedAt !== null) continue;
+    const list = one.reminders !== undefined
+      ? one.reminders.map((r) => ({ kind: r.kind, at: new Date(r.at) }))
+      : remindersOf(new Date(one.at), task.windowMinutes, mask);
+    for (const r of list) if (r.at > now) out.push({ ...r, occurrenceAt: one.at });
+  }
+  return out;
+}
+
+/**
+ * 0066 — DIE ZEITRÄUME einer `period`-Aufgabe, wie der Dienst sie rechnet
+ * (`Tasks.Periods`): Beginn plus ein Vielfaches des Abstands; ganze Tage in
+ * Ortstagen (über die Zeitumstellung bleibt 9:00 9:00).
+ */
+export function periodStarts(first: Date, everyMinutes: number, from: Date, to: Date, max = 1000): Date[] {
+  const out: Date[] = [];
+  if (everyMinutes < 1 || to < from || first > to) return out;
+  const skip = first >= from ? 0 : Math.floor((from.getTime() - first.getTime()) / 60_000 / everyMinutes);
+  const byDays = everyMinutes % 1440 === 0;
+  for (let i = skip; out.length < max; i++) {
+    let at: Date;
+    if (byDays) {
+      at = new Date(first);
+      at.setDate(at.getDate() + i * (everyMinutes / 1440));
+    } else {
+      at = new Date(first.getTime() + i * everyMinutes * 60_000);
+    }
+    if (at > to) break;
+    if (at >= from) out.push(at);
+  }
+  return out;
 }
 
 /** Ein Abstand in Worten — „co 3 dni", „co 2 godz.", „co tydzień". */

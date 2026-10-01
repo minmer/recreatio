@@ -31,6 +31,7 @@ import { ids, KINDS, kindOf, str, TEXT_STATUS, TEXT_TYPES, wordCount, type LibEn
 import { useLibraryStore, type Entry, type LibraryStore } from './libraryStore';
 import { useMe, type Me } from './me';
 import { viewPath } from './routes';
+import { LibraryMap } from './LibraryMap';
 import { WorkspaceError, type Who } from './session';
 
 /** Die Reiter einer Bibliothek — Wort in der Adresse, Art, Name. */
@@ -193,7 +194,7 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
     return <LibraryEditor store={store} library={library} entryId={null} kind={trail[1]!} preset={presetFrom(trail[2])} />;
   }
 
-  const tab = first === 'ustawienia' || first === 'json' ? first : (TABS.find((t) => t.slug === first)?.slug ?? 'teksty');
+  const tab = first === 'ustawienia' || first === 'json' || first === 'mapa' ? first : (TABS.find((t) => t.slug === first)?.slug ?? 'teksty');
 
   return (
     <>
@@ -206,12 +207,14 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
             {kindOf(t.kind)!.plural} <span className="lib-count">{store.ofKind(t.kind).length}</span>
           </a>
         ))}
+        <a className={tab === 'mapa' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'mapa')}>Mapa</a>
         <a className={tab === 'json' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'json')}>Import / eksport</a>
         <a className={tab === 'ustawienia' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'ustawienia')}>Ustawienia</a>
       </nav>
       <div className="wk-panel">
         {tab === 'ustawienia' ? <Settings me={me} library={library} areas={areas} onChanged={onChanged} />
           : tab === 'json' ? <LibraryJson store={store} library={library} />
+          : tab === 'mapa' ? <LibraryMap store={store} libraryId={library.libraryId} />
           : <KindList store={store} library={library} kind={TABS.find((t) => t.slug === tab)!.kind} />}
       </div>
     </>

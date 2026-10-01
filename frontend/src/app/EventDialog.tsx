@@ -48,8 +48,18 @@ const REPEATS: readonly { value: RepeatKind; label: string }[] = [
 
 const time = (at: Date) => at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 
-/** Ein neuer Termin ab dieser Zeit — oder ein bestehender. */
-export type EventTarget = { readonly at: 'new'; readonly start: Date; readonly end: Date; readonly allDay: boolean; readonly calendarId?: string }
+/**
+ * Ein neuer Termin ab dieser Zeit — oder ein bestehender.
+ *
+ * 0070 — ein neuer kann ein TEIL eines anderen sein (`parentItemId`: ein
+ * Punkt im Programm) und aus einer Rozmowa kommen (`origin`, mit Titel).
+ */
+export type EventTarget = {
+    readonly at: 'new'; readonly start: Date; readonly end: Date; readonly allDay: boolean; readonly calendarId?: string;
+    readonly parentItemId?: string; readonly parentTitle?: string;
+    readonly origin?: { readonly chatId: string; readonly topicId: string | null };
+    readonly title?: string;
+  }
   | { readonly at: 'event'; readonly event: CalEvent };
 
 /** Wie ein Kalender in einer Auswahl heisst: sein Name, und wessen er ist. */
@@ -60,21 +70,78 @@ export function calendarLabel(areas: readonly AreaRow[], calendar: CalendarRow):
   return calendar.title === calendar.areaName || calendar.title === group ? group : `${calendar.title} · ${group}`;
 }
 
-export function EventDialog({ me, areas, calendars, scope, target, onClose, onSaved }: {
+export function EventDialog({ me, areas, calendars, scope, target, events, onClose, onSaved, onAddPart }: {
   me: Me;
   areas: readonly AreaRow[];
   calendars: readonly CalendarRow[];
   /** Nur diese Kalender (ein Kalender-Baustein auf einer Seite) — fehlt: alle, in denen ich schreibe. */
   scope?: readonly string[];
   target: EventTarget;
+  /** 0070 — die geladenen Termine: daraus die Teile dieses Termins und sein Ganzes. */
+  events?: readonly CalEvent[];
   onClose: () => void;
   onSaved: () => void;
+  /** 0070 — einen Punkt ins Programm dieses Termins (öffnet einen neuen Termin unter ihm). */
+  onAddPart?: (parent: CalEvent) => void;
 }) {
   if (target.at === 'event' && (target.event.source !== 'item' || !target.event.item?.editable)) {
     return <Details me={me} areas={areas} calendars={calendars} event={target.event} onClose={onClose} onSaved={onSaved} />;
   }
 
-  return <Editor me={me} areas={areas} calendars={calendars} scope={scope} target={target} onClose={onClose} onSaved={onSaved} />;
+  return <Editor me={me} areas={areas} calendars={calendars} scope={scope} target={target} events={events}
+    onClose={onClose} onSaved={onSaved} onAddPart={onAddPart} />;
+}
+
+/**
+ * 0070 — DAS PROGRAMM EINES TERMINS: seine Teile (aus den geladenen
+ * Terminen), in Reihenfolge — und, wenn er selbst ein Teil ist, sein Ganzes.
+ */
+function ProgramOf({ item, events, onAdd, onDetach }: {
+  item: OpenedItem;
+  events: readonly CalEvent[];
+  onAdd?: () => void;
+  onDetach?: () => void;
+}) {
+  const id = item.occurrence.itemId;
+  const seen = new Set<string>();
+  const parts = events
+    .filter((e) => e.item?.occurrence.parentItemId === id)
+    .filter((e) => { const key = e.item!.occurrence.itemId; if (seen.has(key)) return false; seen.add(key); return true; })
+    .sort((a, b) => ((a.item!.occurrence.position ?? 1e9) - (b.item!.occurrence.position ?? 1e9)) || a.start.getTime() - b.start.getTime());
+  const parentId = item.occurrence.parentItemId ?? null;
+  const parent = parentId === null ? undefined : events.find((e) => e.item?.occurrence.itemId === parentId);
+
+  if (parentId === null && parts.length === 0 && onAdd === undefined) return null;
+
+  return (
+    <section className="wk-ev-program">
+      {parentId !== null && (
+        <p className="wk-hint">
+          Część terminu: <strong>{parent?.item?.title ?? 'inny termin'}</strong>
+          {onDetach !== undefined && <> · <button type="button" className="wk-link-btn" onClick={onDetach}>Odłącz</button></>}
+        </p>
+      )}
+      {(parts.length > 0 || onAdd !== undefined) && (
+        <>
+          <h3 className="wk-h3">Program</h3>
+          {parts.length > 0 ? (
+            <ol className="wk-ev-parts">
+              {parts.map((p) => (
+                <li key={p.item!.occurrence.itemId}>
+                  <span className="wk-ev-part-time">{p.allDay ? longDate(p.start) : `${longDate(p.start)} ${time(p.start)}`}</span>
+                  {' '}<span>{p.item!.title}</span>
+                  {p.item!.location !== null && <span className="wk-hint"> · {p.item!.location}</span>}
+                </li>
+              ))}
+            </ol>
+          ) : <p className="wk-hint">Ten termin nie ma jeszcze punktów programu.</p>}
+          {onAdd !== undefined && (
+            <button type="button" className="wk-link-btn" onClick={onAdd}>+ Dodaj punkt programu</button>
+          )}
+        </>
+      )}
+    </section>
+  );
 }
 
 /* -- Nur ansehen (und, wer den Kalender führt: wer da sein muss) --------------------------- */
@@ -193,14 +260,16 @@ function Details({ me, areas, calendars, event, onClose, onSaved }: {
 
 /* -- Anlegen und ändern -------------------------------------------------------------- */
 
-function Editor({ me, areas, calendars, scope: allowed, target, onClose, onSaved }: {
+function Editor({ me, areas, calendars, scope: allowed, target, events, onClose, onSaved, onAddPart }: {
   me: Me;
   areas: readonly AreaRow[];
   calendars: readonly CalendarRow[];
   scope?: readonly string[];
   target: EventTarget;
+  events?: readonly CalEvent[];
   onClose: () => void;
   onSaved: () => void;
+  onAddPart?: (parent: CalEvent) => void;
 }) {
   const recent = useRecent('calendar.cal');
   const item: OpenedItem | undefined = target.at === 'event' ? target.event.item : undefined;
@@ -238,7 +307,11 @@ function Editor({ me, areas, calendars, scope: allowed, target, onClose, onSaved
   const defaultVisibility = calendar?.visibilityAreaId ?? calendar?.areaId ?? personal?.areaId ?? PRIVATE;
 
   const [scope, setScope] = useState<'one' | 'all'>('all');
-  const [title, setTitle] = useState(item?.title ?? '');
+  const [title, setTitle] = useState(item?.title ?? (target.at === 'new' ? target.title ?? '' : ''));
+
+  /* 0070 — Teil welches Termins: `undefined` heisst „bleibt", `null` „keiner mehr". */
+  const [parentItemId, setParentItemId] = useState<string | null | undefined>(
+    target.at === 'new' ? target.parentItemId : undefined);
   const [location, setLocation] = useState(item?.location ?? '');
   const [notes, setNotes] = useState(item?.notes ?? '');
 
@@ -332,6 +405,8 @@ function Editor({ me, areas, calendars, scope: allowed, target, onClose, onSaved
 
     const cap = capacity.trim() === '' ? null : Math.max(1, Number(capacity) || 1);
     const id = await saveEvent(me.ring, {
+      parentItemId,
+      origin: target.at === 'new' ? target.origin ?? undefined : undefined,
       title, location, notes, areaId: seenBy,
       ownerRoleId: me.person.id,
       date, time: from, minutes, allDay,
@@ -534,6 +609,22 @@ function Editor({ me, areas, calendars, scope: allowed, target, onClose, onSaved
               <span>Notatka</span>
               <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
             </label>
+
+            {/* 0070 — Teil eines Programms, oder ein Ganzes mit Teilen. */}
+            {target.at === 'new' && target.parentItemId !== undefined && (
+              <p className="wk-note">Punkt programu: <strong>{target.parentTitle ?? 'termin nadrzędny'}</strong></p>
+            )}
+            {target.at === 'new' && target.origin !== undefined && (
+              <p className="wk-note">Z rozmowy — termin zapamięta, z której wiadomości powstał.</p>
+            )}
+            {item !== undefined && events !== undefined && (
+              <ProgramOf item={item} events={events}
+                onAdd={onAddPart === undefined || target.at !== 'event' ? undefined : () => onAddPart(target.event)}
+                onDetach={item.occurrence.parentItemId != null ? () => setParentItemId(null) : undefined} />
+            )}
+            {parentItemId === null && item?.occurrence.parentItemId != null && (
+              <p className="wk-hint">Po zapisaniu ten termin nie będzie już częścią programu.</p>
+            )}
           </>
         )}
 

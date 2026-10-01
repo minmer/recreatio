@@ -12,9 +12,12 @@
  *   saveBlob      <a download>          Dokumentenwähler (FileSaverPlugin)
  * </code>
  *
- * <b>Kein Push.</b> Benachrichtigt wird, solange die Seite läuft — im Browser
- * wie in der App. Eine Nachricht an ein geschlossenes Telefon bräuchte einen
- * Zustelldienst (Web Push, FCM, UnifiedPush), und der ist hier noch nicht.
+ * <b>Kein Push über fremde Dienste.</b> Benachrichtigt wird, solange die Seite
+ * läuft — im Browser wie in der App. Dazu (0067): in der App fragt ein
+ * Arbeiter des Systems auch bei geschlossener App nach Zahlen (`background`,
+ * NotifyPlugin/NotifyWorker, höchstens alle 15 Minuten, nur mit Netz und
+ * genug Akku), und Erinnerungen an Aufgaben stehen im Wecker des Systems
+ * (`notices.plan`) — sie kommen, ohne dass jemand fragt.
  */
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
@@ -81,6 +84,16 @@ export interface Notice {
 
 const CHANNEL = 'chat';
 
+/** 0067 — eigene Kanäle: was neu ist (Anmeldungen, Links), und Erinnerungen an Aufgaben. */
+const CHANNEL_NEWS = 'news';
+const CHANNEL_TASKS = 'tasks';
+
+/** Was geplant liegt — damit Veraltetes zurückgenommen werden kann (Android vergisst nichts von selbst). */
+const PLANNED_SLOT = 'recreatio:notify:planned';
+
+/** Im Browser: die Wecker dieses Tabs (bis morgen; länger hält ein Tab nicht offen). */
+const webTimers = new Map<string, number>();
+
 /** In der App gilt, was zuletzt nachgesehen wurde; `null` heisst: noch nie. */
 let granted: boolean | null = null;
 
@@ -90,6 +103,12 @@ const prepared: Promise<void> | null = native
     try {
       await LocalNotifications.createChannel({
         id: CHANNEL, name: 'Rozmowy', description: 'Nowe wiadomości w rozmowach', importance: 4, visibility: 0
+      });
+      await LocalNotifications.createChannel({
+        id: CHANNEL_NEWS, name: 'Nowości', description: 'Nowe zgłoszenia z formularzy i dołączenia przez linki', importance: 3, visibility: 0
+      });
+      await LocalNotifications.createChannel({
+        id: CHANNEL_TASKS, name: 'Zadania', description: 'Przypomnienia o zadaniach: na początku, w połowie, pod koniec', importance: 4, visibility: 0
       });
       granted = (await LocalNotifications.checkPermissions()).display === 'granted';
       await LocalNotifications.addListener('localNotificationActionPerformed', ({ notification }) => {
@@ -145,8 +164,49 @@ export const notices = {
     return (await Notification.requestPermission()) === 'granted';
   },
 
-  /** Zeigen — wenn es erlaubt ist, sonst nichts. */
-  show(notice: Notice): void {
+  /**
+   * 0067 — ERINNERUNGEN PLANEN: die Liste ersetzt, was vorher geplant war.
+   * In der App liegen sie im Wecker des Systems (ungenau erlaubt — kein
+   * „genauer Wecker", den Google Play nur Weckern erlaubt); im Browser nur,
+   * solange der Tab offen ist, und höchstens einen Tag voraus.
+   */
+  async plan(list: readonly (Notice & { at: Date })[]): Promise<void> {
+    const wanted = new Map(list.map((n) => [n.tag, n]));
+
+    if (native) {
+      await prepared;
+      let before: string[] = [];
+      try { before = JSON.parse(localStorage.getItem(PLANNED_SLOT) ?? '[]') as string[]; } catch { before = []; }
+      const stale = before.filter((tag) => !wanted.has(tag));
+      if (stale.length > 0) {
+        await LocalNotifications.cancel({ notifications: stale.map((tag) => ({ id: numberOf(tag) })) }).catch(() => undefined);
+      }
+      if (!notices.allowed()) { localStorage.setItem(PLANNED_SLOT, '[]'); return; }
+      const fresh = list.filter((n) => n.at.getTime() > Date.now() + 30_000).slice(0, 60);
+      if (fresh.length > 0) {
+        await LocalNotifications.schedule({
+          notifications: fresh.map((n) => ({
+            id: numberOf(n.tag), title: n.title, body: n.body, channelId: CHANNEL_TASKS, smallIcon: 'ic_stat_recreatio',
+            schedule: { at: n.at, allowWhileIdle: true }, extra: { open: n.open ?? '' }
+          }))
+        }).catch(() => undefined);
+      }
+      localStorage.setItem(PLANNED_SLOT, JSON.stringify(fresh.map((n) => n.tag)));
+      return;
+    }
+
+    for (const [tag, timer] of webTimers) {
+      if (!wanted.has(tag)) { window.clearTimeout(timer); webTimers.delete(tag); }
+    }
+    const horizon = Date.now() + 24 * 3600_000;
+    for (const n of list) {
+      if (webTimers.has(n.tag) || n.at.getTime() > horizon || n.at.getTime() < Date.now()) continue;
+      webTimers.set(n.tag, window.setTimeout(() => { webTimers.delete(n.tag); notices.show(n); }, n.at.getTime() - Date.now()));
+    }
+  },
+
+  /** Zeigen — wenn es erlaubt ist, sonst nichts. `news`: im Kanal „Nowości". */
+  show(notice: Notice, channel: 'chat' | 'news' | 'tasks' = 'chat'): void {
     if (!notices.allowed()) return;
 
     if (native) {
@@ -155,7 +215,7 @@ export const notices = {
           id: numberOf(notice.tag),
           title: notice.title,
           body: notice.body,
-          channelId: CHANNEL,
+          channelId: channel === 'news' ? CHANNEL_NEWS : channel === 'tasks' ? CHANNEL_TASKS : CHANNEL,
           smallIcon: 'ic_stat_recreatio',
           /*
            * Sofort, nicht geplant. Ohne das hielte das Plugin sie für einen
@@ -175,6 +235,35 @@ export const notices = {
       shown.onclick = () => { window.focus(); window.location.hash = open; shown.close(); };
     }
   }
+};
+
+/* -- 0067: Im Hintergrund nachsehen (nur in der App) ----------------------- */
+
+interface NotifyPluginApi {
+  configure(options: {
+    api: string; token: string; intervalMinutes: number; chats: boolean; forms: boolean; links: boolean;
+  }): Promise<void>;
+  stop(): Promise<void>;
+  seen(options: { unread: number; forms: number; links: number; since: string }): Promise<void>;
+  status(): Promise<{ configured: boolean; intervalMinutes: number }>;
+}
+
+const NotifyNative = registerPlugin<NotifyPluginApi>('Notify');
+
+/**
+ * Der Arbeiter der App (`NotifyWorker.java`): fragt `/notify/digest` mit dem
+ * Gerätekennzeichen — nur Zahlen, nur mit Netz und genug Akku, höchstens alle
+ * 15 Minuten (Android lässt es nicht öfter, und es soll auch nicht).
+ */
+export const background = {
+  available: native,
+  configure: (options: Parameters<NotifyPluginApi['configure']>[0]) =>
+    native ? NotifyNative.configure(options) : Promise.resolve(),
+  stop: () => (native ? NotifyNative.stop().catch(() => undefined) : Promise.resolve()),
+  /** Was die App gerade gezeigt hat — der Arbeiter meldet nur, was DARÜBER hinaus neu ist. */
+  seen: (options: Parameters<NotifyPluginApi['seen']>[0]) =>
+    native ? NotifyNative.seen(options).catch(() => undefined) : Promise.resolve(),
+  status: () => (native ? NotifyNative.status().catch(() => ({ configured: false, intervalMinutes: 0 })) : Promise.resolve({ configured: false, intervalMinutes: 0 }))
 };
 
 /* -- Eine Datei ablegen --------------------------------------------------- */

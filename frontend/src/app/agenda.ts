@@ -62,6 +62,12 @@ export interface AgendaOccurrence {
   /* 0058 — wer da sein muss (für dieses Vorkommen), und ob ich es bin. */
   readonly people?: readonly { readonly roleId: string; readonly duty: 'present' | 'celebrant' | 'lead' }[];
   readonly mine?: boolean;
+
+  /* 0070 — Teil welches Termins, an welcher Stelle; aus welcher Rozmowa / welchem Thema. */
+  readonly parentItemId?: string | null;
+  readonly position?: number | null;
+  readonly chatId?: string | null;
+  readonly topicId?: string | null;
 }
 
 export interface AgendaClaim {
@@ -207,6 +213,14 @@ export interface EventDraft {
   readonly bookable?: boolean | null;
   readonly capacity?: number | null;
   readonly reserveAreaId?: string | null;
+
+  /*
+   * 0070 — TEIL EINES TERMINS. `undefined`: bleibt, wie es war; `null`: kein
+   * Teil mehr; sonst unter diesem Termin. Ebenso die Rozmowa, aus der er kommt.
+   */
+  readonly parentItemId?: string | null;
+  readonly position?: number | null;
+  readonly origin?: { readonly chatId: string; readonly topicId: string | null } | null;
 }
 
 /** „Bez końca" — eine Reihe braucht am Dienst ein Ende; zehn Jahre sind im Kalender keins. */
@@ -260,7 +274,11 @@ export async function saveEvent(ring: Ring, draft: EventDraft, itemId?: string):
     until: draft.repeat === 'none' ? null : draft.until,
     count: draft.repeat === 'none' ? null : draft.count,
     fields,
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    parentItemId: draft.parentItemId === undefined ? null : draft.parentItemId ?? '',
+    position: draft.position ?? null,
+    chatId: draft.origin === undefined ? null : draft.origin?.chatId ?? '',
+    topicId: draft.origin?.topicId ?? null
   };
 
   if (itemId === undefined && draft.calendarId !== undefined) {

@@ -6,9 +6,10 @@ import android.webkit.CookieManager;
 import com.getcapacitor.BridgeActivity;
 
 /**
- * Die Hülle: eine WebView mit der gebauten Seite, und zwei Dinge, die eine
+ * Die Hülle: eine WebView mit der gebauten Seite, und drei Dinge, die eine
  * Seite allein nicht kann — einen Schlüsselspeicher im Gerät
- * ({@link KeyVaultPlugin}) und das Ablegen einer Datei ({@link FileSaverPlugin}).
+ * ({@link KeyVaultPlugin}), das Ablegen einer Datei ({@link FileSaverPlugin}) und
+ * das Nachsehen im Hintergrund ({@link NotifyPlugin}, 0067).
  *
  * Die eigenen Bausteine müssen VOR {@code super.onCreate} angemeldet sein:
  * dort entsteht die Brücke, und was danach kommt, kennt sie nicht.
@@ -19,6 +20,8 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(KeyVaultPlugin.class);
         registerPlugin(FileSaverPlugin.class);
+        /* 0067 — im Hintergrund nachsehen, wenn die App zu ist ({@link NotifyWorker}). */
+        registerPlugin(NotifyPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

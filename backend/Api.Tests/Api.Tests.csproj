@@ -7,4 +7,6 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="../Api/Api.csproj" /></ItemGroup>
+  <!-- 0071 — dieselbe Tabelle prüft auch app-platform-check.mjs. -->
+  <ItemGroup><None Include="postal-norms.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
 </Project>

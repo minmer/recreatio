@@ -391,6 +391,9 @@ public static class AccountDeletion
          WHERE parent_area_id IN (SELECT id FROM #dead) AND id NOT IN (SELECT id FROM #dead);
         UPDATE app.module SET extends_id = NULL
          WHERE extends_id IN (SELECT id FROM #mods) AND id NOT IN (SELECT id FROM #mods);
+        -- 0070: ein Teil eines sterbenden Termins, der selbst bleibt, wird ein eigener Termin.
+        UPDATE app.calendar_item SET parent_item_id = NULL
+         WHERE parent_item_id IN (SELECT id FROM #items) AND id NOT IN (SELECT id FROM #items);
 
         -- Termine
         DELETE FROM app.mass_intention_field
@@ -438,6 +441,9 @@ public static class AccountDeletion
         DELETE FROM app.chat_read     WHERE chat_id IN (SELECT id FROM #chats);
         DELETE FROM app.chat_seat_key WHERE chat_id IN (SELECT id FROM #chats);
         DELETE FROM app.chat_message  WHERE chat_id IN (SELECT id FROM #chats);
+        -- 0068: die Themen gehören zur Rozmowa.
+        IF COL_LENGTH('app.topic', 'chat_id') IS NOT NULL
+            DELETE FROM app.topic WHERE chat_id IN (SELECT id FROM #chats);
         DELETE FROM app.chat          WHERE id IN (SELECT id FROM #chats);
 
         -- Aufgaben
@@ -452,6 +458,14 @@ public static class AccountDeletion
                 OR ref_id   IN (SELECT e.id FROM app.library_entry e JOIN app.library l ON l.id = e.library_id WHERE l.area_id IN (SELECT id FROM #dead));
             DELETE FROM app.library_entry WHERE library_id IN (SELECT id FROM app.library WHERE area_id IN (SELECT id FROM #dead));
             DELETE FROM app.library       WHERE area_id IN (SELECT id FROM #dead);
+        END
+
+        -- Adressen und Haushalte (0071): das Verzeichnis eines Gebiets geht mit ihm.
+        IF OBJECT_ID('app.household', 'U') IS NOT NULL
+        BEGIN
+            DELETE FROM app.household     WHERE area_id IN (SELECT id FROM #dead)
+                                             OR place_id IN (SELECT id FROM app.address_place WHERE area_id IN (SELECT id FROM #dead));
+            DELETE FROM app.address_place WHERE area_id IN (SELECT id FROM #dead);
         END
 
         -- Formulare und Bausteine
@@ -566,6 +580,8 @@ public static class AccountDeletion
         DELETE FROM app.account_key   WHERE account_id = @account;
         DELETE FROM app.account_state WHERE account_id = @account;
         DELETE FROM app.chat_read     WHERE account_id = @account;
+        IF OBJECT_ID('app.notify_device', 'U') IS NOT NULL
+            DELETE FROM app.notify_device WHERE account_id = @account;
         UPDATE app.slug SET claimed_by_account_id = NULL WHERE claimed_by_account_id = @account;
         DELETE FROM app.account WHERE id = @account;
 

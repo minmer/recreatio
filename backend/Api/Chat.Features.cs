@@ -125,6 +125,18 @@ public static partial class Chat
         var actor = await ActorAsync(ctx, db, c, id); if (actor is null) return;
         await SavePreferencesAsync(ctx, c, actor.Principal, id, body.Settings);
     }
+    /// <summary>
+    /// 0067 — SOLL DIESE ROZMOWA JETZT LEISE SEIN? Stumm, archiviert, oder
+    /// außerhalb der eigenen Zeiten — dann zählt sie, aber sie meldet sich
+    /// nicht (keine Benachrichtigung auf dem Telefon).
+    /// </summary>
+    internal static async Task<bool> QuietAsync(SqlConnection c, Guid account, Guid chatId, CancellationToken ct)
+    {
+        var prefs = await PreferencesOfAsync(c, account, chatId, ct) ?? await PreferencesOfAsync(c, account, Guid.Empty, ct) ?? new();
+        try { return prefs.Muted || prefs.Archived || !AvailableAt(prefs, DateTimeOffset.UtcNow); }
+        catch (TimeZoneNotFoundException) { return prefs.Muted || prefs.Archived; }
+    }
+
     public static bool AvailableAt(Preferences prefs, DateTimeOffset at)
     {
         if (!prefs.UseAvailability) return true;

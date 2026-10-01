@@ -133,5 +133,11 @@ Module.Map(app);
 /* 0064 — die Bibliothek: Werke, Zitate, Personen, Themen und die eigenen Texte. */
 Library.Map(app);
 
+/* 0067 — Powiadomienia: was neu ist, als Zahlen; Geräte für die App im Hintergrund. */
+Notify.Map(app);
+
+/* 0071 — Adressen aus Teilen, das Verzeichnis eines Gebiets, die Haushalte (Kolęda). */
+Postal.Map(app);
+
 app.Run();
 return 0;

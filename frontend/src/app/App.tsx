@@ -34,6 +34,10 @@ import { SignIn } from './SignIn';
 import { Verify } from './Verify';
 import { ViewGuard } from './ViewGuard';
 import { Workspace } from './Workspace';
+import { JoinLink } from './JoinLink';
+import { NotifyBell } from './NotifyBell';
+import { Widget } from './Widget';
+import { forgetNotifications } from './notify';
 
 export function App() {
   const [address, setAddress] = useState<Address>(() => parsePath(window.location.hash));
@@ -135,6 +139,14 @@ export function App() {
     return <Shell><Verify token={address.slug} /></Shell>;
   }
 
+  /*
+   * EIN WIDGET (0067) — ohne Kopfleiste, ohne Anmeldung: es steht in einer
+   * fremden Seite und zeigt nur, was öffentlich ist.
+   */
+  if (address.route === 'widget') {
+    return <Widget partId={address.slug} pagePath={address.tail.join('/')} />;
+  }
+
   if (address.seat !== null) {
     return (
       <Shell>
@@ -156,7 +168,23 @@ export function App() {
   }
 
   if (who === null) {
-    return <Shell><SignIn onDone={setWho} /></Shell>;
+    return (
+      <Shell>
+        {address.route === 'dolacz' && (
+          <p className="wk-note">Masz zaproszenie. Zaloguj się albo załóż konto — potem zobaczysz, do czego zaprasza.</p>
+        )}
+        <SignIn onDone={setWho} />
+      </Shell>
+    );
+  }
+
+  /* 0065 — ein Link mit Zugang: erst angemeldet, dann das Zaproszenie. */
+  if (address.route === 'dolacz') {
+    return (
+      <Shell who={who} onSignOut={() => { void forgetNotifications().finally(() => signOut().then(() => { forgetState(); forgetAreaKeys(); setWho(null); })); }}>
+        <JoinLink token={address.slug} who={who} />
+      </Shell>
+    );
   }
 
   /*
@@ -173,7 +201,7 @@ export function App() {
       who={who}
       wide
       spot={spot}
-      onSignOut={() => { void signOut().then(() => { forgetState(); forgetAreaKeys(); setWho(null); }); }}
+      onSignOut={() => { void forgetNotifications().finally(() => signOut().then(() => { forgetState(); forgetAreaKeys(); setWho(null); })); }}
     >
       <Workspace spot={spot} who={who} />
     </Shell>
@@ -223,6 +251,9 @@ function Shell({
           <div className="wk-top-menu" ref={setSlot} />
 
           {spot !== undefined && <Crumbs spot={spot} />}
+
+          {/* 0067 — was neu ist: ungelesene Nachrichten, neue Anmeldungen, Aufgaben. */}
+          {who !== undefined && <NotifyBell who={who} />}
 
           {who !== undefined && (
             <span className="wk-who">

@@ -28,6 +28,9 @@ import { QuoteFigure, Segs, TextArticle } from './LibraryText';
 import { newId } from './ids';
 import { viewPath } from './routes';
 import { WorkspaceError } from './session';
+import { latexFileName, missingKeys, projectToLatex, textToLatex } from './libraryLatex';
+import { saveBlob } from './platform';
+import { useRemembered } from './prefs';
 
 const TAB_OF: Record<string, string> = { text: 'teksty', project: 'projekty', quote: 'cytaty', work: 'zrodla', person: 'osoby', topic: 'tematy' };
 
@@ -173,6 +176,7 @@ function Editor({ store, library, existing, kind, preset }: {
           {saved !== undefined && <PublishBox store={store} entry={saved} readOnly={readOnly} />}
           {saved !== undefined && <Relations store={store} library={library} entry={saved} />}
           {kind === 'quote' && str(data, 'text') !== '' && <section className="lib-box"><h2 className="lib-box-h">Podgląd</h2><QuoteFigure entry={live} look={store} /></section>}
+          {saved !== undefined && (kind === 'text' || kind === 'project') && <LatexBox store={store} entry={live} />}
           {saved !== undefined && <EntryJson store={store} library={library} entry={saved} />}
           {saved !== undefined && !readOnly && <DeleteBox store={store} library={library} entry={saved} />}
         </aside>
@@ -709,6 +713,40 @@ function Relations({ store, library, entry }: { store: LibraryStore; library: Op
       {projects.length > 0 && <><p className="lib-box-sub">W projekcie</p><ul className="lib-rel">{projects.map((o) => <li key={o.id}>{link(o)}</li>)}</ul></>}
       {other.length > 0 && <><p className="lib-box-sub">Inne</p><ul className="lib-rel">{other.map((o) => <li key={o.id}>{link(o)}</li>)}</ul></>}
       {cited.length > 0 && <><p className="lib-box-sub">Ten tekst przywołuje</p><ul className="lib-rel">{cited.map((c) => <li key={c.id}>{link(c)}</li>)}</ul></>}
+    </section>
+  );
+}
+
+/* -- LaTeX (Druck) ------------------------------------------------------------------------------- */
+
+/**
+ * DRUCKEN HEISST LaTeX. Ein Text (oder ein ganzes Projekt als Buch) als
+ * `.tex`: Fussnoten mit den Quellen, Zitate mit Herkunft, Źródła am Ende —
+ * dasselbe, was die Seite zeigt, für `pdflatex` (`libraryLatex.ts`).
+ */
+function LatexBox({ store, entry }: { store: LibraryStore; entry: LibEntry }) {
+  const [shown, setShown] = useState(false);
+  const [author, setAuthor] = useRemembered('library.latex.author', '');
+  const missing = entry.kind === 'text' ? missingKeys(entry, store) : [];
+  const source = () => (entry.kind === 'project'
+    ? projectToLatex(entry, store, { author })
+    : textToLatex(entry, store, { author }));
+
+  return (
+    <section className="lib-box">
+      <h2 className="lib-box-h">LaTeX</h2>
+      <p className="wk-hint">{entry.kind === 'project' ? 'Cały projekt jako książka: części, rozdziały, przypisy, źródła na końcu.' : 'Tekst do druku: przypisy ze źródłami, cytaty, źródła na końcu.'}</p>
+      <label className="wk-field">
+        <span>Autor (na stronie tytułowej)</span>
+        <input value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="np. ks. Jan Kowalski" />
+      </label>
+      {missing.length > 0 && <p className="wk-warn">Brakuje w bibliotece: {missing.map((k) => `@${k}`).join(', ')} — w przypisie stanie „[brak źródła]".</p>}
+      <div className="wk-actions">
+        <button type="button" className="wk-btn" onClick={() => void saveBlob(new Blob([source()], { type: 'application/x-tex' }), latexFileName(entry))}>Pobierz .tex</button>
+        <button type="button" className="wk-link-btn" onClick={() => setShown((was) => !was)}>{shown ? 'Ukryj podgląd' : 'Podgląd'}</button>
+        <button type="button" className="wk-link-btn" onClick={() => void navigator.clipboard?.writeText(source())}>Kopiuj</button>
+      </div>
+      {shown && <pre className="lib-latex">{source()}</pre>}
     </section>
   );
 }

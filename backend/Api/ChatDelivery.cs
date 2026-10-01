@@ -28,9 +28,10 @@ public sealed class ChatDelivery(Db db, ILogger<ChatDelivery> logger) : Backgrou
                       AND cert.scope_kind = N'area' AND cert.scope_id = c.area_id
                       AND cert.revoked_at IS NULL AND cert.expires_at > @now
                       AND (cert.capability IN (N'write', N'admin') OR (cert.capability = N'read'
-                           AND (c.posting_policy = N'members' OR (c.posting_policy = N'legacy' AND c.kind = N'area'))))))
-                OR (m.author_access_id IS NOT NULL AND c.kind = N'area' AND c.posting_policy <> N'writers' AND EXISTS (
+                           AND (c.posting_policy = N'members' OR (c.posting_policy = N'legacy' AND c.kind IN (N'area', N'seat')))))))
+                OR (m.author_access_id IS NOT NULL AND c.kind IN (N'area', N'seat') AND c.posting_policy <> N'writers' AND EXISTS (
                     SELECT 1 FROM app.access s WHERE s.id = m.author_access_id AND s.area_id = c.area_id
+                      AND (c.seat_id IS NULL OR c.seat_id = s.id)
                       AND s.revoked_at IS NULL AND s.status = N'active' AND (s.expires_at IS NULL OR s.expires_at > @now)
                       AND (s.verify_hash IS NULL OR s.verified_at IS NOT NULL)))) THEN N'sent' ELSE N'failed' END,
                 created_at = @now, changed_at = @now

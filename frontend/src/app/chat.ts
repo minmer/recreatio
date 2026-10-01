@@ -13,6 +13,8 @@
  *   group    für die Gruppe entsteht hier ein eigener Bereich
  *   direct   zu zweit — zwei Personen oder Rollen, ebenfalls mit Bereich
  *   self     Notatki (0062) — mit sich selbst, im eigenen Bereich der Person
+ *   seat     (0069) mit EINEM Menschen vom Formular (einem Platz) — am Bereich
+ *            des Platzes, sein Chatschlüssel geht nur an ihn
  * </code>
  *
  * <b>Der Dienst liest keine Nachricht.</b> Sie wird HIER versiegelt und von der
@@ -36,7 +38,7 @@ import { newId } from './ids';
 import type { Ring, SealedRole } from './keys';
 import { call, WorkspaceError } from './session';
 
-export type ChatKind = 'area' | 'group' | 'direct' | 'self';
+export type ChatKind = 'area' | 'group' | 'direct' | 'self' | 'seat';
 
 export interface ChatMember {
   readonly roleId: string;
@@ -67,6 +69,10 @@ export interface ChatRow {
   /** 0053 — die Menschen mit Link in der Rozmowa eines Bereichs, und wie viele auf ihren Schlüssel warten. */
   readonly seats: number;
   readonly pendingSeats: number;
+
+  /** 0069 — die Rozmowa mit einem Platz: welcher, und wie die Kanzlei ihn führt. */
+  readonly seatId?: string | null;
+  readonly seatName?: string | null;
 }
 
 /** Ein Mensch mit Link in der Rozmowa seines Bereichs (0053). */
@@ -81,7 +87,7 @@ export interface ChatSeat {
   readonly epochs: readonly number[];
 }
 
-export interface ChatDetail extends Omit<ChatRow, 'unread' | 'seats' | 'pendingSeats'> {
+export interface ChatDetail extends Omit<ChatRow, 'unread' | 'seats' | 'pendingSeats' | 'seatName'> {
   readonly postingPolicy: string;
   readonly currentEpoch: number;
   readonly readAt: string | null;
@@ -110,6 +116,9 @@ export interface SealedMessage {
 
   /** Wer gelöscht hat — davon hängt ab, wer zurückholen darf. */
   readonly deletedBy?: 'author' | 'moderator' | null;
+
+  /** 0068 — zu welchem Thema. */
+  readonly topicId?: string | null;
 }
 
 /** Eine Fassung aus der Geschichte einer Nachricht (0058). */
@@ -223,7 +232,7 @@ export async function chatKeysOf(
  */
 export interface Attachment { id: string; name: string; type: string; size: number; key: string; }
 export interface MessageExtras { forwarded?: boolean; attachments?: readonly Attachment[]; replyTo?: string; replyText?: string; }
-export interface SendOptions extends MessageExtras { sendAt?: string; }
+export interface SendOptions extends MessageExtras { sendAt?: string; /** 0068 — in welches Thema. */ topicId?: string | null; }
 
 export interface Opened extends MessageExtras {
   readonly text: string;
@@ -380,7 +389,8 @@ export async function sendMessage(
     method: 'POST',
     body: JSON.stringify({
       messageId, authorRoleId, epoch,
-      bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt, sendAt: options.sendAt
+      bodySealed: toBase64Url(sealedBody), signature: toBase64Url(signature), signedAt, sendAt: options.sendAt,
+      topicId: options.topicId ?? null
     })
   });
   return { ...done, epoch };
@@ -402,7 +412,8 @@ export async function sendMessage(
 export async function deliverSeatKeys(
   chat: ChatDetail, areaKeys: ReadonlyMap<number, Uint8Array>, byRoleId: string
 ): Promise<number> {
-  if (chat.kind !== 'area') return 0;
+  /* 0069 — auch in der Rozmowa mit EINEM Platz: der Dienst nimmt dort nur seinen Schlüssel an. */
+  if (chat.kind !== 'area' && chat.kind !== 'seat') return 0;
 
   const mine = await chatKeysOf(chat.chatId, areaKeys);
   const keys: { seatId: string; epoch: number; keyWrapped: string }[] = [];
@@ -437,7 +448,7 @@ export async function deliverSeatKeys(
  */
 export async function deliverPending(ring: Ring, chats: readonly ChatRow[]): Promise<void> {
   for (const row of chats) {
-    if (row.kind !== 'area' || row.pendingSeats === 0) continue;
+    if ((row.kind !== 'area' && row.kind !== 'seat') || row.pendingSeats === 0) continue;
     try {
       const chat = await loadChat(row.chatId);
       const by = chat.writers[0];
@@ -476,8 +487,28 @@ export interface Invitee {
 }
 
 const createChat = (body: {
-  chatId: string; areaId: string; kind: ChatKind; asRoleId: string; withRoleId?: string; postingPolicy?: string;
+  chatId: string; areaId: string; kind: ChatKind; asRoleId: string; withRoleId?: string; postingPolicy?: string; seatId?: string;
 }) => call<{ chatId: string }>('/workspace/chats', { method: 'POST', body: JSON.stringify(body) });
+
+/**
+ * 0069 — DIE ROZMOWA MIT EINEM MENSCHEN VOM FORMULAR. Sie liegt am Bereich
+ * seines Platzes (alle, die ihn lesen, lesen mit), aber nur ER bekommt ihren
+ * Schlüssel — nicht die anderen, die dasselbe Formular ausgefüllt haben.
+ * Gibt es sie schon, ist SIE es.
+ */
+export async function startSeatChat(areaId: string, asRoleId: string, seatId: string): Promise<string> {
+  const chatId = newId();
+  try {
+    await createChat({ chatId, areaId, kind: 'seat', asRoleId, seatId, postingPolicy: 'members' });
+    return chatId;
+  } catch (e) {
+    if (e instanceof WorkspaceError && e.verdict === 'exists') {
+      const had = (await loadChats()).chats.find((c) => c.seatId === seatId);
+      if (had !== undefined) return had.chatId;
+    }
+    throw e;
+  }
+}
 
 /** Der Chat eines BESTEHENDEN Bereichs — wer dort schreibt, legt ihn an. */
 export async function startAreaChat(areaId: string, asRoleId: string, channel = false): Promise<string> {

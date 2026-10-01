@@ -147,7 +147,8 @@ function Tasks({ me }: { me: Me }) {
   }
 
   /* Die Fenster, sortiert nach dem, was sie gerade sind. */
-  const windows: Row[] = tasks.filter((t) => t.kind === 'window')
+  /* 0066 — ein Zeitraum (`period`) ist ein Fenster mit freiem Abstand: dieselben Zeilen. */
+  const windows: Row[] = tasks.filter((t) => t.kind !== 'after')
     .flatMap((task) => task.occurrences.map((occurrence) => ({ key: `${task.taskId}:${occurrence.at}`, task, occurrence, at: new Date(occurrence.at) })))
     .sort((a, b) => a.at.getTime() - b.at.getTime());
 
@@ -316,7 +317,9 @@ function WindowLine({ row, now, areas, busy, onToggle, onSkip, onOpen }: {
         <span className="wk-task-when">
           {dayWord(row.at, now)} {clock(row.at)}
           {task.windowMinutes > 0 && `–${clock(end)}`}
-          {' · '}{REPEAT_WORD[task.repeatKind] ?? ''}
+          {' · '}{task.kind === 'period' ? everyWords(task.everyMinutes ?? 0) : REPEAT_WORD[task.repeatKind] ?? ''}
+          {task.chatId != null && ' · z rozmowy'}
+          {(task.remind ?? 0) !== 0 && ' · z przypomnieniem'}
           {' · '}{groupName(areas, task.areaId)}
         </span>
         {!done && !skipped && (

@@ -135,7 +135,9 @@ export interface PartContext {
  * dieselben Felder, und eine Art, die nur einer von beiden kennt, ist ein
  * Feld, das an der anderen Stelle zum Textkasten wird.
  */
-export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'calendar' | 'calendars' | 'chat' | 'library' | 'libraryEntry';
+export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'calendar' | 'calendars' | 'chat' | 'library' | 'libraryEntry'
+  /* 0070 — ein Termin eines Kalenders (`of` nennt das Feld mit dem Kalender). */
+  | 'calendarItem';
 
 export interface FieldDef {
   readonly key: string;
@@ -145,7 +147,7 @@ export interface FieldDef {
   /** Ein Beispiel, kein Vorgabewert — es wird nicht gespeichert. */
   readonly hint?: string;
 
-  /** Bei `questions`: der Schlüssel des Feldes, das das Formular nennt. Bei `libraryEntry`: das die Bibliothek nennt. */
+  /** Bei `questions`: der Schlüssel des Feldes, das das Formular nennt. Bei `libraryEntry`: das die Bibliothek nennt. Bei `calendarItem`: das den Kalender nennt. */
   readonly of?: string;
 
   /** 0064 — bei `libraryEntry`: welche Arten von Einträgen zur Wahl stehen (`text`, `project`, `topic`). */
@@ -319,7 +321,8 @@ const FIELD_SAYS: Record<FieldKind, string> = {
   calendars: 'lista identyfikatorów kalendarzy — najprościej wybrać w edytorze',
   chat: 'identyfikator rozmowy grupy — najprościej wybrać w edytorze',
   library: 'identyfikator biblioteki — najprościej wybrać w edytorze',
-  libraryEntry: 'identyfikator opublikowanego wpisu biblioteki — najprościej wybrać w edytorze'
+  libraryEntry: 'identyfikator opublikowanego wpisu biblioteki — najprościej wybrać w edytorze',
+  calendarItem: 'identyfikator terminu z wybranego kalendarza — najprościej wybrać w edytorze'
 };
 
 /** Eine Zeile des JSON als gespeicherter Wert — oder `null`: nichts. */

@@ -229,7 +229,7 @@ export function taskMarks(tasks: readonly OpenTask[], now: Date, range: { from: 
   const out: TaskMark[] = [];
 
   for (const task of tasks) {
-    if (task.kind === 'window') {
+    if (task.kind !== 'after') {
       for (const occurrence of task.occurrences) {
         const start = new Date(occurrence.at);
         out.push({

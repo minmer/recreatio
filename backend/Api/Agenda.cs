@@ -153,7 +153,8 @@ public static class Agenda
         string? TitlePublic, Guid VisibilityAreaId, string Status,
         string RepeatKind, int RepeatEvery, int? Weekdays, DateTimeOffset? Until, int? Count,
         Guid CalendarId, Guid AreaId, string Zone,
-        bool? Bookable = null, int? Capacity = null, Guid? ReserveAreaId = null);
+        bool? Bookable = null, int? Capacity = null, Guid? ReserveAreaId = null,
+        Guid? ParentItemId = null, int? Position = null, Guid? ChatId = null, Guid? TopicId = null);
 
     /// <summary>
     /// DER EIGENE KALENDER: jedes Vorkommen jedes Termins in meinen Bereichen,
@@ -194,7 +195,8 @@ public static class Agenda
                 SELECT i.id, i.owner_role_id, i.kind, i.starts_at, i.ends_at, i.all_day,
                        i.title_public, i.visibility_area_id, i.status,
                        i.repeat_kind, i.repeat_every, i.repeat_weekdays, i.repeat_until, i.repeat_count,
-                       i.calendar_id, c.area_id, c.time_zone, i.bookable, i.capacity, i.reserve_area_id
+                       i.calendar_id, c.area_id, c.time_zone, i.bookable, i.capacity, i.reserve_area_id,
+                       i.parent_item_id, i.position, i.chat_id, i.topic_id
                 FROM app.calendar_item i
                 JOIN app.calendar c ON c.id = i.calendar_id
                 WHERE (c.area_id IN ({heldNames}) OR i.visibility_area_id IN ({heldNames}))
@@ -223,7 +225,11 @@ public static class Agenda
                     reader.GetGuid(14), reader.GetGuid(15), reader.GetString(16),
                     reader.IsDBNull(17) ? null : reader.GetBoolean(17),
                     reader.IsDBNull(18) ? null : reader.GetInt32(18),
-                    reader.IsDBNull(19) ? null : reader.GetGuid(19)));
+                    reader.IsDBNull(19) ? null : reader.GetGuid(19),
+                    reader.IsDBNull(20) ? null : reader.GetGuid(20),
+                    reader.IsDBNull(21) ? null : reader.GetInt32(21),
+                    reader.IsDBNull(22) ? null : reader.GetGuid(22),
+                    reader.IsDBNull(23) ? null : reader.GetGuid(23)));
             }
         }
 
@@ -277,6 +283,12 @@ public static class Agenda
                     bookable = row.Bookable,
                     capacity = row.Capacity,
                     reserveAreaId = row.ReserveAreaId is null ? null : Ids.ToText(row.ReserveAreaId.Value),
+
+                    /* 0070 — Teil welches Termins, an welcher Stelle; aus welcher Rozmowa. */
+                    parentItemId = row.ParentItemId is null ? null : Ids.ToText(row.ParentItemId.Value),
+                    position = row.Position,
+                    chatId = row.ChatId is null ? null : Ids.ToText(row.ChatId.Value),
+                    topicId = row.TopicId is null ? null : Ids.ToText(row.TopicId.Value),
 
                     /* 0058 — wer da sein muss; `mine`: eine meiner Rollen. */
                     people = present.Select(p => new { roleId = Ids.ToText(p.Role), duty = p.Duty }),
@@ -611,6 +623,10 @@ public static class Agenda
                 : await EnsureCalendarAsync(connection, parsed.Visibility, was.Zone, ctx.RequestAborted);
         }
 
+        /* 0070 — Teil welches Termins. NULL: bleibt; "": kein Teil mehr; sonst dieser. */
+        var link = await Calendar.ProgramLinkAsync(ctx, connection, who.Value.AccountId, id, body);
+        if (link is null) return;
+
         var now = DateTimeOffset.UtcNow;
         var titlePublic = (body.TitlePublic ?? string.Empty).Trim();
         (int Moved, int Dropped) carried = (0, 0);
@@ -624,7 +640,11 @@ public static class Agenda
                        title_public = @public, visibility_area_id = @varea, status = @status,
                        repeat_kind = @rkind, repeat_every = @revery, repeat_weekdays = @rdays,
                        repeat_until = @runtil, repeat_count = @rcount,
-                       bookable = @bookable, capacity = @capacity, reserve_area_id = @reserve, updated_at = @now
+                       bookable = @bookable, capacity = @capacity, reserve_area_id = @reserve, updated_at = @now,
+                       parent_item_id = CASE WHEN @keepParent = 1 THEN parent_item_id ELSE @parent END,
+                       position = CASE WHEN @keepParent = 1 THEN position ELSE @position END,
+                       chat_id = CASE WHEN @keepChat = 1 THEN chat_id ELSE @chat END,
+                       topic_id = CASE WHEN @keepChat = 1 THEN topic_id ELSE @topic END
                  WHERE id = @id;
                 DELETE FROM app.calendar_field WHERE item_id = @id;
                 """, connection, tx))
@@ -648,6 +668,7 @@ public static class Agenda
                 update.Parameters.AddWithValue("@runtil", (object?)until ?? DBNull.Value);
                 update.Parameters.AddWithValue("@rcount", (object?)count ?? DBNull.Value);
                 update.Parameters.AddWithValue("@now", now);
+                Calendar.BindProgramLink(update, link.Value);
                 await update.ExecuteNonQueryAsync(ctx.RequestAborted);
             }
 
@@ -720,11 +741,27 @@ public static class Agenda
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
         try
         {
+            /*
+             * 0070 — DIE TEILE GEHEN MIT: wer die Rekolekcje löscht, meint ihre
+             * Konferenzen mit. Von unten nach oben, damit kein Teil auf einen
+             * Termin zeigt, den es nicht mehr gibt.
+             */
             await using var drop = new SqlCommand("""
-                DELETE FROM app.calendar_field WHERE item_id = @id;
-                DELETE FROM app.calendar_exception WHERE item_id = @id;
-                DELETE FROM app.calendar_presence WHERE item_id = @id;
-                DELETE FROM app.calendar_item WHERE id = @id;
+                WITH tree AS (
+                    SELECT id, 0 AS depth FROM app.calendar_item WHERE id = @id
+                    UNION ALL
+                    SELECT c.id, t.depth + 1 FROM app.calendar_item c JOIN tree t ON c.parent_item_id = t.id WHERE t.depth < 16)
+                SELECT id, depth INTO #gone FROM tree;
+                DELETE FROM app.calendar_field WHERE item_id IN (SELECT id FROM #gone);
+                DELETE FROM app.calendar_exception WHERE item_id IN (SELECT id FROM #gone);
+                DELETE FROM app.calendar_presence WHERE item_id IN (SELECT id FROM #gone);
+                DECLARE @depth int = (SELECT MAX(depth) FROM #gone);
+                WHILE @depth >= 0
+                BEGIN
+                    DELETE FROM app.calendar_item WHERE id IN (SELECT id FROM #gone WHERE depth = @depth);
+                    SET @depth = @depth - 1;
+                END
+                DROP TABLE #gone;
                 """, connection, tx);
             drop.Parameters.AddWithValue("@id", id);
             await drop.ExecuteNonQueryAsync(ctx.RequestAborted);

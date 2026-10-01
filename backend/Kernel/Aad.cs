@@ -322,7 +322,14 @@ public enum Field
     /// Thema, Text, Projekt) als EIN Dokument unter dem Schluessel ihres Bereichs.
     /// </summary>
     LibraryName,
-    LibraryEntry
+    LibraryEntry,
+
+    /// <summary>
+    /// 0071 — ein Haushalt (Familie, Personen, Kontakt, Notizen, die Besuche
+    /// der Kolęda) als EIN Dokument unter dem Schlüssel des Bereichs, dem das
+    /// Adressverzeichnis gehört. Die Adresse selbst liegt offen daneben.
+    /// </summary>
+    Household
 }
 
 /// <summary>
@@ -484,6 +491,7 @@ public readonly record struct Aad
         Field.ParishGroupNote         => "parish_group_note",
         Field.LibraryName             => "library_name",
         Field.LibraryEntry            => "library_entry",
+        Field.Household               => "household",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

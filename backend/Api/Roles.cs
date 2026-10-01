@@ -29,7 +29,7 @@ namespace Api;
 /// versiegelt und geht nur im Browser seines Halters auf.
 /// </para>
 /// </summary>
-public static class Roles
+public static partial class Roles
 {
     /// <summary>
     /// 3.1 — Der Kernel deutet die Art einer Kante nicht; das tut das Modul.
@@ -115,6 +115,9 @@ public static class Roles
         app.MapPost("/workspace/roles/{id:guid}/holders", AddHolderAsync);
         app.MapDelete("/workspace/roles/{id:guid}/holders/{holderId:guid}", DropHolderAsync);
         app.MapDelete("/workspace/roles/{id:guid}", RevokeAsync);
+
+        /* 0065 — Links mit Zugang zu Bereichen (Roles.Invites.cs). */
+        MapInvites(app);
     }
 
     /* -- Was hereinkommt ---------------------------------------------------- */
@@ -823,6 +826,23 @@ public static class Roles
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "Ta rola nie jest Twoja.");
             return false;
+        }
+
+        /*
+         * 0065 — DIE ROLLE EINES LINKS führt auch, wer ihn eingelöst hat (sonst
+         * gälten ihre Zertifikate für ihn nicht). Umbenennen, umtypen oder
+         * zurücknehmen darf sie trotzdem nur, wer den Link angelegt hat — sonst
+         * nähme der Erste, der ihn einlöst, allen anderen den Zugang.
+         */
+        await using (var link = new SqlCommand(
+            "SELECT TOP 1 created_by_role_id FROM app.invitation WHERE role_id = @id AND purpose = N'area-link';", connection))
+        {
+            link.Parameters.AddWithValue("@id", roleId);
+            if (await link.ExecuteScalarAsync(ctx.RequestAborted) is Guid creator && !reachable.Contains(creator))
+            {
+                await Fail(ctx, StatusCodes.Status403Forbidden, "Tą rolą zarządza ten, kto utworzył link.");
+                return false;
+            }
         }
 
         return true;

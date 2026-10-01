@@ -47,6 +47,7 @@ import { WorkspaceError, type Who } from './session';
 import { Unlock } from './Unlock';
 import { AreaOptions } from './AreaOptions';
 import { RecentRow, useTouched } from './Recent';
+import { AccessLinks } from './AccessLinks';
 
 /**
  * Die Stufen in der Sprache, die im Haus gesprochen wird.
@@ -294,6 +295,20 @@ export function Areas({ who, trail }: { who: Who; trail: readonly string[] }) {
       {areas.length === 0 && (
         <p className="wk-empty">Obszar to klucz. Bez niego nie ma gdzie niczego zamknąć.</p>
       )}
+
+      {/*
+        0065 — LINKI DOSTĘPU über alle Bereiche: ein Link kann mehrere öffnen.
+        Nur, wenn ich irgendwo hineinlassen darf.
+      */}
+      {areas.some((a) => a.mayCertify && a.personal !== true) && (
+        <details className="wk-links-all">
+          <summary className="wk-h2">Linki dostępu</summary>
+          <p className="wk-hint">
+            Link z dostępem do jednego albo kilku obszarów. Kto go otworzy i się zaloguje, dołącza do nich ze swojego konta.
+          </p>
+          <AccessLinks ring={ring} self={person} areas={areas} busy={busy !== null} onAct={act} />
+        </details>
+      )}
     </>
   );
 }
@@ -328,7 +343,7 @@ function Tags({ area }: { area: AreaRow }) {
 /* -- Ein Bereich, ganz ------------------------------------------------------ */
 
 /** Welcher Abschnitt offen ist. Einer ist es immer. */
-type Section = 'roles' | 'forms' | 'public';
+type Section = 'roles' | 'forms' | 'public' | 'links';
 
 /**
  * Ein Bereich mit allem, was an ihm hängt — aber jeweils nur EIN Abschnitt.
@@ -469,6 +484,15 @@ function AreaPage({ area, areas, ring, graph, self, busy, onAct }: {
           <Tab now={section} mine="roles" onPick={setSection}>Role</Tab>
           <Tab now={section} mine="forms" onPick={setSection}>Z formularza</Tab>
           <Tab now={section} mine="public" onPick={setSection}>Dla wszystkich</Tab>
+          {area.mayCertify && <Tab now={section} mine="links" onPick={setSection}>Linki dostępu</Tab>}
+        </div>
+      )}
+
+      {/* -- 0065: Links mit Zugang ------------------------------------- */}
+
+      {area.personal !== true && section === 'links' && (
+        <div className="wk-panel">
+          <AccessLinks ring={ring} self={self} areas={areas} focusAreaId={area.areaId} busy={busy} onAct={onAct} />
         </div>
       )}
 

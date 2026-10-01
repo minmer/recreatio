@@ -44,6 +44,7 @@ import { formPart, massesPart, slotsPart } from './live';
 import { noticePart } from './notice';
 import { peoplePart } from './people';
 import { planPart } from './plan';
+import { programPart } from './program';
 import { seatChatPart, seatNotePart, seatSharedPart, seatStepsPart, seatSubmissionPart } from './seat';
 import { textPart } from './text';
 import { quotesPart } from './quotes';
@@ -77,6 +78,8 @@ export const PARTS: readonly PartModule[] = [
   /* Was seinen Inhalt woanders herholt. */
   massesPart,
   calendarPart,
+  /* 0070 — ein Termin mit seinen Teilen (Rekolekcje, Pielgrzymka, Festyn). */
+  programPart,
   formPart,
   slotsPart,
   chatPart,

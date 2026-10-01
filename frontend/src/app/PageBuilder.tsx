@@ -36,12 +36,13 @@ import { partSize, SIZE_WORD, type PartSize } from './part';
 import { PARTS, partLabel, partOf } from './parts/registry';
 import { PickModule } from './PickModule';
 import { PickForm, PickQuestions, pickedForm } from './FormPick';
-import { PickCalendar, PickCalendars } from './PickCalendar';
+import { PickCalendar, PickCalendarItem, PickCalendars } from './PickCalendar';
 import { PickChat } from './PickChat';
 import { PickResource } from './PickResource';
 import type { DraftPart } from './page';
 import { PartJson } from './PageJsonPanel';
 import { PickLibrary, PickLibraryEntry } from './LibraryPick';
+import { WidgetEmbed } from './WidgetEmbed';
 
 const ROW_H = 84;
 const GAP = 8;
@@ -547,10 +548,19 @@ export function PartSettings({ part, size, busy, onSet, onPickModule, onMadeModu
   onPickModule: (moduleId: string) => void;
   onMadeModule: (moduleId: string) => void;
 }) {
+  /* 0067 — jeder Baustein lässt sich auf einer fremden Seite zeigen (WordPress). */
+  const embed = <WidgetEmbed path={path} partId={part.id} title={part.config.title ?? part.kind} />;
+
   return part.kind === 'form' ? (
+    <>
     <PickModule kind={part.kind} chosen={part.moduleId} busy={busy} onPick={onPickModule} onMade={onMadeModule} />
+    {embed}
+    </>
   ) : (
+    <>
     <Fields part={part} size={size} busy={busy} onSet={onSet} path={path} />
+    {embed}
+    </>
   );
 }
 
@@ -594,13 +604,15 @@ function Fields({ part, size, busy, onSet, path }: {
 
         return (
           /* Eine Auswahl mit mehreren Knöpfen darin ist kein <label>: ein Klick daneben träfe den ersten. */
-          <Wrap as={field.kind === 'questions' || field.kind === 'form' || field.kind === 'calendars' ? 'div' : 'label'} className={`wk-field${empty ? ' is-empty' : ''}`} key={field.key}>
+          <Wrap as={field.kind === 'questions' || field.kind === 'form' || field.kind === 'calendars' || field.kind === 'calendarItem' ? 'div' : 'label'} className={`wk-field${empty ? ' is-empty' : ''}`} key={field.key}>
             <span>{field.label}</span>
 
             {field.kind === 'calendar' ? (
               <PickCalendar value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'calendars' ? (
               <PickCalendars value={value} busy={busy} onPick={(ids) => onSet({ [field.key]: ids })} />
+            ) : field.kind === 'calendarItem' ? (
+              <PickCalendarItem calendarId={part.config[field.of ?? ''] ?? ''} value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'chat' ? (
               <PickChat value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'library' ? (

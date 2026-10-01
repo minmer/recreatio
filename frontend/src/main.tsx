@@ -14,7 +14,7 @@
  * hier für ihn keine zweite Wurzel angelegt.
  */
 
-import { foreignHost, PAGES } from './app/routes';
+import { foreignHost, PAGES, ROUTES } from './app/routes';
 
 const BASE = '#/workspace';
 
@@ -38,6 +38,12 @@ const isNew = (): boolean => {
   // Die Wurzel gehört dem Neubau: `recreatio.pl` zeigt die Seite, die im
   // Register als Alias auf `start` steht.
   if (hash === '' || hash === '#' || hash === '#/') return true;
+
+  /*
+   * Die Teile des Neubaus ausser dem Arbeitsplatz — der Platz, die Bestätigung,
+   * der Link mit Zugang (0065), das Widget (0067). Der Altbestand kennt keinen davon.
+   */
+  if (Object.keys(ROUTES).some((route) => hash === `#/${route}` || hash.startsWith(`#/${route}/`))) return true;
 
   return PAGES.some((page) => hash === `#/${page}` || hash.startsWith(`#/${page}/`));
 };

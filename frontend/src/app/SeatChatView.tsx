@@ -27,6 +27,14 @@ import {
   restoreSeatMessage, seatChatKeys, seatIdentity, sendSeatMessage, type SeatChatRow, type SeatIdentity
 } from './seatChat';
 import { WorkspaceError } from './session';
+import { createTopic, loadTopics, openTopics, type Topic } from './chatTopics';
+import { TopicBar } from './TopicBar';
+
+/** 0069 — wie eine Rozmowa für den Menschen mit dem Link heisst, und wer darin liest. */
+const seatTitle = (row: SeatChatRow) => row.kind === 'seat' ? 'Rozmowa z prowadzącymi' : `Rozmowa: ${row.areaName}`;
+const seatWho = (row: SeatChatRow) => row.kind === 'seat'
+  ? 'Tylko Ty i osoby prowadzące — inni, którzy wypełnili formularz, jej nie widzą. Treść szyfruje Twoja przeglądarka.'
+  : `Czytają i piszą wszyscy z grupy „${row.areaName}" — także kancelaria. Treść szyfruje Twoja przeglądarka.`;
 
 interface Ready {
   readonly row: SeatChatRow;
@@ -90,8 +98,8 @@ export function SeatChatSections({ seat, frame }: {
   return (
     <>
       {chats.map((one) => frame(
-        `Rozmowa: ${one.row.areaName}`,
-        `Czytają i piszą wszyscy z grupy „${one.row.areaName}" — także kancelaria. Treść szyfruje Twoja przeglądarka.`,
+        seatTitle(one.row),
+        seatWho(one.row),
         <SeatChatRoom seat={seat} chat={one} identity={identity} />,
         one.row.chatId
       ))}
@@ -124,11 +132,12 @@ export function SeatChatBody({ seat, only }: { seat: SeatView; only?: string }) 
     <>
       {chats.map((one) => (
         <section key={one.row.chatId} className="wk-seat-chat">
-          {chats.length > 1 && <h3 className="wk-seat-who">{one.row.areaName}</h3>}
+          {chats.length > 1 && <h3 className="wk-seat-who">{seatTitle(one.row)}</h3>}
           <SeatChatRoom seat={seat} chat={one} identity={identity} />
+          {chats.length > 1 && <p className="wk-hint">{seatWho(one.row)}</p>}
         </section>
       ))}
-      <p className="wk-hint">Czytają i piszą wszyscy z grupy — także kancelaria. Treść szyfruje Twoja przeglądarka.</p>
+      {chats.length === 1 && <p className="wk-hint">{seatWho(chats[0].row)}</p>}
     </>
   );
 }
@@ -146,6 +155,19 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
   const [name, setName] = useState(() => chatNameFor(seatId) ?? seat.recipientName ?? '');
   const [naming, setNaming] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+
+  /* 0068 — Tematy auch hier: lesen, filtern, hineinschreiben, eines aufmachen. */
+  const [topics, setTopics] = useState<readonly Topic[]>([]);
+  const [topic, setTopic] = useState<string | null>(null);
+  const lookTopics = useCallback(async () => {
+    if (keys.size === 0) return;
+    try { setTopics(await openTopics(keys, (await loadTopics(endpoint)).topics)); } catch { /* ohne Themen */ }
+  }, [endpoint, keys]);
+  useEffect(() => {
+    void lookTopics();
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void lookTopics(); }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [lookTopics]);
 
   /* 0062 — worauf geantwortet und was bearbeitet wird. */
   const [reply, setReply] = useState<ReplyTarget | null>(null);
@@ -230,7 +252,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
   if (keys.size === 0) {
     return (
       <p className="wk-note">
-        Rozmowa grupy „{chat.row.areaName}" otworzy się tutaj, gdy tylko ktoś z prowadzących do niej
+        {chat.row.kind === 'seat' ? 'Rozmowa z prowadzącymi' : <>Rozmowa grupy „{chat.row.areaName}"</>} otworzy się tutaj, gdy tylko ktoś z prowadzących do niej
         zajrzy — wtedy jego przeglądarka przekaże Ci klucz. Strona sprawdza to sama; nie musisz nic robić.
       </p>
     );
@@ -269,11 +291,11 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
   const send = async (body: string, options: SendOptions) => {
     if (identity === null) throw new WorkspaceError('Rozmowa jeszcze się otwiera — spróbuj za chwilę.');
     keepChatName(seatId, signed);
-    const done = await sendSeatMessage(token, seatId, chatId, keys, identity, body, signed, options);
+    const done = await sendSeatMessage(token, seatId, chatId, keys, identity, body, signed, { ...options, topicId: topic });
     setNaming(false);
     if (options.sendAt === undefined) {
       setShown((was) => [...(was ?? []), {
-        message: { messageId: done.messageId, authorRoleId: null, authorSeatId: seatId, epoch: done.epoch, bodySealed: '', createdAt: done.createdAt, deletedAt: null },
+        message: { messageId: done.messageId, authorRoleId: null, authorSeatId: seatId, epoch: done.epoch, bodySealed: '', createdAt: done.createdAt, deletedAt: null, topicId: topic },
         opened: { text: body, name: signed, ...options }
       }]);
     }
@@ -288,6 +310,7 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
   };
 
   const subtitle = chrome.status.typing ? <span className="ch-typing">ktoś pisze…</span>
+    : chat.row.kind === 'seat' ? 'Ty i osoby prowadzące'
     : chrome.status.channel ? `kanał grupy „${chat.row.areaName}"` : `grupa „${chat.row.areaName}"`;
 
   /* JAK SIĘ PODPISAĆ — nad polem, dopóki nie ma podpisu albo gdy ktoś chce go zmienić. */
@@ -311,9 +334,13 @@ function SeatChatRoom({ seat, chat, identity }: { seat: SeatView; chat: Ready; i
       {chrome.banner}
       {failed !== null && <p className="ch-bar is-error">{failed}</p>}
 
+      <TopicBar topics={topics} current={topic} canCreate={identity !== null} canManage={false}
+        onPick={setTopic}
+        onCreate={async (title) => { const id = await createTopic(endpoint, keys, title, null); await lookTopics(); setTopic(id); }} />
+
       <ChatLog
         endpoint={endpoint}
-        items={shown}
+        items={topic === null || shown === undefined ? shown : shown.filter((one) => one.message.topicId === topic)}
         features={extras.features}
         matches={extras.matches}
         rules={rules}
