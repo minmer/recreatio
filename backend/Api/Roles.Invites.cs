@@ -42,8 +42,13 @@ public static partial class Roles
         app.MapPost("/workspace/invite/{id:guid}/revoke", RevokeInviteAsync);
         app.MapPost("/workspace/invite/redeem", RedeemInviteAsync);
 
+        app.MapPost("/workspace/invite/{id:guid}/aim", AimInviteAsync);
+
         /* Ohne Konto: wer den Link öffnet, soll sehen, wozu er einlädt, bevor er sich anmeldet. */
         app.MapGet("/invite/{lookup}", ShowInviteAsync);
+
+        /* 0073 — ohne Konto: die Schlüssel der Links, die dieser Browser hält (HeldLinks). */
+        app.MapPost("/links/keys", HeldKeysAsync);
     }
 
     public sealed record InviteRequest(
@@ -51,7 +56,14 @@ public static partial class Roles
         string? Label, int? MaxUses, int? ExpiresDays, string? Capability,
 
         /* 0072 — das Geheimnis, versiegelt unter dem Schlüssel der Linkrolle: zum Wiederzeigen. */
-        string? TokenSealed = null);
+        string? TokenSealed = null,
+
+        /* 0073 — wo der Link aufgeht (der Weg hinter `#/`). */
+        string? Aim = null);
+
+    public sealed record AimRequest(string? Aim);
+
+    public sealed record HeldRequest(string[]? Proofs);
 
     public sealed record RedeemRequest(
         string? Proof, string? HolderRoleId, EdgeProof? Edge, string? GrantSealedBlob, string? SignGrantSealedBlob);
@@ -70,7 +82,7 @@ public static partial class Roles
         if (body.Capability is not ("read" or "write" or "admin")) return "Dostęp: odczyt, zapis albo zarządzanie.";
         if (body.TokenSealed is not null && (!Base64Url.TryDecode(body.TokenSealed, out var tokenSealed) || tokenSealed.Length is < 32 or > 512))
             return "Zapieczętowany link jest nieczytelny.";
-        return null;
+        return HeldLinks.NormaliseAim(body.Aim).Error;
     }
 
     /// <summary>Die Rollen, die dieses Konto FÜHRT — nur über sie lässt sich ein Link anlegen oder zurückziehen.</summary>
@@ -110,9 +122,11 @@ public static partial class Roles
         await using var insert = new SqlCommand("""
             INSERT INTO app.invitation
                 (id, role_id, token_sha256, sealed_role_key, label, max_uses, used_count,
-                 created_by_role_id, created_at, expires_at, edge_kind, capability, purpose, token_sealed)
-            VALUES (@id, @role, @token, @sealed, @label, @max, 0, @by, @now, @expires, N'holds', @cap, N'area-link', @tokenSealed);
+                 created_by_role_id, created_at, expires_at, edge_kind, capability, purpose, token_sealed, aim)
+            VALUES (@id, @role, @token, @sealed, @label, @max, 0, @by, @now, @expires, N'holds', @cap, N'area-link', @tokenSealed, @aim);
             """, connection);
+        insert.Parameters.Add("@aim", System.Data.SqlDbType.NVarChar, HeldLinks.MaxAim).Value =
+            (object?)HeldLinks.NormaliseAim(body.Aim).Aim ?? DBNull.Value;
         var now = DateTimeOffset.UtcNow;
         insert.Parameters.AddWithValue("@id", id);
         insert.Parameters.AddWithValue("@role", roleId);
@@ -172,13 +186,13 @@ public static partial class Roles
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var led = (await LedAsync(connection, who.Value.AccountId, ctx.RequestAborted)).ToList();
-        var rows = new List<(Guid Id, Guid Role, string? Label, int Max, int Used, DateTimeOffset Created, DateTimeOffset Expires, DateTimeOffset? Revoked, string? Capability, byte[]? TokenSealed)>();
+        var rows = new List<(Guid Id, Guid Role, string? Label, int Max, int Used, DateTimeOffset Created, DateTimeOffset Expires, DateTimeOffset? Revoked, string? Capability, byte[]? TokenSealed, string? Aim)>();
 
         if (led.Count > 0)
         {
             var names = string.Join(", ", led.Select((_, i) => $"@r{i}"));
             await using var cmd = new SqlCommand($"""
-                SELECT id, role_id, label, max_uses, used_count, created_at, expires_at, revoked_at, capability, token_sealed
+                SELECT id, role_id, label, max_uses, used_count, created_at, expires_at, revoked_at, capability, token_sealed, aim
                 FROM app.invitation
                 WHERE purpose = N'area-link' AND created_by_role_id IN ({names})
                 ORDER BY created_at DESC;
@@ -190,7 +204,7 @@ public static partial class Roles
                 rows.Add((reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetString(2),
                     reader.GetInt32(3), reader.GetInt32(4), reader.GetDateTimeOffset(5), reader.GetDateTimeOffset(6),
                     reader.IsDBNull(7) ? null : reader.GetDateTimeOffset(7), reader.IsDBNull(8) ? null : reader.GetString(8),
-                    reader.IsDBNull(9) ? null : (byte[])reader[9]));
+                    reader.IsDBNull(9) ? null : (byte[])reader[9], reader.IsDBNull(10) ? null : reader.GetString(10)));
             }
         }
 
@@ -226,6 +240,7 @@ public static partial class Roles
                 expiresAt = row.Expires,
                 revokedAt = row.Revoked,
                 tokenSealed = row.TokenSealed is null ? null : Base64Url.Encode(row.TokenSealed),
+                aim = row.Aim,
                 areas = await AreasOfRoleAsync(connection, row.Role, ctx.RequestAborted),
                 redeemed
             });
@@ -248,12 +263,15 @@ public static partial class Roles
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         await using var cmd = new SqlCommand("""
-            SELECT id, role_id, sealed_role_key, label, max_uses, used_count, expires_at, revoked_at, capability, edge_kind
-            FROM app.invitation WHERE token_sha256 = @token AND purpose = N'area-link';
+            SELECT i.id, i.role_id, i.sealed_role_key, i.label, i.max_uses, i.used_count, i.expires_at,
+                   CASE WHEN r.revoked_at IS NOT NULL THEN COALESCE(i.revoked_at, r.revoked_at) ELSE i.revoked_at END,
+                   i.capability, i.edge_kind, i.aim
+            FROM app.invitation i JOIN app.role r ON r.id = i.role_id
+            WHERE i.token_sha256 = @token AND i.purpose = N'area-link';
             """, connection);
         cmd.Parameters.AddWithValue("@token", hash);
 
-        (Guid Id, Guid Role, byte[] Sealed, string? Label, int Max, int Used, DateTimeOffset Expires, DateTimeOffset? Revoked, string? Capability, string? EdgeKind)? row = null;
+        (Guid Id, Guid Role, byte[] Sealed, string? Label, int Max, int Used, DateTimeOffset Expires, DateTimeOffset? Revoked, string? Capability, string? EdgeKind, string? Aim)? row = null;
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
         {
             if (await reader.ReadAsync(ctx.RequestAborted))
@@ -261,7 +279,7 @@ public static partial class Roles
                 row = (reader.GetGuid(0), reader.GetGuid(1), (byte[])reader[2], reader.IsDBNull(3) ? null : reader.GetString(3),
                     reader.GetInt32(4), reader.GetInt32(5), reader.GetDateTimeOffset(6),
                     reader.IsDBNull(7) ? null : reader.GetDateTimeOffset(7), reader.IsDBNull(8) ? null : reader.GetString(8),
-                    reader.IsDBNull(9) ? null : reader.GetString(9));
+                    reader.IsDBNull(9) ? null : reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetString(10));
             }
         }
 
@@ -279,8 +297,110 @@ public static partial class Roles
             once = r.Max == 1,
             expiresAt = r.Expires,
             sealedRoleKey = Base64Url.Encode(r.Sealed),
+            aim = r.Aim,
             areas = await AreasOfRoleAsync(connection, r.Role, ctx.RequestAborted)
         });
+    }
+
+    /// <summary>Wohin ein Link führt — ändern darf es, wer ihn angelegt hat. Der Link selbst bleibt gültig; nur neu verschickte Adressen tragen das neue Ziel.</summary>
+    private static async Task AimInviteAsync(HttpContext ctx, Db db, Guid id, AimRequest body)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var (aim, error) = HeldLinks.NormaliseAim(body.Aim);
+        if (error is not null) { await Fail(ctx, StatusCodes.Status400BadRequest, error); return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var led = await LedAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+
+        Guid by = Guid.Empty;
+        await using (var cmd = new SqlCommand("SELECT created_by_role_id FROM app.invitation WHERE id = @id AND purpose = N'area-link';", connection))
+        {
+            cmd.Parameters.AddWithValue("@id", id);
+            if (await cmd.ExecuteScalarAsync(ctx.RequestAborted) is Guid found) by = found;
+        }
+        if (by == Guid.Empty || !led.Contains(by)) { await Fail(ctx, StatusCodes.Status404NotFound, "Takiego linku nie ma."); return; }
+
+        await using (var cmd = new SqlCommand("UPDATE app.invitation SET aim = @aim WHERE id = @id;", connection))
+        {
+            cmd.Parameters.AddWithValue("@id", id);
+            cmd.Parameters.Add("@aim", System.Data.SqlDbType.NVarChar, HeldLinks.MaxAim).Value = (object?)aim ?? DBNull.Value;
+            await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+        await ctx.Response.WriteAsJsonAsync(new { invitationId = Ids.ToText(id), aim });
+    }
+
+    /// <summary>
+    /// DIE SCHLÜSSEL DER LINKS IN DIESEM BROWSER (0073) — ohne Konto. Für jeden
+    /// Beweis, dessen Link gilt: die versiegelten Rollenschlüssel (aufzumachen
+    /// nur mit T), der versiegelte private Verpackungsschlüssel der Linkrolle
+    /// und ihre Zuteilungen der Bereichsepochen. Daraus baut der Browser die
+    /// Schlüssel, mit denen er Kalender und Seiten dieser Bereiche öffnet.
+    /// </summary>
+    private static async Task HeldKeysAsync(HttpContext ctx, Db db, HeldRequest body)
+    {
+        var proofs = (body.Proofs ?? [])
+            .Select(p => Base64Url.TryDecode(p, out var bytes) && bytes.Length == 32 ? bytes : null)
+            .Where(p => p is not null).Select(p => p!).Take(HeldLinks.Max).ToList();
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var held = await HeldLinks.ValidAsync(connection, proofs, ctx.RequestAborted);
+        var links = new List<object>();
+
+        foreach (var link in held)
+        {
+            string? label = null, capability = null, aim = null;
+            byte[]? sealedKey = null, wrapPrivate = null;
+            DateTimeOffset expires = default;
+            await using (var cmd = new SqlCommand("""
+                SELECT i.label, i.capability, i.aim, i.sealed_role_key, i.expires_at, r.wrap_private_sealed
+                FROM app.invitation i JOIN app.role r ON r.id = i.role_id WHERE i.id = @id;
+                """, connection))
+            {
+                cmd.Parameters.AddWithValue("@id", link.InvitationId);
+                await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+                if (!await reader.ReadAsync(ctx.RequestAborted)) continue;
+                label = reader.IsDBNull(0) ? null : reader.GetString(0);
+                capability = reader.IsDBNull(1) ? null : reader.GetString(1);
+                aim = reader.IsDBNull(2) ? null : reader.GetString(2);
+                sealedKey = (byte[])reader[3];
+                expires = reader.GetDateTimeOffset(4);
+                wrapPrivate = reader.IsDBNull(5) ? null : (byte[])reader[5];
+            }
+
+            var grants = new List<object>();
+            await using (var cmd = new SqlCommand("""
+                SELECT key_ref, key_epoch, sealed_blob FROM app.key_grant
+                WHERE key_kind = N'epoch' AND destroyed_at IS NULL AND key_epoch IS NOT NULL AND role_id = @role
+                ORDER BY key_ref, key_epoch;
+                """, connection))
+            {
+                cmd.Parameters.AddWithValue("@role", link.RoleId);
+                await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+                while (await reader.ReadAsync(ctx.RequestAborted))
+                {
+                    grants.Add(new { areaId = Ids.ToText(reader.GetGuid(0)), epoch = reader.GetInt32(1), sealedBlob = Base64Url.Encode((byte[])reader[2]) });
+                }
+            }
+
+            links.Add(new
+            {
+                lookup = Base64Url.Encode(link.Lookup),
+                invitationId = Ids.ToText(link.InvitationId),
+                roleId = Ids.ToText(link.RoleId),
+                label,
+                capability,
+                aim,
+                expiresAt = expires,
+                sealedRoleKey = Base64Url.Encode(sealedKey!),
+                wrapPrivateSealed = wrapPrivate is null ? null : Base64Url.Encode(wrapPrivate),
+                areas = await AreasOfRoleAsync(connection, link.RoleId, ctx.RequestAborted),
+                grants
+            });
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { links });
     }
 
     /// <summary>

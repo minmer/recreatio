@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
+import { IsbnTools, NumberTools, savePersons } from './BookLookup';
 import { count } from './event/kit';
 import { JsonPanel, type JsonPreview } from './JsonPanel';
 import type { OpenLibrary } from './library';
@@ -31,6 +32,7 @@ import { WorkspaceError } from './session';
 import { latexFileName, missingKeys, projectToLatex, textToLatex } from './libraryLatex';
 import { saveBlob } from './platform';
 import { useRemembered } from './prefs';
+import { QuoteIntake } from './QuoteIntake';
 
 const TAB_OF: Record<string, string> = { text: 'teksty', project: 'projekty', quote: 'cytaty', work: 'zrodla', person: 'osoby', topic: 'tematy' };
 
@@ -130,6 +132,19 @@ function Editor({ store, library, existing, kind, preset }: {
   const live: LibEntry = { id, kind, ...(key === '' ? {} : { key }), data };
   const title = def.title(data, store);
 
+  /* Beim Buch: unter der ISBN scannen und aus dem Katalog füllen, unter der eigenen Nummer die nächste freie. */
+  const extras: Record<string, ReactNode> = kind !== 'work' ? {} : {
+    isbn: (
+      <IsbnTools store={store} library={library} entryId={id} data={data} readOnly={readOnly}
+        onSet={(isbn) => set({ isbn })}
+        onPlan={async (plan) => { await savePersons(store, plan); set(plan.data); }} />
+    ),
+    libraryNumber: (
+      <NumberTools store={store} library={library} entryId={id} value={str(data, 'libraryNumber')} readOnly={readOnly}
+        onSet={(libraryNumber) => set({ libraryNumber })} />
+    )
+  };
+
   const status = state === 'new' ? 'Nowy — zapisz, żeby powstał.'
     : state === 'saving' ? 'Zapisywanie…'
     : state === 'dirty' ? 'Zmiany…'
@@ -159,8 +174,9 @@ function Editor({ store, library, existing, kind, preset }: {
           {kind === 'text' ? (
             <TextForm store={store} entry={live} data={data} set={set} readOnly={readOnly} />
           ) : (
-            <FieldList store={store} kind={kind} data={data} set={set} readOnly={readOnly} />
+            <FieldList store={store} kind={kind} data={data} set={set} readOnly={readOnly} extras={extras} />
           )}
+          {kind === 'work' && saved !== undefined && <QuoteIntake store={store} library={library} work={saved} />}
           {kind === 'project' && saved !== undefined && (
             <OutlineEditor store={store} library={library} project={saved} value={outline(data)} readOnly={readOnly} onChange={(next) => set({ outline: next })} />
           )}
@@ -177,7 +193,7 @@ function Editor({ store, library, existing, kind, preset }: {
           {saved !== undefined && <Relations store={store} library={library} entry={saved} />}
           {kind === 'quote' && str(data, 'text') !== '' && <section className="lib-box"><h2 className="lib-box-h">Podgląd</h2><QuoteFigure entry={live} look={store} /></section>}
           {saved !== undefined && (kind === 'text' || kind === 'project') && <LatexBox store={store} entry={live} />}
-          {saved !== undefined && <EntryJson store={store} library={library} entry={saved} />}
+          {!readOnly || saved !== undefined ? <EntryJson store={store} library={library} entry={saved ?? live} isNew={saved === undefined} /> : null}
           {saved !== undefined && !readOnly && <DeleteBox store={store} library={library} entry={saved} />}
         </aside>
       </div>
@@ -187,30 +203,33 @@ function Editor({ store, library, existing, kind, preset }: {
 
 /* -- Felder ---------------------------------------------------------------------------------- */
 
-function FieldList({ store, kind, data, set, readOnly, skip = [] }: {
+function FieldList({ store, kind, data, set, readOnly, skip = [], extras = {} }: {
   store: LibraryStore;
   kind: string;
   data: EntryData;
   set: (patch: EntryData) => void;
   readOnly: boolean;
   skip?: readonly string[];
+  /** Was unter einem Feld steht — Knöpfe, Hinweise (bei der ISBN: scannen, Katalog). */
+  extras?: Readonly<Record<string, ReactNode>>;
 }) {
   const def = kindOf(kind)!;
   return (
     <div className="lib-fields">
       {def.fields.filter((f) => !skip.includes(f.key) && f.type !== 'outline' && f.type !== 'markup' && (f.when === undefined || f.when(data))).map((field) => (
-        <FieldInput key={field.key} store={store} field={field} data={data} set={set} readOnly={readOnly} />
+        <FieldInput key={field.key} store={store} field={field} data={data} set={set} readOnly={readOnly} extra={extras[field.key]} />
       ))}
     </div>
   );
 }
 
-function FieldInput({ store, field, data, set, readOnly }: {
+function FieldInput({ store, field, data, set, readOnly, extra }: {
   store: LibraryStore;
   field: LibField;
   data: EntryData;
   set: (patch: EntryData) => void;
   readOnly: boolean;
+  extra?: ReactNode;
 }) {
   const value = str(data, field.key);
   const label = <span>{field.label}{field.private === true && <em className="lib-private" title="Nigdy nie jest publikowane"> · prywatne</em>}</span>;
@@ -240,6 +259,8 @@ function FieldInput({ store, field, data, set, readOnly }: {
     input = (
       <input
         type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : field.type === 'url' ? 'url' : 'text'}
+        step={field.type === 'number' ? 'any' : undefined}
+        min={field.type === 'number' ? 0 : undefined}
         value={field.type === 'number' ? (num(data, field.key) ?? '') : value}
         placeholder={field.hint}
         disabled={readOnly}
@@ -248,7 +269,13 @@ function FieldInput({ store, field, data, set, readOnly }: {
     );
   }
 
-  return <label className={`wk-field lib-field${wide ? ' is-wide' : ''}`}>{label}{input}</label>;
+  if (extra === undefined || extra === null) return <label className={`wk-field lib-field${wide ? ' is-wide' : ''}`}>{label}{input}</label>;
+  return (
+    <div className={`lib-field-with${wide ? ' is-wide' : ''}`}>
+      <label className="wk-field lib-field">{label}{input}</label>
+      {extra}
+    </div>
+  );
 }
 
 /* -- Der Text: schreiben mit Quellen ------------------------------------------------------------- */
@@ -702,9 +729,8 @@ function Relations({ store, library, entry }: { store: LibraryStore; library: Op
       <h2 className="lib-box-h">Powiązania</h2>
       {entry.kind === 'work' && (
         <>
-          <p className="lib-box-sub">Cytaty z tego źródła ({quotes.length})</p>
-          {quotes.length > 0 && <ul className="lib-rel">{quotes.map((q) => <li key={q.id}>{link(q)} <span className="lib-row-meta">{str(q.data, 'locator')}</span></li>)}</ul>}
-          {library.writes && <a className="wk-link-btn" href={viewPath('library', library.libraryId, 'nowy', 'quote', `work=${entry.id}`)}>+ Cytat z tego źródła</a>}
+          <p className="lib-box-sub">Cytaty z tego źródła: {quotes.length} <span className="wk-hint">— lista i dodawanie pod polami</span></p>
+          {library.writes && <a className="wk-link-btn" href={viewPath('library', library.libraryId, 'nowy', 'quote', `work=${entry.id}`)}>+ Cytat (pełny formularz)</a>}
         </>
       )}
       {entry.kind !== 'work' && quotes.length > 0 && <><p className="lib-box-sub">Cytaty</p><ul className="lib-rel">{quotes.map((q) => <li key={q.id}>{link(q)}</li>)}</ul></>}
@@ -753,24 +779,48 @@ function LatexBox({ store, entry }: { store: LibraryStore; entry: LibEntry }) {
 
 /* -- JSON und Löschen ------------------------------------------------------------------------------ */
 
-function EntryJson({ store, library, entry }: { store: LibraryStore; library: OpenLibrary; entry: Entry }) {
+/**
+ * Ein NEUER Wpis nimmt das Dokument auf sich: der eine Eintrag seiner Art
+ * darin, der noch keine bekannte Kennung hat, wird zu diesem — wer ein Buch
+ * als JSON (von einer KI, aus einem anderen Programm) einfügt, ist danach auf
+ * seiner Seite. Personen und Themen daneben entstehen wie beim Import der
+ * Bibliothek.
+ */
+function intoThis(doc: unknown, id: string, kind: string, store: LibraryStore): unknown {
+  const root = typeof doc === 'object' && doc !== null && !Array.isArray(doc) ? doc as Record<string, unknown> : null;
+  const list: unknown[] | null = Array.isArray(doc) ? doc : Array.isArray(root?.entries) ? root!.entries as unknown[] : root !== null && typeof root.kind === 'string' ? [root] : null;
+  if (list === null) return doc;
+  const known = (one: Record<string, unknown>) => (typeof one.id === 'string' && store.get(one.id) !== undefined)
+    || (typeof one.key === 'string' && store.byKey(one.key.replace(/^@/, ''))?.kind === kind);
+  const mine = list.filter((one): one is Record<string, unknown> => typeof one === 'object' && one !== null && (one as Record<string, unknown>).kind === kind && !known(one as Record<string, unknown>));
+  if (mine.length !== 1) return doc;
+  const next = list.map((one) => (one === mine[0] ? { ...mine[0], id } : one));
+  return Array.isArray(doc) ? next : root!.entries !== undefined ? { ...root, entries: next } : next[0];
+}
+
+function EntryJson({ store, library, entry, isNew }: { store: LibraryStore; library: OpenLibrary; entry: LibEntry; isNew: boolean }) {
+  const label = kindOf(entry.kind)?.label.toLowerCase() ?? 'wpis';
+  const shaped = (doc: unknown) => (isNew ? intoThis(doc, entry.id, entry.kind, store) : doc);
   const preview = (doc: unknown): JsonPreview | { error: string } => {
-    const planned = planLibraryImport(doc, store);
+    const planned = planLibraryImport(shaped(doc), store);
     return 'error' in planned ? planned : { lines: planned.lines, warnings: planned.warnings };
   };
   return (
     <JsonPanel
-      summary="JSON tego wpisu"
-      lead={<>Ten wpis jako JSON — do poprawienia ręcznie albo przez AI. Import zmienia go w miejscu (pola, których nie podasz, zostają).</>}
+      summary={isNew ? 'Import z JSON' : 'Import / eksport JSON'}
+      lead={isNew
+        ? <>Wklej opis ({label}) jako JSON — np. przygotowany przez AI. Powstanie ten wpis (i osoby, tematy, które w nim są).</>
+        : <>Ten wpis jako JSON — do poprawienia ręcznie albo przez AI. Import zmienia go w miejscu (pola, których nie podasz, zostają).</>}
       fileName={`wpis-${entry.key ?? entry.id.slice(0, 8)}.json`}
       exportDoc={() => exportLibrary(library.name, [entry])}
       description={libraryDescription}
       preview={preview}
       importLabel="Importuj i zapisz"
       onImport={async (doc) => {
-        const planned = planLibraryImport(doc, store);
+        const planned = planLibraryImport(shaped(doc), store);
         if ('error' in planned) throw new WorkspaceError(planned.error);
         for (const draft of planned.drafts) await store.save({ id: draft.id, kind: draft.kind, ...(draft.key === undefined ? {} : { key: draft.key }), data: draft.data });
+        if (isNew && planned.drafts.some((d) => d.id === entry.id)) window.location.replace(viewPath('library', library.libraryId, entry.id));
         return { lines: planned.lines, warnings: planned.warnings };
       }}
     />

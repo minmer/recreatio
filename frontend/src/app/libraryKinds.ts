@@ -160,6 +160,21 @@ export const WORK_TYPES = [
 
 const isPart = (data: EntryData) => ['chapter', 'article'].includes(str(data, 'workType'));
 
+/** Was man in die Hand nimmt und ins Regal stellt — Seiten, Einband, Masse, eine eigene Nummer. */
+const isVolume = (data: EntryData) => !['chapter', 'article', 'web', 'talk'].includes(str(data, 'workType'));
+
+export const BINDINGS = [
+  { value: 'soft', label: 'Miękka' },
+  { value: 'soft-flaps', label: 'Miękka ze skrzydełkami' },
+  { value: 'hard', label: 'Twarda' },
+  { value: 'integrated', label: 'Zintegrowana' },
+  { value: 'cloth', label: 'Płócienna' },
+  { value: 'leather', label: 'Skórzana' },
+  { value: 'spiral', label: 'Spirala' },
+  { value: 'ebook', label: 'E-book' },
+  { value: 'other', label: 'Inna' }
+] as const;
+
 export const workTitle = (data: EntryData): string => {
   const title = str(data, 'title').trim();
   const sub = str(data, 'subtitle').trim();
@@ -176,6 +191,7 @@ const WORK: LibKind = {
     { key: 'workType', label: 'Rodzaj', type: 'select', options: WORK_TYPES, says: `Rodzaj: ${WORK_TYPES.map((t) => `"${t.value}" (${t.label})`).join(', ')}` },
     { key: 'title', label: 'Tytuł', type: 'line', says: 'Tytuł dzieła' },
     { key: 'subtitle', label: 'Podtytuł', type: 'line', says: 'Podtytuł (albo rodzaj dokumentu, np. "adhortacja apostolska")' },
+    { key: 'originalTitle', label: 'Tytuł oryginału', type: 'line', says: 'Tytuł oryginału (oryginalny tytuł przekładu)' },
     { key: 'authors', label: 'Autorzy', type: 'refs', to: ['person'], says: 'Autorzy — odwołania do osób, w kolejności' },
     { key: 'editors', label: 'Redakcja', type: 'refs', to: ['person'], says: 'Redaktorzy — odwołania do osób' },
     { key: 'translators', label: 'Tłumaczenie', type: 'refs', to: ['person'], says: 'Tłumacze — odwołania do osób' },
@@ -186,14 +202,20 @@ const WORK: LibKind = {
     { key: 'publisher', label: 'Wydawca', type: 'line', says: 'Wydawnictwo' },
     { key: 'place', label: 'Miejsce wydania', type: 'line', says: 'Miejsce wydania', hint: 'np. Kraków' },
     { key: 'year', label: 'Rok', type: 'line', says: 'Rok wydania (albo data dokumentu)', hint: 'np. 2007' },
+    { key: 'series', label: 'Seria', type: 'line', says: 'Seria wydawnicza, z numerem tomu w serii', hint: 'np. Źródła Monastyczne, t. 45', when: isVolume },
     { key: 'pages', label: 'Strony', type: 'line', says: 'Zakres stron rozdziału albo artykułu', hint: 'np. 45–60', when: isPart },
+    { key: 'pageCount', label: 'Liczba stron', type: 'number', says: 'Ile stron ma książka', hint: 'np. 384', when: isVolume },
+    { key: 'binding', label: 'Oprawa', type: 'select', options: BINDINGS, says: `Oprawa: ${BINDINGS.map((b) => `"${b.value}" (${b.label})`).join(', ')}`, when: isVolume },
+    { key: 'height', label: 'Wysokość (cm)', type: 'number', says: 'Wysokość w centymetrach', hint: 'np. 20,5', when: isVolume },
+    { key: 'width', label: 'Szerokość (cm)', type: 'number', says: 'Szerokość w centymetrach', hint: 'np. 14,5', when: isVolume },
+    { key: 'length', label: 'Grubość (cm)', type: 'number', says: 'Trzeci wymiar — grubość (długość grzbietu w głąb) w centymetrach', hint: 'np. 2,5', when: isVolume },
     { key: 'siglum', label: 'Skrót przekładu', type: 'line', says: 'Dla Pisma Świętego: skrót przekładu, dopisywany do sigli', hint: 'np. BT', when: (d) => str(d, 'workType') === 'bible' },
-    { key: 'isbn', label: 'ISBN', type: 'line', says: 'Numer ISBN książki' },
+    { key: 'isbn', label: 'ISBN', type: 'line', says: 'Numer ISBN książki (z kreskami albo bez; kilka — po przecinku)' },
+    { key: 'libraryNumber', label: 'Numer w bibliotece', type: 'line', private: true, says: 'Własny numer egzemplarza w tej bibliotece (numer inwentarzowy, sygnatura) — można po nim szukać i go zeskanować', hint: 'np. B-0124', when: isVolume },
     { key: 'doi', label: 'DOI', type: 'line', says: 'Identyfikator DOI publikacji' },
     { key: 'url', label: 'Adres', type: 'url', says: 'Adres w sieci' },
     { key: 'accessed', label: 'Dostęp', type: 'date', says: 'Kiedy strona była czytana (RRRR-MM-DD)', when: (d) => str(d, 'workType') === 'web' || str(d, 'url') !== '' },
     { key: 'language', label: 'Język', type: 'line', says: 'Język (np. "pl", "la")' },
-    { key: 'originalTitle', label: 'Tytuł oryginału', type: 'line', says: 'Tytuł oryginału' },
     { key: 'description', label: 'Opis', type: 'text', says: 'Krótki opis źródła — widoczny przy publikacji' },
     { key: 'topics', label: 'Tematy', type: 'refs', to: ['topic'], says: 'Tematy — odwołania' },
     { key: 'notes', label: 'Notatki prywatne', type: 'text', private: true, says: 'Tylko dla Ciebie — nigdy nie jest publikowane' }
@@ -209,8 +231,9 @@ const WORK: LibKind = {
     key: 'ratzinger2007',
     data: {
       workType: 'book', title: 'Jezus z Nazaretu', subtitle: 'Część 1: Od chrztu w Jordanie do Przemienienia',
-      authors: ['@ratzinger'], volume: '1', publisher: 'Wydawnictwo M', place: 'Kraków', year: '2007',
-      description: 'Pierwszy tom trylogii o Jezusie.', topics: ['@modlitwa']
+      originalTitle: 'Jesus von Nazareth', authors: ['@ratzinger'], volume: '1', publisher: 'Wydawnictwo M', place: 'Kraków', year: '2007',
+      series: 'Dzieła wybrane, t. 1', pageCount: 384, binding: 'hard', height: 24, width: 16.5, length: 3,
+      isbn: '978-83-7595-061-8', libraryNumber: 'B-0042', description: 'Pierwszy tom trylogii o Jezusie.', topics: ['@modlitwa']
     }
   }
 };

@@ -1,0 +1,1209 @@
+{
+ "isbn": "9788363110451",
+ "sources": [
+  {
+   "source": "bn",
+   "records": [
+    {
+     "id": 1450038411,
+     "fields": [
+      {
+       "008": "160114s2015    pl a          000 0 pol c"
+      },
+      {
+       "020": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "9788363110451"
+         },
+         {
+          "q": "opr. miękka"
+         }
+        ]
+       }
+      },
+      {
+       "020": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "9788363110468"
+         },
+         {
+          "q": "opr. twarda"
+         }
+        ]
+       }
+      },
+      {
+       "041": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "pol"
+         },
+         {
+          "h": "ita"
+         }
+        ]
+       }
+      },
+      {
+       "100": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Ricci, Nicola."
+         }
+        ]
+       }
+      },
+      {
+       "240": {
+        "ind1": "1",
+        "ind2": "0",
+        "subfields": [
+         {
+          "a": "Grandezze di s. Michele Arcangelo"
+         },
+         {
+          "l": "(pol.)"
+         }
+        ]
+       }
+      },
+      {
+       "245": {
+        "ind1": "1",
+        "ind2": "0",
+        "subfields": [
+         {
+          "a": "Wielkość świętego Michała Archanioła :"
+         },
+         {
+          "b": "miesięczne nabożeństwo w sprawach trudnych /"
+         },
+         {
+          "c": "[Nicola Ricci ; Cosimo Petino ; tłumaczenie Klaudyna Werbowy]."
+         }
+        ]
+       }
+      },
+      {
+       "260": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Poznań :"
+         },
+         {
+          "b": "Wydawnictwo Rosemaria,"
+         },
+         {
+          "c": "2015."
+         }
+        ]
+       }
+      },
+      {
+       "300": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "213 s. :"
+         },
+         {
+          "b": "il. ;"
+         },
+         {
+          "c": "17 cm."
+         }
+        ]
+       }
+      },
+      {
+       "336": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Tekst"
+         },
+         {
+          "b": "txt"
+         },
+         {
+          "2": "rdacontent"
+         }
+        ]
+       }
+      },
+      {
+       "337": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Bez urządzenia pośredniczącego"
+         },
+         {
+          "b": "n"
+         },
+         {
+          "2": "rdamedia"
+         }
+        ]
+       }
+      },
+      {
+       "338": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Wolumin"
+         },
+         {
+          "b": "nc"
+         },
+         {
+          "2": "rdacarrier"
+         }
+        ]
+       }
+      },
+      {
+       "500": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Odpowiedzialność na podst. s. red. We wstępie inf., że Cosimo Petini był redaktorem wznowienia dzieła z 1869 r. (w 1948 r.) na podst. którego sporządzano tłumaczenia na inne języki."
+         }
+        ]
+       }
+      },
+      {
+       "500": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Tyt. oryg.: Le grandezze di s. Michele Arcangelo."
+         }
+        ]
+       }
+      },
+      {
+       "650": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Michał (archanioł)"
+         },
+         {
+          "v": "medytacje."
+         }
+        ]
+       }
+      },
+      {
+       "650": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Michał (archanioł)"
+         },
+         {
+          "v": "modlitewniki."
+         }
+        ]
+       }
+      },
+      {
+       "650": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Michał (archanioł)"
+         },
+         {
+          "x": "objawienia i cuda."
+         }
+        ]
+       }
+      },
+      {
+       "700": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Werbowy, Katarzyna"
+         },
+         {
+          "e": "Tł."
+         }
+        ]
+       }
+      },
+      {
+       "710": {
+        "ind1": "2",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Wydawnictwo Rosemaria"
+         },
+         {
+          "4": "pbl"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": 1000000486734,
+     "fields": [
+      {
+       "008": "200116s2015    pl a         |000 0 pol c"
+      },
+      {
+       "020": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "9788363110468"
+         },
+         {
+          "q": "(oprawa twarda)"
+         }
+        ]
+       }
+      },
+      {
+       "020": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "9788363110451"
+         },
+         {
+          "q": "(oprawa miękka)"
+         }
+        ]
+       }
+      },
+      {
+       "041": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "pol"
+         },
+         {
+          "h": "ita"
+         }
+        ]
+       }
+      },
+      {
+       "100": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Ricci, Nicola"
+         },
+         {
+          "e": "Autor"
+         }
+        ]
+       }
+      },
+      {
+       "245": {
+        "ind1": "1",
+        "ind2": "0",
+        "subfields": [
+         {
+          "a": "Wielkość świętego Michała Archanioła :"
+         },
+         {
+          "b": "miesięczne nabożeństwo w sprawach trudnych /"
+         },
+         {
+          "c": "ks. Nicola Ricci, ks. Cosimo Petino ; tłumaczenie Klaudyna Werbowy."
+         }
+        ]
+       }
+      },
+      {
+       "250": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Wydanie pierwsze."
+         }
+        ]
+       }
+      },
+      {
+       "260": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Poznań :"
+         },
+         {
+          "b": "Wydawnictwo Rosemaria,"
+         },
+         {
+          "c": "[2015]."
+         }
+        ]
+       }
+      },
+      {
+       "300": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "237 stron :"
+         },
+         {
+          "b": "ilustracje ;"
+         },
+         {
+          "c": "17 cm."
+         }
+        ]
+       }
+      },
+      {
+       "336": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Tekst"
+         },
+         {
+          "b": "txt"
+         },
+         {
+          "2": "rdacontent"
+         }
+        ]
+       }
+      },
+      {
+       "337": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Bez urządzenia pośredniczącego"
+         },
+         {
+          "b": "n"
+         },
+         {
+          "2": "rdamedia"
+         }
+        ]
+       }
+      },
+      {
+       "338": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Wolumin"
+         },
+         {
+          "b": "nc"
+         },
+         {
+          "2": "rdacarrier"
+         }
+        ]
+       }
+      },
+      {
+       "380": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Książki"
+         }
+        ]
+       }
+      },
+      {
+       "380": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Religia i duchowość"
+         }
+        ]
+       }
+      },
+      {
+       "388": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "1801-1900"
+         }
+        ]
+       }
+      },
+      {
+       "500": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Rok wydania dla wydania pierwszego ustalono na podstawie rozmowy telefonicznej z Wydawcą w dniu 15.03.2022."
+         }
+        ]
+       }
+      },
+      {
+       "500": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "W obrębie wydania twarda i miękka okładka."
+         }
+        ]
+       }
+      },
+      {
+       "650": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Wiara"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "655": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Modlitewnik"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "700": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Petino, Cosimo"
+         },
+         {
+          "e": "Autor"
+         }
+        ]
+       }
+      },
+      {
+       "700": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Werbowy, Klaudyna"
+         },
+         {
+          "e": "Tłumaczenie"
+         }
+        ]
+       }
+      },
+      {
+       "710": {
+        "ind1": "2",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Wydawnictwo Rosemaria"
+         },
+         {
+          "e": "Wydawca"
+         },
+         {
+          "4": "pbl"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": 1000002399463,
+     "fields": [
+      {
+       "008": "220411s2016    pl a   g     |000 m pol c"
+      },
+      {
+       "020": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "9788363110451"
+         },
+         {
+          "q": "(oprawa miękka)"
+         }
+        ]
+       }
+      },
+      {
+       "020": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "z": "9788363110468"
+         },
+         {
+          "q": "(oprawa twarda)"
+         }
+        ]
+       }
+      },
+      {
+       "041": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "pol"
+         },
+         {
+          "h": "ita"
+         }
+        ]
+       }
+      },
+      {
+       "045": {
+        "ind1": "2",
+        "ind2": " ",
+        "subfields": [
+         {
+          "b": "d1801"
+         },
+         {
+          "b": "d2015"
+         }
+        ]
+       }
+      },
+      {
+       "046": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "k": "1997"
+         }
+        ]
+       }
+      },
+      {
+       "100": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Ricci, Nicola"
+         },
+         {
+          "e": "Autor"
+         }
+        ]
+       }
+      },
+      {
+       "245": {
+        "ind1": "1",
+        "ind2": "0",
+        "subfields": [
+         {
+          "a": "Wielkość świętego Michała Archanioła :"
+         },
+         {
+          "b": "miesięczne nabożeństwo w sprawach trudnych /"
+         },
+         {
+          "c": "ks. Nicola Ricci, ks. Cosimo Petino ; tłumaczenie Klaudyna Werbowy."
+         }
+        ]
+       }
+      },
+      {
+       "246": {
+        "ind1": "3",
+        "ind2": "0",
+        "subfields": [
+         {
+          "a": "Miesięczne nabożeństwo w sprawach trudnych"
+         }
+        ]
+       }
+      },
+      {
+       "246": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "i": "Tytuł oryginału:"
+         },
+         {
+          "a": "Y"
+         },
+         {
+          "f": "RRRR"
+         }
+        ]
+       }
+      },
+      {
+       "250": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Wydanie drugie."
+         }
+        ]
+       }
+      },
+      {
+       "260": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Poznań :"
+         },
+         {
+          "b": "Wydawnictwo Rosemaria,"
+         },
+         {
+          "c": "2016."
+         }
+        ]
+       }
+      },
+      {
+       "300": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "215 stron :"
+         },
+         {
+          "b": "ilustracje ;"
+         },
+         {
+          "c": "17 cm."
+         }
+        ]
+       }
+      },
+      {
+       "336": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Tekst"
+         },
+         {
+          "b": "txt"
+         },
+         {
+          "2": "rdacontent"
+         }
+        ]
+       }
+      },
+      {
+       "337": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Bez urządzenia pośredniczącego"
+         },
+         {
+          "b": "n"
+         },
+         {
+          "2": "rdamedia"
+         }
+        ]
+       }
+      },
+      {
+       "338": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Wolumin"
+         },
+         {
+          "b": "nc"
+         },
+         {
+          "2": "rdacarrier"
+         }
+        ]
+       }
+      },
+      {
+       "380": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Książki"
+         }
+        ]
+       }
+      },
+      {
+       "380": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Publikacje religijne"
+         }
+        ]
+       }
+      },
+      {
+       "386": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "m": "Przynależność kulturowa"
+         },
+         {
+          "a": "Literatura polska"
+         }
+        ]
+       }
+      },
+      {
+       "386": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "m": "Przynależność kulturowa"
+         },
+         {
+          "a": "Literatura włoska"
+         }
+        ]
+       }
+      },
+      {
+       "388": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "1801-1900"
+         }
+        ]
+       }
+      },
+      {
+       "388": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "1901-2000"
+         }
+        ]
+       }
+      },
+      {
+       "388": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "2001-"
+         }
+        ]
+       }
+      },
+      {
+       "600": {
+        "ind1": "1",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Archanioł Michał"
+         },
+         {
+          "c": "(święty)"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "610": {
+        "ind1": "2",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Kościół katolicki"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "648": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "1801-1900"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "648": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "1901-2000"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "648": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "2001-"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "650": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Modlitwa"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "650": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Wiara"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "650": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Nabożeństwo"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "650": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Katolicyzm"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "650": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Duchowość katolicka"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "650": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Chrześcijaństwo"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "650": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Anioły"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "651": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Polska"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "651": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Włochy"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "655": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Rozważania i rozmyślania religijne"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "655": {
+        "ind1": " ",
+        "ind2": "7",
+        "subfields": [
+         {
+          "a": "Modlitewnik"
+         },
+         {
+          "2": "DBN"
+         }
+        ]
+       }
+      },
+      {
+       "658": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Religia i duchowość"
+         }
+        ]
+       }
+      },
+      {
+       "658": {
+        "ind1": " ",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Rodzina, relacje międzyludzkie"
+         }
+        ]
+       }
+      },
+      {
+       "700": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Petino, Cosimo"
+         },
+         {
+          "e": "Autor"
+         }
+        ]
+       }
+      },
+      {
+       "700": {
+        "ind1": "1",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Werbowy, Klaudyna"
+         },
+         {
+          "e": "Tłumaczenie"
+         }
+        ]
+       }
+      },
+      {
+       "710": {
+        "ind1": "2",
+        "ind2": " ",
+        "subfields": [
+         {
+          "a": "Wydawnictwo Rosemaria"
+         },
+         {
+          "e": "Wydawca"
+         },
+         {
+          "4": "pbl"
+         }
+        ]
+       }
+      },
+      {
+       "830": {
+        "ind1": " ",
+        "ind2": "0",
+        "subfields": [
+         {
+          "a": "sEria (WIG-Press)"
+         },
+         {
+          "v": "t. 00"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "source": "e-isbn",
+   "onix": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ONIXMessage release=\"3.0\"\n    xsi:schemaLocation=\"http://ns.editeur.org/onix/3.0/reference https://e-isbn.pl/IsbnWeb/schemas/ONIX_BookProduct_3.0_reference.xsd\"\n    xmlns:eisbn=\"http://e-isbn.pl\"\n    xmlns=\"http://ns.editeur.org/onix/3.0/reference\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n    <Header>\n        <Sender>\n            <SenderName>Serwis e-ISBN</SenderName>\n            <ContactName>Bożena Wojtas, tel. +48226082410</ContactName>\n            <EmailAddress>bnisbn@bn.org.pl</EmailAddress>\n        </Sender>\n        <MessageNumber>4566</MessageNumber>\n        <SentDateTime>20261001T2057+0000</SentDateTime>\n        <MessageNote>API e-ISBN</MessageNote>\n        <DefaultLanguageOfText>pol</DefaultLanguageOfText>\n    </Header>\n    <Product datestamp=\"20260220\">\n        <RecordReference>pl-eisbn-5805879</RecordReference>\n        <NotificationType>03</NotificationType>\n        <RecordSourceType>01</RecordSourceType>\n        <RecordSourceName>Wydawnictwo ROSEMARIA Marek Woś</RecordSourceName>\n        <ProductIdentifier>\n            <ProductIDType>15</ProductIDType>\n            <IDValue>9788363110451</IDValue>\n        </ProductIdentifier>\n        <DescriptiveDetail>\n            <ProductComposition>00</ProductComposition>\n            <ProductForm>BC</ProductForm>\n            <TitleDetail>\n                <TitleType>01</TitleType>\n                <TitleElement>\n                    <TitleElementLevel>01</TitleElementLevel>\n                    <TitleText>Miesiąc ku czci św. Michała Archanioła</TitleText>\n                </TitleElement>\n            </TitleDetail>\n            <Contributor>\n                <SequenceNumber>1</SequenceNumber>\n                <ContributorRole>A01</ContributorRole>\n                <PersonNameInverted>Nocola Ricci</PersonNameInverted>\n            </Contributor>\n            <EditionType>NED</EditionType>\n            <EditionNumber>1</EditionNumber>\n            <Language>\n                <LanguageRole>01</LanguageRole>\n                <LanguageCode>pol</LanguageCode>\n            </Language>\n        </DescriptiveDetail>\n        <PublishingDetail>\n            <Imprint>\n                <ImprintName>ROSEMARIA</ImprintName>\n            </Imprint>\n            <Publisher>\n                <PublishingRole>01</PublishingRole>\n                <PublisherName>Wydawnictwo ROSEMARIA Marek Woś</PublisherName>\n            </Publisher>\n            <CityOfPublication>Poznań</CityOfPublication>\n            <CountryOfPublication>PL</CountryOfPublication>\n            <PublishingDate>\n                <PublishingDateRole>01</PublishingDateRole>\n                <Date>20150508</Date>\n            </PublishingDate>\n            <PublishingDate>\n                <PublishingDateRole>09</PublishingDateRole>\n                <Date>20150508</Date>\n            </PublishingDate>\n        </PublishingDetail>\n    </Product>\n</ONIXMessage>\n"
+  }
+ ]
+}

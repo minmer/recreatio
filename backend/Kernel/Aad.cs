@@ -266,6 +266,10 @@ public enum Field
 
     /// <summary>Die Notizen eines Kalendereintrags — das WOMIT, nicht das WANN.</summary>
     CalendarItemNotes,
+
+    /// <summary>0073 — der Link eines Termins zu weiteren Informationen, und das Wort auf seinem Knopf.</summary>
+    CalendarItemLink,
+    CalendarItemLinkLabel,
     ParishDonorName,
     ParishDonationAmount,
     ContactPhone,
@@ -461,6 +465,8 @@ public readonly record struct Aad
         Field.CalendarEventLocation   => "event_location",
         Field.CalendarEventDescription=> "event_description",
         Field.CalendarItemNotes       => "item_notes",
+        Field.CalendarItemLink        => "item_link",
+        Field.CalendarItemLinkLabel   => "item_link_label",
         Field.ParishDonorName         => "donor_name",
         Field.ParishDonationAmount    => "amount",
         Field.ContactPhone            => "phone",

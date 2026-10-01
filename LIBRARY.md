@@ -18,7 +18,7 @@ An **entry** is one typed document. The kinds live in `frontend/src/app/libraryK
 | kind | what | key fields |
 |---|---|---|
 | `person` | author, editor, translator, institution | given names, surname or single name, years, description |
-| `work` | a source: book, chapter, article, periodical, Church document, Bible, web page, talk | authors / editors / translators (refs), container (ref), volume, issue, edition, publisher, place, year, pages, siglum, ISBN, DOI, URL |
+| `work` | a source: book, chapter, article, periodical, Church document, Bible, web page, talk | authors / editors / translators (refs), container (ref), volume, issue, edition, publisher, place, year, series, pages, page count, binding, height / width / thickness, siglum, ISBN, own number (private), DOI, URL, original title |
 | `quote` | a passage of a work | text, work (ref), locator (`s. 23`, `J 3,16`, `nr 24`), translation, description, topics |
 | `topic` | a subject heading, nestable | name, description, parent (ref) |
 | `text` | own writing: sermon, homily, meditation, chapter, article, note | title, date, occasion, readings, summary, **body** and **further** (markup), project (ref), topics, audio and video links |
@@ -54,6 +54,58 @@ Nothing is public until it is explicitly published (`libraryPublish.ts`).
 | `writings` — Archiwum tekstów (text archive) | published texts of a library, project or topic, newest first | strip: the newest; block: recent texts; tall: search, topics, "Więcej" (more); `?t=<id>` opens a text |
 | `quotes` — Zbiór cytatów (quote collection) | published quotes | small: "Myśl dnia" (one or two quotes, changing daily, the same for everyone); tall: search and topic filter |
 
+## Books on the shelf
+
+A `work` of a printed kind (book, periodical, Bible, document, other) also records:
+- page count, binding (`BINDINGS` in `libraryKinds.ts`), height / width / thickness in cm;
+- series and the original title;
+- the library's own number for the copy (`libraryNumber`, private).
+
+The library is meant to work with real shelves:
+
+- **Scan to get to a book** (`BookLookup.tsx`, "Skanuj kod" beside the library search):
+  - The code on the back cover (EAN-13 = ISBN) or on an own label (the library number) opens that book.
+  - An unknown ISBN offers "Znajdź w katalogach i dodaj" (find in catalogues and add).
+  - Codes are read from the live camera, from a photo of the code, or by typing. `barcode.ts` uses the browser's `BarcodeDetector` where it exists and ZXing (`@zxing/library`, its own lazy chunk `vendor-barcode`) everywhere else.
+  - The Android app declares `CAMERA` for this.
+- **The catalogue** (`libraryCatalog.ts`):
+  - `GET /library/catalog/{isbn}` (`LibraryCatalog.cs`) relays the Biblioteka Narodowa union catalogue (MARC 21), e-ISBN (publishers' ONIX) and Open Library. The first two send no CORS headers, so the browser cannot ask them directly.
+  - The browser parses the answer, so mapping the catalogue data onto library fields happens there, like all other library logic.
+  - The browser calls the relay without a session, so no account is tied to a lookup. The service rate-limits by IP and caches answers for an hour.
+  - One ISBN often has several descriptions (editions). All of them are shown, the fullest exact one first, and the reader picks the copy in hand.
+  - Persons already in the library are reused; new ones are created with the work.
+  - In the editor, "Uzupełnij z katalogu" (fill from catalogue) fills **only empty fields**.
+- **Own numbers**:
+  - "Nadaj kolejny" (assign next) proposes the next free number in the style of the last one (`B-0042` → `B-0043`).
+  - A duplicate number is flagged.
+  - A label can be scanned into the field.
+
+## Quotes from a book
+
+The usual way of collecting quotes:
+1. Read and mark passages in pencil.
+2. After a few pages, photograph the marked pages.
+3. An AI transcribes them.
+4. The quotes come in as JSON, all bound to that book.
+
+`QuoteIntake.tsx` sits under a work's fields as "Cytaty z tej książki" (quotes from this book). It has three parts:
+
+- **The list**, sorted by page.
+- **Quick add**: text and page; the page stays for the next quote.
+- **"Dodaj ze zdjęć (AI)"** (add from photos):
+  1. Take or choose photos. Choose what counts as a quote: pencil-marked passages, or the whole text of each photo.
+  2. Read them in one of two ways:
+     - **Here.** `libraryAi.ts` sends the photos straight from the browser to Anthropic with the user's own API key. The key is kept in the sealed remembered state (`prefs.ts`). The service never sees photos or text, and a tool schema forces JSON back.
+     - **In any chat.** Copy the prompt (`quotesPrompt`) and give it to ChatGPT, Claude or Gemini with the photos, then paste the JSON back.
+  3. Review each quote next to its photo:
+     - Uncertain readings are marked "do sprawdzenia" (to check).
+     - Quotes already in the book are unchecked.
+     - Page ranges become `s. 23–24`.
+     - New topic names can become topics.
+  4. Save them all at once.
+
+The format is `recreatio/quotes` (`libraryQuotes.ts`). Its description is generated from the `quote` kind's fields plus `page`, `uncertain`, `photo` and `id`, and is shown beside the paste box. "Eksportuj cytaty tej książki" (export this book's quotes) writes the same format with ids. Re-importing it changes those quotes in place.
+
 ## Printing: LaTeX
 
 Printing goes through LaTeX (`libraryLatex.ts`). The page draws the markup as HTML; the same parse tree is written out as one self-contained `.tex` file for `pdflatex` or `lualatex` (UTF-8, Polish babel, no separate bibliography file).
@@ -68,9 +120,17 @@ Printing goes through LaTeX (`libraryLatex.ts`). The page draws the markup as HT
 These follow the standing JSON rule.
 
 - **Library documents** (`recreatio/library`): export everything or chosen kinds. Import matches entries by id or by key and changes them in place, setting only the fields given. References can be `@keys`, so a whole library can be written by hand or by an AI. Nothing is deleted.
-- **Description:** the library JSON panel and each entry's panel show `libraryDescription()`, generated from the kinds registry.
+- **Lenient values:** numbers may carry units (`"384 s."`, `"20,5 cm"`), and a select field takes its value or its label (`"hard"` or `"Twarda"`).
+- **Where:** the library's "Import / eksport" tab, the bottom of every list (that kind only), and every entry. On a **new** entry, the one entry of its kind in the document becomes this entry, so pasting a book written by an AI opens that book.
+- **Quotes of one book** (`recreatio/quotes`, see above) are imported on that book's page. The library import refuses them and says where they belong.
+- **Description:** every JSON panel shows `libraryDescription()`, generated from the kinds registry.
 - **Page modules:** `writing`, `writings` and `quotes` take part in the page JSON (examples in their part files).
-- **Checks:** `scripts/app-library-check.mjs` enforces that every field is described, that the examples import without warnings, and that export followed by import changes nothing.
+- **Checks:** `scripts/app-library-check.mjs` enforces that every field is described, that the examples import without warnings, and that export followed by import changes nothing. Its section 6 covers the book tools:
+  - ISBN rules;
+  - a drawn EAN-13 decoded by ZXing;
+  - the catalogue parsers, against a real BN/e-ISBN answer in `scripts/fixtures/`;
+  - person reuse and own numbers;
+  - the quotes format: plan, import, export → import, and that its description covers every quote field.
 
 ## How Cogita builds on this
 

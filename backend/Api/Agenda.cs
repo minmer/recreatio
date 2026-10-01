@@ -30,7 +30,7 @@ namespace Api;
 /// </summary>
 public static class Agenda
 {
-    private static readonly string[] SealableFields = ["title", "location", "notes"];
+    private static readonly string[] SealableFields = ["title", "location", "notes", "link", "link_label"];
 
     /// <summary>Was man hier ändern darf. Alles andere hat seine eigene Stelle (Msze i intencje, Rezerwacje).</summary>
     private static readonly string[] OwnKinds = ["appointment", "visit", "task"];
@@ -391,7 +391,7 @@ public static class Agenda
         foreach (var one in body.Fields ?? [])
         {
             var name = (one.Field ?? string.Empty).Trim().ToLowerInvariant();
-            if (!SealableFields.Contains(name)) { error = "Zapieczętować można tytuł, miejsce albo notatkę."; return null; }
+            if (!SealableFields.Contains(name)) { error = "Zapieczętować można tytuł, miejsce, notatkę albo link."; return null; }
             if (!Guid.TryParse(one.AreaId, out var area) || one.Epoch < 1) { error = "Nieczytelny obszar albo epoka pola."; return null; }
 
             byte[] blob;

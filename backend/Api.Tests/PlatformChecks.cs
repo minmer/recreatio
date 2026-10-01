@@ -4,7 +4,7 @@ using Api;
 /// <summary>
 /// 0065–0071 — was ohne Datenbank nachzumessen ist: Links mit Zugang,
 /// Aufgaben mit Zeitraum und Erinnerungen, normalisierte Adressen (dieselbe
-/// Tabelle wie `app-platform-check.mjs`).
+/// Tabelle wie `app-platform-check.mjs`), die ISBN des Katalogboten.
 /// </summary>
 internal static class PlatformChecks
 {
@@ -13,6 +13,7 @@ internal static class PlatformChecks
         Invites(check);
         TaskPeriods(check);
         Postal(check);
+        Catalog(check);
     }
 
     private static void Invites(Action<bool, string> check)
@@ -104,5 +105,16 @@ internal static class PlatformChecks
         check(Api.Postal.Check(new(null, "", "", "", "", "", "12", "")) is not null, "postal: a house number alone is no address");
         check(Api.Postal.Check(new(null, "", "", "Zawoja", "", "", "1234", "")) is null, "postal: a village with a number is an address");
         check(Api.Postal.Prefix("postcode", "311") == "31-1", "postal: postcode prefixes keep their hyphen");
+    }
+
+    private static void Catalog(Action<bool, string> check)
+    {
+        check(LibraryCatalog.Isbn13("978-83-63110-45-1") == "9788363110451", "isbn: hyphens go, the check digit holds");
+        check(LibraryCatalog.Isbn13("9788363110452") is null, "isbn: a misread digit finds nothing");
+        check(LibraryCatalog.Isbn13("0-8044-2957-X") == "9780804429573", "isbn: ten digits ending in X are read");
+        check(LibraryCatalog.Isbn13("0-306-40615-2") == "9780306406157", "isbn: ten digits become thirteen");
+        check(LibraryCatalog.Isbn10("9780306406157") == "0306406152", "isbn: and back, for old records");
+        check(LibraryCatalog.Isbn13("5901234123457") is null, "isbn: an EAN of a product is not a book");
+        check(LibraryCatalog.Isbn13("") is null && LibraryCatalog.Isbn13("abc") is null, "isbn: nothing is nothing");
     }
 }

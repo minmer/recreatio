@@ -132,6 +132,7 @@ Module.Map(app);
 
 /* 0064 — die Bibliothek: Werke, Zitate, Personen, Themen und die eigenen Texte. */
 Library.Map(app);
+LibraryCatalog.Map(app);
 
 /* 0067 — Powiadomienia: was neu ist, als Zahlen; Geräte für die App im Hintergrund. */
 Notify.Map(app);

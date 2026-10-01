@@ -20,9 +20,23 @@
 
 import { newId } from './ids';
 import { isUuid } from './library';
-import { KINDS, kindOf, outline, type EntryData, type LibEntry, type LibField } from './libraryKinds';
+import { KINDS, kindOf, outline, slug, type EntryData, type LibEntry, type LibField } from './libraryKinds';
 
 export const LIBRARY_FORMAT = 'recreatio/library';
+
+/** Die Zitate EINES Buches (`libraryQuotes.ts`) — sie gehören auf die Seite dieses Buches. */
+const QUOTES_FORMAT = 'recreatio/quotes';
+
+/**
+ * Eine Zahl, wie sie Menschen und Kataloge schreiben: „384", „384 s.",
+ * „20,5 cm". Was mehr ist als eine Zahl mit Einheit („24 x 17 cm"), ist
+ * keine — lieber eine Warnung als eine falsche Höhe.
+ */
+export function readAmount(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const m = /^\s*(-?\d+(?:[.,]\d+)?)\s*[^\d\s]*\.?\s*$/u.exec(String(value));
+  return m === null ? null : Number(m[1]!.replace(',', '.'));
+}
 
 export interface ExportEntry {
   readonly id: string;
@@ -80,6 +94,9 @@ export function planLibraryImport(doc: unknown, base: ImportBase): LibraryImport
     : Array.isArray(root.entries) ? root.entries
     : typeof root.kind === 'string' && typeof root.data === 'object' ? [root]
     : [];
+  if (root.format === QUOTES_FORMAT) {
+    return { error: `To są cytaty jednej książki ("${QUOTES_FORMAT}") — importuje się je na stronie tej książki: Źródła → książka → „Cytaty z tej książki”.` };
+  }
   if (list.length === 0) return { error: 'To nie jest dokument biblioteki — brakuje "entries" (albo "kind" i "data").' };
   if (root.format !== undefined && root.format !== LIBRARY_FORMAT) return { error: `Inny format: „${String(root.format)}”, a tu przyjmowany jest "${LIBRARY_FORMAT}".` };
 
@@ -138,13 +155,17 @@ export function planLibraryImport(doc: unknown, base: ImportBase): LibraryImport
           return id === null ? null : { text: id };
         }).filter((x) => x !== null);
       case 'number': {
-        const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
-        if (!Number.isFinite(n)) { warnings.push(`${where}: „${String(value)}” to nie liczba — pominięte.`); return null; }
+        const n = readAmount(value);
+        if (n === null) { warnings.push(`${where}: „${String(value)}” to nie liczba — pominięte.`); return null; }
         return n;
       }
       case 'select': {
         const s = String(value);
-        if (field.options !== undefined && !field.options.some((o) => o.value === s)) warnings.push(`${where}: nieznana wartość „${s}”.`);
+        if (field.options === undefined || field.options.some((o) => o.value === s)) return s;
+        /* „miękka" statt "soft": wer die Bezeichnung schreibt, meint den Wert. */
+        const byLabel = field.options.find((o) => slug(o.label) === slug(s));
+        if (byLabel !== undefined) return byLabel.value;
+        warnings.push(`${where}: nieznana wartość „${s}”.`);
         return s;
       }
       default:
@@ -228,6 +249,8 @@ Co robi import:
 - Wpis bez kennung (albo z nieznaną) powstaje nowy. Import niczego nie usuwa.
 - Odwołania ("authors", "work", "topics", "project", plan projektu) mogą być kennungami albo kluczami: "@ratzinger2007". Klucze z tego samego dokumentu też działają — można opisać całą bibliotekę, nie znając żadnej kennung.
 - "key" to klucz cytowania: krótki, bez spacji (np. "ratzinger2007"); w tekstach odwołuje się do niego [@ratzinger2007, s. 23]. Pominięty — zostanie zaproponowany sam.
+- Liczby mogą mieć jednostkę ("384 s.", "20,5 cm"); pole wyboru przyjmuje wartość ("hard") albo jej nazwę ("Twarda").
+- Cytaty z jednej książki (np. odczytane przez AI ze zdjęć) mają własny format "${QUOTES_FORMAT}" — importuje się je na stronie tej książki.
 - Wszystko jest szyfrowane w przeglądarce kluczem obszaru biblioteki; publiczne staje się tylko to, co opublikujesz (pola prywatne nigdy).
 Zwróć JEDEN obiekt JSON, bez komentarzy.
 

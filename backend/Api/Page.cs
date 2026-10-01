@@ -78,7 +78,7 @@ public static class Page
 
     /* -- Zeigen ------------------------------------------------------------- */
 
-    private static async Task ShowAsync(HttpContext ctx, Db db, string? path, string? seat, string? seats)
+    private static async Task ShowAsync(HttpContext ctx, Db db, string? path, string? seat, string? seats, string? links)
     {
         var wanted = Slug.Normalise(path);
 
@@ -89,7 +89,7 @@ public static class Page
         }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        await WritePageAsync(ctx, db, connection, wanted, Tokens(seat, seats));
+        await WritePageAsync(ctx, db, connection, wanted, Tokens(seat, seats), links);
     }
 
     /// <summary>
@@ -116,7 +116,7 @@ public static class Page
     /// dabei herauskommt, ist ohnehin öffentlich.
     /// </para>
     /// </summary>
-    private static async Task SiteAsync(HttpContext ctx, Db db, string? host, string? path, string? seat, string? seats)
+    private static async Task SiteAsync(HttpContext ctx, Db db, string? host, string? path, string? seat, string? seats, string? links)
     {
         var name = (host ?? string.Empty).Trim().ToLowerInvariant();
 
@@ -183,7 +183,7 @@ public static class Page
             return;
         }
 
-        await WritePageAsync(ctx, db, connection, wanted, Tokens(seat, seats));
+        await WritePageAsync(ctx, db, connection, wanted, Tokens(seat, seats), links);
     }
 
     /// <summary>
@@ -214,14 +214,14 @@ public static class Page
     /// gilt daneben weiter, solange eine Seite sie noch traegt.
     /// </para>
     /// </summary>
-    private sealed record Seen(List<string> Seats, List<string> Roles, bool Manages, bool SignedIn)
+    private sealed record Seen(List<string> Seats, List<string> Roles, bool Manages, bool SignedIn, List<string> Links)
     {
-        public bool Any => Seats.Count > 0 || Roles.Count > 0 || Manages;
+        public bool Any => Seats.Count > 0 || Roles.Count > 0 || Manages || Links.Count > 0;
     }
 
     private static async Task<Seen> SeenByAsync(
         HttpContext ctx, Db db, SqlConnection connection,
-        Guid? internalFor, Guid slugId, Guid askedId, string path, IReadOnlyList<string> tokens)
+        Guid? internalFor, Guid slugId, Guid askedId, string path, IReadOnlyList<string> tokens, string? links)
     {
         /*
          * 1. JE LINK — schon bestaetigt, und: sein Platz liegt in einem der
@@ -252,8 +252,31 @@ public static class Page
             if (await cmd.ExecuteScalarAsync(ctx.RequestAborted) is not null) seats.Add(token);
         }
 
+        /*
+         * 1b. JE LINK MIT ZUGANG (0073), den dieser Browser hält — ohne Konto:
+         * hat seine Linkrolle ein Zertifikat auf einen der Bereiche der Seite?
+         */
+        var heldLinks = new List<string>();
+        var linkRoles = await HeldLinks.RolesAsync(connection, links, ctx.RequestAborted);
+        if (linkRoles.Count > 0)
+        {
+            var names = string.Join(", ", linkRoles.Select((_, i) => $"@l{i}"));
+            await using var cmd = new SqlCommand($"""
+                SELECT DISTINCT c.subject_role_id FROM app.certificate c
+                WHERE c.scope_kind = N'area' AND c.revoked_at IS NULL AND c.expires_at > @now
+                  AND c.capability IN (N'read', N'write', N'admin')
+                  AND c.subject_role_id IN ({names})
+                  AND c.scope_id IN (SELECT w.area_id FROM app.slug_area w WHERE w.slug_id = @slug);
+                """, connection);
+            for (var i = 0; i < linkRoles.Count; i++) cmd.Parameters.AddWithValue($"@l{i}", linkRoles[i]);
+            cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            cmd.Parameters.AddWithValue("@slug", slugId);
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted)) heldLinks.Add(Ids.ToText(reader.GetGuid(0)));
+        }
+
         var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) return new Seen(seats, [], false, false);
+        if (who is null) return new Seen(seats, [], false, false, heldLinks);
 
         /* 2. WER DIE SEITE FUEHRT — er sieht sie, auch ohne Person mit Zugang. */
         var grip = await Access.OfAsync(connection, who.Value.AccountId, path, ctx.RequestAborted);
@@ -315,11 +338,11 @@ public static class Page
             while (await reader.ReadAsync(ctx.RequestAborted)) roles.Add(Ids.ToText(reader.GetGuid(0)));
         }
 
-        return new Seen(seats, roles, grip.MayWrite, true);
+        return new Seen(seats, roles, grip.MayWrite, true, heldLinks);
     }
 
     private static async Task WritePageAsync(
-        HttpContext ctx, Db db, SqlConnection connection, string wanted, IReadOnlyList<string> seat)
+        HttpContext ctx, Db db, SqlConnection connection, string wanted, IReadOnlyList<string> seat, string? links = null)
     {
         Guid slugId, askedId;
         Guid? internalFor;
@@ -402,7 +425,7 @@ public static class Page
 
         if (internalFor is not null || areas.Count > 0)
         {
-            var seen = await SeenByAsync(ctx, db, connection, internalFor, slugId, askedId, wanted, seat);
+            var seen = await SeenByAsync(ctx, db, connection, internalFor, slugId, askedId, wanted, seat, links);
 
             if (!seen.Any)
             {
@@ -417,7 +440,7 @@ public static class Page
                 return;
             }
 
-            access = new { restricted = true, seats = seen.Seats, roles = seen.Roles, manages = seen.Manages };
+            access = new { restricted = true, seats = seen.Seats, roles = seen.Roles, manages = seen.Manages, links = seen.Links };
         }
 
         /*

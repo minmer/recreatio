@@ -81,6 +81,8 @@ export const Field = {
   CalendarEventTitle: 'event_title',
   CalendarEventLocation: 'event_location',
   CalendarItemNotes: 'item_notes',
+  CalendarItemLink: 'item_link',
+  CalendarItemLinkLabel: 'item_link_label',
 
   /* Geber und Gabe einer Messintention — das, was nicht vorgelesen wird. */
   MassIntentionGiver: 'mass_intention_giver',

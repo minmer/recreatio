@@ -48,6 +48,11 @@ export default defineConfig({
             // Pfeile zeichnet.
             if (id.includes('/reactflow/') || id.includes('/@reactflow/')) return 'vendor-flow';
 
+            // ZXing liest Strichcodes nur, wo der Browser es nicht selbst kann
+            // (`barcode.ts`) — und erst, wenn jemand scannt. Im gemeinsamen
+            // Bündel lüde jede Seite 300 kB für einen Knopf in der Bibliothek.
+            if (id.includes('/@zxing/')) return 'vendor-barcode';
+
             if (
               id.includes('/@dnd-kit/') ||
               id.includes('/katex/') ||

@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { loadAreas, type AreaRow } from './area';
 import { ensurePrivateArea } from './agenda';
 import { AreaOptions } from './AreaOptions';
+import { ScanBook } from './BookLookup';
 import { useCrumbs, type Crumb } from './crumbTrail';
 import { JsonPanel, type JsonPreview } from './JsonPanel';
 import {
@@ -200,7 +201,7 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
     <>
       <h1 className="wk-h1">{library.name}</h1>
       {store.unreadable > 0 && <p className="wk-note">{store.unreadable} wpisów jest zapieczętowanych kluczem, którego nie masz.</p>}
-      <SearchAll store={store} />
+      <SearchAll store={store} library={library} />
       <nav className="wk-tabs lib-tabs" aria-label="Działy biblioteki">
         {TABS.map((t) => (
           <a key={t.slug} className={t.slug === tab ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, t.slug)}>
@@ -233,14 +234,17 @@ function presetFrom(part: string | undefined): Record<string, unknown> {
 }
 
 /** Suchen über alles — Ergebnisse unter dem Feld, gleich welcher Art. */
-function SearchAll({ store }: { store: LibraryStore }) {
+function SearchAll({ store, library }: { store: LibraryStore; library: OpenLibrary }) {
   const [query, setQuery] = useState('');
   const found = useMemo(() => (query.trim().length < 2 ? [] : store.search(query).slice(0, 12)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [query, store, store.revision]);
   return (
     <div className="lib-search">
-      <input type="search" value={query} placeholder="Szukaj w całej bibliotece — tytuł, autor, fragment cytatu, temat…" onChange={(e) => setQuery(e.target.value)} aria-label="Szukaj w bibliotece" />
+      <div className="lib-search-bar">
+        <input type="search" value={query} placeholder="Szukaj w całej bibliotece — tytuł, autor, fragment cytatu, temat, ISBN, numer…" onChange={(e) => setQuery(e.target.value)} aria-label="Szukaj w bibliotece" />
+        <ScanBook store={store} library={library} onSearch={setQuery} />
+      </div>
       {found.length > 0 && (
         <ul className="lib-search-hits">
           {found.map((entry) => (
@@ -340,6 +344,7 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
           ))}
         </ul>
       )}
+      <LibraryJson key={kind} store={store} library={library} only={kind} />
     </>
   );
 }
@@ -352,7 +357,8 @@ function metaOf(entry: Entry, store: LibraryStore): string {
     case 'quote': return [originOf(entry, store), ...ids(d, 'topics').map((id) => store.get(id)).filter((t): t is Entry => t !== undefined).map((t) => `#${store.title(t)}`)].join(' · ');
     case 'work': {
       const quotes = store.backlinks(entry.id).filter((e) => e.kind === 'quote').length;
-      return [lineOf(entry, store).replace(`${store.title(entry)} · `, ''), quotes > 0 ? `${quotes} cytatów` : '', entry.key === undefined ? '' : `[@${entry.key}]`].filter(Boolean).join(' · ');
+      const number = str(d, 'libraryNumber');
+      return [number === '' ? '' : `nr ${number}`, lineOf(entry, store).replace(`${store.title(entry)} · `, ''), quotes > 0 ? `${quotes} cytatów` : '', entry.key === undefined ? '' : `[@${entry.key}]`].filter(Boolean).join(' · ');
     }
     case 'person': return [str(d, 'years'), `${store.backlinks(entry.id).filter((e) => e.kind === 'work').length} źródeł`].filter(Boolean).join(' · ');
     case 'topic': return `${store.backlinks(entry.id).length} wpisów`;
@@ -408,8 +414,10 @@ function Settings({ me, library, areas, onChanged }: { me: Me; library: OpenLibr
 
 /* -- JSON ------------------------------------------------------------------------------------------ */
 
-function LibraryJson({ store, library }: { store: LibraryStore; library: OpenLibrary }) {
-  const [kinds, setKinds] = useState<readonly string[]>(KINDS.map((k) => k.kind));
+/** `only`: unter einer Liste — nur diese Art (mit dem, worauf sie zeigt, beim Import). */
+function LibraryJson({ store, library, only }: { store: LibraryStore; library: OpenLibrary; only?: string }) {
+  const [kinds, setKinds] = useState<readonly string[]>(only === undefined ? KINDS.map((k) => k.kind) : [only]);
+  const onlyDef = only === undefined ? undefined : kindOf(only);
 
   const preview = (doc: unknown): JsonPreview | { error: string } => {
     const planned = planLibraryImport(doc, store);
@@ -418,7 +426,7 @@ function LibraryJson({ store, library }: { store: LibraryStore; library: OpenLib
 
   return (
     <>
-      <fieldset className="lib-kinds">
+      {only === undefined && <fieldset className="lib-kinds">
         <legend>Co eksportować</legend>
         {KINDS.map((k) => (
           <label key={k.kind} className="pe-check">
@@ -426,11 +434,13 @@ function LibraryJson({ store, library }: { store: LibraryStore; library: OpenLib
             <span>{k.plural} ({store.ofKind(k.kind).length})</span>
           </label>
         ))}
-      </fieldset>
+      </fieldset>}
       <JsonPanel
-        summary="JSON biblioteki — eksport i import"
-        lead={<>Wszystkie wpisy (albo wybrane rodzaje) jako jeden dokument — kopia zapasowa, przeniesienie, praca z AI. Import zmienia istniejące wpisy w miejscu i dodaje nowe; niczego nie usuwa.</>}
-        fileName={`biblioteka-${library.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`}
+        summary={onlyDef === undefined ? 'JSON biblioteki — eksport i import' : `Import / eksport JSON: ${onlyDef.plural.toLowerCase()}`}
+        lead={onlyDef === undefined
+          ? <>Wszystkie wpisy (albo wybrane rodzaje) jako jeden dokument — kopia zapasowa, przeniesienie, praca z AI. Import zmienia istniejące wpisy w miejscu i dodaje nowe; niczego nie usuwa.</>
+          : <>{onlyDef.plural} jako JSON — np. kilka książek naraz przygotowanych przez AI. Import przyjmuje też osoby i tematy, na które wskazują; istniejące wpisy zmienia w miejscu, niczego nie usuwa.</>}
+        fileName={`biblioteka-${library.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}${only === undefined ? '' : `-${only}`}.json`}
         exportDoc={() => exportLibrary(library.name, store.all().filter((e) => kinds.includes(e.kind)))}
         description={libraryDescription}
         preview={preview}

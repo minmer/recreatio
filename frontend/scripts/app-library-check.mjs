@@ -10,6 +10,8 @@
  *   4. Veröffentlichen: was mitgeht (Text → Zitat → Werk → Autor), dass
  *      Privates nie hinausgeht, was beim Zurückziehen bleibt.
  *   5. Der Text, gezeichnet: Fussnoten in Reihenfolge, Quellen darunter.
+ *   6. Bücher: ISBN, Strichcode (ZXing), Katalog (MARC, ONIX), eigene Nummer,
+ *      Zitate eines Buches (Format, Polecenie, Plan, Import, Export).
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -28,6 +30,11 @@ export * from '${app}libraryCite';
 export * from '${app}libraryPublish';
 export { planLibraryImport, exportLibrary, libraryDescription, LIBRARY_FORMAT } from '${app}libraryJson';
 export { TextArticle, publicLookup } from '${app}LibraryText';
+export * from '${app}isbn';
+export * from '${app}libraryCatalog';
+export * from '${app}libraryQuotes';
+export { decodeGray } from '${app}barcode';
+export { readAmount } from '${app}libraryJson';
 export { renderToStaticMarkup } from 'react-dom/server';
 export { createElement } from 'react';
 `);
@@ -222,6 +229,172 @@ try {
   const sources = html.slice(html.indexOf('Źródła'));
   assert.equal((sources.match(/<li>/g) ?? []).length, 3, 'three works under Źródła (Jezus, Bible, chapter)');
   ok('a text renders: numbered notes over body and further, Tamże, embedded quote, sources, date');
+
+  /* -- 6. Bücher und ihre Zitate --------------------------------------------------------------- */
+  {
+    assert.equal(m.isbn13('978-83-63110-45-1'), '9788363110451', 'isbn: hyphens go');
+    assert.equal(m.isbn13('9788363110452'), null, 'isbn: a wrong check digit is no isbn');
+    assert.equal(m.isbn13('0-8044-2957-X'), '9780804429573', 'isbn: ten digits with X become thirteen');
+    assert.equal(m.isbn13('5901234123457'), null, 'isbn: a product EAN is no book');
+    assert.deepEqual(m.isbnsIn('978-83-63110-45-1, 978-83-63110-46-8'), ['9788363110451', '9788363110468'], 'isbn: two in one field');
+    assert.equal(m.isbnProblem(''), null);
+    assert.ok(m.isbnProblem('978-83-63110-45-2')?.includes('kontrolna'), 'isbn: the check digit is named');
+    assert.ok(m.isbnProblem('12345')?.includes('10 albo 13'), 'isbn: the length is named');
+
+    /* Ein EAN-13 gezeichnet (Module à 3 px) — ZXing liest ihn zurück. */
+    const L = ['0001101', '0011001', '0010011', '0111101', '0100011', '0110001', '0101111', '0111011', '0110111', '0001011'];
+    const R = L.map((code) => [...code].map((b) => (b === '1' ? '0' : '1')).join(''));
+    const G = R.map((code) => [...code].reverse().join(''));
+    const PARITY = ['LLLLLL', 'LLGLGG', 'LLGGLG', 'LLGGGL', 'LGLLGG', 'LGGLLG', 'LGGGLL', 'LGLGLG', 'LGLGGL', 'LGGLGL'];
+    const ean = '9788363110451';
+    const d = [...ean].map(Number);
+    let bits = '101';
+    for (let i = 1; i <= 6; i += 1) bits += (PARITY[d[0]][i - 1] === 'L' ? L : G)[d[i]];
+    bits += '01010';
+    for (let i = 7; i <= 12; i += 1) bits += R[d[i]];
+    bits += '101';
+    const quiet = 12;
+    const modules = '0'.repeat(quiet) + bits + '0'.repeat(quiet);
+    const W = modules.length * 3;
+    const H = 60;
+    const gray = new Uint8ClampedArray(W * H).fill(255);
+    for (let y = 0; y < H; y += 1) for (let x = 0; x < W; x += 1) if (modules[Math.floor(x / 3)] === '1') gray[y * W + x] = 0;
+    assert.equal(await m.decodeGray(gray, W, H, false), ean, 'barcode: a drawn EAN-13 reads back');
+    assert.equal(await m.decodeGray(gray, W, H, true), ean, 'barcode: also the thorough way');
+    assert.equal(await m.decodeGray(new Uint8ClampedArray(W * H).fill(255), W, H, true), null, 'barcode: a blank image is nothing');
+
+    /* Der Katalog: drei Beschreibungen der BN und die Meldung des Verlags. */
+    const { readFile } = await import('node:fs/promises');
+    const answer = JSON.parse(await readFile(join(process.cwd(), 'scripts/fixtures/catalog-9788363110451.json'), 'utf8'));
+    const books = m.booksOf(answer);
+    assert.equal(books.length, 4, 'three records of the national library and one of e-ISBN');
+    const best = books[0];
+    assert.equal(best.source, 'bn');
+    assert.equal(best.title, 'Wielkość świętego Michała Archanioła');
+    assert.equal(best.subtitle, 'miesięczne nabożeństwo w sprawach trudnych');
+    assert.equal(best.year, '2016', 'the fullest description first (the second edition)');
+    assert.equal(best.edition, '2', '"Wydanie drugie." is 2');
+    assert.equal(best.pageCount, 215);
+    assert.equal(best.height, 17);
+    assert.equal(best.binding, 'soft', 'the binding of THIS isbn (020 $q)');
+    assert.equal(best.place, 'Poznań');
+    assert.equal(best.publisher, 'Wydawnictwo Rosemaria');
+    assert.equal(best.language, 'pl');
+    assert.deepEqual(best.authors, [{ surname: 'Ricci', given: 'Nicola' }, { surname: 'Petino', given: 'Cosimo' }]);
+    assert.deepEqual(best.translators, [{ surname: 'Werbowy', given: 'Klaudyna' }]);
+    const first2015 = books.find((b) => b.source === 'bn' && b.ref === 'bn:1450038411');
+    assert.equal(first2015.originalTitle, 'Grandezze di s. Michele Arcangelo', 'a translation: 240 is the original title');
+    assert.equal(first2015.pageCount, 213);
+    assert.deepEqual(first2015.translators, [{ surname: 'Werbowy', given: 'Katarzyna' }], '"Tł." is a translator');
+    const onix = books.find((b) => b.source === 'e-isbn');
+    assert.equal(onix.title, 'Miesiąc ku czci św. Michała Archanioła');
+    assert.deepEqual(onix.authors, [{ given: 'Nocola', surname: 'Ricci' }], 'a name as the publisher wrote it');
+    assert.equal(onix.year, '2015');
+    assert.ok(m.bookLine(best).includes('wyd. 2') && m.bookLine(best).includes('215 s.') && m.bookLine(best).includes('oprawa miękka'));
+    assert.equal(m.tidy('Poznań :'), 'Poznań');
+    assert.equal(m.tidy('Kowalski, J.'), 'Kowalski, J.', 'an initial keeps its dot');
+    assert.equal(m.editionOf('Wyd. 3 popr.'), '3 popr.');
+    assert.equal(m.editionOf('Wydanie II.'), '2');
+    assert.deepEqual(m.nameOf('Benedykt XVI'), { name: 'Benedykt XVI' }, 'a pope is a name');
+    assert.equal(m.fromOpenLibrary({ title: 'Mere Christianity', authors: [{ name: 'C. S. Lewis' }], publish_date: 'March 2001', number_of_pages: 227 }, '9780060652920').pageCount, 227);
+
+    /* In die Bibliothek: Personen einmal, Ausgefülltes bleibt. */
+    const ricci = { id: 'p-ricci', kind: 'person', data: { givenNames: 'Nicola', surname: 'Ricci' } };
+    const plan = m.planBook(best, [ricci]);
+    assert.deepEqual(plan.data.authors[0], 'p-ricci', 'an author already in the library is reused');
+    assert.equal(plan.persons.length, 2, 'Petino and Werbowy are new');
+    assert.equal(plan.data.workType, 'book');
+    assert.equal(plan.data.isbn, '9788363110451');
+    assert.equal(plan.data.pageCount, 215);
+    const fill = m.planBook(best, [ricci], { workType: 'book', title: 'Mój tytuł', year: '2016', authors: ['p-ricci'] });
+    assert.equal(fill.data.title, undefined, 'a filled title is never overwritten');
+    assert.equal(fill.data.authors, undefined);
+    assert.equal(fill.persons.length, 1, 'only the translator is new');
+    assert.ok(fill.filled.includes('liczba stron') && !fill.filled.includes('tytuł'));
+
+    /* Die eigene Nummer. */
+    const W1 = (id, n, at) => ({ id, kind: 'work', data: { libraryNumber: n }, updatedAt: at });
+    assert.equal(m.nextLibraryNumber([W1('a', 'B-0041', '1'), W1('b', 'B-0042', '2')]), 'B-0043');
+    assert.equal(m.nextLibraryNumber([]), '1');
+    assert.equal(m.nextLibraryNumber([W1('a', '17', '1'), W1('b', 'K-9', '2')]), 'K-10', 'in the style of the latest');
+    assert.deepEqual(m.sameNumber([W1('a', 'B-0042', '1'), W1('b', 'b 0042', '2')], 'B-0042', 'a').map((w) => w.id), ['b']);
+
+    /* Im JSON der Bibliothek: Zahlen mit Einheit, Werte beim Namen, die Zitate eines Buches woanders. */
+    assert.equal(m.readAmount('384 s.'), 384);
+    assert.equal(m.readAmount('20,5 cm'), 20.5);
+    assert.equal(m.readAmount('24 x 17 cm'), null);
+    const human = m.planLibraryImport({ entries: [{ kind: 'work', data: { title: 'T', pageCount: '384 s.', height: '20,5 cm', binding: 'Twarda' } }] }, empty);
+    assert.deepEqual(human.warnings, []);
+    assert.equal(human.drafts[0].data.pageCount, 384);
+    assert.equal(human.drafts[0].data.height, 20.5);
+    assert.equal(human.drafts[0].data.binding, 'hard', 'a label means its value');
+    assert.ok(m.planLibraryImport({ entries: [{ kind: 'work', data: { width: '24 x 17 cm' } }] }, empty).warnings.some((w) => w.includes('nie liczba')));
+    assert.ok(m.planLibraryImport({ format: m.QUOTES_FORMAT, quotes: [] }, empty).error.includes('na stronie tej książki'));
+    ok('books: isbn, an EAN-13 read by ZXing, catalogue (MARC ×3, ONIX, Open Library), persons reused, own numbers, amounts with units');
+
+    /* Die Zitate eines Buches. */
+    const book = { id: 'w-ricci', kind: 'work', key: 'ricci2016', data: { workType: 'book', title: 'Wielkość świętego Michała Archanioła', authors: ['p-ricci'], place: 'Poznań', year: '2016', isbn: '978-83-63110-45-1' } };
+    const prayer = { id: 't-modlitwa', kind: 'topic', key: 'modlitwa', data: { name: 'Modlitwa' } };
+    const had = { id: 'q-had', kind: 'quote', key: 'ricci2016-1', data: { text: 'Święty Michale Archaniele, broń nas w walce.', work: 'w-ricci', locator: 's. 12' } };
+    const shelf = look([ricci, book, prayer, had]);
+    const doc = {
+      format: m.QUOTES_FORMAT, version: 1, work: { title: 'Wielkość świętego Michała Archanioła' },
+      quotes: [
+        { text: 'Święty Michale Archaniele,\nbroń nas w walce.', page: '12' },
+        { text: 'Kto jak Bóg? Nikt jak Bóg — to imię jest modli-\ntwą.', page: '23-24', topics: ['Modlitwa', 'Aniołowie'], photo: 2, uncertain: true, notes: 'por. Dn 10' },
+        { text: '', page: '3' }
+      ]
+    };
+    const qp = m.planQuotes(doc, book, shelf);
+    assert.equal(qp.items.length, 2, 'an empty quote is skipped');
+    assert.ok(qp.warnings.some((w) => w.includes('bez tekstu')));
+    assert.equal(qp.items[0].duplicateOf, 'q-had', 'the same text (other line breaks) is already there');
+    assert.equal(qp.items[0].keep, false, '… and is unchecked');
+    const fresh = qp.items[1];
+    assert.equal(fresh.text, 'Kto jak Bóg? Nikt jak Bóg — to imię jest modlitwą.', 'hyphenation and line breaks are joined');
+    assert.equal(fresh.locator, 's. 23–24');
+    assert.deepEqual(fresh.topics, [{ id: 't-modlitwa', name: 'Modlitwa' }, { name: 'Aniołowie' }], 'known topics by name, new ones stay names');
+    assert.equal(fresh.photo, 2);
+    assert.equal(fresh.uncertain, true);
+    assert.deepEqual(m.newTopics(qp.items), ['Aniołowie']);
+    assert.ok(m.planQuotes({ quotes: [{ text: 'x' }], work: { title: 'Zupełnie inna' } }, book, shelf).warnings.some((w) => w.includes('Zupełnie inna')), 'written for another book: said, not refused');
+    assert.ok('error' in m.planQuotes({ format: 'recreatio/page', quotes: [] }, book, shelf));
+
+    const saved = [];
+    const fake = async (input) => { const id = input.id ?? `new-${saved.length}`; saved.push({ ...input, id }); return { id }; };
+    const result = await m.importQuotes(qp.items, book, shelf, fake, { createTopics: true });
+    assert.deepEqual([result.saved, result.topics, result.failed.length], [1, 1, 0], 'one new topic, one quote (the duplicate stays out)');
+    assert.deepEqual(saved[0], { kind: 'topic', data: { name: 'Aniołowie' }, id: 'new-0' });
+    assert.equal(saved[1].kind, 'quote');
+    assert.equal(saved[1].data.work, 'w-ricci', 'every quote belongs to this book');
+    assert.deepEqual(saved[1].data.topics, ['t-modlitwa', 'new-0']);
+    assert.equal(saved[1].data.notes, 'por. Dn 10');
+    assert.equal(saved[1].data.description, undefined, 'empty fields are not written');
+
+    const exported = m.exportQuotes(book, shelf);
+    assert.equal(exported.format, m.QUOTES_FORMAT);
+    assert.deepEqual(exported.work, { title: 'Wielkość świętego Michała Archanioła', key: 'ricci2016', isbn: '978-83-63110-45-1' });
+    const back = m.planQuotes(exported, book, shelf);
+    assert.equal(back.items[0].id, 'q-had', 'an exported quote comes back as itself');
+    assert.equal(back.items[0].duplicateOf, undefined);
+    const resaved = [];
+    await m.importQuotes(back.items, book, shelf, async (input) => { resaved.push(input); return { id: input.id }; }, { createTopics: false });
+    assert.deepEqual(resaved[0].data, had.data, 'export → import keeps a quote as it was');
+
+    const description = m.quotesDescription(book);
+    for (const field of m.kindOf('quote').fields) {
+      if (field.key === 'work') assert.ok(!description.includes(`"work" — `), 'the book is not a field of a quote here');
+      else assert.ok(description.includes(`"${field.key}" — `), `quotes description explains ${field.key}`);
+    }
+    for (const extra of ['page', 'uncertain', 'photo', 'id']) assert.ok(description.includes(`"${extra}" — `), `quotes description explains ${extra}`);
+    const promptMarked = m.quotesPrompt(book, shelf, 'marked', true);
+    assert.ok(promptMarked.includes('ołówkiem') && promptMarked.includes('Wielkość świętego Michała Archanioła') && promptMarked.includes('Modlitwa'), 'the prompt names the book, the pencil and the topics');
+    assert.ok(promptMarked.includes(m.QUOTES_FORMAT), 'for another chat the format goes along');
+    const promptWhole = m.quotesPrompt(book, shelf, 'whole', false);
+    assert.ok(promptWhole.includes('cały tekst') && !promptWhole.includes('"format"'), 'here the tool gives the shape');
+    assert.deepEqual(m.QUOTES_TOOL.input_schema.required, ['quotes']);
+    ok('quotes of a book: duplicates, hyphenation, pages, topics by name, import with new topics, export → import, description from the kind, prompt');
+  }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;
   await rm(workspace, { recursive: true, force: true });

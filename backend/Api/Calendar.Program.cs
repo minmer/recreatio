@@ -144,12 +144,13 @@ public static partial class Calendar
     /// offengelegten Bereich liegt (der Baustein „program" auf einer Seite,
     /// das Widget auf einer fremden Seite).
     /// </summary>
-    private static async Task ProgramAsync(HttpContext ctx, Db db, Guid id)
+    private static async Task ProgramAsync(HttpContext ctx, Db db, Guid id, string? links)
     {
         var who = await Auth.WhoAsync(ctx, db);
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        var readable = (await ReadableAreasAsync(connection, who?.AccountId, ctx.RequestAborted)).ToHashSet();
+        var linkRoles = await HeldLinks.RolesAsync(connection, links, ctx.RequestAborted);
+        var readable = (await ReadableAreasAsync(connection, who?.AccountId, ctx.RequestAborted, null, linkRoles)).ToHashSet();
 
         var rows = new List<(Guid Id, Guid? Parent, int? Position, string Kind, DateTimeOffset Starts, DateTimeOffset Ends,
             bool AllDay, string? TitlePublic, Guid Visibility, string Status, string Repeat, int Depth)>();

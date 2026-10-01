@@ -70,7 +70,8 @@
       „Zrób zdjęcie" in der Rozmowa (`<input capture>`): die WebView-Hülle fragt
       mit resolveActivity, ob es eine Kamera-App gibt — ab Android 11 sieht sie
       ohne diese Zeilen keine und öffnet stattdessen nur die Dateiauswahl.
-      Keine CAMERA-Berechtigung: fotografiert wird in der Kamera-App, nicht hier.
+      Fotografiert wird dort in der Kamera-App; die Hülle fragt vorher nach
+      CAMERA, weil die App sie (für den Scanner, unten) angibt.
     -->
     <queries>
         <intent>
@@ -88,6 +89,15 @@
     <!-- Sprachnachrichten im Gespräch (getUserMedia); gefragt wird erst beim ersten Aufnehmen. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!--
+      Der Scanner der Bibliothek (ISBN, eigene Nummer) liest das laufende Bild
+      der Kamera (getUserMedia); gefragt wird erst beim ersten Scannen. Ohne
+      Kamera läuft die App trotzdem — dann Foto oder Eintippen.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <!--
       Keine GENAUEN Wecker: Google Play erlaubt sie nur Wecker- und Kalender-Apps.

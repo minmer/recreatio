@@ -50,7 +50,7 @@ public static partial class Calendar
     private const int MaxOccurrences = 2000;
 
     /// <summary>Die Felder, die versiegelt liegen duerfen — wie `ck_calendar_field_name`.</summary>
-    private static readonly string[] SealableFields = ["title", "location", "notes"];
+    private static readonly string[] SealableFields = ["title", "location", "notes", "link", "link_label"];
 
     public static void Map(WebApplication app)
     {
@@ -402,7 +402,7 @@ public static partial class Calendar
             if (!SealableFields.Contains(name))
             {
                 await Fail(ctx, StatusCodes.Status400BadRequest,
-                    "Zapieczętować można tytuł, miejsce albo notatkę.");
+                    "Zapieczętować można tytuł, miejsce, notatkę albo link.");
                 return;
             }
 
@@ -796,9 +796,12 @@ public static partial class Calendar
     /// </para>
     /// </summary>
     private static async Task PublicAsync(
-        HttpContext ctx, Db db, Guid id, string? from, string? to, string? kind, string? seat)
+        HttpContext ctx, Db db, Guid id, string? from, string? to, string? kind, string? seat, string? links)
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        /* 0073 — die Links mit Zugang, die der Browser hält: was ihre Rollen lesen, liest er. */
+        var linkRoles = await HeldLinks.RolesAsync(connection, links, ctx.RequestAborted);
 
         Guid? seatId = null;
 
@@ -819,7 +822,7 @@ public static partial class Calendar
             if (await find.ExecuteScalarAsync(ctx.RequestAborted) is Guid found) seatId = found;
         }
 
-        await ShowAsync(ctx, connection, id, null, from, to, kind, seatId);
+        await ShowAsync(ctx, connection, id, null, from, to, kind, seatId, linkRoles);
     }
 
     private sealed record Row(
@@ -836,7 +839,7 @@ public static partial class Calendar
 
     private static async Task ShowAsync(
         HttpContext ctx, SqlConnection connection, Guid calendarId, Guid? accountId,
-        string? from, string? to, string? kind, Guid? seatId = null)
+        string? from, string? to, string? kind, Guid? seatId = null, IReadOnlyList<Guid>? linkRoles = null)
     {
         var found = await CalendarOfAsync(connection, calendarId, ctx.RequestAborted);
         if (found is null)
@@ -856,7 +859,7 @@ public static partial class Calendar
          * Sichtbarkeitspruefung — keine Spalte, die der Dienst deuten muesste,
          * sondern eine Zuteilung oder ein offengelegter Schluessel.
          */
-        var readable = await ReadableAreasAsync(connection, accountId, ctx.RequestAborted, seatId);
+        var readable = await ReadableAreasAsync(connection, accountId, ctx.RequestAborted, seatId, linkRoles);
 
         /* 0058 — der Kalender stellt sich vor: sein Name und wie seine Termine gemeint sind (für den Baustein auf einer Seite). */
         string? calendarTitle = null, calendarDescription = null, calendarKind = null;
@@ -1030,9 +1033,12 @@ public static partial class Calendar
     /// </para>
     /// </summary>
     internal static async Task<List<Guid>> ReadableAreasAsync(
-        SqlConnection connection, Guid? accountId, CancellationToken ct, Guid? seatId = null)
+        SqlConnection connection, Guid? accountId, CancellationToken ct, Guid? seatId = null, IReadOnlyList<Guid>? linkRoles = null)
     {
         var areas = new HashSet<Guid>();
+
+        /* 0073 — was die Links mit Zugang in diesem Browser lesen (HeldLinks). */
+        if (linkRoles is { Count: > 0 }) areas.UnionWith(await HeldLinks.KeyedAreasAsync(connection, linkRoles, ct));
 
         /*
          * Was ein PLATZ aufschliesst (0024). Der dritte Weg neben Zuteilung und
