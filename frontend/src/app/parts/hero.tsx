@@ -43,6 +43,19 @@ export const heroPart = defineEventPart<TitleConfig>({
     footnote: null
   }),
 
+  /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
+  keys: {
+    badge: 'Plakietka nad hasłem, np. termin i miejsce (albo null)',
+    headline: 'Hasło — duży tytuł modułu',
+    lede: 'Podtytuł przy haśle (albo null)',
+    paragraphs: 'Akapity opisu — lista tekstów',
+    actions: 'Przyciski — lista',
+    'actions[].label': 'Napis na przycisku',
+    'actions[].href': 'Dokąd prowadzi: "#nazwa-slajdu" (np. "#zapisy" — skok do modułu o tej nazwie w menu), adres strony albo pełny adres https://…',
+    'actions[].variant': '"cta" — wyróżniony, "ghost" — zwykły',
+    footnote: 'Dopisek drobnym drukiem (albo null)'
+  },
+
   parse: (raw) => {
     const record = asRecord(raw);
     return {

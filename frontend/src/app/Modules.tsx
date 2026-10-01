@@ -44,6 +44,7 @@ import { viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { AreaOptions } from './AreaOptions';
 import { ModuleSettings } from './ModuleSettings';
+import { ModuleJson } from './ModuleJson';
 import { useRecent } from './prefs';
 import { RecentRow, useTouched } from './Recent';
 
@@ -286,6 +287,9 @@ function ModulePage({ module: row, areas, who, busy, onAct, onReload }: {
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
   onReload: () => Promise<void>;
 }) {
+  /* 0064 — nach einem Import mit Fragen liest das Formular neu. */
+  const [round, setRound] = useState(0);
+
   return (
     <>
       <h1 className="wk-h1">{row.name}</h1>
@@ -317,6 +321,7 @@ function ModulePage({ module: row, areas, who, busy, onAct, onReload }: {
          * gehören in den ersten — zum Einrichten, nicht über alle drei.
          */
         <FormOffice
+          key={round}
           partId={row.moduleId}
           config={readConfig(row.config)}
           who={who}
@@ -330,6 +335,9 @@ function ModulePage({ module: row, areas, who, busy, onAct, onReload }: {
           <Content module={row} busy={busy} />
         </>
       )}
+
+      {/* 0064 — dieses Modul als JSON: Name, Inhalt, bei einem Formular Fragen und Aufbau. */}
+      <ModuleJson row={row} who={who} onDone={async () => { await onReload(); setRound((n) => n + 1); }} />
     </>
   );
 }

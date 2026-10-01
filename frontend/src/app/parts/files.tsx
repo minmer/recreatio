@@ -61,6 +61,16 @@ export const filesPart = defineEventPart<FilesConfig>({
     note: null
   }),
 
+  /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
+  keys: {
+    files: 'Pliki — lista',
+    'files[].label': 'Nazwa pliku na stronie',
+    'files[].url': 'Adres https://… albo plik strony "page-image:<id>" (wgrywa się w edytorze)',
+    'files[].note': 'Opis (albo null)',
+    'files[].size': 'Rodzaj i rozmiar, np. "PDF, 240 kB" (albo null)',
+    note: 'Uwaga pod listą (albo null)'
+  },
+
   parse: (raw) => {
     const record = asRecord(raw);
     return {

@@ -39,6 +39,9 @@ interface MassConfig {
 
 export const massesPart = definePart<MassConfig>({
   kind: 'masses',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { title: 'Porządek mszy', calendar: '<id-kalendarza>', days: '7' },
   label: 'Msze i intencje',
   use: 'Porządek mszy z kalendarza, z intencjami.',
   box: { colSpan: 3, rowSpan: 3 },
@@ -75,6 +78,26 @@ interface FormConfig {
 
 export const formPart = definePart<FormConfig>({
   kind: 'form',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: {
+    title: 'Zapisy na pielgrzymkę',
+    portalUnder: 'parafia/pielgrzymka',
+    smsTemplates: JSON.stringify([{ label: 'Przypomnienie', text: 'Jutro wyjazd o 7:00 spod kościoła.' }])
+  },
+
+  /* Was der Bogen trägt, ohne dass die Seite es zeigt — eingestellt wird es in seinem Reiter „Ustawienia". */
+  extra: [
+    { key: 'title', shape: 'line', says: 'Nagłówek nad formularzem' },
+    {
+      key: 'portalUnder', shape: 'line',
+      says: 'Pod którą stroną powstaje portal osoby po zgłoszeniu — ścieżka, np. "parafia/pielgrzymka" (musi być tą stroną albo leżeć pod nią)'
+    },
+    {
+      key: 'smsTemplates', shape: 'json', says: 'Szablony wiadomości do zgłoszonych — lista',
+      inside: { '[].label': 'Nazwa szablonu', '[].text': 'Treść wiadomości' }
+    }
+  ],
   label: 'Formularz',
   use: 'Pytania i zgłoszenia; każdy dostaje własny adres.',
   box: { colSpan: 3, rowSpan: 3 },
@@ -131,6 +154,9 @@ interface SlotConfig {
 
 export const slotsPart = definePart<SlotConfig>({
   kind: 'slots',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { title: 'Wybierz termin spotkania', resource: '<id-zasobu>' },
 
   /*
    * EIN BAUSTEIN FÜR BEIDES. Ein Treffen mit dem Priester und ein Haus in

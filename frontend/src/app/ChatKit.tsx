@@ -22,7 +22,7 @@ import { createPortal } from 'react-dom';
 
 import { authorOf, openMessage, type Attachment, type Opened, type SealedMessage, type SendOptions } from './chat';
 import { PreferencesEditor, type useChatExtras } from './ChatExtras';
-import { availableNow, downloadAttachment, uploadAttachment, type Features, type Mark } from './chatFeatures';
+import { availableNow, downloadAttachment, photoForChat, uploadAttachment, type Features, type Mark } from './chatFeatures';
 import { Modal } from './Modal';
 import { saveBlob } from './platform';
 import { call } from './session';
@@ -61,6 +61,7 @@ const PATHS = {
   bell: <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></>,
   'bell-off': <><path d="M13.7 21a2 2 0 0 1-3.4 0" /><path d="M18.6 13A17.9 17.9 0 0 1 18 8" /><path d="M6.3 6.3A5.9 5.9 0 0 0 6 8c0 7-3 9-3 9h14" /><path d="M18 8a6 6 0 0 0-9.3-5" /><path d="m1 1 22 22" /></>,
   users: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" /></>,
+  camera: <><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" /><circle cx="12" cy="13" r="3" /></>,
   image: <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></>,
   file: <><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M13 2v7h7" /></>,
   music: <><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></>,
@@ -1561,15 +1562,31 @@ export const Composer = forwardRef<ComposerHandle, {
   const [planning, setPlanning] = useState(false);
   const area = useRef<HTMLTextAreaElement | null>(null);
   const picker = useRef<HTMLInputElement | null>(null);
+  const shrinkNext = useRef(true);
   const draft = useRef('');
   const wasEditing = useRef<string | null>(null);
   const lastTyping = useRef(0);
   const hold = useRef<number | undefined>(undefined);
   const held = useRef(false);
 
-  const addFiles = useCallback((more: readonly File[]) => {
+  /* Wie viele Fotos gerade verkleinert werden — so lange wartet „Wyślij". */
+  const [preparing, setPreparing] = useState(0);
+
+  /* Was schon hochgeladen ist: scheitert die Nachricht danach, lädt ein zweiter Versuch es nicht noch einmal hoch. */
+  const uploaded = useRef(new WeakMap<File, Attachment>());
+
+  /**
+   * Dateien ins Feld. `shrink`: Fotos so, wie sie in eine Rozmowa gehören
+   * (`photoForChat`) — aus „Zdjęcia i filmy", der Kamera, dem Einfügen und
+   * dem Hineinziehen. Über „Plik" kommt das Original.
+   */
+  const addFiles = useCallback((more: readonly File[], shrink = true) => {
     if (more.length === 0) return;
-    setFiles((was) => [...was, ...more].slice(0, 8));
+    if (!shrink) { setFiles((was) => [...was, ...more].slice(0, 8)); return; }
+    setPreparing((n) => n + 1);
+    void Promise.all(more.map((one) => photoForChat(one).catch(() => one)))
+      .then((ready) => setFiles((was) => [...was, ...ready].slice(0, 8)))
+      .finally(() => setPreparing((n) => n - 1));
   }, []);
   useEffect(() => { if (files.length >= 8) setNotice('Najwyżej 8 plików w jednej wiadomości.'); }, [files.length]);
 
@@ -1624,8 +1641,13 @@ export const Composer = forwardRef<ComposerHandle, {
     try {
       const attachments: Attachment[] = [];
       for (const [i, file] of list.entries()) {
-        setBusy(list.length > 1 ? `Szyfrowanie pliku ${i + 1} z ${list.length}…` : 'Szyfrowanie pliku…');
-        attachments.push(await uploadAttachment(endpoint, file));
+        const done = uploaded.current.get(file);
+        if (done !== undefined) { attachments.push(done); continue; }
+        const which = list.length > 1 ? `pliku ${i + 1} z ${list.length}` : 'pliku';
+        setBusy(`Szyfrowanie ${which}…`);
+        const one = await uploadAttachment(endpoint, file, (part) => setBusy(`Wysyłanie ${which} · ${Math.min(99, Math.round(part * 100))}%`));
+        uploaded.current.set(file, one);
+        attachments.push(one);
       }
       setBusy('Wysyłanie…');
       await onSend(body, {
@@ -1656,6 +1678,7 @@ export const Composer = forwardRef<ComposerHandle, {
       return;
     }
     if (blocked !== null) { setFailed(blocked); return; }
+    if (preparing > 0) return;
     if (body === '' && files.length === 0) return;
     if (await deliver(body, files, sendAt)) { setText(''); setFiles([]); }
   };
@@ -1667,10 +1690,20 @@ export const Composer = forwardRef<ComposerHandle, {
     await deliver('', [file]);
   };
 
-  const choose = (accept: string) => {
+  /*
+   * DIE AUSWAHL ÖFFNEN. Das Feld ist nicht `display: none`, sondern nur
+   * unsichtbar, und es bekommt den Fokus, bevor es sich öffnet: sonst gäbe das
+   * schliessende Menü den Fokus an das Textfeld zurück — und auf dem Telefon
+   * spränge die Tastatur über (oder vor) die Auswahl der Fotos.
+   */
+  const choose = (accept: string, how: { shrink: boolean; camera?: boolean }) => {
     const input = picker.current;
     if (input === null) return;
+    shrinkNext.current = how.shrink;
     input.accept = accept;
+    input.multiple = how.camera !== true;
+    if (how.camera === true) input.setAttribute('capture', 'environment'); else input.removeAttribute('capture');
+    input.focus({ preventScroll: true });
     input.click();
   };
 
@@ -1693,8 +1726,8 @@ export const Composer = forwardRef<ComposerHandle, {
     return <div className="ch-compose is-readonly"><Icon name="lock" /><span>{readOnly}</span></div>;
   }
 
-  const content = text.trim() !== '' || files.length > 0;
-  const line = failed ?? recorder.failed ?? busy ?? notice;
+  const content = text.trim() !== '' || files.length > 0 || preparing > 0;
+  const line = failed ?? recorder.failed ?? busy ?? (preparing > 0 ? 'Przygotowywanie zdjęć…' : null) ?? notice;
 
   return (
     <form className="ch-compose" onSubmit={(e) => { e.preventDefault(); void send(); }}>
@@ -1785,7 +1818,7 @@ export const Composer = forwardRef<ComposerHandle, {
               className="ch-send"
               aria-label={editing !== null ? 'Zapisz zmianę' : 'Wyślij'}
               title={editing !== null ? 'Zapisz' : 'Wyślij · prawy przycisk albo przytrzymanie: zaplanuj'}
-              disabled={busy !== null || (!content && editing === null)}
+              disabled={busy !== null || preparing > 0 || (!content && editing === null)}
               onContextMenu={(e) => { if (editing !== null) return; e.preventDefault(); toggle('send', e.currentTarget); }}
               onPointerDown={(e) => {
                 if (e.pointerType !== 'touch' || editing !== null) return;
@@ -1809,7 +1842,8 @@ export const Composer = forwardRef<ComposerHandle, {
         </div>
       )}
 
-      <input ref={picker} type="file" multiple hidden onChange={(e) => { addFiles(Array.from(e.target.files ?? [])); e.target.value = ''; }} />
+      <input ref={picker} type="file" multiple className="ch-picker" tabIndex={-1} aria-label="Wybierz pliki"
+        onChange={(e) => { addFiles(Array.from(e.target.files ?? []), shrinkNext.current); e.target.value = ''; }} />
 
       {line !== null && (
         <p className={cls('ch-compose-line', (failed !== null || recorder.failed !== null) && 'is-error')} role={failed !== null ? 'alert' : 'status'}>{line}</p>
@@ -1817,9 +1851,10 @@ export const Composer = forwardRef<ComposerHandle, {
 
       {pop?.kind === 'attach' && (
         <PopMenu anchor={{ rect: pop.rect, above: true }} from={pop.from} label="Dołącz" onClose={() => setPop(null)} items={[
-          { label: 'Zdjęcia i filmy', icon: 'image', onSelect: () => choose('image/*,video/*') },
-          { label: 'Plik', icon: 'file', onSelect: () => choose('') },
-          { label: 'Muzyka i nagrania', icon: 'music', onSelect: () => choose('audio/*') }
+          ...(coarsePointer() ? [{ label: 'Zrób zdjęcie', icon: 'camera' as const, onSelect: () => choose('image/*', { shrink: true, camera: true }) }] : []),
+          { label: 'Zdjęcia i filmy', icon: 'image', onSelect: () => choose('image/*,video/*', { shrink: true }) },
+          { label: 'Plik — bez zmniejszania', icon: 'file', onSelect: () => choose('', { shrink: false }) },
+          { label: 'Muzyka i nagrania', icon: 'music', onSelect: () => choose('audio/*', { shrink: false }) }
         ]} />
       )}
       {pop?.kind === 'send' && (

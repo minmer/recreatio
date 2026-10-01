@@ -28,6 +28,15 @@ export const factsPart = defineEventPart<ShortInfosConfig>({
     note: null
   }),
 
+  /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
+  keys: {
+    items: 'Krótkie informacje — lista',
+    'items[].label': 'Etykieta, np. "Termin"',
+    'items[].value': 'Wartość, np. "28–29.08.2026"',
+    'items[].detail': 'Doprecyzowanie pod wartością (albo null; w pasku niewidoczne)',
+    note: 'Uwaga pod spodem (albo null)'
+  },
+
   parse: (raw) => {
     const record = asRecord(raw);
     return {

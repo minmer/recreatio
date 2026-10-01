@@ -135,6 +135,15 @@ export const galleryPart = defineEventPart<GalleryConfig>({
   blank: () => ({ shots: [], shuffle: true }),
   example: () => ({ shots: [{ url: 'https://…/zdjecie.jpg', caption: 'Wyjazd z Krakowa', alt: 'Grupa rowerzystów o świcie' }], shuffle: true }),
 
+  /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
+  keys: {
+    shots: 'Zdjęcia — lista',
+    'shots[].url': 'Adres https://… albo plik strony "page-image:<id>" (wgrywa się w edytorze)',
+    'shots[].caption': 'Podpis (albo null)',
+    'shots[].alt': 'Opis zdjęcia dla czytników ekranu',
+    shuffle: 'true — kolejność losowa przy każdym wejściu, false — jak na liście'
+  },
+
   parse: (raw) => {
     const record = asRecord(raw);
     return {

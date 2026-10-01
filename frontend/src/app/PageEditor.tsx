@@ -22,7 +22,7 @@ import { PageBuilder } from './PageBuilder';
 import { logicKey, PageLogicEditor } from './PageLogicEditor';
 import { pagePath } from './routes';
 import { SlidesEditor } from './SlidesEditor';
-import { SlidesImport } from './SlidesImport';
+import { PageJson } from './PageJsonPanel';
 import { NO_LOOK, readLook, writeLook, type Look } from './slides';
 import { WorkspaceError, type Who } from './session';
 
@@ -54,8 +54,12 @@ export function PageEditor({ path, who, onOpenModule }: {
   const [failed, setFailed] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const look = useCallback(async () => {
-    setReady(false);
+  /* 0064 — nach einem Import liest das Menü neu; es hält seinen Stand selbst. */
+  const [menuKey, setMenuKey] = useState(0);
+
+  /* `quiet`: ohne „Wczytywanie…" dazwischen — nach einem Import bleibt das JSON-Fach mit seinem Ergebnis stehen. */
+  const look = useCallback(async (quiet = false) => {
+    if (!quiet) setReady(false);
     setFailed(null);
 
     try {
@@ -113,7 +117,7 @@ export function PageEditor({ path, who, onOpenModule }: {
       */}
       <details className="wk-fold wk-menued-fold">
         <summary>Menu strony</summary>
-        <MenuEditor path={path} />
+        <MenuEditor key={menuKey} path={path} />
       </details>
 
       <form
@@ -214,13 +218,6 @@ export function PageEditor({ path, who, onOpenModule }: {
       />
       )}
 
-      {/* 0063 — ein Ereignis des Altbestands als JSON: jede Część wird ein Baustein, mit Slajd und Hintergrund. */}
-      <SlidesImport
-        parts={parts}
-        look={pageLook}
-        onParts={(next) => { setParts(next); setDirty(true); }}
-        onLook={(next) => { setPageLook(next); setLookDirty(true); }}
-      />
 
       <div className="wk-actions">
         <button
@@ -237,6 +234,19 @@ export function PageEditor({ path, who, onOpenModule }: {
 
         {!dirty && !lookDirty && busy === null && <span className="wk-blocker">Nic się nie zmieniło.</span>}
       </div>
+
+      {/*
+        0064 — DIE GANZE SEITE ALS JSON: hinaus mit allem (Bausteine mit Inhalt,
+        Formulare mit Fragen, Menü, Karte), herein an Ort und Stelle — und
+        daneben die Beschreibung, wie das Dokument aussieht. Nimmt auch ein
+        Ereignis des Altbestands an (vorher `SlidesImport`).
+      */}
+      <PageJson
+        now={{ path, title, lead, mode, look: pageLook, parts, logic }}
+        who={who}
+        unsaved={dirty || lookDirty}
+        onDone={async () => { await look(true); setMenuKey((n) => n + 1); }}
+      />
 
       {/*
         DIE KARTE DER SEITE (0048): wann welcher Baustein zu sehen ist, und

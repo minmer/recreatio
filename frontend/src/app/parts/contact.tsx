@@ -25,6 +25,9 @@ const read = (raw: RawConfig): Config => ({
 
 export const contactPart = definePart<Config>({
   kind: 'contact',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { address: 'ul. Przykładowa 1, 30-001 Kraków', phone: '+48 12 000 00 00', email: 'kancelaria@example.pl' },
   label: 'Kontakt',
   use: 'Adres, telefon, e-mail — numer da się kliknąć.',
   box: { colSpan: 2, rowSpan: 3 },

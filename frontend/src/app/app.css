@@ -3236,6 +3236,9 @@ button.wk-tree-add:disabled { opacity: 0.5; cursor: default; }
 .ch-context-text span { overflow: hidden; color: var(--wk-muted); font-size: 0.85rem; text-overflow: ellipsis; white-space: nowrap; }
 
 .ch-files { display: flex; gap: 0.4rem; overflow-x: auto; padding-bottom: 0.1rem; }
+
+/* Die Dateiauswahl: unsichtbar, aber da — sie nimmt den Fokus, damit das schliessende Menü ihn nicht dem Textfeld gibt (Tastatur über der Fotoauswahl). */
+.ch-picker { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; opacity: 0; }
 .ch-file-chip {
   display: flex;
   flex: none;
@@ -6360,12 +6363,64 @@ span.pe-item-title { cursor: default; }
 .wk-unused-ask p { margin: 0; }
 .wk-unused-ask ul { margin: 0; padding-left: 1.2rem; }
 
-/* -- Ein Ereignis aus dem Altbestand übernehmen (SlidesImport) ------------------------- */
+/* -- 0064: JSON — Export, Import und die Beschreibung daneben (JsonPanel) ------------- */
 
-.se-import { display: grid; gap: 0.6rem; }
-.se-import[open] > summary { margin-bottom: 0.2rem; }
-.se-import textarea { font-family: ui-monospace, "Cascadia Mono", "IBM Plex Mono", monospace; font-size: 0.82rem; }
-.se-import-warn { display: grid; gap: 0.2rem; margin: 0.3rem 0 0; padding-left: 1.2rem; color: var(--wk-muted); font-size: 0.86rem; }
+/* Neben dem Import steht die Beschreibung — sobald das Fach breit genug ist; die Breite des FACHS zählt, nicht die des Geräts. */
+.wk-json-body { container-type: inline-size; display: grid; gap: 0.7rem; padding-top: 0.7rem; }
+.wk-json-body > .wk-hint { margin: 0; }
+.wk-json-grid { display: grid; gap: 1rem; align-items: start; }
+@container (min-width: 46rem) {
+  .wk-json-grid:not(.is-narrow) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+.wk-json-io { display: grid; gap: 1rem; min-width: 0; }
+.wk-json-part { display: grid; gap: 0.5rem; min-width: 0; }
+.wk-json-h { margin: 0; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--wk-muted); }
+
+.wk-json-text {
+  width: 100%;
+  box-sizing: border-box;
+  font: 0.8rem/1.45 ui-monospace, "Cascadia Mono", "IBM Plex Mono", monospace;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 3px;
+  background: var(--wk-ground);
+  color: var(--wk-ink);
+  resize: vertical;
+  tab-size: 2;
+}
+.wk-json-text:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-json-text[readonly] { background: var(--wk-soft); }
+
+.wk-json-plan { display: grid; gap: 0.45rem; padding: 0.6rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 4px; background: var(--wk-ground); }
+.wk-json-plan ul { margin: 0; padding-left: 1.15rem; display: grid; gap: 0.15rem; font-size: 0.9rem; }
+.wk-json-plan p { margin: 0; }
+.wk-json-warn { color: var(--wk-held-ink); }
+.wk-json-options { display: grid; gap: 0.5rem; }
+.wk-json-options .pe-check { align-items: flex-start; }
+.wk-json-options .pe-check input { margin-top: 0.2rem; }
+
+.wk-json-doc { display: grid; gap: 0.45rem; min-width: 0; }
+.wk-json-doc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.9rem; }
+.wk-json-doc-head .wk-json-h { margin-right: auto; }
+.wk-json-pre {
+  margin: 0;
+  max-height: 34rem;
+  overflow: auto;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--wk-line);
+  border-radius: 3px;
+  background: var(--wk-soft);
+  color: var(--wk-ink);
+  font: 0.76rem/1.5 ui-monospace, "Cascadia Mono", "IBM Plex Mono", monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Der Knopf neben „Pokaż JSON": derselbe Knopf, nur ohne Fläche. */
+.wk-btn.wk-btn-line { background: transparent; color: var(--wk-accent); }
+
+/* In den Einstellungen eines Bausteins steht das Fach unter den Feldern — mit Abstand, aber ohne den grossen der Seite. */
+.pb-fields .wk-json, .se .wk-json { margin-top: 1rem; }
 
 /* Ein Baustein der Ereignisseiten im Streifen nimmt die ganze Zeile — der Streifen ist ein flex-Behälter. */
 .wk-card[data-h='strip'] > .wk-evp { flex: 1 1 100%; }

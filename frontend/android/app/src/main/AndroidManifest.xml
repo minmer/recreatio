@@ -65,6 +65,21 @@
             tools:node="remove" />
     </application>
 
+    <!--
+      „Zrób zdjęcie" in der Rozmowa (`<input capture>`): die WebView-Hülle fragt
+      mit resolveActivity, ob es eine Kamera-App gibt — ab Android 11 sieht sie
+      ohne diese Zeilen keine und öffnet stattdessen nur die Dateiauswahl.
+      Keine CAMERA-Berechtigung: fotografiert wird in der Kamera-App, nicht hier.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.VIDEO_CAPTURE" />
+        </intent>
+    </queries>
+
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />

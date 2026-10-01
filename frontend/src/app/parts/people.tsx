@@ -36,6 +36,18 @@ export const peoplePart = defineEventPart<PeopleConfig>({
     note: null
   }),
 
+  /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
+  keys: {
+    people: 'Osoby — lista',
+    'people[].name': 'Imię i nazwisko',
+    'people[].role': 'Funkcja (albo null)',
+    'people[].detail': 'Krótki opis (albo null)',
+    'people[].photoUrl': 'Zdjęcie: adres https://… albo plik strony "page-image:<id>" (albo null)',
+    'people[].contact': 'Kontakt — telefon albo e-mail; sam zamienia się w link (albo null)',
+    'people[].contactHref': 'Własny link kontaktu, np. "https://…" (albo null — z pola contact)',
+    note: 'Uwaga pod listą (albo null)'
+  },
+
   parse: (raw) => {
     const record = asRecord(raw);
     return {

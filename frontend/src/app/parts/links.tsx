@@ -27,6 +27,9 @@ const read = (raw: RawConfig): Config => ({
 
 export const linksPart = definePart<Config>({
   kind: 'links',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { title: 'Zobacz też', body: 'Zapisy — parafia/bierzmowanie\nOgłoszenia — https://example.pl/ogloszenia' },
   label: 'Odnośniki',
   use: 'Przejście na inne strony tego adresu.',
   box: { colSpan: 2, rowSpan: 3 },

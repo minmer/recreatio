@@ -241,6 +241,147 @@ export interface PartModule {
    * Felder (`fields`).
    */
   readonly Editor: ComponentType<EditorProps> | null;
+
+  /**
+   * 0064 — DER BAUSTEIN ALS JSON: was ein Export ausgibt, was ein Import
+   * annimmt, und wie es beschrieben wird (`pageJson.ts`).
+   *
+   * <b>Pflicht für jede Art, und das ist der Punkt.</b> Die Beschreibung neben
+   * jedem Import wird aus diesen Angaben erzeugt; eine Art, die hier nichts
+   * sagt, liesse sich nicht übersetzen. `scripts/app-json-check.mjs` prüft,
+   * dass jeder Schlüssel des Beispiels beschrieben ist und keiner beschrieben,
+   * den es nicht gibt — eine neue Möglichkeit ohne Beschreibung fällt dort auf.
+   */
+  readonly json: PartJson;
+}
+
+/** 0064 — die Inhalte eines Bausteins als JSON (siehe `PartModule.json`). */
+export interface PartJson {
+  /** Ein ausgefülltes Beispiel, so wie es im JSON steht. */
+  readonly example: Readonly<Record<string, unknown>>;
+
+  /**
+   * Was jeder Schlüssel bedeutet: `title`, `groups[]`, `groups[].rows[].time`
+   * — ein Satz je Schlüssel. Daraus wird die Beschreibung neben dem Import.
+   */
+  readonly keys: Readonly<Record<string, string>>;
+
+  /** Gespeicherte Tafel → JSON. Gibt nur aus, was gesetzt ist. */
+  readonly toJson: (raw: RawConfig) => Record<string, unknown>;
+
+  /**
+   * JSON → gespeicherte Tafel. Duldsam: was nicht passt, fällt weg, und
+   * geworfen wird nie — ein kaputtes Feld leert nur sich selbst.
+   */
+  readonly fromJson: (value: unknown) => RawConfig;
+}
+
+/**
+ * WIE EIN SCHLÜSSEL DER TAFEL IM JSON STEHT.
+ *
+ * <code>
+ *   line   eine Zeichenkette, wie sie gespeichert ist
+ *   lines  eine Liste von Zeilen — ein mehrzeiliges Feld, Zeile für Zeile
+ *   ids    eine Liste von Kennungen (oder "*": alle) — gespeichert mit Kommas
+ *   json   ein Objekt oder eine Liste — gespeichert als JSON-Zeichenkette
+ * </code>
+ */
+export type JsonShape = 'line' | 'lines' | 'ids' | 'json';
+
+/** Ein Schlüssel, den die Tafel trägt, ohne dass der Rastereditor ihn als Feld zeigt (etwa die Vorlagen eines Formulars). */
+export interface ExtraKey {
+  readonly key: string;
+  readonly shape: JsonShape;
+  readonly says: string;
+
+  /** Bei `json`: was die Einträge darin bedeuten — `[].label` → Satz. */
+  readonly inside?: Readonly<Record<string, string>>;
+}
+
+/** Wie ein Feld der Tafel im JSON steht. */
+const shapeOfField = (kind: FieldKind): JsonShape =>
+  kind === 'text' ? 'lines' : kind === 'calendars' || kind === 'questions' ? 'ids' : 'line';
+
+/** Was eine Feldart im JSON heisst — für die Beschreibung. */
+const FIELD_SAYS: Record<FieldKind, string> = {
+  line: 'tekst w jednym wierszu',
+  text: 'lista wierszy (albo jeden tekst z \\n)',
+  resource: 'identyfikator zasobu z Rezerwacji — najprościej wybrać w edytorze',
+  form: 'identyfikator modułu „Formularz” — najprościej wybrać w edytorze',
+  questions: '"*" (wszystkie pytania, także dodane później) albo lista identyfikatorów pytań',
+  calendar: 'identyfikator kalendarza grupy — najprościej wybrać w edytorze',
+  calendars: 'lista identyfikatorów kalendarzy — najprościej wybrać w edytorze',
+  chat: 'identyfikator rozmowy grupy — najprościej wybrać w edytorze'
+};
+
+/** Eine Zeile des JSON als gespeicherter Wert — oder `null`: nichts. */
+function storedOf(value: unknown, shape: JsonShape): string | null {
+  if (value === null || value === undefined) return null;
+  if (shape === 'json') {
+    if (typeof value === 'string') return value.trim() === '' ? null : value;
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    const parts = value.filter((one) => one !== null && one !== undefined).map((one) => (typeof one === 'string' ? one : JSON.stringify(one)));
+    const joined = parts.join(shape === 'ids' ? ',' : '\n');
+    return joined.trim() === '' ? null : joined;
+  }
+  if (typeof value === 'string') return value.trim() === '' ? null : value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return JSON.stringify(value);
+}
+
+/** Ein gespeicherter Wert als Zeile des JSON. */
+function jsonOf(stored: string, shape: JsonShape): unknown {
+  if (shape === 'lines') return stored.split('\n');
+  if (shape === 'ids') return stored.trim() === '*' ? '*' : stored.split(',').map((one) => one.trim()).filter((one) => one !== '');
+  if (shape === 'json') {
+    try { return JSON.parse(stored) as unknown; } catch { return stored; }
+  }
+  return stored;
+}
+
+/**
+ * Das JSON einer Art mit flacher Tafel — aus ihren Feldern und den
+ * zusätzlichen Schlüsseln. Unbekannte Schlüssel gehen unverändert mit: ein
+ * Export verliert nichts, auch nicht, was diese Fassung nicht kennt.
+ */
+export function flatJson(fields: readonly FieldDef[], extra: readonly ExtraKey[], example: RawConfig): PartJson {
+  const shapes = new Map<string, JsonShape>([
+    ...fields.map((f) => [f.key, shapeOfField(f.kind)] as const),
+    ...extra.map((e) => [e.key, e.shape] as const)
+  ]);
+  const order = [...shapes.keys()];
+
+  const toJson = (raw: RawConfig): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    const keys = [...order, ...Object.keys(raw).filter((key) => !shapes.has(key)).sort()];
+    for (const key of keys) {
+      const stored = raw[key];
+      if (stored === undefined || stored.trim() === '') continue;
+      out[key] = jsonOf(stored, shapes.get(key) ?? 'line');
+    }
+    return out;
+  };
+
+  const fromJson = (value: unknown): RawConfig => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+    const out: RawConfig = {};
+    for (const [key, one] of Object.entries(value as Record<string, unknown>)) {
+      const stored = storedOf(one, shapes.get(key) ?? (Array.isArray(one) ? 'lines' : 'line'));
+      if (stored !== null) out[key] = stored;
+    }
+    return out;
+  };
+
+  const keys: Record<string, string> = {};
+  for (const f of fields) keys[f.key] = `${f.label} — ${FIELD_SAYS[f.kind]}${f.hint === undefined ? '' : ` (${f.hint})`}`;
+  for (const e of extra) {
+    keys[e.key] = e.says;
+    for (const [path, says] of Object.entries(e.inside ?? {})) keys[`${e.key}${path}`] = says;
+  }
+
+  return { example: toJson(example), keys, toJson, fromJson };
 }
 
 /** 0063 — was ein eigener Editor über seine Umgebung wissen darf. */
@@ -282,6 +423,19 @@ export function definePart<C>(spec: {
   strip?: { title: string; open: string };
   fullscreen?: boolean;
   Editor?: ComponentType<EditorProps>;
+
+  /**
+   * 0064 — EIN AUSGEFÜLLTES BEISPIEL der Tafel, wie sie gespeichert liegt.
+   * Daraus entsteht das Beispiel in der Beschreibung des JSON. Pflicht: eine
+   * Art ohne Beispiel ist eine Art, die niemand importieren kann.
+   */
+  example: RawConfig;
+
+  /** Schlüssel, die die Tafel ohne eigenes Feld trägt — siehe `ExtraKey`. */
+  extra?: readonly ExtraKey[];
+
+  /** Ein eigenes JSON statt des flachen (die Bausteine der Ereignisseiten). */
+  json?: PartJson;
 }): PartModule {
   /*
    * Als echtes Bauteil eingehängt und nicht als Funktion aufgerufen: sonst
@@ -307,7 +461,8 @@ export function definePart<C>(spec: {
     strip: spec.strip ?? null,
     fullscreen: spec.fullscreen ?? false,
     read: spec.read,
-    Editor: spec.Editor ?? null
+    Editor: spec.Editor ?? null,
+    json: spec.json ?? flatJson(spec.fields, spec.extra ?? [], spec.example)
   };
 }
 

@@ -62,6 +62,13 @@ export const faqPart = defineEventPart<FaqConfig>({
     ]
   }),
 
+  /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
+  keys: {
+    items: 'Pytania i odpowiedzi — lista',
+    'items[].question': 'Pytanie',
+    'items[].answer': 'Odpowiedź'
+  },
+
   parse: (raw) => ({
     /* Nichts fällt beim Lesen weg: eine eben hinzugefügte Frage ist auf beiden Seiten leer. */
     items: mapEntries<FaqItem>(asRecord(raw).items, (item) => ({ question: asText(item.question).trim(), answer: asText(item.answer).trim() }))

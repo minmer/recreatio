@@ -40,6 +40,7 @@ import { PickCalendar, PickCalendars } from './PickCalendar';
 import { PickChat } from './PickChat';
 import { PickResource } from './PickResource';
 import type { DraftPart } from './page';
+import { PartJson } from './PageJsonPanel';
 
 const ROW_H = 84;
 const GAP = 8;
@@ -631,6 +632,9 @@ function Fields({ part, size, busy, onSet, path }: {
           </Wrap>
         );
       })}
+
+      {/* 0064 — sein Inhalt als JSON, mit der Beschreibung daneben. */}
+      <PartJson part={part} onSet={onSet} />
     </section>
   );
 }

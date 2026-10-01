@@ -161,6 +161,20 @@ export const costsPart = defineEventPart<CostsConfig>({
     note: 'Kwoty są aktualizowane przez organizatora.'
   }),
 
+  /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
+  keys: {
+    currency: 'Waluta — kod, np. "PLN"',
+    participantCount: 'Liczba uczestników do podziału kosztów (albo null)',
+    costItems: 'Koszty — lista',
+    'costItems[].label': 'Za co',
+    'costItems[].suggested': 'Kwota proponowana (liczba albo null)',
+    'costItems[].actual': 'Kwota rzeczywista (liczba albo null)',
+    donations: 'Wpłaty i darowizny — lista',
+    'donations[].label': 'Od kogo / na co',
+    'donations[].amount': 'Kwota (liczba albo null)',
+    note: 'Uwaga pod rozliczeniem (albo null)'
+  },
+
   parse: (raw) => {
     const record = asRecord(raw);
     /* Posten ohne Namen fallen beim Lesen NICHT weg — der Editor legt sie leer an. Die Ansicht nimmt nur benannte. */

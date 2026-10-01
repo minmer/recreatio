@@ -200,11 +200,28 @@ export const mapPart = defineEventPart<MapConfig>({
       { label: 'Start', lat: 50.0619, lon: 19.9369, detail: 'Miejsce zbiórki', isStop: true },
       { label: 'Meta', lat: 50.8118, lon: 19.0967, detail: 'Jasna Góra', isStop: true }
     ],
-    tracks: [],
+    tracks: [{ name: 'Dzień 1', color: null, points: [[50.0619, 19.9369], [50.2803, 19.5594], [50.8118, 19.0967]] }],
     zoom: 9,
     showTrack: true,
     note: null
   }),
+
+  /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
+  keys: {
+    points: 'Punkty na mapie — lista',
+    'points[].label': 'Nazwa punktu',
+    'points[].lat': 'Szerokość geograficzna (liczba, np. 50.0619)',
+    'points[].lon': 'Długość geograficzna (liczba, np. 19.9369)',
+    'points[].detail': 'Opis punktu (albo null)',
+    'points[].isStop': 'true — przystanek (pokazany w legendzie), false — zwykły punkt',
+    tracks: 'Trasy — lista (najprościej wczytać plik GPX w edytorze)',
+    'tracks[].name': 'Nazwa trasy',
+    'tracks[].color': 'Kolor linii, np. "#d9480f" (albo null — z palety)',
+    'tracks[].points': 'Punkty trasy: lista par [szerokość, długość]; razem najwyżej 2000 punktów',
+    zoom: 'Przybliżenie mapy, 2–18',
+    showTrack: 'true — rysuj trasy, false — tylko punkty',
+    note: 'Uwaga pod mapą (albo null)'
+  },
 
   parse: (raw) => {
     const record = asRecord(raw);

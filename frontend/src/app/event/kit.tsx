@@ -22,7 +22,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode, type RefObject } from 'react';
 
 import {
-  definePart, text, type EditorContext, type EditorProps, type PartContext, type PartModule, type PartSize, type RawConfig
+  definePart, text, type EditorContext, type EditorProps, type PartContext, type PartJson, type PartModule, type PartSize, type RawConfig
 } from '../part';
 import { FilePicker, ImagePicker } from '../PageFiles';
 
@@ -381,6 +381,13 @@ export function defineEventPart<C>(spec: {
   blank: () => C;
   /** Ein ausgefülltes Beispiel — für den Słownik (Altbestand: `example`). */
   example: () => C;
+  /**
+   * 0064 — WAS JEDER SCHLÜSSEL BEDEUTET, für die Beschreibung neben dem
+   * Import: `groups[]`, `groups[].rows[].time` → ein Satz. `title` und
+   * `intro` stehen schon da. Jeder Schlüssel des Beispiels muss hier stehen
+   * (`scripts/app-json-check.mjs`).
+   */
+  keys: Readonly<Record<string, string>>;
   hasContent: (config: C) => boolean;
   shows: (config: C, size: PartSize) => string;
   Body: ComponentType<{ config: C; ctx: PartContext; title: string }>;
@@ -408,6 +415,35 @@ export function defineEventPart<C>(spec: {
   };
   Editor.displayName = `EventEditor(${spec.kind})`;
 
+  /*
+   * 0064 — IM JSON STEHT DIE GESTALT OFFEN DA: `title`, `intro` und daneben
+   * die Schlüssel des Bausteins, nicht als Zeichenkette in `json`. Ein
+   * Dokument des Altbestands (`{ title, intro, config }`) wird ebenso
+   * angenommen.
+   */
+  const toJson = (raw: RawConfig): Record<string, unknown> => {
+    const now = read(raw);
+    return { title: now.title, intro: now.intro, ...asRecord(now.config) };
+  };
+  const json: PartJson = {
+    example: toJson({ title: spec.label, json: JSON.stringify(spec.example()) }),
+    keys: {
+      title: `Nagłówek nad treścią${spec.ownHeading === true ? ' (tu: tylko nazwa w menu slajdów — moduł pokazuje własny tytuł)' : ''}`,
+      intro: 'Krótki wstęp pod nagłówkiem (może być pusty)',
+      ...spec.keys
+    },
+    toJson,
+    fromJson: (value) => {
+      const record = asRecord(value);
+      const { title, intro, config, ...rest } = record;
+      const content = Object.keys(rest).length === 0 && config !== null && typeof config === 'object' ? config : rest;
+      const out: RawConfig = { json: JSON.stringify(spec.parse(content)) };
+      if (asText(title).trim() !== '') out.title = asText(title);
+      if (asText(intro).trim() !== '') out.intro = asText(intro);
+      return out;
+    }
+  };
+
   const module = definePart<EventConfig<C>>({
     kind: spec.kind,
     label: spec.label,
@@ -420,6 +456,8 @@ export function defineEventPart<C>(spec: {
     strip: spec.strip,
     fullscreen: spec.fullscreen,
     Editor,
+    example: { title: spec.label, json: JSON.stringify(spec.example()) },
+    json,
     View: ({ config, ctx }) => (
       <EvRoot className={`wk-evp-${spec.kind}`}>
         {config.title !== '' && spec.ownHeading !== true && <h2 className="wk-card-title">{config.title}</h2>}

@@ -25,6 +25,9 @@ const read = (raw: RawConfig): Config => ({
 
 export const hoursPart = definePart<Config>({
   kind: 'hours',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { title: 'Kancelaria', body: 'poniedziałek — 9:00–11:00\nwtorek — 16:00–18:00' },
   label: 'Godziny',
   use: 'Kancelaria, spowiedź — jedna pozycja w wierszu.',
   box: { colSpan: 2, rowSpan: 3 },

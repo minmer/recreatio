@@ -51,16 +51,46 @@ try {
 
   let ciphertext;
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (_url, init) => {
-    if (init?.method === 'POST') { ciphertext = new Uint8Array(await init.body.arrayBuffer()); return new Response(JSON.stringify({ attachmentId: attachment.id }), { status: 200 }); }
-    return new Response(ciphertext);
+  globalThis.fetch = async () => new Response(ciphertext);
+  /* Hochgeladen wird mit XMLHttpRequest — nur er meldet den Fortschritt. */
+  let sentWith = null;
+  const originalXhr = globalThis.XMLHttpRequest;
+  globalThis.XMLHttpRequest = class {
+    constructor() { this.upload = {}; this.headers = {}; this.withCredentials = false; }
+    open(method, url) { this.method = method; this.url = url; }
+    setRequestHeader(name, value) { this.headers[name] = value; }
+    async send(body) {
+      ciphertext = new Uint8Array(await body.arrayBuffer());
+      sentWith = { method: this.method, url: this.url, headers: this.headers, credentials: this.withCredentials };
+      this.upload.onprogress?.({ lengthComputable: true, loaded: ciphertext.length / 2, total: ciphertext.length });
+      this.status = 200;
+      this.responseText = JSON.stringify({ attachmentId: attachment.id });
+      this.onload?.();
+    }
   };
+  const progress = [];
   const file = new File(['private music bytes'], 'song.mp3', { type: 'audio/mpeg' });
-  const uploaded = await features.uploadAttachment('/workspace/chat/test', file);
+  const uploaded = await features.uploadAttachment('/workspace/chat/test', file, (part) => progress.push(part));
   assert.equal(Buffer.from(ciphertext).includes(Buffer.from('private music bytes')), false, 'only ciphertext uploaded');
+  assert.ok(sentWith.url.endsWith('/workspace/chat/test/attachments'), 'upload goes to the attachments of the chat');
+  assert.deepEqual({ ...sentWith, url: undefined }, { method: 'POST', url: undefined, headers: { Accept: 'application/json', 'Content-Type': 'application/octet-stream' }, credentials: true }, 'upload carries the session and the octet-stream type');
+  assert.deepEqual(progress, [0.5], 'upload reports its progress');
+  globalThis.XMLHttpRequest = class extends globalThis.XMLHttpRequest { async send() { this.status = 400; this.responseText = JSON.stringify({ error: 'Zaszyfrowany plik musi mieć najwyżej 50 MB.' }); this.onload?.(); } };
+  await assert.rejects(features.uploadAttachment('/workspace/chat/test', file), /najwyżej 50 MB/, 'the service says why');
+  globalThis.XMLHttpRequest = class extends globalThis.XMLHttpRequest { async send() { this.onerror?.(); } };
+  await assert.rejects(features.uploadAttachment('/workspace/chat/test', file), /połączenie/, 'a dropped connection says so');
+  globalThis.XMLHttpRequest = originalXhr;
+
+  /* Fotos werden vor dem Senden verkleinert — alles andere geht, wie es ist. */
+  for (const same of [file, new File(['GIF89a'], 'a.gif', { type: 'image/gif' }), new File(['x'.repeat(1000)], 'small.jpg', { type: 'image/jpeg' })]) {
+    assert.equal(await features.photoForChat(same), same, `${same.name} stays as it is`);
+  }
+  /* Ohne createImageBitmap (Node) bleibt auch ein grosses Foto das Original — nichts geht verloren. */
+  const big = new File([new Uint8Array(2 * 1024 * 1024)], 'big.jpg', { type: 'image/jpeg' });
+  assert.equal(await features.photoForChat(big), big, 'an unreadable photo is sent as it is');
   assert.equal(await (await features.downloadAttachment('/workspace/chat/test', uploaded)).text(), 'private music bytes', 'attachment round trip');
   ciphertext[ciphertext.length - 1] ^= 1;
   await assert.rejects(features.downloadAttachment('/workspace/chat/test', uploaded), 'tampered attachment rejected');
   globalThis.fetch = originalFetch;
-  console.log('ok   chat availability, DST boundaries, encrypted messages, edits, replies and disk attachment transport');
+  console.log('ok   chat availability, DST boundaries, encrypted messages, edits, replies and disk attachment transport with progress, photos made small');
 } finally { globalThis.BroadcastChannel = broadcastChannel; await rm(dir, { recursive: true, force: true }); }

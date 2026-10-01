@@ -23,6 +23,9 @@ interface ChatConfig {
 
 export const chatPart = definePart<ChatConfig>({
   kind: 'chat',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { title: 'Rozmowa rady parafialnej', chat: '<id-rozmowy>' },
   label: 'Rozmowa',
   use: 'Rozmowa wybranej grupy na stronie — czyta i pisze w niej ten, kto do grupy należy albo ma swój link.',
   box: { colSpan: 3, rowSpan: 5 },

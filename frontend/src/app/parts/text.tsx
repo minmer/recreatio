@@ -63,6 +63,12 @@ function TextView({ config, strip }: { config: Config; strip: boolean }) {
 
 export const textPart = definePart<Config>({
   kind: 'text',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: {
+    title: 'O wspólnocie',
+    body: 'Spotykamy się w każdy czwartek o 19:30 w salce przy kościele.\n## Kto może przyjść\nKażdy — nie trzeba się zapisywać.'
+  },
   label: 'Tekst',
   use: 'Akapity — to, co strona ma powiedzieć.',
   box: { colSpan: 6, rowSpan: 3 },

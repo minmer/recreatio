@@ -22,7 +22,7 @@ const entry = join(workspace, 'entry.ts');
 const app = join(process.cwd(), 'src/app/').replace(/\\/g, '/');
 await writeFile(entry, `
 export { PARTS, partOf } from '${app}parts/registry';
-export { importLegacy, legacyPages, dictionary } from '${app}SlidesImport';
+export { importLegacy, legacyPages } from '${app}SlidesImport';
 export { parseGpx, simplifyTrack, trackLengthKm } from '${app}event/gpx';
 export { partSize } from '${app}part';
 `);
@@ -145,8 +145,7 @@ try {
 
   assert.deepEqual(m.importLegacy({ parts: [{ kind: 'faq', config: { items: [] } }] }, 0, []).parts.map((p) => p.kind), ['faq'], 'a bare { parts } document');
   assert.deepEqual(m.importLegacy([{ kind: 'people', config: {} }], 0, []).parts.map((p) => p.kind), ['people'], 'a bare list');
-  assert.ok(m.dictionary().includes('"shortinfos"') && m.dictionary().includes('"title"'), 'dictionary lists the kinds, title under its legacy name');
-  ok('legacy event import: kinds, skipped parts with reasons, slides, layers, theme, grid places, dictionary');
+  ok('legacy event import: kinds, skipped parts with reasons, slides, layers, theme, grid places');
 
   /* -- GPX ---------------------------------------------------------------------- */
   const points = Array.from({ length: 5000 }, (_, i) => `<trkpt lat="${(50 + i * 0.0002).toFixed(5)}" lon="${(19 + Math.sin(i / 50) * 0.01).toFixed(5)}"/>`).join('');

@@ -75,6 +75,18 @@ export const planPart = defineEventPart<PlanConfig>({
     note: null
   }),
 
+  /* 0064 — was jeder Schlüssel im JSON bedeutet (die Beschreibung neben dem Import). */
+  keys: {
+    groups: 'Etapy programu (np. dni) — lista',
+    'groups[].label': 'Nazwa etapu, np. "Piątek"',
+    'groups[].caption': 'Podpis pod nazwą (albo null)',
+    'groups[].rows': 'Punkty programu w tym etapie — lista',
+    'groups[].rows[].time': 'Godzina, np. "9:00" (albo null)',
+    'groups[].rows[].title': 'Co się dzieje',
+    'groups[].rows[].detail': 'Szczegóły (albo null)',
+    note: 'Uwaga pod programem (albo null)'
+  },
+
   parse: (raw) => {
     const record = asRecord(raw);
     return {

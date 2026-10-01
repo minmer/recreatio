@@ -21,6 +21,9 @@ const idsOf = (value: string) => value.split(',').map((one) => one.trim()).filte
 
 export const calendarPart = definePart<CalendarConfig>({
   kind: 'calendar',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { title: 'Terminy wspólnoty', calendars: '<id-kalendarza-1>,<id-kalendarza-2>' },
   label: 'Kalendarz',
   use: 'Terminy wybranych kalendarzy na stronie — w pełnym ekranie osoby, które je prowadzą, mogą też dodawać i zmieniać terminy.',
   box: { colSpan: 4, rowSpan: 5 },

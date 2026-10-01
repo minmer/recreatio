@@ -117,6 +117,9 @@ interface SubmissionConfig {
 
 export const seatSubmissionPart = definePart<SubmissionConfig>({
   kind: 'seat-submission',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { form: '<id-formularza>', show: '*', title: 'Twoje zgłoszenie' },
   label: 'Zgłoszenie osoby',
   use: 'Pokazuje tej osobie to, co sama wysłała w wybranym formularzu.',
   box: { colSpan: 3, rowSpan: 3 },
@@ -178,6 +181,9 @@ interface NoteConfig {
 
 export const seatNotePart = definePart<NoteConfig>({
   kind: 'seat-note',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { title: 'Od kancelarii' },
   label: 'Wiadomość dla osoby',
   use: 'To, co kancelaria napisze tylko do niej.',
   box: { colSpan: 3, rowSpan: 2 },
@@ -209,6 +215,9 @@ interface SharedConfig {
 
 export const seatSharedPart = definePart<SharedConfig>({
   kind: 'seat-shared',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { title: 'Najbliższe spotkania' },
   label: 'Wspólne terminy',
   use: 'Terminy, które widzi cała grupa — jeśli miejsce niesie jej klucz.',
   box: { colSpan: 3, rowSpan: 3 },
@@ -290,6 +299,9 @@ function StepsCard({ title }: { title: string }) {
 
 export const seatStepsPart = definePart<StepsConfig>({
   kind: 'seat-steps',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { title: 'Twoje kroki' },
   label: 'Kroki osoby',
   use: 'Lista kroków osoby — układasz ją na mapie logiki strony, pod modułami.',
   box: { colSpan: 3, rowSpan: 3 },
@@ -322,6 +334,9 @@ interface ChatConfig {
  */
 export const seatChatPart = definePart<ChatConfig>({
   kind: 'seat-chat',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { title: 'Rozmowa grupy' },
   label: 'Rozmowa grupy',
   use: 'Rozmowa obszaru, do którego prowadzi link — osoba z linkiem czyta w niej i pisze.',
   box: { colSpan: 3, rowSpan: 5 },

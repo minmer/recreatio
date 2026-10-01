@@ -17,6 +17,9 @@ const read = (raw: RawConfig): Config => ({ body: text(raw, 'body') });
 
 export const noticePart = definePart<Config>({
   kind: 'notice',
+
+  /* 0064 — ein ausgefülltes Beispiel, für die Beschreibung des JSON. */
+  example: { body: 'W tę niedzielę msza o 11:00 wyjątkowo w kaplicy.' },
   label: 'Ogłoszenie',
   use: 'Jedno zdanie, które ma rzucać się w oczy.',
   box: { colSpan: 2, rowSpan: 1 },

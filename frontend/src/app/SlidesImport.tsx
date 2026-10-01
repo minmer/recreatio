@@ -22,20 +22,20 @@
  *
  * Die Hintergründe (`layers`) und das Menü (`menuLabel`) werden zum Slajd des
  * Bausteins, das Thema des Ereignisses (`theme`) auf Wunsch zum Thema der
- * Seite. Übernommen wird in den Entwurf — gespeichert erst mit „Zapisz".
+ * Seite.
  *
- * Der Słownik daneben ist für ein Sprachmodell: kopieren, ein Ereignis
- * beschreiben lassen, das Ergebnis hier einfügen.
+ * 0064 — die Oberfläche dafür ist das JSON-Fach der Seite (`PageJsonPanel.tsx`,
+ * `pageJson.ts`): es erkennt ein Dokument des Altbestands und reicht es hierher.
+ * Für ein Sprachmodell gibt es dort die Beschreibung des NEUEN Formats — sie
+ * kann mehr (Menü, Karte, Formulare mit Fragen) und läuft mit den Bausteinen mit.
  */
-
-import { useMemo, useState } from 'react';
 
 import { asArray, asOptionalText, asRecord, asStringList, asText } from './event/kit';
 import { newId } from './ids';
 import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Layout } from './layout';
 import type { DraftPart } from './page';
-import { PARTS, partOf } from './parts/registry';
-import { DEFAULT_THEMES, readLayers, type Look, type Theme } from './slides';
+import { partOf } from './parts/registry';
+import { DEFAULT_THEMES, readLayers, type Theme } from './slides';
 
 /** Arten, die ihr `config` unverändert als `json` tragen. */
 const VERBATIM: Readonly<Record<string, string>> = {
@@ -194,136 +194,4 @@ export function importLegacy(doc: unknown, pageIndex: number, existing: readonly
     lead: asOptionalText(root.subtitle) ?? asOptionalText(root.summary),
     warnings
   };
-}
-
-/** Der Słownik für ein Sprachmodell — aus den Bausteinen selbst, damit er nicht von ihnen wegläuft. */
-export function dictionary(): string {
-  const examples = PARTS
-    .filter((def) => 'example' in def && typeof (def as { example?: unknown }).example === 'function')
-    .map((def) => {
-      const legacyKind = def.kind === 'hero' ? 'title' : def.kind;
-      const example = (def as unknown as { example: () => unknown }).example();
-      return `### "${legacyKind}" — ${def.label}\n${def.use}\n\n"config": ${JSON.stringify(example, null, 2)}`;
-    })
-    .join('\n\n');
-
-  return `# Wydarzenie jako JSON — do przeniesienia na stronę ze slajdami
-
-Zwróć JEDEN obiekt JSON, bez komentarzy i bez tekstu wokół niego.
-
-{
-  "title":    "Nazwa wydarzenia",
-  "subtitle": "Hasło pod tytułem",
-  "theme":    { "mode": "dark", "accent": "#4c7dd6", "ground": "#080d15", "ink": "#eef2f8", "muted": "#a3b2c9" },
-              // tryb jasny: "mode": "light", ground "#f4f6fa", ink "#16202e", muted "#5a6a80", accent "#2f5fb5"
-  "pages":    [ { "kind": "public", "title": "…", "menuLabel": "Strona publiczna", "parts": [ … ] } ]
-}
-
-Każda część to jeden slajd:
-
-{
-  "kind":      "plan",          // rodzaj — lista niżej
-  "menuLabel": "Plan",          // nazwa slajdu w menu; z niej powstaje kotwica #plan
-  "title":     "Plan dnia",     // nagłówek nad treścią; dla "title" zostaw null
-  "intro":     "Krótki wstęp.",
-  "config":    { … },           // treść, inna dla każdego rodzaju
-  "layers":    [ … ]            // tło; pominięte = gradient i duży napis z nazwy
-}
-
-Warstwy tła, od tyłu do przodu:
-  { "kind": "gradient", "speed": 0.12, "angle": 168, "from": "#12203a", "via": null, "to": "#060a12" }
-  { "kind": "image", "speed": 0.34, "url": "https://…/tlo.jpg", "opacity": 0.45, "blend": "soft-light", "position": "center" }
-  { "kind": "bigtext", "speed": 0.95, "lines": ["TRASA"], "opacity": 0.09 }
-
-Przyciski w części "title" mogą prowadzić do innych slajdów: "#" + nazwa z menu, np. "#zapisy".
-
-## Rodzaje części
-
-### "text" — Tekst
-"config": { "paragraphs": ["Akapit."], "bullets": ["Punkt listy"], "note": null }
-
-### "contact" — Kontakt
-"config": { "organizer": "Parafia …", "channels": [{ "label": "Telefon", "value": "+48 …", "href": "tel:+48…" }], "note": null }
-
-${examples}
-
-Formularz zgłoszeń buduje się w Warsztacie (moduł „Formularz”) — w tym dokumencie go pomiń.
-`;
-}
-
-export function SlidesImport({ parts, look, onParts, onLook }: {
-  parts: readonly DraftPart[];
-  look: Look;
-  onParts: (next: readonly DraftPart[]) => void;
-  onLook: (next: Look) => void;
-}) {
-  const [raw, setRaw] = useState('');
-  const [page, setPage] = useState(0);
-  const [replace, setReplace] = useState(false);
-  const [takeTheme, setTakeTheme] = useState(true);
-  const [result, setResult] = useState<{ count: number; warnings: string[] } | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const parsed = useMemo<{ value: unknown } | { error: string } | null>(() => {
-    if (raw.trim() === '') return null;
-    try { return { value: JSON.parse(raw) as unknown }; } catch (e) { return { error: e instanceof Error ? e.message : 'Nieprawidłowy JSON.' }; }
-  }, [raw]);
-
-  const pages = parsed !== null && 'value' in parsed ? legacyPages(parsed.value) : [];
-  const theme = parsed !== null && 'value' in parsed ? themeOf(parsed.value) : null;
-
-  const run = () => {
-    if (parsed === null || !('value' in parsed)) return;
-    const done = importLegacy(parsed.value, Math.min(page, Math.max(0, pages.length - 1)), replace ? [] : parts);
-    onParts(replace ? done.parts : [...parts, ...done.parts]);
-    if (takeTheme && done.theme !== null) onLook({ ...look, theme: done.theme });
-    setResult({ count: done.parts.length, warnings: done.warnings });
-    setRaw('');
-  };
-
-  return (
-    <details className="wk-fold se-import">
-      <summary>Przenieś wydarzenie ze starego systemu (JSON)</summary>
-      <p className="wk-hint">
-        Wklej dokument wydarzenia w formacie starych stron wydarzeń — cały (z „pages”) albo same części. Każda część
-        staje się slajdem, razem z tłem i nazwą w menu. Zmiany trafiają do szkicu; zapisuje je „Zapisz”.
-      </p>
-      <div className="wk-actions">
-        <button type="button" className="wk-link-btn" onClick={() => {
-          void navigator.clipboard.writeText(dictionary()).then(() => setCopied(true)).catch(() => setCopied(false));
-        }}>{copied ? 'Skopiowano słownik' : 'Kopiuj słownik dla AI'}</button>
-      </div>
-      <label className="pe-row">
-        <span>Dokument JSON</span>
-        <textarea rows={8} spellCheck={false} value={raw} placeholder='{ "title": "…", "pages": [ { "parts": [ … ] } ] }'
-          onChange={(e) => { setRaw(e.target.value); setResult(null); }} />
-      </label>
-      {parsed !== null && 'error' in parsed && <p className="wk-error">Nieprawidłowy JSON: {parsed.error}</p>}
-      {pages.length > 1 && (
-        <label className="pe-row">
-          <span>Która strona</span>
-          <select value={page} onChange={(e) => setPage(Number(e.target.value))}>
-            {pages.map((one) => <option key={one.index} value={one.index}>{one.label} — {one.parts.length} części</option>)}
-          </select>
-        </label>
-      )}
-      {pages.length > 0 && (
-        <>
-          <label className="pe-check"><input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} /> <span>Zastąp obecne moduły (zamiast dopisać na końcu)</span></label>
-          {theme !== null && (
-            <label className="pe-check"><input type="checkbox" checked={takeTheme} onChange={(e) => setTakeTheme(e.target.checked)} /> <span>Weź też kolory wydarzenia ({theme.mode === 'dark' ? 'ciemne' : 'jasne'})</span></label>
-          )}
-          <div className="wk-actions">
-            <button type="button" className="wk-btn" onClick={run}>Przenieś {pages[Math.min(page, pages.length - 1)]?.parts.length ?? 0} części</button>
-          </div>
-        </>
-      )}
-      {result !== null && (
-        <div role="status">
-          <p className="wk-done">Przeniesiono {result.count} — zapisz, żeby zostały.</p>
-          {result.warnings.length > 0 && <ul className="se-import-warn">{result.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>}
-        </div>
-      )}
-    </details>
-  );
 }
