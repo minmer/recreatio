@@ -642,7 +642,7 @@ public static partial class Form
     /// kuerzer und hiesse: wer eines oeffnet, oeffnet alle.
     /// </para>
     /// </summary>
-    private static async Task SubmitAsync(HttpContext ctx, Db db, Guid id, SubmitRequest body)
+    private static async Task SubmitAsync(HttpContext ctx, Db db, Push push, Guid id, SubmitRequest body)
     {
         var values = body.Values ?? [];
 
@@ -1033,6 +1033,9 @@ public static partial class Form
             await tx.RollbackAsync(ctx.RequestAborted);
             throw;
         }
+
+        /* 0075 — wer die Anmeldungen liest, wird geweckt. */
+        push.Form(id);
 
         await ctx.Response.WriteAsJsonAsync(new
         {

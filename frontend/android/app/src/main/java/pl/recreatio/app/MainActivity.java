@@ -16,6 +16,15 @@ import com.getcapacitor.BridgeActivity;
  */
 public class MainActivity extends BridgeActivity {
 
+    /** 0075 — ist die App gerade vorn? Dann entscheidet beim Wecksignal die Seite ({@link PushService}). */
+    static volatile boolean inFront;
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        inFront = true;
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(KeyVaultPlugin.class);
@@ -35,6 +44,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onPause() {
         super.onPause();
+        inFront = false;
         CookieManager.getInstance().flush();
     }
 }

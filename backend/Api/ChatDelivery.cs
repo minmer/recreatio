@@ -1,7 +1,7 @@
 using Microsoft.Data.SqlClient;
 namespace Api;
 /// <summary>Persistent delivery with current permissions checked and publication locked across instances.</summary>
-public sealed class ChatDelivery(Db db, ILogger<ChatDelivery> logger) : BackgroundService
+public sealed class ChatDelivery(Db db, Push push, ILogger<ChatDelivery> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -40,7 +40,15 @@ public sealed class ChatDelivery(Db db, ILogger<ChatDelivery> logger) : Backgrou
             WHERE m.schedule_state = N'pending' AND m.scheduled_at <= @now;
             UPDATE app.chat SET last_message_at = @now WHERE id IN (SELECT chat_id FROM @sent WHERE chat_id IS NOT NULL);
             DELETE FROM app.chat_presence WHERE read_at IS NULL AND typing_until < DATEADD(day, -1, @now);
+            SELECT DISTINCT chat_id FROM @sent WHERE chat_id IS NOT NULL;
             """, c, tx);
-        await cmd.ExecuteNonQueryAsync(ct); await tx.CommitAsync(ct);
+        var sent = new List<Guid>();
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        {
+            do { while (await reader.ReadAsync(ct)) if (reader.FieldCount == 1 && !reader.IsDBNull(0)) sent.Add(reader.GetGuid(0)); } while (await reader.NextResultAsync(ct));
+        }
+        await tx.CommitAsync(ct);
+        /* 0075 — eine geplante Nachricht weckt, wenn sie hinausgeht. */
+        foreach (var chatId in sent) push.Chat(chatId, null);
     }
 }

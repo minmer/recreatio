@@ -414,7 +414,7 @@ public static partial class Roles
     /// EINER Transaktion, damit ein einmaliger Link nicht zweimal aufgeht.
     /// </para>
     /// </summary>
-    private static async Task RedeemInviteAsync(HttpContext ctx, Db db, RedeemRequest body)
+    private static async Task RedeemInviteAsync(HttpContext ctx, Db db, Push push, RedeemRequest body)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
@@ -535,6 +535,7 @@ public static partial class Roles
         }
 
         await tx.CommitAsync(ctx.RequestAborted);
+        push.Link(inv.Id, who.Value.AccountId);
         await ctx.Response.WriteAsJsonAsync(new { roleId = Ids.ToText(inv.Role), areas = await AreasOfRoleAsync(connection, inv.Role, ctx.RequestAborted) });
     }
 

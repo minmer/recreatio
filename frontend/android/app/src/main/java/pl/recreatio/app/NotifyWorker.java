@@ -48,6 +48,11 @@ public class NotifyWorker extends Worker {
 
     static final String PREFS = "recreatio.notify";
     static final String CHANNEL = "news";
+    /** Dieselbe wie die der Seite ({@code platform.ts}): Rozmowy, mit Aufpoppen. */
+    static final String CHANNEL_CHAT = "chat";
+
+    /** Wie ein Nachsehen ausging. */
+    enum Outcome { DONE, RETRY }
 
     public NotifyWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
@@ -56,10 +61,21 @@ public class NotifyWorker extends Worker {
     @NonNull
     @Override
     public Result doWork() {
-        SharedPreferences prefs = getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        Context context = getApplicationContext();
+        /* 0075 — eine Kennung, die beim letzten Mal nicht ankam, geht jetzt nach. */
+        if (!PushSetup.active(context)) PushSetup.send(context);
+        return check(context) == Outcome.RETRY ? Result.retry() : Result.success();
+    }
+
+    /**
+     * NACHSEHEN — vom Arbeiter im Takt und vom Wecker ({@link PushService}).
+     * Die Zahlen vom Dienst; gemeldet wird, was über das Gesehene hinaus neu ist.
+     */
+    static synchronized Outcome check(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String api = prefs.getString("api", null);
         String token = prefs.getString("token", null);
-        if (api == null || token == null) return Result.success();
+        if (api == null || token == null) return Outcome.DONE;
 
         String since = prefs.getString("since", "");
         HttpURLConnection connection = null;
@@ -75,9 +91,9 @@ public class NotifyWorker extends Worker {
             if (status == 401) {
                 /* Abgemeldet oder zurückgezogen — nicht weiter fragen. */
                 prefs.edit().remove("token").apply();
-                return Result.success();
+                return Outcome.DONE;
             }
-            if (status != 200) return Result.retry();
+            if (status != 200) return Outcome.RETRY;
 
             JSONObject digest = new JSONObject(read(connection.getInputStream()));
             int loud = digest.getJSONObject("chats").optInt("loud", 0);
@@ -96,10 +112,10 @@ public class NotifyWorker extends Worker {
             /* Was gemeldet ist, gilt als gesehen — dasselbe meldet sich nicht zweimal. */
             prefs.edit().putInt("seenLoud", loud).putInt("seenForms", forms).putInt("seenLinks", links).apply();
 
-            if (!lines.isEmpty()) show(String.join(" · ", lines), loud > seenLoud ? "#/workspace/chat" : "#/workspace");
-            return Result.success();
+            if (!lines.isEmpty()) show(context, String.join(" · ", lines), loud > seenLoud ? "#/workspace/chat" : "#/workspace", loud > seenLoud);
+            return Outcome.DONE;
         } catch (Exception e) {
-            return Result.retry();
+            return Outcome.RETRY;
         } finally {
             if (connection != null) connection.disconnect();
         }
@@ -114,17 +130,20 @@ public class NotifyWorker extends Worker {
         return out.toString(StandardCharsets.UTF_8.name());
     }
 
-    private void show(String text, String open) {
-        Context context = getApplicationContext();
+    private static void show(Context context, String text, String open, boolean chat) {
         if (Build.VERSION.SDK_INT >= 33
                 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
 
+        /* Nachrichten auf dem Kanal der Rozmowy (mit Aufpoppen), alles andere unter „Nowości". */
+        String channel = chat ? CHANNEL_CHAT : CHANNEL;
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationManager manager = context.getSystemService(NotificationManager.class);
-            if (manager != null && manager.getNotificationChannel(CHANNEL) == null) {
-                manager.createNotificationChannel(new NotificationChannel(CHANNEL, "Nowości", NotificationManager.IMPORTANCE_DEFAULT));
+            if (manager != null && manager.getNotificationChannel(channel) == null) {
+                manager.createNotificationChannel(chat
+                        ? new NotificationChannel(CHANNEL_CHAT, "Rozmowy", NotificationManager.IMPORTANCE_HIGH)
+                        : new NotificationChannel(CHANNEL, "Nowości", NotificationManager.IMPORTANCE_DEFAULT));
             }
         }
 
@@ -134,12 +153,14 @@ public class NotifyWorker extends Worker {
         PendingIntent tap = PendingIntent.getActivity(context, 7, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         int icon = context.getResources().getIdentifier("ic_stat_recreatio", "drawable", context.getPackageName());
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channel)
                 .setSmallIcon(icon != 0 ? icon : context.getApplicationInfo().icon)
                 .setContentTitle("recreatio")
                 .setContentText(text)
                 .setAutoCancel(true)
                 .setContentIntent(tap)
+                .setPriority(chat ? NotificationCompat.PRIORITY_HIGH : NotificationCompat.PRIORITY_DEFAULT)
+                .setCategory(chat ? NotificationCompat.CATEGORY_MESSAGE : NotificationCompat.CATEGORY_STATUS)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE);
 
         try {

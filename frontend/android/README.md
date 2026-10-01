@@ -67,7 +67,7 @@ Notes:
 | Links | Links to `recreatio.pl` open in the app. |
 | Back button | Closes an open dialog first, then goes back in history, then moves the app to the background. |
 | Downloads | `<a download>` of a `blob:` goes through the system file picker (`FileSaverPlugin`). |
-| Notifications | Chat notifications use local notifications while the app runs (`@capacitor/local-notifications`). |
+| Notifications | Shown while the app runs (`@capacitor/local-notifications`), also in the foreground, except for the chat that is open. A WorkManager job checks every 15 min or more while the app is closed (`NotifyWorker`). With Firebase built in, the service wakes the phone at once (`PushService`, see below). On the first start the app asks for notification permission once. |
 | Theme | Follows the system's light/dark mode, including the status bar icons. |
 
 In code, everything platform-specific lives in `src/app/platform.ts` (vault, notices, saveBlob) and `src/shell.ts` (start, links, back button, downloads). The native side is `android/app/src/main/java/pl/recreatio/app/`.
@@ -87,9 +87,19 @@ It lives in `~/.recreatio/android/`: `recreatio-release.p12` plus `signing.prope
 
 For Google Play, the same key becomes the upload key.
 
+### Push (0075)
+
+Firebase Cloud Messaging is only a **wake-up signal**. It carries `{"kind":"check"}` and nothing else, and the phone then fetches the counts with its device token (`/notify/digest`). It is built **without** the google-services Gradle plugin:
+
+1. Firebase console, project `recreatio` → add an Android app `pl.recreatio.app` → download `google-services.json`.
+2. Put it at `android/app/google-services.json` (gitignored), or point `$RECREATIO_FIREBASE` at it. The build reads four values into `BuildConfig`, and `PushSetup` starts Firebase with them. Without the file the app builds without push and only checks on its schedule.
+3. The service needs the project's service account key: `Push:Fcm:ServiceAccountFile` in `backend/Api/appsettings.json`. It points at `secrets/firebase-service-account.json` (gitignored, published with the API). A relative path counts from the app folder. The log says `Push on — Firebase project …` or why push is off.
+
+*Powiadomienia → Ustawienia* shows whether push works on this phone. All three parts must be there: the app built with Firebase, the service with the key, and the phone's token received.
+
 ## Not there yet
 
-- **Push while the app is closed.** GrapheneOS has no FCM without sandboxed Play. The route there would be UnifiedPush (e.g. ntfy) or Web Push behind the same `notices` abstraction. Today notifications work only while the app is running, as in the browser.
+- **Push on GrapheneOS without sandboxed Play.** There is no FCM there, so the app falls back to the 15-minute check. The route there would be UnifiedPush (e.g. ntfy) behind the same wake-up signal.
 
 ## Google Play
 

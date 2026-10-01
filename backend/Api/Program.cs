@@ -42,6 +42,8 @@ if (args.Length > 0 && args[0].Equals("slug", StringComparison.OrdinalIgnoreCase
 }
 
 builder.Services.AddSingleton<Db>();
+builder.Services.AddSingleton<Push>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Push>());
 builder.Services.AddHostedService<ChatDelivery>();
 
 /*

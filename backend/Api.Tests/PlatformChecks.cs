@@ -15,6 +15,7 @@ internal static class PlatformChecks
         Postal(check);
         Catalog(check);
         LinkAims(check);
+        PushAssertion(check);
     }
 
     private static void Invites(Action<bool, string> check)
@@ -131,5 +132,23 @@ internal static class PlatformChecks
         var proof = Kernel.Base64Url.Encode(new byte[32]);
         check(HeldLinks.Proofs($"{proof},{proof},xx,{Kernel.Base64Url.Encode(new byte[31])}").Count == 1, "links: proofs are 32 bytes, each once");
         check(HeldLinks.Proofs(string.Join(",", Enumerable.Range(0, 30).Select(i => Kernel.Base64Url.Encode(Enumerable.Repeat((byte)i, 32).ToArray())))).Count == HeldLinks.Max, "links: at most twenty");
+    }
+
+    private static void PushAssertion(Action<bool, string> check)
+    {
+        using var rsa = System.Security.Cryptography.RSA.Create(2048);
+        var fcm = new Fcm("recreatio-test", "push@recreatio-test.iam.gserviceaccount.com", rsa, "https://fcm.example", "https://oauth2.googleapis.com/token");
+        var now = DateTimeOffset.FromUnixTimeSeconds(1_790_000_000);
+        var jwt = fcm.Assertion(now).Split('.');
+        check(jwt.Length == 3, "push: the assertion is a JWT");
+        var header = JsonDocument.Parse(Kernel.Base64Url.Decode(jwt[0])).RootElement;
+        var claims = JsonDocument.Parse(Kernel.Base64Url.Decode(jwt[1])).RootElement;
+        check(header.GetProperty("alg").GetString() == "RS256", "push: signed RS256");
+        check(claims.GetProperty("iss").GetString() == "push@recreatio-test.iam.gserviceaccount.com"
+            && claims.GetProperty("scope").GetString() == "https://www.googleapis.com/auth/firebase.messaging"
+            && claims.GetProperty("aud").GetString() == "https://oauth2.googleapis.com/token", "push: issuer, scope and audience");
+        check(claims.GetProperty("exp").GetInt64() - claims.GetProperty("iat").GetInt64() == 3600, "push: valid for one hour");
+        var signed = System.Text.Encoding.ASCII.GetBytes($"{jwt[0]}.{jwt[1]}");
+        check(rsa.VerifyData(signed, Kernel.Base64Url.Decode(jwt[2]), System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.RSASignaturePadding.Pkcs1), "push: the signature verifies with the service account key");
     }
 }

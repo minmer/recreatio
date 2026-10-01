@@ -24,7 +24,8 @@ await writeFile(entry, `
 export * from '${app}postal';
 export { planRegistryImport, registryDescription, exportRegistry } from '${app}postalJson';
 export { periodStarts, remindersOf, upcomingReminders } from '${app}tasks';
-export { nextDelay } from '${app}notify';
+export { nextDelay, whatRings, toldOf, openChatOf, DEFAULT_SETTINGS } from '${app}notify';
+export { viewPath } from '${app}routes';
 export { linkSecrets, aimOf } from '${app}linkAccess';
 export { keepLinkFromAddress, linkHref, freshLink } from '${app}linkKeep';
 export { safeLink, itemFieldAad, linkWord, putText, emptyTexts } from '${app}calendar';
@@ -155,6 +156,38 @@ try {
   assert.equal(pace({ online: false }), null, 'offline: no polling at all');
   assert.equal(pace({ hint: 5 }), 60_000, 'the service cannot make it faster than a minute');
   ok('notifications: one minute visible, five hidden, three times rarer on low battery, backoff to 15 min, nothing offline');
+
+  /* 0075 — was klingelt: je Rozmowa, nie die offene, nie beim ersten Stand. */
+  const chatRow = (chatId, unread, at, quiet = false) => ({ chatId, areaName: chatId, kind: 'area', unread, lastMessageAt: at, seatName: null, quiet });
+  const digestOf = (list, forms = 0, links = 0) => ({
+    now: '', since: '', total: 0, tasks: 0, nextPollSeconds: 60, links,
+    chats: { unread: list.reduce((n, c) => n + c.unread, 0), loud: list.filter((c) => !c.quiet).reduce((n, c) => n + c.unread, 0), list },
+    registrations: { count: forms, list: [] }
+  });
+  const S = m.DEFAULT_SETTINGS;
+  const d1 = digestOf([chatRow('a', 3, '2026-10-02T10:00:00Z')]);
+  assert.deepEqual(m.whatRings(null, d1, S, null), { chats: [], forms: false, links: false }, 'the first state is old news');
+  const t1 = m.toldOf(d1);
+  /* A gelesen (3 → 0), zugleich B neu: die Summe sinkt, B klingelt trotzdem. */
+  const d2 = digestOf([chatRow('b', 1, '2026-10-02T10:05:00Z')]);
+  assert.deepEqual(m.whatRings(t1, d2, S, null).chats.map((c) => c.chatId), ['b'], 'a new message rings although the total dropped');
+  assert.deepEqual(m.whatRings(t1, d2, S, 'b').chats, [], 'the open chat does not ring');
+  assert.deepEqual(m.whatRings(t1, d2, { ...S, chats: false }, null).chats, [], 'chats switched off');
+  const d3 = digestOf([chatRow('a', 3, '2026-10-02T10:00:00Z'), chatRow('q', 2, '2026-10-02T10:06:00Z', true)]);
+  assert.deepEqual(m.whatRings(t1, d3, S, null).chats, [], 'unchanged and muted chats stay silent');
+  const d4 = digestOf([chatRow('a', 4, '2026-10-02T10:01:00Z'), chatRow('c', 1, '2026-10-02T10:07:00Z')], 2, 1);
+  const r4 = m.whatRings(t1, d4, S, null);
+  assert.deepEqual(r4.chats.map((c) => c.chatId), ['c', 'a'], 'newest first');
+  assert.equal(r4.forms, true);
+  assert.equal(r4.links, true);
+  assert.deepEqual(m.whatRings(m.toldOf(d4), d4, S, null), { chats: [], forms: false, links: false }, 'the same state rings once');
+  const chatBase = m.viewPath('chat');
+  assert.equal(m.openChatOf(`${chatBase}/abc`, true), 'abc');
+  assert.equal(m.openChatOf(`${chatBase}/abc?x=1`, true), 'abc');
+  assert.equal(m.openChatOf(`${chatBase}/abc`, false), null, 'a hidden page shows no chat');
+  assert.equal(m.openChatOf(chatBase, true), null, 'the list is not a chat');
+  assert.equal(m.openChatOf(m.viewPath('tasks'), true), null);
+  ok('notifications: rings per chat (a read chat does not hide a new one), never the open chat, muted ones or the first state');
 
   /* -- 5. Links mit Zugang --------------------------------------------------------------------- */
 

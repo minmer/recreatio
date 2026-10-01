@@ -12,12 +12,15 @@
  *   saveBlob      <a download>          Dokumentenwähler (FileSaverPlugin)
  * </code>
  *
- * <b>Kein Push über fremde Dienste.</b> Benachrichtigt wird, solange die Seite
+ * <b>Push nur als Wecker (0075).</b> Benachrichtigt wird, solange die Seite
  * läuft — im Browser wie in der App. Dazu (0067): in der App fragt ein
  * Arbeiter des Systems auch bei geschlossener App nach Zahlen (`background`,
  * NotifyPlugin/NotifyWorker, höchstens alle 15 Minuten, nur mit Netz und
  * genug Akku), und Erinnerungen an Aufgaben stehen im Wecker des Systems
- * (`notices.plan`) — sie kommen, ohne dass jemand fragt.
+ * (`notices.plan`) — sie kommen, ohne dass jemand fragt. Und (0075): ist die
+ * App mit Firebase gebaut, weckt der Dienst sie, sobald etwas Neues da ist —
+ * mit einem LEEREN Signal („sieh nach"); die Zahlen holt die App selbst
+ * (PushService.java, oder die Seite über `background.onCheck`).
  */
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
@@ -143,6 +146,12 @@ export const notices = {
   /** Gibt es hier überhaupt Benachrichtigungen? */
   available: native || (typeof window !== 'undefined' && 'Notification' in window),
 
+  /**
+   * 0075 — erst danach sagt `allowed()` in der App die Wahrheit (vorher weiss
+   * sie noch nicht, ob sie darf, und sagt „nein").
+   */
+  ready: (): Promise<void> => prepared ?? Promise.resolve(),
+
   /** Darf jetzt eine gezeigt werden? Synchron — es wird in einer Schleife gefragt. */
   allowed(): boolean {
     if (native) return granted === true;
@@ -239,16 +248,27 @@ export const notices = {
 
 /* -- 0067: Im Hintergrund nachsehen (nur in der App) ----------------------- */
 
+/** Was der Arbeiter von sich sagt. `pushBuilt`: diese App kann Firebase; `push`: die Kennung ist beim Dienst. */
+export interface BackgroundStatus {
+  readonly configured: boolean;
+  readonly intervalMinutes: number;
+  readonly pushBuilt?: boolean;
+  readonly push?: boolean;
+}
+
 interface NotifyPluginApi {
   configure(options: {
     api: string; token: string; intervalMinutes: number; chats: boolean; forms: boolean; links: boolean;
-  }): Promise<void>;
+  }): Promise<{ push?: boolean }>;
   stop(): Promise<void>;
   seen(options: { unread: number; forms: number; links: number; since: string }): Promise<void>;
-  status(): Promise<{ configured: boolean; intervalMinutes: number }>;
+  status(): Promise<BackgroundStatus>;
+  addListener(event: 'check', fn: () => void): Promise<{ remove: () => Promise<void> }>;
 }
 
 const NotifyNative = registerPlugin<NotifyPluginApi>('Notify');
+
+const NO_BACKGROUND: BackgroundStatus = { configured: false, intervalMinutes: 0 };
 
 /**
  * Der Arbeiter der App (`NotifyWorker.java`): fragt `/notify/digest` mit dem
@@ -257,13 +277,27 @@ const NotifyNative = registerPlugin<NotifyPluginApi>('Notify');
  */
 export const background = {
   available: native,
-  configure: (options: Parameters<NotifyPluginApi['configure']>[0]) =>
-    native ? NotifyNative.configure(options) : Promise.resolve(),
+  configure: (options: Parameters<NotifyPluginApi['configure']>[0]): Promise<{ push?: boolean }> =>
+    native ? NotifyNative.configure(options) : Promise.resolve({}),
   stop: () => (native ? NotifyNative.stop().catch(() => undefined) : Promise.resolve()),
   /** Was die App gerade gezeigt hat — der Arbeiter meldet nur, was DARÜBER hinaus neu ist. */
   seen: (options: Parameters<NotifyPluginApi['seen']>[0]) =>
     native ? NotifyNative.seen(options).catch(() => undefined) : Promise.resolve(),
-  status: () => (native ? NotifyNative.status().catch(() => ({ configured: false, intervalMinutes: 0 })) : Promise.resolve({ configured: false, intervalMinutes: 0 }))
+  status: (): Promise<BackgroundStatus> => (native ? NotifyNative.status().catch(() => NO_BACKGROUND) : Promise.resolve(NO_BACKGROUND)),
+
+  /**
+   * 0075 — der Wecker kam, während die App vorn ist: die Seite soll jetzt
+   * nachsehen (und selbst entscheiden, was sie meldet). Gibt das Abmelden zurück.
+   */
+  onCheck(fn: () => void): () => void {
+    if (!native) return () => undefined;
+    let handle: { remove: () => Promise<void> } | null = null;
+    let gone = false;
+    void NotifyNative.addListener('check', fn).then((h) => {
+      if (gone) void h.remove(); else handle = h;
+    }).catch(() => undefined);
+    return () => { gone = true; void handle?.remove(); };
+  }
 };
 
 /* -- Eine Datei ablegen --------------------------------------------------- */

@@ -921,7 +921,7 @@ public static partial class Chat
     /// schreibt — in der Rozmowa eines Bereichs jede, die ihn liest (0053); die
     /// Unterschrift wird hier gegen ihren oeffentlichen Schluessel geprueft.
     /// </summary>
-    private static async Task PostAsync(HttpContext ctx, Db db, Guid id, PostRequest body)
+    private static async Task PostAsync(HttpContext ctx, Db db, Push push, Guid id, PostRequest body)
     {
         if (!Guid.TryParse(body.AuthorRoleId, out var author))
         {
@@ -971,6 +971,9 @@ public static partial class Chat
 
         /* Was ich selbst schreibe, habe ich gelesen — ausserhalb der Nachricht: ein Streit darum darf sie nicht kosten. */
         if (body.SendAt is null) await MarkReadAsync(connection, null, chat.Id, account, at.Value, ctx.RequestAborted);
+
+        /* 0075 — die anderen wecken (eine geplante Nachricht weckt, wenn sie hinausgeht: ChatDelivery). */
+        if (body.SendAt is null) push.Chat(chat.Id, account);
 
         await ctx.Response.WriteAsJsonAsync(new { messageId = Ids.ToText(message.MessageId), createdAt = at.Value });
     }
@@ -1602,7 +1605,7 @@ public static partial class Chat
     /// unterschrieben mit dem Schluessel des Platzes. Verfasser ist der Platz;
     /// welcher, sagt das Token und nicht der Absender.
     /// </summary>
-    private static async Task SeatPostAsync(HttpContext ctx, Db db, string token, Guid id, SeatPostRequest body)
+    private static async Task SeatPostAsync(HttpContext ctx, Db db, Push push, string token, Guid id, SeatPostRequest body)
     {
         var message = await IncomingAsync(ctx, body.MessageId, body.Epoch, body.BodySealed, body.Signature, body.SignedAt);
         if (message is null) return;
@@ -1632,6 +1635,7 @@ public static partial class Chat
         if (!await SeatMayPostAsync(ctx, chat) || !await ValidSendAtAsync(ctx, body.SendAt)) return;
         var at = await InsertAsync(ctx, connection, chat, message, null, seat.Id, body.SendAt, body.TopicId);
         if (at is null) return;
+        if (body.SendAt is null) push.Chat(chat.Id, null);
 
         await ctx.Response.WriteAsJsonAsync(new { messageId = Ids.ToText(message.MessageId), createdAt = at.Value });
     }

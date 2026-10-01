@@ -37,9 +37,56 @@ public static class Notify
 
         /* Ohne Sitzung — für den Arbeiter der App. */
         app.MapGet("/notify/digest", DeviceDigestAsync);
+
+        /* 0075 — die FCM-Kennung des Geräts (die App meldet sie selbst, auch wenn Firebase sie erneuert). */
+        app.MapPost("/notify/push-token", PushTokenAsync);
     }
 
     public sealed record DeviceRequest(string Token, string? Label, string? Platform);
+
+    public sealed record PushTokenRequest(string? PushToken);
+
+    /// <summary>Das Gerät nach seinem Kennzeichen (<c>X-Notify-Token</c>) — <c>null</c>: unbekannt oder zurückgezogen.</summary>
+    private static async Task<Guid?> DeviceOfAsync(HttpContext ctx, SqlConnection connection)
+    {
+        var token = ctx.Request.Headers["X-Notify-Token"].ToString();
+        if (!Base64Url.TryDecode(token, out var raw) || raw.Length != 32) return null;
+        await using var cmd = new SqlCommand("SELECT id FROM app.notify_device WHERE token_sha256 = @hash AND revoked_at IS NULL;", connection);
+        cmd.Parameters.AddWithValue("@hash", SHA256.HashData(raw));
+        return await cmd.ExecuteScalarAsync(ctx.RequestAborted) as Guid?;
+    }
+
+    /// <summary>
+    /// 0075 — die FCM-Kennung eines Geräts setzen (oder mit <c>null</c> löschen).
+    /// Ohne Sitzung, mit dem Gerätekennzeichen: Firebase erneuert die Kennung
+    /// auch, wenn die App zu ist, und dann meldet sie der Dienst der App selbst.
+    /// </summary>
+    private static async Task PushTokenAsync(HttpContext ctx, Db db, PushTokenRequest body)
+    {
+        var push = (body.PushToken ?? "").Trim();
+        if (push.Length > 512 || push.Any(c => char.IsWhiteSpace(c) || char.IsControl(c)))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny token push.");
+            return;
+        }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var device = await DeviceOfAsync(ctx, connection);
+        if (device is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using (var cmd = new SqlCommand("""
+            UPDATE app.notify_device SET push_token = NULL, push_error = NULL WHERE push_token = @push AND id <> @id;
+            UPDATE app.notify_device SET push_token = @push, push_error = NULL, last_seen_at = @now WHERE id = @id;
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("@id", device.Value);
+            cmd.Parameters.Add("@push", System.Data.SqlDbType.NVarChar, 512).Value = push.Length == 0 ? DBNull.Value : push;
+            cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+            await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
+        }
+
+        await ctx.Response.WriteAsJsonAsync(new { deviceId = Ids.ToText(device.Value), push = push.Length > 0 });
+    }
 
     private static async Task DigestAsync(HttpContext ctx, Db db, string? since)
     {
@@ -224,14 +271,14 @@ public static class Notify
         };
     }
 
-    private static async Task DevicesAsync(HttpContext ctx, Db db)
+    private static async Task DevicesAsync(HttpContext ctx, Db db, Push push)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         await using var cmd = new SqlCommand("""
-            SELECT id, label, platform, created_at, last_seen_at FROM app.notify_device
+            SELECT id, label, platform, created_at, last_seen_at, CASE WHEN push_token IS NULL THEN 0 ELSE 1 END, push_at, push_error FROM app.notify_device
             WHERE account_id = @account AND revoked_at IS NULL ORDER BY created_at DESC;
             """, connection);
         cmd.Parameters.AddWithValue("@account", who.Value.AccountId);
@@ -246,11 +293,15 @@ public static class Notify
                 label = reader.IsDBNull(1) ? null : reader.GetString(1),
                 platform = reader.GetString(2),
                 createdAt = reader.GetDateTimeOffset(3),
-                lastSeenAt = reader.IsDBNull(4) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(4)
+                lastSeenAt = reader.IsDBNull(4) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(4),
+                push = reader.GetInt32(5) == 1,
+                pushAt = reader.IsDBNull(6) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(6),
+                pushError = reader.IsDBNull(7) ? null : reader.GetString(7)
             });
         }
 
-        await ctx.Response.WriteAsJsonAsync(new { devices });
+        /* 0075 — schickt dieser Dienst Push? Ohne Firebase-Zugang nur das Fragen im Takt. */
+        await ctx.Response.WriteAsJsonAsync(new { devices, push = new { available = push.Available } });
     }
 
     /// <summary>Ein Gerät anmelden — den Zufallswert erzeugt die App; hier liegt nur sein Abdruck.</summary>
@@ -313,7 +364,7 @@ public static class Notify
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         await using var cmd = new SqlCommand("""
-            UPDATE app.notify_device SET revoked_at = @now WHERE id = @id AND account_id = @account AND revoked_at IS NULL;
+            UPDATE app.notify_device SET revoked_at = @now, push_token = NULL WHERE id = @id AND account_id = @account AND revoked_at IS NULL;
             """, connection);
         cmd.Parameters.AddWithValue("@id", id);
         cmd.Parameters.AddWithValue("@account", who.Value.AccountId);

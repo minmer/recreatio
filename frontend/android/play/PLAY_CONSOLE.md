@@ -79,6 +79,9 @@ Google does not count data as "collected" when it leaves the device end-to-end e
 | Personal info → **User IDs** (account name) | App functionality, account management | Required |
 | App activity → **Other user-generated content**: group names, event times and public titles, bookings, message metadata | App functionality | Required |
 | App info and performance → **Diagnostics**: IP address in server logs | Security, fraud prevention | Required |
+| Device or other IDs → **Device or other IDs**: the Firebase Cloud Messaging token of the phone (0075), stored so the service can wake the app when something new arrives | App functionality | Optional (only once notifications are switched on) |
+
+**Firebase Cloud Messaging (0075)** carries only an empty wake-up signal (`{"kind":"check"}`), never content, names or counts. The app then fetches the counts itself. Firebase Analytics is off (`firebase_analytics_collection_enabled=false`), and Firebase only fetches its token once notifications are switched on (auto-init is off). Google acts as a service provider for the delivery, so the answer under **Data shared** stays "No". Declaring the token under **Device or other IDs** is the safe over-declaration.
 
 **End-to-end encrypted** (not collected as defined by Google): names and personal data, message content, photos, files and voice messages, private event details, tasks, form answers.
 

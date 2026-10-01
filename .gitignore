@@ -38,3 +38,4 @@ android-out/
 
 # Local API diagnostic log files
 /backend/Api/logs/
+/backend/Api/secrets/

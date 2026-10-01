@@ -9,10 +9,10 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
-import { background, native, notices } from './platform';
+import { background, native, notices, type BackgroundStatus } from './platform';
 import {
-  applyBackground, chatLabel, current, loadDevices, dropDevice, markSeen, planReminders, refresh, saveSettings, start, subscribe,
-  type NotifySettings, type Reminder
+  applyBackground, chatLabel, current, loadDevices, loadSettings, dropDevice, markSeen, onToast, planReminders, refresh, saveSettings,
+  start, subscribe, thisDevice, type DeviceList, type NotifySettings, type Reminder, type Toast
 } from './notify';
 import { keysFor } from './ringOf';
 import { viewPath } from './routes';
@@ -46,12 +46,38 @@ export function NotifyBell({ who }: { who: Who }) {
 
   useEffect(() => start(), []);
 
-  /* In der App: den Arbeiter im Hintergrund einschalten, sobald Meldungen erlaubt sind (einmal; danach in den Einstellungen). */
+  /*
+   * In der App, bei jedem Start (0075): erst, wenn klar ist, ob Meldungen
+   * erlaubt sind (`notices.ready` — vorher sagt `allowed()` immer „nein"). Beim
+   * ersten Start fragt die App einmal selbst (Android 13+ zeigt sonst nichts);
+   * danach nur noch über den Knopf in den Einstellungen. Ist es erlaubt, steht
+   * der Arbeiter und der Wecker — auch nach einer Neuinstallation oder wenn
+   * das Gerät anderswo abgemeldet wurde.
+   */
   useEffect(() => {
-    if (!native || !notices.allowed() || state.settings.backgroundMinutes === 0) return;
-    void background.status().then((s) => { if (!s.configured) void applyBackground(state.settings).catch(() => undefined); });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!native) return;
+    let live = true;
+    void (async () => {
+      await notices.ready();
+      if (!notices.allowed() && !askedBefore()) {
+        markAsked();
+        await notices.ask();
+      }
+      const settings = loadSettings();
+      if (!live || !notices.allowed() || settings.backgroundMinutes === 0) return;
+      await applyBackground(settings).catch(() => undefined);
+    })();
+    return () => { live = false; };
   }, []);
+
+  /* Hinweise auf der Seite (Browser, Seite vorn): einer zur Zeit, nach 8 s weg. */
+  const [toast, setToast] = useState<Toast | null>(null);
+  useEffect(() => onToast(setToast), []);
+  useEffect(() => {
+    if (toast === null) return;
+    const gone = window.setTimeout(() => setToast(null), 8000);
+    return () => window.clearTimeout(gone);
+  }, [toast]);
 
   /* Erinnerungen planen: jetzt, alle 30 min, und wenn man zurückkommt. */
   useEffect(() => {
@@ -146,9 +172,33 @@ export function NotifyBell({ who }: { who: Who }) {
       )}
 
       {settingsOpen && <NotifySettingsPanel settings={state.settings} onClose={() => setSettingsOpen(false)} />}
+
+      <div className="wk-toasts" aria-live="polite">
+        {toast !== null && (
+          <div key={toast.id} className="wk-toast" role="status">
+            {toast.open !== undefined ? (
+              <a className="wk-toast-body" href={toast.open} onClick={() => setToast(null)}>
+                <strong>{toast.title}</strong><span>{toast.body}</span>
+              </a>
+            ) : (
+              <div className="wk-toast-body"><strong>{toast.title}</strong><span>{toast.body}</span></div>
+            )}
+            <button type="button" className="wk-toast-close" aria-label="Zamknij" onClick={() => setToast(null)}>×</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+/* Einmal von selbst um Erlaubnis bitten — Android fragt ohnehin höchstens zweimal, dann nie wieder. */
+const ASKED_SLOT = 'recreatio:notify:asked';
+const askedBefore = (): boolean => {
+  try { return localStorage.getItem(ASKED_SLOT) !== null; } catch { return true; }
+};
+const markAsked = (): void => {
+  try { localStorage.setItem(ASKED_SLOT, new Date().toISOString()); } catch { /* dann eben beim nächsten Start noch einmal */ }
+};
 
 function Group({ title, empty, children }: { title: string; empty?: string; children: React.ReactNode }) {
   const items = Array.isArray(children) ? children.filter(Boolean) : children === null || children === false ? [] : [children];
@@ -158,6 +208,21 @@ function Group({ title, empty, children }: { title: string; empty?: string; chil
       {items.length === 0 ? (empty !== undefined && <p className="wk-hint">{empty}</p>) : children}
     </section>
   );
+}
+
+/**
+ * 0075 — kommt eine Nachricht SOFORT (Push) oder erst beim nächsten Nachsehen?
+ * Drei Stellen müssen mitspielen: die App (mit Firebase gebaut), der Dienst
+ * (Firebase eingerichtet) und dieses Gerät (seine Kennung kam an).
+ */
+function pushWords(listed: DeviceList | null, phone: BackgroundStatus | null, mine: string | null): string {
+  if (listed === null || phone === null) return 'Sprawdzanie…';
+  if (phone.pushBuilt === false) return 'Natychmiastowe powiadomienia: ta wersja aplikacji ich nie obsługuje — nowości przychodzą przy sprawdzaniu w tle.';
+  if (listed.push?.available !== true) return 'Natychmiastowe powiadomienia: serwer jeszcze ich nie wysyła — nowości przychodzą przy sprawdzaniu w tle.';
+  const row = listed.devices.find((d) => d.deviceId === mine);
+  if (row?.push !== true) return 'Natychmiastowe powiadomienia: telefon jeszcze się nie zgłosił (potrzebny internet i usługi Google). Spróbuj ponownie uruchomić aplikację.';
+  const failed = row.pushError !== null && row.pushError !== undefined ? ` Ostatni błąd: ${row.pushError}.` : '';
+  return `Natychmiastowe powiadomienia: włączone — nowa wiadomość budzi telefon od razu; sprawdzanie w tle to tylko zabezpieczenie.${failed}`;
 }
 
 const BACKGROUND: readonly { value: NotifySettings['backgroundMinutes']; label: string }[] = [
@@ -172,11 +237,16 @@ function NotifySettingsPanel({ settings, onClose }: { settings: NotifySettings; 
   const [allowed, setAllowed] = useState(notices.allowed());
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const [devices, setDevices] = useState<readonly { deviceId: string; label: string | null; lastSeenAt: string | null }[]>([]);
+  const [listed, setListed] = useState<DeviceList | null>(null);
+  const [phone, setPhone] = useState<BackgroundStatus | null>(null);
+  const devices = listed?.devices ?? [];
+  const mine = native ? thisDevice()?.deviceId ?? null : null;
 
-  useEffect(() => {
-    void loadDevices().then((r) => setDevices(r.devices)).catch(() => undefined);
-  }, []);
+  const look = () => {
+    void loadDevices().then(setListed).catch(() => undefined);
+    if (native) void background.status().then(setPhone);
+  };
+  useEffect(look, []);
 
   const set = (patch: Partial<NotifySettings>) => {
     const next = { ...settings, ...patch };
@@ -186,7 +256,7 @@ function NotifySettingsPanel({ settings, onClose }: { settings: NotifySettings; 
       void applyBackground(next)
         .then(() => setNote(next.backgroundMinutes === 0 ? 'Sprawdzanie w tle wyłączone.' : 'Zapisano.'))
         .catch(() => setNote('Nie udało się zapisać ustawień urządzenia.'))
-        .finally(() => setBusy(false));
+        .finally(() => { setBusy(false); look(); });
     }
     if ('reminders' in patch) window.dispatchEvent(new Event('recreatio:tasks-changed'));
   };
@@ -199,7 +269,8 @@ function NotifySettingsPanel({ settings, onClose }: { settings: NotifySettings; 
         <p>
           <button type="button" className="wk-btn" onClick={() => void notices.ask().then((ok) => {
             setAllowed(ok);
-            if (ok && native) void applyBackground(settings);
+            if (ok && native) void applyBackground(settings).finally(look);
+            else if (!ok && native) setNote('Android nie pozwolił. Włącz powiadomienia dla recreatio w ustawieniach telefonu (Aplikacje → recreatio → Powiadomienia).');
           })}>Włącz powiadomienia na tym urządzeniu</button>
         </p>
       )}
@@ -221,10 +292,11 @@ function NotifySettingsPanel({ settings, onClose }: { settings: NotifySettings; 
             {BACKGROUND.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
           </select>
           <span className="wk-hint">Telefon sprawdza tylko liczby (bez treści), tylko z internetem i gdy bateria nie jest na wyczerpaniu. Przypomnienia o zadaniach przychodzą o czasie także bez tego.</span>
+          {settings.backgroundMinutes !== 0 && <span className="wk-note">{pushWords(listed, phone, mine)}</span>}
         </label>
       ) : (
         <p className="wk-hint">
-          W przeglądarce: co minutę, gdy karta jest na wierzchu, co 5 minut w tle; przy słabej baterii rzadziej.
+          W przeglądarce: co minutę, gdy karta jest na wierzchu (nowości pokazują się wtedy na stronie), co 5 minut w tle; przy słabej baterii rzadziej.
           Gdy karta jest zamknięta, powiadomień nie ma — zainstaluj aplikację na telefonie, żeby dostawać je zawsze.
         </p>
       )}
@@ -235,9 +307,13 @@ function NotifySettingsPanel({ settings, onClose }: { settings: NotifySettings; 
           <ul className="wk-link-list">
             {devices.map((dv) => (
               <li key={dv.deviceId} className="wk-link-item">
-                <span>{dv.label ?? 'Urządzenie'} · ostatnio {dv.lastSeenAt === null ? 'jeszcze nigdy' : new Date(dv.lastSeenAt).toLocaleString('pl-PL')}</span>
+                <span>
+                  {dv.label ?? 'Urządzenie'}{dv.deviceId === mine ? ' (to urządzenie)' : ''}
+                  {' · '}ostatnio {dv.lastSeenAt === null ? 'jeszcze nigdy' : new Date(dv.lastSeenAt).toLocaleString('pl-PL')}
+                  {dv.push === true && ' · od razu (push)'}
+                </span>
                 <button type="button" className="wk-link-btn" onClick={() => void dropDevice(dv.deviceId)
-                  .then(() => setDevices((was) => was.filter((x) => x.deviceId !== dv.deviceId)))}>Odłącz</button>
+                  .then(() => setListed((was) => was === null ? was : { ...was, devices: was.devices.filter((x) => x.deviceId !== dv.deviceId) }))}>Odłącz</button>
               </li>
             ))}
           </ul>

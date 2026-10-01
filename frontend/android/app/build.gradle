@@ -33,6 +33,30 @@ if (signingFile.exists()) {
     signingFile.withInputStream { signing.load(it) }
 }
 
+/*
+ * PUSH (0075) — Firebase Cloud Messaging, OHNE das Google-Services-Plugin.
+ *
+ * Die Kennungen des Firebase-Projekts stehen in `google-services.json` (aus
+ * der Firebase-Konsole, App „pl.recreatio.app"). Sie liegt neben dieser Datei
+ * oder dort, wohin $RECREATIO_FIREBASE zeigt; der Bau liest daraus vier Werte
+ * in BuildConfig, und `PushSetup` startet Firebase damit von Hand. Fehlt die
+ * Datei, baut die App ohne Push — sie fragt dann im Takt wie bisher.
+ */
+def firebaseFile = file(System.getenv('RECREATIO_FIREBASE') ?: 'google-services.json')
+def firebase = [appId: '', apiKey: '', projectId: '', senderId: '']
+if (firebaseFile.exists()) {
+    def services = new groovy.json.JsonSlurper().parse(firebaseFile)
+    def client = services.client.find { it.client_info?.android_client_info?.package_name == 'pl.recreatio.app' }
+    if (client != null) {
+        firebase = [
+            appId: client.client_info.mobilesdk_app_id ?: '',
+            apiKey: (client.api_key && client.api_key.size() > 0) ? client.api_key[0].current_key : '',
+            projectId: services.project_info.project_id ?: '',
+            senderId: services.project_info.project_number ?: ''
+        ]
+    }
+}
+
 android {
     namespace = "pl.recreatio.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -44,6 +68,10 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode versionCodeValue
         versionName versionNameValue
+        buildConfigField "String", "FCM_APP_ID", "\"${firebase.appId}\""
+        buildConfigField "String", "FCM_API_KEY", "\"${firebase.apiKey}\""
+        buildConfigField "String", "FCM_PROJECT_ID", "\"${firebase.projectId}\""
+        buildConfigField "String", "FCM_SENDER_ID", "\"${firebase.senderId}\""
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -84,6 +112,11 @@ android {
         includeInApk = false
         includeInBundle = false
     }
+
+    /* 0075 — BuildConfig trägt die Kennungen des Firebase-Projekts (s. oben). */
+    buildFeatures {
+        buildConfig = true
+    }
 }
 
 repositories {
@@ -101,6 +134,9 @@ dependencies {
     implementation project(':capacitor-cordova-android-plugins')
     /* 0067 — der Arbeiter, der bei geschlossener App nach Neuem fragt (NotifyWorker). */
     implementation 'androidx.work:work-runtime:2.10.5'
+    /* 0075 — der Wecker (Firebase Cloud Messaging); ohne google-services.json bleibt er stumm. */
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
+    implementation 'com.google.firebase:firebase-messaging'
 }
 
 apply from: 'capacitor.build.gradle'

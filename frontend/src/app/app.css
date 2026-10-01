@@ -6692,6 +6692,24 @@ h5.lib-h { font-size: 1rem; font-style: italic; }
 }
 .wk-bell-settings fieldset { display: grid; gap: 0.35rem; border: 0; padding: 0; margin: 0; }
 
+/* 0075 — Hinweis auf der Seite, wenn sie vorn ist (Browser; in der App ohne Erlaubnis). */
+.wk-toasts { position: fixed; top: 0.75rem; right: 1rem; z-index: 80; width: min(24rem, calc(100vw - 2rem)); pointer-events: none; }
+.wk-toast {
+  display: flex; align-items: flex-start; gap: 0.4rem; padding: 0.65rem 0.5rem 0.65rem 0.8rem; pointer-events: auto;
+  border: 1px solid var(--wk-line); border-left: 3px solid var(--wk-accent); border-radius: 8px;
+  background: var(--wk-surface); color: var(--wk-ink); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  animation: wk-toast-in 160ms ease-out;
+}
+.wk-toast-body { flex: 1; min-width: 0; display: grid; gap: 0.15rem; color: inherit; text-decoration: none; }
+.wk-toast-body strong { font-size: 0.92rem; }
+.wk-toast-body span { font-size: 0.85rem; color: var(--wk-muted); overflow-wrap: anywhere; }
+a.wk-toast-body:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; border-radius: 4px; }
+.wk-toast-close { flex: none; width: 1.8rem; height: 1.8rem; border: 0; border-radius: 999px; background: none; color: var(--wk-muted); font-size: 1.1rem; line-height: 1; cursor: pointer; }
+.wk-toast-close:hover { background: var(--wk-soft); color: var(--wk-ink); }
+.wk-toast-close:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+@keyframes wk-toast-in { from { opacity: 0; transform: translateY(-0.4rem); } }
+@media (prefers-reduced-motion: reduce) { .wk-toast { animation: none; } }
+
 /* -- Zadania: przypomnienia (0066) -- */
 
 .wk-remind { border: 0; padding: 0; margin: 0; }
