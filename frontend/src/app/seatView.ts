@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { loadPublicKey } from './area';
+import { areaReader } from './areaRead';
 import { loadPublic, type Occurrence } from './calendar';
 import { aad, Field, fromBase64Url, openText } from './crypto';
 import { openSubmitted, type OwnAnswer } from './form';
@@ -124,18 +124,21 @@ export function useSeat(token: string, keyText: string | null): Opened {
        *
        * Der Wert hängt am Platz, die FRAGE dagegen am Schlüssel des
        * FORMULARbereichs (0042). Der liegt bei einem öffentlichen Formular
-       * offen — sonst hätte er es nie ausfüllen können. Bleibt er zu, steht
-       * die Antwort trotzdem da, nur ohne Beschriftung.
+       * offen; bei einem Formular nur für die Menschen eines Bereichs kommt
+       * er aus dem Link oder der eigenen Zuteilung (`areaReader`). Bleibt er
+       * zu, steht die Antwort trotzdem da, nur ohne Beschriftung.
        */
+      const reader = areaReader();
+
       if (found.submitted.length > 0) {
         const epochs = new Map<string, Uint8Array>();
 
-        for (const areaId of new Set(found.submitted.map((s) => s.labelAreaId ?? s.areaId))) {
-          try {
-            epochs.set(areaId, fromBase64Url((await loadPublicKey(areaId)).key));
-          } catch {
-            // Nicht offengelegt. Die Antwort bleibt lesbar, die Frage nicht.
-          }
+        for (const one of found.submitted) {
+          const areaId = one.labelAreaId ?? one.areaId;
+          if (epochs.has(areaId)) continue;
+
+          const labelKey = await reader.key(areaId, one.labelEpoch ?? one.epoch);
+          if (labelKey !== undefined) epochs.set(areaId, labelKey);
         }
 
         setMine(await openSubmitted(found.submitted, key, epochs));
@@ -143,27 +146,24 @@ export function useSeat(token: string, keyText: string | null): Opened {
 
       /*
        * WAS ER NOCH TUN MUSS (0047). Die von Hand angelegten Schritte liegen
-       * unter dem Schlüssel des Formulars — offen, wie seine Fragen; einer aus
-       * einer älteren Epoche bleibt ohne Beschriftung, aber er steht da.
+       * unter dem Schlüssel des Formulars — wie seine Fragen, und auf
+       * demselben Weg geholt; einer aus einer Epoche, die dieser Browser
+       * nicht liest, bleibt ohne Beschriftung, aber er steht da.
        */
-      const stepKeys = new Map<string, { epoch: number; key: Uint8Array }>();
-      for (const areaId of new Set((found.forms ?? []).flatMap((f) => f.steps.map((one) => one.areaId)))) {
-        try {
-          const open = await loadPublicKey(areaId);
-          stepKeys.set(areaId, { epoch: open.epoch, key: fromBase64Url(open.key) });
-        } catch {
-          // Nicht offengelegt — die Schritte stehen ohne Beschriftung da.
-        }
+      const stepKeys = new Map<string, Uint8Array>();
+      for (const one of (found.forms ?? []).flatMap((f) => f.steps)) {
+        const slot = `${one.areaId}:${one.epoch}`;
+        if (stepKeys.has(slot)) continue;
+
+        const stepKey = await reader.key(one.areaId, one.epoch);
+        if (stepKey !== undefined) stepKeys.set(slot, stepKey);
       }
 
       const opened: SeatForm[] = [];
       for (const form of found.forms ?? []) {
         opened.push({
           ...form,
-          steps: await openSteps(form.steps, (areaId, epoch) => {
-            const held = stepKeys.get(areaId);
-            return held !== undefined && held.epoch === epoch ? held.key : undefined;
-          })
+          steps: await openSteps(form.steps, (areaId, epoch) => stepKeys.get(`${areaId}:${epoch}`))
         });
       }
       setForms(opened);

@@ -114,7 +114,7 @@ type FormTabName = 'settings' | 'questions' | 'layout' | 'logic' | 'entries' | '
  */
 const lastTab = new Map<string, FormTabName>();
 
-export function FormOffice({ partId, config, who, standsOn, module, onModuleChanged }: {
+export function FormOffice({ partId, config, who, standsOn, module, onModuleChanged, onList }: {
   partId: string;
 
   /** Der Baustein selbst — daraus kommt die Vorlage der Nachricht. */
@@ -141,6 +141,9 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
 
   /** Nach einer Änderung am Baustein — der Aufrufer holt ihn neu. */
   onModuleChanged?: () => Promise<void> | void;
+
+  /** Gleich auf der Liste aufschlagen — wer von der Seite des Formulars kommt, sucht seine Menschen. */
+  onList?: boolean;
 }) {
   /*
    * DREI REITER, wie im Altbestand der Veranstaltungen (`events/admin`:
@@ -154,8 +157,13 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
    * ihrer Liste: wer „Odwiedziny" aufschlägt, will den Monat abhaken, nicht
    * die Einstellungen lesen.
    */
-  const [tab, pickTab] = useState<FormTabName>(lastTab.get(partId) ?? (module === undefined ? 'questions'
-    : module.extendsId !== null && repeatOf(module.repeat) !== 'once' && module.fields > 0 ? 'people' : 'settings'));
+  const [tab, pickTab] = useState<FormTabName>(() => {
+    /* Die Adresse verlangt die Liste: das gilt wie eine eigene Wahl, also bleibt es auch nach dem Neuaufbau. */
+    if (onList === true) { lastTab.set(partId, 'people'); return 'people'; }
+
+    return lastTab.get(partId) ?? (module === undefined ? 'questions'
+      : module.extendsId !== null && repeatOf(module.repeat) !== 'once' && module.fields > 0 ? 'people' : 'settings');
+  });
   const setTab = (next: FormTabName) => { lastTab.set(partId, next); pickTab(next); };
 
   /* Welche Antwortbereiche schon annehmen können (0022) — je Bereich ein Paar. */
@@ -813,12 +821,18 @@ export function FormOffice({ partId, config, who, standsOn, module, onModuleChan
     void act('Przepieczętowywanie pytań kluczem formularza…', resealStale);
   }, [resealTried, busy, canReseal]);
 
-  /* Ein Formularbereich, der nicht jawny ist: dann liest draussen niemand die Fragen. */
+  /*
+   * Ein Formularbereich, der nicht jawny ist: dann liest die Fragen nur, wer
+   * den Bereich liest — auf der Seite genauso wie hier (`areaReader`). Das
+   * kann gewollt sein (ein Formular nur für die eigenen Leute), also sagt der
+   * Satz beides: wer es liest, und was zu tun ist, wenn es alle sollen.
+   */
   const hiddenNotice = formArea !== undefined && formArea.publicLevel === 'none' && (
     <p className="wk-warn">
-      Obszar formularza „{areaLabel(formArea.areaId)}" nie jest jawny — pytania przeczyta tylko ten,
-      kto ma jego klucz. Na stronie publicznej będą nieczytelne. Ustaw w tym obszarze, w zakładce
-      „Dla wszystkich", „Każdy czyta" — albo wybierz tu obszar jawny.
+      Obszar formularza „{areaLabel(formArea.areaId)}" nie jest jawny — na stronie pytania przeczyta
+      tylko ten, kto czyta ten obszar (zalogowany albo przez link z dostępem); dla pozostałych będą
+      nieczytelne. Ma być dla wszystkich? Ustaw w tym obszarze, w zakładce „Dla wszystkich",
+      „Każdy czyta" — albo wybierz tu obszar jawny.
     </p>
   );
 

@@ -14,8 +14,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { loadPublicKey } from './area';
-import { fromBase64Url } from './crypto';
+import { areaReader } from './areaRead';
 import { openLabel } from './form';
 import { seatProof, verifySeat, type SeatChallenge } from './seatCheck';
 import { recall } from './seatKeep';
@@ -45,27 +44,19 @@ export function FirstOpen({ token, challenge, who, onPassed }: {
   const [left, setLeft] = useState(challenge.verify.attemptsLeft);
 
   /*
-   * DIE FRAGEN LESBAR MACHEN — mit dem offenen Schlüssel des Formulars. Das
-   * Formular war öffentlich; sonst hätte niemand es ausfüllen können.
+   * DIE FRAGEN LESBAR MACHEN — mit dem Schlüssel des Formulars: offengelegt,
+   * oder auf einem der Wege, die dieser Browser sonst hat (`areaReader`).
    */
   useEffect(() => {
     let alive = true;
 
     void (async () => {
-      const keys = new Map<string, Uint8Array | null>();
+      const reader = areaReader();
       const out = new Map<string, string | null>();
 
       for (const q of questions) {
-        if (!keys.has(q.labelAreaId)) {
-          try {
-            keys.set(q.labelAreaId, fromBase64Url((await loadPublicKey(q.labelAreaId)).key));
-          } catch {
-            keys.set(q.labelAreaId, null);
-          }
-        }
-
-        const key = keys.get(q.labelAreaId) ?? null;
-        out.set(q.fieldId, key === null ? null : await openLabel(q.fieldId, q.labelSealed, key));
+        const key = await reader.key(q.labelAreaId, q.labelEpoch);
+        out.set(q.fieldId, key === undefined ? null : await openLabel(q.fieldId, q.labelSealed, key));
       }
 
       if (alive) setLabels(out);

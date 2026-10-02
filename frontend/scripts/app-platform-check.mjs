@@ -9,6 +9,7 @@
  *   5. Links mit Zugang: was aus dem Geheimnis folgt, und dass der Beweis nicht der Schlüssel ist.
  *   6. LaTeX: Fussnoten mit Quellen, Zitate, Überschriften, Źródła; entschärfte Zeichen.
  *   7. Program: ein Baum aus Teilen, nach Stelle und Zeit.
+ *   9. Der Schlüssel zum Lesen: offengelegt, sonst aus der eigenen Zuteilung — und was es kostet.
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
@@ -38,7 +39,9 @@ export { latexEscape, textToLatex, projectToLatex, missingKeys } from '${app}lib
 export { openProgram, countParts } from '${app}program';
 export { placeDay, treeOrder } from '${app}calendarModel';
 export { titleFrom } from '${app}chatTopics';
-export { sha256Bytes, toBase64Url } from '${app}crypto';
+export { sha256Bytes, toBase64Url, wrapKey } from '${app}crypto';
+export { areaReader } from '${app}areaRead';
+export { epochAad } from '${app}area';
 `);
 await build({
   entryPoints: [entry],
@@ -447,6 +450,82 @@ try {
   assert.notEqual(JSON.stringify(m.itemFieldAad('i', 'link')), JSON.stringify(m.itemFieldAad('i', 'notes')), 'a link is sealed under its own label, not as a note');
   assert.notEqual(JSON.stringify(m.itemFieldAad('i', 'link')), JSON.stringify(m.itemFieldAad('i', 'link_label')));
   ok('appointment links: https and #/ only, own seal labels, „Więcej informacji\" by default');
+
+  /* -- 9. Der Schlüssel zum Lesen (`areaReader`) ------------------------------------------------ */
+  /*
+   * Das Formular auf der Seite kannte nur den offengelegten Schlüssel: ein Formular in einem
+   * Bereich, der nicht jawny ist, blieb dort auch für den zu, der den Bereich führt. Hier steht,
+   * welche Wege es gibt, in welcher Reihenfolge, und dass ein Besucher keinen davon bezahlt.
+   */
+  {
+    const realFetch = globalThis.fetch;
+    const asked = [];
+    const published = new Map();
+    const grants = new Map();
+    let session = null;
+    const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+    globalThis.fetch = async (url) => {
+      const path = String(url).replace(/^https?:\/\/[^/]+/, '');
+      asked.push(path);
+      let hit;
+      if ((hit = /^\/area\/([^/]+)\/key$/.exec(path)) !== null) {
+        const open = published.get(hit[1]);
+        return open === undefined ? json(404, { error: 'nie' }) : json(200, { areaId: hit[1], epoch: open.epoch, key: m.toBase64Url(open.key) });
+      }
+      if (path === '/session') return session === null ? json(401, { error: 'nie' }) : json(200, session);
+      if ((hit = /^\/workspace\/area\/([^/]+)\/keys$/.exec(path)) !== null) return json(200, { keys: grants.get(hit[1]) ?? [] });
+      return json(404, { error: 'nie' });
+    };
+    const times = (path) => asked.filter((one) => one === path).length;
+
+    try {
+      const openKey = new Uint8Array(32).fill(1);
+      const memberKey = new Uint8Array(32).fill(2);
+      published.set('open', { epoch: 2, key: openKey });
+
+      /* Ein Besucher: der offene Schlüssel, und sonst keine Anfrage. */
+      const visitor = m.areaReader();
+      assert.deepEqual(await visitor.key('open', 2), openKey, 'the published key of the right epoch');
+      assert.deepEqual(asked, ['/area/open/key'], 'a visitor of a public form pays one request');
+      assert.equal(visitor.account(), null, 'the account was not needed');
+
+      /* Eine andere Epoche öffnet nichts — und ein Bereich, der nicht offen ist, auch nicht. */
+      assert.equal(await visitor.key('open', 1), undefined, 'a key of another epoch is no key');
+      assert.equal(await visitor.key('closed', 1), undefined);
+      assert.equal(visitor.account(), 'none');
+      assert.equal(times('/session'), 1, 'the session is asked once, not per area');
+      assert.equal(times('/area/open/key'), 1, 'and the published key once per area');
+
+      /* Angemeldet, aber ohne Schlüsselbund in diesem Tab. */
+      session = { accountId: 'a', loginId: 'x', masterKeySealed: '' };
+      const locked = m.areaReader();
+      assert.equal(await locked.key('closed', 1), undefined);
+      assert.equal(locked.account(), 'locked', 'signed in without keys is not the same as nobody');
+
+      /* Wer den Bereich liest: sein Schlüssel aus der Zuteilung — das, was dem Formular auf der Seite fehlte. */
+      const pair = await crypto.subtle.generateKey(
+        { name: 'RSA-OAEP', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['encrypt', 'decrypt']);
+      const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pair.publicKey));
+      const pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', pair.privateKey));
+      const grant = async (areaId, epoch, key) => ({ roleId: 'r', epoch, sealedBlob: m.toBase64Url(await m.wrapKey(spki, m.epochAad(areaId, epoch), key)) });
+      grants.set('closed', [await grant('closed', 1, memberKey)]);
+      grants.set('open', [await grant('open', 2, memberKey)]);
+      const ring = { wrapPrivate: async () => pkcs8 };
+
+      asked.length = 0;
+      const member = m.areaReader(ring);
+      assert.deepEqual(await member.key('closed', 1), memberKey, 'a member reads an area that is not public');
+      assert.equal(await member.key('closed', 9), undefined, 'but only the epochs they hold');
+      assert.equal(times('/workspace/area/closed/keys'), 1, 'the grants of an area are fetched once');
+      assert.equal(member.account(), 'open');
+      assert.deepEqual(await member.key('open', 2), openKey, 'what is published is taken as published');
+      assert.equal(times('/workspace/area/open/keys'), 0, 'no RSA where the key lies open');
+      assert.equal(times('/session'), 0, 'a view that brings its ring asks no session');
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    ok('reading key: published first, then the own grant; right epoch only; a visitor pays one request, signed in without keys is "locked"');
+  }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;
   await rm(workspace, { recursive: true, force: true });

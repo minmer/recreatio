@@ -43,7 +43,7 @@ import { PickResource } from './PickResource';
 import { PickLibrary, PickLibraryEntry } from './LibraryPick';
 import { PickCalendar, PickCalendarItem } from './PickCalendar';
 import { DependencyMap } from './DependencyMap';
-import { viewPath } from './routes';
+import { PEOPLE_TAB, viewPath } from './routes';
 import { WorkspaceError, type Who } from './session';
 import { AreaOptions } from './AreaOptions';
 import { ModuleSettings } from './ModuleSettings';
@@ -104,6 +104,19 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
   }, []);
 
   useEffect(() => { void look(); }, [look]);
+
+  /*
+   * `…/osoby` — ein Formular gleich auf seiner Liste (der Weg von der Seite,
+   * auf der es steht). Der Zusatz gilt EINMAL: die Adresse steht danach
+   * wieder ohne ihn da, sonst spränge die Ansicht nach jeder Änderung am
+   * Baustein auf die Liste zurück.
+   */
+  const onList = view.at === 'one' && trail[2] === PEOPLE_TAB;
+  const plain = view.at === 'one' ? viewPath('modules', view.kind, view.moduleId) : null;
+
+  useEffect(() => {
+    if (onList && plain !== null && modules !== null) window.location.replace(plain);
+  }, [onList, plain, modules]);
 
   const all = modules ?? [];
   /* Der aufgeschlagene Baustein — nur dann, wenn einer aufgeschlagen ist.
@@ -274,7 +287,7 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
   return (
     <>
       {head}
-      <ModulePage module={mine} areas={areas} who={who} busy={busy !== null} onAct={act} onReload={look} />
+      <ModulePage module={mine} areas={areas} who={who} busy={busy !== null} onAct={act} onReload={look} onList={onList} />
     </>
   );
 }
@@ -290,13 +303,16 @@ export function Modules({ who, trail }: { who: Who; trail: readonly string[] }) 
  * alles andere hat Felder, und die stehen hier. Ein `if` über zwei Fälle, und
  * beide sind echte Fälle — kein Katalog, der jede Art einzeln aufzählt.
  */
-function ModulePage({ module: row, areas, who, busy, onAct, onReload }: {
+function ModulePage({ module: row, areas, who, busy, onAct, onReload, onList }: {
   module: ModuleRow;
   areas: readonly AreaRow[];
   who: Who;
   busy: boolean;
   onAct: (what: string, todo: () => Promise<unknown>) => Promise<void>;
   onReload: () => Promise<void>;
+
+  /** Ein Formular auf seiner Liste aufschlagen — so verlangt es die Adresse. */
+  onList: boolean;
 }) {
   /* 0064 — nach einem Import mit Fragen liest das Formular neu. */
   const [round, setRound] = useState(0);
@@ -339,6 +355,7 @@ function ModulePage({ module: row, areas, who, busy, onAct, onReload }: {
           standsOn={row.pages}
           module={row}
           onModuleChanged={onReload}
+          onList={onList}
         />
       ) : (
         <>

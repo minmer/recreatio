@@ -462,5 +462,12 @@ export function spotOf(address: Address): Spot {
 export const viewPath = (view: View, ...trail: readonly string[]): string =>
   path('workspace', null, view, ...trail.filter((one) => one !== ''));
 
+/**
+ * Ein Formular gleich auf seiner LISTE aufschlagen: `viewPath('modules',
+ * 'form', id, PEOPLE_TAB)`. Der Zusatz gilt einmal — die Bausteinansicht nimmt
+ * ihn und schreibt die Adresse wieder ohne ihn hin.
+ */
+export const PEOPLE_TAB = 'osoby';
+
 /** Die Adresse der Kacheln — das Ziel jedes Zurück-Pfeils. */
 export const tilesPath = (): string => path('workspace');

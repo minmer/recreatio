@@ -25,8 +25,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { loadPublicKey } from './area';
-import { fromBase64Url } from './crypto';
+import { areaReader, type AccountWay } from './areaRead';
 import {
   fullNameOf, loadForm, openFields, submitForm, type Answer, type OpenField, type PublicForm
 } from './form';
@@ -34,8 +33,9 @@ import type { Ring } from './keys';
 import { evaluate, layoutWith, missingIn, openDesign, type FormDesign } from './formDesign';
 import { FormFlow, isRequired } from './FormFlow';
 import { ExtensionSheet } from './ExtensionSheet';
-import { repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
-import { filledNow } from './steps';
+import { REPEAT_LABEL, repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
+import { PEOPLE_TAB, viewPath } from './routes';
+import { filledNow, loadSteps, type ExtensionInfo } from './steps';
 import { keysFor } from './ringOf';
 import { bindSeat, seatPath, type Link } from './seat';
 import { useSeats, type SeatView } from './seatContext';
@@ -63,6 +63,9 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
 
   /* Aufbau und Logik (0043) — oder `null`: dann ist das Formular eine Liste wie vorher. */
   const [design, setDesign] = useState<FormDesign | null>(null);
+
+  /** Was der Weg über das Konto ergab, als die Fragen aufgemacht wurden — `null`: er wurde nicht gebraucht. */
+  const [account, setAccount] = useState<AccountWay | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [claim, setClaim] = useState<string | null>(null);
   const [link, setLink] = useState<Link | null>(null);
@@ -113,28 +116,35 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
       setForm(found);
 
       /*
-       * Die offengelegten Schlüssel — je Bereich einer, und zwar für die
-       * Bereiche, unter denen die FRAGEN liegen (0042: der des Formulars).
+       * Die Schlüssel der FRAGEN — je Bereich einer, und zwar für die
+       * Bereiche, unter denen die Fragen liegen (0042: der des Formulars).
        * Die Bereiche der Antworten brauchen hier keinen: dorthin geht nur,
-       * was unter ihrer Annahme verpackt wird. Ein Bereich, der nichts
-       * offengelegt hat, fehlt einfach; `openFields` lässt sein Feld dann zu.
+       * was unter ihrer Annahme verpackt wird.
+       *
+       * <b>Auf jedem Weg, den dieser Browser hat</b> (`areaReader`):
+       * offengelegt, aus einem Link, aus der eigenen Zuteilung. Vorher galt
+       * nur der erste — und ein Formular in einem Bereich, der nicht jawny
+       * ist, blieb hier auch für den zu, der den Bereich führt. Ein Bereich,
+       * den dieser Browser gar nicht liest, fehlt einfach; `openFields` lässt
+       * sein Feld dann zu.
        */
+      const reader = areaReader();
       const keys = new Map<string, Uint8Array>();
 
-      const needed = [...found.fields.map((f) => f.labelAreaId ?? f.areaId),
-        ...(found.design === null ? [] : [found.design.areaId])];
+      for (const f of found.fields) {
+        const areaId = f.labelAreaId ?? f.areaId;
+        if (keys.has(areaId)) continue;
 
-      for (const areaId of new Set(needed)) {
-        try {
-          const open = await loadPublicKey(areaId);
-          keys.set(areaId, fromBase64Url(open.key));
-        } catch {
-          // Nicht offengelegt. Kein Fehler — eine Auskunft.
-        }
+        const key = await reader.key(areaId, f.labelEpoch ?? f.epoch);
+        if (key !== undefined) keys.set(areaId, key);
       }
 
       setFields(await openFields(found.fields, keys));
-      setDesign(await openDesign(found.design ?? null, found.design === null ? undefined : keys.get(found.design.areaId), partId));
+      setDesign(await openDesign(
+        found.design ?? null,
+        found.design == null ? undefined : await reader.key(found.design.areaId, found.design.epoch),
+        partId));
+      setAccount(reader.account());
       setFailed(null);
 
       /*
@@ -169,6 +179,27 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
   }, [partId]);
 
   useEffect(() => { void look(); }, [look]);
+
+  /*
+   * WER DAS FORMULAR FÜHRT, sieht es hier wie jeder andere — und füllte es
+   * für SICH aus, wo er eigentlich seine Liste sucht. Deshalb ein Satz mit dem
+   * Weg dorthin, und zu dem, was er je Mensch selbst einträgt (0047/0077).
+   *
+   * Gefragt wird nur, wenn oben auf der Seite eine eigene Person steht: dann
+   * ist jemand angemeldet. Ein Besucher bezahlt dafür keine Anfrage.
+   */
+  const signedIn = person?.options.some((one) => one.kind === 'role') ?? false;
+  const [leads, setLeads] = useState<readonly ExtensionInfo[] | null>(null);
+
+  useEffect(() => {
+    if (!signedIn) { setLeads(null); return; }
+
+    let alive = true;
+    loadSteps(partId)
+      .then((found) => { if (alive) setLeads(found.extensions.filter((one) => one.audience === 'office' && !one.closed)); })
+      .catch(() => { if (alive) setLeads(null); });   // 403: er führt es nicht. Kein Fehler.
+    return () => { alive = false; };
+  }, [signedIn, partId]);
 
   /*
    * DER AUFBAU UND DIE LOGIK (0043) — bei jeder Antwort neu ausgewertet.
@@ -534,6 +565,22 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
         </p>
       )}
 
+      {leads !== null && !extension && (
+        <p className="wk-hint wk-form-leads">
+          Prowadzisz ten formularz:{' '}
+          <a className="wk-link" href={viewPath('modules', 'form', partId, PEOPLE_TAB)}>lista osób</a>
+          {leads.map((one) => (
+            <span key={one.moduleId}>
+              {' · '}
+              <a className="wk-link" href={viewPath('modules', 'form', one.moduleId)}>
+                {one.name}{repeatOf(one.repeat) !== 'once' && ` (${REPEAT_LABEL[repeatOf(one.repeat)]})`}
+              </a>
+            </span>
+          ))}
+          . To, co wypełnisz poniżej, będzie Twoim własnym zgłoszeniem — inne osoby dopisujesz na liście.
+        </p>
+      )}
+
       {/*
         GESCHLOSSEN (0042): das Formular bleibt stehen und sagt es, statt
         Fragen zu zeigen, deren Antworten niemand mehr annimmt.
@@ -560,7 +607,7 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
         halten. Alle anderen füllen den Bogen aus wie immer.
       */}
       {/* Die Wahl oben gilt — hier nur, WER es ist. */}
-      {!extension && pageDecides && person.chosen !== null && !nameless && !form.closed && (
+      {!extension && pageDecides && person.chosen !== null && !nameless && !form.closed && !blind && (
         <p className="wk-hint">
           {person.chosen.kind === 'seat'
             ? <>Zgłoszenie zostanie dopisane do miejsca <strong>{person.chosen.name}</strong> (ten sam link).</>
@@ -576,7 +623,7 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
         </p>
       )}
 
-      {!extension && !pageDecides && subjects.length > 0 && !nameless && !form.closed && (
+      {!extension && !pageDecides && subjects.length > 0 && !nameless && !form.closed && !blind && (
         <label className="wk-field">
           <span>{form.forKind === 'person' ? 'Kogo dotyczy zgłoszenie'
             : form.forKind === 'group' ? 'Której grupy dotyczy' : 'Której roli dotyczy'}</span>
@@ -602,11 +649,23 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
         </label>
       )}
 
+      {/*
+        WARUM es zu ist — nach dem, was dieser Browser versucht hat. Vorher
+        stand hier für jeden derselbe Satz („prowadzący naprawi to…"), auch
+        für den, der nur seine Schlüssel nicht im Tab hatte, und auch dort, wo
+        das Formular mit Absicht nur für die Menschen seines Bereichs ist.
+      */}
       {unreadable > 0 && !form.closed && (
         <p className="wk-warn">
-          {blind ? 'Pytań tego formularza nie da się odczytać' : `Części pytań (${unreadable}) nie da się odczytać`}
-          {' '}— są zapieczętowane kluczem obszaru, który nie jest jawny. Prowadzący formularz
-          naprawi to, otwierając go u siebie: pytania zostaną przepieczętowane kluczem obszaru formularza.
+          {blind ? 'Pytań tego formularza nie da się tu odczytać' : `Części pytań (${unreadable}) nie da się tu odczytać`}
+          {' '}— są zapieczętowane kluczem obszaru, którego ta przeglądarka nie czyta.{' '}
+          {account === 'locked'
+            ? 'Jesteś zalogowany, ale w tej karcie nie ma Twoich kluczy — zaloguj się ponownie, żeby je odblokować.'
+            : account === 'open'
+              ? 'Twoje konto nie ma dostępu do tego obszaru.'
+              : 'Jeśli masz do niego dostęp, zaloguj się albo otwórz swój link z dostępem.'}
+          {' '}Formularz ma być dla wszystkich? Prowadzący ustawia wtedy jego obszar jako jawny —
+          wskazówkę zobaczy, otwierając formularz w Modułach.
         </p>
       )}
 
@@ -651,23 +710,39 @@ export function FormCard({ partId, title, portalUnder: under, seat: givenSeat }:
  * Wer angemeldet ist und es führt, bekommt hier seine Liste — alle Menschen
  * des erweiterten Formulars, je mit seinen Notizen. Alle anderen sehen einen
  * Satz: ein leerer Kasten sähe kaputt aus.
+ *
+ * <b>„Alle anderen" sind auch die Angemeldeten, die es nicht führen.</b> Für
+ * sie stand hier die Absage des Dienstes in Rot („Ani tego adresu nie
+ * prowadzisz…") — ein Fehler, wo keiner ist: sie haben nichts falsch gemacht,
+ * die Stelle ist nur nicht ihre. Gefragt wird deshalb vorher, mit derselben
+ * Auskunft, die auch die Kanzlei benutzt (`loadSteps`).
  */
 function OfficeOnly({ partId, baseId, title, repeat }: { partId: string; baseId: string; title: string; repeat: Repeat }) {
   const [who, setWho] = useState<Who | null | undefined>(undefined);
+  const [leads, setLeads] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
-    void whoIsThere().then((found) => { if (alive) setWho(found); }).catch(() => { if (alive) setWho(null); });
+
+    void (async () => {
+      const found = await whoIsThere().catch(() => null);
+      const may = found === null ? false : await loadSteps(partId).then(() => true, () => false);
+
+      if (alive) { setWho(found); setLeads(may); }
+    })();
+
     return () => { alive = false; };
-  }, []);
+  }, [partId]);
 
   return (
     <>
       {title !== '' && <h2 className="wk-card-title">{title}</h2>}
-      {who === undefined ? (
+      {who === undefined || leads === undefined ? (
         <p className="wk-card-text">Wczytywanie…</p>
       ) : who === null ? (
         <p className="wk-card-muted">Ten formularz wypełnia koordynator — po zalogowaniu.</p>
+      ) : !leads ? (
+        <p className="wk-card-muted">Ten formularz wypełnia koordynator.</p>
       ) : (
         <ExtensionSheet extensionId={partId} baseId={baseId} audience="office" who={who} repeat={repeat} name={title} />
       )}
