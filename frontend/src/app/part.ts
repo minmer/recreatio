@@ -112,6 +112,12 @@ export interface PartContext {
    * Eintragen für die, die ihn führen.
    */
   readonly whole?: boolean;
+
+  /**
+   * Diesen Baustein ins ganze Fenster holen — wo er das kann. Der Kalender
+   * bietet es dem an, der eintragen darf: eingetragen wird im Vollbild.
+   */
+  readonly openWhole?: () => void;
 }
 
 /* -- Die Felder, mit denen man ihn füllt ------------------------------------ */

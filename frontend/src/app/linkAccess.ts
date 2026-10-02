@@ -330,10 +330,26 @@ export interface HeldInfo {
   } | null;
 }
 
+/**
+ * Die Rolle eines Links, offen — ihr Schlüssel kommt aus dem Geheimnis des
+ * Links, nicht aus einem Konto. Daraus baut `linkMe.ts` den Bund, mit dem
+ * dieser Browser als Link HANDELT (nicht nur liest).
+ */
+export interface HeldRole {
+  readonly token: string;
+  readonly roleId: string;
+  readonly label: string | null;
+  readonly roleKey: Uint8Array;
+  readonly wrapPrivateSealed: string;
+  readonly areas: readonly LinkArea[];
+}
+
 export interface HeldKeys {
   readonly links: readonly HeldInfo[];
   /** Bereich → Epoche → Schlüssel: was die Linkrollen lesen. */
   readonly areaKeys: ReadonlyMap<string, ReadonlyMap<number, Uint8Array>>;
+  /** Die Linkrollen selbst, mit offenem Schlüssel — nur im Speicher dieses Tabs. */
+  readonly roles: readonly HeldRole[];
 }
 
 interface HeldAnswer {
@@ -367,7 +383,7 @@ export function heldLinkKeys(): Promise<HeldKeys> {
   const stamp = `${linkGeneration()}:${held.map((h) => h.token).sort().join(',')}`;
   if (keysCache !== null && keysCache.stamp === stamp) return keysCache.keys;
   const keys = (async (): Promise<HeldKeys> => {
-    if (held.length === 0) return { links: [], areaKeys: new Map() };
+    if (held.length === 0) return { links: [], areaKeys: new Map(), roles: [] };
     const secrets = new Map<string, { token: string; sealKey: Uint8Array; proof: string }>();
     for (const one of held) {
       try {
@@ -381,6 +397,7 @@ export function heldLinkKeys(): Promise<HeldKeys> {
       body: JSON.stringify({ proofs: [...secrets.values()].map((s) => s.proof) })
     });
     const areaKeys = new Map<string, Map<number, Uint8Array>>();
+    const roles: HeldRole[] = [];
     const valid = new Map<string, HeldInfo['info']>();
     for (const link of answer.links) {
       const mine = secrets.get(link.lookup);
@@ -394,7 +411,9 @@ export function heldLinkKeys(): Promise<HeldKeys> {
       try {
         const sealed = JSON.parse(new TextDecoder().decode(
           await open(mine.sealKey, keysAad(link.invitationId), fromBase64Url(link.sealedRoleKey)))) as { roleKey: string };
-        const wrapPrivate = await open(fromBase64Url(sealed.roleKey), roleWrapAad(link.roleId), fromBase64Url(link.wrapPrivateSealed));
+        const roleKey = fromBase64Url(sealed.roleKey);
+        const wrapPrivate = await open(roleKey, roleWrapAad(link.roleId), fromBase64Url(link.wrapPrivateSealed));
+        roles.push({ token: mine.token, roleId: link.roleId, label: link.label, roleKey, wrapPrivateSealed: link.wrapPrivateSealed, areas: link.areas });
         for (const grant of link.grants) {
           try {
             const key = await unwrapKey(wrapPrivate, epochAad(grant.areaId, grant.epoch), fromBase64Url(grant.sealedBlob));
@@ -407,7 +426,8 @@ export function heldLinkKeys(): Promise<HeldKeys> {
     }
     return {
       links: held.map((one) => ({ token: one.token, aim: one.aim, label: valid.get(one.token)?.label ?? one.label, info: valid.get(one.token) ?? null })),
-      areaKeys
+      areaKeys,
+      roles
     };
   })();
   keysCache = { stamp, keys };

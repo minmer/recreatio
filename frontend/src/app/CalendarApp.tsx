@@ -97,7 +97,13 @@ interface Loaded {
  * gibt es keine Aufgaben und keine eigenen Buchungen darin, und neue Termine
  * gehen nur in diese Kalender.
  */
-export function Calendar({ me, scope }: { me: Me; scope?: readonly string[] }) {
+export function Calendar({ me, scope, startNew }: {
+  me: Me;
+  scope?: readonly string[];
+
+  /** Einmal gefragt, sobald die Kalender da sind: gleich einen neuen Termin aufmachen? („+ Termin" auf der Kachel einer Seite.) */
+  startNew?: () => boolean;
+}) {
   const scoped = scope !== undefined;
   const [viewText, setViewText] = useRemembered(scoped ? 'calendar.part.view' : 'calendar.view', 'week');
   /*
@@ -200,6 +206,18 @@ export function Calendar({ me, scope }: { me: Me; scope?: readonly string[] }) {
     setDialog({ at: 'new', start, end: allDay ? addDays(start, 1) : new Date(start.getTime() + 3600_000), allDay,
       calendarId: scoped ? scope.find((id) => calendars.some((c) => c.calendarId === id && c.mayWrite === true)) : undefined });
   const mayAdd = !scoped || scope.some((id) => calendars.some((c) => c.calendarId === id && c.mayWrite === true));
+
+  const asked = useRef(false);
+  useEffect(() => {
+    if (asked.current || data === null) return;
+    asked.current = true;
+    if (startNew?.() !== true || !mayAdd) return;
+
+    const at = new Date();
+    at.setMinutes(0, 0, 0);
+    at.setHours(at.getHours() + 1);
+    newAt(at);
+  }, [data]);
 
   const open = (event: CalEvent) => {
     if (event.source === 'offer' || event.source === 'booking') setReservation(event.key);

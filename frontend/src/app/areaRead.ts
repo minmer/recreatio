@@ -51,16 +51,17 @@ export interface AreaReader {
 }
 
 /**
- * @param given Der Schlüsselbund, wenn die Ansicht ihn schon hat. Ohne ihn
- *   holt der Leser ihn selbst — einmal, und nur wenn die anderen Wege nichts
- *   hergeben.
+ * @param given Der Schlüsselbund, wenn die Ansicht ihn schon hat. Fehlt er
+ *   (`undefined`), holt der Leser ihn selbst — einmal, und nur wenn die
+ *   anderen Wege nichts hergeben. `null` heisst: KEIN Weg über das Konto (die
+ *   Ansicht hat schon nachgesehen, oder sie fragt das Konto selbst).
  */
 export function areaReader(given?: Ring | null): AreaReader {
   const published = new Map<string, Promise<{ epoch: number; key: Uint8Array } | null>>();
   const mine = new Map<string, Promise<ReadonlyMap<number, Uint8Array>>>();
 
-  let way: AccountWay | null = given == null ? null : 'open';
-  let asked: Promise<Ring | null> | null = given == null ? null : Promise.resolve(given);
+  let way: AccountWay | null = given === undefined ? null : given === null ? 'none' : 'open';
+  let asked: Promise<Ring | null> | null = given === undefined ? null : Promise.resolve(given);
 
   const ring = (): Promise<Ring | null> => {
     asked ??= (async () => {

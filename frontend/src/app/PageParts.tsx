@@ -73,6 +73,18 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
   /* 0054 — welcher Baustein gerade das ganze Fenster hat. */
   const [whole, setWhole] = useState<string | null>(null);
 
+  /*
+   * NACH DEM VOLLBILD STEHT DIE KACHEL NEU DA. Im ganzen Fenster wird
+   * gehandelt (ein Termin eingetragen, eine Nachricht geschrieben); die
+   * Kachel darunter ist ein zweites Bild desselben Bausteins und wüsste davon
+   * nichts — sie zeigte den Stand von vorher, bis jemand die Seite neu lädt.
+   */
+  const [rounds, setRounds] = useState<Readonly<Record<string, number>>>({});
+  const closeWhole = () => {
+    if (whole !== null) setRounds((was) => ({ ...was, [whole]: (was[whole] ?? 0) + 1 }));
+    setWhole(null);
+  };
+
   /* 0067 — aus einem Widget gekommen (`?part=<kennung>`): zu diesem Baustein springen. */
   useEffect(() => {
     const wanted = /[?&]part=([0-9a-f-]{36})/i.exec(window.location.hash)?.[1];
@@ -146,8 +158,9 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
               />
             ) : (
               <def.View
+                key={rounds[part.id] ?? 0}
                 raw={part.config}
-                ctx={{ moduleId: part.moduleId ?? part.id, size }}
+                ctx={{ moduleId: part.moduleId ?? part.id, size, openWhole: canFull ? () => setWhole(part.id) : undefined }}
               />
             )}
 
@@ -173,7 +186,7 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
         const full = partSize({ colSpan: 6, rowSpan: 5 });
 
         return (
-          <Fullscreen title={text(part.config, 'title') || def.label} onClose={() => setWhole(null)}>
+          <Fullscreen title={text(part.config, 'title') || def.label} onClose={closeWhole}>
             <article className={`wk-card wk-card-${part.kind} is-whole`} data-w={full.width} data-h={full.height}>
               <def.View raw={part.config} ctx={{ moduleId: part.moduleId ?? part.id, size: full, whole: true }} />
             </article>

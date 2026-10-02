@@ -67,14 +67,14 @@ public static partial class Calendar
     /// Eintrag selbst (beim Ändern) — er darf nicht unter sich selbst landen.
     /// </summary>
     internal static async Task<ProgramLink?> ProgramLinkAsync(
-        HttpContext ctx, SqlConnection connection, Guid accountId, Guid? itemId, ItemRequest body)
+        HttpContext ctx, SqlConnection connection, Caller caller, Guid? itemId, ItemRequest body)
     {
         var keepParent = body.ParentItemId is null;
         Guid? parent = null;
 
         if (!keepParent && body.ParentItemId!.Trim().Length > 0)
         {
-            var wanted = await ParentAllowedAsync(ctx, connection, accountId, itemId, body.ParentItemId);
+            var wanted = await ParentAllowedAsync(ctx, connection, caller, itemId, body.ParentItemId);
             if (wanted is null) return null;
             parent = wanted;
         }
@@ -92,7 +92,8 @@ public static partial class Calendar
             }
 
             Guid? t = string.IsNullOrWhiteSpace(body.TopicId) ? null : Guid.Parse(body.TopicId);
-            if (!await ChatLinkAllowedAsync(connection, accountId, c, t, ctx.RequestAborted))
+            /* Eine Rozmowa hängt an einem Konto — ein Link allein kennt keine. */
+            if (caller.AccountId is null || !await ChatLinkAllowedAsync(connection, caller.AccountId.Value, c, t, ctx.RequestAborted))
             {
                 await Fail(ctx, StatusCodes.Status404NotFound, "Tej rozmowy albo tematu nie widzisz.");
                 return null;
@@ -112,7 +113,7 @@ public static partial class Calendar
     /// treffen (ein Kreis) noch zu lang werden. <c>null</c>: abgelehnt, die
     /// Antwort ist geschrieben.
     /// </summary>
-    private static async Task<Guid?> ParentAllowedAsync(HttpContext ctx, SqlConnection connection, Guid accountId, Guid? itemId, string? text)
+    private static async Task<Guid?> ParentAllowedAsync(HttpContext ctx, SqlConnection connection, Caller caller, Guid? itemId, string? text)
     {
         if (!Guid.TryParse(text, out var wanted))
         {
@@ -121,7 +122,7 @@ public static partial class Calendar
         }
 
         var area = await AreaOfItemAsync(connection, wanted, ctx.RequestAborted);
-        if (area is null || !await Area.MayAsync(connection, accountId, area.Value, Capability.Write, ctx.RequestAborted))
+        if (area is null || !await Area.MayAsync(connection, caller, area.Value, Capability.Write, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Terminu nadrzędnego nie ma — albo nie możesz w nim pisać.");
             return null;
@@ -161,12 +162,13 @@ public static partial class Calendar
     /// </summary>
     private static async Task MoveInProgramAsync(HttpContext ctx, Db db, Guid id, ProgramMoveRequest body)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
+
+        var caller = await Callers.OfAsync(ctx, db, connection);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
         var area = await AreaOfItemAsync(connection, id, ctx.RequestAborted);
-        if (area is null || !await Area.MayAsync(connection, who.Value.AccountId, area.Value, Capability.Write, ctx.RequestAborted))
+        if (area is null || !await Area.MayAsync(connection, caller, area.Value, Capability.Write, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego terminu nie ma — albo nie możesz go zmieniać.");
             return;
@@ -175,7 +177,7 @@ public static partial class Calendar
         Guid? parent = null;
         if (!string.IsNullOrWhiteSpace(body.ParentItemId))
         {
-            parent = await ParentAllowedAsync(ctx, connection, who.Value.AccountId, id, body.ParentItemId);
+            parent = await ParentAllowedAsync(ctx, connection, caller, id, body.ParentItemId);
             if (parent is null) return;
         }
 

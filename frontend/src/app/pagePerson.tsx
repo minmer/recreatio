@@ -178,7 +178,16 @@ export function PersonAccessGate({ children }: { children: ReactNode }) {
   const access = usePageAccess();
   const chosen = usePerson()?.chosen ?? null;
 
-  if (chosen === null || allows(access, chosen)) return <>{children}</>;
+  /*
+   * EIN LINK MIT ZUGANG IN DIESEM BROWSER ÖFFNET DIE SEITE — gleich, wer oben
+   * gewählt ist (0073). Der Dienst hat sie seinetwegen herausgegeben; stand
+   * oben aber eine Person ohne eigenen Zugang (die eigene, auf einer anderen
+   * Seite des Hauses gewählt), kam hier „nie ma dostępu" — der Zugang ging
+   * beim Weitergehen verloren, obwohl der Link im Browser lag.
+   */
+  const byLink = (access?.links?.length ?? 0) > 0;
+
+  if (chosen === null || byLink || allows(access, chosen)) return <>{children}</>;
 
   return (
     <section className="wk-note wk-access-note" role="status">

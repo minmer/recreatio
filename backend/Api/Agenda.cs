@@ -130,9 +130,11 @@ public static class Agenda
        ====================================================================== */
 
     /// <summary>Die Bereiche, deren Schlüssel eine meiner Rollen hält — MEINE Gruppen, nicht jeder Aushang.</summary>
-    internal static async Task<List<Guid>> HeldAreasAsync(SqlConnection connection, Guid accountId, CancellationToken ct)
+    internal static async Task<List<Guid>> HeldAreasAsync(SqlConnection connection, Guid accountId, CancellationToken ct) =>
+        await HeldAreasAsync(connection, await Workspace.RolesOfAsync(connection, accountId, ct), ct);
+
+    private static async Task<List<Guid>> HeldAreasAsync(SqlConnection connection, List<Workspace.RoleRow> mine, CancellationToken ct)
     {
-        var mine = await Workspace.RolesOfAsync(connection, accountId, ct);
         if (mine.Count == 0) return [];
 
         var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
@@ -163,8 +165,9 @@ public static class Agenda
     /// </summary>
     private static async Task AgendaAsync(HttpContext ctx, Db db, string? from, string? to)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+        /* Ein Konto — oder die Links mit Zugang in diesem Browser (`Caller`). */
+        var caller = await Callers.OfAsync(ctx, db);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         if (!Calendar.Window(from, to, out var since, out var till))
         {
@@ -174,9 +177,15 @@ public static class Agenda
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        var held = await HeldAreasAsync(connection, who.Value.AccountId, ctx.RequestAborted);
-        var readable = await Calendar.ReadableAreasAsync(connection, who.Value.AccountId, ctx.RequestAborted);
-        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        /*
+         * WESSEN Kalender: der des Kontos — oder, ohne Konto, der der Links in
+         * diesem Browser. Für sie gilt dieselbe Schranke: was ihre Rollen halten
+         * und lesen.
+         */
+        var mine = caller.Roles;
+        var held = await HeldAreasAsync(connection, mine, ctx.RequestAborted);
+        var readable = await Calendar.ReadableAreasAsync(connection, caller.AccountId, ctx.RequestAborted,
+            linkRoles: caller.ByLinks ? caller.RoleIds : null);
 
         var rows = new List<Row>();
 
@@ -524,8 +533,9 @@ public static class Agenda
     /// </summary>
     private static async Task UpdateAsync(HttpContext ctx, Db db, Guid id, Calendar.ItemRequest body)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+        /* Ein Konto — oder die Links mit Zugang in diesem Browser (`Caller`). */
+        var caller = await Callers.OfAsync(ctx, db);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         var parsed = Parse(body, out var error);
         if (parsed is null) { await Fail(ctx, StatusCodes.Status400BadRequest, error); return; }
@@ -533,7 +543,7 @@ public static class Agenda
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         var was = await ExistingAsync(connection, id, ctx.RequestAborted);
-        if (was is null || !await Area.MayAsync(connection, who.Value.AccountId, was.AreaId, Capability.Write, ctx.RequestAborted))
+        if (was is null || !await Area.MayAsync(connection, caller, was.AreaId, Capability.Write, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego terminu nie ma — albo nie możesz go zmieniać.");
             return;
@@ -547,14 +557,14 @@ public static class Agenda
 
         foreach (var needed in parsed.Fields.Select(f => f.AreaId).Append(parsed.Visibility).Distinct())
         {
-            if (!await Area.MayAsync(connection, who.Value.AccountId, needed, Capability.Write, ctx.RequestAborted))
+            if (!await Area.MayAsync(connection, caller, needed, Capability.Write, ctx.RequestAborted))
             {
                 await Fail(ctx, StatusCodes.Status403Forbidden, "Pod obszar, w którym nie możesz pisać, nic nie schowasz.");
                 return;
             }
         }
 
-        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        var mine = caller.Roles;
         if (!mine.Any(r => r.Id == parsed.Owner) || Workspace.IsAccount(mine, parsed.Owner))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "To nie jest Twoja osoba ani rola.");
@@ -609,7 +619,7 @@ public static class Agenda
         {
             if (!Guid.TryParse(body.CalendarId, out var target)
                 || await Calendar.CalendarOfAsync(connection, target, ctx.RequestAborted) is not { } targetCalendar
-                || !await Area.MayAsync(connection, who.Value.AccountId, targetCalendar.AreaId, Capability.Write, ctx.RequestAborted))
+                || !await Area.MayAsync(connection, caller, targetCalendar.AreaId, Capability.Write, ctx.RequestAborted))
             {
                 await Fail(ctx, StatusCodes.Status403Forbidden, "Do tego kalendarza nie możesz wpisywać.");
                 return;
@@ -624,7 +634,7 @@ public static class Agenda
         }
 
         /* 0070 — Teil welches Termins. NULL: bleibt; "": kein Teil mehr; sonst dieser. */
-        var link = await Calendar.ProgramLinkAsync(ctx, connection, who.Value.AccountId, id, body);
+        var link = await Calendar.ProgramLinkAsync(ctx, connection, caller, id, body);
         if (link is null) return;
 
         var now = DateTimeOffset.UtcNow;
@@ -720,13 +730,14 @@ public static class Agenda
     /// </summary>
     private static async Task DeleteAsync(HttpContext ctx, Db db, Guid id)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+        /* Ein Konto — oder die Links mit Zugang in diesem Browser (`Caller`). */
+        var caller = await Callers.OfAsync(ctx, db);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         var was = await ExistingAsync(connection, id, ctx.RequestAborted);
-        if (was is null || !await Area.MayAsync(connection, who.Value.AccountId, was.AreaId, Capability.Write, ctx.RequestAborted))
+        if (was is null || !await Area.MayAsync(connection, caller, was.AreaId, Capability.Write, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego terminu nie ma — albo nie możesz go usunąć.");
             return;

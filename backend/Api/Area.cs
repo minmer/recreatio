@@ -402,12 +402,13 @@ public static class Area
     /// </summary>
     private static async Task ListAsync(HttpContext ctx, Db db)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        /* Ein Konto — oder die Links mit Zugang in diesem Browser: dieselbe Liste, aus ihren Rollen. */
+        var caller = await Callers.OfAsync(ctx, db, connection);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var mine = caller.Roles;
         if (mine.Count == 0)
         {
             await ctx.Response.WriteAsJsonAsync(new { areas = Array.Empty<object>() });
@@ -508,12 +509,13 @@ public static class Area
     /// </summary>
     private static async Task MembersAsync(HttpContext ctx, Db db, Guid id)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        if (!await MayAsync(connection, who.Value.AccountId, id, Capability.Read, ctx.RequestAborted))
+        /* Auch ein Link, der den Bereich liest: wer einen Termin einträgt, wählt, wer da sein muss. */
+        var caller = await Callers.OfAsync(ctx, db, connection);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        if (!await MayAsync(connection, caller, id, Capability.Read, ctx.RequestAborted))
         {
             // „Darfst du nicht" und „gibt es nicht" bekommen dieselbe Antwort.
             // Sonst wäre die Fehlermeldung ein Verzeichnis aller Bereiche.
@@ -602,18 +604,19 @@ public static class Area
     /// </summary>
     private static async Task MyKeysAsync(HttpContext ctx, Db db, Guid id)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        if (!await MayAsync(connection, who.Value.AccountId, id, Capability.Read, ctx.RequestAborted))
+        /* Auch die Linkrollen eines Browsers: ihre Hüllen öffnet nur, wer das Geheimnis des Links kennt. */
+        var caller = await Callers.OfAsync(ctx, db, connection);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        if (!await MayAsync(connection, caller, id, Capability.Read, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
             return;
         }
 
-        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        var mine = caller.Roles;
 
         if (mine.Count == 0)
         {
@@ -1378,9 +1381,17 @@ public static class Area
     }
 
     internal static async Task<bool> MayAsync(
-        SqlConnection connection, Guid accountId, Guid areaId, Capability needed, CancellationToken ct)
+        SqlConnection connection, Guid accountId, Guid areaId, Capability needed, CancellationToken ct) =>
+        await MayAsync(connection, await Workspace.RolesOfAsync(connection, accountId, ct), areaId, needed, ct);
+
+    /// <summary>Dasselbe für einen Rufer — ein Konto oder die Links eines Browsers (<see cref="Caller"/>).</summary>
+    internal static Task<bool> MayAsync(
+        SqlConnection connection, Caller caller, Guid areaId, Capability needed, CancellationToken ct) =>
+        MayAsync(connection, caller.Roles, areaId, needed, ct);
+
+    private static async Task<bool> MayAsync(
+        SqlConnection connection, List<Workspace.RoleRow> mine, Guid areaId, Capability needed, CancellationToken ct)
     {
-        var mine = await Workspace.RolesOfAsync(connection, accountId, ct);
         if (mine.Count == 0) return false;
 
         var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));

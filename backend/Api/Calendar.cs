@@ -191,12 +191,13 @@ public static partial class Calendar
 
     private static async Task ListAsync(HttpContext ctx, Db db)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        /* Ein Konto — oder die Links mit Zugang in diesem Browser (`Caller`). */
+        var caller = await Callers.OfAsync(ctx, db, connection);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var mine = caller.Roles;
         if (mine.Count == 0)
         {
             await ctx.Response.WriteAsJsonAsync(new { calendars = Array.Empty<object>() });
@@ -341,8 +342,9 @@ public static partial class Calendar
     /// </summary>
     internal static async Task AddItemAsync(HttpContext ctx, Db db, Guid id, ItemRequest body)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+        /* Ein Konto — oder die Links mit Zugang in diesem Browser (`Caller`). */
+        var caller = await Callers.OfAsync(ctx, db);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         var kind = (body.Kind ?? string.Empty).Trim().ToLowerInvariant();
         var status = (body.Status ?? "planned").Trim().ToLowerInvariant();
@@ -447,7 +449,7 @@ public static partial class Calendar
 
         var (areaId, zoneId) = found.Value;
 
-        if (!await Area.MayAsync(connection, who.Value.AccountId, areaId, Capability.Write, ctx.RequestAborted))
+        if (!await Area.MayAsync(connection, caller, areaId, Capability.Write, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego kalendarza nie ma.");
             return;
@@ -462,7 +464,7 @@ public static partial class Calendar
          */
         foreach (var needed in sealedFields.Select(f => f.AreaId).Append(visibilityAreaId).Distinct())
         {
-            if (!await Area.MayAsync(connection, who.Value.AccountId, needed, Capability.Write, ctx.RequestAborted))
+            if (!await Area.MayAsync(connection, caller, needed, Capability.Write, ctx.RequestAborted))
             {
                 await Fail(ctx, StatusCodes.Status403Forbidden,
                     "Pod obszar, w którym nie możesz pisać, nic nie schowasz.");
@@ -470,7 +472,8 @@ public static partial class Calendar
             }
         }
 
-        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        /* Wem er gehört: einer eigenen Rolle — bei einem Link der Linkrolle selbst. */
+        var mine = caller.Roles;
         if (!mine.Any(r => r.Id == ownerRoleId))
         {
             await Fail(ctx, StatusCodes.Status403Forbidden, "To nie jest Twoja rola.");
@@ -542,7 +545,7 @@ public static partial class Calendar
         }
 
         /* 0070 — Teil welches Termins, aus welcher Rozmowa. */
-        var link = await ProgramLinkAsync(ctx, connection, who.Value.AccountId, null, body);
+        var link = await ProgramLinkAsync(ctx, connection, caller, null, body);
         if (link is null) return;
 
         var now = DateTimeOffset.UtcNow;
@@ -646,8 +649,9 @@ public static partial class Calendar
     /// </summary>
     private static async Task ExceptionAsync(HttpContext ctx, Db db, Guid id, ExceptionRequest body)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+        /* Ein Konto — oder die Links mit Zugang in diesem Browser (`Caller`). */
+        var caller = await Callers.OfAsync(ctx, db);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         if (!DateTimeOffset.TryParse(body.OriginalStart, System.Globalization.CultureInfo.InvariantCulture,
                 System.Globalization.DateTimeStyles.RoundtripKind, out var original))
@@ -687,7 +691,7 @@ public static partial class Calendar
             return;
         }
 
-        if (!await Area.MayAsync(connection, who.Value.AccountId, area.Value, Capability.Write, ctx.RequestAborted))
+        if (!await Area.MayAsync(connection, caller, area.Value, Capability.Write, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego wpisu nie ma.");
             return;
@@ -772,13 +776,24 @@ public static partial class Calendar
 
     /* -- Lesen -------------------------------------------------------------- */
 
-    private static async Task ItemsAsync(HttpContext ctx, Db db, Guid id, string? from, string? to, string? kind)
+    private static async Task ItemsAsync(
+        HttpContext ctx, Db db, Guid id, string? from, string? to, string? kind, string? seat, string? links)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        await ShowAsync(ctx, connection, id, who.Value.AccountId, from, to, kind);
+
+        /*
+         * AUCH DER PLATZ, DER OBEN AUF DER SEITE GEWÄHLT IST, UND DIE LINKS IN
+         * DIESEM BROWSER (0073). Ohne Konto las ein Link den Kalender einer
+         * Seite — und wer sich anmeldete, sah dort nichts mehr, weil das Konto
+         * den Bereich nicht hält. Angemeldet zu sein darf nicht WENIGER zeigen
+         * als nicht angemeldet zu sein.
+         */
+        var linkRoles = await HeldLinks.RolesAsync(connection, links, ctx.RequestAborted);
+        var seatId = await SeatOfAsync(connection, seat, ctx.RequestAborted);
+        await ShowAsync(ctx, connection, id, who.Value.AccountId, from, to, kind, seatId, linkRoles);
     }
 
     /// <summary>
@@ -804,26 +819,29 @@ public static partial class Calendar
         /* 0073 — die Links mit Zugang, die der Browser hält: was ihre Rollen lesen, liest er. */
         var linkRoles = await HeldLinks.RolesAsync(connection, links, ctx.RequestAborted);
 
-        Guid? seatId = null;
-
-        if (!string.IsNullOrWhiteSpace(seat))
-        {
-            await using var find = new SqlCommand("""
-                SELECT id FROM app.access
-                WHERE token_sha256 = @token AND revoked_at IS NULL AND status = N'active'
-                  AND (expires_at IS NULL OR expires_at > @now)
-                  AND (verify_hash IS NULL OR verified_at IS NOT NULL);
-                """, connection);
-
-            find.Parameters.AddWithValue("@token",
-                System.Security.Cryptography.SHA256.HashData(
-                    System.Text.Encoding.UTF8.GetBytes(seat.Trim())));
-            find.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
-
-            if (await find.ExecuteScalarAsync(ctx.RequestAborted) is Guid found) seatId = found;
-        }
+        var seatId = await SeatOfAsync(connection, seat, ctx.RequestAborted);
 
         await ShowAsync(ctx, connection, id, null, from, to, kind, seatId, linkRoles);
+    }
+
+    /// <summary>Der Platz zu einem Token — nur einer, der gilt und (wo verlangt) bestätigt ist.</summary>
+    private static async Task<Guid?> SeatOfAsync(SqlConnection connection, string? seat, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(seat)) return null;
+
+        await using var find = new SqlCommand("""
+            SELECT id FROM app.access
+            WHERE token_sha256 = @token AND revoked_at IS NULL AND status = N'active'
+              AND (expires_at IS NULL OR expires_at > @now)
+              AND (verify_hash IS NULL OR verified_at IS NOT NULL);
+            """, connection);
+
+        find.Parameters.AddWithValue("@token",
+            System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(seat.Trim())));
+        find.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
+
+        return await find.ExecuteScalarAsync(ct) is Guid found ? found : null;
     }
 
     private sealed record Row(
@@ -881,6 +899,7 @@ public static partial class Calendar
             await ctx.Response.WriteAsJsonAsync(new
             {
                 calendarId = Ids.ToText(calendarId),
+                areaId = Ids.ToText(found.Value.AreaId),
                 title = calendarTitle,
                 description = calendarDescription,
                 itemKind = calendarKind,
@@ -974,6 +993,9 @@ public static partial class Calendar
         await ctx.Response.WriteAsJsonAsync(new
         {
             calendarId = Ids.ToText(calendarId),
+
+            /* Der Bereich des Kalenders — damit die Seite weiss, ob jemand (ein Link) hier eintragen darf. */
+            areaId = Ids.ToText(found.Value.AreaId),
             title = calendarTitle,
             description = calendarDescription,
             itemKind = calendarKind,

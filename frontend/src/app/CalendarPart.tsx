@@ -6,28 +6,42 @@
  *   Streifen            der nächste Termin, eine Zeile
  *   schmal / Block      die nächsten Termine als Liste
  *   breit und hoch      die Woche im Stundenraster, mit ‹ Dziś ›
- *   Vollbild            Woche · Monat · Liste — und wer den Kalender führt,
- *                       trägt hier auch ein und ändert (derselbe Kalender
- *                       wie im Arbeitsplatz, nur auf diese Kalender begrenzt)
+ *   Vollbild            Woche · Monat · Liste — und wer in dem Kalender
+ *                       schreibt, trägt hier auch ein und ändert (derselbe
+ *                       Kalender wie im Arbeitsplatz, nur auf diese begrenzt)
  * </code>
  *
- * <b>Jeder sieht, was er sehen darf.</b> Wer angemeldet ist, mit seinen
- * Schlüsseln; wer mit einem persönlichen Link kommt, mit dem, was sein Platz
- * aufschliesst; jeder andere, was offen ausgehängt ist. Der Dienst gibt
- * nichts anderes heraus — hier wird nur geöffnet.
+ * <b>Jeder sieht, was er sehen darf — und zwar ALLES davon.</b> Wer angemeldet
+ * ist, mit seinen Schlüsseln; wer mit einem persönlichen Link kommt, mit dem,
+ * was sein Platz aufschliesst; wer einen Link mit Zugang hält, mit dem, was
+ * dessen Rolle liest; jeder, was offen ausgehängt ist. Die Wege ADDIEREN sich:
+ * vorher schloss der erste die anderen aus, und wer sich anmeldete, sah mit
+ * demselben Link in der Hand weniger als ein Besucher ohne Konto.
+ *
+ * <b>Wer eintragen darf, trägt ein — mit Konto oder mit Link.</b> Ein Link,
+ * der „pisze" sagt, schreibt auch (`linkMe.ts`): ohne Konto handelt der
+ * Browser als die Linkrolle. Wer angemeldet ist, handelt als er selbst und
+ * bekommt gesagt, dass er den Link dafür in sein Konto aufnimmt.
+ *
+ * Der Dienst gibt nichts anderes heraus — hier wird nur geöffnet.
  */
 
 import { useEffect, useState, type CSSProperties } from 'react';
 
-import { loadAreas, loadPublicKey, type AreaRow } from './area';
-import { emptyTexts, ITEM_LABEL, itemFieldAad, loadItems, loadPublic, putText, type Days, type ItemKind, type ItemTexts } from './calendar';
+import { loadAreas, type AreaRow } from './area';
+import { areaReader } from './areaRead';
+import {
+  emptyTexts, ITEM_LABEL, itemFieldAad, loadCalendars, loadItems, loadPublic, putText,
+  type CalendarRow, type Days, type ItemKind, type ItemTexts
+} from './calendar';
 import { Calendar, ListView, MonthGrid, TimeGrid } from './CalendarApp';
 import { hueOf, stepView, viewRange, type CalEvent, type CalView } from './calendarModel';
 import { areaKeys } from './chat';
 import { fromBase64Url, openText } from './crypto';
 import { useHeldLinksStamp } from './HeldLinkBar';
 import { ItemLink } from './ItemLink';
-import { heldAreaKey, heldProofs } from './linkAccess';
+import { accessWords, heldLinkKeys, heldProofs, type HeldInfo } from './linkAccess';
+import { useLinkMe } from './linkMe';
 import { addDays, longDate, monthTitle, rangeTitle, sameDay, startOfDay } from './dayMath';
 import { useNow } from './MassParts';
 import { useMe, type Me } from './me';
@@ -43,37 +57,138 @@ interface Detail { location: string | null; notes: string | null; link: string |
 interface Opened {
   readonly events: readonly CalEvent[];
   readonly details: ReadonlyMap<string, Detail>;
-  readonly calendars: readonly { id: string; title: string | null; description: string | null }[];
+  readonly calendars: readonly { id: string; areaId: string | null; title: string | null; description: string | null }[];
 }
 
-/** Angemeldet? Dann mit Schlüsselbund — sonst \`null\`. */
-function useSignedIn(): Me | null | undefined {
+/** Wer angemeldet ist — `undefined`: noch nicht nachgesehen. */
+function useWho(): Who | null | undefined {
   const [who, setWho] = useState<Who | null | undefined>(undefined);
   useEffect(() => {
     let alive = true;
     whoIsThere().then((found) => { if (alive) setWho(found); }).catch(() => { if (alive) setWho(null); });
     return () => { alive = false; };
   }, []);
-  return useMe(who);
+  return who;
 }
 
+/**
+ * Die Kalender des Bausteins, wie DIESER Mensch sie hat — mit „schreibt er
+ * darin". `undefined`: wird noch geholt; leer: er hat keinen davon.
+ */
+function useOwnCalendars(identity: Me | null | undefined, ids: string): readonly CalendarRow[] | undefined {
+  const [found, setFound] = useState<{ of: Me; ids: string; rows: readonly CalendarRow[] } | null>(null);
+
+  useEffect(() => {
+    if (identity == null) return undefined;
+    let alive = true;
+    const wanted = new Set(ids.split(','));
+    loadCalendars()
+      .then((got) => got.calendars.filter((c) => wanted.has(c.calendarId)), () => [] as readonly CalendarRow[])
+      .then((rows) => { if (alive) setFound({ of: identity, ids, rows }); });
+    return () => { alive = false; };
+  }, [identity, ids]);
+
+  if (identity === undefined) return undefined;
+  if (identity === null) return [];
+  return found !== null && found.of === identity && found.ids === ids ? found.rows : undefined;
+}
+
+/**
+ * Die Bereiche der Links als Zeilen — NUR, um eine Gruppe beim Namen zu
+ * nennen. Nichts daran sagt, was das Konto dort darf: es hat sie nicht.
+ */
+function linkAreas(links: readonly HeldInfo[], known: readonly AreaRow[]): AreaRow[] {
+  const have = new Set(known.map((a) => a.areaId));
+  const out: AreaRow[] = [];
+
+  for (const area of links.flatMap((one) => one.info?.areas ?? [])) {
+    if (have.has(area.areaId)) continue;
+    have.add(area.areaId);
+    out.push({
+      areaId: area.areaId, name: area.name, currentEpoch: 0, heldEpochs: 0, publishedEpochs: 0, parentAreaId: null,
+      publicLevel: 'none', seatLevel: 'own', myLevel: null, mayCertify: false
+    });
+  }
+
+  return out;
+}
+
+/*
+ * „Dopisz termin" auf der Kachel holt den Kalender ins ganze Fenster — und
+ * dort soll gleich der neue Termin aufgehen, nicht erst nach einem zweiten
+ * Klick. Die Kachel und das Vollbild sind zwei Bilder desselben Bausteins;
+ * dazwischen trägt dieses Wort, wer gemeint war.
+ */
+let startsNew: string | null = null;
+
 export function CalendarPartView({ title, calendarIds, ctx }: { title: string; calendarIds: readonly string[]; ctx: PartContext }) {
-  const me = useSignedIn();
+  const who = useWho();
+  const me = useMe(who);
+
+  /* Ohne Sitzung handeln die Links mit Zugang, die dieser Browser hält (`linkMe.ts`). */
+  const linked = useLinkMe(who === null);
+
+  /* WER HIER HANDELT: das Konto — oder, ohne Konto, die Links. */
+  const identity = who === undefined ? undefined : who === null ? linked : me;
+  const ids = calendarIds.join(',');
+  const own = useOwnCalendars(identity, ids);
+  const writes = own?.some((c) => c.mayWrite === true && c.archived !== true) ?? false;
+
   const head = <h2 className="wk-card-title">{title.trim() === '' ? 'Kalendarz' : title}</h2>;
 
   if (calendarIds.length === 0) {
     return <>{head}<p className="wk-card-muted">Tu pojawią się terminy — trzeba jeszcze wybrać kalendarz.</p></>;
   }
 
-  /* Im Vollbild, angemeldet: der ganze Kalender — wer ihn führt, trägt ein. */
-  if (ctx.whole === true && me != null) {
-    return <div className="wk-cal-part is-whole"><Calendar me={me} scope={calendarIds} /></div>;
+  if (ctx.whole === true && identity != null) {
+    if (own === undefined) return <p className="wk-card-muted">Wczytywanie…</p>;
+
+    /*
+     * IM VOLLBILD DER GANZE KALENDER — für den, der ihn hat. Das Konto, wenn
+     * es einen dieser Kalender überhaupt sieht (auch nur zum Lesen: dann mit
+     * allem, was der Arbeitsplatz dazu zeigt); die Links, wenn sie hier
+     * SCHREIBEN. Sonst der Aushang unten: er zeigt mehr als ein leerer
+     * Kalender, in dem man nichts darf.
+     */
+    if (who === null ? writes : own.length > 0) {
+      return (
+        <div className="wk-cal-part is-whole">
+          <Calendar me={identity} scope={calendarIds}
+            startNew={() => { const wanted = startsNew === ctx.moduleId; startsNew = null; return wanted; }} />
+        </div>
+      );
+    }
   }
 
-  return <>{head}<ReadOnlyCalendar calendarIds={calendarIds} me={me ?? null} ctx={ctx} /></>;
+  const openWhole = ctx.openWhole;
+
+  return (
+    <>
+      {head}
+      <ReadOnlyCalendar
+        calendarIds={calendarIds} me={me ?? null} identity={identity ?? null} signedIn={who != null} ctx={ctx}
+        onAdd={writes && ctx.whole !== true && openWhole !== undefined
+          ? () => { startsNew = ctx.moduleId; openWhole(); }
+          : undefined}
+      />
+    </>
+  );
 }
 
-function ReadOnlyCalendar({ calendarIds, me, ctx }: { calendarIds: readonly string[]; me: Me | null; ctx: PartContext }) {
+function ReadOnlyCalendar({ calendarIds, me, identity, signedIn, ctx, onAdd }: {
+  calendarIds: readonly string[];
+
+  /** Das Konto mit seinem Bund — `null`: niemand angemeldet (oder ohne Schlüssel in diesem Tab). */
+  me: Me | null;
+
+  /** Wer hier handelt, Konto oder Links — für die Namen der Gruppen. */
+  identity: Me | null;
+  signedIn: boolean;
+  ctx: PartContext;
+
+  /** Wer hier schreibt: ein neuer Termin (im ganzen Fenster). */
+  onAdd?: () => void;
+}) {
   const person = usePerson();
   const seat = person?.chosen?.kind === 'seat' ? person.chosen.seat.token : undefined;
   const now = useNow();
@@ -87,6 +202,7 @@ function ReadOnlyCalendar({ calendarIds, me, ctx }: { calendarIds: readonly stri
   const [data, setData] = useState<(Opened & { from: number; to: number }) | null>(null);
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState<CalEvent | null>(null);
+  const [held, setHeld] = useState<readonly HeldInfo[]>([]);
   const linksStamp = useHeldLinksStamp();
 
   const shownView: CalView = big ? view : 'list';
@@ -102,20 +218,29 @@ function ReadOnlyCalendar({ calendarIds, me, ctx }: { calendarIds: readonly stri
         const from = new Date(fromMs);
         const to = new Date(toMs);
         const list = ids.split(',').filter((one) => one !== '');
-        /* 0073 — ohne Konto auch die Links mit Zugang, die dieser Browser hält. */
-        const links = me === null ? await heldProofs().catch(() => []) : [];
+
+        /*
+         * 0073 — die Links mit Zugang, die dieser Browser hält: IMMER, auch
+         * angemeldet. Mit Konto kommt dazu, was das Konto liest; der Platz, der
+         * oben auf der Seite gewählt ist, zählt in beiden Fällen.
+         */
+        const links = await heldProofs().catch(() => []);
         const days: Days[] = await Promise.all(list.map((id) => (me !== null
-          ? loadItems(id, from, to)
+          ? loadItems(id, from, to, undefined, seat, links)
           : loadPublic(id, from, to, undefined, seat, links)).catch(() => null))).then((all) => all.filter((d): d is Days => d !== null));
 
-        /* Die Schlüssel: meine — oder die offen ausgehängten, oder die der Links in diesem Browser. */
-        const publicKeys = new Map<string, Promise<Uint8Array | null>>();
+        /*
+         * Die Schlüssel: meine (einmal je Tab ausgepackt) — sonst die offen
+         * ausgehängten, sonst die der Links in diesem Browser. Der Leser fragt
+         * das Konto nicht noch einmal: das ist oben schon geschehen.
+         */
+        const reader = areaReader(null);
         const keyOf = async (areaId: string, epoch: number): Promise<Uint8Array | null> => {
-          if (me !== null) return (await areaKeys(me.ring, areaId)).get(epoch) ?? null;
-          if (!publicKeys.has(areaId)) {
-            publicKeys.set(areaId, loadPublicKey(areaId).then((k) => (k.epoch === epoch ? fromBase64Url(k.key) : null)).catch(() => null));
+          if (me !== null) {
+            const mine = (await areaKeys(me.ring, areaId).catch(() => null))?.get(epoch);
+            if (mine !== undefined) return mine;
           }
-          return (await publicKeys.get(areaId)!) ?? (links.length > 0 ? heldAreaKey(areaId, epoch) : null);
+          return (await reader.key(areaId, epoch)) ?? null;
         };
 
         const events: CalEvent[] = [];
@@ -157,17 +282,31 @@ function ReadOnlyCalendar({ calendarIds, me, ctx }: { calendarIds: readonly stri
         }
 
         events.sort((a, b) => a.start.getTime() - b.start.getTime());
-        const found = me !== null ? (await loadAreas().catch(() => ({ areas: [] }))).areas : [];
+
+        /* Wie die Gruppen heissen — für das Konto wie für die Links. Ein Besucher hat keine. */
+        const found = identity !== null ? (await loadAreas().catch(() => ({ areas: [] as readonly AreaRow[] }))).areas : [];
+
+        /*
+         * Welche Links dieser Browser hält — für den Hinweis an den Angemeldeten,
+         * der damit schreiben könnte, und für die NAMEN der Gruppen, die sein
+         * Konto nicht hat: sonst stünde bei jedem Termin des Links „inna grupa".
+         */
+        const mine = signedIn && links.length > 0 ? (await heldLinkKeys().catch(() => null))?.links ?? [] : [];
+
         if (!alive) return;
-        setAreas(found);
-        setData({ from: fromMs, to: toMs, events, details, calendars: days.map((d) => ({ id: d.calendarId, title: d.title ?? null, description: d.description ?? null })) });
+        setAreas([...found, ...linkAreas(mine, found)]);
+        setHeld(mine);
+        setData({
+          from: fromMs, to: toMs, events, details,
+          calendars: days.map((d) => ({ id: d.calendarId, areaId: d.areaId ?? null, title: d.title ?? null, description: d.description ?? null }))
+        });
         setFailed(false);
       } catch {
         if (alive) setFailed(true);
       }
     })();
     return () => { alive = false; };
-  }, [ids, me, seat, fromMs, toMs, linksStamp]);
+  }, [ids, me, identity, signedIn, seat, fromMs, toMs, linksStamp]);
 
   if (failed) return <p className="wk-card-muted">Nie udało się wczytać terminów.</p>;
   if (data === null) return <p className="wk-card-muted">Wczytywanie…</p>;
@@ -188,8 +327,28 @@ function ReadOnlyCalendar({ calendarIds, me, ctx }: { calendarIds: readonly stri
   const days = shownView === 'day' ? [anchor] : Array.from({ length: 7 }, (_, i) => addDays(range.from, i));
   const detail = open === null ? null : data.details.get(open.key);
 
+  /*
+   * ANGEMELDET, UND EIN LINK IN DIESEM BROWSER SCHREIBT HIER — das Konto aber
+   * nicht. Dann handelt das Konto (mit Sitzung zählt beim Dienst nur es), und
+   * der Link muss hinein: ein Knopf, kein Rätsel, warum „pisze" nicht schreibt.
+   */
+  const here = new Set(data.calendars.map((c) => c.areaId).filter((id): id is string => id !== null));
+  const joinable = onAdd !== undefined ? [] : held.filter((one) => one.info !== null
+    && (me === null || !me.ring.has(one.info.roleId))
+    && one.info.areas.some((a) => here.has(a.areaId) && (a.capability === 'write' || a.capability === 'admin')));
+
   return (
     <div className="wk-cal-part">
+      {joinable.map((one) => (
+        <p key={one.token} className="wk-note wk-cal-part-join">
+          <span>
+            Link{one.info!.label !== null ? ` „${one.info!.label}”` : ''} w tej przeglądarce pozwala tu dopisywać terminy
+            ({accessWords(one.info!.areas)}). Jesteś zalogowany — dodaj go do konta, a będziesz pisać jako Ty.
+          </span>
+          <a className="wk-btn wk-btn-line" href={`#/dolacz/${one.token}`}>Dodaj do konta</a>
+        </p>
+      ))}
+
       {descriptions.length > 0 && (whole || ctx.size.height === 'tall') && (
         <div className="wk-cal-part-rules">
           {descriptions.map((c) => (
@@ -214,6 +373,7 @@ function ReadOnlyCalendar({ calendarIds, me, ctx }: { calendarIds: readonly stri
                 className={view === value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} onClick={() => setView(value)}>{text}</button>
             ))}
           </div>
+          {onAdd !== undefined && <div className="wk-cal2-add"><button type="button" className="wk-btn" onClick={onAdd}>+ Termin</button></div>}
         </div>
       )}
 
@@ -226,6 +386,11 @@ function ReadOnlyCalendar({ calendarIds, me, ctx }: { calendarIds: readonly stri
       ) : (
         <ListView from={range.from} events={big ? data.events : upcoming.slice(0, ctx.size.height === 'tall' ? 12 : 5)}
           marks={[]} now={now} areas={areas} onOpen={setOpen} onTasks={() => undefined} />
+      )}
+
+      {/* Klein: derselbe Weg zum Eintragen, unter der Liste. */}
+      {!big && onAdd !== undefined && (
+        <div className="wk-actions"><button type="button" className="wk-btn wk-btn-quiet" onClick={onAdd}>+ Termin</button></div>
       )}
 
       {open !== null && (

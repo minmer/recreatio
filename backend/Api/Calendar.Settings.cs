@@ -354,8 +354,9 @@ public static partial class Calendar
     /// </summary>
     private static async Task PeopleAsync(HttpContext ctx, Db db, Guid id, PeopleRequest body)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+        /* Ein Konto — oder die Links mit Zugang in diesem Browser (`Caller`). */
+        var caller = await Callers.OfAsync(ctx, db);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         DateTimeOffset? occurrence = null;
         if (!string.IsNullOrWhiteSpace(body.OccurrenceAt))
@@ -397,7 +398,7 @@ public static partial class Calendar
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         var area = await AreaOfItemAsync(connection, id, ctx.RequestAborted);
-        if (area is null || !await Area.MayAsync(connection, who.Value.AccountId, area.Value, Capability.Write, ctx.RequestAborted))
+        if (area is null || !await Area.MayAsync(connection, caller, area.Value, Capability.Write, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego terminu nie ma — albo nie możesz go zmieniać.");
             return;

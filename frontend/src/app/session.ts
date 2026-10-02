@@ -152,6 +152,29 @@ const UNREACHABLE = import.meta.env.DEV
   ? 'Usługa nie odpowiada. Uruchom ją: dotnet run --project backend/Api'
   : 'Nie udało się połączyć z usługą.';
 
+/*
+ * -- Ohne Konto: die Links mit Zugang handeln (`Caller` im Dienst) ------------
+ *
+ * <b>Ein Link ist eine Rolle</b>, und wer ihn in diesem Browser hält, darf,
+ * was sie darf — auch schreiben, wenn der Link „pisze" sagt. Dafür reisen die
+ * BEWEISE der Links im Kopf jeder Anfrage mit (nie das Geheimnis selbst), und
+ * die Stellen des Dienstes, die einen Link handeln lassen, lesen sie dort.
+ *
+ * <b>Erst, wenn jemand als Link handelt</b> (`linkMe.ts` schaltet es ein) —
+ * ein Besucher ohne Link schickt nichts, und eine Anmeldung schaltet es wieder
+ * aus: mit Sitzung zählt beim Dienst ohnehin nur das Konto.
+ *
+ * <b>Hereingereicht und nicht importiert</b>: `linkAccess.ts` benutzt diese
+ * Datei; andersherum wäre es ein Kreis.
+ */
+export const LINKS_HEADER = 'X-Recreatio-Links';
+
+let linkProofs: (() => Promise<readonly string[]>) | null = null;
+
+export function carryLinks(proofs: (() => Promise<readonly string[]>) | null): void {
+  linkProofs = proofs;
+}
+
 /**
  * Der eine Weg zum Dienst.
  *
@@ -163,11 +186,17 @@ const UNREACHABLE = import.meta.env.DEV
 export async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
+    const links = linkProofs === null ? [] : await linkProofs().catch(() => [] as readonly string[]);
+
     response = await fetch(`${API}${path}`, {
       // Die Sitzung reist im Keks — ohne das schickt der Browser ihn bei einer
       // fremden Herkunft nicht mit.
       credentials: 'include',
-      headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}) },
+      headers: {
+        Accept: 'application/json',
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(links.length > 0 ? { [LINKS_HEADER]: links.join(',') } : {})
+      },
       ...init
     });
   } catch {
@@ -219,6 +248,9 @@ export async function signIn(loginId: string, password: string): Promise<Who> {
     method: 'POST',
     body: JSON.stringify({ loginId, passwordKeyBase64Url: toBase64Url(key) })
   });
+
+  // Ab jetzt handelt das Konto — nicht mehr die Links dieses Browsers.
+  carryLinks(null);
 
   // Der Name, wie der DIENST ihn schreibt: er ist dort kleingeschrieben, und
   // unter ihm fragen die anderen Tabs.

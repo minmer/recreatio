@@ -196,6 +196,19 @@ export class Ring {
     return new Ring(keys, byId, signKeys);
   }
 
+  /**
+   * EIN BUND OHNE KONTO — aus Rollen, deren Schlüssel schon offen sind.
+   *
+   * <b>Dafür gibt es genau einen Fall</b>: die Links mit Zugang, die ein
+   * Browser hält (0073). Ein Link IST eine Rolle, und ihr Schlüssel kommt
+   * nicht aus dem Hauptschlüssel eines Kontos, sondern aus dem Geheimnis des
+   * Links. Mit diesem Bund öffnet der Browser, was die Linkrollen lesen — auf
+   * demselben Weg wie jedes Konto, statt auf einem eigenen daneben.
+   */
+  static ofRoles(held: readonly { readonly role: SealedRole; readonly key: Uint8Array }[]): Ring {
+    return new Ring(new Map(held.map((one) => [one.role.id, one.key])), new Map(held.map((one) => [one.role.id, one.role])));
+  }
+
   /** Hält dieser Bund den Schlüssel dieser Rolle? */
   has = (roleId: string): boolean => this.keys.has(roleId);
 

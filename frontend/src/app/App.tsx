@@ -21,14 +21,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { Crumbs } from './Crumbs';
 import { HeaderSlotContext } from './headerSlot';
 import {
-  foreignHost, localPath, needsIdentity, parsePath, path, spotOf,
+  foreignHost, localPath, needsIdentity, parsePath, path, spotOf, viewPath,
   type Address, type Spot
 } from './routes';
 import { forgetAreaKeys } from './chat';
 import { forget as forgetState } from './prefs';
 import { keepFromAddress } from './seatKeep';
-import { keepLinkFromAddress } from './linkKeep';
+import { heldLinks, keepLinkFromAddress } from './linkKeep';
 import { HeldLinkBar } from './HeldLinkBar';
+import { LinkCalendar } from './LinkCalendar';
 import { signOut, whoIsThere, type Who } from './session';
 import { PublicPage } from './PublicPage';
 import { SeatPortal } from './SeatPortal';
@@ -84,6 +85,9 @@ export function App() {
 
   /** `undefined` = noch nicht nachgesehen, `null` = niemand. */
   const [who, setWho] = useState<Who | null | undefined>(undefined);
+
+  /* Ohne Konto, mit einem Link: der Kalender geht auf — es sei denn, jemand will sich anmelden. */
+  const [signInWanted, setSignInWanted] = useState(false);
 
   const look = useCallback(async () => {
     if (!needsIdentity(address)) { setWho(null); return; }
@@ -174,6 +178,23 @@ export function App() {
   }
 
   if (who === null) {
+    const here = address.route === 'workspace' ? spotOf(address) : null;
+    const view = here !== null && here.kind === 'view' ? here.view : null;
+    const linked = address.route === 'workspace' && heldLinks().length > 0;
+
+    /*
+     * EIN LINK MIT ZUGANG ÖFFNET DEN KALENDER AUCH OHNE KONTO (0073). Das
+     * Formular der Links bietet ihn als Ziel an; vorher stand, wer so einen
+     * Link öffnete, vor „Zaloguj się", und der Zugang ging an der Tür verloren.
+     */
+    if (linked && view === 'calendar' && !signInWanted) {
+      return (
+        <Shell wide>
+          <LinkCalendar fallback={<SignIn onDone={setWho} />} onSignIn={() => setSignInWanted(true)} />
+        </Shell>
+      );
+    }
+
     return (
       <Shell>
         {address.route === 'dolacz' && (
@@ -181,6 +202,19 @@ export function App() {
             <p className="wk-note">Masz zaproszenie. Zaloguj się albo załóż konto, żeby dodać ten dostęp do konta.</p>
             <JoinWithoutAccount token={address.slug} />
           </>
+        )}
+
+        {/*
+          Die übrigen Teile des Arbeitsplatzes brauchen ein Konto — und das wird
+          GESAGT, statt den Menschen mit seinem Link vor einem Anmeldeformular
+          stehen zu lassen, das ihn nicht meint.
+        */}
+        {linked && view !== 'calendar' && (
+          <p className="wk-note">
+            Masz w tej przeglądarce link z dostępem. Ta część warsztatu działa tylko z kontem: zaloguj się
+            albo załóż konto, a link dodasz do niego jednym przyciskiem. Bez konta link działa na stronach
+            i w <a className="wk-link" href={viewPath('calendar')}>kalendarzu</a>.
+          </p>
         )}
         <SignIn onDone={setWho} />
       </Shell>

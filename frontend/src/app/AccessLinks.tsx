@@ -304,6 +304,17 @@ function NewLink({ ring, self, areas, focusAreaId, busy, onCreate }: {
   );
 }
 
+/**
+ * Braucht dieses Ziel ein Konto? Der Arbeitsplatz ja — bis auf den Kalender,
+ * der mit einem Link auch ohne Konto aufgeht (`LinkCalendar`). Das Formular
+ * sagte vorher bei jedem Ziel „także bez konta", und für die Rozmowy stimmte
+ * es nicht.
+ */
+const needsAccount = (aim: string): boolean => {
+  const [part, view] = aim.split('?')[0].split('/');
+  return part === 'workspace' && view !== 'calendar';
+};
+
 /** Das Ziel: tippen, einfügen oder aus der Liste wählen. */
 function AimField({ value, onChange, choices }: {
   value: string;
@@ -325,7 +336,9 @@ function AimField({ value, onChange, choices }: {
         ? <span className="wk-error">{parsed.error}</span>
         : parsed.aim === null
           ? <span className="wk-hint">Puste: link otwiera stronę dołączenia. Z celem: otwiera tę stronę i od razu daje na niej dostęp — także bez konta, w tej przeglądarce.</span>
-          : <span className="wk-hint">Otworzy: <a href={`#/${parsed.aim}`} target="_blank" rel="noopener noreferrer">{aimWords(parsed.aim)}</a> — z dostępem od razu, także bez konta.</span>}
+          : <span className="wk-hint">Otworzy: <a href={`#/${parsed.aim}`} target="_blank" rel="noopener noreferrer">{aimWords(parsed.aim)}</a> — {needsAccount(parsed.aim)
+            ? 'ta część warsztatu wymaga konta: kto otworzy link, zaloguje się i doda go do konta. Bez konta działają strony i kalendarz.'
+            : 'z dostępem od razu, także bez konta.'}</span>}
     </label>
   );
 }

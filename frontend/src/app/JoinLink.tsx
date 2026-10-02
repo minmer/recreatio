@@ -158,7 +158,11 @@ export function JoinWithoutAccount({ token }: { token: string | null }) {
   return (
     <div className="wk-note wk-join-free">
       <p><strong>{info.label ?? 'Link'}</strong> — {accessWords(info.areas)}.</p>
-      <p>Bez konta ten dostęp działa w tej przeglądarce (do czytania).{info.aim !== null && <> <a href={`#/${info.aim}`}>Otwórz bez logowania</a>.</>} Z kontem — na każdym urządzeniu i do pisania.</p>
+      <p>
+        Bez konta ten dostęp działa w tej przeglądarce — na stronach, do których prowadzi (w kalendarzu na stronie także
+        dopisywanie, jeśli link na to pozwala).{info.aim !== null && <> <a href={`#/${info.aim}`}>Otwórz bez logowania</a>.</>}
+        {' '}Z kontem — na każdym urządzeniu i w całym warsztacie.
+      </p>
     </div>
   );
 }

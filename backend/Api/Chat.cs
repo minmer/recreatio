@@ -1203,12 +1203,13 @@ public static partial class Chat
     /// <summary>Die Namen der Mitglieder eines Bereichs, versiegelt — fuer die Seite des Bereichs.</summary>
     private static async Task AreaNamesAsync(HttpContext ctx, Db db, Guid id)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        if (!await Area.MayAsync(connection, who.Value.AccountId, id, Capability.Read, ctx.RequestAborted))
+        /* Die Namen liegen unter dem Schlüssel des Bereichs — wer ihn hält (auch ein Link), öffnet sie (`Caller`). */
+        var caller = await Callers.OfAsync(ctx, db, connection);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        if (!await Area.MayAsync(connection, caller, id, Capability.Read, ctx.RequestAborted))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
             return;

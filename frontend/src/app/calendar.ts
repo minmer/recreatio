@@ -149,6 +149,8 @@ export interface Occurrence {
 
 export interface Days {
   readonly calendarId: string;
+  /** Der Bereich des Kalenders — wer darin schreibt, trägt hier ein. */
+  readonly areaId?: string;
   /** 0058 — wie der Kalender heisst und wie seine Termine gemeint sind. */
   readonly title?: string | null;
   readonly description?: string | null;
@@ -340,11 +342,19 @@ const window_ = (from?: Date, to?: Date): string => {
   return query.toString();
 };
 
+/**
+ * Mit Konto: was meine Rollen lesen — und DAZU, was der oben auf der Seite
+ * gewählte Platz und die Links mit Zugang in diesem Browser aufschliessen.
+ * Ohne die beiden zeigte derselbe Kalender einem Angemeldeten weniger als
+ * einem Besucher mit demselben Link.
+ */
 export const loadItems = (
-  calendarId: string, from?: Date, to?: Date, kind?: ItemKind
+  calendarId: string, from?: Date, to?: Date, kind?: ItemKind, seat?: string, links: readonly string[] = []
 ): Promise<Days> => {
   const query = new URLSearchParams(window_(from, to));
   if (kind !== undefined) query.set('kind', kind);
+  if (seat !== undefined && seat !== '') query.set('seat', seat);
+  if (links.length > 0) query.set('links', links.join(','));
 
   return call<Days>(`/workspace/calendar/${encodeURIComponent(calendarId)}/items?${query}`);
 };
